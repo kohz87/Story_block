@@ -10,7 +10,7 @@
 // "Reveal secret" button, are not in the DOM until revealed, and never show in the
 // change marks.
 
-import { button, el, emptyText, plural, renderEmpty, renderFrame, stop } from '../dom.js';
+import { button, changeDot, el, emptyText, renderChanges, renderEmpty, renderFrame, stop } from '../dom.js';
 import { render as renderPlain } from './plain.js';
 import { ARC_PHASES, SCENE_PHASES, diffScene, parseScene, pcName, phaseStep } from '../../scene.js';
 
@@ -54,19 +54,6 @@ function icon(name) {
     return glyph;
 }
 
-function changeNote(change) {
-    const node = el('div', `story-block-scene-change is-${change.type}`);
-    const dot = el('span', 'story-block-scene-change-dot');
-    dot.setAttribute('aria-hidden', 'true');
-    node.appendChild(dot);
-    let text = 'Changed';
-    if (change.type === 'added' && !change.from) text = 'New';
-    else if (change.from !== undefined || change.to !== undefined) text = `${String(change.from ?? '').trim() || '—'} → ${String(change.to ?? '').trim() || '—'}`;
-    node.appendChild(el('span', 'story-block-scene-change-text', text));
-    node.title = text === 'New' ? 'New since the previous state' : 'Changed since the previous state';
-    return node;
-}
-
 // The first clause of the mood, for a pill that is read at a glance; the full line
 // still shows as a row when the pill had to shorten it.
 function moodPill(mood) {
@@ -83,18 +70,11 @@ function renderChips(scene, changeFor) {
         const value = scene[chip.key];
         if (!value) continue;
         const change = changeFor(chip.label);
-        const item = el('li', `story-block-scene-chip is-${chip.key}${change ? ` is-changed is-${change.type}` : ''}`);
+        const item = el('li', `story-block-scene-chip is-${chip.key}`);
         item.append(icon(chip.icon), srOnly(`${chip.label}: `));
         // The template's `Place | Region` reads better with a middle dot.
         item.appendChild(el('span', 'story-block-scene-chip-text', value.replace(/\s*\|\s*/g, ' · ')));
-        if (change) {
-            const dot = el('span', 'story-block-scene-change-dot');
-            dot.setAttribute('aria-hidden', 'true');
-            item.appendChild(dot);
-            const was = String(change.from ?? '').trim();
-            item.title = was ? `Was: ${was}` : 'New since the previous state';
-            item.appendChild(srOnly(was ? ` (was ${was})` : ' (new)'));
-        }
+        if (change) item.appendChild(changeDot(change));
         list.appendChild(item);
     }
     for (const extra of scene.extras ?? []) {
@@ -135,10 +115,10 @@ function renderSecret(name, secret, memory) {
     return wrap;
 }
 
-function renderPerson(entry, { isPc, changeFor, changes, memory }) {
+function renderPerson(entry, { isPc, changeFor, memory }) {
     const name = isPc ? pcName(entry) : entry.name;
     const joined = isPc ? null : changeFor(entry.name);
-    const card = el('div', `story-block-scene-person${isPc ? ' is-pc' : ''}${joined && joined.type === 'added' ? ' is-added' : ''}`);
+    const card = el('div', `story-block-scene-person${isPc ? ' is-pc' : ''}`);
     card.setAttribute('role', 'listitem');
 
     const head = el('div', 'story-block-scene-person-head');
@@ -162,8 +142,8 @@ function renderPerson(entry, { isPc, changeFor, changes, memory }) {
     if (mood) {
         const pill = el('span', 'story-block-scene-mood', mood.short);
         pill.title = `Mood: ${fields.Mood}`;
-        if (moodChange) pill.classList.add('is-changed');
         head.appendChild(pill);
+        if (moodChange) head.appendChild(changeDot(moodChange));
     }
     card.appendChild(head);
 
@@ -171,30 +151,17 @@ function renderPerson(entry, { isPc, changeFor, changes, memory }) {
         ...FIELD_ORDER.filter(label => fields[label]),
         ...Object.keys(fields).filter(label => !FIELD_ORDER.includes(label) && label !== 'Secret' && label !== 'Mood'),
     ];
-    // The mood row only when the pill could not hold it, or when it changed (the
-    // change note needs a row to sit under).
-    if (mood && (!mood.complete || moodChange)) labels.splice(Math.min(2, labels.length), 0, 'Mood');
+    // The mood row only when the pill had to shorten it.
+    if (mood && !mood.complete) labels.splice(Math.min(2, labels.length), 0, 'Mood');
 
     const rows = el('div', 'story-block-scene-rows');
     for (const label of labels) {
         const change = changeFor(`${name} · ${label}`);
         const slug = changeKey(label).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'field';
         const row = el('div', `story-block-scene-row is-${slug}${change ? ' is-changed' : ''}`);
-        row.append(el('span', 'story-block-scene-k', label), el('span', 'story-block-scene-v', fields[label]));
-        if (change) row.appendChild(changeNote(change));
-        rows.appendChild(row);
-    }
-    // A field emptied this reply ("Carrying" gone) has no row of its own; its mark
-    // still shows, labelled, so the reader sees what went.
-    const prefix = changeKey(`${name} · `);
-    for (const change of changes) {
-        const key = changeKey(change.label);
-        if (!key.startsWith(prefix) || String(change.to ?? '').trim()) continue;
-        const label = String(change.label).slice(String(change.label).lastIndexOf('·') + 1).trim();
-        if (labels.some(shown => changeKey(shown) === changeKey(label))) continue;
-        const row = el('div', 'story-block-scene-row is-changed is-dropped');
-        row.append(el('span', 'story-block-scene-k', label), el('span', 'story-block-scene-v', '—'));
-        row.appendChild(changeNote(change));
+        const key = el('span', 'story-block-scene-k', label);
+        if (change) key.appendChild(changeDot(change));
+        row.append(key, el('span', 'story-block-scene-v', fields[label]));
         rows.appendChild(row);
     }
     if (rows.children.length) card.appendChild(rows);
@@ -231,8 +198,8 @@ function renderLists(scene, changeFor) {
         for (const text of scene[group.key]) {
             // Only threads are diffed; seeds and timers tick every reply and would be noise.
             const change = group.key === 'threads' ? changeFor(text) : null;
-            const item = el('li', `story-block-scene-item${change ? ` is-changed is-${change.type}` : ''}`, text);
-            if (change) item.title = 'New since the previous state';
+            const item = el('li', 'story-block-scene-item', text);
+            if (change) item.appendChild(changeDot(change));
             list.appendChild(item);
         }
         section.appendChild(list);
@@ -244,9 +211,10 @@ function renderPhase(kind, value, changeFor) {
     const label = kind === 'arc' ? 'Arc Phase' : 'Scene Phase';
     const ladder = kind === 'arc' ? ARC_PHASES : SCENE_PHASES;
     const change = changeFor(label);
-    const node = el('div', `story-block-scene-phase is-${kind}${change ? ' is-changed' : ''}`);
+    const node = el('div', `story-block-scene-phase is-${kind}`);
     const head = el('div', 'story-block-scene-phase-head');
     head.append(el('span', 'story-block-scene-sub', kind === 'arc' ? 'Arc' : 'Scene'), el('span', 'story-block-scene-phase-name', value));
+    if (change) head.appendChild(changeDot(change));
     node.appendChild(head);
     const at = phaseStep(kind, value);
     // A phase the ladder does not have is shown as written, without guessing a position.
@@ -262,8 +230,27 @@ function renderPhase(kind, value, changeFor) {
         });
         node.appendChild(rail);
     }
-    if (change) node.appendChild(changeNote(change));
     return node;
+}
+
+// One line per change, worded for what changed: a field ("Astra · Mood: calm → wary"),
+// a person ("Old Brenn joined", "Brenn left") or a thread ("New thread: …").
+function sceneChangeWording(scene, before) {
+    const people = new Set([...(scene.people ?? []), ...(before?.people ?? [])].map(entry => changeKey(entry.name)));
+    const threads = new Set([...(scene.threads ?? []), ...(before?.threads ?? [])].map(changeKey));
+    return change => {
+        const label = String(change.label ?? '').trim();
+        // `Place | Region` reads as on the board, with a middle dot.
+        const tidy = value => String(value ?? '').trim().replace(/\s*\|\s*/g, ' · ');
+        const from = tidy(change.from);
+        const to = tidy(change.to);
+        const key = changeKey(label);
+        if (people.has(key)) return change.type === 'added' ? `${label} joined` : change.type === 'removed' ? `${label} left` : `${label} changed`;
+        if (threads.has(key)) return change.type === 'added' ? `New thread: ${label}` : change.type === 'removed' ? `Thread closed: ${label}` : `Thread: ${label}`;
+        if (change.type === 'added') return `${label}: ${to}`;
+        if (change.type === 'removed') return `${label}: no longer written`;
+        return `${label}: ${from || '—'} → ${to || '—'}`;
+    };
 }
 
 export function render(pane, {
@@ -314,13 +301,9 @@ export function render(pane, {
 
     const body = el('div', 'story-block-display-body story-block-scene');
 
-    if (changeList.length) {
-        const delta = el('div', 'story-block-scene-delta', `Δ ${plural(changeList.length, 'change')}${changesFromEarlierReply ? ' · earlier reply' : ''}`);
-        delta.title = changesFromEarlierReply
-            ? 'The newest reply carried no World State; these changes come from an earlier reply.'
-            : 'Changes since the previous state.';
-        body.appendChild(delta);
-    }
+    // Every change, worded once, folded away; the board itself only carries dots.
+    const before = typeof previousState?.text === 'string' ? parseScene(previousState.text, { layout: def?.layout }) : null;
+    renderChanges(body, changeList, { describe: sceneChangeWording(scene, before), fromEarlierReply: changesFromEarlierReply });
 
     const chips = renderChips(scene, changeFor);
     if (chips) body.appendChild(chips);
@@ -334,7 +317,7 @@ export function render(pane, {
         const people = el('div', 'story-block-scene-people');
         people.setAttribute('role', 'list');
         people.setAttribute('aria-label', 'Present');
-        everyone.forEach(({ entry, isPc }) => people.appendChild(renderPerson(entry, { isPc, changeFor, changes: changeList, memory })));
+        everyone.forEach(({ entry, isPc }) => people.appendChild(renderPerson(entry, { isPc, changeFor, memory })));
         body.appendChild(people);
     }
 
@@ -349,24 +332,5 @@ export function render(pane, {
         body.appendChild(phases);
     }
 
-    // People who left, threads that closed and scene fields no longer written are not
-    // on the board any more; say so once rather than drop them silently. The previous
-    // state, when given, tells a person from a thread; otherwise one neutral line.
-    const gone = changeList.filter(change => change.type === 'removed');
-    if (gone.length) {
-        const before = typeof previousState?.text === 'string' ? parseScene(previousState.text, { layout: def?.layout }) : null;
-        const wasPerson = new Set((before?.people ?? []).map(entry => changeKey(entry.name)));
-        const wasThread = new Set((before?.threads ?? []).map(changeKey));
-        const groups = [
-            ['Left the scene', gone.filter(change => wasPerson.has(changeKey(change.label)))],
-            ['Dropped threads', gone.filter(change => wasThread.has(changeKey(change.label)) && !wasPerson.has(changeKey(change.label)))],
-        ];
-        const rest = gone.filter(change => !wasPerson.has(changeKey(change.label)) && !wasThread.has(changeKey(change.label)));
-        groups.push(['No longer written', rest]);
-        for (const [title, list] of groups) {
-            if (!list.length) continue;
-            body.appendChild(el('div', 'story-block-scene-removed', `${title}: ${list.map(change => change.label).join(', ')}`));
-        }
-    }
     pane.appendChild(body);
 }

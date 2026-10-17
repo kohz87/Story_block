@@ -173,32 +173,34 @@ const NEXT = FULL
     .replace('* Who hired the cutters?\n', '* Who hired the cutters?\n* Why is the captain here?\n')
     .replace('* The guild collector arrives in two days\n', '');
 
-test('changes from previousState: marked on chips, rows, new people and threads; secrets never', () => {
+test('changes from previousState: dots on chips, rows, moods and threads; one folded section words them; secrets never', () => {
     const pane = show({ state: { text: NEXT }, previousState: { text: FULL } });
-    const time = pane.querySelector('.story-block-scene-chip.is-time');
-    assert.ok(time.classList.contains('is-changed'));
-    assert.equal(time.title, 'Was: Day 14 of Harvestmoon, dusk');
+    assert.ok(pane.querySelector('.story-block-scene-chip.is-time .story-block-change-dot'), 'a dot, not a coloured border');
+    assert.equal(pane.querySelectorAll('.story-block-scene-chip.is-changed').length, 0, 'chips keep one look');
 
     const astra = pane.querySelectorAll('.story-block-scene-person')[1];
-    const position = astra.querySelector('.story-block-scene-row.is-position');
-    assert.ok(position.classList.contains('is-changed'));
-    assert.equal(position.querySelector('.story-block-scene-change-text').textContent, 'At the wagon, counting rations → Beside Maelis at the fire');
-    assert.ok(astra.querySelector('.story-block-scene-mood').classList.contains('is-changed'));
-    assert.equal(astra.querySelector('.story-block-scene-row.is-mood .story-block-scene-change-text').textContent, 'Wary — keeps glancing at the treeline → Relieved');
-
-    const maelis = pane.querySelector('.story-block-scene-person.is-pc');
-    const dropped = maelis.querySelector('.story-block-scene-row.is-dropped');
-    assert.equal(dropped.querySelector('.story-block-scene-k').textContent, 'Carrying');
-    assert.equal(dropped.querySelector('.story-block-scene-change-text').textContent, 'Short sword, whetstone → —');
+    assert.ok(astra.querySelector('.story-block-scene-row.is-position .story-block-scene-k .story-block-change-dot'));
+    assert.ok(astra.querySelector('.story-block-scene-person-head .story-block-change-dot'), 'the mood change is a dot beside the pill');
+    assert.equal(pane.querySelector('.story-block-scene-change-text'), null, 'no inline from → to under the fields');
 
     const ivo = pane.querySelectorAll('.story-block-scene-person')[2];
-    assert.ok(ivo.classList.contains('is-added'));
     assert.equal(ivo.querySelector('.story-block-scene-tag.is-new').textContent, 'new');
-    assert.ok(pane.querySelector('.story-block-scene-items.is-threads .story-block-scene-item.is-added').textContent.startsWith('Why is the captain'));
+    assert.equal(pane.querySelectorAll('.story-block-scene-person.is-added').length, 0, 'every card keeps the same border');
+    assert.ok(pane.querySelector('.story-block-scene-items.is-threads .story-block-scene-item .story-block-change-dot'));
 
-    assert.deepEqual(texts(pane, '.story-block-scene-removed'), ['Left the scene: Merrit', 'Dropped threads: The guild collector arrives in two days']);
-    assert.match(pane.querySelector('.story-block-scene-delta').textContent, /^Δ \d+ changes$/);
-    assert.equal(astra.querySelector('.story-block-scene-secret .story-block-scene-change'), null);
+    const section = pane.querySelector('.story-block-changes');
+    assert.equal(section.open, false);
+    assert.equal(section.querySelector('.story-block-changes-title').textContent, 'Changed this turn');
+    const lines = texts(section, '.story-block-changes-text');
+    assert.equal(section.querySelector('.story-block-changes-count').textContent, String(lines.length));
+    assert.ok(lines.includes('Astra · Position: At the wagon, counting rations → Beside Maelis at the fire'));
+    assert.ok(lines.includes('Maelis · Carrying: Short sword, whetstone → —'));
+    assert.ok(lines.includes('Merrit left'));
+    assert.ok(lines.includes('Thread closed: The guild collector arrives in two days'));
+    assert.ok(lines.some(line => /^Ivo\b.* joined$/.test(line)));
+    assert.ok(lines.some(line => line.startsWith('New thread: Why is the captain')));
+    assert.equal(pane.querySelector('.story-block-scene-removed'), null);
+    assert.equal(pane.querySelector('.story-block-scene-delta'), null);
     assert.doesNotMatch(pane.textContent, /guild seal|paid by the guild/);
 });
 
@@ -210,12 +212,17 @@ test('changes passed in win over previousState; secret changes are filtered out;
         { type: 'removed', label: 'Weird' },
     ];
     const pane = show({ state: { text: FULL }, previousState: { text: NEXT }, changes, changesFromEarlierReply: true });
-    assert.deepEqual(pane.querySelectorAll('.story-block-scene-chip.is-changed').map(chip => chip.classList.contains('is-weather')), [true]);
-    assert.equal(pane.querySelector('.story-block-scene-row.is-agenda.is-changed .story-block-scene-change-text').textContent, 'Sleep → Make the food last to the city');
+    assert.deepEqual(pane.querySelectorAll('.story-block-scene-chip').filter(chip => chip.querySelector('.story-block-change-dot')).map(chip => chip.classList.contains('is-weather')), [true]);
+    assert.ok(pane.querySelector('.story-block-scene-row.is-agenda.is-changed .story-block-change-dot'));
     assert.doesNotMatch(pane.textContent, /old secret|new secret/);
-    assert.equal(pane.querySelector('.story-block-scene-delta').textContent, 'Δ 3 changes · earlier reply');
-    assert.match(pane.querySelector('.story-block-scene-delta').title, /earlier reply/);
-    assert.deepEqual(texts(pane, '.story-block-scene-removed'), ['No longer written: Weird']);
+    const section = pane.querySelector('.story-block-changes');
+    assert.equal(section.querySelector('.story-block-changes-title').textContent, 'Changed in an earlier reply');
+    assert.match(section.querySelector('.story-block-changes-summary').title, /did not update/);
+    assert.deepEqual(texts(section, '.story-block-changes-text'), [
+        'Weather: Clear → Light rain, cool, firelight',
+        'astra · agenda: Sleep → Make the food last to the city',
+        'Weird: no longer written',
+    ]);
 });
 
 test('text that is not a World State falls back to the plain display, every word kept', () => {

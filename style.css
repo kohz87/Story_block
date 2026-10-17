@@ -313,11 +313,7 @@
     padding: 0.4rem 0.55rem;
     border-radius: 5px;
     background: var(--sb-row-bg);
-    border-left: 3px solid transparent;
 }
-
-.story-block-field.is-changed { border-left-color: var(--sb-changed); }
-.story-block-field.is-added { border-left-color: var(--sb-added); }
 
 .story-block-field.is-unknown {
     opacity: 0.6;
@@ -991,9 +987,10 @@
  * the top-left with viewport units (vh/dvh, vw) — never with bottom, inset or percentages,
  * which would resolve against that zero-height box and put them off screen.
  *
- * Stacking: SillyTavern's side drawers sit around z-index 3000 and its popups around
- * 9999. A docked sidebar and the handle stay under its drawers (2900); an open drawer
- * or sheet and its scrim cover the chat (3100) but never SillyTavern's popups.
+ * Stacking: a docked sidebar and the edge handle stay under SillyTavern's side drawers
+ * (2900; the drawers sit around 3000). An open drawer or sheet and its scrim sit at
+ * 9000-9001, above other extensions' floating buttons, which covered the Edit button at
+ * 3100. SillyTavern's popups are <dialog>s in the top layer, so they still open above it.
  */
 
 .story-block-sidebar,
@@ -1020,7 +1017,7 @@
 
 .story-block-sidebar {
     position: fixed;
-    z-index: 3101;
+    z-index: 9001;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -1337,14 +1334,13 @@
     font-size: inherit;
 }
 
-.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-glyph,
-.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-short {
+/* The sheet's pills use the same short labels as the rail, so none is cut off. */
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-glyph {
     display: none;
 }
 
-.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-full {
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-short {
     display: inline;
-    max-width: 14em;
     font-size: 0.85rem;
 }
 
@@ -1399,7 +1395,7 @@
     width: 100vw;
     height: 100vh;
     height: 100dvh;
-    z-index: 3100;
+    z-index: 9000;
     background: rgba(0, 0, 0, .45);
     animation: story-block-fade var(--sb-motion) ease;
 }
@@ -1589,28 +1585,28 @@ button.story-block-strip:hover {
 
 /* Time, place, weather */
 
+/* One box for the scene, a plain row per fact: rows of different lengths with borders
+   of their own read as clutter. */
 .story-block-scene-chips {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
+    flex-direction: column;
+    gap: 0.3rem;
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    background: var(--sb-row-bg);
 }
 
 .story-block-scene-chip {
     position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    max-width: 100%;
-    min-height: 1.9rem;
-    padding: 0.2rem 0.6rem;
-    border: 1px solid var(--sb-border);
-    border-radius: 7px;
-    background: var(--sb-row-bg);
-    font-size: 0.9em;
-    line-height: 1.3;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+    font-size: 0.92em;
+    line-height: 1.35;
     overflow-wrap: anywhere;
 }
 
@@ -1626,16 +1622,9 @@ button.story-block-strip:hover {
     opacity: 0.75;
 }
 
-.story-block-scene-chip.is-changed {
-    border-color: color-mix(in srgb, var(--sb-changed) 60%, var(--sb-border));
-}
-
-.story-block-scene-chip.is-added {
-    border-color: color-mix(in srgb, var(--sb-added) 60%, var(--sb-border));
-}
-
-.story-block-scene-chip > .story-block-scene-change-dot {
-    flex: none;
+.story-block-scene-chip > i {
+    width: 1.1em;
+    text-align: center;
 }
 
 /* People */
@@ -1652,18 +1641,9 @@ button.story-block-strip:hover {
     gap: 0.35rem;
     padding: 0.55rem 0.65rem;
     border: 1px solid var(--sb-border);
-    border-left: 3px solid transparent;
     border-radius: 8px;
     background: var(--sb-row-bg);
     overflow-wrap: anywhere;
-}
-
-.story-block-scene-person.is-pc {
-    border-left-color: var(--sb-accent);
-}
-
-.story-block-scene-person.is-added {
-    border-left-color: var(--sb-added);
 }
 
 .story-block-scene-person-head {
@@ -2644,6 +2624,106 @@ button.story-block-strip:hover {
         border-color: CanvasText;
     }
 }
+
+/*
+ * "Changed this turn": one folded section, the same in every display. Changed things on
+ * the board carry only a small dot; the wording of each change lives here.
+ */
+.story-block-changes {
+    margin: 0 0 0.6rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    background: var(--sb-row-bg);
+}
+
+.story-block-changes-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.25rem;
+    padding: 0 0.65rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.story-block-changes-summary::-webkit-details-marker {
+    display: none;
+}
+
+.story-block-changes-summary::after {
+    content: '';
+    width: 0.45em;
+    height: 0.45em;
+    margin-left: auto;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    opacity: 0.6;
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 0.15s ease;
+}
+
+.story-block-changes[open] > .story-block-changes-summary::after {
+    transform: rotate(-135deg) translateY(-1px);
+}
+
+.story-block-changes-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: var(--sb-badge-bg, #d9a441);
+    color: var(--sb-badge-text, #16120a);
+    font-size: 0.8em;
+    font-variant-numeric: tabular-nums;
+}
+
+.story-block-changes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0.1rem 0.65rem 0.55rem;
+    list-style: none;
+    font-size: 0.88em;
+    line-height: 1.4;
+}
+
+.story-block-changes-item {
+    display: flex;
+    gap: 0.45rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-changes-glyph {
+    flex: none;
+    width: 1em;
+    font-weight: 700;
+    text-align: center;
+}
+
+.story-block-changes-item.is-added .story-block-changes-glyph { color: var(--sb-added, #5fb36b); }
+.story-block-changes-item.is-changed .story-block-changes-glyph { color: var(--sb-changed, #d9a441); }
+.story-block-changes-item.is-moved .story-block-changes-glyph { color: var(--sb-moved, #6b9fd6); }
+.story-block-changes-item.is-removed .story-block-changes-glyph { color: var(--sb-removed, #d46a6a); }
+
+.story-block-change-dot {
+    display: inline-block;
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-left: 0.4rem;
+    border-radius: 50%;
+    background: var(--sb-changed, #d9a441);
+    vertical-align: middle;
+}
+
+.story-block-change-dot.is-added { background: var(--sb-added, #5fb36b); }
 
 /* Settings editor (src/ui/editor.js) */
 /* Story Block settings panel and block editor.

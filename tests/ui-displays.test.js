@@ -132,7 +132,7 @@ test('fields: unknown entries come last and muted', () => {
     assert.ok(mood.classList.contains('is-unknown'));
 });
 
-test('fields: entries named in changes are marked with from → to', () => {
+test('fields: changed entries carry a dot; every change is worded once in the folded "Changed this turn" section', () => {
     const changes = [
         { type: 'changed', label: 'HP', from: '80/100', to: '72/100' },
         { type: 'added', label: 'Skills', to: 'Archery 3, Stealth 2' },
@@ -141,9 +141,13 @@ test('fields: entries named in changes are marked with from → to', () => {
     const pane = show(fields, { def: sheetDef, state: sheet, changes });
     const marked = pane.querySelectorAll('.story-block-field.is-changed');
     assert.deepEqual(marked.map(node => node.querySelector('.story-block-field-label').textContent), ['HP', 'Skills']);
-    assert.equal(marked[0].querySelector('.story-block-field-change-text').textContent, '80/100 → 72/100');
-    assert.equal(marked[1].querySelector('.story-block-field-change-text').textContent, 'New');
-    assert.equal(pane.querySelector('.story-block-fields-removed').textContent, 'No longer written: Mana');
+    assert.ok(marked.every(node => node.querySelector('.story-block-change-dot')), 'a dot, not the wording, on the field');
+    assert.equal(pane.querySelector('.story-block-field-change-text'), null);
+    const section = pane.querySelector('.story-block-changes');
+    assert.equal(section.open, false, 'folded by default');
+    assert.equal(section.querySelector('.story-block-changes-title').textContent, 'Changed this turn');
+    assert.equal(section.querySelector('.story-block-changes-count').textContent, '3');
+    assert.deepEqual(texts(section, '.story-block-changes-text'), ['HP: 80/100 → 72/100', 'Skills: Archery 3, Stealth 2', 'Mana (gone)']);
 });
 
 test('fields: without changes, previousState is compared by label', () => {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1
+
+Calmer displays, and tablets get the drawer.
+
+- **Tablets get the drawer again.** Any touch screen up to 800 px wide was treated as a phone and got the bottom sheet; now only screens 640 px wide or narrower do.
+- **One "Changed this turn" section.** World State, Character Sheet and the other fields displays no longer put a before → after note under every changed field or a coloured border on every changed chip. Changed things carry a small dot, and all the changes are worded once in a folded "Changed this turn · N" section at the top (Inventory's change strip uses the same wording).
+- **World State reads as one board:** time, place and weather are plain rows in one box instead of separate bordered chips of different lengths; every person card has the same border, with "you" as a tag; the "Left the scene" and "No longer written" lines moved into the changes section.
+- **Short labels on the phone sheet's tabs** too, so none is cut off ("Dice: Ever…").
+- **The open drawer and sheet sit above other extensions' floating buttons**, which covered the Edit button. SillyTavern's own popups still open above it.
+
 ## 0.5.0
 
 NPC Inner Chatter, and dice written one tag per roll.

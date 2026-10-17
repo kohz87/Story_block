@@ -4,7 +4,7 @@
 // not know (`unknown`) are kept but shown last and muted, so nothing the model said is
 // hidden and nothing unexpected looks official.
 
-import { blockName, el, emptyText, renderEmpty, renderFrame } from '../dom.js';
+import { blockName, changeDot, el, emptyText, renderChanges, renderEmpty, renderFrame } from '../dom.js';
 import { render as renderPlain } from './plain.js';
 
 const DEFAULT_METER_MAX = 100;
@@ -100,24 +100,12 @@ function renderValue(entry, def) {
     }
 }
 
-function renderChange(change) {
-    const node = el('div', `story-block-field-change is-${change.type}`);
-    const dot = el('span', 'story-block-field-change-dot');
-    dot.setAttribute('aria-hidden', 'true');
-    node.appendChild(dot);
-    let text = 'Changed';
-    if (change.type === 'added') text = 'New';
-    else if (change.from !== undefined || change.to !== undefined) text = `${String(change.from ?? '').trim() || '—'} → ${String(change.to ?? '').trim() || '—'}`;
-    node.appendChild(el('span', 'story-block-field-change-text', text));
-    node.title = change.type === 'added' ? 'New since the previous state' : 'Changed since the previous state';
-    return node;
-}
-
 export function render(pane, {
     def,
     state,
     previousState = null,
     changes = null,
+    changesFromEarlierReply = false,
     error = null,
     truncated = false,
     onEdit = null,
@@ -135,9 +123,10 @@ export function render(pane, {
 
     const changeList = Array.isArray(changes) ? changes : simpleDiff(previousState, state);
     const changeByLabel = new Map(changeList.filter(change => change.type !== 'removed').map(change => [labelKey(change.label), change]));
-    const removed = changeList.filter(change => change.type === 'removed');
 
     const body = el('div', 'story-block-display-body');
+    // Every change, worded once, folded away; the fields themselves only carry dots.
+    renderChanges(body, changeList, { fromEarlierReply: changesFromEarlierReply });
     const list = el('div', 'story-block-fields');
     list.setAttribute('role', 'list');
     list.setAttribute('aria-label', blockName(def));
@@ -146,17 +135,14 @@ export function render(pane, {
     for (const entry of ordered) {
         const type = ['meter', 'number', 'text', 'list'].includes(entry.type) ? entry.type : 'text';
         const change = changeByLabel.get(labelKey(entry.label));
-        const field = el('div', `story-block-field is-${type}${entry.unknown ? ' is-unknown' : ''}${change ? ` is-changed is-${change.type}` : ''}`);
+        const field = el('div', `story-block-field is-${type}${entry.unknown ? ' is-unknown' : ''}${change ? ' is-changed' : ''}`);
         field.setAttribute('role', 'listitem');
         const label = el('div', 'story-block-field-label', entry.label);
         if (entry.unknown) label.title = 'Not in this block\'s definition';
+        if (change) label.appendChild(changeDot(change));
         field.append(label, renderValue({ ...entry, type }, def));
-        if (change) field.appendChild(renderChange(change));
         list.appendChild(field);
     }
     body.appendChild(list);
-    if (removed.length) {
-        body.appendChild(el('div', 'story-block-fields-removed', `No longer written: ${removed.map(change => change.label).join(', ')}`));
-    }
     pane.appendChild(body);
 }

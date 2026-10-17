@@ -87,8 +87,8 @@ test('layoutMode decides sheet, docked or drawer from the room beside the chat',
     const cases = [
         ['phone', { viewportWidth: 390, chatRect: chat(390) }, 'sheet'],
         ['phone edge', { viewportWidth: 640, chatRect: chat(640) }, 'sheet'],
-        ['coarse tablet', { viewportWidth: 800, chatRect: chat(700), coarse: true }, 'sheet'],
-        ['coarse wide tablet', { viewportWidth: 1024, chatRect: chat(700), coarse: true }, 'docked'],
+        ['tablet', { viewportWidth: 800, chatRect: chat(700) }, 'drawer'],
+        ['wide tablet', { viewportWidth: 1024, chatRect: chat(700) }, 'docked'],
         ['wide with gutter', { viewportWidth: 1440, chatRect: chat(1080) }, 'docked'],
         ['wide, right drawer open', { viewportWidth: 1440, chatRect: chat(1080), blockedRight: 360 }, 'drawer'],
         ['wide, unpinned', { viewportWidth: 1440, chatRect: chat(1080), pinned: false }, 'drawer'],
@@ -355,8 +355,10 @@ test('sheet on phones: pill tabs, grip tap toggles height, drags expand or close
     assert.ok(!aside.classList.contains('is-open'));
 });
 
-test('coarse-pointer tablets use the sheet', () => {
+test('touch tablets get the drawer; only phone widths get the sheet', () => {
     reset(780, { chatRight: 780, coarse: true });
+    assert.equal(mountSidebar([counted('a', 'A')], { uiKey: freshKey() }).dataset.mode, 'drawer');
+    reset(600, { chatRight: 600, coarse: true });
     assert.equal(mountSidebar([counted('a', 'A')], { uiKey: freshKey() }).dataset.mode, 'sheet');
 });
 

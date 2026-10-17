@@ -25,7 +25,7 @@ import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.5.0';
+const VERSION = '0.5.1';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
