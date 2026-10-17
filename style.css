@@ -1,0 +1,1389 @@
+/*
+ * Story Block card and displays.
+ *
+ * The card lives inside a chat message, so layout follows the card's and the pane's
+ * own width (container queries), not the viewport: a phone, a narrow chat column and
+ * a wide desktop chat each get the layout that fits. Base styles are the narrow
+ * layout; wider containers progressively add columns and the category tree.
+ *
+ * With compatMarkup the card also carries Megumin Suite's class names. Every rule
+ * here is keyed on our own classes so Megumin's stylesheet (when installed) and ours
+ * do not fight over each other's cards, and tabs other extensions add to our strip
+ * (NPC State Delta's "Present NPCs") are styled like ours.
+ */
+
+.story-block-card,
+.story-block-display {
+    --sb-accent: var(--SmartThemeQuoteColor, #e18a24);
+    --sb-border: var(--SmartThemeBorderColor, rgba(127, 127, 127, .28));
+    --sb-row-bg: rgba(127, 127, 127, .07);
+    --sb-hover-bg: rgba(127, 127, 127, .14);
+    --sb-track: rgba(127, 127, 127, .22);
+    --sb-added: #5fb36b;
+    --sb-changed: #d9a441;
+    --sb-moved: #6b9fd6;
+    --sb-removed: #d46a6a;
+}
+
+/* Card */
+
+.story-block-card {
+    container: story-block-card / inline-size;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin-top: 0.65rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 0.95em;
+    color: var(--SmartThemeBodyColor, inherit);
+    text-align: left;
+}
+
+.story-block-card *,
+.story-block-card *::before,
+.story-block-card *::after {
+    box-sizing: border-box;
+}
+
+/* Tabs wrap instead of scrolling sideways, so nothing can push the page wider. */
+.story-block-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.35rem;
+    border-bottom: 1px solid var(--sb-border);
+    min-width: 0;
+}
+
+.story-block-tabs > button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.2rem;
+    margin: 0;
+    padding: 0.3rem 0.6rem;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+    opacity: 0.75;
+}
+
+.story-block-tabs > button:hover {
+    opacity: 1;
+    background: var(--sb-hover-bg);
+}
+
+.story-block-tabs > button:focus-visible {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: -2px;
+}
+
+.story-block-tabs > button.active {
+    opacity: 1;
+    background: color-mix(in srgb, var(--sb-accent) 16%, transparent);
+    box-shadow: inset 0 -2px 0 var(--sb-accent);
+}
+
+.story-block-tab-icon,
+.story-block-tabs .meg-blocks-tab-emoji {
+    flex: none;
+}
+
+.story-block-tab-icon:empty {
+    display: none;
+}
+
+.story-block-tab-label,
+.story-block-tabs .meg-blocks-tab-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.story-block-tabs > .story-block-collapse {
+    margin-left: auto;
+    flex: none;
+    justify-content: center;
+    min-width: 2.2rem;
+    padding: 0.3rem 0.5rem;
+}
+
+.story-block-collapse i {
+    transition: transform 0.15s ease;
+}
+
+/*
+ * Collapsed: a compat card is shut by Megumin's class alone (NPC State Delta adds
+ * and removes it), a plain card by ours. Only the panel hides; the strip stays.
+ */
+.story-block-card.story-block-shut > .story-block-panel,
+.story-block-card.meg-blocks-shut > .story-block-panel {
+    display: none;
+}
+
+.story-block-card.story-block-shut > .story-block-tabs,
+.story-block-card.meg-blocks-shut > .story-block-tabs {
+    border-bottom: 0;
+}
+
+.story-block-card.story-block-shut > .story-block-tabs > button.active,
+.story-block-card.meg-blocks-shut > .story-block-tabs > button.active {
+    background: none;
+    box-shadow: none;
+}
+
+.story-block-card.story-block-shut .story-block-collapse i,
+.story-block-card.meg-blocks-shut .story-block-collapse i {
+    transform: rotate(-90deg);
+}
+
+.story-block-panel,
+.story-block-pane {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* Phone-width cards: inactive tabs show their icon only. */
+@container story-block-card (max-width: 360px) {
+    .story-block-tabs > button:not(.active):not(.story-block-collapse) .story-block-tab-label,
+    .story-block-tabs > button:not(.active):not(.story-block-collapse) .meg-blocks-tab-label {
+        display: none;
+    }
+
+    .story-block-tabs > button:not(.active):not(.story-block-collapse):has(.story-block-tab-icon:empty) .story-block-tab-label {
+        display: inline;
+    }
+
+    .story-block-tabs > button {
+        padding: 0.3rem 0.5rem;
+    }
+}
+
+/* Displays: shared parts */
+
+.story-block-display {
+    container: story-block / inline-size;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-display button:not(.menu_button) {
+    appearance: none;
+    background: none;
+    border: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.story-block-display button:focus-visible {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: -2px;
+    border-radius: 5px;
+}
+
+.story-block-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.7rem 0.35rem;
+}
+
+.story-block-head-titles {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.6rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.story-block-title {
+    font-weight: 700;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-summary,
+.story-block-tree-count,
+.story-block-tree-location-count {
+    opacity: 0.65;
+    font-size: 0.85em;
+    font-variant-numeric: tabular-nums;
+}
+
+.story-block-actions {
+    display: flex;
+    gap: 0.3rem;
+    flex: none;
+}
+
+.story-block-icon-button {
+    min-width: 2.2rem;
+    min-height: 2.2rem;
+    margin: 0;
+    padding: 0.35rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.story-block-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0 0.7rem 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    font-size: 0.88em;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.story-block-notice > i {
+    flex: none;
+    margin-top: 0.15em;
+}
+
+.story-block-notice.is-error {
+    border-color: color-mix(in srgb, var(--sb-removed) 55%, transparent);
+    background: color-mix(in srgb, var(--sb-removed) 12%, transparent);
+}
+
+.story-block-notice.is-truncated {
+    border-color: color-mix(in srgb, var(--sb-changed) 55%, transparent);
+    background: color-mix(in srgb, var(--sb-changed) 12%, transparent);
+}
+
+.story-block-empty {
+    padding: 0.75rem;
+    opacity: 0.7;
+}
+
+/*
+ * Plain and fields bodies. Long content scrolls inside the pane; no overscroll
+ * containment, so wheel/touch scrolling continues into the chat at the end
+ * instead of trapping the page while the pointer is over the card.
+ */
+.story-block-display-body {
+    max-height: min(65vh, 42rem);
+    overflow-y: auto;
+    padding: 0.45rem 0.7rem 0.7rem;
+    border-top: 1px solid var(--sb-border);
+    min-width: 0;
+}
+
+/* Plain display */
+
+.story-block-plain-text {
+    line-height: 1.5;
+    white-space: normal;
+}
+
+/* Fields display */
+
+.story-block-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+}
+
+.story-block-field {
+    display: grid;
+    grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0.2rem;
+    min-width: 0;
+    padding: 0.4rem 0.55rem;
+    border-radius: 5px;
+    background: var(--sb-row-bg);
+    border-left: 3px solid transparent;
+}
+
+.story-block-field.is-changed { border-left-color: var(--sb-changed); }
+.story-block-field.is-added { border-left-color: var(--sb-added); }
+
+.story-block-field.is-unknown {
+    opacity: 0.6;
+}
+
+.story-block-field.is-unknown .story-block-field-label {
+    font-style: italic;
+}
+
+.story-block-field-label {
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-field-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-field-value.is-blank,
+.story-block-field-value.is-unreadable {
+    opacity: 0.7;
+}
+
+.story-block-number {
+    font-variant-numeric: tabular-nums;
+}
+
+.story-block-meter-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.story-block-meter {
+    flex: 1;
+    min-width: 3rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: var(--sb-track);
+    overflow: hidden;
+}
+
+.story-block-meter-fill {
+    height: 100%;
+    max-width: 100%;
+    border-radius: inherit;
+    background: var(--sb-accent);
+    transition: width 0.25s ease;
+}
+
+.story-block-meter.is-over .story-block-meter-fill {
+    background: var(--sb-changed);
+}
+
+.story-block-meter-text {
+    flex: none;
+    font-size: 0.9em;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+}
+
+.story-block-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-chip {
+    max-width: 100%;
+    padding: 0.1rem 0.55rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 999px;
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+.story-block-field-change {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    font-size: 0.82em;
+    opacity: 0.8;
+    overflow-wrap: anywhere;
+}
+
+.story-block-field-change-dot {
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--sb-changed);
+}
+
+.story-block-field-change.is-added .story-block-field-change-dot {
+    background: var(--sb-added);
+}
+
+.story-block-fields-removed {
+    margin-top: 0.45rem;
+    font-size: 0.85em;
+    opacity: 0.65;
+}
+
+/* Phone: label above value. */
+@container story-block (max-width: 340px) {
+    .story-block-field {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .story-block-field-change {
+        grid-column: 1;
+    }
+}
+
+/* Wide: two columns of short fields; text and lists keep the full width. */
+@container story-block (min-width: 640px) {
+    .story-block-fields {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .story-block-field.is-text,
+    .story-block-field.is-list {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Tree display: search */
+
+.story-block-tree-search {
+    padding: 0 0.7rem 0.45rem;
+}
+
+.story-block-tree-search-input {
+    width: 100%;
+    margin: 0;
+    min-height: 2.2rem;
+    box-sizing: border-box;
+}
+
+/* Changes since the previous state */
+
+.story-block-tree-changes {
+    margin: 0 0.7rem 0.5rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    background: var(--sb-row-bg);
+}
+
+.story-block-tree-changes-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.6rem;
+    min-height: 2.2rem;
+    box-sizing: border-box;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.story-block-tree-changes-summary::-webkit-details-marker {
+    display: none;
+}
+
+.story-block-tree-changes-summary::after {
+    content: '▸';
+    margin-left: auto;
+    opacity: 0.6;
+    flex: none;
+}
+
+.story-block-tree-changes[open] > .story-block-tree-changes-summary::after {
+    content: '▾';
+}
+
+.story-block-tree-changes-label {
+    font-weight: 700;
+    flex: none;
+}
+
+.story-block-tree-changes-preview {
+    min-width: 0;
+    overflow: hidden;
+    white-space: pre;
+    text-overflow: ellipsis;
+    opacity: 0.8;
+}
+
+.story-block-tree-changes[open] .story-block-tree-changes-preview {
+    display: none;
+}
+
+.story-block-tree-changes-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0.35rem 0.4rem;
+    display: grid;
+    gap: 0.1rem;
+}
+
+.story-block-tree-change-link {
+    display: block;
+    width: 100%;
+    padding: 0.3rem 0.45rem;
+    border-radius: 5px;
+    overflow-wrap: anywhere;
+    border-left: 3px solid transparent !important;
+}
+
+.story-block-tree-change-link:hover {
+    background: var(--sb-hover-bg);
+}
+
+.story-block-tree-change.is-added .story-block-tree-change-link { border-left-color: var(--sb-added) !important; }
+.story-block-tree-change.is-changed .story-block-tree-change-link { border-left-color: var(--sb-changed) !important; }
+.story-block-tree-change.is-moved .story-block-tree-change-link { border-left-color: var(--sb-moved) !important; }
+.story-block-tree-change.is-removed .story-block-tree-change-link { border-left-color: var(--sb-removed) !important; opacity: 0.85; }
+
+.story-block-tree-change-dot {
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--sb-accent);
+}
+
+/*
+ * Browser: drill-down by default. Long lists scroll inside the pane; no
+ * overscroll containment, so wheel/touch scrolling continues into the chat
+ * once the list reaches its end.
+ */
+.story-block-tree-browser {
+    border-top: 1px solid var(--sb-border);
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.story-block-tree-nav {
+    display: none;
+}
+
+.story-block-tree-main {
+    min-width: 0;
+    padding: 0.35rem 0.7rem 0.7rem;
+}
+
+.story-block-tree-node-name {
+    min-width: 0;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.story-block-tree-count {
+    flex: none;
+}
+
+/* Location: back button + breadcrumb */
+
+.story-block-tree-location {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+}
+
+.story-block-tree-back {
+    flex: none;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    font-size: 1.4em !important;
+    line-height: 1;
+    text-align: center !important;
+    border-radius: 6px;
+}
+
+.story-block-tree-back:hover,
+.story-block-tree-crumb-button:hover {
+    background: var(--sb-hover-bg) !important;
+}
+
+.story-block-tree-crumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.1rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    flex: 1;
+}
+
+.story-block-tree-crumb {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.story-block-tree-crumb + .story-block-tree-crumb::before {
+    content: '›';
+    opacity: 0.5;
+    padding: 0 0.3rem;
+}
+
+.story-block-tree-crumb-button {
+    padding: 0.3rem 0.35rem;
+    border-radius: 5px;
+    opacity: 0.75;
+    overflow-wrap: anywhere;
+}
+
+.story-block-tree-crumb-current {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.story-block-tree-crumb.is-middle {
+    display: none;
+}
+
+.story-block-tree-location-count {
+    flex: none;
+    margin-left: auto;
+}
+
+/* Sibling chips */
+
+.story-block-tree-siblings {
+    display: flex;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding: 0.1rem 0 0.5rem;
+    scrollbar-width: thin;
+}
+
+.story-block-tree-chip {
+    flex: none;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 16em;
+    min-height: 2.2rem;
+    padding: 0.25rem 0.7rem !important;
+    border: 1px solid var(--sb-border) !important;
+    border-radius: 999px;
+}
+
+.story-block-tree-chip .story-block-tree-node-name {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+}
+
+.story-block-tree-chip.is-selected {
+    border-color: var(--sb-accent) !important;
+    background: color-mix(in srgb, var(--sb-accent) 16%, transparent) !important;
+}
+
+/* Child category rows */
+
+.story-block-tree-children {
+    display: grid;
+    gap: 0.15rem;
+    margin-bottom: 0.55rem;
+}
+
+.story-block-tree-child {
+    display: flex !important;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.55rem !important;
+    border-radius: 6px;
+    background: var(--sb-row-bg) !important;
+    font-weight: 600 !important;
+}
+
+.story-block-tree-child:hover {
+    background: var(--sb-hover-bg) !important;
+}
+
+.story-block-tree-child-chevron {
+    flex: none;
+    opacity: 0.55;
+    font-size: 1.2em;
+}
+
+/* Items */
+
+/* One grid for the whole list; rows use subgrid so quantities line up. */
+.story-block-tree-items {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+    row-gap: 0.15rem;
+}
+
+.story-block-tree-group {
+    display: contents;
+}
+
+.story-block-tree-group.is-descendant {
+    display: none;
+}
+
+.story-block-tree-group-title,
+.story-block-tree-results-summary,
+.story-block-tree-items .story-block-empty {
+    grid-column: 1 / -1;
+}
+
+.story-block-tree-group-title {
+    margin: 0.55rem 0 0.1rem;
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    overflow-wrap: anywhere;
+}
+
+.story-block-tree-group.is-own > .story-block-tree-group-title {
+    display: none;
+}
+
+.story-block-tree-group-title:first-child {
+    margin-top: 0.1rem;
+}
+
+.story-block-tree-item {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    column-gap: 0.75rem;
+    row-gap: 0.1rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 5px;
+    background: var(--sb-row-bg);
+    border-left: 3px solid transparent;
+}
+
+.story-block-tree-item.is-added { border-left-color: var(--sb-added); }
+.story-block-tree-item.is-changed { border-left-color: var(--sb-changed); }
+.story-block-tree-item.is-moved { border-left-color: var(--sb-moved); }
+
+.story-block-tree-item-name,
+.story-block-tree-item-remark,
+.story-block-tree-item-qty {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-tree-item-name {
+    display: flex;
+    flex-direction: column;
+}
+
+.story-block-tree-item-path {
+    font-size: 0.8em;
+    opacity: 0.6;
+}
+
+.story-block-tree-item-qty {
+    text-align: right;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+    max-width: 10ch;
+}
+
+.story-block-tree-item-remark {
+    grid-column: 1 / -1;
+    padding-left: 0.75rem;
+    opacity: 0.8;
+    font-size: 0.93em;
+}
+
+.story-block-tree-item-remark:empty {
+    display: none;
+}
+
+.story-block-tree-results-summary {
+    opacity: 0.7;
+    font-size: 0.88em;
+    padding: 0.2rem 0 0.1rem;
+}
+
+/* Column labels from the block definition; only once rows sit on one line. */
+.story-block-tree-columns {
+    display: none;
+}
+
+/* Medium: single-line 3-column item rows */
+
+@container story-block (min-width: 480px) {
+    .story-block-tree-items {
+        grid-template-columns: minmax(0, 1.3fr) fit-content(10ch) minmax(0, 1.5fr);
+    }
+
+    .story-block-tree-item {
+        align-items: start;
+    }
+
+    .story-block-tree-item-remark {
+        grid-column: auto;
+        padding-left: 0;
+        font-size: inherit;
+    }
+
+    .story-block-tree-item-remark:empty {
+        display: block;
+    }
+
+    .story-block-tree-columns {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: subgrid;
+        column-gap: 0.75rem;
+        padding: 0.1rem 0.55rem 0.15rem calc(0.55rem + 3px);
+        font-size: 0.75em;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.55;
+    }
+
+    .story-block-tree-column {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .story-block-tree-column.is-col-2 {
+        text-align: right;
+    }
+}
+
+/* Wide: tree on the left, whole selected subtree on the right */
+
+@container story-block (min-width: 760px) {
+    .story-block-tree-browser {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        max-height: none;
+        overflow: visible;
+    }
+
+    /*
+     * Each column scrolls on its own. The height cap lives on the columns, not
+     * the grid: an auto grid row grows to its content, so a capped grid would
+     * clip the list instead of letting it scroll.
+     */
+    .story-block-tree-nav,
+    .story-block-tree-main {
+        max-height: min(60vh, 42rem);
+    }
+
+    .story-block-tree-nav {
+        display: block;
+        width: 15rem;
+        min-width: 10rem;
+        max-width: 50cqi;
+        resize: horizontal;
+        overflow: auto;
+        border-right: 1px solid var(--sb-border);
+        padding: 0.35rem 0.3rem;
+        box-sizing: border-box;
+    }
+
+    .story-block-tree-main {
+        overflow-y: auto;
+    }
+
+    .story-block-tree-back,
+    .story-block-tree-siblings,
+    .story-block-tree-children {
+        display: none !important;
+    }
+
+    .story-block-tree-crumb.is-middle {
+        display: flex;
+    }
+
+    .story-block-tree-crumb-ellipsis {
+        display: none;
+    }
+
+    .story-block-tree-location {
+        position: sticky;
+        top: -0.35rem;
+        z-index: 1;
+        background: var(--SmartThemeBlurTintColor, var(--SmartThemeChatTintColor, #1f1f1f));
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--sb-border);
+        margin-bottom: 0.45rem;
+    }
+
+    .story-block-tree-group.is-descendant {
+        display: contents;
+    }
+
+    .story-block-tree-group.is-own > .story-block-tree-group-title {
+        display: block;
+    }
+}
+
+/* Tree */
+
+.story-block-tree-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-tree-row {
+    display: flex;
+    align-items: flex-start;
+    padding-left: calc(var(--story-block-depth, 0) * 1rem);
+}
+
+.story-block-tree-toggle,
+.story-block-tree-spacer {
+    flex: none;
+    width: 1.4rem;
+    min-height: 2rem;
+    text-align: center !important;
+    opacity: 0.6;
+}
+
+.story-block-tree-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 1;
+    min-width: 0;
+    min-height: 2rem;
+    padding: 0.25rem 0.45rem !important;
+    border-radius: 5px;
+}
+
+.story-block-tree-label:hover {
+    background: var(--sb-hover-bg) !important;
+}
+
+.story-block-tree-label.is-selected {
+    background: color-mix(in srgb, var(--sb-accent) 18%, transparent) !important;
+    box-shadow: inset 2px 0 0 var(--sb-accent);
+    font-weight: 600;
+}
+
+/* Settings editor (src/ui/editor.js) */
+/* Story Block settings panel and block editor.
+   Everything is scoped under .story-block-settings and uses SillyTavern's theme
+   variables, so the panel follows the reader's theme. Rows wrap instead of scrolling
+   sideways: the settings drawer is often a phone-width column. */
+
+.story-block-settings {
+    --story-block-gap: 0.45rem;
+    --story-block-border: var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.4));
+    --story-block-accent: var(--SmartThemeQuoteColor, #e18a24);
+    --story-block-surface: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.15));
+    color: var(--SmartThemeBodyColor, inherit);
+    min-width: 0;
+    max-width: 100%;
+}
+
+.story-block-settings [hidden] {
+    display: none !important;
+}
+
+.story-block-settings *,
+.story-block-settings *::before,
+.story-block-settings *::after {
+    box-sizing: border-box;
+}
+
+.story-block-settings .story-block-status {
+    margin: 0.45rem 0;
+    opacity: 0.75;
+    overflow-wrap: anywhere;
+}
+
+.story-block-settings .story-block-status:empty {
+    display: none;
+}
+
+/* Block list */
+
+.story-block-settings .story-block-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--story-block-gap);
+    margin: 0.45rem 0;
+}
+
+.story-block-settings .story-block-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--story-block-gap);
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--story-block-border);
+    border-radius: 8px;
+    background: var(--story-block-surface);
+    min-width: 0;
+}
+
+.story-block-settings .story-block-row-disabled .story-block-row-main {
+    opacity: 0.55;
+}
+
+.story-block-settings .story-block-row-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--story-block-gap);
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.story-block-settings .story-block-row-icon {
+    font-size: 1.25em;
+    line-height: 1;
+}
+
+.story-block-settings .story-block-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    flex: 1 1 8rem;
+}
+
+.story-block-settings .story-block-row-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.story-block-settings .story-block-row-tag {
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.85em;
+    opacity: 0.75;
+    overflow-wrap: anywhere;
+}
+
+.story-block-settings .story-block-row-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.story-block-settings .story-block-badge {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--story-block-border);
+    border-radius: 999px;
+    font-size: 0.8em;
+    white-space: nowrap;
+}
+
+.story-block-settings .story-block-badge-kind {
+    border-color: color-mix(in srgb, var(--story-block-accent) 55%, transparent);
+}
+
+.story-block-settings .story-block-row-cost {
+    font-size: 0.8em;
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
+.story-block-settings .story-block-row-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--story-block-gap);
+    margin-left: auto;
+    min-width: 0;
+}
+
+.story-block-settings .story-block-check {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.story-block-settings .story-block-row-actions,
+.story-block-settings .story-block-field-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.story-block-settings .menu_button {
+    margin: 0;
+    width: auto;
+    white-space: nowrap;
+}
+
+.story-block-settings .menu_button > i + span {
+    margin-left: 0.35em;
+}
+
+.story-block-settings .story-block-icon-button {
+    min-width: 2.1em;
+    padding: 0.3rem 0.45rem;
+    justify-content: center;
+}
+
+.story-block-settings .menu_button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.story-block-settings .story-block-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--story-block-gap);
+    flex: 1 1 100%;
+    padding-top: 0.35rem;
+    border-top: 1px dashed var(--story-block-border);
+}
+
+.story-block-settings .story-block-confirm-text {
+    flex: 1 1 12rem;
+    overflow-wrap: anywhere;
+}
+
+.story-block-settings .story-block-confirm-yes {
+    border-color: var(--story-block-accent);
+}
+
+.story-block-settings .story-block-total,
+.story-block-settings .story-block-io-message,
+.story-block-settings .story-block-empty {
+    margin: 0.35rem 0;
+    opacity: 0.75;
+}
+
+.story-block-settings .story-block-total-cost {
+    font-weight: 600;
+}
+
+.story-block-settings .story-block-toolbar,
+.story-block-settings .story-block-add-menu,
+.story-block-settings .story-block-io-actions,
+.story-block-settings .story-block-editor-actions,
+.story-block-settings .story-block-editor-checks,
+.story-block-settings .story-block-field-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--story-block-gap);
+    margin: 0.45rem 0;
+}
+
+.story-block-settings .story-block-add-menu {
+    padding: 0.45rem;
+    border: 1px dashed var(--story-block-border);
+    border-radius: 8px;
+}
+
+/* Import / export */
+
+.story-block-settings .story-block-io {
+    display: flex;
+    flex-direction: column;
+    gap: var(--story-block-gap);
+    margin: 0.45rem 0;
+}
+
+.story-block-settings .story-block-io-title {
+    font-weight: 600;
+}
+
+.story-block-settings .story-block-import-text,
+.story-block-settings .story-block-export-text {
+    width: 100%;
+    min-height: 8rem;
+    resize: vertical;
+    font-family: var(--monoFontFamily, monospace);
+    white-space: pre;
+    margin: 0;
+}
+
+.story-block-settings .story-block-import-file {
+    max-width: 100%;
+}
+
+.story-block-settings .story-block-io-errors,
+.story-block-settings .story-block-editor-errors {
+    margin: 0.35rem 0;
+    padding: 0.45rem 0.55rem 0.45rem 1.6rem;
+    border: 1px solid var(--story-block-accent);
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+
+/* Editor */
+
+.story-block-settings .story-block-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin: 0.45rem 0;
+    min-width: 0;
+}
+
+.story-block-settings .story-block-editor-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--story-block-gap);
+}
+
+.story-block-settings .story-block-editor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: var(--story-block-gap);
+}
+
+.story-block-settings .story-block-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+    margin: 0;
+}
+
+.story-block-settings .story-block-editor-label {
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.story-block-settings .story-block-editor-hint {
+    opacity: 0.7;
+    overflow-wrap: anywhere;
+}
+
+.story-block-settings .story-block-tag-warning {
+    color: var(--story-block-accent);
+    opacity: 1;
+}
+
+.story-block-settings .story-block-editor .text_pole {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+}
+
+.story-block-settings .story-block-input-prompt {
+    min-height: 7rem;
+    resize: vertical;
+}
+
+.story-block-settings .story-block-editor-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--story-block-gap);
+    margin: 0;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--story-block-border);
+    border-radius: 8px;
+    min-width: 0;
+}
+
+.story-block-settings .story-block-editor-section > legend {
+    padding: 0 0.3rem;
+    font-weight: 600;
+}
+
+.story-block-settings .story-block-editor-group,
+.story-block-settings .story-block-editor-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+    gap: var(--story-block-gap);
+}
+
+.story-block-settings .story-block-field-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--story-block-gap);
+}
+
+.story-block-settings .story-block-field-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px dashed var(--story-block-border);
+}
+
+.story-block-settings .story-block-field-row .story-block-field-label {
+    flex: 1 1 8rem;
+    width: auto;
+}
+
+.story-block-settings .story-block-field-row .story-block-field-type {
+    flex: 0 1 7rem;
+    width: auto;
+}
+
+.story-block-settings .story-block-field-row .story-block-field-max {
+    flex: 0 1 5.5rem;
+    width: auto;
+}
+
+.story-block-settings .story-block-field-row .story-block-field-hint {
+    flex: 2 1 10rem;
+    width: auto;
+}
+
+@media (max-width: 600px) {
+    .story-block-settings .story-block-row-controls {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .story-block-settings .story-block-row-actions {
+        margin-left: auto;
+    }
+}
+
+/* Runtime controls above the editor (index.js) and the block body editor popup. */
+.story-block-runtime {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.story-block-runtime-version {
+    opacity: 0.7;
+    font-size: 0.85em;
+}
+
+.story-block-body-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+.story-block-body-editor-note {
+    font-size: 0.9em;
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
+.story-block-body-editor-textarea {
+    width: 100%;
+    min-height: 40vh;
+    box-sizing: border-box;
+    font-family: var(--monoFontFamily, monospace);
+    white-space: pre;
+    overflow-wrap: normal;
+}
