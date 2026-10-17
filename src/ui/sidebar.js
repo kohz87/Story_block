@@ -9,6 +9,11 @@
 // closed. The layout is re-decided whenever the window, the chat column or one of
 // SillyTavern's side drawers changes size.
 //
+// All three pieces live in one viewport-sized layer that clips them. A closed drawer or
+// sheet waits just off screen, and without the clip that would make SillyTavern's page
+// scrollable: focusing the panel, or the keyboard opening for the message box, then
+// scrolled the whole page and left the send form stranded mid-screen.
+//
 // Tabs and panes follow the card's rules (card.js): the selected tab is kept per
 // uiKey, and a pane whose `key` is unchanged is not re-rendered, so its scroll
 // position and focus survive refreshes. Only `tab.render(pane)` writes a pane.
@@ -16,12 +21,14 @@
 import { button, el, plural, stop } from './dom.js';
 
 const IDS = {
+    layer: 'story_block_layer',
     sidebar: 'story_block_sidebar',
     scrim: 'story_block_scrim',
     handle: 'story_block_handle',
 };
 
 const CLASS = {
+    layer: 'story-block-layer',
     sidebar: 'story-block-sidebar',
     scrim: 'story-block-scrim',
     handle: 'story-block-handle',
@@ -189,10 +196,13 @@ function createUi() {
     handle.append(glyph, count);
     handle.style.display = 'none';
 
-    for (const node of [scrim, aside, handle]) d.body.appendChild(node);
+    const layer = el('div', CLASS.layer);
+    layer.id = IDS.layer;
+    layer.append(scrim, aside, handle);
+    d.body.appendChild(layer);
 
     const state = {
-        aside, scrim, handle, grip, head, meta, pin, close, tablist, panel, count,
+        layer, aside, scrim, handle, grip, head, meta, pin, close, tablist, panel, count,
         uiKey: null,
         mode: null,
         dockable: false,
@@ -264,6 +274,7 @@ function teardown() {
     current.scrim.remove();
     current.aside.remove();
     current.handle.remove();
+    current.layer.remove();
 }
 
 // Watch what decides the layout. Re-run on every mount: SillyTavern may rebuild
@@ -389,7 +400,7 @@ function selectTab(id, { focus = false } = {}) {
     if (!tab) return false;
     viewFor(ui.uiKey).selected = tab.dataset.tabId;
     applySelection();
-    if (focus) tab.focus?.();
+    if (focus) focusQuietly(tab);
     return true;
 }
 
@@ -407,8 +418,11 @@ function setAttr(node, name, value) {
 
 function applyOpenState() {
     if (!ui) return;
-    const { aside, scrim, handle, pin, close, grip, mode } = ui;
+    const { layer, aside, scrim, handle, pin, close, grip, mode } = ui;
     const modal = isModal();
+    // The layer is one stacking context: it rises above other extensions' floating
+    // buttons only while a modal drawer or sheet is open.
+    layer.dataset.modal = String(modal);
     const docked = mode === 'docked';
     aside.classList.toggle('is-open', docked || ui.open);
     setAttr(aside, 'role', modal ? 'dialog' : null);
@@ -432,6 +446,11 @@ function applyOpenState() {
         pin.setAttribute('aria-label', pinTitle);
     }
     pin.setAttribute('aria-pressed', String(docked));
+}
+
+// Focus never scrolls: the panel being focused may still be sliding in from off screen.
+function focusQuietly(node) {
+    node?.focus?.({ preventScroll: true });
 }
 
 function relayout() {
@@ -463,7 +482,7 @@ function setPinned(next) {
     if (!ui) return;
     relayout();
     // Unpinning tucks the sidebar away; focus follows to the handle that brings it back.
-    if (wasDocked && ui.mode !== 'docked') ui.handle.focus?.();
+    if (wasDocked && ui.mode !== 'docked') focusQuietly(ui.handle);
 }
 
 function updateHandle(total) {
@@ -510,10 +529,10 @@ function onTrapKey(event) {
     const active = doc()?.activeElement;
     if (event.shiftKey && (active === first || active === ui.aside)) {
         event.preventDefault?.();
-        last.focus?.();
+        focusQuietly(last);
     } else if (!event.shiftKey && active === last) {
         event.preventDefault?.();
-        first.focus?.();
+        focusQuietly(first);
     }
 }
 
@@ -701,7 +720,7 @@ export function openSidebar(tabId = null) {
         ui.sheetFull = false;
         applyOpenState();
     }
-    (activeTab() ?? ui.close).focus?.();
+    focusQuietly(activeTab() ?? ui.close);
     return true;
 }
 
@@ -712,7 +731,7 @@ export function closeSidebar() {
     ui.open = false;
     ui.sheetFull = false;
     applyOpenState();
-    ui.handle.focus?.();
+    focusQuietly(ui.handle);
     return true;
 }
 

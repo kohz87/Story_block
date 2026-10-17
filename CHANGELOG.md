@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+Fixed: the sidebar knocked SillyTavern's page out of place on phones and tablets.
+
+- **Phones: the message box no longer gets stranded mid-screen.** The closed bottom sheet waited just below the screen, and that made SillyTavern's whole page scrollable (about 1.6× the screen height). Opening the sheet, or the keyboard opening for the message box, then scrolled the page and left the send form and chat shifted up with an empty band below.
+- **Tablets: the drawer no longer snaps shut on the first tap.** The closed drawer made the page scroll sideways when it opened; the chat column appeared to move, the sidebar re-measured, decided it should dock and closed itself, so it only stayed open on the next tap.
+- The sidebar, its scrim and edge handle now sit in one screen-sized layer that clips them, so the page itself can never scroll, and focusing the panel never scrolls anything. Checked in a live SillyTavern at phone, tablet and desktop sizes; a test guards the rule.
 ## 0.5.2
 
 The phone sheet is always easy to close.

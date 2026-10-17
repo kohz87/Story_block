@@ -107,11 +107,11 @@ test('layoutMode decides sheet, docked or drawer from the room beside the chat',
     assert.equal(layoutMode({ viewportWidth: 1024, chatRect: chat(900) }).dockable, false);
 });
 
-test('mounts one aside on the body; docked on a wide screen with its gutter geometry', () => {
+test('mounts one aside in a layer on the body; docked on a wide screen with its gutter geometry', () => {
     reset(1440);
     const aside = mountSidebar([counted('a', 'Inventory', { short: 'Items' }), counted('b', 'Sheet')], { uiKey: freshKey(), meta: 'reply #42' });
     same(aside, sidebar());
-    same(aside.parentElement, doc.body);
+    same(aside.parentElement.parentElement, doc.body);
     assert.ok(aside.matches('aside.story-block-sidebar'));
     assert.equal(aside.dataset.mode, 'docked');
     assert.equal(sidebarMode(), 'docked');
@@ -371,6 +371,30 @@ test('sheet on phones: pill tabs, grip tap toggles height, drags expand or close
     openSidebar();
     doc.fire('keydown', { key: 'Escape' });
     assert.ok(!aside.classList.contains('is-open'));
+});
+
+test('one layer holds the scrim, sidebar and handle; focus never scrolls the page', () => {
+    reset(390, { chatRight: 390 });
+    const aside = mountSidebar([counted('a', 'World')], { uiKey: freshKey() });
+    const layer = doc.querySelector('#story_block_layer');
+    assert.ok(layer);
+    same(aside.parentNode, layer);
+    same(scrim().parentNode, layer);
+    same(handle().parentNode, layer);
+    assert.equal(layer.dataset.modal, 'false');
+
+    const calls = [];
+    const tab = aside.querySelector('.story-block-sidebar-tab');
+    const realFocus = tab.focus;
+    tab.focus = function (options) { calls.push(options); return realFocus.call(this, options); };
+    openSidebar();
+    assert.equal(layer.dataset.modal, 'true', 'an open sheet raises the layer');
+    assert.deepEqual(calls, [{ preventScroll: true }]);
+    closeSidebar();
+    assert.equal(layer.dataset.modal, 'false');
+
+    unmountSidebar();
+    assert.equal(doc.querySelector('#story_block_layer'), null);
 });
 
 test('touch tablets get the drawer; only phone widths get the sheet', () => {

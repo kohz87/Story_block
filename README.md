@@ -1,4 +1,4 @@
-# Story Block v0.5.2
+# Story Block v0.5.3
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into

@@ -977,7 +977,7 @@
 /*
  * Story Block sidebar, scrim, edge handle and the "This turn" strip.
  *
- * The sidebar lives outside the chat (appended to <body>) in one of three layouts,
+ * The sidebar lives outside the chat (in a layer appended to <body>) in one of three layouts,
  * chosen in sidebar.js and exposed as data-mode: docked in the gutter beside the chat
  * column, a drawer from the right, or a bottom sheet on phones. Colours come from
  * SillyTavern's theme variables, like the card's.
@@ -987,11 +987,38 @@
  * the top-left with viewport units (vh/dvh, vw) — never with bottom, inset or percentages,
  * which would resolve against that zero-height box and put them off screen.
  *
- * Stacking: a docked sidebar and the edge handle stay under SillyTavern's side drawers
- * (2900; the drawers sit around 3000). An open drawer or sheet and its scrim sit at
- * 9000-9001, above other extensions' floating buttons, which covered the Edit button at
- * 3100. SillyTavern's popups are <dialog>s in the top layer, so they still open above it.
+ * Clipping: the sidebar, scrim and handle are absolutely placed inside one fixed,
+ * viewport-sized layer that clips them. A closed drawer or sheet waits just off screen;
+ * unclipped, that made SillyTavern's page scrollable, and focusing the panel or opening
+ * the keyboard scrolled the whole page (the send form ended up mid-screen on phones).
+ *
+ * Stacking: the layer is one stacking context. Idle (docked sidebar, edge handle) it stays
+ * under SillyTavern's side drawers (2900; the drawers sit around 3000). While a drawer or
+ * sheet is open it rises to 9001, above other extensions' floating buttons, which covered
+ * the Edit button at 3100. SillyTavern's popups are <dialog>s in the top layer, so they
+ * still open above it.
  */
+
+.story-block-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overflow: clip;
+    pointer-events: none;
+    z-index: 2900;
+}
+
+.story-block-layer[data-modal="true"] {
+    z-index: 9001;
+}
+
+.story-block-layer > * {
+    pointer-events: auto;
+}
 
 .story-block-sidebar,
 .story-block-scrim,
@@ -1016,8 +1043,8 @@
 /* Panel */
 
 .story-block-sidebar {
-    position: fixed;
-    z-index: 9001;
+    position: absolute;
+    z-index: 3;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -1045,7 +1072,6 @@
 }
 
 .story-block-sidebar[data-mode="docked"] {
-    z-index: 2900;
     top: var(--sb-dock-top, 12px);
     right: var(--sb-dock-right, 12px);
     height: calc(100vh - var(--sb-dock-top, 12px) - 12px);
@@ -1398,13 +1424,13 @@
 /* Scrim */
 
 .story-block-scrim {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
-    width: 100vw;
+    width: 100%;
     height: 100vh;
     height: 100dvh;
-    z-index: 9000;
+    z-index: 2;
     background: rgba(0, 0, 0, .45);
     animation: story-block-fade var(--sb-motion) ease;
 }
@@ -1418,8 +1444,8 @@
 
 .story-block-handle {
     appearance: none;
-    position: fixed;
-    z-index: 2900;
+    position: absolute;
+    z-index: 1;
     right: 0;
     top: 45vh;
     top: 45dvh;
