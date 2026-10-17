@@ -275,3 +275,15 @@ test('injectContext: dry runs and unsupported events are not touched', () => {
     assert.deepEqual(injectContext(null, 'x', defs), { injected: false, reason: 'invalid-event' });
     assert.deepEqual(injectContext({ other: true }, 'x', defs), { injected: false, reason: 'unsupported-event' });
 });
+
+test('an entry\'s note is one more line under its prompt, for that reply only (v0.9.1: chatter and NPC State Delta)', () => {
+    const chatter = normalizeBlock({ id: 'chatter', name: 'Chatter', tag: 'Chatter', kind: 'turn', format: 'text', display: 'chatter', prompt: 'Private NPC talk.' });
+    const note = 'Voice each NPC as their NPC State Delta card describes.';
+    const withNote = buildContext([{ def: chatter, note }]);
+    assert.match(withNote, /### Chatter — <Chatter> \(this reply only\)\nPrivate NPC talk\.\nVoice each NPC as their NPC State Delta card describes\.\n/);
+    assert.equal(count(withNote, /NPC State Delta/g), 1, 'once, and not in the envelope to write');
+    const without = buildContext([{ def: chatter }]);
+    assert.doesNotMatch(without, /NPC State Delta/);
+    assert.equal(withNote.replace(`${note}\n`, ''), without, 'nothing else changes');
+    assert.equal(chatter.prompt, 'Private NPC talk.', 'the stored prompt is unchanged');
+});

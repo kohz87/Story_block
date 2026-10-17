@@ -517,3 +517,36 @@ test('suite: the Dice block takes a kept modifier unless the reader keeps rolls 
         await emit('CHAT_CHANGED');
     }
 });
+
+test('suite: chatter blocks get one line pointing at NPC State Delta\'s cards while it is here and on', async () => {
+    const { templateById } = await import('../src/templates.js');
+    const chatter = { ...templateById('inner-chatter'), enabled: true };
+    const promptContext = async () => {
+        ctx.chat.push({ is_user: true, mes: 'listen' });
+        await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+        const event = replyChat(...history());
+        await emit('CHAT_COMPLETION_PROMPT_READY', event);
+        await finish('They whisper.');
+        return event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+    };
+    const line = /\nVoice each NPC as their NPC State Delta card describes\.\n/;
+    setBlocks([chatter, { ...templateById('scene-notes'), enabled: true }]);
+    await emit('CHAT_CHANGED');
+    try {
+        ctx.chat = [{ is_user: false, mes: 'The tavern is loud.' }];
+        assert.doesNotMatch(await promptContext(), /NPC State Delta card/, 'alone, as before');
+        globalThis.StorySuite.announce({ id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.2', owns: ['scene', 'npc'], shows: ['chatter'] });
+        const context = await promptContext();
+        assert.match(context, line);
+        assert.equal((context.match(/NPC State Delta card/g) ?? []).length, 1, 'only under the chatter block');
+        assert.ok(context.indexOf('NPC State Delta card') > context.indexOf('### NPC Inner Chatter'));
+        assert.ok(context.indexOf('NPC State Delta card') < context.indexOf('### Scene Notes'));
+        assert.equal(ctx.extensionSettings.storyBlock.blocks[0].prompt, chatter.prompt, 'the stored prompt is unchanged');
+        globalThis.StorySuite.announce({ id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.2', owns: ['scene', 'npc'], enabled: false });
+        assert.doesNotMatch(await promptContext(), /NPC State Delta card/, 'switched off');
+    } finally {
+        globalThis.StorySuite.withdraw('npc-state-delta');
+        delete ctx.extensionSettings.storyBlock;
+        await emit('CHAT_CHANGED');
+    }
+});

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { storySuite } from '../src/suite.js';
-import { SHARED_AREAS, blockAreas, deferredTo, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from '../src/handshake.js';
+import { CHATTER_NOTE, SHARED_AREAS, blockAreas, chatterNote, deferredTo, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from '../src/handshake.js';
 import { pluginBlockDef } from '../src/plugin.js';
 import { defaultBlocks, templateById } from '../src/templates.js';
 
@@ -102,4 +102,42 @@ test('sourceStatus: who has each area now, or that its block is off', () => {
     assert.equal(sourceStatus('stats', { choice: 'mine', suite, offered: true }), 'Now: Story Block');
     assert.equal(sourceStatus('items', { choice: 'auto', suite, offered: false }), 'Inventory is off · RPG Battle has it');
     assert.equal(sourceStatus('scene', { choice: 'auto', suite, offered: false }), 'World State is off');
+});
+
+// ---- v0.9.1: chatter shown on NPC State Delta's cards ----
+
+const announceDelta = (suite, extra = {}) => suite.announce({ id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.2', owns: ['scene', 'npc'], ...extra });
+
+test('displaysShownElsewhere: an enabled other extension announcing shows: [\'chatter\'], and only known displays', () => {
+    const suite = fresh();
+    assert.deepEqual(displaysShownElsewhere(suite), [], 'alone');
+    announceBlock(suite, ['items']);
+    announceDelta(suite);
+    assert.deepEqual(displaysShownElsewhere(suite), [], 'announced without shows');
+    announceDelta(suite, { shows: ['chatter', 'scene', 'fields'] });
+    assert.deepEqual(displaysShownElsewhere(suite), ['chatter'], 'other displays are never hidden this way');
+    announceDelta(suite, { shows: ['chatter'], enabled: false });
+    assert.deepEqual(displaysShownElsewhere(suite), [], 'switched off');
+    announceDelta(suite, { shows: 'chatter' });
+    assert.deepEqual(displaysShownElsewhere(suite), [], 'shows is a list');
+    suite.withdraw('npc-state-delta');
+    suite.announce({ id: 'story-block', name: 'Story Block', version: '0.9.1', owns: [], shows: ['chatter'] });
+    assert.deepEqual(displaysShownElsewhere(suite), [], 'Story Block itself does not count');
+    suite.announce({ id: 'someone-else', name: 'Other', version: '1.0.0', owns: [], shows: ['chatter'] });
+    assert.deepEqual(displaysShownElsewhere(suite), ['chatter'], 'any extension may show it');
+});
+
+test('chatterNote: one runtime line for chatter-display blocks while NPC State Delta is here and on', () => {
+    const suite = fresh();
+    const chatter = templateById('inner-chatter');
+    const custom = { ...on('scene-notes'), display: 'chatter' };
+    assert.equal(chatterNote(chatter, suite), '', 'alone');
+    announceDelta(suite);
+    assert.equal(chatterNote(chatter, suite), CHATTER_NOTE);
+    assert.equal(chatterNote(custom, suite), CHATTER_NOTE, 'any block shown as chatter');
+    assert.equal(chatterNote(on('scene-notes'), suite), '', 'other displays');
+    assert.ok(CHATTER_NOTE.length <= 60, 'about ten tokens');
+    announceDelta(suite, { enabled: false });
+    assert.equal(chatterNote(chatter, suite), '', 'switched off');
+    assert.equal(chatterNote(null, suite), '');
 });

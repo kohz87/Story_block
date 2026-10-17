@@ -28,7 +28,7 @@ import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, hasTab, pluginBlockDef } from './src/plugin.js';
 import { storySuite } from './src/suite.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
-import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
+import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
 const VERSION = '0.9.1';
 const SETTINGS_KEY = 'storyBlock';
@@ -94,7 +94,7 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null) };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [] };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
@@ -109,6 +109,8 @@ function settings(ctx = context()) {
     own.hideOffscreen = own.hideOffscreen !== false;
     // Story Suite: per shared area, who is the source of truth ('auto', 'mine' or 'theirs').
     own.sourceOfTruth = normalizeSourceChoices(own.sourceOfTruth);
+    // Built-in templates the "New built-in blocks" line no longer offers (added or dismissed).
+    own.dismissedTemplates = Array.isArray(own.dismissedTemplates) ? [...new Set(own.dismissedTemplates.map(String))] : [];
     return own;
 }
 
@@ -250,11 +252,14 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const chat = ctx.chat ?? [];
     // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
     // placeholder and the real context carry the same numbers.
-    const ownRolls = keepsOwnRolls(settings(ctx).sourceOfTruth.rolls, storySuite());
+    const suite = storySuite();
+    const ownRolls = keepsOwnRolls(settings(ctx).sourceOfTruth.rolls, suite);
     const entries = [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
         def,
         state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
         rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
+        // Chatter points at NPC State Delta's cards while it is here (v0.9.1).
+        note: chatterNote(def, suite),
     }))];
     const session = {
         chatId,
@@ -598,9 +603,11 @@ function buildCardTabs() {
     const tabs = [];
     const views = [];
     // A block without a tab (the reader's "Show tab" off, a kept block registered with
-    // `tab: false`) is still prompted and kept; it only has no tab, badge or strip line here.
+    // `tab: false`, chatter while NPC State Delta shows it on its cards) is still prompted and
+    // kept; it only has no tab, badge or strip line here.
+    const shownElsewhere = displaysShownElsewhere(storySuite());
     for (const def of [...enabledBlocks(ctx), ...keptBlocks()]) {
-        if (!hasTab(def)) continue;
+        if (!hasTab(def, { shownElsewhere })) continue;
         const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
         if (!view) continue;
         const tab = blockTab(view, uiKey);
@@ -691,6 +698,15 @@ function onBlocksChanged(next) {
     refreshAll(0);
 }
 
+// The "New built-in blocks" line offers each template once: added or dismissed, it is remembered.
+function dismissTemplate(key) {
+    const ctx = context();
+    const own = settings(ctx);
+    if (own.dismissedTemplates.includes(key)) return;
+    own.dismissedTemplates = [...own.dismissedTemplates, key];
+    saveSettings(ctx);
+}
+
 function addSettingsPanel(documentRef) {
     if (documentRef.querySelector('#story_block_settings')) return true;
     const host = documentRef.querySelector('#extensions_settings') ?? documentRef.querySelector('#extensions_settings2');
@@ -703,6 +719,8 @@ function addSettingsPanel(documentRef) {
         templates: TEMPLATES,
         onChange: onBlocksChanged,
         estimateTokens,
+        dismissedTemplates: settings().dismissedTemplates,
+        onDismissTemplate: dismissTemplate,
     });
     addRuntimeControls(documentRef, panel?.root ?? wrapper);
     return true;
@@ -929,8 +947,8 @@ function announceToSuite(ctx = context()) {
     suite.announce({ id: SUITE_ID, name: SUITE_NAME, version: VERSION, owns, settings: '#story_block_settings', api: SUITE_API });
 }
 
-// Another extension arrived, left or changed what it offers: the settings' owners and the
-// Character Sheet's notice follow. Story Block's own announcements land here too, harmlessly.
+// Another extension arrived, left or changed what it offers: the settings' owners, the
+// Character Sheet's notice and which tabs are shown (chatter another extension shows) follow. Story Block's own announcements land here too, harmlessly.
 function onSuiteChanged() {
     renderSuiteSection();
     syncSuiteEntries();
@@ -1058,7 +1076,10 @@ globalThis.StoryBlock = Object.freeze({
     version: VERSION,
     apiVersion: 1,
     /** Every block definition, the reader's and plugins': [{ id, tag, name, kind, … }]. */
-    listBlocks: () => transportBlocks().map(blockSummary),
+    listBlocks: () => {
+        const shownElsewhere = displaysShownElsewhere(storySuite());
+        return transportBlocks().map(def => blockSummary(def, { shownElsewhere }));
+    },
     /** The newest valid copy of a block (before `beforeIndex`): { id, tag, text, state, messageIndex } | null. */
     getBlock(tagOrId, { beforeIndex = null } = {}) {
         const ctx = context();

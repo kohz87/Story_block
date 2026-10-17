@@ -2,11 +2,14 @@
 
 ## 0.9.1
 
-Kept blocks without a tab.
+Kept blocks without a tab, chatter on NPC State Delta's cards, and new built-in blocks offered.
 
 - **`registerBlock({ kept: true, …, tab: false })`** registers a kept block that is written, stamped, kept, prompted read-only and dropped when the model writes it, exactly as before, but gets no tab of its own: none in the sidebar or the card, no tab badge, nothing in the turn strip or the edge handle's count. For an extension that draws the block in its own tab (RPG Battle's Party block in its Battle tab). `tab` defaults to `true`, so nothing changes for existing kept blocks; anything other than `true` or `false` is refused. `getBlock`, `blockForGeneration`, `blockInText` and `setBlockText` work on it as on any kept block.
 - **Re-registering may flip it:** registering the same id again with another `tab` adds or removes the tab on the next refresh, which the registration triggers.
-- **`listBlocks()` reports `tab`** for every block: whether it gets a tab once enabled and written (the reader's *Show tab* switch, a kept block's `tab`; `false` for transport-only blocks). apiVersion stays 1.
+- **`listBlocks()` reports `tab`** for every block: whether it gets a tab once enabled and written (the reader's *Show tab* switch, a kept block's `tab`; `false` for transport-only blocks, and for chatter while another extension shows it). apiVersion stays 1.
+- **Chatter on NPC State Delta's cards.** While an enabled extension of the suite announces `shows: ['chatter']` (NPC State Delta 1.2.2, on its Present NPC cards), every block with the Chatter display has no tab in the sidebar or the card; it is still prompted, written, kept and readable through `getBlock`, and the reader's *Show tab* switch still applies. When it stops, is switched off or leaves, the tab is back.
+- **Chatter voices from NPC State Delta.** While NPC State Delta is installed and on, a Chatter block's prompt section gets one more line, *Voice each NPC as their NPC State Delta card describes.* The stored instructions are not changed; alone, the prompt is the same as before.
+- **"New built-in blocks."** Templates added after a first install (NPC Inner Chatter) were never offered. The Blocks section now shows one line for each template not in the list: *Add* puts it in the list switched off, *Dismiss* hides it. Either way it is remembered (`dismissedTemplates`) and not offered again. A built-in the reader deleted is offered once the same way.
 
 ## 0.9.0
 

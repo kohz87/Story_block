@@ -522,3 +522,31 @@ test('setBlocks refreshes the list without calling onChange', () => {
     assert.equal(changes.length, 0);
     assert.deepEqual(panel.getBlocks().map(block => block.id), ['quests']);
 });
+
+test('new built-in blocks: offered once each, Add switched off or Dismiss, and the dismissed are never offered again', () => {
+    const dismissed = [];
+    const options = { blocks: [defaultBlocks()[0]], onDismissTemplate: key => dismissed.push(key) };
+    const { container, last, changes } = mount(options);
+    const line = () => container.querySelector('.story-block-new-templates');
+    const offered = () => (line()?.querySelectorAll('.story-block-new-template') ?? []).map(node => node.dataset.template);
+    assert.deepEqual(offered(), ['character-sheet', 'scene-notes'], 'the ones not in the list, in template order');
+    assert.match(line().textContent, /^New built-in blocks:/);
+    const item = key => container.querySelector(`.story-block-new-template[data-template="${key}"]`);
+
+    item('scene-notes').querySelector('.story-block-new-template-dismiss').click();
+    assert.deepEqual(dismissed, ['scene-notes']);
+    assert.deepEqual(offered(), ['character-sheet']);
+    assert.equal(changes.length, 0, 'dismissing changes no block');
+
+    item('character-sheet').querySelector('.story-block-new-template-add').click();
+    assert.deepEqual(last().map(block => [block.id, block.enabled]), [['inventory', true], ['character-sheet', false]], 'added switched off');
+    assert.deepEqual(dismissed, ['scene-notes', 'character-sheet']);
+    assert.equal(line(), null);
+    assert.match(container.querySelector('.story-block-io-message').textContent, /Added Character Sheet, switched off/);
+
+    // Stored by the runtime and handed back: a deleted or dismissed template stays quiet.
+    const again = mount({ blocks: [defaultBlocks()[0]], dismissedTemplates: dismissed });
+    assert.equal(again.container.querySelector('.story-block-new-templates'), null);
+    // A full list (a first install) has nothing to offer.
+    assert.equal(mount().container.querySelector('.story-block-new-templates'), null);
+});

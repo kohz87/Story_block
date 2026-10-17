@@ -11,7 +11,12 @@ Every block is a definition you can edit. The built-ins are only templates.
 - **One engine, any block.** Inventory, World State, Choices, Dice, NPC Inner Chatter,
   Character Sheet and Scene Notes ship as templates.
   Add your own blocks with their own tag, prompt, format and display, or change the
-  templates; **Reset to default** brings a template back.
+  templates; **Reset to default** brings a template back. A first install copies every
+  template; after that the list is yours, so a template a later version adds is offered once
+  at the top of **Blocks**: *New built-in blocks: 💭 NPC Inner Chatter — Add · Dismiss*.
+  **Add** puts it in your list switched off (nothing changes until you turn it on);
+  **Dismiss** hides it. Either way it is not offered again, even if you delete it later, and
+  it is always under **Add block**. A built-in you deleted yourself is offered once the same way.
 - **State that sticks.** A *stateful* block's newest valid copy in the chat is its current
   state. It is sent with every reply's prompt and the model rewrites it in full, so it can't
   scroll out of context. A reply that leaves it out, cuts it off or writes it badly never
@@ -117,6 +122,13 @@ what the story has established about that NPC — personality, speech, history, 
 from the character card, lorebook and NPC dossiers — and only what they could know. The
 model writes the block in the same reply as the story, so all of that is in front of it;
 the instructions tell it to use it. Edit them to taste.
+
+With **NPC State Delta** installed and on, two things change (v0.9.1). Its Present NPC cards
+show each NPC's chatter, so while it says so Story Block's Chatter tab steps aside: no tab, but
+the block is still asked for, written and kept as before (your **Show tab** switch still
+applies). And the prompt adds one line under the block's instructions, *Voice each NPC as
+their NPC State Delta card describes.*, without changing your stored instructions. Turn NPC
+State Delta off and both go back.
 
 ### Dice
 

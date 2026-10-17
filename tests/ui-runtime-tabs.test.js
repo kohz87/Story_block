@@ -1,7 +1,9 @@
-// Kept blocks without a tab (v0.9.1): the real index.js against the fake DOM, so what is
-// checked is the sidebar and card the reader sees. A kept block registered with `tab: false`
-// is prompted and kept as always but has no tab, no badge and no count on the edge handle;
-// registering it again may flip that.
+// The real index.js against the fake DOM, so what is checked is the sidebar, card and settings
+// panel the reader sees (v0.9.1):
+// - a kept block registered with `tab: false` is prompted and kept as always but has no tab, no
+//   badge and no count on the edge handle; registering it again may flip that;
+// - chatter has no tab while another extension (NPC State Delta) announces it shows it;
+// - the "New built-in blocks" line offers a template an older install never got.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from './ui-fake-dom.js';
@@ -59,6 +61,10 @@ const ctx = {
 globalThis.SillyTavern = { getContext: () => ctx };
 globalThis.toastr = Object.fromEntries(['success', 'info', 'warning', 'error'].map(level => [level, () => {}]));
 
+// An install from before NPC Inner Chatter and Dice existed: its list is the reader's own.
+const { defaultBlocks, templateById } = await import('../src/templates.js');
+ctx.extensionSettings.storyBlock = { blocks: defaultBlocks().filter(block => !['inner-chatter', 'dice'].includes(block.id)) };
+
 await import('../index.js');
 const sb = globalThis.StoryBlock;
 const emit = (type, ...args) => ctx.eventSource.emit(eventTypes[type], ...args);
@@ -68,9 +74,9 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 60));
 // One reader's block (with a tab) and a reply to hang the card under.
 const notes = { id: 'notes', name: 'Notes', tag: 'Notes', kind: 'turn', format: 'text', enabled: true };
 const reply = mes => ({ is_user: false, is_system: false, mes });
-function openChat(display) {
-    ctx.extensionSettings.storyBlock = { blocks: [notes], display };
-    ctx.chat = [reply('The road is quiet.\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Notes>\nQuiet.\n</Notes>\n</Blocks>\n-->')];
+function openChat(display, { blocks = [notes], written = '' } = {}) {
+    ctx.extensionSettings.storyBlock = { blocks, display };
+    ctx.chat = [reply(`The road is quiet.\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Notes>\nQuiet.\n</Notes>\n${written}</Blocks>\n-->`)];
     chatElement.replaceChildren();
     const message = doc.createElement('div');
     message.className = 'mes';
@@ -82,6 +88,7 @@ function openChat(display) {
     block.appendChild(text);
     message.appendChild(block);
     chatElement.appendChild(message);
+    sb.refresh();
 }
 
 const partySpec = {
@@ -99,6 +106,29 @@ const partySpec = {
 const sidebarTabs = () => doc.querySelectorAll('#story_block_sidebar [data-tab-id]').filter(node => node.getAttribute('role') === 'tab').map(node => node.dataset.tabId);
 const cardTabs = () => doc.querySelectorAll('.story-block-card .story-block-tab').map(node => node.dataset.tabId);
 const handleCount = () => doc.querySelector('#story_block_handle .story-block-handle-count')?.textContent ?? '';
+
+const newTemplatesLine = () => doc.querySelector('#story_block_settings .story-block-new-templates');
+const offered = () => (newTemplatesLine()?.querySelectorAll('.story-block-new-template') ?? []).map(node => node.dataset.template);
+
+test('settings: built-in blocks an older install lacks are offered once, Add (switched off) or Dismiss, remembered', async () => {
+    assert.deepEqual(offered(), ['dice', 'inner-chatter'], 'in template order');
+    assert.match(newTemplatesLine().textContent, /^New built-in blocks:🎲 Dice — Add · Dismiss💭 NPC Inner Chatter — Add · Dismiss$/);
+    const item = key => newTemplatesLine().querySelector(`.story-block-new-template[data-template="${key}"]`);
+    assert.match(item('inner-chatter').querySelector('.story-block-new-template-add').title, /switched off: nothing changes until you turn it on/);
+
+    item('inner-chatter').querySelector('.story-block-new-template-dismiss').click();
+    assert.deepEqual(offered(), ['dice']);
+    assert.deepEqual(ctx.extensionSettings.storyBlock.dismissedTemplates, ['inner-chatter'], 'stored');
+    assert.equal(ctx.extensionSettings.storyBlock.blocks.some(block => block.id === 'inner-chatter'), false, 'nothing added');
+
+    item('dice').querySelector('.story-block-new-template-add').click();
+    assert.equal(newTemplatesLine(), null, 'nothing left to offer');
+    const dice = ctx.extensionSettings.storyBlock.blocks.find(block => block.id === 'dice');
+    assert.equal(dice.enabled, false, 'added switched off');
+    assert.equal(dice.template, 'dice');
+    assert.deepEqual(ctx.extensionSettings.storyBlock.dismissedTemplates, ['inner-chatter', 'dice'], 'an added one is not offered again either');
+    assert.match(doc.querySelector('#story_block_settings .story-block-io-message').textContent, /Added Dice, switched off/);
+});
 
 test('a kept block with tab: false is prompted and kept, but has no sidebar tab; registering again flips it', async () => {
     openChat('sidebar');
@@ -180,6 +210,67 @@ test('no tab, no badge: the edge handle counts a kept block\'s changes only whil
         assert.equal(handleCount(), '1', 'HP changed this reply');
     } finally {
         sb.unregisterBlock('rpg-party');
+        await settle();
+    }
+});
+
+// ---- chatter shown on NPC State Delta's cards ----
+
+const chatter = { ...templateById('inner-chatter'), enabled: true };
+const chatterCopy = '<NPC_Inner_Chatter>\nMara: He has no idea.\n</NPC_Inner_Chatter>\n';
+const announceDelta = (extra = {}) => globalThis.StorySuite.announce({ id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.2', owns: ['scene', 'npc'], shows: ['chatter'], ...extra });
+
+test('chatter has no tab while NPC State Delta shows it, and gets it back when it stops, is switched off or leaves', async () => {
+    openChat('sidebar', { blocks: [notes, chatter], written: chatterCopy });
+    const listedTab = () => sb.listBlocks().find(block => block.id === 'inner-chatter').tab;
+    try {
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes', 'block:inner-chatter'], 'alone, as before');
+        assert.equal(listedTab(), true);
+
+        announceDelta();
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes'], 'redrawn on the suite change');
+        assert.equal(listedTab(), false);
+        assert.match(sb.getBlock('NPC_Inner_Chatter').text, /Mara: He has no idea\./, 'still read');
+
+        announceDelta({ shows: [] });
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes', 'block:inner-chatter'], 'no longer shown there');
+        announceDelta();
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes']);
+        announceDelta({ enabled: false });
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes', 'block:inner-chatter'], 'switched off');
+        announceDelta();
+        await settle();
+        globalThis.StorySuite.withdraw('npc-state-delta');
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes', 'block:inner-chatter'], 'withdrawn');
+
+        // The reader's own Show tab still applies on top.
+        ctx.extensionSettings.storyBlock.blocks = [notes, { ...chatter, visible: false }];
+        sb.refresh();
+        await settle();
+        assert.deepEqual(sidebarTabs(), ['block:notes']);
+    } finally {
+        globalThis.StorySuite.withdraw('npc-state-delta');
+        await settle();
+    }
+});
+
+test('the card leaves chatter out the same way', async () => {
+    openChat('card', { blocks: [notes, chatter], written: chatterCopy });
+    try {
+        announceDelta();
+        await settle();
+        assert.deepEqual(cardTabs(), ['block:notes']);
+        globalThis.StorySuite.withdraw('npc-state-delta');
+        await settle();
+        assert.deepEqual(cardTabs(), ['block:notes', 'block:inner-chatter']);
+    } finally {
+        globalThis.StorySuite.withdraw('npc-state-delta');
         await settle();
     }
 });

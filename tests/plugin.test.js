@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ENVELOPE_MARKER, normalizeTransport, stripBlocks } from '../src/envelope.js';
-import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from '../src/plugin.js';
+import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, hasTab, pluginBlockDef } from '../src/plugin.js';
 import { templateById } from '../src/templates.js';
 
 const world = { ...templateById('world-state'), enabled: true };
@@ -20,6 +20,13 @@ test('findBlockDef matches ids, and tags without regard to case', () => {
     // `tab` (v0.9.1) follows the reader's "Show tab" switch.
     assert.equal(blockSummary(world).tab, true);
     assert.equal(blockSummary({ ...world, visible: false }).tab, false);
+    // A display another extension shows itself (v0.9.1: chatter) has no tab; others keep theirs.
+    const chatter = { ...templateById('inner-chatter'), enabled: true };
+    assert.equal(hasTab(chatter), true);
+    assert.equal(hasTab(chatter, { shownElsewhere: ['chatter'] }), false);
+    assert.equal(blockSummary(chatter, { shownElsewhere: ['chatter'] }).tab, false);
+    assert.equal(hasTab(world, { shownElsewhere: ['chatter'] }), true);
+    assert.equal(hasTab({ ...chatter, visible: false }), false, 'the reader\'s Show tab still applies');
 });
 
 test('blockSnapshot: the newest valid copy, or the one before a given message', () => {

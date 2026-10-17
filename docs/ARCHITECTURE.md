@@ -51,6 +51,14 @@ in the style of Inventory Block. `npm run check` syntax-checks `index.js` and `s
 store the ordered list as `extension_settings.storyBlock.blocks`; **array order is block
 order** (prompt order and tab order).
 
+A first install stores `defaultBlocks()`; afterwards the list is the reader's. The settings
+panel (`renderSettings`, `src/ui/editor.js`) offers each template that is not `templatePresent`
+(no block with its `template` key or id) and not in `settings.dismissedTemplates` on one line
+above the list, `div.story-block-new-templates` (v0.9.1), with Add (`addFromTemplate` with
+`enabled: false`) and Dismiss. Both call `onDismissTemplate(key)`, which the runtime appends
+to `dismissedTemplates` and saves, so a template is offered once, even if the reader deletes
+it later; templates the reader deleted before 0.9.1 count as not present and are offered once too.
+
 Kinds:
 
 - **stateful** — the newest valid copy in the chat is the current state. It is injected
@@ -311,8 +319,8 @@ as its state, as for any stateful block.
   For an extension that draws the block in a tab of its own (RPG Battle's Battle tab).
   `registerBlock` again with the same id may flip `tab`; the sidebar redraws at once (a kept
   block registered or replaced refreshes). An older Story Block ignores `tab` and shows the tab.
-  `tests/ui-kept-tab.test.js` runs the real `index.js` against the fake DOM to check the sidebar,
-  the card and the handle's count.
+  `tests/ui-runtime-tabs.test.js` runs the real `index.js` against the fake DOM to check the
+  sidebar, the card and the handle's count.
 
 ### Story Suite (`src/suite.js`, `src/handshake.js`, v0.8)
 
@@ -328,6 +336,8 @@ owners are in [STORY_SUITE.md](STORY_SUITE.md). `src/handshake.js` is Story Bloc
 | `statsNotice(def, choices, suite)` | The Character Sheet's "RPG Battle owns stats…" note, or '' |
 | `keepsOwnRolls(choice, suite)` | True only when the reader chose `mine` for rolls while another extension offers them: kept blocks' `diceModifier`s are then left out of the prompt |
 | `sourceStatus(area, …)` | The settings line under each choice ("Now: RPG Battle", "Inventory is off") |
+| `displaysShownElsewhere(suite)` | v0.9.1: the displays (of `SHOWABLE_DISPLAYS`, only `'chatter'`) that an enabled provider other than Story Block lists in its announcement's top-level `shows`. `buildCardTabs` and `listBlocks` pass them to `hasTab(def, { shownElsewhere })`, so a block with that display has no tab (or badge, or strip line) while it lasts; it is still prompted, written and kept. Re-evaluated on every refresh, and `onChange` refreshes |
+| `chatterNote(def, suite)` | v0.9.1: `CHATTER_NOTE` ("Voice each NPC as their NPC State Delta card describes.") for a reader's `chatter`-display block while `npc-state-delta` is announced and enabled, else ''. `prepareGeneration` puts it on the entry as `note`, which `buildContext` adds as a line under the block's prompt; the stored prompt is never changed |
 
 The runtime announces `{ id: 'story-block', name: 'Story Block', version, owns, settings: '#story_block_settings', api }`
 on load, when the block list changes and on chat change (only when the offer changed, or the

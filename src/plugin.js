@@ -28,16 +28,18 @@ import { FIELD_TYPES, TAG_PATTERN, normalizeBlock, validateBlock } from './schem
 /**
  * Whether a block gets a tab in the sidebar and the card (once it is enabled and has something
  * to show): the reader's "Show tab" switch, a kept block's `tab`. Transport blocks never do.
+ * `shownElsewhere`: displays another extension draws itself (handshake.js,
+ * displaysShownElsewhere); a block with one of them has no tab while that lasts.
  */
-export function hasTab(def) {
-    return Boolean(def?.visible);
+export function hasTab(def, { shownElsewhere = [] } = {}) {
+    return Boolean(def?.visible) && !shownElsewhere.includes(def.display);
 }
 
 /**
  * What a plugin may know about a block definition. Kept blocks report kind 'kept' and their
- * owner; every block reports `tab` (hasTab).
+ * owner; every block reports `tab` (hasTab, with the same `options`).
  */
-export function blockSummary(def) {
+export function blockSummary(def, options = {}) {
     const summary = {
         id: def.id,
         tag: def.tag,
@@ -48,7 +50,7 @@ export function blockSummary(def) {
         enabled: Boolean(def.enabled),
         visible: Boolean(def.visible),
         optional: Boolean(def.optional),
-        tab: hasTab(def),
+        tab: hasTab(def, options),
     };
     if (def.kept) summary.owner = def.owner;
     return summary;

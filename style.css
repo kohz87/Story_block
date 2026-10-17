@@ -3161,6 +3161,31 @@ button.story-block-strip:hover {
     font-weight: 600;
 }
 
+/* "New built-in blocks: 💭 NPC Inner Chatter — Add · Dismiss" (v0.9.1): one quiet line. */
+.story-block-settings .story-block-new-templates {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    margin: 0.35rem 0;
+}
+
+.story-block-settings .story-block-new-templates-label {
+    opacity: 0.75;
+}
+
+.story-block-settings .story-block-new-template .menu_button {
+    display: inline;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--SmartThemeQuoteColor, inherit);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
 .story-block-settings .story-block-toolbar,
 .story-block-settings .story-block-add-menu,
 .story-block-settings .story-block-io-actions,
