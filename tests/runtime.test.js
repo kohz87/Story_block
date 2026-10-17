@@ -240,3 +240,29 @@ test('fallback: without the extension-prompt API the reply prompt still gets the
         ctx.setExtensionPrompt = setExtensionPrompt;
     }
 });
+
+test('dice: rolled before the reply, handed over, stamped on the block; an optional block may be skipped silently', async () => {
+    setBlocks([
+        { id: 'dice', name: 'Dice', tag: 'Dice', kind: 'lead', optional: true, format: 'text', display: 'dice', rolls: { count: 3, sides: 20 }, prompt: 'Rolls: {{rolls}}.' },
+    ]);
+    ctx.chat = [{ is_user: false, mes: 'Hi.' }, { is_user: true, mes: 'climb' }];
+    await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+    const event = replyChat(...history());
+    await emit('CHAT_COMPLETION_PROMPT_READY', event);
+    const handed = /Rolls: (\d+), (\d+), (\d+)\./.exec(JSON.stringify(event.chat));
+    assert.ok(handed, 'three rolls handed over');
+    const rolls = handed.slice(1).map(Number);
+    for (const roll of rolls) assert.ok(roll >= 1 && roll <= 20);
+    await finish(`<Dice>\n🎲 Climb — d20 vs 10 → ${rolls[0]} · success\n</Dice>\nShe climbed.`);
+    assert.match(ctx.chat.at(-1).mes, new RegExp(`<Dice rolls="${rolls.join(', ')}">`));
+    assert.match(ctx.chat.at(-1).mes, /^<!-- STORY_BLOCKS_V1\n/, 'the leading block is hidden');
+
+    notices.length = 0;
+    ctx.chat.push({ is_user: true, mes: 'rest' });
+    await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+    await emit('CHAT_COMPLETION_PROMPT_READY', replyChat(...history()));
+    await finish('They rested. Nothing needed a roll.');
+    assert.equal(notices.filter(notice => /Dice/.test(notice)).length, 0, 'no warning for an optional block left out');
+    delete ctx.extensionSettings.storyBlock;
+});
+

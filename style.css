@@ -2153,6 +2153,325 @@ button.story-block-strip:hover {
     }
 }
 
+/* Dice display (src/ui/displays/dice.js) */
+/* One card per roll: the die face on the left, the attempt and the sum in the middle, the
+   outcome pill on the right. Ported from Megumin Suite's dice card (GPL-3.0).
+   Outcome drives one token set (--sb-dice-ink / -line / -bg), so the face, the total and
+   the pill agree without a rule per outcome per part. Colours come from the shared
+   change tokens; the pill always carries the outcome as text, so nothing depends on
+   telling the colours apart. Everything wraps instead of scrolling sideways: the sidebar
+   can be a 300 px column. */
+
+.story-block-dice {
+    --sb-dice-row: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.story-block-dice .story-block-dice-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-dice .story-block-dice-card {
+    --sb-dice-ink: inherit;
+    --sb-dice-line: var(--sb-border);
+    --sb-dice-bg: var(--sb-row-bg);
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--sb-dice-line);
+    border-radius: 8px;
+    background: var(--sb-dice-bg);
+    overflow-wrap: anywhere;
+}
+
+.story-block-dice .story-block-dice-card.is-success {
+    --sb-dice-ink: var(--sb-added);
+    --sb-dice-line: color-mix(in srgb, var(--sb-added) 45%, var(--sb-border));
+    --sb-dice-bg: color-mix(in srgb, var(--sb-added) 7%, transparent);
+}
+
+.story-block-dice .story-block-dice-card.is-cost {
+    --sb-dice-ink: var(--sb-changed);
+    --sb-dice-line: color-mix(in srgb, var(--sb-changed) 45%, var(--sb-border));
+    --sb-dice-bg: color-mix(in srgb, var(--sb-changed) 7%, transparent);
+}
+
+/* A plain fail is the ordinary bad outcome, not an alarm: muted, not red. */
+.story-block-dice .story-block-dice-card.is-fail {
+    --sb-dice-ink: inherit;
+    --sb-dice-line: var(--sb-border);
+    --sb-dice-bg: var(--sb-row-bg);
+}
+
+.story-block-dice .story-block-dice-card.is-critfail {
+    --sb-dice-ink: var(--sb-removed);
+    --sb-dice-line: color-mix(in srgb, var(--sb-removed) 55%, var(--sb-border));
+    --sb-dice-bg: color-mix(in srgb, var(--sb-removed) 9%, transparent);
+}
+
+/* A natural 20 is the whole story of the roll: the theme's accent, a glow on the face and a
+   filled pill, so it reads apart from an ordinary success even in a theme where the accent
+   and the green are close. */
+.story-block-dice .story-block-dice-card.is-crit {
+    --sb-dice-ink: var(--sb-accent);
+    --sb-dice-line: color-mix(in srgb, var(--sb-accent) 60%, var(--sb-border));
+    --sb-dice-bg: color-mix(in srgb, var(--sb-accent) 10%, transparent);
+    border-width: 2px;
+}
+
+.story-block-dice .story-block-dice-card.is-crit .story-block-dice-face {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sb-accent) 45%, transparent), 0 0 12px color-mix(in srgb, var(--sb-accent) 35%, transparent);
+}
+
+.story-block-dice .story-block-dice-card.is-critfail .story-block-dice-face {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sb-removed) 40%, transparent), 0 0 12px color-mix(in srgb, var(--sb-removed) 28%, transparent);
+}
+
+/* A card the check flagged: a dashed red edge on top of its outcome, plus the text flag. */
+.story-block-dice .story-block-dice-card.is-flagged {
+    border-style: dashed;
+    border-color: var(--sb-removed);
+}
+
+/* The raw die, before any modifier: the only number that was actually rolled. */
+.story-block-dice .story-block-dice-face {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 2.9rem;
+    height: 2.9rem;
+    border: 1px solid var(--sb-dice-line);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.story-block-dice .story-block-dice-roll,
+.story-block-dice .story-block-dice-strip > span {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: var(--sb-dice-row);
+    font-variant-numeric: tabular-nums;
+    color: var(--sb-dice-ink);
+}
+
+.story-block-dice .story-block-dice-die {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.2;
+    opacity: 0.7;
+}
+
+/* The reel. The strip's resting transform shows its last row (the rolled number); the
+   keyframes only supply a `from`, so with no animation at all the right number is on
+   screen. Whether it plays at all is decided in the display (newest reply, once). */
+.story-block-dice .story-block-dice-reel {
+    height: var(--sb-dice-row);
+    overflow: hidden;
+}
+
+.story-block-dice .story-block-dice-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translateY(calc(-1 * var(--sb-dice-row) * var(--sb-dice-decoys, 5)));
+}
+
+.story-block-dice .story-block-dice-strip > span {
+    display: block;
+    height: var(--sb-dice-row);
+}
+
+/* The decoys never were the result, so they never read as it. */
+.story-block-dice .story-block-dice-strip > .story-block-dice-decoy {
+    color: inherit;
+    opacity: 0.5;
+}
+
+.story-block-dice .story-block-dice-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .story-block-dice .story-block-dice-card.is-animated .story-block-dice-strip {
+        animation: story-block-dice-reel 900ms cubic-bezier(0.16, 0.86, 0.24, 1);
+    }
+
+    @keyframes story-block-dice-reel {
+        from { transform: translateY(0); }
+    }
+}
+
+.story-block-dice .story-block-dice-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.story-block-dice .story-block-dice-attempt {
+    line-height: 1.4;
+}
+
+.story-block-dice .story-block-dice-sum {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.45rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.story-block-dice .story-block-dice-total {
+    font-weight: 700;
+    color: var(--sb-dice-ink);
+}
+
+.story-block-dice .story-block-dice-mod {
+    font-size: 0.82em;
+    opacity: 0.7;
+}
+
+.story-block-dice .story-block-dice-vs {
+    font-size: 0.72em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.65;
+}
+
+.story-block-dice .story-block-dice-dc {
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.story-block-dice .story-block-dice-note {
+    font-size: 0.88em;
+    line-height: 1.4;
+    opacity: 0.75;
+}
+
+.story-block-dice .story-block-dice-sum-warning,
+.story-block-dice .story-block-dice-flag {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--sb-removed);
+}
+
+.story-block-dice .story-block-dice-pill {
+    flex: none;
+    max-width: 9rem;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--sb-dice-line);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.12);
+    color: var(--sb-dice-ink);
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+/* A tinted fill with the body text colour rather than a solid accent: the accent can be
+   dark or light depending on the theme, and no fixed text colour reads on both. */
+.story-block-dice .story-block-dice-pill.is-crit {
+    border-color: var(--sb-accent);
+    border-width: 2px;
+    background: color-mix(in srgb, var(--sb-accent) 26%, transparent);
+    color: inherit;
+}
+
+/* Honesty line */
+
+.story-block-dice .story-block-dice-honesty {
+    font-size: 0.85em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.story-block-dice .story-block-dice-honesty.is-ok,
+.story-block-dice .story-block-dice-honesty.is-unverified {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    opacity: 0.7;
+}
+
+.story-block-dice .story-block-dice-honesty.is-unverified {
+    font-style: italic;
+}
+
+.story-block-dice .story-block-dice-honesty.is-mismatch {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--sb-removed) 55%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--sb-removed) 12%, transparent);
+}
+
+.story-block-dice .story-block-dice-honesty-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-weight: 700;
+}
+
+.story-block-dice .story-block-dice-honesty-head > i {
+    color: var(--sb-removed);
+}
+
+.story-block-dice .story-block-dice-problems {
+    margin: 0.25rem 0 0.2rem;
+    padding-left: 1.2rem;
+}
+
+.story-block-dice .story-block-dice-handed {
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Narrow (sidebar, phone): the pill drops under the text, still clear of the die, so the
+   attempt keeps the width. The display pane is the `story-block` container, so this
+   follows the pane's own width in the card and in the sidebar alike. */
+@container story-block (max-width: 420px) {
+    .story-block-dice .story-block-dice-card {
+        flex-wrap: wrap;
+        row-gap: 0.35rem;
+    }
+
+    .story-block-dice .story-block-dice-body {
+        flex-basis: calc(100% - 3.6rem);
+    }
+
+    .story-block-dice .story-block-dice-pill {
+        margin-left: 3.55rem;
+        max-width: calc(100% - 3.55rem);
+    }
+}
+
 /* Settings editor (src/ui/editor.js) */
 /* Story Block settings panel and block editor.
    Everything is scoped under .story-block-settings and uses SillyTavern's theme

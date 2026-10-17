@@ -4,6 +4,7 @@
 
 import { formatFor } from './formats/index.js';
 import { ENVELOPE_MARKER, replacesLastReply, stripBlocks } from './envelope.js';
+import { formatRolls } from './dice.js';
 
 export const CONTEXT_BEGIN = 'STORY_BLOCKS_V1_CONTEXT_BEGIN';
 export const CONTEXT_END = 'STORY_BLOCKS_V1_CONTEXT_END';
@@ -62,8 +63,23 @@ function stateful(def) {
     return def?.kind === 'stateful';
 }
 
+function lead(def) {
+    return def?.kind === 'lead';
+}
+
+const KIND_NOTES = {
+    stateful: 'kept: rewrite the full current state',
+    turn: 'this reply only',
+    lead: 'first: this reply only, written before the story',
+};
+
 function heading(def) {
-    return `### ${def.name} — <${def.tag}> (${stateful(def) ? 'kept: rewrite the full current state' : 'this reply only'})`;
+    return `### ${def.name} — <${def.tag}> (${KIND_NOTES[def.kind] ?? KIND_NOTES.turn})`;
+}
+
+// {{rolls}}: the dice the extension rolled for this block and this reply.
+function withRolls(text, entry) {
+    return String(text ?? '').replaceAll('{{rolls}}', formatRolls(entry.rolls));
 }
 
 function currentState(def, state) {
@@ -78,10 +94,11 @@ function currentState(def, state) {
 function blockSection(entry, substitute) {
     const { def } = entry;
     const lines = [heading(def)];
-    const prompt = String(substitute(String(def.prompt ?? '')) ?? '').trim();
+    const prompt = String(substitute(withRolls(def.prompt, entry)) ?? '').trim();
     if (prompt) lines.push(prompt);
     const rules = String(formatFor(def).rules(def) ?? '').trim();
     if (rules) lines.push(`Format: ${rules}`);
+    if (def.optional) lines.push(`Optional: leave the whole <${def.tag}> tag out when nothing in this reply calls for it${lead(def) ? ', and then leave out the opening envelope too if it would be empty' : ''}.`);
     if (stateful(def)) lines.push(...currentState(def, entry.state));
     return lines.join('\n');
 }
@@ -89,8 +106,9 @@ function blockSection(entry, substitute) {
 // Skeletons are instructions like the block prompt, so {{user}}/{{char}} are filled in;
 // the current state never is.
 function skeletonEnvelope(list, substitute) {
-    const parts = list.map(({ def }) => {
-        const skeleton = String(substitute(String(formatFor(def).skeleton(def) ?? '')) ?? '').trim();
+    const parts = list.map(entry => {
+        const { def } = entry;
+        const skeleton = String(substitute(withRolls(formatFor(def).skeleton(def), entry)) ?? '').trim();
         return [`<${def.tag}>`, ...(skeleton ? [skeleton] : []), `</${def.tag}>`].join('\n');
     });
     return `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n${parts.join('\n')}\n</Blocks>\n-->`;
@@ -104,8 +122,12 @@ function skeletonEnvelope(list, substitute) {
 export function buildContext(entries, { substitute = text => text } = {}) {
     const list = (Array.isArray(entries) ? entries : []).filter(entry => entry?.def);
     if (!list.length) return '';
+    const first = list.filter(entry => lead(entry.def));
+    const last = list.filter(entry => !lead(entry.def));
     const rules = [
-        'At the very end of your reply, after the story, write exactly one hidden envelope holding the blocks below, exactly as shown under "Write it exactly like this". The reader never sees it, so write it in every reply.',
+        last.length
+            ? `At the very end of your reply, after the story, write exactly one hidden envelope holding the blocks below${first.length ? ' that are not marked "first"' : ''}, exactly as shown under "Write it exactly like this". The reader never sees it, so write it in every reply.`
+            : 'Write the hidden envelope shown under "Write it exactly like this" in every reply. The reader never sees it.',
         'Write the blocks in the order given, each tag exactly once, and close every tag you open.',
         'Never write the blocks, their tags or their contents as visible narration, and do not explain them in the story.',
         'Never write "-->" anywhere inside the envelope; write "--\\>" instead. A backslash escapes the character after it (for example --\\> or <\\Tag); keep such escapes exactly as written.',
@@ -113,13 +135,20 @@ export function buildContext(entries, { substitute = text => text } = {}) {
     if (list.some(entry => stateful(entry.def))) {
         rules.push('Blocks marked "kept" carry state from reply to reply. The current state shown here is the only authoritative one; earlier copies in the story are history. Rewrite each kept block in full every reply, with only the changes this reply actually makes. It is never a patch or a list of changes: omission means loss, so keep everything that did not change.');
     }
-    if (list.some(entry => !stateful(entry.def))) {
+    if (first.length) {
+        rules.push('Blocks marked "first" go in their own hidden envelope at the very start of your reply, before any story text: write that envelope first, decide it before you write the scene, and never revise it once the story exists.');
+    }
+    if (list.some(entry => entry.def.kind === 'turn')) {
         rules.push('Blocks marked "this reply only" describe this reply alone; write them fresh and never copy earlier ones.');
     }
     const sections = list.map(entry => blockSection(entry, substitute));
     return `${CONTEXT_BEGIN}\n## Story Blocks\n${rules.map(rule => `- ${rule}`).join('\n')}\n\n` +
         `${sections.join('\n\n')}\n\n` +
-        `Write it exactly like this:\n${skeletonEnvelope(list, substitute)}\n${CONTEXT_END}`;
+        `Write it exactly like this:\n${[
+            first.length ? skeletonEnvelope(first, substitute) : '',
+            first.length && last.length ? '[your reply]' : '',
+            last.length ? skeletonEnvelope(last, substitute) : '',
+        ].filter(Boolean).join('\n')}\n${CONTEXT_END}`;
 }
 
 /** True when `text` carries a context section (the placeholder or the real one). */

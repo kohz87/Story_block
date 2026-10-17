@@ -11,6 +11,8 @@ import {
     DEFAULT_COLUMNS,
     DEFAULT_DISPLAY,
     DEFAULT_MAX_DEPTH,
+    DIE_SIDES,
+    MAX_ROLLS,
     DISPLAYS,
     FIELD_TYPES,
     FORMATS,
@@ -33,10 +35,10 @@ import { TEMPLATES } from '../templates.js';
 export const EXPORT_VERSION = 1;
 export const EXPORT_FILENAME = 'story-blocks.json';
 
-const KIND_LABELS = { stateful: 'Stateful: kept and rewritten each reply', turn: 'Per-turn: this reply only' };
-const KIND_BADGES = { stateful: 'Stateful', turn: 'Per-turn' };
+const KIND_LABELS = { stateful: 'Stateful: kept and rewritten each reply', turn: 'Per-turn: this reply only', lead: 'First: this reply only, written before the story' };
+const KIND_BADGES = { stateful: 'Stateful', turn: 'Per-turn', lead: 'First' };
 const FORMAT_LABELS = { rows: 'Rows', fields: 'Fields', text: 'Free text' };
-const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)', scene: 'Scene board (World State layout)', choices: 'Choice buttons (numbered list)' };
+const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)', scene: 'Scene board (World State layout)', choices: 'Choice buttons (numbered list)', dice: 'Dice cards (roll lines)' };
 const FIELD_TYPE_LABELS = { meter: 'Meter', number: 'Number', text: 'Text', list: 'List' };
 const WHEN_LABELS = { always: 'Every reply', every: 'Every N replies', keyword: 'When a keyword appears' };
 
@@ -687,6 +689,22 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
     enabled.input.addEventListener('change', () => { draft.enabled = enabled.input.checked; });
     const visible = checkbox('story-block-input-visible', 'Show tab in the card', draft.visible, 'Off: still prompted and stored, but no tab');
     visible.input.addEventListener('change', () => { draft.visible = visible.input.checked; });
+    const optional = checkbox('story-block-input-optional', 'Optional', draft.optional, 'Written only when something calls for it (like Dice); a reply without it is not warned about');
+    optional.input.addEventListener('change', () => { draft.optional = optional.input.checked; });
+
+    // Dice rolled before each reply and handed over through {{rolls}}.
+    draft.rolls = { count: draft.rolls?.count ?? 0, sides: draft.rolls?.sides ?? 20 };
+    const rollCount = numberInput('story-block-input-roll-count', draft.rolls.count, 0, MAX_ROLLS);
+    rollCount.addEventListener('input', () => { draft.rolls.count = rollCount.value; });
+    const rollSides = select('story-block-input-roll-sides', DIE_SIDES.map(String), Object.fromEntries(DIE_SIDES.map(sides => [String(sides), `d${sides}`])), String(draft.rolls.sides));
+    rollSides.addEventListener('change', () => { draft.rolls.sides = Number(rollSides.value); });
+    const rollsSection = el('fieldset', { className: 'story-block-editor-section story-block-editor-rolls' }, [
+        el('legend', { text: 'Dice' }),
+        el('div', { className: 'story-block-editor-grid' }, [
+            labelled('Roll before each reply', rollCount, '0 = no dice. The numbers go wherever the instructions or layout say {{rolls}}.'),
+            labelled('Die', rollSides),
+        ]),
+    ]);
 
     // Prompt
     const prompt = el('textarea', { className: 'text_pole story-block-input-prompt', attrs: { rows: '5' } });
@@ -809,6 +827,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
             id: autoId ? newBlockId(draft.name, list) : draft.id,
             when: { ...draft.when },
             fields: draft.fields.map(field => ({ ...field })),
+            rolls: { ...draft.rolls },
         };
         const normalized = normalizeBlock(input);
         // normalizeBlock repairs a blank name or a malformed tag on its own, which would
@@ -846,8 +865,8 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
             labelled('Format', format),
             labelled('Display', display),
         ]),
-        el('div', { className: 'story-block-editor-checks' }, [enabled.wrapper, visible.wrapper]),
-        labelled('Instructions', prompt, 'What the block tracks and how. Placeholders: {{user}} and {{char}} become the persona and character names.', 'story-block-editor-prompt'),
+        el('div', { className: 'story-block-editor-checks' }, [enabled.wrapper, visible.wrapper, optional.wrapper]),
+        labelled('Instructions', prompt, 'What the block tracks and how. Placeholders: {{user}} and {{char}} become the persona and character names; {{rolls}} becomes this reply\'s dice.', 'story-block-editor-prompt'),
         el('fieldset', { className: 'story-block-editor-section story-block-editor-when' }, [
             el('legend', { text: 'When' }),
             labelled('Prompt this block', whenMode),
@@ -856,6 +875,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
         ]),
         layoutSection,
         rowsSection,
+        rollsSection,
         fieldsSection,
         el('div', { className: 'story-block-editor-actions' }, [
             button('Save', 'story-block-editor-save', { iconName: 'fa-floppy-disk', onClick: save }),

@@ -7,6 +7,7 @@
 import { extractBlocks, latestBlockInText, latestBlockState } from './envelope.js';
 import { formatFor } from './formats/index.js';
 import { diffScene } from './scene.js';
+import { readRolls } from './dice.js';
 
 export function isAssistant(message) {
     return Boolean(message) && !message.is_user && !message.is_system;
@@ -52,12 +53,15 @@ export function blockView(chat, def) {
     const truncated = own.status === 'truncated';
     const format = formatFor(def);
 
-    if (def.kind === 'turn') {
+    // Per-reply blocks (turn, and lead blocks written before the story) come from the
+    // latest reply only. Rolls stamped on the block are what the extension handed over.
+    if (def.kind === 'turn' || def.kind === 'lead') {
         const found = latest ? latestBlockInText(latest.mes, def) : null;
         if (!found && !error && !truncated) return null;
         return {
             def, state: found?.state ?? null, body: found?.body ?? '', previousState: null, changes: [],
             error, truncated, messageIndex: latestIndex, fromEarlierReply: false,
+            rolls: latest ? readRolls(latest.mes, def) : null,
         };
     }
 
@@ -81,5 +85,5 @@ export function blockView(chat, def) {
 // A cheap content key: equal keys mean the pane can be kept as it is.
 export function viewKey(view) {
     if (!view) return '';
-    return JSON.stringify([view.def, view.body, view.messageIndex, view.error, view.truncated, view.changes.length]);
+    return JSON.stringify([view.def, view.body, view.messageIndex, view.error, view.truncated, view.changes.length, view.rolls ?? null]);
 }

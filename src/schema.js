@@ -4,9 +4,11 @@
 // definition with different settings; the engine reads `kind`, `format` and
 // `display` to decide how the block is prompted, parsed, stored and drawn.
 
-export const KINDS = ['stateful', 'turn'];
+export const KINDS = ['stateful', 'turn', 'lead'];
 export const FORMATS = ['rows', 'fields', 'text'];
-export const DISPLAYS = ['plain', 'tree', 'fields', 'scene', 'choices'];
+export const DISPLAYS = ['plain', 'tree', 'fields', 'scene', 'choices', 'dice'];
+export const DIE_SIDES = [4, 6, 8, 10, 12, 20, 100];
+export const MAX_ROLLS = 10;
 export const FIELD_TYPES = ['meter', 'number', 'text', 'list'];
 export const WHEN_MODES = ['always', 'every', 'keyword'];
 
@@ -83,6 +85,9 @@ export function normalizeBlock(value = {}) {
         tag,
         enabled: input.enabled !== false,
         visible: input.visible !== false,
+        // Optional blocks are written only when something calls for them (Dice); a reply
+        // without one is not warned about.
+        optional: input.optional === true,
         kind: oneOf(input.kind, KINDS, 'stateful'),
         format,
         display: oneOf(input.display, DISPLAYS, DEFAULT_DISPLAY[format]),
@@ -95,6 +100,11 @@ export function normalizeBlock(value = {}) {
             scanDepth: clampInt(input.when?.scanDepth, 1, 20, 2),
         },
         template: input.template ? cleanText(input.template, 48) : null,
+        // Dice the extension rolls before each reply and hands over through {{rolls}}; 0 = none.
+        rolls: {
+            count: clampInt(input.rolls?.count, 0, MAX_ROLLS, 0),
+            sides: DIE_SIDES.includes(Number(input.rolls?.sides)) ? Number(input.rolls.sides) : 20,
+        },
     };
     if (format === 'rows') {
         const columns = Array.isArray(input.columns) ? input.columns.map(column => cleanText(column, 24)) : [];

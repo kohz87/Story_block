@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+Dice.
+
+- **Dice templates** (off by default): **Dice** rolls for {{user}}'s attempts, **Dice: Everyone** for anyone's. Story Block rolls the dice before the reply is written (a fair die from the browser's crypto source, rolled again on every swipe and regenerate) and hands the numbers to the model; the model only decides whether an attempt needs a roll and how hard it is, and writes the roll line before the scene.
+- **Dice cards:** the die spins to its number the first time a reply's rolls are shown, then each card shows the total against the DC, the outcome (success, success at a cost, fail, critical success or fail) and any note.
+- **Honesty check:** the rolls handed over are recorded on the reply itself, so every swipe keeps its own. The card says "Rolled by Story Block" when the model used them in order and the sums add up, and names the problem when it didn't (an invented number, a roll out of order, a sum that doesn't add up).
+- **Roll results in the "This turn" strip** when it is on.
+- **New block options**, usable by any block: kind **First** (written before the story, in its own hidden envelope), **Optional** (written only when something calls for it; no warning when left out) and **Dice** (roll 0–10 dice of d4–d100 before each reply into `{{rolls}}`).
+
 ## 0.3.0
 
 World State and Choices.
