@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2
+
+- **One switch look:** the block list's on/off switches are the Story Suite's Enabled/Disabled pills, as in NPC State Delta, Story Director and RPG Battle (a plain checkbox in browsers without `:has()`).
+
 ## 0.9.1
 
 Kept blocks without a tab, chatter on NPC State Delta's cards, new built-in blocks offered, tokens per reply, and one look for the suite's settings panels.

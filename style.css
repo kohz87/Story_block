@@ -3013,13 +3013,13 @@ button.story-block-strip:hover {
     white-space: nowrap;
 }
 
-/* The on/off switch: a checkbox drawn as a track and knob. */
+/* The on/off switch: the Story Suite's Enabled/Disabled pill (as in suite.css rows), drawn on the
+   label; the real checkbox stays semantic and focusable. Without :has(), a plain checkbox. */
 .story-block-settings .story-block-switch {
     position: relative;
     display: inline-flex;
+    align-items: center;
     flex: none;
-    width: 2.4rem;
-    height: 1.35rem;
     margin: 0;
     cursor: pointer;
 }
@@ -3028,46 +3028,33 @@ button.story-block-strip:hover {
     display: none;
 }
 
-.story-block-settings .story-block-switch input {
-    appearance: none;
-    -webkit-appearance: none;
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    border: 1px solid var(--story-block-border);
-    border-radius: 999px;
-    background: rgba(127, 127, 127, 0.25);
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
+@supports selector(label:has(> input[type="checkbox"]:checked)) {
+    .story-block-settings .story-block-switch > input[type="checkbox"] {
+        position: absolute !important; width: 1px !important; height: 1px !important; min-width: 1px !important; max-width: 1px !important;
+        margin: -1px !important; padding: 0 !important; border: 0 !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important;
+        overflow: hidden !important; white-space: nowrap !important; opacity: 0 !important; box-shadow: none !important; background: none !important;
+        pointer-events: none !important;
+    }
 
-.story-block-settings .story-block-switch input::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 0.15rem;
-    width: 1rem;
-    height: 1rem;
-    border-radius: 50%;
-    background: var(--SmartThemeBodyColor, #ddd);
-    transform: translateY(-50%);
-    transition: left 0.15s ease;
-}
+    .story-block-settings .story-block-switch::after {
+        content: "Disabled"; display: inline-flex; align-items: center; justify-content: flex-start;
+        min-width: 78px; height: 24px; box-sizing: border-box;
+        margin: 0; padding: 0 8px 0 22px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px;
+        background: radial-gradient(circle at 10px 50%, rgba(190,195,202,.62) 0 3.5px, transparent 4px), rgba(255,255,255,.045);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.18); color: rgba(255,255,255,.68);
+        font: 600 11.5px/1 inherit; letter-spacing: .01em; white-space: nowrap;
+    }
 
-.story-block-settings .story-block-switch input:checked {
-    border-color: var(--story-block-accent);
-    background: color-mix(in srgb, var(--story-block-accent) 70%, transparent);
-}
+    .story-block-settings .story-block-switch:has(> input[type="checkbox"]:checked)::after {
+        content: "Enabled"; border-color: rgba(87,209,123,.42);
+        background: radial-gradient(circle at 10px 50%, #57d17b 0 3.5px, transparent 4px), rgba(54,91,64,.26);
+        color: rgba(239,255,243,.94);
+    }
 
-.story-block-settings .story-block-switch input:checked::after {
-    left: calc(100% - 1.15rem);
-}
-
-.story-block-settings .story-block-switch input:focus-visible {
-    outline: 2px solid var(--story-block-accent);
-    outline-offset: 2px;
+    .story-block-settings .story-block-switch:has(> input[type="checkbox"]:focus-visible)::after {
+        outline: 2px solid rgba(111,214,139,.9);
+        outline-offset: 2px;
+    }
 }
 
 /* Folded actions under a row: Show tab, then Up, Down, Duplicate, Reset, Delete. */
