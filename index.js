@@ -29,7 +29,7 @@ import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef
 import { storySuite } from './src/suite.js';
 import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -50,6 +50,8 @@ let coexistenceWarned = false;
 let suiteSubscribed = false;
 // The Source of truth section of the settings panel, redrawn when the suite changes.
 let suiteSection = null;
+// The settings folds' one-line summaries (Display, Source of truth, Blocks), kept current.
+const foldHints = {};
 const pending = new Map();
 const cleanupTimers = new Map();
 const normalizingMessages = new Set();
@@ -675,6 +677,7 @@ function onBlocksChanged(next) {
     settings(ctx).blocks = normalizeBlocks(next);
     saveSettings(ctx);
     announceToSuite(ctx);
+    setFoldHint('blocks', blocksHint());
     refreshAll(0);
 }
 
@@ -695,6 +698,58 @@ function addSettingsPanel(documentRef) {
     return true;
 }
 
+// The settings panel's sections fold, so it is not one long column. Which are open is the
+// reader's own convenience, remembered in this browser only; Blocks starts open.
+const FOLDS_STORAGE = 'story_block_settings_folds';
+const FOLDS_OPEN = { display: false, suite: false, blocks: true };
+
+function foldsOpen() {
+    try {
+        const saved = JSON.parse(globalThis.localStorage?.getItem(FOLDS_STORAGE) ?? 'null');
+        return { ...FOLDS_OPEN, ...(saved && typeof saved === 'object' ? saved : {}) };
+    } catch {
+        return { ...FOLDS_OPEN };
+    }
+}
+
+function rememberFold(key, open) {
+    try { globalThis.localStorage?.setItem(FOLDS_STORAGE, JSON.stringify({ ...foldsOpen(), [key]: open })); } catch { /* private window */ }
+}
+
+function settingsFold(documentRef, key, title, children) {
+    const fold = documentRef.createElement('details');
+    fold.className = `story-block-fold is-${key}`;
+    fold.dataset.fold = key;
+    fold.open = foldsOpen()[key];
+    const summary = documentRef.createElement('summary');
+    summary.className = 'story-block-fold-head';
+    const name = documentRef.createElement('span');
+    name.className = 'story-block-fold-title';
+    name.textContent = title;
+    const hint = documentRef.createElement('small');
+    hint.className = 'story-block-fold-hint';
+    summary.append(name, hint);
+    fold.append(summary, ...children);
+    fold.addEventListener('toggle', () => rememberFold(key, Boolean(fold.open)));
+    foldHints[key] = hint;
+    return fold;
+}
+
+function setFoldHint(key, text) {
+    if (foldHints[key] && foldHints[key].textContent !== text) foldHints[key].textContent = text;
+}
+
+// "3 of 5 on", for the Blocks fold.
+function blocksHint() {
+    const list = blocks();
+    return `${list.filter(block => block.enabled).length} of ${list.length} on`;
+}
+
+function displayHint() {
+    const own = settings();
+    return own.display === 'card' ? 'Card under the reply' : `Sidebar${own.showTurnStrip ? ' · strip on' : ''}`;
+}
+
 // Version, Rescan and the compatibility switch sit above the editor's status line; the
 // editor re-renders only its own list, so these stay put.
 function addRuntimeControls(documentRef, root) {
@@ -703,10 +758,6 @@ function addRuntimeControls(documentRef, root) {
     const row = documentRef.createElement('div');
     row.className = 'story-block-runtime';
     row.innerHTML = `
-        <div class="story-block-section-head">
-            <span>Display</span>
-            <span class="story-block-runtime-version">v${VERSION}</span>
-        </div>
         <label class="story-block-runtime-field" for="story_block_display">
             <span>Show blocks in</span>
             <select id="story_block_display" class="text_pole">
@@ -726,7 +777,8 @@ function addRuntimeControls(documentRef, root) {
         <div class="story-block-runtime-tools">
             <button id="story_block_rescan" type="button" class="menu_button"><i class="fa-solid fa-rotate"></i> Rescan chat</button>
             <small>Re-reads every block in this chat and hides raw ones left in the story.</small>
-        </div>`;
+        </div>
+        <small class="story-block-runtime-version">Story Block v${VERSION}</small>`;
     row.querySelector('#story_block_rescan')?.addEventListener('click', () => void rescan());
     const display = row.querySelector('#story_block_display');
     const strip = row.querySelector('#story_block_strip');
@@ -745,6 +797,7 @@ function addRuntimeControls(documentRef, root) {
             write(input);
             saveSettings();
             syncEnabled();
+            setFoldHint('display', displayHint());
             refreshAll(0);
         });
     };
@@ -755,9 +808,16 @@ function addRuntimeControls(documentRef, root) {
     syncEnabled();
     suiteSection = documentRef.createElement('div');
     suiteSection.className = 'story-block-runtime story-block-suite';
+    // Display, Source of truth, the editor's status line, then Blocks (the editor's own view,
+    // which it redraws in place).
+    const view = content.querySelector('.story-block-view');
+    const blocksFold = view ? settingsFold(documentRef, 'blocks', 'Blocks', [view]) : null;
+    if (blocksFold) content.appendChild(blocksFold);
+    content.prepend(settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
+    content.prepend(settingsFold(documentRef, 'display', 'Display', [row]));
+    setFoldHint('display', displayHint());
+    setFoldHint('blocks', blocksHint());
     renderSuiteSection();
-    content.prepend(suiteSection);
-    content.prepend(row);
 }
 
 // Source of truth: one choice per shared area Story Block can offer, with who has it now.
@@ -774,10 +834,8 @@ function renderSuiteSection() {
         if (text) node.textContent = text;
         return node;
     };
-    const head = make('div', 'story-block-section-head');
-    head.appendChild(make('span', '', 'Source of truth'));
     const intro = make('small', 'story-block-suite-intro', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
-    const nodes = [head, intro];
+    const nodes = [intro];
     for (const area of SHARED_AREAS) {
         const { label, provider } = AREA_LABELS[area];
         const field = make('label', 'story-block-runtime-field story-block-suite-area');
@@ -802,6 +860,8 @@ function renderSuiteSection() {
         nodes.push(field);
     }
     suiteSection.replaceChildren(...nodes);
+    const chosen = SHARED_AREAS.filter(area => own.sourceOfTruth[area] !== 'auto').length;
+    setFoldHint('suite', chosen ? `${chosen} chosen by hand` : 'Automatic');
 }
 
 // Story Suite (src/suite.js): announce what the reader's enabled blocks offer. Only a change is

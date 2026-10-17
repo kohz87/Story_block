@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1
+
+Many tabs and a tidier settings panel.
+
+- **Every tab in reach:** the sidebar's tab rail (docked and drawer) wraps into rows instead of running off its right edge, scrolling down on its own past three rows. On phones the bottom sheet keeps its sideways row of pills; a mouse wheel scrolls it, the ends fade while tabs hide past them, and the picked tab always scrolls into sight (the first and last all the way to their end).
+- **Settings in sections:** Display, Source of truth and Blocks fold, each one line with a summary until opened ("Sidebar", "Automatic", "5 of 8 on"); Blocks starts open. Which are open is remembered in this browser. The version moved under Rescan.
+
 ## 0.8.0
 
 Story Suite: Story Block, Story Director, NPC State Delta and RPG Battle find each other and agree on who tracks what ([docs/STORY_SUITE.md](docs/STORY_SUITE.md)).

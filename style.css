@@ -1254,23 +1254,22 @@
     outline-offset: -2px;
 }
 
-/* Tabs: an equal-width rail (docked, drawer) */
+/* Tabs: an equal-width rail (docked, drawer) that wraps into rows, so every tab stays in
+   reach; past three rows the rail scrolls down on its own. */
 
 .story-block-sidebar-tabs {
     flex: none;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr));
     gap: 4px;
     min-width: 0;
+    max-height: calc(52px * 3 + 4px * 2 + 0.6rem);
     padding: 0 0.6rem 0.6rem;
     border-bottom: 1px solid var(--sb-border);
-    /* Many tabs scroll sideways inside the rail, never the page. */
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-}
-
-.story-block-sidebar-tabs::-webkit-scrollbar {
-    display: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
 }
 
 .story-block-sidebar-tab {
@@ -1351,11 +1350,37 @@
     display: none;
 }
 
-/* Tabs: pills in a sideways-scrolling row (sheet) */
+/* Tabs: pills in a sideways-scrolling row (sheet). A wheel scrolls it too, and the ends
+   fade while tabs hide past them. */
 
 .story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tabs {
+    display: flex;
     gap: 6px;
+    max-height: none;
     padding: 0 0.75rem 0.6rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tabs[data-overflow="end"] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tabs[data-overflow="start"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 2.5rem);
+    mask-image: linear-gradient(to right, transparent, #000 2.5rem);
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tabs[data-overflow="both"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
 }
 
 .story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab {
@@ -3489,4 +3514,65 @@ button.story-block-strip:hover {
     margin-top: 4px;
     white-space: pre-wrap;
     line-height: 1.4;
+}
+
+/* Settings folds (index.js): Display, Source of truth and Blocks, each one line until opened. */
+.story-block-settings .story-block-fold {
+    margin: 0 0 0.35rem;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(127, 127, 127, 0.3));
+    border-radius: 8px;
+    min-width: 0;
+}
+
+.story-block-settings .story-block-fold > summary.story-block-fold-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.45rem 0.6rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.story-block-settings .story-block-fold > summary.story-block-fold-head::-webkit-details-marker {
+    display: none;
+}
+
+.story-block-settings .story-block-fold > summary.story-block-fold-head::after {
+    content: "\f078";
+    margin-left: auto;
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 0.75em;
+    opacity: 0.55;
+    transition: transform 0.15s ease;
+}
+
+.story-block-settings .story-block-fold[open] > summary.story-block-fold-head::after {
+    transform: rotate(180deg);
+}
+
+.story-block-settings .story-block-fold-title {
+    font-weight: 600;
+}
+
+.story-block-settings .story-block-fold-hint {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.6;
+}
+
+.story-block-settings .story-block-fold > :not(summary) {
+    margin: 0 0.6rem 0.6rem;
+}
+
+/* The fold's summary already says Blocks. */
+.story-block-settings .story-block-fold.is-blocks > .story-block-view > .story-block-section-head:first-child {
+    display: none;
+}
+
+.story-block-settings .story-block-runtime-version {
+    opacity: 0.55;
 }

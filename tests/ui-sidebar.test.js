@@ -505,3 +505,45 @@ test('labels and icons are text, never markup', () => {
     assert.equal(sidebar().querySelector('.story-block-sidebar-meta').textContent, '<b>reply</b>');
     unmountSidebar();
 });
+
+test('many tabs: the selected one is scrolled into the strip, a wheel scrolls the pills, the ends fade', () => {
+    reset(390, { chatRight: 390 });
+    const many = Array.from({ length: 10 }, (_, index) => counted(`t${index}`, `Tab ${index}`));
+    const aside = mountSidebar(many, { uiKey: freshKey() });
+    openSidebar();
+    const strip = aside.querySelector('.story-block-sidebar-tabs');
+    // The fake DOM has no layout: ten 80px pills in a 300px strip.
+    Object.assign(strip, { scrollWidth: 800, clientWidth: 300, scrollHeight: 40, clientHeight: 40, scrollLeft: 0, scrollTop: 0, offsetLeft: 0, offsetTop: 0 });
+    tabButtons().forEach((tab, index) => Object.assign(tab, { offsetLeft: index * 80, offsetWidth: 76, offsetTop: 0, offsetHeight: 36 }));
+
+    tabButtons()[8].click();
+    assert.deepEqual(activeIds(), ['t8']);
+    assert.equal(strip.scrollLeft, 8 * 80 + 76 - 300, 'the picked tab is brought fully into sight');
+    assert.equal(strip.getAttribute('data-overflow'), 'both');
+
+    tabButtons()[0].click();
+    assert.equal(strip.scrollLeft, 0);
+    assert.equal(strip.getAttribute('data-overflow'), 'end');
+
+    tabButtons()[9].click();
+    assert.equal(strip.scrollLeft, 500, 'the last tab scrolls the strip to its very end');
+    assert.equal(strip.getAttribute('data-overflow'), 'start');
+    tabButtons()[0].click();
+
+    const wheel = strip.dispatch('wheel', { deltaY: 120, deltaX: 0 });
+    assert.equal(strip.scrollLeft, 120, 'a mouse wheel scrolls sideways');
+    assert.ok(wheel.defaultPrevented, 'and not the page');
+    const sideways = strip.dispatch('wheel', { deltaY: 0, deltaX: 40 });
+    assert.equal(strip.scrollLeft, 120, 'a trackpad\'s own sideways swipe is left to the browser');
+    assert.ok(!sideways.defaultPrevented);
+
+    strip.scrollLeft = 500;
+    strip.dispatch('scroll');
+    assert.equal(strip.getAttribute('data-overflow'), 'start');
+
+    // Everything fits: no fade, and the wheel is the page's.
+    Object.assign(strip, { scrollWidth: 300, scrollLeft: 0 });
+    strip.dispatch('scroll');
+    assert.equal(strip.getAttribute('data-overflow'), null);
+    assert.ok(!strip.dispatch('wheel', { deltaY: 120, deltaX: 0 }).defaultPrevented);
+});
