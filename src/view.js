@@ -4,7 +4,7 @@
 // state, and a turn block belongs to the latest assistant reply. Nothing here touches
 // the DOM, so the rules are testable on plain message arrays.
 
-import { extractBlocks, latestBlockInText, latestBlockState } from './envelope.js';
+import { extractBlocks, latestBlockInText, latestBlockState, ownCopy } from './envelope.js';
 import { formatFor } from './formats/index.js';
 import { diffScene } from './scene.js';
 import { readRolls } from './dice.js';
@@ -21,10 +21,11 @@ export function latestAssistantIndex(chat) {
 
 /**
  * How the newest occurrence of `def` in one message fared: 'valid', 'invalid' (with the
- * parser's error), 'truncated', or 'missing' when the message has no copy at all.
+ * parser's error), 'truncated', or 'missing' when the message has no copy at all. A block
+ * kept by an extension counts only the copies that extension wrote.
  */
 export function blockStatusInText(text, def) {
-    const entries = extractBlocks(String(text ?? ''), [def]);
+    const entries = extractBlocks(String(text ?? ''), [def]).filter(entry => ownCopy(entry, def));
     const last = entries.at(-1);
     if (!last) return { status: 'missing' };
     if (last.truncated) return { status: 'truncated' };

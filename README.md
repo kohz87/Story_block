@@ -1,4 +1,4 @@
-# Story Block v0.6.3
+# Story Block v0.7.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -270,6 +270,58 @@ The full list is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Plugin API). R
 appear in the sidebar and the card. The card also carries Megumin Suite's card classes, so
 extensions that already add a tab to Megumin's card (NPC State Delta) show up in Story Block's
 card unchanged; to appear in the sidebar they need `registerTab`.
+
+### Kept blocks
+
+A **kept block** (v0.7) is one your extension keeps and the model only reads: RPG Battle's
+Character and Party sheets, for example. Story Block shows its newest copy to the model in
+every reply's prompt, marked read-only, gives it a tab (meters and fields, or plain text)
+with a small *kept by …* note and no Edit button, and never asks the model to write it.
+
+```js
+sb.registerBlock({
+    kept: true,
+    id: 'rpg-character',          // lowercase id
+    tag: 'Character',             // letters, numbers and _; not used by another block
+    owner: 'RPG Battle',          // your extension's name, shown to the model and on the tab
+    name: 'Character',            // tab label (default: the tag)
+    icon: '⚔️',
+    format: 'fields',             // 'fields' or 'text' (default: 'fields' when fields are given)
+    display: 'fields',            // 'fields' (needs format 'fields') or 'plain' (default: by format)
+    fields: [                     // fields format: as in the block editor
+        { label: 'HP', type: 'meter', max: 62 },
+        { label: 'MP', type: 'meter', max: 30 },
+        { label: 'Checks', type: 'text', hint: 'STAT +N' },
+    ],
+    promptNote: 'The player character as RPG Battle tracks it.',  // optional: one line on how to read it
+    diceModifier: "Modifier: the matching stat's bonus from the <Character> block's Checks line (for example CHA +1); ignore the −3 to +3 guess.",  // optional
+});                                // { ok: true } or { ok: false, error }
+await sb.setBlockText(messageIndex, 'Character', 'HP: 58/62 | MP: 21/30\nChecks: STR +2 | CHA +1');
+sb.getBlock('Character');          // { text, state, messageIndex }: state.entries has HP 58/62, MP 21/30, …
+```
+
+| Spec field | What it does |
+|---|---|
+| `kept: true` | Makes the block kept instead of transport only. |
+| `id`, `tag` | As for any block. A tag the reader's own blocks use stays theirs; registering your own id again replaces your block. |
+| `owner` | Required. In the prompt the block is headed `### Character — <Character> (kept by RPG Battle: read it, never write it)`, and the tab says *kept by RPG Battle*. |
+| `name`, `icon`, `short` | Tab label, icon and short sidebar label. |
+| `format`, `display`, `fields` | `fields` (one `Label: value` line per field; several on one line with ` \| ` read too) or `text`; shown as `fields` (meters, numbers, text, list chips) or `plain`. Field types: `meter` (with `max`), `number`, `text`, `list`, each with an optional `hint`. |
+| `promptNote` | One line under the heading, telling the model how to read the block. |
+| `diceModifier` | Added as one more instruction line to the **Dice** block's instructions in the prompt, while the Dice block is on and this block has been written. The reader's stored Dice prompt is not changed. *Dice: Everyone* is left alone, since its rolls are often an NPC's. |
+
+- **Only you write it.** `setBlockText(messageIndex, tag, text)` takes plain text, checks that
+  the block's format reads it (and throws if not), and stores it in the message's hidden
+  envelope, marked as yours. The prompt and `getBlock` show the text as you wrote it.
+- **The model's copies don't count.** If the model writes the tag anyway, Story Block takes it
+  out of the reply when the reply arrives, so it shows nowhere and never becomes the current state.
+  Copies added by hand in a message edit are taken out the same way.
+- **Current state as for stateful blocks:** the newest copy you wrote, anywhere in the chat; a
+  swipe or regenerate is shown the copy before the reply it replaces (`blockForGeneration`).
+  Until you have written one, there is no prompt section and no tab.
+- No warning is given when a reply leaves a kept block out, since the model never writes it.
+  Kept blocks are not in the reader's settings list. `listBlocks()` reports them with
+  `kind: 'kept'` and their `owner`.
 
 ## Development
 

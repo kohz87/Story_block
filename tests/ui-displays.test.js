@@ -175,3 +175,17 @@ test('fields: empty, missing, error, truncated, edit; text stays text', () => {
     assert.equal(edits, 1);
     assert.match(show(fields, { def: sheetDef, state: { text: 'loose text' } }).textContent, /loose text/, 'non-fields state falls back to plain');
 });
+
+// ---- kept blocks -----------------------------------------------------------------------
+
+test('a block kept by another extension says whose it is and has no Edit button', () => {
+    const kept = { ...sheetDef, kept: true, owner: 'RPG Battle', name: 'Character' };
+    const pane = show(fields, { def: kept, state: sheet });
+    const hint = pane.querySelector('.story-block-kept');
+    assert.equal(hint.textContent, 'kept by RPG Battle');
+    assert.match(hint.title, /only RPG Battle changes it/);
+    assert.equal(pane.querySelector('.story-block-edit'), null);
+    assert.equal(pane.querySelector('.story-block-meter').getAttribute('aria-valuenow'), '72', 'meters as usual');
+    assert.equal(show(plain, { def: { ...notesDef, kept: true, owner: 'RPG Battle' }, state: { text: 'Party: Ava, Brenn' } }).querySelector('.story-block-kept').textContent, 'kept by RPG Battle');
+    assert.equal(show(fields, { def: sheetDef, state: sheet }).querySelector('.story-block-kept'), null);
+});

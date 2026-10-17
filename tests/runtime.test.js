@@ -279,3 +279,68 @@ test('dice written as one tag per roll are folded into one block and stamped onc
     assert.match(mes, /<Dice rolls="[^"]+">\n🎲 Climb[^\n]*\n🎲 Look/);
     delete ctx.extensionSettings.storyBlock;
 });
+
+// ---- kept blocks (v0.7): RPG Battle's sheet, read every reply, written only by the plugin ----
+
+const characterSpec = {
+    kept: true,
+    id: 'rpg-character',
+    tag: 'Character',
+    owner: 'RPG Battle',
+    name: 'Character',
+    icon: '⚔️',
+    format: 'fields',
+    display: 'fields',
+    fields: [{ label: 'HP', type: 'meter', max: 62 }, { label: 'MP', type: 'meter', max: 30 }, { label: 'Checks', type: 'text' }],
+    promptNote: 'The player character, as RPG Battle tracks it.',
+    diceModifier: "Modifier: the matching stat's bonus from the <Character> block's Checks line (for example CHA +1); ignore the −3 to +3 guess.",
+};
+
+test('kept block: registered, written by setBlockText, shown read-only in the prompt, a model copy dropped, never warned about', async () => {
+    const sb = globalThis.StoryBlock;
+    const { templateById } = await import('../src/templates.js');
+    setBlocks([{ ...templateById('dice'), enabled: true }, { id: 'notes', name: 'Notes', tag: 'Notes', kind: 'turn', format: 'text' }]);
+    assert.deepEqual(sb.registerBlock(characterSpec), { ok: true });
+    assert.equal(sb.registerBlock({ ...characterSpec, owner: '' }).ok, false);
+    try {
+        const listed = sb.listBlocks().find(block => block.id === 'rpg-character');
+        assert.equal(listed.kind, 'kept');
+        assert.equal(listed.owner, 'RPG Battle');
+
+        ctx.chat = [{ is_user: false, mes: 'The road is quiet.' }, { is_user: true, mes: 'fight' }, { is_user: false, mes: 'The goblin falls.' }];
+        await assert.rejects(sb.setBlockText(2, 'Character', 'nothing readable'), /Character could not be read/);
+        assert.equal(await sb.setBlockText(2, 'Character', 'HP: 58/62 | MP: 21/30\nChecks: STR +2 | CHA +1'), true);
+        const snap = sb.getBlock('Character');
+        assert.equal(snap.messageIndex, 2);
+        assert.deepEqual(snap.state.entries.map(entry => [entry.label, entry.value]), [['HP', 58], ['MP', 21], ['Checks', 'STR +2 | CHA +1']]);
+        assert.equal(sb.blockForGeneration('rpg-character', 'normal').messageIndex, 2);
+        assert.equal(sb.blockForGeneration('rpg-character', 'swipe'), null, 'a swipe of #2 sees the copy before it');
+
+        ctx.chat.push({ is_user: true, mes: 'drink the potion' });
+        await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+        const event = replyChat(...history());
+        await emit('CHAT_COMPLETION_PROMPT_READY', event);
+        const context = event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+        assert.match(context, /### Character — <Character> \(kept by RPG Battle: read it, never write it\)\nThe player character, as RPG Battle tracks it\.\nCurrent state:\n<Character>\nHP: 58\/62 \| MP: 21\/30\nChecks: STR \+2 \| CHA \+1\n<\/Character>/);
+        assert.match(context, /- Modifier: the matching stat's bonus from the <Character> block's Checks line/);
+        assert.doesNotMatch(context.slice(context.indexOf('Write it exactly like this:')), /Character/);
+        assert.equal((JSON.stringify(event.chat).match(/HP: 58\/62/g) ?? []).length, 1, 'history lost its copy; the context has the one');
+
+        notices.length = 0;
+        await finish('She drinks.\n<Character>\nHP: 62/62 | MP: 30/30\n</Character>\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Notes>\nHealed.\n</Notes>\n</Blocks>\n-->');
+        const mes = ctx.chat.at(-1).mes;
+        assert.doesNotMatch(mes, /<Character/, 'the model\'s copy is gone from the reply');
+        assert.match(mes, /^She drinks\.\n/);
+        assert.match(mes, /<Notes>\nHealed\.\n<\/Notes>/);
+        assert.equal(sb.getBlock('Character').messageIndex, 2, 'the extension\'s copy stays current');
+        assert.equal(notices.filter(notice => /Character/.test(notice)).length, 0, 'no missing-block warning');
+
+        // An edit that writes the tag by hand is dropped the same way.
+        ctx.chat[2].mes += '\n<Character>\nHP: 1/62\n</Character>';
+        await emit('MESSAGE_EDITED', 2);
+        assert.equal(sb.getBlock('Character').state.entries[0].value, 58);
+    } finally {
+        assert.equal(sb.unregisterBlock('rpg-character'), true);
+        delete ctx.extensionSettings.storyBlock;
+    }
+});

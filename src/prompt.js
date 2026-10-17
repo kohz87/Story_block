@@ -59,8 +59,13 @@ export function activeBlocks(defs, chat, type = 'normal') {
     });
 }
 
+// Kept by another extension: shown as state, never written by the model.
+function readOnly(def) {
+    return Boolean(def?.kept);
+}
+
 function stateful(def) {
-    return def?.kind === 'stateful';
+    return def?.kind === 'stateful' && !readOnly(def);
 }
 
 function lead(def) {
@@ -74,7 +79,23 @@ const KIND_NOTES = {
 };
 
 function heading(def) {
+    if (readOnly(def)) return `### ${def.name} — <${def.tag}> (kept by ${def.owner}: read it, never write it)`;
     return `### ${def.name} — <${def.tag}> (${KIND_NOTES[def.kind] ?? KIND_NOTES.turn})`;
+}
+
+// The Dice template's instructions grow by each kept block's dice modifier ("the matching
+// stat's bonus from the <Character> block"), only while that block is in this prompt. The
+// reader's stored prompt is never changed. Dice: Everyone is left alone: its rolls are
+// often an NPC's, which a player's sheet says nothing about.
+function diceBlock(def) {
+    return def?.template === 'dice';
+}
+
+function withModifiers(prompt, modifiers) {
+    if (!modifiers.length) return prompt;
+    // Matches the Dice template's own "- Rule: …" lines when the prompt is written that way.
+    const bullet = /^- /.test(prompt.split('\n').at(-1) ?? '') ? '- ' : '';
+    return [prompt, ...modifiers.map(text => `${bullet}${text}`)].filter(Boolean).join('\n');
 }
 
 // {{rolls}}: the dice the extension rolled for this block and this reply.
@@ -91,10 +112,31 @@ function currentState(def, state) {
     return ['Current state:', `<${def.tag}>`, body, `</${def.tag}>`];
 }
 
-function blockSection(entry, substitute) {
+// A kept block's section: what it is, how to read it, and its newest copy as the extension
+// wrote it (the stored body, escapes included, as every current state is shown).
+function readOnlySection(entry, substitute) {
     const { def } = entry;
     const lines = [heading(def)];
-    const prompt = String(substitute(withRolls(def.prompt, entry)) ?? '').trim();
+    const note = String(substitute(def.promptNote ?? '') ?? '').trim();
+    if (note) lines.push(note);
+    lines.push('Current state:', `<${def.tag}>`, entry.body, `</${def.tag}>`);
+    return lines.join('\n');
+}
+
+// The body a kept entry is shown with, or '' when there is nothing to show yet.
+function readOnlyBody(entry) {
+    const body = String(entry.body ?? '').trim();
+    if (body) return body;
+    const format = formatFor(entry.def);
+    if (!entry.state || format.isEmpty(entry.state)) return '';
+    return String(format.serialize(entry.state, entry.def) ?? '').trim();
+}
+
+function blockSection(entry, substitute, modifiers = []) {
+    const { def } = entry;
+    const lines = [heading(def)];
+    const ownPrompt = String(substitute(withRolls(def.prompt, entry)) ?? '').trim();
+    const prompt = diceBlock(def) ? withModifiers(ownPrompt, modifiers.map(text => String(substitute(text) ?? '').trim()).filter(Boolean)) : ownPrompt;
     if (prompt) lines.push(prompt);
     const rules = String(formatFor(def).rules(def) ?? '').trim();
     if (rules) lines.push(`Format: ${rules}`);
@@ -118,10 +160,23 @@ function skeletonEnvelope(list, substitute) {
  * The context section for one reply. entries: [{ def, state }] (state only for stateful
  * blocks, in prompt order). `substitute` applies {{user}}/{{char}} to block prompts and skeletons only —
  * never to state, which must reach the model verbatim. '' when entries is empty.
+ * Entries of kept blocks ({ def, state, body }, def.kept) are shown first, read-only: they
+ * are never in the envelope the model is asked to write, and one with nothing written yet
+ * is left out.
  */
 export function buildContext(entries, { substitute = text => text } = {}) {
-    const list = (Array.isArray(entries) ? entries : []).filter(entry => entry?.def);
-    if (!list.length) return '';
+    const all = (Array.isArray(entries) ? entries : []).filter(entry => entry?.def);
+    const kept = all.filter(entry => readOnly(entry.def))
+        .map(entry => ({ ...entry, body: readOnlyBody(entry) }))
+        .filter(entry => entry.body);
+    const list = all.filter(entry => !readOnly(entry.def));
+    if (!list.length && !kept.length) return '';
+    const keptRule = 'Blocks marked "read it, never write it" are kept by another extension, not by you. Their current state is what is true right now: use it in the story, but never write their tags, in the envelope or anywhere else, and never change them yourself; the extension updates them.';
+    const keptSections = kept.map(entry => readOnlySection(entry, substitute));
+    if (!list.length) {
+        return `${CONTEXT_BEGIN}\n## Story Blocks\n- ${keptRule}\n\n${keptSections.join('\n\n')}\n${CONTEXT_END}`;
+    }
+    const modifiers = kept.map(entry => entry.def.diceModifier).filter(Boolean);
     const first = list.filter(entry => lead(entry.def));
     const last = list.filter(entry => !lead(entry.def));
     const rules = [
@@ -141,7 +196,8 @@ export function buildContext(entries, { substitute = text => text } = {}) {
     if (list.some(entry => entry.def.kind === 'turn')) {
         rules.push('Blocks marked "this reply only" describe this reply alone; write them fresh and never copy earlier ones.');
     }
-    const sections = list.map(entry => blockSection(entry, substitute));
+    if (kept.length) rules.push(keptRule);
+    const sections = [...keptSections, ...list.map(entry => blockSection(entry, substitute, modifiers))];
     return `${CONTEXT_BEGIN}\n## Story Blocks\n${rules.map(rule => `- ${rule}`).join('\n')}\n\n` +
         `${sections.join('\n\n')}\n\n` +
         `Write it exactly like this:\n${[

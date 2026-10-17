@@ -10,23 +10,31 @@
 // A plugin block is transport only: Story Block moves its tag into the hidden envelope,
 // keeps it out of the narration and out of the prompt's history, but never prompts for it
 // and never gives it a tab. The plugin writes its own instructions.
+//
+// A kept block (`kept: true`, v0.7) is a plugin block the model reads but never writes:
+// RPG Battle's Character and Party sheets. Its newest copy is shown in every reply's prompt
+// as read-only state, it gets a tab like the reader's blocks (without Edit), and only the
+// extension writes it, through setBlockText. A copy the model writes anyway is dropped on
+// receive and never counts (envelope.js: ownCopy, dropForeignCopies).
 
 import { latestBlockInText, latestBlockState, replacesLastReply } from './envelope.js';
-import { normalizeBlock } from './schema.js';
+import { FIELD_TYPES, TAG_PATTERN, normalizeBlock, validateBlock } from './schema.js';
 
-/** What a plugin may know about a block definition. */
+/** What a plugin may know about a block definition. Kept blocks report kind 'kept' and their owner. */
 export function blockSummary(def) {
-    return {
+    const summary = {
         id: def.id,
         tag: def.tag,
         name: def.name,
-        kind: def.kind,
+        kind: def.kept ? 'kept' : def.kind,
         format: def.format,
         display: def.display,
         enabled: Boolean(def.enabled),
         visible: Boolean(def.visible),
         optional: Boolean(def.optional),
     };
+    if (def.kept) summary.owner = def.owner;
+    return summary;
 }
 
 /** A block by id or tag (tags compare case-insensitively, as the model writes them). */
@@ -69,16 +77,84 @@ export function blockInText(text, def) {
     return snapshotOf(def, latestBlockInText(String(text ?? ''), def), null);
 }
 
+const KEPT_FORMATS = ['fields', 'text'];
+const KEPT_DISPLAYS = ['fields', 'plain'];
+const MAX_OWNER_LENGTH = 40;
+const MAX_NOTE_LENGTH = 300;
+const MAX_DICE_MODIFIER_LENGTH = 400;
+
+const oneLine = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+
 /**
- * A plugin's transport-only block. Returns { def } or { error } (a tag a reader's own block
- * already uses stays theirs).
+ * A kept block's definition, checked the way the block editor checks the reader's own
+ * (validateBlock), plus what only a kept block has. Returns { def } or { error }.
+ */
+function keptBlockDef(spec, id, tag, existing) {
+    // normalizeBlock would quietly swap a bad tag for one made from the name; a plugin is told.
+    if (!TAG_PATTERN.test(tag)) return { error: 'a kept block\'s tag starts with a letter and uses only letters, numbers and underscores (up to 32)' };
+    const owner = oneLine(spec.owner, MAX_OWNER_LENGTH);
+    if (!owner) return { error: 'a kept block needs an owner (the extension\'s display name)' };
+    const fields = Array.isArray(spec.fields) ? spec.fields : [];
+    const format = spec.format === undefined ? (fields.length ? 'fields' : 'text') : spec.format;
+    if (!KEPT_FORMATS.includes(format)) return { error: 'a kept block\'s format is "fields" or "text"' };
+    const display = spec.display === undefined ? (format === 'fields' ? 'fields' : 'plain') : spec.display;
+    if (!KEPT_DISPLAYS.includes(display)) return { error: 'a kept block\'s display is "fields" or "plain"' };
+    if (display === 'fields' && format !== 'fields') return { error: 'the "fields" display needs the "fields" format' };
+    if (format === 'fields') {
+        // Likewise for fields: a plugin hears what is wrong instead of getting a repaired list.
+        for (const field of fields) {
+            const label = String(field?.label ?? '').trim();
+            if (!label) return { error: 'every field needs a label' };
+            if (field.type !== undefined && !FIELD_TYPES.includes(field.type)) return { error: `field "${label}": the type is one of ${FIELD_TYPES.join(', ')}` };
+        }
+    }
+    const def = normalizeBlock({
+        id,
+        tag,
+        name: String(spec.name ?? tag),
+        icon: String(spec.icon ?? '🧩'),
+        short: spec.short,
+        // Stateful underneath: its newest valid copy in the chat is its current state, which is
+        // how the view, the snapshots and a swipe's baseline already treat state.
+        kind: 'stateful',
+        format,
+        display,
+        fields,
+        enabled: true,
+        visible: true,
+        // Never asked for, so never missed: its tab appears once the extension has written it.
+        optional: true,
+        repeating: false,
+        prompt: '',
+        when: { mode: 'always' },
+    });
+    const errors = validateBlock(def, existing);
+    if (errors.length) return { error: errors.join(' ') };
+    return {
+        def: {
+            ...def,
+            plugin: true,
+            kept: true,
+            owner,
+            promptNote: oneLine(spec.promptNote, MAX_NOTE_LENGTH),
+            diceModifier: oneLine(spec.diceModifier, MAX_DICE_MODIFIER_LENGTH),
+        },
+    };
+}
+
+/**
+ * A plugin's block: transport only, or kept (`spec.kept: true`, see keptBlockDef). Returns
+ * { def } or { error }. A tag a reader's own block already uses stays theirs; a plugin block
+ * registered again under its own id is replaced (an extension re-registering after a reload).
  */
 export function pluginBlockDef(spec, existing = []) {
     const tag = String(spec?.tag ?? '').trim();
     const id = String(spec?.id ?? '').trim();
     if (!/^[A-Za-z][A-Za-z0-9_-]{0,47}$/.test(tag)) return { error: 'a plugin block needs a tag of letters, digits, _ or -' };
     if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(id)) return { error: 'a plugin block needs a lowercase id' };
-    if (findBlockDef(existing, tag) || findBlockDef(existing, id)) return { error: `the tag or id "${tag}" is already used by another block` };
+    const others = (Array.isArray(existing) ? existing : []).filter(def => !(def?.plugin && def.id === id));
+    if (findBlockDef(others, tag) || findBlockDef(others, id)) return { error: `the tag or id "${tag}" is already used by another block` };
+    if (spec.kept === true) return keptBlockDef(spec, id, tag, others);
     const def = normalizeBlock({
         id,
         tag,
