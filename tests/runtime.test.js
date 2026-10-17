@@ -265,4 +265,3 @@ test('dice: rolled before the reply, handed over, stamped on the block; an optio
     assert.equal(notices.filter(notice => /Dice/.test(notice)).length, 0, 'no warning for an optional block left out');
     delete ctx.extensionSettings.storyBlock;
 });
-
