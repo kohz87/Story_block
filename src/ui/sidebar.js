@@ -233,6 +233,8 @@ function createUi() {
         applyOpenState();
     }));
     tablist.addEventListener('keydown', onTabKey);
+    tablist.addEventListener('wheel', onTabWheel, { passive: false });
+    tablist.addEventListener('scroll', markTabOverflow, { passive: true });
     aside.addEventListener('keydown', onTrapKey);
     aside.addEventListener('pointerdown', onSwipeStart);
     aside.addEventListener('pointermove', onSwipeMove);
@@ -392,6 +394,39 @@ function applySelection() {
         tab.setAttribute('tabindex', active ? '0' : '-1');
     }
     for (const pane of ownPanes()) pane.style.display = pane.dataset.tabId === view.selected ? '' : 'none';
+    revealTab(tabs.find(tab => tab.dataset.tabId === view.selected));
+}
+
+// The selected tab is always in sight: the rail wraps into rows (scrolling down past three),
+// the sheet's pills scroll sideways. Only the strip scrolls, never the page or the pane.
+function revealTab(tab) {
+    const strip = ui?.tablist;
+    if (!tab || !strip || !(strip.scrollWidth > strip.clientWidth || strip.scrollHeight > strip.clientHeight)) {
+        markTabOverflow();
+        return;
+    }
+    const left = tab.offsetLeft - strip.offsetLeft;
+    const top = tab.offsetTop - strip.offsetTop;
+    // The first and last tabs go all the way to their end, past the strip's padding and fade.
+    const tabs = ownTabs();
+    if (tab === tabs[0]) strip.scrollLeft = 0;
+    else if (tab === tabs.at(-1)) strip.scrollLeft = strip.scrollWidth - strip.clientWidth;
+    else if (left < strip.scrollLeft) strip.scrollLeft = left;
+    else if (left + tab.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = left + tab.offsetWidth - strip.clientWidth;
+    if (top < strip.scrollTop) strip.scrollTop = top;
+    else if (top + tab.offsetHeight > strip.scrollTop + strip.clientHeight) strip.scrollTop = top + tab.offsetHeight - strip.clientHeight;
+    markTabOverflow();
+}
+
+// Which ends of a sideways strip hide tabs ('start', 'end', 'both' or none), for the
+// fades that say there is more.
+function markTabOverflow() {
+    const strip = ui?.tablist;
+    if (!strip) return;
+    const hidden = Number(strip.scrollWidth) - Number(strip.clientWidth);
+    const start = hidden > 1 && strip.scrollLeft > 1;
+    const end = hidden > 1 && strip.scrollLeft < hidden - 1;
+    setAttr(strip, 'data-overflow', start && end ? 'both' : start ? 'start' : end ? 'end' : null);
 }
 
 function selectTab(id, { focus = false } = {}) {
@@ -471,6 +506,7 @@ function relayout() {
         ui.aside.style.setProperty('--sb-dock-top', `${measured.topOffset + DOCK_MARGIN}px`);
     }
     applyOpenState();
+    revealTab(activeTab());
 }
 
 function setPinned(next) {
@@ -505,6 +541,16 @@ function onTabKey(event) {
     event.preventDefault?.();
     const next = tabs[(keys[event.key] + tabs.length) % tabs.length];
     selectTab(next.dataset.tabId, { focus: true });
+}
+
+// A mouse wheel scrolls the sheet's sideways pills; a trackpad's own sideways swipe is left alone.
+function onTabWheel(event) {
+    const strip = ui?.tablist;
+    if (!strip || !(strip.scrollWidth > strip.clientWidth)) return;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    event.preventDefault?.();
+    strip.scrollLeft += event.deltaY;
+    markTabOverflow();
 }
 
 function isShown(node) {

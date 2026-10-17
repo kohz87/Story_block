@@ -425,6 +425,20 @@ test('suite: the settings section has a choice per area, saves it, and redraws w
     }
 });
 
+test('settings: Display, Source of truth and Blocks fold, each with a one-line summary', async () => {
+    const folds = allElements(fixed['#extensions_settings']).filter(node => String(node.className).includes('story-block-fold '));
+    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'suite', 'blocks']);
+    assert.deepEqual(folds.map(node => node.tagName), ['DETAILS', 'DETAILS', 'DETAILS']);
+    assert.deepEqual(folds.map(node => Boolean(node.open)), [false, false, true], 'Blocks starts open');
+    const hint = key => allElements(folds.find(node => node.dataset.fold === key)).find(node => String(node.className).includes('story-block-fold-hint')).textContent;
+    assert.equal(hint('display'), 'Sidebar');
+    assert.equal(hint('suite'), 'Automatic');
+    assert.match(hint('blocks'), /^\d+ of \d+ on$/);
+    assert.ok(allElements(folds[0]).some(node => node.className === 'story-block-runtime'), 'Display holds its controls (markup the fake DOM does not parse)');
+    assert.ok(allElements(folds[1]).some(node => node.id === 'story_block_source_stats'), 'so does Source of truth');
+    assert.equal(folds[2].children.length, 2, 'Blocks holds its summary and the editor\'s view');
+});
+
 test('suite: the Dice block takes a kept modifier unless the reader keeps rolls with Story Block while RPG Battle offers them', async () => {
     const sb = globalThis.StoryBlock;
     const { templateById } = await import('../src/templates.js');
