@@ -64,11 +64,9 @@ test('NPC State Delta reads the story date from Story Block\'s message', { skip:
     assert.equal(found?.date?.day, 14);
 });
 
-// Known gap: NPC State Delta's scan cleaner (stripUiNoise) removes tags with /<[^>]+>/, which
-// treats the whole hidden <!-- STORY_BLOCKS_V1 … --> envelope as one tag and drops the World
-// State evidence inside it. The fix belongs in NPC State Delta (unwrap Story Block envelopes
-// before stripping tags); this stays a todo until it lands there.
-test('NPC State Delta keeps the World State evidence from Story Block\'s message', { skip: deltaSkip, todo: 'needs NPC State Delta to unwrap Story Block envelopes' }, async () => {
+// NPC State Delta's scan cleaner (stripUiNoise) unwraps Story Block's hidden
+// <!-- STORY_BLOCKS_V1 … --> envelope before stripping comments and tags (since NPC State Delta 1.2.0).
+test('NPC State Delta keeps the World State evidence from Story Block\'s message', { skip: deltaSkip }, async () => {
     const mechanics = await import(pathToFileURL(`${deltaRoot}/core-mechanics.js`).href);
     const { text } = normalizeTransport(reply, blocksFromSettings([worldState]));
     const evidence = mechanics.stripUiNoise(text);

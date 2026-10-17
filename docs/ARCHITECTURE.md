@@ -301,6 +301,28 @@ as its state, as for any stateful block.
   optional). `onEdit` is omitted, and `renderFrame` shows `span.story-block-kept` ("kept by Owner")
   for any `def.kept`. Kept blocks are not in `settings.blocks`, so the settings editor never lists them.
 
+### Story Suite (`src/suite.js`, `src/handshake.js`, v0.8)
+
+`src/suite.js` is the shared registry (`globalThis.StorySuite`), byte-identical in Story Block,
+Story Director, NPC State Delta and RPG Battle; never edit it here alone. The contract, areas and
+owners are in [STORY_SUITE.md](STORY_SUITE.md). `src/handshake.js` is Story Block's pure side:
+
+| Export | Does |
+|---|---|
+| `offeredAreas(blocks)` / `blockAreas(def)` | Areas the enabled blocks offer, by `template` (duplicates keep it): `world-state` (or display `scene`) → `scene`, `timeline`; `inventory` (or tag `Inventory`) → `items`; `character-sheet` → `stats`; `dice`, `dice-everyone` (or display `dice`) → `rolls`. Kept and plugin blocks offer nothing |
+| `normalizeSourceChoices(value)` | `settings.sourceOfTruth`: `{ scene, timeline, items, stats, rolls }`, each `'auto' \| 'mine' \| 'theirs'`, default `'auto'` |
+| `deferredTo(area, choice, suite)` | `{ id, name }` of the extension Story Block defers to, or null while it is the source of truth (`isSourceOfTruth`) |
+| `statsNotice(def, choices, suite)` | The Character Sheet's "RPG Battle owns stats…" note, or '' |
+| `keepsOwnRolls(choice, suite)` | True only when the reader chose `mine` for rolls while another extension offers them: kept blocks' `diceModifier`s are then left out of the prompt |
+| `sourceStatus(area, …)` | The settings line under each choice ("Now: RPG Battle", "Inventory is off") |
+
+The runtime announces `{ id: 'story-block', name: 'Story Block', version, owns, api: { listBlocks, getBlock } }`
+on load, when the block list changes and on chat change (only when the offer changed, or the
+registry lost the entry), and subscribes once to `onChange` to redraw the settings section and
+the tabs. A tab's display gets `def.deferNote`, which `renderNotices` shows as
+`div.story-block-notice.is-deferred`; nothing else about the block changes. SillyTavern has no
+disable hook (turning an extension off reloads the page), so there is no `withdraw` call.
+
 ## 6. Card and displays (`src/ui/*`)
 
 One card under the **latest assistant message**, one tab per visible enabled block that

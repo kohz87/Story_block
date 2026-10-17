@@ -1,4 +1,4 @@
-# Story Block v0.7.0
+# Story Block v0.8.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -246,6 +246,31 @@ Delta and Story Director's mirror still read and write it.
   and reports where each block's current state comes from.
 - The settings panel's status line says whether the last reply's prompt got the block
   instructions, and how they were found.
+
+## Working with the other extensions
+
+Story Block works on its own. Installed next to **Story Director**, **NPC State Delta** or
+**RPG Battle**, the four find each other (the *Story Suite*) and agree on who is the source of
+truth for each area, so the model is not told the same thing twice. Story Block offers an area
+only while the block for it is on:
+
+| Area | Story Block offers it while | Owner when several offer it |
+|---|---|---|
+| Scene | World State is on | Story Block, then NPC State Delta |
+| Timeline | World State is on (its off-screen, threads and timers) | Story Director, then Story Block |
+| Items | Inventory is on | Story Block, then RPG Battle |
+| Stats | Character Sheet is on | RPG Battle, then Story Block |
+| Rolls | Dice (or Dice: Everyone) is on | RPG Battle, then Story Block |
+
+- **Stats.** While another extension owns stats, the Character Sheet's tab says so ("RPG Battle
+  owns stats"). The sheet keeps working; turn it off if you want one set of numbers.
+- **Rolls.** The Dice block takes RPG Battle's modifier from its sheet (since 0.7), unless you
+  keep rolls with Story Block (below).
+- **Settings → Source of truth:** for each area, **Automatic** (the table), **This extension**
+  or **The other one**, with who has it now. Alone, every choice works like Automatic.
+
+The handshake, its areas and what each extension does are in
+[docs/STORY_SUITE.md](docs/STORY_SUITE.md).
 
 ## For other extensions
 

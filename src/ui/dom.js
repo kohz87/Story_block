@@ -58,8 +58,8 @@ export function blockName(def) {
 
 /**
  * Clear `pane` and lay down what every display shares: a header (name, summary,
- * "kept by" for a block another extension keeps, Edit), then the error / cut-off
- * notices. Returns the header's actions element so a display can add its own buttons.
+ * "kept by" for a block another extension keeps, Edit), then the owner, error and
+ * cut-off notices. Returns the header's actions element so a display can add its own buttons.
  */
 export function renderFrame(pane, { def, error, truncated, onEdit, display, summary = '' } = {}) {
     pane.replaceChildren();
@@ -92,6 +92,9 @@ export function renderFrame(pane, { def, error, truncated, onEdit, display, summ
 
 export function renderNotices(pane, { def, error, truncated } = {}) {
     const name = blockName(def);
+    // Another extension is the source of truth for what this block tracks (Story Suite): the
+    // block is still shown as it is, and this says who owns it, so the reader can decide.
+    if (def?.deferNote) pane.appendChild(notice('is-deferred', String(def.deferNote)));
     if (error) {
         const text = String(error).trim().replace(/\.$/, '');
         pane.appendChild(notice('is-error', `This reply's ${name} couldn't be read: ${text}. Showing the last valid state.`));
@@ -103,10 +106,12 @@ export function renderNotices(pane, { def, error, truncated } = {}) {
     }
 }
 
+const NOTICE_GLYPHS = { 'is-error': 'fa-triangle-exclamation', 'is-truncated': 'fa-scissors', 'is-deferred': 'fa-circle-info' };
+
 function notice(kind, text) {
     const node = el('div', `story-block-notice ${kind}`);
     node.setAttribute('role', 'note');
-    const glyph = el('i', `fa-solid ${kind === 'is-error' ? 'fa-triangle-exclamation' : 'fa-scissors'}`);
+    const glyph = el('i', `fa-solid ${NOTICE_GLYPHS[kind] ?? 'fa-scissors'}`);
     glyph.setAttribute('aria-hidden', 'true');
     node.append(glyph, el('span', 'story-block-notice-text', text));
     return node;
