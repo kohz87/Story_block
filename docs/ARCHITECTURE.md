@@ -316,12 +316,60 @@ owners are in [STORY_SUITE.md](STORY_SUITE.md). `src/handshake.js` is Story Bloc
 | `keepsOwnRolls(choice, suite)` | True only when the reader chose `mine` for rolls while another extension offers them: kept blocks' `diceModifier`s are then left out of the prompt |
 | `sourceStatus(area, …)` | The settings line under each choice ("Now: RPG Battle", "Inventory is off") |
 
-The runtime announces `{ id: 'story-block', name: 'Story Block', version, owns, api: { listBlocks, getBlock } }`
+The runtime announces `{ id: 'story-block', name: 'Story Block', version, owns, settings: '#story_block_settings', api }`
 on load, when the block list changes and on chat change (only when the offer changed, or the
 registry lost the entry), and subscribes once to `onChange` to redraw the settings section and
 the tabs. A tab's display gets `def.deferNote`, which `renderNotices` shows as
 `div.story-block-notice.is-deferred`; nothing else about the block changes. SillyTavern has no
 disable hook (turning an extension off reloads the page), so there is no `withdraw` call.
+
+`api` is one frozen object, so repeated announcements carry the same one:
+
+| Member | Does |
+|---|---|
+| `listBlocks`, `getBlock` | The plugin API's, for reading blocks |
+| `manage.areas` | `SHARED_AREAS` (scene, timeline, items, stats, rolls), offered now or not |
+| `manage.sources()` | A copy of `settings.sourceOfTruth` |
+| `manage.setSource(area, choice)` | Normalizes, saves, redraws the Source of truth section and the tabs, like its own select; false for an area Story Block cannot keep. No `setEnabled`: Story Block is always on |
+| `openSuite(tabId = 'overview')` | Opens the Story Suite overlay on that tab (an extension's id); false without a page to show it on |
+
+#### Story Suite overlay (`src/ui/suite-overlay.js`, v0.9)
+
+Story Block hosts the overlay for the whole suite (STORY_SUITE.md, "One place to manage them
+all"). It reads only the registry and each announcement's `settings` and `api.manage`:
+
+```js
+export function openSuiteOverlay({ document, suite, tab = 'overview', opener, onClose })  // root | null
+export function refreshSuiteOverlay()        // after a suite change: tabs, and the Overview if shown
+export function closeSuiteOverlay({ returnFocus = true, document })  // also clears a stale copy's overlay
+export function suiteOverlayTab()            // the selected tab's id, or null
+// Pure: orderProviders, areaCandidates, choiceOf, currentSource, applySource, leadersOf, suiteTabs
+```
+
+- DOM: `div#story_suite_overlay.story-suite-overlay` (fixed, z-index 9050, above the sidebar's
+  modal layer at 9001) > `div.story-suite-dialog[role=dialog][aria-modal=true]` with the header
+  (`#story_suite_title`, `.story-suite-close`), `div.story-suite-tabs[role=tablist]` (wrapping
+  rows) and one `div.story-suite-pane`. Esc (captured on the document), the close button and a
+  backdrop click close it; Tab is trapped; focus moves in on open and back to `opener` on close.
+- Tabs: Overview, then every provider with a `settings` selector, in `SUITE_ORDER`
+  (story-block, story-director, npc-state-delta, rpg-battle, then others as announced).
+- Overview: `suite.providers()` (disabled ones too, so their switch can turn them back on), a
+  switch where `api.manage.setEnabled` exists; then per area in `AREAS` order with two or more
+  candidates (`manage.areas`, else `owns`) a select. `currentSource`: `'auto'` while all say
+  auto, a provider's id when exactly one says `mine` and the rest `theirs`/auto, else `'mixed'`
+  (a disabled option). `applySource` calls `setSource` on every candidate (`mine` for the pick,
+  `theirs` for the rest, or `auto` for all), then the Overview is redrawn from fresh `sources()`.
+  "Leads now" is every offering candidate for which `isSourceOfTruth` holds under its own choice.
+- Panels: `document.querySelector(settings)` is moved into the pane after a hidden
+  `div[data-story-suite-placeholder]` is put in its place; its first `.inline-drawer` gets
+  `.story-suite-drawer` (CSS holds `.inline-drawer-content` open and hides the header); any
+  `[data-story-suite-link]` inside the overlay is hidden, and `<body>` carries `story-suite-open`
+  while it is open (`OPEN_CLASS`) so other extensions can hide floating buttons. It goes back before the placeholder on
+  a tab change, on close, when its extension leaves, or when the overlay was removed; a panel its
+  extension removed meanwhile is left alone.
+- index.js: the entry points (`#story_suite_menu` in `#extensionsMenu`, the sidebar's gear, and
+  `.story-block-manage-suite[data-story-suite-link]` above the settings folds) are shown while
+  `suite.providers().length >= 2`, re-checked on every `onChange`, which also refreshes the overlay.
 
 ## 6. Card and displays (`src/ui/*`)
 
@@ -382,7 +430,8 @@ to one of them.
 ```js
 // src/ui/sidebar.js — one aside#story_block_sidebar on <body>, plus #story_block_scrim and
 // the edge handle #story_block_handle. Tabs as above plus `short` (rail label) and `badge`.
-export function mountSidebar(tabs, { uiKey, meta, pinned, onPinnedChange })
+export function mountSidebar(tabs, { uiKey, meta, pinned, onPinnedChange, onSuite, showSuite })
+// onSuite(button): the header's Story Suite gear (.story-block-sidebar-suite), shown only with showSuite
 export function unmountSidebar()
 export function openSidebar(tabId = null)
 export function closeSidebar()

@@ -50,3 +50,19 @@ test('the sidebar, scrim and handle sit in one clipping layer, never fixed thems
     }
     assert.doesNotMatch(css, /story-block-(sidebar|scrim|handle)[^{]*\{[^}]*position:\s*fixed/, 'nothing escapes the clip');
 });
+
+// Story Suite's overlay is fixed too, so the same rule holds; it stacks above the sidebar's
+// modal layer (9001).
+test('the Story Suite overlay is placed top-left in viewport units, above the sidebar', () => {
+    const rules = rulesFor(/^\.story-suite-(overlay|dialog)$/);
+    assert.ok(rules.length >= 2, 'found the overlay and dialog rules (and their phone versions)');
+    for (const { selector, body } of rules) {
+        assert.doesNotMatch(body, /(^|[\s;])bottom\s*:/, `${selector} uses bottom`);
+        assert.doesNotMatch(body, /(^|[\s;])inset\s*:/, `${selector} uses inset`);
+        assert.doesNotMatch(body, /(^|[\s;])(top|height)\s*:\s*[\d.]+%/, `${selector} uses a percentage`);
+    }
+    const overlay = rules.find(rule => rule.selector === '.story-suite-overlay').body;
+    assert.match(overlay, /position:\s*fixed/);
+    assert.match(overlay, /height:\s*100dvh/);
+    assert.ok(Number(/z-index:\s*(\d+)/.exec(overlay)[1]) > 9001);
+});

@@ -41,7 +41,14 @@ function mountNow() {
         return;
     }
     unmountCard(document);
-    mountSidebar(target.tabs, { uiKey: target.uiKey, meta: target.meta, pinned: target.pinned !== false, onPinnedChange: target.onPinnedChange });
+    mountSidebar(target.tabs, {
+        uiKey: target.uiKey,
+        meta: target.meta,
+        pinned: target.pinned !== false,
+        onPinnedChange: target.onPinnedChange,
+        onSuite: target.onSuite,
+        showSuite: target.showSuite === true,
+    });
     if (target.strip && target.messageElement) {
         mountStrip(target.messageElement, target.strip, { onOpen: tabId => openSidebar(tabId) });
     } else {
@@ -98,7 +105,7 @@ export function setMountSuspended(value) {
 
 /**
  * `builder()` returns null or `{ display: 'sidebar' | 'card', messageElement, tabs, uiKey, meta,
- * pinned, onPinnedChange, strip: items | null, compatMarkup }`.
+ * pinned, onPinnedChange, onSuite, showSuite, strip: items | null, compatMarkup }`.
  */
 export function initializeMount(builder) {
     buildTabs = builder;

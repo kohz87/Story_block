@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+Story Suite: one place to manage Story Block, Story Director, NPC State Delta and RPG Battle together ([docs/STORY_SUITE.md](docs/STORY_SUITE.md), "One place to manage them all").
+
+- **The Story Suite overlay.** With two or more of the suite announced (on or off), *Story Suite* in the Extensions menu, a gear in the sidebar's header and *Manage all in Story Suite* at the top of the settings panel open one full-screen dialog above SillyTavern and the sidebar (the whole screen on phones). Esc, the close button or a click outside close it, and focus goes back to what opened it. Alone, none of these appear and nothing else changes.
+- **Overview:** every announced extension with its version, on or off, and its on/off switch where it shares one (`api.manage.setEnabled`). Then **one Source of truth table**, a row per area two or more can keep (scene, NPCs, calendar, timeline, stats, items, roll modifiers): *Automatic (who that is now)* or one owner. Picking an owner calls every extension's `setSource` so that one is *This extension* and the others *The other one*; *Automatic* sets them all back. Choices set by hand that no one owner describes show as *Mixed — set in each extension*. Under each row, who leads now under everyone's choices.
+- **A tab per extension** that announces its `settings` panel, in suite order. The panel itself is moved into the tab, its SillyTavern drawer held open without its toggle, and put back exactly where it was (a hidden placeholder keeps its place) when the tab changes or the overlay closes, so every control keeps working. A panel not on the page says so.
+- **Story Block's announcement** gains `settings: '#story_block_settings'` and, in its api, `manage` (its five areas, `sources()`, `setSource(area, choice)`, the same choice as its own select; no on/off switch, Story Block is always on) and `openSuite(tabId = 'overview')`, which other extensions call to open the overlay on their tab.
+
 ## 0.8.1
 
 Many tabs and a tidier settings panel.

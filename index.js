@@ -27,9 +27,10 @@ import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.j
 import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from './src/plugin.js';
 import { storySuite } from './src/suite.js';
+import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
-const VERSION = '0.8.1';
+const VERSION = '0.9.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -50,6 +51,10 @@ let coexistenceWarned = false;
 let suiteSubscribed = false;
 // The Source of truth section of the settings panel, redrawn when the suite changes.
 let suiteSection = null;
+// "Manage all in Story Suite" at the top of the settings panel and "Story Suite" in the
+// Extensions menu, shown while the overlay is offered.
+let suiteLink = null;
+let suiteMenuItem = null;
 // The settings folds' one-line summaries (Display, Source of truth, Blocks), kept current.
 const foldHints = {};
 const pending = new Map();
@@ -631,6 +636,9 @@ function buildCardTabs() {
         },
         strip: own.showTurnStrip ? turnItems(views) : null,
         compatMarkup: own.compatMarkup,
+        // The header's gear opens Story Suite while two or more of the suite are installed.
+        showSuite: suiteOffered(),
+        onSuite: opener => void openSuite('overview', opener),
     };
 }
 
@@ -815,9 +823,26 @@ function addRuntimeControls(documentRef, root) {
     if (blocksFold) content.appendChild(blocksFold);
     content.prepend(settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
     content.prepend(settingsFold(documentRef, 'display', 'Display', [row]));
+    content.prepend(suiteLinkLine(documentRef));
     setFoldHint('display', displayHint());
     setFoldHint('blocks', blocksHint());
     renderSuiteSection();
+    syncSuiteEntries();
+}
+
+// Above the folds: one line that opens Story Suite with every extension's settings in one place.
+// Every extension's link carries data-story-suite-link, which the overlay hides inside itself.
+function suiteLinkLine(documentRef) {
+    suiteLink = documentRef.createElement('div');
+    suiteLink.className = 'story-block-manage-suite';
+    suiteLink.setAttribute('data-story-suite-link', '');
+    const open = documentRef.createElement('button');
+    open.type = 'button';
+    open.className = 'menu_button';
+    open.innerHTML = '<i class="fa-solid fa-sliders" aria-hidden="true"></i> Manage all in Story Suite';
+    open.addEventListener('click', () => void openSuite('overview', open));
+    suiteLink.appendChild(open);
+    return suiteLink;
 }
 
 // Source of truth: one choice per shared area Story Block can offer, with who has it now.
@@ -864,6 +889,33 @@ function renderSuiteSection() {
     setFoldHint('suite', chosen ? `${chosen} chosen by hand` : 'Automatic');
 }
 
+// Story Suite's overlay (src/ui/suite-overlay.js) is offered while two or more extensions are
+// announced, on or off; alone, its entry points stay hidden and nothing else changes.
+function suiteOffered() {
+    return storySuite().providers().length >= 2;
+}
+
+function syncSuiteEntries() {
+    const display = suiteOffered() ? '' : 'none';
+    for (const node of [suiteMenuItem, suiteLink]) if (node?.style && node.style.display !== display) node.style.display = display;
+}
+
+/** Open Story Suite on a tab ('overview', or an extension's id). False with nowhere to show it. */
+function openSuite(tabId = 'overview', opener = null) {
+    return Boolean(openSuiteOverlay({ document: globalThis.document, suite: storySuite(), tab: tabId, opener }));
+}
+
+// Story Suite's overlay sets every extension's Source of truth through api.manage; Story Block's
+// is the same choice as its own select, saved and redrawn the same way.
+function setSourceFromSuite(area, choice) {
+    if (!SHARED_AREAS.includes(area)) return false;
+    settings().sourceOfTruth = normalizeSourceChoices({ ...settings().sourceOfTruth, [area]: choice });
+    saveSettings();
+    renderSuiteSection();
+    refreshAll(0);
+    return true;
+}
+
 // Story Suite (src/suite.js): announce what the reader's enabled blocks offer. Only a change is
 // announced, since every announcement wakes every extension's listeners; a registry that lost
 // or never had Story Block's entry gets it again.
@@ -872,13 +924,15 @@ function announceToSuite(ctx = context()) {
     const owns = offeredAreas(blocks(ctx));
     const current = suite.providers().find(provider => provider.id === SUITE_ID);
     if (current?.enabled && current.version === VERSION && current.owns.join() === owns.join()) return;
-    suite.announce({ id: SUITE_ID, name: SUITE_NAME, version: VERSION, owns, api: SUITE_API });
+    suite.announce({ id: SUITE_ID, name: SUITE_NAME, version: VERSION, owns, settings: '#story_block_settings', api: SUITE_API });
 }
 
 // Another extension arrived, left or changed what it offers: the settings' owners and the
 // Character Sheet's notice follow. Story Block's own announcements land here too, harmlessly.
 function onSuiteChanged() {
     renderSuiteSection();
+    syncSuiteEntries();
+    refreshSuiteOverlay();
     refreshAll(0);
 }
 
@@ -893,6 +947,16 @@ function addMenuButton(documentRef) {
     item.innerHTML = '<div class="fa-solid fa-layer-group extensionsMenuExtensionButton"></div><span>Story Block: Rescan</span>';
     item.addEventListener('click', () => void rescan());
     menu.appendChild(item);
+    // Story Suite, its own item: hidden until a second extension of the suite is announced.
+    suiteMenuItem = documentRef.createElement('div');
+    suiteMenuItem.id = 'story_suite_menu';
+    suiteMenuItem.className = 'list-group-item flex-container flexGap5';
+    suiteMenuItem.title = 'Story Suite: every installed extension of the suite, and who keeps what';
+    suiteMenuItem.innerHTML = '<div class="fa-solid fa-sliders extensionsMenuExtensionButton"></div><span>Story Suite</span>';
+    const opener = suiteMenuItem;
+    opener.addEventListener('click', () => void openSuite('overview', opener));
+    menu.appendChild(opener);
+    syncSuiteEntries();
     return true;
 }
 
@@ -1043,8 +1107,20 @@ globalThis.StoryBlock = Object.freeze({
     refresh: () => refreshAll(0),
 });
 
-// What Story Block shares with the suite: reading blocks, nothing that writes.
-const SUITE_API = Object.freeze({ listBlocks: globalThis.StoryBlock.listBlocks, getBlock: globalThis.StoryBlock.getBlock });
+// What Story Block shares with the suite: reading blocks, its Source of truth choices for Story
+// Suite's overlay (no on/off switch: Story Block hosts the overlay and is always on), and opening
+// the overlay. Built once, so every announcement carries the same api.
+const SUITE_API = Object.freeze({
+    listBlocks: globalThis.StoryBlock.listBlocks,
+    getBlock: globalThis.StoryBlock.getBlock,
+    manage: Object.freeze({
+        areas: SHARED_AREAS,
+        sources: () => ({ ...settings().sourceOfTruth }),
+        setSource: setSourceFromSuite,
+    }),
+    /** Open Story Suite's overlay on a tab: 'overview' (default) or an extension's id. */
+    openSuite: (tabId = 'overview') => openSuite(tabId),
+});
 
 export async function init() {
     if (initialized) return;
@@ -1053,6 +1129,8 @@ export async function init() {
         return;
     }
     initialized = true;
+    // A copy of Story Block reloaded without a page refresh: panels a stale overlay holds go home.
+    closeSuiteOverlay();
     setExtensionPlaceholder(context(), '');
     ensureExtensionUi();
     initializeMount(buildCardTabs);

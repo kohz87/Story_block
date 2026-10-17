@@ -360,7 +360,8 @@ test('suite: Story Block announces itself on load with what its enabled blocks o
     assert.deepEqual(provider.owns, ['items'], 'a first install has only Inventory on');
     assert.equal(globalThis.StorySuite.api('story-block').listBlocks, globalThis.StoryBlock.listBlocks);
     assert.equal(globalThis.StorySuite.api('story-block').getBlock, globalThis.StoryBlock.getBlock);
-    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['getBlock', 'listBlocks']);
+    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['getBlock', 'listBlocks', 'manage', 'openSuite']);
+    assert.equal(provider.settings, '#story_block_settings', 'its panel, for Story Suite\'s overlay');
 });
 
 test('suite: the announcement follows the enabled blocks, announced again only when the offer changes', async () => {
@@ -437,6 +438,47 @@ test('settings: Display, Source of truth and Blocks fold, each with a one-line s
     assert.ok(allElements(folds[0]).some(node => node.className === 'story-block-runtime'), 'Display holds its controls (markup the fake DOM does not parse)');
     assert.ok(allElements(folds[1]).some(node => node.id === 'story_block_source_stats'), 'so does Source of truth');
     assert.equal(folds[2].children.length, 2, 'Blocks holds its summary and the editor\'s view');
+});
+
+test('suite: Story Suite\'s entry points (menu item, settings link) show only while two or more extensions are announced', () => {
+    const menuItem = () => fixed['#extensionsMenu'].children.find(node => node.id === 'story_suite_menu');
+    const link = () => allElements(fixed['#extensions_settings']).find(node => node.className === 'story-block-manage-suite');
+    assert.ok(menuItem(), 'its own item, next to Rescan');
+    assert.equal(fixed['#extensionsMenu'].children.find(node => node.id === 'story_block_menu').innerHTML.includes('Rescan'), true);
+    assert.match(menuItem().innerHTML, /fa-sliders.*Story Suite/);
+    assert.equal(link().getAttribute('data-story-suite-link'), '', 'marked so the overlay hides it inside itself');
+    assert.equal(menuItem().style.display, 'none', 'alone: hidden');
+    assert.equal(link().style.display, 'none');
+    globalThis.StorySuite.announce({ id: 'story-director', name: 'Story Director', version: '1.0.0', owns: [], enabled: false });
+    try {
+        assert.equal(menuItem().style.display, '', 'a second extension, even switched off, shows them');
+        assert.equal(link().style.display, '');
+    } finally {
+        globalThis.StorySuite.withdraw('story-director');
+    }
+    assert.equal(menuItem().style.display, 'none');
+    assert.equal(link().style.display, 'none');
+});
+
+test('suite: api.manage reads and sets Story Block\'s Source of truth like its own select; openSuite needs a page', async () => {
+    const manage = globalThis.StorySuite.api('story-block').manage;
+    assert.deepEqual(manage.areas, ['scene', 'timeline', 'items', 'stats', 'rolls']);
+    assert.equal('setEnabled' in manage, false, 'Story Block is always on');
+    try {
+        assert.deepEqual(manage.sources(), { scene: 'auto', timeline: 'auto', items: 'auto', stats: 'auto', rolls: 'auto' });
+        assert.equal(manage.setSource('stats', 'theirs'), true);
+        assert.equal(ctx.extensionSettings.storyBlock.sourceOfTruth.stats, 'theirs', 'saved');
+        assert.equal(allElements(suiteSection()).find(node => node.id === 'story_block_source_stats').value, 'theirs', 'its own select redrawn');
+        manage.sources().stats = 'mine';
+        assert.equal(manage.sources().stats, 'theirs', 'a copy');
+        assert.equal(manage.setSource('npc', 'mine'), false, 'not an area Story Block keeps');
+        manage.setSource('stats', 'nonsense');
+        assert.equal(manage.sources().stats, 'auto');
+        assert.equal(globalThis.StorySuite.api('story-block').openSuite(), false, 'no page body to show it on here');
+    } finally {
+        delete ctx.extensionSettings.storyBlock;
+        await emit('CHAT_CHANGED');
+    }
 });
 
 test('suite: the Dice block takes a kept modifier unless the reader keeps rolls with Story Block while RPG Battle offers them', async () => {
