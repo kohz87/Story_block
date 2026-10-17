@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+World State and Choices.
+
+- **World State template** (off by default): a kept block in Megumin Suite's World State layout, label for label — time, place and weather; {{user}}'s outfit, position and condition; everyone present with outfit, position, mood, agenda and secret; off-screen activity; unresolved threads, planted seeds, consequence timers, arc and scene phase. Chats that already carry Megumin World States pick up their last one.
+- **Scene board display:** chips for time, place and weather, a card per person (yours marked), secrets hidden until you reveal them, threads and timers, and arc and scene phase as a small rail. Its badge and the "This turn" strip report who joined or left and which moods, positions or outfits changed — never secrets. Anything the board can't read falls back to plain text.
+- **Choices template** (off by default, tag `CYOA`): four suggested actions each reply, as buttons. A click adds the choice to what you have typed in the message box; Shift-click (or the row's send button on touch screens) sends it. A choice starting with "/" is never sent automatically.
+- **Layouts for free-text blocks:** a text block can carry a layout — the skeleton the model fills in — editable under Layout in the block editor. `{{user}}` and `{{char}}` are filled in there as in prompts.
+- **NPC State Delta:** reads story dates from Story Block's World State. Its scan cleaner does not yet see the World State text inside Story Block's hidden envelope (a fix on NPC State Delta's side is needed); a test tracks it.
+
 ## 0.2.0
 
 The blocks move into a sidebar.

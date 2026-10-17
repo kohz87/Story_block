@@ -1,4 +1,4 @@
-# Story Block v0.2.0
+# Story Block v0.3.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -8,7 +8,8 @@ Every block is a definition you can edit. The built-ins are only templates.
 
 ## What it does
 
-- **One engine, any block.** Inventory, Character Sheet and Scene Notes ship as templates.
+- **One engine, any block.** Inventory, World State, Choices, Character Sheet and Scene Notes
+  ship as templates.
   Add your own blocks with their own tag, prompt, format and display, or change the
   templates; **Reset to default** brings a template back.
 - **State that sticks.** A *stateful* block's newest valid copy in the chat is its current
@@ -50,7 +51,8 @@ Each block has:
 | Shown | Off: still prompted and stored, but no tab in the card. |
 | Kind | **Stateful** (kept and rewritten each reply) or **Per-turn** (this reply only). |
 | Format | **Rows** (`Item \| Qty \| Note` under `[Section > Sub]` headers), **Fields** (`Label: value` lines with meter, number, text and list types) or **Free text**. |
-| Display | **Tree list** (rows: sections, drill-down, search), **Meters & fields**, or **Plain**. |
+| Display | **Tree list** (rows: sections, drill-down, search), **Meters & fields**, **Scene board** (World State layout), **Choice buttons** (numbered list), or **Plain**. |
+| Layout | Free-text blocks only: the skeleton the model fills in, as World State and Choices use. |
 | Prompt | Your instructions for the block. `{{user}}` and `{{char}}` are filled in. |
 | When | Every reply, every N replies, or only when a keyword appears in recent messages. |
 | Tag and icon | The tag the model writes and the tab's icon. |
@@ -58,6 +60,17 @@ Each block has:
 The settings panel shows a rough token cost per block. Every enabled block adds its
 instructions (and, for stateful blocks, its current state) to each prompt, plus what the
 model writes back — pick the few blocks a story actually needs.
+
+### World State and Choices
+
+**World State** keeps the scene in Megumin Suite's World State layout, so NPC State Delta and
+Megumin's readers understand it and existing Megumin chats carry over. The scene board shows
+time, place and weather, a card per person (secrets hidden until revealed), threads and
+timers. Write dates as `Year, Month Day` (for example `1042, Harvestmoon 14`) and NPC State
+Delta's calendar picks them up.
+
+**Choices** offers four next actions as buttons: click adds one to your message, Shift-click
+(or the send button on touch screens) sends it.
 
 ### How a reply carries its blocks
 

@@ -16,6 +16,7 @@ import {
     FORMATS,
     KINDS,
     MAX_FIELDS,
+    MAX_LAYOUT_LENGTH,
     MAX_MAX_DEPTH,
     MAX_PROMPT_LENGTH,
     MIN_MAX_DEPTH,
@@ -35,7 +36,7 @@ export const EXPORT_FILENAME = 'story-blocks.json';
 const KIND_LABELS = { stateful: 'Stateful: kept and rewritten each reply', turn: 'Per-turn: this reply only' };
 const KIND_BADGES = { stateful: 'Stateful', turn: 'Per-turn' };
 const FORMAT_LABELS = { rows: 'Rows', fields: 'Fields', text: 'Free text' };
-const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)' };
+const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)', scene: 'Scene board (World State layout)', choices: 'Choice buttons (numbered list)' };
 const FIELD_TYPE_LABELS = { meter: 'Meter', number: 'Number', text: 'Text', list: 'List' };
 const WHEN_LABELS = { always: 'Every reply', every: 'Every N replies', keyword: 'When a keyword appears' };
 
@@ -693,6 +694,13 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
     prompt.value = draft.prompt;
     prompt.addEventListener('input', () => { draft.prompt = prompt.value; });
 
+    // Layout (free-text blocks): the skeleton the model fills in.
+    const layout = el('textarea', { className: 'text_pole story-block-input-layout', attrs: { rows: '8', spellcheck: 'false' } });
+    layout.maxLength = MAX_LAYOUT_LENGTH;
+    layout.value = draft.layout ?? '';
+    layout.addEventListener('input', () => { draft.layout = layout.value; });
+    const layoutSection = labelled('Layout', layout, 'Optional. The model copies this skeleton and fills each [placeholder]. {{user}} and {{char}} are filled in. Leave empty for free-form text.', 'story-block-editor-layout');
+
     // When
     const whenMode = select('story-block-input-when', WHEN_MODES, WHEN_LABELS, draft.when.mode);
     const every = numberInput('story-block-input-every', draft.when.every, 2, 100);
@@ -784,6 +792,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
 
     function syncSections() {
         rowsSection.hidden = draft.format !== 'rows';
+        layoutSection.hidden = draft.format !== 'text';
         fieldsSection.hidden = draft.format !== 'fields';
         everyGroup.hidden = draft.when.mode !== 'every';
         keywordGroup.hidden = draft.when.mode !== 'keyword';
@@ -845,6 +854,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
             everyGroup,
             keywordGroup,
         ]),
+        layoutSection,
         rowsSection,
         fieldsSection,
         el('div', { className: 'story-block-editor-actions' }, [

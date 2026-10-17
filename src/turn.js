@@ -57,6 +57,8 @@ export function turnItems(views) {
         const { def } = view;
         if (view.error) items.push({ tabId, block: def.name, text: `${def.name} couldn't be read`, tone: 'warn' });
         else if (view.truncated) items.push({ tabId, block: def.name, text: `${def.name} was cut off`, tone: 'warn' });
+        // Choices are something to act on, not a change; they stay in their tab.
+        if (def.display === 'choices') continue;
         if (def.kind === 'turn') {
             const line = firstLine(view.state?.text);
             if (line && !view.error) items.push({ tabId, block: def.name, text: `${def.name}: ${line}`, tone: 'neutral' });

@@ -6,7 +6,7 @@
 
 export const KINDS = ['stateful', 'turn'];
 export const FORMATS = ['rows', 'fields', 'text'];
-export const DISPLAYS = ['plain', 'tree', 'fields'];
+export const DISPLAYS = ['plain', 'tree', 'fields', 'scene', 'choices'];
 export const FIELD_TYPES = ['meter', 'number', 'text', 'list'];
 export const WHEN_MODES = ['always', 'every', 'keyword'];
 
@@ -19,6 +19,7 @@ export const MIN_MAX_DEPTH = 1;
 export const MAX_MAX_DEPTH = 5;
 export const MAX_FIELDS = 24;
 export const MAX_PROMPT_LENGTH = 4000;
+export const MAX_LAYOUT_LENGTH = 4000;
 
 // Tags that would collide with markup SillyTavern, the envelope or other extensions
 // already give meaning to. A block using one would vanish or be mistaken for
@@ -100,6 +101,8 @@ export function normalizeBlock(value = {}) {
         block.columns = DEFAULT_COLUMNS.map((fallback, index) => columns[index] || fallback);
         block.maxDepth = clampInt(input.maxDepth, MIN_MAX_DEPTH, MAX_MAX_DEPTH, DEFAULT_MAX_DEPTH);
     }
+    // A text block may carry a layout: the skeleton the model fills in (World State, CYOA).
+    if (format === 'text') block.layout = String(input.layout ?? '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_LAYOUT_LENGTH);
     if (format === 'fields') {
         const seen = new Set();
         block.fields = (Array.isArray(input.fields) ? input.fields : [])
