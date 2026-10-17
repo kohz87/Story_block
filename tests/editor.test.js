@@ -212,9 +212,9 @@ test('add menu: blank block and templates, present ones added as copies', () => 
     const { container, last } = mount({ blocks: [defaultBlocks()[0]] });
     container.querySelector('.story-block-add').click();
     const options = container.querySelectorAll('.story-block-add-option');
-    assert.deepEqual(options.map(option => option.dataset.template), ['', 'inventory', 'character-sheet', 'scene-notes']);
-    assert.match(options[1].textContent, /add a copy/);
-    assert.doesNotMatch(options[2].textContent, /copy/);
+    assert.deepEqual(options.map(option => option.dataset.template), ['', 'example', 'inventory', 'character-sheet', 'scene-notes']);
+    assert.match(options[2].textContent, /add a copy/);
+    assert.doesNotMatch(options[3].textContent, /copy/);
 
     container.querySelector('.story-block-add-option[data-template="character-sheet"]').click();
     assert.deepEqual(last().map(block => block.id), ['inventory', 'character-sheet']);
@@ -249,6 +249,33 @@ test('blank block opens the editor; saving appends it, cancel leaves the list al
     assert.equal(added.tag, 'Weather_Report');
     assert.equal(ids(container).at(-1), 'weather-report');
     assert.match(container.querySelector('.story-block-io-message').textContent, /Added Weather Report/);
+});
+
+test('from an example: paste a block, the form is filled in, saving adds it', () => {
+    const { container, changes, last } = mount();
+    container.querySelector('.story-block-add').click();
+    container.querySelector('.story-block-add-option[data-template="example"]').click();
+    const area = () => container.querySelector('.story-block-example-text');
+    assert.ok(area(), 'the paste box opens');
+    container.querySelector('.story-block-example-apply').click();
+    assert.match(container.querySelector('.story-block-io-errors').textContent, /Paste a block first/);
+
+    setValue(area(), '<Skill_Mastery>\nWeapon Skill: [1-10]/10 | Weapon Skill XP: [0.00-9.99]/10\n\n[Add newly established skills in the same pairing, two skills per line. Use hyphens, not parentheses.]\n</Skill_Mastery>');
+    container.querySelector('.story-block-example-apply').click();
+    assert.ok(container.querySelector('.story-block-editor'), 'the editor opens, filled in');
+    assert.equal(container.querySelector('.story-block-input-name').value, 'Skill Mastery');
+    assert.equal(container.querySelector('.story-block-input-tag').value, 'Skill_Mastery');
+    assert.equal(container.querySelector('.story-block-input-layout').value, 'Weapon Skill: [1-10]/10 | Weapon Skill XP: [0.00-9.99]/10');
+    assert.match(container.querySelector('.story-block-input-prompt').value, /^Add newly established skills/);
+    assert.equal(changes.length, 0, 'nothing is added until Save');
+
+    container.querySelector('.story-block-editor-save').click();
+    const added = last().at(-1);
+    assert.equal(added.tag, 'Skill_Mastery');
+    assert.equal(added.kind, 'stateful');
+    assert.equal(added.format, 'text');
+    assert.equal(added.display, 'plain');
+    assert.equal(rows(container).length, 5, 'added, nothing replaced');
 });
 
 test('editing a block from the list saves it in place', () => {

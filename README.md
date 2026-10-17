@@ -1,4 +1,4 @@
-# Story Block v0.6.1
+# Story Block v0.6.2
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -62,6 +62,30 @@ Each block has:
 | Prompt | Your instructions for the block. `{{user}}` and `{{char}}` are filled in. |
 | When | Every reply, every N replies, or only when a keyword appears in recent messages. |
 | Tag, icon and tab label | The tag the model writes, the tab's icon, and a short label for the sidebar tab. |
+
+### A new block from an example
+
+The quickest way to add your own block: **Add block → From an example…**, paste the block
+the way the model should write it, tags included, and press **Fill in the form**:
+
+```
+<Skill_Mastery>
+Weapon Skill: [1-10]/10 | Weapon Skill XP: [0.00-9.99]/10 | Finesse: [1-10]/10 | Finesse XP: [0.00-9.99]/10
+
+Last Gains: [what was gained and why / none: why no beat qualified]
+
+[Add newly established skills in the same pairing, two skills per line. Use hyphens, not parentheses.]
+</Skill_Mastery>
+```
+
+- The **tag** and **name** come from `<Skill_Mastery>` (*Skill Mastery*).
+- The lines inside become the **layout**: the model copies it every reply and fills each
+  `[placeholder]`, keeping your line breaks, pipes and wording.
+- A paragraph written entirely in brackets that reads as sentences (the last one above) is a
+  rule, not part of the skeleton: it becomes the **instructions**, said once instead of
+  copied into every reply. Short brackets inside a line stay placeholders.
+- It starts as a **Stateful** (kept and rewritten each reply), **Free text** block shown as
+  **Plain** text, so every word of your example is kept. Change anything before **Save**.
 
 The settings panel shows a rough token cost per block. Every enabled block adds its
 instructions (and, for stateful blocks, its current state) to each prompt, plus what the

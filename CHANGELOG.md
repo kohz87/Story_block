@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2
+
+- **New block from an example.** *Add block → From an example…*: paste the block the way the model should write it (`<Skill_Mastery> … </Skill_Mastery>`) and the form fills itself in: tag and name from the tag, the lines inside as the layout, and a bracketed paragraph of rules as the instructions. It opens as a Stateful, Free text, Plain block for you to adjust and save.
+
 ## 0.6.1
 
 - **Off-screen hidden until revealed.** The World State board's Off-Screen section now shows only how many entries there are and a **Reveal** button; like secrets, the entries are not in the page until revealed, and the reveal holds across replies until you hide it or reload. The block text is untouched, so NPC State Delta (and Story Director's Off-Screen mirror) work as before. Turn it off under Display → *Hide off-screen until revealed*.

@@ -31,6 +31,7 @@ import {
     validateBlock,
 } from '../schema.js';
 import { TEMPLATES } from '../templates.js';
+import { blockFromExample } from '../example.js';
 
 export const EXPORT_VERSION = 1;
 export const EXPORT_FILENAME = 'story-blocks.json';
@@ -262,7 +263,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
     const expanded = new Set(); // rows whose "more" actions are open
     let addOpen = false;
     let editing = false;
-    const io = { mode: null, text: '', errors: [], message: '', downloaded: false }; // mode: 'import' | 'export' | null
+    const io = { mode: null, text: '', errors: [], message: '', downloaded: false }; // mode: 'import' | 'export' | 'example' | null
 
     // Re-rendering into the same container keeps whatever the runtime last wrote
     // into the status line instead of blanking it until the next generation.
@@ -333,12 +334,13 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
         commit([...current, block], `Added ${block.name}.`);
     }
 
-    function openEditor(block) {
+    // `block` null is a blank new block; `{ isNew: true }` opens a filled-in draft (from an
+    // example) that is still added, not saved over anything.
+    function openEditor(block, { isNew = !block } = {}) {
         editing = true;
         addOpen = false;
         confirming = null;
         io.message = '';
-        const isNew = !block;
         openBlockEditor(block ?? { name: 'New Block', icon: '📄', format: 'text', kind: 'stateful', template: null }, {
             blocks: current,
             container: view,
@@ -496,7 +498,13 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
         const menu = el('div', { className: 'story-block-add-menu' });
         const blank = button('Blank block', 'story-block-add-option', { iconName: 'fa-file', onClick: () => openEditor(null) });
         blank.dataset.template = '';
-        menu.append(blank);
+        const example = button('From an example…', 'story-block-add-option', {
+            iconName: 'fa-paste',
+            title: 'Paste the block as the model should write it; the form is filled in from it',
+            onClick: () => { addOpen = false; io.mode = 'example'; io.text = ''; io.errors = []; io.message = ''; renderList(); },
+        });
+        example.dataset.template = 'example';
+        menu.append(blank, example);
         for (const template of templateList) {
             const present = templatePresent(template);
             const option = button(`${template.block.icon} ${template.block.name}${present ? ' (add a copy)' : ''}`, 'story-block-add-option', {
@@ -552,6 +560,32 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
                     button('Close', 'story-block-io-close', { onClick: () => { io.mode = null; io.errors = []; renderList(); } }),
                 ]),
             );
+        } else if (io.mode === 'example') {
+            const area = el('textarea', { className: 'text_pole story-block-example-text', attrs: { rows: '10', spellcheck: 'false' } });
+            area.placeholder = '<Stats>\nHP: [0-100]/100 | Gold: [number]\nStatus: [short text]\n\n[Any rule for the model, written as a bracketed paragraph, goes into the instructions.]\n</Stats>';
+            area.value = io.text;
+            area.addEventListener('input', () => { io.text = area.value; });
+            const fill = () => {
+                const result = blockFromExample(io.text);
+                if (result.error) {
+                    io.errors = [result.error];
+                    renderList();
+                    return;
+                }
+                io.mode = null;
+                io.text = '';
+                io.errors = [];
+                openEditor(result.block, { isNew: true });
+            };
+            panel.append(
+                el('div', { className: 'story-block-io-title', text: 'New block from an example' }),
+                el('small', { className: 'story-block-editor-hint', text: 'Paste the block the way the model should write it, tags included. The tag and name come from <Tag>, the lines inside become the layout the model fills in, and a bracketed paragraph of rules becomes the instructions. You can change everything before saving.' }),
+                area,
+                el('div', { className: 'story-block-io-actions' }, [
+                    button('Fill in the form', 'story-block-example-apply', { iconName: 'fa-wand-magic-sparkles', onClick: fill }),
+                    button('Close', 'story-block-io-close', { onClick: () => { io.mode = null; io.text = ''; io.errors = []; renderList(); } }),
+                ]),
+            );
         } else if (io.mode === 'export') {
             const area = el('textarea', { className: 'text_pole story-block-export-text', attrs: { rows: '8', readonly: 'readonly', spellcheck: 'false' } });
             area.value = io.text;
@@ -597,7 +631,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
             button('Add block', 'story-block-add', { iconName: 'fa-plus', onClick: () => { addOpen = !addOpen; renderList(); } }),
             button('Import JSON', 'story-block-import', {
                 iconName: 'fa-file-import',
-                onClick: () => { io.mode = io.mode === 'import' ? null : 'import'; io.errors = []; io.message = ''; renderList(); },
+                onClick: () => { if (io.mode === 'example') io.text = ''; io.mode = io.mode === 'import' ? null : 'import'; io.errors = []; io.message = ''; renderList(); },
             }),
             button('Export JSON', 'story-block-export', { iconName: 'fa-file-export', onClick: exportNow }),
         ]);
