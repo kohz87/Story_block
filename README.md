@@ -1,4 +1,4 @@
-# Story Block v0.6.2
+# Story Block v0.6.3
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -45,6 +45,11 @@ with the same tag (for example `World_State`) picks up its last copy.
 
 In the settings list, each block's switch turns it on or off, ✎ opens its editor, and ⋯ holds
 the rest: show or hide its tab, move it up or down, duplicate, reset to default, delete.
+
+The editor shows the name, tag, icon and tab label on top, then three folding sections:
+**What the model writes** (instructions, format, and the layout, fields or rows; open),
+**How it is shown** (display) and **When and how often** (kind, timing, optional,
+repeating, dice). Save and Cancel stay at the bottom of the screen while you scroll.
 
 Each block has:
 
@@ -234,7 +239,9 @@ Delta and Story Director's mirror still read and write it.
 ## Editing and recovery
 
 - **Edit** on a tab edits that block's current content; it is checked by the block's own
-  parser and saved into the latest reply.
+  parser and saved into the latest reply. Long lines wrap. A World State block also gets
+  **Time**, **Location** and **Weather** fields above the text, which write straight into its
+  header line. How the block is written is folded away underneath.
 - **Story Block: Rescan** (Extensions menu) hides raw blocks left visible in the narration
   and reports where each block's current state comes from.
 - The settings panel's status line says whether the last reply's prompt got the block

@@ -180,6 +180,11 @@ const BOLD_CELL = /(?:\*\*|__)\s*([^*_:|\n]{1,32}?)\s*(?::\s*(?:\*\*|__)|(?:\*\*
 const PLAIN_CELL = /(^|\|)\s*([^:|\n]{1,32}?)\s*:/g;
 
 function sceneCells(content) {
+    return sceneCellsAt(content)?.map(({ label, value }) => ({ label, value })) ?? null;
+}
+
+// The cells with where each value sits in `content` (`start`/`end`, trailing separator excluded).
+function sceneCellsAt(content) {
     const found = [];
     for (const match of content.matchAll(BOLD_CELL)) {
         found.push({ label: match[1], from: match.index, to: match.index + match[0].length });
@@ -197,8 +202,44 @@ function sceneCells(content) {
     return found.map((cell, index) => {
         const end = index + 1 < found.length ? found[index + 1].from : content.length;
         const value = content.slice(cell.to, end).replace(/\s*[|·;]\s*$/, '');
-        return { label: splitEmoji(stripMarkdown(cell.label)).text, value };
+        const lead = /^\s*/.exec(value)[0].length;
+        return { label: splitEmoji(stripMarkdown(cell.label)).text, value, start: cell.to + lead, end: cell.to + value.length };
     });
+}
+
+// The first line of `text` that is a header of scene cells, with the line's offset.
+function headerLine(text) {
+    let offset = 0;
+    for (const line of String(text ?? '').split('\n')) {
+        const cells = sceneCellsAt(line.replace(/\s+$/, ''));
+        if (cells) return { offset, cells };
+        offset += line.length + 1;
+    }
+    return null;
+}
+
+/**
+ * The header cells a hand editor can offer: { time, location, weather } → value text, only
+ * for the cells the text has (a combined "Time & Loc" cell counts as time).
+ */
+export function sceneHeaderFields(text) {
+    const header = headerLine(text);
+    const fields = {};
+    for (const cell of header?.cells ?? []) {
+        const key = sceneKeyOf(cell.label) === 'both' ? 'time' : sceneKeyOf(cell.label);
+        if (key && !(key in fields)) fields[key] = stripMarkdown(cell.value.trim());
+    }
+    return fields;
+}
+
+/** `text` with the header cell `key` (time, location, weather) set to `value`; unchanged without one. */
+export function setSceneHeaderField(text, key, value) {
+    const source = String(text ?? '');
+    const header = headerLine(source);
+    const cell = header?.cells.find(entry => (sceneKeyOf(entry.label) === 'both' ? 'time' : sceneKeyOf(entry.label)) === key);
+    if (!cell) return source;
+    const clean = String(value ?? '').replace(/\s*\n\s*/g, ' ').trim();
+    return source.slice(0, header.offset + cell.start) + clean + source.slice(header.offset + cell.end);
 }
 
 // ---- placeholders ---------------------------------------------------------------------

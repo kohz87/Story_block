@@ -36,7 +36,12 @@ import { blockFromExample } from '../example.js';
 export const EXPORT_VERSION = 1;
 export const EXPORT_FILENAME = 'story-blocks.json';
 
-const KIND_LABELS = { stateful: 'Stateful: kept and rewritten each reply', turn: 'Per-turn: this reply only', lead: 'First: this reply only, written before the story' };
+const KIND_LABELS = { stateful: 'Stateful', turn: 'Per-turn', lead: 'First' };
+const KIND_HINTS = {
+    stateful: 'Kept: the model rewrites it every reply, carrying forward what did not change.',
+    turn: 'This reply only, written after the story (choices, rolls).',
+    lead: 'This reply only, written before the story.',
+};
 const KIND_BADGES = { stateful: 'Stateful', turn: 'Per-turn', lead: 'First' };
 const FORMAT_LABELS = { rows: 'Rows', fields: 'Fields', text: 'Free text' };
 const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)', scene: 'Scene board (World State layout)', choices: 'Choice buttons (numbered list)', dice: 'Dice cards (roll lines)', chatter: 'Whisper thread (Name: line)' };
@@ -753,7 +758,11 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
 
     // Behaviour
     const kind = select('story-block-input-kind', KINDS, KIND_LABELS, draft.kind);
-    kind.addEventListener('change', () => { draft.kind = kind.value; });
+    const kindHint = el('small', { className: 'story-block-editor-hint story-block-kind-hint', text: KIND_HINTS[draft.kind] ?? '' });
+    kind.addEventListener('change', () => {
+        draft.kind = kind.value;
+        kindHint.textContent = KIND_HINTS[draft.kind] ?? '';
+    });
     const format = select('story-block-input-format', FORMATS, FORMAT_LABELS, draft.format);
     const display = select('story-block-input-display', DISPLAYS, DISPLAY_LABELS, draft.display);
     format.addEventListener('change', () => {
@@ -770,7 +779,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
     });
     const enabled = checkbox('story-block-input-enabled', 'Enabled', draft.enabled, 'Off: not prompted, not parsed, costs nothing');
     enabled.input.addEventListener('change', () => { draft.enabled = enabled.input.checked; });
-    const visible = checkbox('story-block-input-visible', 'Show tab in the card', draft.visible, 'Off: still prompted and stored, but no tab');
+    const visible = checkbox('story-block-input-visible', 'Show a tab', draft.visible, 'Off: still prompted and stored, but no tab');
     visible.input.addEventListener('change', () => { draft.visible = visible.input.checked; });
     const optional = checkbox('story-block-input-optional', 'Optional', draft.optional, 'Written only when something calls for it (like Dice); a reply without it is not warned about');
     optional.input.addEventListener('change', () => { draft.optional = optional.input.checked; });
@@ -931,38 +940,62 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
         ? `id: ${base.id}${base.template ? ` · from the ${base.template} template` : ''}`
         : 'New block';
 
+    // A folding section of the form; `open` for the ones a new block needs first.
+    const fold = (className, title, summaryHint, children, open = false) => {
+        const details = el('details', { className: `story-block-editor-fold ${className}` }, [
+            el('summary', { className: 'story-block-editor-fold-summary' }, [
+                el('b', { text: title }),
+                summaryHint ? el('small', { className: 'story-block-editor-hint', text: summaryHint }) : null,
+            ]),
+            el('div', { className: 'story-block-editor-fold-body' }, children),
+        ]);
+        if (open) details.open = true;
+        return details;
+    };
+
     form.append(
         el('div', { className: 'story-block-editor-header' }, [
             el('b', { className: 'story-block-editor-title', text: existing ? `Edit ${base.name}` : 'New block' }),
             el('small', { className: 'story-block-editor-hint story-block-editor-id', text: idNote }),
         ]),
         errorList,
-        el('div', { className: 'story-block-editor-grid' }, [
+        el('div', { className: 'story-block-editor-grid story-block-editor-basics' }, [
             labelled('Name', name, null, 'story-block-editor-name'),
-            labelled('Icon', iconInput, null, 'story-block-editor-icon'),
-            labelled('Tab label', shortInput, 'Short label for the sidebar tab.', 'story-block-editor-short'),
             el('label', { className: 'story-block-editor-field story-block-editor-tag' }, [
                 el('span', { className: 'story-block-editor-label', text: 'Tag' }),
                 tag,
-                el('small', { className: 'story-block-editor-hint', text: 'The model writes <Tag>…</Tag>. Letters, numbers and underscores.' }),
+                el('small', { className: 'story-block-editor-hint', text: 'Written as <Tag>…</Tag>.' }),
                 tagWarning,
             ]),
-            labelled('Kind', kind),
-            labelled('Format', format),
-            labelled('Display', display),
+            labelled('Icon', iconInput, null, 'story-block-editor-icon'),
+            labelled('Tab label', shortInput, null, 'story-block-editor-short'),
         ]),
-        el('div', { className: 'story-block-editor-checks' }, [enabled.wrapper, visible.wrapper, optional.wrapper, repeating.wrapper]),
-        labelled('Instructions', prompt, 'What the block tracks and how. Placeholders: {{user}} and {{char}} become the persona and character names; {{rolls}} becomes this reply\'s dice.', 'story-block-editor-prompt'),
-        el('fieldset', { className: 'story-block-editor-section story-block-editor-when' }, [
-            el('legend', { text: 'When' }),
-            labelled('Prompt this block', whenMode),
-            everyGroup,
-            keywordGroup,
+        el('div', { className: 'story-block-editor-checks' }, [enabled.wrapper, visible.wrapper]),
+        fold('is-writes', 'What the model writes', 'Instructions and the shape of the block', [
+            labelled('Instructions', prompt, 'What the block tracks and how. {{user}} and {{char}} are filled in; {{rolls}} becomes this reply\'s dice.', 'story-block-editor-prompt'),
+            labelled('Format', format, null, 'story-block-editor-format'),
+            layoutSection,
+            rowsSection,
+            fieldsSection,
+        ], true),
+        fold('is-look', 'How it is shown', 'Display', [
+            labelled('Display', display, null, 'story-block-editor-display'),
         ]),
-        layoutSection,
-        rowsSection,
-        rollsSection,
-        fieldsSection,
+        fold('is-when', 'When and how often', 'Kind, timing, dice', [
+            el('div', { className: 'story-block-editor-field story-block-editor-kind' }, [
+                el('span', { className: 'story-block-editor-label', text: 'Kind' }),
+                kind,
+                kindHint,
+            ]),
+            el('fieldset', { className: 'story-block-editor-section story-block-editor-when' }, [
+                el('legend', { text: 'When' }),
+                labelled('Prompt this block', whenMode),
+                everyGroup,
+                keywordGroup,
+            ]),
+            el('div', { className: 'story-block-editor-checks' }, [optional.wrapper, repeating.wrapper]),
+            rollsSection,
+        ]),
         el('div', { className: 'story-block-editor-actions' }, [
             button('Save', 'story-block-editor-save', { iconName: 'fa-floppy-disk', onClick: save }),
             button('Cancel', 'story-block-editor-cancel', { iconName: 'fa-xmark', onClick: () => onCancel?.() }),
