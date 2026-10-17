@@ -2,7 +2,8 @@
 // Battle together (docs/STORY_SUITE.md, "One place to manage them all").
 //
 // A full-screen dialog above SillyTavern and the sidebar, with an Overview tab (every announced
-// extension, its on/off switch, and one Source of truth table) and a tab per extension that
+// extension, its on/off switch, one Source of truth table and what each adds to a reply in
+// tokens, each a fold with a one-line summary) and a tab per extension that
 // announced a `settings` selector. An extension's tab shows its own settings panel: the panel is
 // moved into the overlay while its tab is open, with a hidden placeholder where it was, and put
 // back exactly there when the tab changes or the overlay closes, so every control keeps its
@@ -113,6 +114,96 @@ export function leadersOf(candidates, area, suite) {
     return candidates.filter(provider => offering.includes(provider.id) && isSourceOfTruth(provider.id, area, choiceOf(provider, area), suite));
 }
 
+// ---- Tokens per reply (v0.9.1): each extension's api.manage.tokens() ----
+
+const count = value => {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
+};
+
+/**
+ * A provider's `manage.tokens()` as `{ input, output, parts: [{ label, input, output }] }`, with
+ * every number a whole count ≥ 0, or null when it reports none (no tokens(), it threw, or it
+ * gave something else, a promise included).
+ */
+export function tokensReport(provider) {
+    const manage = manageOf(provider);
+    if (typeof manage?.tokens !== 'function') return null;
+    const raw = attempt(() => manage.tokens(), null, `${provider.id}'s tokens()`);
+    if (!raw || typeof raw !== 'object' || typeof raw.then === 'function') return null;
+    const parts = (Array.isArray(raw.parts) ? raw.parts : [])
+        .filter(part => part && typeof part === 'object')
+        .map(part => ({ label: String(part.label ?? '').trim() || 'Other', input: count(part.input), output: count(part.output) }));
+    return { input: count(raw.input), output: count(raw.output), parts };
+}
+
+/** A row per enabled provider, in suite order: { provider, report } (report null: not reported). */
+export function tokenRows(providers) {
+    return orderProviders(providers).filter(provider => provider.enabled !== false).map(provider => ({ provider, report: tokensReport(provider) }));
+}
+
+/** The reported rows added up: { input, output, reported } (how many reported). */
+export function tokenTotal(rows) {
+    const reported = rows.filter(row => row.report);
+    return {
+        input: reported.reduce((sum, row) => sum + row.report.input, 0),
+        output: reported.reduce((sum, row) => sum + row.report.output, 0),
+        reported: reported.length,
+    };
+}
+
+/** "~3,400". */
+export const approx = value => `~${count(value).toLocaleString('en-US')}`;
+
+export const TOKENS_HINT = 'Estimates (about 4 characters a token) for an ordinary reply; quiet calls like summaries, planning and monster flavour are not counted.';
+
+// ---- Overview folds: a one-line summary each while closed ----
+
+/** "4 on", or "3 on, 1 off". */
+export function installedSummary(providers) {
+    const list = Array.isArray(providers) ? providers : [];
+    const on = list.filter(provider => provider.enabled !== false).length;
+    const off = list.length - on;
+    return off ? `${on} on, ${off} off` : `${on} on`;
+}
+
+/** From each table row's value ('auto', an id or 'mixed'): "Automatic", "2 chosen by hand", "1 mixed". */
+export function sourcesSummary(values) {
+    const list = Array.isArray(values) ? values : [];
+    if (!list.length) return 'Nothing shared';
+    const hand = list.filter(value => value !== 'auto' && value !== 'mixed').length;
+    const mixed = list.filter(value => value === 'mixed').length;
+    const parts = [hand ? `${hand} chosen by hand` : '', mixed ? `${mixed} mixed` : ''].filter(Boolean);
+    return parts.length ? parts.join(', ') : 'Automatic';
+}
+
+/** "~3,400 in · ~650 out", or "Not reported" while nobody reports. */
+export function tokensSummary(total) {
+    if (!total?.reported) return 'Not reported';
+    return `${approx(total.input)} in · ${approx(total.output)} out`;
+}
+
+// Which Overview folds are open: the reader's convenience, remembered in this browser only.
+const FOLDS_STORAGE = 'story_suite_overview_folds';
+export const OVERVIEW_FOLDS = Object.freeze({ installed: true, sources: false, tokens: false });
+
+export function overviewFoldsOpen() {
+    try {
+        const saved = JSON.parse(globalThis.localStorage?.getItem(FOLDS_STORAGE) ?? 'null');
+        const stored = saved && typeof saved === 'object' ? saved : {};
+        return Object.fromEntries(Object.entries(OVERVIEW_FOLDS).map(([key, open]) => [key, typeof stored[key] === 'boolean' ? stored[key] : open]));
+    } catch {
+        return { ...OVERVIEW_FOLDS };
+    }
+}
+
+function rememberOverviewFold(key, open) {
+    try { globalThis.localStorage?.setItem(FOLDS_STORAGE, JSON.stringify({ ...overviewFoldsOpen(), [key]: open })); } catch { /* private window */ }
+}
+
+// A provider's breakdown under Tokens per reply: open ones stay open across redraws (this page only).
+const openTokenFolds = new Set();
+
 /** Tabs: Overview, then every provider that announced a settings panel, in suite order. */
 export function suiteTabs(providers) {
     const panels = orderProviders(providers)
@@ -179,64 +270,132 @@ function renderTabs() {
     return switched;
 }
 
+// The Overview uses the four settings panels' markup (src/suite.css, docs/STORY_SUITE.md "One
+// look for the four settings panels"): a fold is details > summary (<b>, <small>) + a body, and
+// a setting is a row of a text column (<b> label, <small> hint) and its control.
+function overviewFold(d, key, title, hint, children, { nested = false } = {}) {
+    const fold = make(d, 'details', `story-suite-fold is-${key}`);
+    fold.dataset.fold = key;
+    if (!nested) {
+        fold.open = overviewFoldsOpen()[key];
+        fold.addEventListener('toggle', () => rememberOverviewFold(key, Boolean(fold.open)));
+    }
+    const summary = make(d, 'summary', 'story-suite-fold-head');
+    summary.dataset.suiteFocus = `fold:${key}`;
+    summary.append(make(d, 'b', 'story-suite-fold-title', title), make(d, 'small', 'story-suite-fold-hint', hint));
+    const body = make(d, 'div', 'story-suite-fold-body');
+    body.append(...children);
+    fold.append(summary, body);
+    return fold;
+}
+
+// "~3,400 in · ~650 out", or "not reported".
+const tokenText = report => (report ? `${approx(report.input)} in · ${approx(report.output)} out` : 'not reported');
+
+function textColumn(d, title, hint = '', { titleClass = '', hintClass = '' } = {}) {
+    const column = make(d, 'span');
+    column.appendChild(make(d, 'b', titleClass, title));
+    if (hint) column.appendChild(make(d, 'small', hintClass, hint));
+    return column;
+}
+
+function tokenRow(d, name, report, className = '') {
+    const row = make(d, 'div', `story-suite-row story-suite-tokens-row${className ? ` ${className}` : ''}`);
+    row.append(textColumn(d, name, '', { titleClass: 'story-suite-tokens-name' }), make(d, 'span', `story-suite-tokens-count${report ? '' : ' is-none'}`, tokenText(report)));
+    return row;
+}
+
+function tokensSection(d, providers) {
+    const rows = tokenRows(providers);
+    const total = tokenTotal(rows);
+    const nodes = [make(d, 'p', 'story-suite-muted', TOKENS_HINT)];
+    for (const { provider, report } of rows) {
+        if (!report?.parts.length) {
+            const row = tokenRow(d, nameOf(provider), report);
+            row.dataset.providerId = provider.id;
+            nodes.push(row);
+            continue;
+        }
+        // Its parts, in a fold of its own; one left open stays open across redraws.
+        const parts = report.parts.map(part => tokenRow(d, part.label, part, 'story-suite-tokens-part'));
+        const fold = overviewFold(d, `tokens-${provider.id}`, nameOf(provider), tokenText(report), parts, { nested: true });
+        fold.classList.add('story-suite-tokens-row', 'is-folded');
+        fold.dataset.providerId = provider.id;
+        fold.open = openTokenFolds.has(provider.id);
+        fold.addEventListener('toggle', () => {
+            if (fold.open) openTokenFolds.add(provider.id);
+            else openTokenFolds.delete(provider.id);
+        });
+        nodes.push(fold);
+    }
+    nodes.push(tokenRow(d, 'Total', total.reported ? total : null, 'is-total'));
+    return overviewFold(d, 'tokens', 'Tokens per reply', tokensSummary(total), nodes);
+}
+
+function providerRow(d, provider) {
+    const on = provider.enabled !== false;
+    const manage = manageOf(provider);
+    const switchable = typeof manage?.setEnabled === 'function';
+    // A label when it holds the switch, so the whole row toggles it (and shows its pill).
+    const row = make(d, switchable ? 'label' : 'div', `story-suite-row story-suite-provider${on ? '' : ' is-off'}`);
+    row.dataset.providerId = provider.id;
+    const version = String(provider.version ?? '').trim();
+    const hint = make(d, 'small');
+    hint.append(
+        make(d, 'span', 'story-suite-provider-version', version ? `v${version.replace(/^v/i, '')}` : ''),
+        d.createTextNode(version ? ' · ' : ''),
+        make(d, 'span', 'story-suite-provider-state', on ? 'on' : 'off'),
+    );
+    const column = make(d, 'span');
+    column.append(make(d, 'b', 'story-suite-provider-name', nameOf(provider)), hint);
+    row.appendChild(column);
+    if (switchable) {
+        const toggle = make(d, 'input', 'story-suite-switch');
+        toggle.type = 'checkbox';
+        toggle.id = `story_suite_enabled_${provider.id}`;
+        row.setAttribute('for', toggle.id);
+        toggle.checked = on;
+        toggle.setAttribute('role', 'switch');
+        toggle.setAttribute('aria-label', `${nameOf(provider)} on`);
+        toggle.dataset.suiteFocus = `switch:${provider.id}`;
+        toggle.addEventListener('change', () => {
+            attempt(() => manage.setEnabled(Boolean(toggle.checked)), null, `${provider.id}'s setEnabled()`);
+            refreshSuiteOverlay();
+        });
+        row.appendChild(toggle);
+    }
+    return row;
+}
+
 function renderOverview() {
     const d = ui.doc;
     const providers = orderProviders(providersNow());
     const suite = ui.suite;
 
-    const installed = make(d, 'section', 'story-suite-section is-installed');
-    installed.appendChild(make(d, 'h3', 'story-suite-section-title', 'Installed'));
-    const list = make(d, 'ul', 'story-suite-providers');
-    for (const provider of providers) {
-        const on = provider.enabled !== false;
-        const row = make(d, 'li', `story-suite-provider${on ? '' : ' is-off'}`);
-        row.dataset.providerId = provider.id;
-        const version = String(provider.version ?? '').trim();
-        row.append(
-            make(d, 'span', 'story-suite-provider-name', nameOf(provider)),
-            make(d, 'span', 'story-suite-provider-version', version ? `v${version.replace(/^v/i, '')}` : ''),
-            make(d, 'span', 'story-suite-provider-state', on ? 'on' : 'off'),
-        );
-        const manage = manageOf(provider);
-        if (typeof manage?.setEnabled === 'function') {
-            const toggle = make(d, 'input', 'story-suite-switch');
-            toggle.type = 'checkbox';
-            toggle.checked = on;
-            toggle.setAttribute('role', 'switch');
-            toggle.setAttribute('aria-label', `${nameOf(provider)} on`);
-            toggle.dataset.suiteFocus = `switch:${provider.id}`;
-            toggle.addEventListener('change', () => {
-                attempt(() => manage.setEnabled(Boolean(toggle.checked)), null, `${provider.id}'s setEnabled()`);
-                refreshSuiteOverlay();
-            });
-            row.appendChild(toggle);
-        }
-        list.appendChild(row);
-    }
-    installed.appendChild(list);
+    const installed = overviewFold(d, 'installed', 'Installed', installedSummary(providers), providers.map(provider => providerRow(d, provider)));
 
-    const sources = make(d, 'section', 'story-suite-section is-sources');
-    sources.append(
-        make(d, 'h3', 'story-suite-section-title', 'Source of truth'),
-        make(d, 'small', 'story-suite-intro', 'Who keeps each area that more than one of them can. Picking one sets every extension\'s own choice to match.'),
-    );
-    let rows = 0;
+    const sourceNodes = [make(d, 'p', 'story-suite-muted', 'Who keeps each area that more than one of them can. Picking one sets every extension\'s own choice to match.')];
+    const values = [];
     for (const area of Object.keys(AREAS)) {
         const candidates = areaCandidates(providers, area);
         if (candidates.length < 2) continue;
-        rows += 1;
-        sources.appendChild(sourceRow(d, area, candidates, suite));
+        values.push(currentSource(candidates, area));
+        sourceNodes.push(sourceRow(d, area, candidates, suite));
     }
-    if (!rows) sources.appendChild(make(d, 'p', 'story-suite-empty', 'No area is kept by more than one of them right now.'));
-    ui.pane.replaceChildren(installed, sources);
+    if (!values.length) sourceNodes.push(make(d, 'p', 'story-suite-muted story-suite-empty', 'No area is kept by more than one of them right now.'));
+    const sources = overviewFold(d, 'sources', 'Source of truth', sourcesSummary(values), sourceNodes);
+
+    const folds = make(d, 'div', 'story-suite-folds');
+    folds.append(installed, sources, tokensSection(d, providers));
+    ui.pane.classList.add('story-suite-panel');
+    ui.pane.replaceChildren(folds);
 }
 
 function sourceRow(d, area, candidates, suite) {
-    const row = make(d, 'div', 'story-suite-area');
-    row.dataset.area = area;
     const id = `story_suite_source_${area}`;
-    const label = make(d, 'label', 'story-suite-area-name', AREA_NAMES[area] ?? area);
-    label.setAttribute('for', id);
+    const row = make(d, 'label', 'story-suite-row story-suite-area');
+    row.dataset.area = area;
+    row.setAttribute('for', id);
     const select = make(d, 'select', 'text_pole story-suite-source');
     select.id = id;
     select.dataset.suiteFocus = `source:${area}`;
@@ -260,7 +419,7 @@ function sourceRow(d, area, candidates, suite) {
     });
     const leaders = leadersOf(candidates, area, suite);
     const lead = leaders.length ? `Leads now: ${leaders.map(nameOf).join(' and ')}${leaders.length > 1 ? ' (each keeps it)' : ''}` : 'Leads now: nobody (it is off everywhere)';
-    row.append(label, select, make(d, 'small', 'story-suite-lead', lead));
+    row.append(textColumn(d, AREA_NAMES[area] ?? area, lead, { titleClass: 'story-suite-area-name', hintClass: 'story-suite-lead' }), select);
     return row;
 }
 
@@ -269,6 +428,7 @@ function renderPanel(provider) {
     const d = ui.doc;
     const node = attempt(() => d.querySelector(provider.settings), null, `finding ${provider.id}'s settings`);
     if (!node || !node.parentNode || node.contains(ui.root) || ui.root.contains(node)) {
+        ui.pane.classList.remove('story-suite-panel');
         ui.pane.replaceChildren(make(d, 'p', 'story-suite-empty', 'Its settings are not on this page.'));
         return;
     }
@@ -282,6 +442,7 @@ function renderPanel(provider) {
     const drawer = node.matches?.('.inline-drawer') ? node : node.querySelector?.('.inline-drawer');
     drawer?.classList?.add('story-suite-drawer');
     ui.moved = { node, placeholder, drawer, parent: placeholder.parentNode };
+    ui.pane.classList.remove('story-suite-panel');
     ui.pane.replaceChildren(node);
 }
 

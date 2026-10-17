@@ -138,6 +138,9 @@ function blockSection(entry, substitute, modifiers = []) {
     const ownPrompt = String(substitute(withRolls(def.prompt, entry)) ?? '').trim();
     const prompt = diceBlock(def) ? withModifiers(ownPrompt, modifiers.map(text => String(substitute(text) ?? '').trim()).filter(Boolean)) : ownPrompt;
     if (prompt) lines.push(prompt);
+    // A line the runtime adds for this reply only (handshake.js: chatterNote), after the prompt.
+    const note = String(entry.note ?? '').trim();
+    if (note) lines.push(note);
     const rules = String(formatFor(def).rules(def) ?? '').trim();
     if (rules) lines.push(`Format: ${rules}`);
     if (def.optional) lines.push(`Optional: leave the whole <${def.tag}> tag out when nothing in this reply calls for it${lead(def) ? ', and then leave out the opening envelope too if it would be empty' : ''}.`);
@@ -160,6 +163,7 @@ function skeletonEnvelope(list, substitute) {
  * The context section for one reply. entries: [{ def, state }] (state only for stateful
  * blocks, in prompt order). `substitute` applies {{user}}/{{char}} to block prompts and skeletons only —
  * never to state, which must reach the model verbatim. '' when entries is empty.
+ * An entry's `note` is one more instruction line under its prompt, for this reply only.
  * Entries of kept blocks ({ def, state, body }, def.kept) are shown first, read-only: they
  * are never in the envelope the model is asked to write, and one with nothing written yet
  * is left out.

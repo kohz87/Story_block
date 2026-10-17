@@ -259,10 +259,14 @@ function downloadJson(text) {
  * Render the whole Story Block settings panel into `container`. Returns
  * `{ root, getBlocks(), setBlocks(blocks) }` so the runtime can push a list it changed
  * elsewhere without rebuilding the drawer (which would collapse it).
+ *
+ * `dismissedTemplates`: template keys the "New built-in blocks" line no longer offers;
+ * `onDismissTemplate(key)` is called when one joins them (Dismiss, or Add), to be stored.
  */
-export function renderSettings(container, { blocks = [], templates = TEMPLATES, onChange, estimateTokens } = {}) {
+export function renderSettings(container, { blocks = [], templates = TEMPLATES, onChange, estimateTokens, dismissedTemplates = [], onDismissTemplate } = {}) {
     let current = normalizeBlocks(blocks);
     const templateList = prepareTemplates(templates);
+    const dismissed = new Set((Array.isArray(dismissedTemplates) ? dismissedTemplates : []).map(String));
     // View state that has to survive a re-render of the list.
     let confirming = null; // { id, action: 'delete' | 'reset' }
     const expanded = new Set(); // rows whose "more" actions are open
@@ -331,12 +335,51 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
         });
     }
 
-    function addFromTemplate(template) {
+    function addFromTemplate(template, { enabled = template.block.enabled, message } = {}) {
         const block = templatePresent(template) || current.some(other => other.id === template.block.id)
-            ? copyOf(template.block, current, `${template.block.name} (copy)`)
-            : normalizeBlock({ ...template.block, tag: uniqueTag(template.block.tag, current) });
+            ? copyOf({ ...template.block, enabled }, current, `${template.block.name} (copy)`)
+            : normalizeBlock({ ...template.block, enabled, tag: uniqueTag(template.block.tag, current) });
         addOpen = false;
-        commit([...current, block], `Added ${block.name}.`);
+        commit([...current, block], message ?? `Added ${block.name}.`);
+    }
+
+    // A first install copies every template; afterwards the list is the reader's, so a template
+    // a later version adds (NPC Inner Chatter) would never show up. Offered once each, here: Add
+    // (switched off, so nothing changes until the reader turns it on) or Dismiss. Either way it
+    // is never offered again, even if the reader deletes it later.
+    const newTemplates = () => templateList.filter(template => !templatePresent(template) && !dismissed.has(template.key));
+
+    function dismissTemplate(template) {
+        dismissed.add(template.key);
+        onDismissTemplate?.(template.key);
+    }
+
+    function renderNewTemplates() {
+        const fresh = newTemplates();
+        if (!fresh.length) return null;
+        const line = el('div', { className: 'story-suite-notice story-block-new-templates' }, [el('span', { className: 'story-block-new-templates-label', text: 'New built-in blocks:' })]);
+        for (const template of fresh) {
+            const { name, icon: glyph } = template.block;
+            const item = el('span', { className: 'story-block-new-template' });
+            item.dataset.template = template.key;
+            const add = button('Add', 'story-block-new-template-add', {
+                title: `Add ${name} to your blocks, switched off: nothing changes until you turn it on`,
+                onClick: () => {
+                    dismissTemplate(template);
+                    addFromTemplate(template, { enabled: false, message: `Added ${name}, switched off. Turn it on to use it.` });
+                },
+            });
+            const dismiss = button('Dismiss', 'story-block-new-template-dismiss', {
+                title: `Don't offer ${name} again (it stays under Add block)`,
+                onClick: () => {
+                    dismissTemplate(template);
+                    renderList();
+                },
+            });
+            item.append(el('span', { text: `${glyph} ${name} — ` }), add, el('span', { text: ' · ' }), dismiss);
+            line.append(item);
+        }
+        return line;
     }
 
     // `block` null is a blank new block; `{ isNew: true }` opens a filled-in draft (from an
@@ -644,6 +687,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
         // replaceChildren would turn a null into the text "null", so drop the gaps.
         view.replaceChildren(...[
             el('div', { className: 'story-block-section-head' }, [el('span', { text: 'Blocks' })]),
+            renderNewTemplates(),
             list,
             renderTotal(),
             toolbar,

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.1
+
+Kept blocks without a tab, chatter on NPC State Delta's cards, new built-in blocks offered, tokens per reply, and one look for the suite's settings panels.
+
+- **`registerBlock({ kept: true, …, tab: false })`** registers a kept block that is written, stamped, kept, prompted read-only and dropped when the model writes it, exactly as before, but gets no tab of its own: none in the sidebar or the card, no tab badge, nothing in the turn strip or the edge handle's count. For an extension that draws the block in its own tab (RPG Battle's Party block in its Battle tab). `tab` defaults to `true`, so nothing changes for existing kept blocks; anything other than `true` or `false` is refused. `getBlock`, `blockForGeneration`, `blockInText` and `setBlockText` work on it as on any kept block.
+- **Re-registering may flip it:** registering the same id again with another `tab` adds or removes the tab on the next refresh, which the registration triggers.
+- **`listBlocks()` reports `tab`** for every block: whether it gets a tab once enabled and written (the reader's *Show tab* switch, a kept block's `tab`; `false` for transport-only blocks, and for chatter while another extension shows it). apiVersion stays 1.
+- **Chatter on NPC State Delta's cards.** While an enabled extension of the suite announces `shows: ['chatter']` (NPC State Delta 1.2.2, on its Present NPC cards), every block with the Chatter display has no tab in the sidebar or the card; it is still prompted, written, kept and readable through `getBlock`, and the reader's *Show tab* switch still applies. When it stops, is switched off or leaves, the tab is back.
+- **Chatter voices from NPC State Delta.** While NPC State Delta is installed and on, a Chatter block's prompt section gets one more line, *Voice each NPC as their NPC State Delta card describes.* The stored instructions are not changed; alone, the prompt is the same as before.
+- **Tokens per reply.** Story Suite's Overview gets a section listing what each extension adds to an ordinary reply, the prompt it injects and what it asks the model to write back, with a total and, per extension, a fold with its parts; one that does not report (or fails) says *not reported*. Story Block reports through `api.manage.tokens()`: its whole block section, kept blocks under their owners' names (*Party (kept by RPG Battle)*), the chatter line, and the shared rules and envelope, at about 4 characters a token. Recomputed when the overlay opens or redraws and after each reply, never polled.
+- **The Overview folds.** *Installed* (*4 on*), *Source of truth* (*Automatic*, *2 chosen by hand*, *1 mixed*) and *Tokens per reply* (*~3,400 in · ~650 out*) each fold with a one-line summary; Installed starts open, the others closed, and which are open is remembered in this browser and kept across redraws.
+- **One look for the four settings panels.** `src/suite.css`, identical in all four, is linked once per page (`<link id="story-suite-css">`, the first extension to load adds it). Story Block's panel uses its markup: the *Manage all in Story Suite* line, a quickbar with Rescan, the status line and the version, then Display, Source of truth and Blocks as folds, with settings as rows and switches as Enabled/Disabled pills. The Overview uses the same markup. Story Block's own fold styles are gone; the block editor inside Blocks is unchanged.
+- **"New built-in blocks."** Templates added after a first install (NPC Inner Chatter) were never offered. The Blocks section now shows one line for each template not in the list: *Add* puts it in the list switched off, *Dismiss* hides it. Either way it is remembered (`dismissedTemplates`) and not offered again. A built-in the reader deleted is offered once the same way.
+
 ## 0.9.0
 
 Story Suite: one place to manage Story Block, Story Director, NPC State Delta and RPG Battle together ([docs/STORY_SUITE.md](docs/STORY_SUITE.md), "One place to manage them all").

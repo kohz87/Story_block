@@ -7,7 +7,7 @@ import { installFakeDom, same, texts } from './ui-fake-dom.js';
 const doc = installFakeDom();
 const { storySuite } = await import('../src/suite.js');
 const overlay = await import('../src/ui/suite-overlay.js');
-const { applySource, areaCandidates, closeSuiteOverlay, currentSource, openSuiteOverlay, orderProviders, refreshSuiteOverlay, suiteOverlayTab } = overlay;
+const { applySource, areaCandidates, closeSuiteOverlay, currentSource, installedSummary, openSuiteOverlay, orderProviders, overviewFoldsOpen, refreshSuiteOverlay, sourcesSummary, suiteOverlayTab, tokenRows, tokenTotal, tokensReport, tokensSummary } = overlay;
 
 // SillyTavern's Extensions drawer, where every extension appends its panel.
 const host = doc.createElement('div');
@@ -16,7 +16,7 @@ doc.body.appendChild(host);
 
 // A fake extension: its panel (an inline-drawer, as all four draw it) between two neighbours,
 // and an announcement with api.manage that records every call.
-function extension(id, name, { areas = [], owns = areas, sources = {}, switchable = false, panel = true, manage = true } = {}) {
+function extension(id, name, { areas = [], owns = areas, sources = {}, switchable = false, panel = true, manage = true, tokens } = {}) {
     const ext = { id, name, calls: [], choices: { ...sources }, enabled: true, panel: null };
     if (panel) {
         ext.panel = doc.createElement('div');
@@ -43,6 +43,7 @@ function extension(id, name, { areas = [], owns = areas, sources = {}, switchabl
                     ext.calls.push(['setSource', area, choice]);
                     ext.choices[area] = choice;
                 },
+                ...(tokens ? { tokens } : {}),
                 ...(switchable ? {
                     enabled: () => ext.enabled,
                     setEnabled(on) {
@@ -179,9 +180,9 @@ test('Source of truth: a row per area two or more can keep, Automatic, an owner 
     exts.delta.choices = { stats: 'mine' };
     openSuiteOverlay({ document: doc, suite: storySuite() });
     assert.deepEqual(pane().querySelectorAll('.story-suite-area').map(row => row.dataset.area), ['scene', 'npc', 'calendar', 'timeline', 'stats', 'items', 'rolls'], 'AREAS order');
-    assert.equal(areaRow('scene').querySelector('label').textContent, 'Scene (who is here now)');
-    assert.equal(areaRow('timeline').querySelector('label').textContent, 'Timeline (agendas, quests, clocks)');
-    assert.equal(areaRow('rolls').querySelector('label').textContent, 'Roll modifiers');
+    assert.equal(areaRow('scene').querySelector('.story-suite-area-name').textContent, 'Scene (who is here now)');
+    assert.equal(areaRow('timeline').querySelector('.story-suite-area-name').textContent, 'Timeline (agendas, quests, clocks)');
+    assert.equal(areaRow('rolls').querySelector('.story-suite-area-name').textContent, 'Roll modifiers');
     assert.deepEqual(optionTexts('scene'), ['Automatic (NPC State Delta)', 'Story Block', 'NPC State Delta', 'Other'], 'Story Block offers no scene now: World State is off');
     assert.deepEqual(optionTexts('items'), ['Automatic (Story Block)', 'Story Block', 'RPG Battle']);
     assert.equal(select('items').value, 'auto');
@@ -337,4 +338,137 @@ test('an overlay a previous copy left behind gives its panel back', async () => 
     assert.equal(exts.battle.panel.dataset.storySuiteMoved, undefined);
     closeSuiteOverlay();
     assert.deepEqual(hostOrder(), order, 'the old copy closing later changes nothing');
+});
+
+// ---- v0.9.1: Tokens per reply, and the Overview's folds ----
+
+// A localStorage stand-in (the folds remember which are open in this browser).
+const stored = new Map();
+globalThis.localStorage = {
+    getItem: key => (stored.has(key) ? stored.get(key) : null),
+    setItem: (key, value) => stored.set(key, String(value)),
+    removeItem: key => stored.delete(key),
+};
+const fold = key => pane().querySelector(`.story-suite-folds > details.story-suite-fold[data-fold="${key}"]`);
+const foldHint = key => fold(key).querySelector('summary .story-suite-fold-hint').textContent;
+const toggleFold = (node, open) => {
+    node.open = open;
+    node.dispatch('toggle');
+};
+
+test('pure: a tokens report is whole counts or null; rows are the enabled providers; the summaries', () => {
+    const p = (id, manage, extra = {}) => ({ id, owns: [], api: manage ? { manage } : undefined, ...extra });
+    assert.deepEqual(tokensReport(p('a', { tokens: () => ({ input: 812.4, output: -3, parts: [{ label: ' Inventory ', input: '200', output: 40 }, null, { input: 5 }] }) })),
+        { input: 812, output: 0, parts: [{ label: 'Inventory', input: 200, output: 40 }, { label: 'Other', input: 5, output: 0 }] });
+    assert.equal(tokensReport(p('b', {})), null, 'no tokens()');
+    assert.equal(tokensReport(p('c', { tokens() { throw new Error('boom'); } })), null, 'a throwing tokens()');
+    assert.equal(tokensReport(p('d', { tokens: async () => ({ input: 1 }) })), null, 'a promise');
+    assert.equal(tokensReport(p('e', { tokens: () => 7 })), null);
+    assert.equal(tokensReport(p('f', null)), null, 'no manage');
+    const rows = tokenRows([p('x', { tokens: () => ({ input: 100, output: 10 }) }), p('story-block', { tokens: () => ({ input: 3000, output: 640 }) }), p('off', { tokens: () => ({ input: 9, output: 9 }) }, { enabled: false }), p('rpg-battle', {})]);
+    assert.deepEqual(rows.map(row => [row.provider.id, Boolean(row.report)]), [['story-block', true], ['rpg-battle', false], ['x', true]], 'suite order; a switched-off one adds nothing');
+    assert.deepEqual(tokenTotal(rows), { input: 3100, output: 650, reported: 2 });
+    assert.equal(tokensSummary(tokenTotal(rows)), '~3,100 in · ~650 out');
+    assert.equal(tokensSummary(tokenTotal([])), 'Not reported');
+
+    assert.equal(installedSummary([p('a'), p('b'), p('c'), p('d')]), '4 on');
+    assert.equal(installedSummary([p('a'), p('b'), p('c'), p('d', null, { enabled: false })]), '3 on, 1 off');
+    assert.equal(sourcesSummary(['auto', 'auto']), 'Automatic');
+    assert.equal(sourcesSummary(['auto', 'rpg-battle', 'story-block']), '2 chosen by hand');
+    assert.equal(sourcesSummary(['mixed', 'auto']), '1 mixed');
+    assert.equal(sourcesSummary(['mixed', 'story-block']), '1 chosen by hand, 1 mixed');
+    assert.equal(sourcesSummary([]), 'Nothing shared');
+});
+
+test('Tokens per reply: a row per enabled extension, its parts in a fold, a total; missing or failing tokens() is not reported', () => {
+    stored.clear();
+    delete globalThis.StorySuite;
+    host.replaceChildren();
+    const exts = {
+        block: extension('story-block', 'Story Block', { areas: ['items'], tokens: () => ({ input: 2400, output: 520, parts: [{ label: 'Inventory', input: 900, output: 300 }, { label: 'Party (kept by RPG Battle)', input: 700, output: 0 }, { label: 'Rules and envelope', input: 800, output: 220 }] }) }),
+        director: extension('story-director', 'Story Director', { tokens: () => ({ input: 1000, output: 130 }) }),
+        delta: extension('npc-state-delta', 'NPC State Delta', { tokens() { throw new Error('boom'); } }),
+        battle: extension('rpg-battle', 'RPG Battle', { areas: ['items'], switchable: true }),
+    };
+    openSuiteOverlay({ document: doc, suite: storySuite() });
+    assert.equal(pane().querySelectorAll('.story-suite-folds > details').map(node => node.dataset.fold).join(), 'installed,sources,tokens');
+    assert.equal(foldHint('tokens'), '~3,400 in · ~650 out');
+    const rows = () => fold('tokens').children[1].children.filter(node => node.classList.contains('story-suite-tokens-row'));
+    const row = id => rows().find(node => node.dataset.providerId === id);
+    const count = node => node.querySelector('.story-suite-tokens-count, summary .story-suite-fold-hint').textContent;
+    assert.deepEqual(rows().map(node => node.dataset.providerId ?? 'total'), ['story-block', 'story-director', 'npc-state-delta', 'rpg-battle', 'total']);
+    assert.equal(count(row('story-director')), '~1,000 in · ~130 out');
+    assert.equal(count(row('npc-state-delta')), 'not reported', 'a throwing tokens()');
+    assert.equal(count(row('rpg-battle')), 'not reported', 'no tokens()');
+    const total = rows().at(-1);
+    assert.equal(total.querySelector('.story-suite-tokens-name').textContent, 'Total');
+    assert.equal(count(total), '~3,400 in · ~650 out');
+    assert.match(fold('tokens').querySelector('.story-suite-muted').textContent, /about 4 characters a token.*not counted/);
+
+    // Story Block's parts: a nested fold, closed until opened, and open across a redraw.
+    const parts = row('story-block');
+    assert.equal(parts.tagName, 'DETAILS');
+    assert.equal(parts.open, false);
+    assert.equal(count(parts), '~2,400 in · ~520 out');
+    assert.deepEqual(parts.querySelectorAll('.story-suite-tokens-part').map(node => [node.querySelector('.story-suite-tokens-name').textContent, node.querySelector('.story-suite-tokens-count').textContent]),
+        [['Inventory', '~900 in · ~300 out'], ['Party (kept by RPG Battle)', '~700 in · ~0 out'], ['Rules and envelope', '~800 in · ~220 out']]);
+    toggleFold(parts, true);
+    refreshSuiteOverlay();
+    assert.equal(row('story-block').open, true, 'kept open across the redraw');
+    assert.notEqual(row('story-block'), parts, 'a fresh node');
+
+    // Switched off: no longer counted.
+    exts.director.enabled = false;
+    exts.director.announce();
+    refreshSuiteOverlay();
+    assert.equal(row('story-director'), undefined);
+    assert.equal(foldHint('tokens'), '~2,400 in · ~520 out');
+    closeSuiteOverlay();
+});
+
+test('Overview folds: one-line summaries, Installed open and the others closed by default, open ones remembered', () => {
+    stored.clear();
+    const exts = setup();
+    exts.block.choices = { stats: 'theirs' };
+    exts.battle.choices = { stats: 'mine' };
+    openSuiteOverlay({ document: doc, suite: storySuite() });
+    assert.equal(pane().classList.contains('story-suite-panel'), true, 'the panels\' look');
+    assert.deepEqual(['installed', 'sources', 'tokens'].map(key => fold(key).open), [true, false, false]);
+    assert.deepEqual(['installed', 'sources', 'tokens'].map(key => fold(key).querySelector('summary .story-suite-fold-title').textContent), ['Installed', 'Source of truth', 'Tokens per reply']);
+    assert.equal(foldHint('installed'), '5 on');
+    assert.equal(foldHint('sources'), '1 chosen by hand');
+    assert.equal(foldHint('tokens'), 'Not reported');
+    assert.ok(fold('installed').querySelectorAll('.story-suite-row.story-suite-provider').length === 5, 'Installed rows are panel rows');
+    assert.equal(fold('installed').querySelector('.story-suite-provider[data-provider-id="rpg-battle"]').tagName, 'LABEL', 'with its switch inside');
+
+    toggleFold(fold('sources'), true);
+    toggleFold(fold('installed'), false);
+    assert.deepEqual(JSON.parse(stored.get('story_suite_overview_folds')), { installed: false, sources: true, tokens: false });
+    exts.battle.enabled = false;
+    exts.battle.announce();
+    refreshSuiteOverlay();
+    assert.deepEqual(['installed', 'sources', 'tokens'].map(key => fold(key).open), [false, true, false], 'kept across a redraw');
+    assert.equal(foldHint('installed'), '4 on, 1 off');
+    exts.delta.choices = { stats: 'mine' };
+    refreshSuiteOverlay();
+    assert.equal(foldHint('sources'), '1 mixed', 'two claim stats');
+    closeSuiteOverlay();
+    openSuiteOverlay({ document: doc, suite: storySuite() });
+    assert.deepEqual(['installed', 'sources', 'tokens'].map(key => fold(key).open), [false, true, false], 'and when it opens again');
+    closeSuiteOverlay();
+
+    // Nothing stored, or storage that throws: the defaults.
+    stored.set('story_suite_overview_folds', 'not json');
+    assert.deepEqual(overviewFoldsOpen(), { installed: true, sources: false, tokens: false });
+    const saved = globalThis.localStorage;
+    globalThis.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
+    try {
+        assert.deepEqual(overviewFoldsOpen(), { installed: true, sources: false, tokens: false });
+        openSuiteOverlay({ document: doc, suite: storySuite() });
+        toggleFold(fold('tokens'), true);
+        assert.equal(fold('tokens').open, true, 'still opens');
+        closeSuiteOverlay();
+    } finally {
+        globalThis.localStorage = saved;
+    }
 });

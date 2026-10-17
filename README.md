@@ -1,4 +1,4 @@
-# Story Block v0.9.0
+# Story Block v0.9.1
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -11,7 +11,12 @@ Every block is a definition you can edit. The built-ins are only templates.
 - **One engine, any block.** Inventory, World State, Choices, Dice, NPC Inner Chatter,
   Character Sheet and Scene Notes ship as templates.
   Add your own blocks with their own tag, prompt, format and display, or change the
-  templates; **Reset to default** brings a template back.
+  templates; **Reset to default** brings a template back. A first install copies every
+  template; after that the list is yours, so a template a later version adds is offered once
+  at the top of **Blocks**: *New built-in blocks: 💭 NPC Inner Chatter — Add · Dismiss*.
+  **Add** puts it in your list switched off (nothing changes until you turn it on);
+  **Dismiss** hides it. Either way it is not offered again, even if you delete it later, and
+  it is always under **Add block**. A built-in you deleted yourself is offered once the same way.
 - **State that sticks.** A *stateful* block's newest valid copy in the chat is its current
   state. It is sent with every reply's prompt and the model rewrites it in full, so it can't
   scroll out of context. A reply that leaves it out, cuts it off or writes it badly never
@@ -117,6 +122,13 @@ what the story has established about that NPC — personality, speech, history, 
 from the character card, lorebook and NPC dossiers — and only what they could know. The
 model writes the block in the same reply as the story, so all of that is in front of it;
 the instructions tell it to use it. Edit them to taste.
+
+With **NPC State Delta** installed and on, two things change (v0.9.1). Its Present NPC cards
+show each NPC's chatter, so while it says so Story Block's Chatter tab steps aside: no tab, but
+the block is still asked for, written and kept as before (your **Show tab** switch still
+applies). And the prompt adds one line under the block's instructions, *Voice each NPC as
+their NPC State Delta card describes.*, without changing your stored instructions. Turn NPC
+State Delta off and both go back.
 
 ### Dice
 
@@ -275,12 +287,27 @@ With two or more of the four installed, **Story Suite** opens one overlay for al
 the Extensions menu, the gear in the sidebar's header, or *Manage all in Story Suite* at the top
 of Story Block's settings. Alone, none of these appear.
 
-- **Overview:** each installed extension with its version, on or off, and its on/off switch
-  where it has one (Story Block is always on). Below, **one Source of truth table**: a row per
-  area that more than one of them can keep, with *Automatic* or one owner. Picking an owner sets
-  every extension's own choice to match (that one *This extension*, the others *The other one*);
-  *Automatic* sets them all back. If the choices were set by hand in a way one owner cannot say,
-  the row reads *Mixed — set in each extension*. Under each row: who leads now.
+The four settings panels share one look (v0.9.1, `src/suite.css`, the same file in all four):
+the *Manage all* line, a box of main actions (Story Block: **Rescan chat**, its status line and
+version), then sections that fold with a summary, settings as rows with a hint, switches as
+*Enabled*/*Disabled* pills. The Overview looks the same.
+
+- **Overview**, in three sections that fold, each with a one-line summary while closed
+  (which are open is remembered in this browser; *Installed* starts open):
+  - **Installed** (*4 on*): each installed extension with its version, on or off, and its on/off
+    switch where it has one (Story Block is always on).
+  - **Source of truth** (*Automatic*, *2 chosen by hand*): a row per area that more than one of
+    them can keep, with *Automatic* or one owner. Picking an owner sets every extension's own
+    choice to match (that one *This extension*, the others *The other one*); *Automatic* sets
+    them all back. If the choices were set by hand in a way one owner cannot say, the row reads
+    *Mixed — set in each extension*. Under each row: who leads now.
+  - **Tokens per reply** (v0.9.1, *~3,400 in · ~650 out*): what each extension adds to an
+    ordinary reply, the prompt it injects (*in*) and what it asks the model to write back
+    (*out*), and the total. Open an extension's row for its parts: Story Block lists each block,
+    a kept block under its owner (*Party (kept by RPG Battle)*), and the rules and envelope they
+    share. Estimates at about 4 characters a token, updated when the overlay opens and after
+    each reply; quiet calls like summaries, planning and monster flavour are not counted. An
+    extension that does not report says *not reported*.
 - **A tab per extension** with its own settings panel, moved into the overlay while its tab is
   open and put back in the Extensions drawer when you switch tabs or close it (Esc, the close
   button, or a click outside), so every control works as before.
@@ -336,6 +363,7 @@ sb.registerBlock({
     ],
     promptNote: 'The player character as RPG Battle tracks it.',  // optional: one line on how to read it
     diceModifier: "Modifier: the matching stat's bonus from the <Character> block's Checks line (for example CHA +1); ignore the −3 to +3 guess.",  // optional
+    tab: true,                    // optional: false = no tab of its own (v0.9.1)
 });                                // { ok: true } or { ok: false, error }
 await sb.setBlockText(messageIndex, 'Character', 'HP: 58/62 | MP: 21/30\nChecks: STR +2 | CHA +1');
 sb.getBlock('Character');          // { text, state, messageIndex }: state.entries has HP 58/62, MP 21/30, …
@@ -349,6 +377,7 @@ sb.getBlock('Character');          // { text, state, messageIndex }: state.entri
 | `name`, `icon`, `short` | Tab label, icon and short sidebar label. |
 | `format`, `display`, `fields` | `fields` (one `Label: value` line per field; several on one line with ` \| ` read too) or `text`; shown as `fields` (meters, numbers, text, list chips) or `plain`. Field types: `meter` (with `max`), `number`, `text`, `list`, each with an optional `hint`. |
 | `promptNote` | One line under the heading, telling the model how to read the block. |
+| `tab` | `true` (default) or `false` (v0.9.1). With `false` the block is written, kept and prompted exactly the same, but gets no tab (and no badge) in the sidebar or the card: for an extension that shows it in its own tab. Registering again with your id can flip it. An older Story Block ignores it. |
 | `diceModifier` | Added as one more instruction line to the **Dice** block's instructions in the prompt, while the Dice block is on and this block has been written. The reader's stored Dice prompt is not changed. *Dice: Everyone* is left alone, since its rolls are often an NPC's. |
 
 - **Only you write it.** `setBlockText(messageIndex, tag, text)` takes plain text, checks that
@@ -362,7 +391,8 @@ sb.getBlock('Character');          // { text, state, messageIndex }: state.entri
   Until you have written one, there is no prompt section and no tab.
 - No warning is given when a reply leaves a kept block out, since the model never writes it.
   Kept blocks are not in the reader's settings list. `listBlocks()` reports them with
-  `kind: 'kept'` and their `owner`.
+  `kind: 'kept'` and their `owner`, and every block with `tab` (`false` for a kept block
+  registered with `tab: false`, for a block whose *Show tab* is off, and for transport-only blocks).
 
 ## Development
 

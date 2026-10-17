@@ -51,6 +51,14 @@ in the style of Inventory Block. `npm run check` syntax-checks `index.js` and `s
 store the ordered list as `extension_settings.storyBlock.blocks`; **array order is block
 order** (prompt order and tab order).
 
+A first install stores `defaultBlocks()`; afterwards the list is the reader's. The settings
+panel (`renderSettings`, `src/ui/editor.js`) offers each template that is not `templatePresent`
+(no block with its `template` key or id) and not in `settings.dismissedTemplates` on one line
+above the list, `div.story-block-new-templates` (v0.9.1), with Add (`addFromTemplate` with
+`enabled: false`) and Dismiss. Both call `onDismissTemplate(key)`, which the runtime appends
+to `dismissedTemplates` and saves, so a template is offered once, even if the reader deletes
+it later; templates the reader deleted before 0.9.1 count as not present and are offered once too.
+
 Kinds:
 
 - **stateful** — the newest valid copy in the chat is the current state. It is injected
@@ -255,13 +263,13 @@ delete, chat change and render events. Exposes the tab API (section 6) as
 
 | Member | Does |
 |---|---|
-| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional }]`; kept blocks report `kind: 'kept'` and `owner` |
+| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional, tab }]`; kept blocks report `kind: 'kept'` and `owner`. `tab` (v0.9.1, `hasTab`) is whether the block gets a tab once enabled and written: the reader's "Show tab" switch, a kept block's `tab`; always false for transport-only blocks |
 | `getBlock(tagOrId, { beforeIndex })` | Newest valid copy: `{ id, tag, text, state, messageIndex }` or null |
 | `blockForGeneration(tagOrId, type)` | The copy a generation of `type` will be shown (a swipe/regenerate sees the one before the reply it replaces) |
 | `blockInText(text, tagOrId)` | The block as written in one message's text (repeats merged), or null |
 | `setBlockText(messageIndex, tagOrId, text)` | Replace a block in an assistant message (inside the envelope); resolves to true when it changed. For a kept block, `text` is plain text, refused (throws) when the block's format cannot read it, and stamped as the extension's copy |
-| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab. `{ ok, error }`. Registering a plugin's own id again replaces it |
-| `registerBlock({ kept: true, id, tag, owner, name?, icon?, short?, format?, display?, fields?, promptNote?, diceModifier? })` | A kept block (v0.7), see below |
+| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab (a `tab` given is ignored). `{ ok, error }`. Registering a plugin's own id again replaces it |
+| `registerBlock({ kept: true, id, tag, owner, name?, icon?, short?, format?, display?, fields?, promptNote?, diceModifier?, tab? })` | A kept block (v0.7), see below. `tab: false` (v0.9.1): no tab of its own; default `true` |
 | `unregisterBlock(id)` | |
 | `onReply(cb)` | After each reply is received and normalized: `cb({ chatId, messageIndex })`; returns unsubscribe |
 | `onUpdate(cb)` | On every refresh (reply, swipe, edit, delete, chat change); returns unsubscribe |
@@ -275,8 +283,9 @@ A block another extension keeps and the model only reads (RPG Battle's Character
 sheets). `pluginBlockDef` (`src/plugin.js`) builds it with `normalizeBlock` and checks it with
 `validateBlock`, plus: `owner` required; `format` `'fields' | 'text'` (default `fields` when
 `fields` are given); `display` `'fields' | 'plain'` (default by format; `fields` needs the
-fields format); every field has a label and a known type. The definition is
-`{ ...normalizeBlock(…), kind: 'stateful', visible: true, optional: true, prompt: '', plugin: true, kept: true, owner, promptNote, diceModifier }`.
+fields format); every field has a label and a known type; `tab` is `true`, `false` or left out
+(`true`). The definition is
+`{ ...normalizeBlock(…), kind: 'stateful', visible: tab !== false, optional: true, prompt: '', plugin: true, kept: true, owner, promptNote, diceModifier }`.
 `stateful` underneath means view, snapshots and swipe baselines treat its newest valid copy
 as its state, as for any stateful block.
 
@@ -300,6 +309,18 @@ as its state, as for any stateful block.
 - **Display.** A tab like the reader's blocks (`tabView`; none until written, since it is
   optional). `onEdit` is omitted, and `renderFrame` shows `span.story-block-kept` ("kept by Owner")
   for any `def.kept`. Kept blocks are not in `settings.blocks`, so the settings editor never lists them.
+- **Without a tab (v0.9.1).** `tab: false` gives `visible: false`, the reader's own "Show tab"
+  switch: `buildCardTabs` skips every block without `hasTab(def)` (`src/plugin.js`), in the
+  sidebar and the card alike, so it has no tab, no tab badge, no line in the turn strip and adds
+  nothing to the edge handle's count (the sum of the tabs' badges). Everything else is unchanged:
+  it is still stamped, kept, prompted read-only (`keptEntries` takes every kept block), its
+  dice modifier still applies, a model's copy is still dropped, and `getBlock`,
+  `blockForGeneration`, `blockInText` and `setBlockText` read and write it as before.
+  For an extension that draws the block in a tab of its own (RPG Battle's Battle tab).
+  `registerBlock` again with the same id may flip `tab`; the sidebar redraws at once (a kept
+  block registered or replaced refreshes). An older Story Block ignores `tab` and shows the tab.
+  `tests/ui-runtime-tabs.test.js` runs the real `index.js` against the fake DOM to check the
+  sidebar, the card and the handle's count.
 
 ### Story Suite (`src/suite.js`, `src/handshake.js`, v0.8)
 
@@ -315,6 +336,8 @@ owners are in [STORY_SUITE.md](STORY_SUITE.md). `src/handshake.js` is Story Bloc
 | `statsNotice(def, choices, suite)` | The Character Sheet's "RPG Battle owns stats…" note, or '' |
 | `keepsOwnRolls(choice, suite)` | True only when the reader chose `mine` for rolls while another extension offers them: kept blocks' `diceModifier`s are then left out of the prompt |
 | `sourceStatus(area, …)` | The settings line under each choice ("Now: RPG Battle", "Inventory is off") |
+| `displaysShownElsewhere(suite)` | v0.9.1: the displays (of `SHOWABLE_DISPLAYS`, only `'chatter'`) that an enabled provider other than Story Block lists in its announcement's top-level `shows`. `buildCardTabs` and `listBlocks` pass them to `hasTab(def, { shownElsewhere })`, so a block with that display has no tab (or badge, or strip line) while it lasts; it is still prompted, written and kept. Re-evaluated on every refresh, and `onChange` refreshes |
+| `chatterNote(def, suite)` | v0.9.1: `CHATTER_NOTE` ("Voice each NPC as their NPC State Delta card describes.") for a reader's `chatter`-display block while `npc-state-delta` is announced and enabled, else ''. `prepareGeneration` puts it on the entry as `note`, which `buildContext` adds as a line under the block's prompt; the stored prompt is never changed |
 
 The runtime announces `{ id: 'story-block', name: 'Story Block', version, owns, settings: '#story_block_settings', api }`
 on load, when the block list changes and on chat change (only when the offer changed, or the
@@ -331,7 +354,23 @@ disable hook (turning an extension off reloads the page), so there is no `withdr
 | `manage.areas` | `SHARED_AREAS` (scene, timeline, items, stats, rolls), offered now or not |
 | `manage.sources()` | A copy of `settings.sourceOfTruth` |
 | `manage.setSource(area, choice)` | Normalizes, saves, redraws the Source of truth section and the tabs, like its own select; false for an area Story Block cannot keep. No `setEnabled`: Story Block is always on |
+| `manage.tokens()` | v0.9.1: `suiteTokens()` → `contextTokens(generationEntries(ctx, chat, 'normal'))` (`src/tokens.js`): `{ input, output, parts: [{ label, input, output }] }` for the next ordinary reply at `CHARS_PER_TOKEN` 4. `input` is `tokensOf(buildContext(entries))`, the whole section (kept blocks, chatter note); a block's part input is what the section shrinks by without it, and `Rules and envelope` holds the rest, so parts add up. `output` is each writable block's serialized state, else its skeleton (optional blocks counted as written), plus one envelope per group; kept parts are `Name (kept by Owner)` with output 0. Never throws (zeros) |
 | `openSuite(tabId = 'overview')` | Opens the Story Suite overlay on that tab (an extension's id); false without a page to show it on |
+
+#### Settings panel (index.js, v0.9.1)
+
+`src/suite.css` (byte-identical in all four; STORY_SUITE.md "One look for the four settings
+panels") is linked once by `loadSuiteStyles()` in `init()` as `<link id="story-suite-css">`
+(`new URL('./src/suite.css', import.meta.url)`), unless an element with that id exists.
+`addRuntimeControls` gives the editor's `.inline-drawer-content` the class `story-suite-panel` and
+builds: `div.story-suite-manage[data-story-suite-link]`, `div.story-suite-quickbar` (Rescan in
+`.story-suite-actions`, the version, and the editor's `#story_block_status` moved in), then
+`div.story-suite-folds` with `details.story-suite-fold[data-fold]` `display`, `suite`, `blocks`
+(`settingsFold`: summary `b.story-suite-fold-title` + `small.story-suite-fold-hint`, then
+`div.story-suite-fold-body`). Display and Source of truth settings are `label.story-suite-row`
+(`<span><b>…</b><small>hint or Now: …</small></span>` + control); the Blocks body holds the
+editor's `.story-block-view` unchanged. Which folds are open: localStorage
+`story_block_settings_folds` as since 0.8.1 (Blocks starts open, the panel's main content).
 
 #### Story Suite overlay (`src/ui/suite-overlay.js`, v0.9)
 
@@ -353,13 +392,27 @@ export function suiteOverlayTab()            // the selected tab's id, or null
   backdrop click close it; Tab is trapped; focus moves in on open and back to `opener` on close.
 - Tabs: Overview, then every provider with a `settings` selector, in `SUITE_ORDER`
   (story-block, story-director, npc-state-delta, rpg-battle, then others as announced).
-- Overview: `suite.providers()` (disabled ones too, so their switch can turn them back on), a
-  switch where `api.manage.setEnabled` exists; then per area in `AREAS` order with two or more
+- Overview (v0.9.1): `div.story-suite-panel` pane > `div.story-suite-folds` > three
+  `details.story-suite-fold[data-fold]` (`installed`, `sources`, `tokens`), the panels' markup:
+  `summary` (`b.story-suite-fold-title`, `small.story-suite-fold-hint`) + `div.story-suite-fold-body`.
+  Hints: `installedSummary` ("4 on", "3 on, 1 off"), `sourcesSummary` ("Automatic", "2 chosen by
+  hand", "1 mixed"), `tokensSummary` ("~3,400 in · ~650 out", "Not reported"). Which are open:
+  `overviewFoldsOpen()`, localStorage `story_suite_overview_folds` (wrapped; default installed
+  open, the others closed), read on every redraw.
+- Installed: `suite.providers()` (disabled ones too, so their switch can turn them back on) as
+  `.story-suite-row.story-suite-provider` rows, a `label` with `input.story-suite-switch` where
+  `api.manage.setEnabled` exists; Source of truth: per area in `AREAS` order with two or more
   candidates (`manage.areas`, else `owns`) a select. `currentSource`: `'auto'` while all say
   auto, a provider's id when exactly one says `mine` and the rest `theirs`/auto, else `'mixed'`
   (a disabled option). `applySource` calls `setSource` on every candidate (`mine` for the pick,
   `theirs` for the rest, or `auto` for all), then the Overview is redrawn from fresh `sources()`.
   "Leads now" is every offering candidate for which `isSourceOfTruth` holds under its own choice.
+  Rows are `label.story-suite-row.story-suite-area` (`b.story-suite-area-name`, `small.story-suite-lead`, the select).
+- Tokens per reply: `tokenRows` (enabled providers in suite order) with `tokensReport(provider)`:
+  `manage.tokens()` with whole counts ≥ 0, or null (no tokens(), it threw, a promise, not an
+  object) shown as "not reported"; a `.story-suite-tokens-row` each, a provider with parts as a
+  nested fold (open ones kept in memory across redraws), and a Total row (`tokenTotal`). Redrawn
+  when the overlay opens or redraws; index.js also calls `refreshSuiteOverlay()` after each reply.
 - Panels: `document.querySelector(settings)` is moved into the pane after a hidden
   `div[data-story-suite-placeholder]` is put in its place; its first `.inline-drawer` gets
   `.story-suite-drawer` (CSS holds `.inline-drawer-content` open and hides the header); any
@@ -368,7 +421,7 @@ export function suiteOverlayTab()            // the selected tab's id, or null
   a tab change, on close, when its extension leaves, or when the overlay was removed; a panel its
   extension removed meanwhile is left alone.
 - index.js: the entry points (`#story_suite_menu` in `#extensionsMenu`, the sidebar's gear, and
-  `.story-block-manage-suite[data-story-suite-link]` above the settings folds) are shown while
+  `.story-suite-manage[data-story-suite-link]` above the settings folds) are shown while
   `suite.providers().length >= 2`, re-checked on every `onChange`, which also refreshes the overlay.
 
 ## 6. Card and displays (`src/ui/*`)

@@ -1,0 +1,55 @@
+// What Story Block adds to the next ordinary reply, in tokens (v0.9.1, Story Suite's
+// api.manage.tokens()): an estimate from the same entries and context section the prompt uses.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ENVELOPE_MARKER, latestBlockState } from '../src/envelope.js';
+import { buildContext } from '../src/prompt.js';
+import { pluginBlockDef } from '../src/plugin.js';
+import { templateById } from '../src/templates.js';
+import { CHARS_PER_TOKEN, RULES_PART, contextTokens, tokensOf } from '../src/tokens.js';
+
+const on = id => ({ ...templateById(id), enabled: true });
+const party = pluginBlockDef({ kept: true, id: 'rpg-party', tag: 'Party', owner: 'RPG Battle', name: 'Party' }, []).def;
+const envelope = (...blocks) => `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n${blocks.join('\n')}\n</Blocks>\n-->`;
+const sum = (parts, key) => parts.reduce((total, part) => total + part[key], 0);
+
+test('tokensOf: about four characters a token', () => {
+    assert.equal(CHARS_PER_TOKEN, 4);
+    assert.equal(tokensOf(''), 0);
+    assert.equal(tokensOf('x'.repeat(400)), 100);
+    assert.equal(tokensOf(null), 0);
+});
+
+test('contextTokens: input is the whole section, parts add up, a kept block is listed under its owner and writes nothing', () => {
+    const inventory = on('inventory');
+    const notes = on('scene-notes');
+    const found = latestBlockState([{ is_user: false, mes: envelope('<Party kept="RPG Battle">\nRen — you | HP 40/40\n</Party>') }], party);
+    const entries = [{ def: party, state: found.state, body: found.body }, { def: inventory, state: null }, { def: notes }];
+    const result = contextTokens(entries);
+    assert.equal(result.input, tokensOf(buildContext(entries)), 'exactly the section the prompt gets');
+    assert.deepEqual(result.parts.map(part => part.label), ['Party (kept by RPG Battle)', 'Inventory', 'Scene Notes', RULES_PART]);
+    assert.equal(sum(result.parts, 'input'), result.input);
+    assert.equal(sum(result.parts, 'output'), result.output);
+    assert.equal(result.parts[0].output, 0, 'the model never writes a kept block');
+    assert.ok(result.parts.every(part => Number.isInteger(part.input) && part.input >= 0 && Number.isInteger(part.output) && part.output >= 0));
+    assert.ok(result.parts[1].output > 0 && result.parts[2].output > 0);
+    // A block's input is what switching it off would save.
+    assert.equal(result.parts[2].input, result.input - tokensOf(buildContext(entries.filter(entry => entry.def !== notes))));
+
+    // A stateful block with a state writes its state back.
+    const state = { text: 'x'.repeat(800) };
+    const longNotes = { ...notes, kind: 'stateful' };
+    const grown = contextTokens([{ def: longNotes, state }]);
+    assert.ok(grown.parts[0].output >= 200, 'its 800 characters, and its tags');
+});
+
+test('contextTokens: nothing prompted is nothing; a kept block not written yet adds nothing; a runtime note counts', () => {
+    assert.deepEqual(contextTokens([]), { input: 0, output: 0, parts: [] });
+    assert.deepEqual(contextTokens([{ def: party, state: null, body: '' }]), { input: 0, output: 0, parts: [] });
+    const chatter = on('inner-chatter');
+    const plain = contextTokens([{ def: chatter }]);
+    const noted = contextTokens([{ def: chatter, note: 'Voice each NPC as their NPC State Delta card describes.' }]);
+    assert.ok(noted.input > plain.input);
+    assert.ok(noted.input - plain.input <= 16, 'about ten tokens');
+    assert.equal(noted.output, plain.output);
+});

@@ -97,3 +97,34 @@ export function sourceStatus(area, { choice, suite, offered }) {
     const other = deferredTo(area, choice, suite);
     return other ? `Now: ${other.name}` : `Now: ${SUITE_NAME}`;
 }
+
+// Displays another extension can draw in its own place (announcement `shows`, v0.9.1): NPC
+// State Delta shows each NPC's chatter on its Present cards. Only these are honoured, so an
+// announcement can never hide the reader's other blocks.
+export const SHOWABLE_DISPLAYS = Object.freeze(['chatter']);
+
+/**
+ * The displays an enabled extension other than Story Block announces it shows itself
+ * (`shows: ['chatter']`), in SHOWABLE_DISPLAYS order. Blocks drawn that way get no tab (hasTab)
+ * while it lasts; they are still prompted, written and kept. Alone: [].
+ */
+export function displaysShownElsewhere(suite) {
+    const shown = new Set();
+    for (const provider of suite?.providers?.() ?? []) {
+        if (provider.id === SUITE_ID || provider.enabled === false || !Array.isArray(provider.shows)) continue;
+        for (const display of provider.shows) shown.add(String(display));
+    }
+    return SHOWABLE_DISPLAYS.filter(display => shown.has(display));
+}
+
+export const NPC_STATE_DELTA_ID = 'npc-state-delta';
+export const CHATTER_NOTE = 'Voice each NPC as their NPC State Delta card describes.';
+
+/**
+ * The runtime line a chatter-display block's prompt section gets while NPC State Delta is
+ * announced and enabled, or ''. The reader's stored prompt is never changed.
+ */
+export function chatterNote(def, suite) {
+    if (def?.display !== 'chatter' || def.kept || def.plugin) return '';
+    return suite?.has?.(NPC_STATE_DELTA_ID) ? CHATTER_NOTE : '';
+}

@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ENVELOPE_MARKER, dropForeignCopies, extractBlocks, latestBlockInText, latestBlockState, normalizeTransport, upsertBlock } from '../src/envelope.js';
 import { escapeBody } from '../src/formats/escape.js';
-import { blockSnapshot, blockSummary, pluginBlockDef } from '../src/plugin.js';
+import { blockInText, blockSnapshot, blockSummary, generationSnapshot, hasTab, pluginBlockDef } from '../src/plugin.js';
 import { buildContext } from '../src/prompt.js';
 import { templateById } from '../src/templates.js';
 import { blockStatusInText, blockView } from '../src/view.js';
@@ -49,6 +49,8 @@ test('registerBlock kept spec: a stateful-underneath, optional, visible plugin b
     const summary = blockSummary(character);
     assert.equal(summary.kind, 'kept');
     assert.equal(summary.owner, 'RPG Battle');
+    assert.equal(summary.tab, true, 'a tab by default');
+    assert.equal(hasTab(character), true);
 
     // Defaults: the display follows the format.
     const party = pluginBlockDef({ kept: true, id: 'rpg-party', tag: 'Party', owner: 'RPG Battle' }, [character]).def;
@@ -68,6 +70,7 @@ test('registerBlock kept spec: checked like the editor checks a block, plus owne
     assert.match(error({ tag: 'World_State' }), /already used/);
     assert.match(error({ tag: 'Char-Sheet' }), /letters, numbers and underscores/, 'the envelope only reads word tags');
     assert.match(error({ tag: 'details' }), /reserved/);
+    assert.match(error({ tab: 'no' }), /tab is true or false/);
     // A plugin registering the same id again replaces its block instead of clashing with it.
     assert.ok(pluginBlockDef({ ...characterSpec, name: 'Hero' }, [character]).def);
     assert.match(pluginBlockDef({ ...characterSpec, id: 'other' }, [character]).error, /already used/);
@@ -149,4 +152,38 @@ test('dice: the modifier line is appended only when a kept block with one is sho
     assert.doesNotMatch(buildContext([keptEntry, { def: notDice }]), /Checks line/, 'Dice not prompted');
     const everyone = { ...templateById('dice-everyone'), enabled: true };
     assert.doesNotMatch(buildContext([keptEntry, { def: everyone, rolls }]), /Checks line/, 'Dice: Everyone rolls for NPCs too');
+});
+
+test('tab: false (v0.9.1): kept, read and prompted exactly as before, but no tab; registering again flips it', () => {
+    const hidden = pluginBlockDef({ ...characterSpec, tab: false }, [world]).def;
+    assert.equal(hasTab(hidden), false);
+    assert.equal(hidden.visible, false);
+    assert.deepEqual([hidden.kept, hidden.plugin, hidden.kind, hidden.optional, hidden.owner, hidden.diceModifier], [true, true, 'stateful', true, 'RPG Battle', DICE_MODIFIER]);
+    const summary = blockSummary(hidden);
+    assert.deepEqual([summary.kind, summary.owner, summary.tab], ['kept', 'RPG Battle', false]);
+    // Everything but the tab is the tabbed block's: the same definition otherwise.
+    const { visible: _a, ...rest } = hidden;
+    const { visible: _b, ...tabbed } = character;
+    assert.deepEqual(rest, tabbed);
+
+    // Stamped, read, and a model's copy still never counts.
+    const mes = upsertBlock('The goblin falls.', hidden, escapeBody('HP: 58/62 | MP: 21/30\nChecks: STR +2 | CHA +1', hidden.tag));
+    assert.match(mes, /<Character kept="RPG Battle">/);
+    const chat = [reply(mes), { is_user: true, mes: 'go' }, reply(normalizeTransport('Dawn.\n<Character>\nHP: 1/62\n</Character>', [hidden]).text)];
+    assert.equal(blockSnapshot(chat, hidden).messageIndex, 0);
+    assert.equal(generationSnapshot(chat, hidden, 'swipe').messageIndex, 0);
+    assert.equal(blockInText(chat[2].mes, hidden), null);
+    assert.match(blockInText(mes, hidden).text, /HP: 58\/62/);
+    assert.equal(dropForeignCopies('Dawn.\n<Character>\nHP: 1/62\n</Character>', [hidden]), 'Dawn.');
+
+    // Prompted read-only, with its dice modifier, word for word as the tabbed block.
+    const found = latestBlockState(chat, hidden);
+    const prompt = def => buildContext([{ def, state: found.state, body: found.body }, { def: dice, rolls: [4, 17, 9] }]);
+    assert.match(prompt(hidden), /### Character — <Character> \(kept by RPG Battle: read it, never write it\)/);
+    assert.equal(prompt(hidden), prompt(character));
+
+    // Registering the same id again flips it, either way; left out means a tab.
+    assert.equal(hasTab(pluginBlockDef({ ...characterSpec, tab: true }, [hidden]).def), true);
+    assert.equal(hasTab(pluginBlockDef(characterSpec, [hidden]).def), true);
+    assert.equal(hasTab(pluginBlockDef({ ...characterSpec, tab: false }, [character]).def), false);
 });
