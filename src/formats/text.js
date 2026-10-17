@@ -27,10 +27,13 @@ export function diff() {
     return [];
 }
 
-export function rules() {
+export function rules(def) {
+    if (def?.layout) {
+        return 'Follow the layout shown under "Write it exactly like this": keep every label, symbol and line in its place, replace each [placeholder] with the real value, repeat a part only where the layout says to, and leave out lines that do not apply. No other headings.';
+    }
     return 'Write the block as plain text lines. No markdown headings.';
 }
 
-export function skeleton() {
-    return '[text]';
+export function skeleton(def) {
+    return def?.layout ? escapeBody(def.layout, def.tag) : '[text]';
 }

@@ -16,11 +16,13 @@ import { createTabRegistry } from './src/ui/card.js';
 import { render as renderPlain } from './src/ui/displays/plain.js';
 import { render as renderTree } from './src/ui/displays/tree.js';
 import { render as renderFields } from './src/ui/displays/fields.js';
+import { render as renderScene } from './src/ui/displays/scene.js';
+import { render as renderChoices } from './src/ui/displays/choices.js';
 import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -29,7 +31,7 @@ const EXTENSION_PROMPT_IN_CHAT = 1;
 const EXTENSION_PROMPT_ROLE_SYSTEM = 0;
 const SESSION_MAX_AGE_MS = 2 * 60 * 1000;
 const SESSION_RECHECK_MS = 15 * 1000;
-const DISPLAYS = { plain: renderPlain, tree: renderTree, fields: renderFields };
+const DISPLAYS = { plain: renderPlain, tree: renderTree, fields: renderFields, scene: renderScene, choices: renderChoices };
 
 let initialized = false;
 // Set once a reply's prompt has been seen carrying the placeholder; from then on a prompt

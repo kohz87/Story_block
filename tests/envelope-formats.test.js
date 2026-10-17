@@ -8,7 +8,9 @@ import { ENVELOPE_MARKER, latestBlockInText, latestBlockState, normalizeTranspor
 import { buildContext } from '../src/prompt.js';
 
 const defs = defaultBlocks().map(def => ({ ...def, enabled: true }));
-const [inventory, sheet] = defs;
+// Looked up by id: the template list grows, positions are not part of the contract.
+const byId = id => defs.find(def => def.id === id);
+const [inventory, sheet, notes] = ['inventory', 'character-sheet', 'scene-notes'].map(byId);
 const rows = formatFor(inventory);
 const visible = text => text.replace(/<!--[\s\S]*?-->/g, '').replace(/<!--[\s\S]*$/, '');
 const items = state => state.categories.flatMap(category => category.items.map(item => [category.name, item.name, item.quantity, item.remark]));
@@ -51,13 +53,13 @@ test('the context for the templates carries every format\'s rules, state and ske
     const context = buildContext([
         { def: inventory, state },
         { def: sheet, state: formatFor(sheet).empty(sheet) },
-        { def: defs[2] },
+        { def: notes },
     ], { substitute: text => text.replaceAll('{{user}}', 'Ava') });
     assert.match(context, /### Inventory — <Inventory> \(kept/);
     assert.match(context, /Everything Ava's party owns/);
     assert.match(context, /Current state:\n<Inventory>\nCoin Pouch \| 1 \| 90 Gold\n<\/Inventory>/);
     assert.match(context, /### Character Sheet — <Character_Sheet> \(kept[^\n]*\n[\s\S]*?Current state: \(empty/);
     assert.match(context, /### Scene Notes — <Scene_Notes> \(this reply only\)/);
-    for (const def of defs) assert.ok(context.includes(`<${def.tag}>\n${formatFor(def).skeleton(def)}\n</${def.tag}>`), def.tag);
-    for (const def of defs) assert.ok(context.includes(`Format: ${formatFor(def).rules(def)}`), def.tag);
+    for (const def of [inventory, sheet, notes]) assert.ok(context.includes(`<${def.tag}>\n${formatFor(def).skeleton(def)}\n</${def.tag}>`), def.tag);
+    for (const def of [inventory, sheet, notes]) assert.ok(context.includes(`Format: ${formatFor(def).rules(def)}`), def.tag);
 });

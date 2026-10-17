@@ -4,7 +4,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { exportBlocks, importBlocks } from '../src/ui/editor.js';
-import { defaultBlocks } from '../src/templates.js';
+import { defaultBlocks as allDefaultBlocks } from '../src/templates.js';
+// Pinned to the original three templates: these tests cover editor behaviour, not the template list.
+const PINNED = ['inventory', 'character-sheet', 'scene-notes'];
+const defaultBlocks = () => allDefaultBlocks().filter(block => PINNED.includes(block.id));
 import { normalizeBlocks } from '../src/schema.js';
 
 const quests = { id: 'quests', name: 'Quests', icon: '📜', tag: 'Quests', format: 'text', kind: 'stateful', prompt: 'Open quests.' };

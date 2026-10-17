@@ -1,4 +1,4 @@
-# Story Block — architecture contract (v0.2)
+# Story Block — architecture contract (v0.3)
 
 Story Block is a SillyTavern extension. Every tracker the model maintains — Inventory,
 Character Sheet, custom blocks, later World State, CYOA and Dice — is one **block
@@ -29,10 +29,12 @@ in the style of Inventory Block. `npm run check` syntax-checks `index.js` and `s
   visible: true,            // false = still prompted and stored, but no tab in the card
   kind: 'stateful' | 'turn',
   format: 'rows' | 'fields' | 'text',
-  display: 'plain' | 'tree' | 'fields',
+  display: 'plain' | 'tree' | 'fields' | 'scene' | 'choices',
   prompt: '...',            // block instructions; placeholders {{user}} {{char}} (SillyTavern macros)
   when: { mode: 'always' | 'every' | 'keyword', every: 2, keywords: [], scanDepth: 2 },
   template: 'inventory' | null,   // built-in it came from, for "Reset to default"
+  // text only
+  layout: '',               // skeleton the model fills in ({{user}}/{{char}} substituted), e.g. World State
   // rows only
   columns: ['Item', 'Qty', 'Note'],   // exactly three column labels
   maxDepth: 3,                        // 1..5 levels of [A > B > C] category paths
@@ -277,6 +279,11 @@ export function render(pane, { def, state, previousState, changes, error, trunca
 - `plain` — escaped text, line breaks kept, `**bold**` and `*italic*` allowed.
 - `tree` — rows: Inventory Block's tree + drill-down + search + change strip
   (port `src/ui.js`, `src/tree.js`), using `def.columns` labels and `def.maxDepth`.
+- `scene` — text blocks in Megumin's World State layout, parsed by `src/scene.js`
+  (`parseScene`, `diffScene`); falls back to plain. `view.changesFor` uses `diffScene` for
+  these blocks, so badges and the strip see scene changes (never secrets).
+- `choices` — a numbered list as buttons (`src/choices.js`: `parseChoices`, `fillInput`);
+  falls back to plain. Choices never appear in the "This turn" strip.
 - `fields` — meters as bars (`value/max`), numbers, text, lists as chips; changed entries
   marked from `changes`.
 
@@ -334,7 +341,7 @@ export function importBlocks(json, existing) -> { blocks, errors }   // normaliz
 
 | Package | Files it owns |
 |---|---|
-| core (lead) | `src/view.js`, `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
+| core (lead) | `src/view.js`, `src/scene.js` + `src/choices.js` (written by the ui package), `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
 | fields | `src/formats/fields.js`, `tests/formats-fields.test.js` |
 | engine | `src/envelope.js`, `src/prompt.js`, `tests/envelope*.test.js`, `tests/prompt*.test.js` |
 | ui | `src/ui/card.js`, `src/ui/sidebar.js`, `src/ui/strip.js`, `src/ui/displays/*.js`, `src/ui/dom.js`, `style.css`, `tests/ui-*.test.js` |

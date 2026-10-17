@@ -86,9 +86,11 @@ function blockSection(entry, substitute) {
     return lines.join('\n');
 }
 
-function skeletonEnvelope(list) {
+// Skeletons are instructions like the block prompt, so {{user}}/{{char}} are filled in;
+// the current state never is.
+function skeletonEnvelope(list, substitute) {
     const parts = list.map(({ def }) => {
-        const skeleton = String(formatFor(def).skeleton(def) ?? '').trim();
+        const skeleton = String(substitute(String(formatFor(def).skeleton(def) ?? '')) ?? '').trim();
         return [`<${def.tag}>`, ...(skeleton ? [skeleton] : []), `</${def.tag}>`].join('\n');
     });
     return `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n${parts.join('\n')}\n</Blocks>\n-->`;
@@ -96,7 +98,7 @@ function skeletonEnvelope(list) {
 
 /**
  * The context section for one reply. entries: [{ def, state }] (state only for stateful
- * blocks, in prompt order). `substitute` applies {{user}}/{{char}} to block prompts only —
+ * blocks, in prompt order). `substitute` applies {{user}}/{{char}} to block prompts and skeletons only —
  * never to state, which must reach the model verbatim. '' when entries is empty.
  */
 export function buildContext(entries, { substitute = text => text } = {}) {
@@ -117,7 +119,7 @@ export function buildContext(entries, { substitute = text => text } = {}) {
     const sections = list.map(entry => blockSection(entry, substitute));
     return `${CONTEXT_BEGIN}\n## Story Blocks\n${rules.map(rule => `- ${rule}`).join('\n')}\n\n` +
         `${sections.join('\n\n')}\n\n` +
-        `Write it exactly like this:\n${skeletonEnvelope(list)}\n${CONTEXT_END}`;
+        `Write it exactly like this:\n${skeletonEnvelope(list, substitute)}\n${CONTEXT_END}`;
 }
 
 /** True when `text` carries a context section (the placeholder or the real one). */

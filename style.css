@@ -1532,6 +1532,627 @@ button.story-block-strip:hover {
     }
 }
 
+/*
+ * Scene display (World State as a scene board).
+ *
+ * Narrow first: at 300-400 px (the sidebar, a phone) everything stacks in one column
+ * and long values wrap anywhere, so nothing pushes the pane wider. The pane is the
+ * `story-block` container, so the wider card gets two columns of people from 560 px
+ * whatever the viewport is. Colours come from the theme variables only.
+ */
+
+.story-block-scene {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.story-block-scene * {
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.story-block-scene-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.story-block-scene-delta {
+    align-self: flex-start;
+    font-size: 0.82em;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Time, place, weather */
+
+.story-block-scene-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-scene-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    min-height: 1.9rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 7px;
+    background: var(--sb-row-bg);
+    font-size: 0.9em;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.story-block-scene-chip > i {
+    flex: none;
+    color: var(--sb-accent);
+    font-size: 0.9em;
+}
+
+.story-block-scene-chip-label {
+    flex: none;
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+.story-block-scene-chip.is-changed {
+    border-color: color-mix(in srgb, var(--sb-changed) 60%, var(--sb-border));
+}
+
+.story-block-scene-chip.is-added {
+    border-color: color-mix(in srgb, var(--sb-added) 60%, var(--sb-border));
+}
+
+.story-block-scene-chip > .story-block-scene-change-dot {
+    flex: none;
+}
+
+/* People */
+
+.story-block-scene-people {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+}
+
+.story-block-scene-person {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--sb-border);
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    background: var(--sb-row-bg);
+    overflow-wrap: anywhere;
+}
+
+.story-block-scene-person.is-pc {
+    border-left-color: var(--sb-accent);
+}
+
+.story-block-scene-person.is-added {
+    border-left-color: var(--sb-added);
+}
+
+.story-block-scene-person-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.story-block-scene-avatar {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--sb-accent) 18%, transparent);
+    color: var(--sb-accent);
+    font-weight: 700;
+    font-size: 0.85em;
+}
+
+.story-block-scene-names {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.4rem;
+}
+
+.story-block-scene-name {
+    font-weight: 700;
+}
+
+.story-block-scene-tag,
+.story-block-scene-mood {
+    display: inline-block;
+    max-width: 100%;
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75em;
+    font-weight: 600;
+    line-height: 1.5;
+    background: var(--sb-hover-bg);
+}
+
+.story-block-scene-tag.is-you {
+    background: color-mix(in srgb, var(--sb-accent) 20%, transparent);
+    color: var(--sb-accent);
+}
+
+.story-block-scene-tag.is-new {
+    background: color-mix(in srgb, var(--sb-added) 22%, transparent);
+}
+
+.story-block-scene-mood {
+    flex: none;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: color-mix(in srgb, var(--sb-moved) 20%, transparent);
+}
+
+.story-block-scene-mood.is-changed {
+    box-shadow: inset 0 0 0 1px var(--sb-changed);
+}
+
+.story-block-scene-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.story-block-scene-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.05rem;
+    font-size: 0.92em;
+    line-height: 1.4;
+}
+
+.story-block-scene-k {
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+.story-block-scene-row.is-changed .story-block-scene-k {
+    opacity: 0.85;
+}
+
+.story-block-scene-row.is-dropped .story-block-scene-v {
+    opacity: 0.6;
+}
+
+/* Change marks, the fields display's look */
+
+.story-block-scene-change {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.82em;
+    opacity: 0.8;
+    overflow-wrap: anywhere;
+}
+
+.story-block-scene-change-dot {
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--sb-changed);
+}
+
+.story-block-scene-change.is-added .story-block-scene-change-dot,
+.story-block-scene-chip.is-added .story-block-scene-change-dot {
+    background: var(--sb-added);
+}
+
+/* Secret */
+
+.story-block-scene-secret {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-top: 0.3rem;
+    border-top: 1px dashed var(--sb-border);
+}
+
+/* Specific enough to beat the shared `.story-block-display button` reset wherever this
+   file lands in style.css. */
+.story-block-display .story-block-scene button.story-block-scene-reveal {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2rem;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
+.story-block-display .story-block-scene button.story-block-scene-reveal:hover {
+    background: var(--sb-hover-bg);
+    opacity: 1;
+}
+
+.story-block-scene-secret-text {
+    font-size: 0.92em;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+.story-block-scene-secret-text[hidden] {
+    display: none;
+}
+
+/* Off-screen, threads, seeds, timers */
+
+.story-block-scene-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.story-block-scene-sub {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.65;
+}
+
+.story-block-scene-off,
+.story-block-scene-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-scene-off {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.story-block-scene-off-item {
+    font-size: 0.92em;
+    line-height: 1.4;
+}
+
+.story-block-scene-off-name {
+    font-weight: 600;
+    margin-right: 0.4rem;
+}
+
+.story-block-scene-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.2rem;
+}
+
+.story-block-scene-item {
+    max-width: 100%;
+    padding: 0.15rem 0.6rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 999px;
+    font-size: 0.85em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.story-block-scene-items.is-timers .story-block-scene-item {
+    background: color-mix(in srgb, var(--sb-moved) 14%, transparent);
+}
+
+.story-block-scene-item.is-added {
+    border-color: color-mix(in srgb, var(--sb-added) 65%, var(--sb-border));
+}
+
+/* Arc and scene phase */
+
+.story-block-scene-phases {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+}
+
+.story-block-scene-phase {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.story-block-scene-phase-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.5rem;
+}
+
+.story-block-scene-phase-name {
+    font-weight: 600;
+    font-size: 0.92em;
+}
+
+.story-block-scene-rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-scene-step {
+    height: 0.35rem;
+    border-radius: 999px;
+    background: var(--sb-track);
+}
+
+.story-block-scene-step.is-done {
+    background: color-mix(in srgb, var(--sb-accent) 45%, var(--sb-track));
+}
+
+.story-block-scene-step.is-current {
+    background: var(--sb-accent);
+}
+
+/* Step names are for screen readers at narrow widths; wide panes show them below. */
+.story-block-scene-step-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.story-block-scene-phase.is-changed .story-block-scene-phase-name {
+    text-decoration: underline;
+    text-decoration-color: var(--sb-changed);
+    text-underline-offset: 3px;
+}
+
+.story-block-scene-removed {
+    font-size: 0.85em;
+    opacity: 0.65;
+}
+
+@container story-block (min-width: 420px) {
+    .story-block-scene-phases {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Wide: people side by side. */
+@container story-block (min-width: 560px) {
+    .story-block-scene-people {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@container story-block (min-width: 760px) {
+    .story-block-scene-rail {
+        row-gap: 0.2rem;
+    }
+
+    .story-block-scene-step {
+        position: relative;
+        margin-bottom: 1.1rem;
+    }
+
+    .story-block-scene-step-name {
+        position: absolute;
+        top: 0.5rem;
+        left: 0;
+        right: 0;
+        width: auto;
+        height: auto;
+        clip: auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.7em;
+        opacity: 0.6;
+    }
+
+    .story-block-scene-step.is-current .story-block-scene-step-name {
+        opacity: 1;
+        font-weight: 600;
+    }
+}
+
+/*
+ * Choices display (src/ui/displays/choices.js).
+ *
+ * Every rule is scoped under .story-block-choices so the buttons never style anything
+ * else in the chat. Selectors carry three classes to outrank the display's generic
+ * button reset (`.story-block-display button:not(.menu_button)`), whatever order the
+ * sheets end up in. Rows are real buttons at least 2.75rem (44px) tall, long choices
+ * wrap instead of widening the pane, and nothing has a fixed width, so a 300px pane
+ * never scrolls sideways.
+ *
+ * Touch: the per-row Send button and the touch hint show only where a coarse pointer
+ * exists or hovering is impossible; mouse-only desktops send with Shift-click instead.
+ */
+
+.story-block-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.story-block-choices .story-block-choices-hint {
+    font-size: 0.85em;
+    line-height: 1.35;
+    opacity: 0.72;
+    overflow-wrap: anywhere;
+}
+
+.story-block-choices .story-block-choices-hint-touch {
+    display: none;
+}
+
+.story-block-choices .story-block-choices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.story-block-choices .story-block-choice {
+    display: flex;
+    align-items: stretch;
+    gap: 0.4rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.story-block-choices .story-block-choice .story-block-choice-button {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    background: var(--sb-row-bg);
+    color: inherit;
+    font: inherit;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+}
+
+.story-block-choices .story-block-choice .story-block-choice-button:hover {
+    background: var(--sb-hover-bg);
+    border-color: color-mix(in srgb, var(--sb-accent) 45%, var(--sb-border));
+}
+
+.story-block-choices .story-block-choice .story-block-choice-button:focus-visible,
+.story-block-choices .story-block-choice .story-block-choice-send:focus-visible {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: 1px;
+    border-radius: 8px;
+}
+
+.story-block-choices .story-block-choice-number {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--sb-accent) 18%, transparent);
+    color: var(--sb-accent);
+    font-size: 0.82em;
+    font-weight: 700;
+}
+
+.story-block-choices .story-block-choice-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.story-block-choices .story-block-choice-arrow {
+    flex: none;
+    opacity: 0.55;
+    font-size: 0.85em;
+}
+
+.story-block-choices .story-block-choice .story-block-choice-send {
+    display: none;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    box-sizing: border-box;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--sb-accent) 45%, var(--sb-border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--sb-accent) 12%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 0.88em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (any-pointer: coarse), (hover: none) {
+    .story-block-choices .story-block-choice .story-block-choice-send {
+        display: inline-flex;
+    }
+
+    .story-block-choices .story-block-choices-hint-pointer {
+        display: none;
+    }
+
+    .story-block-choices .story-block-choices-hint-touch {
+        display: inline;
+    }
+}
+
+/* A very narrow pane keeps the Send button but drops its word; the icon and the
+   accessible name ("Send: …") remain. */
+@container (max-width: 22rem) {
+    .story-block-choices .story-block-choice .story-block-choice-send {
+        font-size: 0;
+        padding: 0;
+    }
+
+    .story-block-choices .story-block-choice .story-block-choice-send > i {
+        font-size: 1rem;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .story-block-choices .story-block-choice .story-block-choice-button {
+        transition: background-color 0.12s ease, border-color 0.12s ease;
+    }
+}
+
 /* Settings editor (src/ui/editor.js) */
 /* Story Block settings panel and block editor.
    Everything is scoped under .story-block-settings and uses SillyTavern's theme
@@ -1835,6 +2456,16 @@ button.story-block-strip:hover {
 .story-block-settings .story-block-input-prompt {
     min-height: 7rem;
     resize: vertical;
+}
+
+.story-block-settings .story-block-input-layout {
+    min-height: 9rem;
+    resize: vertical;
+    font-family: var(--monoFontFamily, monospace);
+    font-size: 0.85em;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
 }
 
 .story-block-settings .story-block-editor-section {

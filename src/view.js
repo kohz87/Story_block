@@ -6,6 +6,7 @@
 
 import { extractBlocks, latestBlockInText, latestBlockState } from './envelope.js';
 import { formatFor } from './formats/index.js';
+import { diffScene } from './scene.js';
 
 export function isAssistant(message) {
     return Boolean(message) && !message.is_user && !message.is_system;
@@ -28,6 +29,13 @@ export function blockStatusInText(text, def) {
     if (last.truncated) return { status: 'truncated' };
     const parsed = formatFor(def).parse(last.body, def);
     return parsed.ok ? { status: 'valid' } : { status: 'invalid', error: parsed.error };
+}
+
+// A World State is stored as text (its layout is the format other readers know), so its
+// changes come from the scene board's parser rather than from the text format.
+export function changesFor(def, previousState, state) {
+    if (def.format === 'text' && def.display === 'scene') return diffScene(previousState?.text ?? '', state?.text ?? '', { layout: def.layout });
+    return formatFor(def).diff(previousState, state, def);
 }
 
 /**
@@ -56,7 +64,7 @@ export function blockView(chat, def) {
     const current = latestBlockState(list, def);
     if (!current && !error && !truncated) return null;
     const previous = current ? latestBlockState(list, def, { beforeIndex: current.messageIndex }) : null;
-    const changes = current && previous ? format.diff(previous.state, current.state, def) : [];
+    const changes = current && previous ? changesFor(def, previous.state, current.state) : [];
     return {
         def,
         state: current?.state ?? format.empty(def),

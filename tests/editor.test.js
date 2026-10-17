@@ -74,7 +74,11 @@ class FakeElement {
 globalThis.document = { createElement: tag => new FakeElement(tag), activeElement: null, body: new FakeElement('body') };
 
 const { renderSettings, openBlockEditor } = await import('../src/ui/editor.js');
-const { TEMPLATES, defaultBlocks } = await import('../src/templates.js');
+const { TEMPLATES: ALL_TEMPLATES, defaultBlocks: allDefaultBlocks } = await import('../src/templates.js');
+// Pinned to the original three templates: these tests cover editor behaviour, not the template list.
+const PINNED = ['inventory', 'character-sheet', 'scene-notes'];
+const TEMPLATES = ALL_TEMPLATES.filter(template => PINNED.includes(template.id));
+const defaultBlocks = () => allDefaultBlocks().filter(block => PINNED.includes(block.id));
 const { normalizeBlock, MAX_FIELDS } = await import('../src/schema.js');
 
 const custom = normalizeBlock({ id: 'quests', name: 'Quests', icon: '📜', tag: 'Quests', kind: 'stateful', format: 'text', prompt: 'Open quests.' });
