@@ -1,4 +1,4 @@
-# Story Block v0.5.1
+# Story Block v0.5.2
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -122,8 +122,9 @@ A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden o
 
 - **Sidebar** (default). Wide screens with room beside the chat dock it there, always open;
   the pin button in its header switches between docked and drawer. Tablets and narrow
-  desktops get a drawer from the right; phones a bottom sheet (tap or drag its handle to
-  resize, drag down to close). While closed, a handle on the right edge shows this turn's
+  desktops get a drawer from the right; phones a bottom sheet (tap or drag its handle or
+  header to resize; drag down, tap the dimmed chat above it or tap × to close — from full
+  height a short drag down goes back to half). While closed, a handle on the right edge shows this turn's
   change count.
 - **Card under the latest reply**, as in v0.1. Extensions that add a tab to Megumin Suite's
   card (NPC State Delta) show up in this card unchanged.
