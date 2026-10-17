@@ -2,6 +2,7 @@
 // tab badges. Pure, so the wording rules are testable on plain views from view.js.
 
 import { describeChange } from './ui/displays/tree.js';
+import { parseDice } from './dice.js';
 
 const LEADING_NUMBER = /^\s*[−-]?\d[\d,]*(?:\.\d+)?/;
 
@@ -59,7 +60,14 @@ export function turnItems(views) {
         else if (view.truncated) items.push({ tabId, block: def.name, text: `${def.name} was cut off`, tone: 'warn' });
         // Choices are something to act on, not a change; they stay in their tab.
         if (def.display === 'choices') continue;
-        if (def.kind === 'turn') {
+        if (def.display === 'dice') {
+            for (const roll of parseDice(view.state?.text)?.rolls ?? []) {
+                const tone = roll.outcome === 'fail' || roll.outcome === 'critfail' ? 'down' : roll.outcome === 'cost' ? 'neutral' : 'up';
+                items.push({ tabId, block: def.name, text: `🎲 ${roll.attempt || def.name}: ${roll.total} vs ${roll.dc} · ${roll.label}`, tone });
+            }
+            continue;
+        }
+        if (def.kind === 'turn' || def.kind === 'lead') {
             const line = firstLine(view.state?.text);
             if (line && !view.error) items.push({ tabId, block: def.name, text: `${def.name}: ${line}`, tone: 'neutral' });
             continue;

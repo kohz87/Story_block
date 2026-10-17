@@ -92,7 +92,7 @@ export function renderNotices(pane, { def, error, truncated } = {}) {
     }
     if (truncated) {
         // Stateful blocks never take a cut-off copy; a turn block may show what arrived.
-        const tail = def?.kind === 'turn' ? ' What arrived may be incomplete.' : ' Showing the last valid state.';
+        const tail = def?.kind !== 'stateful' ? ' What arrived may be incomplete.' : ' Showing the last valid state.';
         pane.appendChild(notice('is-truncated', `This reply's ${name} was cut off before it finished.${error ? '' : tail}`));
     }
 }

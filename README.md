@@ -1,4 +1,4 @@
-# Story Block v0.3.0
+# Story Block v0.4.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -8,8 +8,8 @@ Every block is a definition you can edit. The built-ins are only templates.
 
 ## What it does
 
-- **One engine, any block.** Inventory, World State, Choices, Character Sheet and Scene Notes
-  ship as templates.
+- **One engine, any block.** Inventory, World State, Choices, Dice, Character Sheet and Scene
+  Notes ship as templates.
   Add your own blocks with their own tag, prompt, format and display, or change the
   templates; **Reset to default** brings a template back.
 - **State that sticks.** A *stateful* block's newest valid copy in the chat is its current
@@ -49,7 +49,9 @@ Each block has:
 |---|---|
 | Enabled | Off: not prompted, not shown, costs nothing. |
 | Shown | Off: still prompted and stored, but no tab in the card. |
-| Kind | **Stateful** (kept and rewritten each reply) or **Per-turn** (this reply only). |
+| Kind | **Stateful** (kept and rewritten each reply), **Per-turn** (this reply only) or **First** (this reply only, written before the story). |
+| Optional | Written only when something calls for it; a reply without it is not warned about. |
+| Dice | Roll 0–10 dice (d4–d100) before each reply; the numbers replace `{{rolls}}`. |
 | Format | **Rows** (`Item \| Qty \| Note` under `[Section > Sub]` headers), **Fields** (`Label: value` lines with meter, number, text and list types) or **Free text**. |
 | Display | **Tree list** (rows: sections, drill-down, search), **Meters & fields**, **Scene board** (World State layout), **Choice buttons** (numbered list), or **Plain**. |
 | Layout | Free-text blocks only: the skeleton the model fills in, as World State and Choices use. |
@@ -71,6 +73,20 @@ Delta's calendar picks them up.
 
 **Choices** offers four next actions as buttons: click adds one to your message, Shift-click
 (or the send button on touch screens) sends it.
+
+### Dice
+
+**Dice** (your attempts) and **Dice: Everyone** (anyone's) are rolled by Story Block, not by
+the model: fresh numbers before every reply, swipe and regenerate, handed over in order. The
+model decides whether an attempt needs a roll and how hard it is, then writes one line per
+roll before the scene:
+
+```
+🎲 Climb the wet wall — d20+2 vs 15 → 12+2 = 14 · success, at a cost
+```
+
+The card checks the model used the numbers it was given, in order, and that the sums add up,
+and says so — or names what went wrong.
 
 ### How a reply carries its blocks
 

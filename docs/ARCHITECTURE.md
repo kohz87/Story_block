@@ -1,4 +1,4 @@
-# Story Block — architecture contract (v0.3)
+# Story Block — architecture contract (v0.4)
 
 Story Block is a SillyTavern extension. Every tracker the model maintains — Inventory,
 Character Sheet, custom blocks, later World State, CYOA and Dice — is one **block
@@ -27,9 +27,11 @@ in the style of Inventory Block. `npm run check` syntax-checks `index.js` and `s
   tag: 'Inventory',         // XML tag the model writes; unique (case-insensitive), not reserved
   enabled: true,            // off = not prompted, not parsed into the card, costs nothing
   visible: true,            // false = still prompted and stored, but no tab in the card
-  kind: 'stateful' | 'turn',
+  kind: 'stateful' | 'turn' | 'lead',   // lead: this reply only, written before the story
+  optional: false,          // written only when something calls for it; no warning when missing
+  rolls: { count: 0, sides: 20 },   // dice rolled before each reply into {{rolls}} (src/dice.js)
   format: 'rows' | 'fields' | 'text',
-  display: 'plain' | 'tree' | 'fields' | 'scene' | 'choices',
+  display: 'plain' | 'tree' | 'fields' | 'scene' | 'choices' | 'dice',
   prompt: '...',            // block instructions; placeholders {{user}} {{char}} (SillyTavern macros)
   when: { mode: 'always' | 'every' | 'keyword', every: 2, keywords: [], scanDepth: 2 },
   template: 'inventory' | null,   // built-in it came from, for "Reset to default"
@@ -284,6 +286,9 @@ export function render(pane, { def, state, previousState, changes, error, trunca
   these blocks, so badges and the strip see scene changes (never secrets).
 - `choices` — a numbered list as buttons (`src/choices.js`: `parseChoices`, `fillInput`);
   falls back to plain. Choices never appear in the "This turn" strip.
+- `dice` — roll lines (`src/dice.js`: `parseDice`, `checkRolls`) as cards with a die that
+  spins once (`animate`), the outcome, and the honesty check against the rolls stamped on
+  the block (`stampRolls`/`readRolls`, `<Dice rolls="12, 5, 19">`); falls back to plain.
 - `fields` — meters as bars (`value/max`), numbers, text, lists as chips; changed entries
   marked from `changes`.
 
@@ -341,7 +346,7 @@ export function importBlocks(json, existing) -> { blocks, errors }   // normaliz
 
 | Package | Files it owns |
 |---|---|
-| core (lead) | `src/view.js`, `src/scene.js` + `src/choices.js` (written by the ui package), `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
+| core (lead) | `src/dice.js`, `src/view.js`, `src/scene.js` + `src/choices.js` (written by the ui package), `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
 | fields | `src/formats/fields.js`, `tests/formats-fields.test.js` |
 | engine | `src/envelope.js`, `src/prompt.js`, `tests/envelope*.test.js`, `tests/prompt*.test.js` |
 | ui | `src/ui/card.js`, `src/ui/sidebar.js`, `src/ui/strip.js`, `src/ui/displays/*.js`, `src/ui/dom.js`, `style.css`, `tests/ui-*.test.js` |

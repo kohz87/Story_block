@@ -18,11 +18,13 @@ import { render as renderTree } from './src/ui/displays/tree.js';
 import { render as renderFields } from './src/ui/displays/fields.js';
 import { render as renderScene } from './src/ui/displays/scene.js';
 import { render as renderChoices } from './src/ui/displays/choices.js';
+import { render as renderDice } from './src/ui/displays/dice.js';
+import { rollDice, stampRolls } from './src/dice.js';
 import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -31,7 +33,7 @@ const EXTENSION_PROMPT_IN_CHAT = 1;
 const EXTENSION_PROMPT_ROLE_SYSTEM = 0;
 const SESSION_MAX_AGE_MS = 2 * 60 * 1000;
 const SESSION_RECHECK_MS = 15 * 1000;
-const DISPLAYS = { plain: renderPlain, tree: renderTree, fields: renderFields, scene: renderScene, choices: renderChoices };
+const DISPLAYS = { plain: renderPlain, tree: renderTree, fields: renderFields, scene: renderScene, choices: renderChoices, dice: renderDice };
 
 let initialized = false;
 // Set once a reply's prompt has been seen carrying the placeholder; from then on a prompt
@@ -44,6 +46,8 @@ const pending = new Map();
 const cleanupTimers = new Map();
 const normalizingMessages = new Set();
 const externalTabs = createTabRegistry();
+// Dice animate once, when a reply's rolls are first shown; re-renders show them at rest.
+const animatedRolls = new Set();
 
 function context() {
     return globalThis.SillyTavern?.getContext?.() ?? null;
@@ -193,9 +197,12 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     }
     const chatId = chatIdOf(ctx);
     const chat = ctx.chat ?? [];
+    // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
+    // placeholder and the real context carry the same numbers.
     const entries = activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
         def,
         state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
+        rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
     }));
     const session = {
         chatId,
@@ -359,10 +366,26 @@ async function onMessageReceived(messageId) {
     // Keep the blocks in the raw message, but hide their transport from the narration.
     await normalizeMessageTransport(id, { rerender: true });
 
+    // Record the dice that were handed over on the block itself, so this message (and this
+    // swipe) can be checked against them later. After normalizing: moving a bare block into
+    // the envelope rebuilds its tag, which would drop the stamp.
+    let stamped = false;
+    for (const entry of session?.entries ?? []) {
+        if (!entry.rolls?.length) continue;
+        const next = stampRolls(message.mes, entry.def, entry.rolls);
+        if (next !== message.mes) {
+            message.mes = next;
+            stamped = true;
+        }
+    }
+    // The stamp sits inside the hidden envelope: nothing visible changed, so no re-render.
+    if (stamped) await persistMessageEdit(ctx, id, message, { rerender: false });
+
     if (session?.entries.length) {
         const problems = session.entries
             .map(({ def }) => ({ def, ...blockStatusInText(message.mes, def) }))
-            .filter(item => item.status !== 'valid');
+            // An optional block may simply not have been needed this reply.
+            .filter(item => item.status !== 'valid' && !(item.def.optional && item.status === 'missing'));
         if (problems.length) {
             const kept = problems.some(item => item.def.kind === 'stateful') ? ' The last valid state of each stateful block stays current.' : '';
             notify('warning', `${describeMissing(problems)}.${kept}`);
@@ -433,6 +456,13 @@ function shortName(name) {
 function blockTab(view, uiKey) {
     const { def } = view;
     const display = DISPLAYS[def.display] ?? renderPlain;
+    let animate = false;
+    if (def.display === 'dice' && view.state) {
+        const message = context()?.chat?.[view.messageIndex];
+        const key = `${uiKey}:${def.id}:${view.messageIndex}:${message?.swipe_id ?? 0}:${view.body}`;
+        animate = !animatedRolls.has(key);
+        animatedRolls.add(key);
+    }
     return {
         id: `block:${def.id}`,
         label: def.name,
@@ -448,6 +478,8 @@ function blockTab(view, uiKey) {
             changesFromEarlierReply: view.fromEarlierReply,
             error: view.error,
             truncated: view.truncated,
+            rolls: view.rolls ?? null,
+            animate,
             onEdit: () => void editBlock(def),
             uiKey: `${uiKey}:${def.id}`,
         }),
