@@ -1,11 +1,14 @@
-// Keeps the card mounted under the latest assistant message (port of Inventory Block's
-// mount scheduling). SillyTavern and other extensions re-render messages at will, so a
-// MutationObserver on #chat re-mounts after any change outside the card itself.
+// Keeps the blocks on screen (port of Inventory Block's mount scheduling): in the sidebar,
+// with an optional "This turn" strip under the latest assistant message, or as the card
+// under that message. SillyTavern and other extensions re-render messages at will, so a
+// MutationObserver on #chat re-mounts after any change outside our own elements.
 //
 // Mounting is suspended while a reply generates: the newest message is still streaming
-// and a card drawn now would show the previous reply's blocks under the new text.
+// and blocks drawn now would show the previous reply's state under the new text.
 
 import { mountCard, unmountCard } from './ui/card.js';
+import { mountSidebar, openSidebar, unmountSidebar } from './ui/sidebar.js';
+import { mountStrip, unmountStrip } from './ui/strip.js';
 
 let buildTabs = null;
 let observer = null;
@@ -13,18 +16,37 @@ let observerRetry = null;
 let timer = null;
 let suspended = false;
 
+function unmountAll() {
+    unmountCard(document);
+    unmountSidebar();
+    unmountStrip(document);
+}
+
 function mountNow() {
     if (suspended || !buildTabs) return;
     const target = buildTabs();
-    if (!target?.messageElement || !target.tabs?.length) {
-        unmountCard(document);
+    if (!target?.tabs?.length) {
+        unmountAll();
         return;
     }
-    // Only one card exists at a time: the previous reply's card goes when a new reply arrives.
-    for (const card of [...document.querySelectorAll('.story-block-card')]) {
-        if (!target.messageElement.contains(card)) card.remove();
+    if (target.display === 'card') {
+        unmountSidebar();
+        unmountStrip(document);
+        if (!target.messageElement) return unmountCard(document);
+        // Only one card exists at a time: the previous reply's card goes when a new reply arrives.
+        for (const card of [...document.querySelectorAll('.story-block-card')]) {
+            if (!target.messageElement.contains(card)) card.remove();
+        }
+        mountCard(target.messageElement, target.tabs, { uiKey: target.uiKey, compatMarkup: target.compatMarkup !== false });
+        return;
     }
-    mountCard(target.messageElement, target.tabs, { uiKey: target.uiKey, compatMarkup: target.compatMarkup !== false });
+    unmountCard(document);
+    mountSidebar(target.tabs, { uiKey: target.uiKey, meta: target.meta, pinned: target.pinned !== false, onPinnedChange: target.onPinnedChange });
+    if (target.strip && target.messageElement) {
+        mountStrip(target.messageElement, target.strip, { onOpen: tabId => openSidebar(tabId) });
+    } else {
+        unmountStrip(document);
+    }
 }
 
 function ensureObserver() {
@@ -44,7 +66,7 @@ function ensureObserver() {
     observer = new MutationObserver(mutations => {
         const relevant = mutations.some(mutation => {
             const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement;
-            return !target?.closest?.('.story-block-card');
+            return !target?.closest?.('.story-block-card, .story-block-strip');
         });
         if (relevant) scheduleMount(60);
     });
@@ -74,7 +96,10 @@ export function setMountSuspended(value) {
     scheduleMount(0);
 }
 
-/** `builder()` returns `{ messageElement, tabs, uiKey, compatMarkup }` or null. */
+/**
+ * `builder()` returns null or `{ display: 'sidebar' | 'card', messageElement, tabs, uiKey, meta,
+ * pinned, onPinnedChange, strip: items | null, compatMarkup }`.
+ */
 export function initializeMount(builder) {
     buildTabs = builder;
     ensureObserver();

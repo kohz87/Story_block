@@ -1,4 +1,4 @@
-# Story Block v0.1.0
+# Story Block v0.2.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -16,8 +16,11 @@ Every block is a definition you can edit. The built-ins are only templates.
   scroll out of context. A reply that leaves it out, cuts it off or writes it badly never
   replaces the last good state.
 - **Per-turn blocks** describe the latest reply only and are never fed back.
-- **One card, many tabs.** Each visible block gets a tab under the latest reply, with a
-  change strip for structured blocks (what moved this turn). Other extensions can add tabs.
+- **A sidebar for your blocks.** Docked beside the chat on wide screens, a drawer on tablets
+  and narrow desktops, a bottom sheet on phones. Each block gets a tab with a badge counting
+  what the latest reply changed, and structured blocks list those changes. Other extensions
+  can add tabs. Prefer the old layout? Switch to a card under the latest reply.
+- **Optional "This turn" strip** under the latest reply: what it changed, at a glance.
 - **Works with any preset.** The extension injects its own instructions; nothing has to be
   added to your preset.
 - **Message-native.** Blocks are stored in the reply text as a hidden envelope, so swipes,
@@ -74,6 +77,21 @@ Salt Pork | 3 | Barrel
 
 A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden on receive.
 
+## Where blocks are shown
+
+**Settings → Show blocks in:**
+
+- **Sidebar** (default). Wide screens with room beside the chat dock it there, always open;
+  the pin button in its header switches between docked and drawer. Tablets and narrow
+  desktops get a drawer from the right; phones a bottom sheet (tap or drag its handle to
+  resize, drag down to close). While closed, a handle on the right edge shows this turn's
+  change count.
+- **Card under the latest reply**, as in v0.1. Extensions that add a tab to Megumin Suite's
+  card (NPC State Delta) show up in this card unchanged.
+
+**"This turn" strip** (off by default) adds one line under the latest reply listing what it
+changed; tap it to open the sidebar on that block.
+
 ## Editing and recovery
 
 - **Edit** on a tab edits that block's current content; it is checked by the block's own
@@ -93,8 +111,9 @@ globalThis.StoryBlock.registerTab({
 });
 ```
 
-The card also carries Megumin Suite's card classes, so extensions that already add a tab to
-Megumin's card (NPC State Delta) show up in Story Block's card unchanged.
+Registered tabs appear in the sidebar and the card. The card also carries Megumin Suite's
+card classes, so extensions that already add a tab to Megumin's card (NPC State Delta) show
+up in Story Block's card unchanged; to appear in the sidebar they need `registerTab`.
 
 ## Development
 
