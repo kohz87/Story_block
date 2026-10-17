@@ -1,4 +1,4 @@
-# Story Block v0.5.4
+# Story Block v0.5.5
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -69,7 +69,8 @@ model writes back — pick the few blocks a story actually needs.
 **World State** keeps the scene in Megumin Suite's World State layout, so NPC State Delta and
 Megumin's readers understand it and existing Megumin chats carry over. The scene board shows
 time, place and weather, a card per person (secrets hidden until revealed), threads and
-timers. Write dates as `Year, Month Day` (for example `1042, Harvestmoon 14`) and NPC State
+timers. Lines that pack several facts with pipes (`now Court | then: argues | on: noon`,
+`visible: … | hidden: …`) are shown as short labelled rows. Write dates as `Year, Month Day` (for example `1042, Harvestmoon 14`) and NPC State
 Delta's calendar picks them up.
 
 **Choices** offers four next actions as buttons: click adds one to your message, Shift-click

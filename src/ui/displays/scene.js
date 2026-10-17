@@ -30,6 +30,52 @@ const LISTS = [
     { key: 'timers', label: 'Timers', icon: 'fa-hourglass-half' },
 ];
 
+// Models (and custom layouts) often pack several facts into one line with pipes:
+// `now Court | then: argues with magistrates | on: Haywane 12, 05:45 pm`. Drawn as written
+// that is a wall of text, so the board splits it into short labelled rows. The text itself
+// (the state, and what the change marks compare) is left exactly as written.
+const FACT_LABEL = /^([\p{L}][\p{L}\p{N} '’/-]{0,23}?)\s*:\s+(\S.*)$/u;
+const LEAD_LABEL = /^(.*\S)\s+[—–-]\s+(\p{L}{1,12})\s*:?$/u;
+const COORDS = /^\[?\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]?$/;
+const LONG_ITEM = 48;
+
+const words = text => String(text ?? '').trim().split(/\s+/).filter(Boolean).length;
+
+/** `a | label: b | c` -> [{ label, value }]; the first fact takes `lead` when it has no label. */
+export function splitFacts(text, lead = '') {
+    const facts = String(text ?? '').split(/\s*\|\s*/).map(part => part.trim()).filter(Boolean).map(part => {
+        const match = FACT_LABEL.exec(part);
+        return match && words(match[1]) <= 3 ? { label: match[1].trim(), value: match[2].trim() } : { label: '', value: part };
+    });
+    if (lead && facts.length && !facts[0].label) facts[0] = { label: lead, value: facts[0].value };
+    return facts;
+}
+
+/** `Senior Listener Geva — now` -> name and the one-word label its line opens with. */
+export function nameAndLead(name) {
+    const match = LEAD_LABEL.exec(String(name ?? '').trim());
+    return match ? { name: match[1].trim(), lead: match[2] } : { name: String(name ?? '').trim(), lead: '' };
+}
+
+function renderFacts(facts) {
+    const list = el('dl', 'story-block-scene-facts');
+    for (const fact of facts) {
+        if (fact.label) list.append(el('dt', '', fact.label), el('dd', '', fact.value));
+        else list.appendChild(el('dd', 'is-plain', fact.value));
+    }
+    return list;
+}
+
+// Chip text: pipes read as middle dots, and map coordinates (`[59.0, 110.0]`) are dimmed.
+function chipText(value) {
+    const node = el('span', 'story-block-scene-chip-text');
+    String(value).split(/\s*\|\s*/).map(part => part.trim()).filter(Boolean).forEach((part, index) => {
+        if (index) node.appendChild(document.createTextNode(' · '));
+        node.appendChild(COORDS.test(part) ? el('span', 'story-block-scene-coords', part) : document.createTextNode(part));
+    });
+    return node;
+}
+
 // Revealed secrets per card, keyed by the secret's text so a new secret starts hidden
 // again. Survives re-renders (a refresh lands on every chat event) but not reloads.
 const revealed = new Map();
@@ -72,8 +118,7 @@ function renderChips(scene, changeFor) {
         const change = changeFor(chip.label);
         const item = el('li', `story-block-scene-chip is-${chip.key}`);
         item.append(icon(chip.icon), srOnly(`${chip.label}: `));
-        // The template's `Place | Region` reads better with a middle dot.
-        item.appendChild(el('span', 'story-block-scene-chip-text', value.replace(/\s*\|\s*/g, ' · ')));
+        item.appendChild(chipText(value));
         if (change) item.appendChild(changeDot(change));
         list.appendChild(item);
     }
@@ -161,7 +206,8 @@ function renderPerson(entry, { isPc, changeFor, memory }) {
         const row = el('div', `story-block-scene-row is-${slug}${change ? ' is-changed' : ''}`);
         const key = el('span', 'story-block-scene-k', label);
         if (change) key.appendChild(changeDot(change));
-        row.append(key, el('span', 'story-block-scene-v', fields[label]));
+        const facts = splitFacts(fields[label]);
+        row.append(key, facts.length > 1 ? renderFacts(facts) : el('span', 'story-block-scene-v', fields[label]));
         rows.appendChild(row);
     }
     if (rows.children.length) card.appendChild(rows);
@@ -177,8 +223,11 @@ function renderOffscreen(entries) {
     const list = el('ul', 'story-block-scene-off');
     for (const entry of entries) {
         const item = el('li', 'story-block-scene-off-item');
-        if (entry.name) item.appendChild(el('span', 'story-block-scene-off-name', entry.name));
-        if (entry.text) item.appendChild(el('span', 'story-block-scene-off-text', entry.text));
+        const { name, lead } = nameAndLead(entry.name);
+        const facts = splitFacts(entry.text, lead);
+        if (name) item.appendChild(el('div', 'story-block-scene-off-name', name));
+        if (facts.length > 1 || (lead && facts.length)) item.appendChild(renderFacts(facts));
+        else if (entry.text) item.appendChild(el('div', 'story-block-scene-off-text', entry.text));
         list.appendChild(item);
     }
     section.appendChild(list);
@@ -193,13 +242,25 @@ function renderLists(scene, changeFor) {
         const head = el('div', 'story-block-scene-sub');
         head.append(icon(group.icon), el('span', '', group.label));
         section.appendChild(head);
-        const list = el('ul', `story-block-scene-items is-${group.key}`);
+        // Short items read as pills; a group with a long or many-part item is drawn as rows,
+        // all of it, so one group never mixes the two looks.
+        const texts = scene[group.key];
+        const rows = texts.some(text => text.length > LONG_ITEM || /\|/.test(text));
+        const list = el('ul', `story-block-scene-items is-${group.key}${rows ? ' is-rows' : ''}`);
         list.setAttribute('aria-label', group.label);
-        for (const text of scene[group.key]) {
+        for (const text of texts) {
             // Only threads are diffed; seeds and timers tick every reply and would be noise.
             const change = group.key === 'threads' ? changeFor(text) : null;
-            const item = el('li', 'story-block-scene-item', text);
-            if (change) item.appendChild(changeDot(change));
+            const item = el('li', 'story-block-scene-item');
+            const [first, ...rest] = splitFacts(text);
+            if (rows && rest.length) {
+                const head = el('div', 'story-block-scene-item-head', first.label ? `${first.label}: ${first.value}` : first.value);
+                if (change) head.appendChild(changeDot(change));
+                item.append(head, renderFacts(rest));
+            } else {
+                item.textContent = text;
+                if (change) item.appendChild(changeDot(change));
+            }
             list.appendChild(item);
         }
         section.appendChild(list);

@@ -266,3 +266,52 @@ test('empty, missing, error, truncated, edit; model text stays text', () => {
     assert.equal(show({ state: { text: FULL } }).querySelector('.story-block-edit'), null);
     assert.ok(show({ state: { text: 'Prose only, no scene here at all.' }, error: 'Bad' }).querySelector('.story-block-notice.is-error'), 'fallback keeps the notices');
 });
+
+// Many-part lines (`now X | then: Y | on: Z`) are split into short labelled rows; the text
+// stays the state exactly as written.
+const PIPED = [
+    '**📅 Time:** CY 611, Haywane 12, 05:35 pm | **🌤 Loc:** Auvoth | Leased Mansion Main Hall | [59.0, 110.0] | **🌡 Wx:** Freezing rain',
+    '',
+    '**🧍 {{user}}:**',
+    '* *Outfit:* Soaked drake armor',
+    '* *Visible Condition:* visible: soaked in sludge | hidden: soul strain 0%',
+    '',
+    '**📡 Off-Screen:**',
+    '* **Senior Listener Geva — now:** District Bailiff Court | then: argues with magistrates | on: Haywane 12, 05:45 pm',
+    '* **Hooks:** Inquest at the mansion gate',
+    '',
+    '**🔥 Unresolved Threads:**',
+    '* Who tipped the Bailiff Court | then: warrants reissued | on: Haywane 13',
+    '* Cold hands',
+].join('\n');
+
+test('scene: piped facts become labelled rows; names lose their "— now"; coordinates are dimmed', () => {
+    const pane = show({ state: { text: PIPED } });
+    const off = pane.querySelectorAll('.story-block-scene-off-item');
+    assert.equal(off[0].querySelector('.story-block-scene-off-name').textContent, 'Senior Listener Geva');
+    assert.deepEqual(texts(off[0], 'dt'), ['now', 'then', 'on']);
+    assert.deepEqual(texts(off[0], 'dd'), ['District Bailiff Court', 'argues with magistrates', 'Haywane 12, 05:45 pm']);
+    assert.equal(off[1].querySelector('dl'), null, 'a single plain fact stays a line of text');
+    assert.equal(off[1].querySelector('.story-block-scene-off-text').textContent, 'Inquest at the mansion gate');
+
+    const condition = pane.querySelector('.story-block-scene-row.is-visible-condition');
+    assert.deepEqual(texts(condition, 'dt'), ['visible', 'hidden']);
+    assert.equal(pane.querySelector('.story-block-scene-row.is-outfit dl'), null, 'a one-part field is untouched');
+
+    assert.equal(pane.querySelector('.story-block-scene-coords').textContent, '[59.0, 110.0]');
+    assert.match(pane.querySelector('.story-block-scene-chip.is-location').textContent, /Auvoth · Leased Mansion Main Hall · \[59\.0, 110\.0\]/);
+
+    const threads = pane.querySelector('.story-block-scene-items.is-threads');
+    assert.ok(threads.classList.contains('is-rows'), 'a group with a many-part item is drawn as rows');
+    assert.equal(threads.querySelector('.story-block-scene-item-head').textContent, 'Who tipped the Bailiff Court');
+    assert.deepEqual(texts(threads, 'dt'), ['then', 'on']);
+});
+
+test('splitFacts and nameAndLead', () => {
+    assert.deepEqual(scene.splitFacts('Court | then: argues | on: noon', 'now'), [
+        { label: 'now', value: 'Court' }, { label: 'then', value: 'argues' }, { label: 'on', value: 'noon' },
+    ]);
+    assert.deepEqual(scene.splitFacts('She said it quietly: run'), [{ label: '', value: 'She said it quietly: run' }], 'labels are at most three words');
+    assert.deepEqual(scene.nameAndLead('Senior Listener Geva — now'), { name: 'Senior Listener Geva', lead: 'now' });
+    assert.deepEqual(scene.nameAndLead('Jean-Luc'), { name: 'Jean-Luc', lead: '' });
+});
