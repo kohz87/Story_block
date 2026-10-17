@@ -249,6 +249,25 @@ requested but missing, invalid or cut off. Re-render the card on receive, swipe,
 delete, chat change and render events. Exposes the tab API (section 6) as
 `globalThis.StoryBlock`.
 
+### Plugin API (`src/plugin.js`, v0.6)
+
+`globalThis.StoryBlock` (`apiVersion: 1`) for other extensions:
+
+| Member | Does |
+|---|---|
+| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional }]` |
+| `getBlock(tagOrId, { beforeIndex })` | Newest valid copy: `{ id, tag, text, state, messageIndex }` or null |
+| `blockForGeneration(tagOrId, type)` | The copy a generation of `type` will be shown (a swipe/regenerate sees the one before the reply it replaces) |
+| `blockInText(text, tagOrId)` | The block as written in one message's text (repeats merged), or null |
+| `setBlockText(messageIndex, tagOrId, text)` | Replace a block in an assistant message (inside the envelope); resolves to true when it changed |
+| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab. `{ ok, error }` |
+| `unregisterBlock(id)` | |
+| `onReply(cb)` | After each reply is received and normalized: `cb({ chatId, messageIndex })`; returns unsubscribe |
+| `onUpdate(cb)` | On every refresh (reply, swipe, edit, delete, chat change); returns unsubscribe |
+| `registerTab(tab)` | A sidebar/card tab: `{ id, label, icon, order, render(pane, ctx), isAvailable?(ctx), key?(ctx), badge?(ctx) }`. `key` keeps an unchanged pane; `badge` is the count on the tab |
+
+A throwing listener is logged and skipped.
+
 ## 6. Card and displays (`src/ui/*`)
 
 One card under the **latest assistant message**, one tab per visible enabled block that

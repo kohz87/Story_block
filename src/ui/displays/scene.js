@@ -25,6 +25,7 @@ const CHIPS = [
 ];
 
 const LISTS = [
+    { key: 'world', label: 'World', icon: 'fa-earth-americas' },
     { key: 'threads', label: 'Threads', icon: 'fa-fire' },
     { key: 'seeds', label: 'Seeds', icon: 'fa-seedling' },
     { key: 'timers', label: 'Timers', icon: 'fa-hourglass-half' },
@@ -38,6 +39,7 @@ const FACT_LABEL = /^([\p{L}][\p{L}\p{N} '’/-]{0,23}?)\s*:\s+(\S.*)$/u;
 const LEAD_LABEL = /^(.*\S)\s+[—–-]\s+(\p{L}{1,12})\s*:?$/u;
 const COORDS = /^\[?\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]?$/;
 const LONG_ITEM = 48;
+const KEYED_ITEM = /^(.{1,60}?)\s+[—–]\s+(\S.*)$/;
 
 const words = text => String(text ?? '').trim().split(/\s+/).filter(Boolean).length;
 
@@ -252,7 +254,13 @@ function renderLists(scene, changeFor) {
             // Only threads are diffed; seeds and timers tick every reply and would be noise.
             const change = group.key === 'threads' ? changeFor(text) : null;
             const item = el('li', 'story-block-scene-item');
-            const [first, ...rest] = splitFacts(text);
+            let [first, ...rest] = splitFacts(text);
+            // `Key — what it is | then: …`: the key is the heading, what it is the first row.
+            const keyed = !first.label ? KEYED_ITEM.exec(first.value) : null;
+            if (keyed && words(keyed[1]) <= 8) {
+                rest = [{ label: '', value: keyed[2].trim() }, ...rest];
+                first = { label: '', value: keyed[1].trim() };
+            }
             if (rows && rest.length) {
                 const head = el('div', 'story-block-scene-item-head', first.label ? `${first.label}: ${first.value}` : first.value);
                 if (change) head.appendChild(changeDot(change));

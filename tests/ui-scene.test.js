@@ -315,3 +315,23 @@ test('splitFacts and nameAndLead', () => {
     assert.deepEqual(scene.nameAndLead('Senior Listener Geva — now'), { name: 'Senior Listener Geva', lead: 'now' });
     assert.deepEqual(scene.nameAndLead('Jean-Luc'), { name: 'Jean-Luc', lead: '' });
 });
+
+test('scene: World is its own list, Hooks read as threads, and `Key — what` items get a heading', () => {
+    const text = [
+        '**📅 Time:** Haywane 12, dusk | **🌤 Loc:** Auvoth',
+        '**🌍 World:**',
+        '* Canal Street Granary Fires — Lower city ablaze | then: curfew declared | on: Haywane 12, 06:00 pm',
+        '**🔥 Hooks:**',
+        '* River stranger — who pulled Ren from the sump | then: he sends word | on: Haywane 15',
+        '**⏳ Clocks:**',
+        '* Hollin\'s Reach graves — the dead rise | due: Goldwane 28',
+    ].join('\n');
+    const pane = show({ state: { text } });
+    const world = pane.querySelector('.story-block-scene-items.is-world');
+    assert.ok(world, 'a World list');
+    assert.equal(world.querySelector('.story-block-scene-item-head').textContent, 'Canal Street Granary Fires');
+    assert.deepEqual(texts(world, 'dd'), ['Lower city ablaze', 'curfew declared', 'Haywane 12, 06:00 pm']);
+    const hooks = pane.querySelector('.story-block-scene-items.is-threads');
+    assert.equal(hooks.querySelector('.story-block-scene-item-head').textContent, 'River stranger');
+    assert.ok(pane.querySelector('.story-block-scene-items.is-timers'), 'Clocks read as timers');
+});

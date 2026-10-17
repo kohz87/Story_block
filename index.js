@@ -24,8 +24,9 @@ import { rollDice, stampRolls } from './src/dice.js';
 import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
+import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from './src/plugin.js';
 
-const VERSION = '0.5.6';
+const VERSION = '0.6.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -102,6 +103,16 @@ function enabledBlocks(ctx = context()) {
     return blocks(ctx).filter(block => block.enabled);
 }
 
+// Blocks other extensions registered (transport only: hidden and kept, never prompted).
+const pluginBlocks = new Map();
+const replyListeners = createListeners('reply listener');
+const updateListeners = createListeners('update listener');
+
+// Every tag Story Block moves into the envelope and keeps out of narration and history.
+function transportBlocks(ctx = context()) {
+    return [...blocks(ctx), ...pluginBlocks.values()];
+}
+
 function saveSettings(ctx = context()) {
     ctx?.saveSettingsDebounced?.();
 }
@@ -113,6 +124,7 @@ function substituter(ctx) {
 
 function refreshAll(delay = 20) {
     scheduleMount(delay);
+    updateListeners.emit({ chatId: chatIdOf(context()) });
 }
 
 function syncMountSuspension() {
@@ -274,7 +286,7 @@ function onPromptReady(eventData = null) {
     const text = session.entries.length ? sessionContext(ctx, session) : '';
     // With no active block the prompt still loses old blocks from its history; the model
     // would otherwise keep writing them from example.
-    const result = injectContext(eventData, text, enabledBlocks(ctx), { knownBlocks: historyBlocks(ctx) });
+    const result = injectContext(eventData, text, [...enabledBlocks(ctx), ...pluginBlocks.values()], { knownBlocks: historyBlocks(ctx) });
     if (result.injected) {
         session.injected = true;
         const names = session.entries.map(entry => entry.def.name).join(', ') || 'none active';
@@ -296,7 +308,7 @@ function onPromptReady(eventData = null) {
 // can be told apart from blocks a person wrote there.
 function historyBlocks(ctx) {
     const known = new Set();
-    const defs = blocks(ctx);
+    const defs = transportBlocks(ctx);
     for (const message of ctx?.chat ?? []) {
         if (isAssistant(message)) bareBlockTexts(message.mes, defs).forEach(block => known.add(block));
     }
@@ -333,9 +345,10 @@ async function normalizeMessageTransport(messageId, { rerender = true, save = tr
     const message = ctx.chat?.[id];
     if (!isAssistant(message)) return false;
     const rejoined = rejoinContinuation(message.mes);
-    const normalized = normalizeTransport(rejoined, blocks(ctx));
+    const defs = transportBlocks(ctx);
+    const normalized = normalizeTransport(rejoined, defs);
     // Several tags of a repeating block become one, after they are inside the envelope.
-    const folded = blocks(ctx).reduce((text, def) => mergeRepeats(text, def), normalized.text);
+    const folded = defs.reduce((text, def) => mergeRepeats(text, def), normalized.text);
     if (folded === message.mes) return false;
     normalized.text = folded;
 
@@ -397,6 +410,7 @@ async function onMessageReceived(messageId) {
     }
     clearSession(chatId);
     refreshAll(0);
+    replyListeners.emit({ chatId, messageIndex: id });
 }
 
 function onGenerationEnded() {
@@ -426,6 +440,24 @@ async function saveBlockBody(def, body, expectedChatId) {
     // message/swipe only, then refresh the card.
     await persistMessageEdit(ctx, target, message, { rerender: false });
     refreshAll(0);
+}
+
+/** Plugin API: replace a block's text in one assistant message (hidden; nothing re-renders). */
+async function setBlockText(messageIndex, tagOrId, text) {
+    const ctx = context();
+    if (!ctx || !hasActiveChat(ctx)) throw new Error('No chat is open.');
+    if (pending.has(chatIdOf(ctx))) throw new Error('A reply is still generating.');
+    const def = findBlockDef(transportBlocks(ctx), tagOrId);
+    if (!def) throw new Error(`No block with the tag or id "${tagOrId}".`);
+    const id = Number(messageIndex);
+    const message = ctx.chat?.[id];
+    if (!isAssistant(message)) throw new Error(`Message #${messageIndex} is not an assistant reply.`);
+    const next = upsertBlock(message.mes, def, String(text ?? ''));
+    if (next === message.mes) return false;
+    message.mes = next;
+    await persistMessageEdit(ctx, id, message, { rerender: false });
+    refreshAll(0);
+    return true;
 }
 
 async function editBlock(def) {
@@ -520,6 +552,9 @@ function buildCardTabs() {
                 label: tab.label,
                 icon: tab.icon,
                 order: tab.order,
+                // A plugin may say when its pane is unchanged (key) and what to count (badge).
+                key: typeof tab.key === 'function' ? String(tab.key({ messageId, message }) ?? '') : undefined,
+                badge: typeof tab.badge === 'function' ? Number(tab.badge({ messageId, message })) || 0 : undefined,
                 render: pane => tab.render(pane, { messageId, message }),
             });
         } catch (error) {
@@ -762,9 +797,39 @@ function registerEvents() {
     }
 }
 
-// Public tab API: other extensions add a tab to the card without being ported.
+// The public API: tabs for other extensions, and read access to blocks (docs/ARCHITECTURE.md).
 globalThis.StoryBlock = Object.freeze({
     version: VERSION,
+    apiVersion: 1,
+    /** Every block definition, the reader's and plugins': [{ id, tag, name, kind, … }]. */
+    listBlocks: () => transportBlocks().map(blockSummary),
+    /** The newest valid copy of a block (before `beforeIndex`): { id, tag, text, state, messageIndex } | null. */
+    getBlock(tagOrId, { beforeIndex = null } = {}) {
+        const ctx = context();
+        return blockSnapshot(ctx?.chat ?? [], findBlockDef(transportBlocks(ctx), tagOrId), { beforeIndex });
+    },
+    /** The copy the model will be shown for a generation of `type` (a swipe sees the one before). */
+    blockForGeneration(tagOrId, type = 'normal') {
+        const ctx = context();
+        return generationSnapshot(ctx?.chat ?? [], findBlockDef(transportBlocks(ctx), tagOrId), type);
+    },
+    /** A block as written in one message's text, or null. */
+    blockInText(text, tagOrId) {
+        return blockInText(text, findBlockDef(transportBlocks(), tagOrId));
+    },
+    setBlockText,
+    /** A transport-only block for a plugin: { ok, error }. */
+    registerBlock(spec) {
+        const result = pluginBlockDef(spec, transportBlocks());
+        if (result.error) return { ok: false, error: result.error };
+        pluginBlocks.set(result.def.id, result.def);
+        return { ok: true };
+    },
+    unregisterBlock: id => pluginBlocks.delete(String(id ?? '')),
+    /** After each reply is received and normalized: callback({ chatId, messageIndex }). Returns unsubscribe. */
+    onReply: callback => replyListeners.add(callback),
+    /** Whenever Story Block refreshes (reply, swipe, edit, delete, chat change). Returns unsubscribe. */
+    onUpdate: callback => updateListeners.add(callback),
     registerTab(tab) {
         const result = externalTabs.register(tab);
         refreshAll(0);

@@ -50,7 +50,8 @@ const SCENE_KEYS = [
 const SECTIONS = [
     { key: 'npcs', re: /^(?:npcs?(?:\s*present)?|present\s*npcs?|(?:characters?|people)(?:\s*present)?|in\s*scene|present)$/i },
     { key: 'offscreen', re: /^(?:off[\s-]?screen(?:\s*npcs?)?|elsewhere)$/i },
-    { key: 'threads', re: /^(?:unresolved(?:\s*threads?)?|(?:open\s*)?threads?|plot\s*threads?)$/i },
+    { key: 'world', re: /^(?:world(?:\s*events?)?|events?|news)$/i },
+    { key: 'threads', re: /^(?:unresolved(?:\s*threads?)?|(?:open\s*)?threads?|plot\s*threads?|hooks?)$/i },
     { key: 'seeds', re: /^(?:planted\s*seeds?|seeds?|foreshadowing)$/i },
     { key: 'timers', re: /^(?:consequence\s*timers?|timers?|ticking\s*clocks?|clocks?)$/i },
     { key: 'arc', re: /^arc(?:\s*phase)?$/i },
@@ -274,6 +275,7 @@ export function parseScene(text, { layout = '' } = {}) {
         pc: null,
         people: [],
         offscreen: [],
+        world: [],
         threads: [],
         seeds: [],
         timers: [],
@@ -283,7 +285,7 @@ export function parseScene(text, { layout = '' } = {}) {
     };
     const order = [];           // every person in order, PC included
     const compact = new Set();  // people written as one `* Name: clothing | posture` bullet
-    let section = 'top';        // top | pc | npcs | person | offscreen | threads | seeds | timers
+    let section = 'top';        // top | pc | npcs | person | offscreen | world | threads | seeds | timers
     let person = null;          // the person a field attaches to
     let last = null;            // where a value carried onto the next line belongs
     let lost = 0;               // lines the parse could not place
@@ -292,7 +294,7 @@ export function parseScene(text, { layout = '' } = {}) {
     let offName = '';           // a bare name header inside Off-Screen groups the bullets below it
     let sections = 0;           // section dividers seen, as evidence this is a World State
 
-    const isList = () => section === 'threads' || section === 'seeds' || section === 'timers';
+    const isList = () => section === 'world' || section === 'threads' || section === 'seeds' || section === 'timers';
     const inCast = () => section === 'npcs' || section === 'person';
 
     const setScene = (key, value) => {
@@ -351,7 +353,7 @@ export function parseScene(text, { layout = '' } = {}) {
     const pushItem = (list, raw) => {
         // Seeds and timers written inline often hold several, `;`-separated. Threads
         // are one per line by the template's own instruction.
-        const parts = list === scene.threads ? [raw] : String(raw).split(/\s*;\s*/);
+        const parts = list === scene.threads || list === scene.world ? [raw] : String(raw).split(/\s*;\s*/);
         for (const part of parts) {
             const value = readValue(part);
             if (!value || NONE.test(value)) continue;
@@ -403,7 +405,7 @@ export function parseScene(text, { layout = '' } = {}) {
         if (key === 'npcs' && npcsAt < 0) npcsAt = order.length;
         const value = readValue(inline);
         if (!value || NONE.test(value)) return;
-        if (key === 'seeds' || key === 'timers' || key === 'threads') pushItem(scene[key], inline);
+        if (key === 'seeds' || key === 'timers' || key === 'threads' || key === 'world') pushItem(scene[key], inline);
         else if (key === 'offscreen') pushOffscreen(inline);
         else if (key === 'npcs') {
             // `NPCs Present: Astra, Merrit` names people without describing them.
@@ -639,7 +641,7 @@ export function parseScene(text, { layout = '' } = {}) {
     const everyone = [scene.pc, ...scene.people].filter(Boolean);
     const described = everyone.filter(entry => Object.keys(entry.fields).length);
     const where = scene.time || scene.location || scene.weather;
-    const more = everyone.length || scene.threads.length || scene.offscreen.length || scene.arc || scene.phase;
+    const more = everyone.length || scene.threads.length || scene.world.length || scene.offscreen.length || scene.arc || scene.phase;
     // One `**Note:** something` line would otherwise be a person called Note: a
     // described person needs a field the template names, and the text needs some
     // shape of a scene around them.

@@ -1,4 +1,4 @@
-# Story Block v0.5.6
+# Story Block v0.6.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -212,17 +212,27 @@ changed; tap it to open the sidebar on that block.
 
 ## For other extensions
 
+`globalThis.StoryBlock` lets other extensions add tabs and read blocks:
+
 ```js
-globalThis.StoryBlock.registerTab({
+const sb = globalThis.StoryBlock;            // sb.apiVersion >= 1 since v0.6
+sb.registerTab({
     id: 'my-tab', label: 'My Tab', icon: '🧭',
     render(pane, { messageId, message }) { pane.textContent = '…'; },
     isAvailable: ({ messageId }) => true,
+    key: () => 'unchanged-until-this-changes',   // optional: skip re-rendering
+    badge: () => 2,                              // optional: count on the tab
 });
+sb.getBlock('World_State');                  // { text, state, messageIndex } of the newest valid copy
+sb.blockForGeneration('World_State', 'swipe'); // the copy the next reply will be shown
+sb.registerBlock({ id: 'my-plugin', tag: 'My_Block' });  // hidden, kept, never prompted
+sb.onReply(({ messageIndex }) => { /* a reply arrived */ });
 ```
 
-Registered tabs appear in the sidebar and the card. The card also carries Megumin Suite's
-card classes, so extensions that already add a tab to Megumin's card (NPC State Delta) show
-up in Story Block's card unchanged; to appear in the sidebar they need `registerTab`.
+The full list is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Plugin API). Registered tabs
+appear in the sidebar and the card. The card also carries Megumin Suite's card classes, so
+extensions that already add a tab to Megumin's card (NPC State Delta) show up in Story Block's
+card unchanged; to appear in the sidebar they need `registerTab`.
 
 ## Development
 
