@@ -434,6 +434,34 @@ test('pin/unpin: docked Unpin calls onPinnedChange(false); wide drawer offers Pi
     assert.equal(openSidebar(), true, 'docked open just selects');
 });
 
+test('Story Suite gear: in the header next to pin and close, shown only with showSuite and onSuite', () => {
+    reset(1024, { chatRight: 900 });
+    const opened = [];
+    const gear = () => sidebar().querySelector('.story-block-sidebar-suite');
+    mountSidebar([counted('a', 'A')], { uiKey: freshKey() });
+    assert.ok(gear(), 'always built');
+    assert.ok(!visible(gear()), 'hidden by default (Story Block alone)');
+    const head = sidebar().querySelector('.story-block-sidebar-head');
+    assert.deepEqual(head.children.slice(-3).map(node => node.className.split(' ')[1]), ['story-block-sidebar-suite', 'story-block-sidebar-pin', 'story-block-sidebar-close']);
+    assert.equal(gear().getAttribute('aria-label'), 'Story Suite');
+    assert.ok(gear().querySelector('i.fa-gear'));
+
+    const options = { uiKey: 'suite-gear', onSuite: opener => opened.push(opener) };
+    mountSidebar([counted('a', 'A')], { ...options, showSuite: false });
+    assert.ok(!visible(gear()), 'fewer than two of the suite');
+    mountSidebar([counted('a', 'A')], { ...options, showSuite: true });
+    assert.ok(visible(gear()));
+    openSidebar();
+    const click = gear().click();
+    same(opened[0], gear(), 'onSuite gets the button, so focus can come back to it');
+    assert.ok(click.stopped, 'the click stays ours');
+    assert.ok(sidebar().classList.contains('is-open'), 'the drawer stays open under the overlay');
+    mountSidebar([counted('a', 'A')], { uiKey: 'suite-gear', showSuite: true });
+    assert.ok(!visible(gear()), 'nothing to call: hidden');
+    gear().click();
+    assert.equal(opened.length, 1);
+});
+
 test('badges show on tabs and their sum on the handle', () => {
     reset(1024, { chatRight: 900 });
     mountSidebar([counted('a', 'Inventory', { badge: 2 }), counted('b', 'Sheet', { badge: 0 }), counted('c', 'Notes', { badge: 1 })], { uiKey: freshKey() });

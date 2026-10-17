@@ -176,9 +176,12 @@ function createUi() {
 
     const head = el('div', 'story-block-sidebar-head');
     const meta = el('span', 'story-block-sidebar-meta');
+    // Story Suite's overlay, while two or more of the suite are installed (index.js decides).
+    const suite = button('story-block-sidebar-button story-block-sidebar-suite', { title: 'Story Suite', icon: 'fa-gear' });
+    suite.style.display = 'none';
     const pin = button('story-block-sidebar-button story-block-sidebar-pin', { title: 'Unpin sidebar', icon: 'fa-thumbtack' });
     const close = button('story-block-sidebar-button story-block-sidebar-close', { title: 'Close', icon: 'fa-xmark' });
-    head.append(el('span', 'story-block-sidebar-title', 'Story Block'), meta, el('span', 'story-block-sidebar-spacer'), pin, close);
+    head.append(el('span', 'story-block-sidebar-title', 'Story Block'), meta, el('span', 'story-block-sidebar-spacer'), suite, pin, close);
 
     const tablist = el('div', 'story-block-sidebar-tabs');
     tablist.setAttribute('role', 'tablist');
@@ -202,13 +205,14 @@ function createUi() {
     d.body.appendChild(layer);
 
     const state = {
-        layer, aside, scrim, handle, grip, head, meta, pin, close, tablist, panel, count,
+        layer, aside, scrim, handle, grip, head, meta, suite, pin, close, tablist, panel, count,
         uiKey: null,
         mode: null,
         dockable: false,
         open: false,
         pinned: true,
         onPinnedChange: null,
+        onSuite: null,
         sheetFull: false,
         gesture: null,
         suppressGripClick: false,
@@ -222,6 +226,10 @@ function createUi() {
     scrim.addEventListener('click', stop(() => closeSidebar()));
     close.addEventListener('click', stop(() => closeSidebar()));
     pin.addEventListener('click', stop(() => setPinned(state.mode !== 'docked')));
+    // The button is handed over so focus can come back to it when the overlay closes.
+    suite.addEventListener('click', stop(() => {
+        try { state.onSuite?.(suite); } catch (error) { console.error('[Story Block] onSuite failed', error); }
+    }));
     handle.addEventListener('click', stop(() => openSidebar()));
     grip.addEventListener('click', stop(() => {
         // A drag ends in a click too; only a tap (or Enter/Space) toggles the height.
@@ -698,7 +706,7 @@ function onGripCancel() {
  * Mount (or update) the one sidebar. Returns the aside, or null when `tabs` is empty
  * (the sidebar and its edge handle are then removed).
  */
-export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true, onPinnedChange } = {}) {
+export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true, onPinnedChange, onSuite, showSuite = false } = {}) {
     const list = normalizeTabs(tabs);
     // No tabs, or no document body to hang a panel on (headless hosts and test doubles).
     if (!list.length || typeof doc()?.body?.appendChild !== 'function') {
@@ -717,6 +725,8 @@ export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true
     }
     ui.onPinnedChange = typeof onPinnedChange === 'function' ? onPinnedChange : null;
     ui.pinned = Boolean(pinned);
+    ui.onSuite = typeof onSuite === 'function' ? onSuite : null;
+    ui.suite.style.display = ui.onSuite && showSuite ? '' : 'none';
 
     const metaText = String(meta ?? '').trim();
     setText(ui.meta, metaText);

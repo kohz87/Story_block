@@ -1034,7 +1034,8 @@
 .story-block-sidebar,
 .story-block-scrim,
 .story-block-handle,
-.story-block-strip {
+.story-block-strip,
+.story-suite-overlay {
     --sb-accent: var(--SmartThemeQuoteColor, #e18a24);
     --sb-border: var(--SmartThemeBorderColor, rgba(127, 127, 127, .28));
     --sb-row-bg: rgba(127, 127, 127, .07);
@@ -3575,4 +3576,319 @@ button.story-block-strip:hover {
 
 .story-block-settings .story-block-runtime-version {
     opacity: 0.55;
+}
+
+/* "Manage all in Story Suite" (index.js): one line above the settings folds. */
+.story-block-manage-suite {
+    margin: 0 0 0.5rem;
+}
+
+.story-block-manage-suite .menu_button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    width: auto;
+    margin: 0;
+}
+
+/*
+ * Story Suite overlay (src/ui/suite-overlay.js): one dialog over SillyTavern and above the
+ * sidebar's modal layer (9001). SillyTavern's popups are <dialog>s in the top layer, so they
+ * still open above it. Phones get the whole screen.
+ */
+.story-suite-overlay {
+    /* Top-left and viewport units, like the sidebar's layer: SillyTavern's <html> is the
+       containing block of fixed elements and has no height (tests/ui-positioning.test.js). */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 9050;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3vh 16px;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.story-suite-overlay *,
+.story-suite-overlay *::before,
+.story-suite-overlay *::after {
+    box-sizing: border-box;
+}
+
+.story-suite-dialog {
+    display: flex;
+    flex-direction: column;
+    width: min(920px, 100%);
+    height: min(860px, 94vh);
+    height: min(860px, 94dvh);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--sb-border);
+    border-radius: 14px;
+    background: var(--sb-surface);
+    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    box-shadow: 0 0 40px var(--SmartThemeShadowColor, rgba(0, 0, 0, 0.5));
+    color: var(--SmartThemeBodyColor, inherit);
+    text-align: left;
+}
+
+.story-suite-dialog:focus {
+    outline: none;
+}
+
+.story-suite-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.55rem 0.45rem 0.45rem 1rem;
+}
+
+.story-suite-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.story-suite-close {
+    appearance: none;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+.story-suite-close:hover {
+    opacity: 1;
+    background: var(--sb-hover-bg);
+}
+
+/* Tabs wrap into rows, so every one stays in reach; past three rows the row scrolls down. */
+.story-suite-tabs {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    max-height: calc(2.5rem * 3 + 6px * 2 + 0.6rem);
+    padding: 0 0.75rem 0.6rem;
+    border-bottom: 1px solid var(--sb-border);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+.story-suite-tab {
+    appearance: none;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.5rem;
+    margin: 0;
+    padding: 0 0.95rem;
+    border: 1px solid var(--sb-border);
+    border-radius: 999px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+.story-suite-tab:hover {
+    opacity: 1;
+    background: var(--sb-hover-bg);
+}
+
+.story-suite-tab.active {
+    opacity: 1;
+    border-color: var(--sb-accent);
+    background: color-mix(in srgb, var(--sb-accent) 16%, transparent);
+}
+
+.story-suite-tab:focus-visible,
+.story-suite-close:focus-visible {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: -2px;
+}
+
+.story-suite-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.9rem 1rem calc(1.2rem + env(safe-area-inset-bottom, 0px));
+}
+
+.story-suite-section + .story-suite-section {
+    margin-top: 1.25rem;
+}
+
+.story-suite-section-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.story-suite-providers {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.story-suite-provider {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    min-height: 2.6rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9px;
+    background: var(--sb-row-bg);
+}
+
+.story-suite-provider-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.story-suite-provider-version {
+    font-size: 0.85em;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.6;
+}
+
+.story-suite-provider-state {
+    min-width: 2em;
+    font-size: 0.85em;
+    text-align: right;
+    opacity: 0.75;
+}
+
+.story-suite-provider.is-off .story-suite-provider-name {
+    opacity: 0.6;
+}
+
+.story-suite-switch {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0;
+    accent-color: var(--sb-accent);
+    cursor: pointer;
+}
+
+.story-suite-intro,
+.story-suite-lead {
+    display: block;
+    font-size: 0.85em;
+    opacity: 0.65;
+}
+
+.story-suite-intro {
+    margin-bottom: 0.6rem;
+}
+
+/* Source of truth: the area, its select, and who leads now under the select. */
+.story-suite-area {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 1.2fr);
+    align-items: center;
+    gap: 0.25rem 0.8rem;
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--sb-border);
+}
+
+.story-suite-area-name {
+    margin: 0;
+    font-weight: 600;
+}
+
+.story-suite-source {
+    width: 100%;
+    margin: 0;
+}
+
+.story-suite-lead {
+    grid-column: 2;
+}
+
+.story-suite-empty {
+    margin: 0;
+    opacity: 0.7;
+}
+
+/* An extension's panel in its tab: its SillyTavern drawer held open without its toggle (the
+   tab names it), and no "Manage all in Story Suite" link inside Story Suite itself. */
+.story-suite-overlay .story-suite-drawer > .inline-drawer-content {
+    display: block !important;
+}
+
+.story-suite-overlay .story-suite-drawer > .inline-drawer-header {
+    display: none !important;
+}
+
+.story-suite-overlay [data-story-suite-link] {
+    display: none !important;
+}
+
+@media (max-width: 640px) {
+    .story-suite-overlay {
+        padding: 0;
+    }
+
+    .story-suite-dialog {
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        border-width: 0;
+        border-radius: 0;
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    .story-suite-area {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .story-suite-lead {
+        grid-column: auto;
+    }
 }

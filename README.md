@@ -1,4 +1,4 @@
-# Story Block v0.8.1
+# Story Block v0.9.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -268,6 +268,22 @@ only while the block for it is on:
   keep rolls with Story Block (below).
 - **Settings → Source of truth:** for each area, **Automatic** (the table), **This extension**
   or **The other one**, with who has it now. Alone, every choice works like Automatic.
+
+### Story Suite: one place to manage them all
+
+With two or more of the four installed, **Story Suite** opens one overlay for all of them: from
+the Extensions menu, the gear in the sidebar's header, or *Manage all in Story Suite* at the top
+of Story Block's settings. Alone, none of these appear.
+
+- **Overview:** each installed extension with its version, on or off, and its on/off switch
+  where it has one (Story Block is always on). Below, **one Source of truth table**: a row per
+  area that more than one of them can keep, with *Automatic* or one owner. Picking an owner sets
+  every extension's own choice to match (that one *This extension*, the others *The other one*);
+  *Automatic* sets them all back. If the choices were set by hand in a way one owner cannot say,
+  the row reads *Mixed — set in each extension*. Under each row: who leads now.
+- **A tab per extension** with its own settings panel, moved into the overlay while its tab is
+  open and put back in the Extensions drawer when you switch tabs or close it (Esc, the close
+  button, or a click outside), so every control works as before.
 
 The handshake, its areas and what each extension does are in
 [docs/STORY_SUITE.md](docs/STORY_SUITE.md).
