@@ -1872,6 +1872,22 @@ button.story-block-strip:hover {
     flex-direction: column;
 }
 
+/* Hidden off-screen: the count and the Reveal button sit in the heading. */
+.story-block-scene-off-count {
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.story-block-scene-section.is-offscreen .story-block-scene-sub button.story-block-scene-reveal {
+    margin-left: auto;
+    min-height: 1.6rem;
+    padding: 0.1rem 0.45rem;
+    font-size: 1.1em;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
 /* One entry per block: the name on its own line, its facts under it, a hairline between. */
 .story-block-scene-off-item {
     padding: 0.45rem 0;

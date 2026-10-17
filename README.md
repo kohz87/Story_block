@@ -1,4 +1,4 @@
-# Story Block v0.6.0
+# Story Block v0.6.1
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -71,8 +71,8 @@ model writes back — pick the few blocks a story actually needs.
 
 **World State** keeps the scene in Megumin Suite's World State layout, so NPC State Delta and
 Megumin's readers understand it and existing Megumin chats carry over. The scene board shows
-time, place and weather, a card per person (secrets hidden until revealed), threads and
-timers. Lines that pack several facts with pipes (`now Court | then: argues | on: noon`,
+time, place and weather, a card per person (secrets hidden until revealed), what happens off-screen (hidden until
+revealed, by default), threads and timers. Lines that pack several facts with pipes (`now Court | then: argues | on: noon`,
 `visible: … | hidden: …`) are shown as short labelled rows. Write dates as `Year, Month Day` (for example `1042, Harvestmoon 14`) and NPC State
 Delta's calendar picks them up.
 
@@ -140,7 +140,7 @@ the block is drawn as plain text instead, so nothing the model wrote is ever hid
 | `* *Field:* value` under a person | A labelled row. Outfit, Position, Agenda, Visible Condition and Carrying come first; any other field you invent follows as written |
 | `Mood:` | A mood pill next to the name |
 | `Secret:` | Hidden behind a *Reveal secret* button |
-| `Off-Screen` / `Elsewhere` heading, then `* **Name:** what` | One entry per person or event |
+| `Off-Screen` / `Elsewhere` heading, then `* **Name:** what` | One entry per person or event; hidden behind *Reveal* (with a count) unless *Hide off-screen until revealed* is off |
 | `Unresolved Threads`, `Planted Seeds`, `Consequence Timers` | Lists (short items as pills, long ones as rows) |
 | `Arc Phase` / `Scene Phase` set to Setup–Resolution / Early Simmer–Breather | A progress rail (other values are shown as written) |
 | `a \| label: b \| label: c` anywhere | One short row per part; a `label:` of up to three words becomes the small label |
@@ -200,6 +200,12 @@ A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden o
 
 **"This turn" strip** (off by default) adds one line under the latest reply listing what it
 changed; tap it to open the sidebar on that block.
+
+**Hide off-screen until revealed** (on by default) keeps the scene board's Off-Screen section
+behind the scenes: it shows how many entries there are and a **Reveal** button, and the
+entries are not put on the page until you press it (it stays open for that chat until you
+hide it or reload). Only the board is affected: the block text is unchanged, so NPC State
+Delta and Story Director's mirror still read and write it.
 
 ## Editing and recovery
 

@@ -26,7 +26,7 @@ import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.j
 import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from './src/plugin.js';
 
-const VERSION = '0.6.0';
+const VERSION = '0.6.1';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -81,7 +81,7 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', showTurnStrip: false, sidebarPinned: true };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
@@ -92,6 +92,8 @@ function settings(ctx = context()) {
     own.display = own.display === 'card' ? 'card' : 'sidebar';
     own.showTurnStrip = own.showTurnStrip === true;
     own.sidebarPinned = own.sidebarPinned !== false;
+    // Off-screen on the scene board is behind the scenes, so it starts hidden.
+    own.hideOffscreen = own.hideOffscreen !== false;
     return own;
 }
 
@@ -493,6 +495,7 @@ function shortName(def) {
 function blockTab(view, uiKey) {
     const { def } = view;
     const display = DISPLAYS[def.display] ?? renderPlain;
+    const hideOffscreen = settings().hideOffscreen;
     let animate = false;
     if (def.display === 'dice' && view.state) {
         const message = context()?.chat?.[view.messageIndex];
@@ -506,7 +509,8 @@ function blockTab(view, uiKey) {
         short: shortName(def),
         icon: def.icon,
         badge: turnCount(view),
-        key: viewKey(view),
+        // The off-screen switch changes how a scene board draws, so a flip must redraw it.
+        key: `${viewKey(view)}|${hideOffscreen ? 1 : 0}`,
         render: pane => display(pane, {
             def,
             state: view.state,
@@ -519,6 +523,7 @@ function blockTab(view, uiKey) {
             animate,
             onEdit: () => void editBlock(def),
             uiKey: `${uiKey}:${def.id}`,
+            hideOffscreen,
         }),
     };
 }
@@ -662,6 +667,9 @@ function addRuntimeControls(documentRef, root) {
         <label class="checkbox_label" for="story_block_strip" title="One line under the latest reply listing what it changed; tapping it opens the sidebar.">
             <input id="story_block_strip" type="checkbox"> <span>"This turn" strip under the reply</span>
         </label>
+        <label class="checkbox_label" for="story_block_offscreen" title="The scene board shows only how many off-screen entries there are until you reveal them. The block itself is unchanged, so NPC State Delta still reads it.">
+            <input id="story_block_offscreen" type="checkbox"> <span>Hide off-screen until revealed</span>
+        </label>
         <label class="checkbox_label" for="story_block_compat" title="Lets extensions that add a tab to Megumin Suite's card (NPC State Delta) add it to Story Block's card. Turn off if Megumin Suite itself is installed.">
             <input id="story_block_compat" type="checkbox"> <span>Megumin-compatible card <small>(card only)</small></span>
         </label>
@@ -673,6 +681,7 @@ function addRuntimeControls(documentRef, root) {
     const display = row.querySelector('#story_block_display');
     const strip = row.querySelector('#story_block_strip');
     const compat = row.querySelector('#story_block_compat');
+    const offscreen = row.querySelector('#story_block_offscreen');
     // The strip only exists next to the sidebar; the compatible markup only on the card.
     const syncEnabled = () => {
         const card = settings().display === 'card';
@@ -691,6 +700,7 @@ function addRuntimeControls(documentRef, root) {
     };
     bind(display, input => { input.value = settings().display; }, input => { settings().display = input.value === 'card' ? 'card' : 'sidebar'; });
     bind(strip, input => { input.checked = settings().showTurnStrip; }, input => { settings().showTurnStrip = Boolean(input.checked); });
+    bind(offscreen, input => { input.checked = settings().hideOffscreen; }, input => { settings().hideOffscreen = Boolean(input.checked); });
     bind(compat, input => { input.checked = settings().compatMarkup; }, input => { settings().compatMarkup = Boolean(input.checked); });
     syncEnabled();
     content.prepend(row);

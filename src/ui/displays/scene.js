@@ -8,7 +8,9 @@
 //
 // Secrets are something the reader's character does not know. They stay behind a
 // "Reveal secret" button, are not in the DOM until revealed, and never show in the
-// change marks.
+// change marks. Off-screen is the same kind of thing, the world behind the scenes, so
+// by default it shows only how many entries there are until revealed. The block text
+// is untouched either way: other extensions (NPC State Delta) still read all of it.
 
 import { button, changeDot, el, emptyText, renderChanges, renderEmpty, renderFrame, stop } from '../dom.js';
 import { render as renderPlain } from './plain.js';
@@ -82,6 +84,9 @@ function chipText(value) {
 // again. Survives re-renders (a refresh lands on every chat event) but not reloads.
 const revealed = new Map();
 let nextId = 0;
+// The off-screen reveal, in the same memory as the secrets. It is not keyed by the text:
+// agendas move every reply, and a fold that closed on each one would be no use.
+const OFFSCREEN_KEY = '\u0000offscreen';
 
 const changeKey = label => String(label ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 const isSecretChange = change => /·\s*secrets?\s*$/i.test(String(change?.label ?? '')) || /^secrets?$/i.test(String(change?.label ?? '').trim());
@@ -217,11 +222,7 @@ function renderPerson(entry, { isPc, changeFor, memory }) {
     return card;
 }
 
-function renderOffscreen(entries) {
-    const section = el('section', 'story-block-scene-section is-offscreen');
-    const head = el('div', 'story-block-scene-sub');
-    head.append(icon('fa-satellite-dish'), el('span', '', 'Off-screen'));
-    section.appendChild(head);
+function renderOffscreenList(entries) {
     const list = el('ul', 'story-block-scene-off');
     for (const entry of entries) {
         const item = el('li', 'story-block-scene-off-item');
@@ -232,7 +233,42 @@ function renderOffscreen(entries) {
         else if (entry.text) item.appendChild(el('div', 'story-block-scene-off-text', entry.text));
         list.appendChild(item);
     }
-    section.appendChild(list);
+    return list;
+}
+
+function renderOffscreen(entries, { hidden = false, memory = null } = {}) {
+    const section = el('section', 'story-block-scene-section is-offscreen');
+    const head = el('div', 'story-block-scene-sub');
+    head.append(icon('fa-satellite-dish'), el('span', '', 'Off-screen'));
+    section.appendChild(head);
+    if (!hidden || !memory) {
+        section.appendChild(renderOffscreenList(entries));
+        return section;
+    }
+
+    const id = `story-block-scene-off-${++nextId}`;
+    const count = el('span', 'story-block-scene-off-count');
+    const toggle = button('story-block-scene-reveal');
+    toggle.setAttribute('aria-controls', id);
+    const holder = el('div', 'story-block-scene-off-body');
+    holder.id = id;
+    const draw = open => {
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.replaceChildren(icon(open ? 'fa-eye-slash' : 'fa-eye'), el('span', '', open ? 'Hide' : 'Reveal'));
+        section.classList.toggle('is-locked', !open);
+        count.textContent = open ? '' : `${entries.length} behind the scenes`;
+        // As with secrets: hidden entries are not in the page at all.
+        holder.replaceChildren(...(open ? [renderOffscreenList(entries)] : []));
+    };
+    toggle.addEventListener('click', stop(() => {
+        const open = !memory.has(OFFSCREEN_KEY);
+        if (open) memory.add(OFFSCREEN_KEY);
+        else memory.delete(OFFSCREEN_KEY);
+        draw(open);
+    }));
+    head.append(count, toggle);
+    section.appendChild(holder);
+    draw(memory.has(OFFSCREEN_KEY));
     return section;
 }
 
@@ -332,6 +368,7 @@ export function render(pane, {
     truncated = false,
     onEdit = null,
     uiKey = null,
+    hideOffscreen = false,
 } = {}) {
     const text = typeof state?.text === 'string' ? state.text.replace(/\r\n?/g, '\n').trim() : '';
     const scene = text ? parseScene(text, { layout: def?.layout }) : null;
@@ -390,7 +427,7 @@ export function render(pane, {
         body.appendChild(people);
     }
 
-    if (scene.offscreen.length) body.appendChild(renderOffscreen(scene.offscreen));
+    if (scene.offscreen.length) body.appendChild(renderOffscreen(scene.offscreen, { hidden: hideOffscreen, memory }));
     const lists = renderLists(scene, changeFor);
     if (lists) body.appendChild(lists);
 

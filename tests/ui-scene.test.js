@@ -138,6 +138,39 @@ test('a revealed secret stays revealed across a re-render, a new secret starts h
     assert.equal(pane.querySelector('.story-block-scene-secret-text').textContent, '');
 });
 
+test('hidden off-screen: a count and Reveal, no entries in the page until revealed; remembered', () => {
+    const pane = doc.createElement('div');
+    doc.body.appendChild(pane);
+    scene.render(pane, { def, uiKey: 'offscreen-memory', state: { text: FULL }, hideOffscreen: true });
+    const section = pane.querySelector('.story-block-scene-section.is-offscreen');
+    assert.ok(section.classList.contains('is-locked'));
+    assert.equal(section.querySelector('.story-block-scene-off-count').textContent, '2 behind the scenes');
+    assert.equal(section.querySelectorAll('.story-block-scene-off-item').length, 0);
+    assert.doesNotMatch(pane.textContent, /Captain Ivo|toll gate|Sera/);
+    // The secret's button comes first; the off-screen one sits in its heading.
+    const toggle = section.querySelector('.story-block-scene-reveal');
+    assert.equal(toggle.textContent, 'Reveal');
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(toggle.getAttribute('aria-controls'), section.querySelector('.story-block-scene-off-body').id);
+
+    let reached = 0;
+    pane.addEventListener('click', () => { reached += 1; });
+    toggle.click();
+    assert.equal(reached, 0, 'the click does not reach the message');
+    assert.equal(toggle.textContent, 'Hide');
+    assert.ok(!section.classList.contains('is-locked'));
+    assert.deepEqual(texts(section, '.story-block-scene-off-name'), ['Captain Ivo', 'Sera']);
+    assert.equal(section.querySelector('.story-block-scene-off-count').textContent, '');
+
+    // Stays revealed across a re-render, even when the entries move on.
+    scene.render(pane, { def, uiKey: 'offscreen-memory', state: { text: FULL.replace('at the toll gate', 'at the bridge') }, hideOffscreen: true });
+    assert.match(pane.querySelector('.story-block-scene-section.is-offscreen').textContent, /at the bridge/);
+    pane.querySelector('.story-block-scene-section.is-offscreen .story-block-scene-reveal').click();
+    assert.doesNotMatch(pane.textContent, /Captain Ivo/);
+    // The secret is still its own, hidden.
+    assert.doesNotMatch(pane.textContent, /guild seal/);
+});
+
 test('off-screen, threads, seeds and timers, arc and scene phase rails', () => {
     const pane = show({ state: { text: FULL } });
     assert.deepEqual(texts(pane, '.story-block-scene-off-name'), ['Captain Ivo', 'Sera']);
