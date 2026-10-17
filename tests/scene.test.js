@@ -331,3 +331,16 @@ test('a time with a colon in it stays one value', () => {
     assert.equal(scene.time, '8:30 PM');
     assert.equal(scene.location, 'Docks');
 });
+
+test('sceneHeaderFields and setSceneHeaderField: the header cells a hand editor offers', async () => {
+    const { sceneHeaderFields, setSceneHeaderField } = await import('../src/scene.js');
+    const text = '**📅 Time:** CY 611, Haywane 12, 05:35 pm | **🌤 Loc:** Auvoth | Seventh Seal Terrace | [59.0, 110.0] | **🌡 Wx:** Freezing rain\n---\n**🧍 Ren:**\n* *Outfit:* Drake armor';
+    assert.deepEqual(sceneHeaderFields(text), { time: 'CY 611, Haywane 12, 05:35 pm', location: 'Auvoth | Seventh Seal Terrace | [59.0, 110.0]', weather: 'Freezing rain' });
+    const moved = setSceneHeaderField(text, 'location', 'Shorn | North Gate | [50, 95]');
+    assert.equal(moved.split('\n')[0], '**📅 Time:** CY 611, Haywane 12, 05:35 pm | **🌤 Loc:** Shorn | North Gate | [50, 95] | **🌡 Wx:** Freezing rain');
+    assert.equal(moved.split('\n').slice(1).join('\n'), text.split('\n').slice(1).join('\n'), 'the rest untouched');
+    assert.match(setSceneHeaderField(text, 'weather', 'Clear\nand cold'), /\*\*🌡 Wx:\*\* Clear and cold\n/);
+    assert.equal(setSceneHeaderField('Time: dusk | Loc: Heron Ford', 'time', 'dawn'), 'Time: dawn | Loc: Heron Ford');
+    assert.equal(setSceneHeaderField(text, 'mood', 'x'), text, 'an unknown cell changes nothing');
+    assert.deepEqual(sceneHeaderFields('Just prose.'), {});
+});

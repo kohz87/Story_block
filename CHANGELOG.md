@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3
+
+Tidier editors.
+
+- **Block editor in sections.** Name, tag, icon and tab label on top (with Enabled and Show a tab), then folding sections: *What the model writes* (instructions, format, layout / fields / rows; open), *How it is shown* (display) and *When and how often* (kind with a one-line explanation, timing, optional, repeating, dice). Shorter hints, a wrapped layout box, and Save / Cancel that stay in reach at the bottom.
+- **Editing a block's content.** Lines wrap instead of running off the side; the format rules (the model's instruction) are folded under *How this block is written* instead of filling the top. World State blocks get **Time**, **Location** and **Weather** fields that write straight into the header line.
+
 ## 0.6.2
 
 - **New block from an example.** *Add block → From an example…*: paste the block the way the model should write it (`<Skill_Mastery> … </Skill_Mastery>`) and the form fills itself in: tag and name from the tag, the lines inside as the layout, and a bracketed paragraph of rules as the instructions. It opens as a Stateful, Free text, Plain block for you to adjust and save.
