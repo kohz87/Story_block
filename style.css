@@ -218,6 +218,12 @@
     overflow-wrap: anywhere;
 }
 
+.story-block-kept {
+    opacity: 0.65;
+    font-size: 0.8em;
+    font-style: italic;
+}
+
 .story-block-summary,
 .story-block-tree-count,
 .story-block-tree-location-count {

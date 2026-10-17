@@ -58,8 +58,8 @@ export function blockName(def) {
 
 /**
  * Clear `pane` and lay down what every display shares: a header (name, summary,
- * Edit), then the error / cut-off notices. Returns the header's actions element so
- * a display can add its own buttons.
+ * "kept by" for a block another extension keeps, Edit), then the error / cut-off
+ * notices. Returns the header's actions element so a display can add its own buttons.
  */
 export function renderFrame(pane, { def, error, truncated, onEdit, display, summary = '' } = {}) {
     pane.replaceChildren();
@@ -70,6 +70,12 @@ export function renderFrame(pane, { def, error, truncated, onEdit, display, summ
     const titles = el('div', 'story-block-head-titles');
     titles.appendChild(el('span', 'story-block-title', name));
     if (summary) titles.appendChild(el('span', 'story-block-summary', summary));
+    // A block another extension keeps has no Edit button; this says why, and whose it is.
+    if (def?.kept && def.owner) {
+        const kept = el('span', 'story-block-kept', `kept by ${def.owner}`);
+        kept.title = `Kept by ${def.owner}: only ${def.owner} changes it`;
+        titles.appendChild(kept);
+    }
     head.appendChild(titles);
     const actions = el('div', 'story-block-actions');
     if (typeof onEdit === 'function') {

@@ -8,7 +8,8 @@
 import { normalizeBlock, normalizeBlocks } from './src/schema.js';
 import { TEMPLATES, defaultBlocks } from './src/templates.js';
 import { formatFor } from './src/formats/index.js';
-import { bareBlockTexts, mergeRepeats, normalizeTransport, rejoinContinuation, stateForGeneration, upsertBlock } from './src/envelope.js';
+import { bareBlockTexts, dropForeignCopies, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
+import { escapeBody } from './src/formats/escape.js';
 import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
 import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, tabView, viewKey } from './src/view.js';
 import { turnCount, turnItems } from './src/turn.js';
@@ -26,7 +27,7 @@ import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.j
 import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from './src/plugin.js';
 
-const VERSION = '0.6.3';
+const VERSION = '0.7.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -105,7 +106,8 @@ function enabledBlocks(ctx = context()) {
     return blocks(ctx).filter(block => block.enabled);
 }
 
-// Blocks other extensions registered (transport only: hidden and kept, never prompted).
+// Blocks other extensions registered: transport only (hidden and kept, never prompted), or
+// kept by the extension (shown to the model read-only, a tab without Edit).
 const pluginBlocks = new Map();
 const replyListeners = createListeners('reply listener');
 const updateListeners = createListeners('update listener');
@@ -113,6 +115,23 @@ const updateListeners = createListeners('update listener');
 // Every tag Story Block moves into the envelope and keeps out of narration and history.
 function transportBlocks(ctx = context()) {
     return [...blocks(ctx), ...pluginBlocks.values()];
+}
+
+function keptBlocks() {
+    return [...pluginBlocks.values()].filter(def => def.kept);
+}
+
+/**
+ * Kept blocks as the next reply's prompt shows them: the newest copy the extension wrote,
+ * before the reply a swipe or regenerate replaces (the same baseline as stateful blocks).
+ */
+function keptEntries(chat, type) {
+    const list = Array.isArray(chat) ? chat : [];
+    const beforeIndex = replacesLastReply(list, type) ? list.length - 1 : null;
+    return keptBlocks().map(def => {
+        const found = latestBlockState(list, def, { beforeIndex });
+        return found ? { def, state: found.state, body: found.body } : null;
+    }).filter(Boolean);
 }
 
 function saveSettings(ctx = context()) {
@@ -214,11 +233,11 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const chat = ctx.chat ?? [];
     // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
     // placeholder and the real context carry the same numbers.
-    const entries = activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
+    const entries = [...keptEntries(chat, type), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
         def,
         state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
         rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
-    }));
+    }))];
     const session = {
         chatId,
         type: normalizeType(type),
@@ -349,8 +368,9 @@ async function normalizeMessageTransport(messageId, { rerender = true, save = tr
     const rejoined = rejoinContinuation(message.mes);
     const defs = transportBlocks(ctx);
     const normalized = normalizeTransport(rejoined, defs);
-    // Several tags of a repeating block become one, after they are inside the envelope.
-    const folded = defs.reduce((text, def) => mergeRepeats(text, def), normalized.text);
+    // Several tags of a repeating block become one, after they are inside the envelope. A
+    // kept block the model (or a raw edit) wrote is dropped: only its extension writes it.
+    const folded = dropForeignCopies(defs.reduce((text, def) => mergeRepeats(text, def), normalized.text), defs);
     if (folded === message.mes) return false;
     normalized.text = folded;
 
@@ -403,7 +423,9 @@ async function onMessageReceived(messageId) {
     if (session?.entries.length) {
         const problems = session.entries
             .map(({ def }) => ({ def, ...blockStatusInText(message.mes, def) }))
-            // An optional block may simply not have been needed this reply.
+            // An optional block may simply not have been needed this reply; a kept block is
+            // never the model's to write.
+            .filter(item => !item.def.kept)
             .filter(item => item.status !== 'valid' && !(item.def.optional && item.status === 'missing'));
         if (problems.length) {
             const kept = problems.some(item => item.def.kind === 'stateful') ? ' The last valid state of each stateful block stays current.' : '';
@@ -444,7 +466,11 @@ async function saveBlockBody(def, body, expectedChatId) {
     refreshAll(0);
 }
 
-/** Plugin API: replace a block's text in one assistant message (hidden; nothing re-renders). */
+/**
+ * Plugin API: replace a block's text in one assistant message (hidden; nothing re-renders).
+ * A kept block's text is plain text, stored as written (escaped for the envelope) once its
+ * own format reads it: a copy nothing can read would be silently ignored, so it is refused.
+ */
 async function setBlockText(messageIndex, tagOrId, text) {
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) throw new Error('No chat is open.');
@@ -454,7 +480,13 @@ async function setBlockText(messageIndex, tagOrId, text) {
     const id = Number(messageIndex);
     const message = ctx.chat?.[id];
     if (!isAssistant(message)) throw new Error(`Message #${messageIndex} is not an assistant reply.`);
-    const next = upsertBlock(message.mes, def, String(text ?? ''));
+    let body = String(text ?? '');
+    if (def.kept) {
+        body = escapeBody(body.replace(/\r\n?/g, '\n').trim(), def.tag);
+        const parsed = formatFor(def).parse(body, def);
+        if (!parsed.ok) throw new Error(`${def.name} could not be read: ${parsed.error}`);
+    }
+    const next = upsertBlock(message.mes, def, body);
     if (next === message.mes) return false;
     message.mes = next;
     await persistMessageEdit(ctx, id, message, { rerender: false });
@@ -521,7 +553,8 @@ function blockTab(view, uiKey) {
             truncated: view.truncated,
             rolls: view.rolls ?? null,
             animate,
-            onEdit: () => void editBlock(def),
+            // Only its extension writes a kept block; the frame says whose it is instead.
+            onEdit: def.kept ? null : () => void editBlock(def),
             uiKey: `${uiKey}:${def.id}`,
             hideOffscreen,
         }),
@@ -541,7 +574,7 @@ function buildCardTabs() {
     const uiKey = String(chatIdOf(ctx) ?? 'default');
     const tabs = [];
     const views = [];
-    for (const def of enabledBlocks(ctx)) {
+    for (const def of [...enabledBlocks(ctx), ...keptBlocks()]) {
         if (!def.visible) continue;
         const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
         if (!view) continue;
@@ -828,14 +861,24 @@ globalThis.StoryBlock = Object.freeze({
         return blockInText(text, findBlockDef(transportBlocks(), tagOrId));
     },
     setBlockText,
-    /** A transport-only block for a plugin: { ok, error }. */
+    /**
+     * A plugin's block: transport only, or with `kept: true` read by the model every reply and
+     * written only by the plugin (setBlockText), with a tab of its own. { ok, error }.
+     */
     registerBlock(spec) {
         const result = pluginBlockDef(spec, transportBlocks());
         if (result.error) return { ok: false, error: result.error };
+        const replaced = pluginBlocks.get(result.def.id);
         pluginBlocks.set(result.def.id, result.def);
+        if (result.def.kept || replaced?.kept) refreshAll(0);
         return { ok: true };
     },
-    unregisterBlock: id => pluginBlocks.delete(String(id ?? '')),
+    unregisterBlock(id) {
+        const def = pluginBlocks.get(String(id ?? ''));
+        const removed = pluginBlocks.delete(String(id ?? ''));
+        if (def?.kept) refreshAll(0);
+        return removed;
+    },
     /** After each reply is received and normalized: callback({ chatId, messageIndex }). Returns unsubscribe. */
     onReply: callback => replyListeners.add(callback),
     /** Whenever Story Block refreshes (reply, swipe, edit, delete, chat change). Returns unsubscribe. */

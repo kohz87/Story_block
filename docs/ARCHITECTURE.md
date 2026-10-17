@@ -255,18 +255,51 @@ delete, chat change and render events. Exposes the tab API (section 6) as
 
 | Member | Does |
 |---|---|
-| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional }]` |
+| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional }]`; kept blocks report `kind: 'kept'` and `owner` |
 | `getBlock(tagOrId, { beforeIndex })` | Newest valid copy: `{ id, tag, text, state, messageIndex }` or null |
 | `blockForGeneration(tagOrId, type)` | The copy a generation of `type` will be shown (a swipe/regenerate sees the one before the reply it replaces) |
 | `blockInText(text, tagOrId)` | The block as written in one message's text (repeats merged), or null |
-| `setBlockText(messageIndex, tagOrId, text)` | Replace a block in an assistant message (inside the envelope); resolves to true when it changed |
-| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab. `{ ok, error }` |
+| `setBlockText(messageIndex, tagOrId, text)` | Replace a block in an assistant message (inside the envelope); resolves to true when it changed. For a kept block, `text` is plain text, refused (throws) when the block's format cannot read it, and stamped as the extension's copy |
+| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab. `{ ok, error }`. Registering a plugin's own id again replaces it |
+| `registerBlock({ kept: true, id, tag, owner, name?, icon?, short?, format?, display?, fields?, promptNote?, diceModifier? })` | A kept block (v0.7), see below |
 | `unregisterBlock(id)` | |
 | `onReply(cb)` | After each reply is received and normalized: `cb({ chatId, messageIndex })`; returns unsubscribe |
 | `onUpdate(cb)` | On every refresh (reply, swipe, edit, delete, chat change); returns unsubscribe |
 | `registerTab(tab)` | A sidebar/card tab: `{ id, label, icon, order, render(pane, ctx), isAvailable?(ctx), key?(ctx), badge?(ctx) }`. `key` keeps an unchanged pane; `badge` is the count on the tab |
 
 A throwing listener is logged and skipped.
+
+#### Kept blocks (v0.7)
+
+A block another extension keeps and the model only reads (RPG Battle's Character and Party
+sheets). `pluginBlockDef` (`src/plugin.js`) builds it with `normalizeBlock` and checks it with
+`validateBlock`, plus: `owner` required; `format` `'fields' | 'text'` (default `fields` when
+`fields` are given); `display` `'fields' | 'plain'` (default by format; `fields` needs the
+fields format); every field has a label and a known type. The definition is
+`{ ...normalizeBlock(…), kind: 'stateful', visible: true, optional: true, prompt: '', plugin: true, kept: true, owner, promptNote, diceModifier }`.
+`stateful` underneath means view, snapshots and swipe baselines treat its newest valid copy
+as its state, as for any stateful block.
+
+- **Only stamped copies count.** `upsertBlock` writes a kept block's tag as
+  `<Character kept="RPG Battle">`. `ownCopy(entry, def)` (`src/envelope.js`) accepts only such
+  copies, and `latestBlockInText` and `view.blockStatusInText` use it, so a copy the model wrote
+  is never the current state. The model never sees the stamp: envelopes are stripped from the
+  prompt history and the current state is shown in plain tags.
+- **Dropped on receive.** `dropForeignCopies(text, defs)` removes unstamped kept copies (after
+  `normalizeTransport` has moved bare ones into the envelope), and any envelope that held nothing
+  else. It runs in `normalizeMessageTransport`, so on receive, edit, swipe, render and Rescan.
+- **Prompt.** The runtime adds `{ def, state, body }` for each kept block that has a copy
+  (before the reply a swipe/regenerate replaces) ahead of the active blocks. `buildContext`
+  shows these entries first, as `### Name — <Tag> (kept by Owner: read it, never write it)`, then the
+  `promptNote`, then `Current state:` with the stored body in plain tags. It adds the rule
+  'Blocks marked "read it, never write it" are kept by another extension…', and leaves them
+  out of the skeleton envelope and of the "kept: rewrite" rule. With only kept entries, no envelope is asked for.
+  Each kept entry's `diceModifier` is added as a line of the instructions of a block whose
+  `template` is `'dice'`. The stored prompt is never changed.
+- **Receive.** Kept blocks are never in the missing/invalid warning.
+- **Display.** A tab like the reader's blocks (`tabView`; none until written, since it is
+  optional). `onEdit` is omitted, and `renderFrame` shows `span.story-block-kept` ("kept by Owner")
+  for any `def.kept`. Kept blocks are not in `settings.blocks`, so the settings editor never lists them.
 
 ## 6. Card and displays (`src/ui/*`)
 

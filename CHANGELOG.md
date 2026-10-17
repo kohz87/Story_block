@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+Kept blocks: blocks another extension keeps and the model only reads.
+
+- **`registerBlock({ kept: true, owner, … })`.** An extension (RPG Battle's Character and Party sheets) registers a block with its own tag, name, icon, format (`fields` or `text`), display (`fields` or `plain`) and fields, plus an optional one-line `promptNote` and `diceModifier`. The spec is checked like a block in the editor, and an error says what is wrong. `listBlocks()` reports these blocks as `kind: 'kept'` with their `owner`.
+- **Read every reply, never written.** The newest copy the extension wrote is shown in each reply's prompt under `### Character — <Character> (kept by RPG Battle: read it, never write it)` with its note. It is left out of the envelope the model is asked to write, and a reply without it is not warned about.
+- **Only the extension writes it.** `setBlockText` stores the extension's plain text in the message's hidden envelope, marked as the extension's copy, after checking that the block's format reads it (`HP: 58/62 | MP: 21/30` lines round-trip). If the model writes the tag anyway, it is taken out of the reply when the reply arrives and never becomes the current state. Copies added by hand in a message edit are taken out too. `getBlock` and `blockForGeneration` return kept blocks.
+- **Dice modifier.** While the Dice block is prompted and a kept block with a `diceModifier` has been written, that text is added as one more line of the Dice instructions (for example, take the modifier from the sheet's Checks line). The stored Dice prompt is unchanged.
+- **A tab of its own:** meters and fields or plain text, with a small *kept by RPG Battle* note and no Edit button. It appears once the extension has written the block.
+- Registering a plugin block again under its own id now replaces it instead of failing.
+
 ## 0.6.3
 
 Tidier editors.

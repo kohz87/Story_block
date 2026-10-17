@@ -358,10 +358,26 @@ function cutText(raw) {
     return `<!-- ${CUT_MARKER}\n${escapeArrows(raw)}\n-->`;
 }
 
-function blockText(def, body, { close = true } = {}) {
+function blockText(def, body, { close = true, tag = `<${def.tag}>` } = {}) {
     const inner = escapeInner(String(body ?? '').trim(), def.tag);
-    const open = inner ? `<${def.tag}>\n${inner}` : `<${def.tag}>`;
+    const open = inner ? `${tag}\n${inner}` : tag;
     return close ? `${open}\n</${def.tag}>` : open;
+}
+
+// A block kept by another extension (RPG Battle's Character sheet) counts only in the copies
+// that extension wrote. upsertBlock stamps their opening tag (`<Character kept="RPG Battle">`);
+// the model is never shown the stamp (envelopes are stripped from the prompt and the current
+// state is shown in plain tags), so a copy it writes anyway is never taken for the extension's.
+const KEPT_STAMP = /[ \t]kept\s*=\s*"[^"]*"/i;
+
+function keptTag(def) {
+    const owner = String(def.owner ?? '').replace(/["<>\r\n]/g, '').trim() || 'extension';
+    return `<${def.tag} kept="${owner}">`;
+}
+
+/** True when `entry` (from extractBlocks) counts as a copy of its block: for a kept block, only stamped ones. */
+export function ownCopy(entry, def = entry?.def) {
+    return !def?.kept || KEPT_STAMP.test(String(entry?.open ?? ''));
 }
 
 function applyEdits(source, edits) {
@@ -375,6 +391,7 @@ function applyEdits(source, edits) {
 function entryView(source, entry, container) {
     return {
         def: entry.def,
+        open: source.slice(entry.start, entry.bodyStart),
         body: source.slice(entry.bodyStart, entry.bodyEnd).trim(),
         start: entry.start,
         end: entry.end,
@@ -385,8 +402,8 @@ function entryView(source, entry, container) {
 
 /**
  * Every occurrence of every def's tag in `text`, in text order:
- * [{ def, body, start, end, truncated, container }]. `body` is the raw (escaped) text,
- * trimmed. `container` says where it was found: 'envelope', 'cut', 'legacy', 'blocks'
+ * [{ def, open, body, start, end, truncated, container }]. `open` is the opening tag as
+ * written (attributes included), `body` the raw (escaped) text, trimmed. `container` says where it was found: 'envelope', 'cut', 'legacy', 'blocks'
  * (a bare <Blocks>) or null (a bare tag).
  */
 export function extractBlocks(text, defs) {
@@ -413,7 +430,7 @@ function parseBody(def, body) {
  */
 export function latestBlockInText(text, def) {
     if (!def) return null;
-    const entries = extractBlocks(rejoinContinuation(text), [def]).filter(entry => !entry.truncated);
+    const entries = extractBlocks(rejoinContinuation(text), [def]).filter(entry => !entry.truncated && ownCopy(entry, def));
     // A repeating block (Dice) may come as one tag per item; the reply's copies read as one.
     if (def.repeating && entries.length > 1) {
         const body = entries.map(entry => entry.body).join('\n');
@@ -712,10 +729,13 @@ function truncatedEditEnd(source, entry) {
 /**
  * Write `body` (already serialized and escaped) as `def`'s block inside the message's
  * envelope: replaces the newest copy in an envelope, else adds the block to the last
- * envelope, else appends a new envelope at the end of the text.
+ * envelope, else appends a new envelope at the end of the text. A kept block's tag is
+ * stamped as the extension's own (see ownCopy).
  */
 export function upsertBlock(text, def, body) {
-    const block = blockText(def, body);
+    // Only Story Block and the plugin API write through here, never the model: a kept block
+    // written here is the extension's own copy, so it carries the stamp.
+    const block = blockText(def, body, def?.kept ? { tag: keptTag(def) } : {});
     let source = normalizeTransport(text, [def]).text;
     source = closeCuts(source, scan(source, [def]));
     const { containers } = scan(source, [def]);
@@ -732,4 +752,32 @@ export function upsertBlock(text, def, body) {
     }
     const kept = source.trimEnd();
     return kept ? `${kept}\n\n${envelopeText([block])}` : envelopeText([block]);
+}
+
+const EMPTY_ENVELOPE = /[ \t]*<!--\s*STORY_BLOCKS_V1[ \t]*\n?\s*<Blocks>\s*<\/Blocks>\s*-->[ \t]*\n?/g;
+
+/**
+ * Remove every copy of a kept block that its extension did not write (no stamp): a model
+ * that writes the tag anyway must neither show it nor change the block, and a person's raw
+ * edit does not either. Bare copies are moved into the envelope first (normalizeTransport),
+ * then dropped; an envelope left holding nothing goes too. `defs` is the full transport list,
+ * so a tag nested inside another block's body stays part of that body. Cut-off envelopes
+ * are left for Continue. Returns `text` unchanged when there is nothing to drop.
+ */
+export function dropForeignCopies(text, defs) {
+    const original = String(text ?? '');
+    const list = Array.isArray(defs) ? defs.filter(Boolean) : [];
+    if (!list.some(def => def.kept)) return original;
+    const source = normalizeTransport(original, list).text;
+    const foreign = extractBlocks(source, list)
+        .filter(entry => entry.def.kept && entry.container === 'envelope' && !ownCopy(entry));
+    if (!foreign.length) return source;
+    let out = source;
+    // Back to front so positions hold; each copy goes with the line break after it.
+    for (const entry of [...foreign].reverse()) {
+        const end = out[entry.end] === '\n' ? entry.end + 1 : entry.end;
+        out = out.slice(0, entry.start) + out.slice(end);
+    }
+    const emptied = out.replace(EMPTY_ENVELOPE, '');
+    return emptied === out ? out : emptied.trim();
 }
