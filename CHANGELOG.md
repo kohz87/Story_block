@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3
+
+- **One hidden section per reply.** A block the model wrote as a bare tag right next to its own hidden section (a `<Director>` after the envelope) was wrapped in a second section, and later writes (RPG Battle's Party block) went into that second one, so a reply could carry two `<!-- STORY_BLOCKS_V1 -->` envelopes. Envelopes with only whitespace between them now become one, their blocks in the same order; replies that already have two merge the next time Story Block tidies them (an edit, or a plugin writing its block). Envelopes with story text between them stay apart. Reading was never affected: every envelope in a reply was already read.
+
 ## 0.9.2
 
 - **One switch look:** the block list's on/off switches are the Story Suite's Enabled/Disabled pills, as in NPC State Delta, Story Director and RPG Battle (a plain checkbox in browsers without `:has()`).
