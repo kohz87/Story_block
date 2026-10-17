@@ -39,6 +39,9 @@ const DOCK_MARGIN = 12;
 const SWIPE_CLOSE = 60;
 const SHEET_EXPAND = 60;
 const SHEET_CLOSE = 80;
+// From full height, a drag down this far (or past 40% of the sheet) closes instead of
+// stepping back to half height.
+const SHEET_DISMISS = 240;
 const TAP_SLOP = 6;
 
 // Selected tab per uiKey; survives unmounts so a re-opened chat shows the same tab.
@@ -225,10 +228,13 @@ function createUi() {
     aside.addEventListener('pointermove', onSwipeMove);
     aside.addEventListener('pointerup', onSwipeEnd);
     aside.addEventListener('pointercancel', onSwipeCancel);
-    grip.addEventListener('pointerdown', onGripStart);
-    grip.addEventListener('pointermove', onGripMove);
-    grip.addEventListener('pointerup', onGripEnd);
-    grip.addEventListener('pointercancel', onGripCancel);
+    // On the sheet the header drags too: it is the bar a finger reaches for.
+    for (const target of [grip, head]) {
+        target.addEventListener('pointerdown', onGripStart);
+        target.addEventListener('pointermove', onGripMove);
+        target.addEventListener('pointerup', onGripEnd);
+        target.addEventListener('pointercancel', onGripCancel);
+    }
 
     // Capture phase: a modal drawer on top should take Esc before SillyTavern's own
     // handlers close something underneath it.
@@ -413,6 +419,11 @@ function applyOpenState() {
     handle.style.display = !docked && !ui.open ? '' : 'none';
     grip.style.display = mode === 'sheet' ? '' : 'none';
     grip.setAttribute('aria-expanded', String(ui.sheetFull));
+    const gripTitle = ui.sheetFull ? 'Drag down or tap to shrink' : 'Drag to resize, tap to expand';
+    if (grip.title !== gripTitle) {
+        grip.title = gripTitle;
+        grip.setAttribute('aria-label', gripTitle);
+    }
     close.style.display = docked ? 'none' : '';
     pin.style.display = ui.dockable ? '' : 'none';
     const pinTitle = docked ? 'Unpin sidebar' : 'Pin sidebar';
@@ -564,17 +575,19 @@ function onSwipeCancel() {
 }
 
 function onGripStart(event) {
-    event.stopPropagation();
     if (!ui || ui.mode !== 'sheet' || !ui.open) return;
+    // The header's buttons stay buttons.
+    if (event.currentTarget === ui.head && event.target?.closest?.('button')) return;
+    event.stopPropagation();
     ui.suppressGripClick = false;
     ui.gesture = { kind: 'grip', id: event.pointerId, y: event.clientY, dy: 0, moved: false };
-    try { ui.grip.setPointerCapture?.(event.pointerId); } catch { /* not capturable */ }
+    try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch { /* not capturable */ }
 }
 
 function onGripMove(event) {
-    event.stopPropagation();
     const gesture = ui?.gesture;
     if (gesture?.kind !== 'grip' || gesture.id !== event.pointerId) return;
+    event.stopPropagation();
     gesture.dy = event.clientY - gesture.y;
     if (Math.abs(gesture.dy) > TAP_SLOP) gesture.moved = true;
     if (!gesture.moved) return;
@@ -585,9 +598,9 @@ function onGripMove(event) {
 }
 
 function onGripEnd(event) {
-    event.stopPropagation();
     const gesture = ui?.gesture;
     if (gesture?.kind !== 'grip' || gesture.id !== event.pointerId) return;
+    event.stopPropagation();
     onGripMove(event);
     const { dy, moved } = gesture;
     endDrag();
@@ -597,7 +610,15 @@ function onGripEnd(event) {
         ui.sheetFull = true;
         applyOpenState();
     } else if (dy > SHEET_CLOSE) {
-        closeSidebar();
+        // Full height steps back to half first, so a sheet pulled all the way up is
+        // never more than one short drag from where it opened; a long drag still closes.
+        const height = ui.aside.getBoundingClientRect?.().height || 0;
+        if (ui.sheetFull && dy < Math.max(SHEET_DISMISS, height * 0.4)) {
+            ui.sheetFull = false;
+            applyOpenState();
+        } else {
+            closeSidebar();
+        }
     }
 }
 

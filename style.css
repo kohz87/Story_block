@@ -1088,10 +1088,19 @@
 }
 
 .story-block-sidebar[data-mode="sheet"][data-sheet="full"] {
-    top: 8vh;
-    top: 8dvh;
-    height: 92vh;
-    height: 92dvh;
+    /*
+     * Full height still leaves a strip of dimmed chat above the sheet (tap it to close),
+     * and never tucks the header under a notch or status bar.
+     */
+    top: 12vh;
+    top: max(12dvh, calc(env(safe-area-inset-top, 0px) + 56px));
+    height: 88vh;
+    height: calc(100dvh - max(12dvh, calc(env(safe-area-inset-top, 0px) + 56px)));
+}
+
+/* On the sheet the header is a drag handle too (its buttons still tap). */
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-head {
+    touch-action: none;
 }
 
 .story-block-sidebar[data-mode="drawer"].is-open,

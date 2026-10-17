@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2
+
+The phone sheet is always easy to close.
+
+- **Full height steps back to half.** Dragging a full-height sheet down now returns it to half height instead of needing an exact drag to close it; a long drag still closes it.
+- **The header drags too,** not just the thin bar above it, so the sheet can be grabbed where a finger naturally lands. Its buttons still tap.
+- **Full height leaves a strip of chat above the sheet** (12% of the screen, or more below a notch or status bar). Tapping it closes the sheet, and the header with its × never ends up under the browser's or phone's own bars.
 ## 0.5.1
 
 Calmer displays, and tablets get the drawer.

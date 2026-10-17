@@ -30,7 +30,7 @@ test('fixed Story Block elements never use bottom, inset or percentage top/heigh
 test('the sheet, drawer, scrim and handle are placed in viewport units', () => {
     const body = selector => rulesFor(new RegExp(`^${selector.replace(/[.[\]"=]/g, '\\$&')}$`)).map(rule => rule.body).join('\n');
     assert.match(body('.story-block-sidebar[data-mode="sheet"]'), /top:\s*38dvh/);
-    assert.match(body('.story-block-sidebar[data-mode="sheet"][data-sheet="full"]'), /top:\s*8dvh/);
+    assert.match(body('.story-block-sidebar[data-mode="sheet"][data-sheet="full"]'), /top:\s*max\(12dvh/);
     assert.match(body('.story-block-sidebar[data-mode="drawer"]'), /height:\s*100dvh/);
     assert.match(body('.story-block-scrim'), /height:\s*100dvh/);
     assert.match(body('.story-block-handle'), /top:\s*45dvh/);

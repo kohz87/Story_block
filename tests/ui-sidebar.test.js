@@ -331,26 +331,44 @@ test('sheet on phones: pill tabs, grip tap toggles height, drags expand or close
     grip().click();
     assert.equal(aside.dataset.sheet, 'half', 'tap again shrinks');
 
-    const drag = dy => {
-        grip().dispatch('pointerdown', { pointerId: 7, clientY: 400 });
-        grip().dispatch('pointermove', { pointerId: 7, clientY: 400 + dy / 2 });
-        grip().dispatch('pointerup', { pointerId: 7, clientY: 400 + dy });
+    const drag = (dy, target = grip()) => {
+        target.dispatch('pointerdown', { pointerId: 7, clientY: 400 });
+        target.dispatch('pointermove', { pointerId: 7, clientY: 400 + dy / 2 });
+        target.dispatch('pointerup', { pointerId: 7, clientY: 400 + dy });
         // A real browser follows a drag with a click; it must not toggle again.
-        grip().click();
+        target.click();
     };
     drag(-90);
     assert.equal(aside.dataset.sheet, 'full', 'drag up expands');
     assert.equal(aside.style.transform, '', 'snaps into place');
+    assert.equal(grip().title, 'Drag down or tap to shrink');
     drag(40);
     assert.equal(aside.dataset.sheet, 'full', 'short drag snaps back');
     assert.ok(aside.classList.contains('is-open'));
     drag(120);
-    assert.ok(!aside.classList.contains('is-open'), 'drag down closes');
+    assert.ok(aside.classList.contains('is-open'), 'drag down from full does not close');
+    assert.equal(aside.dataset.sheet, 'half', 'it steps back to half height');
+    drag(120);
+    assert.ok(!aside.classList.contains('is-open'), 'drag down from half closes');
     same(doc.activeElement, handle());
     assert.ok(visible(handle()));
 
     openSidebar();
     assert.equal(aside.dataset.sheet, 'half', 'opens at the default height');
+    const head = aside.querySelector('.story-block-sidebar-head');
+    drag(-90, head);
+    assert.equal(aside.dataset.sheet, 'full', 'the header drags too');
+    drag(300, head);
+    assert.ok(!aside.classList.contains('is-open'), 'a long drag from full closes');
+
+    openSidebar();
+    drag(-90);
+    closeButton().dispatch('pointerdown', { pointerId: 8, clientY: 120 });
+    closeButton().dispatch('pointerup', { pointerId: 8, clientY: 300 });
+    closeButton().click();
+    assert.ok(!aside.classList.contains('is-open'), 'the close button still closes a full sheet');
+
+    openSidebar();
     doc.fire('keydown', { key: 'Escape' });
     assert.ok(!aside.classList.contains('is-open'));
 });
