@@ -354,7 +354,23 @@ disable hook (turning an extension off reloads the page), so there is no `withdr
 | `manage.areas` | `SHARED_AREAS` (scene, timeline, items, stats, rolls), offered now or not |
 | `manage.sources()` | A copy of `settings.sourceOfTruth` |
 | `manage.setSource(area, choice)` | Normalizes, saves, redraws the Source of truth section and the tabs, like its own select; false for an area Story Block cannot keep. No `setEnabled`: Story Block is always on |
+| `manage.tokens()` | v0.9.1: `suiteTokens()` → `contextTokens(generationEntries(ctx, chat, 'normal'))` (`src/tokens.js`): `{ input, output, parts: [{ label, input, output }] }` for the next ordinary reply at `CHARS_PER_TOKEN` 4. `input` is `tokensOf(buildContext(entries))`, the whole section (kept blocks, chatter note); a block's part input is what the section shrinks by without it, and `Rules and envelope` holds the rest, so parts add up. `output` is each writable block's serialized state, else its skeleton (optional blocks counted as written), plus one envelope per group; kept parts are `Name (kept by Owner)` with output 0. Never throws (zeros) |
 | `openSuite(tabId = 'overview')` | Opens the Story Suite overlay on that tab (an extension's id); false without a page to show it on |
+
+#### Settings panel (index.js, v0.9.1)
+
+`src/suite.css` (byte-identical in all four; STORY_SUITE.md "One look for the four settings
+panels") is linked once by `loadSuiteStyles()` in `init()` as `<link id="story-suite-css">`
+(`new URL('./src/suite.css', import.meta.url)`), unless an element with that id exists.
+`addRuntimeControls` gives the editor's `.inline-drawer-content` the class `story-suite-panel` and
+builds: `div.story-suite-manage[data-story-suite-link]`, `div.story-suite-quickbar` (Rescan in
+`.story-suite-actions`, the version, and the editor's `#story_block_status` moved in), then
+`div.story-suite-folds` with `details.story-suite-fold[data-fold]` `display`, `suite`, `blocks`
+(`settingsFold`: summary `b.story-suite-fold-title` + `small.story-suite-fold-hint`, then
+`div.story-suite-fold-body`). Display and Source of truth settings are `label.story-suite-row`
+(`<span><b>…</b><small>hint or Now: …</small></span>` + control); the Blocks body holds the
+editor's `.story-block-view` unchanged. Which folds are open: localStorage
+`story_block_settings_folds` as since 0.8.1 (Blocks starts open, the panel's main content).
 
 #### Story Suite overlay (`src/ui/suite-overlay.js`, v0.9)
 
@@ -376,13 +392,27 @@ export function suiteOverlayTab()            // the selected tab's id, or null
   backdrop click close it; Tab is trapped; focus moves in on open and back to `opener` on close.
 - Tabs: Overview, then every provider with a `settings` selector, in `SUITE_ORDER`
   (story-block, story-director, npc-state-delta, rpg-battle, then others as announced).
-- Overview: `suite.providers()` (disabled ones too, so their switch can turn them back on), a
-  switch where `api.manage.setEnabled` exists; then per area in `AREAS` order with two or more
+- Overview (v0.9.1): `div.story-suite-panel` pane > `div.story-suite-folds` > three
+  `details.story-suite-fold[data-fold]` (`installed`, `sources`, `tokens`), the panels' markup:
+  `summary` (`b.story-suite-fold-title`, `small.story-suite-fold-hint`) + `div.story-suite-fold-body`.
+  Hints: `installedSummary` ("4 on", "3 on, 1 off"), `sourcesSummary` ("Automatic", "2 chosen by
+  hand", "1 mixed"), `tokensSummary` ("~3,400 in · ~650 out", "Not reported"). Which are open:
+  `overviewFoldsOpen()`, localStorage `story_suite_overview_folds` (wrapped; default installed
+  open, the others closed), read on every redraw.
+- Installed: `suite.providers()` (disabled ones too, so their switch can turn them back on) as
+  `.story-suite-row.story-suite-provider` rows, a `label` with `input.story-suite-switch` where
+  `api.manage.setEnabled` exists; Source of truth: per area in `AREAS` order with two or more
   candidates (`manage.areas`, else `owns`) a select. `currentSource`: `'auto'` while all say
   auto, a provider's id when exactly one says `mine` and the rest `theirs`/auto, else `'mixed'`
   (a disabled option). `applySource` calls `setSource` on every candidate (`mine` for the pick,
   `theirs` for the rest, or `auto` for all), then the Overview is redrawn from fresh `sources()`.
   "Leads now" is every offering candidate for which `isSourceOfTruth` holds under its own choice.
+  Rows are `label.story-suite-row.story-suite-area` (`b.story-suite-area-name`, `small.story-suite-lead`, the select).
+- Tokens per reply: `tokenRows` (enabled providers in suite order) with `tokensReport(provider)`:
+  `manage.tokens()` with whole counts ≥ 0, or null (no tokens(), it threw, a promise, not an
+  object) shown as "not reported"; a `.story-suite-tokens-row` each, a provider with parts as a
+  nested fold (open ones kept in memory across redraws), and a Total row (`tokenTotal`). Redrawn
+  when the overlay opens or redraws; index.js also calls `refreshSuiteOverlay()` after each reply.
 - Panels: `document.querySelector(settings)` is moved into the pane after a hidden
   `div[data-story-suite-placeholder]` is put in its place; its first `.inline-drawer` gets
   `.story-suite-drawer` (CSS holds `.inline-drawer-content` open and hides the header); any
@@ -391,7 +421,7 @@ export function suiteOverlayTab()            // the selected tab's id, or null
   a tab change, on close, when its extension leaves, or when the overlay was removed; a panel its
   extension removed meanwhile is left alone.
 - index.js: the entry points (`#story_suite_menu` in `#extensionsMenu`, the sidebar's gear, and
-  `.story-block-manage-suite[data-story-suite-link]` above the settings folds) are shown while
+  `.story-suite-manage[data-story-suite-link]` above the settings folds) are shown while
   `suite.providers().length >= 2`, re-checked on every `onChange`, which also refreshes the overlay.
 
 ## 6. Card and displays (`src/ui/*`)

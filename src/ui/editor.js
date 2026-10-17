@@ -357,7 +357,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
     function renderNewTemplates() {
         const fresh = newTemplates();
         if (!fresh.length) return null;
-        const line = el('div', { className: 'story-block-new-templates' }, [el('span', { className: 'story-block-new-templates-label', text: 'New built-in blocks:' })]);
+        const line = el('div', { className: 'story-suite-notice story-block-new-templates' }, [el('span', { className: 'story-block-new-templates-label', text: 'New built-in blocks:' })]);
         for (const template of fresh) {
             const { name, icon: glyph } = template.block;
             const item = el('span', { className: 'story-block-new-template' });

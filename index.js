@@ -27,6 +27,7 @@ import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.j
 import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, hasTab, pluginBlockDef } from './src/plugin.js';
 import { storySuite } from './src/suite.js';
+import { contextTokens } from './src/tokens.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
@@ -235,6 +236,35 @@ function sessionContext(ctx, session) {
     return buildContext(session.entries, { substitute: substituter(ctx) });
 }
 
+// What a generation of `type` is prompted with: kept blocks, then the active blocks with their
+// state, fresh dice and any runtime note.
+function generationEntries(ctx, chat, type) {
+    const suite = storySuite();
+    const ownRolls = keepsOwnRolls(settings(ctx).sourceOfTruth.rolls, suite);
+    return [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
+        def,
+        state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
+        rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
+        // Chatter points at NPC State Delta's cards while it is here (v0.9.1).
+        note: chatterNote(def, suite),
+    }))];
+}
+
+/**
+ * Story Suite's manage.tokens() (v0.9.1): what Story Block adds to the next ordinary reply, from
+ * the entries and context section that reply would get (src/tokens.js). Never throws.
+ */
+function suiteTokens() {
+    try {
+        const ctx = context();
+        if (!ctx) return { input: 0, output: 0, parts: [] };
+        return contextTokens(generationEntries(ctx, ctx.chat ?? [], 'normal'), { substitute: substituter(ctx) });
+    } catch (error) {
+        console.warn('[Story Block] token estimate failed', error);
+        return { input: 0, output: 0, parts: [] };
+    }
+}
+
 function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) return null;
@@ -252,15 +282,7 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const chat = ctx.chat ?? [];
     // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
     // placeholder and the real context carry the same numbers.
-    const suite = storySuite();
-    const ownRolls = keepsOwnRolls(settings(ctx).sourceOfTruth.rolls, suite);
-    const entries = [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
-        def,
-        state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
-        rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
-        // Chatter points at NPC State Delta's cards while it is here (v0.9.1).
-        note: chatterNote(def, suite),
-    }))];
+    const entries = generationEntries(ctx, chat, type);
     const session = {
         chatId,
         type: normalizeType(type),
@@ -457,6 +479,8 @@ async function onMessageReceived(messageId) {
     }
     clearSession(chatId);
     refreshAll(0);
+    // The Overview's token estimates follow the new reply (nothing is polled).
+    refreshSuiteOverlay();
     replyListeners.emit({ chatId, messageIndex: id });
 }
 
@@ -744,20 +768,24 @@ function rememberFold(key, open) {
     try { globalThis.localStorage?.setItem(FOLDS_STORAGE, JSON.stringify({ ...foldsOpen(), [key]: open })); } catch { /* private window */ }
 }
 
+// The suite's shared panel markup (src/suite.css, docs/STORY_SUITE.md "One look for the four
+// settings panels"): details > summary (<b> title, <small> hint) + a body.
 function settingsFold(documentRef, key, title, children) {
     const fold = documentRef.createElement('details');
-    fold.className = `story-block-fold is-${key}`;
+    fold.className = `story-suite-fold is-${key}`;
     fold.dataset.fold = key;
     fold.open = foldsOpen()[key];
     const summary = documentRef.createElement('summary');
-    summary.className = 'story-block-fold-head';
-    const name = documentRef.createElement('span');
-    name.className = 'story-block-fold-title';
+    const name = documentRef.createElement('b');
+    name.className = 'story-suite-fold-title';
     name.textContent = title;
     const hint = documentRef.createElement('small');
-    hint.className = 'story-block-fold-hint';
+    hint.className = 'story-suite-fold-hint';
     summary.append(name, hint);
-    fold.append(summary, ...children);
+    const body = documentRef.createElement('div');
+    body.className = 'story-suite-fold-body';
+    body.append(...children);
+    fold.append(summary, body);
     fold.addEventListener('toggle', () => rememberFold(key, Boolean(fold.open)));
     foldHints[key] = hint;
     return fold;
@@ -778,36 +806,45 @@ function displayHint() {
     return own.display === 'card' ? 'Card under the reply' : `Sidebar${own.showTurnStrip ? ' · strip on' : ''}`;
 }
 
-// Version, Rescan and the compatibility switch sit above the editor's status line; the
-// editor re-renders only its own list, so these stay put.
+// The panel in the suite's shared look: the Manage all line, a quickbar (Rescan, the editor's
+// status line, the version), then the folds Display, Source of truth and Blocks (the editor's
+// own view, which it redraws in place). Built once; the editor re-renders only its list.
 function addRuntimeControls(documentRef, root) {
     const content = root.querySelector?.('.inline-drawer-content');
     if (!content) return;
+    content.classList?.add('story-suite-panel');
+    const quickbar = documentRef.createElement('div');
+    quickbar.className = 'story-suite-quickbar';
+    quickbar.innerHTML = `
+        <div class="story-suite-actions">
+            <button id="story_block_rescan" type="button" class="menu_button" title="Re-reads every block in this chat and hides raw ones left in the story."><i class="fa-solid fa-rotate"></i> Rescan chat</button>
+        </div>
+        <small class="story-suite-muted story-block-runtime-version">Story Block v${VERSION} · Rescan re-reads every block in this chat and hides raw ones left in the story.</small>`;
+    const status = content.querySelector('#story_block_status');
+    if (status) quickbar.appendChild(status);
+    quickbar.querySelector('#story_block_rescan')?.addEventListener('click', () => void rescan());
     const row = documentRef.createElement('div');
-    row.className = 'story-block-runtime';
+    row.className = 'story-block-display';
     row.innerHTML = `
-        <label class="story-block-runtime-field" for="story_block_display">
-            <span>Show blocks in</span>
+        <label class="story-suite-row" for="story_block_display">
+            <span><b>Show blocks in</b><small>The sidebar is docked beside the chat on wide screens.</small></span>
             <select id="story_block_display" class="text_pole">
-                <option value="sidebar">Sidebar (docked on wide screens)</option>
+                <option value="sidebar">Sidebar</option>
                 <option value="card">Card under the latest reply</option>
             </select>
         </label>
-        <label class="checkbox_label" for="story_block_strip" title="One line under the latest reply listing what it changed; tapping it opens the sidebar.">
-            <input id="story_block_strip" type="checkbox"> <span>"This turn" strip under the reply</span>
+        <label class="story-suite-row" for="story_block_strip">
+            <span><b>"This turn" strip under the reply</b><small>One line listing what the reply changed; tapping it opens the sidebar. Sidebar only.</small></span>
+            <input id="story_block_strip" type="checkbox">
         </label>
-        <label class="checkbox_label" for="story_block_offscreen" title="The scene board shows only how many off-screen entries there are until you reveal them. The block itself is unchanged, so NPC State Delta still reads it.">
-            <input id="story_block_offscreen" type="checkbox"> <span>Hide off-screen until revealed</span>
+        <label class="story-suite-row" for="story_block_offscreen">
+            <span><b>Hide off-screen until revealed</b><small>The scene board counts off-screen entries until you reveal them. The block itself is unchanged, so NPC State Delta still reads it.</small></span>
+            <input id="story_block_offscreen" type="checkbox">
         </label>
-        <label class="checkbox_label" for="story_block_compat" title="Lets extensions that add a tab to Megumin Suite's card (NPC State Delta) add it to Story Block's card. Turn off if Megumin Suite itself is installed.">
-            <input id="story_block_compat" type="checkbox"> <span>Megumin-compatible card <small>(card only)</small></span>
-        </label>
-        <div class="story-block-runtime-tools">
-            <button id="story_block_rescan" type="button" class="menu_button"><i class="fa-solid fa-rotate"></i> Rescan chat</button>
-            <small>Re-reads every block in this chat and hides raw ones left in the story.</small>
-        </div>
-        <small class="story-block-runtime-version">Story Block v${VERSION}</small>`;
-    row.querySelector('#story_block_rescan')?.addEventListener('click', () => void rescan());
+        <label class="story-suite-row" for="story_block_compat">
+            <span><b>Megumin-compatible card</b><small>Card only. Lets extensions that add a tab to Megumin Suite's card (NPC State Delta) add it here. Turn off if Megumin Suite itself is installed.</small></span>
+            <input id="story_block_compat" type="checkbox">
+        </label>`;
     const display = row.querySelector('#story_block_display');
     const strip = row.querySelector('#story_block_strip');
     const compat = row.querySelector('#story_block_compat');
@@ -835,14 +872,14 @@ function addRuntimeControls(documentRef, root) {
     bind(compat, input => { input.checked = settings().compatMarkup; }, input => { settings().compatMarkup = Boolean(input.checked); });
     syncEnabled();
     suiteSection = documentRef.createElement('div');
-    suiteSection.className = 'story-block-runtime story-block-suite';
-    // Display, Source of truth, the editor's status line, then Blocks (the editor's own view,
-    // which it redraws in place).
+    suiteSection.className = 'story-block-suite';
+    const folds = documentRef.createElement('div');
+    folds.className = 'story-suite-folds';
+    folds.append(settingsFold(documentRef, 'display', 'Display', [row]), settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
     const view = content.querySelector('.story-block-view');
-    const blocksFold = view ? settingsFold(documentRef, 'blocks', 'Blocks', [view]) : null;
-    if (blocksFold) content.appendChild(blocksFold);
-    content.prepend(settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
-    content.prepend(settingsFold(documentRef, 'display', 'Display', [row]));
+    if (view) folds.appendChild(settingsFold(documentRef, 'blocks', 'Blocks', [view]));
+    content.append(folds);
+    content.prepend(quickbar);
     content.prepend(suiteLinkLine(documentRef));
     setFoldHint('display', displayHint());
     setFoldHint('blocks', blocksHint());
@@ -854,12 +891,12 @@ function addRuntimeControls(documentRef, root) {
 // Every extension's link carries data-story-suite-link, which the overlay hides inside itself.
 function suiteLinkLine(documentRef) {
     suiteLink = documentRef.createElement('div');
-    suiteLink.className = 'story-block-manage-suite';
+    suiteLink.className = 'story-suite-manage';
     suiteLink.setAttribute('data-story-suite-link', '');
     const open = documentRef.createElement('button');
     open.type = 'button';
     open.className = 'menu_button';
-    open.innerHTML = '<i class="fa-solid fa-sliders" aria-hidden="true"></i> Manage all in Story Suite';
+    open.innerHTML = '<i class="fa-solid fa-layer-group" aria-hidden="true"></i> Manage all in Story Suite';
     open.addEventListener('click', () => void openSuite('overview', open));
     suiteLink.appendChild(open);
     return suiteLink;
@@ -879,14 +916,15 @@ function renderSuiteSection() {
         if (text) node.textContent = text;
         return node;
     };
-    const intro = make('small', 'story-block-suite-intro', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
+    const intro = make('p', 'story-suite-muted', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
     const nodes = [intro];
     for (const area of SHARED_AREAS) {
         const { label, provider } = AREA_LABELS[area];
-        const field = make('label', 'story-block-runtime-field story-block-suite-area');
+        const field = make('label', 'story-suite-row');
+        field.dataset.area = area;
         field.setAttribute('for', `story_block_source_${area}`);
         const title = make('span');
-        title.append(make('span', '', `${label} (${provider})`), make('small', 'story-block-suite-status', sourceStatus(area, { choice: own.sourceOfTruth[area], suite, offered: offered.includes(area) })));
+        title.append(make('b', '', `${label} (${provider})`), make('small', 'story-suite-status', sourceStatus(area, { choice: own.sourceOfTruth[area], suite, offered: offered.includes(area) })));
         const select = make('select', 'text_pole');
         select.id = `story_block_source_${area}`;
         for (const [value, text] of [['auto', 'Automatic'], ['mine', `This extension (${SUITE_NAME})`], ['theirs', 'The other one']]) {
@@ -1141,10 +1179,30 @@ const SUITE_API = Object.freeze({
         areas: SHARED_AREAS,
         sources: () => ({ ...settings().sourceOfTruth }),
         setSource: setSourceFromSuite,
+        tokens: suiteTokens,
     }),
     /** Open Story Suite's overlay on a tab: 'overview' (default) or an extension's id. */
     openSuite: (tabId = 'overview') => openSuite(tabId),
 });
+
+// The suite's shared styles (src/suite.css, identical in all four), linked once per page: the
+// first extension to load adds <link id="story-suite-css">, the others find it there.
+function loadSuiteStyles(documentRef = globalThis.document) {
+    try {
+        if (!documentRef?.createElement || documentRef.querySelector?.('#story-suite-css')) return false;
+        const parent = documentRef.head ?? documentRef.body;
+        if (typeof parent?.appendChild !== 'function') return false;
+        const link = documentRef.createElement('link');
+        link.id = 'story-suite-css';
+        link.rel = 'stylesheet';
+        link.href = new URL('./src/suite.css', import.meta.url).href;
+        parent.appendChild(link);
+        return true;
+    } catch (error) {
+        console.warn('[Story Block] could not link the Story Suite styles', error);
+        return false;
+    }
+}
 
 export async function init() {
     if (initialized) return;
@@ -1155,6 +1213,7 @@ export async function init() {
     initialized = true;
     // A copy of Story Block reloaded without a page refresh: panels a stale overlay holds go home.
     closeSuiteOverlay();
+    loadSuiteStyles();
     setExtensionPlaceholder(context(), '');
     ensureExtensionUi();
     initializeMount(buildCardTabs);

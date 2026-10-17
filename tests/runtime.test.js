@@ -411,7 +411,7 @@ test('suite: the settings section has a choice per area, saves it, and redraws w
     const { templateById } = await import('../src/templates.js');
     setBlocks([{ ...templateById('character-sheet'), enabled: true }]);
     await emit('CHAT_CHANGED');
-    const status = () => allElements(suiteSection()).filter(node => String(node.className).includes('story-block-suite-status')).map(node => node.textContent);
+    const status = () => allElements(suiteSection()).filter(node => String(node.className).includes('story-suite-status')).map(node => node.textContent);
     assert.equal(status()[3], 'Now: Story Block');
     globalThis.StorySuite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns: ['stats', 'items', 'rolls'] });
     try {
@@ -429,22 +429,28 @@ test('suite: the settings section has a choice per area, saves it, and redraws w
 });
 
 test('settings: Display, Source of truth and Blocks fold, each with a one-line summary', async () => {
-    const folds = allElements(fixed['#extensions_settings']).filter(node => String(node.className).includes('story-block-fold '));
+    const folds = allElements(fixed['#extensions_settings']).filter(node => String(node.className).includes('story-suite-fold '));
     assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'suite', 'blocks']);
     assert.deepEqual(folds.map(node => node.tagName), ['DETAILS', 'DETAILS', 'DETAILS']);
     assert.deepEqual(folds.map(node => Boolean(node.open)), [false, false, true], 'Blocks starts open');
-    const hint = key => allElements(folds.find(node => node.dataset.fold === key)).find(node => String(node.className).includes('story-block-fold-hint')).textContent;
+    const hint = key => allElements(folds.find(node => node.dataset.fold === key)).find(node => String(node.className).includes('story-suite-fold-hint')).textContent;
     assert.equal(hint('display'), 'Sidebar');
     assert.equal(hint('suite'), 'Automatic');
     assert.match(hint('blocks'), /^\d+ of \d+ on$/);
-    assert.ok(allElements(folds[0]).some(node => node.className === 'story-block-runtime'), 'Display holds its controls (markup the fake DOM does not parse)');
+    assert.ok(allElements(folds[0]).some(node => node.className === 'story-block-display'), 'Display holds its controls (markup the fake DOM does not parse)');
     assert.ok(allElements(folds[1]).some(node => node.id === 'story_block_source_stats'), 'so does Source of truth');
-    assert.equal(folds[2].children.length, 2, 'Blocks holds its summary and the editor\'s view');
+    // The suite's shared markup (src/suite.css): summary (<b>, <small>) + one body.
+    assert.deepEqual(folds.map(node => node.children.map(child => child.tagName === 'SUMMARY' ? 'summary' : child.className)), Array(3).fill(['summary', 'story-suite-fold-body']));
+    assert.equal(folds[2].children[1].children.length, 1, 'Blocks holds the editor\'s view');
+    assert.ok(allElements(folds[1]).filter(node => node.tagName === 'LABEL').every(node => node.className === 'story-suite-row'), 'Source of truth rows');
+    const panel = allElements(fixed['#extensions_settings']).find(node => String(node.className).includes('story-suite-folds'));
+    assert.ok(panel, 'the folds sit together');
+    assert.ok(allElements(fixed['#extensions_settings']).some(node => node.className === 'story-suite-quickbar'));
 });
 
 test('suite: Story Suite\'s entry points (menu item, settings link) show only while two or more extensions are announced', () => {
     const menuItem = () => fixed['#extensionsMenu'].children.find(node => node.id === 'story_suite_menu');
-    const link = () => allElements(fixed['#extensions_settings']).find(node => node.className === 'story-block-manage-suite');
+    const link = () => allElements(fixed['#extensions_settings']).find(node => node.className === 'story-suite-manage');
     assert.ok(menuItem(), 'its own item, next to Rescan');
     assert.equal(fixed['#extensionsMenu'].children.find(node => node.id === 'story_block_menu').innerHTML.includes('Rescan'), true);
     assert.match(menuItem().innerHTML, /fa-sliders.*Story Suite/);
@@ -546,6 +552,43 @@ test('suite: chatter blocks get one line pointing at NPC State Delta\'s cards wh
         assert.doesNotMatch(await promptContext(), /NPC State Delta card/, 'switched off');
     } finally {
         globalThis.StorySuite.withdraw('npc-state-delta');
+        delete ctx.extensionSettings.storyBlock;
+        await emit('CHAT_CHANGED');
+    }
+});
+
+test('suite: api.manage.tokens() estimates the next ordinary reply, kept blocks included, and never throws', async () => {
+    const sb = globalThis.StoryBlock;
+    const { templateById } = await import('../src/templates.js');
+    const tokens = globalThis.StorySuite.api('story-block').manage.tokens;
+    setBlocks([{ ...templateById('inventory'), enabled: true }, { ...templateById('scene-notes'), enabled: true }, { ...templateById('dice'), enabled: false }]);
+    await emit('CHAT_CHANGED');
+    assert.deepEqual(sb.registerBlock(characterSpec), { ok: true });
+    try {
+        ctx.chat = [{ is_user: false, mes: envelope(inventory(12)) }];
+        await sb.setBlockText(0, 'Character', 'HP: 58/62\nChecks: STR +2');
+        const result = tokens();
+        assert.ok(result.input > 100 && result.output > 0);
+        assert.deepEqual(result.parts.map(part => part.label), ['Character (kept by RPG Battle)', 'Inventory', 'Scene Notes', 'Rules and envelope'], 'enabled blocks only');
+        assert.equal(result.parts.reduce((total, part) => total + part.input, 0), result.input);
+
+        // The same section the next reply gets.
+        ctx.chat.push({ is_user: true, mes: 'look' });
+        await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+        const event = replyChat(...history());
+        await emit('CHAT_COMPLETION_PROMPT_READY', event);
+        await finish('She looks.');
+        const context = event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+        ctx.chat.splice(-2);
+        assert.equal(tokens().input, Math.round(context.length / 4));
+
+        // Never throws: a broken chat gives zeros.
+        const chat = ctx.chat;
+        ctx.chat = [{ get is_user() { throw new Error('boom'); } }];
+        assert.deepEqual(tokens(), { input: 0, output: 0, parts: [] });
+        ctx.chat = chat;
+    } finally {
+        sb.unregisterBlock('rpg-character');
         delete ctx.extensionSettings.storyBlock;
         await emit('CHAT_CHANGED');
     }

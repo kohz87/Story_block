@@ -107,6 +107,26 @@ const sidebarTabs = () => doc.querySelectorAll('#story_block_sidebar [data-tab-i
 const cardTabs = () => doc.querySelectorAll('.story-block-card .story-block-tab').map(node => node.dataset.tabId);
 const handleCount = () => doc.querySelector('#story_block_handle .story-block-handle-count')?.textContent ?? '';
 
+test('settings: the panel in the suite\'s shared look, and suite.css linked once', () => {
+    const links = doc.querySelectorAll('link#story-suite-css');
+    assert.equal(links.length, 1);
+    assert.equal(links[0].rel, 'stylesheet');
+    assert.match(links[0].href, /^file:.*\/src\/suite\.css$/, 'next to index.js');
+    const content = doc.querySelector('#story_block_settings .inline-drawer-content');
+    assert.ok(content.classList.contains('story-suite-panel'));
+    assert.deepEqual(content.children.map(node => node.className), ['story-suite-manage', 'story-suite-quickbar', 'story-suite-folds']);
+    assert.ok(content.querySelector('.story-suite-quickbar #story_block_status'), 'the editor\'s status line sits in the quickbar');
+    assert.ok(content.querySelector('.story-suite-manage .menu_button'));
+    const folds = content.querySelectorAll('.story-suite-folds > details.story-suite-fold');
+    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'suite', 'blocks']);
+    for (const fold of folds) {
+        assert.deepEqual(fold.children.map(node => node.tagName), ['SUMMARY', 'DIV']);
+        assert.deepEqual(fold.children[0].children.map(node => node.tagName), ['B', 'SMALL']);
+    }
+    assert.deepEqual(content.querySelectorAll('[data-fold="suite"] label.story-suite-row').map(row => row.dataset.area), ['scene', 'timeline', 'items', 'stats', 'rolls']);
+    assert.ok(content.querySelector('[data-fold="blocks"] .story-suite-fold-body > .story-block-view'), 'the editor\'s list as it is');
+});
+
 const newTemplatesLine = () => doc.querySelector('#story_block_settings .story-block-new-templates');
 const offered = () => (newTemplatesLine()?.querySelectorAll('.story-block-new-template') ?? []).map(node => node.dataset.template);
 

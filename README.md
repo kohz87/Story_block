@@ -287,12 +287,27 @@ With two or more of the four installed, **Story Suite** opens one overlay for al
 the Extensions menu, the gear in the sidebar's header, or *Manage all in Story Suite* at the top
 of Story Block's settings. Alone, none of these appear.
 
-- **Overview:** each installed extension with its version, on or off, and its on/off switch
-  where it has one (Story Block is always on). Below, **one Source of truth table**: a row per
-  area that more than one of them can keep, with *Automatic* or one owner. Picking an owner sets
-  every extension's own choice to match (that one *This extension*, the others *The other one*);
-  *Automatic* sets them all back. If the choices were set by hand in a way one owner cannot say,
-  the row reads *Mixed — set in each extension*. Under each row: who leads now.
+The four settings panels share one look (v0.9.1, `src/suite.css`, the same file in all four):
+the *Manage all* line, a box of main actions (Story Block: **Rescan chat**, its status line and
+version), then sections that fold with a summary, settings as rows with a hint, switches as
+*Enabled*/*Disabled* pills. The Overview looks the same.
+
+- **Overview**, in three sections that fold, each with a one-line summary while closed
+  (which are open is remembered in this browser; *Installed* starts open):
+  - **Installed** (*4 on*): each installed extension with its version, on or off, and its on/off
+    switch where it has one (Story Block is always on).
+  - **Source of truth** (*Automatic*, *2 chosen by hand*): a row per area that more than one of
+    them can keep, with *Automatic* or one owner. Picking an owner sets every extension's own
+    choice to match (that one *This extension*, the others *The other one*); *Automatic* sets
+    them all back. If the choices were set by hand in a way one owner cannot say, the row reads
+    *Mixed — set in each extension*. Under each row: who leads now.
+  - **Tokens per reply** (v0.9.1, *~3,400 in · ~650 out*): what each extension adds to an
+    ordinary reply, the prompt it injects (*in*) and what it asks the model to write back
+    (*out*), and the total. Open an extension's row for its parts: Story Block lists each block,
+    a kept block under its owner (*Party (kept by RPG Battle)*), and the rules and envelope they
+    share. Estimates at about 4 characters a token, updated when the overlay opens and after
+    each reply; quiet calls like summaries, planning and monster flavour are not counted. An
+    extension that does not report says *not reported*.
 - **A tab per extension** with its own settings panel, moved into the overlay while its tab is
   open and put back in the Extensions drawer when you switch tabs or close it (Esc, the close
   button, or a click outside), so every control works as before.
