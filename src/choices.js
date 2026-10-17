@@ -89,6 +89,17 @@ function byId(doc, id) {
     return typeof doc.querySelector === 'function' ? doc.querySelector(`#${id}`) : null;
 }
 
+// A phone or tablet: the primary pointer is a finger, or nothing can hover.
+function touchScreen(doc) {
+    const matchMedia = doc?.defaultView?.matchMedia;
+    if (typeof matchMedia !== 'function') return false;
+    try {
+        return Boolean(matchMedia.call(doc.defaultView, '(pointer: coarse), (hover: none)')?.matches);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Put `choice` into SillyTavern's message box (#send_textarea) and, with `send`,
  * send it (#send_but). Returns 'filled', 'sent', or 'unavailable' when there is no box.
@@ -97,6 +108,10 @@ function byId(doc, id) {
  * wants to extend ("Follow her out" -> "Follow her out, but hang back at the door").
  * The choice is APPENDED: something half-typed in the box is the reader's work and a
  * click must never throw it away.
+ *
+ * The box is focused (caret at the end, ready to extend) only on a mouse screen and only
+ * when filling: on a phone or tablet focusing it pops the keyboard, which shoves the
+ * whole page up, and a choice being sent needs no caret at all.
  */
 export function fillInput(choice, { send = false, document = globalThis.document } = {}) {
     const box = byId(document, 'send_textarea');
@@ -120,7 +135,7 @@ export function fillInput(choice, { send = false, document = globalThis.document
     if (typeof box.dispatchEvent === 'function' && typeof EventType === 'function') {
         box.dispatchEvent(new EventType('input', { bubbles: true }));
     }
-    box.focus?.();
+    if (!send && !touchScreen(document)) box.focus?.();
     try {
         const end = box.value.length;
         box.setSelectionRange?.(end, end);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4
+
+- **Dice only when there's a roll.** Optional blocks (Dice, Dice: Everyone, NPC Inner Chatter) no longer sit in the sidebar as empty tabs; a block's tab appears when the latest reply has one and goes away when it doesn't. Other blocks still show from the first message.
+- **No keyboard from Choices on phones and tablets.** Tapping a choice fills the message box without focusing it, so the keyboard no longer pops up and shoves the page up; tap the box when you want to edit. Sending a choice never focuses the box. On a mouse screen a click still leaves the caret at the end, ready to extend.
 ## 0.5.3
 
 Fixed: the sidebar knocked SillyTavern's page out of place on phones and tablets.

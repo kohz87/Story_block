@@ -75,9 +75,9 @@ class FakeEvent {
     }
 }
 
-function fakeDocument({ value = '', sendButton = true, textarea = true } = {}) {
+function fakeDocument({ value = '', sendButton = true, textarea = true, touch = false } = {}) {
     const log = [];
-    const doc = { activeElement: null, defaultView: { Event: FakeEvent } };
+    const doc = { activeElement: null, defaultView: { Event: FakeEvent, matchMedia: query => ({ matches: touch && /coarse|hover: none/.test(query) }) } };
     const box = {
         value,
         selectionStart: 0,
@@ -125,7 +125,15 @@ test('fill: send clicks #send_but after filling', () => {
     const { doc, box, log } = fakeDocument({ value: 'Quietly,' });
     assert.equal(fillInput('follow her out', { send: true, document: doc }), 'sent');
     assert.equal(box.value, 'Quietly, follow her out');
-    assert.deepEqual(log, ['event:input:true', 'focus', 'send:Quietly, follow her out']);
+    assert.deepEqual(log, ['event:input:true', 'send:Quietly, follow her out'], 'sending never focuses the box');
+});
+
+test('fill: on a touch screen the box is filled but not focused, so no keyboard pops up', () => {
+    const { doc, box, log } = fakeDocument({ value: 'I sigh.', touch: true });
+    assert.equal(fillInput('Take first watch', { document: doc }), 'filled');
+    assert.equal(box.value, 'I sigh. Take first watch');
+    assert.equal(doc.activeElement, null);
+    assert.deepEqual(log, ['event:input:true']);
 });
 
 test('fill: a slash command is filled, never sent', () => {

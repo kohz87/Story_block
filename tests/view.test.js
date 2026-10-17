@@ -1,7 +1,7 @@
 // What each block's tab shows, worked out from plain message arrays.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blockStatusInText, blockView, emptyView, latestAssistantIndex, viewKey } from '../src/view.js';
+import { blockStatusInText, blockView, emptyView, latestAssistantIndex, tabView, viewKey } from '../src/view.js';
 import { normalizeBlock } from '../src/schema.js';
 import { templateById } from '../src/templates.js';
 
@@ -60,4 +60,18 @@ test('emptyView: a block with nothing yet still has a view the sidebar can list'
     assert.deepEqual(view.state, { categories: [] });
     assert.deepEqual(view.changes, []);
     assert.equal(emptyView(notes).state, null, 'a per-reply block shows its "not in the latest reply" state');
+});
+
+test('tabView: the sidebar lists empty blocks, but an optional one only when the latest reply has it', () => {
+    const dice = templateById('dice');
+    const chat = [user('I check the grate.'), reply(`The water rose.\n${envelope(inv(5))}`)];
+    assert.equal(tabView(chat, inventory, { sidebar: true }).empty, undefined, 'a block with content');
+    assert.equal(tabView(chat, notes, { sidebar: true }).empty, true, 'an empty block still gets a tab');
+    assert.equal(tabView(chat, notes), null, 'the card shows only blocks with content');
+    assert.equal(tabView(chat, dice, { sidebar: true }), null, 'no roll, no Dice tab');
+
+    const rolled = [...chat, user('I climb.'), reply(`${envelope('<Dice>\n🎲 Climb — d20+2 vs 15 → 12+2 = 14 · success\n</Dice>')}\nYou climb.`)];
+    const view = tabView(rolled, dice, { sidebar: true });
+    assert.ok(view && !view.empty, 'a roll in the latest reply brings the tab back');
+    assert.match(view.body, /Climb/);
 });

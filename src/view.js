@@ -97,6 +97,17 @@ export function emptyView(def) {
     };
 }
 
+/**
+ * What a block's tab shows, or null for no tab. The card shows only blocks with content. The
+ * sidebar lists every enabled block, empty ones included, so it and its edge handle are there
+ * from the first message; optional blocks (Dice, Inner Chatter) are the exception: they are
+ * written only when something calls for them, so their tab appears only while the latest
+ * reply has one.
+ */
+export function tabView(chat, def, { sidebar = false } = {}) {
+    return blockView(chat, def) ?? (sidebar && !def.optional ? emptyView(def) : null);
+}
+
 // A cheap content key: equal keys mean the pane can be kept as it is.
 export function viewKey(view) {
     if (!view) return '';
