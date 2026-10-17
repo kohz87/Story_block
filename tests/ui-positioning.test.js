@@ -18,7 +18,7 @@ function rulesFor(selectorPattern) {
 }
 
 test('fixed Story Block elements never use bottom, inset or percentage top/height', () => {
-    const rules = rulesFor(/^\.story-block-(sidebar|scrim|handle)(\[data-mode="(docked|drawer|sheet)"\])?(\[data-sheet="full"\])?(\.is-open)?$/);
+    const rules = rulesFor(/^\.story-block-(layer|sidebar|scrim|handle)(\[data-mode="(docked|drawer|sheet)"\])?(\[data-sheet="full"\])?(\.is-open)?$/);
     assert.ok(rules.length >= 5, 'found the sidebar, mode, scrim and handle rules');
     for (const { selector, body } of rules) {
         assert.doesNotMatch(body, /(^|[\s;])bottom\s*:/, `${selector} uses bottom`);
@@ -34,4 +34,19 @@ test('the sheet, drawer, scrim and handle are placed in viewport units', () => {
     assert.match(body('.story-block-sidebar[data-mode="drawer"]'), /height:\s*100dvh/);
     assert.match(body('.story-block-scrim'), /height:\s*100dvh/);
     assert.match(body('.story-block-handle'), /top:\s*45dvh/);
+});
+
+// A closed drawer or sheet waits just off screen. Unclipped, that made SillyTavern's page
+// scrollable (1367px tall on an 844px phone), so focusing the panel or opening the keyboard
+// scrolled the whole page and stranded the send form mid-screen.
+test('the sidebar, scrim and handle sit in one clipping layer, never fixed themselves', () => {
+    const body = selector => rulesFor(new RegExp(`^${selector.replace(/[.[\]"=]/g, '\\$&')}$`)).map(rule => rule.body).join('\n');
+    const layer = body('.story-block-layer');
+    assert.match(layer, /position:\s*fixed/);
+    assert.match(layer, /overflow:\s*clip/);
+    assert.match(layer, /height:\s*100dvh/);
+    for (const selector of ['.story-block-sidebar', '.story-block-scrim', '.story-block-handle']) {
+        assert.match(body(selector), /position:\s*absolute/, `${selector} is placed inside the layer`);
+    }
+    assert.doesNotMatch(css, /story-block-(sidebar|scrim|handle)[^{]*\{[^}]*position:\s*fixed/, 'nothing escapes the clip');
 });
