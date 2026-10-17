@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.5
+
+A calmer World State board for busy scenes.
+
+- **Many-part lines become labelled rows.** Off-screen entries, threads and person fields that pack several facts with pipes (`District Bailiff Court | then: argues with magistrates | on: Haywane 12, 05:45 pm`) were one run-on paragraph. Each part is now its own short row with a small label (now / then / on, visible / hidden), and a name written as `Geva — now:` shows as just the name.
+- **Off-screen entries are separated:** the name on its own line, its facts under it, a thin line between entries.
+- **Threads with long or many-part items are listed as rows** instead of pills stretched over several lines; short ones stay pills.
+- **Map coordinates in the location (`[59.0, 110.0]`) are dimmed.**
+- Display only: the World State text, what the model is sent and what the change marks compare are unchanged.
 ## 0.5.4
 
 - **Dice only when there's a roll.** Optional blocks (Dice, Dice: Everyone, NPC Inner Chatter) no longer sit in the sidebar as empty tabs; a block's tab appears when the latest reply has one and goes away when it doesn't. Other blocks still show from the first message.

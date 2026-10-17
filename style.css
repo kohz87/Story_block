@@ -1870,17 +1870,60 @@ button.story-block-strip:hover {
 .story-block-scene-off {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
 }
 
+/* One entry per block: the name on its own line, its facts under it, a hairline between. */
 .story-block-scene-off-item {
+    padding: 0.45rem 0;
     font-size: 0.92em;
     line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.story-block-scene-off-item + .story-block-scene-off-item {
+    border-top: 1px solid var(--sb-border);
+}
+
+.story-block-scene-off-item:first-child {
+    padding-top: 0.15rem;
 }
 
 .story-block-scene-off-name {
     font-weight: 600;
-    margin-right: 0.4rem;
+}
+
+/* `now X | then: Y | on: Z`, drawn as short labelled rows. */
+.story-block-scene-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.1rem 0.6rem;
+    margin: 0.1rem 0 0;
+    line-height: 1.4;
+}
+
+.story-block-scene-facts dt {
+    padding-top: 0.15em;
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    opacity: 0.55;
+}
+
+.story-block-scene-facts dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.story-block-scene-facts dd.is-plain {
+    grid-column: 1 / -1;
+}
+
+.story-block-scene-coords {
+    font-size: 0.8em;
+    opacity: 0.5;
+    white-space: nowrap;
 }
 
 .story-block-scene-items {
@@ -1898,6 +1941,21 @@ button.story-block-strip:hover {
     font-size: 0.85em;
     line-height: 1.4;
     overflow-wrap: anywhere;
+}
+
+.story-block-scene-items.is-rows {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+}
+
+.story-block-scene-items.is-rows .story-block-scene-item {
+    padding: 0.4rem 0.65rem;
+    border-radius: 10px;
+}
+
+.story-block-scene-item-head {
+    font-weight: 600;
 }
 
 .story-block-scene-items.is-timers .story-block-scene-item {
