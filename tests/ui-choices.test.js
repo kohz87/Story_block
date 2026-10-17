@@ -152,9 +152,9 @@ test('choices: markup in a choice stays text', () => {
 
 test('choices: empty and missing states', () => {
     const missing = show({ state: null });
-    assert.equal(missing.querySelector('.story-block-empty').textContent, 'No Choices yet.');
+    assert.equal(missing.querySelector('.story-block-empty').textContent, 'No Choices in the latest reply.');
     assert.ok(missing.classList.contains('story-block-display-choices'));
-    assert.equal(show({ state: { text: '  \n ' } }).querySelector('.story-block-empty').textContent, 'Choices is empty.');
+    assert.equal(show({ state: { text: '  \n ' } }).querySelector('.story-block-empty').textContent, 'Choices is empty. It fills in as the story goes.');
 });
 
 test('choices: error, truncated and edit', () => {

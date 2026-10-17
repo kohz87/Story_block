@@ -414,11 +414,39 @@ function parseBody(def, body) {
 export function latestBlockInText(text, def) {
     if (!def) return null;
     const entries = extractBlocks(rejoinContinuation(text), [def]).filter(entry => !entry.truncated);
+    // A repeating block (Dice) may come as one tag per item; the reply's copies read as one.
+    if (def.repeating && entries.length > 1) {
+        const body = entries.map(entry => entry.body).join('\n');
+        const parsed = parseBody(def, body);
+        if (parsed.ok) return { state: parsed.state, body, start: entries[0].start, end: entries.at(-1).end, merged: entries.length };
+    }
     for (let i = entries.length - 1; i >= 0; i--) {
         const parsed = parseBody(def, entries[i].body);
         if (parsed.ok) return { state: parsed.state, body: entries[i].body, start: entries[i].start, end: entries[i].end };
     }
     return null;
+}
+
+/**
+ * Fold a repeating block's copies in one message into a single tag at the place of the
+ * last one, keeping that tag's attributes, so edits and roll stamps see one block.
+ * Legacy Inventory Block comments are never touched. Returns `text` when there is nothing to fold.
+ */
+export function mergeRepeats(text, def) {
+    const source = String(text ?? '');
+    if (!def?.repeating) return source;
+    const entries = extractBlocks(source, [def]).filter(entry => !entry.truncated && entry.container !== 'legacy');
+    if (entries.length < 2) return source;
+    const last = entries.at(-1);
+    const open = /^<[^>]*>/.exec(source.slice(last.start, last.end))?.[0] ?? `<${def.tag}>`;
+    const merged = `${open}\n${entries.map(entry => entry.body).join('\n')}\n</${def.tag}>`;
+    let out = source.slice(0, last.start) + merged + source.slice(last.end);
+    // Earlier copies go, with the line break that followed each, back to front so positions hold.
+    for (const entry of entries.slice(0, -1).reverse()) {
+        const end = out[entry.end] === '\n' ? entry.end + 1 : entry.end;
+        out = out.slice(0, entry.start) + out.slice(end);
+    }
+    return out;
 }
 
 function isAssistant(message) {

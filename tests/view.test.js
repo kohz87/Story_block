@@ -1,7 +1,7 @@
 // What each block's tab shows, worked out from plain message arrays.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blockStatusInText, blockView, latestAssistantIndex, viewKey } from '../src/view.js';
+import { blockStatusInText, blockView, emptyView, latestAssistantIndex, viewKey } from '../src/view.js';
 import { normalizeBlock } from '../src/schema.js';
 import { templateById } from '../src/templates.js';
 
@@ -52,4 +52,12 @@ test('status, latest index and view keys', () => {
     const chat = [reply(envelope(inv(1)))];
     assert.equal(viewKey(blockView(chat, inventory)), viewKey(blockView(chat, inventory)));
     assert.notEqual(viewKey(blockView(chat, inventory)), viewKey(blockView([reply(envelope(inv(2)))], inventory)));
+});
+
+test('emptyView: a block with nothing yet still has a view the sidebar can list', () => {
+    const view = emptyView(inventory);
+    assert.equal(view.empty, true);
+    assert.deepEqual(view.state, { categories: [] });
+    assert.deepEqual(view.changes, []);
+    assert.equal(emptyView(notes).state, null, 'a per-reply block shows its "not in the latest reply" state');
 });

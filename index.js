@@ -8,9 +8,9 @@
 import { normalizeBlock, normalizeBlocks } from './src/schema.js';
 import { TEMPLATES, defaultBlocks } from './src/templates.js';
 import { formatFor } from './src/formats/index.js';
-import { bareBlockTexts, normalizeTransport, rejoinContinuation, stateForGeneration, upsertBlock } from './src/envelope.js';
+import { bareBlockTexts, mergeRepeats, normalizeTransport, rejoinContinuation, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
-import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, viewKey } from './src/view.js';
+import { blockStatusInText, blockView, emptyView, isAssistant, latestAssistantIndex, viewKey } from './src/view.js';
 import { turnCount, turnItems } from './src/turn.js';
 import { createTabRegistry } from './src/ui/card.js';
 import { render as renderPlain } from './src/ui/displays/plain.js';
@@ -19,12 +19,13 @@ import { render as renderFields } from './src/ui/displays/fields.js';
 import { render as renderScene } from './src/ui/displays/scene.js';
 import { render as renderChoices } from './src/ui/displays/choices.js';
 import { render as renderDice } from './src/ui/displays/dice.js';
+import { render as renderChatter } from './src/ui/displays/chatter.js';
 import { rollDice, stampRolls } from './src/dice.js';
 import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -33,7 +34,7 @@ const EXTENSION_PROMPT_IN_CHAT = 1;
 const EXTENSION_PROMPT_ROLE_SYSTEM = 0;
 const SESSION_MAX_AGE_MS = 2 * 60 * 1000;
 const SESSION_RECHECK_MS = 15 * 1000;
-const DISPLAYS = { plain: renderPlain, tree: renderTree, fields: renderFields, scene: renderScene, choices: renderChoices, dice: renderDice };
+const DISPLAYS = { plain: renderPlain, tree: renderTree, fields: renderFields, scene: renderScene, choices: renderChoices, dice: renderDice, chatter: renderChatter };
 
 let initialized = false;
 // Set once a reply's prompt has been seen carrying the placeholder; from then on a prompt
@@ -333,7 +334,10 @@ async function normalizeMessageTransport(messageId, { rerender = true, save = tr
     if (!isAssistant(message)) return false;
     const rejoined = rejoinContinuation(message.mes);
     const normalized = normalizeTransport(rejoined, blocks(ctx));
-    if (!normalized.changed && rejoined === message.mes) return false;
+    // Several tags of a repeating block become one, after they are inside the envelope.
+    const folded = blocks(ctx).reduce((text, def) => mergeRepeats(text, def), normalized.text);
+    if (folded === message.mes) return false;
+    normalized.text = folded;
 
     normalizingMessages.add(id);
     try {
@@ -447,10 +451,11 @@ function latestAssistantElement(ctx) {
     }) ?? null;
 }
 
-// Rail labels are small: a long name shows its first word.
-function shortName(name) {
-    const text = String(name ?? '');
-    return text.length <= 10 ? text : text.split(/\s+/)[0].slice(0, 10);
+// Rail labels are small: the block's short label, else a short name, else its first word.
+function shortName(def) {
+    if (def.short) return def.short;
+    const text = String(def.name ?? '');
+    return text.length <= 10 ? text : text.split(/\s+/)[0].replace(/[^\p{L}\p{N}]+$/u, '').slice(0, 10);
 }
 
 function blockTab(view, uiKey) {
@@ -466,7 +471,7 @@ function blockTab(view, uiKey) {
     return {
         id: `block:${def.id}`,
         label: def.name,
-        short: shortName(def.name),
+        short: shortName(def),
         icon: def.icon,
         badge: turnCount(view),
         key: viewKey(view),
@@ -501,7 +506,9 @@ function buildCardTabs() {
     const views = [];
     for (const def of enabledBlocks(ctx)) {
         if (!def.visible) continue;
-        const view = blockView(ctx.chat ?? [], def);
+        // The sidebar lists every enabled block, empty ones included, so it and its edge
+        // handle are there from the first message; the card only shows blocks with content.
+        const view = blockView(ctx.chat ?? [], def) ?? (own.display === 'sidebar' ? emptyView(def) : null);
         if (!view) continue;
         const tab = blockTab(view, uiKey);
         tabs.push(tab);

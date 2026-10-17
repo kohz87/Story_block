@@ -108,7 +108,8 @@ function notice(kind, text) {
 
 export function emptyText(def, state) {
     const name = blockName(def);
-    return state === null || state === undefined ? `No ${name} yet.` : `${name} is empty.`;
+    // A per-reply block with no copy in the latest reply, or a kept block nothing filled yet.
+    return state === null || state === undefined ? `No ${name} in the latest reply.` : `${name} is empty. It fills in as the story goes.`;
 }
 
 export function renderEmpty(parent, text) {
