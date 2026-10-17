@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+Story Suite: Story Block, Story Director, NPC State Delta and RPG Battle find each other and agree on who tracks what ([docs/STORY_SUITE.md](docs/STORY_SUITE.md)).
+
+- **Announces itself** to the shared registry (`globalThis.StorySuite`, `src/suite.js`, the same file in all four) as `story-block`, with the areas its enabled blocks offer: `scene` and `timeline` while World State is on, `items` with Inventory, `stats` with Character Sheet, `rolls` with Dice. It announces again when a block is switched on or off, added or removed, and on a chat change, and shares `listBlocks` and `getBlock`.
+- **"RPG Battle owns stats."** While another extension owns stats, the Character Sheet's tab says so, with that extension's name. The sheet is still drawn, prompted and editable; the reader decides whether to keep it.
+- **Source of truth** in the settings: for scene, timeline, items, stats and rolls, *Automatic* (the specialist for each), *This extension* or *The other one*, with who has each now. Redrawn when another extension arrives or leaves. Alone, every choice works like Automatic.
+- **Rolls.** The Dice block still takes a kept block's dice modifier (RPG Battle's Checks line), unless the reader picks *This extension* for rolls while another extension offers them; then the Dice block keeps its own −3 to +3 modifier.
+- Alone, nothing changes: no notice, the same prompt.
+
 ## 0.7.0
 
 Kept blocks: blocks another extension keeps and the model only reads.

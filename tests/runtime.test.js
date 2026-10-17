@@ -344,3 +344,118 @@ test('kept block: registered, written by setBlockText, shown read-only in the pr
         delete ctx.extensionSettings.storyBlock;
     }
 });
+
+// ---- Story Suite (v0.8): the handshake with Story Director, NPC State Delta and RPG Battle ----
+
+// Every element under `root`, the stubs FakeElement hands out for selectors included.
+const allElements = root => [root, ...[...root.children, ...root.stubs.values()].filter(child => child instanceof FakeElement).flatMap(allElements)];
+const suiteSection = () => allElements(fixed['#extensions_settings']).find(node => String(node.className).includes('story-block-suite'));
+const storyBlockProvider = () => globalThis.StorySuite.providers().find(provider => provider.id === 'story-block');
+
+test('suite: Story Block announces itself on load with what its enabled blocks offer, and a light api', () => {
+    const provider = storyBlockProvider();
+    assert.equal(provider.name, 'Story Block');
+    assert.equal(provider.version, globalThis.StoryBlock.version);
+    assert.equal(provider.enabled, true);
+    assert.deepEqual(provider.owns, ['items'], 'a first install has only Inventory on');
+    assert.equal(globalThis.StorySuite.api('story-block').listBlocks, globalThis.StoryBlock.listBlocks);
+    assert.equal(globalThis.StorySuite.api('story-block').getBlock, globalThis.StoryBlock.getBlock);
+    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['getBlock', 'listBlocks']);
+});
+
+test('suite: the announcement follows the enabled blocks, announced again only when the offer changes', async () => {
+    const { templateById } = await import('../src/templates.js');
+    const changes = [];
+    const off = globalThis.StorySuite.onChange(() => changes.push(storyBlockProvider()?.owns.join() ?? 'withdrawn'));
+    try {
+        setBlocks([{ ...templateById('character-sheet'), enabled: true }, { ...templateById('dice'), enabled: true }, { ...templateById('world-state'), enabled: false }]);
+        await emit('CHAT_CHANGED');
+        assert.deepEqual(storyBlockProvider().owns, ['stats', 'rolls']);
+        await emit('CHAT_CHANGED');
+        assert.deepEqual(changes, ['stats,rolls'], 'an unchanged offer is not announced again');
+        setBlocks([{ ...templateById('world-state'), enabled: true }]);
+        await emit('CHAT_CHANGED');
+        assert.deepEqual(storyBlockProvider().owns, ['scene', 'timeline']);
+        // A registry that lost Story Block (another extension replaced it) gets it back.
+        globalThis.StorySuite.withdraw('story-block');
+        await emit('CHAT_CHANGED');
+        assert.deepEqual(storyBlockProvider().owns, ['scene', 'timeline']);
+    } finally {
+        off();
+        delete ctx.extensionSettings.storyBlock;
+        await emit('CHAT_CHANGED');
+    }
+});
+
+test('suite: Source of truth defaults to Automatic for each shared area and keeps only known choices', async () => {
+    ctx.extensionSettings.storyBlock = { sourceOfTruth: { stats: 'mine', rolls: 'nonsense' } };
+    ctx.chat = [{ is_user: false, mes: 'Hi.' }, { is_user: true, mes: 'go' }];
+    await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+    assert.deepEqual(ctx.extensionSettings.storyBlock.sourceOfTruth, { scene: 'auto', timeline: 'auto', items: 'auto', stats: 'mine', rolls: 'auto' });
+    await finish();
+    delete ctx.extensionSettings.storyBlock;
+});
+
+test('suite: the settings section has a choice per area, saves it, and redraws when another extension announces', async () => {
+    const section = suiteSection();
+    assert.ok(section, 'the Source of truth section is in the settings panel');
+    const selects = allElements(section).filter(node => node.tagName === 'SELECT');
+    assert.deepEqual(selects.map(node => node.id), ['story_block_source_scene', 'story_block_source_timeline', 'story_block_source_items', 'story_block_source_stats', 'story_block_source_rolls']);
+    assert.deepEqual(selects[3].children.map(option => option.value), ['auto', 'mine', 'theirs']);
+    assert.deepEqual(selects[3].children.map(option => option.textContent), ['Automatic', 'This extension (Story Block)', 'The other one']);
+    assert.equal(selects[3].value, 'auto');
+
+    const { templateById } = await import('../src/templates.js');
+    setBlocks([{ ...templateById('character-sheet'), enabled: true }]);
+    await emit('CHAT_CHANGED');
+    const status = () => allElements(suiteSection()).filter(node => String(node.className).includes('story-block-suite-status')).map(node => node.textContent);
+    assert.equal(status()[3], 'Now: Story Block');
+    globalThis.StorySuite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns: ['stats', 'items', 'rolls'] });
+    try {
+        assert.equal(status()[3], 'Now: RPG Battle', 'redrawn on the suite\'s change');
+        const stats = allElements(suiteSection()).find(node => node.id === 'story_block_source_stats');
+        stats.value = 'mine';
+        stats.listeners.change.forEach(fn => fn());
+        assert.equal(ctx.extensionSettings.storyBlock.sourceOfTruth.stats, 'mine');
+        assert.equal(status()[3], 'Now: Story Block');
+    } finally {
+        globalThis.StorySuite.withdraw('rpg-battle');
+        delete ctx.extensionSettings.storyBlock;
+        await emit('CHAT_CHANGED');
+    }
+});
+
+test('suite: the Dice block takes a kept modifier unless the reader keeps rolls with Story Block while RPG Battle offers them', async () => {
+    const sb = globalThis.StoryBlock;
+    const { templateById } = await import('../src/templates.js');
+    const promptContext = async () => {
+        ctx.chat.push({ is_user: true, mes: 'climb' });
+        await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+        const event = replyChat(...history());
+        await emit('CHAT_COMPLETION_PROMPT_READY', event);
+        await finish('She climbs.');
+        return event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+    };
+    setBlocks([{ ...templateById('dice'), enabled: true }]);
+    await emit('CHAT_CHANGED');
+    assert.deepEqual(sb.registerBlock(characterSpec), { ok: true });
+    try {
+        ctx.chat = [{ is_user: false, mes: 'The wall is wet.' }];
+        await sb.setBlockText(0, 'Character', 'HP: 58/62\nChecks: STR +2');
+        const modifier = /- Modifier: the matching stat's bonus/;
+        assert.match(await promptContext(), modifier, 'alone, as in 0.7');
+        ctx.extensionSettings.storyBlock.sourceOfTruth = { rolls: 'mine' };
+        assert.match(await promptContext(), modifier, '"This extension" with nobody else offering rolls changes nothing');
+        globalThis.StorySuite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns: ['stats', 'rolls'] });
+        const own = await promptContext();
+        assert.doesNotMatch(own, modifier, 'the reader keeps Story Block\'s own modifier');
+        assert.match(own, /### Character — <Character> \(kept by RPG Battle/, 'the sheet itself is still shown');
+        ctx.extensionSettings.storyBlock.sourceOfTruth = { rolls: 'auto' };
+        assert.match(await promptContext(), modifier, 'Automatic: RPG Battle owns rolls');
+    } finally {
+        globalThis.StorySuite.withdraw('rpg-battle');
+        sb.unregisterBlock('rpg-character');
+        delete ctx.extensionSettings.storyBlock;
+        await emit('CHAT_CHANGED');
+    }
+});

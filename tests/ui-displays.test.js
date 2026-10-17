@@ -189,3 +189,21 @@ test('a block kept by another extension says whose it is and has no Edit button'
     assert.equal(show(plain, { def: { ...notesDef, kept: true, owner: 'RPG Battle' }, state: { text: 'Party: Ava, Brenn' } }).querySelector('.story-block-kept').textContent, 'kept by RPG Battle');
     assert.equal(show(fields, { def: sheetDef, state: sheet }).querySelector('.story-block-kept'), null);
 });
+
+// ---- Story Suite -----------------------------------------------------------------------
+
+test('a Character Sheet another extension owns stats for carries its notice, and is otherwise drawn as always', () => {
+    const deferNote = 'RPG Battle owns stats. This sheet keeps working; turn it off if you want one set of numbers, or choose it under Source of truth in Story Block\'s settings.';
+    let edits = 0;
+    const pane = show(fields, { def: { ...sheetDef, deferNote }, state: sheet, error: 'No known field found.', onEdit: () => { edits += 1; } });
+    const note = pane.querySelector('.story-block-notice.is-deferred');
+    assert.equal(note.textContent, deferNote);
+    assert.equal(note.getAttribute('role'), 'note');
+    assert.ok(note.querySelector('i.fa-circle-info'));
+    assert.match(texts(pane, '.story-block-notice')[1], /couldn't be read/, 'the owner first, then the other notices');
+    assert.equal(pane.querySelector('.story-block-meter').getAttribute('aria-valuenow'), '72', 'meters as usual');
+    pane.querySelector('.story-block-edit').click();
+    assert.equal(edits, 1, 'still editable: the reader decides');
+    assert.equal(show(fields, { def: sheetDef, state: sheet }).querySelector('.story-block-notice.is-deferred'), null, 'no owner, no notice');
+    assert.equal(show(fields, { def: { ...sheetDef, deferNote }, state: { text: 'loose text' } }).querySelector('.story-block-notice.is-deferred').textContent, deferNote, 'the plain fallback keeps it');
+});

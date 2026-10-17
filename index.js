@@ -26,8 +26,10 @@ import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from './src/plugin.js';
+import { storySuite } from './src/suite.js';
+import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -45,6 +47,9 @@ let contextMarkerSeen = false;
 let eventsRegistered = false;
 let uiRetry = null;
 let coexistenceWarned = false;
+let suiteSubscribed = false;
+// The Source of truth section of the settings panel, redrawn when the suite changes.
+let suiteSection = null;
 const pending = new Map();
 const cleanupTimers = new Map();
 const normalizingMessages = new Set();
@@ -82,7 +87,7 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null) };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
@@ -95,6 +100,8 @@ function settings(ctx = context()) {
     own.sidebarPinned = own.sidebarPinned !== false;
     // Off-screen on the scene board is behind the scenes, so it starts hidden.
     own.hideOffscreen = own.hideOffscreen !== false;
+    // Story Suite: per shared area, who is the source of truth ('auto', 'mine' or 'theirs').
+    own.sourceOfTruth = normalizeSourceChoices(own.sourceOfTruth);
     return own;
 }
 
@@ -124,13 +131,16 @@ function keptBlocks() {
 /**
  * Kept blocks as the next reply's prompt shows them: the newest copy the extension wrote,
  * before the reply a swipe or regenerate replaces (the same baseline as stateful blocks).
+ * Their dice modifiers are left out while the reader keeps rolls with Story Block although
+ * another extension offers them (keepsOwnRolls); otherwise the Dice block takes them, as in 0.7.
  */
-function keptEntries(chat, type) {
+function keptEntries(chat, type, { ownRolls = false } = {}) {
     const list = Array.isArray(chat) ? chat : [];
     const beforeIndex = replacesLastReply(list, type) ? list.length - 1 : null;
     return keptBlocks().map(def => {
         const found = latestBlockState(list, def, { beforeIndex });
-        return found ? { def, state: found.state, body: found.body } : null;
+        if (!found) return null;
+        return { def: ownRolls && def.diceModifier ? { ...def, diceModifier: '' } : def, state: found.state, body: found.body };
     }).filter(Boolean);
 }
 
@@ -233,7 +243,8 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const chat = ctx.chat ?? [];
     // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
     // placeholder and the real context carry the same numbers.
-    const entries = [...keptEntries(chat, type), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
+    const ownRolls = keepsOwnRolls(settings(ctx).sourceOfTruth.rolls, storySuite());
+    const entries = [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
         def,
         state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
         rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
@@ -527,7 +538,11 @@ function shortName(def) {
 function blockTab(view, uiKey) {
     const { def } = view;
     const display = DISPLAYS[def.display] ?? renderPlain;
-    const hideOffscreen = settings().hideOffscreen;
+    const own = settings();
+    const hideOffscreen = own.hideOffscreen;
+    // "RPG Battle owns stats" on a Character Sheet while another extension owns them; the
+    // sheet is drawn as always and the reader decides whether to keep it.
+    const deferNote = statsNotice(def, own.sourceOfTruth, storySuite());
     let animate = false;
     if (def.display === 'dice' && view.state) {
         const message = context()?.chat?.[view.messageIndex];
@@ -541,10 +556,11 @@ function blockTab(view, uiKey) {
         short: shortName(def),
         icon: def.icon,
         badge: turnCount(view),
-        // The off-screen switch changes how a scene board draws, so a flip must redraw it.
-        key: `${viewKey(view)}|${hideOffscreen ? 1 : 0}`,
+        // The off-screen switch changes how a scene board draws, so a flip must redraw it; so
+        // does an owner arriving or leaving.
+        key: `${viewKey(view)}|${hideOffscreen ? 1 : 0}|${deferNote}`,
         render: pane => display(pane, {
-            def,
+            def: deferNote ? { ...def, deferNote } : def,
             state: view.state,
             previousState: view.previousState,
             changes: view.changes,
@@ -658,6 +674,7 @@ function onBlocksChanged(next) {
     const ctx = context();
     settings(ctx).blocks = normalizeBlocks(next);
     saveSettings(ctx);
+    announceToSuite(ctx);
     refreshAll(0);
 }
 
@@ -736,7 +753,73 @@ function addRuntimeControls(documentRef, root) {
     bind(offscreen, input => { input.checked = settings().hideOffscreen; }, input => { settings().hideOffscreen = Boolean(input.checked); });
     bind(compat, input => { input.checked = settings().compatMarkup; }, input => { settings().compatMarkup = Boolean(input.checked); });
     syncEnabled();
+    suiteSection = documentRef.createElement('div');
+    suiteSection.className = 'story-block-runtime story-block-suite';
+    renderSuiteSection();
+    content.prepend(suiteSection);
     content.prepend(row);
+}
+
+// Source of truth: one choice per shared area Story Block can offer, with who has it now.
+// Built from nodes, not markup: the other extensions' names come from their announcements.
+function renderSuiteSection() {
+    if (!suiteSection) return;
+    const documentRef = globalThis.document;
+    const own = settings();
+    const suite = storySuite();
+    const offered = offeredAreas(blocks());
+    const make = (tag, className = '', text = '') => {
+        const node = documentRef.createElement(tag);
+        if (className) node.className = className;
+        if (text) node.textContent = text;
+        return node;
+    };
+    const head = make('div', 'story-block-section-head');
+    head.appendChild(make('span', '', 'Source of truth'));
+    const intro = make('small', 'story-block-suite-intro', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
+    const nodes = [head, intro];
+    for (const area of SHARED_AREAS) {
+        const { label, provider } = AREA_LABELS[area];
+        const field = make('label', 'story-block-runtime-field story-block-suite-area');
+        field.setAttribute('for', `story_block_source_${area}`);
+        const title = make('span');
+        title.append(make('span', '', `${label} (${provider})`), make('small', 'story-block-suite-status', sourceStatus(area, { choice: own.sourceOfTruth[area], suite, offered: offered.includes(area) })));
+        const select = make('select', 'text_pole');
+        select.id = `story_block_source_${area}`;
+        for (const [value, text] of [['auto', 'Automatic'], ['mine', `This extension (${SUITE_NAME})`], ['theirs', 'The other one']]) {
+            const option = make('option', '', text);
+            option.value = value;
+            select.appendChild(option);
+        }
+        select.value = own.sourceOfTruth[area];
+        select.addEventListener('change', () => {
+            settings().sourceOfTruth = normalizeSourceChoices({ ...settings().sourceOfTruth, [area]: select.value });
+            saveSettings();
+            renderSuiteSection();
+            refreshAll(0);
+        });
+        field.append(title, select);
+        nodes.push(field);
+    }
+    suiteSection.replaceChildren(...nodes);
+}
+
+// Story Suite (src/suite.js): announce what the reader's enabled blocks offer. Only a change is
+// announced, since every announcement wakes every extension's listeners; a registry that lost
+// or never had Story Block's entry gets it again.
+function announceToSuite(ctx = context()) {
+    const suite = storySuite();
+    const owns = offeredAreas(blocks(ctx));
+    const current = suite.providers().find(provider => provider.id === SUITE_ID);
+    if (current?.enabled && current.version === VERSION && current.owns.join() === owns.join()) return;
+    suite.announce({ id: SUITE_ID, name: SUITE_NAME, version: VERSION, owns, api: SUITE_API });
+}
+
+// Another extension arrived, left or changed what it offers: the settings' owners and the
+// Character Sheet's notice follow. Story Block's own announcements land here too, harmlessly.
+function onSuiteChanged() {
+    renderSuiteSection();
+    refreshAll(0);
 }
 
 function addMenuButton(documentRef) {
@@ -799,6 +882,7 @@ function onChatChanged() {
     // Pending sessions are chat-scoped and intentionally survive UI chat switches: a
     // generation already prepared may still reach prompt-ready after the user views another chat.
     syncMountSuspension();
+    announceToSuite();
     refreshAll(0);
 }
 
@@ -835,6 +919,9 @@ function registerEvents() {
     for (const event of [events.APP_READY, events.APP_INITIALIZED, events.EXTENSIONS_FIRST_LOAD, events.EXTENSION_SETTINGS_LOADED]) {
         if (event) ctx.eventSource.on(event, () => {
             ensureExtensionUi();
+            // The stored block list may only now be loaded.
+            announceToSuite();
+            renderSuiteSection();
             refreshAll(0);
         });
     }
@@ -896,6 +983,9 @@ globalThis.StoryBlock = Object.freeze({
     refresh: () => refreshAll(0),
 });
 
+// What Story Block shares with the suite: reading blocks, nothing that writes.
+const SUITE_API = Object.freeze({ listBlocks: globalThis.StoryBlock.listBlocks, getBlock: globalThis.StoryBlock.getBlock });
+
 export async function init() {
     if (initialized) return;
     if (!globalThis.SillyTavern?.getContext) {
@@ -907,6 +997,11 @@ export async function init() {
     ensureExtensionUi();
     initializeMount(buildCardTabs);
     registerEvents();
+    announceToSuite();
+    if (!suiteSubscribed) {
+        suiteSubscribed = true;
+        storySuite().onChange(onSuiteChanged);
+    }
     refreshAll(0);
     console.info(`[Story Block] v${VERSION} loaded.`);
 }
