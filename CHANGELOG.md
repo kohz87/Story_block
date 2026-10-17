@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+A plugin API for other extensions, and World State's World and Hooks sections.
+
+- **Plugin API** on `globalThis.StoryBlock` (`apiVersion: 1`): read any block's newest valid copy (or the one before a message, or the one the next generation will be shown), read a block from one message's text, replace a block in a message, register a hidden transport-only block, and listen for replies and refreshes. Plugin tabs can now say when their pane is unchanged (`key`) and show a count (`badge`). Story Director builds on this.
+- **World State board:** a `World` (or `World events`) section is its own list, `Hooks` reads as threads, and list items written `Key — what it is | then: …` show the key as their heading.
 ## 0.5.6
 
 A tidier settings panel, and a guide to the markup each display reads.
