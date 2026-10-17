@@ -25,7 +25,7 @@ import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.5.5';
+const VERSION = '0.5.6';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -613,8 +613,10 @@ function addRuntimeControls(documentRef, root) {
     const row = documentRef.createElement('div');
     row.className = 'story-block-runtime';
     row.innerHTML = `
-        <span class="story-block-runtime-version">v${VERSION}</span>
-        <button id="story_block_rescan" type="button" class="menu_button"><i class="fa-solid fa-rotate"></i> Rescan chat</button>
+        <div class="story-block-section-head">
+            <span>Display</span>
+            <span class="story-block-runtime-version">v${VERSION}</span>
+        </div>
         <label class="story-block-runtime-field" for="story_block_display">
             <span>Show blocks in</span>
             <select id="story_block_display" class="text_pole">
@@ -626,8 +628,12 @@ function addRuntimeControls(documentRef, root) {
             <input id="story_block_strip" type="checkbox"> <span>"This turn" strip under the reply</span>
         </label>
         <label class="checkbox_label" for="story_block_compat" title="Lets extensions that add a tab to Megumin Suite's card (NPC State Delta) add it to Story Block's card. Turn off if Megumin Suite itself is installed.">
-            <input id="story_block_compat" type="checkbox"> <span>Megumin-compatible card</span>
-        </label>`;
+            <input id="story_block_compat" type="checkbox"> <span>Megumin-compatible card <small>(card only)</small></span>
+        </label>
+        <div class="story-block-runtime-tools">
+            <button id="story_block_rescan" type="button" class="menu_button"><i class="fa-solid fa-rotate"></i> Rescan chat</button>
+            <small>Re-reads every block in this chat and hides raw ones left in the story.</small>
+        </div>`;
     row.querySelector('#story_block_rescan')?.addEventListener('click', () => void rescan());
     const display = row.querySelector('#story_block_display');
     const strip = row.querySelector('#story_block_strip');

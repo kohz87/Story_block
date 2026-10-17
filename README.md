@@ -1,4 +1,4 @@
-# Story Block v0.5.5
+# Story Block v0.5.6
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -42,6 +42,9 @@ reads Inventory Block's existing snapshots, so your current inventory carries ov
 with the same tag (for example `World_State`) picks up its last copy.
 
 ## Blocks
+
+In the settings list, each block's switch turns it on or off, ✎ opens its editor, and ⋯ holds
+the rest: show or hide its tab, move it up or down, duplicate, reset to default, delete.
 
 Each block has:
 
@@ -99,6 +102,68 @@ roll before the scene:
 
 The card checks the model used the numbers it was given, in order, and that the sums add up,
 and says so — or names what went wrong.
+
+### Writing a layout each display can draw
+
+A block's **Prompt** says what to track; its **Layout** (free-text blocks) or **Fields** and
+**Columns** (structured blocks) say how it is written. The model copies the layout, and the
+display reads what comes back. You can change all of it. If a reply does not read cleanly,
+the block is drawn as plain text instead, so nothing the model wrote is ever hidden.
+
+**Scene board** (World State). Markdown the board understands:
+
+```
+**📅 Time:** 1042, Harvestmoon 14, dusk | **🌤 Loc:** Mill Yard | Low Ward | **🌡 Wx:** Rain, cold
+---
+**🧍 {{user}}:**
+* *Outfit:* Wet cloak
+* *Guild Rank:* F (Lance Leader)
+**👥 NPCs Present:**
+**Brenn (miller):**
+* *Mood:* Wary, tired
+* *Secret:* Owes the guild money
+**📡 Off-Screen:**
+* **Geva — now:** Bailiff Court | then: argues the warrant | on: Harvestmoon 14, 18:00
+**🔥 Unresolved Threads:**
+* Who tipped off the bailiff | then: warrants at dawn
+**🌱 Planted Seeds:** The cracked millstone, 2 turns
+**⏳ Consequence Timers:** Guild collector arrives, 3 turns
+**🎯 Arc Phase:** Escalation
+**🎬 Scene Phase:** Building
+```
+
+| You write | The board shows |
+|---|---|
+| `Time` / `Date`, `Loc` / `Location` / `Place`, `Wx` / `Weather` labels on the first line | Time, place and weather rows (pipes inside a value read as ` · `) |
+| `**🧍 Name:**` (or `PC:`, `Player:`, `You:`) | Your card, tagged *you* |
+| A heading such as `NPCs Present`, then `**Name:**` or `**Name (role):**` | A card per person |
+| `* *Field:* value` under a person | A labelled row. Outfit, Position, Agenda, Visible Condition and Carrying come first; any other field you invent follows as written |
+| `Mood:` | A mood pill next to the name |
+| `Secret:` | Hidden behind a *Reveal secret* button |
+| `Off-Screen` / `Elsewhere` heading, then `* **Name:** what` | One entry per person or event |
+| `Unresolved Threads`, `Planted Seeds`, `Consequence Timers` | Lists (short items as pills, long ones as rows) |
+| `Arc Phase` / `Scene Phase` set to Setup–Resolution / Early Simmer–Breather | A progress rail (other values are shown as written) |
+| `a \| label: b \| label: c` anywhere | One short row per part; a `label:` of up to three words becomes the small label |
+| `**Name — now:** …` | The name, with *now* as the first part's label |
+| `[59.0, 110.0]` in the location | Dimmed coordinates |
+
+Headings are matched on their words, not their emoji, and `---` lines are ignored.
+
+**Meters & fields** (Fields format): one `Label: value` line per field. Each field's type is
+set in the block editor: a meter is written `HP: 7/10`, a number `Gold: 85`, a list
+`Skills: Climb, Swim`, text as it is. Bold labels, bullets and several fields on one line
+split by ` | ` all read.
+
+**Tree list** (Rows format): `[Section > Sub]` headers, then one `Item | Qty | Note` line per
+item (the columns are the block's own).
+
+**Choice buttons**: a numbered or bulleted list (`1. Follow her out`). A line of prose in
+between turns the buttons off for that reply.
+
+**Whisper thread** (NPC Inner Chatter): `Name: line`, one per line. Two or more speakers
+make a thread, one makes a pull quote.
+
+**Dice cards**: one roll line per roll, as shown under Dice above.
 
 ### How a reply carries its blocks
 
