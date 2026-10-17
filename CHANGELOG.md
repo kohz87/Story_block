@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- **Off-screen hidden until revealed.** The World State board's Off-Screen section now shows only how many entries there are and a **Reveal** button; like secrets, the entries are not in the page until revealed, and the reveal holds across replies until you hide it or reload. The block text is untouched, so NPC State Delta (and Story Director's Off-Screen mirror) work as before. Turn it off under Display → *Hide off-screen until revealed*.
+
 ## 0.6.0
 
 A plugin API for other extensions, and World State's World and Hooks sections.
