@@ -16,7 +16,10 @@ test('findBlockDef matches ids, and tags without regard to case', () => {
     assert.equal(findBlockDef([world], 'world_state'), world);
     assert.equal(findBlockDef([world], 'Nope'), null);
     assert.equal(findBlockDef([world], ''), null);
-    assert.deepEqual(Object.keys(blockSummary(world)).sort(), ['display', 'enabled', 'format', 'id', 'kind', 'name', 'optional', 'tag', 'visible']);
+    assert.deepEqual(Object.keys(blockSummary(world)).sort(), ['display', 'enabled', 'format', 'id', 'kind', 'name', 'optional', 'tab', 'tag', 'visible']);
+    // `tab` (v0.9.1) follows the reader's "Show tab" switch.
+    assert.equal(blockSummary(world).tab, true);
+    assert.equal(blockSummary({ ...world, visible: false }).tab, false);
 });
 
 test('blockSnapshot: the newest valid copy, or the one before a given message', () => {
@@ -46,6 +49,8 @@ test('plugin blocks are transport only, keep their tag to themselves, and merge 
     assert.equal(def.kind, 'turn');
     assert.equal(def.repeating, true);
     assert.equal(def.prompt, '');
+    assert.equal(blockSummary(def).tab, false, 'transport only: never a tab');
+    assert.equal(pluginBlockDef({ id: 'story-director', tag: 'Director', tab: true }, []).def.visible, false, 'whatever spec.tab says');
     assert.match(pluginBlockDef({ id: 'x', tag: 'World_State' }, [world]).error, /already used/);
     assert.match(pluginBlockDef({ id: 'x', tag: 'bad tag' }, []).error, /tag/);
     assert.match(pluginBlockDef({ id: 'Bad Id', tag: 'Ok' }, []).error, /id/);

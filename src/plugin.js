@@ -16,11 +16,27 @@
 // as read-only state, it gets a tab like the reader's blocks (without Edit), and only the
 // extension writes it, through setBlockText. A copy the model writes anyway is dropped on
 // receive and never counts (envelope.js: ownCopy, dropForeignCopies).
+//
+// A kept block registered with `tab: false` (v0.9.1) is all of that without the tab: the
+// extension shows it in a tab of its own (RPG Battle's Battle tab), so Story Block's sidebar
+// and card leave it out, with its badge. Underneath it is a block with `visible: false`, the
+// reader's own "Show tab" switch, so it is left out exactly where theirs is (hasTab).
 
 import { latestBlockInText, latestBlockState, replacesLastReply } from './envelope.js';
 import { FIELD_TYPES, TAG_PATTERN, normalizeBlock, validateBlock } from './schema.js';
 
-/** What a plugin may know about a block definition. Kept blocks report kind 'kept' and their owner. */
+/**
+ * Whether a block gets a tab in the sidebar and the card (once it is enabled and has something
+ * to show): the reader's "Show tab" switch, a kept block's `tab`. Transport blocks never do.
+ */
+export function hasTab(def) {
+    return Boolean(def?.visible);
+}
+
+/**
+ * What a plugin may know about a block definition. Kept blocks report kind 'kept' and their
+ * owner; every block reports `tab` (hasTab).
+ */
 export function blockSummary(def) {
     const summary = {
         id: def.id,
@@ -32,6 +48,7 @@ export function blockSummary(def) {
         enabled: Boolean(def.enabled),
         visible: Boolean(def.visible),
         optional: Boolean(def.optional),
+        tab: hasTab(def),
     };
     if (def.kept) summary.owner = def.owner;
     return summary;
@@ -100,6 +117,7 @@ function keptBlockDef(spec, id, tag, existing) {
     const display = spec.display === undefined ? (format === 'fields' ? 'fields' : 'plain') : spec.display;
     if (!KEPT_DISPLAYS.includes(display)) return { error: 'a kept block\'s display is "fields" or "plain"' };
     if (display === 'fields' && format !== 'fields') return { error: 'the "fields" display needs the "fields" format' };
+    if (spec.tab !== undefined && typeof spec.tab !== 'boolean') return { error: 'a kept block\'s tab is true or false' };
     if (format === 'fields') {
         // Likewise for fields: a plugin hears what is wrong instead of getting a repaired list.
         for (const field of fields) {
@@ -121,7 +139,8 @@ function keptBlockDef(spec, id, tag, existing) {
         display,
         fields,
         enabled: true,
-        visible: true,
+        // `tab: false`: kept, prompted and read as always, but no tab of its own (v0.9.1).
+        visible: spec.tab !== false,
         // Never asked for, so never missed: its tab appears once the extension has written it.
         optional: true,
         repeating: false,
@@ -143,8 +162,8 @@ function keptBlockDef(spec, id, tag, existing) {
 }
 
 /**
- * A plugin's block: transport only, or kept (`spec.kept: true`, see keptBlockDef). Returns
- * { def } or { error }. A tag a reader's own block already uses stays theirs; a plugin block
+ * A plugin's block: transport only (never a tab, whatever `spec.tab` says), or kept
+ * (`spec.kept: true`, see keptBlockDef). Returns { def } or { error }. A tag a reader's own block already uses stays theirs; a plugin block
  * registered again under its own id is replaced (an extension re-registering after a reload).
  */
 export function pluginBlockDef(spec, existing = []) {

@@ -255,13 +255,13 @@ delete, chat change and render events. Exposes the tab API (section 6) as
 
 | Member | Does |
 |---|---|
-| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional }]`; kept blocks report `kind: 'kept'` and `owner` |
+| `listBlocks()` | Every definition (the reader's and plugins'): `[{ id, tag, name, kind, format, display, enabled, visible, optional, tab }]`; kept blocks report `kind: 'kept'` and `owner`. `tab` (v0.9.1, `hasTab`) is whether the block gets a tab once enabled and written: the reader's "Show tab" switch, a kept block's `tab`; always false for transport-only blocks |
 | `getBlock(tagOrId, { beforeIndex })` | Newest valid copy: `{ id, tag, text, state, messageIndex }` or null |
 | `blockForGeneration(tagOrId, type)` | The copy a generation of `type` will be shown (a swipe/regenerate sees the one before the reply it replaces) |
 | `blockInText(text, tagOrId)` | The block as written in one message's text (repeats merged), or null |
 | `setBlockText(messageIndex, tagOrId, text)` | Replace a block in an assistant message (inside the envelope); resolves to true when it changed. For a kept block, `text` is plain text, refused (throws) when the block's format cannot read it, and stamped as the extension's copy |
-| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab. `{ ok, error }`. Registering a plugin's own id again replaces it |
-| `registerBlock({ kept: true, id, tag, owner, name?, icon?, short?, format?, display?, fields?, promptNote?, diceModifier? })` | A kept block (v0.7), see below |
+| `registerBlock({ id, tag, name })` | A transport-only block: moved into the envelope, hidden, kept out of the prompt's history, never prompted, no tab (a `tab` given is ignored). `{ ok, error }`. Registering a plugin's own id again replaces it |
+| `registerBlock({ kept: true, id, tag, owner, name?, icon?, short?, format?, display?, fields?, promptNote?, diceModifier?, tab? })` | A kept block (v0.7), see below. `tab: false` (v0.9.1): no tab of its own; default `true` |
 | `unregisterBlock(id)` | |
 | `onReply(cb)` | After each reply is received and normalized: `cb({ chatId, messageIndex })`; returns unsubscribe |
 | `onUpdate(cb)` | On every refresh (reply, swipe, edit, delete, chat change); returns unsubscribe |
@@ -275,8 +275,9 @@ A block another extension keeps and the model only reads (RPG Battle's Character
 sheets). `pluginBlockDef` (`src/plugin.js`) builds it with `normalizeBlock` and checks it with
 `validateBlock`, plus: `owner` required; `format` `'fields' | 'text'` (default `fields` when
 `fields` are given); `display` `'fields' | 'plain'` (default by format; `fields` needs the
-fields format); every field has a label and a known type. The definition is
-`{ ...normalizeBlock(…), kind: 'stateful', visible: true, optional: true, prompt: '', plugin: true, kept: true, owner, promptNote, diceModifier }`.
+fields format); every field has a label and a known type; `tab` is `true`, `false` or left out
+(`true`). The definition is
+`{ ...normalizeBlock(…), kind: 'stateful', visible: tab !== false, optional: true, prompt: '', plugin: true, kept: true, owner, promptNote, diceModifier }`.
 `stateful` underneath means view, snapshots and swipe baselines treat its newest valid copy
 as its state, as for any stateful block.
 
@@ -300,6 +301,18 @@ as its state, as for any stateful block.
 - **Display.** A tab like the reader's blocks (`tabView`; none until written, since it is
   optional). `onEdit` is omitted, and `renderFrame` shows `span.story-block-kept` ("kept by Owner")
   for any `def.kept`. Kept blocks are not in `settings.blocks`, so the settings editor never lists them.
+- **Without a tab (v0.9.1).** `tab: false` gives `visible: false`, the reader's own "Show tab"
+  switch: `buildCardTabs` skips every block without `hasTab(def)` (`src/plugin.js`), in the
+  sidebar and the card alike, so it has no tab, no tab badge, no line in the turn strip and adds
+  nothing to the edge handle's count (the sum of the tabs' badges). Everything else is unchanged:
+  it is still stamped, kept, prompted read-only (`keptEntries` takes every kept block), its
+  dice modifier still applies, a model's copy is still dropped, and `getBlock`,
+  `blockForGeneration`, `blockInText` and `setBlockText` read and write it as before.
+  For an extension that draws the block in a tab of its own (RPG Battle's Battle tab).
+  `registerBlock` again with the same id may flip `tab`; the sidebar redraws at once (a kept
+  block registered or replaced refreshes). An older Story Block ignores `tab` and shows the tab.
+  `tests/ui-kept-tab.test.js` runs the real `index.js` against the fake DOM to check the sidebar,
+  the card and the handle's count.
 
 ### Story Suite (`src/suite.js`, `src/handshake.js`, v0.8)
 

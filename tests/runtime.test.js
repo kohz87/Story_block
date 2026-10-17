@@ -306,6 +306,8 @@ test('kept block: registered, written by setBlockText, shown read-only in the pr
         const listed = sb.listBlocks().find(block => block.id === 'rpg-character');
         assert.equal(listed.kind, 'kept');
         assert.equal(listed.owner, 'RPG Battle');
+        assert.equal(listed.tab, true, 'a tab unless registered with tab: false (v0.9.1)');
+        assert.ok(sb.listBlocks().every(block => typeof block.tab === 'boolean'));
 
         ctx.chat = [{ is_user: false, mes: 'The road is quiet.' }, { is_user: true, mes: 'fight' }, { is_user: false, mes: 'The goblin falls.' }];
         await assert.rejects(sb.setBlockText(2, 'Character', 'nothing readable'), /Character could not be read/);

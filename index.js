@@ -25,12 +25,12 @@ import { rollDice, stampRolls } from './src/dice.js';
 import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
-import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, pluginBlockDef } from './src/plugin.js';
+import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, hasTab, pluginBlockDef } from './src/plugin.js';
 import { storySuite } from './src/suite.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
-const VERSION = '0.9.0';
+const VERSION = '0.9.1';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -121,7 +121,7 @@ function enabledBlocks(ctx = context()) {
 }
 
 // Blocks other extensions registered: transport only (hidden and kept, never prompted), or
-// kept by the extension (shown to the model read-only, a tab without Edit).
+// kept by the extension (shown to the model read-only, a tab without Edit unless `tab: false`).
 const pluginBlocks = new Map();
 const replyListeners = createListeners('reply listener');
 const updateListeners = createListeners('update listener');
@@ -597,8 +597,10 @@ function buildCardTabs() {
     const uiKey = String(chatIdOf(ctx) ?? 'default');
     const tabs = [];
     const views = [];
+    // A block without a tab (the reader's "Show tab" off, a kept block registered with
+    // `tab: false`) is still prompted and kept; it only has no tab, badge or strip line here.
     for (const def of [...enabledBlocks(ctx), ...keptBlocks()]) {
-        if (!def.visible) continue;
+        if (!hasTab(def)) continue;
         const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
         if (!view) continue;
         const tab = blockTab(view, uiKey);
@@ -1074,7 +1076,8 @@ globalThis.StoryBlock = Object.freeze({
     setBlockText,
     /**
      * A plugin's block: transport only, or with `kept: true` read by the model every reply and
-     * written only by the plugin (setBlockText), with a tab of its own. { ok, error }.
+     * written only by the plugin (setBlockText), with a tab of its own unless `tab: false`.
+     * Registering again under the same id replaces it (and may flip its tab). { ok, error }.
      */
     registerBlock(spec) {
         const result = pluginBlockDef(spec, transportBlocks());

@@ -1,4 +1,4 @@
-# Story Block v0.9.0
+# Story Block v0.9.1
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -336,6 +336,7 @@ sb.registerBlock({
     ],
     promptNote: 'The player character as RPG Battle tracks it.',  // optional: one line on how to read it
     diceModifier: "Modifier: the matching stat's bonus from the <Character> block's Checks line (for example CHA +1); ignore the −3 to +3 guess.",  // optional
+    tab: true,                    // optional: false = no tab of its own (v0.9.1)
 });                                // { ok: true } or { ok: false, error }
 await sb.setBlockText(messageIndex, 'Character', 'HP: 58/62 | MP: 21/30\nChecks: STR +2 | CHA +1');
 sb.getBlock('Character');          // { text, state, messageIndex }: state.entries has HP 58/62, MP 21/30, …
@@ -349,6 +350,7 @@ sb.getBlock('Character');          // { text, state, messageIndex }: state.entri
 | `name`, `icon`, `short` | Tab label, icon and short sidebar label. |
 | `format`, `display`, `fields` | `fields` (one `Label: value` line per field; several on one line with ` \| ` read too) or `text`; shown as `fields` (meters, numbers, text, list chips) or `plain`. Field types: `meter` (with `max`), `number`, `text`, `list`, each with an optional `hint`. |
 | `promptNote` | One line under the heading, telling the model how to read the block. |
+| `tab` | `true` (default) or `false` (v0.9.1). With `false` the block is written, kept and prompted exactly the same, but gets no tab (and no badge) in the sidebar or the card: for an extension that shows it in its own tab. Registering again with your id can flip it. An older Story Block ignores it. |
 | `diceModifier` | Added as one more instruction line to the **Dice** block's instructions in the prompt, while the Dice block is on and this block has been written. The reader's stored Dice prompt is not changed. *Dice: Everyone* is left alone, since its rolls are often an NPC's. |
 
 - **Only you write it.** `setBlockText(messageIndex, tag, text)` takes plain text, checks that
@@ -362,7 +364,8 @@ sb.getBlock('Character');          // { text, state, messageIndex }: state.entri
   Until you have written one, there is no prompt section and no tab.
 - No warning is given when a reply leaves a kept block out, since the model never writes it.
   Kept blocks are not in the reader's settings list. `listBlocks()` reports them with
-  `kind: 'kept'` and their `owner`.
+  `kind: 'kept'` and their `owner`, and every block with `tab` (`false` for a kept block
+  registered with `tab: false`, for a block whose *Show tab* is off, and for transport-only blocks).
 
 ## Development
 

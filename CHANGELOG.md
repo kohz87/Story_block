@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+Kept blocks without a tab.
+
+- **`registerBlock({ kept: true, …, tab: false })`** registers a kept block that is written, stamped, kept, prompted read-only and dropped when the model writes it, exactly as before, but gets no tab of its own: none in the sidebar or the card, no tab badge, nothing in the turn strip or the edge handle's count. For an extension that draws the block in its own tab (RPG Battle's Party block in its Battle tab). `tab` defaults to `true`, so nothing changes for existing kept blocks; anything other than `true` or `false` is refused. `getBlock`, `blockForGeneration`, `blockInText` and `setBlockText` work on it as on any kept block.
+- **Re-registering may flip it:** registering the same id again with another `tab` adds or removes the tab on the next refresh, which the registration triggers.
+- **`listBlocks()` reports `tab`** for every block: whether it gets a tab once enabled and written (the reader's *Show tab* switch, a kept block's `tab`; `false` for transport-only blocks). apiVersion stays 1.
+
 ## 0.9.0
 
 Story Suite: one place to manage Story Block, Story Director, NPC State Delta and RPG Battle together ([docs/STORY_SUITE.md](docs/STORY_SUITE.md), "One place to manage them all").
