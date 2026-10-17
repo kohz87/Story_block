@@ -74,6 +74,25 @@ test('bare known tags become one envelope where they were written', () => {
     assert.equal(count(scattered, /STORY_BLOCKS_V1\n/g), 2);
 });
 
+test('a bare block next to the envelope joins it: one hidden section per reply', () => {
+    const after = normalize(`Story.\n\n${envelope(note('n'))}\n\n<Mood>\ncalm\n</Mood>`).text;
+    assert.equal(after, `Story.\n\n${envelope(note('n'), '<Mood>\ncalm\n</Mood>')}`);
+    assert.equal(normalize(after).changed, false);
+    const before = normalize(`Story.\n<Mood>\ncalm\n</Mood>\n${envelope(note('n'))}`).text;
+    assert.equal(before, `Story.\n${envelope('<Mood>\ncalm\n</Mood>', note('n'))}`);
+    // Two envelopes already in a reply (older versions) merge on the next pass, in order.
+    const doubled = normalize(`Story.\n${envelope(note('a'))} ${envelope('<Mood>\ncalm\n</Mood>')}`);
+    assert.equal(doubled.text, `Story.\n${envelope(note('a'), '<Mood>\ncalm\n</Mood>')}`);
+    // Prose between them keeps them apart.
+    const apart = `Story.\n${envelope(note('a'))}\nMore story.\n${envelope('<Mood>\ncalm\n</Mood>')}`;
+    assert.equal(normalize(apart).changed, false);
+    // A later write (a plugin knows only its own tag) lands in the one envelope.
+    const written = upsertBlock(`Story.\n${envelope(note('a'))}\n\n${envelope('<Mood>\ncalm\n</Mood>')}`, sheet, 'HP: 3/5');
+    assert.equal(count(written, /STORY_BLOCKS_V1\n/g), 1);
+    assert.equal(squash(visible(written)), 'Story.');
+    assert.deepEqual(extractBlocks(written, defs).map(entry => entry.def.tag), ['Notes', 'Mood', 'Sheet']);
+});
+
 test('H2: prose mentioning a block tag is never treated as a block', () => {
     const card = 'You are Mira.\nKeep an <inventory> of what the party owns.\nMira never gives discounts.';
     assert.equal(normalize(card).changed, false);
@@ -302,7 +321,8 @@ test('L6: bare: false removes only hidden envelopes; knownBlocks also drops copi
     const known = new Set(bareBlockTexts(`Reply\n${history}\n<Blocks>\n<Mood>\ncalm\n</Mood>\n</Blocks>\n${envelope(note('hidden'))}`, defs));
     assert.deepEqual([...known], ['<Blocks>\n<Mood>\ncalm\n</Mood>\n</Blocks>', history]);
     assert.equal(stripBlocks(text, defs, { bare: false, knownBlocks: known }), `Example:\n${example}\nHistory:\n\nPasted:\n\n`);
-    assert.equal(stripBlocks(text, defs), 'Example:\n\nHistory:\n\nPasted:\n\n');
+    // The pasted copies sit side by side, so they are hidden as one envelope and go together.
+    assert.equal(stripBlocks(text, defs), 'Example:\n\nHistory:\n\nPasted:\n');
     // A cut envelope in user content goes too.
     assert.equal(stripBlocks(`Quote: <!-- ${ENVELOPE_MARKER}\n<Blocks>\n<Notes>\nhal`, defs, { bare: false }), 'Quote: ');
 });

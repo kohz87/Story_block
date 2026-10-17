@@ -595,8 +595,36 @@ export function normalizeTransport(text, defs) {
     if (partial !== null && partial >= covered && !edits.some(edit => edit.end > partial)) {
         edits.push({ start: partial, end: source.length, text: cutText(source.slice(partial)) });
     }
-    const result = applyEdits(source, edits);
+    const result = mergeAdjacentEnvelopes(applyEdits(source, edits), defs);
     return { text: result, changed: result !== original };
+}
+
+/**
+ * Envelopes with only whitespace between them become one, their blocks in the same order: a
+ * bare block the model wrote next to its own envelope is wrapped where it stands, and must
+ * not leave the reply with two hidden sections (nor send later writes into the second).
+ * Only complete, well-formed envelopes merge; prose between envelopes keeps them apart.
+ */
+function mergeAdjacentEnvelopes(text, defs) {
+    const { source, containers } = scan(text, defs);
+    const runs = [];
+    for (const container of containers) {
+        if (container.kind !== 'envelope' || container.status !== 'complete' || !container.wellFormed) {
+            runs.push(null);
+            continue;
+        }
+        const run = runs.at(-1);
+        if (run && !source.slice(run.at(-1).end, container.start).trim()) run.push(container);
+        else runs.push([container]);
+    }
+    const edits = runs.filter(run => run && run.length > 1).map(run => ({
+        start: run[0].start,
+        end: run.at(-1).end,
+        text: envelopeText(run
+            .map(container => source.slice(container.innerStart, container.innerEnd).replace(/^\s*<Blocks(?:[ \t][^>\n]*)?>/i, '').trim())
+            .filter(Boolean)),
+    }));
+    return edits.length ? applyEdits(source, edits) : source;
 }
 
 // Closes something the continuation never opened: `</Inventory>`, `</Blocks>` or `-->`
