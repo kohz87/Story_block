@@ -166,7 +166,7 @@ export function render(pane, {
             ? `The newest reply carried no ${name}; these changes come from an earlier reply.`
             : `Changes to ${name} since the previous state.`;
         summary.append(
-            el('span', 'story-block-tree-changes-label', `Δ ${plural(changeList.length, 'change')}${changesFromEarlierReply ? ' · earlier reply' : ''}`),
+            el('span', 'story-block-tree-changes-label', `${changesFromEarlierReply ? 'Changed in an earlier reply' : 'Changed this turn'} · ${changeList.length}`),
             el('span', 'story-block-tree-changes-preview', changeList.map(describeChange).join('   ')),
         );
         strip.appendChild(summary);

@@ -46,7 +46,7 @@ test('header, tree and item count', () => {
 
 test('change strip lists added, changed and moved items and marks changed categories', () => {
     const pane = show();
-    assert.match(pane.querySelector('.story-block-tree-changes-label').textContent, /^Δ 3 changes$/);
+    assert.equal(pane.querySelector('.story-block-tree-changes-label').textContent, 'Changed this turn · 3');
     assert.deepEqual(texts(pane, '.story-block-tree-change-link'), [
         '+ Tarp ×1',
         '~ Coin Pouch: 100 Gold → 85 Gold',

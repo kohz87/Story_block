@@ -32,7 +32,6 @@ const CLASS = {
 // Layout thresholds (CSS px). A docked sidebar needs its minimum width plus a margin
 // on both sides; narrower gutters fall back to the drawer.
 const PHONE_MAX = 640;
-const COARSE_PHONE_MAX = 800;
 const DOCK_MIN = 300;
 const DOCK_MAX = 380;
 const DOCK_MARGIN = 12;
@@ -81,9 +80,11 @@ function safeId(id) {
  * docked sidebar, its width and right offset; `dockable` says whether the gutter is
  * wide enough to dock at all (the header then offers Pin/Unpin).
  */
-export function layoutMode({ viewportWidth, chatRect, blockedRight = 0, pinned = true, coarse = false } = {}) {
+export function layoutMode({ viewportWidth, chatRect, blockedRight = 0, pinned = true } = {}) {
     const width = Number(viewportWidth) || 0;
-    if (width <= PHONE_MAX || (coarse && width <= COARSE_PHONE_MAX)) {
+    // Width alone decides: a portrait tablet is a touch screen too, but it has room for
+    // the drawer, and the sheet is for phones.
+    if (width <= PHONE_MAX) {
         return { mode: 'sheet', dockable: false, width: 0, right: 0 };
     }
     const blocked = Math.max(0, Number(blockedRight) || 0);
@@ -109,14 +110,11 @@ function blockedRightOf(panel, viewportWidth) {
 function measure() {
     const w = win();
     const viewportWidth = Number(w?.innerWidth) || Number(doc()?.documentElement?.clientWidth) || 1024;
-    let coarse = false;
-    try { coarse = Boolean(w?.matchMedia?.('(pointer: coarse)')?.matches); } catch { coarse = false; }
     const tops = ['top-bar', 'top-settings-holder'].map(id => rectOf(byId(id))).filter(Boolean);
     return {
         viewportWidth,
         chatRect: rectOf(byId('sheld')),
         blockedRight: blockedRightOf(byId('right-nav-panel'), viewportWidth),
-        coarse,
         topOffset: tops.length ? Math.max(0, ...tops.map(rect => rect.bottom)) : 0,
     };
 }
