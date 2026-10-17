@@ -52,8 +52,8 @@ test('plain: markup in model text stays text', () => {
 });
 
 test('plain: empty, missing, error, truncated, edit', () => {
-    assert.match(show(plain, { def: notesDef, state: null }).querySelector('.story-block-empty').textContent, /^No Scene Notes yet\.$/);
-    assert.match(show(plain, { def: notesDef, state: { text: '  ' } }).querySelector('.story-block-empty').textContent, /^Scene Notes is empty\.$/);
+    assert.match(show(plain, { def: notesDef, state: null }).querySelector('.story-block-empty').textContent, /^No Scene Notes in the latest reply\.$/);
+    assert.match(show(plain, { def: notesDef, state: { text: '  ' } }).querySelector('.story-block-empty').textContent, /^Scene Notes is empty\. It fills in as the story goes\.$/);
     let edits = 0;
     const pane = show(plain, { def: notesDef, state: { text: 'Partial' }, error: 'The block is empty', truncated: true, onEdit: () => { edits += 1; } });
     const notices = texts(pane, '.story-block-notice');
@@ -153,8 +153,8 @@ test('fields: without changes, previousState is compared by label', () => {
 });
 
 test('fields: empty, missing, error, truncated, edit; text stays text', () => {
-    assert.match(show(fields, { def: sheetDef, state: null }).textContent, /No Character Sheet yet\./);
-    assert.match(show(fields, { def: sheetDef, state: { entries: [] } }).textContent, /Character Sheet is empty\./);
+    assert.match(show(fields, { def: sheetDef, state: null }).textContent, /No Character Sheet in the latest reply\./);
+    assert.match(show(fields, { def: sheetDef, state: { entries: [] } }).textContent, /Character Sheet is empty\. It fills in as the story goes\./);
     let edits = 0;
     const pane = show(fields, {
         def: sheetDef,

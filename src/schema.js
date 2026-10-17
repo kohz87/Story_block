@@ -6,7 +6,7 @@
 
 export const KINDS = ['stateful', 'turn', 'lead'];
 export const FORMATS = ['rows', 'fields', 'text'];
-export const DISPLAYS = ['plain', 'tree', 'fields', 'scene', 'choices', 'dice'];
+export const DISPLAYS = ['plain', 'tree', 'fields', 'scene', 'choices', 'dice', 'chatter'];
 export const DIE_SIDES = [4, 6, 8, 10, 12, 20, 100];
 export const MAX_ROLLS = 10;
 export const FIELD_TYPES = ['meter', 'number', 'text', 'list'];
@@ -82,12 +82,17 @@ export function normalizeBlock(value = {}) {
         id: ID_PATTERN.test(String(input.id ?? '')) ? String(input.id) : idFromName(name),
         name,
         icon: cleanText(input.icon, 8) || '📄',
+        // The sidebar rail's label; empty = derived from the name.
+        short: cleanText(input.short, 12),
         tag,
         enabled: input.enabled !== false,
         visible: input.visible !== false,
         // Optional blocks are written only when something calls for them (Dice); a reply
         // without one is not warned about.
         optional: input.optional === true,
+        // Repeating blocks may be written as several tags in one reply (one <Dice> per roll);
+        // they are read, and stored, as one.
+        repeating: input.repeating === true,
         kind: oneOf(input.kind, KINDS, 'stateful'),
         format,
         display: oneOf(input.display, DISPLAYS, DEFAULT_DISPLAY[format]),

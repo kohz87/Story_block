@@ -1,4 +1,4 @@
-# Story Block — architecture contract (v0.4)
+# Story Block — architecture contract (v0.5)
 
 Story Block is a SillyTavern extension. Every tracker the model maintains — Inventory,
 Character Sheet, custom blocks, later World State, CYOA and Dice — is one **block
@@ -29,9 +29,10 @@ in the style of Inventory Block. `npm run check` syntax-checks `index.js` and `s
   visible: true,            // false = still prompted and stored, but no tab in the card
   kind: 'stateful' | 'turn' | 'lead',   // lead: this reply only, written before the story
   optional: false,          // written only when something calls for it; no warning when missing
+  repeating: false,         // several tags in one reply read as one (latestBlockInText), folded on receive (mergeRepeats)
   rolls: { count: 0, sides: 20 },   // dice rolled before each reply into {{rolls}} (src/dice.js)
   format: 'rows' | 'fields' | 'text',
-  display: 'plain' | 'tree' | 'fields' | 'scene' | 'choices' | 'dice',
+  display: 'plain' | 'tree' | 'fields' | 'scene' | 'choices' | 'dice' | 'chatter',
   prompt: '...',            // block instructions; placeholders {{user}} {{char}} (SillyTavern macros)
   when: { mode: 'always' | 'every' | 'keyword', every: 2, keywords: [], scanDepth: 2 },
   template: 'inventory' | null,   // built-in it came from, for "Reset to default"
@@ -289,6 +290,8 @@ export function render(pane, { def, state, previousState, changes, error, trunca
 - `dice` — roll lines (`src/dice.js`: `parseDice`, `checkRolls`) as cards with a die that
   spins once (`animate`), the outcome, and the honesty check against the rolls stamped on
   the block (`stampRolls`/`readRolls`, `<Dice rolls="12, 5, 19">`); falls back to plain.
+- `chatter` — `Name: line` text (`src/chatter.js`: `parseChatter`, `speakerHue`) as a whisper
+  thread (two or more speakers) or a pull quote (one); falls back to plain.
 - `fields` — meters as bars (`value/max`), numbers, text, lists as chips; changed entries
   marked from `changes`.
 

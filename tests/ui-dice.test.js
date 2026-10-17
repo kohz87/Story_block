@@ -268,10 +268,10 @@ test('dice: edit button calls onEdit and stops the click', () => {
 
 test('dice: empty and missing states', () => {
     const missing = show({ state: null });
-    assert.equal(missing.querySelector('.story-block-empty').textContent, 'No Dice yet.');
+    assert.equal(missing.querySelector('.story-block-empty').textContent, 'No Dice in the latest reply.');
     assert.ok(missing.classList.contains('story-block-display-dice'));
     assert.equal(missing.querySelector('.story-block-summary'), null);
     const empty = show({ state: { text: '  \n ' }, rolls: [4] });
-    assert.equal(empty.querySelector('.story-block-empty').textContent, 'Dice is empty.');
+    assert.equal(empty.querySelector('.story-block-empty').textContent, 'Dice is empty. It fills in as the story goes.');
     assert.equal(empty.querySelector('.story-block-dice-honesty'), null);
 });

@@ -38,7 +38,7 @@ export const EXPORT_FILENAME = 'story-blocks.json';
 const KIND_LABELS = { stateful: 'Stateful: kept and rewritten each reply', turn: 'Per-turn: this reply only', lead: 'First: this reply only, written before the story' };
 const KIND_BADGES = { stateful: 'Stateful', turn: 'Per-turn', lead: 'First' };
 const FORMAT_LABELS = { rows: 'Rows', fields: 'Fields', text: 'Free text' };
-const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)', scene: 'Scene board (World State layout)', choices: 'Choice buttons (numbered list)', dice: 'Dice cards (roll lines)' };
+const DISPLAY_LABELS = { plain: 'Plain text', tree: 'Tree (rows)', fields: 'Fields (meters, numbers, chips)', scene: 'Scene board (World State layout)', choices: 'Choice buttons (numbered list)', dice: 'Dice cards (roll lines)', chatter: 'Whisper thread (Name: line)' };
 const FIELD_TYPE_LABELS = { meter: 'Meter', number: 'Number', text: 'Text', list: 'List' };
 const WHEN_LABELS = { always: 'Every reply', every: 'Every N replies', keyword: 'When a keyword appears' };
 
@@ -667,6 +667,9 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
         syncTagWarning();
     });
     iconInput.addEventListener('input', () => { draft.icon = iconInput.value; });
+    const shortInput = textInput('story-block-input-short', draft.short ?? '', { placeholder: 'from the name' });
+    shortInput.maxLength = 12;
+    shortInput.addEventListener('input', () => { draft.short = shortInput.value; });
 
     // Behaviour
     const kind = select('story-block-input-kind', KINDS, KIND_LABELS, draft.kind);
@@ -691,6 +694,8 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
     visible.input.addEventListener('change', () => { draft.visible = visible.input.checked; });
     const optional = checkbox('story-block-input-optional', 'Optional', draft.optional, 'Written only when something calls for it (like Dice); a reply without it is not warned about');
     optional.input.addEventListener('change', () => { draft.optional = optional.input.checked; });
+    const repeating = checkbox('story-block-input-repeating', 'Repeating', draft.repeating, 'The model may write several tags in one reply (one per roll); they are read as one block');
+    repeating.input.addEventListener('change', () => { draft.repeating = repeating.input.checked; });
 
     // Dice rolled before each reply and handed over through {{rolls}}.
     draft.rolls = { count: draft.rolls?.count ?? 0, sides: draft.rolls?.sides ?? 20 };
@@ -855,6 +860,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
         el('div', { className: 'story-block-editor-grid' }, [
             labelled('Name', name, null, 'story-block-editor-name'),
             labelled('Icon', iconInput, null, 'story-block-editor-icon'),
+            labelled('Tab label', shortInput, 'Short label for the sidebar tab.', 'story-block-editor-short'),
             el('label', { className: 'story-block-editor-field story-block-editor-tag' }, [
                 el('span', { className: 'story-block-editor-label', text: 'Tag' }),
                 tag,
@@ -865,7 +871,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
             labelled('Format', format),
             labelled('Display', display),
         ]),
-        el('div', { className: 'story-block-editor-checks' }, [enabled.wrapper, visible.wrapper, optional.wrapper]),
+        el('div', { className: 'story-block-editor-checks' }, [enabled.wrapper, visible.wrapper, optional.wrapper, repeating.wrapper]),
         labelled('Instructions', prompt, 'What the block tracks and how. Placeholders: {{user}} and {{char}} become the persona and character names; {{rolls}} becomes this reply\'s dice.', 'story-block-editor-prompt'),
         el('fieldset', { className: 'story-block-editor-section story-block-editor-when' }, [
             el('legend', { text: 'When' }),

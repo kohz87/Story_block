@@ -28,6 +28,9 @@ export function blockStatusInText(text, def) {
     const last = entries.at(-1);
     if (!last) return { status: 'missing' };
     if (last.truncated) return { status: 'truncated' };
+    if (def.repeating && entries.length > 1) {
+        return latestBlockInText(String(text ?? ''), def) ? { status: 'valid' } : { status: 'invalid', error: formatFor(def).parse(last.body, def).error ?? 'unreadable' };
+    }
     const parsed = formatFor(def).parse(last.body, def);
     return parsed.ok ? { status: 'valid' } : { status: 'invalid', error: parsed.error };
 }
@@ -79,6 +82,18 @@ export function blockView(chat, def) {
         truncated,
         messageIndex: current?.messageIndex ?? -1,
         fromEarlierReply: Boolean(current) && current.messageIndex !== latestIndex,
+    };
+}
+
+/**
+ * A block that has nothing to show yet, as a view: the sidebar still lists it (with its empty
+ * state), so the sidebar and its edge handle exist from the first message on.
+ */
+export function emptyView(def) {
+    const format = formatFor(def);
+    return {
+        def, state: def.kind === 'stateful' ? format.empty(def) : null, body: '', previousState: null, changes: [],
+        error: null, truncated: false, messageIndex: -1, fromEarlierReply: false, rolls: null, empty: true,
     };
 }
 

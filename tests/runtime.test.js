@@ -265,3 +265,17 @@ test('dice: rolled before the reply, handed over, stamped on the block; an optio
     assert.equal(notices.filter(notice => /Dice/.test(notice)).length, 0, 'no warning for an optional block left out');
     delete ctx.extensionSettings.storyBlock;
 });
+
+test('dice written as one tag per roll are folded into one block and stamped once', async () => {
+    setBlocks([{ id: 'dice', name: 'Dice', tag: 'Dice', kind: 'lead', optional: true, repeating: true, format: 'text', display: 'dice', rolls: { count: 3, sides: 20 }, prompt: 'Rolls: {{rolls}}.' }]);
+    ctx.chat = [{ is_user: false, mes: 'Hi.' }, { is_user: true, mes: 'go' }];
+    await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+    const event = replyChat(...history());
+    await emit('CHAT_COMPLETION_PROMPT_READY', event);
+    const [a, b] = /Rolls: (\d+), (\d+), \d+\./.exec(JSON.stringify(event.chat)).slice(1);
+    await finish(`<Dice>\n🎲 Climb — d20 vs 10 → ${a} · success\n</Dice>\n<Dice>\n🎲 Look — d20 vs 10 → ${b} · success\n</Dice>\nThey moved on.`);
+    const mes = ctx.chat.at(-1).mes;
+    assert.equal((mes.match(/<Dice\b/g) ?? []).length, 1, 'one tag left');
+    assert.match(mes, /<Dice rolls="[^"]+">\n🎲 Climb[^\n]*\n🎲 Look/);
+    delete ctx.extensionSettings.storyBlock;
+});

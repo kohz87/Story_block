@@ -1,4 +1,4 @@
-# Story Block v0.4.0
+# Story Block v0.5.0
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -8,8 +8,8 @@ Every block is a definition you can edit. The built-ins are only templates.
 
 ## What it does
 
-- **One engine, any block.** Inventory, World State, Choices, Dice, Character Sheet and Scene
-  Notes ship as templates.
+- **One engine, any block.** Inventory, World State, Choices, Dice, NPC Inner Chatter,
+  Character Sheet and Scene Notes ship as templates.
   Add your own blocks with their own tag, prompt, format and display, or change the
   templates; **Reset to default** brings a template back.
 - **State that sticks.** A *stateful* block's newest valid copy in the chat is its current
@@ -51,13 +51,14 @@ Each block has:
 | Shown | Off: still prompted and stored, but no tab in the card. |
 | Kind | **Stateful** (kept and rewritten each reply), **Per-turn** (this reply only) or **First** (this reply only, written before the story). |
 | Optional | Written only when something calls for it; a reply without it is not warned about. |
+| Repeating | The model may write several tags in one reply (one per roll); they are read as one block. |
 | Dice | Roll 0–10 dice (d4–d100) before each reply; the numbers replace `{{rolls}}`. |
 | Format | **Rows** (`Item \| Qty \| Note` under `[Section > Sub]` headers), **Fields** (`Label: value` lines with meter, number, text and list types) or **Free text**. |
 | Display | **Tree list** (rows: sections, drill-down, search), **Meters & fields**, **Scene board** (World State layout), **Choice buttons** (numbered list), or **Plain**. |
 | Layout | Free-text blocks only: the skeleton the model fills in, as World State and Choices use. |
 | Prompt | Your instructions for the block. `{{user}}` and `{{char}}` are filled in. |
 | When | Every reply, every N replies, or only when a keyword appears in recent messages. |
-| Tag and icon | The tag the model writes and the tab's icon. |
+| Tag, icon and tab label | The tag the model writes, the tab's icon, and a short label for the sidebar tab. |
 
 The settings panel shows a rough token cost per block. Every enabled block adds its
 instructions (and, for stateful blocks, its current state) to each prompt, plus what the
@@ -73,6 +74,15 @@ Delta's calendar picks them up.
 
 **Choices** offers four next actions as buttons: click adds one to your message, Shift-click
 (or the send button on touch screens) sends it.
+
+### NPC Inner Chatter
+
+What the NPCs in the scene think and say behind {{user}}'s back: a whisper thread when two or
+more are present, a pull quote for one. The instructions ask for every voice to come from
+what the story has established about that NPC — personality, speech, history, relationships
+from the character card, lorebook and NPC dossiers — and only what they could know. The
+model writes the block in the same reply as the story, so all of that is in front of it;
+the instructions tell it to use it. Edit them to taste.
 
 ### Dice
 

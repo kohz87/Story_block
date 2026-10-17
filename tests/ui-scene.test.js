@@ -239,8 +239,8 @@ test('text that is not a World State falls back to the plain display, every word
 });
 
 test('empty, missing, error, truncated, edit; model text stays text', () => {
-    assert.match(show({ state: null }).querySelector('.story-block-empty').textContent, /^No World State yet\.$/);
-    assert.match(show({ state: { text: '  ' } }).querySelector('.story-block-empty').textContent, /^World State is empty\.$/);
+    assert.match(show({ state: null }).querySelector('.story-block-empty').textContent, /^No World State in the latest reply\.$/);
+    assert.match(show({ state: { text: '  ' } }).querySelector('.story-block-empty').textContent, /^World State is empty\. It fills in as the story goes\.$/);
     let edits = 0;
     const pane = show({
         state: { text: FULL.replace('Oilskin coat', '<img src=x onerror=alert(1)>') },

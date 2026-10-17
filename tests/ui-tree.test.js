@@ -197,9 +197,9 @@ test('column labels come from def.columns, and counts use the first column', () 
 test('empty, missing, error, truncated and edit', () => {
     let edits = 0;
     const missing = show({ state: null, previousState: null, changes: [] });
-    assert.match(missing.textContent, /No Inventory yet\./);
+    assert.match(missing.textContent, /No Inventory in the latest reply\./);
     const empty = show({ state: { categories: [] }, changes: [], onEdit: () => { edits += 1; } });
-    assert.match(empty.querySelector('.story-block-empty').textContent, /Inventory is empty\./);
+    assert.match(empty.querySelector('.story-block-empty').textContent, /Inventory is empty\. It fills in as the story goes\./);
     empty.querySelector('.story-block-edit').click();
     assert.equal(edits, 1);
     const broken = show({ error: 'Duplicate item "Tarp" in Wagon.', truncated: true });

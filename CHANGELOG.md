@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+NPC Inner Chatter, and dice written one tag per roll.
+
+- **NPC Inner Chatter template** (off by default, tag `NPC_Inner_Chatter`): what the NPCs in the scene think and say where {{user}} can't hear. Two or more NPCs are drawn as a whisper thread, one colour per speaker that stays the same from reply to reply; one NPC as a pull quote. Its instructions ask for each voice to come from the NPC's established personality, speech, history and relationships (character card, lorebook, NPC dossiers) and limit them to what they could know. NPC State Delta reads this tag as story evidence.
+- **Choices grounded in the story:** the template now asks for options that fit {{user}}'s persona and relationships, {{char}}'s personality and the setting's rules, with at least one using something already in play, and none repeating the last reply's.
+- **Fixed: on phones and tablets the edge handle and the bottom sheet were off screen.** SillyTavern gives the page root a transform and zero height, which made every fixed position measure from a zero-height box: the handle sat behind the top bar and the sheet opened above the screen. The sidebar, sheet, drawer, scrim and handle are now placed with viewport units only (checked in a live SillyTavern 1.19 at phone, tablet and desktop sizes), and a test guards the rule.
+- **Fixed: no sidebar until a block had content.** The sidebar (and its handle) now lists every enabled block from the first message, each with an empty state that says it fills in as the story goes.
+- **Tab labels:** blocks have an optional short label for the sidebar tab (the templates use Items, World, Choices, Dice, Chatter, Sheet, Notes), instead of a cut-off first word.
+- **Repeating blocks:** a block can be marked Repeating, so a reply may write it as several tags (one `<Dice>` per roll, as models often do). The copies are read as one block, folded into one tag when the reply arrives, and checked as one — previously only the last tag counted, so earlier rolls were lost. Both Dice templates repeat.
+
 ## 0.4.0
 
 Dice.
