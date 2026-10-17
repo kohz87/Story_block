@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.6
+
+A tidier settings panel, and a guide to the markup each display reads.
+
+- **Settings, redesigned.** Each block is a two-line card: its name, then one quiet line with the tag, kind, format and token cost (no more pills of different sizes). On the right: an on/off switch, Edit, and ⋯, which folds out Show tab, Up, Down, Duplicate, Reset and Delete as labelled buttons, instead of eight controls on every row. A block without a tab says "no tab".
+- **Display options grouped** under a Display heading: the "Show blocks in" choice, the strip and compatibility switches (marked "card only"), and Rescan with a line saying what it does. The version sits in the heading.
+- **Fixed: on phone-width settings drawers the block names were squeezed** by a leftover rule that made the row's buttons take the full width.
+- **README: "Writing a layout each display can draw"** — the markdown the scene board understands (headings, person fields, Mood, Secret, off-screen, threads, phases, `|` facts and labels), and the formats of the fields, tree, choices, whisper-thread and dice displays. A test keeps the scene example parsing.
 ## 0.5.5
 
 A calmer World State board for busy scenes.

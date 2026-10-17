@@ -259,6 +259,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
     const templateList = prepareTemplates(templates);
     // View state that has to survive a re-render of the list.
     let confirming = null; // { id, action: 'delete' | 'reset' }
+    const expanded = new Set(); // rows whose "more" actions are open
     let addOpen = false;
     let editing = false;
     const io = { mode: null, text: '', errors: [], message: '', downloaded: false }; // mode: 'import' | 'export' | null
@@ -357,53 +358,97 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
         const row = el('div', { className: `story-block-row${block.enabled ? '' : ' story-block-row-disabled'}` });
         row.dataset.blockId = block.id;
 
+        // Two lines: the name, then a quiet line with the tag, what kind of block it is and
+        // its cost. On the right only the switch, Edit and a "more" toggle; the rest of the
+        // actions fold away under it, so a phone-width drawer is not a wall of buttons.
         const tokens = block.enabled ? cost(block) : null;
+        const dot = () => el('span', { className: 'story-block-row-sep', text: '·', attrs: { 'aria-hidden': 'true' } });
+        const meta = el('div', { className: 'story-block-row-meta' }, [
+            el('code', { className: 'story-block-row-tag', text: `<${block.tag}>` }),
+            dot(),
+            el('span', { className: 'story-block-badge story-block-badge-kind', text: KIND_BADGES[block.kind] ?? block.kind }),
+            dot(),
+            el('span', { className: 'story-block-badge story-block-badge-format', text: FORMAT_LABELS[block.format] ?? block.format }),
+            !block.enabled || tokens !== null ? dot() : null,
+            el('span', {
+                className: 'story-block-row-cost',
+                text: !block.enabled ? 'off' : tokens === null ? '' : `~${tokens} tok`,
+                title: block.enabled ? 'Estimated prompt tokens for this block' : 'Disabled blocks cost nothing',
+            }),
+            block.visible ? null : dot(),
+            block.visible ? null : el('span', { className: 'story-block-row-notab', text: 'no tab', title: 'Prompted and stored, but not shown in the sidebar or card' }),
+        ]);
         const main = el('div', { className: 'story-block-row-main' }, [
             el('span', { className: 'story-block-row-icon', text: block.icon, attrs: { 'aria-hidden': 'true' } }),
-            el('div', { className: 'story-block-row-title' }, [
-                el('span', { className: 'story-block-row-name', text: block.name }),
-                el('code', { className: 'story-block-row-tag', text: `<${block.tag}>` }),
+            el('div', { className: 'story-block-row-text' }, [
+                el('div', { className: 'story-block-row-title' }, [el('span', { className: 'story-block-row-name', text: block.name })]),
+                meta,
             ]),
-            el('div', { className: 'story-block-row-badges' }, [
-                el('span', { className: 'story-block-badge story-block-badge-kind', text: KIND_BADGES[block.kind] ?? block.kind }),
-                el('span', { className: 'story-block-badge story-block-badge-format', text: FORMAT_LABELS[block.format] ?? block.format }),
-                el('span', {
-                    className: 'story-block-row-cost',
-                    text: !block.enabled ? 'off' : tokens === null ? '' : `~${tokens} tok`,
-                    title: block.enabled ? 'Estimated prompt tokens for this block' : 'Disabled blocks cost nothing',
+        ]);
+
+        const enabled = checkbox('story-block-enabled', '', block.enabled, block.enabled ? `${block.name} is on: prompted and parsed` : `${block.name} is off`);
+        enabled.wrapper.classList.add('story-block-switch');
+        enabled.input.setAttribute('role', 'switch');
+        enabled.input.setAttribute('aria-label', `${block.name} enabled`);
+        enabled.input.addEventListener('change', () => update(block.id, { enabled: enabled.input.checked }));
+
+        const visible = checkbox('story-block-visible', 'Show tab', block.visible, 'Show a tab for this block in the sidebar and card');
+        visible.input.addEventListener('change', () => update(block.id, { visible: visible.input.checked }));
+
+        const up = button('Up', 'story-block-move-up', { iconName: 'fa-arrow-up', title: `Move ${block.name} up`, onClick: () => commit(move(current, index, -1)) });
+        up.disabled = index === 0;
+        const down = button('Down', 'story-block-move-down', { iconName: 'fa-arrow-down', title: `Move ${block.name} down`, onClick: () => commit(move(current, index, 1)) });
+        down.disabled = index === current.length - 1;
+
+        const more = el('div', { className: 'story-block-row-more' }, [
+            visible.wrapper,
+            el('div', { className: 'story-block-row-actions' }, [
+                up,
+                down,
+                button('Duplicate', 'story-block-duplicate', {
+                    iconName: 'fa-copy',
+                    title: `Duplicate ${block.name}`,
+                    onClick: () => {
+                        const copy = copyOf(block, current);
+                        commit([...current.slice(0, index + 1), copy, ...current.slice(index + 1)], `Added ${copy.name}.`);
+                    },
+                }),
+                templateFor(block) ? button('Reset', 'story-block-reset', {
+                    iconName: 'fa-rotate-left',
+                    title: `Reset ${block.name} to default`,
+                    onClick: () => { confirming = { id: block.id, action: 'reset' }; renderList(); },
+                }) : null,
+                button('Delete', 'story-block-delete', {
+                    iconName: 'fa-trash-can',
+                    title: `Delete ${block.name}`,
+                    onClick: () => { confirming = { id: block.id, action: 'delete' }; renderList(); },
                 }),
             ]),
         ]);
+        more.id = `story-block-more-${block.id}`;
+        const open = expanded.has(block.id) || confirming?.id === block.id;
+        if (!open) more.setAttribute('hidden', '');
 
-        const enabled = checkbox('story-block-enabled', 'On', block.enabled, 'Enabled: prompted and parsed');
-        enabled.input.addEventListener('change', () => update(block.id, { enabled: enabled.input.checked }));
-        const visible = checkbox('story-block-visible', 'Tab', block.visible, 'Show a tab for this block in the card');
-        visible.input.addEventListener('change', () => update(block.id, { visible: visible.input.checked }));
+        const toggle = iconButton('story-block-more', 'fa-ellipsis', `More for ${block.name}`, () => {
+            const show = more.hasAttribute('hidden');
+            if (show) {
+                more.removeAttribute('hidden');
+                expanded.add(block.id);
+            } else {
+                more.setAttribute('hidden', '');
+                expanded.delete(block.id);
+            }
+            toggle.setAttribute('aria-expanded', String(show));
+        });
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-controls', more.id);
 
-        const up = iconButton('story-block-move-up', 'fa-arrow-up', `Move ${block.name} up`, () => commit(move(current, index, -1)));
-        up.disabled = index === 0;
-        const down = iconButton('story-block-move-down', 'fa-arrow-down', `Move ${block.name} down`, () => commit(move(current, index, 1)));
-        down.disabled = index === current.length - 1;
-
-        const actions = el('div', { className: 'story-block-row-actions' }, [
-            up,
-            down,
+        const controls = el('div', { className: 'story-block-row-controls' }, [
+            enabled.wrapper,
             iconButton('story-block-edit', 'fa-pen-to-square', `Edit ${block.name}`, () => openEditor(block)),
-            iconButton('story-block-duplicate', 'fa-copy', `Duplicate ${block.name}`, () => {
-                const copy = copyOf(block, current);
-                commit([...current.slice(0, index + 1), copy, ...current.slice(index + 1)], `Added ${copy.name}.`);
-            }),
-            templateFor(block) ? iconButton('story-block-reset', 'fa-rotate-left', `Reset ${block.name} to default`, () => {
-                confirming = { id: block.id, action: 'reset' };
-                renderList();
-            }) : null,
-            iconButton('story-block-delete', 'fa-trash-can', `Delete ${block.name}`, () => {
-                confirming = { id: block.id, action: 'delete' };
-                renderList();
-            }),
+            toggle,
         ]);
-
-        row.append(main, el('div', { className: 'story-block-row-controls' }, [enabled.wrapper, visible.wrapper, actions]));
+        row.append(el('div', { className: 'story-block-row-head' }, [main, controls]), more);
 
         // Confirmation is inline rather than window.confirm: it works the same in the
         // phone layout and in embedded webviews where native dialogs are blocked.
@@ -559,6 +604,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
 
         // replaceChildren would turn a null into the text "null", so drop the gaps.
         view.replaceChildren(...[
+            el('div', { className: 'story-block-section-head' }, [el('span', { text: 'Blocks' })]),
             list,
             renderTotal(),
             toolbar,

@@ -2865,41 +2865,51 @@ button.story-block-strip:hover {
 
 .story-block-settings .story-block-row {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--story-block-gap);
-    padding: 0.45rem 0.55rem;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
     border: 1px solid var(--story-block-border);
-    border-radius: 8px;
+    border-radius: 10px;
     background: var(--story-block-surface);
     min-width: 0;
 }
 
+.story-block-settings .story-block-row-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
 .story-block-settings .story-block-row-disabled .story-block-row-main {
-    opacity: 0.55;
+    opacity: 0.5;
 }
 
 .story-block-settings .story-block-row-main {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: var(--story-block-gap);
-    flex: 1 1 14rem;
+    gap: 0.6rem;
+    flex: 1 1 auto;
     min-width: 0;
 }
 
 .story-block-settings .story-block-row-icon {
-    font-size: 1.25em;
+    flex: none;
+    width: 1.6em;
+    font-size: 1.2em;
     line-height: 1;
+    text-align: center;
+}
+
+.story-block-settings .story-block-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
 }
 
 .story-block-settings .story-block-row-title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.35rem;
     min-width: 0;
-    flex: 1 1 8rem;
 }
 
 .story-block-settings .story-block-row-name {
@@ -2907,45 +2917,42 @@ button.story-block-strip:hover {
     overflow-wrap: anywhere;
 }
 
+/* The quiet second line: tag · kind · format · cost, all one size, no pills. */
+.story-block-settings .story-block-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.35rem;
+    font-size: 0.8em;
+    opacity: 0.7;
+    min-width: 0;
+}
+
 .story-block-settings .story-block-row-tag {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
     font-family: var(--monoFontFamily, monospace);
-    font-size: 0.85em;
-    opacity: 0.75;
+    font-size: 1em;
     overflow-wrap: anywhere;
 }
 
-.story-block-settings .story-block-row-badges {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
-}
-
-.story-block-settings .story-block-badge {
-    padding: 0.05rem 0.45rem;
-    border: 1px solid var(--story-block-border);
-    border-radius: 999px;
-    font-size: 0.8em;
+.story-block-settings .story-block-badge,
+.story-block-settings .story-block-row-cost,
+.story-block-settings .story-block-row-notab {
     white-space: nowrap;
 }
 
-.story-block-settings .story-block-badge-kind {
-    border-color: color-mix(in srgb, var(--story-block-accent) 55%, transparent);
-}
-
-.story-block-settings .story-block-row-cost {
-    font-size: 0.8em;
-    opacity: 0.75;
-    white-space: nowrap;
+.story-block-settings .story-block-row-sep {
+    opacity: 0.6;
 }
 
 .story-block-settings .story-block-row-controls {
     display: flex;
-    flex-wrap: wrap;
+    flex: none;
     align-items: center;
-    gap: var(--story-block-gap);
-    margin-left: auto;
-    min-width: 0;
+    gap: 0.35rem;
 }
 
 .story-block-settings .story-block-check {
@@ -2953,11 +2960,101 @@ button.story-block-strip:hover {
     white-space: nowrap;
 }
 
+/* The on/off switch: a checkbox drawn as a track and knob. */
+.story-block-settings .story-block-switch {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    width: 2.4rem;
+    height: 1.35rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.story-block-settings .story-block-switch > span {
+    display: none;
+}
+
+.story-block-settings .story-block-switch input {
+    appearance: none;
+    -webkit-appearance: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    border: 1px solid var(--story-block-border);
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.25);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.story-block-settings .story-block-switch input::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0.15rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--SmartThemeBodyColor, #ddd);
+    transform: translateY(-50%);
+    transition: left 0.15s ease;
+}
+
+.story-block-settings .story-block-switch input:checked {
+    border-color: var(--story-block-accent);
+    background: color-mix(in srgb, var(--story-block-accent) 70%, transparent);
+}
+
+.story-block-settings .story-block-switch input:checked::after {
+    left: calc(100% - 1.15rem);
+}
+
+.story-block-settings .story-block-switch input:focus-visible {
+    outline: 2px solid var(--story-block-accent);
+    outline-offset: 2px;
+}
+
+/* Folded actions under a row: Show tab, then Up, Down, Duplicate, Reset, Delete. */
+.story-block-settings .story-block-row-more {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--story-block-border);
+}
+
 .story-block-settings .story-block-row-actions,
 .story-block-settings .story-block-field-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
+    gap: 0.3rem;
+}
+
+.story-block-settings .story-block-row-actions .menu_button {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.85em;
+}
+
+.story-block-settings .story-block-row-actions .story-block-delete {
+    color: var(--sb-removed, #d46a6a);
+}
+
+/* Section headings: Display, Blocks */
+.story-block-settings .story-block-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0.6rem 0 0.3rem;
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.65;
 }
 
 .story-block-settings .menu_button {
@@ -3191,41 +3288,60 @@ button.story-block-strip:hover {
     width: auto;
 }
 
-@media (max-width: 600px) {
-    .story-block-settings .story-block-row-controls {
-        margin-left: 0;
-        width: 100%;
-    }
-
-    .story-block-settings .story-block-row-actions {
-        margin-left: auto;
-    }
-}
-
 /* Runtime controls above the editor (index.js) and the block body editor popup. */
 .story-block-runtime {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 12px;
-    margin-bottom: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    min-width: 0;
+}
+
+.story-block-runtime .story-block-section-head {
+    margin-top: 0.2rem;
 }
 
 .story-block-runtime-field {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    margin: 0;
 }
 
 .story-block-runtime-field select {
-    width: auto;
-    max-width: 100%;
+    width: 100%;
+    max-width: 28rem;
+    margin: 0;
+}
+
+.story-block-runtime .checkbox_label {
+    margin: 0;
 }
 
 .story-block-runtime-version {
-    opacity: 0.7;
-    font-size: 0.85em;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.story-block-runtime-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.6rem;
+}
+
+.story-block-runtime-tools .menu_button {
+    gap: 0.4em;
+    margin: 0;
+    width: auto;
+}
+
+.story-block-runtime-tools small,
+.story-block-runtime .checkbox_label small {
+    opacity: 0.65;
 }
 
 .story-block-body-editor {
