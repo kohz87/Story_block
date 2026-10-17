@@ -408,3 +408,7 @@ The module contract is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## License
 
 GPL-3.0. Story Block's engine is ported from Inventory Block by the same author.
+
+## Credits
+
+With thanks to [Arif-salah](https://github.com/Arif-salah).
