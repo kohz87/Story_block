@@ -1,4 +1,4 @@
-# Story Block — architecture contract (v0.1)
+# Story Block — architecture contract (v0.2)
 
 Story Block is a SillyTavern extension. Every tracker the model maintains — Inventory,
 Character Sheet, custom blocks, later World State, CYOA and Dice — is one **block
@@ -284,6 +284,36 @@ Every display shows `error` (the block is invalid; the last valid state is shown
 `truncated` notices, and an **Edit** button when `onEdit` is given. Never use innerHTML
 with model text; build nodes and set `textContent`.
 
+### Sidebar and "This turn" strip (v0.2)
+
+`settings.display` chooses where blocks are shown: `'sidebar'` (default) or `'card'` (the
+v0.1 card above). The runtime builds the same tab list for both and `src/mount.js` hands it
+to one of them.
+
+```js
+// src/ui/sidebar.js — one aside#story_block_sidebar on <body>, plus #story_block_scrim and
+// the edge handle #story_block_handle. Tabs as above plus `short` (rail label) and `badge`.
+export function mountSidebar(tabs, { uiKey, meta, pinned, onPinnedChange })
+export function unmountSidebar()
+export function openSidebar(tabId = null)
+export function closeSidebar()
+export function sidebarMode()        // 'docked' | 'drawer' | 'sheet'
+export function layoutMode({ viewportWidth, chatRect, blockedRight, pinned, coarse })  // pure
+
+// src/ui/strip.js — button.story-block-strip under the latest reply (settings.showTurnStrip, off by default).
+export function mountStrip(messageElement, items, { onOpen, showQuiet })
+export function unmountStrip(root = document)
+
+// src/turn.js — pure: badge counts and strip items from view.js views.
+export function turnCount(view)
+export function turnItems([{ view, tabId }]) -> [{ tabId, block, text, tone: 'up'|'down'|'neutral'|'warn' }]
+```
+
+Layout: phone (≤ 640 px, or a coarse pointer ≤ 800 px) → bottom sheet; a pinned sidebar
+with ≥ 324 px free beside SillyTavern's `#sheld` (minus an open right drawer) → docked in
+that gutter; otherwise a drawer from the right. Recomputed on mount, resize, a
+ResizeObserver on `#sheld` and a MutationObserver on the nav panels' class/style.
+
 ## 7. Settings editor (`src/ui/editor.js`)
 
 ```js
@@ -304,10 +334,10 @@ export function importBlocks(json, existing) -> { blocks, errors }   // normaliz
 
 | Package | Files it owns |
 |---|---|
-| core (lead) | `src/view.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
+| core (lead) | `src/view.js`, `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
 | fields | `src/formats/fields.js`, `tests/formats-fields.test.js` |
 | engine | `src/envelope.js`, `src/prompt.js`, `tests/envelope*.test.js`, `tests/prompt*.test.js` |
-| ui | `src/ui/card.js`, `src/ui/displays/*.js`, `src/ui/dom.js`, `style.css`, `tests/ui-*.test.js` |
+| ui | `src/ui/card.js`, `src/ui/sidebar.js`, `src/ui/strip.js`, `src/ui/displays/*.js`, `src/ui/dom.js`, `style.css`, `tests/ui-*.test.js` |
 | editor | `src/ui/editor.js`, `tests/editor*.test.js` (editor styles live at the end of `style.css`) |
 
 Write only your own files. Do not run git commands that change the repository.

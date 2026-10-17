@@ -118,6 +118,20 @@ test('first run starts from the templates', () => {
     assert.equal(typeof globalThis.StoryBlock?.registerTab, 'function');
 });
 
+test('display defaults: sidebar, strip off, pinned', async () => {
+    delete ctx.extensionSettings.storyBlock;
+    ctx.chat = [{ is_user: false, mes: envelope(inventory(10)) }, { is_user: true, mes: 'go' }];
+    await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+    const own = ctx.extensionSettings.storyBlock;
+    assert.equal(own.display, 'sidebar');
+    assert.equal(own.showTurnStrip, false);
+    assert.equal(own.sidebarPinned, true);
+    ctx.extensionSettings.storyBlock = { ...own, display: 'nonsense', showTurnStrip: 'yes' };
+    await finish();
+    assert.equal(ctx.extensionSettings.storyBlock.display, 'sidebar', 'unknown values fall back');
+    assert.equal(ctx.extensionSettings.storyBlock.showTurnStrip, false, 'only true turns the strip on');
+});
+
 test('chat completion: the reply prompt gets one context with the newest state, and history loses old blocks', async () => {
     delete ctx.extensionSettings.storyBlock;
     ctx.chat = [{ is_user: false, mes: `Hi.\n${envelope(inventory(100))}` }, { is_user: true, mes: 'buy' }, { is_user: false, mes: `Bought.\n${envelope(inventory(90))}` }];

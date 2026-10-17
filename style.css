@@ -978,6 +978,560 @@
     font-weight: 600;
 }
 
+/*
+ * Story Block sidebar, scrim, edge handle and the "This turn" strip.
+ *
+ * The sidebar lives outside the chat (appended to <body>) in one of three layouts,
+ * chosen in sidebar.js and exposed as data-mode: docked in the gutter beside the chat
+ * column, a drawer from the right, or a bottom sheet on phones. Colours come from
+ * SillyTavern's theme variables, like the card's.
+ *
+ * Stacking: SillyTavern's side drawers sit around z-index 3000 and its popups around
+ * 9999. A docked sidebar and the handle stay under its drawers (2900); an open drawer
+ * or sheet and its scrim cover the chat (3100) but never SillyTavern's popups.
+ */
+
+.story-block-sidebar,
+.story-block-scrim,
+.story-block-handle,
+.story-block-strip {
+    --sb-accent: var(--SmartThemeQuoteColor, #e18a24);
+    --sb-border: var(--SmartThemeBorderColor, rgba(127, 127, 127, .28));
+    --sb-row-bg: rgba(127, 127, 127, .07);
+    --sb-hover-bg: rgba(127, 127, 127, .14);
+    --sb-track: rgba(127, 127, 127, .22);
+    --sb-added: #5fb36b;
+    --sb-changed: #d9a441;
+    --sb-moved: #6b9fd6;
+    --sb-removed: #d46a6a;
+    --sb-surface: var(--SmartThemeBlurTintColor, rgba(23, 23, 23, .96));
+    /* Fixed pair: dark text stays readable on it whatever the theme's quote colour is. */
+    --sb-badge-bg: var(--sb-changed);
+    --sb-badge-text: #16120a;
+    --sb-motion: 0.24s;
+}
+
+/* Panel */
+
+.story-block-sidebar {
+    position: fixed;
+    z-index: 3101;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-width: 100vw;
+    overflow: hidden;
+    border: 1px solid var(--sb-border);
+    background: var(--sb-surface);
+    -webkit-backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    box-shadow: 0 0 32px var(--SmartThemeShadowColor, rgba(0, 0, 0, .45));
+    color: var(--SmartThemeBodyColor, inherit);
+    font-size: 0.95em;
+    text-align: left;
+}
+
+.story-block-sidebar *,
+.story-block-sidebar *::before,
+.story-block-sidebar *::after {
+    box-sizing: border-box;
+}
+
+.story-block-sidebar:focus {
+    outline: none;
+}
+
+.story-block-sidebar[data-mode="docked"] {
+    z-index: 2900;
+    top: var(--sb-dock-top, 12px);
+    right: var(--sb-dock-right, 12px);
+    bottom: 12px;
+    width: var(--sb-dock-width, 340px);
+    border-radius: 14px;
+    box-shadow: none;
+}
+
+.story-block-sidebar[data-mode="drawer"] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(400px, 92vw);
+    border-width: 0 0 0 1px;
+    box-shadow: -18px 0 40px var(--SmartThemeShadowColor, rgba(0, 0, 0, .45));
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform var(--sb-motion) ease, visibility 0s linear var(--sb-motion);
+    /* Vertical pans scroll the pane; horizontal ones reach the swipe-to-close handler. */
+    touch-action: pan-y;
+}
+
+.story-block-sidebar[data-mode="sheet"] {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 62vh;
+    height: 62dvh;
+    border-width: 1px 0 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -16px 36px var(--SmartThemeShadowColor, rgba(0, 0, 0, .5));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%);
+    visibility: hidden;
+    transition: transform var(--sb-motion) ease, height 0.2s ease, visibility 0s linear var(--sb-motion);
+}
+
+.story-block-sidebar[data-mode="sheet"][data-sheet="full"] {
+    height: 92vh;
+    height: 92dvh;
+}
+
+.story-block-sidebar[data-mode="drawer"].is-open,
+.story-block-sidebar[data-mode="sheet"].is-open {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--sb-motion) ease, height 0.2s ease;
+}
+
+/* While a finger drags the panel it follows without lag. */
+.story-block-sidebar.is-dragging {
+    transition: none !important;
+}
+
+/* Sheet drag handle */
+
+.story-block-sidebar-grip {
+    appearance: none;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: grab;
+    touch-action: none;
+}
+
+.story-block-sidebar-grip-bar {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: currentColor;
+    opacity: 0.35;
+}
+
+/* Header */
+
+.story-block-sidebar-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.55rem 0.45rem 0.45rem 0.9rem;
+}
+
+.story-block-sidebar-title {
+    flex: none;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.story-block-sidebar-meta {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85em;
+    opacity: 0.65;
+}
+
+.story-block-sidebar-spacer {
+    flex: 1 1 0;
+}
+
+.story-block-sidebar-button {
+    appearance: none;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+/* The close control is the drawer's main exit: a full 44px touch target. */
+.story-block-sidebar-close {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+}
+
+.story-block-sidebar-pin[aria-pressed="false"] i {
+    transform: rotate(45deg);
+}
+
+.story-block-sidebar-button:hover {
+    opacity: 1;
+    background: var(--sb-hover-bg);
+}
+
+.story-block-sidebar-button:focus-visible,
+.story-block-sidebar-grip:focus-visible,
+.story-block-sidebar-tab:focus-visible,
+.story-block-handle:focus-visible,
+.story-block-strip:focus-visible {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: -2px;
+}
+
+/* Tabs: an equal-width rail (docked, drawer) */
+
+.story-block-sidebar-tabs {
+    flex: none;
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+    padding: 0 0.6rem 0.6rem;
+    border-bottom: 1px solid var(--sb-border);
+    /* Many tabs scroll sideways inside the rail, never the page. */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+}
+
+.story-block-sidebar-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.story-block-sidebar-tab {
+    appearance: none;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 3.25rem;
+    height: 52px;
+    margin: 0;
+    padding: 0 0.2rem;
+    border: 0;
+    border-radius: 9px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    line-height: 1.15;
+    opacity: 0.72;
+    cursor: pointer;
+}
+
+.story-block-sidebar-tab:hover {
+    opacity: 1;
+    background: var(--sb-hover-bg);
+}
+
+.story-block-sidebar-tab.active {
+    opacity: 1;
+    background: color-mix(in srgb, var(--sb-accent) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sb-accent) 45%, transparent);
+}
+
+.story-block-sidebar-tab-icon {
+    position: relative;
+    display: inline-flex;
+    font-size: 1.15em;
+    line-height: 1;
+}
+
+.story-block-sidebar-tab-glyph:empty {
+    display: none;
+}
+
+.story-block-sidebar-badge {
+    position: absolute;
+    top: -6px;
+    right: -10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--sb-badge-bg);
+    color: var(--sb-badge-text);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.story-block-sidebar-tab-short,
+.story-block-sidebar-tab-full {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.story-block-sidebar-tab-full {
+    display: none;
+}
+
+/* Tabs: pills in a sideways-scrolling row (sheet) */
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tabs {
+    gap: 6px;
+    padding: 0 0.75rem 0.6rem;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab {
+    flex: none;
+    flex-direction: row;
+    gap: 6px;
+    min-width: 0;
+    height: auto;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--sb-border);
+    border-radius: 999px;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab.active {
+    border-color: var(--sb-accent);
+    box-shadow: none;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-icon {
+    order: 2;
+    font-size: inherit;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-glyph,
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-short {
+    display: none;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-tab-full {
+    display: inline;
+    max-width: 14em;
+    font-size: 0.85rem;
+}
+
+.story-block-sidebar[data-mode="sheet"] .story-block-sidebar-badge {
+    position: static;
+    min-width: 16px;
+    height: 16px;
+    font-size: 10px;
+}
+
+/* Panes: the active one fills the rest and scrolls on its own */
+
+.story-block-sidebar-panel {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.story-block-sidebar-panel > .story-block-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    /* The pane is the only scroller: reaching its end must not scroll the chat. */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.6rem;
+}
+
+/*
+ * The displays cap their own bodies (65vh) for the in-chat card. In the sidebar the
+ * pane already scrolls, so nested scrollers would only trap the wheel; let them grow.
+ * Pane widths here (300–400px) keep the tree in its narrow drill-down layout (its
+ * container queries start at 480px) and stack fields below 340px, as on a phone card.
+ */
+.story-block-sidebar .story-block-display-body,
+.story-block-sidebar .story-block-tree-browser {
+    max-height: none;
+    overflow: visible;
+}
+
+/* Scrim */
+
+.story-block-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 3100;
+    background: rgba(0, 0, 0, .45);
+    animation: story-block-fade var(--sb-motion) ease;
+}
+
+@keyframes story-block-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Edge handle (drawer/sheet closed) */
+
+.story-block-handle {
+    appearance: none;
+    position: fixed;
+    z-index: 2900;
+    right: 0;
+    top: 45%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 30px;
+    min-height: 88px;
+    margin: 0;
+    padding: 10px 0;
+    border: 1px solid color-mix(in srgb, var(--sb-accent) 35%, var(--sb-border));
+    border-right: 0;
+    border-radius: 12px 0 0 12px;
+    background: var(--sb-surface);
+    color: var(--sb-accent);
+    font: inherit;
+    cursor: pointer;
+    box-shadow: -4px 0 14px var(--SmartThemeShadowColor, rgba(0, 0, 0, .3));
+}
+
+/* A 30px tab is easy to see but small to hit: widen the touch target invisibly. */
+.story-block-handle::before {
+    content: '';
+    position: absolute;
+    inset: -6px 0 -6px -14px;
+}
+
+.story-block-handle-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--sb-badge-bg);
+    color: var(--sb-badge-text);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+/* "This turn" strip, under the latest reply */
+
+.story-block-strip {
+    appearance: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0.55rem 0 0;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--sb-accent) 35%, var(--sb-border));
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--sb-accent) 8%, transparent);
+    color: var(--SmartThemeBodyColor, inherit);
+    font: inherit;
+    font-size: 0.88em;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+}
+
+button.story-block-strip:hover {
+    background: color-mix(in srgb, var(--sb-accent) 14%, transparent);
+}
+
+/* At most two lines on a phone, then an ellipsis; the tooltip has everything. */
+.story-block-strip-body {
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.story-block-strip-title {
+    font-weight: 700;
+    color: var(--sb-accent);
+    margin-right: 0.45rem;
+}
+
+.story-block-strip-sep {
+    margin: 0 0.4rem;
+    opacity: 0.45;
+}
+
+.story-block-strip-up { color: var(--sb-added); }
+.story-block-strip-down { color: var(--sb-removed); }
+.story-block-strip-neutral { color: var(--sb-changed); }
+.story-block-strip-warn { color: var(--sb-removed); font-weight: 600; }
+
+.story-block-strip-more {
+    margin-left: 0.45rem;
+    opacity: 0.65;
+}
+
+.story-block-strip-icon {
+    flex: none;
+    color: var(--sb-removed);
+}
+
+.story-block-strip.story-block-strip-has-warn {
+    border-color: color-mix(in srgb, var(--sb-removed) 55%, transparent);
+    background: color-mix(in srgb, var(--sb-removed) 12%, transparent);
+}
+
+.story-block-strip.story-block-strip-quiet {
+    border-color: var(--sb-border);
+    background: var(--sb-row-bg);
+    opacity: 0.75;
+    cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .story-block-sidebar,
+    .story-block-scrim {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
 /* Settings editor (src/ui/editor.js) */
 /* Story Block settings panel and block editor.
    Everything is scoped under .story-block-settings and uses SillyTavern's theme
@@ -1359,6 +1913,18 @@
     align-items: center;
     gap: 8px 12px;
     margin-bottom: 8px;
+}
+
+.story-block-runtime-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.story-block-runtime-field select {
+    width: auto;
+    max-width: 100%;
 }
 
 .story-block-runtime-version {

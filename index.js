@@ -11,6 +11,7 @@ import { formatFor } from './src/formats/index.js';
 import { bareBlockTexts, normalizeTransport, rejoinContinuation, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
 import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, viewKey } from './src/view.js';
+import { turnCount, turnItems } from './src/turn.js';
 import { createTabRegistry } from './src/ui/card.js';
 import { render as renderPlain } from './src/ui/displays/plain.js';
 import { render as renderTree } from './src/ui/displays/tree.js';
@@ -19,7 +20,7 @@ import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -72,12 +73,17 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', showTurnStrip: false, sidebarPinned: true };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
     own.blocks = Array.isArray(own.blocks) ? normalizeBlocks(own.blocks) : defaultBlocks();
     own.compatMarkup = own.compatMarkup !== false;
+    // Where blocks are shown: the sidebar (docked on wide screens, a drawer or bottom sheet
+    // elsewhere) or the v0.1 card under the latest reply. The strip is opt-in.
+    own.display = own.display === 'card' ? 'card' : 'sidebar';
+    own.showTurnStrip = own.showTurnStrip === true;
+    own.sidebarPinned = own.sidebarPinned !== false;
     return own;
 }
 
@@ -416,13 +422,21 @@ function latestAssistantElement(ctx) {
     }) ?? null;
 }
 
+// Rail labels are small: a long name shows its first word.
+function shortName(name) {
+    const text = String(name ?? '');
+    return text.length <= 10 ? text : text.split(/\s+/)[0].slice(0, 10);
+}
+
 function blockTab(view, uiKey) {
     const { def } = view;
     const display = DISPLAYS[def.display] ?? renderPlain;
     return {
         id: `block:${def.id}`,
         label: def.name,
+        short: shortName(def.name),
         icon: def.icon,
+        badge: turnCount(view),
         key: viewKey(view),
         render: pane => display(pane, {
             def,
@@ -441,16 +455,23 @@ function blockTab(view, uiKey) {
 function buildCardTabs() {
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) return null;
+    const own = settings(ctx);
     const messageElement = latestAssistantElement(ctx);
-    if (!messageElement) return null;
-    const messageId = Number.parseInt(messageElement.getAttribute('mesid') ?? '', 10);
+    // The card needs a message to sit under; the sidebar does not.
+    if (!messageElement && own.display === 'card') return null;
+    const latestIndex = latestAssistantIndex(ctx.chat ?? []);
+    const messageId = messageElement ? Number.parseInt(messageElement.getAttribute('mesid') ?? '', 10) : latestIndex;
     const message = ctx.chat?.[messageId];
     const uiKey = String(chatIdOf(ctx) ?? 'default');
     const tabs = [];
+    const views = [];
     for (const def of enabledBlocks(ctx)) {
         if (!def.visible) continue;
         const view = blockView(ctx.chat ?? [], def);
-        if (view) tabs.push(blockTab(view, uiKey));
+        if (!view) continue;
+        const tab = blockTab(view, uiKey);
+        tabs.push(tab);
+        views.push({ view, tabId: tab.id });
     }
     for (const tab of externalTabs.list()) {
         try {
@@ -466,7 +487,21 @@ function buildCardTabs() {
             console.warn(`[Story Block] tab "${tab.id}" failed`, error);
         }
     }
-    return { messageElement, tabs, uiKey, compatMarkup: settings(ctx).compatMarkup };
+    return {
+        display: own.display,
+        messageElement,
+        tabs,
+        uiKey,
+        meta: latestIndex >= 0 ? `reply #${latestIndex}` : '',
+        pinned: own.sidebarPinned,
+        onPinnedChange: value => {
+            settings().sidebarPinned = Boolean(value);
+            saveSettings();
+            refreshAll(0);
+        },
+        strip: own.showTurnStrip ? turnItems(views) : null,
+        compatMarkup: own.compatMarkup,
+    };
 }
 
 async function rescan() {
@@ -541,19 +576,43 @@ function addRuntimeControls(documentRef, root) {
     row.innerHTML = `
         <span class="story-block-runtime-version">v${VERSION}</span>
         <button id="story_block_rescan" type="button" class="menu_button"><i class="fa-solid fa-rotate"></i> Rescan chat</button>
+        <label class="story-block-runtime-field" for="story_block_display">
+            <span>Show blocks in</span>
+            <select id="story_block_display" class="text_pole">
+                <option value="sidebar">Sidebar (docked on wide screens)</option>
+                <option value="card">Card under the latest reply</option>
+            </select>
+        </label>
+        <label class="checkbox_label" for="story_block_strip" title="One line under the latest reply listing what it changed; tapping it opens the sidebar.">
+            <input id="story_block_strip" type="checkbox"> <span>"This turn" strip under the reply</span>
+        </label>
         <label class="checkbox_label" for="story_block_compat" title="Lets extensions that add a tab to Megumin Suite's card (NPC State Delta) add it to Story Block's card. Turn off if Megumin Suite itself is installed.">
             <input id="story_block_compat" type="checkbox"> <span>Megumin-compatible card</span>
         </label>`;
     row.querySelector('#story_block_rescan')?.addEventListener('click', () => void rescan());
+    const display = row.querySelector('#story_block_display');
+    const strip = row.querySelector('#story_block_strip');
     const compat = row.querySelector('#story_block_compat');
-    if (compat) {
-        compat.checked = settings().compatMarkup;
-        compat.addEventListener('change', () => {
-            settings().compatMarkup = Boolean(compat.checked);
+    // The strip only exists next to the sidebar; the compatible markup only on the card.
+    const syncEnabled = () => {
+        const card = settings().display === 'card';
+        if (strip) strip.disabled = card;
+        if (compat) compat.disabled = !card;
+    };
+    const bind = (input, read, write) => {
+        if (!input) return;
+        read(input);
+        input.addEventListener('change', () => {
+            write(input);
             saveSettings();
+            syncEnabled();
             refreshAll(0);
         });
-    }
+    };
+    bind(display, input => { input.value = settings().display; }, input => { settings().display = input.value === 'card' ? 'card' : 'sidebar'; });
+    bind(strip, input => { input.checked = settings().showTurnStrip; }, input => { settings().showTurnStrip = Boolean(input.checked); });
+    bind(compat, input => { input.checked = settings().compatMarkup; }, input => { settings().compatMarkup = Boolean(input.checked); });
+    syncEnabled();
     content.prepend(row);
 }
 
