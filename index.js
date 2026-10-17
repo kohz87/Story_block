@@ -10,7 +10,7 @@ import { TEMPLATES, defaultBlocks } from './src/templates.js';
 import { formatFor } from './src/formats/index.js';
 import { bareBlockTexts, mergeRepeats, normalizeTransport, rejoinContinuation, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
-import { blockStatusInText, blockView, emptyView, isAssistant, latestAssistantIndex, viewKey } from './src/view.js';
+import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, tabView, viewKey } from './src/view.js';
 import { turnCount, turnItems } from './src/turn.js';
 import { createTabRegistry } from './src/ui/card.js';
 import { render as renderPlain } from './src/ui/displays/plain.js';
@@ -25,7 +25,7 @@ import { renderSettings } from './src/ui/editor.js';
 import { initializeMount, scheduleMount, setMountSuspended } from './src/mount.js';
 import { openBodyEditor } from './src/body-editor.js';
 
-const VERSION = '0.5.3';
+const VERSION = '0.5.4';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -506,9 +506,7 @@ function buildCardTabs() {
     const views = [];
     for (const def of enabledBlocks(ctx)) {
         if (!def.visible) continue;
-        // The sidebar lists every enabled block, empty ones included, so it and its edge
-        // handle are there from the first message; the card only shows blocks with content.
-        const view = blockView(ctx.chat ?? [], def) ?? (own.display === 'sidebar' ? emptyView(def) : null);
+        const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
         if (!view) continue;
         const tab = blockTab(view, uiKey);
         tabs.push(tab);

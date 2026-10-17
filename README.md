@@ -1,4 +1,4 @@
-# Story Block v0.5.3
+# Story Block v0.5.4
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -73,7 +73,8 @@ timers. Write dates as `Year, Month Day` (for example `1042, Harvestmoon 14`) an
 Delta's calendar picks them up.
 
 **Choices** offers four next actions as buttons: click adds one to your message, Shift-click
-(or the send button on touch screens) sends it.
+(or the send button on touch screens) sends it. On phones and tablets the message box is
+filled without being focused, so the keyboard doesn't pop up; tap the box to edit.
 
 ### NPC Inner Chatter
 
@@ -120,7 +121,9 @@ A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden o
 
 **Settings → Show blocks in:**
 
-- **Sidebar** (default). Wide screens with room beside the chat dock it there, always open;
+- **Sidebar** (default). Every enabled block gets a tab from the first message, except
+  optional ones (Dice, NPC Inner Chatter): their tab appears only when the latest reply has
+  one. Wide screens with room beside the chat dock it there, always open;
   the pin button in its header switches between docked and drawer. Tablets and narrow
   desktops get a drawer from the right; phones a bottom sheet (tap or drag its handle or
   header to resize; drag down, tap the dimmed chat above it or tap × to close — from full
