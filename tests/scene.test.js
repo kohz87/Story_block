@@ -381,3 +381,26 @@ test('withoutSections: the named sections go with what is under them; the rest i
     assert.ok(!/Unresolved|Planted|Consequence|Arc Phase/.test(layout));
     assert.equal(parseScene(withoutSections(text, ['threads', 'seeds', 'timers', 'arc'])).phase, 'Building');
 });
+
+test('an aside saying the cast is empty does not hand the board back to plain text (0.9.8)', () => {
+    const text = [
+        '**📅 Time:** CY 611, Goldwane 12, 08:20 am | **🌤 Loc:** Bluewatch Village | Communal Sheepfold (Outside East Palisade) | [64.0, 110.0] | **🌡 Wx:** Sleet, 8°C',
+        '---',
+        '**🧍 Wessel:**',
+        '* *Guild Rank:* F',
+        '* *Outfit:* Patched oilcloth coat',
+        '* *Position:* Thirty paces from the sheepfold wall',
+        '---',
+        '**👥 NPCs Present:**',
+        '*(No NPCs present in direct engagement; wolves engaged)*',
+        '---',
+        '**🎬 Scene Phase:** Midpoint Tension',
+    ].join('\n');
+    const scene = parseScene(text);
+    assert.ok(scene);
+    assert.equal(scene.pc.name, 'Wessel');
+    assert.equal(scene.people.length, 0);
+    assert.equal(scene.phase, 'Midpoint Tension');
+    // Other unplaced lines still send it back.
+    assert.equal(parseScene(text.replace('*(No NPCs present', '*(The wolves circle the fold')), null);
+});
