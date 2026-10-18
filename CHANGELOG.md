@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.4
+
+- **Dice leave fights to RPG Battle.** Given fresh rolls, a model resolved a fight with them (*natural 20, the beast goes down*), so RPG Battle never offered it. While RPG Battle is announced and on, the Dice and Dice: Everyone blocks get one runtime line under their instructions: *Never roll a fight: when blows are about to land, stop there; RPG Battle runs it.* (about 20 tokens). The stored instructions are not changed; alone, or with RPG Battle off, the prompt is the same as before. Rolls for everything else (spotting an ambush, a climb, a lie) are unchanged.
+
 ## 0.9.3
 
 - **One hidden section per reply.** A block the model wrote as a bare tag right next to its own hidden section (a `<Director>` after the envelope) was wrapped in a second section, and later writes (RPG Battle's Party block) went into that second one, so a reply could carry two `<!-- STORY_BLOCKS_V1 -->` envelopes. Envelopes with only whitespace between them now become one, their blocks in the same order; replies that already have two merge the next time Story Block tidies them (an edit, or a plugin writing its block). Envelopes with story text between them stay apart. Reading was never affected: every envelope in a reply was already read.

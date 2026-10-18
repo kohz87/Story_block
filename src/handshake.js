@@ -128,3 +128,16 @@ export function chatterNote(def, suite) {
     if (def?.display !== 'chatter' || def.kept || def.plugin) return '';
     return suite?.has?.(NPC_STATE_DELTA_ID) ? CHATTER_NOTE : '';
 }
+
+export const RPG_BATTLE_ID = 'rpg-battle';
+export const FIGHT_NOTE = 'Never roll a fight: when blows are about to land, stop there; RPG Battle runs it.';
+
+/**
+ * The runtime line a dice-display block's prompt section gets while RPG Battle is announced
+ * and enabled, or '' (v0.9.4). Without it a model given a fresh roll resolves the fight with
+ * it ("natural 20, the beast goes down") and RPG Battle never offers the fight.
+ */
+export function diceNote(def, suite) {
+    if (def?.display !== 'dice' || def.kept || def.plugin) return '';
+    return suite?.has?.(RPG_BATTLE_ID) ? FIGHT_NOTE : '';
+}
