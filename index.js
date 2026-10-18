@@ -32,7 +32,7 @@ import { contextTokens } from './src/tokens.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 
-const VERSION = '0.9.6';
+const VERSION = '0.9.7';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.

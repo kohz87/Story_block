@@ -577,6 +577,27 @@ function bareEdits(source, bare) {
     });
 }
 
+// `<!-- Director` + a line break … `-->`: a block written as an HTML comment named after it.
+const NAMED_COMMENT = /<!--[ \t]*([A-Za-z][A-Za-z0-9_]*)[ \t]*:?[ \t]*\r?\n([\s\S]*?)-->/g;
+
+/**
+ * (0.9.7) A model sometimes writes a block as its own HTML comment, named after the block,
+ * instead of as a tag in the envelope (`<!-- Director\n~ Key — …\n-->` after the envelope).
+ * Nothing reads it there, so a comment named after a known block (any case) becomes that bare
+ * tag, which the rest of normalizeTransport wraps into the envelope like any bare block. Other
+ * comments (the envelope's own, Inventory Block's, anyone else's) are left as they are.
+ */
+function unwrapNamedComments(text, defs) {
+    const tags = new Map((defs ?? []).filter(def => def?.tag).map(def => [String(def.tag).toLowerCase(), def.tag]));
+    if (!tags.size) return text;
+    return String(text ?? '').replace(NAMED_COMMENT, (whole, name, body) => {
+        const tag = tags.get(name.toLowerCase());
+        if (!tag || /^(?:STORY_BLOCKS_V1(?:_CUT)?|INVENTORY_BLOCK_V05)$/i.test(name)) return whole;
+        const inner = body.replace(/\s+$/, '').replace(/^\s*\n/, '');
+        return inner.trim() ? `<${tag}>\n${inner}\n</${tag}>` : '';
+    });
+}
+
 /**
  * Hide model-written blocks from the narration. A bare <Blocks>…</Blocks> holding known
  * blocks, or bare known tags, become one hidden envelope at the same place (bodies escaped
@@ -588,7 +609,7 @@ function bareEdits(source, bare) {
  */
 export function normalizeTransport(text, defs) {
     const original = String(text ?? '');
-    const { source, containers, bare } = scan(rejoinContinuation(original), defs);
+    const { source, containers, bare } = scan(unwrapNamedComments(rejoinContinuation(original), defs), defs);
     const edits = [...containers.map(container => containerEdit(source, container)).filter(Boolean), ...bareEdits(source, bare)];
     const partial = trailingPartialOpener(source);
     const covered = Math.max(0, ...containers.map(container => container.end), ...edits.map(edit => edit.end));
