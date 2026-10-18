@@ -1,4 +1,4 @@
-# Story Block v0.9.3
+# Story Block v0.9.4
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -143,6 +143,11 @@ roll before the scene:
 
 The card checks the model used the numbers it was given, in order, and that the sums add up,
 and says so — or names what went wrong.
+
+With **RPG Battle** installed and on, fights are its job, not the dice's (v0.9.4): both Dice
+blocks get one more line under their instructions, *Never roll a fight: when blows are about to
+land, stop there; RPG Battle runs it.*, so the story stops where the fight starts and RPG
+Battle offers it. Your stored instructions are not changed; turn RPG Battle off and the line goes.
 
 ### Writing a layout each display can draw
 

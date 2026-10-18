@@ -29,9 +29,9 @@ import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
-import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
+import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
 
-const VERSION = '0.9.3';
+const VERSION = '0.9.4';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -245,8 +245,9 @@ function generationEntries(ctx, chat, type) {
         def,
         state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
         rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
-        // Chatter points at NPC State Delta's cards while it is here (v0.9.1).
-        note: chatterNote(def, suite),
+        // Chatter points at NPC State Delta's cards while it is here (v0.9.1); dice leave
+        // fights to RPG Battle while it is here (v0.9.4).
+        note: chatterNote(def, suite) || diceNote(def, suite),
     }))];
 }
 
