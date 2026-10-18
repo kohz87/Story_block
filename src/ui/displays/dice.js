@@ -99,8 +99,13 @@ const FLAG_TEXT = {
 };
 
 function rollCard(roll, { animate, problems }) {
-    const card = el('li', `story-block-dice-card is-${roll.outcome}`);
-    card.dataset.outcome = roll.outcome;
+    // (0.9.6) A roll that is not the die handed for its place shows what that die gives: the
+    // outcome is code's, not the model's verdict.
+    const expected = problems.find(problem => problem.expected)?.expected ?? null;
+    const outcome = expected ? expected.outcome : roll.outcome;
+    const card = el('li', `story-block-dice-card is-${outcome}`);
+    card.dataset.outcome = outcome;
+    if (expected) card.dataset.storyOutcome = roll.outcome;
     if (animate) card.classList.add('is-animated');
     if (problems.length) {
         card.classList.add('is-flagged');
@@ -129,9 +134,13 @@ function rollCard(roll, { animate, problems }) {
     for (const problem of problems) {
         if (FLAG_TEXT[problem.kind]) body.appendChild(warningLine('story-block-dice-flag', FLAG_TEXT[problem.kind]));
     }
+    if (expected) {
+        const sum = roll.mod ? `${expected.roll} ${signed(roll.mod)} = ${expected.total}` : `${expected.roll}`;
+        body.appendChild(el('div', 'story-block-dice-true', `The die said ${expected.roll}: ${sum} vs DC ${roll.dc} → ${expected.label} (the story told ${roll.label})`));
+    }
     card.appendChild(body);
 
-    card.appendChild(el('span', `story-block-dice-pill is-${roll.outcome}`, roll.label));
+    card.appendChild(el('span', `story-block-dice-pill is-${outcome}`, expected ? expected.label : roll.label));
     return card;
 }
 

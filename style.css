@@ -2521,6 +2521,12 @@ button.story-block-strip:hover {
     color: var(--sb-removed);
 }
 
+/* (0.9.6) What the right die said, when the story used another. */
+.story-block-dice .story-block-dice-true {
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
 .story-block-dice .story-block-dice-pill {
     flex: none;
     max-width: 9rem;

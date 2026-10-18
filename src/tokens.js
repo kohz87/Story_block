@@ -10,7 +10,7 @@
 import { formatFor } from './formats/index.js';
 import { ENVELOPE_MARKER } from './envelope.js';
 import { buildContext } from './prompt.js';
-import { formatRolls } from './dice.js';
+import { promptRolls } from './dice.js';
 
 export const CHARS_PER_TOKEN = 4;
 export const RULES_PART = 'Rules and envelope';
@@ -26,7 +26,7 @@ function writtenBack(entry, substitute) {
     if (def.kept) return '';
     const format = formatFor(def);
     const state = def.kind === 'stateful' && entry.state && !format.isEmpty(entry.state) ? format.serialize(entry.state, def) : null;
-    const body = state ?? String(substitute(String(format.skeleton(def) ?? '').replaceAll('{{rolls}}', formatRolls(entry.rolls))) ?? '');
+    const body = state ?? String(substitute(String(format.skeleton(def) ?? '').replaceAll('{{rolls}}', promptRolls(entry.rolls))) ?? '');
     return `<${def.tag}>\n${String(body).trim()}\n</${def.tag}>`;
 }
 

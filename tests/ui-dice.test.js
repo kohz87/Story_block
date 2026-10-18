@@ -275,3 +275,20 @@ test('dice: empty and missing states', () => {
     assert.equal(empty.querySelector('.story-block-empty').textContent, 'Dice is empty. It fills in as the story goes.');
     assert.equal(empty.querySelector('.story-block-dice-honesty'), null);
 });
+
+test('a skipped die: the card shows what the right die said, and its pill is that outcome (0.9.6)', () => {
+    const pane = show({ state: { text: '🎲 Wessel rents a handcart from the village yard — d20 vs DC 10 → 13 · success' }, rolls: [2, 13, 18, 16, 1, 6] });
+    const card = pane.querySelector('.story-block-dice-card');
+    assert.equal(card.dataset.outcome, 'fail');
+    assert.equal(card.dataset.storyOutcome, 'success');
+    assert.ok(card.classList.contains('is-fail'));
+    assert.equal(card.querySelector('.story-block-dice-true').textContent, 'The die said 2: 2 vs DC 10 → fail (the story told success)');
+    assert.equal(card.querySelector('.story-block-dice-pill').textContent, 'fail');
+    // An honest roll keeps its own verdict and has no such line.
+    const fair = show({ state: { text: LOCK }, rolls: [12] }).querySelector('.story-block-dice-card');
+    assert.equal(fair.querySelector('.story-block-dice-true'), null);
+    assert.equal(fair.querySelector('.story-block-dice-pill').textContent, 'success');
+    // With a modifier the line shows the sum.
+    const climb = show({ state: { text: '🎲 Climb — d20+3 vs DC 15 → 14+3 = 17 · success' }, rolls: [10, 14] }).querySelector('.story-block-dice-true');
+    assert.equal(climb.textContent, 'The die said 10: 10 + 3 = 13 vs DC 15 → success, at a cost (the story told success)');
+});
