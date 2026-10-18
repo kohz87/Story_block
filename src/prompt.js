@@ -4,7 +4,7 @@
 
 import { formatFor } from './formats/index.js';
 import { ENVELOPE_MARKER, replacesLastReply, stripBlocks } from './envelope.js';
-import { formatRolls } from './dice.js';
+import { promptRolls } from './dice.js';
 
 export const CONTEXT_BEGIN = 'STORY_BLOCKS_V1_CONTEXT_BEGIN';
 export const CONTEXT_END = 'STORY_BLOCKS_V1_CONTEXT_END';
@@ -100,7 +100,7 @@ function withModifiers(prompt, modifiers) {
 
 // {{rolls}}: the dice the extension rolled for this block and this reply.
 function withRolls(text, entry) {
-    return String(text ?? '').replaceAll('{{rolls}}', formatRolls(entry.rolls));
+    return String(text ?? '').replaceAll('{{rolls}}', promptRolls(entry.rolls));
 }
 
 function currentState(def, state) {

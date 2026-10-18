@@ -1,7 +1,7 @@
 // Dice: rolled by the extension, handed over through {{rolls}}, stamped on the block and checked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkRolls, formatRolls, parseDice, readRolls, rollDice, stampRolls } from '../src/dice.js';
+import { checkRolls, formatRolls, parseDice, promptRolls, readRolls, rollDice, stampRolls } from '../src/dice.js';
 import { buildContext } from '../src/prompt.js';
 import { normalizeBlock } from '../src/schema.js';
 import { templateById } from '../src/templates.js';
@@ -58,7 +58,7 @@ test('stampRolls records the handed rolls on the newest copy; readRolls reads th
 test('the reply context puts lead blocks in a first envelope and fills {{rolls}}; optional blocks may be left out', () => {
     const context = buildContext([{ def: dice, rolls: [12, 5, 19] }, { def: templateById('inventory'), state: null }]);
     assert.match(context, /### Dice — <Dice> \(first: this reply only, written before the story\)/);
-    assert.match(context, /This reply's rolls, in order: 12, 5, 19\./);
+    assert.match(context, /This reply's rolls, in order: Roll 1 = 12 · Roll 2 = 5 · Roll 3 = 19 \(the first attempt takes Roll 1, the next Roll 2, and so on, whatever they say\)\./);
     assert.match(context, /Optional: leave the whole <Dice> tag out/);
     assert.match(context, /Blocks marked "first" go in their own hidden envelope at the very start/);
     const skeleton = context.slice(context.indexOf('Write it exactly like this:'));
@@ -83,4 +83,23 @@ test('schema: lead kind, optional and rolls are normalized', () => {
     assert.deepEqual(block.rolls, { count: 10, sides: 20 });
     assert.deepEqual(normalizeBlock({ name: 'Plain' }).rolls, { count: 0, sides: 20 });
     assert.equal(normalizeBlock({ name: 'Plain' }).optional, false);
+});
+
+test('the model is handed each roll tied to its attempt; a skipped die gets what it would have said (0.9.6)', () => {
+    assert.equal(promptRolls([2, 13, 18]), 'Roll 1 = 2 · Roll 2 = 13 · Roll 3 = 18 (the first attempt takes Roll 1, the next Roll 2, and so on, whatever they say)');
+    assert.equal(promptRolls([7]), 'Roll 1 = 7 (the attempt takes it, whatever it says)');
+    assert.equal(promptRolls([]), 'none');
+    assert.equal(formatRolls([2, 13]), '2, 13', 'the display list is unchanged');
+
+    // The handcart: the 2 skipped for the 13 against DC 10.
+    const check = checkRolls(parseDice('🎲 Wessel rents a handcart from the village yard — d20 vs DC 10 → 13 · success'), [2, 13, 18, 16, 1, 6]);
+    assert.equal(check.ok, false);
+    assert.deepEqual(check.problems[0].expected, { roll: 2, total: 2, outcome: 'fail', label: 'fail' });
+    // With a modifier, a near miss reads as at a cost; a natural 20 or 1 as critical.
+    const near = checkRolls(parseDice('🎲 Climb — d20+3 vs DC 15 → 14+3 = 17 · success'), [10, 14]);
+    assert.deepEqual(near.problems[0].expected, { roll: 10, total: 13, outcome: 'cost', label: 'success, at a cost' });
+    assert.equal(checkRolls(parseDice('🎲 Leap — d20 vs DC 12 → 15 · success'), [1, 15]).problems[0].expected.outcome, 'critfail');
+    assert.equal(checkRolls(parseDice('🎲 Leap — d20 vs DC 12 → 9 · fail'), [20]).problems[0].expected.outcome, 'crit', 'an invented number too');
+    // A roll beyond the handed ones has no die to say anything.
+    assert.equal(checkRolls(parseDice('🎲 A — d20 vs DC 5 → 2 · fail\n🎲 B — d20 vs DC 5 → 9 · success'), [2]).problems[0].expected, undefined);
 });

@@ -1,4 +1,4 @@
-# Story Block v0.9.5
+# Story Block v0.9.6
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -155,8 +155,16 @@ roll before the scene:
 🎲 Climb the wet wall — d20+2 vs 15 → 12+2 = 14 · success, at a cost
 ```
 
+The numbers are handed over tied to their attempts (v0.9.6): `{{rolls}}` reads *Roll 1 = 2 ·
+Roll 2 = 13 · Roll 3 = 18 (the first attempt takes Roll 1, the next Roll 2, and so on, whatever
+they say)*, so the list is not a pool to pick the best number from. This works with
+instructions you saved earlier too, since it is the `{{rolls}}` text that changed.
+
 The card checks the model used the numbers it was given, in order, and that the sums add up,
-and says so — or names what went wrong.
+and says so — or names what went wrong. When a roll is not the die handed for its place (used
+out of order, or made up), the card shows what that die says with the same modifier and DC, and
+its verdict is that one, not the story's: *The die said 2: 2 vs DC 10 → fail (the story told
+success)*. The story itself is not rewritten; swipe the reply if you want it told honestly.
 
 With **RPG Battle** installed and on, fights are its job, not the dice's (v0.9.4): both Dice
 blocks get one more line under their instructions, *Never roll a fight: when blows are about to

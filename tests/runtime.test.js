@@ -249,7 +249,7 @@ test('dice: rolled before the reply, handed over, stamped on the block; an optio
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
     const event = replyChat(...history());
     await emit('CHAT_COMPLETION_PROMPT_READY', event);
-    const handed = /Rolls: (\d+), (\d+), (\d+)\./.exec(JSON.stringify(event.chat));
+    const handed = /Rolls: Roll 1 = (\d+) · Roll 2 = (\d+) · Roll 3 = (\d+) \(/.exec(JSON.stringify(event.chat));
     assert.ok(handed, 'three rolls handed over');
     const rolls = handed.slice(1).map(Number);
     for (const roll of rolls) assert.ok(roll >= 1 && roll <= 20);
@@ -272,7 +272,7 @@ test('dice written as one tag per roll are folded into one block and stamped onc
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
     const event = replyChat(...history());
     await emit('CHAT_COMPLETION_PROMPT_READY', event);
-    const [a, b] = /Rolls: (\d+), (\d+), \d+\./.exec(JSON.stringify(event.chat)).slice(1);
+    const [a, b] = /Rolls: Roll 1 = (\d+) · Roll 2 = (\d+) · Roll 3 = \d+ \(/.exec(JSON.stringify(event.chat)).slice(1);
     await finish(`<Dice>\n🎲 Climb — d20 vs 10 → ${a} · success\n</Dice>\n<Dice>\n🎲 Look — d20 vs 10 → ${b} · success\n</Dice>\nThey moved on.`);
     const mes = ctx.chat.at(-1).mes;
     assert.equal((mes.match(/<Dice\b/g) ?? []).length, 1, 'one tag left');

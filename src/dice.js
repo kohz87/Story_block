@@ -37,6 +37,19 @@ export function formatRolls(rolls) {
     return Array.isArray(rolls) && rolls.length ? rolls.join(', ') : 'none';
 }
 
+/**
+ * The rolls as {{rolls}} hands them to the model (0.9.6): each tied to its attempt, "Roll 1 = 2 ·
+ * Roll 2 = 13 · Roll 3 = 18 (the first attempt takes Roll 1, the next Roll 2, whatever they say)".
+ * A plain list read as a pool to pick from: a model skipped a 2 against DC 10 and took the 13.
+ */
+export function promptRolls(rolls) {
+    if (!Array.isArray(rolls) || !rolls.length) return 'none';
+    const list = rolls.map((roll, index) => `Roll ${index + 1} = ${roll}`).join(' · ');
+    return rolls.length === 1
+        ? `${list} (the attempt takes it, whatever it says)`
+        : `${list} (the first attempt takes Roll 1, the next Roll 2, and so on, whatever they say)`;
+}
+
 function openTagPattern(tag) {
     return new RegExp(`<${tag}(\\s[^>]*)?>`, 'gi');
 }
@@ -99,6 +112,14 @@ function outcomeOf(verdict, roll, sides, total, dc) {
     return total >= dc - 2 ? 'cost' : 'fail';
 }
 
+// What the handed die gives for a roll line: its modifier and DC, read by the rules (no verdict words).
+function dieSaid(roll, die) {
+    const value = Math.max(1, Math.min(roll.sides, Number(die) || 1));
+    const total = value + roll.mod;
+    const outcome = outcomeOf('', value, roll.sides, total, roll.dc);
+    return { roll: value, total, outcome, label: LABELS[outcome] };
+}
+
 function parseLine(line) {
     const match = DICE_LINE.exec(line);
     if (!match) return null;
@@ -135,8 +156,10 @@ export function parseDice(text) {
 /**
  * Did the model use the dice it was handed? Rolls must come from `handed` in order, one per
  * attempt, never invented or reused, and each sum must add up. Returns
- * { checked, ok, problems: [{ index, kind: 'invented'|'order'|'sum', text }] }; `checked` is
- * false when nothing was handed (an older reply, or rolls turned off).
+ * { checked, ok, problems: [{ index, kind: 'invented'|'order'|'sum', text, expected? }] };
+ * `checked` is false when nothing was handed (an older reply, or rolls turned off). A roll that
+ * is not the one handed for its place carries `expected` (0.9.6): what that die gives with the
+ * same modifier and DC, read by the rules alone — { roll, total, outcome, label }.
  */
 export function checkRolls(parsed, handed) {
     if (!parsed || !Array.isArray(handed) || !handed.length) return { checked: false, ok: true, problems: [] };
@@ -149,7 +172,7 @@ export function checkRolls(parsed, handed) {
         if (index >= handed.length) problems.push({ index, kind: 'invented', text: `roll ${index + 1} was not handed over (only ${handed.length} ${handed.length === 1 ? 'was' : 'were'})` });
         else if (handed[index] !== roll.roll) {
             const kind = handed.includes(roll.roll) ? 'order' : 'invented';
-            problems.push({ index, kind, text: kind === 'order' ? `${roll.roll} was used out of order (expected ${handed[index]})` : `${roll.roll} is not one of the rolls handed over` });
+            problems.push({ index, kind, text: kind === 'order' ? `${roll.roll} was used out of order (expected ${handed[index]})` : `${roll.roll} is not one of the rolls handed over`, expected: dieSaid(roll, handed[index]) });
         }
     });
     return { checked: true, ok: problems.length === 0, problems };
