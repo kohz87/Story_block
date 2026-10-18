@@ -1,7 +1,7 @@
 // World State text → scene (parseScene) and scene changes (diffScene).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diffScene, parseScene, phaseStep, stripMarkdown } from '../src/scene.js';
+import { diffScene, parseScene, phaseStep, stripMarkdown, withoutSections } from '../src/scene.js';
 import { templateById } from '../src/templates.js';
 
 const FULL = `**📅 Time:** Day 14 of Harvestmoon, dusk | **🌤 Loc:** Heron Ford | Willow camp | **🌡 Wx:** Light rain, cool, firelight
@@ -343,4 +343,41 @@ test('sceneHeaderFields and setSceneHeaderField: the header cells a hand editor 
     assert.equal(setSceneHeaderField('Time: dusk | Loc: Heron Ford', 'time', 'dawn'), 'Time: dawn | Loc: Heron Ford');
     assert.equal(setSceneHeaderField(text, 'mood', 'x'), text, 'an unknown cell changes nothing');
     assert.deepEqual(sceneHeaderFields('Just prose.'), {});
+});
+
+test('withoutSections: the named sections go with what is under them; the rest is kept as written (0.9.5)', () => {
+    const text = [
+        '**📅 Time:** Goldwane 16 | **🌤 Loc:** Auvoth',
+        '---',
+        '**📡 Off-Screen:**',
+        '* Geva — Bailiff Court',
+        '',
+        '---',
+        '**🔥 Unresolved Threads:**',
+        '* Who sold the route',
+        '* The river stranger',
+        '**🌱 Planted Seeds:**',
+        '* A cracked seal (2 turns)',
+        '**⏳ Consequence Timers:** Toll riders, 3 turns',
+        '---',
+        '**🎯 Arc Phase:** Escalation',
+        '**🎬 Scene Phase:** Building',
+    ].join('\n');
+    assert.equal(withoutSections(text, ['threads', 'seeds', 'timers', 'arc']), [
+        '**📅 Time:** Goldwane 16 | **🌤 Loc:** Auvoth',
+        '---',
+        '**📡 Off-Screen:**',
+        '* Geva — Bailiff Court',
+        '',
+        '---',
+        '**🎬 Scene Phase:** Building',
+    ].join('\n'));
+    // Headings by their words, emoji or not; nothing named, nothing changes.
+    assert.equal(withoutSections('Hooks:\n* a thread\nScene Phase: Climax', ['threads']), 'Scene Phase: Climax');
+    assert.equal(withoutSections(text, []), text);
+    // The template's own layout keeps Off-Screen and Scene Phase and parses as before.
+    const layout = withoutSections(templateById('world-state').layout, ['threads', 'seeds', 'timers', 'arc']);
+    assert.ok(layout.includes('Off-Screen') && layout.includes('Scene Phase'));
+    assert.ok(!/Unresolved|Planted|Consequence|Arc Phase/.test(layout));
+    assert.equal(parseScene(withoutSections(text, ['threads', 'seeds', 'timers', 'arc'])).phase, 'Building');
 });

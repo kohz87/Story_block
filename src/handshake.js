@@ -86,6 +86,38 @@ export function keepsOwnRolls(choice, suite) {
     return suite.offering('rolls').some(id => id !== SUITE_ID);
 }
 
+// The World State sections another timeline keeper tracks itself (0.9.5): hooks, clocks and
+// the arc are Story Director's, so the model is not asked to keep them in two places. Off-Screen
+// stays (Story Director writes its agendas there, NPC State Delta reads it), as does Scene Phase.
+export const TIMELINE_SECTIONS = Object.freeze(['threads', 'seeds', 'timers', 'arc']);
+
+/**
+ * The extension that keeps the timeline instead of the World State, { id, name }, or null
+ * (Story Block keeps it: alone, or by the reader's choice).
+ */
+export function timelineKeeper(choices, suite) {
+    return deferredTo('timeline', normalizeSourceChoices(choices).timeline, suite);
+}
+
+// The prompt's words for those sections, removed with them.
+const TIMELINE_PROMPT = [
+    [/,?\s*(?:and|plus)\s+what is still unresolved/gi, ''],
+    [/\s*Drop threads once they resolve\.?/gi, ''],
+];
+
+/**
+ * A World State block as the model is shown it while another extension keeps the timeline:
+ * layout, prompt and current state without TIMELINE_SECTIONS. Other blocks, or no keeper, come
+ * back unchanged. Only the prompt changes; the stored block and its saved state do not.
+ */
+export function timelineTrimmed(def, state, keeper, cut) {
+    if (!keeper || !blockAreas(def).includes('timeline') || typeof cut !== 'function') return { def, state };
+    const prompt = TIMELINE_PROMPT.reduce((text, [re, to]) => text.replace(re, to), String(def.prompt ?? '')).trim();
+    const next = { ...def, prompt, layout: typeof def.layout === 'string' ? cut(def.layout, TIMELINE_SECTIONS) : def.layout };
+    const trimmed = state && typeof state.text === 'string' ? { ...state, text: cut(state.text, TIMELINE_SECTIONS) } : state;
+    return { def: next, state: trimmed };
+}
+
 /** One settings line for an area: who is its source of truth now, given the choice. */
 export function sourceStatus(area, { choice, suite, offered }) {
     const { provider } = AREA_LABELS[area] ?? { provider: area };
@@ -95,6 +127,7 @@ export function sourceStatus(area, { choice, suite, offered }) {
         return name ? `${provider} is off · ${name} has it` : `${provider} is off`;
     }
     const other = deferredTo(area, choice, suite);
+    if (other && area === 'timeline') return `Now: ${other.name} · the World State leaves out threads, seeds, timers and arc phase`;
     return other ? `Now: ${other.name}` : `Now: ${SUITE_NAME}`;
 }
 

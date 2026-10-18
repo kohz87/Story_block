@@ -298,6 +298,42 @@ function isUnfilled(lines) {
 // ---- the parser -----------------------------------------------------------------------
 
 /**
+ * World State text without the sections named by `keys` (0.9.5): each heading among them and
+ * everything under it, up to the next section heading or a `---` rule, goes; rules and blank
+ * lines left doubled or dangling go too. Every other line is kept as written. Used for what the
+ * model is shown while another extension keeps the timeline (threads, seeds, timers, arc phase).
+ */
+export function withoutSections(text, keys) {
+    const drop = new Set(keys ?? []);
+    const source = String(text ?? '');
+    if (!drop.size || !source) return source;
+    const kept = [];
+    let dropping = false;
+    for (const raw of source.replace(/\r\n?/g, '\n').split('\n')) {
+        const content = raw.trim();
+        const heading = BULLET.test(content) ? null : (labelLine(content)?.label ?? bareHeader(content));
+        const key = heading ? sectionOf(heading) : null;
+        if (key && drop.has(key)) {
+            dropping = true;
+            continue;
+        }
+        if (key || SEPARATOR.test(content)) dropping = false;
+        if (!dropping) kept.push(raw);
+    }
+    // A rule or blank line left next to another, or at either end, says nothing.
+    const tidy = [];
+    for (const line of kept) {
+        const rule = SEPARATOR.test(line.trim());
+        const previous = tidy.length ? tidy[tidy.length - 1].trim() : null;
+        if (rule && (previous === null || SEPARATOR.test(previous) || (previous === '' && tidy.length >= 2 && SEPARATOR.test(tidy[tidy.length - 2].trim())))) continue;
+        if (!line.trim() && previous === '') continue;
+        tidy.push(line);
+    }
+    while (tidy.length && (!tidy[tidy.length - 1].trim() || SEPARATOR.test(tidy[tidy.length - 1].trim()))) tidy.pop();
+    return tidy.join('\n');
+}
+
+/**
  * Parse World State text into a scene, or null when it does not look like one.
  *
  * `options.layout` adds a customised layout's own `[placeholders]` to the ones that are

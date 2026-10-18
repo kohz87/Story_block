@@ -18,6 +18,7 @@ import { render as renderPlain } from './src/ui/displays/plain.js';
 import { render as renderTree } from './src/ui/displays/tree.js';
 import { render as renderFields } from './src/ui/displays/fields.js';
 import { render as renderScene } from './src/ui/displays/scene.js';
+import { withoutSections } from './src/scene.js';
 import { render as renderChoices } from './src/ui/displays/choices.js';
 import { render as renderDice } from './src/ui/displays/dice.js';
 import { render as renderChatter } from './src/ui/displays/chatter.js';
@@ -29,9 +30,9 @@ import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
-import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from './src/handshake.js';
+import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 
-const VERSION = '0.9.4';
+const VERSION = '0.9.5';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -241,14 +242,20 @@ function sessionContext(ctx, session) {
 function generationEntries(ctx, chat, type) {
     const suite = storySuite();
     const ownRolls = keepsOwnRolls(settings(ctx).sourceOfTruth.rolls, suite);
-    return [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => ({
-        def,
-        state: def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null,
-        rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
-        // Chatter points at NPC State Delta's cards while it is here (v0.9.1); dice leave
-        // fights to RPG Battle while it is here (v0.9.4).
-        note: chatterNote(def, suite) || diceNote(def, suite),
-    }))];
+    // (0.9.5) With another extension keeping the timeline, the World State is asked for
+    // without the threads, seeds, timers and arc phase it tracks.
+    const keeper = timelineKeeper(settings(ctx).sourceOfTruth, suite);
+    return [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => {
+        const shown = timelineTrimmed(def, def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null, keeper, withoutSections);
+        return {
+            def: shown.def,
+            state: shown.state,
+            rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
+            // Chatter points at NPC State Delta's cards while it is here (v0.9.1); dice leave
+            // fights to RPG Battle while it is here (v0.9.4).
+            note: chatterNote(def, suite) || diceNote(def, suite),
+        };
+    })];
 }
 
 /**
@@ -708,8 +715,9 @@ async function rescan() {
 function estimateTokens(def) {
     const ctx = context();
     const block = normalizeBlock(def);
-    const state = block.kind === 'stateful' ? stateForGeneration(ctx?.chat ?? [], block) : null;
-    const section = buildContext([{ def: block, state }], { substitute: substituter(ctx) });
+    const shown = timelineTrimmed(block, block.kind === 'stateful' ? stateForGeneration(ctx?.chat ?? [], block) : null, timelineKeeper(settings(ctx).sourceOfTruth, storySuite()), withoutSections);
+    const state = shown.state;
+    const section = buildContext([{ def: shown.def, state }], { substitute: substituter(ctx) });
     const written = state ? formatFor(block).serialize(state, block).length : 200;
     return Math.round((section.length + written) / 3.5);
 }
