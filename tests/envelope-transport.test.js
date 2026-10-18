@@ -377,3 +377,18 @@ test('upsertBlock on a reply cut inside the opener drops the fragment', () => {
     const cut = normalize('Story.\n<!-- STORY_BL').text;
     assert.equal(upsertBlock(cut, notes, 'New'), `Story.\n\n${envelope(note('New'))}`);
 });
+
+test('a block written as an HTML comment named after it is folded into the envelope (0.9.7)', () => {
+    const director = { id: 'story-director', tag: 'Director', kind: 'turn', format: 'text', enabled: true, plugin: true };
+    const encounter = { id: 'rpg-encounter', tag: 'Encounter', kind: 'turn', format: 'text', enabled: true, plugin: true };
+    const defs = [director, encounter];
+    const text = 'Wolves.\n\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Encounter>\n4 Timber Wolf (weak)\n</Encounter>\n</Blocks>\n-->\n<!-- Director\n~ Hook: Sheepfold Wolves — giver: Nelke\n+ quest Sheepfold Bounty — type: bounty | giver: Nelke\n-->';
+    const out = normalizeTransport(text, defs).text;
+    assert.equal(out, 'Wolves.\n\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Encounter>\n4 Timber Wolf (weak)\n</Encounter>\n<Director>\n~ Hook: Sheepfold Wolves — giver: Nelke\n+ quest Sheepfold Bounty — type: bounty | giver: Nelke\n</Director>\n</Blocks>\n-->');
+    assert.equal(normalizeTransport(out, defs).text, out, 'idempotent');
+    // Any case, a colon after the name; alone, it becomes the envelope.
+    assert.match(normalizeTransport('Text.\n<!-- DIRECTOR:\n+ hook River stranger — who\n-->', defs).text, /<!-- STORY_BLOCKS_V1\n<Blocks>\n<Director>\n\+ hook River stranger — who\n<\/Director>\n<\/Blocks>\n-->$/);
+    // Other comments stay: unknown names, one-line comments, an empty named one goes.
+    assert.equal(normalizeTransport('Text <!-- note to self\nkeep this\n-->', defs).text, 'Text <!-- note to self\nkeep this\n-->');
+    assert.equal(normalizeTransport('Text <!-- Director -->', defs).text, 'Text <!-- Director -->');
+});

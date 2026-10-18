@@ -1,4 +1,4 @@
-# Story Block v0.9.6
+# Story Block v0.9.7
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -249,7 +249,9 @@ Salt Pork | 3 | Barrel
 -->
 ```
 
-A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden on receive.
+A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden on receive. So is a block
+written as its own HTML comment named after it (`<!-- Director` + a line break … `-->`, since
+0.9.7): it is folded into the envelope as that block.
 
 ## Where blocks are shown
 

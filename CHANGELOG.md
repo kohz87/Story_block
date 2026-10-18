@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.7
+
+- **Blocks written as their own HTML comment are read.** A model wrote its Story Director lines as `<!-- Director … -->` after the envelope instead of a `<Director>` tag inside it, so nothing read them (no quest was captured). A comment named after a known block (`<!-- Director`, `<!-- World_State:`, any case, the name then a line break) now becomes that block and is folded into the reply's envelope like any bare block the model wrote. Other comments (unnamed, one-line, anyone else's) are left alone; an empty named one is dropped.
+
 ## 0.9.6
 
 - **Each roll tied to its attempt.** `{{rolls}}` handed the dice as a list (`2, 13, 18, 16, 1, 6`), and a model read it as a pool: it skipped the 2 against DC 10 and took the 13 for a success. Now it reads `Roll 1 = 2 · Roll 2 = 13 · … (the first attempt takes Roll 1, the next Roll 2, and so on, whatever they say)`. It is the substitution that changed, so saved Dice instructions get it too. The card's "Rolled by Story Block" list is unchanged.
