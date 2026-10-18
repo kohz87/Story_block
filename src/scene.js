@@ -64,6 +64,8 @@ const EMOJI_RUN = /^(?:[\p{Extended_Pictographic}\p{Emoji_Modifier}\u{FE0F}\u{20
 const BULLET = /^([*\-•+])\s+(.*)$/;
 const SEPARATOR = /^(?:[-*_=]\s*){3,}$/;
 const NONE = /^(?:none|nobody|no one|nothing|n\/a|-|—|–)\.?$/i;
+// A line saying a section has nobody or nothing in it, however it goes on.
+const EMPTY_ASIDE = /^(?:none|nobody|no[\s-]one|nothing|no\s+(?:npcs?|other|others|one\s+else|people|characters?|named)\b)/i;
 
 // Values a model echoes back from the template unfilled. Taken from the template's own
 // layout (and the compact layout Megumin switches to) so the two cannot drift apart; a
@@ -548,6 +550,9 @@ export function parseScene(text, { layout = '' } = {}) {
         // (`*[Repeat for each NPC…]*`), and one or two words are a title or a label the
         // parse did not recognise: neither carries anything the board is not showing.
         if (!value || /^\[[\s\S]*\]$/.test(value) || wordCount(value) < 3) return;
+        // `*(No NPCs present; wolves engaged)*` under a heading says the section is
+        // empty (0.9.8): an empty cast is nothing the board has to draw.
+        if (EMPTY_ASIDE.test(value.replace(/^\(\s*/, ''))) return;
         lost += 1;
     };
 

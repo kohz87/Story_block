@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.8
+
+- **An empty cast written as an aside keeps the scene board.** A World State with `*(No NPCs present in direct engagement; wolves engaged)*` under NPCs Present was shown as raw text, because the board would not drop a line it could not place. A line under a heading that says nobody or nothing is there (`None`, `Nobody`, `No one`, `No NPCs …`, in brackets or not) now means that section is empty. Any other line the board cannot place still sends the text back to the plain display.
+
 ## 0.9.7
 
 - **Blocks written as their own HTML comment are read.** A model wrote its Story Director lines as `<!-- Director … -->` after the envelope instead of a `<Director>` tag inside it, so nothing read them (no quest was captured). A comment named after a known block (`<!-- Director`, `<!-- World_State:`, any case, the name then a line break) now becomes that block and is folded into the reply's envelope like any bare block the model wrote. Other comments (unnamed, one-line, anyone else's) are left alone; an empty named one is dropped.
