@@ -6,6 +6,8 @@ every reply's prompt, and draws them as one tabbed card under the latest reply.
 
 Every block is a definition you can edit. The built-ins are only templates.
 
+<img src="docs/images/sidebar.png" alt="SillyTavern with Story Block's sidebar docked beside the chat: the World State scene board for the latest reply, with what it changed" width="100%">
+
 ## What it does
 
 - **One engine, any block.** Inventory, World State, Choices, Dice, NPC Inner Chatter,
@@ -31,6 +33,18 @@ Every block is a definition you can edit. The built-ins are only templates.
   added to your preset.
 - **Message-native.** Blocks are stored in the reply text as a hidden envelope, so swipes,
   edits, deletes and branches always show the right state. There is no separate database.
+
+## Screenshots
+
+From a demo session with [Story Director](https://github.com/kohz87/Story_director), [NPC State Delta](https://github.com/kohz87/npc_state_delta) and [RPG Battle](https://github.com/kohz87/rpg_battle), whose tabs sit in the same sidebar.
+
+| World State | Inventory | Choices | On a phone |
+| --- | --- | --- | --- |
+| <img src="docs/images/world-state.png" alt="World State: time, place and weather, Ren and the NPCs present with what changed this turn" width="200"> | <img src="docs/images/inventory.png" alt="Inventory: the Loot category with wolf pelts, fangs and a healing draught" width="200"> | <img src="docs/images/choices.png" alt="Choices: four numbered options; a click fills the message box" width="200"> | <img src="docs/images/phone.png" alt="The sidebar as a bottom sheet on a phone, World State open" width="180"> |
+
+**Story Suite**, with two or more of the four installed: one place to manage them all.
+
+<img src="docs/images/story-suite.png" alt="The Story Suite overlay: the four extensions with their switches, and who keeps each shared area" width="720">
 
 ## Install
 
