@@ -3,7 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { storySuite } from '../src/suite.js';
-import { CHATTER_NOTE, FIGHT_NOTE, SHARED_AREAS, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice } from '../src/handshake.js';
+import { CHATTER_NOTE, FIGHT_NOTE, SHARED_AREAS, TIMELINE_SECTIONS, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from '../src/handshake.js';
+import { withoutSections } from '../src/scene.js';
 import { pluginBlockDef } from '../src/plugin.js';
 import { defaultBlocks, templateById } from '../src/templates.js';
 
@@ -155,4 +156,34 @@ test('diceNote: dice leave fights to RPG Battle while it is here and on', () => 
     suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.4.2', owns: ['stats', 'rolls', 'items'], enabled: false });
     assert.equal(diceNote(dice, suite), '', 'switched off');
     assert.equal(diceNote(null, suite), '');
+});
+
+test('timeline (0.9.5): with Story Director keeping it, the World State is asked for without threads, seeds, timers and arc phase', () => {
+    const suite = fresh();
+    const world = on('world-state');
+    announceBlock(suite, ['scene', 'timeline']);
+    assert.equal(timelineKeeper(auto, suite), null, 'alone: the World State keeps it');
+    assert.deepEqual(timelineTrimmed(world, { text: 'x' }, null, withoutSections), { def: world, state: { text: 'x' } });
+    suite.announce({ id: 'story-director', name: 'Story Director', version: '0.9.3', owns: ['calendar', 'timeline', 'npc'] });
+    const keeper = timelineKeeper(auto, suite);
+    assert.equal(keeper?.name, 'Story Director');
+    assert.equal(timelineKeeper({ timeline: 'mine' }, suite), null, 'the reader can keep it in the World State');
+    assert.equal(sourceStatus('timeline', { choice: 'auto', suite, offered: true }), 'Now: Story Director · the World State leaves out threads, seeds, timers and arc phase');
+
+    const state = { text: '**📅 Time:** Goldwane 16 | **🌤 Loc:** Auvoth\n---\n**📡 Off-Screen:**\n* Geva — Bailiff Court\n---\n**🔥 Unresolved Threads:**\n* Who sold the route\n**🌱 Planted Seeds:** a cracked seal\n**⏳ Consequence Timers:** Toll riders, 3 turns\n**🎯 Arc Phase:** Escalation\n**🎬 Scene Phase:** Building' };
+    const shown = timelineTrimmed(world, state, keeper, withoutSections);
+    for (const gone of ['Unresolved Threads', 'Planted Seeds', 'Consequence Timers', 'Arc Phase', 'Who sold the route']) {
+        assert.ok(!shown.def.layout.includes(gone) || gone === 'Who sold the route', `layout without ${gone}`);
+        assert.ok(!shown.state.text.includes(gone), `state without ${gone}`);
+    }
+    for (const kept of ['Off-Screen', 'Scene Phase', 'NPCs Present']) assert.ok(shown.def.layout.includes(kept), `layout keeps ${kept}`);
+    assert.match(shown.state.text, /Geva — Bailiff Court/);
+    assert.match(shown.state.text, /Scene Phase:\*\* Building$/);
+    assert.ok(!/unresolved/i.test(shown.def.prompt) && !/Drop threads/.test(shown.def.prompt), 'the prompt does not ask for them either');
+    assert.match(shown.def.prompt, /plus what is happening off-screen\./);
+    assert.ok(world.layout.includes('Unresolved Threads') && state.text.includes('Arc Phase'), 'the stored block and state are untouched');
+    // Other blocks pass through.
+    const sheet = on('character-sheet');
+    assert.equal(timelineTrimmed(sheet, null, keeper, withoutSections).def, sheet);
+    assert.deepEqual(TIMELINE_SECTIONS, ['threads', 'seeds', 'timers', 'arc']);
 });

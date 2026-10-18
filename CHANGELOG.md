@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.5
+
+- **The timeline in one place.** While another extension keeps the timeline (Story Director, on *Automatic*, or chosen under Source of truth), the World State is asked for without Unresolved Threads, Planted Seeds, Consequence Timers and Arc Phase: its layout, its instructions ("what is still unresolved", "drop threads once they resolve") and the current state shown to the model leave them out, so the model no longer keeps a second list of the hooks, clocks and arc Story Director tracks. Off-Screen stays (Story Director mirrors its agendas into it; NPC State Delta reads it), as does Scene Phase. The saved layout, the editor, the stored replies and the scene board are unchanged; alone, or with the timeline kept here, the prompt is the same as before. The Timeline row under Source of truth says so. Goes with Story Director 0.9.3.
+
 ## 0.9.4
 
 - **Dice leave fights to RPG Battle.** Given fresh rolls, a model resolved a fight with them (*natural 20, the beast goes down*), so RPG Battle never offered it. While RPG Battle is announced and on, the Dice and Dice: Everyone blocks get one runtime line under their instructions: *Never roll a fight: when blows are about to land, stop there; RPG Battle runs it.* (about 20 tokens). The stored instructions are not changed; alone, or with RPG Battle off, the prompt is the same as before. Rolls for everything else (spotting an ambush, a climb, a lie) are unchanged.

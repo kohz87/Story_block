@@ -1,4 +1,4 @@
-# Story Block v0.9.4
+# Story Block v0.9.5
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -297,6 +297,14 @@ only while the block for it is on:
   owns stats"). The sheet keeps working; turn it off if you want one set of numbers.
 - **Rolls.** The Dice block takes RPG Battle's modifier from its sheet (since 0.7), unless you
   keep rolls with Story Block (below).
+- **Timeline** (since 0.9.5). While another extension keeps it (Story Director, on
+  *Automatic*), the World State is asked for without **Unresolved Threads**, **Planted Seeds**,
+  **Consequence Timers** and **Arc Phase**: Story Director tracks hooks, clocks and the arc
+  itself, so the model gets them from one place instead of two. **Off-Screen** stays (Story
+  Director writes its agendas there, and NPC State Delta reads it), and so does **Scene Phase**.
+  Only what the model is shown changes: your saved layout, the block editor and older replies
+  stay as they are. Keep the timeline with Story Block (*This extension*) to have the full World
+  State asked for again.
 - **Settings → Source of truth:** for each area, **Automatic** (the table), **This extension**
   or **The other one**, with who has it now. Alone, every choice works like Automatic.
 
