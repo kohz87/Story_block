@@ -430,3 +430,19 @@ test('inside the envelope, scraps, untagged block lines and other extensions\' t
     const inside = `${open}\n${note('Nelke rummaged beneath the counterboards and came up red-faced with a torch.')}\n</Blocks>\n-->`;
     assert.equal(normalize(inside).text, inside);
 });
+
+test('an empty envelope is dropped and envelopes glued to the story get a blank line (0.9.9)', () => {
+    const empty = `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n</Blocks>\n-->`;
+    const story = 'The silver coin made a dull click against the pine counter.\n\n"What\'s it going to be?"';
+    // As a model wrote it: an empty first envelope, the story glued to it, the real envelope glued after.
+    const text = `${empty}${story}${envelope(note('rat contract'))}`;
+    const out = normalize(text).text;
+    assert.equal(out, `${story}\n\n${envelope(note('rat contract'))}`);
+    assert.equal(normalize(out).text, out, 'idempotent');
+    // An empty one between paragraphs leaves one blank line; at the end, nothing.
+    assert.equal(normalize(`Before.${empty}After.`).text, 'Before.\n\nAfter.');
+    assert.equal(normalize(`All of it.\n${empty}`).text, 'All of it.');
+    // On its own lines already: unchanged.
+    const tidy = `${story}\n\n${envelope(note('x'))}`;
+    assert.equal(normalize(tidy).changed, false);
+});

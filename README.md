@@ -256,7 +256,9 @@ envelope but outside every block (after the last block, between two, or before `
 moved out on receive and stays visible (since 0.9.9): before the envelope when it came before
 every block, after it otherwise. Only finished prose of eight words or more counts; scraps,
 lines shaped like a block's own (numbered choices, bullets, `**Label:**` fields, `|` rows) and
-any other tag pair stay hidden, and a block's own body is never touched.
+any other tag pair stay hidden, and a block's own body is never touched. An envelope with no
+blocks in it is dropped, and one written on the same line as the story gets a blank line between
+them, so other extensions reading the raw reply never find narration on an envelope's line.
 
 ## Where blocks are shown
 

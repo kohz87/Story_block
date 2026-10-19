@@ -3,6 +3,7 @@
 ## 0.9.9
 
 - **Narration written inside the hidden block is moved out.** A model sometimes put its narration inside the `<!-- STORY_BLOCKS_V1 … -->` envelope: after the last block, between two blocks, or before `<Blocks>`. Everything there is hidden, so the reply showed nothing, and another extension could take over the message. When a reply arrives, each run of finished prose found inside the envelope but outside every block is moved out next to it: before the envelope if it came before every block, after it otherwise. The blocks stay as they were. Only prose of eight words or more with a finished sentence counts. Scraps, lines shaped like block content (numbered choices, bullets, `**Label:**` fields, `|` rows) and other extensions' tag pairs stay hidden, and text inside a block's own body is left alone.
+- **Hidden blocks stand apart from the story.** A reply arrived with an empty hidden block at the top (the optional Dice block left out, but its envelope written anyway), the story glued straight after it (`-->The silver coin…`), and the real envelope glued to the last line (`…going to be?"<!-- STORY_BLOCKS_V1`). SillyTavern shows that correctly, but another extension reading the raw reply could hide the story or show its own block. Now, on receive, an empty envelope is dropped and every closed envelope gets a blank line between it and story text on the same line. The model is also told to keep each envelope on its own lines and to leave out a first envelope that has nothing in it.
 
 ## 0.9.8
 

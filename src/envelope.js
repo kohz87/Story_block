@@ -702,8 +702,36 @@ export function normalizeTransport(text, defs) {
     if (partial !== null && partial >= covered && !edits.some(edit => edit.end > partial)) {
         edits.push({ start: partial, end: source.length, text: cutText(source.slice(partial)) });
     }
-    const result = mergeAdjacentEnvelopes(applyEdits(source, edits), defs);
+    const result = tidyEnvelopes(mergeAdjacentEnvelopes(applyEdits(source, edits), defs), defs);
     return { text: result, changed: result !== original };
+}
+
+/**
+ * (0.9.9) Envelopes stand apart from the story. An empty one (no blocks: a "first" envelope
+ * written with nothing in it) is dropped; every other complete envelope gets a blank line
+ * between it and story text on the same line (`-->The silver coin…`, `…to be?"<!-- …`). Other
+ * extensions that read the raw reply then never see narration on an envelope's own line.
+ */
+function tidyEnvelopes(text, defs) {
+    const { source, containers } = scan(text, defs);
+    const edits = [];
+    for (const container of containers) {
+        // Only an envelope closed as written (`</Blocks>` then `-->`): one that ended at a stray
+        // "-->" may be a cut that Continue still has to finish.
+        if (container.kind !== 'envelope' || container.status !== 'complete' || !container.wellFormed || !container.hasBlocksClose) continue;
+        const inner = source.slice(container.innerStart, container.innerEnd).replace(/<\/?Blocks(?:[ \t][^>\n]*)?>/gi, '');
+        if (!container.entries.length && !inner.trim()) {
+            const start = trimBack(source, 0, container.start);
+            const end = skip(source, container.end, /\s*/);
+            edits.push({ start, end, text: start > 0 && end < source.length ? '\n\n' : '' });
+            continue;
+        }
+        const lineBefore = source.slice(source.lastIndexOf('\n', container.start - 1) + 1, container.start);
+        if (lineBefore.trim()) edits.push({ start: trimBack(source, 0, container.start), end: container.start, text: '\n\n' });
+        const lineAfter = source.slice(container.end, source.indexOf('\n', container.end) < 0 ? source.length : source.indexOf('\n', container.end));
+        if (lineAfter.trim()) edits.push({ start: container.end, end: skip(source, container.end, /[ \t]*/), text: '\n\n' });
+    }
+    return edits.length ? applyEdits(source, edits) : source;
 }
 
 /**
