@@ -1,4 +1,4 @@
-# Story Block v0.9.11
+# Story Block v0.9.12
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -114,6 +114,19 @@ Last Gains: [what was gained and why / none: why no beat qualified]
 The settings panel shows a rough token cost per block. Every enabled block adds its
 instructions (and, for stateful blocks, its current state) to each prompt, plus what the
 model writes back — pick the few blocks a story actually needs.
+
+### Inventory and the purse
+
+**Inventory** keeps everything the party owns, one `Item | Qty | Note` row per line under
+`[Section]` headers. Since 0.9.12 its money is added up for the model: every row named for money
+(*Coin Pouch*, *Purse*, *Coins*…) whose quantity or note is written in coins counts, and the
+Inventory's part of the prompt ends with *Purse in all: 4 gold, 6 silver, 4 copper; nothing dearer
+can be paid for (the seller refuses, haggles or takes goods in trade).* A purse kept in three coins
+is hard to add up mid-scene, and without the sum a model may let a shopkeeper take more than the
+party has. Choose the coins under **Settings → Money**: coins with rates (copper=1, silver=10,
+gold=10 by default), one coin, or off. With RPG Battle on, its currency is used instead, so the two
+never disagree, and only one purse line is ever sent: Story Block's while it keeps the items,
+RPG Battle's otherwise (see Source of truth).
 
 ### World State and Choices
 

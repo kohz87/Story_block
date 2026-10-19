@@ -30,9 +30,10 @@ import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
-import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
+import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
+import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.11';
+const VERSION = '0.9.12';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -96,7 +97,7 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [] };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [], currency: structuredClone(DEFAULT_CURRENCY) };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
@@ -113,6 +114,9 @@ function settings(ctx = context()) {
     own.sourceOfTruth = normalizeSourceChoices(own.sourceOfTruth);
     // Built-in templates the "New built-in blocks" line no longer offers (added or dismissed).
     own.dismissedTemplates = Array.isArray(own.dismissedTemplates) ? [...new Set(own.dismissedTemplates.map(String))] : [];
+    // (0.9.12) The Inventory's money, for its purse total: copper/silver/gold unless the reader
+    // chose one coin, coins of their own, or none.
+    own.currency = own.currency?.mode === 'off' ? { mode: 'off' } : normalizeCurrency(own.currency) ?? structuredClone(DEFAULT_CURRENCY);
     return own;
 }
 
@@ -237,6 +241,46 @@ function sessionContext(ctx, session) {
     return buildContext(session.entries, { substitute: substituter(ctx) });
 }
 
+// (0.9.12) The currency the purse is counted in: RPG Battle's while it is here and on (money is
+// one of its rules, so the two never disagree), else the reader's own; null when it is off.
+function currencyNow(ctx = context(), suite = storySuite()) {
+    try {
+        const theirs = normalizeCurrency(suite?.api?.(RPG_BATTLE_ID)?.currency?.());
+        if (theirs) return theirs;
+    } catch {
+        // An older RPG Battle shares no currency: Story Block's own is used.
+    }
+    const own = settings(ctx).currency;
+    return own?.mode === 'off' ? null : normalizeCurrency(own);
+}
+
+// Whether Story Block keeps the items (alone, or as the reader's or Story Suite's choice): then
+// the purse line is its to write, and RPG Battle leaves its own out.
+function keepsItems(ctx = context(), suite = storySuite()) {
+    return !deferredTo('items', settings(ctx).sourceOfTruth.items, suite);
+}
+
+/** The Inventory's "Purse in all: …" line for this reply, or '' (v0.9.12). */
+function purseNote(def, state, ctx = context(), suite = storySuite()) {
+    if (!blockAreas(def).includes('items') || !keepsItems(ctx, suite)) return '';
+    try {
+        return purseLine(state, currencyNow(ctx, suite));
+    } catch {
+        return '';
+    }
+}
+
+/** Whether the next reply's Inventory section carries the purse line (for RPG Battle, v0.9.12). */
+function printsPurse() {
+    try {
+        const ctx = context();
+        const chat = ctx?.chat ?? [];
+        return enabledBlocks(ctx).some(def => def.kind === 'stateful' && Boolean(purseNote(def, stateForGeneration(chat, def, 'normal'), ctx)));
+    } catch {
+        return false;
+    }
+}
+
 // What a generation of `type` is prompted with: kept blocks, then the active blocks with their
 // state, fresh dice and any runtime note.
 function generationEntries(ctx, chat, type) {
@@ -256,8 +300,9 @@ function generationEntries(ctx, chat, type) {
             state: shown.state,
             rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
             // Chatter points at NPC State Delta's cards while it is here (v0.9.1); dice leave
-            // fights to RPG Battle while it is here (v0.9.4).
-            note: chatterNote(def, suite) || diceNote(def, suite),
+            // fights to RPG Battle while it is here (v0.9.4); the Inventory says what the purse
+            // holds in all (v0.9.12).
+            note: chatterNote(def, suite) || diceNote(def, suite) || purseNote(def, shown.state, ctx, suite),
         };
     })];
 }
@@ -766,7 +811,7 @@ function addSettingsPanel(documentRef) {
 // The settings panel's sections fold, so it is not one long column. Which are open is the
 // reader's own convenience, remembered in this browser only; Blocks starts open.
 const FOLDS_STORAGE = 'story_block_settings_folds';
-const FOLDS_OPEN = { display: false, suite: false, blocks: true };
+const FOLDS_OPEN = { display: false, money: false, suite: false, blocks: true };
 
 function foldsOpen() {
     try {
@@ -812,6 +857,64 @@ function setFoldHint(key, text) {
 function blocksHint() {
     const list = blocks();
     return `${list.filter(block => block.enabled).length} of ${list.length} on`;
+}
+
+// (0.9.12) The Money fold's hint: the coins the purse is counted in, and whose they are.
+function moneyHint() {
+    let theirs = null;
+    try {
+        theirs = normalizeCurrency(storySuite()?.api?.(RPG_BATTLE_ID)?.currency?.());
+    } catch {
+        theirs = null;
+    }
+    if (theirs) return 'RPG Battle\'s currency';
+    const own = settings().currency;
+    if (own?.mode === 'off') return 'Off';
+    return own?.mode === 'single' ? `One coin: ${own.single}` : tiersText(own).replace(/=\d+/g, '').replace(/, /g, ' / ');
+}
+
+// One row: which money, and its words (the coin's name, or names with rates).
+function moneyRow(documentRef) {
+    const row = documentRef.createElement('div');
+    row.className = 'story-block-money';
+    row.innerHTML = `
+        <label class="story-suite-row" for="story_block_money">
+            <span><b>Purse total</b><small>The Inventory's money rows ("Coin Pouch | 1 | 1 Gold, 35 Silver") are added up and the story is told the sum, so it never lets anyone pay more. With RPG Battle on, its currency is used instead.</small></span>
+            <select id="story_block_money" class="text_pole">
+                <option value="tiers">Coins with rates</option>
+                <option value="single">One coin</option>
+                <option value="off">Off</option>
+            </select>
+        </label>
+        <label class="story-suite-row" for="story_block_money_words">
+            <span><b>Coins</b><small>Smallest first, each rate counting the one before: copper=1, silver=10, gold=10. For one coin, just its name.</small></span>
+            <input id="story_block_money_words" type="text" class="text_pole">
+        </label>`;
+    const mode = row.querySelector('#story_block_money');
+    const words = row.querySelector('#story_block_money_words');
+    const read = () => {
+        const own = settings().currency;
+        if (mode) mode.value = own?.mode === 'off' ? 'off' : own?.mode === 'single' ? 'single' : 'tiers';
+        if (words) {
+            words.value = own?.mode === 'single' ? own.single : own?.mode === 'off' ? '' : tiersText(own);
+            words.disabled = own?.mode === 'off';
+            words.placeholder = own?.mode === 'single' ? 'coins' : 'copper=1, silver=10, gold=10';
+        }
+    };
+    const write = () => {
+        const chosen = mode?.value;
+        const text = String(words?.value ?? '').trim();
+        if (chosen === 'off') settings().currency = { mode: 'off' };
+        else if (chosen === 'single') settings().currency = { mode: 'single', tiers: [], single: text && !text.includes('=') ? text : 'coins' };
+        else settings().currency = parseTiersText(text) ?? structuredClone(DEFAULT_CURRENCY);
+        saveSettings();
+        read();
+        setFoldHint('money', moneyHint());
+    };
+    mode?.addEventListener('change', write);
+    words?.addEventListener('change', write);
+    read();
+    return row;
 }
 
 function displayHint() {
@@ -888,13 +991,14 @@ function addRuntimeControls(documentRef, root) {
     suiteSection.className = 'story-block-suite';
     const folds = documentRef.createElement('div');
     folds.className = 'story-suite-folds';
-    folds.append(settingsFold(documentRef, 'display', 'Display', [row]), settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
+    folds.append(settingsFold(documentRef, 'display', 'Display', [row]), settingsFold(documentRef, 'money', 'Money', [moneyRow(documentRef)]), settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
     const view = content.querySelector('.story-block-view');
     if (view) folds.appendChild(settingsFold(documentRef, 'blocks', 'Blocks', [view]));
     content.append(folds);
     content.prepend(quickbar);
     content.prepend(suiteLinkLine(documentRef));
     setFoldHint('display', displayHint());
+    setFoldHint('money', moneyHint());
     setFoldHint('blocks', blocksHint());
     renderSuiteSection();
     syncSuiteEntries();
@@ -1196,6 +1300,8 @@ const SUITE_API = Object.freeze({
     }),
     /** Open Story Suite's overlay on a tab: 'overview' (default) or an extension's id. */
     openSuite: (tabId = 'overview') => openSuite(tabId),
+    /** (0.9.12) True while the Inventory's prompt says the purse in one sum: RPG Battle then leaves its own line out. */
+    printsPurse: () => printsPurse(),
 });
 
 // The suite's shared styles (src/suite.css, identical in all four), linked once per page: the

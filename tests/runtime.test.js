@@ -362,7 +362,7 @@ test('suite: Story Block announces itself on load with what its enabled blocks o
     assert.deepEqual(provider.owns, ['items'], 'a first install has only Inventory on');
     assert.equal(globalThis.StorySuite.api('story-block').listBlocks, globalThis.StoryBlock.listBlocks);
     assert.equal(globalThis.StorySuite.api('story-block').getBlock, globalThis.StoryBlock.getBlock);
-    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['getBlock', 'listBlocks', 'manage', 'openSuite']);
+    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['getBlock', 'listBlocks', 'manage', 'openSuite', 'printsPurse']);
     assert.equal(provider.settings, '#story_block_settings', 'its panel, for Story Suite\'s overlay');
 });
 
@@ -428,21 +428,22 @@ test('suite: the settings section has a choice per area, saves it, and redraws w
     }
 });
 
-test('settings: Display, Source of truth and Blocks fold, each with a one-line summary', async () => {
+test('settings: Display, Money, Source of truth and Blocks fold, each with a one-line summary', async () => {
     const folds = allElements(fixed['#extensions_settings']).filter(node => String(node.className).includes('story-suite-fold '));
-    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'suite', 'blocks']);
-    assert.deepEqual(folds.map(node => node.tagName), ['DETAILS', 'DETAILS', 'DETAILS']);
-    assert.deepEqual(folds.map(node => Boolean(node.open)), [false, false, true], 'Blocks starts open');
+    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'money', 'suite', 'blocks']);
+    assert.deepEqual(folds.map(node => node.tagName), ['DETAILS', 'DETAILS', 'DETAILS', 'DETAILS']);
+    assert.deepEqual(folds.map(node => Boolean(node.open)), [false, false, false, true], 'Blocks starts open');
     const hint = key => allElements(folds.find(node => node.dataset.fold === key)).find(node => String(node.className).includes('story-suite-fold-hint')).textContent;
     assert.equal(hint('display'), 'Sidebar');
+    assert.equal(hint('money'), 'copper / silver / gold');
     assert.equal(hint('suite'), 'Automatic');
     assert.match(hint('blocks'), /^\d+ of \d+ on$/);
     assert.ok(allElements(folds[0]).some(node => node.className === 'story-block-display'), 'Display holds its controls (markup the fake DOM does not parse)');
-    assert.ok(allElements(folds[1]).some(node => node.id === 'story_block_source_stats'), 'so does Source of truth');
+    assert.ok(allElements(folds[2]).some(node => node.id === 'story_block_source_stats'), 'so does Source of truth');
     // The suite's shared markup (src/suite.css): summary (<b>, <small>) + one body.
-    assert.deepEqual(folds.map(node => node.children.map(child => child.tagName === 'SUMMARY' ? 'summary' : child.className)), Array(3).fill(['summary', 'story-suite-fold-body']));
-    assert.equal(folds[2].children[1].children.length, 1, 'Blocks holds the editor\'s view');
-    assert.ok(allElements(folds[1]).filter(node => node.tagName === 'LABEL').every(node => node.className === 'story-suite-row'), 'Source of truth rows');
+    assert.deepEqual(folds.map(node => node.children.map(child => child.tagName === 'SUMMARY' ? 'summary' : child.className)), Array(4).fill(['summary', 'story-suite-fold-body']));
+    assert.equal(folds[3].children[1].children.length, 1, 'Blocks holds the editor\'s view');
+    assert.ok(allElements(folds[2]).filter(node => node.tagName === 'LABEL').every(node => node.className === 'story-suite-row'), 'Source of truth rows');
     const panel = allElements(fixed['#extensions_settings']).find(node => String(node.className).includes('story-suite-folds'));
     assert.ok(panel, 'the folds sit together');
     assert.ok(allElements(fixed['#extensions_settings']).some(node => node.className === 'story-suite-quickbar'));

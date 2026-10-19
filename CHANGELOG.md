@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.12
+
+- **The Inventory says what the purse holds in all.** Every row named for money (*Coin Pouch*, *Purse*, *Coins*…) with its coins in the quantity or the note is now added up, and the Inventory's part of the prompt ends with *Purse in all: 4 gold, 6 silver, 4 copper; nothing dearer can be paid for (the seller refuses, haggles or takes goods in trade).* A purse kept as "1 Gold, 35 Silver, 14 Copper" is hard to add up mid-scene, and without the sum a model let a tanner take six gold from a purse that held four and a half.
+- **Settings → Money** picks the coins: coins with rates (copper=1, silver=10, gold=10 by default, or your own, such as bits=1, marks=12, crowns=20), one coin, or off.
+- **With RPG Battle:** its currency is used instead, so the two never disagree. Only one purse line is sent: Story Block's while it keeps the items, RPG Battle's (0.5.26) otherwise.
+
 ## 0.9.11
 
 - **No dice for a fight RPG Battle already settled.** The reply that tells the result of an RPG Battle fight used to get a fresh set of dice like any other reply. The model then rolled for the blows it was narrating ("Astra parries Brecht's tiller swing … fail") and could tell a different fight from the one you played. With RPG Battle 0.5.22, that one reply gets no dice block. The reply after it rolls as usual, and so does a swipe of anything else.
