@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.13
+
+- **Hidden replies still hold the state.** A reply hidden from the model (SillyTavern's hide, or a memory extension such as Summarybook hiding old messages to save context) was skipped when Story Block looked back for the newest Inventory, Party or World State. If the newest replies were hidden, it fell back on an older copy, or on none at all. Hiding now only changes what the model sees: a hidden reply's blocks are still read. A copy in your own message never counts, hidden or not.
+
 ## 0.9.12
 
 - **The Inventory says what the purse holds in all.** Every row named for money (*Coin Pouch*, *Purse*, *Coins*…) with its coins in the quantity or the note is now added up, and the Inventory's part of the prompt ends with *Purse in all: 4 gold, 6 silver, 4 copper; nothing dearer can be paid for (the seller refuses, haggles or takes goods in trade).* A purse kept as "1 Gold, 35 Silver, 14 Copper" is hard to add up mid-scene, and without the sum a model let a tanner take six gold from a purse that held four and a half.

@@ -470,10 +470,18 @@ function isAssistant(message) {
     return Boolean(message) && !message.is_user && !message.is_system;
 }
 
+// (0.9.13) A reply hidden from the model (SillyTavern's hide, or a memory extension hiding old
+// messages to save context) is still the story: its blocks are still the state it left. Only a
+// copy the reader wrote in their own message never counts.
+function carriesState(message) {
+    return Boolean(message) && !message.is_user;
+}
+
 /**
  * Scan assistant messages from newest to oldest, before `beforeIndex` when given:
  * { state, body, messageIndex, message } for the newest valid copy, or null. Invalid or
- * cut-off copies are skipped, so they never replace the current state.
+ * cut-off copies are skipped, so they never replace the current state. (0.9.13) Hidden replies
+ * are read too.
  */
 export function latestBlockState(chat, def, { beforeIndex = null } = {}) {
     const list = Array.isArray(chat) ? chat : [];
@@ -482,7 +490,7 @@ export function latestBlockState(chat, def, { beforeIndex = null } = {}) {
         : Math.max(0, Math.min(list.length, Number(beforeIndex) || 0));
     for (let messageIndex = end - 1; messageIndex >= 0; messageIndex--) {
         const message = list[messageIndex];
-        if (!isAssistant(message)) continue;
+        if (!carriesState(message)) continue;
         const found = latestBlockInText(message.mes, def);
         if (found) return { state: found.state, body: found.body, messageIndex, message };
     }
