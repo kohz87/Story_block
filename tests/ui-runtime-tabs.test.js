@@ -118,7 +118,7 @@ test('settings: the panel in the suite\'s shared look, and suite.css linked once
     assert.ok(content.querySelector('.story-suite-quickbar #story_block_status'), 'the editor\'s status line sits in the quickbar');
     assert.ok(content.querySelector('.story-suite-manage .menu_button'));
     const folds = content.querySelectorAll('.story-suite-folds > details.story-suite-fold');
-    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'suite', 'blocks']);
+    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'money', 'suite', 'blocks']);
     for (const fold of folds) {
         assert.deepEqual(fold.children.map(node => node.tagName), ['SUMMARY', 'DIV']);
         assert.deepEqual(fold.children[0].children.map(node => node.tagName), ['B', 'SMALL']);
