@@ -39,6 +39,17 @@ test('bracketed rows stay rows; one-pipe headers stay headers', () => {
     assert.deepEqual(items('[Sealed] Letter | 1 |'), [['General', [['[Sealed] Letter', '1', '']]]]);
 });
 
+test('a line that only says a section is empty is skipped (0.9.10)', () => {
+    assert.deepEqual(items('Rope | 1 |\n\n[Loot]\n(empty)\n\n[Spare]\n*(None)*\n[Wagon]\n—\n- none\nTent | 1 |'), [
+        ['General', [['Rope', '1', '']]],
+        ['Loot', []],
+        ['Spare', []],
+        ['Wagon', [['Tent', '1', '']]],
+    ]);
+    // An item really called so still needs its quantity to be a row.
+    assert.deepEqual(items('Nothing | 1 | a cat'), [['General', [['Nothing', '1', 'a cat']]]]);
+});
+
 test('duplicates and malformed rows reject the body with a readable error', () => {
     assert.match(parse('Rope | 1 |\nrope | 2 |').error, /Duplicate Inventory row in General: rope/);
     assert.match(parse('just prose here').error, /Inventory line 1 must be Item \| Qty \| Note/);

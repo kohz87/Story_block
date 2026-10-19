@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.10
+
+- **An "(empty)" line no longer breaks a list block.** A model sometimes keeps a section header for later and writes `(empty)`, `*(None)*` or `—` under it, as in `[Loot]` / `(empty)`. That line is not an `Item | Qty | Note` row, so the whole Inventory was rejected ("couldn't be read … Showing the last valid state") and the reply's changes were lost. Such a line is now read as "nothing here": the section shows empty and the rest of the block is read as usual. An item really called *Nothing* still counts when it has a quantity.
+
 ## 0.9.9
 
 - **Narration written inside the hidden block is moved out.** A model sometimes put its narration inside the `<!-- STORY_BLOCKS_V1 … -->` envelope: after the last block, between two blocks, or before `<Blocks>`. Everything there is hidden, so the reply showed nothing, and another extension could take over the message. When a reply arrives, each run of finished prose found inside the envelope but outside every block is moved out next to it: before the envelope if it came before every block, after it otherwise. The blocks stay as they were. Only prose of eight words or more with a finished sentence counts. Scraps, lines shaped like block content (numbered choices, bullets, `**Label:**` fields, `|` rows) and other extensions' tag pairs stay hidden, and text inside a block's own body is left alone.
