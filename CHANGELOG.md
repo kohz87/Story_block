@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.9
+
+- **Narration written inside the hidden block is moved out.** A model sometimes put its narration inside the `<!-- STORY_BLOCKS_V1 … -->` envelope: after the last block, between two blocks, or before `<Blocks>`. Everything there is hidden, so the reply showed nothing, and another extension could take over the message. When a reply arrives, each run of finished prose found inside the envelope but outside every block is moved out next to it: before the envelope if it came before every block, after it otherwise. The blocks stay as they were. Only prose of eight words or more with a finished sentence counts. Scraps, lines shaped like block content (numbered choices, bullets, `**Label:**` fields, `|` rows) and other extensions' tag pairs stay hidden, and text inside a block's own body is left alone.
+
 ## 0.9.8
 
 - **An empty cast written as an aside keeps the scene board.** A World State with `*(No NPCs present in direct engagement; wolves engaged)*` under NPCs Present was shown as raw text, because the board would not drop a line it could not place. A line under a heading that says nobody or nothing is there (`None`, `Nobody`, `No one`, `No NPCs …`, in brackets or not) now means that section is empty. Any other line the board cannot place still sends the text back to the plain display.

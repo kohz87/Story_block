@@ -598,6 +598,92 @@ function unwrapNamedComments(text, defs) {
     });
 }
 
+// (0.9.9) Narration a model wrote inside the envelope, outside every block: at least this many
+// words, with a finished sentence. Shorter scraps (a stray "Director", a "-") stay hidden.
+const LOOSE_MIN_WORDS = 8;
+// Any tag pair the model wrote (another extension's block, an unknown one): never narration.
+const ANY_TAG_PAIR = /<([A-Za-z][\w-]*)\b[^>\n]*>[\s\S]*?<\/\1\s*>/g;
+// Lines shaped like a block's own content written without its tags (a numbered choice, a
+// bullet, a `**Label:**` field, a heading, a `|` row): never taken for narration.
+const STRUCTURED_LINE = /^(?:\d+[.)]\s|[-*•]\s|\*\*[^*\n]{1,40}:\*\*|\*\*[^*\n]{1,40}\*\*\s*:|#|\||\S.*\s\|\s.*\s\|\s)/;
+
+/**
+ * The narration in one gap of a container (text between its blocks): [{ start, end }] runs of
+ * finished prose lines, outside any tag pair and not themselves tags. Empty when the gap holds
+ * only tags, wrappers and scraps.
+ */
+function looseProse(source, from, to) {
+    const masked = source.slice(from, to).replace(ANY_TAG_PAIR, whole => whole.replace(/[^\n]/g, ' '));
+    const runs = [];
+    let run = null;
+    let offset = from;
+    for (const raw of masked.split('\n')) {
+        const line = raw.trim();
+        const lineEnd = offset + raw.length;
+        if (line && !/^[<-]/.test(line) && !STRUCTURED_LINE.test(line) && /\p{L}/u.test(line)) {
+            if (!run) run = { start: offset + raw.indexOf(line), end: lineEnd, words: 0, finished: false };
+            run.end = lineEnd;
+            run.words += line.split(/\s+/).length;
+            run.finished = run.finished || finishedLine(line);
+        } else if (line && run) {
+            // A tag or wrapper line ends the run; blank lines inside it do not.
+            runs.push(run);
+            run = null;
+        }
+        offset = lineEnd + 1;
+    }
+    if (run) runs.push(run);
+    return runs.filter(entry => entry.words >= LOOSE_MIN_WORDS && entry.finished).map(({ start, end }) => ({ start, end: trimBack(source, start, end) }));
+}
+
+/**
+ * (0.9.9) A model sometimes writes its narration inside the envelope: after the last block,
+ * between two, or before `<Blocks>`. Hidden there, the reply shows nothing (and another
+ * extension may take over the screen). Each such run of finished prose is moved out, before
+ * the envelope when it came before every block, after it otherwise, in its order; the blocks
+ * stay where they were. Only complete envelopes and <Blocks> holding known blocks; text inside
+ * a block's own body is that block's.
+ */
+function liftLooseProse(text, defs) {
+    const { source, containers } = scan(text, defs);
+    const edits = [];
+    for (const container of containers) {
+        if (container.kind !== 'envelope' && container.kind !== 'blocks') continue;
+        if (container.status !== 'complete' && container.status !== 'unclosed') continue;
+        if (!container.entries.length) continue;
+        const gaps = [];
+        let at = container.innerStart;
+        for (const entry of [...container.entries, { start: container.innerEnd, end: container.innerEnd }]) {
+            gaps.push(...looseProse(source, at, entry.start).map(run => ({ ...run, before: entry === container.entries[0] })));
+            at = entry.end;
+        }
+        if (!gaps.length) continue;
+        // What stays, joined where the prose was cut out by one line break (block bodies keep theirs).
+        const pieces = [];
+        let from = container.start;
+        for (const gap of gaps) {
+            pieces.push(source.slice(from, gap.start));
+            from = gap.end;
+        }
+        pieces.push(source.slice(from, container.end));
+        const kept = pieces.map((piece, index) => {
+            let out = piece;
+            if (index > 0) out = out.replace(/^\s+/, '');
+            if (index < pieces.length - 1) out = out.replace(/\s+$/, '');
+            return out;
+        }).filter((piece, index) => piece || index === 0).join('\n');
+        const prose = list => list.map(gap => source.slice(gap.start, gap.end)).join('\n\n');
+        const before = gaps.filter(gap => gap.before);
+        const after = gaps.filter(gap => !gap.before);
+        edits.push({
+            start: container.start,
+            end: container.end,
+            text: [before.length ? prose(before) : '', kept, after.length ? prose(after) : ''].filter(Boolean).join('\n\n'),
+        });
+    }
+    return edits.length ? applyEdits(source, edits) : source;
+}
+
 /**
  * Hide model-written blocks from the narration. A bare <Blocks>…</Blocks> holding known
  * blocks, or bare known tags, become one hidden envelope at the same place (bodies escaped
@@ -609,7 +695,7 @@ function unwrapNamedComments(text, defs) {
  */
 export function normalizeTransport(text, defs) {
     const original = String(text ?? '');
-    const { source, containers, bare } = scan(unwrapNamedComments(rejoinContinuation(original), defs), defs);
+    const { source, containers, bare } = scan(liftLooseProse(unwrapNamedComments(rejoinContinuation(original), defs), defs), defs);
     const edits = [...containers.map(container => containerEdit(source, container)).filter(Boolean), ...bareEdits(source, bare)];
     const partial = trailingPartialOpener(source);
     const covered = Math.max(0, ...containers.map(container => container.end), ...edits.map(edit => edit.end));
