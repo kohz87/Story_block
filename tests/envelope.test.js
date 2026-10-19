@@ -132,12 +132,12 @@ test('latestBlockInText: Inventory Block snapshots are read as the block whose t
     assert.equal(latestBlockInText(text, notes), null);
 });
 
-test('latestBlockState: newest valid copy in assistant messages only', () => {
+test('latestBlockState: newest valid copy in replies only, hidden ones included (0.9.13)', () => {
     const chat = [
         assistant(`start\n${envelope(note('100'))}`),
         user(`I write my own ${note('user copy')}`),
         assistant('story only'),
-        { is_user: false, is_system: true, mes: envelope(note('system copy')) },
+        { is_user: false, is_system: true, mes: envelope(note('hidden copy')) },
         assistant(`later\n${envelope(note('90'))}`),
         assistant(`broken\n${envelope('<Notes>\n</Notes>')}`),
     ];
@@ -145,7 +145,9 @@ test('latestBlockState: newest valid copy in assistant messages only', () => {
     assert.equal(found.state.text, '90');
     assert.equal(found.messageIndex, 4);
     assert.equal(found.message, chat[4]);
-    assert.equal(latestBlockState(chat, notes, { beforeIndex: 4 }).state.text, '100');
+    assert.equal(latestBlockState(chat, notes, { beforeIndex: 4 }).state.text, 'hidden copy', 'a reply hidden from the model still holds its state');
+    assert.equal(latestBlockState(chat, notes, { beforeIndex: 3 }).state.text, '100', 'never the reader\'s own copy');
+    assert.equal(latestBlockState([assistant(envelope(note('100'))), { is_user: true, is_system: true, mes: envelope(note('hidden user copy')) }], notes).state.text, '100');
     assert.equal(latestBlockState(chat, notes, { beforeIndex: 0 }), null);
     assert.equal(latestBlockState(chat, notes, { beforeIndex: 99 }).state.text, '90');
     assert.equal(latestBlockState(null, notes), null);
