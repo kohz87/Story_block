@@ -30,9 +30,9 @@ import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
-import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
+import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, chatterNote, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 
-const VERSION = '0.9.10';
+const VERSION = '0.9.11';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -245,7 +245,11 @@ function generationEntries(ctx, chat, type) {
     // (0.9.5) With another extension keeping the timeline, the World State is asked for
     // without the threads, seeds, timers and arc phase it tracks.
     const keeper = timelineKeeper(settings(ctx).sourceOfTruth, suite);
-    return [...keptEntries(chat, type, { ownRolls }), ...activeBlocks(enabledBlocks(ctx), chat, type).map(def => {
+    // (0.9.11) The reply that tells a fight RPG Battle resolved gets no dice block: with fresh
+    // rolls in hand, a model fights the settled fight again.
+    const narrating = fightNarrated(suite, type);
+    const blocks = activeBlocks(enabledBlocks(ctx), chat, type).filter(def => !(narrating && def.display === 'dice'));
+    return [...keptEntries(chat, type, { ownRolls }), ...blocks.map(def => {
         const shown = timelineTrimmed(def, def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null, keeper, withoutSections);
         return {
             def: shown.def,
