@@ -10,6 +10,9 @@ export const CATEGORY_PATH_SEPARATOR = '>';
 
 const TABLE_RULE = /^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?$/;
 const LIST_MARKER = /^(?:[-*•]|\d+[.)])\s+/;
+// (0.9.10) A line that only says a section is empty ("(empty)", "*(None)*", "—"), as a model
+// writes under a header it keeps for later: nothing to list, not a broken row.
+const EMPTY_LINE = /^[\s*_([{]*(?:empty|none|nothing|nothing yet|n\/a|-+|—|–)[\s*_)\]}.]*$/i;
 const FALLBACK_COLUMNS = ['Name', 'Quantity', 'Remark'];
 
 function clean(value) {
@@ -237,6 +240,7 @@ function parseBody(body, def) {
             }
             continue;
         }
+        if (EMPTY_LINE.test(line.replace(LIST_MARKER, ''))) continue;
         const row = line.replace(LIST_MARKER, '');
         const cells = rowCells(row);
         if (isTableHeaderRow(cells, row.startsWith('|'), def)) continue;
