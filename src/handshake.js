@@ -166,6 +166,19 @@ export const RPG_BATTLE_ID = 'rpg-battle';
 export const FIGHT_NOTE = 'Never roll a fight: when blows are about to land, stop there; RPG Battle runs it.';
 
 /**
+ * (0.9.11) Whether the reply a generation of `type` writes tells a fight RPG Battle resolved
+ * (RPG Battle 0.5.22's narratesFight). That reply rolls no dice: the fight's numbers are
+ * settled, and fresh rolls get used to fight it again. False without it, or if it throws.
+ */
+export function fightNarrated(suite, type = 'normal') {
+    try {
+        return suite?.api?.(RPG_BATTLE_ID)?.narratesFight?.(type) === true;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * The runtime line a dice-display block's prompt section gets while RPG Battle is announced
  * and enabled, or '' (v0.9.4). Without it a model given a fresh roll resolves the fight with
  * it ("natural 20, the beast goes down") and RPG Battle never offers the fight.

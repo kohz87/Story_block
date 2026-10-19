@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.11
+
+- **No dice for a fight RPG Battle already settled.** The reply that tells the result of an RPG Battle fight used to get a fresh set of dice like any other reply. The model then rolled for the blows it was narrating ("Astra parries Brecht's tiller swing … fail") and could tell a different fight from the one you played. With RPG Battle 0.5.22, that one reply gets no dice block. The reply after it rolls as usual, and so does a swipe of anything else.
+
 ## 0.9.10
 
 - **An "(empty)" line no longer breaks a list block.** A model sometimes keeps a section header for later and writes `(empty)`, `*(None)*` or `—` under it, as in `[Loot]` / `(empty)`. That line is not an `Item | Qty | Note` row, so the whole Inventory was rejected ("couldn't be read … Showing the last valid state") and the reply's changes were lost. Such a line is now read as "nothing here": the section shows empty and the rest of the block is read as usual. An item really called *Nothing* still counts when it has a quantity.

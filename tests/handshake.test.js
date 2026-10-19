@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { storySuite } from '../src/suite.js';
-import { CHATTER_NOTE, FIGHT_NOTE, SHARED_AREAS, TIMELINE_SECTIONS, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from '../src/handshake.js';
+import { CHATTER_NOTE, FIGHT_NOTE, SHARED_AREAS, TIMELINE_SECTIONS, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from '../src/handshake.js';
 import { withoutSections } from '../src/scene.js';
 import { pluginBlockDef } from '../src/plugin.js';
 import { defaultBlocks, templateById } from '../src/templates.js';
@@ -156,6 +156,22 @@ test('diceNote: dice leave fights to RPG Battle while it is here and on', () => 
     suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.4.2', owns: ['stats', 'rolls', 'items'], enabled: false });
     assert.equal(diceNote(dice, suite), '', 'switched off');
     assert.equal(diceNote(null, suite), '');
+});
+
+test('fightNarrated (0.9.11): the reply that tells a resolved fight is the one RPG Battle says so of', () => {
+    const suite = fresh();
+    assert.equal(fightNarrated(suite), false, 'alone');
+    let asked = null;
+    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.22', owns: ['stats', 'rolls'], enabled: true, api: { narratesFight: type => { asked = type; return type !== 'quiet'; } } });
+    assert.equal(fightNarrated(suite, 'swipe'), true);
+    assert.equal(asked, 'swipe', 'the generation type is passed on');
+    assert.equal(fightNarrated(suite, 'quiet'), false);
+    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.21', owns: ['stats', 'rolls'], enabled: true, api: {} });
+    assert.equal(fightNarrated(suite), false, 'an older RPG Battle');
+    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.22', owns: ['stats', 'rolls'], enabled: true, api: { narratesFight: () => { throw new Error('boom'); } } });
+    assert.equal(fightNarrated(suite), false, 'never throws');
+    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.22', owns: ['stats', 'rolls'], enabled: false, api: { narratesFight: () => true } });
+    assert.equal(fightNarrated(suite), false, 'switched off');
 });
 
 test('timeline (0.9.5): with Story Director keeping it, the World State is asked for without threads, seeds, timers and arc phase', () => {
