@@ -188,6 +188,7 @@ export function buildContext(entries, { substitute = text => text } = {}) {
             ? `At the very end of your reply, after the story, write exactly one hidden envelope holding the blocks below${first.length ? ' that are not marked "first"' : ''}, exactly as shown under "Write it exactly like this". The reader never sees it, so write it in every reply.`
             : 'Write the hidden envelope shown under "Write it exactly like this" in every reply. The reader never sees it.',
         'Write the blocks in the order given, each tag exactly once, and close every tag you open.',
+        'Keep every envelope on its own lines, with a blank line between it and the story; never start or end a line of story on the same line as "<!--" or "-->".',
         'Never write the blocks, their tags or their contents as visible narration, and do not explain them in the story.',
         'Never write "-->" anywhere inside the envelope; write "--\\>" instead. A backslash escapes the character after it (for example --\\> or <\\Tag); keep such escapes exactly as written.',
     ];
@@ -195,7 +196,7 @@ export function buildContext(entries, { substitute = text => text } = {}) {
         rules.push('Blocks marked "kept" carry state from reply to reply. The current state shown here is the only authoritative one; earlier copies in the story are history. Rewrite each kept block in full every reply, with only the changes this reply actually makes. It is never a patch or a list of changes: omission means loss, so keep everything that did not change.');
     }
     if (first.length) {
-        rules.push('Blocks marked "first" go in their own hidden envelope at the very start of your reply, before any story text: write that envelope first, decide it before you write the scene, and never revise it once the story exists.');
+        rules.push('Blocks marked "first" go in their own hidden envelope at the very start of your reply, before any story text: write that envelope first, decide it before you write the scene, and never revise it once the story exists. When none of them has anything this reply, leave that envelope out rather than writing it empty.');
     }
     if (list.some(entry => entry.def.kind === 'turn')) {
         rules.push('Blocks marked "this reply only" describe this reply alone; write them fresh and never copy earlier ones.');

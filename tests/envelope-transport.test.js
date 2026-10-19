@@ -392,3 +392,57 @@ test('a block written as an HTML comment named after it is folded into the envel
     assert.equal(normalizeTransport('Text <!-- note to self\nkeep this\n-->', defs).text, 'Text <!-- note to self\nkeep this\n-->');
     assert.equal(normalizeTransport('Text <!-- Director -->', defs).text, 'Text <!-- Director -->');
 });
+
+test('narration written inside the envelope, outside every block, is moved out and stays visible (0.9.9)', () => {
+    const story = 'Nelke rummaged beneath the counterboards and came up red-faced with an iron-banded torch.\n\n"He didn\'t leave much worth packing," she said.';
+    const open = `<!-- ${ENVELOPE_MARKER}\n<Blocks>`;
+    const cases = [
+        `${open}\n${note('pack the torch')}\n${story}\n</Blocks>\n-->`,                       // after the last block
+        `${open}\n${note('pack the torch')}\n${story}\n<Mood>\ntense\n</Mood>\n</Blocks>\n-->`, // between two
+        `${open}\n${note('pack the torch')}\n${story}\n-->`,                                   // no </Blocks>
+        `<!-- ${ENVELOPE_MARKER}\n${story}\n<Blocks>\n${note('pack the torch')}\n</Blocks>\n-->`, // before <Blocks>
+    ];
+    for (const text of cases) {
+        const { text: out, changed } = normalize(text);
+        assert.ok(changed, text);
+        assert.ok(squash(visible(out)).includes(squash(story)), out);
+        assert.equal(latestBlockInText(out, notes)?.body ?? extractBlocks(out, defs).find(entry => entry.def === notes)?.body, 'pack the torch');
+        assert.equal(normalize(out).text, out, 'idempotent');
+    }
+    // Where it was: before the envelope when it came before every block, after it otherwise.
+    assert.ok(normalize(cases[3]).text.startsWith('Nelke rummaged'));
+    assert.ok(normalize(cases[0]).text.trimEnd().endsWith('she said.'));
+    // The blocks keep their order, with nothing left between them.
+    assert.match(normalize(cases[1]).text, /<\/Notes>\n<Mood>/);
+});
+
+test('inside the envelope, scraps, untagged block lines and other extensions\' tags stay hidden (0.9.9)', () => {
+    const open = `<!-- ${ENVELOPE_MARKER}\n<Blocks>`;
+    const hidden = [
+        `${open}\n${note('x')}\nDirector\n</Blocks>\n-->`,
+        `${open}\n${note('x')}\n1. Draw the concealed steel and strike the lead beast before they close the distance.\n2. Tip the heavy handcart on its side to form a low barrier.\n</Blocks>\n-->`,
+        `${open}\n${note('x')}\n**🎬 Scene Phase:** Midpoint Tension, the wolves circling closer and closer now.\n</Blocks>\n-->`,
+        `${open}\n${note('x')}\n<tracker>\nThe party walks on and the sun sets slowly behind the hills tonight.\n</tracker>\n</Blocks>\n-->`,
+        `${open}\n${note('x')}\nthe wolves circle and circle and circle without end or pause\n</Blocks>\n-->`,
+    ];
+    for (const text of hidden) assert.equal(squash(visible(normalize(text).text)), '', text);
+    // A block's own body is the block's, prose or not.
+    const inside = `${open}\n${note('Nelke rummaged beneath the counterboards and came up red-faced with a torch.')}\n</Blocks>\n-->`;
+    assert.equal(normalize(inside).text, inside);
+});
+
+test('an empty envelope is dropped and envelopes glued to the story get a blank line (0.9.9)', () => {
+    const empty = `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n</Blocks>\n-->`;
+    const story = 'The silver coin made a dull click against the pine counter.\n\n"What\'s it going to be?"';
+    // As a model wrote it: an empty first envelope, the story glued to it, the real envelope glued after.
+    const text = `${empty}${story}${envelope(note('rat contract'))}`;
+    const out = normalize(text).text;
+    assert.equal(out, `${story}\n\n${envelope(note('rat contract'))}`);
+    assert.equal(normalize(out).text, out, 'idempotent');
+    // An empty one between paragraphs leaves one blank line; at the end, nothing.
+    assert.equal(normalize(`Before.${empty}After.`).text, 'Before.\n\nAfter.');
+    assert.equal(normalize(`All of it.\n${empty}`).text, 'All of it.');
+    // On its own lines already: unchanged.
+    const tidy = `${story}\n\n${envelope(note('x'))}`;
+    assert.equal(normalize(tidy).changed, false);
+});

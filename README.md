@@ -1,4 +1,4 @@
-# Story Block v0.9.8
+# Story Block v0.9.9
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -251,7 +251,14 @@ Salt Pork | 3 | Barrel
 
 A bare `<Blocks>…</Blocks>` (or a bare block tag) is accepted too and hidden on receive. So is a block
 written as its own HTML comment named after it (`<!-- Director` + a line break … `-->`, since
-0.9.7): it is folded into the envelope as that block.
+0.9.7): it is folded into the envelope as that block. Narration a model writes inside the
+envelope but outside every block (after the last block, between two, or before `<Blocks>`) is
+moved out on receive and stays visible (since 0.9.9): before the envelope when it came before
+every block, after it otherwise. Only finished prose of eight words or more counts; scraps,
+lines shaped like a block's own (numbered choices, bullets, `**Label:**` fields, `|` rows) and
+any other tag pair stay hidden, and a block's own body is never touched. An envelope with no
+blocks in it is dropped, and one written on the same line as the story gets a blank line between
+them, so other extensions reading the raw reply never find narration on an envelope's line.
 
 ## Where blocks are shown
 
