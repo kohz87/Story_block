@@ -9,7 +9,7 @@ import { normalizeBlock, normalizeBlocks } from './src/schema.js';
 import { TEMPLATES, defaultBlocks, upgradePrompts } from './src/templates.js';
 import { applyReplyChanges, changeDefs, changesOnly } from './src/changes.js';
 import { formatFor } from './src/formats/index.js';
-import { bareBlockTexts, dropForeignCopies, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
+import { bareBlockTexts, carryStates, dropForeignCopies, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { escapeBody } from './src/formats/escape.js';
 import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
 import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, tabView, viewKey } from './src/view.js';
@@ -34,7 +34,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.16';
+const VERSION = '0.9.17';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -545,6 +545,13 @@ async function onMessageReceived(messageId) {
             const kept = problems.some(item => item.def.kind === 'stateful') ? ' The last valid state of each stateful block stays current.' : '';
             notify('warning', `${describeMissing(problems)}.${kept}`);
         }
+    }
+    // (0.9.17) Every reply holds the whole state: a block it did not write (nothing changed,
+    // or the model left it out) is carried into it as it stood, so no reply depends on older ones.
+    const carried = carryStates(message.mes, blocks(ctx), ctx.chat, id);
+    if (carried !== message.mes) {
+        message.mes = carried;
+        await persistMessageEdit(ctx, id, message, { rerender: false });
     }
     clearSession(chatId);
     refreshAll(0);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.17
+
+- **Every reply holds the whole state.** In 0.9.16 a reply that changed nothing in the Inventory carried no copy, so after a quiet stretch the state lived only in an older reply, and deleting that reply lost it. The same happened when the model simply left a block out. Now Story Block writes each of your stateful blocks into every new reply, as they stood before it, whenever the reply does not write them itself. Every reply stands alone: hide or delete older messages and nothing is lost. The model writes nothing more, and old copies are kept out of what it is sent, so this costs no tokens. Blocks another extension keeps (RPG Battle's Party) are left to that extension. A block the model wrote but cut off or garbled is still warned about and left for you to fix.
+
 ## 0.9.16
 
 - **The Inventory is written as changes only.** The model rewrote the whole Inventory every reply, and rows it never meant to touch drifted (`heal 20` became *weak restorative fluid*). Now it writes only what changed, in a hidden `<Inventory_Changes>`, with Story Director's signs:
