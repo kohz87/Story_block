@@ -12,12 +12,12 @@
 // Pure.
 
 import { tagFromName } from './schema.js';
+import { countWords as words } from './text.js';
 
 const BLOCK = /<([A-Za-z][A-Za-z0-9_]{0,31})(?:\s[^>]*)?>([\s\S]*?)<\/\1\s*>/;
 const DEFAULT_PROMPT = 'Keep this block up to date with the story. Carry every value forward unless this reply changed it.';
 const RULE_MIN_WORDS = 8;
 
-const words = text => String(text ?? '').trim().split(/\s+/).filter(Boolean).length;
 
 // "[Add newly established skills … parentheses.]": brackets around the whole paragraph,
 // long, and written as sentences rather than a list of options.

@@ -564,7 +564,7 @@ export function importBlocks(json, existing) -> { blocks, errors }   // normaliz
 
 | Package | Files it owns |
 |---|---|
-| core (lead) | `src/dice.js`, `src/view.js`, `src/scene.js` + `src/choices.js` (written by the ui package), `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
+| core (lead) | `src/dice.js`, `src/view.js`, `src/scene.js` + `src/choices.js` (written by the ui package), `src/turn.js`, `src/mount.js`, `src/body-editor.js`, `src/schema.js`, `src/text.js`, `src/templates.js`, `src/formats/index.js`, `src/formats/text.js`, `src/formats/escape.js`, `src/formats/rows.js`, `src/formats/tree.js`, `index.js`, `docs/`, `README.md`, `CHANGELOG.md`, manifest/package/CI |
 | fields | `src/formats/fields.js`, `tests/formats-fields.test.js` |
 | engine | `src/envelope.js`, `src/prompt.js`, `tests/envelope*.test.js`, `tests/prompt*.test.js` |
 | ui | `src/ui/card.js`, `src/ui/sidebar.js`, `src/ui/strip.js`, `src/ui/displays/*.js`, `src/ui/dom.js`, `style.css`, `tests/ui-*.test.js` |

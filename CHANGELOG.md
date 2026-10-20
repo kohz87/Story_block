@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.23
+
+- **Tidier code, no change in behaviour.** Small helpers written out more than once now live in one place: the one-line, comparison-key and word-count text helpers in `src/text.js`, and making an element and tidying a tab list in `src/ui/dom.js` (the body editor, the prompt preview, the Story Suite window and the settings now make their elements with it).
+
 ## 0.9.22
 
 - **Shorter rules, every reply.** The five lines about the envelope, keeping blocks out of the story and escaping `-->` are now three, saying the same: the always-sent rules go from about 472 to 412 tokens (with Inventory, World State and Dice on).

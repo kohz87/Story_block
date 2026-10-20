@@ -16,6 +16,7 @@ import { activeBlocks, buildContext, buildContextParts, defuseMacros, injectCont
 import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, tabView, viewKey } from './src/view.js';
 import { turnCount, turnItems } from './src/turn.js';
 import { createTabRegistry } from './src/ui/card.js';
+import { el } from './src/ui/dom.js';
 import { render as renderPlain } from './src/ui/displays/plain.js';
 import { render as renderTree } from './src/ui/displays/tree.js';
 import { render as renderFields } from './src/ui/displays/fields.js';
@@ -36,7 +37,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.22';
+const VERSION = '0.9.23';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -1178,12 +1179,7 @@ function renderSuiteSection() {
     const own = settings();
     const suite = storySuite();
     const offered = offeredAreas(blocks());
-    const make = (tag, className = '', text = '') => {
-        const node = documentRef.createElement(tag);
-        if (className) node.className = className;
-        if (text) node.textContent = text;
-        return node;
-    };
+    const make = (tag, className = '', text = '') => el(tag, className, text, documentRef);
     const intro = make('p', 'story-suite-muted', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
     const nodes = [intro];
     for (const area of SHARED_AREAS) {

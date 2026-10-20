@@ -18,7 +18,7 @@
 // uiKey, and a pane whose `key` is unchanged is not re-rendered, so its scroll
 // position and focus survive refreshes. Only `tab.render(pane)` writes a pane.
 
-import { button, el, plural, stop } from './dom.js';
+import { button, el, normalizeTabs, plural, stop } from './dom.js';
 
 const IDS = {
     layer: 'story_block_layer',
@@ -129,17 +129,7 @@ function measure() {
     };
 }
 
-function normalizeTabs(tabs) {
-    const seen = new Set();
-    const out = [];
-    for (const tab of Array.isArray(tabs) ? tabs : []) {
-        const id = String(tab?.id ?? '').trim();
-        if (!id || seen.has(id) || typeof tab?.render !== 'function') continue;
-        seen.add(id);
-        out.push({ ...tab, id, group: String(tab.group ?? '').trim().slice(0, 40) });
-    }
-    return out;
-}
+const groupedTabs = tabs => normalizeTabs(tabs).map(tab => ({ ...tab, group: String(tab.group ?? '').trim().slice(0, 40) }));
 
 const OWN_GROUP = 'Story Block';
 
@@ -859,7 +849,7 @@ function onGripCancel() {
  * (the sidebar and its edge handle are then removed).
  */
 export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true, onPinnedChange, onSuite, showSuite = false } = {}) {
-    const list = groupTabs(normalizeTabs(tabs));
+    const list = groupTabs(groupedTabs(tabs));
     // No tabs, or no document body to hang a panel on (headless hosts and test doubles).
     if (!list.length || typeof doc()?.body?.appendChild !== 'function') {
         unmountSidebar();

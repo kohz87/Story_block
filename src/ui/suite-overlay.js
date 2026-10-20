@@ -15,6 +15,7 @@
 
 import { AREAS, isSourceOfTruth } from '../suite.js';
 import { previewParts, renderPreview } from './preview.js';
+import { el } from './dom.js';
 
 const IDS = { root: 'story_suite_overlay', title: 'story_suite_title' };
 const OVERVIEW = 'overview';
@@ -230,12 +231,7 @@ export function suiteTabs(providers) {
 // ---------------------------------------------------------------------------
 // DOM
 
-function make(d, tag, className = '', text = '') {
-    const node = d.createElement(tag);
-    if (className) node.className = className;
-    if (text !== '') node.textContent = String(text);
-    return node;
-}
+const make = (d, tag, className = '', text = '') => el(tag, className, text, d);
 
 function iconButton(d, className, title, icon) {
     const node = make(d, 'button', className);

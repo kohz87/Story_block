@@ -10,7 +10,7 @@
 // Mounting/scheduling (which message, when) belongs to the runtime. This module only
 // builds and reconciles the card it is handed a message for.
 
-import { button, el, stop } from './dom.js';
+import { button, el, normalizeTabs, stop } from './dom.js';
 
 const CLASS = {
     card: 'story-block-card',
@@ -237,18 +237,6 @@ function placeTabs(strip, ordered) {
         if (cursor === tab) cursor = tab.nextElementSibling ?? null;
         else strip.insertBefore(tab, cursor);
     }
-}
-
-function normalizeTabs(tabs) {
-    const seen = new Set();
-    const out = [];
-    for (const tab of Array.isArray(tabs) ? tabs : []) {
-        const id = String(tab?.id ?? '').trim();
-        if (!id || seen.has(id) || typeof tab?.render !== 'function') continue;
-        seen.add(id);
-        out.push({ ...tab, id });
-    }
-    return out;
 }
 
 /**

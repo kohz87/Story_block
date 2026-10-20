@@ -3,8 +3,9 @@
 // Everything model- or user-written goes through textContent or text nodes. innerHTML
 // is never used here: block names, labels and states are all reader/model text.
 
-export function el(tag, className = '', text = '') {
-    const node = document.createElement(tag);
+// `doc`: the document to make it in (a page that draws into another one passes its own).
+export function el(tag, className = '', text = '', doc = globalThis.document) {
+    const node = doc.createElement(tag);
     if (className) node.className = className;
     if (text !== '' && text !== null && text !== undefined) node.textContent = String(text);
     return node;
@@ -23,6 +24,20 @@ export function button(className, { text = '', title = '', icon = '' } = {}) {
         node.prepend(glyph);
     }
     return node;
+}
+
+// Tabs as a card or the sidebar takes them: each with an id (trimmed) and a render
+// function, the first of each id kept.
+export function normalizeTabs(tabs) {
+    const seen = new Set();
+    const out = [];
+    for (const tab of Array.isArray(tabs) ? tabs : []) {
+        const id = String(tab?.id ?? '').trim();
+        if (!id || seen.has(id) || typeof tab?.render !== 'function') continue;
+        seen.add(id);
+        out.push({ ...tab, id });
+    }
+    return out;
 }
 
 // Clicks inside the card must not reach SillyTavern's message handlers (or a host

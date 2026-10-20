@@ -4,19 +4,13 @@
 import { formatFor } from './formats/index.js';
 import { escapeBody, unescapeBody } from './formats/escape.js';
 import { sceneHeaderFields, setSceneHeaderField } from './scene.js';
+import { el as element } from './ui/dom.js';
 
 const SCENE_FIELDS = [
     { key: 'time', label: 'Time' },
     { key: 'location', label: 'Location' },
     { key: 'weather', label: 'Weather' },
 ];
-
-function element(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-}
 
 // A scene board's header (time, place, weather) as inputs above the text: the edits most
 // often made by hand, without hunting for them in the markup. Each writes into the text.

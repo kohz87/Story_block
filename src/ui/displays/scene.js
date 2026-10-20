@@ -15,6 +15,7 @@
 import { button, changeDot, el, emptyText, renderChanges, renderEmpty, renderFrame, stop } from '../dom.js';
 import { render as renderPlain } from './plain.js';
 import { ARC_PHASES, SCENE_PHASES, diffScene, parseScene, pcName, phaseStep } from '../../scene.js';
+import { countWords as words, oneLine } from '../../text.js';
 
 // Fields drawn first, in this order; anything else the model wrote follows as written.
 const FIELD_ORDER = ['Outfit', 'Position', 'Agenda', 'Visible Condition', 'Carrying'];
@@ -43,7 +44,6 @@ const COORDS = /^\[?\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]?$/;
 const LONG_ITEM = 48;
 const KEYED_ITEM = /^(.{1,60}?)\s+[—–]\s+(\S.*)$/;
 
-const words = text => String(text ?? '').trim().split(/\s+/).filter(Boolean).length;
 
 /** `a | label: b | c` -> [{ label, value }]; the first fact takes `lead` when it has no label. */
 export function splitFacts(text, lead = '') {
@@ -88,7 +88,7 @@ let nextId = 0;
 // agendas move every reply, and a fold that closed on each one would be no use.
 const OFFSCREEN_KEY = '\u0000offscreen';
 
-const changeKey = label => String(label ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+const changeKey = label => oneLine(label).toLowerCase();
 const isSecretChange = change => /·\s*secrets?\s*$/i.test(String(change?.label ?? '')) || /^secrets?$/i.test(String(change?.label ?? '').trim());
 
 function revealedFor(uiKey) {
