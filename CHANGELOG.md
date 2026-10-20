@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.15
+
+- **Unchanged Inventory rows stay exactly as they were.** The model writes the Inventory again every reply. It reworded notes it had no reason to touch, and over many replies they drifted: `heal 20` became *Weak restorative fluid (heals minor wounds)*, and RPG Battle could no longer use the potion. The Inventory's instruction now says to copy every row the reply does not change word for word, to keep the note when only the quantity changes, and never to reword a note's numbers and tags (`heal 20`, `uncommon · ATK +4`). That is about 55 tokens more per reply.
+- **Instructions you never edited stay up to date.** Each block's instruction is saved in your settings, so a new built-in wording never reached an existing setup. If your Inventory instruction is still the built-in one, it now updates to the new wording by itself. If you edited it, your version is kept; add the line yourself if you want it.
+
 ## 0.9.14
 
 - **"No human NPCs present" no longer breaks the World State card.** An aside under *NPCs Present* saying nobody is there, such as *(No NPCs present; wolves engaged)*, is skipped. Since one unreadable line sends the whole World State back to plain text, an aside with a word between "No" and who (*(No human NPCs present; EG1 swarm of granary rats in active hostility)*) turned the card into a wall of text. Now a word or two may stand in between (*No human NPCs*, *No other named characters*, *No hostile people*), and *persons* and *humans* count too. Other lines that are not part of the layout still send it back, as before.

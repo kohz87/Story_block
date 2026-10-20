@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newBlockId, normalizeBlock, normalizeBlocks, tagFromName, validateBlock } from '../src/schema.js';
-import { TEMPLATES, defaultBlocks, templateById } from '../src/templates.js';
+import { TEMPLATES, defaultBlocks, templateById, upgradePrompts } from '../src/templates.js';
 
 test('templates are valid, unique definitions and only Inventory starts enabled', () => {
     const blocks = defaultBlocks();
@@ -44,4 +44,22 @@ test('ids and tags derive from names; normalizeBlocks drops duplicates', () => {
     assert.equal(newBlockId('Inventory', defaultBlocks()), 'inventory-2');
     const list = normalizeBlocks([{ id: 'a', name: 'A', tag: 'Alpha' }, { id: 'a', name: 'B', tag: 'Beta' }, { id: 'c', name: 'C', tag: 'alpha' }, { id: 'd', name: 'D', tag: 'div' }]);
     assert.deepEqual(list.map(block => block.id), ['a']);
+});
+
+test('the Inventory says to copy unchanged rows word for word, and an unedited one gets the line (0.9.15)', () => {
+    const inventory = templateById('inventory');
+    assert.match(inventory.prompt, /Copy every row this reply does not change exactly as it was, note included, word for word/);
+    assert.match(inventory.prompt, /heal 20, uncommon · ATK \+4/);
+    const old = [
+        "Everything {{user}}'s party owns or carries: items, money, gear and supplies.",
+        'Apply only gains, losses, transfers, spending, consumption and equipment changes that this reply actually completes. Planned, attempted, interrupted, hypothetical or uncertain changes do not count; when a change cannot be worked out safely, keep the previous value instead of guessing. Never create a negative balance.',
+    ].join('\n');
+    const stored = normalizeBlocks([{ ...inventory, prompt: old }, { ...templateById('world-state') }]);
+    const upgraded = upgradePrompts(stored);
+    assert.equal(upgraded[0].prompt, inventory.prompt);
+    assert.equal(upgraded[1], stored[1]);
+    // Edited by the reader: theirs stays. Nothing to bring up: the same list back.
+    const edited = normalizeBlocks([{ ...inventory, prompt: `${old}\nKeep it short.` }]);
+    assert.equal(upgradePrompts(edited), edited);
+    assert.equal(upgradePrompts(upgraded), upgraded);
 });

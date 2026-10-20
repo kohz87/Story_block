@@ -21,6 +21,8 @@ export const TEMPLATES = [
         prompt: [
             "Everything {{user}}'s party owns or carries: items, money, gear and supplies.",
             'Apply only gains, losses, transfers, spending, consumption and equipment changes that this reply actually completes. Planned, attempted, interrupted, hypothetical or uncertain changes do not count; when a change cannot be worked out safely, keep the previous value instead of guessing. Never create a negative balance.',
+            // (0.9.15) Rewritten each reply, an unchanged note drifted ("heal 20" became "weak restorative fluid").
+            'Copy every row this reply does not change exactly as it was, note included, word for word; when only the quantity changes, keep the note. Numbers and tags in a note (heal 20, uncommon · ATK +4) are rules: never reword them.',
         ].join('\n'),
         when: { mode: 'always' },
     },
@@ -203,6 +205,31 @@ export const TEMPLATES = [
         when: { mode: 'always' },
     },
 ];
+
+// (0.9.15) Built-in instructions as earlier versions wrote them, by template: a block whose
+// instruction is still one of these (never edited) is given the current one; an edited one stays.
+const EARLIER_PROMPTS = {
+    inventory: [
+        [
+            "Everything {{user}}'s party owns or carries: items, money, gear and supplies.",
+            'Apply only gains, losses, transfers, spending, consumption and equipment changes that this reply actually completes. Planned, attempted, interrupted, hypothetical or uncertain changes do not count; when a change cannot be worked out safely, keep the previous value instead of guessing. Never create a negative balance.',
+        ].join('\n'),
+    ],
+};
+
+/** The stored blocks with an unedited built-in instruction brought up to date (a new list when any is). */
+export function upgradePrompts(blocks) {
+    let changed = false;
+    const out = (blocks ?? []).map(block => {
+        const earlier = EARLIER_PROMPTS[block?.template];
+        if (!earlier?.includes(String(block.prompt ?? '').trim())) return block;
+        const current = TEMPLATES.find(item => item.id === block.template)?.prompt;
+        if (!current || current === block.prompt) return block;
+        changed = true;
+        return { ...block, prompt: current };
+    });
+    return changed ? out : blocks;
+}
 
 export function templateById(id) {
     const template = TEMPLATES.find(item => item.id === id || item.template === id);
