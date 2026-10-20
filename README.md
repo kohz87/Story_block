@@ -1,4 +1,4 @@
-# Story Block v0.9.16
+# Story Block v0.9.17
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -136,8 +136,10 @@ reply comes in, Story Block applies them to the Inventory as it stood before the
 writes the whole new `<Inventory>` into that reply, as if the model had written it. So every
 reader still sees the full block, and a swipe or a deleted reply goes back to the one before.
 A row nobody changed never passes through the model, so its note cannot drift into prose
-(`heal 20` stays `heal 20`). A reply that changes nothing leaves the tag out and carries no
-copy. One that reorganises everything may still write the full `<Inventory>`, which wins. A
+(`heal 20` stays `heal 20`). A reply that changes nothing leaves the tag out. Since 0.9.17 it
+still gets a copy: every reply holds the whole state of each of your stateful blocks, so none
+depends on older messages, and hiding or deleting them loses nothing. Old copies are taken out
+of the history the model is sent, so this costs no tokens. One that reorganises everything may still write the full `<Inventory>`, which wins. A
 change that names no row (`- Torch` when there is none) is reported in a toast, not guessed.
 **Edit → The model writes → The whole list** brings back the full rewrite, for this or any
 other list block; a rewritten list is asked to copy unchanged rows word for word. Since 0.9.12 its money is added up for the model: every row named for money

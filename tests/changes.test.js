@@ -115,3 +115,25 @@ test('the prompt asks for the changes, shows the whole state, and the skeleton h
     assert.match(context, /<Inventory_Changes>\n\[Section\]\n\+ \(Item\) \| \(Qty\) \| \(Note\)\n- \(Item\) \| \(Qty\)\n<\/Inventory_Changes>/);
     assert.doesNotMatch(context, /Rewrite each kept block in full/);
 });
+
+test('every reply holds the whole state: a block it does not write is carried in as it stood (0.9.17)', async () => {
+    const { carryStates } = await import('../src/envelope.js');
+    const world = { ...templateById('world-state'), enabled: true };
+    const before = reply('The cellar.', `<Inventory>\n${BODY}\n</Inventory>\n<World_State>\n**📍 Location:** Granary\n</World_State>`);
+    const quiet = 'A quiet night.';
+    const chat = [before, { is_user: true, mes: 'sleep' }, { is_user: false, mes: quiet }];
+    const out = carryStates(quiet, [inventory, world], chat, 2);
+    assert.equal(latestBlockInText(out, inventory).body, BODY);
+    assert.match(latestBlockInText(out, world).body, /Granary/);
+    assert.equal(out.split('<!--')[0].trim(), quiet, 'nothing visible');
+    // The reply now stands alone: with every earlier message gone, the state is still there.
+    assert.equal(latestBlockState([{ is_user: false, mes: out }], inventory).body, BODY);
+    // A copy of its own (even a cut-off one) stays; kept and switched-off blocks are not carried.
+    const own = `Moved.\n\n${envelope('<Inventory>\nRope | 1\n</Inventory>')}`;
+    assert.equal(carryStates(own, [inventory], chat, 2), own);
+    const cut = 'Moved.\n\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Inventory>\nRope | 1';
+    assert.equal(carryStates(cut, [inventory], chat, 2), cut);
+    assert.equal(carryStates(quiet, [{ ...inventory, kept: true }, { ...world, enabled: false }], chat, 2), quiet);
+    // Nothing before it: nothing to carry.
+    assert.equal(carryStates(quiet, [inventory], [{ is_user: true, mes: 'hi' }, { is_user: false, mes: quiet }], 1), quiet);
+});
