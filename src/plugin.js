@@ -24,6 +24,7 @@
 
 import { latestBlockInText, latestBlockState, replacesLastReply } from './envelope.js';
 import { FIELD_TYPES, TAG_PATTERN, normalizeBlock, validateBlock } from './schema.js';
+import { oneLine } from './text.js';
 
 /**
  * Whether a block gets a tab in the sidebar and the card (once it is enabled and has something
@@ -102,7 +103,6 @@ const MAX_OWNER_LENGTH = 40;
 const MAX_NOTE_LENGTH = 300;
 const MAX_DICE_MODIFIER_LENGTH = 400;
 
-const oneLine = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 /**
  * A kept block's definition, checked the way the block editor checks the reader's own

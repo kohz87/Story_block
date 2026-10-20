@@ -6,10 +6,10 @@
 
 import { blockName, changeDot, el, emptyText, renderChanges, renderEmpty, renderFrame } from '../dom.js';
 import { render as renderPlain } from './plain.js';
+import { foldKey as labelKey } from '../../text.js';
 
 const DEFAULT_METER_MAX = 100;
 
-const labelKey = label => String(label ?? '').normalize('NFKC').trim().toLowerCase();
 
 function finite(value) {
     if (value === null || value === undefined || value === '') return null;

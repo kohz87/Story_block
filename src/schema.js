@@ -4,6 +4,8 @@
 // definition with different settings; the engine reads `kind`, `format` and
 // `display` to decide how the block is prompted, parsed, stored and drawn.
 
+import { oneLine } from './text.js';
+
 export const KINDS = ['stateful', 'turn', 'lead'];
 export const FORMATS = ['rows', 'fields', 'text'];
 export const DISPLAYS = ['plain', 'tree', 'fields', 'scene', 'choices', 'dice', 'chatter'];
@@ -35,7 +37,7 @@ export const RESERVED_TAGS = [
 export const TAG_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
 const ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 
-const cleanText = (value, max = 200) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+const cleanText = (value, max = 200) => oneLine(value, max);
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 const clampInt = (value, min, max, fallback) => {
     const number = Number.parseInt(value, 10);

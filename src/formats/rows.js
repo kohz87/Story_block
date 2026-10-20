@@ -4,6 +4,8 @@
 //
 // The structure is three columns; a definition only renames them (`def.columns`).
 
+import { foldKey } from '../text.js';
+
 export const id = 'rows';
 export const ROOT_CATEGORY = 'General';
 export const CATEGORY_PATH_SEPARATOR = '>';
@@ -20,7 +22,7 @@ function clean(value) {
 }
 
 function key(value) {
-    return clean(value).normalize('NFKC').toLowerCase();
+    return foldKey(clean(value));
 }
 
 function columnsOf(def) {

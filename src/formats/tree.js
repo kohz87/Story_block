@@ -1,5 +1,6 @@
 // Category tree for rows blocks (ported from Inventory Block's tree.js).
 import { ROOT_CATEGORY, normalizeRows, rowKey, splitCategoryPath } from './rows.js';
+import { foldKey as segmentKey } from '../text.js';
 
 export const DEFAULT_MAX_DEPTH = 3;
 export const MIN_MAX_DEPTH = 1;
@@ -8,10 +9,6 @@ export const ROOT_NODE_ID = '';
 
 const ID_SEPARATOR = '\u001f';
 const FOLDED_SEPARATOR = ' › ';
-
-function segmentKey(segment) {
-    return String(segment ?? '').normalize('NFKC').toLowerCase();
-}
 
 export function clampDepth(value) {
     const depth = Number.parseInt(value, 10);

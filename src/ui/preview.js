@@ -4,6 +4,7 @@
 // (docs/STORY_SUITE.md). Built from nodes with textContent only: the text is the prompt as sent.
 
 import { tokensOf } from '../tokens.js';
+import { el } from './dom.js';
 
 // "injection" → "Injection", "liveDossier" → "Live dossier".
 const labelOf = key => String(key).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').trim().replace(/^./, first => first.toUpperCase()).replace(/(?<= )\w/g, word => word.toLowerCase());
@@ -30,12 +31,7 @@ export function previewParts(raw, fallbackLabel = 'Sent') {
     return parts.length ? parts : null;
 }
 
-function make(d, tag, className = '', text = '') {
-    const node = d.createElement(tag);
-    if (className) node.className = className;
-    if (text) node.textContent = text;
-    return node;
-}
+const make = (d, tag, className = '', text = '') => el(tag, className, text, d);
 
 async function copyText(text) {
     try {

@@ -15,6 +15,7 @@
 // the model skipped a field.
 
 import { TEMPLATES } from './templates.js';
+import { oneLine as squash } from './text.js';
 
 export const ARC_PHASES = ['Setup', 'Escalation', 'Complication', 'Crisis', 'Resolution'];
 export const SCENE_PHASES = ['Early Simmer', 'Building', 'Midpoint Tension', 'Climax', 'Breather'];
@@ -114,7 +115,6 @@ function splitEmoji(text) {
     return { emoji: match[0].trim(), text: source.slice(match[0].length).trim() };
 }
 
-const squash = text => String(text ?? '').replace(/\s+/g, ' ').trim();
 const wordCount = text => squash(text).split(' ').filter(word => /[\p{L}\p{N}]/u.test(word)).length;
 
 function canonicalField(label) {
