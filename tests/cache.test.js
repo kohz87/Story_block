@@ -91,3 +91,26 @@ test('two replies in a row share every character up to this reply\'s part', () =
     assert.ok(first.slice(0, same).includes(CONTEXT_END), 'the instructions are in the shared prefix');
     assert.ok(first.slice(0, same).includes('I go down.'), 'and the history before the new turn');
 });
+
+test('block reads are kept per text: an edit, a swipe or a delete is never answered from a stale copy (0.9.22)', async () => {
+    const { latestBlockInText, latestBlockState, clearBlockReads } = await import('../src/envelope.js');
+    clearBlockReads();
+    const env = body => `Story.\n\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Inventory>\n${body}\n</Inventory>\n</Blocks>\n-->`;
+    const message = { is_user: false, mes: env('Rope | 1') };
+    const chat = [message, { is_user: true, mes: 'go' }];
+    const first = latestBlockState(chat, inventory);
+    assert.equal(first.body, 'Rope | 1');
+    // A caller changing what it got changes nothing kept.
+    first.state.categories[0].items[0].name = 'Changed';
+    assert.equal(latestBlockState(chat, inventory).state.categories[0].items[0].name, 'Rope');
+    // Edited (or swiped to another text): read again.
+    message.mes = env('Rope | 2');
+    assert.equal(latestBlockState(chat, inventory).body, 'Rope | 2');
+    // Deleted: the state before it.
+    const older = { is_user: false, mes: env('Torch | 3') };
+    assert.equal(latestBlockState([older, { is_user: true, mes: 'x' }], inventory).body, 'Torch | 3');
+    // Another definition of the block (other columns) is its own read.
+    const other = { ...inventory, columns: ['Thing', 'Count', 'Remark'] };
+    assert.equal(latestBlockInText(message.mes, other).body, 'Rope | 2');
+    assert.equal(latestBlockInText('no blocks', inventory), null);
+});

@@ -3750,18 +3750,15 @@ button.story-block-strip:hover {
 .story-block-rarity.is-epic { color: var(--sb-rarity-epic); }
 .story-block-rarity.is-legendary { color: var(--sb-rarity-legendary); font-weight: 600; }
 
-/* (0.9.18) Found this turn: the latest reply's finds, each with Leave. */
+/* (0.9.18) Found this turn: the latest reply's finds, each with Leave; (0.9.22) in the
+   "Changed this turn" row, where its preview would be. */
 .story-block-found {
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
     align-items: center;
-    margin: 0 0.7rem 0.5rem;
-}
-
-.story-block-found-label {
-    font-size: 0.8em;
-    opacity: 0.7;
+    min-width: 0;
+    cursor: default;
 }
 
 .story-block-found-chip {

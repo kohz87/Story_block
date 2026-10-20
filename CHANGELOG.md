@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.22
+
+- **Shorter rules, every reply.** The five lines about the envelope, keeping blocks out of the story and escaping `-->` are now three, saying the same: the always-sent rules go from about 472 to 412 tokens (with Inventory, World State and Dice on).
+- **Faster in long chats.** Reading a block out of a reply is now done once per reply text and remembered: an edit, a swipe or a deleted message is a different text, so it is never answered from an old read. In a test chat of 800 messages, 20 refreshes of four blocks took 48 ms instead of 415 ms.
+- **A cheaper token estimate.** Story Suite's token figures came from building Story Block's section once for every block (to see what each one adds). Now it is built once and each block's share is read from its own sections' lengths, rules it alone needs included: about 2.5 times faster, within a few tokens of the old figures.
+- **One row for this turn's changes.** *Found this turn* chips (with **Leave**) now sit in the *Changed this turn* row, in place of its preview, instead of a second row under it.
+
 ## 0.9.21
 
 - **Cache-friendly prompt.** Story Block's section held the rules and every block's current state in one piece, early in the prompt. Since a state changes in most replies, a provider's prompt cache (which keeps the longest identical start of a prompt) ended there on almost every reply, and the whole chat history after it was paid for again. Now the section comes in two parts:

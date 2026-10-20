@@ -181,34 +181,34 @@ function skeletonEnvelope(list, substitute) {
 
 const KEPT_RULE = 'Blocks marked "read it, never write it" are kept by another extension, not by you. Their current state is what is true right now: use it in the story, but never write their tags, in the envelope or anywhere else, and never change them yourself; the extension updates them.';
 
+// Each rule with the blocks it is there for (none: every reply's), so an estimate can credit it.
 function rulesFor(defs, { kept = false } = {}) {
     const first = defs.filter(lead);
     const last = defs.filter(def => !lead(def));
+    // (0.9.22) The envelope, narration and escape rules in three lines instead of five.
     const rules = [
         last.length
-            ? `At the very end of your reply, after the story, write exactly one hidden envelope holding the blocks below${first.length ? ' that are not marked "first"' : ''}, exactly as shown under "Write it exactly like this". The reader never sees it, so write it in every reply.`
-            : 'Write the hidden envelope shown under "Write it exactly like this" in every reply. The reader never sees it.',
-        'Write the blocks in the order given, each tag exactly once, and close every tag you open.',
-        'Keep every envelope on its own lines, with a blank line between it and the story; never start or end a line of story on the same line as "<!--" or "-->".',
-        'Never write the blocks, their tags or their contents as visible narration, and do not explain them in the story.',
-        'Never write "-->" anywhere inside the envelope; write "--\\>" instead. A backslash escapes the character after it (for example --\\> or <\\Tag); keep such escapes exactly as written.',
-        // (0.9.21) Everything that changes from reply to reply is in one place, near the end.
-        'Each block\'s current state, and anything that holds only for the reply you are writing now, is given under "Story Blocks: this reply" near the end of the prompt.',
+            ? `At the very end of your reply, after the story, write one hidden envelope holding the blocks below${first.length ? ' not marked "first"' : ''}, exactly as under "Write it exactly like this". The reader never sees it: write it every reply, and never put a block, its tags or its contents in the visible story.`
+            : 'Write the hidden envelope under "Write it exactly like this" every reply. The reader never sees it: never put a block, its tags or its contents in the visible story.',
+        'Write the blocks in the order given, each tag once, and close every tag you open. Put each envelope on its own lines, a blank line away from the story (never on a line of story).',
+        'Inside an envelope write "--\\>" for "-->"; a backslash escapes the character after it (--\\>, <\\Tag): keep such escapes exactly as written.',
+        'Current states, and what holds just for this reply, are under "Story Blocks: this reply" near the end.',
     ];
+    const own = (list, text) => rules.push({ text, by: list });
     if (defs.some(def => stateful(def) && !changesOnly(def))) {
-        rules.push('Blocks marked "kept" carry state from reply to reply. The current state given for this reply is the only authoritative one; earlier copies in the story are history. Rewrite each kept block in full every reply, with only the changes this reply actually makes. It is never a patch or a list of changes: omission means loss, so keep everything that did not change.');
+        own(defs.filter(def => stateful(def) && !changesOnly(def)), 'Blocks marked "kept" carry state from reply to reply. The current state given for this reply is the only authoritative one; earlier copies in the story are history. Rewrite each kept block in full every reply, with only the changes this reply actually makes. It is never a patch or a list of changes: omission means loss, so keep everything that did not change.');
     }
     if (defs.some(changesOnly)) {
-        rules.push('Blocks marked "write only the changes" also carry state, but you never rewrite them: write only what this reply changes, line by line, in their changes tag; everything not mentioned stays exactly as it is.');
+        own(defs.filter(changesOnly), 'Blocks marked "write only the changes" also carry state, but you never rewrite them: write only what this reply changes, line by line, in their changes tag; everything not mentioned stays exactly as it is.');
     }
     if (first.length) {
-        rules.push('Blocks marked "first" go in their own hidden envelope at the very start of your reply, before any story text: write that envelope first, decide it before you write the scene, and never revise it once the story exists. When none of them has anything this reply, leave that envelope out rather than writing it empty.');
+        own(first, 'Blocks marked "first" go in their own hidden envelope at the very start of your reply, before any story text: write that envelope first, decide it before you write the scene, and never revise it once the story exists. When none of them has anything this reply, leave that envelope out rather than writing it empty.');
     }
     if (defs.some(def => def.kind === 'turn')) {
-        rules.push('Blocks marked "this reply only" describe this reply alone; write them fresh and never copy earlier ones.');
+        own(defs.filter(def => def.kind === 'turn'), 'Blocks marked "this reply only" describe this reply alone; write them fresh and never copy earlier ones.');
     }
     if (kept) rules.push(KEPT_RULE);
-    return rules;
+    return rules.map(rule => (typeof rule === 'string' ? { text: rule, by: [] } : rule));
 }
 
 const sameBlock = (a, b) => Boolean(a && b) && (a === b || (a.id && a.id === b.id) || (a.tag && a.tag === b.tag));
@@ -227,7 +227,7 @@ const sameBlock = (a, b) => Boolean(a && b) && (a === b || (a.id && a.id === b.i
  * `substitute` applies {{user}}/{{char}} to prompts and skeletons only, never to state.
  * Both '' when there is nothing to send.
  */
-export function buildContextParts(entries, { substitute = text => text, staticDefs = null, ruleDefs = null } = {}) {
+export function buildContextParts(entries, { substitute = text => text, staticDefs = null, ruleDefs = null, sizes = null } = {}) {
     const all = (Array.isArray(entries) ? entries : []).filter(entry => entry?.def);
     const kept = all.filter(entry => readOnly(entry.def))
         .map(entry => ({ ...entry, body: readOnlyBody(entry) }))
@@ -238,17 +238,30 @@ export function buildContextParts(entries, { substitute = text => text, staticDe
     const modifiers = kept.map(entry => entry.def.diceModifier).filter(Boolean);
     const words = Array.isArray(ruleDefs) ? ruleDefs.filter(def => def && !readOnly(def)) : [...always, ...active.map(entry => entry.def).filter(def => !always.some(other => sameBlock(other, def)))];
     // Only kept blocks: nothing to write, so no envelope and no rules for one.
-    const rules = always.length || active.length ? rulesFor(words, { kept: kept.length > 0 }) : [KEPT_RULE];
+    const rules = always.length || active.length ? rulesFor(words, { kept: kept.length > 0 }) : [{ text: KEPT_RULE, by: [] }];
 
     // The instructions: rules, kept blocks' heads, every always-sent block, the envelope.
+    // (0.9.22) `sizes` (a Map): the characters each entry brings (its sections in both parts),
+    // for a token estimate that builds the context once.
+    const ownerOf = def => all.find(entry => sameBlock(entry.def, def));
+    const count = (entry, text, separator = 2) => {
+        if (sizes && entry) sizes.set(entry, (sizes.get(entry) ?? 0) + text.length + separator);
+        return text;
+    };
+    // A rule there for some blocks only is theirs, shared evenly.
+    for (const rule of rules) {
+        const owners = rule.by.map(ownerOf).filter(Boolean);
+        for (const owner of owners) count(owner, '', (rule.text.length + 3) / owners.length);
+    }
     const fixed = always.map(def => ({ def, rolls: STATIC }));
     const first = fixed.filter(entry => lead(entry.def));
     const last = fixed.filter(entry => !lead(entry.def));
     const head = [
-        `${CONTEXT_BEGIN}\n## Story Blocks\n${rules.map(rule => `- ${rule}`).join('\n')}`,
-        ...kept.map(entry => readOnlyHead(entry, substitute)),
-        ...fixed.map(entry => blockSection(entry, substitute, modifiers)),
+        `${CONTEXT_BEGIN}\n## Story Blocks\n${rules.map(rule => `- ${rule.text}`).join('\n')}`,
+        ...kept.map(entry => count(ownerOf(entry.def), readOnlyHead(entry, substitute))),
+        ...fixed.map(entry => count(ownerOf(entry.def), blockSection(entry, substitute, modifiers))),
     ];
+    for (const entry of fixed) count(ownerOf(entry.def), skeletonPart(entry, substitute), 1);
     const envelopes = fixed.length ? `Write it exactly like this:\n${[
         first.length ? skeletonEnvelope(first, substitute) : '',
         first.length && last.length ? '[your reply]' : '',
@@ -257,12 +270,12 @@ export function buildContextParts(entries, { substitute = text => text, staticDe
     const staticText = `${head.join('\n\n')}\n\n${envelopes}${CONTEXT_END}`;
 
     // This reply: states, rolls, notes, blocks only it asks for, blocks it leaves out.
-    const parts = kept.map(entry => [`### ${entry.def.name}: current state (kept by ${entry.def.owner})`, `<${entry.def.tag}>`, entry.body, `</${entry.def.tag}>`].join('\n'));
+    const parts = kept.map(entry => count(ownerOf(entry.def), [`### ${entry.def.name}: current state (kept by ${entry.def.owner})`, `<${entry.def.tag}>`, entry.body, `</${entry.def.tag}>`].join('\n')));
     for (const entry of active) {
         const { def } = entry;
         if (!always.some(other => sameBlock(other, def))) {
             const tag = changesOnly(def) ? changesTag(def) : def.tag;
-            parts.push(`${blockSection(entry, substitute, modifiers, { withState: true })}\nThis reply also writes <${tag}>, in the ${lead(def) ? 'first envelope' : 'envelope'}, like this:\n${skeletonPart(entry, substitute)}`);
+            parts.push(count(entry, `${blockSection(entry, substitute, modifiers, { withState: true })}\nThis reply also writes <${tag}>, in the ${lead(def) ? 'first envelope' : 'envelope'}, like this:\n${skeletonPart(entry, substitute)}`));
             continue;
         }
         const lines = [];
@@ -270,7 +283,7 @@ export function buildContextParts(entries, { substitute = text => text, staticDe
         if (note) lines.push(note);
         if (def.rolls?.count > 0 || String(def.prompt ?? '').includes('{{rolls}}')) lines.push(`This reply's rolls, in order: ${promptRolls(entry.rolls)}.`);
         if (stateful(def)) lines.push(...stateLines(def, entry.state));
-        if (lines.length) parts.push([`### ${def.name}`, ...lines].join('\n'));
+        if (lines.length) parts.push(count(entry, [`### ${def.name}`, ...lines].join('\n')));
     }
     const skipped = always.filter(def => !active.some(entry => sameBlock(entry.def, def)));
     if (skipped.length) parts.push(`Leave ${skipped.map(def => `<${changesOnly(def) ? changesTag(def) : def.tag}>`).join(', ')} out of this reply.`);

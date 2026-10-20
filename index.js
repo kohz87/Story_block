@@ -36,7 +36,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.21';
+const VERSION = '0.9.22';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -347,7 +347,7 @@ function suiteTokens() {
     try {
         const ctx = context();
         if (!ctx) return { input: 0, output: 0, parts: [] };
-        return contextTokens(generationEntries(ctx, ctx.chat ?? [], 'normal'), { substitute: substituter(ctx) });
+        return contextTokens(generationEntries(ctx, ctx.chat ?? [], 'normal'), { substitute: substituter(ctx), ...promptDefs(ctx) });
     } catch (error) {
         console.warn('[Story Block] token estimate failed', error);
         return { input: 0, output: 0, parts: [] };

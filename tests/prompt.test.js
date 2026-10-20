@@ -85,11 +85,12 @@ test('buildContext: one section with the general rules once and each block in or
     assert.ok(context.startsWith(`${CONTEXT_BEGIN}\n## Story Blocks\n`));
     assert.ok(buildContextParts([{ def: notes, state: { text: 'The gate is shut.' } }, { def: mood }]).static.endsWith(`-->\n${CONTEXT_END}`));
     assert.equal(count(context, new RegExp(CONTEXT_BEGIN, 'g')), 1);
-    assert.match(context, /At the very end of your reply, after the story, write exactly one hidden envelope/);
-    assert.match(context, /in the order given, each tag exactly once, and close every tag/);
-    assert.match(context, /Never write the blocks, their tags or their contents as visible narration/);
-    assert.match(context, /Never write "-->" anywhere inside the envelope; write "--\\>" instead/);
-    assert.match(context, /A backslash escapes the character after it[^\n]*keep such escapes exactly as written/);
+    // (0.9.22) The envelope, narration and escape rules, in three lines.
+    assert.match(context, /At the very end of your reply, after the story, write one hidden envelope/);
+    assert.match(context, /in the order given, each tag once, and close every tag/);
+    assert.match(context, /never put a block, its tags or its contents in the visible story/);
+    assert.match(context, /Inside an envelope write "--\\>" for "-->"/);
+    assert.match(context, /a backslash escapes the character after it[^\n]*keep such escapes exactly as written/);
     assert.match(context, /omission means loss/);
     assert.match(context, /Blocks marked "this reply only" describe this reply alone/);
     assert.ok(context.indexOf('### Scene Log — <Notes> (kept: rewrite the full current state)') < context.indexOf('### Mood — <Mood> (this reply only)'));
