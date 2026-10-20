@@ -9,8 +9,9 @@ import { normalizeBlock, normalizeBlocks } from './src/schema.js';
 import { TEMPLATES, defaultBlocks, upgradePrompts } from './src/templates.js';
 import { applyReplyChanges, changeDefs, changesOnly } from './src/changes.js';
 import { formatFor } from './src/formats/index.js';
-import { bareBlockTexts, carryStates, dropForeignCopies, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
+import { bareBlockTexts, carryStates, dropForeignCopies, latestBlockInText, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { escapeBody } from './src/formats/escape.js';
+import { applyChanges, leaveLine } from './src/formats/rows.js';
 import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
 import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, tabView, viewKey } from './src/view.js';
 import { turnCount, turnItems } from './src/turn.js';
@@ -30,11 +31,12 @@ import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, hasTab, pluginBlockDef } from './src/plugin.js';
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
+import { previewParts, renderPreview } from './src/ui/preview.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.17';
+const VERSION = '0.9.18';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -98,7 +100,7 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [], currency: structuredClone(DEFAULT_CURRENCY) };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, hideEmptyTabs: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [], currency: structuredClone(DEFAULT_CURRENCY) };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
@@ -109,6 +111,8 @@ function settings(ctx = context()) {
     // elsewhere) or the v0.1 card under the latest reply. The strip is opt-in.
     own.display = own.display === 'card' ? 'card' : 'sidebar';
     own.showTurnStrip = own.showTurnStrip === true;
+    // (0.9.18) The sidebar lists empty blocks too, unless the reader hides them.
+    own.hideEmptyTabs = own.hideEmptyTabs === true;
     own.sidebarPinned = own.sidebarPinned !== false;
     // Off-screen on the scene board is behind the scenes, so it starts hidden.
     own.hideOffscreen = own.hideOffscreen !== false;
@@ -323,6 +327,22 @@ function suiteTokens() {
     } catch (error) {
         console.warn('[Story Block] token estimate failed', error);
         return { input: 0, output: 0, parts: [] };
+    }
+}
+
+/**
+ * (0.9.18) Story Suite's manage.preview(): the context section the next ordinary reply would get,
+ * as it would be sent ({{user}} and {{char}} filled in). Its dice are a fresh sample: the reply
+ * rolls its own. Never throws.
+ */
+function suitePreview() {
+    try {
+        const ctx = context();
+        if (!ctx || !hasActiveChat(ctx)) return [{ label: 'Story Blocks', text: '' }];
+        return [{ label: 'Story Blocks', text: buildContext(generationEntries(ctx, ctx.chat ?? [], 'normal'), { substitute: substituter(ctx) }) }];
+    } catch (error) {
+        console.warn('[Story Block] preview failed', error);
+        return [{ label: 'Story Blocks', text: '' }];
     }
 }
 
@@ -632,6 +652,27 @@ async function editBlock(def) {
     }
 }
 
+// (0.9.18) A list the reader writes into, as the latest reply left it: its finds can be left behind.
+function leavable(def, view) {
+    if (def.kept || def.format !== 'rows' || def.kind !== 'stateful' || view.fromEarlierReply) return false;
+    return view.messageIndex >= 0 && view.messageIndex === latestAssistantIndex(context()?.chat ?? []);
+}
+
+/** Leave a find behind: the gain comes out of that reply's copy, so a swipe or delete still rolls back. */
+async function leaveGain(def, messageIndex, gain) {
+    try {
+        const message = context()?.chat?.[messageIndex];
+        const found = message ? latestBlockInText(message.mes, def) : null;
+        if (!found) return;
+        const result = applyChanges(found.body, leaveLine(gain), def);
+        if (!result.applied.length) return notify('warning', `${gain.name} could not be found in this reply's ${def.name}.`);
+        await setBlockText(messageIndex, def.id, result.body);
+        notify('info', `${gain.name} left behind.`);
+    } catch (error) {
+        notify('error', error instanceof Error ? error.message : String(error));
+    }
+}
+
 function latestAssistantElement(ctx) {
     const elements = [...document.querySelectorAll('#chat .mes')].reverse();
     return elements.find(element => {
@@ -640,10 +681,18 @@ function latestAssistantElement(ctx) {
     }) ?? null;
 }
 
-// Rail labels are small: the block's short label, else a short name, else its first word.
+// Rail labels are small: the block's short label, else (0.9.18) its built-in template's (a
+// block saved before short labels: "Items", not "Invento…"), else a short name, else its first word.
 function shortName(def) {
     if (def.short) return def.short;
-    const text = String(def.name ?? '');
+    const template = def.template ? TEMPLATES.find(entry => entry.id === def.template || entry.template === def.template) : null;
+    if (template?.short && template.name === def.name) return template.short;
+    return shortLabel(def.name);
+}
+
+// A label of ten letters or fewer as it is, a longer one by its first word ("Present NPCs" → "Present").
+function shortLabel(name) {
+    const text = String(name ?? '');
     return text.length <= 10 ? text : text.split(/\s+/)[0].replace(/[^\p{L}\p{N}]+$/u, '').slice(0, 10);
 }
 
@@ -683,6 +732,8 @@ function blockTab(view, uiKey) {
             animate,
             // Only its extension writes a kept block; the frame says whose it is instead.
             onEdit: def.kept ? null : () => void editBlock(def),
+            // (0.9.18) The latest reply's finds, each the reader's to leave behind.
+            onLeave: leavable(def, view) ? gain => void leaveGain(def, view.messageIndex, gain) : null,
             uiKey: `${uiKey}:${def.id}`,
             hideOffscreen,
         }),
@@ -709,7 +760,8 @@ function buildCardTabs() {
     for (const def of [...enabledBlocks(ctx), ...keptBlocks()]) {
         if (!hasTab(def, { shownElsewhere })) continue;
         const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
-        if (!view) continue;
+        // (0.9.18) An empty block keeps its tab unless the reader hides empty tabs.
+        if (!view || (view.empty && own.hideEmptyTabs)) continue;
         const tab = blockTab(view, uiKey);
         tabs.push(tab);
         views.push({ view, tabId: tab.id });
@@ -720,6 +772,7 @@ function buildCardTabs() {
             tabs.push({
                 id: `ext:${tab.id}`,
                 label: tab.label,
+                short: tab.short || shortLabel(tab.label),
                 icon: tab.icon,
                 order: tab.order,
                 // A plugin may say when its pane is unchanged (key) and what to count (badge).
@@ -830,7 +883,7 @@ function addSettingsPanel(documentRef) {
 // The settings panel's sections fold, so it is not one long column. Which are open is the
 // reader's own convenience, remembered in this browser only; Blocks starts open.
 const FOLDS_STORAGE = 'story_block_settings_folds';
-const FOLDS_OPEN = { display: false, money: false, suite: false, blocks: true };
+const FOLDS_OPEN = { display: false, money: false, suite: false, blocks: true, sent: false };
 
 function foldsOpen() {
     try {
@@ -972,6 +1025,10 @@ function addRuntimeControls(documentRef, root) {
             <span><b>"This turn" strip under the reply</b><small>One line listing what the reply changed; tapping it opens the sidebar. Sidebar only.</small></span>
             <input id="story_block_strip" type="checkbox">
         </label>
+        <label class="story-suite-row" for="story_block_empty_tabs">
+            <span><b>Hide empty tabs</b><small>A block with nothing in it yet gets no tab until a reply writes it. Sidebar only.</small></span>
+            <input id="story_block_empty_tabs" type="checkbox">
+        </label>
         <label class="story-suite-row" for="story_block_offscreen">
             <span><b>Hide off-screen until revealed</b><small>The scene board counts off-screen entries until you reveal them. The block itself is unchanged, so NPC State Delta still reads it.</small></span>
             <input id="story_block_offscreen" type="checkbox">
@@ -984,6 +1041,7 @@ function addRuntimeControls(documentRef, root) {
     const strip = row.querySelector('#story_block_strip');
     const compat = row.querySelector('#story_block_compat');
     const offscreen = row.querySelector('#story_block_offscreen');
+    const emptyTabs = row.querySelector('#story_block_empty_tabs');
     // The strip only exists next to the sidebar; the compatible markup only on the card.
     const syncEnabled = () => {
         const card = settings().display === 'card';
@@ -1004,6 +1062,7 @@ function addRuntimeControls(documentRef, root) {
     bind(display, input => { input.value = settings().display; }, input => { settings().display = input.value === 'card' ? 'card' : 'sidebar'; });
     bind(strip, input => { input.checked = settings().showTurnStrip; }, input => { settings().showTurnStrip = Boolean(input.checked); });
     bind(offscreen, input => { input.checked = settings().hideOffscreen; }, input => { settings().hideOffscreen = Boolean(input.checked); });
+    bind(emptyTabs, input => { input.checked = settings().hideEmptyTabs; }, input => { settings().hideEmptyTabs = Boolean(input.checked); });
     bind(compat, input => { input.checked = settings().compatMarkup; }, input => { settings().compatMarkup = Boolean(input.checked); });
     syncEnabled();
     suiteSection = documentRef.createElement('div');
@@ -1013,6 +1072,7 @@ function addRuntimeControls(documentRef, root) {
     folds.append(settingsFold(documentRef, 'display', 'Display', [row]), settingsFold(documentRef, 'money', 'Money', [moneyRow(documentRef)]), settingsFold(documentRef, 'suite', 'Source of truth', [suiteSection]));
     const view = content.querySelector('.story-block-view');
     if (view) folds.appendChild(settingsFold(documentRef, 'blocks', 'Blocks', [view]));
+    folds.appendChild(sentFold(documentRef));
     content.append(folds);
     content.prepend(quickbar);
     content.prepend(suiteLinkLine(documentRef));
@@ -1021,6 +1081,24 @@ function addRuntimeControls(documentRef, root) {
     setFoldHint('blocks', blocksHint());
     renderSuiteSection();
     syncSuiteEntries();
+}
+
+// (0.9.18) What's sent: the context the next reply gets, drawn when the fold opens (and on
+// Refresh), never on every reply.
+function sentFold(documentRef) {
+    const body = documentRef.createElement('div');
+    body.className = 'story-block-sent';
+    const fill = () => {
+        const parts = previewParts(suitePreview(), 'Story Blocks');
+        body.replaceChildren(renderPreview(documentRef, parts?.filter(part => part.text) ?? [], { onRefresh: fill }));
+        const size = parts?.reduce((sum, part) => sum + part.text.length, 0) ?? 0;
+        setFoldHint('sent', size ? `~${Math.round(size / 4).toLocaleString('en-US')} tokens with the next reply` : 'Nothing right now');
+    };
+    const fold = settingsFold(documentRef, 'sent', "What's sent", [body]);
+    setFoldHint('sent', 'Exactly what the next reply is told');
+    fold.addEventListener('toggle', () => { if (fold.open) fill(); });
+    if (fold.open) fill();
+    return fold;
 }
 
 // Above the folds: one line that opens Story Suite with every extension's settings in one place.
@@ -1316,6 +1394,7 @@ const SUITE_API = Object.freeze({
         sources: () => ({ ...settings().sourceOfTruth }),
         setSource: setSourceFromSuite,
         tokens: suiteTokens,
+        preview: suitePreview,
     }),
     /** Open Story Suite's overlay on a tab: 'overview' (default) or an extension's id. */
     openSuite: (tabId = 'overview') => openSuite(tabId),

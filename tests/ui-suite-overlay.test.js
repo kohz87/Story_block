@@ -16,7 +16,7 @@ doc.body.appendChild(host);
 
 // A fake extension: its panel (an inline-drawer, as all four draw it) between two neighbours,
 // and an announcement with api.manage that records every call.
-function extension(id, name, { areas = [], owns = areas, sources = {}, switchable = false, panel = true, manage = true, tokens } = {}) {
+function extension(id, name, { areas = [], owns = areas, sources = {}, switchable = false, panel = true, manage = true, tokens, preview } = {}) {
     const ext = { id, name, calls: [], choices: { ...sources }, enabled: true, panel: null };
     if (panel) {
         ext.panel = doc.createElement('div');
@@ -44,6 +44,7 @@ function extension(id, name, { areas = [], owns = areas, sources = {}, switchabl
                     ext.choices[area] = choice;
                 },
                 ...(tokens ? { tokens } : {}),
+                ...(preview ? { preview } : {}),
                 ...(switchable ? {
                     enabled: () => ext.enabled,
                     setEnabled(on) {
@@ -391,7 +392,7 @@ test('Tokens per reply: a row per enabled extension, its parts in a fold, a tota
         battle: extension('rpg-battle', 'RPG Battle', { areas: ['items'], switchable: true }),
     };
     openSuiteOverlay({ document: doc, suite: storySuite() });
-    assert.equal(pane().querySelectorAll('.story-suite-folds > details').map(node => node.dataset.fold).join(), 'installed,sources,tokens');
+    assert.equal(pane().querySelectorAll('.story-suite-folds > details').map(node => node.dataset.fold).join(), 'installed,sources,tokens,sent');
     assert.equal(foldHint('tokens'), '~3,400 in · ~650 out');
     const rows = () => fold('tokens').children[1].children.filter(node => node.classList.contains('story-suite-tokens-row'));
     const row = id => rows().find(node => node.dataset.providerId === id);
@@ -443,7 +444,7 @@ test('Overview folds: one-line summaries, Installed open and the others closed b
 
     toggleFold(fold('sources'), true);
     toggleFold(fold('installed'), false);
-    assert.deepEqual(JSON.parse(stored.get('story_suite_overview_folds')), { installed: false, sources: true, tokens: false });
+    assert.deepEqual(JSON.parse(stored.get('story_suite_overview_folds')), { installed: false, sources: true, tokens: false, sent: false });
     exts.battle.enabled = false;
     exts.battle.announce();
     refreshSuiteOverlay();
@@ -459,11 +460,11 @@ test('Overview folds: one-line summaries, Installed open and the others closed b
 
     // Nothing stored, or storage that throws: the defaults.
     stored.set('story_suite_overview_folds', 'not json');
-    assert.deepEqual(overviewFoldsOpen(), { installed: true, sources: false, tokens: false });
+    assert.deepEqual(overviewFoldsOpen(), { installed: true, sources: false, tokens: false, sent: false });
     const saved = globalThis.localStorage;
     globalThis.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
     try {
-        assert.deepEqual(overviewFoldsOpen(), { installed: true, sources: false, tokens: false });
+        assert.deepEqual(overviewFoldsOpen(), { installed: true, sources: false, tokens: false, sent: false });
         openSuiteOverlay({ document: doc, suite: storySuite() });
         toggleFold(fold('tokens'), true);
         assert.equal(fold('tokens').open, true, 'still opens');
@@ -471,4 +472,38 @@ test('Overview folds: one-line summaries, Installed open and the others closed b
     } finally {
         globalThis.localStorage = saved;
     }
+});
+
+test("What's sent: a fold per extension that offers preview(), read only when opened (0.9.18)", () => {
+    stored.clear();
+    delete globalThis.StorySuite;
+    host.replaceChildren();
+    let reads = 0;
+    extension('story-block', 'Story Block', { areas: ['items'], preview: () => { reads += 1; return [{ label: 'Story Blocks', text: 'STORY_BLOCKS_V1_CONTEXT_BEGIN\n## Story Blocks' }]; } });
+    extension('story-director', 'Story Director', { preview: () => 'Director note: the bell rings at dusk.' });
+    extension('npc-state-delta', 'NPC State Delta', { preview() { throw new Error('boom'); } });
+    extension('rpg-battle', 'RPG Battle', { areas: ['items'], preview: () => ({ injection: 'Live dossier: Elke.', liveCapture: '' }) });
+    openSuiteOverlay({ document: doc, suite: storySuite() });
+    assert.equal(foldHint('sent'), '4 to read');
+    const folds = fold('sent').querySelectorAll('details.story-suite-fold');
+    assert.deepEqual(folds.map(node => node.dataset.providerId), ['story-block', 'story-director', 'npc-state-delta', 'rpg-battle']);
+    assert.equal(reads, 0, 'nothing is read before a fold opens');
+    folds[0].open = true;
+    folds[0].dispatch('toggle');
+    assert.equal(reads, 1);
+    assert.equal(folds[0].querySelector('.story-block-preview-text').textContent, 'STORY_BLOCKS_V1_CONTEXT_BEGIN\n## Story Blocks');
+    assert.match(folds[0].querySelector('.story-block-preview-size').textContent, /^~\d+ tokens$/);
+    assert.ok(folds[0].querySelector('.story-block-preview-copy'));
+    folds[1].open = true;
+    folds[1].dispatch('toggle');
+    assert.equal(folds[1].querySelector('.story-block-preview-label').textContent, 'Story Director', 'a plain string is one part, named for the extension');
+    folds[2].open = true;
+    folds[2].dispatch('toggle');
+    assert.ok(folds[2].querySelector('.story-block-preview-empty'), 'a failing preview shows nothing, without breaking the rest');
+    folds[3].open = true;
+    folds[3].dispatch('toggle');
+    assert.deepEqual(folds[3].querySelectorAll('.story-block-preview-label').map(node => node.textContent), ['Injection'], 'named texts are parts; an empty one says nothing');
+    assert.equal(overlay.previewReport({ api: { manage: { preview: () => ({ label: 'Note', text: 'x', tokens: 1 }) } } })[0].label, 'Note');
+    assert.deepEqual(overlay.previewReport({ api: { manage: { preview: () => ({ parts: [{ label: 'A', text: 'a' }] }) } } }), [{ label: 'A', text: 'a' }]);
+    closeSuiteOverlay();
 });

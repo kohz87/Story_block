@@ -1,4 +1,4 @@
-# Story Block v0.9.17
+# Story Block v0.9.18
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -260,7 +260,15 @@ set in the block editor: a meter is written `HP: 7/10`, a number `Gold: 85`, a l
 split by ` | ` all read.
 
 **Tree list** (Rows format): `[Section > Sub]` headers, then one `Item | Qty | Note` line per
-item (the columns are the block's own).
+item (the columns are the block's own). Since 0.9.18 a rarity word in a note (*common*,
+*uncommon*, *rare*, *epic*, *legendary*) tints the item's name: grey, green, blue, purple,
+gold. The classes are `story-block-rarity is-<word>` and the colours `--sb-rarity-<word>`,
+for other extensions to use too. And what the latest reply **found** (a new row, or more of
+one) is listed above the tree as chips, *Found this turn: Brood-Mother Skull ×1 [Leave]*.
+It is kept unless you press **Leave**, which takes that gain back out of that reply's copy, so
+a swipe or a deleted reply still rolls it back. Nothing is shown when the reply found nothing.
+A list of 20 rows or fewer opens at *All* with every item under its section's title; a longer
+one shows a row per section to open.
 
 **Choice buttons**: a numbered or bulleted list (`1. Follow her out`). A line of prose in
 between turns the buttons off for that reply.
@@ -315,6 +323,10 @@ them, so other extensions reading the raw reply never find narration on an envel
 **"This turn" strip** (off by default) adds one line under the latest reply listing what it
 changed; tap it to open the sidebar on that block.
 
+**Hide empty tabs** (v0.9.18, off by default) leaves a block with nothing in it yet out of the
+sidebar until a reply writes it. Built-in blocks show short labels in the rail (*Items*,
+*World*), and tabs other extensions add may give their own.
+
 **Hide off-screen until revealed** (on by default) keeps the scene board's Off-Screen section
 behind the scenes: it shows how many entries there are and a **Reveal** button, and the
 entries are not put on the page until you press it (it stays open for that chat until you
@@ -368,6 +380,10 @@ With two or more of the four installed, **Story Suite** opens one overlay for al
 the Extensions menu, the gear in the sidebar's header, or *Manage all in Story Suite* at the top
 of Story Block's settings. Alone, none of these appear.
 
+Story Block's own settings end with **What's sent** (v0.9.18): the exact context the next
+reply gets (rules, each block's section and current state, the layout to write back), with its
+size and **Copy**, read when you open it. Its dice are a sample: the reply rolls its own.
+
 The four settings panels share one look (v0.9.1, `src/suite.css`, the same file in all four):
 the *Manage all* line, a box of main actions (Story Block: **Rescan chat**, its status line and
 version), then sections that fold with a summary, settings as rows with a hint, switches as
@@ -389,6 +405,9 @@ version), then sections that fold with a summary, settings as rows with a hint, 
     share. Estimates at about 4 characters a token, updated when the overlay opens and after
     each reply; quiet calls like summaries, planning and monster flavour are not counted. An
     extension that does not report says *not reported*.
+  - **What's sent** (v0.9.18): a fold per extension that shows the exact text it adds to the
+    next reply, as it would be sent, with its size and **Copy**. Nothing is read until you
+    open one; **Refresh** reads it again. Extensions that do not offer it are not listed.
 - **A tab per extension** with its own settings panel, moved into the overlay while its tab is
   open and put back in the Extensions drawer when you switch tabs or close it (Esc, the close
   button, or a click outside), so every control works as before.

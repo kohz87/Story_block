@@ -103,6 +103,37 @@ reply: `input` the prompt it injects, `output` what it asks the model to write b
 only what it injects itself; Story Block counts kept blocks under their owners' names. Quiet
 calls (summaries, planning, flavour) are not counted.
 
+`api.manage.preview()` (optional, v0.9.18) → `[{ label, text }]` (one `{ label, text }`,
+`{ parts: [{ label, text }] }`, a plain string, or an object of named texts such as
+`{ injection, capture }`, each a part named for its key, are read too; extra fields are
+ignored): the exact text the extension adds to the next ordinary reply's prompt, as it
+would be sent (macros filled in), one part per thing it injects (a note, a rules block, a kept
+block's state). Story Suite's overlay lists every extension that offers it under **What's
+sent**, read only when the reader opens its fold (so it may build the text then, but must
+return it synchronously, never a promise), with each part's size and a Copy button. An empty
+`text` means nothing is sent right now. It must not change anything: no rolls kept, no state
+written, no model call. Story Block's own is `[{ label: 'Story Blocks', text: <its context
+section> }]`.
+
+```js
+manage: {
+    tokens: () => ({ input: 420, output: 0, parts: [{ label: 'Director note', input: 420, output: 0 }] }),
+    preview: () => [{ label: 'Director note', text: buildNoteForNextReply() }],
+},
+```
+
+`api.manage.pending()` is **reserved** (not built yet): a later shared strip at the top of the
+sidebar, *The next reply will tell…*, would list what each extension has queued for the next
+reply to narrate (a trade, an offer taken on or turned down, a quest given up), each with
+**Undo**. The intended shape is `[{ id, text, undo() }]`: `text` one plain line (*Ren sells the
+carcass to the apothecary for 3 silver*), `undo` taking that choice back before the reply. Do
+not use the name for anything else.
+
+Tabs registered with `registerTab({ id, label, icon, short, … })` may pass `short` (v0.9.18), the
+rail's label when the full one is long (*Present NPCs* → *Cast*); without it a long label is
+cut to its first word. Give each tab its own icon: two tabs with the same one are hard to tell
+apart in the rail.
+
 **One look for the four settings panels**, NPC State Delta's. `src/suite.css` (identical in all
 four, loaded once as `<link id="story-suite-css">`) styles the shared parts:
 

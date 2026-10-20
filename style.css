@@ -742,6 +742,15 @@
     display: none;
 }
 
+/* (0.9.18) A short list at All: every item under its section's title, no row per section. */
+.story-block-tree-browser.is-short .story-block-tree-group.is-descendant {
+    display: contents;
+}
+
+.story-block-tree-browser.is-short .story-block-tree-children {
+    display: none;
+}
+
 .story-block-tree-group-title,
 .story-block-tree-results-summary,
 .story-block-tree-items .story-block-empty {
@@ -2977,14 +2986,30 @@ button.story-block-strip:hover {
 }
 
 /* The quiet second line: tag · kind · format · cost, all one size, no pills. */
+/* (0.9.18) One quiet line: the tag gives way first (cut with an ellipsis, whole in its title),
+   the cost never wraps onto a line of its own. */
 .story-block-settings .story-block-row-meta {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: baseline;
     gap: 0.1rem 0.35rem;
     font-size: 0.8em;
     opacity: 0.7;
     min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.story-block-settings .story-block-row-meta > * {
+    flex: none;
+}
+
+.story-block-settings .story-block-row-meta > .story-block-row-tag,
+.story-block-settings .story-block-row-meta > .story-block-badge-format {
+    flex: 0 1 auto;
+    min-width: 2.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .story-block-settings .story-block-row-tag {
@@ -2994,7 +3019,7 @@ button.story-block-strip:hover {
     color: inherit;
     font-family: var(--monoFontFamily, monospace);
     font-size: 1em;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
 }
 
 .story-block-settings .story-block-badge,
@@ -3684,4 +3709,80 @@ button.story-block-strip:hover {
         border-radius: 0;
         padding-top: env(safe-area-inset-top, 0px);
     }
+}
+
+/* (0.9.18) Rarity: a note's rarity word tints the name. Mid-tone colours read on light and dark
+   themes; other extensions may use the same classes (story-block-rarity is-rare …) and
+   variables. */
+:root {
+    --sb-rarity-common: #9a9a9a;
+    --sb-rarity-uncommon: #4fa65a;
+    --sb-rarity-rare: #4a8fe0;
+    --sb-rarity-epic: #a35ee0;
+    --sb-rarity-legendary: #d9a01a;
+}
+
+.story-block-rarity.is-common { color: var(--sb-rarity-common); }
+.story-block-rarity.is-uncommon { color: var(--sb-rarity-uncommon); }
+.story-block-rarity.is-rare { color: var(--sb-rarity-rare); }
+.story-block-rarity.is-epic { color: var(--sb-rarity-epic); }
+.story-block-rarity.is-legendary { color: var(--sb-rarity-legendary); font-weight: 600; }
+
+/* (0.9.18) Found this turn: the latest reply's finds, each with Leave. */
+.story-block-found {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    margin: 0 0.7rem 0.5rem;
+}
+
+.story-block-found-label {
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+.story-block-found-chip {
+    display: inline-flex;
+    gap: 0.3rem;
+    align-items: center;
+    padding: 0.1rem 0.15rem 0.1rem 0.5rem;
+    border: 1px solid var(--sb-border, rgba(127, 127, 127, .28));
+    border-left: 3px solid var(--sb-added, #5fb36b);
+    border-radius: 999px;
+    background: var(--sb-row-bg, rgba(127, 127, 127, .07));
+    font-size: 0.85em;
+}
+
+.story-block-found-chip.story-block-rarity { border-left-color: currentColor; }
+.story-block-found-chip .story-block-found-name { color: var(--SmartThemeBodyColor, inherit); }
+
+.story-block-found-chip .menu_button.story-block-found-leave {
+    min-height: 1.8rem;
+    margin: 0;
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.85em;
+}
+
+/* (0.9.18) What's sent: the prompt text as sent, read-only. */
+.story-block-preview { display: flex; flex-direction: column; gap: 0.5rem; }
+.story-block-preview-bar { display: flex; justify-content: flex-end; }
+.story-block-preview-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.story-block-preview-size { font-size: 0.85em; opacity: 0.7; }
+.story-block-preview-head .menu_button { margin: 0 0 0 auto; padding: 0.15rem 0.6rem; }
+
+.story-block-preview-text {
+    max-height: 22rem;
+    margin: 0.3rem 0 0;
+    padding: 0.5rem 0.6rem;
+    overflow: auto;
+    border: 1px solid var(--sb-border, rgba(127, 127, 127, .28));
+    border-radius: 6px;
+    background: rgba(127, 127, 127, .08);
+    font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.8em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }

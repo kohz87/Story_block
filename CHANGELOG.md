@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.18
+
+- **See exactly what is sent.** Story Block's settings end with a **What's sent** fold. It shows the context the next reply gets: the rules, each block's section with its current state, and the layout to write back. It shows the size and has a **Copy** button, and it is read when you open it. In Story Suite's overlay, a new **What's sent** section does the same for every extension that offers it, through a new optional `api.manage.preview()` (documented in docs/STORY_SUITE.md). Story Block offers its own; the others can add theirs.
+- **Leave a find behind.** When the latest reply adds something to a list (a new row, or more of one), the Inventory shows it above the tree as a chip: *Found this turn: Brood-Mother Skull ×1 [Leave]*. It is kept unless you press **Leave**, which takes that gain back out of that reply's copy, so a swipe or a deleted reply still rolls it back. Nothing is shown when the reply found nothing.
+- **Rarity colours.** A rarity word in a note tints the item's name: *common* grey, *uncommon* green, *rare* blue, *epic* purple, *legendary* gold. The classes (`story-block-rarity is-rare`…) and colours (`--sb-rarity-rare`…) are there for other extensions to use too.
+- **A short list opens up.** An Inventory of 20 rows or fewer now opens at *All* with every item under its section's title, with quantity and note on the row. Before, a narrow sidebar showed only a row per section, and the items sat one tap away.
+- **Tab labels fit.** A built-in block saved before short labels existed now shows its short label in the sidebar (*Items*, not *Invento…*). Tabs other extensions add may pass their own short label, and a long one without it shows its first word. **Settings → Display → Hide empty tabs** leaves out blocks with nothing in them yet.
+- **The Blocks list in settings is one line per block again.** The tag, kind, format and cost no longer wrap. A long tag is cut with an ellipsis, and shown whole on hover.
+
 ## 0.9.17
 
 - **Every reply holds the whole state.** In 0.9.16 a reply that changed nothing in the Inventory carried no copy, so after a quiet stretch the state lived only in an older reply, and deleting that reply lost it. The same happened when the model simply left a block out. Now Story Block writes each of your stateful blocks into every new reply, as they stood before it, whenever the reply does not write them itself. Every reply stands alone: hide or delete older messages and nothing is lost. The model writes nothing more, and old copies are kept out of what it is sent, so this costs no tokens. Blocks another extension keeps (RPG Battle's Party) are left to that extension. A block the model wrote but cut off or garbled is still warned about and left for you to fix.

@@ -118,7 +118,7 @@ test('settings: the panel in the suite\'s shared look, and suite.css linked once
     assert.ok(content.querySelector('.story-suite-quickbar #story_block_status'), 'the editor\'s status line sits in the quickbar');
     assert.ok(content.querySelector('.story-suite-manage .menu_button'));
     const folds = content.querySelectorAll('.story-suite-folds > details.story-suite-fold');
-    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'money', 'suite', 'blocks']);
+    assert.deepEqual(folds.map(node => node.dataset.fold), ['display', 'money', 'suite', 'blocks', 'sent']);
     for (const fold of folds) {
         assert.deepEqual(fold.children.map(node => node.tagName), ['SUMMARY', 'DIV']);
         assert.deepEqual(fold.children[0].children.map(node => node.tagName), ['B', 'SMALL']);
@@ -291,6 +291,30 @@ test('the card leaves chatter out the same way', async () => {
         assert.deepEqual(cardTabs(), ['block:notes', 'block:inner-chatter']);
     } finally {
         globalThis.StorySuite.withdraw('npc-state-delta');
+        await settle();
+    }
+});
+
+test('rail labels: a built-in block saved without one gets its template\'s, a plugin tab its own or its first word; empty tabs may hide (0.9.18)', async () => {
+    const { short: _short, ...inventory } = { ...templateById('inventory'), enabled: true };
+    openChat('sidebar', { blocks: [notes, inventory] });
+    await settle();
+    const shortOf = id => doc.querySelector(`#story_block_sidebar [data-tab-id="${id}"] .story-block-sidebar-tab-short`)?.textContent;
+    assert.equal(shortOf('block:inventory'), 'Items', 'not "Inventory" cut short');
+    const off = [sb.registerTab({ id: 'cast', label: 'Present NPCs', icon: '🎭', short: 'Cast', render() {} }), sb.registerTab({ id: 'dossiers', label: 'Dossier Archive', icon: '🗂', render() {} })];
+    try {
+        await settle();
+        assert.equal(shortOf('ext:cast'), 'Cast');
+        assert.equal(shortOf('ext:dossiers'), 'Dossier');
+        assert.ok(sidebarTabs().includes('block:inventory'), 'an empty block keeps its tab by default');
+        ctx.extensionSettings.storyBlock.hideEmptyTabs = true;
+        sb.refresh();
+        await settle();
+        assert.ok(!sidebarTabs().includes('block:inventory'), 'and hides when asked');
+        assert.ok(sidebarTabs().includes('block:notes'));
+    } finally {
+        off.forEach(undo => undo?.());
+        ctx.extensionSettings.storyBlock.hideEmptyTabs = false;
         await settle();
     }
 });
