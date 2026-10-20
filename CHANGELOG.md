@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.25
+
+- **Change lines inside the Inventory no longer wipe it.** When the model wrote its changes inside `<Inventory>` itself instead of `<Inventory_Changes>`, e.g. `+ Even Trophy | 2` / `- Minor Healing Draught | 1`, Story Block took those lines as the whole Inventory. Every other row, the Coin Pouch included, vanished from that reply, and RPG Battle's Trade showed *Purse: 0 copper*. Now a list block whose body has any `+`, `~` or `=` line is read as changes to the state before the reply, whether the block is changes-only or rewritten whole. The rows it doesn't mention stay, a plain row beside them reads as `~`, and a list of `- ` bullets alone is still a list. A change naming no row is reported as before. The change rules also say not to write these lines inside the block itself, about 13 tokens in the fixed part.
+
 ## 0.9.24
 
 - **The "Changed this turn" row stays one line until you open it.** Since 0.9.22 the Inventory's finds sat in that row as chips, so before you opened it they already filled the top of the list, and on a narrow sidebar they broke apart ("Leav e", "Cellar Rat Tail ×6" over two lines). Folded, the row now reads *Changed this turn · 8   5 found*; open it and the chips are there, with Leave, above the list of changes. A chip never breaks a word: a long name ends in "…" (the full name on hover), Leave stays one word, and chips wrap as whole chips.

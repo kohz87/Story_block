@@ -606,7 +606,24 @@ export function changeRules(def) {
         `"- ${first} | ${second}" lost, used or given away (no ${second.toLowerCase()}: the whole row), "~ ${first} | ${second} | ${third}" a row that now reads differently (equipped, a new ${third.toLowerCase()}, a purse's new total). ` +
         'Write a [Section] header line before new rows to say where they go. Use each row\'s name exactly as the current state spells it. ' +
         `Every row you do not mention stays exactly as it is; numbers and tags in a ${third.toLowerCase()} (heal 20, uncommon · ATK +4) are rules: copy them exactly when you write one. ` +
+        `Never write these lines inside <${def?.tag || 'the block'}> itself. ` +
         'Never put "|" inside a cell (write "/" instead).';
+}
+
+/**
+ * (0.9.25) Whether a list block's body was written as change lines rather than as the list: at
+ * least one row line opens with "+ ", "~ " or "= " (a full list never has one). A list made only
+ * of "- " bullets stays a list. Section headers, empty marks and table rules don't count.
+ */
+export function isChangeBody(body) {
+    let signed = false;
+    for (const raw of String(body ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+        const line = raw.trim();
+        if (!line || TABLE_RULE.test(line) || EMPTY_LINE.test(line.replace(LIST_MARKER, ''))) continue;
+        if (isHeaderLine(line) && splitRow(line.slice(1, -1)).length < 3) continue;
+        if (/^[+~=]\s/.test(line)) signed = true;
+    }
+    return signed;
 }
 
 export function changeSkeleton(def) {

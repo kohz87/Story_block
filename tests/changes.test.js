@@ -137,3 +137,39 @@ test('every reply holds the whole state: a block it does not write is carried in
     // Nothing before it: nothing to carry.
     assert.equal(carryStates(quiet, [inventory], [{ is_user: true, mes: 'hi' }, { is_user: false, mes: quiet }], 1), quiet);
 });
+
+test('change lines written inside the block itself are applied, never taken as the whole list (0.9.25)', async () => {
+    const { isChangeBody } = await import('../src/formats/rows.js');
+    const before = reply('The cellar.', `<Inventory>\n${BODY}\n</Inventory>`);
+    const body = '+ Even Trophy | 2\n+ Cellar Rat Tail | 6 | material\n- Minor Healing Draught | 1';
+    const text = `The rats are dead.\n\n${envelope(`<Inventory>\n${body}\n</Inventory>`)}`;
+    assert.equal(isChangeBody(body), true);
+    for (const def of [inventory, { ...inventory, updates: 'full' }]) {
+        const chat = [before, { is_user: true, mes: 'loot' }, { is_user: false, mes: text }];
+        const { text: out, results } = applyReplyChanges(text, [def], chat, 2);
+        const kept = latestBlockInText(out, def).body;
+        // Every old row is still there; the signed lines changed or added theirs.
+        for (const row of ['Coin Pouch | 1 | 6 Silver, 8 Copper', 'Short Sword | 1 | Equipped · Common · ATK +4 · Notched near the guard', 'Rope | 1 | 30 ft, hemp', 'Minor Healing Draught | 3 | heal 20', 'Even Trophy | 2', 'Cellar Rat Tail | 6 | material']) assert.ok(kept.includes(row), `${def.updates}: ${row}`);
+        assert.doesNotMatch(kept, /^[+~-] /m);
+        assert.equal(results[0].inBlock, true);
+        // The same reply worked again (a render, an edit) and its swipe: the same text.
+        assert.equal(applyReplyChanges(out, [def], [...chat.slice(0, 2), { is_user: false, mes: out }], 2).text, out);
+        assert.equal(applyReplyChanges(text, [def], [...chat.slice(0, 2), { is_user: false, mes: out }], 2).text, out);
+    }
+    // A list of "- " bullets is still a list; plain rows are a full rewrite, as before.
+    assert.equal(isChangeBody('- Rope | 1 | coiled\n- Torch | 2'), false);
+    const bullets = `Packed.\n\n${envelope('<Inventory>\n- Rope | 1 | coiled\n- Torch | 2\n</Inventory>')}`;
+    assert.equal(applyReplyChanges(bullets, [{ ...inventory, updates: 'full' }], [before, { is_user: true }, { is_user: false, mes: bullets }], 2).text, bullets);
+    // Mixed: plain rows read as "~" beside the signed ones.
+    assert.equal(isChangeBody('Rope | 2 | frayed\n+ Torch | 1'), true);
+    const mixed = `Mixed.\n\n${envelope('<Inventory>\nRope | 2 | frayed\n+ Torch | 1\n</Inventory>')}`;
+    const merged = latestBlockInText(applyReplyChanges(mixed, [inventory], [before, { is_user: true }, { is_user: false, mes: mixed }], 2).text, inventory).body;
+    assert.match(merged, /^Rope \| 2 \| frayed$/m);
+    assert.match(merged, /^Torch \| 1$/m);
+    assert.match(merged, /Coin Pouch/);
+});
+
+test('the change rules say never to write change lines inside the block itself (0.9.25)', () => {
+    const context = buildContext([{ def: inventory, state: parse(BODY, inventory).state }]);
+    assert.match(context, /Never write these lines inside <Inventory> itself\./);
+});
