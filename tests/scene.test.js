@@ -403,4 +403,11 @@ test('an aside saying the cast is empty does not hand the board back to plain te
     assert.equal(scene.phase, 'Midpoint Tension');
     // Other unplaced lines still send it back.
     assert.equal(parseScene(text.replace('*(No NPCs present', '*(The wolves circle the fold')), null);
+    // (0.9.14) A word or two between "no" and who.
+    for (const aside of ['*(No human NPCs present; EG1 swarm of granary rats in active hostility)*', '*(No other named characters here)*', '*(No hostile people in sight)*']) {
+        assert.ok(parseScene(text.replace('*(No NPCs present in direct engagement; wolves engaged)*', aside)), aside);
+    }
+    // Still not just any line starting with "no".
+    assert.equal(parseScene(text.replace('*(No NPCs present in direct engagement; wolves engaged)*', '*(Nobody moves until the rats break; the ladder creaks under the weight)*')).people.length, 0);
+    assert.equal(parseScene(text.replace('*(No NPCs present in direct engagement; wolves engaged)*', '*(Not a sound from the loft above the cellar)*')), null);
 });

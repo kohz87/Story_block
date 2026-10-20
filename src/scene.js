@@ -65,7 +65,9 @@ const BULLET = /^([*\-•+])\s+(.*)$/;
 const SEPARATOR = /^(?:[-*_=]\s*){3,}$/;
 const NONE = /^(?:none|nobody|no one|nothing|n\/a|-|—|–)\.?$/i;
 // A line saying a section has nobody or nothing in it, however it goes on.
-const EMPTY_ASIDE = /^(?:none|nobody|no[\s-]one|nothing|no\s+(?:npcs?|other|others|one\s+else|people|characters?|named)\b)/i;
+// (0.9.14) A word or two may stand between "no" and who: "No human NPCs present", "No other
+// named characters", "No hostile people".
+const EMPTY_ASIDE = /^(?:none|nobody|no[\s-]one|nothing|no\s+(?:[\p{L}-]+\s+){0,2}?(?:npcs?|other|others|one\s+else|people|persons?|humans?|characters?|named)\b)/iu;
 
 // Values a model echoes back from the template unfilled. Taken from the template's own
 // layout (and the compact layout Megumin switches to) so the two cannot drift apart; a

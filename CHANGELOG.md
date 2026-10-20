@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.14
+
+- **"No human NPCs present" no longer breaks the World State card.** An aside under *NPCs Present* saying nobody is there, such as *(No NPCs present; wolves engaged)*, is skipped. Since one unreadable line sends the whole World State back to plain text, an aside with a word between "No" and who (*(No human NPCs present; EG1 swarm of granary rats in active hostility)*) turned the card into a wall of text. Now a word or two may stand in between (*No human NPCs*, *No other named characters*, *No hostile people*), and *persons* and *humans* count too. Other lines that are not part of the layout still send it back, as before.
+
 ## 0.9.13
 
 - **Hidden replies still hold the state.** A reply hidden from the model (SillyTavern's hide, or a memory extension such as Summarybook hiding old messages to save context) was skipped when Story Block looked back for the newest Inventory, Party or World State. If the newest replies were hidden, it fell back on an older copy, or on none at all. Hiding now only changes what the model sees: a hidden reply's blocks are still read. A copy in your own message never counts, hidden or not.
