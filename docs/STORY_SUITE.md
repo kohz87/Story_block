@@ -129,10 +129,19 @@ reply to narrate (a trade, an offer taken on or turned down, a quest given up), 
 carcass to the apothecary for 3 silver*), `undo` taking that choice back before the reply. Do
 not use the name for anything else.
 
-Tabs registered with `registerTab({ id, label, icon, short, … })` may pass `short` (v0.9.18), the
-rail's label when the full one is long (*Present NPCs* → *Cast*); without it a long label is
-cut to its first word. Give each tab its own icon: two tabs with the same one are hard to tell
-apart in the rail.
+Tabs registered with `registerTab({ id, label, icon, short, group, … })`:
+
+- `icon`: give each tab **its own**. Since v0.9.20 the tab row is always one line: when the
+  labels would not fit the sidebar's width it shows icons only (the label on hover, keyboard
+  focus and long-press), so the icon is what tells tabs apart. A tab whose icon an earlier tab
+  already uses (or that has none) shows a two-letter monogram of its label instead (*Present
+  NPCs* → **PN**), which works but reads worse than an icon of its own.
+- `short` (v0.9.18): the label under the icon when the full one is long (*Present NPCs* →
+  *Cast*); without it a long label is cut to its first word.
+- `group` (v0.9.20, optional): the extension the tab belongs to (*RPG Battle*). Story Block's
+  own tabs come first, then each group's together, a quiet divider before the next, so an
+  extension switched off leaves no gap. Without it the suite's own tab ids are recognised
+  (`rpg-…`, `story-director…`, `npc-state-delta…`), and any other id groups by its first word.
 
 **One look for the four settings panels**, NPC State Delta's. `src/suite.css` (identical in all
 four, loaded once as `<link id="story-suite-css">`) styles the shared parts:
