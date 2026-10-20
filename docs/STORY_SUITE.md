@@ -134,6 +134,14 @@ rail's label when the full one is long (*Present NPCs* → *Cast*); without it a
 cut to its first word. Give each tab its own icon: two tabs with the same one are hard to tell
 apart in the rail.
 
+Since v0.9.20 the sidebar's default **Rail** layout shows icons only, grouped by owner. A tab
+may pass `group` (the extension's display name); without it the suite's own tab ids are known
+(`rpg-…` RPG Battle, `story-director…` Story Director, `npc-state-delta…` NPC State Delta) and
+any other id is grouped by its first word. A kept block's tab is its `owner`'s. When a tab's
+icon is already taken (or it has none), the rail shows a two-letter monogram of its label
+instead, so pass a distinct icon: RPG Battle's Party and NPC State Delta's Present NPCs both use
+👥 today, and the second gets *PN*.
+
 **One look for the four settings panels**, NPC State Delta's. `src/suite.css` (identical in all
 four, loaded once as `<link id="story-suite-css">`) styles the shared parts:
 

@@ -48,6 +48,7 @@ function mountNow() {
         onPinnedChange: target.onPinnedChange,
         onSuite: target.onSuite,
         showSuite: target.showSuite === true,
+        layout: target.layout === 'rows' ? 'rows' : 'rail',
     });
     if (target.strip && target.messageElement) {
         mountStrip(target.messageElement, target.strip, { onOpen: tabId => openSidebar(tabId) });

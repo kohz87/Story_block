@@ -17,6 +17,12 @@
 // Tabs and panes follow the card's rules (card.js): the selected tab is kept per
 // uiKey, and a pane whose `key` is unchanged is not re-rendered, so its scroll
 // position and focus survive refreshes. Only `tab.render(pane)` writes a pane.
+//
+// (0.9.20) Two tab layouts. `rail` (the default): docked and drawer get a narrow column of
+// icon buttons on the sidebar's outer edge, grouped by the extension that owns them (Story
+// Block's own blocks first, a thin divider before each other extension), and the sheet gets
+// one sideways strip of the same icons; labels show on hover, focus and long-press. A
+// disabled extension's group simply goes. `rows`: the classic labelled tabs that wrap.
 
 import { button, el, plural, stop } from './dom.js';
 
@@ -136,7 +142,7 @@ function normalizeTabs(tabs) {
         const id = String(tab?.id ?? '').trim();
         if (!id || seen.has(id) || typeof tab?.render !== 'function') continue;
         seen.add(id);
-        out.push({ ...tab, id });
+        out.push({ ...tab, id, group: String(tab.group ?? '').trim().slice(0, 40) });
     }
     return out;
 }
@@ -146,6 +152,48 @@ const badgeOf = tab => {
     return Number.isFinite(count) && count > 0 ? count : 0;
 };
 const badgeText = count => (count > 99 ? '99+' : String(count));
+
+export const TAB_LAYOUTS = Object.freeze(['rail', 'rows']);
+const OWN_GROUP = 'Story Block';
+
+/**
+ * (0.9.20) The rail's order: tabs grouped by their `group` (the owning extension), groups in
+ * the order they first appear with Story Block's own first, tabs keeping their order within
+ * a group. Pure.
+ */
+export function groupTabs(tabs) {
+    const groups = new Map();
+    for (const tab of tabs ?? []) {
+        const group = tab.group || OWN_GROUP;
+        if (!groups.has(group)) groups.set(group, []);
+        groups.get(group).push(tab);
+    }
+    const names = [...groups.keys()].sort((a, b) => (a === OWN_GROUP ? -1 : b === OWN_GROUP ? 1 : 0));
+    return names.flatMap(name => groups.get(name));
+}
+
+/**
+ * (0.9.20) What each rail icon shows: the tab's own icon, or, when an earlier tab already
+ * uses that icon (or it has none), a one- or two-letter monogram of its short label, so no
+ * two icons on the rail look alike. Returns Map(id → { text, monogram }). Pure.
+ */
+export function railGlyphs(tabs) {
+    const used = new Set();
+    const out = new Map();
+    for (const tab of tabs ?? []) {
+        const icon = String(tab.icon ?? '').trim();
+        if (icon && !used.has(icon)) {
+            used.add(icon);
+            out.set(tab.id, { text: icon, monogram: false });
+            continue;
+        }
+        const words = String(tab.short || tab.label || tab.id).trim().split(/\s+/).filter(Boolean);
+        // Two words: their initials ("Present NPCs" → PN); one word: its first two letters ("Party" → Pa).
+        const text = words.length > 1 ? `${words[0][0]}${words[1][0]}`.toUpperCase() : `${(words[0] ?? '?').charAt(0).toUpperCase()}${(words[0] ?? '').charAt(1).toLowerCase()}`;
+        out.set(tab.id, { text, monogram: true });
+    }
+    return out;
+}
 
 // ---------------------------------------------------------------------------
 // DOM
@@ -187,7 +235,15 @@ function createUi() {
     tablist.setAttribute('role', 'tablist');
     tablist.setAttribute('aria-label', 'Blocks');
     const panel = el('div', 'story-block-sidebar-panel');
-    aside.append(grip, head, tablist, panel);
+    // (0.9.20) The tabs and the pane share one body: stacked (rows, sheet) or side by side (rail).
+    const body = el('div', 'story-block-sidebar-body');
+    body.append(tablist, panel);
+    // A tab's label and owner, shown beside the rail on hover, focus and long-press.
+    const hint = el('div', 'story-block-sidebar-hint');
+    hint.setAttribute('role', 'tooltip');
+    hint.id = 'story_block_sidebar_hint';
+    hint.style.display = 'none';
+    aside.append(grip, head, body, hint);
 
     const handle = el('button', CLASS.handle);
     handle.type = 'button';
@@ -205,8 +261,12 @@ function createUi() {
     d.body.appendChild(layer);
 
     const state = {
-        layer, aside, scrim, handle, grip, head, meta, suite, pin, close, tablist, panel, count,
+        layer, aside, scrim, handle, grip, head, meta, suite, pin, close, tablist, panel, count, body, hint,
         uiKey: null,
+        layout: 'rail',
+        hintTimer: null,
+        pressTimer: null,
+        pressed: false,
         mode: null,
         dockable: false,
         open: false,
@@ -241,6 +301,13 @@ function createUi() {
         applyOpenState();
     }));
     tablist.addEventListener('keydown', onTabKey);
+    tablist.addEventListener('pointerover', onTabHover);
+    tablist.addEventListener('pointerout', onTabLeave);
+    tablist.addEventListener('focusin', onTabHover);
+    tablist.addEventListener('focusout', onTabLeave);
+    tablist.addEventListener('pointerdown', onTabPress);
+    tablist.addEventListener('pointerup', onTabRelease);
+    tablist.addEventListener('pointercancel', onTabRelease);
     tablist.addEventListener('wheel', onTabWheel, { passive: false });
     tablist.addEventListener('scroll', markTabOverflow, { passive: true });
     aside.addEventListener('keydown', onTrapKey);
@@ -331,7 +398,14 @@ function createTab(id) {
     badge.setAttribute('aria-hidden', 'true');
     icon.append(glyph, badge);
     tab.append(icon, el('span', 'story-block-sidebar-tab-short'), el('span', 'story-block-sidebar-tab-full'));
-    tab.addEventListener('click', stop(() => selectTab(tab.dataset.tabId)));
+    tab.addEventListener('click', stop(() => {
+        // A long-press showed the label; it does not also switch tabs.
+        if (ui?.pressed) {
+            ui.pressed = false;
+            return;
+        }
+        selectTab(tab.dataset.tabId);
+    }));
     return tab;
 }
 
@@ -340,19 +414,23 @@ function setText(node, text) {
     if (node && node.textContent !== text) node.textContent = text;
 }
 
-function updateTab(tab, item) {
+function updateTab(tab, item, glyph = null) {
     const label = String(item.label ?? '').trim() || item.id;
     const short = String(item.short ?? '').trim() || label;
     const count = badgeOf(item);
     const icon = tab.querySelector('.story-block-sidebar-tab-glyph');
     const badge = tab.querySelector('.story-block-sidebar-badge');
-    setText(icon, String(item.icon ?? ''));
+    setText(icon, glyph ? glyph.text : String(item.icon ?? ''));
+    icon.classList.toggle('is-monogram', Boolean(glyph?.monogram));
+    setAttr(tab, 'data-group', item.group || OWN_GROUP);
     setText(tab.querySelector('.story-block-sidebar-tab-short'), short);
     setText(tab.querySelector('.story-block-sidebar-tab-full'), label);
     setText(badge, count ? badgeText(count) : '');
     badge.style.display = count ? '' : 'none';
     const aria = count ? `${label}, ${plural(count, 'change')} this turn` : label;
-    if (tab.title !== label) tab.title = label;
+    // The rail shows its own label beside the icon (the hint); a native tooltip would double it.
+    const title = ui?.layout === 'rail' ? '' : label;
+    if (tab.title !== title) tab.title = title;
     if (tab.getAttribute('aria-label') !== aria) tab.setAttribute('aria-label', aria);
 }
 
@@ -443,6 +521,7 @@ function selectTab(id, { focus = false } = {}) {
     if (!tab) return false;
     viewFor(ui.uiKey).selected = tab.dataset.tabId;
     applySelection();
+    if (!ui.pressed) hideHint();
     if (focus) focusQuietly(tab);
     return true;
 }
@@ -544,11 +623,87 @@ function onTabKey(event) {
     const tabs = ownTabs();
     const index = tabs.indexOf(event.target?.closest?.(`.${CLASS.tab}`) ?? null);
     if (index < 0) return;
-    const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 };
+    const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: tabs.length - 1 };
     if (!(event.key in keys)) return;
     event.preventDefault?.();
     const next = tabs[(keys[event.key] + tabs.length) % tabs.length];
+    // (0.9.20) On the rail the arrows only move along it; Enter or Space opens the tab.
+    if (ui.layout === 'rail') {
+        for (const tab of tabs) tab.setAttribute('tabindex', tab === next ? '0' : '-1');
+        focusQuietly(next);
+        return;
+    }
     selectTab(next.dataset.tabId, { focus: true });
+}
+
+// (0.9.20) The rail's label: the tab's name and, for another extension's tab, whose it is.
+function showHint(tab) {
+    if (!ui || ui.layout !== 'rail' || !tab) return;
+    const label = tab.querySelector('.story-block-sidebar-tab-full')?.textContent || tab.dataset.tabId;
+    const group = tab.dataset.group;
+    setText(ui.hint, group && group !== OWN_GROUP ? `${label} · ${group}` : label);
+    ui.hint.style.display = '';
+    tab.setAttribute('aria-describedby', ui.hint.id);
+    const asideRect = rectOf(ui.aside);
+    const tabRect = rectOf(tab);
+    if (!asideRect || !tabRect) return;
+    ui.hint.dataset.side = ui.mode === 'sheet' ? 'below' : 'beside';
+    if (ui.mode === 'sheet') {
+        ui.hint.style.left = `${Math.max(8, tabRect.left - asideRect.left)}px`;
+        ui.hint.style.top = `${tabRect.bottom - asideRect.top + 6}px`;
+        ui.hint.style.right = '';
+    } else {
+        ui.hint.style.right = `${asideRect.right - tabRect.left + 8}px`;
+        ui.hint.style.top = `${tabRect.top - asideRect.top + tabRect.height / 2}px`;
+        ui.hint.style.left = '';
+    }
+}
+
+function hideHint() {
+    if (!ui) return;
+    ui.hint.style.display = 'none';
+    for (const tab of ownTabs()) tab.removeAttribute('aria-describedby');
+}
+
+function onTabHover(event) {
+    const tab = event.target?.closest?.(`.${CLASS.tab}`);
+    if (!tab || (event.type === 'pointerover' && event.pointerType !== 'mouse')) return;
+    // Focus shows the label only when it came from the keyboard: opening the drawer or sheet
+    // focuses a tab too, and a label left hanging there would cover the pane.
+    if (event.type === 'focusin') {
+        try {
+            if (!tab.matches(':focus-visible')) return;
+        } catch { /* no :focus-visible: show it */ }
+    }
+    clearTimeout(ui.hintTimer);
+    showHint(tab);
+}
+
+function onTabLeave(event) {
+    if (event.type === 'pointerout' && event.pointerType !== 'mouse') return;
+    clearTimeout(ui.hintTimer);
+    ui.hintTimer = setTimeout(hideHint, 80);
+}
+
+// A touch held on an icon shows its label instead of opening it.
+function onTabPress(event) {
+    const tab = event.target?.closest?.(`.${CLASS.tab}`);
+    if (!tab || event.pointerType === 'mouse' || ui.layout !== 'rail') return;
+    clearTimeout(ui.pressTimer);
+    ui.pressed = false;
+    ui.pressTimer = setTimeout(() => {
+        ui.pressed = true;
+        showHint(tab);
+    }, 450);
+}
+
+function onTabRelease() {
+    if (!ui) return;
+    clearTimeout(ui.pressTimer);
+    if (ui.pressed) {
+        clearTimeout(ui.hintTimer);
+        ui.hintTimer = setTimeout(hideHint, 1400);
+    }
 }
 
 // A mouse wheel scrolls the sheet's sideways pills; a trackpad's own sideways swipe is left alone.
@@ -706,8 +861,9 @@ function onGripCancel() {
  * Mount (or update) the one sidebar. Returns the aside, or null when `tabs` is empty
  * (the sidebar and its edge handle are then removed).
  */
-export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true, onPinnedChange, onSuite, showSuite = false } = {}) {
-    const list = normalizeTabs(tabs);
+export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true, onPinnedChange, onSuite, showSuite = false, layout = 'rail' } = {}) {
+    const rail = layout !== 'rows';
+    const list = rail ? groupTabs(normalizeTabs(tabs)) : normalizeTabs(tabs);
     // No tabs, or no document body to hang a panel on (headless hosts and test doubles).
     if (!list.length || typeof doc()?.body?.appendChild !== 'function') {
         unmountSidebar();
@@ -723,6 +879,9 @@ export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true
         ui.uiKey = key;
         ui.aside.dataset.uiKey = key;
     }
+    ui.layout = rail ? 'rail' : 'rows';
+    ui.aside.dataset.tabLayout = ui.layout;
+    if (!rail) hideHint();
     ui.onPinnedChange = typeof onPinnedChange === 'function' ? onPinnedChange : null;
     ui.pinned = Boolean(pinned);
     ui.onSuite = typeof onSuite === 'function' ? onSuite : null;
@@ -740,9 +899,15 @@ export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true
     const paneById = new Map(ownPanes().map(node => [node.dataset.tabId, node]));
     const ordered = [];
     let total = 0;
+    const glyphs = rail ? railGlyphs(list) : null;
+    let previousGroup = null;
     for (const tab of list) {
         const tabButton = tabById.get(tab.id) ?? createTab(tab.id);
-        updateTab(tabButton, tab);
+        updateTab(tabButton, tab, glyphs?.get(tab.id) ?? null);
+        // A divider before each extension's first tab (never before the very first tab).
+        const group = tab.group || OWN_GROUP;
+        setAttr(tabButton, 'data-group-start', rail && previousGroup !== null && group !== previousGroup ? 'true' : null);
+        previousGroup = group;
         ordered.push(tabButton);
         total += badgeOf(tab);
         let pane = paneById.get(tab.id);

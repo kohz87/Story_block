@@ -36,7 +36,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.19';
+const VERSION = '0.9.20';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -100,7 +100,7 @@ function isBackgroundGeneration(type, isDryRun = false) {
 
 function settings(ctx = context()) {
     const store = ctx?.extensionSettings;
-    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, hideEmptyTabs: false, sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [], currency: structuredClone(DEFAULT_CURRENCY) };
+    if (!store || typeof store !== 'object') return { blocks: defaultBlocks(), compatMarkup: true, display: 'sidebar', hideOffscreen: true, showTurnStrip: false, hideEmptyTabs: false, tabLayout: 'rail', sidebarPinned: true, sourceOfTruth: normalizeSourceChoices(null), dismissedTemplates: [], currency: structuredClone(DEFAULT_CURRENCY) };
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
@@ -113,6 +113,8 @@ function settings(ctx = context()) {
     own.showTurnStrip = own.showTurnStrip === true;
     // (0.9.18) The sidebar lists empty blocks too, unless the reader hides them.
     own.hideEmptyTabs = own.hideEmptyTabs === true;
+    // (0.9.20) Tabs as a vertical rail of icons (the default) or the classic labelled rows.
+    own.tabLayout = own.tabLayout === 'rows' ? 'rows' : 'rail';
     own.sidebarPinned = own.sidebarPinned !== false;
     // Off-screen on the scene board is behind the scenes, so it starts hidden.
     own.hideOffscreen = own.hideOffscreen !== false;
@@ -746,6 +748,19 @@ function blockTab(view, uiKey) {
     };
 }
 
+// (0.9.20) Whose a plugin tab is, for the rail's groups: what it registered as `group`, else
+// the suite's own extensions by their tab ids, else the id's first word.
+const KNOWN_TAB_OWNERS = [['rpg-', 'RPG Battle'], ['story-director', 'Story Director'], ['npc-state-delta', 'NPC State Delta']];
+function tabGroup(tab) {
+    const given = String(tab?.group ?? '').trim();
+    if (given) return given;
+    const id = String(tab?.id ?? '');
+    const known = KNOWN_TAB_OWNERS.find(([prefix]) => id.startsWith(prefix));
+    if (known) return known[1];
+    const word = id.split(/[-_:]/)[0] || id;
+    return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 function buildCardTabs() {
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) return null;
@@ -768,7 +783,8 @@ function buildCardTabs() {
         const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
         // (0.9.18) An empty block keeps its tab unless the reader hides empty tabs.
         if (!view || (view.empty && own.hideEmptyTabs)) continue;
-        const tab = blockTab(view, uiKey);
+        // (0.9.20) The rail groups tabs by owner: a kept block is its extension's.
+        const tab = { ...blockTab(view, uiKey), group: def.kept ? def.owner : '' };
         tabs.push(tab);
         views.push({ view, tabId: tab.id });
     }
@@ -780,6 +796,7 @@ function buildCardTabs() {
                 label: tab.label,
                 short: tab.short || shortLabel(tab.label),
                 icon: tab.icon,
+                group: tabGroup(tab),
                 order: tab.order,
                 // A plugin may say when its pane is unchanged (key) and what to count (badge).
                 key: typeof tab.key === 'function' ? String(tab.key({ messageId, message }) ?? '') : undefined,
@@ -797,6 +814,7 @@ function buildCardTabs() {
         uiKey,
         meta: latestIndex >= 0 ? `reply #${latestIndex}` : '',
         pinned: own.sidebarPinned,
+        layout: own.tabLayout,
         onPinnedChange: value => {
             settings().sidebarPinned = Boolean(value);
             saveSettings();
@@ -1027,6 +1045,13 @@ function addRuntimeControls(documentRef, root) {
                 <option value="card">Card under the latest reply</option>
             </select>
         </label>
+        <label class="story-suite-row" for="story_block_tab_layout">
+            <span><b>Tab layout</b><small>Rail: a column of icons on the sidebar's edge, grouped by extension (a strip on phones). Rows: labelled tabs that wrap. Sidebar only.</small></span>
+            <select id="story_block_tab_layout" class="text_pole">
+                <option value="rail">Rail (vertical)</option>
+                <option value="rows">Rows (classic)</option>
+            </select>
+        </label>
         <label class="story-suite-row" for="story_block_strip">
             <span><b>"This turn" strip under the reply</b><small>One line listing what the reply changed; tapping it opens the sidebar. Sidebar only.</small></span>
             <input id="story_block_strip" type="checkbox">
@@ -1048,10 +1073,12 @@ function addRuntimeControls(documentRef, root) {
     const compat = row.querySelector('#story_block_compat');
     const offscreen = row.querySelector('#story_block_offscreen');
     const emptyTabs = row.querySelector('#story_block_empty_tabs');
+    const tabLayout = row.querySelector('#story_block_tab_layout');
     // The strip only exists next to the sidebar; the compatible markup only on the card.
     const syncEnabled = () => {
         const card = settings().display === 'card';
         if (strip) strip.disabled = card;
+        if (tabLayout) tabLayout.disabled = card;
         if (compat) compat.disabled = !card;
     };
     const bind = (input, read, write) => {
@@ -1069,6 +1096,7 @@ function addRuntimeControls(documentRef, root) {
     bind(strip, input => { input.checked = settings().showTurnStrip; }, input => { settings().showTurnStrip = Boolean(input.checked); });
     bind(offscreen, input => { input.checked = settings().hideOffscreen; }, input => { settings().hideOffscreen = Boolean(input.checked); });
     bind(emptyTabs, input => { input.checked = settings().hideEmptyTabs; }, input => { settings().hideEmptyTabs = Boolean(input.checked); });
+    bind(tabLayout, input => { input.value = settings().tabLayout; }, input => { settings().tabLayout = input.value === 'rows' ? 'rows' : 'rail'; });
     bind(compat, input => { input.checked = settings().compatMarkup; }, input => { settings().compatMarkup = Boolean(input.checked); });
     syncEnabled();
     suiteSection = documentRef.createElement('div');

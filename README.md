@@ -1,4 +1,4 @@
-# Story Block v0.9.19
+# Story Block v0.9.20
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -323,6 +323,15 @@ them, so other extensions reading the raw reply never find narration on an envel
 **"This turn" strip** (off by default) adds one line under the latest reply listing what it
 changed; tap it to open the sidebar on that block.
 
+**Tab layout** (v0.9.20): **Rail** (the default) puts one column of icons on the sidebar's
+outer edge, grouped by the extension that owns them: your own blocks first, then each
+extension's tabs together behind a thin divider. Hover or focus an icon (long-press on a phone)
+for its name and owner (*Quests · Story Director*). The arrow keys move along the rail and Enter
+opens a tab. Switching an extension off removes its group and leaves the others where they
+were. Two tabs with the same icon are told apart: the second shows a monogram of its name. On a
+phone the rail is one sideways strip of the same icons at the top of the sheet. **Rows** brings
+back the labelled tabs that wrap.
+
 **Hide empty tabs** (v0.9.18, off by default) leaves a block with nothing in it yet out of the
 sidebar until a reply writes it. Built-in blocks show short labels in the rail (*Items*,
 *World*), and tabs other extensions add may give their own.
@@ -427,6 +436,7 @@ sb.registerTab({
     isAvailable: ({ messageId }) => true,
     key: () => 'unchanged-until-this-changes',   // optional: skip re-rendering
     badge: () => 2,                              // optional: count on the tab
+    group: 'My Extension',                       // optional (v0.9.20): the rail groups tabs by owner
 });
 sb.getBlock('World_State');                  // { text, state, messageIndex } of the newest valid copy
 sb.blockForGeneration('World_State', 'swipe'); // the copy the next reply will be shown

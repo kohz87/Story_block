@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.20
+
+- **The tabs become a rail.** Ten labelled tabs wrapped into two rows, with labels cut short and two extensions using the same 👥 icon. They are now a column of icons on the sidebar's outer edge, grouped by owner:
+  - your own blocks come first, then each extension's tabs together behind a thin divider;
+  - hovering or focusing an icon, or long-pressing it on a phone, shows its name and owner (*Quests · Story Director*);
+  - the arrow keys move along the rail and Enter opens a tab;
+  - switching an extension off simply removes its group;
+  - a second tab with the same icon shows a monogram of its name.
+
+  On a phone the rail is one sideways strip of the same icons at the top of the sheet. **Settings → Display → Tab layout** brings back the labelled rows. Extensions can name their group with `registerTab({ group })`.
+
 ## 0.9.19
 
 Cleanup. Nothing you see changes, except a token estimate that is now right.

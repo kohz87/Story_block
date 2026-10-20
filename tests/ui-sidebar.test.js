@@ -288,7 +288,8 @@ test('drawer: a swipe right closes it, a short or mouse drag does not', () => {
 
 test('drawer: arrow keys move between tabs; Tab is trapped inside while open', () => {
     reset(1024, { chatRight: 900 });
-    mountSidebar([counted('a', 'A'), counted('b', 'B'), counted('c', 'C')], { uiKey: freshKey() });
+    // The classic rows open a tab as the arrows reach it (the rail only moves focus: below).
+    mountSidebar([counted('a', 'A'), counted('b', 'B'), counted('c', 'C')], { uiKey: freshKey(), layout: 'rows' });
     openSidebar();
     const tabs = tabButtons();
     tabs[0].dispatch('keydown', { key: 'ArrowRight' });
@@ -574,4 +575,61 @@ test('many tabs: the selected one is scrolled into the strip, a wheel scrolls th
     strip.dispatch('scroll');
     assert.equal(strip.getAttribute('data-overflow'), null);
     assert.ok(!strip.dispatch('wheel', { deltaY: 120, deltaX: 0 }).defaultPrevented);
+});
+
+// (0.9.20) The rail: icons grouped by owner, a divider per extension, distinct icons, labels
+// beside it, arrows that only move along it.
+const owned = (id, label, group, { icon = '🎒', badge = 0 } = {}) => ({ ...counted(id, label, { badge }), icon, group });
+
+test('rail: tabs grouped by owner, Story Block first, a divider before each extension; rows keep their order', async () => {
+    const { groupTabs } = await import('../src/ui/sidebar.js');
+    reset(1440);
+    const list = [
+        owned('party', 'Party', 'RPG Battle', { icon: '👥' }),
+        owned('items', 'Inventory', '', { icon: '🎒' }),
+        owned('quests', 'Quests', 'Story Director', { icon: '📜', badge: 2 }),
+        owned('battle', 'Battle', 'RPG Battle', { icon: '⚔️' }),
+        owned('world', 'World State', '', { icon: '🌍' }),
+        owned('cast', 'Present NPCs', 'NPC State Delta', { icon: '👥' }),
+    ];
+    assert.deepEqual(groupTabs(list).map(tab => tab.id), ['items', 'world', 'party', 'battle', 'quests', 'cast']);
+    const aside = mountSidebar(list, { uiKey: freshKey() });
+    assert.equal(aside.dataset.tabLayout, 'rail');
+    assert.deepEqual(tabButtons().map(tab => tab.dataset.tabId), ['items', 'world', 'party', 'battle', 'quests', 'cast']);
+    assert.deepEqual(tabButtons().filter(tab => tab.getAttribute('data-group-start') === 'true').map(tab => tab.dataset.tabId), ['party', 'quests', 'cast']);
+    assert.equal(tabButtons()[4].querySelector('.story-block-sidebar-badge').textContent, '2');
+    // Two tabs with 👥: the second shows a monogram of its label.
+    const glyph = id => sidebar().querySelector(`.story-block-sidebar-tab[data-tab-id="${id}"] .story-block-sidebar-tab-glyph`);
+    assert.equal(glyph('party').textContent, '👥');
+    assert.equal(glyph('cast').textContent, 'PN');
+    assert.ok(glyph('cast').classList.contains('is-monogram'));
+    // An extension switched off: its group goes, the others stay as they were.
+    mountSidebar(list.filter(tab => tab.group !== 'RPG Battle'), { uiKey: aside.dataset.uiKey });
+    assert.deepEqual(tabButtons().map(tab => tab.dataset.tabId), ['items', 'world', 'quests', 'cast']);
+    assert.deepEqual(tabButtons().filter(tab => tab.getAttribute('data-group-start') === 'true').map(tab => tab.dataset.tabId), ['quests', 'cast']);
+    assert.equal(glyph('cast').textContent, '👥', 'no clash left: its own icon');
+    // Rows: the classic order and labels, no dividers.
+    mountSidebar(list, { uiKey: freshKey(), layout: 'rows' });
+    assert.equal(sidebar().dataset.tabLayout, 'rows');
+    assert.deepEqual(tabButtons().map(tab => tab.dataset.tabId), ['party', 'items', 'quests', 'battle', 'world', 'cast']);
+    assert.equal(tabButtons().filter(tab => tab.getAttribute('data-group-start')).length, 0);
+});
+
+test('rail: arrows move focus along it, Enter opens; the label and owner show beside a focused icon', () => {
+    reset(1440);
+    mountSidebar([owned('items', 'Inventory', ''), owned('quests', 'Quests', 'Story Director', { icon: '📜' })], { uiKey: freshKey() });
+    const tabs = tabButtons();
+    tabs[0].click();
+    assert.deepEqual(activeIds(), ['items']);
+    tabs[0].dispatch('keydown', { key: 'ArrowDown' });
+    same(doc.activeElement, tabs[1]);
+    assert.deepEqual(activeIds(), ['items'], 'moving does not open');
+    assert.deepEqual(tabButtons().map(tab => tab.getAttribute('tabindex')), ['-1', '0']);
+    tabs[1].click();
+    assert.deepEqual(activeIds(), ['quests']);
+    tabs[1].dispatch('focusin', {});
+    const hint = sidebar().querySelector('.story-block-sidebar-hint');
+    assert.notEqual(hint.style.display, 'none');
+    assert.equal(hint.textContent, 'Quests · Story Director');
+    assert.equal(tabs[1].title, '', 'no native tooltip doubling the label');
 });
