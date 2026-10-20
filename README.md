@@ -1,4 +1,4 @@
-# Story Block v0.9.15
+# Story Block v0.9.16
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -118,11 +118,29 @@ model writes back — pick the few blocks a story actually needs.
 ### Inventory and the purse
 
 **Inventory** keeps everything the party owns, one `Item | Qty | Note` row per line under
-`[Section]` headers. The model writes the whole block again in every reply. Since 0.9.15 its
-instruction asks it to copy every row the reply does not change word for word, and to keep a row's
-note when only its quantity changes. The numbers and tags in a note (`heal 20`,
-`uncommon · ATK +4`) are rules it must not reword, so a note does not drift into prose over many
-replies. Since 0.9.12 its money is added up for the model: every row named for money
+`[Section]` headers. Since 0.9.16 the model writes **only the changes**, in a hidden
+`<Inventory_Changes>`, with the same signs as Story Director:
+
+```
+<Inventory_Changes>
+- Minor Healing Draught | 1
+[Loot]
++ Brood-Mother Skull | 1 | uncommon material · MDEF
+~ Coin Pouch | 1 | 5 Silver, 8 Copper
+</Inventory_Changes>
+```
+
+`+` gained (a new row under the `[Section]` line above it, or more of a row it has), `-` lost
+or used (with no number, or at 0, the row goes), `~` a row that now reads differently. When the
+reply comes in, Story Block applies them to the Inventory as it stood before the reply and
+writes the whole new `<Inventory>` into that reply, as if the model had written it. So every
+reader still sees the full block, and a swipe or a deleted reply goes back to the one before.
+A row nobody changed never passes through the model, so its note cannot drift into prose
+(`heal 20` stays `heal 20`). A reply that changes nothing leaves the tag out and carries no
+copy. One that reorganises everything may still write the full `<Inventory>`, which wins. A
+change that names no row (`- Torch` when there is none) is reported in a toast, not guessed.
+**Edit → The model writes → The whole list** brings back the full rewrite, for this or any
+other list block; a rewritten list is asked to copy unchanged rows word for word. Since 0.9.12 its money is added up for the model: every row named for money
 (*Coin Pouch*, *Purse*, *Coins*…) whose quantity or note is written in coins counts, and the
 Inventory's part of the prompt ends with *Purse in all: 4 gold, 6 silver, 4 copper; nothing dearer
 can be paid for (the seller refuses, haggles or takes goods in trade).* A purse kept in three coins

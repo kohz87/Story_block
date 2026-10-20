@@ -7,6 +7,7 @@
 
 import { normalizeBlock, normalizeBlocks } from './src/schema.js';
 import { TEMPLATES, defaultBlocks, upgradePrompts } from './src/templates.js';
+import { applyReplyChanges, changeDefs, changesOnly } from './src/changes.js';
 import { formatFor } from './src/formats/index.js';
 import { bareBlockTexts, dropForeignCopies, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { escapeBody } from './src/formats/escape.js';
@@ -33,7 +34,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.15';
+const VERSION = '0.9.16';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -136,8 +137,10 @@ const replyListeners = createListeners('reply listener');
 const updateListeners = createListeners('update listener');
 
 // Every tag Story Block moves into the envelope and keeps out of narration and history.
+// (0.9.16) A changes-only block's <Tag_Changes> travels hidden like the rest, until it is applied.
 function transportBlocks(ctx = context()) {
-    return [...blocks(ctx), ...pluginBlocks.values()];
+    const own = blocks(ctx);
+    return [...own, ...changeDefs(own), ...pluginBlocks.values()];
 }
 
 function keptBlocks() {
@@ -473,7 +476,13 @@ async function normalizeMessageTransport(messageId, { rerender = true, save = tr
     const normalized = normalizeTransport(rejoined, defs);
     // Several tags of a repeating block become one, after they are inside the envelope. A
     // kept block the model (or a raw edit) wrote is dropped: only its extension writes it.
-    const folded = dropForeignCopies(defs.reduce((text, def) => mergeRepeats(text, def), normalized.text), defs);
+    let folded = dropForeignCopies(defs.reduce((text, def) => mergeRepeats(text, def), normalized.text), defs);
+    // (0.9.16) A changes-only block's changes applied to the state before this reply: the reply
+    // carries the whole block from here on, as if the model had written it.
+    const changes = applyReplyChanges(folded, blocks(ctx), ctx.chat, id);
+    folded = changes.text;
+    const failed = changes.results.flatMap(result => result.failed.map(item => `${result.def.name}: "${item.line}" (${item.why})`));
+    if (failed.length) notify('warning', `Some changes could not be applied: ${failed.join('; ')}.`);
     if (folded === message.mes) return false;
     normalized.text = folded;
 
@@ -529,6 +538,8 @@ async function onMessageReceived(messageId) {
             // An optional block may simply not have been needed this reply; a kept block is
             // never the model's to write.
             .filter(item => !item.def.kept)
+            // (0.9.16) A changes-only block left out had nothing to change: its state carries on.
+            .filter(item => !(changesOnly(item.def) && item.status === 'missing'))
             .filter(item => item.status !== 'valid' && !(item.def.optional && item.status === 'missing'));
         if (problems.length) {
             const kept = problems.some(item => item.def.kind === 'stateful') ? ' The last valid state of each stateful block stays current.' : '';
@@ -1234,7 +1245,7 @@ globalThis.StoryBlock = Object.freeze({
     /** Every block definition, the reader's and plugins': [{ id, tag, name, kind, … }]. */
     listBlocks: () => {
         const shownElsewhere = displaysShownElsewhere(storySuite());
-        return transportBlocks().map(def => blockSummary(def, { shownElsewhere }));
+        return transportBlocks().filter(def => !def.changesFor).map(def => blockSummary(def, { shownElsewhere }));
     },
     /** The newest valid copy of a block (before `beforeIndex`): { id, tag, text, state, messageIndex } | null. */
     getBlock(tagOrId, { beforeIndex = null } = {}) {

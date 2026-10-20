@@ -21,9 +21,9 @@ export const TEMPLATES = [
         prompt: [
             "Everything {{user}}'s party owns or carries: items, money, gear and supplies.",
             'Apply only gains, losses, transfers, spending, consumption and equipment changes that this reply actually completes. Planned, attempted, interrupted, hypothetical or uncertain changes do not count; when a change cannot be worked out safely, keep the previous value instead of guessing. Never create a negative balance.',
-            // (0.9.15) Rewritten each reply, an unchanged note drifted ("heal 20" became "weak restorative fluid").
-            'Copy every row this reply does not change exactly as it was, note included, word for word; when only the quantity changes, keep the note. Numbers and tags in a note (heal 20, uncommon · ATK +4) are rules: never reword them.',
         ].join('\n'),
+        // (0.9.16) Written as changes only: rows it does not change never pass through the model.
+        updates: 'changes',
         when: { mode: 'always' },
     },
     {
@@ -208,11 +208,14 @@ export const TEMPLATES = [
 
 // (0.9.15) Built-in instructions as earlier versions wrote them, by template: a block whose
 // instruction is still one of these (never edited) is given the current one; an edited one stays.
+// (0.9.16) 0.9.15's copy-exactly line now comes with the format's rules, which differ for a
+// block written as changes only.
 const EARLIER_PROMPTS = {
     inventory: [
         [
             "Everything {{user}}'s party owns or carries: items, money, gear and supplies.",
             'Apply only gains, losses, transfers, spending, consumption and equipment changes that this reply actually completes. Planned, attempted, interrupted, hypothetical or uncertain changes do not count; when a change cannot be worked out safely, keep the previous value instead of guessing. Never create a negative balance.',
+            'Copy every row this reply does not change exactly as it was, note included, word for word; when only the quantity changes, keep the note. Numbers and tags in a note (heal 20, uncommon · ATK +4) are rules: never reword them.',
         ].join('\n'),
     ],
 };

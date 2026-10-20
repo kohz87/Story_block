@@ -759,6 +759,7 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
         when: { ...base.when, keywords: base.when.keywords.join(', ') },
         columns: [...(base.columns ?? DEFAULT_COLUMNS)],
         maxDepth: base.maxDepth ?? DEFAULT_MAX_DEPTH,
+        updates: base.updates ?? 'full',
         fields: (base.fields ?? []).map(field => ({ label: field.label, type: field.type, max: field.max ?? 100, hint: field.hint ?? '' })),
     };
     // Renaming an existing block must not move its tag: the stored state is found by
@@ -886,11 +887,15 @@ export function openBlockEditor(def, { blocks = [], onSave, onCancel, container 
     const depthValues = Array.from({ length: MAX_MAX_DEPTH - MIN_MAX_DEPTH + 1 }, (_, i) => MIN_MAX_DEPTH + i);
     const maxDepth = select('story-block-input-max-depth', depthValues, { 1: '1 (no nesting)' }, draft.maxDepth);
     maxDepth.addEventListener('change', () => { draft.maxDepth = Number(maxDepth.value); });
+    // (0.9.16) How the model updates a stateful list: the whole block, or only what changed.
+    const updates = select('story-block-input-updates', ['changes', 'full'], { changes: 'Only the changes', full: 'The whole list' }, draft.updates);
+    updates.addEventListener('change', () => { draft.updates = updates.value; });
     const rowsSection = el('fieldset', { className: 'story-block-editor-section story-block-editor-rows' }, [
         el('legend', { text: 'Rows' }),
         el('div', { className: 'story-block-editor-columns' },
             columnInputs.map((input, index) => labelled(`Column ${index + 1}`, input))),
         labelled('Category depth', maxDepth, 'Levels of [A > B > C] category paths the model may use.'),
+        labelled('The model writes', updates, 'Only the changes: + gained, - lost, ~ now reads; every other row stays exactly as it was. Stateful lists only.'),
     ]);
 
     // Fields

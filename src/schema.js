@@ -115,6 +115,10 @@ export function normalizeBlock(value = {}) {
         const columns = Array.isArray(input.columns) ? input.columns.map(column => cleanText(column, 24)) : [];
         block.columns = DEFAULT_COLUMNS.map((fallback, index) => columns[index] || fallback);
         block.maxDepth = clampInt(input.maxDepth, MIN_MAX_DEPTH, MAX_MAX_DEPTH, DEFAULT_MAX_DEPTH);
+        // (0.9.16) How the model updates it: 'full' rewrites the whole block every reply,
+        // 'changes' writes only what changed (applied to the last state by the code). The
+        // Inventory is changes-only unless the reader chose otherwise.
+        block.updates = input.updates === 'changes' || input.updates === 'full' ? input.updates : input.template === 'inventory' ? 'changes' : 'full';
     }
     // A text block may carry a layout: the skeleton the model fills in (World State, CYOA).
     if (format === 'text') block.layout = String(input.layout ?? '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_LAYOUT_LENGTH);

@@ -63,6 +63,11 @@ Kinds:
 
 - **stateful** — the newest valid copy in the chat is the current state. It is injected
   into every prompt and the model rewrites it in full each reply (omission means loss).
+  (0.9.16) A list block with `updates: 'changes'` (the Inventory's default) is not rewritten:
+  the model writes `<Tag_Changes>` lines (`+` gained, `-` lost, `~` now reads), and on receive
+  `changes.applyReplyChanges` applies them to the copy before the reply (`rows.applyChanges`,
+  line by line, untouched lines byte for byte) and writes the whole block into the reply. The
+  newest valid copy stays the state, so swipes, deletes and every reader work as before.
   Invalid or cut-off copies never replace the current state.
 - **turn** — fresh each reply, never fed back to the model. The card shows the copy from
   the latest assistant reply only.

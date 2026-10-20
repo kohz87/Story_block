@@ -46,20 +46,20 @@ test('ids and tags derive from names; normalizeBlocks drops duplicates', () => {
     assert.deepEqual(list.map(block => block.id), ['a']);
 });
 
-test('the Inventory says to copy unchanged rows word for word, and an unedited one gets the line (0.9.15)', () => {
+test('the Inventory is written as changes only; an unedited 0.9.15 instruction goes back to the built-in one (0.9.16)', () => {
     const inventory = templateById('inventory');
-    assert.match(inventory.prompt, /Copy every row this reply does not change exactly as it was, note included, word for word/);
-    assert.match(inventory.prompt, /heal 20, uncommon · ATK \+4/);
-    const old = [
-        "Everything {{user}}'s party owns or carries: items, money, gear and supplies.",
-        'Apply only gains, losses, transfers, spending, consumption and equipment changes that this reply actually completes. Planned, attempted, interrupted, hypothetical or uncertain changes do not count; when a change cannot be worked out safely, keep the previous value instead of guessing. Never create a negative balance.',
-    ].join('\n');
-    const stored = normalizeBlocks([{ ...inventory, prompt: old }, { ...templateById('world-state') }]);
+    assert.equal(inventory.updates, 'changes');
+    // A stored Inventory from before 0.9.16 has no setting: changes only; one the reader set stays.
+    const { updates, ...older } = inventory;
+    assert.equal(normalizeBlock(older).updates, 'changes');
+    assert.equal(normalizeBlock({ ...inventory, updates: 'full' }).updates, 'full');
+    assert.equal(normalizeBlock({ name: 'Loot', format: 'rows' }).updates, 'full');
+    const v0915 = `${inventory.prompt}\nCopy every row this reply does not change exactly as it was, note included, word for word; when only the quantity changes, keep the note. Numbers and tags in a note (heal 20, uncommon · ATK +4) are rules: never reword them.`;
+    const stored = normalizeBlocks([{ ...inventory, prompt: v0915 }, { ...templateById('world-state') }]);
     const upgraded = upgradePrompts(stored);
     assert.equal(upgraded[0].prompt, inventory.prompt);
     assert.equal(upgraded[1], stored[1]);
-    // Edited by the reader: theirs stays. Nothing to bring up: the same list back.
-    const edited = normalizeBlocks([{ ...inventory, prompt: `${old}\nKeep it short.` }]);
+    const edited = normalizeBlocks([{ ...inventory, prompt: `${v0915}\nKeep it short.` }]);
     assert.equal(upgradePrompts(edited), edited);
     assert.equal(upgradePrompts(upgraded), upgraded);
 });
