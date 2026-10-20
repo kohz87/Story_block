@@ -116,10 +116,12 @@ test('prompt: the kept block is shown read-only, first, and never in the envelop
     const found = latestBlockState([reply(envelope(sheet))], character);
     const notes = { ...templateById('scene-notes'), enabled: true };
     const context = buildContext([{ def: character, state: found.state, body: found.body }, { def: notes }]);
-    assert.match(context, /### Character — <Character> \(kept by RPG Battle: read it, never write it\)\nThe player character as RPG Battle tracks it\. HP and MP are current\/max\.\nCurrent state:\n<Character>\nHP: 58\/62 \| MP: 21\/30\nChecks: STR \+2 \| CHA \+1\n<\/Character>/);
+    assert.match(context, /### Character — <Character> \(kept by RPG Battle: read it, never write it\)\nThe player character as RPG Battle tracks it\. HP and MP are current\/max\./);
+    // (0.9.21) Its newest copy is in this reply's part.
+    assert.match(context, /### Character: current state \(kept by RPG Battle\)\n<Character>\nHP: 58\/62 \| MP: 21\/30\nChecks: STR \+2 \| CHA \+1\n<\/Character>/);
     assert.match(context, /Blocks marked "read it, never write it" are kept by another extension/);
     assert.ok(context.indexOf('### Character') < context.indexOf('### Scene Notes'));
-    const skeleton = context.slice(context.indexOf('Write it exactly like this:'));
+    const skeleton = context.slice(context.indexOf('Write it exactly like this:'), context.indexOf('STORY_BLOCKS_V1_CONTEXT_END'));
     assert.doesNotMatch(skeleton, /Character/);
     assert.match(skeleton, /<Scene_Notes>/);
     assert.doesNotMatch(context, /kept=/, 'the stamp never reaches the model');

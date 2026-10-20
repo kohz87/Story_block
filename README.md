@@ -1,4 +1,4 @@
-# Story Block v0.9.20
+# Story Block v0.9.21
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -277,6 +277,19 @@ between turns the buttons off for that reply.
 make a thread, one makes a pull quote.
 
 **Dice cards**: one roll line per roll, as shown under Dice above.
+
+### What the model is sent (and the prompt cache)
+
+Since 0.9.21 Story Block sends its instructions and this reply's part separately. **The
+instructions** (the rules, each block's prompt and format, and the envelope to write) are the
+same text reply after reply while your blocks stay the same, and go early in the prompt. **This
+reply's part** (each block's current state, a kept block's newest copy, this reply's dice
+rolls, the purse total, a block asked for only now and then) goes last, after your message.
+Providers that cache the start of a prompt (OpenAI, DeepSeek, Gemini on their own; Claude where
+the connection sets cache breakpoints) can then reuse everything up to your new message instead
+of losing the cache at Story Block's section on every reply. Settings → **What's sent** shows the
+two parts. The four Story Suite extensions follow the same layout (docs/STORY_SUITE.md,
+*Prompt cache*).
 
 ### How a reply carries its blocks
 

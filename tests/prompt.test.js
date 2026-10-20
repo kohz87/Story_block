@@ -10,6 +10,7 @@ import {
     CONTEXT_END,
     activeBlocks,
     buildContext,
+    buildContextParts,
     defuseMacros,
     hasContext,
     injectContext,
@@ -82,7 +83,7 @@ test('activeBlocks: a keyword inside a block (hidden or bare) does not fire', ()
 test('buildContext: one section with the general rules once and each block in order', () => {
     const context = contextFor('The gate is shut.', { substitute: text => text.replaceAll('{{user}}', 'Ava').replaceAll('{{char}}', 'Mira') });
     assert.ok(context.startsWith(`${CONTEXT_BEGIN}\n## Story Blocks\n`));
-    assert.ok(context.endsWith(`-->\n${CONTEXT_END}`));
+    assert.ok(buildContextParts([{ def: notes, state: { text: 'The gate is shut.' } }, { def: mood }]).static.endsWith(`-->\n${CONTEXT_END}`));
     assert.equal(count(context, new RegExp(CONTEXT_BEGIN, 'g')), 1);
     assert.match(context, /At the very end of your reply, after the story, write exactly one hidden envelope/);
     assert.match(context, /in the order given, each tag exactly once, and close every tag/);
@@ -95,7 +96,9 @@ test('buildContext: one section with the general rules once and each block in or
     assert.match(context, /What Ava and Mira know\./);
     assert.match(context, new RegExp(`Format: ${formatFor(notes).rules(notes).replace(/[.]/g, '\\.')}`));
     assert.match(context, /Current state:\n<Notes>\nThe gate is shut\.\n<\/Notes>/);
-    assert.doesNotMatch(context.slice(context.indexOf('### Mood')), /Current state/, 'turn blocks carry no state');
+    assert.doesNotMatch(context.slice(context.indexOf('### Mood'), context.indexOf('Write it exactly like this')), /Current state/, 'turn blocks carry no state');
+    // (0.9.21) The state is in this reply's part, after the instructions.
+    assert.ok(context.indexOf('Current state:') > context.indexOf(CONTEXT_END));
 });
 
 test('buildContext: the skeleton envelope lists every block in order with its skeleton', () => {
@@ -276,14 +279,14 @@ test('injectContext: dry runs and unsupported events are not touched', () => {
     assert.deepEqual(injectContext({ other: true }, 'x', defs), { injected: false, reason: 'unsupported-event' });
 });
 
-test('an entry\'s note is one more line under its prompt, for that reply only (v0.9.1: chatter and NPC State Delta)', () => {
+test('an entry\'s note is one more line for that reply only, in this reply\'s part (v0.9.1: chatter and NPC State Delta; 0.9.21)', () => {
     const chatter = normalizeBlock({ id: 'chatter', name: 'Chatter', tag: 'Chatter', kind: 'turn', format: 'text', display: 'chatter', prompt: 'Private NPC talk.' });
     const note = 'Voice each NPC as their NPC State Delta card describes.';
-    const withNote = buildContext([{ def: chatter, note }]);
-    assert.match(withNote, /### Chatter — <Chatter> \(this reply only\)\nPrivate NPC talk\.\nVoice each NPC as their NPC State Delta card describes\.\n/);
-    assert.equal(count(withNote, /NPC State Delta/g), 1, 'once, and not in the envelope to write');
-    const without = buildContext([{ def: chatter }]);
-    assert.doesNotMatch(without, /NPC State Delta/);
-    assert.equal(withNote.replace(`${note}\n`, ''), without, 'nothing else changes');
+    const withNote = buildContextParts([{ def: chatter, note }]);
+    assert.match(withNote.tail, /### Chatter\nVoice each NPC as their NPC State Delta card describes\./);
+    assert.equal(count(`${withNote.static}${withNote.tail}`, /NPC State Delta/g), 1, 'once, and not in the envelope to write');
+    const without = buildContextParts([{ def: chatter }]);
+    assert.doesNotMatch(`${without.static}${without.tail}`, /NPC State Delta/);
+    assert.equal(withNote.static, without.static, 'the instructions do not change');
     assert.equal(chatter.prompt, 'Private NPC talk.', 'the stored prompt is unchanged');
 });

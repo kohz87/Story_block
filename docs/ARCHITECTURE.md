@@ -187,40 +187,68 @@ export function upsertBlock(text, def, body) -> string
 
 ## 4. Prompt (`src/prompt.js`)
 
-The reply's prompt carries one context section, delimited by
-`STORY_BLOCKS_V1_CONTEXT_BEGIN` / `STORY_BLOCKS_V1_CONTEXT_END`:
+The reply's prompt carries the context in two parts (v0.9.21, for a provider's prompt cache;
+docs/STORY_SUITE.md, *Prompt cache*). The **instructions** are the same text reply after reply
+while the reader's blocks stay the same, and go early; **this reply's part** holds everything
+that changes, and goes last:
 
 ```
 STORY_BLOCKS_V1_CONTEXT_BEGIN
 ## Story Blocks
-At the very end of your reply, after the story, write exactly one hidden envelope ...
-(rules: order, close every tag, never visible narration, escapes, stateful = full rewrite)
+- At the very end of your reply, after the story, write exactly one hidden envelope ...
+  (rules: order, close every tag, never visible narration, escapes, where this reply's part is,
+  stateful = full rewrite / changes only, first, this reply only, kept blocks)
 
-### Inventory — <Inventory> (kept: rewrite the full current state)
-<block prompt, {{user}}/{{char}} substituted>
-Format: <formatFor(def).rules(def)>
+### Character — <Character> (kept by RPG Battle: read it, never write it)
+<its prompt note>
+
+### Inventory — <Inventory_Changes> (kept: write only the changes)
+<block prompt, {{user}}/{{char}} substituted; a Dice prompt's {{rolls}} points at the tail>
+Format: <changeRules(def) or formatFor(def).rules(def)>
+
+Write it exactly like this:
+<!-- STORY_BLOCKS_V1
+<Blocks>
+<Inventory_Changes>
+<changeSkeleton(def)>
+</Inventory_Changes>
+</Blocks>
+-->
+STORY_BLOCKS_V1_CONTEXT_END
+```
+
+```
+STORY_BLOCKS_V1_STATE_BEGIN
+## Story Blocks: this reply
+### Character: current state (kept by RPG Battle)
+<Character>
+<the extension's newest copy>
+</Character>
+
+### Inventory
+<this reply's note, e.g. Purse in all: …>
 Current state:
 <Inventory>
 <serialized current state, or "(empty — start it from the story)">
 </Inventory>
 
-### Scene Notes — <Scene_Notes> (this reply only)
-<block prompt>
-Format: <rules>
+### Scene Notes — <Scene_Notes> (this reply only)      ← a block asked for only now and then: whole
+...
+This reply also writes <Scene_Notes>, in the envelope, like this:
+<Scene_Notes>…</Scene_Notes>
 
-Write it exactly like this:
-<!-- STORY_BLOCKS_V1
-<Blocks>
-<Inventory>
-<skeleton(def)>
-</Inventory>
-<Scene_Notes>
-<skeleton(def)>
-</Scene_Notes>
-</Blocks>
--->
-STORY_BLOCKS_V1_CONTEXT_END
+Leave <Dice> out of this reply.                        ← a block of the instructions this reply skips
+STORY_BLOCKS_V1_STATE_END
 ```
+
+The instructions hold the blocks whose `when` is *always* (`staticDefs`), and the rules are
+worded for every enabled block (`ruleDefs`), so neither changes while the reader's blocks do.
+In the runtime both are registered as placeholders (`story_suite_static_story_block`: in-chat
+depth 0 for chat completion, in-prompt for text completion; `story_suite_tail_1_story_block`:
+in-chat depth 0 for both) and filled in at prompt-ready: chat completion moves the instructions
+after the leading system messages and fills this reply's part where SillyTavern put it (a
+system message before the reply when there is none, e.g. the fallback); text completion
+replaces each placeholder in place.
 
 API:
 
@@ -233,15 +261,17 @@ export const CONTEXT_BEGIN, CONTEXT_END;
 export function activeBlocks(defs, chat, type = 'normal') -> defs
 // entries: [{ def, state }] (state only for stateful). substitute(text) applies {{user}}/{{char}}
 // to block prompts only — never to state, which must reach the model verbatim.
-export function buildContext(entries, { substitute = text => text } = {}) -> string  // '' when entries is empty
+export function buildContextParts(entries, { substitute, staticDefs, ruleDefs }) -> { static, tail }  // both '' for nothing
+export function buildContext(entries, options) -> string  // the two parts as one text (preview, tokens)
 export function hasContext(text) -> boolean
 export function defuseMacros(text) -> string     // port: placeholder copy SillyTavern may macro-substitute
 // Foreground prompt: strip every block (stripBlocks) and every old context section from the
-// prompt history, then insert `context`. Chat completion (eventData.chat array): drop a system
-// message that only held the placeholder, remove the placeholder region from a shared message,
-// insert `context` as a system message after the leading system messages. Text completion
-// (eventData.prompt string): replace the placeholder region in place, else prepend. Keep the
-// shared array object (splice), as Inventory Block does. Returns { injected, kind, reason }.
+// prompt history, then put `context` ({ static, tail }, or a string: all of it early) in. Chat
+// completion (eventData.chat array): the instructions as a system message after the leading
+// system messages; this reply's part where its placeholder stood (else before the reply); a
+// system message that only held placeholders is dropped. Text completion (eventData.prompt
+// string): each placeholder replaced in place, else the instructions prepended with this
+// reply's part after them. Keep the shared array object (splice). Returns { injected, kind, reason }.
 export function injectContext(eventData, context, defs) -> object
 export function promptCarriesContext(eventData) -> boolean
 ```
@@ -254,8 +284,9 @@ history they send.
 
 Port of Inventory Block's lifecycle (v0.6.7): session prepared on
 `GENERATION_AFTER_COMMANDS`, armed by the `storyBlockGenerationInterceptor` generate
-interceptor, placeholder registered with `setExtensionPrompt` (in-chat depth 0 system role
-for chat completion, in-prompt for text completion), foreground detection by placeholder
+interceptor, placeholders registered with `setExtensionPrompt` (the instructions: in-chat depth 0
+system role for chat completion, in-prompt for text completion; this reply's part: in-chat
+depth 0 for both; v0.9.21, see section 4), foreground detection by placeholder
 markers with a fallback, watchdog, status line in settings. On `MESSAGE_RECEIVED`: rejoin
 continuation, normalize transport, save, warn (toastr) when an enabled stateful block was
 requested but missing, invalid or cut off. Re-render the card on receive, swipe, edit,
