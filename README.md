@@ -1,4 +1,4 @@
-# Story Block v0.9.24
+# Story Block v0.9.25
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -141,6 +141,10 @@ still gets a copy: every reply holds the whole state of each of your stateful bl
 depends on older messages, and hiding or deleting them loses nothing. Old copies are taken out
 of the history the model is sent, so this costs no tokens. One that reorganises everything may still write the full `<Inventory>`, which wins. A
 change that names no row (`- Torch` when there is none) is reported in a toast, not guessed.
+Since 0.9.25, change lines the model writes inside `<Inventory>` itself (`+ Even Trophy | 2`) are
+applied the same way, for any list block, rather than taken as the whole list: a body with any
+`+`, `~` or `=` line is never a full list, so the rows it doesn't mention stay (a plain row beside
+them reads as `~`; a list of `- ` bullets alone is still an ordinary list).
 **Edit → The model writes → The whole list** brings back the full rewrite, for this or any
 other list block; a rewritten list is asked to copy unchanged rows word for word. Since 0.9.12 its money is added up for the model: every row named for money
 (*Coin Pouch*, *Purse*, *Coins*…) whose quantity or note is written in coins counts, and the
