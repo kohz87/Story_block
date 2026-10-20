@@ -6,7 +6,7 @@
 // every block a reply writes lives in that reply's message text — the chat is the store.
 
 import { normalizeBlock, normalizeBlocks } from './src/schema.js';
-import { TEMPLATES, defaultBlocks } from './src/templates.js';
+import { TEMPLATES, defaultBlocks, upgradePrompts } from './src/templates.js';
 import { formatFor } from './src/formats/index.js';
 import { bareBlockTexts, dropForeignCopies, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { escapeBody } from './src/formats/escape.js';
@@ -33,7 +33,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.14';
+const VERSION = '0.9.15';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -101,7 +101,8 @@ function settings(ctx = context()) {
     if (!store[SETTINGS_KEY] || typeof store[SETTINGS_KEY] !== 'object') store[SETTINGS_KEY] = {};
     const own = store[SETTINGS_KEY];
     // A first install starts from the templates; afterwards the stored list is the reader's.
-    own.blocks = Array.isArray(own.blocks) ? normalizeBlocks(own.blocks) : defaultBlocks();
+    // (0.9.15) A built-in instruction never edited follows the current version's.
+    own.blocks = Array.isArray(own.blocks) ? upgradePrompts(normalizeBlocks(own.blocks)) : defaultBlocks();
     own.compatMarkup = own.compatMarkup !== false;
     // Where blocks are shown: the sidebar (docked on wide screens, a drawer or bottom sheet
     // elsewhere) or the v0.1 card under the latest reply. The strip is opt-in.
