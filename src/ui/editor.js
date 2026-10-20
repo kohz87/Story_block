@@ -414,7 +414,7 @@ export function renderSettings(container, { blocks = [], templates = TEMPLATES, 
         const tokens = block.enabled ? cost(block) : null;
         const dot = () => el('span', { className: 'story-block-row-sep', text: '·', attrs: { 'aria-hidden': 'true' } });
         const meta = el('div', { className: 'story-block-row-meta' }, [
-            el('code', { className: 'story-block-row-tag', text: `<${block.tag}>` }),
+            el('code', { className: 'story-block-row-tag', text: `<${block.tag}>`, attrs: { title: `<${block.tag}>` } }),
             dot(),
             el('span', { className: 'story-block-badge story-block-badge-kind', text: KIND_BADGES[block.kind] ?? block.kind }),
             dot(),

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { installFakeDom, same, texts } from './ui-fake-dom.js';
 
 const doc = installFakeDom();
-const { render, describeChange, formatQuantity } = await import('../src/ui/displays/tree.js');
+const { render, describeChange, formatQuantity, rarityClass } = await import('../src/ui/displays/tree.js');
 const rows = await import('../src/formats/rows.js');
 const { templateById } = await import('../src/templates.js');
 
@@ -227,4 +227,50 @@ test('describeChange and formatQuantity', () => {
     assert.equal(formatQuantity('a few'), 'a few');
     assert.equal(describeChange({ type: 'changed', label: 'Rope', path: 'General', before: { quantity: '2', remark: '' }, after: { quantity: '1', remark: '' } }), '~ Rope: ×2 → ×1');
     assert.equal(describeChange({ type: 'changed', label: 'Mood', from: 'calm', to: 'angry' }), '~ Mood: calm → angry');
+});
+
+test('found this turn: each gain of the latest reply as a chip with Leave; nothing without a handler (0.9.18)', () => {
+    const before = parse('Rope | 1\n[Consumables]\nMinor Healing Draught | 2 | heal 20');
+    const after = parse('Rope | 1\n[Consumables]\nMinor Healing Draught | 4 | heal 20\n[Loot]\nBrood-Mother Skull | 1 | uncommon material');
+    const left = [];
+    const pane = show({ state: after, previousState: before, changes: rows.diff(before, after), onLeave: gain => left.push(gain) });
+    const chips = pane.querySelectorAll('.story-block-found-chip');
+    assert.deepEqual(chips.map(chip => chip.querySelector('.story-block-found-name').textContent), ['Brood-Mother Skull ×1', 'Minor Healing Draught ×2']);
+    assert.match(chips[0].className, /story-block-rarity is-uncommon/);
+    chips[0].querySelector('.story-block-found-leave').click();
+    assert.deepEqual(left, [{ name: 'Brood-Mother Skull', category: 'Loot', gain: 1, remark: 'uncommon material' }]);
+    assert.equal(show({ state: after, previousState: before, changes: rows.diff(before, after) }).querySelector('.story-block-found'), null);
+    assert.equal(show({ state: after, previousState: before, changes: rows.diff(before, after), onLeave() {}, changesFromEarlierReply: true }).querySelector('.story-block-found'), null, 'only the latest reply\'s');
+});
+
+test('a rarity word in the note tints the name; "uncommon" is not "common" (0.9.18)', () => {
+    assert.equal(rarityClass('uncommon · LUK +2'), 'story-block-rarity is-uncommon');
+    assert.equal(rarityClass('Equipped · Rare · ATK +6'), 'story-block-rarity is-rare');
+    assert.equal(rarityClass('a commonplace stone'), '');
+    const state = parse('[Gear]\nWolf-fang Charm | 1 | uncommon · LUK +2\nRope | 1 | coiled');
+    const labels = show({ state, previousState: null, changes: [] }).querySelectorAll('.story-block-tree-item-label');
+    const charm = labels.find(node => node.textContent === 'Wolf-fang Charm');
+    assert.match(charm.className, /story-block-rarity is-uncommon/);
+    assert.doesNotMatch(labels.find(node => node.textContent === 'Rope').className, /rarity/);
+});
+
+test('gainsOf and leaveLine: what a reply found, and the line that takes it back out (0.9.18)', () => {
+    const before = parse('Coin Pouch | 1 | 85 Gold\n[Consumables]\nMinor Healing Draught | 2 | heal 20');
+    const after = parse('Coin Pouch | 1 | 90 Gold\n[Consumables]\nMinor Healing Draught | 4 | heal 20\n[Loot]\nOdd Pebble | some');
+    const gains = rows.gainsOf(rows.diff(before, after));
+    assert.deepEqual(gains.map(gain => [gain.name, gain.gain]), [['Odd Pebble', null], ['Minor Healing Draught', 2]], 'a note change (the purse) is not a gain');
+    const body = 'Coin Pouch | 1 | 90 Gold\n\n[Consumables]\nMinor Healing Draught | 4 | heal 20\n\n[Loot]\nOdd Pebble | some';
+    let text = body;
+    for (const gain of gains) text = rows.applyChanges(text, rows.leaveLine(gain), def).body;
+    assert.match(text, /Minor Healing Draught \| 2 \| heal 20/);
+    assert.doesNotMatch(text, /Odd Pebble/);
+    assert.match(text, /^Coin Pouch \| 1 \| 90 Gold$/m);
+    assert.equal(rows.leaveLine({ name: 'Rope | cord', category: 'General', gain: 1 }), '- Rope \\| cord | 1');
+});
+
+test('a short list opens at All with its items under section titles; a long one keeps a row per section (0.9.18)', async () => {
+    const { SHORT_LIST } = await import('../src/ui/displays/tree.js');
+    assert.ok(show({ previousState: null, changes: [] }).querySelector('.story-block-tree-browser').className.includes('is-short'));
+    const many = parse(Array.from({ length: SHORT_LIST + 1 }, (_, index) => `[Pack]\nThing ${index} | 1`).join('\n'));
+    assert.ok(!show({ state: many, previousState: null, changes: [] }).querySelector('.story-block-tree-browser').className.includes('is-short'));
 });

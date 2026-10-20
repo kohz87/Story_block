@@ -361,6 +361,32 @@ export function diff(previous, next) {
     return changes.sort((a, b) => order[a.type] - order[b.type]);
 }
 
+/**
+ * (0.9.18) What a reply gained, from its changes (diff): [{ name, category, gain }] for each row
+ * it added (gain: its quantity, or null for a row without a number) and each quantity it raised
+ * (gain: by how much). Notes changing, moves and losses are not gains.
+ */
+export function gainsOf(changes) {
+    const gains = [];
+    for (const change of Array.isArray(changes) ? changes : []) {
+        if (change?.type === 'added') {
+            gains.push({ name: change.label, category: change.path ?? ROOT_CATEGORY, gain: firstNumber(change.after?.quantity), remark: change.after?.remark ?? '' });
+        } else if (change?.type === 'changed') {
+            const before = firstNumber(change.before?.quantity);
+            const after = firstNumber(change.after?.quantity);
+            if (before !== null && after !== null && after > before) gains.push({ name: change.label, category: change.path ?? ROOT_CATEGORY, gain: Math.round((after - before) * 100) / 100, remark: change.after?.remark ?? '' });
+        }
+    }
+    return gains.filter(entry => entry.name && (entry.gain === null || entry.gain > 0));
+}
+
+/** (0.9.18) The change line that takes a gain back out: "[Loot]\n- Brood-Mother Skull | 1". */
+export function leaveLine({ name, category, gain }) {
+    const head = category && key(category) !== key(ROOT_CATEGORY) ? `[${escapeHeader(category)}]\n` : '';
+    const cell = String(name ?? '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+    return `${head}- ${cell}${gain === null || gain === undefined ? '' : ` | ${gain}`}`;
+}
+
 function nestingRule(maxDepth) {
     const depth = Math.min(5, Math.max(1, Number.parseInt(maxDepth, 10) || 3));
     if (depth <= 1) return 'Do not nest sections; never use ">" inside a section header.';

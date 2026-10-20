@@ -14,6 +14,7 @@
 // versions are announcement text, so nodes are built with textContent only.
 
 import { AREAS, isSourceOfTruth } from '../suite.js';
+import { previewParts, renderPreview } from './preview.js';
 
 const IDS = { root: 'story_suite_overlay', title: 'story_suite_title' };
 const OVERVIEW = 'overview';
@@ -157,6 +158,20 @@ export const approx = value => `~${count(value).toLocaleString('en-US')}`;
 
 export const TOKENS_HINT = 'Estimates (about 4 characters a token) for an ordinary reply; quiet calls like summaries, planning and monster flavour are not counted.';
 
+// ---- What's sent (0.9.18): each extension's api.manage.preview() ----
+
+/** A provider's `manage.preview()` as `[{ label, text }]`, or null when it offers none (or it threw). */
+export function previewReport(provider) {
+    const manage = manageOf(provider);
+    if (typeof manage?.preview !== 'function') return null;
+    return previewParts(attempt(() => manage.preview(), null, `${provider.id}'s preview()`), nameOf(provider));
+}
+
+/** The enabled providers that offer a preview, in suite order. */
+export function previewProviders(providers) {
+    return orderProviders(providers).filter(provider => provider.enabled !== false && typeof manageOf(provider)?.preview === 'function');
+}
+
 // ---- Overview folds: a one-line summary each while closed ----
 
 /** "4 on", or "3 on, 1 off". */
@@ -185,7 +200,7 @@ export function tokensSummary(total) {
 
 // Which Overview folds are open: the reader's convenience, remembered in this browser only.
 const FOLDS_STORAGE = 'story_suite_overview_folds';
-export const OVERVIEW_FOLDS = Object.freeze({ installed: true, sources: false, tokens: false });
+export const OVERVIEW_FOLDS = Object.freeze({ installed: true, sources: false, tokens: false, sent: false });
 
 export function overviewFoldsOpen() {
     try {
@@ -332,6 +347,22 @@ function tokensSection(d, providers) {
     return overviewFold(d, 'tokens', 'Tokens per reply', tokensSummary(total), nodes);
 }
 
+// One fold per extension that offers a preview, drawn only when opened (and on its Refresh).
+function sentSection(d, providers) {
+    const list = previewProviders(providers);
+    const nodes = [make(d, 'p', 'story-suite-muted', 'Exactly what each extension adds to the next reply, as it would be sent. Opening a fold reads it now; nothing is sent from here.')];
+    for (const provider of list) {
+        const body = make(d, 'div', 'story-suite-sent-body');
+        const fill = () => body.replaceChildren(renderPreview(d, previewReport(provider)?.filter(part => part.text) ?? [], { onRefresh: fill }));
+        const fold = overviewFold(d, `sent-${provider.id}`, nameOf(provider), 'open to read', [body], { nested: true });
+        fold.dataset.providerId = provider.id;
+        fold.addEventListener('toggle', () => { if (fold.open) fill(); });
+        nodes.push(fold);
+    }
+    if (!list.length) nodes.push(make(d, 'p', 'story-suite-muted story-suite-empty', 'None of them shows its text yet.'));
+    return overviewFold(d, 'sent', "What's sent", list.length ? `${list.length} to read` : 'Not offered', nodes);
+}
+
 function providerRow(d, provider) {
     const on = provider.enabled !== false;
     const manage = manageOf(provider);
@@ -386,7 +417,7 @@ function renderOverview() {
     const sources = overviewFold(d, 'sources', 'Source of truth', sourcesSummary(values), sourceNodes);
 
     const folds = make(d, 'div', 'story-suite-folds');
-    folds.append(installed, sources, tokensSection(d, providers));
+    folds.append(installed, sources, tokensSection(d, providers), sentSection(d, providers));
     ui.pane.classList.add('story-suite-panel');
     ui.pane.replaceChildren(folds);
 }

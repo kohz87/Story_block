@@ -352,6 +352,8 @@ export function createTabRegistry({ onChange } = {}) {
             ...tab,
             id,
             label: String(tab.label ?? '').trim() || id,
+            // (0.9.18) The rail's label, when the full one is long ("Present NPCs" → "Cast").
+            short: String(tab.short ?? '').trim().slice(0, 12),
             icon: String(tab.icon ?? ''),
             order,
             sequence: previous?.sequence ?? sequence++,

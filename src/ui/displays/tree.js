@@ -6,7 +6,7 @@
 // change strip against the previous state. Column labels, depth and wording come
 // from the block definition instead of Inventory's hard-coded ones.
 
-import { ROOT_CATEGORY, diff as diffRows, isEmpty as rowsEmpty, normalizeRows } from '../../formats/rows.js';
+import { ROOT_CATEGORY, diff as diffRows, gainsOf, isEmpty as rowsEmpty, normalizeRows } from '../../formats/rows.js';
 import {
     DEFAULT_MAX_DEPTH,
     ROOT_NODE_ID,
@@ -24,6 +24,16 @@ import { blockName, button, el, emptyText, noun, plural, renderEmpty, renderFram
 import { render as renderPlain } from './plain.js';
 
 const FALLBACK_COLUMNS = ['Item', 'Qty', 'Note'];
+// (0.9.18) Up to this many rows, All lists them all instead of a row per section.
+export const SHORT_LIST = 20;
+
+// (0.9.18) The rarity a note names, as a class other extensions can use too: "story-block-rarity
+// is-uncommon". The first word wins; "uncommon" is not read as "common".
+const RARITY = /(?<![\p{L}])(uncommon|common|rare|epic|legendary)(?![\p{L}])/iu;
+export function rarityClass(text) {
+    const word = RARITY.exec(String(text ?? ''))?.[1]?.toLowerCase();
+    return word ? `story-block-rarity is-${word}` : '';
+}
 const viewStateByKey = new Map();
 
 function viewState(uiKey) {
@@ -91,6 +101,7 @@ export function render(pane, {
     onEdit = null,
     uiKey = null,
     changesFromEarlierReply = false,
+    onLeave = null,
 } = {}) {
     // A non-rows state (display changed to Tree on a text/fields block) still reads.
     if (state && !isRowsState(state)) {
@@ -181,6 +192,22 @@ export function render(pane, {
         strip.appendChild(list);
         strip.addEventListener('toggle', () => { view.changesOpen = strip.open; });
         pane.appendChild(strip);
+    }
+
+    // (0.9.18) What the latest reply found, kept unless the reader leaves it: one chip each.
+    const gains = typeof onLeave === 'function' && !changesFromEarlierReply ? gainsOf(changeList) : [];
+    if (gains.length) {
+        const found = el('div', 'story-block-found');
+        found.appendChild(el('span', 'story-block-found-label', 'Found this turn'));
+        for (const gain of gains) {
+            const chip = el('span', `story-block-found-chip${rarityClass(gain.remark) ? ` ${rarityClass(gain.remark)}` : ''}`);
+            chip.append(el('span', 'story-block-found-name', gain.gain === null ? gain.name : `${gain.name} ×${gain.gain}`));
+            const leave = button('story-block-found-leave', { text: 'Leave', title: `Leave ${gain.name} behind: it comes out of this reply's ${name}. Kept otherwise.` });
+            leave.addEventListener('click', stop(() => onLeave(gain)));
+            chip.appendChild(leave);
+            found.appendChild(chip);
+        }
+        pane.appendChild(found);
     }
 
     pane.appendChild(browser);
@@ -357,7 +384,9 @@ export function render(pane, {
         const change = changedItems.get(itemKeyFor(item.category, item.name));
         const row = el('div', `story-block-tree-item${change ? ` is-${change}` : ''}`);
         const itemName = el('div', 'story-block-tree-item-name');
-        itemName.appendChild(el('span', 'story-block-tree-item-label', item.name));
+        // (0.9.18) A rarity word in the note tints the name (story-block-rarity is-rare…).
+        const rarity = rarityClass(item.remark);
+        itemName.appendChild(el('span', `story-block-tree-item-label${rarity ? ` ${rarity}` : ''}`, item.name));
         if (path) itemName.appendChild(el('span', 'story-block-tree-item-path', path));
         const qty = el('div', 'story-block-tree-item-qty', formatQuantity(item.quantity));
         if (item.quantity) qty.title = `${columns[1]}: ${item.quantity}`;
@@ -395,6 +424,9 @@ export function render(pane, {
         view.selected = selected.id;
         const searching = Boolean(view.query.trim());
         browser.classList.toggle('is-searching', searching);
+        // (0.9.18) A short list opens at All with every item under its section's title, rather
+        // than behind a row per section (narrow panes drill down only when the list is long).
+        browser.classList.toggle('is-short', selected === tree && count <= SHORT_LIST);
         browser.replaceChildren();
         browser.appendChild(renderTree(selected));
 
