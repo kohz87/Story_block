@@ -3,9 +3,7 @@
 // Story Suite's overlay shows every extension's that offers `api.manage.preview()`
 // (docs/STORY_SUITE.md). Built from nodes with textContent only: the text is the prompt as sent.
 
-const CHARS_PER_TOKEN = 4;
-
-const tokensOf = text => Math.round(String(text ?? '').length / CHARS_PER_TOKEN);
+import { tokensOf } from '../tokens.js';
 
 // "injection" → "Injection", "liveDossier" → "Live dossier".
 const labelOf = key => String(key).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').trim().replace(/^./, first => first.toUpperCase()).replace(/(?<= )\w/g, word => word.toLowerCase());

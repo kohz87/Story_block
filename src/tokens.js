@@ -11,6 +11,8 @@ import { formatFor } from './formats/index.js';
 import { ENVELOPE_MARKER } from './envelope.js';
 import { buildContext } from './prompt.js';
 import { promptRolls } from './dice.js';
+import { changesOnly, changesTag } from './changes.js';
+import { changeSkeleton } from './formats/rows.js';
 
 export const CHARS_PER_TOKEN = 4;
 export const RULES_PART = 'Rules and envelope';
@@ -24,6 +26,8 @@ export function tokensOf(text) {
 function writtenBack(entry, substitute) {
     const { def } = entry;
     if (def.kept) return '';
+    // (0.9.19) A list written as changes only asks for a few change lines, not the whole list.
+    if (changesOnly(def)) return `<${changesTag(def)}>\n${changeSkeleton(def)}\n</${changesTag(def)}>`;
     const format = formatFor(def);
     const state = def.kind === 'stateful' && entry.state && !format.isEmpty(entry.state) ? format.serialize(entry.state, def) : null;
     const body = state ?? String(substitute(String(format.skeleton(def) ?? '').replaceAll('{{rolls}}', promptRolls(entry.rolls))) ?? '');

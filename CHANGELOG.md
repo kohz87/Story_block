@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.19
+
+Cleanup. Nothing you see changes, except a token estimate that is now right.
+
+- **One save per reply.** When a reply came in, the chat was saved up to three times: after hiding the blocks' transport, after stamping the dice, and after carrying the state into the reply. It is now saved once, after all three.
+- **The Inventory's token estimate counts change lines.** Since 0.9.16 the model writes only what changed, but *Tokens per reply* still counted the whole list as its output (about 700 tokens for a long Inventory, against about 25 now).
+- **Dead styles removed.** The fields and scene displays' old change marks (`story-block-field-change`, `story-block-fields-removed`, `story-block-scene-change`, `story-block-scene-delta`, `story-block-scene-removed`) were no longer drawn by any code. About 70 lines of CSS are gone.
+- **One token counter.** *What's sent* (0.9.18) had its own copy of the four-characters-a-token count; it now uses the one Tokens per reply uses.
+
 ## 0.9.18
 
 - **See exactly what is sent.** Story Block's settings end with a **What's sent** fold. It shows the context the next reply gets: the rules, each block's section with its current state, and the layout to write back. It shows the size and has a **Copy** button, and it is read when you open it. In Story Suite's overlay, a new **What's sent** section does the same for every extension that offers it, through a new optional `api.manage.preview()` (documented in docs/STORY_SUITE.md). Story Block offers its own; the others can add theirs.

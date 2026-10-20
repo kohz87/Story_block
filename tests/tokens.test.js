@@ -53,3 +53,14 @@ test('contextTokens: nothing prompted is nothing; a kept block not written yet a
     assert.ok(noted.input - plain.input <= 16, 'about ten tokens');
     assert.equal(noted.output, plain.output);
 });
+
+test('a list written as changes only counts a few change lines as its output, not the whole list (0.9.19)', async () => {
+    const { templateById } = await import('../src/templates.js');
+    const { parse } = await import('../src/formats/rows.js');
+    const inventory = templateById('inventory');
+    const state = parse(Array.from({ length: 30 }, (_, index) => `Item number ${index} | 1 | a long note about item ${index}`).join('\n'), inventory).state;
+    const changes = contextTokens([{ def: inventory, state }]).parts.find(part => part.label === 'Inventory');
+    const whole = contextTokens([{ def: { ...inventory, updates: 'full' }, state }]).parts.find(part => part.label === 'Inventory');
+    assert.ok(changes.output < 30, `${changes.output} tokens out`);
+    assert.ok(whole.output > 200, `${whole.output} tokens out when rewritten whole`);
+});
