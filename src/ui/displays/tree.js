@@ -169,6 +169,9 @@ export function render(pane, {
         renderBrowser(focus ? id : null);
     };
 
+    // (0.9.18) What the latest reply found, kept unless the reader leaves it: one chip each.
+    // (0.9.22) In the "Changed this turn" row itself, in place of its preview, so the two are one row.
+    const gains = typeof onLeave === 'function' && !changesFromEarlierReply ? gainsOf(changeList) : [];
     if (changeList.length) {
         const strip = el('details', 'story-block-tree-changes');
         strip.open = view.changesOpen;
@@ -176,10 +179,23 @@ export function render(pane, {
         summary.title = changesFromEarlierReply
             ? `The newest reply carried no ${name}; these changes come from an earlier reply.`
             : `Changes to ${name} since the previous state.`;
-        summary.append(
-            el('span', 'story-block-tree-changes-label', `${changesFromEarlierReply ? 'Changed in an earlier reply' : 'Changed this turn'} · ${changeList.length}`),
-            el('span', 'story-block-tree-changes-preview', changeList.map(describeChange).join('   ')),
-        );
+        summary.appendChild(el('span', 'story-block-tree-changes-label', `${changesFromEarlierReply ? 'Changed in an earlier reply' : 'Changed this turn'} · ${changeList.length}`));
+        if (gains.length) {
+            const found = el('span', 'story-block-found');
+            found.title = `Found this turn: kept unless you leave it.`;
+            for (const gain of gains) {
+                const chip = el('span', `story-block-found-chip${rarityClass(gain.remark) ? ` ${rarityClass(gain.remark)}` : ''}`);
+                chip.append(el('span', 'story-block-found-name', gain.gain === null ? gain.name : `${gain.name} ×${gain.gain}`));
+                const leave = button('story-block-found-leave', { text: 'Leave', title: `Leave ${gain.name} behind: it comes out of this reply's ${name}. Kept otherwise.` });
+                // Inside the row's summary: the click leaves the find without folding the row.
+                leave.addEventListener('click', stop(event => { event.preventDefault?.(); onLeave(gain); }));
+                chip.appendChild(leave);
+                found.appendChild(chip);
+            }
+            summary.appendChild(found);
+        } else {
+            summary.appendChild(el('span', 'story-block-tree-changes-preview', changeList.map(describeChange).join('   ')));
+        }
         strip.appendChild(summary);
         const list = el('ul', 'story-block-tree-changes-list');
         for (const change of changeList) {
@@ -192,22 +208,6 @@ export function render(pane, {
         strip.appendChild(list);
         strip.addEventListener('toggle', () => { view.changesOpen = strip.open; });
         pane.appendChild(strip);
-    }
-
-    // (0.9.18) What the latest reply found, kept unless the reader leaves it: one chip each.
-    const gains = typeof onLeave === 'function' && !changesFromEarlierReply ? gainsOf(changeList) : [];
-    if (gains.length) {
-        const found = el('div', 'story-block-found');
-        found.appendChild(el('span', 'story-block-found-label', 'Found this turn'));
-        for (const gain of gains) {
-            const chip = el('span', `story-block-found-chip${rarityClass(gain.remark) ? ` ${rarityClass(gain.remark)}` : ''}`);
-            chip.append(el('span', 'story-block-found-name', gain.gain === null ? gain.name : `${gain.name} ×${gain.gain}`));
-            const leave = button('story-block-found-leave', { text: 'Leave', title: `Leave ${gain.name} behind: it comes out of this reply's ${name}. Kept otherwise.` });
-            leave.addEventListener('click', stop(() => onLeave(gain)));
-            chip.appendChild(leave);
-            found.appendChild(chip);
-        }
-        pane.appendChild(found);
     }
 
     pane.appendChild(browser);

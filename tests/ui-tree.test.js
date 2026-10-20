@@ -229,11 +229,15 @@ test('describeChange and formatQuantity', () => {
     assert.equal(describeChange({ type: 'changed', label: 'Mood', from: 'calm', to: 'angry' }), '~ Mood: calm → angry');
 });
 
-test('found this turn: each gain of the latest reply as a chip with Leave; nothing without a handler (0.9.18)', () => {
+test('found this turn: each gain of the latest reply as a chip with Leave, in the changes row; nothing without a handler (0.9.18, 0.9.22)', () => {
     const before = parse('Rope | 1\n[Consumables]\nMinor Healing Draught | 2 | heal 20');
     const after = parse('Rope | 1\n[Consumables]\nMinor Healing Draught | 4 | heal 20\n[Loot]\nBrood-Mother Skull | 1 | uncommon material');
     const left = [];
     const pane = show({ state: after, previousState: before, changes: rows.diff(before, after), onLeave: gain => left.push(gain) });
+    // (0.9.22) One row: the finds sit in the "Changed this turn" row, in place of its preview.
+    const row = pane.querySelector('.story-block-tree-changes-summary');
+    assert.ok(row.querySelector('.story-block-found'));
+    assert.equal(row.querySelector('.story-block-tree-changes-preview'), null);
     const chips = pane.querySelectorAll('.story-block-found-chip');
     assert.deepEqual(chips.map(chip => chip.querySelector('.story-block-found-name').textContent), ['Brood-Mother Skull ×1', 'Minor Healing Draught ×2']);
     assert.match(chips[0].className, /story-block-rarity is-uncommon/);

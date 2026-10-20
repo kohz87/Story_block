@@ -106,6 +106,6 @@ test('the model is handed each roll tied to its attempt; a skipped die gets what
 
 test('the context keeps envelopes on their own lines and leaves an empty first envelope out (0.9.9)', () => {
     const context = buildContext([{ def: dice, rolls: [12] }, { def: templateById('inventory'), state: null }]);
-    assert.match(context, /Keep every envelope on its own lines, with a blank line between it and the story/);
+    assert.match(context, /Put each envelope on its own lines, a blank line away from the story \(never on a line of story\)/);
     assert.match(context, /When none of them has anything this reply, leave that envelope out rather than writing it empty\./);
 });

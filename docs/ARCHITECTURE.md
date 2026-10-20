@@ -156,7 +156,8 @@ export function extractBlocks(text, defs) -> Entry[]
 
 // The newest complete, valid occurrence of `def` in one message text:
 // { state, body, start, end } or null. Validity = formatFor(def).parse(body, def).ok.
-export function latestBlockInText(text, def) -> object | null
+export function latestBlockInText(text, def) -> object | null   // (0.9.22) remembered per definition and text; a fresh copy each time
+export function clearBlockReads()
 
 // Scan assistant messages (not is_user, not is_system) from newest to oldest, before
 // `beforeIndex` when given: { state, body, messageIndex } for the newest valid copy, or null.
@@ -261,7 +262,7 @@ export const CONTEXT_BEGIN, CONTEXT_END;
 export function activeBlocks(defs, chat, type = 'normal') -> defs
 // entries: [{ def, state }] (state only for stateful). substitute(text) applies {{user}}/{{char}}
 // to block prompts only — never to state, which must reach the model verbatim.
-export function buildContextParts(entries, { substitute, staticDefs, ruleDefs }) -> { static, tail }  // both '' for nothing
+export function buildContextParts(entries, { substitute, staticDefs, ruleDefs, sizes }) -> { static, tail }  // both '' for nothing; sizes (a Map) gets each entry's characters
 export function buildContext(entries, options) -> string  // the two parts as one text (preview, tokens)
 export function hasContext(text) -> boolean
 export function defuseMacros(text) -> string     // port: placeholder copy SillyTavern may macro-substitute

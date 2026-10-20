@@ -33,8 +33,10 @@ test('contextTokens: input is the whole section, parts add up, a kept block is l
     assert.equal(result.parts[0].output, 0, 'the model never writes a kept block');
     assert.ok(result.parts.every(part => Number.isInteger(part.input) && part.input >= 0 && Number.isInteger(part.output) && part.output >= 0));
     assert.ok(result.parts[1].output > 0 && result.parts[2].output > 0);
-    // A block's input is what switching it off would save.
-    assert.equal(result.parts[2].input, result.input - tokensOf(buildContext(entries.filter(entry => entry.def !== notes))));
+    // A block's input is about what switching it off would save (0.9.22: its own sections' length,
+    // from one build of the section; switching it off may also drop a rule worded for it).
+    const saved = result.input - tokensOf(buildContext(entries.filter(entry => entry.def !== notes)));
+    assert.ok(Math.abs(result.parts[2].input - saved) <= 30, `${result.parts[2].input} vs ${saved}`);
 
     // A stateful block with a state writes its state back.
     const state = { text: 'x'.repeat(800) };

@@ -423,6 +423,35 @@ function parseBody(def, body) {
     }
 }
 
+// (0.9.22) Reading a block out of a message text is the slow part of every refresh in a long
+// chat (latestBlockState scans back through the replies, per block, per view). The result is
+// kept per block definition and message text: the text is the key, so an edit, a swipe or a
+// deleted message can never be answered from a stale copy. Each hit is a fresh copy, so a
+// caller changing what it got changes nothing here. Bounded, oldest out first.
+const READS_KEPT = 2000;
+// Per block definition: message text → what was read from it.
+const reads = new Map();
+const defKeys = new WeakMap();
+
+function defKey(def) {
+    let key = defKeys.get(def);
+    if (key === undefined) {
+        const { id, tag, format, kind, repeating, kept, owner, columns, fields, layout, maxDepth } = def;
+        key = JSON.stringify([id, tag, format, kind, repeating, kept, owner, columns, fields, layout, maxDepth]);
+        defKeys.set(def, key);
+    }
+    return key;
+}
+
+function copyRead(found) {
+    return found ? { ...found, state: structuredClone(found.state) } : null;
+}
+
+/** Forget every kept read (tests; a block definition changed in place). */
+export function clearBlockReads() {
+    reads.clear();
+}
+
 /**
  * The newest complete, valid occurrence of `def` in one message text: { state, body, start,
  * end } or null. A cut that Continue finished is rejoined first, so offsets refer to
@@ -430,6 +459,22 @@ function parseBody(def, body) {
  */
 export function latestBlockInText(text, def) {
     if (!def) return null;
+    const source = String(text ?? '');
+    const key = defKey(def);
+    let kept = reads.get(key);
+    if (!kept) {
+        kept = new Map();
+        reads.set(key, kept);
+    }
+    if (kept.has(source)) return copyRead(kept.get(source));
+    const found = readBlockInText(source, def);
+    kept.set(source, found);
+    // Oldest out first; a text read again stays where it was (cheap, and the bound is generous).
+    if (kept.size > READS_KEPT) kept.delete(kept.keys().next().value);
+    return copyRead(found);
+}
+
+function readBlockInText(text, def) {
     const entries = extractBlocks(rejoinContinuation(text), [def]).filter(entry => !entry.truncated && ownCopy(entry, def));
     // A repeating block (Dice) may come as one tag per item; the reply's copies read as one.
     if (def.repeating && entries.length > 1) {

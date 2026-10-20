@@ -9,7 +9,7 @@
 
 import { formatFor } from './formats/index.js';
 import { ENVELOPE_MARKER } from './envelope.js';
-import { buildContext } from './prompt.js';
+import { buildContextParts } from './prompt.js';
 import { promptRolls } from './dice.js';
 import { changesOnly, changesTag } from './changes.js';
 import { changeSkeleton } from './formats/rows.js';
@@ -39,20 +39,24 @@ const ENVELOPE = `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n</Blocks>\n-->`;
 /**
  * `{ input, output, parts: [{ label, input, output }] }` for the prompt entries a reply would get
  * ({ def, state, body, rolls, note }, as prepareGeneration builds them). A block's input is what
- * the section grows by with it (what switching it off would save); what they share (the rules
+ * its own sections bring (about what switching it off would save); what they share (the rules
  * and the envelope) is one more part, so the parts add up to the totals. A kept block is listed
  * as "Name (kept by Owner)" and never adds output; one not written yet adds nothing.
+ * (0.9.22) The section is built once, each block's share read from its sections' lengths, rather
+ * than built again without each block in turn. `options.staticDefs`/`ruleDefs` as buildContextParts.
  */
-export function contextTokens(entries, { substitute = text => text } = {}) {
+export function contextTokens(entries, { substitute = text => text, staticDefs = null, ruleDefs = null } = {}) {
     const list = (Array.isArray(entries) ? entries : []).filter(entry => entry?.def);
-    const input = tokensOf(buildContext(list, { substitute }));
+    const sizes = new Map();
+    const built = buildContextParts(list, { substitute, staticDefs, ruleDefs, sizes });
+    const input = tokensOf([built.static, built.tail].filter(Boolean).join('\n\n'));
     if (!input) return { input: 0, output: 0, parts: [] };
-    const parts = list.map((entry, index) => {
-        const without = list.filter((_, other) => other !== index);
+    const parts = list.map(entry => {
         const { def } = entry;
         return {
             label: def.kept ? `${def.name} (kept by ${def.owner})` : String(def.name ?? def.tag),
-            input: Math.max(0, input - tokensOf(buildContext(without, { substitute }))),
+            // Rounded down, so the parts never add up to more than the whole.
+            input: Math.min(input, Math.floor((sizes.get(entry) ?? 0) / CHARS_PER_TOKEN)),
             output: tokensOf(writtenBack(entry, substitute)),
         };
     }).filter(part => part.input || part.output);
