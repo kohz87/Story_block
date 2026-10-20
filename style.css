@@ -406,43 +406,10 @@
     overflow-wrap: anywhere;
 }
 
-.story-block-field-change {
-    grid-column: 2;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-    font-size: 0.82em;
-    opacity: 0.8;
-    overflow-wrap: anywhere;
-}
-
-.story-block-field-change-dot {
-    flex: none;
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: var(--sb-changed);
-}
-
-.story-block-field-change.is-added .story-block-field-change-dot {
-    background: var(--sb-added);
-}
-
-.story-block-fields-removed {
-    margin-top: 0.45rem;
-    font-size: 0.85em;
-    opacity: 0.65;
-}
-
 /* Phone: label above value. */
 @container story-block (max-width: 340px) {
     .story-block-field {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .story-block-field-change {
-        grid-column: 1;
     }
 }
 
@@ -1657,13 +1624,6 @@ button.story-block-strip:hover {
     border: 0;
 }
 
-.story-block-scene-delta {
-    align-self: flex-start;
-    font-size: 0.82em;
-    opacity: 0.75;
-    font-variant-numeric: tabular-nums;
-}
-
 /* Time, place, weather */
 
 /* One box for the scene, a plain row per fact: rows of different lengths with borders
@@ -1821,30 +1781,6 @@ button.story-block-strip:hover {
 
 .story-block-scene-row.is-dropped .story-block-scene-v {
     opacity: 0.6;
-}
-
-/* Change marks, the fields display's look */
-
-.story-block-scene-change {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.82em;
-    opacity: 0.8;
-    overflow-wrap: anywhere;
-}
-
-.story-block-scene-change-dot {
-    flex: none;
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: var(--sb-changed);
-}
-
-.story-block-scene-change.is-added .story-block-scene-change-dot,
-.story-block-scene-chip.is-added .story-block-scene-change-dot {
-    background: var(--sb-added);
 }
 
 /* Secret */
@@ -2091,11 +2027,6 @@ button.story-block-strip:hover {
     text-decoration: underline;
     text-decoration-color: var(--sb-changed);
     text-underline-offset: 3px;
-}
-
-.story-block-scene-removed {
-    font-size: 0.85em;
-    opacity: 0.65;
 }
 
 @container story-block (min-width: 420px) {

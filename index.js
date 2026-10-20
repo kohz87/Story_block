@@ -36,7 +36,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.18';
+const VERSION = '0.9.19';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -535,7 +535,8 @@ async function onMessageReceived(messageId) {
     const session = chatId ? pending.get(chatId) : null;
 
     // Keep the blocks in the raw message, but hide their transport from the narration.
-    await normalizeMessageTransport(id, { rerender: true });
+    // (0.9.19) The chat is saved once, below, for this and the edits after it.
+    let dirty = await normalizeMessageTransport(id, { rerender: true, save: false });
 
     // Record the dice that were handed over on the block itself, so this message (and this
     // swipe) can be checked against them later. After normalizing: moving a bare block into
@@ -550,7 +551,10 @@ async function onMessageReceived(messageId) {
         }
     }
     // The stamp sits inside the hidden envelope: nothing visible changed, so no re-render.
-    if (stamped) await persistMessageEdit(ctx, id, message, { rerender: false });
+    if (stamped) {
+        await persistMessageEdit(ctx, id, message, { rerender: false, save: false });
+        dirty = true;
+    }
 
     if (session?.entries.length) {
         const problems = session.entries
@@ -571,8 +575,10 @@ async function onMessageReceived(messageId) {
     const carried = carryStates(message.mes, blocks(ctx), ctx.chat, id);
     if (carried !== message.mes) {
         message.mes = carried;
-        await persistMessageEdit(ctx, id, message, { rerender: false });
+        await persistMessageEdit(ctx, id, message, { rerender: false, save: false });
+        dirty = true;
     }
+    if (dirty) await saveChat(ctx);
     clearSession(chatId);
     refreshAll(0);
     // The Overview's token estimates follow the new reply (nothing is polled).
