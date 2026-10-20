@@ -49,6 +49,8 @@ test('a rows body cut anywhere and finished by Continue is read whole; a cut-off
 });
 
 test('the context for the templates carries every format\'s rules, state and skeleton', () => {
+    // The Inventory rewritten whole (0.9.16: it is changes-only unless the reader chose this).
+    const inventory = { ...byId('inventory'), updates: 'full' };
     const state = rows.parse('Coin Pouch | 1 | 90 Gold', inventory).state;
     const context = buildContext([
         { def: inventory, state },

@@ -928,6 +928,18 @@ export function upsertBlock(text, def, body) {
 const EMPTY_ENVELOPE = /[ \t]*<!--\s*STORY_BLOCKS_V1[ \t]*\n?\s*<Blocks>\s*<\/Blocks>\s*-->[ \t]*\n?/g;
 
 /**
+ * (0.9.16) `text` without its complete copies of `def` (and the line break after each); an
+ * envelope left holding nothing goes too. Cut-off copies stay for Continue.
+ */
+export function removeBlock(text, def) {
+    const source = String(text ?? '');
+    const entries = extractBlocks(source, [def]).filter(entry => !entry.truncated && entry.container !== 'legacy');
+    if (!entries.length) return source;
+    const ranges = entries.map(entry => [entry.start, source[entry.end] === '\n' ? entry.end + 1 : entry.end]);
+    return removeRanges(source, ranges).replace(EMPTY_ENVELOPE, '').trimEnd();
+}
+
+/**
  * Remove every copy of a kept block that its extension did not write (no stamp): a model
  * that writes the tag anyway must neither show it nor change the block, and a person's raw
  * edit does not either. Bare copies are moved into the envelope first (normalizeTransport),

@@ -5,6 +5,8 @@
 import { formatFor } from './formats/index.js';
 import { ENVELOPE_MARKER, replacesLastReply, stripBlocks } from './envelope.js';
 import { promptRolls } from './dice.js';
+import { changesOnly, changesTag } from './changes.js';
+import { changeRules, changeSkeleton } from './formats/rows.js';
 
 export const CONTEXT_BEGIN = 'STORY_BLOCKS_V1_CONTEXT_BEGIN';
 export const CONTEXT_END = 'STORY_BLOCKS_V1_CONTEXT_END';
@@ -80,6 +82,7 @@ const KIND_NOTES = {
 
 function heading(def) {
     if (readOnly(def)) return `### ${def.name} — <${def.tag}> (kept by ${def.owner}: read it, never write it)`;
+    if (changesOnly(def)) return `### ${def.name} — <${changesTag(def)}> (kept: write only the changes)`;
     return `### ${def.name} — <${def.tag}> (${KIND_NOTES[def.kind] ?? KIND_NOTES.turn})`;
 }
 
@@ -141,8 +144,10 @@ function blockSection(entry, substitute, modifiers = []) {
     // A line the runtime adds for this reply only (handshake.js: chatterNote), after the prompt.
     const note = String(entry.note ?? '').trim();
     if (note) lines.push(note);
-    const rules = String(formatFor(def).rules(def) ?? '').trim();
+    const rules = String((changesOnly(def) ? changeRules(def) : formatFor(def).rules(def)) ?? '').trim();
     if (rules) lines.push(`Format: ${rules}`);
+    // (0.9.16) Nothing changed: no changes block; a big reorganisation may still write it whole.
+    if (changesOnly(def)) lines.push(`Leave <${changesTag(def)}> out when this reply changes nothing. Only to reorganise the whole list, write the full <${def.tag}> block instead, every row included.`);
     if (def.optional) lines.push(`Optional: leave the whole <${def.tag}> tag out when nothing in this reply calls for it${lead(def) ? ', and then leave out the opening envelope too if it would be empty' : ''}.`);
     if (stateful(def)) lines.push(...currentState(def, entry.state));
     return lines.join('\n');
@@ -153,8 +158,10 @@ function blockSection(entry, substitute, modifiers = []) {
 function skeletonEnvelope(list, substitute) {
     const parts = list.map(entry => {
         const { def } = entry;
-        const skeleton = String(substitute(withRolls(formatFor(def).skeleton(def), entry)) ?? '').trim();
-        return [`<${def.tag}>`, ...(skeleton ? [skeleton] : []), `</${def.tag}>`].join('\n');
+        const changes = changesOnly(def);
+        const tag = changes ? changesTag(def) : def.tag;
+        const skeleton = String(substitute(withRolls(changes ? changeSkeleton(def) : formatFor(def).skeleton(def), entry)) ?? '').trim();
+        return [`<${tag}>`, ...(skeleton ? [skeleton] : []), `</${tag}>`].join('\n');
     });
     return `<!-- ${ENVELOPE_MARKER}\n<Blocks>\n${parts.join('\n')}\n</Blocks>\n-->`;
 }
@@ -192,8 +199,11 @@ export function buildContext(entries, { substitute = text => text } = {}) {
         'Never write the blocks, their tags or their contents as visible narration, and do not explain them in the story.',
         'Never write "-->" anywhere inside the envelope; write "--\\>" instead. A backslash escapes the character after it (for example --\\> or <\\Tag); keep such escapes exactly as written.',
     ];
-    if (list.some(entry => stateful(entry.def))) {
+    if (list.some(entry => stateful(entry.def) && !changesOnly(entry.def))) {
         rules.push('Blocks marked "kept" carry state from reply to reply. The current state shown here is the only authoritative one; earlier copies in the story are history. Rewrite each kept block in full every reply, with only the changes this reply actually makes. It is never a patch or a list of changes: omission means loss, so keep everything that did not change.');
+    }
+    if (list.some(entry => changesOnly(entry.def))) {
+        rules.push('Blocks marked "write only the changes" also carry state, but you never rewrite them: write only what this reply changes, line by line, in their changes tag; everything not mentioned stays exactly as it is.');
     }
     if (first.length) {
         rules.push('Blocks marked "first" go in their own hidden envelope at the very start of your reply, before any story text: write that envelope first, decide it before you write the scene, and never revise it once the story exists. When none of them has anything this reply, leave that envelope out rather than writing it empty.');

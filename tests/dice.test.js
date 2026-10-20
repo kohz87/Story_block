@@ -63,7 +63,7 @@ test('the reply context puts lead blocks in a first envelope and fills {{rolls}}
     assert.match(context, /Blocks marked "first" go in their own hidden envelope at the very start/);
     const skeleton = context.slice(context.indexOf('Write it exactly like this:'));
     assert.ok(skeleton.indexOf('<Dice>') < skeleton.indexOf('[your reply]'));
-    assert.ok(skeleton.indexOf('[your reply]') < skeleton.indexOf('<Inventory>'));
+    assert.ok(skeleton.indexOf('[your reply]') < skeleton.indexOf('<Inventory_Changes>'));
     assert.doesNotMatch(buildContext([{ def: dice, rolls: null }]), /\[your reply\]/, 'no closing envelope when only lead blocks are asked for');
     assert.match(buildContext([{ def: dice, rolls: null }]), /rolls, in order: none\./);
 });

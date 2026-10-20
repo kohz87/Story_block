@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.16
+
+- **The Inventory is written as changes only.** The model rewrote the whole Inventory every reply, and rows it never meant to touch drifted (`heal 20` became *weak restorative fluid*). Now it writes only what changed, in a hidden `<Inventory_Changes>`, with Story Director's signs:
+  - `+ Brood-Mother Skull | 1 | uncommon material` for something gained;
+  - `- Minor Healing Draught | 1` for something lost or used;
+  - `~ Coin Pouch | 1 | 5 Silver` for a row that now reads differently.
+
+  Story Block applies them to the Inventory as it stood before the reply and writes the whole new `<Inventory>` into that reply. Every reader still sees the full block, a swipe or a deleted reply still goes back to the one before, and untouched rows stay exactly as they were. A reply that changes nothing carries no copy. A reply that writes the full block (a big reorganisation) keeps it. A change naming no row is reported, not guessed. The model also writes fewer tokens per reply.
+- **Your choice per block.** **Edit → Rows → The model writes** is *Only the changes* or *The whole list*. Your Inventory switches to changes only unless you set it otherwise. Other list blocks keep the whole list.
+- **The copy-exactly line moved.** The 0.9.15 line ("copy every row this reply does not change … word for word") is now part of the list format's own rules, so it reaches every block rewritten whole. An Inventory instruction left as 0.9.15 wrote it goes back to the built-in one.
+
 ## 0.9.15
 
 - **Unchanged Inventory rows stay exactly as they were.** The model writes the Inventory again every reply. It reworded notes it had no reason to touch, and over many replies they drifted: `heal 20` became *Weak restorative fluid (heals minor wounds)*, and RPG Battle could no longer use the potion. The Inventory's instruction now says to copy every row the reply does not change word for word, to keep the note when only the quantity changes, and never to reword a note's numbers and tags (`heal 20`, `uncommon · ATK +4`). That is about 55 tokens more per reply.

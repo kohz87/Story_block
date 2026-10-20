@@ -373,6 +373,8 @@ export function rules(def) {
     return `One row per line: ${first} | ${second} | ${third}. Rows before any header belong to the general section; ` +
         `group the rest under section headers [Section] on their own line. ${nestingRule(def?.maxDepth)} ` +
         'Write each section header once and each name once per section; merge duplicates into a single row. ' +
+        // (0.9.15, here since 0.9.16) Rewritten each reply, an unchanged note drifted into prose.
+        `Copy every row this reply does not change exactly as it was, ${third.toLowerCase()} included, word for word; numbers and tags in a ${third.toLowerCase()} (heal 20, uncommon · ATK +4) are rules: never reword them. ` +
         'Never put "|" inside a cell (write "/" instead).';
 }
 
@@ -380,4 +382,206 @@ export function skeleton(def) {
     const [first, second, third] = columnsOf(def);
     const row = `(${first}) | (${second}) | (${third})`;
     return `${row}\n\n[Section]\n${row}`;
+}
+
+// ---------------------------------------------------------------------------------------
+// (0.9.16) Changes only: the model writes what this reply changed and the code applies it to
+// the previous state, line by line, so every row it did not touch stays exactly as it was.
+//
+//   [Loot]                                   a header: the section new rows below it go into
+//   + Brood-Mother Skull | 1 | uncommon material   gained: a new row, or more of a row it has
+//   - Minor Healing Draught | 1              lost or used: that many fewer; with no number, or at 0, the row goes
+//   ~ Short Sword | 1 | Equipped · ATK +4    now reads: the row's quantity (and note, when given) set
+//
+// The signs are Story Director's (+ added, ~ updated, - gone); "=" is read as "~", and so is a
+// line without a sign. A name is found in its section, else anywhere, also as
+// a plural or singular, or as the one row that holds all its words.
+
+const CHANGE_SIGN = /^([+\-=~])\s*/;
+const NOTHING = /^[\s*_([{]*(?:no(?:thing)?(?:\s+\w+){0,2}\s+(?:changes?|changed)|none|nothing|unchanged|no changes?)[\s*_)\]}.!]*$/i;
+
+const matchKey = value => key(unescapeText(String(value ?? '').replace(LIST_MARKER, '')).replace(/\*\*|__|`/g, '').replace(/^\*|\*$/g, ''));
+const wordsOf = value => matchKey(value).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+// The raw cells of a row line, escapes kept, split at unescaped "|".
+function rawCells(line) {
+    const cells = [];
+    let current = '';
+    let escaped = false;
+    for (const char of String(line ?? '')) {
+        if (escaped) { current += char; escaped = false; continue; }
+        if (char === '\\') { current += char; escaped = true; continue; }
+        if (char === '|') { cells.push(current); current = ''; continue; }
+        current += char;
+    }
+    cells.push(current);
+    return cells;
+}
+
+// The rows and headers of a body's lines: rows [{ index, section, name, key, qty, note }].
+function scanBody(lines, def) {
+    const rows = [];
+    const headers = [];
+    let section = '';
+    lines.forEach((raw, index) => {
+        const line = raw.trim();
+        if (!line || TABLE_RULE.test(line)) return;
+        if (isHeaderLine(line) && splitRow(line.slice(1, -1)).length < 3) {
+            section = categoryKey(unescapeText(line.slice(1, -1)));
+            headers.push({ index, section });
+            return;
+        }
+        if (EMPTY_LINE.test(line.replace(LIST_MARKER, ''))) return;
+        const cells = rowCells(line.replace(LIST_MARKER, ''));
+        if (cells.length < 2 || isTableHeaderRow(cells, line.startsWith('|'), def)) return;
+        rows.push({ index, section, name: clean(cells[0]), key: matchKey(cells[0]), qty: clean(cells[1]), note: clean(cells.slice(2).join(' | ')) });
+    });
+    return { rows, headers };
+}
+
+function findRow(rows, name, section) {
+    const wanted = matchKey(name);
+    const forms = [wanted, `${wanted}s`, `${wanted}es`, wanted.replace(/e?s$/, '')].filter(Boolean);
+    const inSection = section ? rows.filter(row => row.section === section) : [];
+    for (const pool of [inSection, rows]) {
+        const hit = pool.find(row => forms.includes(row.key) || forms.some(form => row.key === form));
+        if (hit) return hit;
+    }
+    const want = wordsOf(name);
+    const holding = rows.filter(row => want.length && want.every(word => wordsOf(row.name).some(other => other === word || other === `${word}s` || `${other}s` === word)));
+    return holding.length === 1 ? holding[0] : null;
+}
+
+const firstNumber = text => {
+    const match = String(text ?? '').replace(/,(?=\d{3}\b)/g, '').match(/-?\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : null;
+};
+
+// `text` with its first number moved by `delta` (never below 0); null when it has none.
+function shiftNumber(text, delta) {
+    const source = String(text ?? '');
+    const have = firstNumber(source);
+    if (have === null) return null;
+    const next = Math.max(0, Math.round((have + delta) * 100) / 100);
+    return { text: source.replace(/-?\d[\d,]*(?:\.\d+)?/, String(next)), value: next };
+}
+
+// The line with cell `index` (0 name, 1 quantity, 2 note) set to `value`, the rest as written.
+function withCell(line, index, value, tag) {
+    const cells = rawCells(line);
+    const offset = line.trimStart().startsWith('|') ? 1 : 0;
+    const at = index + offset;
+    const text = escapeCell(value, tag);
+    if (at < cells.length) {
+        const last = at === cells.length - 1 - (offset && cells.at(-1).trim() === '' ? 1 : 0);
+        cells[at] = last && !offset ? ` ${text}` : ` ${text} `;
+    } else {
+        while (cells.length < at) cells.push(' ');
+        cells[cells.length - 1] = cells[cells.length - 1].replace(/\s*$/, ' ');
+        cells.push(` ${text}`);
+    }
+    return cells.join('|').replace(/\s+$/, '');
+}
+
+function rowLine(name, qty, note, tag) {
+    return `${escapeName(name, tag)} | ${escapeCell(qty, tag)}${note ? ` | ${escapeCell(note, tag)}` : ''}`;
+}
+
+// Where a new row of `section` goes: after the section's last row (its "(empty)" line goes),
+// else under its header; a section not there yet is added at the end. Returns the lines.
+function insertRow(lines, def, section, sectionName, text) {
+    const { rows, headers } = scanBody(lines, def);
+    const own = rows.filter(row => row.section === section);
+    if (own.length) {
+        lines.splice(own.at(-1).index + 1, 0, text);
+        return lines;
+    }
+    const header = section ? headers.find(entry => entry.section === section) : null;
+    if (header || !section) {
+        const at = header ? header.index + 1 : 0;
+        // The section's "(empty)" line goes once it holds a row.
+        let end = at;
+        while (end < lines.length && lines[end].trim() && EMPTY_LINE.test(lines[end].trim().replace(LIST_MARKER, ''))) end += 1;
+        lines.splice(at, end - at, text);
+        if (!header && lines.length > 1 && lines[1].trim() && isHeaderLine(lines[1].trim())) lines.splice(1, 0, '');
+        return lines;
+    }
+    while (lines.length && !lines.at(-1).trim()) lines.pop();
+    if (lines.length) lines.push('');
+    lines.push(`[${escapeHeader(sectionName, def?.tag)}]`, text);
+    return lines;
+}
+
+/**
+ * The previous state's body (`body`, as stored) with the reply's changes applied:
+ * { body, applied: [line], failed: [{ line, why }] }. Pure; lines it does not touch stay
+ * byte for byte.
+ */
+export function applyChanges(body, changes, def) {
+    const tag = def?.tag;
+    const lines = String(body ?? '').replace(/\r\n?/g, '\n').split('\n');
+    if (lines.length === 1 && lines[0] === '') lines.pop();
+    const applied = [];
+    const failed = [];
+    let section = '';
+    let sectionName = '';
+    for (const raw of String(changes ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+        const line = raw.trim();
+        if (!line || NOTHING.test(line) || TABLE_RULE.test(line)) continue;
+        if (isHeaderLine(line) && splitRow(line.slice(1, -1)).length < 3) {
+            sectionName = canonicalCategoryName(unescapeText(line.slice(1, -1)));
+            section = categoryKey(sectionName);
+            continue;
+        }
+        const sign = CHANGE_SIGN.exec(line);
+        const op = sign ? (sign[1] === '=' ? '~' : sign[1]) : '~';
+        const cells = rowCells(sign ? line.slice(sign[0].length) : line.replace(LIST_MARKER, ''));
+        const name = clean(unescapeText(cells[0] ?? ''));
+        if (!name || (!sign && cells.length < 2)) continue;
+        const qty = clean(unescapeText(cells[1] ?? ''));
+        const note = cells.length > 2 ? clean(unescapeText(cells.slice(2).join(' | '))) : null;
+        const { rows } = scanBody(lines, def);
+        const row = findRow(rows, name, section);
+        if (op === '-') {
+            if (!row) { failed.push({ line, why: 'no such row' }); continue; }
+            const amount = firstNumber(qty);
+            const left = amount === null ? null : shiftNumber(row.qty, -amount);
+            if (!left || left.value <= 0) lines.splice(row.index, 1);
+            else lines[row.index] = withCell(lines[row.index], 1, left.text, tag);
+            applied.push(line);
+            continue;
+        }
+        if (!row) {
+            insertRow(lines, def, section, sectionName, rowLine(name, qty || '1', note ?? '', tag));
+            applied.push(line);
+            continue;
+        }
+        if (op === '+') {
+            const amount = firstNumber(qty) ?? 1;
+            const more = shiftNumber(row.qty, amount);
+            lines[row.index] = withCell(lines[row.index], 1, more ? more.text : String(amount), tag);
+        } else {
+            let next = lines[row.index];
+            if (qty) next = withCell(next, 1, qty, tag);
+            if (note !== null) next = withCell(next, 2, note, tag);
+            lines[row.index] = next;
+        }
+        applied.push(line);
+    }
+    return { body: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), applied, failed };
+}
+
+/** The format rules for a block written as changes only. */
+export function changeRules(def) {
+    const [first, second, third] = columnsOf(def);
+    return `Write only what this reply changes, one change per line: "+ ${first} | ${second} | ${third}" gained (more of a row, or a new row), ` +
+        `"- ${first} | ${second}" lost, used or given away (no ${second.toLowerCase()}: the whole row), "~ ${first} | ${second} | ${third}" a row that now reads differently (equipped, a new ${third.toLowerCase()}, a purse's new total). ` +
+        'Write a [Section] header line before new rows to say where they go. Use each row\'s name exactly as the current state spells it. ' +
+        `Every row you do not mention stays exactly as it is; numbers and tags in a ${third.toLowerCase()} (heal 20, uncommon · ATK +4) are rules: copy them exactly when you write one. ` +
+        'Never put "|" inside a cell (write "/" instead).';
+}
+
+export function changeSkeleton(def) {
+    const [first, second, third] = columnsOf(def);
+    return `[Section]\n+ (${first}) | (${second}) | (${third})\n- (${first}) | (${second})`;
 }
