@@ -180,23 +180,26 @@ export function render(pane, {
             ? `The newest reply carried no ${name}; these changes come from an earlier reply.`
             : `Changes to ${name} since the previous state.`;
         summary.appendChild(el('span', 'story-block-tree-changes-label', `${changesFromEarlierReply ? 'Changed in an earlier reply' : 'Changed this turn'} · ${changeList.length}`));
+        // (0.9.24) Folded, the row is one line: the finds are counted here and shown when it opens.
+        if (gains.length) summary.appendChild(el('span', 'story-block-tree-changes-found', `${gains.length} found`));
+        else summary.appendChild(el('span', 'story-block-tree-changes-preview', changeList.map(describeChange).join('   ')));
+        strip.appendChild(summary);
         if (gains.length) {
-            const found = el('span', 'story-block-found');
-            found.title = `Found this turn: kept unless you leave it.`;
+            const found = el('div', 'story-block-found');
+            found.title = 'Found this turn: kept unless you leave it.';
             for (const gain of gains) {
                 const chip = el('span', `story-block-found-chip${rarityClass(gain.remark) ? ` ${rarityClass(gain.remark)}` : ''}`);
-                chip.append(el('span', 'story-block-found-name', gain.gain === null ? gain.name : `${gain.name} ×${gain.gain}`));
+                const label = gain.gain === null ? gain.name : `${gain.name} ×${gain.gain}`;
+                const text = el('span', 'story-block-found-name', label);
+                text.title = label;
+                chip.appendChild(text);
                 const leave = button('story-block-found-leave', { text: 'Leave', title: `Leave ${gain.name} behind: it comes out of this reply's ${name}. Kept otherwise.` });
-                // Inside the row's summary: the click leaves the find without folding the row.
                 leave.addEventListener('click', stop(event => { event.preventDefault?.(); onLeave(gain); }));
                 chip.appendChild(leave);
                 found.appendChild(chip);
             }
-            summary.appendChild(found);
-        } else {
-            summary.appendChild(el('span', 'story-block-tree-changes-preview', changeList.map(describeChange).join('   ')));
+            strip.appendChild(found);
         }
-        strip.appendChild(summary);
         const list = el('ul', 'story-block-tree-changes-list');
         for (const change of changeList) {
             const li = el('li', `story-block-tree-change is-${change.type}`);

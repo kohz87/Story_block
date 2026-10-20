@@ -1,4 +1,4 @@
-# Story Block v0.9.23
+# Story Block v0.9.24
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -264,8 +264,9 @@ item (the columns are the block's own). Since 0.9.18 a rarity word in a note (*c
 *uncommon*, *rare*, *epic*, *legendary*) tints the item's name: grey, green, blue, purple,
 gold. The classes are `story-block-rarity is-<word>` and the colours `--sb-rarity-<word>`,
 for other extensions to use too. And what the latest reply **found** (a new row, or more of
-one) is listed as chips in the *Changed this turn* row above the tree (one row since 0.9.22),
-*Changed this turn · 2   Brood-Mother Skull ×1 [Leave]*.
+one) is counted in the *Changed this turn* row above the tree (one row since 0.9.22): folded,
+it is one line, *Changed this turn · 8   5 found*; opened (since 0.9.24), each find is a chip,
+*Brood-Mother Skull ×1 [Leave]*, above the list of changes.
 It is kept unless you press **Leave**, which takes that gain back out of that reply's copy, so
 a swipe or a deleted reply still rolls it back. Nothing is shown when the reply found nothing.
 A list of 20 rows or fewer opens at *All* with every item under its section's title; a longer

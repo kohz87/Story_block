@@ -229,16 +229,21 @@ test('describeChange and formatQuantity', () => {
     assert.equal(describeChange({ type: 'changed', label: 'Mood', from: 'calm', to: 'angry' }), '~ Mood: calm → angry');
 });
 
-test('found this turn: each gain of the latest reply as a chip with Leave, in the changes row; nothing without a handler (0.9.18, 0.9.22)', () => {
+test('found this turn: each gain of the latest reply as a chip with Leave, in the changes row; nothing without a handler (0.9.18, 0.9.22, 0.9.24)', () => {
     const before = parse('Rope | 1\n[Consumables]\nMinor Healing Draught | 2 | heal 20');
     const after = parse('Rope | 1\n[Consumables]\nMinor Healing Draught | 4 | heal 20\n[Loot]\nBrood-Mother Skull | 1 | uncommon material');
     const left = [];
     const pane = show({ state: after, previousState: before, changes: rows.diff(before, after), onLeave: gain => left.push(gain) });
-    // (0.9.22) One row: the finds sit in the "Changed this turn" row, in place of its preview.
-    const row = pane.querySelector('.story-block-tree-changes-summary');
-    assert.ok(row.querySelector('.story-block-found'));
+    // (0.9.24) Folded by default, the row is one line that counts the finds; the chips are inside it.
+    const strip = pane.querySelector('.story-block-tree-changes');
+    assert.equal(strip.open, false);
+    const row = strip.querySelector('.story-block-tree-changes-summary');
+    assert.equal(row.querySelector('.story-block-found'), null);
+    assert.equal(row.querySelector('.story-block-tree-changes-found').textContent, '2 found');
     assert.equal(row.querySelector('.story-block-tree-changes-preview'), null);
+    assert.ok(strip.querySelector(':scope > .story-block-found'));
     const chips = pane.querySelectorAll('.story-block-found-chip');
+    assert.equal(chips[0].querySelector('.story-block-found-name').title, 'Brood-Mother Skull ×1');
     assert.deepEqual(chips.map(chip => chip.querySelector('.story-block-found-name').textContent), ['Brood-Mother Skull ×1', 'Minor Healing Draught ×2']);
     assert.match(chips[0].className, /story-block-rarity is-uncommon/);
     chips[0].querySelector('.story-block-found-leave').click();
