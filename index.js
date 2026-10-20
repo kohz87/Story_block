@@ -12,7 +12,7 @@ import { formatFor } from './src/formats/index.js';
 import { bareBlockTexts, carryStates, dropForeignCopies, latestBlockInText, latestBlockState, mergeRepeats, normalizeTransport, rejoinContinuation, replacesLastReply, stateForGeneration, upsertBlock } from './src/envelope.js';
 import { escapeBody } from './src/formats/escape.js';
 import { applyChanges, leaveLine } from './src/formats/rows.js';
-import { activeBlocks, buildContext, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
+import { activeBlocks, buildContext, buildContextParts, defuseMacros, injectContext, promptCarriesContext } from './src/prompt.js';
 import { blockStatusInText, blockView, isAssistant, latestAssistantIndex, tabView, viewKey } from './src/view.js';
 import { turnCount, turnItems } from './src/turn.js';
 import { createTabRegistry } from './src/ui/card.js';
@@ -36,9 +36,14 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.20';
+const VERSION = '0.9.21';
 const SETTINGS_KEY = 'storyBlock';
-const EXTENSION_PROMPT_KEY = 'story_block';
+// (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
+// cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
+const STATIC_PROMPT_KEY = 'story_suite_static_story_block';
+const TAIL_PROMPT_KEY = 'story_suite_tail_1_story_block';
+// The one key before 0.9.21, cleared so a copy set by an older version never lingers.
+const LEGACY_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
 const EXTENSION_PROMPT_IN_PROMPT = 0;
 const EXTENSION_PROMPT_IN_CHAT = 1;
@@ -193,12 +198,18 @@ function clearCleanupTimer(chatId) {
 }
 
 // Chat completion places in-prompt extension prompts next to the Main Prompt and drops
-// them when a preset disables it, so the placeholder goes in-chat there (it is removed
-// again at prompt-ready). Text completion keeps it inside the story string.
-function setExtensionPlaceholder(ctx, value = '') {
+// them when a preset disables it, so the instructions' placeholder goes in-chat there (at
+// prompt-ready they move up, after the leading system messages). Text completion keeps it
+// inside the story string. (0.9.21) This reply's part goes in-chat at depth 0 in both, and is
+// filled in where SillyTavern put it. `parts`: { static, tail } (defused), or '' to clear.
+function setExtensionPlaceholder(ctx, parts = '') {
     if (typeof ctx?.setExtensionPrompt !== 'function') return;
+    const head = typeof parts === 'object' && parts ? String(parts.static ?? '') : '';
+    const tail = typeof parts === 'object' && parts ? String(parts.tail ?? '') : '';
     const position = ctx.mainApi === 'openai' ? EXTENSION_PROMPT_IN_CHAT : EXTENSION_PROMPT_IN_PROMPT;
-    ctx.setExtensionPrompt(EXTENSION_PROMPT_KEY, value, position, 0, false, EXTENSION_PROMPT_ROLE_SYSTEM);
+    ctx.setExtensionPrompt(STATIC_PROMPT_KEY, head, position, 0, false, EXTENSION_PROMPT_ROLE_SYSTEM);
+    ctx.setExtensionPrompt(TAIL_PROMPT_KEY, tail, EXTENSION_PROMPT_IN_CHAT, 0, false, EXTENSION_PROMPT_ROLE_SYSTEM);
+    ctx.setExtensionPrompt(LEGACY_PROMPT_KEY, '', position, 0, false, EXTENSION_PROMPT_ROLE_SYSTEM);
 }
 
 // Shown in the settings panel and logged, so a missing injection can be diagnosed.
@@ -245,8 +256,21 @@ function armSessionWatchdog(chatId, delay = SESSION_MAX_AGE_MS) {
     }, delay));
 }
 
-function sessionContext(ctx, session) {
-    return buildContext(session.entries, { substitute: substituter(ctx) });
+// (0.9.21) The blocks the instructions always hold (when: always), and those the rules are
+// worded for (every enabled block), as the reply is prompted with them: the instructions stay
+// the same while the reader's blocks do. A block asked for only now and then is in the tail.
+function promptDefs(ctx = context()) {
+    const keeper = timelineKeeper(settings(ctx).sourceOfTruth, storySuite());
+    const shown = def => timelineTrimmed(def, null, keeper, withoutSections).def;
+    const enabled = enabledBlocks(ctx);
+    return {
+        staticDefs: enabled.filter(def => (def.when?.mode ?? 'always') === 'always').map(shown),
+        ruleDefs: enabled.map(shown),
+    };
+}
+
+function sessionParts(ctx, session) {
+    return buildContextParts(session.entries, { substitute: substituter(ctx), ...(session.defs ?? promptDefs(ctx)) });
 }
 
 // (0.9.12) The currency the purse is counted in: RPG Battle's while it is here and on (money is
@@ -339,7 +363,14 @@ function suitePreview() {
     try {
         const ctx = context();
         if (!ctx || !hasActiveChat(ctx)) return [{ label: 'Story Blocks', text: '' }];
-        return [{ label: 'Story Blocks', text: buildContext(generationEntries(ctx, ctx.chat ?? [], 'normal'), { substitute: substituter(ctx) }) }];
+        // (0.9.21) In the two parts it is sent in: the instructions (the same every reply, so a
+        // provider's prompt cache keeps them) and this reply's part (sent last).
+        const parts = buildContextParts(generationEntries(ctx, ctx.chat ?? [], 'normal'), { substitute: substituter(ctx), ...promptDefs(ctx) });
+        const list = [
+            { label: 'Story Blocks: instructions (same every reply)', text: parts.static },
+            { label: 'Story Blocks: this reply', text: parts.tail },
+        ].filter(part => part.text);
+        return list.length ? list : [{ label: 'Story Blocks', text: '' }];
     } catch (error) {
         console.warn('[Story Block] preview failed', error);
         return [{ label: 'Story Blocks', text: '' }];
@@ -368,6 +399,7 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
         chatId,
         type: normalizeType(type),
         entries,
+        defs: promptDefs(ctx),
         contextInPrompt: typeof ctx.setExtensionPrompt === 'function',
         consumed: false,
         backgroundPrompts: 0,
@@ -377,8 +409,8 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
         injected: false,
         promptsSeen: 0,
     };
-    const text = entries.length ? sessionContext(ctx, session) : '';
-    setExtensionPlaceholder(ctx, session.contextInPrompt && text ? defuseMacros(text) : '');
+    const parts = entries.length ? sessionParts(ctx, session) : { static: '', tail: '' };
+    setExtensionPlaceholder(ctx, session.contextInPrompt && (parts.static || parts.tail) ? { static: defuseMacros(parts.static), tail: defuseMacros(parts.tail) } : '');
     pending.set(chatId, session);
     armSessionWatchdog(chatId);
     syncMountSuspension();
@@ -430,10 +462,10 @@ function onPromptReady(eventData = null) {
     const kind = foregroundKind(session, eventData);
     if (!kind) return;
     const ctx = context();
-    const text = session.entries.length ? sessionContext(ctx, session) : '';
+    const parts = session.entries.length ? sessionParts(ctx, session) : { static: '', tail: '' };
     // With no active block the prompt still loses old blocks from its history; the model
     // would otherwise keep writing them from example.
-    const result = injectContext(eventData, text, [...enabledBlocks(ctx), ...pluginBlocks.values()], { knownBlocks: historyBlocks(ctx) });
+    const result = injectContext(eventData, parts, [...enabledBlocks(ctx), ...pluginBlocks.values()], { knownBlocks: historyBlocks(ctx) });
     if (result.injected) {
         session.injected = true;
         const names = session.entries.map(entry => entry.def.name).join(', ') || 'none active';

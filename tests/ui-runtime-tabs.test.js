@@ -167,10 +167,11 @@ test('a kept block with tab: false is prompted and kept, but has no sidebar tab;
         // Prompted read-only as always.
         ctx.chat.push({ is_user: true, mes: 'onward' });
         await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
-        const event = { chat: [{ role: 'system', content: 'rules' }, { role: 'assistant', content: ctx.chat[0].mes }, { role: 'user', content: 'onward' }, { role: 'system', content: extensionPrompts.story_block }], dryRun: false };
+        const event = { chat: [{ role: 'system', content: 'rules' }, { role: 'assistant', content: ctx.chat[0].mes }, { role: 'user', content: 'onward' }, { role: 'system', content: [extensionPrompts.story_suite_static_story_block, extensionPrompts.story_suite_tail_1_story_block].filter(Boolean).join('\n') }], dryRun: false };
         await emit('CHAT_COMPLETION_PROMPT_READY', event);
-        const context = event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
-        assert.match(context, /### Party — <Party> \(kept by RPG Battle: read it, never write it\)\nYour character and companions, as RPG Battle tracks them\.\nCurrent state:\n<Party>\nHP: 58\/62\nChecks: STR \+2\n<\/Party>/);
+        const context = event.chat.map(message => String(message.content)).join('\n');
+        assert.match(context, /### Party — <Party> \(kept by RPG Battle: read it, never write it\)\nYour character and companions, as RPG Battle tracks them\./);
+        assert.match(context, /### Party: current state \(kept by RPG Battle\)\n<Party>\nHP: 58\/62\nChecks: STR \+2\n<\/Party>/);
         // A model's copy is still dropped, and the extension's stays current.
         ctx.chat.push(reply('They march.\n<Party>\nHP: 1/62\n</Party>'));
         await emit('MESSAGE_RECEIVED', ctx.chat.length - 1);

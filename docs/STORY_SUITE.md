@@ -112,8 +112,8 @@ block's state). Story Suite's overlay lists every extension that offers it under
 sent**, read only when the reader opens its fold (so it may build the text then, but must
 return it synchronously, never a promise), with each part's size and a Copy button. An empty
 `text` means nothing is sent right now. It must not change anything: no rolls kept, no state
-written, no model call. Story Block's own is `[{ label: 'Story Blocks', text: <its context
-section> }]`.
+written, no model call. Story Block's own is its two parts (v0.9.21): `[{ label: 'Story Blocks:
+instructions (same every reply)', text }, { label: 'Story Blocks: this reply', text }]`.
 
 ```js
 manage: {
@@ -186,6 +186,54 @@ While it is open, `<body>` carries the class `story-suite-open`: hide floating b
 sit over it (`body.story-suite-open #my-launcher { display: none !important; }`). Each
 extension's *Manage all in Story Suite* link carries `data-story-suite-link`, so the overlay
 hides it while that panel is shown inside it.
+
+## Prompt cache (v0.9.21)
+
+Most providers keep the longest identical *start* of a prompt between requests (OpenAI,
+DeepSeek and Gemini on their own; Claude where the connection sets cache breakpoints) and charge
+less, and answer sooner, for it. Every character that differs from the last request ends the
+cached part there. So the four extensions put their text in two places:
+
+1. **Instructions: early, and the same every reply.** Rules, formats, skeletons, grammar,
+   capture instructions: anything that does not change from reply to reply. Register it with
+   `setExtensionPrompt('story_suite_static_<ext>', text, extension_prompt_types.IN_PROMPT, 0,
+   false, extension_prompt_roles.SYSTEM)`. In chat completion SillyTavern places in-prompt
+   extension prompts next to the Main Prompt; in text completion inside the story string. Keep it
+   **byte-identical**: no dice rolls, dates, clocks, names that come and go, counts or token
+   figures; a fixed order (sort lists; never rely on Set or Map order); stable whitespace.
+   *(Story Block itself places its instructions after the leading system messages at
+   prompt-ready instead, because a preset with the Main Prompt off drops in-prompt extension
+   prompts in chat completion; the place is just as early and just as stable.)*
+2. **This reply's part: last.** Current states, the Director's note, a fight's or a trade's
+   hand-off, reminders, dossiers. Register it in-chat at depth 0, role system, under a key that
+   sorts into this order (SillyTavern joins the depth-0 system prompts into one message, keys
+   sorted, after the last message):
+
+   | Key | Extension |
+   |---|---|
+   | `story_suite_tail_1_story_block` | Story Block: states, kept blocks' copies, rolls, this reply's notes |
+   | `story_suite_tail_2_story_director` | Story Director's note |
+   | `story_suite_tail_3_rpg_battle` | RPG Battle's hand-off and trade note |
+   | `story_suite_tail_4_npc_state_delta` | NPC State Delta's dossiers |
+   | `story_suite_tail_5_npc_state_delta_capture` | NPC State Delta's capture reminder |
+
+   Empty it once its reply is in, so a spent note never reaches a later prompt.
+
+Three more rules keep the cached start long:
+
+- **Something only sometimes needed** does not move in and out of the instructions (that
+  changes the start on those replies): keep it there always if it is small and harmless, else put
+  it in this reply's part. Story Block puts a block asked for only now and then (*when: every* or
+  *keyword*) whole in its tail, and says *Leave <Dice> out of this reply* rather than dropping the
+  Dice block from its instructions on a reply that tells a fight.
+- **Never rewrite the visible text of older messages**, and strip hidden blocks from the history
+  the same way every time, so the history part of the start stays identical.
+- **Clear your old keys on load** (set them to `''`), so a copy an older version set never
+  lingers. Story Block clears `story_block`, its one key before 0.9.21.
+
+Prove it the way Story Block does: a test that builds your text for two replies in a row (with
+the state changed in between) and checks the instructions are identical, and, live, two
+consecutive requests compared for how much of the prompt is an identical start.
 
 Announce again whenever what you offer changes (a block switched on or off), and `withdraw(id)`
 when the extension is turned off (or announce `enabled: false`, below). Ids: `story-block`, `story-director`, `npc-state-delta`,

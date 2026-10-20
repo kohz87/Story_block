@@ -50,7 +50,8 @@ test('contextTokens: nothing prompted is nothing; a kept block not written yet a
     const plain = contextTokens([{ def: chatter }]);
     const noted = contextTokens([{ def: chatter, note: 'Voice each NPC as their NPC State Delta card describes.' }]);
     assert.ok(noted.input > plain.input);
-    assert.ok(noted.input - plain.input <= 16, 'about ten tokens');
+    // (0.9.21) About ten tokens, and this reply's frame around it when it is that part's only line.
+    assert.ok(noted.input - plain.input <= 45, 'about ten tokens, and a frame');
     assert.equal(noted.output, plain.output);
 });
 

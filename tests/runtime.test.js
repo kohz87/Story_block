@@ -97,14 +97,22 @@ globalThis.SillyTavern = { getContext: () => ctx };
 
 await import('../index.js');
 const emit = (type, ...args) => ctx.eventSource.emit(eventTypes[type], ...args);
-const placeholder = () => extensionPrompts.story_block;
+// (0.9.21) The instructions and this reply's part are two extension prompts; in-chat at depth 0
+// SillyTavern joins them (keys in order) into one system message.
+const STATIC_KEY = 'story_suite_static_story_block';
+const TAIL_KEY = 'story_suite_tail_1_story_block';
+const placeholder = () => [extensionPrompts[STATIC_KEY], extensionPrompts[TAIL_KEY]].filter(Boolean).join('\n');
 // A reply prompt as SillyTavern builds it for a preset with Main Prompt disabled: in-prompt
 // (relative) extension prompts are dropped, in-chat ones at depth 0 follow the history.
 const replyChat = (...messages) => {
-    const extra = placeholder() && extensionPromptPositions.story_block === 1 ? [{ role: 'system', content: placeholder() }] : [];
+    const inChat = extensionPromptPositions[STATIC_KEY] === 1 ? placeholder() : extensionPrompts[TAIL_KEY];
+    const extra = inChat ? [{ role: 'system', content: inChat }] : [];
     return { chat: [{ role: 'system', content: 'rules' }, ...messages, ...extra], dryRun: false };
 };
 const history = () => ctx.chat.map(m => ({ role: m.is_user ? 'user' : 'assistant', content: m.mes }));
+// (0.9.21) What Story Block put in a reply prompt: the instructions, then this reply's part.
+const sentContext = event => event.chat.map(message => String(message.content ?? ''))
+    .filter(content => /STORY_BLOCKS_V1_(?:CONTEXT|STATE)_BEGIN/.test(content)).map(content => content.trim()).join('\n\n');
 const finish = async (mes = 'reply') => {
     // Clears the pending session (and its watchdog timer) the way a received reply does.
     ctx.chat.push({ is_user: false, is_system: false, mes });
@@ -136,7 +144,8 @@ test('chat completion: the reply prompt gets one context with the newest state, 
     delete ctx.extensionSettings.storyBlock;
     ctx.chat = [{ is_user: false, mes: `Hi.\n${envelope(inventory(100))}` }, { is_user: true, mes: 'buy' }, { is_user: false, mes: `Bought.\n${envelope(inventory(90))}` }];
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
-    assert.equal(extensionPromptPositions.story_block, 1, 'placeholder goes in-chat for chat completion');
+    assert.equal(extensionPromptPositions[STATIC_KEY], 1, 'placeholder goes in-chat for chat completion');
+    assert.equal(extensionPromptPositions[TAIL_KEY], 1, "this reply's part goes in-chat too");
     const event = replyChat(...history());
     await emit('CHAT_COMPLETION_PROMPT_READY', event);
     const text = JSON.stringify(event.chat);
@@ -185,7 +194,8 @@ test('text completion: the context replaces the placeholder in place', async () 
     try {
         ctx.chat = [{ is_user: false, mes: envelope(inventory(60)) }, { is_user: true, mes: 'go' }];
         await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
-        assert.equal(extensionPromptPositions.story_block, 0);
+        assert.equal(extensionPromptPositions[STATIC_KEY], 0);
+        assert.equal(extensionPromptPositions[TAIL_KEY], 1);
         const event = { prompt: `Story so far.\n${placeholder()}\n${ctx.chat[0].mes}\nUser: go`, dryRun: false };
         await emit('GENERATE_AFTER_COMBINE_PROMPTS', event);
         assert.ok(event.prompt.startsWith('Story so far.\nSTORY_BLOCKS_V1_CONTEXT_BEGIN'));
@@ -234,7 +244,9 @@ test('fallback: without the extension-prompt API the reply prompt still gets the
         await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
         const reply = { chat: [{ role: 'system', content: 'rules' }], dryRun: false };
         await emit('CHAT_COMPLETION_PROMPT_READY', reply);
-        assert.match(JSON.stringify(reply.chat), /STORY_BLOCKS_V1_CONTEXT_BEGIN[\s\S]*30 Gold/);
+        // (0.9.21) The instructions after the leading system messages, this reply's part last.
+        assert.match(JSON.stringify(reply.chat), /STORY_BLOCKS_V1_CONTEXT_BEGIN/);
+        assert.match(JSON.stringify(reply.chat.at(-1)), /STORY_BLOCKS_V1_STATE_BEGIN[\s\S]*30 Gold/);
         await finish();
     } finally {
         ctx.setExtensionPrompt = setExtensionPrompt;
@@ -249,7 +261,9 @@ test('dice: rolled before the reply, handed over, stamped on the block; an optio
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
     const event = replyChat(...history());
     await emit('CHAT_COMPLETION_PROMPT_READY', event);
-    const handed = /Rolls: Roll 1 = (\d+) · Roll 2 = (\d+) · Roll 3 = (\d+) \(/.exec(JSON.stringify(event.chat));
+    // (0.9.21) The prompt points at the rolls; they are in this reply's part.
+    assert.match(JSON.stringify(event.chat), /Rolls: given at the end of the prompt, under this reply\./);
+    const handed = /This reply's rolls, in order: Roll 1 = (\d+) · Roll 2 = (\d+) · Roll 3 = (\d+) \(/.exec(JSON.stringify(event.chat));
     assert.ok(handed, 'three rolls handed over');
     const rolls = handed.slice(1).map(Number);
     for (const roll of rolls) assert.ok(roll >= 1 && roll <= 20);
@@ -272,7 +286,7 @@ test('dice written as one tag per roll are folded into one block and stamped onc
     await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
     const event = replyChat(...history());
     await emit('CHAT_COMPLETION_PROMPT_READY', event);
-    const [a, b] = /Rolls: Roll 1 = (\d+) · Roll 2 = (\d+) · Roll 3 = \d+ \(/.exec(JSON.stringify(event.chat)).slice(1);
+    const [a, b] = /rolls, in order: Roll 1 = (\d+) · Roll 2 = (\d+) · Roll 3 = \d+ \(/.exec(JSON.stringify(event.chat)).slice(1);
     await finish(`<Dice>\n🎲 Climb — d20 vs 10 → ${a} · success\n</Dice>\n<Dice>\n🎲 Look — d20 vs 10 → ${b} · success\n</Dice>\nThey moved on.`);
     const mes = ctx.chat.at(-1).mes;
     assert.equal((mes.match(/<Dice\b/g) ?? []).length, 1, 'one tag left');
@@ -322,10 +336,11 @@ test('kept block: registered, written by setBlockText, shown read-only in the pr
         await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
         const event = replyChat(...history());
         await emit('CHAT_COMPLETION_PROMPT_READY', event);
-        const context = event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
-        assert.match(context, /### Character — <Character> \(kept by RPG Battle: read it, never write it\)\nThe player character, as RPG Battle tracks it\.\nCurrent state:\n<Character>\nHP: 58\/62 \| MP: 21\/30\nChecks: STR \+2 \| CHA \+1\n<\/Character>/);
+        const context = sentContext(event);
+        assert.match(context, /### Character — <Character> \(kept by RPG Battle: read it, never write it\)\nThe player character, as RPG Battle tracks it\./);
+        assert.match(context, /### Character: current state \(kept by RPG Battle\)\n<Character>\nHP: 58\/62 \| MP: 21\/30\nChecks: STR \+2 \| CHA \+1\n<\/Character>/);
         assert.match(context, /- Modifier: the matching stat's bonus from the <Character> block's Checks line/);
-        assert.doesNotMatch(context.slice(context.indexOf('Write it exactly like this:')), /Character/);
+        assert.doesNotMatch(context.slice(context.indexOf('Write it exactly like this:'), context.indexOf('STORY_BLOCKS_V1_CONTEXT_END')), /Character/);
         assert.equal((JSON.stringify(event.chat).match(/HP: 58\/62/g) ?? []).length, 1, 'history lost its copy; the context has the one');
 
         notices.length = 0;
@@ -500,7 +515,7 @@ test('suite: the Dice block takes a kept modifier unless the reader keeps rolls 
         const event = replyChat(...history());
         await emit('CHAT_COMPLETION_PROMPT_READY', event);
         await finish('She climbs.');
-        return event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+        return sentContext(event);
     };
     setBlocks([{ ...templateById('dice'), enabled: true }]);
     await emit('CHAT_CHANGED');
@@ -535,7 +550,7 @@ test('suite: chatter blocks get one line pointing at NPC State Delta\'s cards wh
         const event = replyChat(...history());
         await emit('CHAT_COMPLETION_PROMPT_READY', event);
         await finish('They whisper.');
-        return event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+        return sentContext(event);
     };
     const line = /\nVoice each NPC as their NPC State Delta card describes\.\n/;
     setBlocks([chatter, { ...templateById('scene-notes'), enabled: true }]);
@@ -547,8 +562,9 @@ test('suite: chatter blocks get one line pointing at NPC State Delta\'s cards wh
         const context = await promptContext();
         assert.match(context, line);
         assert.equal((context.match(/NPC State Delta card/g) ?? []).length, 1, 'only under the chatter block');
-        assert.ok(context.indexOf('NPC State Delta card') > context.indexOf('### NPC Inner Chatter'));
-        assert.ok(context.indexOf('NPC State Delta card') < context.indexOf('### Scene Notes'));
+        // (0.9.21) A line for this reply only: in this reply's part, under the chatter block's name.
+        assert.ok(context.indexOf('NPC State Delta card') > context.indexOf('STORY_BLOCKS_V1_STATE_BEGIN'));
+        assert.match(context, /### NPC Inner Chatter\nVoice each NPC as their NPC State Delta card describes\./);
         assert.equal(ctx.extensionSettings.storyBlock.blocks[0].prompt, chatter.prompt, 'the stored prompt is unchanged');
         globalThis.StorySuite.announce({ id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.2', owns: ['scene', 'npc'], enabled: false });
         assert.doesNotMatch(await promptContext(), /NPC State Delta card/, 'switched off');
@@ -580,7 +596,7 @@ test('suite: api.manage.tokens() estimates the next ordinary reply, kept blocks 
         const event = replyChat(...history());
         await emit('CHAT_COMPLETION_PROMPT_READY', event);
         await finish('She looks.');
-        const context = event.chat.find(message => String(message.content).includes('STORY_BLOCKS_V1_CONTEXT_BEGIN')).content;
+        const context = sentContext(event);
         ctx.chat.splice(-2);
         assert.equal(tokens().input, Math.round(context.length / 4));
 

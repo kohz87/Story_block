@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.21
+
+- **Cache-friendly prompt.** Story Block's section held the rules and every block's current state in one piece, early in the prompt. Since a state changes in most replies, a provider's prompt cache (which keeps the longest identical start of a prompt) ended there on almost every reply, and the whole chat history after it was paid for again. Now the section comes in two parts:
+  - **the instructions** (rules, each block's prompt and format, the envelope to write): the same text reply after reply while your blocks stay the same, sent early;
+  - **this reply's part** (current states, kept blocks' copies, dice rolls, the purse line, a block asked for only now and then, a block left out this reply): sent last, at depth 0.
+
+  The Dice prompt's `{{rolls}}` now points at the rolls in the tail, and on a reply that tells a fight the Dice block is told to stay out (*Leave <Dice> out of this reply*) instead of disappearing from the instructions. A block asked for only now and then (*when: every* or *keyword*) comes whole in the tail, with its skeleton. The two parts are registered under `story_suite_static_story_block` and `story_suite_tail_1_story_block`; the old `story_block` key is cleared. **What's sent** shows both parts. A preset that uses the old placeholder still works.
+- **One layout for Story Suite.** docs/STORY_SUITE.md (*Prompt cache*) describes the convention the other three extensions follow: instructions early and byte-identical, each extension's per-reply text at depth 0 under `story_suite_tail_N_<ext>`, cleared once used.
+
 ## 0.9.20
 
 - **The tab row is always one line.** With every extension on, the sidebar's tabs wrapped onto two rows and cut their labels. Now:
