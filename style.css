@@ -3750,21 +3750,35 @@ button.story-block-strip:hover {
 .story-block-rarity.is-epic { color: var(--sb-rarity-epic); }
 .story-block-rarity.is-legendary { color: var(--sb-rarity-legendary); font-weight: 600; }
 
-/* (0.9.18) Found this turn: the latest reply's finds, each with Leave; (0.9.22) in the
-   "Changed this turn" row, where its preview would be. */
+/* (0.9.18) Found this turn: the latest reply's finds, each with Leave; (0.9.24) inside the
+   "Changed this turn" row once it is open (folded, the row only counts them). A chip never
+   breaks a word: its name ends in an ellipsis, Leave stays one word, chips wrap whole. */
 .story-block-found {
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
     align-items: center;
     min-width: 0;
-    cursor: default;
+    padding: 0 0.6rem 0.45rem;
+}
+
+.story-block-tree-changes-found {
+    flex: none;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--sb-border, rgba(127, 127, 127, .28));
+    border-left: 3px solid var(--sb-added, #5fb36b);
+    font-size: 0.85em;
+    white-space: nowrap;
 }
 
 .story-block-found-chip {
     display: inline-flex;
     gap: 0.3rem;
     align-items: center;
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
     padding: 0.1rem 0.15rem 0.1rem 0.5rem;
     border: 1px solid var(--sb-border, rgba(127, 127, 127, .28));
     border-left: 3px solid var(--sb-added, #5fb36b);
@@ -3774,9 +3788,17 @@ button.story-block-strip:hover {
 }
 
 .story-block-found-chip.story-block-rarity { border-left-color: currentColor; }
-.story-block-found-chip .story-block-found-name { color: var(--SmartThemeBodyColor, inherit); }
+.story-block-found-chip .story-block-found-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--SmartThemeBodyColor, inherit);
+}
 
 .story-block-found-chip .menu_button.story-block-found-leave {
+    flex: none;
+    width: auto;
+    white-space: nowrap;
     min-height: 1.8rem;
     margin: 0;
     padding: 0.05rem 0.5rem;

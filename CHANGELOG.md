@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.24
+
+- **The "Changed this turn" row stays one line until you open it.** Since 0.9.22 the Inventory's finds sat in that row as chips, so before you opened it they already filled the top of the list, and on a narrow sidebar they broke apart ("Leav e", "Cellar Rat Tail ×6" over two lines). Folded, the row now reads *Changed this turn · 8   5 found*; open it and the chips are there, with Leave, above the list of changes. A chip never breaks a word: a long name ends in "…" (the full name on hover), Leave stays one word, and chips wrap as whole chips.
+
 ## 0.9.23
 
 - **Tidier code, no change in behaviour.** Small helpers written out more than once now live in one place: the one-line, comparison-key and word-count text helpers in `src/text.js`, and making an element and tidying a tab list in `src/ui/dom.js` (the body editor, the prompt preview, the Story Suite window and the settings now make their elements with it).
