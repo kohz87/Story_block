@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.20
+
+- **The tab row is always one line.** With every extension on, the sidebar's tabs wrapped onto two rows and cut their labels. Now:
+  - while the labels fit, each tab shows its icon over a short label;
+  - when they wouldn't (a docked sidebar with seven tabs), the row shows icons only, badges kept, and a tab's name appears on hover, keyboard focus or a long press;
+  - labels come back as soon as there is room, and the row re-checks when the sidebar is resized, docked or undocked;
+  - if even the icons don't fit, the row scrolls sideways instead of wrapping.
+
+  The phone's sheet keeps its sideways row of pills. The pane keeps its full width.
+- **Each extension's tabs sit together.** Story Block's own come first, then each extension's, with a thin divider between them, so one switched off leaves no gap among the others. Extensions may pass `group` when they register a tab; the suite's own are recognised without it.
+- **No two tabs look alike.** RPG Battle's Party and NPC State Delta's Present NPCs both used 👥. A tab whose icon is already taken (or that has none) now shows two letters of its label (**PN**). docs/STORY_SUITE.md asks each extension for an icon of its own.
+- **Esc clears a search box before it closes the panel.** In the drawer or sheet, Esc in a text field with text in it (Story Director's Journal search) used to close the whole panel. It now leaves the key to the field; the next Esc, once the field is empty, closes the panel.
+
 ## 0.9.19
 
 Cleanup. Nothing you see changes, except a token estimate that is now right.

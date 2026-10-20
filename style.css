@@ -1231,26 +1231,52 @@
     outline-offset: -2px;
 }
 
-/* Tabs: an equal-width rail (docked, drawer) that wraps into rows, so every tab stays in
-   reach; past three rows the rail scrolls down on its own. */
+/* Tabs (0.9.20): always one row (docked, drawer). Icon over a short label while they fit;
+   icons only when they would not (data-fit="icons"), the label in a bubble on hover, keyboard
+   focus and long-press; past that the row scrolls sideways, its ends fading. Each extension's
+   tabs sit together, a quiet divider before the next one's. */
+
+.story-block-sidebar-tabbar {
+    position: relative;
+    flex: none;
+    min-width: 0;
+    border-bottom: 1px solid var(--sb-border);
+}
 
 .story-block-sidebar-tabs {
-    flex: none;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 4px;
     min-width: 0;
-    max-height: calc(52px * 3 + 4px * 2 + 0.6rem);
     padding: 0 0.6rem 0.6rem;
-    border-bottom: 1px solid var(--sb-border);
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+}
+
+.story-block-sidebar-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.story-block-sidebar-tabs[data-overflow="end"] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+
+.story-block-sidebar-tabs[data-overflow="start"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 2.5rem);
+    mask-image: linear-gradient(to right, transparent, #000 2.5rem);
+}
+
+.story-block-sidebar-tabs[data-overflow="both"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
 }
 
 .story-block-sidebar-tab {
     appearance: none;
+    position: relative;
     flex: 1 1 0;
     display: flex;
     flex-direction: column;
@@ -1325,6 +1351,71 @@
 
 .story-block-sidebar-tab-full {
     display: none;
+}
+
+/* A tab whose icon another tab already uses (or that has none) shows letters instead. */
+.story-block-sidebar-tab-glyph.is-monogram {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35em;
+    padding: 1px 3px;
+    border: 1px solid currentColor;
+    border-radius: 5px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+
+/* Where one extension's tabs end and the next one's begin. */
+.story-block-sidebar-tab.is-group-start {
+    margin-left: 5px;
+}
+
+.story-block-sidebar-tab.is-group-start::before {
+    content: "";
+    position: absolute;
+    top: 25%;
+    bottom: 25%;
+    left: -5px;
+    width: 1px;
+    background: var(--sb-border);
+}
+
+.story-block-sidebar-tabs[data-fit="icons"] .story-block-sidebar-tab {
+    flex: 1 0 auto;
+    min-width: 2.15rem;
+    height: 40px;
+    padding: 0;
+}
+
+.story-block-sidebar-tabs[data-fit="icons"] .story-block-sidebar-tab-short {
+    display: none;
+}
+
+.story-block-sidebar-tabs[data-fit="icons"] .story-block-sidebar-tab-icon {
+    font-size: 1.25em;
+}
+
+.story-block-sidebar-tab-tip {
+    position: absolute;
+    top: calc(100% - 0.45rem);
+    z-index: 3;
+    max-width: 14rem;
+    padding: 3px 8px;
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    background: var(--sb-surface);
+    color: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transform: translateX(-50%);
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 /* Tabs: pills in a sideways-scrolling row (sheet). A wheel scrolls it too, and the ends

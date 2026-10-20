@@ -1,4 +1,4 @@
-# Story Block v0.9.19
+# Story Block v0.9.20
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -326,6 +326,15 @@ changed; tap it to open the sidebar on that block.
 **Hide empty tabs** (v0.9.18, off by default) leaves a block with nothing in it yet out of the
 sidebar until a reply writes it. Built-in blocks show short labels in the rail (*Items*,
 *World*), and tabs other extensions add may give their own.
+
+**The tab row is always one line** (v0.9.20). While the labels fit, each tab shows its icon
+over a short label; when they would not (a docked sidebar with many tabs), the row shows
+icons only, badges kept, and a tab's name appears on hover, keyboard focus or a long press.
+Each extension's tabs sit together, Story Block's first, a thin divider before the next
+extension's, and two tabs never look alike: a tab whose icon is already taken shows letters
+(**PN**). If even the icons do not fit, the row scrolls sideways. The phone's sheet keeps its
+sideways row of pills. Esc in a search box with text in it clears the box first; the next Esc
+closes the drawer or sheet.
 
 **Hide off-screen until revealed** (on by default) keeps the scene board's Off-Screen section
 behind the scenes: it shows how many entries there are and a **Reveal** button, and the

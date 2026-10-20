@@ -36,7 +36,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.19';
+const VERSION = '0.9.20';
 const SETTINGS_KEY = 'storyBlock';
 const EXTENSION_PROMPT_KEY = 'story_block';
 // SillyTavern extension_prompt_types.IN_PROMPT / IN_CHAT and extension_prompt_roles.SYSTEM.
@@ -746,6 +746,20 @@ function blockTab(view, uiKey) {
     };
 }
 
+// (0.9.20) Whose a tab is, so each extension's tabs sit together in the row: what it
+// registered as `group`, else the suite's own extensions by their tab ids, else the id's
+// first word.
+const KNOWN_TAB_OWNERS = [['rpg-', 'RPG Battle'], ['story-director', 'Story Director'], ['npc-state-delta', 'NPC State Delta']];
+function tabGroup(tab) {
+    const given = String(tab?.group ?? '').trim();
+    if (given) return given;
+    const id = String(tab?.id ?? '');
+    const known = KNOWN_TAB_OWNERS.find(([prefix]) => id.startsWith(prefix));
+    if (known) return known[1];
+    const word = id.split(/[-_:]/)[0] || id;
+    return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 function buildCardTabs() {
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) return null;
@@ -768,7 +782,8 @@ function buildCardTabs() {
         const view = tabView(ctx.chat ?? [], def, { sidebar: own.display === 'sidebar' });
         // (0.9.18) An empty block keeps its tab unless the reader hides empty tabs.
         if (!view || (view.empty && own.hideEmptyTabs)) continue;
-        const tab = blockTab(view, uiKey);
+        // (0.9.20) A kept block's tab sits with its extension's.
+        const tab = { ...blockTab(view, uiKey), group: def.kept ? String(def.owner ?? '') : '' };
         tabs.push(tab);
         views.push({ view, tabId: tab.id });
     }
@@ -780,6 +795,7 @@ function buildCardTabs() {
                 label: tab.label,
                 short: tab.short || shortLabel(tab.label),
                 icon: tab.icon,
+                group: tabGroup(tab),
                 order: tab.order,
                 // A plugin may say when its pane is unchanged (key) and what to count (badge).
                 key: typeof tab.key === 'function' ? String(tab.key({ messageId, message }) ?? '') : undefined,

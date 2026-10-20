@@ -136,7 +136,50 @@ function normalizeTabs(tabs) {
         const id = String(tab?.id ?? '').trim();
         if (!id || seen.has(id) || typeof tab?.render !== 'function') continue;
         seen.add(id);
-        out.push({ ...tab, id });
+        out.push({ ...tab, id, group: String(tab.group ?? '').trim().slice(0, 40) });
+    }
+    return out;
+}
+
+const OWN_GROUP = 'Story Block';
+
+/**
+ * (0.9.20) The row's order: tabs grouped by their `group` (the extension that owns them),
+ * Story Block's own first, then each group in the order it first appears; tabs keep their
+ * order within a group. So an extension's tabs sit together, and one switched off leaves no
+ * gap among the others. Pure.
+ */
+export function groupTabs(tabs) {
+    const groups = new Map();
+    for (const tab of tabs ?? []) {
+        const group = tab.group || OWN_GROUP;
+        if (!groups.has(group)) groups.set(group, []);
+        groups.get(group).push(tab);
+    }
+    const names = [...groups.keys()].sort((a, b) => (a === OWN_GROUP ? -1 : b === OWN_GROUP ? 1 : 0));
+    return names.flatMap(name => groups.get(name));
+}
+
+/**
+ * (0.9.20) What each tab's icon shows: its own icon, or, when an earlier tab already uses that
+ * icon (or it has none), a one- or two-letter monogram of its short label ("Present NPCs" →
+ * PN, "Party" → Pa), so no two tabs look alike once the row shows icons only.
+ * Map(id → { text, monogram }). Pure.
+ */
+export function tabGlyphs(tabs) {
+    const used = new Set();
+    const out = new Map();
+    for (const tab of tabs ?? []) {
+        const icon = String(tab.icon ?? '').trim();
+        if (icon && !used.has(icon)) {
+            used.add(icon);
+            out.set(tab.id, { text: icon, monogram: false });
+            continue;
+        }
+        const words = String(tab.short || tab.label || tab.id).trim().split(/\s+/).filter(Boolean);
+        const first = words[0] ?? '?';
+        const text = words.length > 1 ? `${first[0]}${words[1][0]}`.toUpperCase() : `${first.charAt(0).toUpperCase()}${first.charAt(1).toLowerCase()}`;
+        out.set(tab.id, { text, monogram: true });
     }
     return out;
 }
@@ -186,8 +229,15 @@ function createUi() {
     const tablist = el('div', 'story-block-sidebar-tabs');
     tablist.setAttribute('role', 'tablist');
     tablist.setAttribute('aria-label', 'Blocks');
+    // (0.9.20) The row and the label bubble its icons show; the bubble is outside the tablist,
+    // which holds only tabs.
+    const tabbar = el('div', 'story-block-sidebar-tabbar');
+    const tip = el('span', 'story-block-sidebar-tab-tip');
+    tip.setAttribute('aria-hidden', 'true');
+    tip.style.display = 'none';
+    tabbar.append(tablist, tip);
     const panel = el('div', 'story-block-sidebar-panel');
-    aside.append(grip, head, tablist, panel);
+    aside.append(grip, head, tabbar, panel);
 
     const handle = el('button', CLASS.handle);
     handle.type = 'button';
@@ -205,7 +255,9 @@ function createUi() {
     d.body.appendChild(layer);
 
     const state = {
-        layer, aside, scrim, handle, grip, head, meta, suite, pin, close, tablist, panel, count,
+        layer, aside, scrim, handle, grip, head, meta, suite, pin, close, tablist, tip, panel, count,
+        tipTimer: null,
+        pressTimer: null,
         uiKey: null,
         mode: null,
         dockable: false,
@@ -243,6 +295,14 @@ function createUi() {
     tablist.addEventListener('keydown', onTabKey);
     tablist.addEventListener('wheel', onTabWheel, { passive: false });
     tablist.addEventListener('scroll', markTabOverflow, { passive: true });
+    tablist.addEventListener('focusin', onTabFocus);
+    tablist.addEventListener('focusout', () => hideTip());
+    tablist.addEventListener('mouseover', event => { const tab = event.target?.closest?.(`.${CLASS.tab}`); if (tab) showTip(tab); });
+    tablist.addEventListener('mouseleave', () => hideTip());
+    tablist.addEventListener('pointerdown', onTabPressStart);
+    tablist.addEventListener('pointerup', onTabPressEnd);
+    tablist.addEventListener('pointercancel', onTabPressEnd);
+    tablist.addEventListener('scroll', () => hideTip(), { passive: true });
     aside.addEventListener('keydown', onTrapKey);
     aside.addEventListener('pointerdown', onSwipeStart);
     aside.addEventListener('pointermove', onSwipeMove);
@@ -268,6 +328,16 @@ function createUi() {
         w.addEventListener('resize', onResize);
         state.cleanup.push(() => w.removeEventListener?.('resize', onResize));
     }
+    // (0.9.20) The row's own width (a docked sidebar resized, fonts loaded): fit it again.
+    const ResizeObs = globalThis.ResizeObserver;
+    if (typeof ResizeObs === 'function') {
+        try {
+            const observer = new ResizeObs(() => fitTabs());
+            observer.observe(tablist);
+            state.cleanup.push(() => observer.disconnect());
+        } catch { /* unsupported */ }
+    }
+    state.cleanup.push(() => { clearTimeout(state.tipTimer); clearTimeout(state.pressTimer); });
     return state;
 }
 
@@ -340,13 +410,15 @@ function setText(node, text) {
     if (node && node.textContent !== text) node.textContent = text;
 }
 
-function updateTab(tab, item) {
+function updateTab(tab, item, glyph = null) {
     const label = String(item.label ?? '').trim() || item.id;
     const short = String(item.short ?? '').trim() || label;
     const count = badgeOf(item);
     const icon = tab.querySelector('.story-block-sidebar-tab-glyph');
     const badge = tab.querySelector('.story-block-sidebar-badge');
-    setText(icon, String(item.icon ?? ''));
+    setText(icon, glyph ? glyph.text : String(item.icon ?? ''));
+    icon.classList.toggle('is-monogram', Boolean(glyph?.monogram));
+    setAttr(tab, 'data-group', item.group || OWN_GROUP);
     setText(tab.querySelector('.story-block-sidebar-tab-short'), short);
     setText(tab.querySelector('.story-block-sidebar-tab-full'), label);
     setText(badge, count ? badgeText(count) : '');
@@ -388,6 +460,74 @@ function placeTabs(ordered) {
         if (cursor === tab) cursor = tab.nextElementSibling ?? null;
         else ui.tablist.insertBefore(tab, cursor);
     }
+    // A quiet gap where one extension's tabs end and the next one's begin.
+    ordered.forEach((tab, index) => tab.classList.toggle('is-group-start', index > 0 && tab.dataset.group !== ordered[index - 1].dataset.group));
+}
+
+/**
+ * (0.9.20) The row is always one line: with labels while they fit the sidebar's width, as
+ * icons only when they would not (badges kept; the label shows on hover, keyboard focus and
+ * long-press); if even the icons do not fit, the row scrolls sideways. The phone sheet keeps
+ * its sideways pills. Measured with labels each time, so they come back once there is room.
+ */
+function fitTabs() {
+    const strip = ui?.tablist;
+    if (!strip) return;
+    if (ui.mode === 'sheet') {
+        setAttr(strip, 'data-fit', null);
+        hideTip();
+        return;
+    }
+    setAttr(strip, 'data-fit', 'labels');
+    const overflows = Number(strip.scrollWidth) > Number(strip.clientWidth) + 1;
+    setAttr(strip, 'data-fit', overflows ? 'icons' : 'labels');
+    if (!overflows) hideTip();
+}
+
+const compact = () => ui?.tablist?.getAttribute('data-fit') === 'icons';
+const LONG_PRESS_MS = 450;
+const TIP_HIDE_MS = 1400;
+
+// The one label bubble the icon-only row shows over a tab.
+function showTip(tab) {
+    if (!ui || !tab || !compact()) return;
+    const tip = ui.tip;
+    setText(tip, tab.title || tab.dataset.tabId);
+    tip.style.display = '';
+    const strip = ui.tablist;
+    const left = (tab.offsetLeft ?? 0) - (strip.scrollLeft ?? 0) + (tab.offsetWidth ?? 0) / 2;
+    tip.style.left = `${Math.max(0, left)}px`;
+    clearTimeout(ui.tipTimer);
+}
+
+function hideTip({ later = false } = {}) {
+    if (!ui?.tip) return;
+    clearTimeout(ui.tipTimer);
+    if (later) ui.tipTimer = setTimeout(() => { if (ui?.tip) ui.tip.style.display = 'none'; }, TIP_HIDE_MS);
+    else ui.tip.style.display = 'none';
+}
+
+// Keyboard focus shows the label; focus a drawer or sheet gives on opening does not
+// (on touch it would hang over the pane).
+function onTabFocus(event) {
+    const tab = event.target?.closest?.(`.${CLASS.tab}`);
+    if (!tab || !compact()) return;
+    try {
+        if (!tab.matches(':focus-visible')) return;
+    } catch { /* no :focus-visible: show it */ }
+    showTip(tab);
+}
+
+function onTabPressStart(event) {
+    const tab = event.target?.closest?.(`.${CLASS.tab}`);
+    if (!tab || !compact() || event.pointerType === 'mouse') return;
+    clearTimeout(ui.pressTimer);
+    ui.pressTimer = setTimeout(() => showTip(tab), LONG_PRESS_MS);
+}
+
+function onTabPressEnd() {
+    clearTimeout(ui?.pressTimer);
+    hideTip({ later: true });
 }
 
 function applySelection() {
@@ -405,7 +545,7 @@ function applySelection() {
     revealTab(tabs.find(tab => tab.dataset.tabId === view.selected));
 }
 
-// The selected tab is always in sight: the rail wraps into rows (scrolling down past three),
+// The selected tab is always in sight: the row scrolls sideways when even its icons overflow,
 // the sheet's pills scroll sideways. Only the strip scrolls, never the page or the pane.
 function revealTab(tab) {
     const strip = ui?.tablist;
@@ -514,6 +654,7 @@ function relayout() {
         ui.aside.style.setProperty('--sb-dock-top', `${measured.topOffset + DOCK_MARGIN}px`);
     }
     applyOpenState();
+    fitTabs();
     revealTab(activeTab());
 }
 
@@ -590,12 +731,23 @@ function onTrapKey(event) {
     }
 }
 
+// A focused text field inside the panel that still has text in it.
+function holdsText(node) {
+    if (!node || !ui?.aside?.contains?.(node)) return false;
+    const tag = String(node.tagName ?? '').toUpperCase();
+    const field = tag === 'TEXTAREA' || (tag === 'INPUT' && !/^(?:button|checkbox|radio|range|submit|reset|color|file|image)$/i.test(String(node.type ?? 'text')));
+    return field && String(node.value ?? '') !== '' && doc()?.activeElement === node;
+}
+
 function onEscape(event) {
     if (event.key !== 'Escape' || !isModal() || event.defaultPrevented) return;
     // Leave Esc to whatever owns focus elsewhere (a SillyTavern popup above us).
     const active = doc()?.activeElement;
     const body = doc()?.body;
     if (active && active !== body && !ui.aside.contains(active) && active !== ui.scrim) return;
+    // (0.9.20) A field in a pane with text in it (a search box) takes Esc to clear itself;
+    // the panel closes on the next Esc, once it is empty.
+    if (holdsText(event.target) || holdsText(active)) return;
     event.preventDefault?.();
     event.stopPropagation?.();
     closeSidebar();
@@ -707,7 +859,7 @@ function onGripCancel() {
  * (the sidebar and its edge handle are then removed).
  */
 export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true, onPinnedChange, onSuite, showSuite = false } = {}) {
-    const list = normalizeTabs(tabs);
+    const list = groupTabs(normalizeTabs(tabs));
     // No tabs, or no document body to hang a panel on (headless hosts and test doubles).
     if (!list.length || typeof doc()?.body?.appendChild !== 'function') {
         unmountSidebar();
@@ -740,9 +892,10 @@ export function mountSidebar(tabs, { uiKey = 'default', meta = '', pinned = true
     const paneById = new Map(ownPanes().map(node => [node.dataset.tabId, node]));
     const ordered = [];
     let total = 0;
+    const glyphs = tabGlyphs(list);
     for (const tab of list) {
         const tabButton = tabById.get(tab.id) ?? createTab(tab.id);
-        updateTab(tabButton, tab);
+        updateTab(tabButton, tab, glyphs.get(tab.id));
         ordered.push(tabButton);
         total += badgeOf(tab);
         let pane = paneById.get(tab.id);

@@ -263,7 +263,20 @@ test('drawer: handle opens, scrim/close/Esc close, focus and aria follow', () =>
     doc.fire('keydown', { key: 'Escape' });
     assert.ok(aside.classList.contains('is-open'));
     popup.remove();
-    assert.equal(closeSidebar(), true);
+    // (0.9.20) A search field in a pane with text in it: Esc is the field's (it clears it);
+    // once empty, Esc closes the panel again.
+    const search = doc.createElement('input');
+    search.type = 'search';
+    paneFor('b').appendChild(search);
+    search.focus();
+    search.value = 'wolf';
+    const kept = doc.fire('keydown', { key: 'Escape', target: search });
+    assert.ok(aside.classList.contains('is-open'), 'Esc with text in the field leaves the panel open');
+    assert.equal(kept.defaultPrevented, false, 'and leaves the key to the field');
+    search.value = '';
+    doc.fire('keydown', { key: 'Escape', target: search });
+    assert.ok(!aside.classList.contains('is-open'), 'an empty field: Esc closes');
+    search.remove();
     assert.equal(closeSidebar(), false, 'already closed');
 });
 
@@ -574,4 +587,95 @@ test('many tabs: the selected one is scrolled into the strip, a wheel scrolls th
     strip.dispatch('scroll');
     assert.equal(strip.getAttribute('data-overflow'), null);
     assert.ok(!strip.dispatch('wheel', { deltaY: 120, deltaX: 0 }).defaultPrevented);
+});
+
+// (0.9.20) The row stays one line: labels while they fit, icons only when they would not.
+test('the tab row shows icons only when the labels would not fit, and labels again when they do', () => {
+    setViewport(1440);
+    mountSidebar([counted('a', 'Inventory', { short: 'Items', badge: 2 }), counted('b', 'World State', { short: 'World' })], { uiKey: freshKey() });
+    const strip = sidebar().querySelector('.story-block-sidebar-tabs');
+    let content = 200;
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, get: () => 300 });
+    // Labels take what the content needs; icons are narrower (the fake DOM has no layout).
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, get: () => (strip.getAttribute('data-fit') === 'icons' ? Math.min(content, 280) : content) });
+    win.fire('resize');
+    assert.equal(strip.getAttribute('data-fit'), 'labels');
+    content = 520;
+    win.fire('resize');
+    assert.equal(strip.getAttribute('data-fit'), 'icons');
+    // Badges and the labels for screen readers stay in icon mode.
+    const first = tabButtons()[0];
+    assert.equal(first.querySelector('.story-block-sidebar-badge').textContent, '2');
+    assert.match(first.getAttribute('aria-label'), /^Inventory/);
+    assert.equal(first.title, 'Inventory');
+    content = 240;
+    win.fire('resize');
+    assert.equal(strip.getAttribute('data-fit'), 'labels');
+    // The phone sheet keeps its sideways pills.
+    setViewport(390, { chatRight: 390, coarse: true });
+    win.fire('resize');
+    assert.equal(strip.getAttribute('data-fit'), null);
+    setViewport(1440);
+    unmountSidebar();
+});
+
+test('no two tabs look alike: a repeated or missing icon becomes a monogram of the label', async () => {
+    const { tabGlyphs } = await import('../src/ui/sidebar.js');
+    const glyphs = tabGlyphs([
+        { id: 'party', icon: '👥', label: 'Party' },
+        { id: 'present', icon: '👥', label: 'Present NPCs' },
+        { id: 'dossiers', icon: '', label: 'Dossiers' },
+        { id: 'items', icon: '🎒', label: 'Inventory', short: 'Items' },
+    ]);
+    assert.deepEqual([...glyphs.values()], [
+        { text: '👥', monogram: false }, { text: 'PN', monogram: true }, { text: 'Do', monogram: true }, { text: '🎒', monogram: false },
+    ]);
+    setViewport(1440);
+    mountSidebar([{ ...counted('a', 'Party'), icon: '👥' }, { ...counted('b', 'Present NPCs'), icon: '👥' }], { uiKey: freshKey() });
+    const glyphNodes = sidebar().querySelectorAll('.story-block-sidebar-tab-glyph');
+    assert.deepEqual(glyphNodes.map(node => node.textContent), ['👥', 'PN']);
+    assert.ok(glyphNodes[1].classList.contains('is-monogram'));
+    unmountSidebar();
+});
+
+test('each extension\'s tabs sit together, Story Block\'s first, with a divider where a group starts', async () => {
+    const { groupTabs } = await import('../src/ui/sidebar.js');
+    const ordered = groupTabs([
+        { id: 'ext:rpg-party', group: 'RPG Battle' },
+        { id: 'inventory', group: '' },
+        { id: 'ext:story-director', group: 'Story Director' },
+        { id: 'ext:rpg-battle', group: 'RPG Battle' },
+        { id: 'world', group: '' },
+    ]);
+    assert.deepEqual(ordered.map(tab => tab.id), ['inventory', 'world', 'ext:rpg-party', 'ext:rpg-battle', 'ext:story-director']);
+    setViewport(1440);
+    const tab = (id, label, group) => ({ ...counted(id, label), group });
+    mountSidebar([tab('x', 'Party', 'RPG Battle'), tab('i', 'Inventory', ''), tab('q', 'Quests', 'Story Director'), tab('w', 'World', '')], { uiKey: freshKey() });
+    assert.deepEqual(tabButtons().map(node => node.dataset.tabId), ['i', 'w', 'x', 'q']);
+    assert.deepEqual(tabButtons().map(node => node.classList.contains('is-group-start')), [false, false, true, true]);
+    // An extension switched off: its tabs go, the others stay together with no gap.
+    mountSidebar([tab('i', 'Inventory', ''), tab('q', 'Quests', 'Story Director'), tab('w', 'World', '')], { uiKey: tabButtons()[0] && sidebar().dataset.uiKey });
+    assert.deepEqual(tabButtons().map(node => node.dataset.tabId), ['i', 'w', 'q']);
+    assert.deepEqual(tabButtons().map(node => node.classList.contains('is-group-start')), [false, false, true]);
+    unmountSidebar();
+});
+
+test('in icon mode the label bubble shows on keyboard focus, not on the focus a drawer gives', () => {
+    setViewport(1440);
+    mountSidebar([counted('a', 'Inventory'), counted('b', 'World State')], { uiKey: freshKey() });
+    const strip = sidebar().querySelector('.story-block-sidebar-tabs');
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, get: () => 100 });
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, get: () => 400 });
+    win.fire('resize');
+    assert.equal(strip.getAttribute('data-fit'), 'icons');
+    const tip = sidebar().querySelector('.story-block-sidebar-tab-tip');
+    const second = tabButtons()[1];
+    second.matches = selector => (selector === ':focus-visible' ? false : Object.getPrototypeOf(second).matches.call(second, selector));
+    second.dispatch('focusin');
+    assert.equal(tip.style.display, 'none', 'no hanging label from a programmatic or touch focus');
+    second.matches = selector => (selector === ':focus-visible' ? true : Object.getPrototypeOf(second).matches.call(second, selector));
+    second.dispatch('focusin');
+    assert.equal(tip.style.display, '');
+    assert.equal(tip.textContent, 'World State');
+    unmountSidebar();
 });
