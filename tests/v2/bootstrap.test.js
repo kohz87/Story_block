@@ -88,11 +88,11 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     doc.querySelector('.story-suite-sheet-close').click();
 });
 
-test('the settings overlay opens from the bar with the Story Block fold and its Packs and Events panels', () => {
+test('the settings overlay opens from the bar with the Story Block fold and its Packs, Events and Assist panels', () => {
     doc.querySelector('.story-suite-bar-settings').click();
     const overlay = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlay);
-    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Packs', 'Events']);
+    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Packs', 'Events', 'Assist']);
     overlay.querySelector('.story-suite-close').click();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });

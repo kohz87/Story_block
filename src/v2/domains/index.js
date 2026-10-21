@@ -13,6 +13,7 @@ import { capturePlace, capturePresent, initialScene, sceneCommands, sceneQueries
 import { DEFAULT_CURRENCY, currencyOf } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
 import { renderSceneTab } from '../ui/scene-tab.js';
+import { createAssistPart } from '../assist/index.js';
 import { createEventsPart } from '../events/index.js';
 import { standardWidgets } from '../view/widgets/index.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
@@ -123,11 +124,11 @@ export function mergeParts(parts) {
     }
     for (const [name, fns] of Object.entries(hookLists)) {
         out.hooks[name] = fns.length === 1 ? fns[0] : name === 'beforeGenerate'
-            ? async view => {
+            ? async (...args) => {
                 const lines = [];
                 const commands = [];
                 for (const fn of fns) {
-                    const answer = await fn(view);
+                    const answer = await fn(...args);
                     if (Array.isArray(answer)) lines.push(...answer);
                     else {
                         lines.push(...(Array.isArray(answer?.lines) ? answer.lines : []));
@@ -152,15 +153,16 @@ export function mergeParts(parts) {
  * packs part (item.resolve before story defs, the start state, pack queries and its settings
  * section) and the events part (beforeGenerate, events.fire, events.status, its debug section).
  * `packs`: a createPacksPart() result (default: the one bound to SillyTavern); `command` / `query`:
- * what the events part commits and asks through (default: the public sdk, looked up lazily).
+ * what the events part commits and asks through (default: the public sdk, looked up lazily);
+ * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
-export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query } = {}) {
+export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null } = {}) {
     const core = createCorePart({ hooks, settings });
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),
     });
-    const merged = mergeParts([core, packs.part, events]);
+    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() })]);
     return {
         id: CORE_MODULE_ID,
         name: 'Story Block',
