@@ -67,6 +67,21 @@ kept as before, and its instruction points the model at NPC State Delta's cards.
 
 ## For developers
 
+### Coordinated writes (unreleased)
+
+`StoryBlock` and its Suite API expose `transactionVersion: 1`, `messageIdentity(index)`
+and `commitBlocks({id, chatId, messageIndex, expectedText, expectedExtra, changes,
+namespace, value})`. `expectedExtra` is JSON text; `changes` is `[{tag, text}]`.
+The API validates the base, saves all blocks and one extra namespace together, then
+reads the actual saved character/group chat. It returns `{status, reason?}` where status
+is durable, failed or uncertain. Stop/reconcile uncertain outcomes; never replay a delta.
+Use one immutable operation per ID. Retries verify without saving again; rejected writes
+restore only untouched candidates. Arbitrary external-writer isolation is not guaranteed.
+
+Message identities and `extra.storyBlockCommits` are swipe-owned; active swipe text/extras
+stay synchronized and copied transactions are cleared on new variants. This supports
+RPG `rpgBattleEvidence` and Director `storyDirectorQuest` without model-visible metadata.
+
 ```js
 import { storySuite, isSourceOfTruth } from './src/suite.js';
 const suite = storySuite();

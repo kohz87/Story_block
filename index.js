@@ -37,7 +37,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.25';
+const VERSION = '0.9.26';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -504,6 +504,29 @@ function syncActiveSwipeText(message) {
     if (!message || !Array.isArray(message.swipes)) return;
     const swipe = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
     if (swipe >= 0 && swipe < message.swipes.length) message.swipes[swipe] = String(message.mes ?? '');
+    if (message.swipe_info?.[swipe]) message.swipe_info[swipe].extra = structuredClone(message.extra ?? {});
+}
+
+// Identities and transactions belong to one swipe, not its message slot.
+function messageIdentity(messageIndex) {
+    const message = context()?.chat?.[Number(messageIndex)];
+    const identity = message?.extra?.storyBlockIdentity;
+    return identity?.swipe === (message?.swipe_id ?? 0) ? identity.id : null;
+}
+
+function ensureMessageIdentity(message) {
+    const swipe = message.swipe_id ?? 0;
+    if (message.extra?.storyBlockIdentity?.swipe === swipe) return false;
+    const extra = { ...(message.extra ?? {}) };
+    if (extra.storyBlockIdentity) {
+        // The host may copy extras; the old swipe_info retains its own transactions.
+        for (const receipt of Object.values(extra.storyBlockCommits ?? {})) {
+            if (typeof receipt?.namespace === 'string') delete extra[receipt.namespace];
+        }
+        delete extra.storyBlockCommits;
+    }
+    message.extra = { ...extra, storyBlockIdentity: { id: crypto.randomUUID(), swipe } };
+    return true;
 }
 
 // No MESSAGE_UPDATED is emitted here: built-in Translate re-translates (and, with auto mode
@@ -569,7 +592,8 @@ async function onMessageReceived(messageId) {
 
     // Keep the blocks in the raw message, but hide their transport from the narration.
     // (0.9.19) The chat is saved once, below, for this and the edits after it.
-    let dirty = await normalizeMessageTransport(id, { rerender: true, save: false });
+    const identified = ensureMessageIdentity(message);
+    let dirty = await normalizeMessageTransport(id, { rerender: true, save: false }) || identified;
 
     // Record the dice that were handed over on the block itself, so this message (and this
     // swipe) can be checked against them later. After normalizing: moving a bare block into
@@ -611,7 +635,10 @@ async function onMessageReceived(messageId) {
         await persistMessageEdit(ctx, id, message, { rerender: false, save: false });
         dirty = true;
     }
-    if (dirty) await saveChat(ctx);
+    if (dirty) {
+        syncActiveSwipeText(message);
+        await saveChat(ctx);
+    }
     clearSession(chatId);
     refreshAll(0);
     // The Overview's token estimates follow the new reply (nothing is polled).
@@ -662,18 +689,94 @@ async function setBlockText(messageIndex, tagOrId, text) {
     const id = Number(messageIndex);
     const message = ctx.chat?.[id];
     if (!isAssistant(message)) throw new Error(`Message #${messageIndex} is not an assistant reply.`);
+    const next = upsertBlock(message.mes, def, blockBody(def, text));
+    if (next === message.mes) return false;
+    message.mes = next;
+    await persistMessageEdit(ctx, id, message, { rerender: false });
+    refreshAll(0);
+    return true;
+}
+
+function blockBody(def, text) {
     let body = String(text ?? '');
     if (def.kept) {
         body = escapeBody(body.replace(/\r\n?/g, '\n').trim(), def.tag);
         const parsed = formatFor(def).parse(body, def);
         if (!parsed.ok) throw new Error(`${def.name} could not be read: ${parsed.error}`);
     }
-    const next = upsertBlock(message.mes, def, body);
-    if (next === message.mes) return false;
-    message.mes = next;
-    await persistMessageEdit(ctx, id, message, { rerender: false });
-    refreshAll(0);
-    return true;
+    return body;
+}
+
+// saveChat can swallow errors: verify persisted state in the captured chat.
+async function savedMessages(ctx, chatId) {
+    if (typeof ctx.getRequestHeaders !== 'function') throw new Error('Chat readback is unavailable.');
+    const character = ctx.characters?.[ctx.characterId];
+    const group = Boolean(ctx.groupId);
+    if (!group && !character?.avatar) throw new Error('The chat character is unavailable.');
+    const response = await fetch(group ? '/api/chats/group/get' : '/api/chats/get', {
+        method: 'POST', headers: ctx.getRequestHeaders(), cache: 'no-store',
+        body: JSON.stringify(group ? { id: chatId } : { avatar_url: character.avatar, file_name: chatId }),
+    });
+    if (!response.ok) throw new Error('Saved chat could not be read.');
+    const data = await response.json();
+    if (!Array.isArray(data)) throw new Error('Saved chat could not be verified.');
+    return data.filter(entry => typeof entry?.mes === 'string');
+}
+
+const blockCommits = new Set();
+
+// Transaction v1: validate the base, save blocks/extras once, then verify readback.
+async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedExtra, changes = [], namespace, value }) {
+    const ctx = context();
+    if (!ctx || !chatId || chatIdOf(ctx) !== chatId || blockCommits.has(chatId)) return { status: 'failed', reason: 'Chat changed or a save is in progress.' };
+    if (pending.has(chatId) || typeof ctx.saveChat !== 'function') return { status: 'failed', reason: 'A reply is generating or saving is unavailable.' };
+    const message = ctx.chat?.[messageIndex];
+    if (!id || !isAssistant(message) || !/^[a-z][a-zA-Z0-9]+$/.test(namespace ?? '')) return { status: 'failed', reason: 'Invalid transaction.' };
+    if (message.mes !== expectedText || (expectedExtra !== undefined && JSON.stringify(message.extra ?? {}) !== expectedExtra)) return { status: 'failed', reason: 'The reply changed; refresh before retrying.' };
+    const before = structuredClone(message);
+    const candidate = structuredClone(message);
+    const oldReceipt = message.extra?.storyBlockCommits?.[id];
+    blockCommits.add(chatId);
+    let applied = false;
+    try {
+        if (!oldReceipt) {
+            for (const change of changes) {
+                const def = findBlockDef(transportBlocks(ctx), change.tag);
+                if (!def) throw new Error(`Unknown block: ${change.tag}`);
+                candidate.mes = upsertBlock(candidate.mes, def, blockBody(def, change.text));
+            }
+            ensureMessageIdentity(candidate);
+            candidate.extra = {
+                ...candidate.extra, [namespace]: structuredClone(value),
+                storyBlockCommits: { ...(candidate.extra?.storyBlockCommits ?? {}), [id]: { namespace } },
+            };
+            syncActiveSwipeText(candidate);
+            Object.assign(message, structuredClone(candidate));
+        }
+        applied = true;
+        if (!oldReceipt) {
+            try { await ctx.saveChat(); } catch { /* Readback distinguishes a lost response from a failed write. */ }
+        }
+        const saved = (await savedMessages(ctx, chatId))[messageIndex];
+        const confirmed = saved?.mes === candidate.mes
+            && saved?.extra?.storyBlockCommits?.[id]?.namespace === namespace
+            && JSON.stringify(saved?.extra?.[namespace]) === JSON.stringify(candidate.extra[namespace]);
+        if (confirmed) {
+            if (chatIdOf(context()) === chatId) refreshAll(0);
+            return { status: 'durable', id, owner: candidate.extra.storyBlockIdentity.id };
+        }
+        const unchanged = saved?.mes === before.mes && JSON.stringify(saved?.extra ?? {}) === JSON.stringify(before.extra ?? {});
+        if (unchanged && JSON.stringify(message) === JSON.stringify(candidate)) {
+            for (const key of Object.keys(message)) delete message[key];
+            Object.assign(message, before);
+            return { status: 'failed', reason: 'The transaction was not saved.' };
+        }
+        return { status: 'uncertain', reason: 'Saved state differs; reload and reconcile before retrying.' };
+    } catch (error) {
+        return { status: applied ? 'uncertain' : 'failed', reason: error.message };
+    } finally {
+        blockCommits.delete(chatId);
+    }
 }
 
 async function editBlock(def) {
@@ -1397,6 +1500,9 @@ globalThis.StoryBlock = Object.freeze({
         return blockInText(text, findBlockDef(transportBlocks(), tagOrId));
     },
     setBlockText,
+    transactionVersion: 1,
+    commitBlocks,
+    messageIdentity,
     /**
      * A plugin's block: transport only, or with `kept: true` read by the model every reply and
      * written only by the plugin (setBlockText), with a tab of its own unless `tab: false`.
@@ -1439,6 +1545,9 @@ globalThis.StoryBlock = Object.freeze({
 const SUITE_API = Object.freeze({
     listBlocks: globalThis.StoryBlock.listBlocks,
     getBlock: globalThis.StoryBlock.getBlock,
+    transactionVersion: 1,
+    commitBlocks,
+    messageIdentity,
     manage: Object.freeze({
         areas: SHARED_AREAS,
         sources: () => ({ ...settings().sourceOfTruth }),
