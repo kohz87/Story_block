@@ -63,7 +63,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Integration: npc.portrait, release zip, no v1 hookup on a v2 host | ✅ | #172 |
 
 ## Milestones
-- ⏳ **2.0.0-alpha.1**: all four integrated, combined live test passing (creation → offer → fight → quest payout → swipe/delete rollback), tagged on each `v2` branch.
+- ✅ **2.0.0-alpha.1**: all four integrated, combined live test passing (creation → offer → fight → quest payout → swipe/delete rollback), tagged on each `v2` branch.
 - ⏳ **2.0.0-beta**: QA findings fixed, performance tuned, screens polished, guide complete.
 - ⏳ Studio (separate app): after beta.
 
