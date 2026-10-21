@@ -66,6 +66,7 @@ test('inventory: defs are keyed by ID and well-formed', () => {
         [slice => { slice.defs['story/rope'].rarity = 'mythic'; }, /unknown rarity/],
         [slice => { slice.defs['story/rope'].value = -1; }, /value that is not a whole number/],
         [slice => { slice.defs['story/rope'].stack = 'yes'; }, /whether it stacks/],
+        [slice => { slice.defs['pack.fantasy/iron-sword'].stack = true; }, /Iron Sword is equipment, which never stacks/],
         [slice => { slice.defs['story/rope'].slot = ''; }, /slot that is neither/],
         [slice => { slice.defs['story/rope'].stats = []; }, /stats that are not a record/],
         [slice => { slice.defs['story/rope'].effect = null; }, /effect that is not a record/],
@@ -78,11 +79,12 @@ test('inventory: defs are keyed by ID and well-formed', () => {
 
 test('inventory: wallets are whole numbers of at least 0 per owner', () => {
     assert.deepEqual(errorsAfter(slice => { slice.wallets.party.coin = 0; }), []);
-    assert.match(errorsAfter(slice => { slice.wallets.party.coin = -1; }).join(' '), /holds -1 coin/);
+    assert.match(errorsAfter(slice => { slice.wallets.party.coin = -1; }).join(' '), /holds -1;/);
     assert.match(errorsAfter(slice => { slice.wallets.party.coin = 2.5; }).join(' '), /whole number of at least 0/);
     assert.match(errorsAfter(slice => { slice.wallets.Ren = { coin: 1 }; }).join(' '), /belongs to "Ren"/);
     assert.match(errorsAfter(slice => { slice.wallets.party = 5; }).join(' '), /wallet of party is not a record/);
-    assert.match(errorsAfter(slice => { slice.wallets.party[' '] = 1; }).join(' '), /currency with no name/);
+    assert.match(errorsAfter(slice => { slice.wallets.party.gems = 1; }).join(' '), /holds "gems"; a wallet keeps one amount, under coin/);
+    assert.deepEqual(errorsAfter(slice => { slice.wallets.ac_ren00001 = {}; }), [], 'an empty wallet is fine');
 });
 
 test('inventory: aliases are lowercase and point to defs', () => {

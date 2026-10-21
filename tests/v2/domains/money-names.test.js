@@ -1,43 +1,34 @@
-// Coins (currency hook, amounts) and item names (aliases, plurals, slugs).
+// Money (one currency, amounts) and item names (aliases, plurals, slugs).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_COINS, currencyFrom, formatAmount, formatWallet, normalizeCoins, parseAmount } from '../../../src/v2/domains/money.js';
+import { DEFAULT_CURRENCY, currencyOf, formatAmount, formatWallet, parseAmount } from '../../../src/v2/domains/money.js';
 import { aliasKey, cleanName, nameForms, resolveDef, slugify, trimText } from '../../../src/v2/domains/names.js';
-import { COINS } from './fixtures.js';
 import { DEF_ID } from '../../../src/v2/check.js';
 
-test('currency: default, hook arrays, v1 tiers, unusable answers skipped', () => {
-    assert.deepEqual(currencyFrom([]), DEFAULT_COINS);
-    assert.deepEqual(currencyFrom([() => null, () => { throw new Error('broken'); }, () => COINS]), COINS);
-    assert.deepEqual(currencyFrom([() => [{ name: 'silver', rate: 10 }]]), DEFAULT_COINS, 'no coin worth 1: unusable');
-    assert.deepEqual(normalizeCoins([{ name: 'gold', rate: 100 }, { name: 'copper', rate: 1 }, { name: 'Copper', rate: 5 }, { name: '', rate: 2 }]),
-        [{ name: 'copper', rate: 1 }, { name: 'gold', rate: 100 }]);
-    assert.deepEqual(normalizeCoins({ mode: 'tiers', tiers: [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 10 }] }), COINS);
-    assert.equal(normalizeCoins({ mode: 'off', tiers: [] }), null);
-    assert.equal(normalizeCoins('coins'), null);
+test('currency: one name from settings, default gold', () => {
+    assert.deepEqual(currencyOf(undefined), DEFAULT_CURRENCY);
+    assert.deepEqual(currencyOf({}), { name: 'gold', short: 'g' });
+    assert.deepEqual(currencyOf({ currency: '  Gil ' }), { name: 'Gil', short: 'g' });
+    assert.deepEqual(currencyOf({ currency: 'crowns', currencyShort: 'cr' }), { name: 'crowns', short: 'cr' });
+    assert.deepEqual(currencyOf({ currency: '   ' }), DEFAULT_CURRENCY);
+    assert.equal(currencyOf({ currency: 'x'.repeat(40) }).name.length, 24);
 });
 
-test('parseAmount', () => {
-    const cases = [
-        ['3 silver, 8 copper', 38], ['3 silver and 8 copper', 38], ['1 gold 2 silver', 120], ['1g 5s', 150],
-        ['5gp', 500], ['2 silver coins', 20], ['30', 30], ['12 coins', 12], ['1,000 copper', 1000], ['1 Gold + 1 Copper', 101],
-    ];
-    for (const [text, amount] of cases) assert.deepEqual(parseAmount(text, COINS), { amount }, text);
-    assert.deepEqual(parseAmount('3', DEFAULT_COINS), { amount: 3 });
-    assert.deepEqual(parseAmount('3 coin', DEFAULT_COINS), { amount: 3 });
-    assert.match(parseAmount('3 zorkmids', COINS).error, /no coin called "zorkmids"/);
-    assert.match(parseAmount('', COINS).error, /No amount/);
-    assert.match(parseAmount('a handful', COINS).error, /not an amount/);
-    assert.match(parseAmount('0 gold', COINS).error, /more than nothing/);
+test('parseAmount: only the number counts', () => {
+    const cases = [['30', 30], ['30 gold', 30], ['30 coins', 30], ['3 silver', 3], ['1,200 crowns', 1200], ['about 12.', 12], ['5gp', 5]];
+    for (const [text, amount] of cases) assert.deepEqual(parseAmount(text), { amount }, text);
+    assert.match(parseAmount('3 silver, 8 copper').error, /more than one number/);
+    assert.match(parseAmount('').error, /No amount/);
+    assert.match(parseAmount('a handful').error, /No amount/);
+    assert.match(parseAmount('0 gold').error, /more than nothing/);
+    assert.match(parseAmount('2.5 gold').error, /not a whole amount/);
 });
 
 test('formatAmount and formatWallet', () => {
-    assert.equal(formatAmount(386, COINS), '3 gold, 8 silver, 6 copper');
-    assert.equal(formatAmount(0, COINS), '0 copper');
-    assert.equal(formatAmount(40, COINS), '4 silver');
-    assert.equal(formatAmount(7, DEFAULT_COINS), '7 coin');
-    assert.equal(formatWallet(undefined, COINS), '0 copper');
-    assert.equal(formatWallet({ copper: 12, gems: 2, shells: 0 }, COINS), '1 silver, 2 copper, 2 gems');
+    assert.equal(formatAmount(386), '386 gold');
+    assert.equal(formatAmount(0, { name: 'Gil', short: 'g' }), '0 Gil');
+    assert.equal(formatWallet(undefined), '0 gold');
+    assert.equal(formatWallet({ coin: 12 }, { name: 'crowns', short: 'cr' }), '12 crowns');
 });
 
 test('names: clean, alias key, forms', () => {

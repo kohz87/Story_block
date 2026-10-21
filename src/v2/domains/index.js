@@ -1,13 +1,15 @@
 // Story Block's core module (§6, §7): the `scene` and `inventory` domains as one plain module
 // definition for `sdk.registerModule`. Pure: no SillyTavern, no DOM outside the tab renderers.
 //
-// The handler ctx (§3.2) has no hooks accessor, so the hooks this module calls (`item.define`
-// for story-introduced items, `currency` for coin names and rates) come in through the factory:
-//   registry.register(createCoreModule({ hooks: name => registry.hooks(name) }))
+// The handler ctx (§3.2) has no hooks accessor, so the `item.define` hooks (rules for items the
+// story introduces) come in through the factory, and so do this module's settings for the places
+// that have no ctx (queries, the tail, the tabs; handlers use ctx.settings()):
+//   registry.register(createCoreModule({ hooks: name => registry.hooks(name), settings: () => sdk.settings('story-block') }))
+// createCorePart gives the same thing as a MODULES.md part, for a host that merges parts.
 
-import { createInventoryCommands, captureCoin, captureItem, initialInventory, inventoryQueries, inventoryTail, validateInventory } from './inventory.js';
+import { createInventoryCommands, createInventoryQueries, captureCoin, captureItem, initialInventory, inventoryTail, validateInventory } from './inventory.js';
 import { capturePlace, capturePresent, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
-import { currencyFrom } from './money.js';
+import { DEFAULT_CURRENCY, currencyOf } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
 import { renderSceneTab } from '../ui/scene-tab.js';
 
@@ -20,44 +22,46 @@ export const CORE_STATIC = 'Code keeps the inventory, the wallet, the place and 
 
 export const CORE_KINDS = Object.freeze({
     item: Object.freeze({ grammar: '+ item Name | qty: 1 | note: short detail (- item Name | qty: 1 when used up or lost; ~ item Name | note: … when it changes)' }),
-    coin: Object.freeze({ grammar: '+ coin <amount in the wallet\'s coins> | from: who (- coin <amount> | to: who when paid)' }),
+    coin: Object.freeze({ grammar: '+ coin 30 | from: who (- coin 5 | to: who when paid; one number, in the wallet\'s currency)' }),
     place: Object.freeze({ grammar: '~ place Name | kind: settlement|wild|dungeon|… | region: wider area' }),
     present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave' }),
 });
 
+// The chat's one currency (MODULES.md F1): its name, renamable by the reader, never a second one.
+export const CORE_SETTINGS = Object.freeze({
+    section: 'Story Block',
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyShort: '' }),
+    schema: Object.freeze({
+        currency: Object.freeze({ type: 'text', label: 'Currency', max: 24 }),
+        currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
+    }),
+});
+
 /**
- * The core module definition. `hooks(name) → fn[]` in module-id order (the registry's `hooks`);
- * without it no hooks run and the currency is one coin, 'coin'.
+ * The core part in MODULES.md A's shape ({ domains, commands, queries, kinds, context, settings,
+ * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
+ * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCoreModule({ hooks = () => [], version = '2.0.0-alpha.1' } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}) } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
     };
-    const env = { hooks: hookList, coins: () => currencyFrom(hookList('currency')) };
-    const capturers = {
-        item: (ctx, line) => captureItem(ctx, line, env),
-        coin: (ctx, line) => captureCoin(ctx, line, env),
-        place: (ctx, line) => capturePlace(ctx, line),
-        present: (ctx, line) => capturePresent(ctx, line),
-    };
+    const env = { hooks: hookList, settings: () => settings() ?? {} };
+    const currency = () => currencyOf(env.settings());
+    const kind = (grammar, apply) => ({ grammar, apply });
     return {
-        id: CORE_MODULE_ID,
-        name: 'Story Block',
-        version,
         domains: {
             scene: { initial: initialScene, validate: slice => validateScene(slice) },
             inventory: { initial: initialInventory, validate: slice => validateInventory(slice) },
         },
         commands: { ...createInventoryCommands(env), ...sceneCommands },
-        queries: { ...inventoryQueries, ...sceneQueries },
-        capture: {
-            kinds: CORE_KINDS,
-            apply(ctx, line) {
-                const capture = capturers[line?.kind];
-                if (!capture) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);
-                return capture(ctx, line);
-            },
+        queries: { ...createInventoryQueries(env), ...sceneQueries },
+        kinds: {
+            item: kind(CORE_KINDS.item.grammar, (ctx, line) => captureItem(ctx, line, env)),
+            coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
+            place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
+            present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
         },
         context: {
             static: () => CORE_STATIC,
@@ -66,14 +70,39 @@ export function createCoreModule({ hooks = () => [], version = '2.0.0-alpha.1' }
                 const chars = CORE_BUDGET * 4;
                 const scene = sceneTail(view?.state);
                 const used = scene.reduce((sum, line) => sum + line.length + 1, 0);
-                const inventory = inventoryTail(view?.state, { coins: env.coins(), chars: chars / 2 - used, optionalChars: chars / 2 });
+                const inventory = inventoryTail(view?.state, { currency: currency(), chars: chars / 2 - used, optionalChars: chars / 2 });
                 return { lines: [...scene, ...inventory.lines], optional: inventory.optional };
             },
             budget: CORE_BUDGET,
         },
+        settings: CORE_SETTINGS,
         tabs: [
-            { id: 'inventory', title: 'Inventory', icon: 'fa-box-open', render: (el, view, api) => renderInventoryTab(el, view, api, { coins: env.coins() }) },
+            { id: 'inventory', title: 'Inventory', icon: 'fa-box-open', render: (el, view, api) => renderInventoryTab(el, view, api, { currency: currency() }) },
             { id: 'scene', title: 'Scene', icon: 'fa-map-location-dot', render: (el, view, api) => renderSceneTab(el, view, api) },
         ],
+    };
+}
+
+/** The core module definition for `sdk.registerModule` (§6), built from the core part. */
+export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1' } = {}) {
+    const part = createCorePart({ hooks, settings });
+    return {
+        id: CORE_MODULE_ID,
+        name: 'Story Block',
+        version,
+        domains: part.domains,
+        commands: part.commands,
+        queries: part.queries,
+        capture: {
+            kinds: CORE_KINDS,
+            apply(ctx, line) {
+                const kind = part.kinds[line?.kind];
+                if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);
+                return kind.apply(ctx, line);
+            },
+        },
+        context: part.context,
+        settings: { defaults: CORE_SETTINGS.defaults, schema: CORE_SETTINGS.schema },
+        tabs: part.tabs,
     };
 }

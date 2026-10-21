@@ -1,7 +1,7 @@
 // A minimal stand-in for the command bus (§3.2) to test module handlers without the real one:
 // read (deep-frozen copy), draft (own domains only, else NOT_OWNER), call (sub-command, same
-// transaction), claim, rng (seeded, deterministic), roll, fail, settings, time, receiptId,
-// cause and caller. `run` mimics the commit step: handler on drafts, then every touched domain's
+// transaction), claim, query (over the transaction's state, drafts included), rng (seeded,
+// deterministic), roll, fail, settings, time, receiptId, rev, cause and caller. `run` mimics the commit step: handler on drafts, then every touched domain's
 // validator; any throw or validation error rejects the whole command and keeps nothing.
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -49,19 +49,28 @@ export function initialState(modules) {
 }
 
 /**
- * modules: module definitions (the first is the one under test); returns
+ * modules: module definitions (the first is the one under test); settings: { [moduleId]: object }; returns
  * { state, run(type, payload, opts), capture(line, opts), query(name, args) }.
  */
-export function createHarness(modules, { state } = {}) {
+export function createHarness(modules, { state, settings = {} } = {}) {
     const list = Array.isArray(modules) ? modules : [modules];
     let current = deepFreeze(clone(state ?? initialState(list)));
     let receipts = 0;
     const owners = new Map();
     const commands = new Map();
+    const queries = new Map();
     for (const module of list) {
         Object.keys(module.domains ?? {}).forEach(domain => owners.set(domain, module));
         Object.entries(module.commands ?? {}).forEach(([type, fn]) => commands.set(type, { module, fn }));
+        Object.entries(module.queries ?? {}).forEach(([name, fn]) => { if (!queries.has(name)) queries.set(name, fn); });
     }
+    // A query is called (state, args, tools) with tools.query over the same state (MODULES.md F3).
+    const runQuery = (state, name, args) => {
+        const fn = queries.get(name);
+        if (!fn) throw failure('NOT_FOUND', `There is no query called "${name}".`);
+        const frozen = deepFreeze(clone(state));
+        return clone(fn(frozen, deepFreeze(clone(args ?? {})), { query: (other, more) => runQuery(frozen, other, more) }));
+    };
 
     function execute(module, body, { cause = 'ui', seed = 1, caller = null } = {}) {
         const working = clone(current);
@@ -73,6 +82,7 @@ export function createHarness(modules, { state } = {}) {
             cause,
             caller: callerId,
             receiptId,
+            rev: current.meta.rev + 1,
             read: domain => deepFreeze(clone(working.domains[domain] ?? null)),
             draft: domain => {
                 if (owners.get(domain) !== self) throw failure('NOT_OWNER', `${self.id} does not own ${domain}.`);
@@ -89,9 +99,10 @@ export function createHarness(modules, { state } = {}) {
                 working.meta.claims[key] = true;
                 return true;
             },
+            query: (name, args) => deepFreeze(runQuery(working, name, args)),
             rng,
             roll: () => ({ total: 1 + Math.floor(rng() * 6), dice: [] }),
-            settings: () => ({}),
+            settings: (id = self.id) => deepFreeze(clone(settings[id] ?? {})),
             time: () => null,
             fail: (code, message) => {
                 throw failure(code, message);
@@ -126,8 +137,7 @@ export function createHarness(modules, { state } = {}) {
             return execute(module, ctx => module.capture.apply(ctx, line), { cause: 'story', ...opts });
         },
         query(name, args) {
-            for (const module of list) if (module.queries?.[name]) return module.queries[name](current, args);
-            throw new Error(`no query ${name}`);
+            return runQuery(current, name, args);
         },
     };
 }

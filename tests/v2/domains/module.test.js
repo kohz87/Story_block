@@ -2,9 +2,9 @@
 // budget split (§5).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CORE_BUDGET, CORE_KINDS, CORE_MODULE_ID, CORE_STATIC, createCoreModule } from '../../../src/v2/domains/index.js';
+import { CORE_BUDGET, CORE_KINDS, CORE_MODULE_ID, CORE_STATIC, createCoreModule, createCorePart } from '../../../src/v2/domains/index.js';
 import { createHarness, initialState, line } from './helpers/fake-ctx.js';
-import { COINS, core, def, stack, stocked } from './fixtures.js';
+import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
 const view = state => ({ state, query: () => null, settings: {}, chat: { length: 1, lastUser: '' } });
 
@@ -16,17 +16,19 @@ test('the definition has the §6 shape', () => {
         'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.merge', 'inventory.split',
         'inventory.transfer', 'inventory.unequip', 'scene.place', 'scene.present', 'wallet.pay', 'wallet.receive',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['inventory.find', 'inventory.items', 'inventory.wallet', 'scene.place', 'scene.present']);
+    assert.deepEqual(Object.keys(module.queries).sort(), ['inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet', 'scene.place', 'scene.present']);
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present']);
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), ['inventory', 'scene']);
+    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyShort: '' });
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyShort']);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));
 });
 
 test('static() is byte-identical whatever the state', () => {
-    const module = core({ currency: [() => COINS] });
+    const module = core({}, CROWNS);
     const a = module.context.static();
     const h = createHarness([module], { state: stocked(module) });
     h.capture(line('+', 'item', 'Moonveil Trout'));
@@ -65,10 +67,10 @@ test('queries return plain copies', () => {
     const h = createHarness([module], { state });
     const items = h.query('inventory.items', {});
     assert.equal(items.length, 6);
-    assert.deepEqual(items.map(item => item.id), ['it_dagg0001', 'it_sword001', 'it_pota0001', 'it_potb0001', 'it_lant0001', 'it_rope0001'],
+    assert.deepEqual(items.map(item => item.stack), ['it_dagg0001', 'it_sword001', 'it_pota0001', 'it_potb0001', 'it_lant0001', 'it_rope0001'],
         'equipment before consumables and goods; then by name');
     assert.deepEqual(items[1], {
-        id: 'it_sword001', def: 'pack.fantasy/iron-sword', name: 'Iron Sword', kind: 'equipment', rarity: 'uncommon', value: 50,
+        stack: 'it_sword001', def: 'pack.fantasy/iron-sword', name: 'Iron Sword', kind: 'equipment', rarity: 'uncommon', value: 50,
         slot: 'hand', qty: 1, owner: 'party', equipped: null, note: '', from: '',
     });
     assert.deepEqual(h.query('inventory.items', { owner: 'ac_ren00001' }), []);
@@ -77,21 +79,52 @@ test('queries return plain copies', () => {
     const found = h.query('inventory.find', { name: 'minor healing draughts' });
     assert.equal(found.status, 'found');
     assert.equal(found.defs[0].id, 'pack.fantasy/potion');
-    assert.deepEqual(found.stacks.map(item => item.id), ['it_pota0001', 'it_potb0001']);
+    assert.deepEqual(found.stacks.map(item => item.stack), ['it_pota0001', 'it_potb0001']);
     assert.deepEqual(h.query('inventory.find', { name: 'Golden Idol' }), { status: 'none', defs: [], stacks: [] });
     const place = h.query('scene.place');
     place.name = 'changed';
     assert.equal(h.state.domains.scene.place.name, 'Bluewatch', 'a copy, not the state');
     assert.deepEqual(h.query('scene.present'), ['Fenna']);
     assert.deepEqual(module.queries['scene.place'](undefined), { name: '', kind: '', region: '' });
+    assert.deepEqual(h.query('inventory.currency'), { name: 'gold', short: 'g' });
+    assert.deepEqual(core({}, CROWNS).queries['inventory.currency'](state, {}), { name: 'crowns', short: 'cr' });
+});
+
+test('a handler can use the core queries through ctx.query, drafts included', () => {
+    const module = core();
+    const reader = {
+        id: 'reader',
+        domains: {},
+        commands: {
+            'x.count'(ctx) {
+                ctx.call('inventory.drop', { stack: 'it_rope0001' });
+                return { summary: '', data: { lots: ctx.query('inventory.items', {}).length, wallet: ctx.query('inventory.wallet', {}) } };
+            },
+        },
+    };
+    const h = createHarness([module, reader], { state: stocked(module) });
+    assert.deepEqual(h.run('x.count', {}).result.data, { lots: 5, wallet: { coin: 125 } });
+});
+
+test('createCorePart gives the same pieces in the MODULES.md part shape', () => {
+    const part = createCorePart({ hooks: () => [] });
+    const module = createCoreModule();
+    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds));
+    for (const [name, kind] of Object.entries(part.kinds)) {
+        assert.equal(kind.grammar, CORE_KINDS[name].grammar);
+        assert.equal(typeof kind.apply, 'function');
+    }
+    assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands));
+    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries));
+    assert.equal(part.context.budget, CORE_BUDGET);
 });
 
 test('tail: place, present, equipped, wallet and carried items with notes trimmed', () => {
-    const module = core({ currency: [() => COINS] });
+    const module = core({}, CROWNS);
     const state = stocked(module);
     state.domains.scene = { place: { name: 'Bluewatch Village', kind: 'settlement', region: 'Lakeshire' }, present: ['Fenna', 'Old Tam'] };
     const inv = state.domains.inventory;
-    inv.wallets = { party: { copper: 38 }, ac_ren00001: { copper: 5 }, ac_zed00001: { copper: 0 } };
+    inv.wallets = { party: { coin: 38 }, ac_ren00001: { coin: 5 }, ac_zed00001: { coin: 0 } };
     inv.stacks.it_sword001.equipped = 'hand';
     inv.stacks.it_dagg0001.owner = 'ac_ren00001';
     inv.stacks.it_dagg0001.equipped = 'hand';
@@ -104,7 +137,7 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
             'Present: Fenna, Old Tam',
             'Equipped: Iron Sword [hand]',
             'Equipped (Ren): Dagger [hand]',
-            'Wallet: 3 silver, 8 copper; Ren 5 copper',
+            'Wallet: 38 crowns; Ren 5 crowns',
             'Carried: Minor Healing Draught ×2, Minor Healing Draught (cloudy), Lantern, Rope ×3 (tarred hemp, sixty feet, knotted every…)',
         ],
         optional: [],
@@ -113,7 +146,7 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
 
 test('tail: an empty start says so', () => {
     const module = core();
-    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: ['Wallet: 0 coin', 'Carried: nothing'], optional: [] });
+    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: ['Wallet: 0 gold', 'Carried: nothing'], optional: [] });
 });
 
 test('tail: a long inventory overflows into optional, then into a count, within the budget', () => {

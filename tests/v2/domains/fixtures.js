@@ -3,11 +3,12 @@ import { createCoreModule } from '../../../src/v2/domains/index.js';
 import { defaultDef } from '../../../src/v2/domains/inventory.js';
 import { initialState } from './helpers/fake-ctx.js';
 
-export const COINS = [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 100 }];
+// Story Block's settings with the chat's currency renamed.
+export const CROWNS = { currency: 'crowns', currencyShort: 'cr' };
 
-/** A core module whose hooks are the given { name: fn[] } map. */
-export function core(hookMap = {}) {
-    return createCoreModule({ hooks: name => hookMap[name] ?? [] });
+/** A core module whose hooks are the given { name: fn[] } map, with the given settings. */
+export function core(hookMap = {}, settings = {}) {
+    return createCoreModule({ hooks: name => hookMap[name] ?? [], settings: () => settings });
 }
 
 export const def = (id, name, fields = {}) => ({ ...defaultDef(id, name), ...fields });
@@ -19,8 +20,8 @@ export function stocked(module = core()) {
     const inv = state.domains.inventory;
     const defs = [
         def('story/rope', 'Rope'),
-        def('pack.fantasy/iron-sword', 'Iron Sword', { kind: 'equipment', slot: 'hand', rarity: 'uncommon', value: 50 }),
-        def('pack.fantasy/dagger', 'Dagger', { kind: 'equipment', slot: 'hand' }),
+        def('pack.fantasy/iron-sword', 'Iron Sword', { kind: 'equipment', slot: 'hand', rarity: 'uncommon', value: 50, stack: false }),
+        def('pack.fantasy/dagger', 'Dagger', { kind: 'equipment', slot: 'hand', stack: false }),
         def('pack.fantasy/potion', 'Minor Healing Draught', { kind: 'consumable' }),
         def('story/lantern', 'Lantern', { stack: false }),
     ];
