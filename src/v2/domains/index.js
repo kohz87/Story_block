@@ -43,11 +43,15 @@ export const CORE_KINDS = Object.freeze({
 // never a second one.
 export const CORE_SETTINGS = Object.freeze({
     section: 'Story Block',
-    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '' }),
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', storyCoinPerReply: 0 }),
     schema: Object.freeze({
         currency: Object.freeze({ type: 'text', label: 'Currency (one coin: mark, crown, gold)', max: 24 }),
         currencyPlural: Object.freeze({ type: 'text', label: 'Currency, plural (blank: the name with an s)', max: 24 }),
         currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
+        storyCoinPerReply: Object.freeze({
+            type: 'int', min: 0, max: 1000000000, label: 'Money one reply may give',
+            help: 'The most + coin lines of one reply may pay, in whole coins. 0: the top quest reward for the player character\'s rank (or 1000 per level).',
+        }),
     }),
 });
 

@@ -182,7 +182,7 @@ test('classes SillyTavern acts on are never set, bound or toggled; control names
     assert.equal(i.className, 'on');
     assert.equal(radio.getAttribute('name'), null);
     assert.equal(bound.getAttribute('name'), null);
-    assert.equal(pick.getAttribute('name'), 'pick', 'other names are kept for radio groups');
+    assert.equal(pick.getAttribute('name'), 'ss-t-pick', 'other names are kept (prefixed, as ids are) for radio groups');
     assert.ok(view.warnings.some(line => /swipe_right/.test(line)));
     assert.ok(view.warnings.some(line => /swipe_left/.test(line)));
     assert.ok(view.warnings.some(line => /chat_display/.test(line)));
@@ -197,7 +197,7 @@ test('SillyTavern 1.19\'s own radio group names are dropped from template contro
     const [written, bound, mine] = el.children;
     assert.equal(written.getAttribute('name'), null);
     assert.equal(bound.getAttribute('name'), null);
-    assert.equal(mine.getAttribute('name'), 'mine');
+    assert.equal(mine.getAttribute('name'), 'ss-t-mine');
     assert.ok(view.warnings.some(line => /character_names/.test(line)));
     assert.ok(view.warnings.some(line => /extension_floating_position/.test(line)));
     assert.equal(strictSanitize('<input type="radio" name="character_names">'), '<input type="radio">');

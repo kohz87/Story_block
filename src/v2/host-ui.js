@@ -97,8 +97,14 @@ function control(doc, field, value, onChange, id) {
     if (f.type === 'list') return listControl(doc, f, Array.isArray(value) ? value : [], onChange, id);
     const input = el(doc, f.multiline ? 'textarea' : 'input', 'text_pole');
     if (!f.multiline) input.type = 'text';
+    // A text field's `max` holds for typing and pasting alike (settings.set cuts it there too).
+    const max = Number.isInteger(f.max) && f.max >= 0 ? f.max : null;
+    if (max !== null) input.maxLength = max;
     input.value = String(value ?? '');
-    input.addEventListener('change', () => onChange(input.value));
+    input.addEventListener('change', () => {
+        if (max !== null && input.value.length > max) input.value = input.value.slice(0, max);
+        onChange(input.value);
+    });
     return input;
 }
 

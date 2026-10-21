@@ -16,6 +16,8 @@ import { CALENDAR_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS,
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
+import { MAX_DEPTH as MAX_TEMPLATE_DEPTH, tooDeep } from '../view/template/html.js';
+import { MAX_AT_DEPTH, cssDepth } from '../view/css.js';
 
 export const HOST_VERSION = '2.0.0';
 
@@ -783,6 +785,8 @@ function cssUrlProblem(css) {
 }
 
 export function unsafeCss(css) {
+    // A rule's own braces are one level; each @media/@supports around it one more.
+    if (cssDepth(css) > MAX_AT_DEPTH + 1) return `may nest @-rules at most ${MAX_AT_DEPTH} deep`;
     if (CSS_UNSAFE.test(css)) return 'may not use @import, expression(), behavior, -moz-binding, < or backslashes';
     for (const [, , target] of css.matchAll(CSS_URL)) if (!CSS_SAFE_URL.test(target.trim())) return `may load only https or image data URLs (not "${target.trim().slice(0, 40)}")`;
     return cssUrlProblem(css);
@@ -809,6 +813,7 @@ function checkScreens(list, packId, add) {
         if (screen.mounts !== undefined && (!Array.isArray(screen.mounts) || screen.mounts.some(mount => !MOUNTS.includes(mount)))) say('mounts', `mounts must be a list of ${MOUNTS.join(', ')}.`);
         if (screen.template === undefined && screen.layout === undefined) say('template', 'a screen needs a template or a layout.');
         if (screen.template !== undefined && typeof screen.template !== 'string') say('template', 'template must be text (an HTML template).');
+        else if (typeof screen.template === 'string' && tooDeep(screen.template)) say('template', `the template nests elements more than ${MAX_TEMPLATE_DEPTH} deep.`);
         if (screen.layout !== undefined && !isObject(screen.layout)) say('layout', 'layout must be an object: { "root": … }.');
         if (screen.css !== undefined) {
             const why = typeof screen.css === 'string' ? unsafeCss(screen.css) : 'must be text';
@@ -816,6 +821,7 @@ function checkScreens(list, packId, add) {
         }
         if (screen.data !== undefined && !isObject(screen.data)) say('data', 'data must map names to queries: { "pc": { "query": "party.pc" } }.');
         if (screen.steps !== undefined && (!Array.isArray(screen.steps) || screen.steps.some(step => !isObject(step) || (step.template !== undefined && typeof step.template !== 'string')))) say('steps', 'steps must be a list of { "id", "title", "template" }.');
+        else if (Array.isArray(screen.steps) && screen.steps.some(step => typeof step.template === 'string' && tooDeep(step.template))) say('steps', `a step's template nests elements more than ${MAX_TEMPLATE_DEPTH} deep.`);
         const theme = screen.theme === undefined ? {} : checkTheme(screen.theme, add, `${path}.theme`);
         if (ok) out.push({ ...screen, theme, pack: packId });
     });

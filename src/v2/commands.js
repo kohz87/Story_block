@@ -260,7 +260,10 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         if (typeof summary !== 'string') fail('FAILED', `${type} returned a summary that is not text.`);
         if (typeof narrate !== 'boolean') fail('FAILED', `${type} returned a narrate flag that is not true or false.`);
         if (!isRecord(data) || !isJson(data)) fail('FAILED', `${type} returned data that is not a plain JSON object.`);
-        return { summary, narrate, data: clone(data) };
+        // `problem`: the command was done, but not all of what was asked (a clamp); a capture's
+        // problem goes to the Problems list (turn.js). Not stored in the receipt.
+        const problem = typeof result.problem === 'string' && result.problem.trim() ? result.problem.trim() : null;
+        return { summary, narrate, data: clone(data), problem };
     }
 
     function opsOf(tx) {
@@ -301,7 +304,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             };
             const out = invoke(tx, type, target, payload, 0);
             if (tx.failure) throw tx.failure;
-            const { summary, narrate, data } = resultOf(type, out, cause);
+            const { summary, narrate, data, problem } = resultOf(type, out, cause);
             tx.closed = true;
 
             const { ops, touched, rev } = opsOf(tx);
@@ -327,7 +330,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             const receipt = deepFreeze({
                 id: receiptId, type, module: target.moduleId, cause, seed: seedValue, summary, narrate, data, rev,
             });
-            return { ok: true, ops: deepFreeze(ops), receipt, state: next };
+            return { ok: true, ops: deepFreeze(ops), receipt, state: next, ...(problem ? { problem } : {}) };
         } catch (error) {
             const reason = asCommandError(type, tx?.failure ?? error);
             return { ok: false, code: reason.code, message: reason.message };

@@ -61,10 +61,13 @@ export function createStore({
     let frozenCheckpoints = new WeakMap();
     let cache = null;          // { key, state, problems }
     let lastWrite = null;      // { message, swipe, rev } of the last record written, for save verification
+    let holding = 0;           // inside batch(): swipe_info copies wait until it ends
+    const held = new Set();
 
     // Every record goes through here, so a save can be checked against the last one written.
     function write(message, record) {
-        const stored = writeRecord(message, record);
+        if (holding) held.add(message);
+        const stored = writeRecord(message, record, { mirror: !holding });
         lastWrite = { message, swipe: stored.swipe, rev: stored.rev };
         return stored;
     }
@@ -497,6 +500,25 @@ export function createStore({
             for (const i of carrierIndexes(arr)) stamped = restamp(arr[i]) || stamped;
             if (stamped) saver.touch();
             current();
+        },
+
+        // Runs `fn` (it may be async) with the swipe_info copies of every record it writes held back,
+        // then copies each once: a reply's change lines are stored one by one (each must apply on its
+        // own), but a long block is not copied once per line (B1-1).
+        async batch(fn) {
+            holding += 1;
+            try {
+                return await fn();
+            } finally {
+                holding -= 1;
+                if (!holding) {
+                    for (const message of held) {
+                        const record = message.extra?.[KEY];
+                        if (record) writeRecord(message, record);
+                    }
+                    held.clear();
+                }
+            }
         },
 
         scheduleSave(ms = 400) { saver.schedule(ms); },

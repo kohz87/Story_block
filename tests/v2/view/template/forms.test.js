@@ -68,7 +68,7 @@ test('every input type fills the draft the host holds; the view re-renders from 
     assert.deepEqual(select.querySelectorAll('option').map(o => o.getAttribute('value')), ['', 'ranger', 'mage']);
     type(select, 'mage', 'change');
 
-    const radios = inputs.filter(input => input.getAttribute('name') === 'origin');
+    const radios = inputs.filter(input => input.getAttribute('name') === 'ss-t-origin');
     radios[1].checked = true;
     radios[1].dispatch('change');
     radios[0].checked = false;
