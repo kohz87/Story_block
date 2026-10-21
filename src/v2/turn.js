@@ -208,9 +208,15 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
     const hasCarrier = () => (ctx?.chat ?? []).some(isCarrier);
     const lastCarrier = () => (ctx?.chat ?? []).findLastIndex(isCarrier);
 
+    // The chat's state starts on its first carrier; a damaged record set up again goes to the Problems.
+    function ensureInitial() {
+        const notes = store.ensureInitial(initial());
+        for (const note of Array.isArray(notes) ? notes : []) problem({ code: 'DAMAGED', message: note });
+    }
+
     function rebuild() {
         store.rebuild();
-        if (hasCarrier()) store.ensureInitial(initial());
+        if (hasCarrier()) ensureInitial();
         events?.emit('head', { index: store.headIndex() });
     }
 
@@ -434,7 +440,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         let state = base ?? store.head();
         // ctx.carrier and ctx.chat for the capture handlers (MODULES §F2's capture context).
         const message = ctx?.chat?.[index];
-        const carrier = { index, swipe: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0 };
+        // `sid`: the reply's record ID, which stays with the reply when earlier messages are deleted.
+        const carrier = { index, swipe: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0, sid: store.carrierSid?.(index) ?? null };
         const reader = (ctx?.chat ?? []).slice(0, index).findLast(item => item?.is_user);
         const chat = { lastUser: String(reader?.mes ?? ''), reply: stripBlock(String(message?.mes ?? '')) };
         for (const line of lines) {
@@ -538,7 +545,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         if (!isCarrier(message)) return null;
         try {
             if (store.headIndex() !== id) store.rebuild();
-            store.ensureInitial(initial());
+            ensureInitial();
             if (store.headIndex() !== id) {
                 problem({ index: id, code: 'FAILED', message: 'The reply is not the last message that keeps the story, so its changes were not read.' });
                 return null;
@@ -553,7 +560,9 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             problems.push(...result.problems);
 
             // What this reply was told; a Continue keeps what the reply was told before.
-            const before = current.type === 'continue' ? message.extra?.storySuite?.narrated ?? [] : [];
+            // (B-b2-timeline-9: read through readRecord, and only receipt IDs, whatever the chat holds.)
+            const told = current.type === 'continue' ? readRecord(message)?.narrated ?? [] : [];
+            const before = told.filter(id => typeof id === 'string');
             store.setNarrated(id, [...new Set([...before, ...current.untold])]);
 
             let edited = false;
@@ -661,7 +670,9 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         on(names.GENERATION_ENDED, onGenerationEnded);
         on(names.GENERATION_STOPPED, onGenerationEnded);
         on(names.CHAT_CHANGED, onChatChanged);
-        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.MESSAGE_SWIPE_DELETED, names.CHARACTER_FIRST_MESSAGE_SELECTED]) on(event, onTimelineChanged);
+        // MESSAGE_EDITED too: a record's swipe mark follows an edit (persist.js restamp), so a Continue
+        // after it still finds the record.
+        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.MESSAGE_SWIPE_DELETED, names.CHARACTER_FIRST_MESSAGE_SELECTED, names.MESSAGE_EDITED]) on(event, onTimelineChanged);
         return api;
     }
 

@@ -352,12 +352,14 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         }
     }
 
-    // The reply a capture runs for, frozen; `key` (and String(carrier)) is "<index>:<swipe>".
+    // The reply a capture runs for, frozen; `key` (and String(carrier)) is "<index>:<swipe>". `sid` is the
+    // reply's record ID (null when unknown): unlike the index it stays with the reply when an earlier
+    // message is deleted, so a claim keyed on it still matches.
     function carrierOf(carrier) {
         if (!isRecord(carrier) || !Number.isInteger(carrier.index)) return null;
         const swipe = Number.isInteger(carrier.swipe) ? carrier.swipe : 0;
         const key = `${carrier.index}:${swipe}`;
-        const out = { index: carrier.index, swipe, key };
+        const out = { index: carrier.index, swipe, sid: typeof carrier.sid === 'string' ? carrier.sid : null, key };
         Object.defineProperty(out, 'toString', { value: () => key });
         return Object.freeze(out);
     }
@@ -443,7 +445,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
          * run(type, payload, { cause = 'story', seed, state, capture }) → { ok, ops, receipt, state }:
          * the command's result without storing it (capture). `state` is the state to run against
          * (default: the head), so lines of one reply can chain; `capture` = registry.capture(kind)'s
-         * { moduleId, apply } runs that capture handler as command `type`; `carrier` ({ index, swipe })
+         * { moduleId, apply } runs that capture handler as command `type`; `carrier` ({ index, swipe, sid? })
          * and `chat` ({ lastUser, reply }) become ctx.carrier and ctx.chat.
          */
         run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null } = {}) {

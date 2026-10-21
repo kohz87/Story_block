@@ -11,11 +11,13 @@
 // * the events part commits through this runtime's command bus (its cues are system steps) and asks
 //   through its sdk.
 
+import { createChatFile } from './chat-file.js';
 import { createCommandBus as realBus } from './commands.js';
 import { CORE_MODULE_ID, createCoreModule } from './domains/index.js';
 import { WALLET_KEY } from './domains/money.js';
 import { createAssistPart } from './assist/index.js';
 import { applyStart, createPacksPart } from './packs/index.js';
+import { carryRecord } from './persist.js';
 import { createRegistry } from './registry.js';
 import { createEvents, createSdk, createSettings, newId } from './sdk.js';
 import { createRewind } from './rewind.js';
@@ -81,14 +83,73 @@ export function packsFor(ctx, options = {}) {
 }
 
 /**
+ * How the store saves (SPEC §3.3), for SillyTavern and the testkit alike:
+ * * In SillyTavern the chat file is written directly (src/v2/chat-file.js), with the chat as it is in
+ *   the same tick as the store's check that it is still the chat the change was made in; a refused
+ *   save throws, so it stays unsaved, is told once and tried again. Where there is no such file (the
+ *   testkit, a temporary chat) it is ctx.saveChat().
+ * * A change left in a chat that is no longer open (rescue) is put into that chat's file as read back
+ *   from the server: only its records, onto the same messages; nothing else in the file changes.
+ * * The reader's actions are saved at once (sdk.command); the rest within 400 ms; when the page is
+ *   closed with something unsaved, it is sent with keepalive, and the browser asks first if saves have
+ *   been failing.
+ * Returns the createStore() options for it.
+ */
+export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError = null }) {
+    const context = () => {
+        try { return live() ?? ctx; } catch { return ctx; }
+    };
+    const file = createChatFile({ context, ...(fetch ? { fetch } : {}) });
+    return {
+        chat: () => ctx.chat,
+        chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId),
+        place: () => file.where(),
+        save: (change, { keepalive = false } = {}) => {
+            const place = file.where();
+            if (!place) return ctx.saveChat();
+            return file.write(place, ctx.chat, context().chatMetadata ?? {}, { keepalive });
+        },
+        async rescue(change, entries) {
+            if (!entries.length) return;
+            if (!change?.place) throw new Error('this page cannot write to that chat\'s file');
+            const [header, ...messages] = await file.read(change.place);
+            if (!header || !messages.length) throw new Error('its chat file could not be read');
+            for (const { message, index } of entries) {
+                if (!carryRecord(message, messages[index])) throw new Error(`its chat file no longer holds message ${index} as it was`);
+            }
+            await file.write(change.place, messages, header.chat_metadata ?? {});
+        },
+        onSaveError,
+    };
+}
+
+/** On a page: the unsaved story goes out when the page is closed (keepalive); see storeSaving. */
+export function saveOnUnload(store, page) {
+    if (typeof page?.addEventListener !== 'function') return () => {};
+    const onUnload = event => {
+        if (!store.dirty?.()) return;
+        store.saveSoon?.({ keepalive: true });
+        if (store.failing?.()) {
+            event.preventDefault?.();
+            event.returnValue = true;
+        }
+    };
+    page.addEventListener('beforeunload', onUnload);
+    return () => page.removeEventListener?.('beforeunload', onUnload);
+}
+
+/**
  * createRuntime({ ctx, packs?, core = true, modules = [], createStore?, createCommandBus?, notify?,
- * onBlocked?, onSaveError?, onRegister?(def), branch?(index) (src/v2/rewind.js stBranch), callModel? (assist) }) → { registry, settings, store, bus, events, sdk, turn, markReady,
+ * onBlocked?, onSaveError?, onRegister?(def), branch?(index) (src/v2/rewind.js stBranch), callModel? (assist),
+ * live?() (SillyTavern's live getContext(); default: globalThis.SillyTavern's, else ctx), fetch?, page? (for
+ * beforeunload; default: globalThis.window) }) → { registry, settings, store, bus, events, sdk, turn, markReady,
  * initial, packs }. `ctx` is SillyTavern's context (or the testkit's fake); `packs` a
  * createPacksPart() result (default: one over ctx.extensionSettings).
  */
 export function createRuntime({
     ctx, packs = null, core = true, modules = [], createStore = realStore, createCommandBus = realBus,
     notify, onBlocked = null, onSaveError = null, onRegister = null, branch = null, callModel = null,
+    live = () => globalThis.SillyTavern?.getContext?.() ?? ctx, fetch = null, page = globalThis.window ?? null,
 } = {}) {
     const registry = createRegistry({ hostVersion: VERSION });
     const packPart = packs ?? packsFor(ctx);
@@ -146,7 +207,8 @@ export function createRuntime({
             return [`The ${name} check failed: ${error?.message ?? error}`];
         }
     });
-    const store = createStore({ chat: () => ctx.chat, save: () => ctx.saveChat(), onSaveError, validate });
+    const store = createStore({ ...storeSaving({ ctx, live, fetch, onSaveError }), validate });
+    saveOnUnload(store, page);
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
     const rewind = createRewind({ ctx, store, events, ...(branch ? { branch } : {}) });

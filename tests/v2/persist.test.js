@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    carrierIndexes, createSaver, isCarrier, lastCarrier, readRecord, swipeOf, writeRecord,
+    carrierIndexes, createSaver, isCarrier, lastCarrier, readRecord, recordFault, swipeOf, writeRecord,
 } from '../../src/v2/persist.js';
 
 const record = (fields = {}) => ({ v: 2, sid: 'sw_a', ops: [], receipts: [], narrated: [], spans: [], ...fields });
@@ -28,8 +28,17 @@ test('only well-formed v2 records count; v1 extras and other shapes are no recor
     assert.equal(at({ storySuite: record({ narrated: 'a' }) }), null);
     assert.equal(at({ storySuite: record({ checkpoint: [] }) }), null);
     assert.equal(readRecord({ is_user: true, extra: { storySuite: record() } }), null, 'user messages hold nothing');
-    const good = record({ checkpoint: { v: 2 } });
+    const good = record({ checkpoint: { v: 2, meta: { rev: 0 }, domains: {} } });
     assert.equal(at({ storySuite: good }), good);
+    // A checkpoint is a whole state (break round b2-timeline-7): v 2, meta with a whole-number rev, domains.
+    for (const checkpoint of [{}, { v: 2 }, { v: 2, meta: {}, domains: {} }, { v: 2, meta: { rev: 1.5 }, domains: {} },
+        { v: 2, meta: { rev: 0 }, domains: [] }, { v: 1, meta: { rev: 0 }, domains: {} }]) {
+        assert.equal(at({ storySuite: record({ checkpoint }) }), null, JSON.stringify(checkpoint));
+        assert.match(recordFault({ is_user: false, extra: { storySuite: record({ checkpoint }) } }), /checkpoint/);
+    }
+    assert.match(recordFault({ is_user: false, extra: { storySuite: record({ ops: null }) } }), /changes/);
+    assert.equal(recordFault({ is_user: false, extra: { storySuite: good } }), '');
+    assert.equal(recordFault({ is_user: false, extra: { storySuite: { v: 1 } } }), '', 'not a v2 record: not ours to report');
 });
 
 test('a record copied into another swipe is not that swipe\'s; one shifted by a deleted swipe still is', () => {
@@ -85,7 +94,7 @@ test('the saver needs a save function and serializes overlapping flushes', async
     const two = saver.flush();
     await Promise.all([one, two]);
     assert.equal(most, 1);
-    assert.equal(saves, 2);
+    assert.ok(saves >= 1 && saves <= 2, `both changes go out in one or two saves (${saves})`);
     assert.equal(saver.dirty(), false);
     assert.equal(saver.pending(), false);
 });

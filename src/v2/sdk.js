@@ -226,6 +226,13 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
         if (result?.ok) events.emit('committed', { receipt: result.receipt });
         return result;
     };
+    // The reader's action is saved at once, before the result comes back (B-b2-timeline-1): a chat
+    // opened right after it can no longer take it along. A failed save is told and tried again by the
+    // store; the action itself stands.
+    const saved = async result => {
+        if (result?.ok) await store.saveSoon?.();
+        return result;
+    };
     const sdk = Object.freeze({
         apiVersion: 2,
         ready,
@@ -247,12 +254,12 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
             const cause = isObject(options) && options.cause !== undefined ? options.cause : 'ui';
             if (cause !== 'ui') return refused(`A command sent from a screen, widget or module runs as the reader's action ("ui"); "${cause}" is kept for Story Block itself.`);
             if (registry.isInternal?.(type)) return refused(`"${type}" is a step Story Block takes itself; it cannot be sent as an action.`);
-            return committed(await bus.command(type, payload, { cause: 'ui' }));
+            return saved(committed(await bus.command(type, payload, { cause: 'ui' })));
         },
         preview: async (type, payload) => (registry.isInternal?.(type)
             ? refused(`"${type}" is a step Story Block takes itself; it cannot be sent as an action.`)
             : bus.preview(type, payload)),
-        commit: async token => committed(await bus.commit(token)),
+        commit: async token => saved(committed(await bus.commit(token))),
         query: (name, args) => runQuery(registry, store.head(), name, args, { receipts: () => store.receipts?.() ?? [] }),
         /** The stored receipts on the current line of history, in chat order: [{ index, receipt }]. */
         receipts: () => store.receipts?.() ?? [],
