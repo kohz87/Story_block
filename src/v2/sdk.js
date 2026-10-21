@@ -3,19 +3,54 @@
 // settings under extension_settings.storySuite, the view modules read, ids, and adding a late
 // module's initial state. No SillyTavern import (turn.js wires SillyTavern).
 
-import { INIT_PREFIX } from './registry.js';
+import { INIT_PREFIX, normalizeField } from './registry.js';
 
 // sdk.check comes from check.js (SB-commands); the sdk still loads without it.
 const checkModule = await import('./check.js').catch(() => null);
 
 export const EVENTS = Object.freeze(['committed', 'head', 'turn']);
-export const HOST_SETTINGS_DEFAULTS = Object.freeze({ tailBudget: 1500 });
+// The most change lines one reply's block may hold; the rest are one Problem (turn.js).
+export const MAX_CHANGE_LINES = 150;
+export const HOST_SETTINGS_DEFAULTS = Object.freeze({ tailBudget: 1500, maxChangeLines: MAX_CHANGE_LINES });
 export const HOST_SETTINGS_SCHEMA = Object.freeze({
     tailBudget: Object.freeze({
         type: 'int', min: 100, max: 20000, label: 'Notes per reply (tokens)',
         help: 'The most Story Suite adds to the end of each reply\'s prompt, about four characters a token.',
     }),
+    maxChangeLines: Object.freeze({
+        type: 'int', min: 10, max: 1000, label: 'Change lines per reply',
+        help: 'The most change lines one reply may hold; any after them are not used and the Problems list says so.',
+    }),
 });
+
+/**
+ * A value as `field` (a settings schema entry) allows it: text is text, cut at `max` characters; a
+ * whole number is kept inside min/max (null when it is not one); a choice must be one of its options
+ * (null when not). Other types pass unchanged.
+ */
+export function settingValue(field, value) {
+    if (!field) return value;
+    const f = normalizeField(field);
+    if (f.type === 'text') {
+        if (value === undefined || value === null) return '';
+        const text = typeof value === 'string' ? value : String(value);
+        return Number.isInteger(f.max) && f.max >= 0 && text.length > f.max ? text.slice(0, f.max) : text;
+    }
+    if (f.type === 'int') {
+        const n = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+        if (value === '' || value === null || value === undefined || !Number.isFinite(n)) return null;
+        let out = Math.round(n);
+        if (Number.isInteger(f.min)) out = Math.max(f.min, out);
+        if (Number.isInteger(f.max)) out = Math.min(f.max, out);
+        return out;
+    }
+    if (f.type === 'bool') return Boolean(value);
+    if (f.type === 'choice' && Array.isArray(f.options) && f.options.length) {
+        const options = (f.options ?? []).map(option => String(option && typeof option === 'object' ? option.value : option));
+        return options.includes(String(value)) ? String(value) : null;
+    }
+    return value;
+}
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const ID_PREFIX = /^[a-z][a-z0-9]*$/;
@@ -59,8 +94,10 @@ export function createEvents() {
 /**
  * Settings under `root().storySuite` (`root`: () => SillyTavern's extension_settings):
  * `settings(id)` → the module's values over its defaults (a plain copy); `settings()` → the
- * host's ({ tailBudget }). `settings.set(id, key, value)` stores one value (id null: the host's)
- * and calls `save` (saveSettingsDebounced). `settings.stored(id)` is the stored object itself.
+ * host's ({ tailBudget, maxChangeLines }). `settings.set(id, key, value)` stores one value (id null:
+ * the host's) as its schema field allows it (settingValue: text cut at `max`, numbers inside min/max;
+ * a value the field cannot take is not stored) and calls `save` (saveSettingsDebounced). Returns the
+ * value stored, or undefined. `settings.stored(id)` is the stored object itself.
  */
 export function createSettings({ root, registry, save = () => {} }) {
     function bucket() {
@@ -82,9 +119,16 @@ export function createSettings({ root, registry, save = () => {} }) {
         return structuredClone({ ...defaults, ...stored(id) });
     }
     settings.stored = stored;
+    const fieldOf = (id, key) => {
+        const schema = id === undefined || id === null ? HOST_SETTINGS_SCHEMA : registry.module(id)?.settings?.schema;
+        return schema && Object.hasOwn(schema, key) ? schema[key] : null;
+    };
     settings.set = (id, key, value) => {
-        stored(id)[key] = structuredClone(value);
+        const next = settingValue(fieldOf(id, key), value);
+        if (next === null && value !== null) return undefined;
+        stored(id)[key] = structuredClone(next);
         save();
+        return next;
     };
     return settings;
 }

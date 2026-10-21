@@ -63,12 +63,15 @@ export function restamp(message) {
     return true;
 }
 
-// Writes the record for the shown swipe and keeps swipe_info in step. Touches nothing else in the message.
-export function writeRecord(message, record) {
+// Writes the record for the shown swipe and keeps swipe_info in step (`mirror: false` leaves the
+// swipe_info copy for later: the store writes a reply's lines one by one and copies once at the end).
+// Touches nothing else in the message.
+export function writeRecord(message, record, { mirror = true } = {}) {
     const swipe = swipeOf(message);
     const stored = { ...record, swipe };
     if (!isObject(message.extra)) message.extra = {};
     message.extra[KEY] = stored;
+    if (!mirror) return stored;
     const info = Array.isArray(message.swipe_info) ? message.swipe_info[swipe] : null;
     if (isObject(info)) {
         if (!isObject(info.extra)) info.extra = {};

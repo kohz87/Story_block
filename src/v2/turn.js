@@ -21,7 +21,7 @@
 import { extractBlock, hideBlock, parseChanges, stripBlock } from './capture.js';
 import { CAPTURE_PREFIX } from './registry.js';
 import { STATIC_MARKER, assemble } from './prompt.js';
-import { ensureModules, makeView } from './sdk.js';
+import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -52,6 +52,11 @@ async function within(value, ms) {
         clearTimeout(timer);
     }
 }
+// A name filled in for {{user}} / {{char}} is one line of at most this many characters.
+export const MAX_NAME = 80;
+// Stripped history texts kept between prompts (each is read again for every later prompt).
+const STRIP_CACHE = 500;
+const HAS_BLOCK = /<changes/i;
 
 const defaultNotify = reason => globalThis.toastr?.warning?.(reason, 'Story Suite');
 
@@ -67,11 +72,18 @@ export function defuseMacros(text) {
         .replace(/<(USER|BOT|CHAR|CHARIFNOTGROUP|GROUP)>/gi, '<​$1>');
 }
 
+// A persona or character name as it goes into a prompt: one line (no line breaks or other control
+// characters, so it cannot start a [Happened] or <Changes> line of its own), at most MAX_NAME long.
+export function flatName(value) {
+    const flat = String(value ?? '').replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').replace(/ {2,}/g, ' ').trim();
+    return flat.length > MAX_NAME ? `${flat.slice(0, MAX_NAME - 1).trimEnd()}…` : flat;
+}
+
 /**
  * `{{user}}` and `{{char}}` in the static and tail text become the persona's and the character's
- * names (SillyTavern's substituteParams when the context has it, else name1 / name2); any other
- * macro is left for defuseMacros. Both names are fixed for a chat, so the static text stays
- * byte-identical reply after reply.
+ * names (SillyTavern's substituteParams when the context has it, else name1 / name2), flattened to
+ * one short line (flatName); any other macro is left for defuseMacros. Both names are fixed for a
+ * chat, so the static text stays byte-identical reply after reply.
  */
 export function substituteNames(text, ctx) {
     const cache = new Map();
@@ -81,7 +93,8 @@ export function substituteNames(text, ctx) {
             let value = null;
             try { value = typeof ctx?.substituteParams === 'function' ? ctx.substituteParams(`{{${key}}}`) : null; } catch { value = null; }
             if (typeof value !== 'string' || value === `{{${key}}}`) value = key === 'user' ? ctx?.name1 : ctx?.name2;
-            cache.set(key, typeof value === 'string' && value ? value : null);
+            const flat = typeof value === 'string' ? flatName(value) : '';
+            cache.set(key, flat || null);
         }
         return cache.get(key);
     };
@@ -230,7 +243,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
 
     function build(cues = {}) {
         const untold = store.untold();
-        const result = assemble({ registry, view: view(), untold, settings: hostSettings(), cues });
+        const result = assemble({ registry, view: view(), untold, settings: hostSettings(), cues, substitute: text => substituteNames(text, ctx) });
         for (const message of result.problems) problem({ code: 'FAILED', message });
         return { ...result, untold };
     }
@@ -305,12 +318,12 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
                 type: kind,
                 index,
                 untold: built.untold.map(receipt => receipt.id),
-                staticText: defuseMacros(substituteNames(built.staticText, ctx)),
-                tailText: defuseMacros(substituteNames(built.tailText, ctx)),
+                staticText: defuseMacros(built.staticText),
+                tailText: defuseMacros(built.tailText),
                 parts: built.parts,
-                // A Continue whose reply already held a block was captured then; only a block
-                // the continuation adds is read.
-                captured: kind === 'continue' && extractBlock(chat[last]?.mes) !== null,
+                // A Continue's reply was captured before: only blocks the continuation adds (after
+                // this much of the text) are read.
+                from: kind === 'continue' ? String(chat[last]?.mes ?? '').length : 0,
                 prompted: false,
                 background: 0,
                 restored: '',
@@ -323,10 +336,23 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         }
     }
 
+    // Every earlier reply is in every prompt: what its text is without blocks is remembered, and a
+    // text with no "<changes" in it at all is passed by without reading it further.
+    const stripped = new Map();
+    function strippedText(text) {
+        if (!HAS_BLOCK.test(text)) return text;
+        let out = stripped.get(text);
+        if (out === undefined) {
+            out = extractBlock(text) === null ? text : stripBlock(text);
+            if (stripped.size >= STRIP_CACHE) stripped.delete(stripped.keys().next().value);
+            stripped.set(text, out);
+        }
+        return out;
+    }
     function stripHistory(chat) {
         for (const message of chat) {
             if (message?.role !== 'assistant') continue;
-            const content = mapContent(message.content, text => (extractBlock(text) === null ? text : stripBlock(text)));
+            const content = mapContent(message.content, strippedText);
             if (content !== message.content) message.content = content;
         }
     }
@@ -368,9 +394,22 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
     // Runs the reply's change lines; returns { receipts, problems }.
     // Each line runs on the state the lines before it left (bus.run's `state`), as its owner's
     // capture handler (bus.run's `capture`), and is stored on the reply before the next one runs.
-    async function captureLines(index, lines) {
+    async function captureLines(index, all) {
         const receipts = [];
         const found = [];
+        // A reply holds at most maxChangeLines change lines; the rest are one Problem.
+        const cap = Number.isInteger(hostSettings()?.maxChangeLines) && hostSettings().maxChangeLines > 0 ? hostSettings().maxChangeLines : MAX_CHANGE_LINES;
+        const lines = all.slice(0, cap);
+        if (all.length > cap) {
+            const more = all.length - cap;
+            found.push(problem({ index, code: 'TOO_MANY', message: `The reply has ${all.length} change lines; only the first ${cap} were read, so ${more} ${more === 1 ? 'line was' : 'lines were'} not used (from "${all[cap].raw.slice(0, 60)}").` }));
+        }
+        // One write of the reply's record for all its lines (store.batch), not one per line.
+        await (store.batch ?? (fn => fn()))(() => captureEach(index, lines, receipts, found));
+        return { receipts, problems: found };
+    }
+
+    async function captureEach(index, lines, receipts, found) {
         let state = store.head();
         // ctx.carrier and ctx.chat for the capture handlers (MODULES §F2's capture context).
         const message = ctx?.chat?.[index];
@@ -396,9 +435,12 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             }
             state = result.state ?? store.head();
             receipts.push(result.receipt);
+            // Used, but not all of it (a clamp): the owner says why, and that goes to the Problems list.
+            if (typeof result.problem === 'string' && result.problem) {
+                found.push(problem({ module: entry.moduleId, index, line: line.raw, code: 'LIMITED', message: result.problem }));
+            }
             events?.emit('committed', { receipt: result.receipt });
         }
-        return { receipts, problems: found };
     }
 
     // Only the reply's text changed (its block hidden): SillyTavern's own save, told like any other.
@@ -428,7 +470,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
                 problem({ index: id, code: 'FAILED', message: 'The reply is not the last message that keeps the story, so its changes were not read.' });
                 return null;
             }
-            const block = current.captured ? null : extractBlock(message.mes);
+            const from = Math.min(current.from ?? 0, String(message.mes ?? '').length);
+            const block = extractBlock(String(message.mes ?? '').slice(from));
             const parsed = block === null ? { lines: [], problems: [] } : parseChanges(block);
             const problems = parsed.problems.map(text => problem({ index: id, code: 'UNREADABLE', message: text }));
             const result = await captureLines(id, parsed.lines);
@@ -440,7 +483,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
 
             let edited = false;
             if (block !== null) {
-                const hidden = hideBlock(message.mes);
+                const hidden = hideBlock(message.mes, 'Changes', { from });
                 if (hidden !== message.mes) {
                     message.mes = hidden;
                     if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = hidden;

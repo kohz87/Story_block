@@ -523,6 +523,74 @@ export function createInventoryCommands(env) {
 
 // ---------- capture (§4.4): runs as a story command ----------
 
+// What one reply's story lines may make out of nothing (B1-2). Code's own payouts (a module's
+// wallet.receive or inventory.grant through ctx.call) are not counted here.
+// * Coin: `storyCoinPerReply` in Story Block's settings, or with 0 (the default) the top reward of the
+//   quest rank for the player character's level (`quest.ranks` and `party.pc`, when modules answer),
+//   else 1000 × that level. Past it a line is paid what is left, and the Problems list says so.
+// * Items: at most STORY_ITEM_QTY of one item per reply, however many lines name it (so a line repeated
+//   is counted together); past it the same.
+// The tally is kept in the inventory slice (`perReply`, for the reply `at` = ctx.carrier.key), so it
+// rolls back with the reply and starts again on the next one or another swipe.
+export const STORY_ITEM_QTY = 20;
+export const STORY_COIN_PER_LEVEL = 1000;
+
+function storyCoinBudget(ctx) {
+    const set = Number(ctx.settings()?.storyCoinPerReply);
+    if (Number.isSafeInteger(set) && set > 0) return set;
+    let level = 1;
+    try {
+        const pc = ctx.query('party.pc');
+        if (Number.isSafeInteger(pc?.level) && pc.level > 0) level = pc.level;
+    } catch { /* no party module: level 1 */ }
+    try {
+        const ranks = ctx.query('quest.ranks');
+        const rank = Array.isArray(ranks) ? ranks.find(r => Array.isArray(r?.levels) && level >= r.levels[0] && level <= r.levels[1]) : null;
+        const top = rank?.reward?.[1];
+        if (Number.isSafeInteger(top) && top > 0) return top;
+    } catch { /* no quest module: by level */ }
+    return STORY_COIN_PER_LEVEL * level;
+}
+
+// The tally for this reply (a fresh one when the last was another reply's); null outside a capture.
+function perReply(ctx, inv) {
+    const at = ctx.carrier?.key;
+    if (ctx.cause !== 'story' || ctx.caller || typeof at !== 'string') return null;
+    if (!isPlainObject(inv.perReply) || inv.perReply.at !== at) inv.perReply = { at, coin: 0, items: {} };
+    if (!isPlainObject(inv.perReply.items)) inv.perReply.items = {};
+    return inv.perReply;
+}
+
+// `amount` held to what this reply may still give: { amount, problem }.
+function storyCoin(ctx, inv, amount, currency) {
+    const tally = perReply(ctx, inv);
+    if (!tally) return { amount, problem: null };
+    const budget = storyCoinBudget(ctx);
+    const left = Math.max(0, budget - (Number.isSafeInteger(tally.coin) ? tally.coin : 0));
+    if (!left) ctx.fail('REFUSED', `This reply has already given all the money one reply may give (${formatAmount(budget, currency)}); the rest was not paid.`);
+    const paid = Math.min(amount, left);
+    tally.coin = (Number.isSafeInteger(tally.coin) ? tally.coin : 0) + paid;
+    return {
+        amount: paid,
+        problem: paid < amount ? `${formatAmount(amount, currency)} was written, but one reply may give at most ${formatAmount(budget, currency)}; ${formatAmount(paid, currency)} was paid.` : null,
+    };
+}
+
+// `qty` of a def held to what this reply may still give of it: { qty, problem }.
+function storyItems(ctx, inv, def, qty) {
+    const tally = perReply(ctx, inv);
+    if (!tally) return { qty, problem: null };
+    const had = Number.isSafeInteger(tally.items[def.id]) ? tally.items[def.id] : 0;
+    const left = Math.max(0, STORY_ITEM_QTY - had);
+    if (!left) ctx.fail('REFUSED', `This reply has already given ${STORY_ITEM_QTY} ${def.name}, the most one reply may give of one item.`);
+    const given = Math.min(qty, left);
+    tally.items[def.id] = had + given;
+    return {
+        qty: given,
+        problem: given < qty ? `${itemText(def.name, qty)} was written, but one reply may give at most ${STORY_ITEM_QTY} of one item; ${given} ${given === 1 ? 'was' : 'were'} given.` : null,
+    };
+}
+
 function lineQty(ctx, line, fallback) {
     const written = labelOf(line, 'qty', 'quantity', 'count');
     if (written === null) return fallback;
@@ -545,11 +613,13 @@ export function captureItem(ctx, line, env) {
         if (qty < 1) ctx.fail('INVALID', 'A gained item needs a quantity of at least 1.');
         const note = trimText(labelOf(line, 'note') ?? text, MAX_NOTE);
         const { def, created } = defineByName(ctx, inv, name, env, { note, owner: 'party' });
-        const stacks = grantInto(ctx, inv, def, qty, 'party', note);
+        const held = storyItems(ctx, inv, def, qty);
+        const stacks = grantInto(ctx, inv, def, held.qty, 'party', note);
         return {
-            summary: `The party gains ${itemText(def.name, qty)}.`,
-            data: { def: def.id, qty, owner: 'party', stacks, created, from: labelOf(line, 'from') ?? '' },
+            summary: `The party gains ${itemText(def.name, held.qty)}.`,
+            data: { def: def.id, qty: held.qty, owner: 'party', stacks, created, from: labelOf(line, 'from') ?? '' },
             narrate: false,
+            ...(held.problem ? { problem: held.problem } : {}),
         };
     }
     if (line.op === '-') {
@@ -618,8 +688,15 @@ function itemAsCoin(ctx, line, env, currency) {
     const who = labelOf(line, line.op === '+' ? 'from' : 'to');
     const note = who ? `${line.op === '+' ? 'from' : 'to'} ${trimText(who, 80)}` : '';
     return line.op === '+'
-        ? receive(ctx, env, { owner: 'party', amount, note })
+        ? receiveStory(ctx, env, { owner: 'party', amount, note }, currency)
         : pay(ctx, env, { owner: 'party', amount, note });
+}
+
+// A story line's money, held to the reply's budget (storyCoin).
+function receiveStory(ctx, env, { owner, amount, note }, currency = currencyOf(ctx.settings())) {
+    const held = storyCoin(ctx, ctx.draft('inventory'), amount, currency);
+    const out = receive(ctx, env, { owner, amount: held.amount, note });
+    return held.problem ? { ...out, problem: held.problem } : out;
 }
 
 /** `+ coin 30 | from: who`, `- coin 5 | to: who`: the party's wallet; only the number counts. */
@@ -633,7 +710,7 @@ export function captureCoin(ctx, line, env) {
     const who = labelOf(line, line.op === '+' ? 'from' : 'to');
     const note = who ? `${line.op === '+' ? 'from' : 'to'} ${trimText(who, 80)}` : '';
     return line.op === '+'
-        ? receive(ctx, env, { owner: 'party', amount: parsed.amount, note })
+        ? receiveStory(ctx, env, { owner: 'party', amount: parsed.amount, note })
         : pay(ctx, env, { owner: 'party', amount: parsed.amount, note });
 }
 
