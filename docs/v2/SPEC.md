@@ -433,3 +433,78 @@ assemble({ registry, view, untold, settings }) → { staticText, tailText, parts
 
 Error codes: `UNKNOWN_COMMAND`, `NOT_OWNER`, `INVALID` (validator), `NOT_ENOUGH`, `NOT_FOUND`, `CLAIMED`,
 `STALE`, `FAILED` (handler threw). Messages are plain sentences for the reader.
+
+## 13. UI: screens, templates, widgets, mounts
+
+Every screen, the modules' own included, is data: a **screen definition** rendered by Story Block. Cards and
+packs can restyle or replace any screen; code enters only through **widgets** from installed modules.
+
+### 13.1 Screen definition
+```js
+Screen = {
+  id: 'rpg-battle/party', title: 'Party', icon: 'fa-users',
+  mounts: ['tab', 'screen', 'card', 'hud', 'dialog'],      // where it may appear (§13.4)
+  template: '<div class="sheet">…</div>',                  // HTML template (§13.2)  — or —
+  layout: { root: Node },                                  // JSON tree (Studio's format, src/v2/layout/)
+  css: '.sheet { … }',                                     // scoped (§13.3)
+  theme: { '--ss-accent': '#7c5cff', … },                  // CSS custom properties
+  data: { pc: { query: 'party.pc' }, gear: { query: 'items.gear', args: { actor: '$pc.id' } } },
+  steps: [ { id, title, template } ],                      // dialog wizards only (§13.6)
+}
+```
+Modules register default screens with `registerModule({ screens: [...] })`; packs and cards add or override
+screens by `id`.
+
+### 13.2 Templates
+An HTML subset, sanitised with SillyTavern's DOMPurify (`SillyTavern.libs.DOMPurify`; a strict allow-list
+fallback in tests): layout, text, list, table, form, image and inline SVG elements; no `script`, `iframe`,
+`object`, `embed`, `link`, `meta`, `base`, `form action`, no `on*` attributes, no `javascript:`/`vbscript:`
+URLs; images only `data:` or `https:`. Bindings are attributes and `{{ }}` interpolation:
+
+| Syntax | Meaning |
+|---|---|
+| `{{ path }}` | text (escaped) in text nodes and in allowed attributes |
+| `data-bind="path"` | the element's text |
+| `data-bind-attr="src: path; title: path"` | attributes |
+| `data-bind-var="--pct: ratio(hp.cur, hp.max)"` | CSS custom properties (styling from data goes through variables) |
+| `data-each="path as name"` | repeat the element per item |
+| `data-if="expr"` / `data-class="hurt: expr"` | show/hide; toggle classes |
+| `data-command="item.use" data-payload='{"stack":"{{ s.id }}"}'` | a button runs a command |
+| `data-draft="name"` on inputs, `data-submit="party.create"` | forms fill a draft; submit sends it as one command |
+| `<ss-widget name="map" data-props='{"bind":"q.places"}'></ss-widget>` | a registered widget |
+
+Paths: `state.<domain>.…` (the state at the mount's carrier, read-only), `q.<alias>` (the screen's `data`
+queries), loop names, `draft.…`, `settings.…`. Expressions use the events condition language
+(src/v2/events) plus helpers `ratio(a,b)`, `pct(a,b)`, `changed(path)` (true when this carrier's ops touched
+the path — the "only what changed" toggle), `len(x)`, `fmt.money(n)`, `fmt.time(m)`.
+
+### 13.3 CSS and themes
+A screen's `css` is scoped by prefixing every selector with `[data-ss-screen="<id>"]`; `@import` and
+`position: fixed` are dropped; `url()` only `data:`/`https:`; `@font-face` allowed with those URLs; 64 KB
+limit. `theme` sets custom properties on the screen root. Story Block's default theme follows SillyTavern's
+own colours.
+
+### 13.4 Mounts
+| Mount | Where | State shown |
+|---|---|---|
+| `tab` | Story Block's tab bar | head |
+| `screen` | a full-screen game view with its own navigation between screens | head |
+| `card` | inline under each reply (collapsed by default; per-screen opt-in by the reader) | **that reply's** state |
+| `hud` | a thin strip above the message box | head |
+| `dialog` | a modal; wizards | head + draft |
+
+### 13.5 Widgets
+`registerModule({ widgets: { name: { props, render(el, props, api) } } })`; `api` has `query`, `command`,
+`preview`, `commit`, `on`. Story Block ships: `meter`, `radar`, `map` (nodes, routes, layers, zoom/pan,
+minimap, legend), `skill-tree`, `portrait`, `badge` (icon + counter), `timeline`, `stepper` (number input
+under a budget). Modules add their own (`battle-board`, `fishing`).
+
+### 13.6 Wizards and forms
+Inputs fill a draft held by the dialog, never the state. Steps share the draft; the last step submits one
+command, and code enforces every rule (points budget, picks allowed). A random button calls `preview` and
+shows that result; accepting calls `commit(token)`, so the roll shown is the roll kept.
+
+### 13.7 Precedence
+Per screen id: the reader's choice (settings), then the card's, then a pack's, then the module default. The
+reader can always reset a screen to its default. A screen that fails validation falls back to the next one
+and the reason is shown in the overlay.
