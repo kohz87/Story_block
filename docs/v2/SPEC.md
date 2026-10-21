@@ -80,9 +80,10 @@ message.extra.storySuite = {
 ```
 
 As built (store.js), the record also carries `sid` + `swipe` (which swipe wrote it, so a record SillyTavern
-copied into a new swipe is ignored there), `spans` (which ops are `story` ops, for Re-read) and `rev`
-(`meta.rev` after its last write, for save verification). `head()`/`at()` return `null` for a chat with no
-v2 state.
+copied into a new swipe is ignored there), `spans` (`[{ n, story }]`: how many ops each stored receipt
+added, and whether it was a `story` capture), `rev` (`meta.rev` after its last write, for save
+verification) and, with a checkpoint, `covers` (the `sid`s of the records from the checkpoint before it up
+to this one). `head()`/`at()` return `null` for a chat with no v2 state.
 
 SillyTavern copies `message.extra` per swipe (`swipe_info[n].extra`), so each swipe has its own changes.
 Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in step (as v1 does) before saving.
@@ -90,7 +91,19 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
 * **The greeting** (first carrier) always holds a checkpoint: the initial state (§2.6).
 * A carrier gets a checkpoint when 20 carriers have passed since the last one, or the ops since then
   exceed 32 KB of JSON. The checkpoint is the state *before* that carrier's own ops.
-* **State at carrier N** = latest checkpoint at or before N, then every carrier's `ops` from there through N.
+* **State at carrier N** = the latest checkpoint at or before N that still holds, then every carrier's `ops`
+  from there through N. A checkpoint holds when its `covers` matches the records the chat has now since the
+  checkpoint before it; one made over a reply since deleted (or another swipe) is passed over. A checkpoint
+  without `covers` is trusted; when none holds, the latest is used.
+* **Block-level replay.** A carrier's ops are replayed block by block (`spans`: one block per stored
+  receipt, one for a Re-read's story changes). A block that no longer applies (a middle reply deleted, a
+  hand-edited chat) is skipped and reported alone, its receipts' revs still counted; the blocks before and
+  after it, and their claims, still apply.
+* **Counts move.** A domain may declare `counters` (number paths inside it, `*` for one key; the inventory
+  has `wallets/*/coin` and `stacks/*/qty`). A `replace` of a counter keeps the number it replaced (`was`).
+  On replay, when the path holds another number (an earlier reply was deleted), the op adds its change
+  (`value − was`) instead of writing its number, and the moved domains' validators run; a refusal skips
+  that block as above. Ops without `was` apply as written.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -99,7 +112,8 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
 
 ### 2.3 Ops
 
-A subset of JSON Patch (RFC 6902): `{ op: 'add' | 'replace' | 'remove', path, value? }`. Paths are JSON
+A subset of JSON Patch (RFC 6902): `{ op: 'add' | 'replace' | 'remove', path, value?, was? }` (`was`: the
+number a counter's `replace` replaced, §2.2). Paths are JSON
 Pointers into the State (`/domains/inventory/stacks/it_k3f9a2qz/qty`). No `move`, `copy`, `test`.
 Ops are produced only by Story Block's commit step from what a handler wrote (§3.2); modules never write ops
 by hand.
@@ -143,13 +157,26 @@ out (logged once) and tried again at the next turn; the other domains are not af
 
 ```js
 const sdk = await globalThis.StoryBlock.ready;           // resolves when the host is up
-const result = await sdk.command('item.use', { stack: 'it_k3f9a2qz', target: 'ac_7h2m9x4q' }, { cause: 'ui' });
+const result = await sdk.command('item.use', { stack: 'it_k3f9a2qz', target: 'ac_7h2m9x4q' });
 // → { ok: true, receipt } | { ok: false, code: 'NOT_ENOUGH', message: 'There is no Minor Healing Draught left.' }
 
 const preview = await sdk.preview('trade.sell', payload);  // runs the handler on a copy, nothing saved
 // → { ok, receipt, token }   then   await sdk.commit(preview.token)  // commits exactly that result
 //   (rejected with code 'STALE' if the head state changed since the preview)
 ```
+
+**`sdk.command` runs the reader's own action only (cause `ui`).** Screens, widgets, layouts and modules
+all come through it, so an option naming another cause is refused (`REFUSED`), and so is an internal
+command (`capture.*`, `module.init.*`, `events.fire`). `story` and `system` are Story Block's own steps
+(capture, cues, set-up) and go to the command bus directly; a module's handler that needs another
+module's command uses `ctx.call` (§3.2), which keeps the cause of the action it runs in.
+
+`sdk.reread(index)` reads reply `index`'s `<Changes>` block again (as its shown swipe has it now) and
+replaces the `story` changes stored on it the way a fresh capture would: the reader's actions and system
+steps on that reply stay after them, with their claims, and later replies are checked again on top (if one
+no longer fits, nothing changes, `CONFLICT`). → `{ ok: true, receipts, problems } | { ok: false, code,
+message }`; refused for the reader's messages, system messages, messages without a record and while a reply
+is being written. It emits `turn` with `{ index, type: 'reread', problems }` and saves once.
 
 ### 3.2 Handlers
 
@@ -175,6 +202,9 @@ commands: {
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.fail(code, message)` throws.
 * A failed `ctx.call` fails the whole command even if the caller catches it, except `UNKNOWN_COMMAND`
   (nothing ran), which a handler may catch to treat another module's command as optional.
+* A handler may add `problem: 'sentence'` to its result: done, but not all of what was asked (a clamp).
+  For a capture the sentence goes to the Problems list (`LIMITED`); it is not kept in the receipt.
+* `ctx.call(type, payload, { as: 'event:<id>' })`: the events part's steps run with that `ctx.caller`.
 * Every committed receipt bumps `meta.rev`. A preview goes `STALE` if `meta.rev`, the head index or the head
   state changed. ID rule (check.js): `<prefix>_<8 base36>` or a namespaced slug (`story/moonveil-trout`).
 * `bus.run(type, payload, { cause, seed, state, capture })` (used by capture) runs a handler without
@@ -197,8 +227,11 @@ coordinated writes did); a failed save shows an error and keeps the in-memory st
 1. Flush pending saves.
 2. Collect **untold receipts**: receipts with `narrate: true` on carriers after the last reply that told
    them (`narrated`), i.e. what happened since the last narration, oldest first.
-3. Each module's `beforeGenerate(view)` may return cues (due events, met conditions) as receipts of
-   cause `system` (committed now, on the head carrier) or as plain tail lines.
+3. Each module's `beforeGenerate(view, { type, dryRun, commit })` may return cues (due events, met
+   conditions) as receipts of cause `system` (committed now, on the head carrier) or as plain tail lines.
+   On a Continue or a dry run (SillyTavern counting tokens) `commit` is false and nothing is committed.
+   A pack event fires only from its own definition (the payload names its id); a repeating one at most
+   once per reply (claim `event:<id>:<reply index>`).
 4. Assemble the prompt (§5).
 
 Quiet and impersonate generations get nothing (both slots emptied) and capture nothing.
@@ -215,12 +248,14 @@ Quiet and impersonate generations get nothing (both slots emptied) and capture n
 
 A swipe of that reply is a new carrier swipe: it gets its own capture; the receipts it told are told again
 because the new swipe's `narrated` starts empty. Editing a reply's text does not re-capture; a **Re-read**
-action in Story Block replaces that carrier's `story` receipts with a fresh capture.
+action in Story Block (`sdk.reread`, §3.1) replaces that carrier's `story` receipts with a fresh capture.
 
 ### 4.3 What the model is told
 
 The tail starts with `[Happened]` and one `summary` line per untold receipt. Receipt summaries are written
-by code with the code's numbers. The static instruction says: tell these as they happen in the scene, keep
+by code with the code's numbers. The first five are always kept; past half the tail budget the rest are told
+as one counted line, "…and N more things happened." `{{user}}` and `{{char}}` are filled in (one line of at
+most 80 characters) before any budget is counted. The static instruction says: tell these as they happen in the scene, keep
 the numbers, do not repeat them as changes.
 
 ### 4.4 The change-line grammar
@@ -240,7 +275,15 @@ One hidden block at the end of the reply:
 * `op kind Name[ — text][ | label: value]*`, one per line. `op`: `+` new or gained, `-` gone or lost,
   `~` changed, `!` happened, `?` asks code to decide (a check, a roll).
 * `kind` decides the owner module (registered in `capture.kinds`). Unknown kinds are logged, not guessed.
-* Names are resolved to IDs by the owner through its alias index; an ambiguous name is held as a Problem.
+* Names are resolved to IDs by the owner through its alias index (NFC, without zero-width or bidi
+  characters); an ambiguous name is held as a Problem.
+* Reading is lenient and linear: bullets, bold and either dash are decoration; `label:value` without a
+  space is a label when the label is one word of letters (`09:00` stays text); a line over 2,000
+  characters is a Problem. Nested `<Changes>` are counted. A close tag ends the block only at the start or
+  the end of a line (one in the middle of a line belongs to that line, so nothing after it is dropped
+  unseen). In a block the reply left open, a last line with no line break after it was cut off and is a
+  Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150); the
+  rest are one Problem. A Continue reads only the blocks it adds.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).
@@ -319,7 +362,9 @@ sdk.registerModule({
 { place: { name: '', kind: '' /* settlement|wild|dungeon|… */, region: '' }, present: [ /* names */ ] }
 ```
 Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `present`
-(`+ present Fenna`, `- present Fenna`).
+(`+ present Fenna`, `- present Fenna`). A move keeps the stored `kind` and `region` unless the line gives
+them; only an explicit empty value (`kind:` with nothing after it) clears one. After a move only those named
+in `with:` are present.
 
 ### inventory
 ```js
@@ -329,14 +374,27 @@ Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `pres
                        stack: true, slot: null, stats: {}, effect: {}, tags: [], note: '' } },
   stacks: { [stackId]: { id, def, qty, owner: 'ac_…' /* actor */ | 'party', equipped: null | slot,
                          note: '', from: '' /* receipt id */ } },
-  wallets:{ [owner]: { [currency]: 0 } },
+  wallets:{ [owner]: { coin: 0 } },                // one currency, smallest unit (MODULES §F1)
   aliases:{ [lowercase name]: defId },
 }
 ```
-Commands: `inventory.grant` (internal: needs a receipt-backed cause), `inventory.consume`,
-`inventory.transfer`, `inventory.drop`, `inventory.equip`, `inventory.unequip`, `inventory.split`,
-`inventory.merge`, `wallet.pay`, `wallet.receive`. Capture kind `item` (`+ / - / ~ item`) and `coin`
-(`+ coin 3 silver | from: the sealer`).
+Commands: `inventory.grant`, `inventory.consume`, `inventory.transfer`, `inventory.drop`, `inventory.equip`,
+`inventory.unequip`, `inventory.split`, `inventory.merge`, `wallet.pay`, `wallet.receive`. Capture kind
+`item` (`+ / - / ~ item`) and `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
+written with one is refused).
+* **The caller rule.** What makes items or money out of nothing (`inventory.grant`, `wallet.receive`) and
+  `wallet.pay` run for the story, the host, or another module's command (`ctx.call`, which sets
+  `ctx.caller`); the same command at the top with cause `ui` is `REFUSED`. A shop's `trade.buy` pays, a
+  quest's `quest.finish` receives.
+* **Owners** are the party or a member: a grant, transfer or `wallet.receive` to an `ac_` id that
+  `party.actors` (or the `party` domain) does not list is `REFUSED`.
+* **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,
+  `- item mark`), is money: it goes to or from the party's wallet like `+ coin` / `- coin`.
+* **Story limits.** One reply's story lines pay at most `storyCoinPerReply` (setting; 0 = the top reward of
+  the player character's rank from `quest.ranks`, else 1000 × level) and give at most 20 of one item; past
+  that a line is clamped with a Problem. Code's own payouts are not counted.
+* **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
+  lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
 Story-introduced items: `+ item Name` resolves an existing def by alias, else creates `story/<slug>` with
 defaults (`goods`, `common`, value 0), then calls the `item.define` hooks so RPG Battle can set its rules'
 numbers. A later rename changes `name` and adds an alias; it never changes value, rarity or effects.
@@ -349,8 +407,8 @@ numbers. A later rename changes `name` and adds an alias; it never changes value
   Capture kinds: `wound`, `check`, `encounter`, `join` (companions), `skill`. Battle evidence (foes beaten)
   is a receipt with `data.foes` that the Director's quest progress reads by query.
 * **Story Director**: `director = { time: { minutes, calendar }, threads: { [id]: { kind, key, fields,
-  status, … } }, problems: [] }`; its v1 tracker rules apply ops through capture; quest progress and Finish
-  read `inventory` and RPG Battle's battle receipts by query; payouts use `ctx.call('wallet.receive')` with a
+  status, … } }, problems: [] }`; its v1 tracker rules apply ops through capture; quest progress and turn-in
+  (story-led, MODULES §C2) read `inventory` and RPG Battle's battle receipts by query; payouts use `ctx.call('wallet.receive')` with a
   claim. Capture kinds: `agenda`, `event`, `hook`, `quest`, `clock`, `beat`, `secret`, `time`.
 * **NSD**: registers queries `npc.present`, `npc.dossier`, a Cast widget and its settings; keeps its own
   storage and history rules.

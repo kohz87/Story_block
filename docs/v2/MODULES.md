@@ -126,7 +126,9 @@ director = {
     fields: { /* label: value as written, e.g. giver, step, goal, due, reward, type */ },
     status: 'active' | 'resolved',
     offer: false | true,                             // a job offered, not yet taken
-    taken: null | { rev },                           // when the reader took it on (quests)
+    shown: null | { turn },                          // a held offer (F88) is shown from this Director turn
+    ready: false | true,                             // the story said a goal code cannot count is met (F83)
+    taken: null | { rev },                           // when the story (or the reader) took it on
     ended: null | { rev, reason, outcome: 'done'|'failed'|'abandoned'|'declined'|'superseded' },
     target: null | { noun, count, kind: 'foes'|'items' },
     reward: null | { amount: int|null, each: false|true, unit: '', text: '' },
@@ -142,16 +144,27 @@ Kinds: `agenda`, `event`, `hook`, `quest`, `clock`, `beat`, `secret` (v1 grammar
 rules: due, relevant, checks), budget ~500. Queries: `director.time`, `director.threads({ kind, status })`,
 `director.thread({ key })`. Tab: **Director** (threads, problems).
 
-### C2. quests (part **quests**, agent SD-quests)
+### C2. quests (part **quests**, agents SD-quests, SD-quests2)
 Same `director` domain (the module owns it; this part touches only `taken`, `ended`, `target`, `reward`
 and quest offers).
-Commands: `quest.take`, `quest.decline`, `quest.abandon`, `quest.finish` (target met — foes from
-`combat.foesBeaten({ sinceRev: taken.rev })`, items from `inventory.items` — and the place rule: a settlement
-or the giver present; pays with `ctx.call('wallet.receive')` under claim `quest:<id>:paid`, takes fetch items
-with `inventory.consume`, XP through `party.grantXp` when that command exists).
-Targets from `target:` / `reward:` labels, else from the goal text ("at least 3 wolves", "1 silver each").
-Queries: `quest.progress({ id })` → `{ have, need, met, source: 'fights'|'inventory'|null }`.
-Tab: **Quests** (offers with Take on / Turn down; active with progress and Finish; finished).
+**The story leads, code referees (F94, F95).** The reader accepts and turns in a quest in their own words;
+the story writes it (`~ quest Granary Rats | met: yes`, a turn-in closing it), and the tracker asks
+`quest.finish({ id | key, by: 'story' })` in the same reply. Code checks the target (foes from
+`combat.foesBeaten({ sinceRev: taken.rev })`, one fight per kill quest, F7; items from `inventory.items`; a
+goal code cannot count is met once `ready`) and the place rule (a settlement or the giver present), pays the
+parsed reward held inside its rank's range (F87) with `ctx.call('wallet.receive')` under claim
+`quest:<id>:paid`, takes fetch items with `inventory.consume`, gives XP through `party.grantXp` when that
+command exists, and records `by: 'story'` in the receipt; a refusal tells the story why. There are no
+Take, Finish or other quest buttons any more: `quest.take`, `quest.decline`, `quest.abandon` and
+`quest.finish` stay as commands for templates, packs and tests.
+Targets from `target:` / `reward:` labels, else from the goal text ("at least 3 wolves", "1 silver each");
+every quest needs a concrete goal (F82).
+Queries: `quest.progress({ id | key })` → `{ have, need, met, ready, source, noun, label, reason, finish:
+{ ok, reason } }`; `quest.details({ id | key })` → everything the details pop-up shows (goal, progress
+note, terms, giver, due, rank, status, history; F84, F85); `quest.ranks` → `[{ id, title, levels, reward }]`,
+lowest first (the first enabled pack's `ranks`, else RPG Battle's `party.ranks`, else F to S; F86).
+Screen: **Quests** (status text per quest: Offered / Held back / Not yet / Ready / Ready to turn in here;
+finished quests kept).
 
 ## D. NPC State Delta (agent NSD-hosted)
 No domain. When `globalThis.StoryBlock?.sdk` (v2) is present, NSD registers module `npc-state-delta` with
@@ -184,7 +197,8 @@ These settle questions agents raised; the host changes they need are made at int
 1. **Money: one currency.** (User decision, supersedes tiers.) A chat has one currency with one name
    (gold, Gil, denar…), set in Story Block's settings (default `gold`); the reader may rename it, never add a
    second. A wallet is one integer per owner: `wallets[owner] = { coin: n }`. The query `inventory.currency`
-   → `{ name, short }`. `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }`. Prices, rewards
+   → `{ name, plural, short }` (`name` is singular, "1 mark"; `plural` for any other amount, "44 marks",
+   by default the name with an s, and gold stays gold; a pack may suggest all three). `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }`. Prices, rewards
    and loot are whole numbers of that currency (v1's copper-based numbers are kept as they are). The change
    line is `+ coin 30 | from: the sealer`; any coin words the model adds are ignored, only the number counts.
 2. **`ctx.rev`** is the `meta.rev` this receipt will have. Use it for `taken.rev`, `ended.rev`, etc.
@@ -357,3 +371,70 @@ These settle questions agents raised; the host changes they need are made at int
     dice say fail") — v1's verdict rule — and the recorded result stands. Modifiers are code's only; the
     reader can't change them; a swipe or regenerate brings fresh rolls. Up to 2 checks per reply (F32). The
     Assist pre-roll classifier is no longer needed for checks (kept as an option for typed actions).
+
+### User decisions, batch 4 (F81–F103)
+
+**Quests and the story**
+81. **NPC meters.** An NPC has several meters (NSD's trust, affection, desire, tension, −100..100) plus up to
+    about 6 the reader defines (name, min, max, start), each an `ss.meter` bar on the NPC card and the Cast
+    tab, changed by `~ npc Name | meter: +N` and clamped by code. Companions are NPCs (same dossier and
+    meters); RPG Battle keeps only their fight side, linked by name.
+82. Every quest needs a concrete goal; one without is refused or flagged.
+83. **Uncountable quests**: the tail lists up to 3 open quests code cannot count; the story writes
+    `~ quest X | met: yes`, the quest shows Ready, and code pays the parsed reward at turn-in. Finished
+    quests are kept, never deleted.
+84. A quest details pop-up: goal, progress, terms, giver, due, history (`quest.details`).
+85. A rolling one-line progress note per quest.
+86. **Rank ladder**: F, E, D, C, B, A, S by default; a pack's `ranks` content replaces it; a quest's
+    difficulty may name a rank; query `quest.ranks`.
+87. A quest's reward is held inside its rank's range by code; the receipt says when it was clamped.
+88. Pacing: Director prompt lines (no quest spam, a passerby is a passerby, the world doesn't send
+    trouble) and an offer cooldown setting (a held offer is shown later, never refused).
+89. **Chronicle** (Story Director part): `world` and `faction` kinds, times from the clock, up to 3
+    ongoing events picked into the tail per reply (seeded, stable on a swipe), a Chronicle screen.
+90. NSD: meter stages (named thresholds, moved by code) and hidden dossier entries unlocked at a threshold.
+91. RPG Battle: no second rank system: its level tiers are the ladder (uniform, or a named list with
+    uneven bands), query `party.ranks`; a foe line takes `rank: D` besides weak/even/strong/deadly;
+    companion stats by formula; a "points to spend" badge on the HUD.
+92. Story Block: a read-only state inspector tab (per-reply JSON, diff, receipts) for beta.
+93. Story Block: reader save points: a button makes a named SillyTavern branch (the rewind machinery),
+    listed with Return to.
+94. **Turn-in follows the story**; code referees in the same reply: it pays when the checks pass, and
+    refuses and tells the story when they fail (§C2).
+95. **No quest buttons** (Accept, Decline, Take, Finish, Abandon); screens show status text; the commands
+    stay for templates, Studio and tests; the `quests.turnIn` setting is dropped.
+96. **Using a consumable is story-driven**: `! use X | on: Y`, or `- item X` marked used (SPEC §7), runs
+    `item.use` by code in the same reply; a refusal keeps the item and tells the story. No Use button (the
+    command stays); Equip, Take off and Give stay as bag management.
+
+**Screens and later work**
+97. The UI overhaul waits until the base structure is ready; polish now is functional fixes only.
+98. An interactive map: pan and zoom (wheel, drag, pinch, buttons, keys), search over places (undiscovered
+    ones too, never hidden or secret ones), place details with code's travel time; the view is per reader.
+99. Equipment as in MVU: an "equip on…" picker, one step `inventory.equipOn { stack, actor }` (a full slot
+    sends its oldest piece back to that member's carry), a per-character Equipped list, accessories up to
+    3 (later, SB-equip).
+100. **Features**: optional mechanics are toggles in a Features subsection, declared by
+    `registerModule({ features: [{ id, label, describe, default, prompt? }] })`; an off feature contributes
+    no capture kind, context, command (`FEATURE_OFF`), screen or widget (after the freeze).
+101. All TRS ideas 1–24 are accepted: 1–12 before beta, 13–24 after it.
+102. **Crafting with stats** (after the freeze): companions craft too; story-driven `! craft X | with: …`
+    rolled with the reply's own d20 (F80) and a code-built modifier table; known recipes recorded per
+    character in state; stations for smithing, alchemy and enchanting; a read-only Crafting screen.
+103. **Feature freeze**: fix bugs and finish what was already decided; break round, fixes, re-break, then
+    alpha.2. Decided while fixing:
+    * Module life cycle: `requires: { storyBlock: range }` is checked against the host with one plain
+      sentence; an unknown definition key is warned and ignored; a module that gains a domain keeps the
+      others (SPEC §2.6, §6).
+    * Replay is block by block; counts (`counters`, `was`) move when a middle reply is deleted; a
+      checkpoint made over a deleted reply is passed over (SPEC §2.2).
+    * `sdk.command` is the reader's action only; `sdk.reread` re-captures one reply (SPEC §3.1).
+    * Money and items from the story: at most `storyCoinPerReply` and 20 of one item per reply, clamped with
+      a Problem; signed amounts refused; owners must be in the party; the wallet caller rule (SPEC §7).
+    * Pack events fire from their definition only, a repeating one once per reply, nothing on a Continue
+      or a dry run (SPEC §4.1).
+    * Reading change lines: linear; at most 150 per reply; a close tag counts only at a line's start or
+      end; a cut-off last line is a Problem; `label:value` accepted; [Happened] collapses past half the
+      budget; names flattened before budgets (SPEC §4.3, §4.4).
+    * Screens: control names prefixed like ids; templates nest at most 64 deep and @-rules 8 deep; text
+      settings keep their `max`.
