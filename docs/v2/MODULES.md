@@ -336,3 +336,11 @@ These settle questions agents raised; the host changes they need are made at int
 75. Studio edits packs first (items, creatures, quests, events), then screens and themes.
 76. Studio previews by simulating a few turns with fake data and the same rules code, no model.
 77. AI help in Studio ("generate 10 items for a desert town") with the reader's own API key: included.
+78. **Checks resolve automatically** (user decision; supersedes the reader-modifier parts of F16 and F33).
+    A `? check` line is rolled by code the moment the reply that wrote it is captured: d20 + automatic
+    modifiers (the stat, plus the actor's skills, abilities/talents and carried items whose tags or words
+    match the check, by a fixed rule in code). The reader cannot add or change modifiers; the only way to
+    get a different result is to swipe or regenerate that reply (a new reply gets its own roll). The
+    result shows on that reply's card at once and the next reply narrates it. With Assist's pre-roll
+    classifier on (F16's option), the roll happens before the reply so the same reply narrates it.
+79. Market shortages (F36) confirmed as written.
