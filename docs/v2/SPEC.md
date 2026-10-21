@@ -79,6 +79,11 @@ message.extra.storySuite = {
 }
 ```
 
+As built (store.js), the record also carries `sid` + `swipe` (which swipe wrote it, so a record SillyTavern
+copied into a new swipe is ignored there), `spans` (which ops are `story` ops, for Re-read) and `rev`
+(`meta.rev` after its last write, for save verification). `head()`/`at()` return `null` for a chat with no
+v2 state.
+
 SillyTavern copies `message.extra` per swipe (`swipe_info[n].extra`), so each swipe has its own changes.
 Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in step (as v1 does) before saving.
 
@@ -136,7 +141,7 @@ mid-chat) gets its `initial()` slice added by a `system` receipt on the head car
 
 ```js
 const sdk = await globalThis.StoryBlock.ready;           // resolves when the host is up
-const result = await sdk.command('item.use', { stack: 'it_k3f9a2qz', target: 'ac_pc' }, { cause: 'ui' });
+const result = await sdk.command('item.use', { stack: 'it_k3f9a2qz', target: 'ac_7h2m9x4q' }, { cause: 'ui' });
 // → { ok: true, receipt } | { ok: false, code: 'NOT_ENOUGH', message: 'There is no Minor Healing Draught left.' }
 
 const preview = await sdk.preview('trade.sell', payload);  // runs the handler on a copy, nothing saved
@@ -166,6 +171,12 @@ commands: {
 * `ctx.claim(key)` → false if already claimed on this line of history, else claims it.
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.fail(code, message)` throws.
+* A failed `ctx.call` fails the whole command even if the caller catches it, except `UNKNOWN_COMMAND`
+  (nothing ran), which a handler may catch to treat another module's command as optional.
+* Every committed receipt bumps `meta.rev`. A preview goes `STALE` if `meta.rev`, the head index or the head
+  state changed. ID rule (check.js): `<prefix>_<8 base36>` or a namespaced slug (`story/moonveil-trout`).
+* `bus.run(type, payload, { cause, seed, state, capture })` (used by capture) runs a handler without
+  appending; `state` chains the lines of one reply; `capture` passes `registry.capture(kind)` as is.
 * Handlers are synchronous and pure apart from `ctx`: no network, no model calls, no DOM, no awaits.
 * Commit: run the handler on drafts → diff drafts into ops → validate (§2.5) → bump `meta.rev` → append ops
   and receipt to the head carrier → save (§3.3) → emit `committed`. Any throw rejects the whole command.
