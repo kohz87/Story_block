@@ -252,6 +252,20 @@ test('a text field with max gets maxlength on its input', () => {
     assert.equal(input.maxLength, 24);
 });
 
+test('R2-b7-2: a settings field of a type this Story Block does not know is hidden, its value kept', () => {
+    const doc = installFakeDom();
+    const registry = createRegistry({ warn: () => {} });
+    registry.register({ id: 'shop', name: 'Shop', settings: { defaults: { tint: '#f00', place: '' }, schema: { tint: { type: 'colour' }, place: { type: 'text' } } } });
+    const es = {};
+    const settings = createSettings({ root: () => es, registry, save: () => {} });
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc });
+    const row = root.querySelectorAll('.story-suite-row').find(item => item.dataset.field === 'tint');
+    assert.equal(row.hidden, true);
+    assert.equal(settings.set('shop', 'tint', '#0f0'), '#0f0', 'stored as given');
+    assert.equal(settings.set('shop', 'place', 'x'.repeat(500)).length, 200, 'a text field with no max of its own is held to 200');
+});
+
 // ---- templates and CSS ------------------------------------------------------------------------
 
 test('templates: elements past MAX_DEPTH are flattened with one warning; tooDeep tells', () => {

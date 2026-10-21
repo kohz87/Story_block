@@ -23,6 +23,7 @@ import { hash, readRecord } from './persist.js';
 import { CAPTURE_PREFIX } from './registry.js';
 import { STATIC_MARKER, assemble } from './prompt.js';
 import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
+import { cutAt } from '../text.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -77,7 +78,7 @@ export function defuseMacros(text) {
 // characters, so it cannot start a [Happened] or <Changes> line of its own), at most MAX_NAME long.
 export function flatName(value) {
     const flat = String(value ?? '').replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').replace(/ {2,}/g, ' ').trim();
-    return flat.length > MAX_NAME ? `${flat.slice(0, MAX_NAME - 1).trimEnd()}…` : flat;
+    return flat.length > MAX_NAME ? `${cutAt(flat, MAX_NAME - 1).trimEnd()}…` : flat;
 }
 
 /**
@@ -414,11 +415,25 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
     // Each line runs on the state the lines before it left (bus.run's `state`), as its owner's
     // capture handler (bus.run's `capture`), and is stored on the reply before the next one runs.
     // A reply holds at most maxChangeLines change lines; the rest are one Problem (pushed to `found`).
+    const lineCap = () => (Number.isInteger(hostSettings()?.maxChangeLines) && hostSettings().maxChangeLines > 0 ? hostSettings().maxChangeLines : MAX_CHANGE_LINES);
+
+    // A block's lines read, at most maxChangeLines of them, change lines or not; the rest are one Problem.
+    function readBlock(index, text) {
+        const cap = lineCap();
+        const parsed = parseChanges(text, { max: cap });
+        const problems = parsed.problems.map(line => problem({ index, code: 'UNREADABLE', message: line }));
+        if (parsed.over) {
+            const { count, total, first } = parsed.over;
+            problems.push(problem({ index, code: 'TOO_MANY', message: `The reply has ${total} change lines; only the first ${cap} were read, so ${count} ${count === 1 ? 'line was' : 'lines were'} not used (from "${cutAt(first, 60)}").` }));
+        }
+        return { lines: parsed.lines, problems };
+    }
+
     function capped(index, all, found) {
-        const cap = Number.isInteger(hostSettings()?.maxChangeLines) && hostSettings().maxChangeLines > 0 ? hostSettings().maxChangeLines : MAX_CHANGE_LINES;
+        const cap = lineCap();
         if (all.length > cap) {
             const more = all.length - cap;
-            found.push(problem({ index, code: 'TOO_MANY', message: `The reply has ${all.length} change lines; only the first ${cap} were read, so ${more} ${more === 1 ? 'line was' : 'lines were'} not used (from "${all[cap].raw.slice(0, 60)}").` }));
+            found.push(problem({ index, code: 'TOO_MANY', message: `The reply has ${all.length} change lines; only the first ${cap} were read, so ${more} ${more === 1 ? 'line was' : 'lines were'} not used (from "${cutAt(all[cap].raw, 60)}").` }));
         }
         return all.slice(0, cap);
     }
@@ -521,8 +536,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         if (!base) return refusal('FAILED', 'This chat has no story state yet.');
         const mes = String(message.mes ?? '');
         const block = extractBlock(mes);
-        const parsed = block === null ? { lines: [], problems: [] } : parseChanges(block);
-        const problems = parsed.problems.map(text => problem({ index, code: 'UNREADABLE', message: text }));
+        const parsed = block === null ? { lines: [], problems: [] } : readBlock(index, block);
+        const problems = [...parsed.problems];
         const receipts = [];
         const lines = capped(index, parsed.lines, problems);
         let ops;
@@ -581,10 +596,10 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             // The reader stopped it (GENERATION_STOPPED): an open block's unfinished last line is left out.
             const stopped = current.stopped === true;
             const block = extractBlock(text, 'Changes', at, { stopped });
-            const parsed = block === null ? { lines: [], problems: [] } : parseChanges(block);
-            const problems = parsed.problems.map(line => problem({ index: id, code: 'UNREADABLE', message: line }));
+            const parsed = block === null ? { lines: [], problems: [] } : readBlock(id, block);
+            const problems = [...parsed.problems];
             const cut = block === null ? null : cutLine(text, 'Changes', at, { stopped });
-            if (cut) problems.push(problem({ index: id, line: cut, code: 'CUT_OFF', message: `The reply stopped in the middle of the change line "${cut.slice(0, 80)}", so it was not used.` }));
+            if (cut) problems.push(problem({ index: id, line: cut, code: 'CUT_OFF', message: `The reply stopped in the middle of the change line "${cutAt(cut, 80)}", so it was not used.` }));
             const result = await captureLines(id, parsed.lines);
             problems.push(...result.problems);
 
@@ -636,8 +651,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         if (!isCarrier(message) || store.headIndex() !== index || (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== swipe || session) {
             return { receipts: [], problems: ['The reply changed before its late change lines arrived; they were not used.'] };
         }
-        const parsed = parseChanges(String(text ?? ''));
-        const problems = parsed.problems.map(line => problem({ index, code: 'UNREADABLE', message: line }));
+        const parsed = readBlock(index, String(text ?? ''));
+        const problems = [...parsed.problems];
         const result = await captureLines(index, parsed.lines);
         problems.push(...result.problems);
         if (parsed.lines.length) {

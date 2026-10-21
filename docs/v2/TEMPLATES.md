@@ -79,7 +79,7 @@ the Story Suite overlay shows.
 | `data-bind="expr"` | The element's whole text (whatever the template had inside is replaced). |
 | `data-bind-attr="src: expr; title: expr"` | Attributes. `null`, `false` or empty data removes the attribute; `true` sets a boolean one (`disabled`, `hidden`, `checked`, `open`). Not `class` (use `data-class`), `style` (use `data-bind-var`), `on…` or `data-…`. |
 | `data-bind-var="--hp: ratio(hp.cur, hp.max)"` | CSS custom properties on the element. Styling from data always goes through variables. |
-| `data-each="list as item"` / `"list as item, i"` | Repeat the element per item. Lists give `i` = 0, 1, 2…; records (state is keyed by ID) give their items in key order and `i` = the key. |
+| `data-each="list as item"` / `"list as item, i"` | Repeat the element per item. Lists give `i` = 0, 1, 2…; records (state is keyed by ID) give their items in key order and `i` = the key. One render draws at most 5,000 elements through its loops (the rest of a list is left out, with a warning), and a pack's loops nest at most 3 deep. |
 | `data-if="expr"` | The element is there only while the expression is true. With `data-each` it applies per item. |
 | `data-class="hurt: expr; low: expr"` | Toggle classes. |
 | `data-command="item.use" data-payload='{"stack":"{{ s.id }}"}'` | A click runs the command. |
@@ -153,7 +153,10 @@ A screen shares the page with SillyTavern and with other screens, so a few thing
 * **Ids** are drawn as `ss-t-<screen>-<id>` (`id="hp"` in `rpg-battle/party` becomes `ss-t-rpg-battle-party-hp`).
   What points at an id is rewritten to match: `#id` selectors in the screen's CSS, `for`, `aria-*` id lists
   (`aria-labelledby`, `aria-describedby`, …), `href="#id"` and `url(#id)` in SVG paint. Attribute selectors
-  such as `[id="hp"]` are **not** rewritten and match nothing: write `#hp`.
+  such as `[id="hp"]` are **not** rewritten and match nothing: write `#hp`. A screen drawn more than once at
+  a time (a card under every reply, a tab and a hud) gives each other copy its own ids and control names
+  (`ss-t-rpg-battle-party-hp--c2`), so a label or a radio group stays in its own copy; the screen's `#id`
+  CSS reaches every copy.
 * **Form names**: a `<form name="…">` gets the same prefix, so it never takes over a `document.<name>`.
   Control names SillyTavern reads as its own radio groups (`character_names`, `continue_postfix`,
   `extension_default_position`, `extension_floating_char_position`, `extension_floating_position`) are
@@ -195,7 +198,8 @@ Every drop adds a plain sentence to the screen's warnings.
 
 * `name` is namespaced: Story Block's `ss.meter`, `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`,
   `ss.badge`, `ss.timeline`, `ss.stepper`; modules' own use their id (`rpg-battle.battle-board`).
-* `data-props` is JSON with holes, filled like a payload. `"bind": "<path or expression>"` adds the bound
+* `data-props` is JSON with holes, filled like a payload, nested at most 16 deep (as `data-payload`); a pack
+  screen with deeper JSON is refused, and a deeper one drawn shows the widget's "failed" line. `"bind": "<path or expression>"` adds the bound
   data as `value` (a record's fields become the widget's props, e.g. `{ cur, max }` for a meter; see the
   widget reference for each widget's props).
 * The `ss-widget` element belongs to the widget. It is drawn again only when its props change. An unknown or
