@@ -627,7 +627,7 @@ async function recoverRegeneratedReply(expected) {
     return result;
 }
 
-async function reconnectRegeneratedReply() {
+async function reconnectRegeneratedReply({ resume = true } = {}) {
     const ctx = context(), chat = ctx?.chat, plan = regeneratedReplyRecovery();
     if (!plan) return false;
     replyCallbacks++;
@@ -639,7 +639,7 @@ async function reconnectRegeneratedReply() {
         }
         // The failed receive never reached plugins. Resume only the latest reply,
         // including its injected quest choices, after the repaired header is verified.
-        if (context()?.chat === chat && chatIdOf(context()) === plan.chatId) await receiveMessage(latestAssistantIndex(chat));
+        if (resume && context()?.chat === chat && chatIdOf(context()) === plan.chatId) await receiveMessage(latestAssistantIndex(chat));
         return true;
     } finally { replyCallbacks--; refreshAll(0); }
 }
@@ -774,11 +774,7 @@ async function receiveMessage(messageId) {
     // Generation is over even when its bookkeeping needs repair. Holding the
     // session here would prevent the verified recovery transaction itself.
     clearSession(chatId);
-    const recovery = regeneratedReplyRecovery();
-    if (recovery) {
-        const result = await recoverRegeneratedReply(recovery);
-        if (result.status !== 'durable') throw new Error(`Reply reconnection was not verified: ${result.reason}`);
-    }
+    await reconnectRegeneratedReply({ resume: false });
     if (dirty || chatMetadata(ctx)) {
         syncActiveSwipeText(message);
         await saveChat(ctx);
