@@ -33,12 +33,13 @@ import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
 import { JOURNAL_VERSION, journalKey, journalState } from './src/journal.js';
+import { randomId } from './src/id.js';
 import { previewParts, renderPreview } from './src/ui/preview.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.27';
+const VERSION = '0.9.28';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -531,7 +532,7 @@ function ensureMessageIdentity(message) {
         }
         delete extra.storyBlockCommits;
     }
-    message.extra = { ...extra, storyBlockIdentity: { id: crypto.randomUUID(), swipe } };
+    message.extra = { ...extra, storyBlockIdentity: { id: randomId(), swipe } };
     return true;
 }
 
