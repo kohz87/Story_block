@@ -202,3 +202,9 @@ These settle questions agents raised; the host changes they need are made at int
 7. **One fight pays one quest:** `quest.finish` claims each `beaten` entry it counts (`beaten:<rev>`), and
    progress skips entries already claimed by another quest.
 8. **Effects** may carry `damage` (combat items) besides `heal`, `mp`, `cure`.
+9. **Widget names are namespaced** `<module-id>.<name>`; Story Block's standard widgets are `ss.meter`,
+   `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`, `ss.badge`, `ss.timeline`, `ss.stepper`; modules use
+   their id (`rpg-battle.battle-board`, `fishing-activity.fishing`). Layout built-in node types (`meter`,
+   `badge`, …) never clash with a namespaced widget.
+10. **Themes** use §13.3's CSS custom properties (`theme: { '--ss-accent': '#7c5cff' }`) for screens; the
+   layout renderer's `tokens` are mapped onto them at integration.
