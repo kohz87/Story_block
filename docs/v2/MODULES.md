@@ -176,3 +176,29 @@ comes back if the host goes away. NSD's own storage, capture and prompt keys are
   manifest.json, index.js) using only the public sdk: a cast/wait/hook/reel mini-game UI, the catch
   resolved by its own command `fishing.cast` (seeded), the fish granted via `inventory.grant` from that
   receipt, narrated once.
+
+## F. Decisions from the first reports (coordinator)
+
+These settle questions agents raised; the host changes they need are made at integration.
+
+1. **Money.** A wallet holds one integer per owner in the smallest unit: `wallets[owner] = { coin: n }`.
+   Tiers (copper/silver/gold…) are display and parsing only, from the `currency` hook, readable by any
+   handler or query as the query `inventory.currency` → `{ tiers: [{ name, rate }], single }`.
+   `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }` with `amount` in the smallest unit.
+   Callers convert ("8 silver" → 80) with `inventory.currency`.
+2. **`ctx.rev`** is the `meta.rev` this receipt will have. Use it for `taken.rev`, `ended.rev`, etc.
+3. **Queries can use queries:** a query is called `(state, args, tools)` with `tools.query(name, args)`
+   over the same state.
+4. **`REFUSED`** is the code for a rule refusal (full HP, wrong place, slot limit, not ready); `INVALID`
+   stays for malformed payloads and failed validators.
+5. **Command payloads** (callers use exactly these):
+   `inventory.consume { stack, qty }`, `inventory.transfer { stack, to, qty }`, `inventory.equip { stack, slot }`,
+   `inventory.unequip { stack }`, `inventory.grant { def | defId, qty, owner, note? }`,
+   `party.heal { actor, hp, cure: [] }`, `party.restore { actor, mp?, sp? }`,
+   `party.grantXp { actor?, amount?, quest?, difficulty? }` (no actor: the whole party by v1 rules).
+   Queries: `inventory.items({ owner? })` → `[{ stack, def, name, kind, qty, owner, equipped, note }]`;
+   `combat.foesBeaten({ sinceRev })` → `[{ rev, foes: [{ name, count }], won }]`; `party.pc` → actor or null.
+6. **Equipment** defs have `stack: false`; `inventory.grant` of equipment makes one stack per piece (qty 1).
+7. **One fight pays one quest:** `quest.finish` claims each `beaten` entry it counts (`beaten:<rev>`), and
+   progress skips entries already claimed by another quest.
+8. **Effects** may carry `damage` (combat items) besides `heal`, `mp`, `cure`.
