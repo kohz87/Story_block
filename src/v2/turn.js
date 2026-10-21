@@ -18,7 +18,7 @@
 // turn.js receives the SillyTavern context and the host parts; it never imports the store or
 // the command bus (their interfaces are docs/v2/SPEC.md §12).
 
-import { cutLine, extractBlock, hideBlock, parseChanges, stripBlock } from './capture.js';
+import { continuation, cutLine, extractBlock, hideBlock, parseChanges, stripBlock } from './capture.js';
 import { readRecord } from './persist.js';
 import { CAPTURE_PREFIX } from './registry.js';
 import { STATIC_MARKER, assemble } from './prompt.js';
@@ -340,9 +340,9 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
                 staticText: defuseMacros(built.staticText),
                 tailText: defuseMacros(built.tailText),
                 parts: built.parts,
-                // A Continue's reply was captured before: only blocks the continuation adds (after
-                // this much of the text) are read.
-                from: kind === 'continue' ? String(chat[last]?.mes ?? '').length : 0,
+                // A Continue's reply was captured before: only blocks the continuation adds to this
+                // text are read (capture.js continuation()).
+                base: kind === 'continue' ? String(chat[last]?.mes ?? '') : null,
                 prompted: false,
                 background: 0,
                 restored: '',
@@ -550,11 +550,14 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
                 problem({ index: id, code: 'FAILED', message: 'The reply is not the last message that keeps the story, so its changes were not read.' });
                 return null;
             }
-            const from = Math.min(current.from ?? 0, String(message.mes ?? '').length);
-            const block = extractBlock(String(message.mes ?? '').slice(from));
+            const text = String(message.mes ?? '');
+            // A Continue: SillyTavern wrote the old text again, cleaned up, so it can be shorter than it
+            // was; where the added text starts is found, not counted, or its block is left bare.
+            const at = typeof current.base === 'string' ? continuation(current.base, text) : null;
+            const block = extractBlock(text, 'Changes', at);
             const parsed = block === null ? { lines: [], problems: [] } : parseChanges(block);
-            const problems = parsed.problems.map(text => problem({ index: id, code: 'UNREADABLE', message: text }));
-            const cut = block === null ? null : cutLine(String(message.mes ?? '').slice(from));
+            const problems = parsed.problems.map(line => problem({ index: id, code: 'UNREADABLE', message: line }));
+            const cut = block === null ? null : cutLine(text, 'Changes', at);
             if (cut) problems.push(problem({ index: id, line: cut, code: 'CUT_OFF', message: `The reply stopped in the middle of the change line "${cut.slice(0, 80)}", so it was not used.` }));
             const result = await captureLines(id, parsed.lines);
             problems.push(...result.problems);
@@ -567,7 +570,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
 
             let edited = false;
             if (block !== null) {
-                const hidden = hideBlock(message.mes, 'Changes', { from });
+                const hidden = hideBlock(message.mes, 'Changes', at ?? {});
                 if (hidden !== message.mes) {
                     message.mes = hidden;
                     if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = hidden;

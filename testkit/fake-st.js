@@ -250,7 +250,9 @@ export function createFakeContext(options = {}) {
             } else if (type === 'swipe' || type === 'continue') {
                 index = ctx.chat.length - 1;
                 const message = ctx.chat[index];
-                message.mes = type === 'continue' ? `${message.mes}${reply}` : String(reply);
+                // A Continue: SillyTavern's copy of the old text plus the added text, cleaned up as a whole
+                // (cleanUpMessage: spaces at line ends dropped, trimmed with trim_spaces, on by default).
+                message.mes = type === 'continue' ? `${message.mes}${reply}`.replace(/[^\S\r\n]+$/gm, '').trim() : String(reply);
                 message.swipes[message.swipe_id] = message.mes;
                 message.swipe_info[message.swipe_id] = { ...message.swipe_info[message.swipe_id], extra: clone(message.extra ?? {}) };
             }
