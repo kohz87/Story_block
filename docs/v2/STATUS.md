@@ -18,7 +18,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Mounts: screen registry, tab / full screen / card under reply / HUD / dialog | ✅ | #61 |
 | Widgets: ss.meter, radar, map, skill-tree, portrait, badge, timeline, stepper | ✅ | #63 |
 | Fishing example activity (public SDK only) | ✅ | #55 |
-| HTML templates with bindings, scoped CSS | 🔧 | |
+| HTML templates with bindings, scoped CSS | ✅ | #64 |
 | Integration: index.js bootstrap, host fixes (ctx.caller/rev/id/carrier/chat), rewind, wiring | 🔧 | |
 | Default screens (Inventory, Scene, changes card, home) + player guide | 🔧 | |
 | Assist (optional pre-roll classifier, after-reply extractor) | 🔧 | |
