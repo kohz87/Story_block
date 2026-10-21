@@ -16,7 +16,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
         'assist.precheck', 'events.fire', 'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.merge', 'inventory.split',
         'inventory.transfer', 'inventory.unequip', 'scene.place', 'scene.present', 'wallet.pay', 'wallet.receive',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'events.status', 'inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet',
+    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'events.status', 'inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet', 'packs.calendar',
         'packs.content', 'packs.item', 'packs.list', 'packs.start', 'scene.place', 'scene.present']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterReply', 'beforeGenerate', 'item.resolve', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
