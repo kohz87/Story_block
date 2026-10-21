@@ -38,5 +38,8 @@ export function stocked(module = core()) {
         it_lant0001: stack('it_lant0001', 'story/lantern', 1),
     };
     inv.wallets = { party: { coin: 125 } };
+    // One party member (no name, so receipts show the id), for grants, transfers and wallets that
+    // must go to someone who is there (B3-7).
+    state.domains.party = { actors: { ac_ren00001: { id: 'ac_ren00001' } } };
     return state;
 }

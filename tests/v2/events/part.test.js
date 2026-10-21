@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { FIRE, createEventsPart, packEvents, part, renderEventsSection, summaryLine } from '../../../src/v2/events/index.js';
 import { installFakeDom, texts } from '../../ui-fake-dom.js';
 import { baseState, createFakeHost } from './helpers/fake-host.js';
-import { fireEvent } from '../../../src/v2/events/engine.js';
+import { createFireEvent } from '../../../src/v2/events/engine.js';
 
 test('the part: one internal command, one query, the beforeGenerate hook, an Events settings section', () => {
     assert.deepEqual(Object.keys(part.commands), [FIRE]);
@@ -31,7 +31,7 @@ test('packEvents reads packs.content({ kind: "events" }) from the view', () => {
 
 test('the default part reaches the host through globalThis.StoryBlock.sdk', () => {
     const defs = [{ id: 'pack.demo/bells', when: 'true', cue: 'Bells ring.' }];
-    const host = createFakeHost({ commands: { [FIRE]: fireEvent }, queries: { 'packs.content': () => defs } });
+    const host = createFakeHost({ commands: { [FIRE]: createFireEvent(view => view.query('packs.content', { kind: 'events' })) }, queries: { 'packs.content': () => defs } });
     const previous = globalThis.StoryBlock;
     try {
         delete globalThis.StoryBlock;
@@ -50,8 +50,9 @@ test('the default part reaches the host through globalThis.StoryBlock.sdk', () =
 });
 
 test('createEventsPart with injected dependencies: the hook commits through them', () => {
-    const host = createFakeHost({ state: baseState(), commands: { [FIRE]: fireEvent } });
-    const injected = createEventsPart({ events: () => [{ id: 'x', when: 'true', cue: 'X.' }], command: host.command, query: host.query });
+    const list = () => [{ id: 'x', when: 'true', cue: 'X.' }];
+    const host = createFakeHost({ state: baseState(), commands: { [FIRE]: createFireEvent(list) } });
+    const injected = createEventsPart({ events: list, command: host.command, query: host.query });
     injected.hooks.beforeGenerate(host.view());
     assert.deepEqual(injected.queries['events.status'](host.state()).fired, ['x']);
     // Called with tools (MODULES §F.3), the status asks tools.query over the same state.
@@ -60,7 +61,8 @@ test('createEventsPart with injected dependencies: the hook commits through them
     assert.deepEqual(fromPacks.due, ['z']);
     assert.deepEqual(asked, [['packs.content', { kind: 'events' }]]);
     // Commands of the part run on the real bus as on the fake one.
-    assert.equal(injected.commands[FIRE], fireEvent);
+    assert.equal(typeof injected.commands[FIRE], 'function');
+    assert.equal(injected.commands[FIRE].internal, true);
 });
 
 const sample = {

@@ -339,8 +339,18 @@ export function createStore({
             retain(arr, next);
         },
 
+        // The state a Re-read of carrier `index` runs its lines on: its own checkpoint when it starts
+        // one, else the state after the carrier before it (null without one). Frozen.
+        before(index) {
+            const arr = list();
+            const message = carrierAt(arr, index);
+            const startsHere = readRecord(message)?.checkpoint;
+            return startsHere ? checkpointState(startsHere) : stateBefore(arr, index);
+        },
+
         // Re-read: the carrier's `story` receipts and their ops are replaced; ui and system receipts stay,
-        // after the new story ops. Later carriers are replayed on top so their checkpoints stay true; if any
+        // after the new story ops. A kept block whose rev (its `/meta/rev` op and its receipt) is not after
+        // the new story ops' last one is numbered on from it, so no two receipts on the carrier share one. Later carriers are replayed on top so their checkpoints stay true; if any
         // later change no longer applies, nothing is written and this throws.
         replaceStory(index, { ops, receipts = [] } = {}) {
             const arr = list();
@@ -366,6 +376,22 @@ export function createStore({
                 at += span.n;
             }
             const fresh = asOps(ops);
+            // The kept blocks' revs follow the new story ops' last one (they ran after the old ones).
+            const keptReceipts = record.receipts.filter(receipt => receipt?.cause !== 'story').map(receipt => structuredClone(receipt));
+            let rev = [...fresh].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value ?? revOf(base);
+            const renumbered = new Map();
+            const keptOps = kept.map(op => {
+                if (op?.path !== '/meta/rev' || !Number.isInteger(op.value)) return op;
+                if (op.value > rev) {
+                    rev = op.value;   // already after the new story ops: kept as it is
+                    return op;
+                }
+                rev += 1;
+                renumbered.set(op.value, rev);
+                return { ...op, value: rev };
+            });
+            for (const receipt of keptReceipts) if (renumbered.has(receipt.rev)) receipt.rev = renumbered.get(receipt.rev);
+            kept.splice(0, kept.length, ...keptOps);
             const nextOps = [...fresh, ...kept];
             let state;
             try {
@@ -376,7 +402,7 @@ export function createStore({
             const writes = [[message, {
                 ...record,
                 ops: nextOps,
-                receipts: [...structuredClone(receipts), ...record.receipts.filter(receipt => receipt?.cause !== 'story')],
+                receipts: [...structuredClone(receipts), ...keptReceipts],
                 spans: [{ n: fresh.length, story: true }, ...keptSpans],
                 rev: revOf(state),
             }]];
