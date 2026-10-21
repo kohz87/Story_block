@@ -26,12 +26,13 @@ const qty = (host, name) => host.sdk.query('inventory.items').filter(item => ite
 function replyLines(r, step) {
     const out = { lines: [], coin: 0, torches: 0, own: [] };
     for (let n = r.int(1, 4); n > 0; n -= 1) {
-        switch (r.int(0, 5)) {
+        switch (r.int(0, 6)) {
             case 0: { const k = r.int(1, 30); out.lines.push(`+ coin ${k}`); out.coin += k; break; }
             case 1: { const k = r.int(1, 5); out.lines.push(`- coin ${k} | to: the ferryman`); out.coin -= k; break; }
             case 2: { const k = r.int(1, 3); out.lines.push(`+ item Torch | qty: ${k}`); out.torches += k; break; }
             case 3: { out.lines.push('- item Torch'); out.torches -= 1; break; }
             case 4: { const name = `Charm ${step}-${out.own.length + 1}`; out.lines.push(`+ item ${name}`); out.own.push(name); break; }
+            case 5: { const name = `Walker ${step}-${out.lines.length}`; out.lines.push(`+ present ${name}`); out.people = [...(out.people ?? []), name]; break; }
             default: out.lines.push(`~ place ${r.pick(PLACES)} | kind: ${r.pick(['settlement', 'wild', ''])}`);
         }
     }

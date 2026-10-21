@@ -9,7 +9,8 @@
 // IDs since the checkpoint before it) no longer matches the chat is passed over (B2-4); an op with a
 // numeric `was` on a number that now stands elsewhere adds its change (value − was) instead, and the
 // inventory's own validator must then accept the block (B3-8); a moved `qty` that comes to exactly 0
-// removes the thing that holds it (r2-3).
+// removes the thing that holds it (r2-3); a remove of an object key already gone does nothing, unless it
+// is a counted take (`was`); a list append (`/-`) lands at the end.
 
 import assert from 'node:assert/strict';
 import { readRecord } from '../../../../src/v2/persist.js';
@@ -50,6 +51,18 @@ export function strictApply(state, ops) {
                 node[keys.at(-1)] = structuredClone(op.value);
                 continue;
             }
+        }
+        // Replayed, a remove of an object key that is not there does nothing (unless it is a counted take).
+        if (op?.op === 'remove' && typeof op.was !== 'number' && typeof op.path === 'string' && op.path.startsWith('/')) {
+            const keys = op.path.slice(1).split('/').map(unescape);
+            let node = root;
+            let gone = false;
+            for (const key of keys) {
+                if (!record(node)) break;
+                if (!Object.hasOwn(node, key)) { gone = true; break; }
+                node = node[key];
+            }
+            if (gone) continue;
         }
         if (op?.op === 'replace' && typeof op.was === 'number' && typeof op.value === 'number') {
             const keys = op.path.slice(1).split('/').map(unescape);

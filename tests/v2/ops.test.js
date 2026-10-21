@@ -33,8 +33,8 @@ test('diff: basePath, type changes and escaped keys', () => {
 
 test('diff: arrays are appended to when that is all that changed, else replaced whole', () => {
     assert.deepEqual(diff({ l: [1, 2] }, { l: [1, 2, 3, { a: 1 }] }), [
-        { op: 'add', path: '/l/2', value: 3 },
-        { op: 'add', path: '/l/3', value: { a: 1 } },
+        { op: 'add', path: '/l/-', value: 3 },
+        { op: 'add', path: '/l/-', value: { a: 1 } },
     ]);
     assert.deepEqual(diff({ l: [1, 2, 3] }, { l: [1, 3] }), [{ op: 'replace', path: '/l', value: [1, 3] }]);
     assert.deepEqual(diff({ l: [1, 2] }, { l: [2, 1] }), [{ op: 'replace', path: '/l', value: [2, 1] }]);

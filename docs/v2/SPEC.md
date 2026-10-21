@@ -128,6 +128,14 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
   domain may name such fields `scratch` (a list of top-level fields, the inventory's `perReply`): on
   replay a `remove` inside one of something already gone is passed over, missing objects on the way are
   made, and a `replace` of something not there becomes an `add`.
+* **Two replay rules that keep such bookkeeping bounded.** (a) On replay (never for a live command), a
+  `remove` of an object key that is not there (the reply that added it was deleted) does nothing instead
+  of failing its block; a `remove` that carries a counted `was` (a take of a stack) still fails, so a sale
+  of a thing that is gone is not paid. A later reply may so prune what earlier replies added: an entry
+  the deleted reply had already pruned may come back until the next prune. (b) When a list only grew at
+  its end, `diff` stores each new element as `add /path/-`, which appends at the end as the list stands
+  on replay. Other list changes replace the list whole. A `replace` of a list element by its position
+  is still positional, so a module keeps records it changes later under keys, not in a list.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -401,12 +409,16 @@ sdk.registerModule({
 * **Events**: `sdk.on('committed' | 'head' | 'turn', fn)`; `head` fires after any rebuild.
 * `sdk.query(name, args)`, `sdk.modules()`, `sdk.id(prefix)`, `sdk.check`, `sdk.settings(id)`.
 * **Versions**: `requires: { storyBlock: '>=2.1.0' }` says which Story Block a module needs, as a version
-  range in the packs' form (`^2`, `>=2.0.0 <3`, alternatives with `||`; the host's pre-release counts as
-  its release, so 2.0.0-alpha.1 meets `>=2.0.0`). A host that does not meet it refuses the module with
-  one sentence, "Name needs Story Block ≥ 2.1.0; this is 2.0.0-alpha.1. Update Story Block to use it.",
+  range in the packs' form (`^2`, `>=2.0.0 <3`, `>=2.0.0-alpha.2`, alternatives with `||`). Pre-releases
+  order the semver way (2.0.0-alpha.1 < 2.0.0-alpha.3 < 2.0.0): a bound written as a release
+  (`>=2.0.0`) is not met by an alpha, while a bound a range only implies (`^2`, `2.x`, `<3`) takes in
+  that version's pre-releases, so `^2` holds on 2.0.0-alpha.2 and ends before 3.0.0-alpha. A module that
+  needs this alpha's changes says `>=2.0.0-alpha.2`. A host that does not meet it refuses the module with
+  one sentence, "Name needs Story Block ≥ 2.1.0; this is 2.0.0-alpha.2. Update Story Block to use it.",
   and keeps nothing of it. A definition field the host does not know (one a newer module added, like
   MODULES §F100's `features`, or another key under `requires`) is logged as a warning and ignored, never
-  a refusal. A module whose domains grow keeps the data of the domains a chat already has: only the
+  a refusal; one level down the same: an unknown command option, `settings.*` part, or settings field
+  type (that field is hidden in the settings and its value kept as stored). A module whose domains grow keeps the data of the domains a chat already has: only the
   missing ones get their `initial()` (§2.6).
 
 ## 7. Core domains (Story Block)

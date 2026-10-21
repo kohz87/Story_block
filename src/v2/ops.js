@@ -131,7 +131,9 @@ function walkDiff(a, b, path, ops) {
     if (Array.isArray(a) && Array.isArray(b)) {
         if (equal(a, b)) return;
         if (b.length > a.length && a.every((item, i) => equal(item, b[i]))) {
-            for (let i = a.length; i < b.length; i++) ops.push({ op: 'add', path: `${path}/${i}`, value: clone(b[i]) });
+            // Appended at the end ("-"), not at a position: replayed after an earlier reply that added to
+            // the list was deleted, an append still lands at the end (a position past it would not fit).
+            for (let i = a.length; i < b.length; i++) ops.push({ op: 'add', path: `${path}/-`, value: clone(b[i]) });
         } else {
             ops.push({ op: 'replace', path, value: clone(b) });
         }
@@ -323,9 +325,11 @@ function scratchOps(state, ops, scratchOf) {
  * there, and each `remove` of a thing holding a counter (`was`, `count`) that now holds another
  * number turned into taking `was` from it: { ops, rebased: Set of domain names whose counts moved }.
  * With `scratch` (a domain name → its scratch fields), ops inside those fields are fitted as above.
- * Ops are not changed in place.
+ * With `replayed` (stored ops replayed, never a live command), a `remove` of an object key that is not
+ * there (the reply that added it was deleted) is passed over; one that carries a counted `was` (a take
+ * of a stack) is not, so a take of something gone still fails its block. Ops are not changed in place.
  */
-export function rebaseOps(state, ops, { scratch = null } = {}) {
+export function rebaseOps(state, ops, { scratch = null, replayed = false } = {}) {
     const rebased = new Set();
     const moved = path => {
         const keys = parsePath(path);
@@ -334,12 +338,26 @@ export function rebaseOps(state, ops, { scratch = null } = {}) {
     // Paths earlier ops in the list put something at: a count under one of them stands as they left it.
     const written = [];
     const writtenAbove = path => written.some(at => path === at || path.startsWith(`${at}/`));
-    const out = (scratch ? scratchOps(state, ops, scratch) : ops).map(op => {
-        const fitted = fit(op);
+    const out = [];
+    for (const op of scratch ? scratchOps(state, ops, scratch) : ops) {
+        if (!(replayed && goneKey(op))) out.push(fit(op));
         if ((op?.op === 'add' || op?.op === 'replace') && typeof op.path === 'string') written.push(op.path);
-        return fitted;
-    });
+    }
     return { ops: out, rebased };
+
+    // A `remove` (no counted `was`) of an object key that is not there, nor put there earlier in the list.
+    function goneKey(op) {
+        if (op?.op !== 'remove' || typeof op.was === 'number' || typeof op.path !== 'string' || writtenAbove(op.path)) return false;
+        let keys;
+        try { keys = parsePath(op.path); } catch { return false; }
+        let node = state;
+        for (const key of keys) {
+            if (!isPlainObject(node)) return false;   // a list position, or nothing to walk: as written
+            if (!Object.hasOwn(node, key)) return true;
+            node = node[key];
+        }
+        return false;
+    }
 
     function fit(op) {
         // Under something an earlier op in the list put there, the op stands as it was made.
