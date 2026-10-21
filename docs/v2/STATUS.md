@@ -63,6 +63,8 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | RB-B: same-reply checks (F80), carry limit (F39), shortages (F36), pack shops, story use (F96) | ✅ | #79 |
 | The host's hook arguments handed on to every part | ✅ | #80 |
 | Break fixes (b4 combat, b1 capture, b3 economy, b5b, b2 claims) | ✅ | #82 |
+| Balance: a tier is a threat budget for the whole group (B-b4-11) | ✅ | #83 |
+| Story Block testkit at da54eaf (carrier sid), b2-timeline claims | ✅ | #84 |
 | v1 (`main`) 0.5.52: steps aside next to Story Block 2 | ✅ (main) | #81 |
 
 ## Story Director (module)
@@ -90,8 +92,7 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | Hosted mode: one sidecar look per new chat, launcher and in-chat cast step aside | ✅ | #173 |
 | Meters in the per-reply state, stages, hidden notes (F81, F90) | ✅ | #175 |
 | Hosted fixes from b7: the capture strip keeps `<Changes>`, Cast tab redraws, awaited registration | ✅ | #177 |
-| Cleanup steps 0–9, 11 and 10a (locks, caps, golden outputs, field registry, profileUpdates, gates, markers, merges, targeted passes, index.js split part 1) | ✅ | #174, #176, #178–#187 |
-| Cleanup step 10b (index.js split part 2) and the steps after it | 🔧 | #188 |
+| Cleanup steps 0–11 (locks, caps, golden outputs, field registry, profileUpdates, gates, markers, merges, targeted passes, index.js split in three parts, dead code) | ✅ | #174, #176, #178–#189 |
 | One-pass prompt changes (audit steps 12–13): need the user's sign-off (C10) | ⏳ | |
 
 ## Break round (F103)
@@ -101,9 +102,9 @@ are fixed in this round's PRs, each with the finding's test.
 | Run | What it went at | Findings | Fixed in |
 |---|---|---|---|
 | b1-capture | change-line fuzz, limits, Continue | 17 (3 high, 7 med, 7 low) | SB #77, #79; RB #82; SD #83 |
-| b2-timeline | swipes, deletes, chat switches, saves (live chaos) | 11 (1 crit, 2 high, 5 med, 3 low) | SB #77, #80, #82; RB #82 |
+| b2-timeline | swipes, deletes, chat switches, saves (live chaos) | 11 (1 crit, 2 high, 5 med, 3 low) | SB #77, #80, #82; RB #82, #84 |
 | b3-economy | conservation of coin, goods and XP | 20 (3 crit, 9 high, 6 med, 2 low) | SB #76, #77, #79, #80, #83; RB #82; SD #83, #85 |
-| b4-combat | fights, checks, changes mid-fight | 14 (2 high, 9 med, 3 low) | RB #82; SD #83 |
+| b4-combat | fights, checks, changes mid-fight | 14 (2 high, 9 med, 3 low) | RB #82, #83; SD #83 |
 | b5b-robust | form names, prompt hygiene, regex timing, sizes (b5-security stopped early) | 13 (3 high, 5 med, 5 low) | SB #77; RB #82; SD #83 |
 | b6-soak | 1500 replies live | no report filed | |
 | b7-combos | versions, NSD hosted, module upgrades | 12 (1 crit, 2 high, 6 med, 3 low) | SB #78; NSD #177; v1: RB #81, SD #84 |
@@ -118,7 +119,14 @@ typed into a reply by hand stays shown until Re-read, by design.
 - Two tabs on one chat: the last writer wins (documented; no lock across tabs).
 - SillyTavern's own TypeError when the chat is switched mid-stream (`onProgressStreaming` reads `mes` of a
   message that is gone); seen in every live chaos run, not ours to fix.
-- NSD cleanup steps still running (#188 and after).
+- NSD: the cleanup is done (#174–#189); the prompt-changing steps 12–13 wait for the user's sign-off.
+- Save cost grows with the chat: the reader's actions are saved before sdk.command answers, and the
+  whole chat file is written each time. Measured live (SillyTavern 1.19, messages of about 2.4 KB with
+  their records): 50 messages 0.13 MB, 13 ms a save; 500 messages 1.2 MB, 97 ms; 3000 messages 7.3 MB,
+  551 ms (55 ms of it building the body on the page). Actions made while a save is writing already share
+  one more save; actions made one after another each wait for their own. Answering before the server
+  has the save would trade that for a lost action when the page is closed mid-save (keepalive only
+  carries 60 KB): a decision for after alpha.2, with the storage tuning.
 - To watch: `src/v2/chat-file.js` mirrors SillyTavern's save body; check it on each SillyTavern release.
 
 ## Next
