@@ -10,14 +10,13 @@ import {
 } from './common.js';
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { baseCoin, formatAmount, formatWallet, parseAmount } from './money.js';
+import { DEF_ID, isId } from '../check.js';
 
 export const KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
 export const RARITIES = Object.freeze(['common', 'uncommon', 'rare', 'epic', 'legendary']);
 // The order kinds are listed in (prompt view and tab): what the story turns on first.
 export const KIND_ORDER = Object.freeze(['quest', 'equipment', 'consumable', 'material', 'goods', 'money']);
 
-const DEF_ID_RE = /^[a-z0-9][a-z0-9.-]*\/[^\s/A-Z]+$/;
-const STACK_ID_RE = /^it_[a-z0-9]+$/;
 const MAX_NAME = 120;
 const MAX_NOTE = 300;
 const MAX_UNSTACKED = 50;
@@ -42,7 +41,7 @@ function defErrors(key, def) {
     const label = nonBlank(def.name) ? def.name : key;
     const errors = [];
     if (def.id !== key) errors.push(`Item definition ${key} is filed under the wrong ID.`);
-    if (!DEF_ID_RE.test(key)) errors.push(`"${key}" is not a well-formed item definition ID (namespace/slug).`);
+    if (!DEF_ID.test(key)) errors.push(`"${key}" is not a well-formed item definition ID (namespace/slug).`);
     if (!nonBlank(def.name) || def.name.length > MAX_NAME) errors.push(`Item definition ${key} needs a name of 1 to ${MAX_NAME} characters.`);
     if (!KINDS.includes(def.kind)) errors.push(`${label} has an unknown kind "${def.kind}".`);
     if (!RARITIES.includes(def.rarity)) errors.push(`${label} has an unknown rarity "${def.rarity}".`);
@@ -73,7 +72,7 @@ export function validateInventory(slice) {
         const def = isPlainObject(defs[stack.def]) ? defs[stack.def] : null;
         const label = def?.name ?? key;
         if (stack.id !== key) errors.push(`Item stack ${key} is filed under the wrong ID.`);
-        if (!STACK_ID_RE.test(key)) errors.push(`"${key}" is not a well-formed item stack ID.`);
+        if (!isId(key, 'it')) errors.push(`"${key}" is not a well-formed item stack ID.`);
         if (!def) errors.push(`Item stack ${key} refers to an item definition that does not exist (${stack.def}).`);
         if (!isCount(stack.qty, 1)) errors.push(`${label} has quantity ${stack.qty}; a stack holds a whole number of at least 1 (an empty stack is removed).`);
         else if (def && def.stack === false && stack.qty !== 1) errors.push(`${label} does not stack, so each one is its own stack of 1.`);

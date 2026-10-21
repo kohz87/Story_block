@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_COINS, currencyFrom, formatAmount, formatWallet, normalizeCoins, parseAmount } from '../../../src/v2/domains/money.js';
 import { aliasKey, cleanName, nameForms, resolveDef, slugify, trimText } from '../../../src/v2/domains/names.js';
 import { COINS } from './fixtures.js';
+import { DEF_ID } from '../../../src/v2/check.js';
 
 test('currency: default, hook arrays, v1 tiers, unusable answers skipped', () => {
     assert.deepEqual(currencyFrom([]), DEFAULT_COINS);
@@ -68,8 +69,11 @@ test('resolveDef', () => {
 test('slugify and trimText', () => {
     assert.equal(slugify('Moonveil Trout'), 'moonveil-trout');
     assert.equal(slugify("Jarl's Crème Brûlée!"), 'jarl-s-creme-brulee');
-    assert.equal(slugify('魔剣 ムラマサ'), '魔剣-ムラマサ');
-    assert.equal(slugify('!!!'), 'item');
+    assert.match(slugify('魔剣 ムラマサ'), /^item-[0-9a-z]+$/);
+    assert.equal(slugify('魔剣 ムラマサ'), slugify('魔剣 ムラマサ'), 'stable');
+    assert.notEqual(slugify('魔剣'), slugify('ムラマサ'));
+    assert.equal(slugify('Jarl 魔剣'), 'jarl');
+    for (const name of ['Moonveil Trout', '魔剣', 'Crème', 'A--B', '_x_', 'Rope 2']) assert.match(`story/${slugify(name)}`, DEF_ID, name);
     assert.ok(slugify('x'.repeat(80)).length <= 48);
     assert.equal(trimText('a  very long note', 8), 'a very…');
     assert.equal(trimText('short', 8), 'short');

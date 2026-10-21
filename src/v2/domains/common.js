@@ -1,6 +1,7 @@
 // Small helpers shared by the scene and inventory domains. Pure.
 
-export const OWNER_RE = /^(?:party|ac_[a-z0-9]+)$/;
+// The party, or an actor ID (`ac_` + 8 base36, as check.js's RECORD_ID).
+export const OWNER_RE = /^(?:party|ac_[0-9a-z]{8})$/;
 
 export const isPlainObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 

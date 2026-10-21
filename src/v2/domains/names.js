@@ -67,15 +67,29 @@ export function resolveDef(inventory, name) {
     return list.length ? { status: 'ambiguous', ids: list } : { status: 'none', ids: [] };
 }
 
-/** "Moonveil Trout" → "moonveil-trout" (letters of any script kept; accents dropped). */
+// FNV-1a over the name, in base36: a stable slug for a name with no Latin letters or digits.
+function hashSlug(text) {
+    let hash = 0x811c9dc5;
+    for (const char of text) {
+        hash ^= char.codePointAt(0);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(36);
+}
+
+/**
+ * "Moonveil Trout" → "moonveil-trout": ASCII letters and digits only, as check.js's DEF_ID wants
+ * (accents dropped); a name with none of them ("魔剣") gets "item-<hash of the name>".
+ */
 export function slugify(name) {
-    const slug = aliasKey(name)
-        .normalize('NFKD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^\p{L}\p{N}]+/gu, '-')
+    const key = aliasKey(name);
+    const slug = key
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 48)
         .replace(/-+$/, '');
-    return slug || 'item';
+    return slug || `item-${hashSlug(key)}`;
 }
 
 /** A note or name cut to `max` characters with an ellipsis. */
