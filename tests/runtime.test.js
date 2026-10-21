@@ -185,13 +185,62 @@ test('transaction readback distinguishes rejected saves, lost responses and unkn
     }
 });
 
+test('chat JSONL verifies blocks, XP extras and journal in one save, including failed readback', async t => {
+    const sb = globalThis.StoryBlock;
+    const { templateById } = await import('../src/templates.js');
+    setBlocks([{ ...templateById('inventory'), enabled: true }]);
+    sb.registerBlock({ id: 'journal-party', tag: 'Party', name: 'Party', kept: true, owner: 'RPG Battle' });
+    t.after(() => { delete ctx.chatMetadata; sb.unregisterBlock('journal-party'); });
+    const save = t.mock.method(ctx, 'saveChat');
+    const fetch = t.mock.method(globalThis, 'fetch');
+    for (const mode of ['success', 'rejected', 'lost-response', 'stale-header', 'newer-change']) {
+        ctx.chatMetadata = {};
+        ctx.chat = [{ is_user: false, mes: 'Before', extra: {} }];
+        const before = structuredClone(ctx.chat[0]);
+        let stored = [{ chat_metadata: {} }, before];
+        save.mock.mockImplementation(async () => {
+            if (!['rejected', 'newer-change'].includes(mode)) stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]);
+            if (mode === 'stale-header') stored[0].chat_metadata = {};
+            if (mode === 'newer-change') {
+                ctx.chat[0].mes = 'Concurrent edit';
+                ctx.chatMetadata.storyBlockJournal = { newer: true };
+            }
+            if (mode !== 'success') throw new Error('Lost response');
+        });
+        fetch.mock.mockImplementation(async () => ({ ok: true, json: async () => stored }));
+        const result = await sb.commitBlocks({ id: mode, chatId: 'chat-1', messageIndex: 0, expectedText: 'Before',
+            changes: [{ tag: 'Inventory', text: 'Coins | 8 silver |' }, { tag: 'Party', text: 'Level: 2 | XP: 10/100 | Points: 3' }],
+            namespace: 'storyDirectorQuest', value: { receipts: [{ id: mode, xp: 30 }] },
+            extras: { storyDirectorState: { version: 1, tracker: { records: [] } } },
+        });
+        assert.equal(result.status, ['success', 'lost-response'].includes(mode) ? 'durable' : mode === 'rejected' ? 'failed' : 'uncertain', mode);
+        if (mode === 'rejected') {
+            assert.deepEqual(ctx.chat[0], before);
+            assert.deepEqual(ctx.chatMetadata, {});
+        }
+        if (mode === 'newer-change') {
+            assert.equal(ctx.chat[0].mes, 'Concurrent edit');
+            assert.deepEqual(ctx.chatMetadata.storyBlockJournal, { newer: true });
+        }
+        if (result.status === 'durable') {
+            const view = sb.journal();
+            assert.equal(view.availability, 'available');
+            assert.match(view.entries.at(-1).blocks.Party, /Points: 3/);
+            assert.equal(view.entries.at(-1).extra.storyDirectorQuest.receipts[0].xp, 30);
+            assert.equal(view.entries.at(-1).extra.storyDirectorState.version, 1);
+        }
+    }
+    assert.equal(save.mock.callCount(), 5, 'one host save per transaction');
+});
+
 test('new swipes drop copied transactions while preserving the old variant and unrelated extras', async () => {
     const sb = globalThis.StoryBlock;
     const oldExtra = {
         retained: true, storyBlockIdentity: { id: 'old-variant', swipe: 0 },
         storyDirectorQuest: { receipts: [{ id: 'payment' }] },
+        storyDirectorState: { version: 1, tracker: {} },
         rpgBattleEvidence: { events: [{ id: 'fight' }] },
-        storyBlockCommits: { payment: { namespace: 'storyDirectorQuest' }, fight: { namespace: 'rpgBattleEvidence' } },
+        storyBlockCommits: { payment: { namespace: 'storyDirectorQuest', extras: ['storyDirectorState'] }, fight: { namespace: 'rpgBattleEvidence' } },
     };
     ctx.chat = [{ is_user: false, mes: 'New telling', swipe_id: 1, swipes: ['Old telling', 'New telling'],
         swipe_info: [{ extra: structuredClone(oldExtra) }, { extra: {} }], extra: structuredClone(oldExtra) }];
@@ -201,6 +250,7 @@ test('new swipes drop copied transactions while preserving the old variant and u
     assert.notEqual(sb.messageIdentity(0), 'old-variant');
     assert.equal(message.extra.retained, true);
     assert.equal(message.extra.storyDirectorQuest, undefined);
+    assert.equal(message.extra.storyDirectorState, undefined);
     assert.equal(message.extra.rpgBattleEvidence, undefined);
     assert.equal(message.extra.storyBlockCommits, undefined);
     assert.deepEqual(message.swipe_info[0].extra, oldExtra);
@@ -453,10 +503,11 @@ test('kept block: registered, written by setBlockText, shown read-only in the pr
         notices.length = 0;
         await finish('She drinks.\n<Character>\nHP: 62/62 | MP: 30/30\n</Character>\n<!-- STORY_BLOCKS_V1\n<Blocks>\n<Notes>\nHealed.\n</Notes>\n</Blocks>\n-->');
         const mes = ctx.chat.at(-1).mes;
-        assert.doesNotMatch(mes, /<Character/, 'the model\'s copy is gone from the reply');
+        assert.doesNotMatch(mes, /HP: 62\/62/, 'the model\'s copy is gone from the reply');
+        assert.match(mes, /<Character kept="RPG Battle">\nHP: 58\/62/, 'the verified state carries forward');
         assert.match(mes, /^She drinks\.\n/);
         assert.match(mes, /<Notes>\nHealed\.\n<\/Notes>/);
-        assert.equal(sb.getBlock('Character').messageIndex, 2, 'the extension\'s copy stays current');
+        assert.equal(sb.getBlock('Character').messageIndex, ctx.chat.length - 1, 'the carried copy stays current');
         assert.equal(notices.filter(notice => /Character/.test(notice)).length, 0, 'no missing-block warning');
 
         // An edit that writes the tag by hand is dropped the same way.
@@ -484,7 +535,7 @@ test('suite: Story Block announces itself on load with what its enabled blocks o
     assert.deepEqual(provider.owns, ['items'], 'a first install has only Inventory on');
     assert.equal(globalThis.StorySuite.api('story-block').listBlocks, globalThis.StoryBlock.listBlocks);
     assert.equal(globalThis.StorySuite.api('story-block').getBlock, globalThis.StoryBlock.getBlock);
-    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['commitBlocks', 'getBlock', 'listBlocks', 'manage', 'messageIdentity', 'openSuite', 'printsPurse', 'transactionVersion']);
+    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['commitBlocks', 'getBlock', 'journal', 'journalVersion', 'listBlocks', 'manage', 'messageIdentity', 'openSuite', 'printsPurse', 'transactionVersion']);
     assert.equal(globalThis.StorySuite.api('story-block').commitBlocks, globalThis.StoryBlock.commitBlocks);
     assert.equal(globalThis.StorySuite.api('story-block').transactionVersion, 1);
     assert.equal(provider.settings, '#story_block_settings', 'its panel, for Story Suite\'s overlay');

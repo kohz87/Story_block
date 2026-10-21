@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.27
+
+- **Shared chat checkpoints.** Inventory, Party/XP and structured quest evidence share a branch-aware journal in SillyTavern's existing chat JSONL metadata. Hidden replies and removed old prefixes retain proven history; tail rollback restores the earlier branch. Unchanged state bodies are deduplicated. Keep chat metadata when exporting or archiving.
+- **One verified quest reward save.** Transactions can include secondary extra namespaces and verify the journal header alongside the message. Rejected saves restore both only if untouched; uncertain outcomes require recovery. Kept Party state carries into later replies, and reply callbacks run sequentially in priority order.
+- Interior edits or removals with dependent replies retained require recovery. Restore that branch or rewind its suffix; this does not reconstruct arbitrary edited history.
+
 ## 0.9.26
 
 - **Coordinated quest saves.** Extensions can validate and save Inventory, quest completion and receipt together, then read the saved chat back before reporting success. Rejected saves restore an untouched candidate; ambiguous saves require recovery. Retrying a confirmed transaction does not write it again.

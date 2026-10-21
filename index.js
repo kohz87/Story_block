@@ -32,12 +32,13 @@ import { openBodyEditor } from './src/body-editor.js';
 import { blockInText, blockSnapshot, blockSummary, createListeners, findBlockDef, generationSnapshot, hasTab, pluginBlockDef } from './src/plugin.js';
 import { storySuite } from './src/suite.js';
 import { contextTokens } from './src/tokens.js';
+import { JOURNAL_VERSION, journalKey, journalState } from './src/journal.js';
 import { previewParts, renderPreview } from './src/ui/preview.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.26';
+const VERSION = '0.9.27';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -144,6 +145,7 @@ function enabledBlocks(ctx = context()) {
 // kept by the extension (shown to the model read-only, a tab without Edit unless `tab: false`).
 const pluginBlocks = new Map();
 const replyListeners = createListeners('reply listener');
+let replyCallbacks = 0;
 const updateListeners = createListeners('update listener');
 
 // Every tag Story Block moves into the envelope and keeps out of narration and history.
@@ -496,6 +498,9 @@ function historyBlocks(ctx) {
 }
 
 async function saveChat(ctx) {
+    const staged = stageJournal(ctx);
+    if (staged?.availability !== undefined && staged.availability !== 'available') throw new Error(staged.reason);
+    if (staged) chatMetadata(ctx).storyBlockJournal = staged.journal;
     if (typeof ctx.saveChat === 'function') await ctx.saveChat();
     else ctx.saveMetadataDebounced?.();
 }
@@ -522,11 +527,53 @@ function ensureMessageIdentity(message) {
         // The host may copy extras; the old swipe_info retains its own transactions.
         for (const receipt of Object.values(extra.storyBlockCommits ?? {})) {
             if (typeof receipt?.namespace === 'string') delete extra[receipt.namespace];
+            for (const name of receipt?.extras ?? []) delete extra[name];
         }
         delete extra.storyBlockCommits;
     }
     message.extra = { ...extra, storyBlockIdentity: { id: crypto.randomUUID(), swipe } };
     return true;
+}
+
+const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'rpgBattleEvidence', 'rpgBattleAwards'];
+const chatMetadata = ctx => ctx?.chatMetadata ?? ctx?.chat_metadata ?? null;
+
+function stageJournal(ctx = context(), overrideIndex = -1, override = null) {
+    const meta = chatMetadata(ctx);
+    if (!meta) return null;
+    const defs = transportBlocks(ctx).filter(def => def.kind === 'stateful');
+    const frames = [];
+    (ctx.chat ?? []).forEach((stored, index) => {
+        const message = index === overrideIndex ? override : stored;
+        const identity = message?.extra?.storyBlockIdentity;
+        if (message?.is_user || !identity?.id || identity.swipe !== (message.swipe_id ?? 0)) return;
+        const extra = Object.fromEntries(JOURNAL_EXTRAS.filter(name => message.extra[name] !== undefined).map(name => [name, message.extra[name]]));
+        const blocks = {};
+        for (const def of defs) {
+            const own = blockInText(message.mes, def);
+            const baseline = !frames.length && !meta.storyBlockJournal ? blockSnapshot(ctx.chat, def, { beforeIndex: index + 1 }) : null;
+            if (own || baseline) blocks[def.tag] = (own ?? baseline).text;
+        }
+        frames.push({ owner: identity.id, index, blocks, extra,
+            signature: journalKey(message.mes) + ':' + journalKey(JSON.stringify(extra)) });
+    });
+    return journalState(meta.storyBlockJournal, frames, { scope: chatIdOf(ctx) });
+}
+
+function journal() {
+    const state = stageJournal();
+    if (!state) return { availability: 'unavailable', reason: 'Chat metadata is unavailable.', entries: [], prefix: [] };
+    const { journal: _saved, ...view } = state;
+    return view;
+}
+
+function archivedBlock(tagOrId) {
+    const def = findBlockDef(transportBlocks(), tagOrId);
+    const history = journal();
+    const text = history.availability === 'available' ? history.prefix.at(-1)?.blocks[def?.tag] : null;
+    if (text == null || !def) return null;
+    const found = blockInText(upsertBlock('', def, text), def);
+    return found ? { ...found, messageIndex: -1 } : null;
 }
 
 // No MESSAGE_UPDATED is emitted here: built-in Translate re-translates (and, with auto mode
@@ -581,6 +628,12 @@ function describeMissing(problems) {
 }
 
 async function onMessageReceived(messageId) {
+    replyCallbacks++;
+    try { await receiveMessage(messageId); }
+    finally { replyCallbacks--; refreshAll(0); }
+}
+
+async function receiveMessage(messageId) {
     const ctx = context();
     const id = Number(messageId);
     if (!ctx || !Number.isInteger(id)) return;
@@ -629,13 +682,13 @@ async function onMessageReceived(messageId) {
     }
     // (0.9.17) Every reply holds the whole state: a block it did not write (nothing changed,
     // or the model left it out) is carried into it as it stood, so no reply depends on older ones.
-    const carried = carryStates(message.mes, blocks(ctx), ctx.chat, id);
+    const carried = carryStates(message.mes, transportBlocks(ctx), ctx.chat, id);
     if (carried !== message.mes) {
         message.mes = carried;
         await persistMessageEdit(ctx, id, message, { rerender: false, save: false });
         dirty = true;
     }
-    if (dirty) {
+    if (dirty || chatMetadata(ctx)) {
         syncActiveSwipeText(message);
         await saveChat(ctx);
     }
@@ -643,7 +696,7 @@ async function onMessageReceived(messageId) {
     refreshAll(0);
     // The Overview's token estimates follow the new reply (nothing is polled).
     refreshSuiteOverlay();
-    replyListeners.emit({ chatId, messageIndex: id });
+    await replyListeners.emitAsync({ chatId, messageIndex: id });
 }
 
 function onGenerationEnded() {
@@ -691,6 +744,8 @@ async function setBlockText(messageIndex, tagOrId, text) {
     if (!isAssistant(message)) throw new Error(`Message #${messageIndex} is not an assistant reply.`);
     const next = upsertBlock(message.mes, def, blockBody(def, text));
     if (next === message.mes) return false;
+    const staged = stageJournal(ctx, id, { ...message, mes: next });
+    if (staged && staged.availability !== 'available') throw new Error(staged.reason);
     message.mes = next;
     await persistMessageEdit(ctx, id, message, { rerender: false });
     refreshAll(0);
@@ -720,21 +775,25 @@ async function savedMessages(ctx, chatId) {
     if (!response.ok) throw new Error('Saved chat could not be read.');
     const data = await response.json();
     if (!Array.isArray(data)) throw new Error('Saved chat could not be verified.');
-    return data.filter(entry => typeof entry?.mes === 'string');
+    return { messages: data.filter(entry => typeof entry?.mes === 'string'), metadata: data.find(entry => entry?.chat_metadata)?.chat_metadata };
 }
 
 const blockCommits = new Set();
 
 // Transaction v1: validate the base, save blocks/extras once, then verify readback.
-async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedExtra, changes = [], namespace, value }) {
+async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedExtra, changes = [], namespace, value, extras = {} }) {
     const ctx = context();
     if (!ctx || !chatId || chatIdOf(ctx) !== chatId || blockCommits.has(chatId)) return { status: 'failed', reason: 'Chat changed or a save is in progress.' };
     if (pending.has(chatId) || typeof ctx.saveChat !== 'function') return { status: 'failed', reason: 'A reply is generating or saving is unavailable.' };
     const message = ctx.chat?.[messageIndex];
     if (!id || !isAssistant(message) || !/^[a-z][a-zA-Z0-9]+$/.test(namespace ?? '')) return { status: 'failed', reason: 'Invalid transaction.' };
+    if (Object.keys(extras).some(name => !/^[a-z][a-zA-Z0-9]+$/.test(name) || ['storyBlockIdentity', 'storyBlockCommits'].includes(name))) return { status: 'failed', reason: 'Invalid transaction extras.' };
     if (message.mes !== expectedText || (expectedExtra !== undefined && JSON.stringify(message.extra ?? {}) !== expectedExtra)) return { status: 'failed', reason: 'The reply changed; refresh before retrying.' };
     const before = structuredClone(message);
     const candidate = structuredClone(message);
+    const meta = chatMetadata(ctx);
+    const beforeJournal = meta?.storyBlockJournal;
+    let candidateJournal = beforeJournal;
     const oldReceipt = message.extra?.storyBlockCommits?.[id];
     blockCommits.add(chatId);
     let applied = false;
@@ -747,28 +806,41 @@ async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedEx
             }
             ensureMessageIdentity(candidate);
             candidate.extra = {
-                ...candidate.extra, [namespace]: structuredClone(value),
-                storyBlockCommits: { ...(candidate.extra?.storyBlockCommits ?? {}), [id]: { namespace } },
+                ...candidate.extra, ...structuredClone(extras), [namespace]: structuredClone(value),
+                storyBlockCommits: { ...(candidate.extra?.storyBlockCommits ?? {}), [id]: { namespace, ...(Object.keys(extras).length ? { extras: Object.keys(extras) } : {}) } },
             };
             syncActiveSwipeText(candidate);
+            const staged = stageJournal(ctx, messageIndex, candidate);
+            if (staged && staged.availability !== 'available') throw new Error(staged.reason);
+            candidateJournal = staged?.journal;
             Object.assign(message, structuredClone(candidate));
+            if (meta && candidateJournal) meta.storyBlockJournal = candidateJournal;
         }
         applied = true;
         if (!oldReceipt) {
             try { await ctx.saveChat(); } catch { /* Readback distinguishes a lost response from a failed write. */ }
         }
-        const saved = (await savedMessages(ctx, chatId))[messageIndex];
+        const stored = await savedMessages(ctx, chatId);
+        const saved = stored.messages[messageIndex];
         const confirmed = saved?.mes === candidate.mes
             && saved?.extra?.storyBlockCommits?.[id]?.namespace === namespace
-            && JSON.stringify(saved?.extra?.[namespace]) === JSON.stringify(candidate.extra[namespace]);
+            && JSON.stringify(saved?.extra?.[namespace]) === JSON.stringify(candidate.extra[namespace])
+            && Object.keys(extras).every(name => JSON.stringify(saved?.extra?.[name]) === JSON.stringify(candidate.extra[name]))
+            && (!candidateJournal || JSON.stringify(stored.metadata?.storyBlockJournal) === JSON.stringify(candidateJournal));
         if (confirmed) {
             if (chatIdOf(context()) === chatId) refreshAll(0);
             return { status: 'durable', id, owner: candidate.extra.storyBlockIdentity.id };
         }
-        const unchanged = saved?.mes === before.mes && JSON.stringify(saved?.extra ?? {}) === JSON.stringify(before.extra ?? {});
-        if (unchanged && JSON.stringify(message) === JSON.stringify(candidate)) {
+        const unchanged = saved?.mes === before.mes && JSON.stringify(saved?.extra ?? {}) === JSON.stringify(before.extra ?? {})
+            && (!candidateJournal || JSON.stringify(stored.metadata?.storyBlockJournal) === JSON.stringify(beforeJournal));
+        if (unchanged && JSON.stringify(message) === JSON.stringify(candidate)
+            && (!meta || JSON.stringify(meta.storyBlockJournal) === JSON.stringify(candidateJournal))) {
             for (const key of Object.keys(message)) delete message[key];
             Object.assign(message, before);
+            if (meta) {
+                if (beforeJournal) meta.storyBlockJournal = beforeJournal;
+                else delete meta.storyBlockJournal;
+            }
             return { status: 'failed', reason: 'The transaction was not saved.' };
         }
         return { status: 'uncertain', reason: 'Saved state differs; reload and reconcile before retrying.' };
@@ -1488,12 +1560,12 @@ globalThis.StoryBlock = Object.freeze({
     /** The newest valid copy of a block (before `beforeIndex`): { id, tag, text, state, messageIndex } | null. */
     getBlock(tagOrId, { beforeIndex = null } = {}) {
         const ctx = context();
-        return blockSnapshot(ctx?.chat ?? [], findBlockDef(transportBlocks(ctx), tagOrId), { beforeIndex });
+        return blockSnapshot(ctx?.chat ?? [], findBlockDef(transportBlocks(ctx), tagOrId), { beforeIndex }) ?? archivedBlock(tagOrId);
     },
     /** The copy the model will be shown for a generation of `type` (a swipe sees the one before). */
     blockForGeneration(tagOrId, type = 'normal') {
         const ctx = context();
-        return generationSnapshot(ctx?.chat ?? [], findBlockDef(transportBlocks(ctx), tagOrId), type);
+        return generationSnapshot(ctx?.chat ?? [], findBlockDef(transportBlocks(ctx), tagOrId), type) ?? archivedBlock(tagOrId);
     },
     /** A block as written in one message's text, or null. */
     blockInText(text, tagOrId) {
@@ -1501,6 +1573,8 @@ globalThis.StoryBlock = Object.freeze({
     },
     setBlockText,
     transactionVersion: 1,
+    journalVersion: JOURNAL_VERSION,
+    journal,
     commitBlocks,
     messageIdentity,
     /**
@@ -1523,7 +1597,8 @@ globalThis.StoryBlock = Object.freeze({
         return removed;
     },
     /** After each reply is received and normalized: callback({ chatId, messageIndex }). Returns unsubscribe. */
-    onReply: callback => replyListeners.add(callback),
+    onReply: (callback, options) => replyListeners.add(callback, options),
+    replyBusy: () => replyCallbacks > 0,
     /** Whenever Story Block refreshes (reply, swipe, edit, delete, chat change). Returns unsubscribe. */
     onUpdate: callback => updateListeners.add(callback),
     registerTab(tab) {
@@ -1546,6 +1621,8 @@ const SUITE_API = Object.freeze({
     listBlocks: globalThis.StoryBlock.listBlocks,
     getBlock: globalThis.StoryBlock.getBlock,
     transactionVersion: 1,
+    journalVersion: JOURNAL_VERSION,
+    journal,
     commitBlocks,
     messageIdentity,
     manage: Object.freeze({

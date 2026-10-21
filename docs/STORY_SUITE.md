@@ -71,8 +71,9 @@ kept as before, and its instruction points the model at NPC State Delta's cards.
 
 `StoryBlock` and its Suite API expose `transactionVersion: 1`, `messageIdentity(index)`
 and `commitBlocks({id, chatId, messageIndex, expectedText, expectedExtra, changes,
-namespace, value})`. `expectedExtra` is JSON text; `changes` is `[{tag, text}]`.
-The API validates the base, saves all blocks and one extra namespace together, then
+namespace, value, extras?})`. `expectedExtra` is JSON text; `changes` is `[{tag, text}]`;
+`extras` maps additional namespaces to values in the same transaction.
+The API validates the base, saves blocks, extras and the journal together, then
 reads the actual saved character/group chat. It returns `{status, reason?}` where status
 is durable, failed or uncertain. Stop/reconcile uncertain outcomes; never replay a delta.
 Use one immutable operation per ID. Retries verify without saving again; rejected writes
@@ -81,6 +82,19 @@ restore only untouched candidates. Arbitrary external-writer isolation is not gu
 Message identities and `extra.storyBlockCommits` are swipe-owned; active swipe text/extras
 stay synchronized and copied transactions are cleared on new variants. This supports
 RPG `rpgBattleEvidence` and Director `storyDirectorQuest` without model-visible metadata.
+
+`journalVersion: 1` and `journal()` expose an active-branch view:
+`{availability, reason?, entries, prefix, offset, key}`. Nodes contain stable owner/parent
+IDs, logical positions, full stateful block text and supported extension extras. `prefix`
+contains proven ancestors removed from the live chat; `offset` maps live message indexes
+to logical positions. The backing `chatMetadata.storyBlockJournal` retains inactive
+variants and deduplicated bodies in the native chat JSONL. Never inject it into prompts.
+Prefix archival requires a recognized retained reply; missing anchors, missing bodies or
+ambiguous interior edits return incomplete. Keep metadata in exports and archive operations.
+
+`onReply(callback, {priority: 0})` awaits callbacks in ascending order, isolating failures.
+`replyBusy()` covers normalization and callbacks so scheduled awards can wait for completion.
+RPG updates Party at -10, Director settles at 0, and RPG handles later story awards at 10.
 
 ```js
 import { storySuite, isSourceOfTruth } from './src/suite.js';

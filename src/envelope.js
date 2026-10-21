@@ -546,13 +546,13 @@ export function latestBlockState(chat, def, { beforeIndex = null } = {}) {
  * (0.9.17) The reply at `index` with a copy of each of the reader's stateful blocks it does not
  * write itself: the newest valid copy before it, as it is. So every reply holds the whole state
  * and stands alone; deleting older replies loses nothing. A reply with its own copy (cut off or
- * unreadable too: that one is warned about and left for the reader) is left as it is, and so
- * are kept blocks, which their extensions write. Returns `text` when nothing is carried.
+ * unreadable too: that one is warned about and left for the reader) is left as it is.
+ * Kept blocks carry their existing owner stamp. Returns `text` when nothing is carried.
  */
 export function carryStates(text, defs, chat, index) {
     let out = String(text ?? '');
     for (const def of Array.isArray(defs) ? defs : []) {
-        if (!def || def.kind !== 'stateful' || def.kept || def.enabled === false) continue;
+        if (!def || def.kind !== 'stateful' || def.enabled === false) continue;
         if (extractBlocks(out, [def]).some(entry => ownCopy(entry, def))) continue;
         const before = latestBlockState(chat, def, { beforeIndex: index });
         if (before) out = upsertBlock(out, def, before.body);

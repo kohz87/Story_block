@@ -94,3 +94,15 @@ test('listeners: a throwing listener is skipped, unsubscribe works', () => {
     assert.equal(list.size, 1);
     assert.equal(typeof list.add('not a function'), 'function');
 });
+
+test('async reply listeners finish in priority order and isolate rejected callbacks', async t => {
+    const list = createListeners('reply');
+    const seen = [];
+    t.mock.method(console, 'warn', () => {});
+    list.add(() => seen.push('director'));
+    list.add(async () => { await Promise.resolve(); seen.push('rpg'); }, { priority: -10 });
+    list.add(async () => { throw new Error('failed plugin'); }, { priority: -5 });
+    await list.emitAsync({});
+    assert.deepEqual(seen, ['rpg', 'director']);
+    assert.equal(console.warn.mock.callCount(), 1);
+});
