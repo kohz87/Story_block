@@ -128,23 +128,40 @@ export function makeView({ store, registry, settings, chat = [] }) {
     });
 }
 
-/** The registered modules whose domains the head state lacks (enabled after the chat began). */
+/**
+ * The registered modules whose domains the head state lacks (enabled after the chat began, or a
+ * newer version with a domain more): [{ def, missing: [domain names] }], in module-id order.
+ */
 export function missingModules(registry, state) {
     const domains = state?.domains ?? {};
-    return registry.modules().filter(def => Object.keys(def.domains ?? {}).some(name => !Object.hasOwn(domains, name)));
+    return registry.modules()
+        .map(def => ({ def, missing: Object.keys(def.domains ?? {}).filter(name => !Object.hasOwn(domains, name)) }))
+        .filter(entry => entry.missing.length);
 }
 
+// Set-up failures already logged, per registry: a domain whose initial() keeps failing is tried
+// again at every turn, and told once.
+const toldFailures = new WeakMap();
+
 /**
- * Adds each late module's initial slices with a `system` receipt on the head carrier (§2.6).
- * Does nothing without a head carrier. Returns the command results.
+ * Adds the missing initial slices of each module (only those: a domain the chat already has keeps
+ * its data) with a `system` receipt on the head carrier (§2.6). Does nothing without a head carrier
+ * or before the chat has its state (a module registering at boot, before CHAT_CHANGED). Returns the
+ * command results.
  */
 export async function ensureModules({ store, bus, registry, events = null }) {
-    if (store.headIndex() < 0) return [];
+    if (store.headIndex() < 0 || !store.head()) return [];
+    if (!toldFailures.has(registry)) toldFailures.set(registry, new Set());
+    const told = toldFailures.get(registry);
     const results = [];
-    for (const def of missingModules(registry, store.head())) {
-        const result = await bus.command(`${INIT_PREFIX}${def.id}`, {}, { cause: 'system' });
+    for (const { def, missing } of missingModules(registry, store.head())) {
+        const result = await bus.command(`${INIT_PREFIX}${def.id}`, { domains: missing }, { cause: 'system' });
         if (result?.ok) events?.emit('committed', { receipt: result.receipt });
-        else console.warn(`[Story Suite] ${def.name ?? def.id} could not be set up in this chat: ${result?.message ?? 'unknown error'}`);
+        else {
+            const message = `${def.name ?? def.id} could not be set up in this chat: ${result?.message ?? 'unknown error'}`;
+            if (!told.has(message)) console.warn(`[Story Suite] ${message}`);
+            told.add(message);
+        }
         results.push(result);
     }
     return results;

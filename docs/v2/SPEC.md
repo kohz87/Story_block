@@ -133,7 +133,9 @@ JSON Schema is not required.
 
 On a chat with no v2 state, Story Block builds the initial state: `meta` plus each registered domain's
 `initial()`. Phase 3 adds pack start states and character creation on top. A module registered later (enabled
-mid-chat) gets its `initial()` slice added by a `system` receipt on the head carrier.
+mid-chat) gets its `initial()` slice added by a `system` receipt on the head carrier; so does a domain a
+chat lacks (a newer module version's), and only that domain. A domain whose `initial()` throws is left
+out (logged once) and tried again at the next turn; the other domains are not affected.
 
 ## 3. Commands
 
@@ -301,6 +303,14 @@ sdk.registerModule({
 * **Tabs** render into Story Block's tab bar from the head state; they never read message text.
 * **Events**: `sdk.on('committed' | 'head' | 'turn', fn)`; `head` fires after any rebuild.
 * `sdk.query(name, args)`, `sdk.modules()`, `sdk.id(prefix)`, `sdk.check`, `sdk.settings(id)`.
+* **Versions**: `requires: { storyBlock: '>=2.1.0' }` says which Story Block a module needs, as a version
+  range in the packs' form (`^2`, `>=2.0.0 <3`, alternatives with `||`; the host's pre-release counts as
+  its release, so 2.0.0-alpha.1 meets `>=2.0.0`). A host that does not meet it refuses the module with
+  one sentence, "Name needs Story Block ≥ 2.1.0; this is 2.0.0-alpha.1. Update Story Block to use it.",
+  and keeps nothing of it. A definition field the host does not know (one a newer module added, like
+  MODULES §F100's `features`, or another key under `requires`) is logged as a warning and ignored, never
+  a refusal. A module whose domains grow keeps the data of the domains a chat already has: only the
+  missing ones get their `initial()` (§2.6).
 
 ## 7. Core domains (Story Block)
 

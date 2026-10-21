@@ -210,6 +210,25 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
 * After editing a reply: use **Re-read** on it.
 * A screen restyled by a pack or card looks broken: **Reset to default** in the screen settings.
 
+## Removing Story Block from a chat
+
+Story Block keeps each reply's change list in the reply itself, hidden in a comment
+(`<!-- STORY_SUITE_V2 <Changes>…</Changes> -->`), and takes it out of the prompt while it runs. If you
+switch Story Block off or uninstall it and go on with the same chat, those comments reach the model,
+which may start writing change lines in its story text. To keep them out, add a SillyTavern regex
+script (**Extensions → Regex → New global script**):
+
+* **Find Regex**:
+
+  ```
+  /<!--\s*STORY_SUITE_V2\b[\s\S]*?-->/g
+  ```
+
+* **Replace With**: leave it empty.
+* **Affects**: tick **AI Output**.
+* **Ephemerality**: tick only **Alter Outgoing Prompt**, so the replies keep their lists (Story Block
+  reads them again if you turn it back on) and only the prompt loses them.
+
 ## Slow disk? Raise SillyTavern's chat backup interval
 
 SillyTavern rewrites the whole chat file on every save, and also writes a full **backup copy** of it,

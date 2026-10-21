@@ -56,12 +56,23 @@ export const CORE_SETTINGS = Object.freeze({
  * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
  * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCorePart({ hooks = () => [], settings = () => ({}) } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
     };
-    const env = { hooks: hookList, settings: () => settings() ?? {} };
+    // `hookEntries(name)` → [{ moduleId, fn }] (the registry's) names the module a failing hook comes
+    // from; `problem(entry)` adds to the Problems list (turn.js report).
+    const entries = name => {
+        const list = typeof hookEntries === 'function' ? hookEntries(name) : null;
+        return Array.isArray(list) ? list.filter(entry => typeof entry?.fn === 'function') : hookList(name).map(fn => ({ moduleId: null, fn }));
+    };
+    const env = {
+        hooks: hookList,
+        hookEntries: entries,
+        settings: () => settings() ?? {},
+        problem: entry => { try { problem?.(entry); } catch { /* the Problems list is not essential */ } },
+    };
     const currency = () => currencyOf(env.settings());
     const kind = (grammar, apply) => ({ grammar, apply });
     return {
@@ -161,8 +172,8 @@ export function mergeParts(parts) {
  * what the events part commits and asks through (default: the public sdk, looked up lazily);
  * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
-export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null } = {}) {
-    const core = createCorePart({ hooks, settings });
+export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null } = {}) {
+    const core = createCorePart({ hooks, settings, hookEntries, problem });
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),

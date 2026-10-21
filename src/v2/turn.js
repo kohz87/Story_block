@@ -38,6 +38,20 @@ const IN_PROMPT = 0;
 const IN_CHAT = 1;
 const ROLE_SYSTEM = 0;
 const MAX_PROBLEMS = 200;
+// How long a canGenerate or beforeGenerate hook may take before the reply goes on without it.
+export const HOOK_TIMEOUT_MS = 2500;
+const TIMED_OUT = Symbol('timed out');
+
+// `value`, or TIMED_OUT when it is a promise that has not settled within `ms`.
+async function within(value, ms) {
+    if (!value || typeof value.then !== 'function') return value;
+    let timer;
+    try {
+        return await Promise.race([value, new Promise(resolve => { timer = setTimeout(resolve, ms, TIMED_OUT); })]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 const defaultNotify = reason => globalThis.toastr?.warning?.(reason, 'Story Suite');
 
@@ -129,7 +143,7 @@ export function restoreMissing(chat, staticText, tailText) {
  * adds the packs' start, SPEC §2.6) }.
  * `settings` is createSettings() (settings() → host settings, settings(id) → a module's).
  * Returns { interceptor, install, uninstall, onPromptReady, onTextPromptReady, onMessageReceived,
- * onChatChanged, onTimelineChanged, onGenerationEnded, preview, problems, clearProblems,
+ * onChatChanged, onTimelineChanged, onGenerationEnded, preview, report, problems, clearProblems,
  * session }.
  */
 export function createTurn({ ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState() }) {
@@ -192,8 +206,12 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         let committed = false;
         for (const { moduleId, fn } of registry.hookEntries('beforeGenerate')) {
             let out;
-            try { out = await fn(view(), { type }); } catch (error) {
+            try { out = await within(fn(view(), { type }), HOOK_TIMEOUT_MS); } catch (error) {
                 problem({ module: moduleId, code: 'FAILED', message: `beforeGenerate failed: ${error?.message ?? error}` });
+                continue;
+            }
+            if (out === TIMED_OUT) {
+                problem({ module: moduleId, code: 'TIMEOUT', message: `beforeGenerate did not answer within ${HOOK_TIMEOUT_MS / 1000} s; the reply went on without its notes.` });
                 continue;
             }
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];
@@ -220,12 +238,17 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
     /** SillyTavern's generate interceptor: (chat, contextSize, abort, type). */
     // canGenerate (MODULES §F12): every module may hold a story generation back, e.g. until the
     // player character exists. `false` or { ok: false, reason } blocks; the first one is the answer.
-    // A hook that throws is logged and does not block (a bug must not lock the reader out).
+    // A hook that throws, or does not answer within HOOK_TIMEOUT_MS, is logged and does not block
+    // (a bug must not lock the reader out).
     async function blockedBy() {
         for (const { moduleId, fn } of registry.hookEntries('canGenerate')) {
             let answer;
-            try { answer = await fn(view()); } catch (error) {
+            try { answer = await within(fn(view()), HOOK_TIMEOUT_MS); } catch (error) {
                 problem({ module: moduleId, code: 'FAILED', message: `canGenerate failed: ${error?.message ?? error}` });
+                continue;
+            }
+            if (answer === TIMED_OUT) {
+                problem({ module: moduleId, code: 'TIMEOUT', message: `canGenerate did not answer within ${HOOK_TIMEOUT_MS / 1000} s; the story went on.` });
                 continue;
             }
             if (answer === false || (answer && typeof answer === 'object' && answer.ok === false)) {
@@ -538,6 +561,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         onGenerationEnded,
         /** What the next ordinary reply would be sent, without changing anything (no cues run). */
         preview: () => build().parts,
+        /** Adds { module?, code?, message, index?, line? } to the Problems list (and the console). */
+        report: entry => problem(entry),
         /** The Problems list, oldest first; `moduleId` narrows it (null: the host's own). */
         problems: moduleId => problemLog.filter(item => moduleId === undefined || item.module === moduleId).map(item => ({ ...item })),
         clearProblems: () => { problemLog.length = 0; },

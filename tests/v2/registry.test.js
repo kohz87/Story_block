@@ -1,7 +1,7 @@
 // The module registry (docs/v2/SPEC.md §6, §12): checking definitions, refusing clashes, lookups.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CAPTURE_PREFIX, INIT_PREFIX, createRegistry, definitionProblems } from '../../src/v2/registry.js';
+import { CAPTURE_PREFIX, INIT_PREFIX, createRegistry, definitionProblems, definitionWarnings } from '../../src/v2/registry.js';
 
 const party = () => ({
     id: 'rpg-battle',
@@ -129,7 +129,11 @@ test('definitions that are not modules are refused with what is wrong', () => {
     const problems = def => definitionProblems(def).join(' / ');
     assert.match(problems(null), /not an object/);
     assert.match(problems({ id: 'Bad Id' }), /its id must be lowercase/);
-    assert.match(problems({ id: 'x', command: {} }), /"command" is not a module field/);
+    // A field this host does not know (a newer module's) is a warning, not a refusal (SPEC §6).
+    assert.deepEqual(definitionProblems({ id: 'x', command: {} }), []);
+    assert.match(definitionWarnings({ id: 'x', command: {} }).join(' / '), /"command" is not a module field this Story Block knows; it is ignored/);
+    assert.match(problems({ id: 'x', requires: '2.0' }), /requires is not an object/);
+    assert.match(problems({ id: 'x', requires: { storyBlock: 'soon' } }), /requires.storyBlock is not a version range/);
     assert.match(problems({ id: 'x', domains: { party: {} } }), /domain "party" initial is not a function/);
     assert.match(problems({ id: 'x', domains: { 'a/b': { initial: () => ({}) } } }), /domain name "a\/b"/);
     assert.match(problems({ id: 'x', domains: { a: { initial: () => ({ when: new Date() }) } } }), /\/domains\/a\/when is not plain JSON/);
