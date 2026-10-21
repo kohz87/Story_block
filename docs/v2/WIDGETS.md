@@ -257,6 +257,8 @@ moved) start the count again from them.
 | `max` | number | `null` | `null`: no maximum |
 | `step` | number | `1` | |
 | `budget` | number | `null` | points left; `null`: no budget |
+| `pool` | number | `null` | a budget the steppers share, used when `budget` is `null`: points left = `pool − spent` |
+| `spent` | number | `0` | points spent from the pool, this stepper's included: `{{ sum(draft.points) }}` |
 | `cost` | number | `1` | points per step up |
 | `label` | string | `''` | shown and used in the buttons' names ("Increase Strength") |
 | `budgetLabel` | string | `Points left` | the note under it ("Points left: 3", `aria-live`) |
@@ -265,4 +267,6 @@ moved) start the count again from them.
 
 ```html
 <ss-widget name="ss.stepper" data-props='{"name":"STR","label":"Strength","value":"{{ draft.STR }}","min":1,"max":20,"budget":"{{ draft.pointsLeft }}"}'></ss-widget>
+<!-- or one pool shared by every stat's stepper (TEMPLATES.md, Example 3) -->
+<ss-widget name="ss.stepper" data-props='{"name":"points.DEX","label":"Dexterity","value":"{{ draft.points.DEX }}","pool":"{{ q.rules.points }}","spent":"{{ sum(draft.points) }}"}'></ss-widget>
 ```

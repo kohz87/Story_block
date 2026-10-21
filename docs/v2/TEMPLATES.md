@@ -49,7 +49,7 @@ Anything that is not a plain path is an expression in the **events condition lan
 
 The language has **no truthiness**: `&&`, `||` and `!` take `true`/`false`. Write `q.pc != null`, not
 `q.pc && …`; write `settings.compact == true`, not `!settings.compact`, when the setting may be unset. It has
-no arithmetic either (no `+ - * /`); counting and sums come from queries.
+no arithmetic either (no `+ - * /`); counting and sums come from queries, or from `len()` and `sum()`.
 
 Three short forms are read without the language, so they always work and cost nothing: a plain path, a
 literal, `!path` (here `!` does use truthiness: empty, `0`, `false`, `null` and `''` are false), and a
@@ -66,6 +66,7 @@ the Story Suite overlay shows.
 | `pct(a, b)` | The same as a whole percentage, 0…100. |
 | `len(x)` | Items in a list, keys in a record, characters in a word; 0 otherwise. |
 | `contains(a, b)` | Does text `a` hold `b`, ignoring case? An empty `b` matches everything; a list matches when one item does. For filter boxes: `data-if="contains(state.inventory.defs[s.def].name, draft.find)"`. |
+| `sum(list, field?)` | The numbers in a list, or a record's values, added up; with `field`, each item's field (`sum(q.rows, 'base')`, or a dotted path: `sum(state.party.actors, 'hp.cur')`). Anything that is not a number counts as 0. For a points-buy total: `sum(draft.points)`. |
 | `changed(path)` | True when **this reply's** changes touched the path: a change at it, inside it, or one that replaced something above it. Write the path bare (`changed(s.qty)`), quoted (`changed('state.scene.place')`), or as a JSON Pointer (`changed('/domains/scene')`). Loop items know where they came from, so `changed(s)` inside `data-each="state.inventory.stacks as s"` asks about that one stack. Query results (`q.…`) are copies and are never "changed". |
 | `fmt.money(n)` | Money in the smallest unit as the rules write it (`3 silver 4 copper`). |
 | `fmt.time(m)` | Story minutes on the reader's calendar. |
@@ -467,6 +468,19 @@ Each `ss.stepper` writes its stat into the draft (`api.onDraft('stats.STR', 5)`)
 again from the draft. Without the widget, a plain number field does the same job:
 `<input type="number" data-draft="stats[k]" data-bind-attr="min: q.rules.min; max: q.rules.max">`.
 
-A live "points left" counter needs a sum of the draft's stats, which the condition language cannot do yet
-(it has no arithmetic); until it can, the budget is enforced by `party.create`, which is where the rule has
-to live anyway.
+**Points left.** When the draft keeps the points spent on each stat (`points: { STR: 0, VIT: 0, … }`,
+the way RPG Battle's creation wizard does), `sum(draft.points)` is what is spent so far. Give it to each
+stepper as `spent` with the budget as `pool`: the stepper shows "Points left: 5" and stops at the budget,
+and the legend gets the class `over` once more is spent than the budget. The rule itself still lives in `party.create`.
+
+```html
+<fieldset class="stats">
+  <legend data-class="over: sum(draft.points) > q.rules.points">
+    Stats <small>{{ sum(draft.points) }} of {{ q.rules.points }} points spent</small>
+  </legend>
+  <div class="stat" data-each="q.rules.stats as k">
+    <ss-widget name="ss.stepper"
+               data-props='{"name":"points.{{ k }}","label":"{{ k }}","value":{{ draft.points[k] }},"min":0,"max":{{ q.rules.max }},"pool":{{ q.rules.points }},"spent":{{ sum(draft.points) }}}'></ss-widget>
+  </div>
+</fieldset>
+```

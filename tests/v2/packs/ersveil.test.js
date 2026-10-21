@@ -52,7 +52,7 @@ test('the pack validates, under the size limit, with every content kind', () => 
     const pack = checked();
     assert.equal(pack.id, PACK);
     assert.deepEqual(pack.currency, { name: 'mark', short: 'mk' });
-    for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes']) {
+    for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks']) {
         assert.ok(pack.content[kind].length > 0, `${kind} is not empty`);
     }
     assert.deepEqual(pack.requires, { storyBlock: '^2', capabilities: ['inventory', 'scene'] });
@@ -281,5 +281,5 @@ test('Wessel (kit) pre-fills the Human race, two talents, his stat points and hi
 test('nothing in the pack runs as code: it installs through the safety checks and round-trips as data', async () => {
     const { settings, packs } = await installedPart();
     assert.deepEqual(settings.root.packs[0].pack, raw(), 'kept as given');
-    assert.deepEqual(packs.list()[0].counts, { items: 38, creatures: 6, shops: 4, recipes: 3, events: 6, quests: 3, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63 });
+    assert.deepEqual(packs.list()[0].counts, { items: 38, creatures: 6, shops: 4, recipes: 3, events: 6, quests: 3, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7 });
 });

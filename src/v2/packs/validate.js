@@ -12,7 +12,7 @@
 // `capabilities` (the capability names this Story Block has, or null when unknown: then
 // requires.capabilities is checked for form only).
 
-import { CALENDAR_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME } from './limits.js';
+import { CALENDAR_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -104,6 +104,11 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
         const place = placeRefs(content.places ?? []);
         content.routes = records(given.routes, 'routes', { add, packId, check: (record, path) => checkRoute(record, path, add, place), named: false, autoSlug: routeSlug });
     }
+    if (given.terms !== undefined) {
+        if (Array.isArray(given.terms) && given.terms.length > TERMS_LIMITS.records) add('BAD_CONTENT', 'content.terms', `content.terms holds at most ${TERMS_LIMITS.records} records (RPG Battle reads the first one that names something).`);
+        else content.terms = records(given.terms, 'terms', { add, packId, check: (record, path, label) => checkTerms(record, path, label, add), slugField: 'id', named: false, autoSlug: termsSlug() });
+    }
+    if (given.ranks !== undefined) content.ranks = checkRanks(given.ranks, packId, add);
 
     const start = raw.start === undefined ? null : checkStart(raw.start, add, ref);
     let layouts = [];
@@ -549,6 +554,115 @@ function checkRoute(record, path, add, place) {
     if (!isText(note, 500)) say('note', 'note must be text of at most 500 characters.');
     if (!ok) return null;
     return { from, to, kind: oneLine(record.kind, 40), km: record.km ?? null, hours: record.hours ?? null, corridor: oneLine(record.corridor ?? '', LIMITS.name), note };
+}
+
+// A record of display terms gets the slug from its `id`, else its name, else `terms`, `terms-2` … in
+// file order (a pack usually has one).
+function termsSlug() {
+    let count = 0;
+    return record => {
+        const named = typeof record.name === 'string' ? slugify(record.name) : '';
+        if (named) return named;
+        count += 1;
+        return count === 1 ? 'terms' : `terms-${count}`;
+    };
+}
+
+// The words a world uses for levels and XP (MODULES §F25), as RPG Battle's terms read them:
+// `{ id?, name?, levelName?, xpName?, tiers?: true | { size?, numerals?, enabled? } }`. The reader's
+// own terms win over these. A term is a label in RPG Battle's blocks, so it may not hold `| : # < >`
+// or a line break; checkPlain has already refused any markup or script link in it.
+function checkTerms(record, path, label, add) {
+    let ok = true;
+    const say = (field, message, code = 'BAD_RECORD') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
+    for (const key of Object.keys(record)) if (!TERMS_FIELDS.includes(key)) say(key, `"${key}" is not a terms field (expected ${TERMS_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+    if (record.name !== undefined && (typeof record.name !== 'string' || !record.name.trim() || record.name.length > LIMITS.name)) say('name', `name must be text of 1 to ${LIMITS.name} characters.`);
+    const out = {};
+    if (typeof record.name === 'string') out.name = oneLine(record.name, LIMITS.name);
+    for (const [field, word, example] of [['levelName', 'level', 'Soul Class'], ['xpName', 'XP', 'Soul Growth']]) {
+        const value = record[field];
+        if (value === undefined) continue;
+        if (typeof value !== 'string' || !value.trim() || oneLine(value).length > TERMS_LIMITS.term) say(field, `${field} must be the ${word} word, 1 to ${TERMS_LIMITS.term} characters (like "${example}").`);
+        else if (TERM_SEPARATORS.test(value)) say(field, `${field} may not hold | : # < > or a line break (it is a label in the story's blocks).`);
+        else out[field] = oneLine(value);
+    }
+    const tiers = record.tiers;
+    if (tiers !== undefined) {
+        if (tiers === true) out.tiers = true;
+        else if (!isObject(tiers)) say('tiers', 'tiers must be true or { "size": 10, "numerals": "roman" } (levels grouped into titled tiers).');
+        else {
+            for (const key of Object.keys(tiers)) if (!TERMS_TIER_FIELDS.includes(key)) say(`tiers.${key}`, `"${key}" is not a tiers field (expected ${TERMS_TIER_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+            if (tiers.size !== undefined && (!isInt(tiers.size, 1) || tiers.size > TERMS_LIMITS.tierSize)) say('tiers.size', `tiers.size must be a whole number of levels from 1 to ${TERMS_LIMITS.tierSize}.`);
+            if (tiers.numerals !== undefined && !TERMS_NUMERALS.includes(tiers.numerals)) say('tiers.numerals', `tiers.numerals must be ${TERMS_NUMERALS.map(word => `"${word}"`).join(' or ')}.`);
+            if (tiers.enabled !== undefined && tiers.enabled !== false) say('tiers.enabled', 'tiers.enabled can only be false (to switch tiers off); leave it out otherwise.');
+            out.tiers = { ...tiers };
+        }
+    }
+    if (ok && out.levelName === undefined && out.xpName === undefined && out.tiers === undefined) {
+        ok = false;
+        add('BAD_RECORD', path, `${label}: a terms record suggests at least one of levelName, xpName or tiers.`);
+    }
+    return ok ? out : null;
+}
+
+// A ladder of ranks, lowest first (Story Director's quest letters, RPG Battle's foe strength). The id is
+// the rank as the story writes it ('F', 'SS'), kept as given and unique ignoring case, not a slug;
+// `levels` and `reward` are whole-number ranges, the reward in units of the chat's one currency.
+// A rank never starts below the one before it, so a ladder written highest first is caught.
+function checkRanks(list, packId, add) {
+    if (!Array.isArray(list)) {
+        add('BAD_CONTENT', 'content.ranks', 'content.ranks must be a list of ranks, lowest first: [{ "id": "F" }, { "id": "E" }].');
+        return [];
+    }
+    if (list.length > RANKS_LIMITS.records) {
+        add('BAD_CONTENT', 'content.ranks', `content.ranks holds at most ${RANKS_LIMITS.records} ranks.`);
+        return [];
+    }
+    const out = [];
+    const seen = new Set();
+    let ok = true;
+    // The last rank (id and range) that gave levels, and the last that gave a reward.
+    const last = { levels: null, reward: null };
+    list.forEach((record, index) => {
+        const path = `content.ranks[${index}]`;
+        if (!isObject(record)) { ok = false; return add('BAD_RECORD', path, `${path} must be an object like { "id": "F", "title": "Registered" }.`); }
+        const label = typeof record.id === 'string' ? `Rank "${record.id}"` : path;
+        let good = true;
+        const say = (field, message, code = 'BAD_RECORD') => { good = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
+        for (const key of Object.keys(record)) if (!RANK_FIELDS.includes(key)) say(key, `"${key}" is not a rank field (expected ${RANK_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+        if (typeof record.id !== 'string' || !RANK_ID.test(record.id)) say('id', 'id must be 1 to 8 letters, digits, + or -, the rank as the story writes it (like "F" or "SS").');
+        else if (seen.has(foldKey(record.id))) say('id', `"${record.id}" repeats an earlier rank's id (ids are unique, ignoring case).`, 'DUPLICATE');
+        else seen.add(foldKey(record.id));
+        const title = record.title;
+        if (title !== undefined) {
+            if (typeof title !== 'string' || !title.trim() || oneLine(title).length > RANKS_LIMITS.title) say('title', `title must be text of 1 to ${RANKS_LIMITS.title} characters (like "Journeyman").`);
+            else if (TERM_SEPARATORS.test(title)) say('title', 'title may not hold | : # < > or a line break.');
+        }
+        const range = (field, min, max, words) => {
+            const value = record[field];
+            if (value === undefined) return null;
+            if (!Array.isArray(value) || value.length !== 2 || !value.every(n => isInt(n, min) && n <= max) || value[0] > value[1]) {
+                say(field, `${field} must be [lowest, highest]: two ${words}, the first not above the second.`);
+                return null;
+            }
+            return [value[0], value[1]];
+        };
+        const levels = range('levels', 1, RANKS_LIMITS.level, `whole levels from 1 to ${RANKS_LIMITS.level}`);
+        const reward = range('reward', 0, Number.MAX_SAFE_INTEGER, 'whole amounts of 0 or more of the chat\'s currency');
+        if (!good) { ok = false; return; }
+        const rank = { id: record.id, ...(title !== undefined ? { title: oneLine(title) } : {}), ...(levels ? { levels } : {}), ...(reward ? { reward } : {}), pack: packId };
+        for (const field of ['levels', 'reward']) {
+            if (!rank[field]) continue;
+            const before = last[field];
+            if (before && rank[field][0] < before.range[0]) {
+                ok = false;
+                add('BAD_RECORD', `${path}.${field}`, `${label}: ranks go from lowest to highest, but its ${field} start below rank "${before.id}"'s.`);
+            }
+            last[field] = { id: rank.id, range: rank[field] };
+        }
+        out.push(rank);
+    });
+    return ok ? out : [];
 }
 
 // The story clock's calendar: an era word, the months in order with their days, and the moment
