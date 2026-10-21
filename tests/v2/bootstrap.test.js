@@ -125,3 +125,19 @@ test('the game view opens on the home screen; a screen asking a query no module 
     view.querySelector('.ss-gameview-close').click();
     assert.equal(doc.querySelector('.ss-gameview'), null);
 });
+
+test('sdk.dialog.open shows a module\'s dialog screen (a creation wizard opened from onBlocked)', async () => {
+    await sdk.registerModule({
+        id: 'maker',
+        name: 'Maker',
+        settings: { defaults: { points: 12 }, schema: {} },
+        screens: [{ id: 'maker/create', title: 'New character', mounts: ['dialog'], template: '<p class="pts">{{ settings.points }} points</p>' }],
+    });
+    const handle = sdk.dialog.open('maker/create', { draft: { name: '' } });
+    assert.ok(handle);
+    const dialog = doc.querySelector('.ss-dialog');
+    assert.ok(dialog);
+    assert.equal(dialog.querySelector('.pts').textContent, '12 points', 'the screen sees its own module\'s settings');
+    handle.close();
+    assert.equal(doc.querySelector('.ss-dialog'), null);
+});

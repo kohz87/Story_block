@@ -117,7 +117,8 @@ export function drawScreen(el, screenId, mount, { deps, state, changes = [], dra
         state,
         q: data.q,
         draft,
-        settings: typeof deps.settings === 'function' ? deps.settings() : (deps.settings ?? {}),
+        // The settings of the module the screen belongs to (its id's namespace, `rpg-battle/party`).
+        settings: typeof deps.settings === 'function' ? deps.settings(screenId) : (deps.settings ?? {}),
         changes: [...changes],
         mount,
         index,

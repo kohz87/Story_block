@@ -121,9 +121,13 @@ export function createRuntime({
     const bus = createCommandBus({ store, registry, settings });
     const events = createEvents();
     const rewind = createRewind({ ctx, store, events, ...(branch ? { branch } : {}) });
-    const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind, substitute: text => substituteNames(text, ctx) });
+    let dialogOpener = null;
+    const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
+        substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null });
     sdk = made.sdk;
     const initial = () => initialWithStart(registry);
     const turn = createTurn({ ctx, store, bus, registry, settings, events, onBlocked, initial, ...(notify ? { notify } : {}) });
-    return { registry, settings, store, bus, events, sdk, turn, markReady: made.markReady, initial, packs: packPart };
+    // The UI (ui-host.js) plugs its dialog mount in here, for sdk.dialog.open.
+    const setDialog = fn => { dialogOpener = typeof fn === 'function' ? fn : null; };
+    return { registry, settings, store, bus, events, sdk, turn, markReady: made.markReady, initial, packs: packPart, setDialog };
 }

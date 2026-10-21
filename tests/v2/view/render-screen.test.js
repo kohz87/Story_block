@@ -138,3 +138,21 @@ test('card scopes carry the state before the reply and the reply\'s own ops; eve
     assert.equal(scopes.at(-1).before, null, 'the first carrier has nothing before it');
     card.destroy();
 });
+
+test('a card screen with defaultOn shows until the reader turns it off', async () => {
+    const { createScreens } = await import('../../../src/v2/view/screens.js');
+    let saved = {};
+    const screens = createScreens({ reader: () => saved, saveReader: next => { saved = next; } });
+    screens.addModule('story-block', [
+        { id: 'story-block/changes-card', mounts: ['card'], template: '<p></p>', defaultOn: true },
+        { id: 'story-block/other', mounts: ['card'], template: '<p></p>' },
+    ]);
+    assert.equal(screens.cardsOn('story-block/changes-card'), true);
+    assert.equal(screens.cardsOn('story-block/other'), false);
+    screens.setCards('story-block/changes-card', false);
+    assert.equal(screens.cardsOn('story-block/changes-card'), false, 'the reader\'s off is kept');
+    screens.setCards('story-block/other', true);
+    assert.equal(screens.cardsOn('story-block/other'), true);
+    screens.addModule('x', [{ id: 'x/bad', mounts: ['card'], template: '<p></p>', defaultOn: 'yes' }]);
+    assert.equal(screens.resolve('x/bad').screen, null);
+});

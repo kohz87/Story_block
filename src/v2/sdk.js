@@ -153,10 +153,10 @@ export async function ensureModules({ store, bus, registry, events = null }) {
 /**
  * The public sdk. `deps`: { store, bus, registry, settings (createSettings), events
  * (createEvents), chat?: () => Message[], check?, onRegister?(def) (after each registerModule),
- * rewind?({ index, beforeRev }) (src/v2/rewind.js), substitute?(text) }. Returns { sdk, events, markReady }:
+ * rewind?({ index, beforeRev }) (src/v2/rewind.js), substitute?(text), dialog?(screenId, opts) }. Returns { sdk, events, markReady }:
  * `sdk.ready` resolves to the sdk once the host calls markReady().
  */
-export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? '') }) {
+export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null }) {
     let markReady;
     const ready = new Promise(resolve => { markReady = () => resolve(sdk); });
     const committed = result => {
@@ -191,6 +191,11 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
         on: (name, fn) => events.on(name, fn),
         /** `{{user}}` / `{{char}}` in a text → the persona's and the character's names (for tabs, screens). */
         substitute: text => substitute(text),
+        /**
+         * Dialogs and wizards (SPEC §13.6): `open(screenId, opts)` → the dialog handle, or null where no
+         * page is shown (opts as the dialog mount's: draft, submit, random, onDone, onClose…).
+         */
+        dialog: Object.freeze({ open: (screenId, opts = {}) => (typeof dialog === 'function' ? dialog(screenId, opts) : null) }),
         id: newId,
         check: check ? Object.freeze({ ...check }) : null,
         settings: id => settings(id),

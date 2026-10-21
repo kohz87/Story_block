@@ -156,3 +156,22 @@ test('sdk.substitute turns {{user}} and {{char}} into the names, for tabs and sc
     assert.equal(host.sdk.substitute('Only {{user}} may take it; {{char}} waits.'), `Only ${host.ctx.name1} may take it; ${host.ctx.name2} waits.`);
     host.close();
 });
+
+test('a command\'s ctx.query reaches every module\'s queries, and their tools do too', async () => {
+    const seen = [];
+    const mod = {
+        id: 'reader',
+        queries: { 'reader.money': (state, args, tools) => tools.query('inventory.currency').name },
+        commands: {
+            'reader.look'(ctx) {
+                seen.push(ctx.query('reader.money'), ctx.query('packs.content', { kind: 'items' }).length, ctx.query('inventory.currency').name);
+                return { summary: '', narrate: false };
+            },
+        },
+    };
+    const host = await createHost({ modules: [mod] });
+    await host.send('Hi.', 'Hello.');
+    assert.equal((await host.sdk.command('reader.look', {})).ok, true);
+    assert.deepEqual(seen, ['gold', 0, 'gold']);
+    host.close();
+});

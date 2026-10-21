@@ -115,6 +115,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         on: (name, fn) => sdk.on(name, fn),
         rewind: options => sdk.rewind(options),
         substitute: text => sdk.substitute(text),
+        dialog: Object.freeze({ open: (screenId, opts) => sdk.dialog.open(screenId, opts) }),
     });
     const carriers = () => (ctx.chat ?? []).map((message, index) => (message && !message.is_user ? index : -1)).filter(index => index >= 0);
     const mounts = createMounts({
@@ -131,7 +132,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
             try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
             return changesSummary({ state, before, changes, currency });
         },
-        settings: () => sdk.settings('story-block'),
+        settings: screenId => {
+            const owner = String(screenId ?? '').split('/')[0];
+            return sdk.settings(registry.has(owner) ? owner : 'story-block');
+        },
         api,
         on: (name, fn) => events.on(name, fn),
         carriers,
@@ -147,6 +151,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         },
         document: doc,
     });
+    runtime.setDialog?.((screenId, opts) => mounts.dialog.open(screenId, opts));
     // The tab host sees the module tabs and the tab screens as one list.
     const tabSource = { tabs: () => [...registry.tabs(), ...extraTabs.map(tab => ({ ...tab, moduleId: 'screens' }))] };
 

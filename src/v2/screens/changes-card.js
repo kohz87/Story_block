@@ -55,6 +55,8 @@ export const changesCardScreen = Object.freeze({
     title: 'Changed this reply',
     icon: 'fa-list-check',
     mounts: Object.freeze(['card']),
+    // Shown under every reply until the reader turns it off (MODULES §F24).
+    defaultOn: true,
     data: Object.freeze({ currency: Object.freeze({ query: 'inventory.currency' }) }),
     template: TEMPLATE,
     css: CSS,
