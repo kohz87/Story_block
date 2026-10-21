@@ -122,11 +122,13 @@ moment.
 
 ## Quests
 
-When someone offers you a job, it shows in the **Quests** screen with **Take on** and **Turn down**.
-Active quests show their progress (wolves beaten, pelts carried). When the goal is met, go back to a
-town or the person who gave the job and press **Finish**: the reward is paid once, and any items the
-job asked for are handed over. One fight counts for one hunting quest; items you carry can count for
-an item quest at the same time.
+Quests follow the story. Take a job on in your own words ("I'll do it"), and the **Quests** screen shows
+it with its progress (wolves beaten, pelts carried) and a line that says where it stands: Offered, Not
+yet, Ready, or Ready to turn in here. When the goal is met, go back to a town or the person who gave the
+job and turn it in in the story: code checks the goal and the place in the same reply, pays the reward
+once and hands over any items the job asked for, or the story is told why not yet. There are no quest
+buttons. One fight counts for one hunting quest; items you carry can count for an item quest at the
+same time.
 
 ## Trade and crafting
 
@@ -136,7 +138,9 @@ when you click. A smith or crafter can make something from your materials for a 
 when it's ready and **Collect** it.
 
 There is one currency per chat, called gold unless you rename it in Story Block's settings (pennies,
-crowns, Gil…). Whatever coin words the model writes, only the number counts.
+crowns, Gil…). Whatever coin words the model writes, only the number counts. If you delete a reply in the
+middle of the chat, the coin and items it gained or spent are taken back, and the later replies' own gains
+and spending stay.
 
 ## Swipe, delete, edit
 
@@ -193,7 +197,13 @@ pack.
 
 Open **Extensions → Story Block**, or the Story Suite overlay when two or more are installed.
 
-* **Currency**: the name of the money in your chats (and its short form).
+* **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
+  name with an s) and its short form.
+* **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: the top quest
+  reward for your character's rank, or 1000 per level). The rest is not paid, and **Problems** says so.
+  A reply also gives at most 20 of one item.
+* **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
+  one reply may hold, 150 by default; any after them are not used.
 * **Screens**: turn each card on or off, and pick which version of a screen to use (the default, the
   card's, or a pack's). **Reset to default** always brings back the standard one.
 * **Packs**: install, switch off, remove.
