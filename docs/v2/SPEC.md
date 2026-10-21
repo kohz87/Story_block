@@ -240,9 +240,10 @@ commands: {
 * `ctx.rng()` → float in [0, 1) from the receipt's seed (sfc32). `ctx.roll('2d6+1')` helper. No `Math.random`.
 * `ctx.claim(key)` → false if already claimed on this line of history, else claims it.
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
-* `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.fail(code, message)` throws.
+* `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.feature(id)` (whether the reader has
+  that feature on, §6), `ctx.fail(code, message)` throws.
 * A failed `ctx.call` fails the whole command even if the caller catches it, except `UNKNOWN_COMMAND`
-  (nothing ran), which a handler may catch to treat another module's command as optional.
+  and `FEATURE_OFF` (nothing ran), which a handler may catch to treat another module's command as optional.
 * A handler may add `problem: 'sentence'` to its result: done, but not all of what was asked (a clamp).
   For a capture the sentence goes to the Problems list (`LIMITED`); it is not kept in the receipt.
 * `ctx.call(type, payload, { as: 'event:<id>' })`: the events part's steps run with that `ctx.caller`.
@@ -390,6 +391,9 @@ Story Block is the only v2 code that calls `setExtensionPrompt` for the host and
 * Old v1 keys are cleared on load.
 * Tests: the static part of two consecutive replies with different state is byte-identical; a
   logged prompt of two consecutive live requests reports its shared-prefix %.
+* The static part depends on the code and on the reader's **features** (§6) only: turning a feature that
+  owns a capture kind or static text on or off changes it once, for the next reply (one reply without
+  the provider's prompt cache); it is byte-identical again from then on.
 
 ## 6. Modules
 
@@ -407,10 +411,11 @@ sdk.registerModule({
   hooks:    { beforeGenerate(view) {}, canGenerate(view) {}, 'item.define'(def) {} },
   settings: { defaults: {…}, schema: {…}, section?: (el, api) => {} },
   tabs:     [{ id: 'party', title: 'Party', icon: 'fa-users', render: (el, view, api) => {} }],
+  features: [{ id: 'rpg-battle.wear', label: 'Wear', describe: 'Gear wears out and breaks.', default: false }],
 });
 ```
 
-* `view` = `{ state (frozen head), query, settings, chat: { length, lastUser } }`.
+* `view` = `{ state (frozen head), query, settings, feature(id), chat: { length, lastUser } }`.
 * **Hooks** let a module shape another's work without writing its domain: `item.define` (RPG Battle sets
   rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` blocks a story
   generation, with a reason; MODULES §F12), `beforeGenerate`. Money is one currency (MODULES §F1).
@@ -420,9 +425,52 @@ sdk.registerModule({
   text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
   options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped).
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
+* **Features** (MODULES §F100): the optional mechanics a reader switches on and off.
+  * `features: [{ id, label, describe?, default?, prompt? }]`. `id` is `<module-id>.<name>` (lowercase
+    letters, digits, `_`, `-` after the dot); `label` is text of at most 60 characters, `describe` at most
+    240; `default` is `true` (when left out) or `false`; `prompt: true` says the feature changes the
+    static part through the module's own code. A feature that owns a capture kind or static text is
+    marked so without it. A wrong entry, an id named twice, or a `feature` that names no feature of the
+    same module refuses the module with a plain sentence; an unknown field on an entry is warned and
+    ignored.
+  * What a feature owns says `feature: '<id>'`:
+    * a capture kind: `kinds: { wear: { grammar, feature } }`;
+    * a command: `{ handler, feature }`, or a handler function with a `feature` property;
+    * a query or a hook: a function with a `feature` property
+      (`Object.assign(fn, { feature: 'rpg-battle.wear' })`), so an older host, which takes only
+      functions there, still takes it;
+    * the context: `context.feature` covers the whole context; `context.parts: [{ feature?, static?,
+      tail? }]` adds static text and tail lines of their own to the module's, under its `budget`;
+    * a screen, a tab or a widget: `{ …, feature }`.
+  * **Off means fully off.** Its kinds leave the static grammar, and a line of one is not used: it gets a
+    quiet Problem (`FEATURE_OFF`, "… is turned off (feature off)"), not a refusal on the reply's card.
+    Its context (parts) leaves the static and the tail. Its commands are refused with `FEATURE_OFF`, at
+    the top or through `ctx.call`; as with `UNKNOWN_COMMAND` nothing ran, so a caller may catch it. Its
+    queries answer `null`. Its hooks are not called. Its screens (whoever restyled them: a pack, the
+    card, the reader), tabs and widgets are hidden; a template that names an off widget draws nothing
+    there. **Its state is never touched**: turning the feature on again brings everything back as it was.
+  * `ctx.feature(id)`, `view.feature(id)` and `sdk.feature(id)` say whether a feature is on; an id no
+    registered module declares is `false`. `sdk.features()` lists every feature with `on`;
+    `sdk.modules()` lists each module's feature ids; `sdk.on('feature', ({ id, on, prompt }) => …)` fires
+    on each change.
+  * The choice is the reader's, not the chat's: `extension_settings.storySuite.features[<id>] = true |
+    false`, kept for a module that is not installed now. A feature without a choice takes its `default`.
+    Packs do not suggest feature defaults.
+  * The settings overlay shows a "Features" subsection at the top of each module's fold (a switch, the
+    label, the description) and one "Features" overview of every module's; a feature that changes the
+    static part says "Changes the fixed prompt once (one slower reply)."
+  * Story Block's own: `story-block.hud` (the status strip, on), `story-block.cards` (the cards under
+    replies, on; each card screen keeps its own switch), `story-block.preroll` and
+    `story-block.extractor` (the assist helpers, off). The older switches (`storySuite.hud`, the
+    `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
+  * A module without `features` behaves as before. On a host older than features, `features` and the
+    `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:
+    a module that must run there checks `sdk.feature?.(id) ?? true` and keeps its core text in
+    `context.static` / `context.tail`.
 * **Tabs** render into Story Block's tab bar from the head state; they never read message text.
-* **Events**: `sdk.on('committed' | 'head' | 'turn', fn)`; `head` fires after any rebuild.
-* `sdk.query(name, args)`, `sdk.modules()`, `sdk.id(prefix)`, `sdk.check`, `sdk.settings(id)`.
+* **Events**: `sdk.on('committed' | 'head' | 'turn' | 'feature', fn)`; `head` fires after any rebuild.
+* `sdk.query(name, args)`, `sdk.modules()`, `sdk.id(prefix)`, `sdk.check`, `sdk.settings(id)`, `sdk.feature(id)`,
+  `sdk.features()`.
 * **Versions**: `requires: { storyBlock: '>=2.1.0' }` says which Story Block a module needs, as a version
   range in the packs' form (`^2`, `>=2.0.0 <3`, `>=2.0.0-alpha.2`, alternatives with `||`). Pre-releases
   order the semver way (2.0.0-alpha.1 < 2.0.0-alpha.3 < 2.0.0): a bound written as a release
@@ -430,8 +478,8 @@ sdk.registerModule({
   that version's pre-releases, so `^2` holds on 2.0.0-alpha.2 and ends before 3.0.0-alpha. A module that
   needs this alpha's changes says `>=2.0.0-alpha.2`. A host that does not meet it refuses the module with
   one sentence, "Name needs Story Block ≥ 2.1.0; this is 2.0.0-alpha.2. Update Story Block to use it.",
-  and keeps nothing of it. A definition field the host does not know (one a newer module added, like
-  MODULES §F100's `features`, or another key under `requires`) is logged as a warning and ignored, never
+  and keeps nothing of it. A definition field the host does not know (one a newer module added, as
+  MODULES §F100's `features` was to hosts before it, or another key under `requires`) is logged as a warning and ignored, never
   a refusal; one level down the same: an unknown command option, `settings.*` part, or settings field
   type (that field is hidden in the settings and its value kept as stored). A module whose domains grow keeps the data of the domains a chat already has: only the
   missing ones get their `initial()` (§2.6).
@@ -616,7 +664,7 @@ assemble({ registry, view, untold, settings }) → { staticText, tailText, parts
 ```
 
 Error codes: `UNKNOWN_COMMAND`, `NOT_OWNER`, `INVALID` (validator), `NOT_ENOUGH`, `NOT_FOUND`, `CLAIMED`,
-`STALE`, `FAILED` (handler threw). Messages are plain sentences for the reader.
+`STALE`, `FEATURE_OFF` (the command's feature is off, §6), `FAILED` (handler threw). Messages are plain sentences for the reader.
 
 ## 13. UI: screens, templates, widgets, mounts
 

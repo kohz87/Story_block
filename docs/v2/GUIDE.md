@@ -80,8 +80,8 @@ When nothing changed, the model leaves the block out. A reply without it gets a 
 text: *No change lines came with this reply, so nothing in it changed the story.* That's fine when
 nothing happened. If something did (you picked up a rope, paid the ferryman), edit the reply, add the
 lines in a `<Changes>` block at its end, and press **Re-read** on the note. With the after-reply
-extractor on (Story Block settings → Assist), the extractor reads such replies instead and the note
-doesn't show.
+extractor on (Story Suite settings → **Features** → *Read changes from replies that forgot them*), the
+extractor reads such replies instead and the note doesn't show.
 
 Lines the extensions couldn't use are listed faintly at the bottom of that reply's card, with the
 reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the inventory.*
@@ -164,10 +164,11 @@ The same screens can show in five places:
 * **Cards** under each reply, folded to one line, for example *Changed this reply: +1 Moonveil Trout,
   −1 Rope · +30 gold · to Bluewatch Village*. Open one to see the details. A card under an older reply
   shows the story as it was **at that reply**. The *Changed this reply* card (and Story Director's
-  status card) show under every reply by default, folded, on phones too.
+  status card) show under every reply by default, folded, on phones too. **Features** → *Cards under
+  replies* turns them all off at once.
 * **The HUD** (status strip), a thin strip above the message box, for example your health and status at
   a glance. It's on by default; turn it off or on again with **Status strip above the message box** in
-  **Extensions → Story Block**.
+  **Extensions → Story Block**, or **Features** → *Status strip* (the same switch).
 * **The full-screen game view**, with its own menu of screens: the **Game view** button in the Story
   Suite bar, or **Alt+G** (press it again, or Escape, to close). It opens on **Home**: your character and
   party, a fight under way, where you are and when, who is here, your purse and what you wear, and your
@@ -208,7 +209,26 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
 * **Screens**: turn each card on or off, and pick which version of a screen to use (the default, the
   card's, or a pack's). **Reset to default** always brings back the standard one.
 * **Packs**: install, switch off, remove.
+* **Features**: every optional part of every extension, each with an on/off switch and a line saying
+  what it does (see below).
 * Each module has its own section (combat, the story clock and calendar, NPCs).
+
+### Features
+
+Each extension's optional mechanics (wear and breakage, weather, a loot picker…) can be switched on or
+off: in the **Features** list at the top of that extension's section, or all together on the
+**Features** page of the Story Suite settings. Story Block's own are the **Status strip**, the **Cards
+under replies**, and two helpers that each make one small extra model call, off until you turn them on:
+*Roll checks before the reply* and *Read changes from replies that forgot them*.
+
+* A feature that's off is gone from the story: the model isn't told about it, its lines are not used
+  (Problems lists them quietly), its buttons, screens and tabs are hidden.
+* Nothing is lost: what the story already holds for it is kept, and turning it on again brings it all
+  back where it was.
+* Your choices are yours, not the chat's: they hold in every chat until you change them.
+* A feature marked *Changes the fixed prompt once (one slower reply)* changes the part of the prompt
+  the model's provider keeps cached, so the next reply after the switch may take a little longer and
+  cost a little more; the replies after it are fast again.
 * **Problems**: lines the model wrote that couldn't be used, and why. Useful when something you expected
   didn't happen.
 

@@ -30,8 +30,10 @@ test('a module needing a newer Story Block is refused with a version message', a
 
 test('an optional field from a newer module version does not switch the whole module off', async () => {
     const host = await createHost({ modules: [] });
-    // e.g. MODULES §F100 feature flags, added after alpha.1
-    await host.sdk.registerModule(mod({ features: [{ id: 'wear', label: 'Wear', default: false }] }));
+    // e.g. a field a later version adds (MODULES §F100's feature flags were one, until this host learned them)
+    await host.sdk.registerModule(mod({ achievements: [{ id: 'wear', label: 'Wear', default: false }] }));
+    await host.sdk.registerModule({ id: 'zz-featured', queries: { 'zz.featured': () => 'yes' }, features: [{ id: 'zz-featured.wear', label: 'Wear', default: false, colour: 'red' }] });
+    assert.equal(host.sdk.query('zz.featured'), 'yes');
     assert.equal(host.sdk.query('zz.ping'), 'pong');
     host.close();
 });

@@ -93,7 +93,8 @@ test('the settings overlay opens from the bar with the Story Block fold and its 
     doc.querySelector('.story-suite-bar-settings').click();
     const overlay = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlay);
-    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Packs', 'Events', 'Assist']);
+    // The Features overview's Story Block group, then the Story Block fold's own Features and its panels.
+    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Story Block', 'Features', 'Packs', 'Events', 'Assist']);
     overlay.querySelector('.story-suite-close').click();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });
