@@ -181,11 +181,12 @@ comes back if the host goes away. NSD's own storage, capture and prompt keys are
 
 These settle questions agents raised; the host changes they need are made at integration.
 
-1. **Money.** A wallet holds one integer per owner in the smallest unit: `wallets[owner] = { coin: n }`.
-   Tiers (copper/silver/gold…) are display and parsing only, from the `currency` hook, readable by any
-   handler or query as the query `inventory.currency` → `{ tiers: [{ name, rate }], single }`.
-   `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }` with `amount` in the smallest unit.
-   Callers convert ("8 silver" → 80) with `inventory.currency`.
+1. **Money: one currency.** (User decision, supersedes tiers.) A chat has one currency with one name
+   (gold, Gil, denar…), set in Story Block's settings (default `gold`); the reader may rename it, never add a
+   second. A wallet is one integer per owner: `wallets[owner] = { coin: n }`. The query `inventory.currency`
+   → `{ name, short }`. `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }`. Prices, rewards
+   and loot are whole numbers of that currency (v1's copper-based numbers are kept as they are). The change
+   line is `+ coin 30 | from: the sealer`; any coin words the model adds are ignored, only the number counts.
 2. **`ctx.rev`** is the `meta.rev` this receipt will have. Use it for `taken.rev`, `ended.rev`, etc.
 3. **Queries can use queries:** a query is called `(state, args, tools)` with `tools.query(name, args)`
    over the same state.
@@ -199,8 +200,10 @@ These settle questions agents raised; the host changes they need are made at int
    Queries: `inventory.items({ owner? })` → `[{ stack, def, name, kind, qty, owner, equipped, note }]`;
    `combat.foesBeaten({ sinceRev })` → `[{ rev, foes: [{ name, count }], won }]`; `party.pc` → actor or null.
 6. **Equipment** defs have `stack: false`; `inventory.grant` of equipment makes one stack per piece (qty 1).
-7. **One fight pays one quest:** `quest.finish` claims each `beaten` entry it counts (`beaten:<rev>`), and
-   progress skips entries already claimed by another quest.
+7. **One fight pays one kill quest.** (User decision.) Among quests whose target counts foes, `quest.finish`
+   claims each `beaten` entry it counts (`beaten:<rev>`) and progress skips entries another kill quest
+   claimed. Item quests (pelts, tails) count the Inventory and are independent: the same fight can feed a
+   hunt quest and a pelt quest.
 8. **Effects** may carry `damage` (combat items) besides `heal`, `mp`, `cure`.
 9. **Widget names are namespaced** `<module-id>.<name>`; Story Block's standard widgets are `ss.meter`,
    `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`, `ss.badge`, `ss.timeline`, `ss.stepper`; modules use
@@ -208,3 +211,12 @@ These settle questions agents raised; the host changes they need are made at int
    `badge`, …) never clash with a namespaced widget.
 10. **Themes** use §13.3's CSS custom properties (`theme: { '--ss-accent': '#7c5cff' }`) for screens; the
    layout renderer's `tokens` are mapped onto them at integration.
+11. **Portraits.** The PC's portrait is the persona avatar; a companion or NPC's portrait comes from NSD
+   (`npc.portrait({ name })` → URL or null, from its dossier/avatar data); packs may supply their own.
+   No image generation.
+12. **Character creation is mandatory.** A chat without a PC (`party.pc` null) cannot generate: Story Block
+   asks the `canGenerate` hooks before each story generation; RPG Battle answers no until `party.create`
+   ran, and opens its creation wizard (dialog mount, §13.6). The greeting may show before that.
+13. **No model-written state blocks.** v2 never asks the model for World State, Inventory, Party or other
+   state blocks; screens and the prompt's tail come from the state. The only block the model writes is
+   `<Changes>`.

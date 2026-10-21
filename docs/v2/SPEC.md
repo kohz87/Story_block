@@ -284,7 +284,7 @@ sdk.registerModule({
   capture:  { kinds: { wound: { grammar: '~ wound Name — how | harm: scratch|wound|grave' }, check: {…} },
               apply(ctx, line) { /* runs as a story command */ } },
   context:  { static: () => '…', tail: view => ({ lines: [], optional: [] }), budget: 400 },
-  hooks:    { beforeGenerate(view) {}, 'item.define'(def) {}, currency() {} },
+  hooks:    { beforeGenerate(view) {}, canGenerate(view) {}, 'item.define'(def) {} },
   settings: { defaults: {…}, schema: {…}, section?: (el, api) => {} },
   tabs:     [{ id: 'party', title: 'Party', icon: 'fa-users', render: (el, view, api) => {} }],
 });
@@ -292,8 +292,8 @@ sdk.registerModule({
 
 * `view` = `{ state (frozen head), query, settings, chat: { length, lastUser } }`.
 * **Hooks** let a module shape another's work without writing its domain: `item.define` (RPG Battle sets
-  rarity, value, stats, effects of an item the story introduced), `currency` (coin names and rates),
-  `beforeGenerate`.
+  rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` blocks a story
+  generation, with a reason; MODULES §F12), `beforeGenerate`. Money is one currency (MODULES §F1).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`) render in the
   Story Suite overlay; `section` renders a custom panel for what a schema can't express. Values are stored
   under `extension_settings.storySuite.modules[id]`. No module has its own drawer panel in v2 (NSD keeps its
