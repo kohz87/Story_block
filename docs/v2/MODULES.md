@@ -220,3 +220,24 @@ These settle questions agents raised; the host changes they need are made at int
 13. **No model-written state blocks.** v2 never asks the model for World State, Inventory, Party or other
    state blocks; screens and the prompt's tail come from the state. The only block the model writes is
    `<Changes>`.
+14. **Creation content.** (User decision.) RPG Battle ships a small built-in set (6 races, about 12
+   talents) that packs replace or extend; with no race/talent content at all, creation is just a name and
+   stat points and still works.
+15. **Presets' own blocks** (World State, CYOA, Director…) are not read or handled by v2; presets that write
+   them have their own switch to stop. Only `<Changes>` is v2's.
+16. **d20 for every uncertain action.** (User decision.) The static instruction tells the model: any action
+   whose outcome is uncertain gets a `? check <skill> — <what> | dc: …` line and the reply stops before the
+   outcome. The check waits as a **pending check** (RPG Battle `checks` in the party domain): the reader
+   may add modifiers before rolling (a stat is applied automatically; the reader can add a skill or ability
+   that fits, an item, or a custom ±n with a reason), then presses Roll (`check.resolve`, d20 + modifiers,
+   seeded). If the reader sends the next message without rolling, the check is rolled with the automatic
+   modifiers before that generation (`beforeGenerate`). The result is a receipt the next reply narrates.
+   An optional setting (off) rolls before the reply via a cheap classifier call.
+17. **Death is a return in time.** (User decision.) When the PC dies, RPG Battle offers **Return**: the chat
+   goes back to the last point where the PC was alive before the fatal fight (the state just before
+   `combat.start`), as a SillyTavern branch so the old timeline is kept; the fight's actions are not on the
+   new branch. Story Block provides `sdk.rewind({ index, beforeRev })` (branch the chat at carrier `index`,
+   dropping that carrier's receipts from `beforeRev` on). A short cue tells the next reply the PC is back at
+   that moment, with no memory rules imposed.
+18. **Default look** follows the SillyTavern theme's colours (cards, meters, badges), restyled by packs/cards.
+19. **Merging.** (User decision.) PRs into `v2` merge after green CI at the coordinator's discretion.
