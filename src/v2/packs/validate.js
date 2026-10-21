@@ -12,7 +12,7 @@
 // `capabilities` (the capability names this Story Block has, or null when unknown: then
 // requires.capabilities is checked for form only).
 
-import { CALENDAR_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME } from './limits.js';
+import { CALENDAR_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, TERM_SEPARATORS, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -103,6 +103,10 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
     if (given.routes !== undefined) {
         const place = placeRefs(content.places ?? []);
         content.routes = records(given.routes, 'routes', { add, packId, check: (record, path) => checkRoute(record, path, add, place), named: false, autoSlug: routeSlug });
+    }
+    if (given.terms !== undefined) {
+        if (Array.isArray(given.terms) && given.terms.length > TERMS_LIMITS.records) add('BAD_CONTENT', 'content.terms', `content.terms holds at most ${TERMS_LIMITS.records} records (RPG Battle reads the first one that names something).`);
+        else content.terms = records(given.terms, 'terms', { add, packId, check: (record, path, label) => checkTerms(record, path, label, add), slugField: 'id', named: false, autoSlug: termsSlug() });
     }
 
     const start = raw.start === undefined ? null : checkStart(raw.start, add, ref);
@@ -549,6 +553,55 @@ function checkRoute(record, path, add, place) {
     if (!isText(note, 500)) say('note', 'note must be text of at most 500 characters.');
     if (!ok) return null;
     return { from, to, kind: oneLine(record.kind, 40), km: record.km ?? null, hours: record.hours ?? null, corridor: oneLine(record.corridor ?? '', LIMITS.name), note };
+}
+
+// A record of display terms gets the slug from its `id`, else its name, else `terms`, `terms-2` … in
+// file order (a pack usually has one).
+function termsSlug() {
+    let count = 0;
+    return record => {
+        const named = typeof record.name === 'string' ? slugify(record.name) : '';
+        if (named) return named;
+        count += 1;
+        return count === 1 ? 'terms' : `terms-${count}`;
+    };
+}
+
+// The words a world uses for levels and XP (MODULES §F25), as RPG Battle's terms read them:
+// `{ id?, name?, levelName?, xpName?, tiers?: true | { size?, numerals?, enabled? } }`. The reader's
+// own terms win over these. A term is a label in RPG Battle's blocks, so it may not hold `| : # < >`
+// or a line break; checkPlain has already refused any markup or script link in it.
+function checkTerms(record, path, label, add) {
+    let ok = true;
+    const say = (field, message, code = 'BAD_RECORD') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
+    for (const key of Object.keys(record)) if (!TERMS_FIELDS.includes(key)) say(key, `"${key}" is not a terms field (expected ${TERMS_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+    if (record.name !== undefined && (typeof record.name !== 'string' || !record.name.trim() || record.name.length > LIMITS.name)) say('name', `name must be text of 1 to ${LIMITS.name} characters.`);
+    const out = {};
+    if (typeof record.name === 'string') out.name = oneLine(record.name, LIMITS.name);
+    for (const [field, word, example] of [['levelName', 'level', 'Soul Class'], ['xpName', 'XP', 'Soul Growth']]) {
+        const value = record[field];
+        if (value === undefined) continue;
+        if (typeof value !== 'string' || !value.trim() || oneLine(value).length > TERMS_LIMITS.term) say(field, `${field} must be the ${word} word, 1 to ${TERMS_LIMITS.term} characters (like "${example}").`);
+        else if (TERM_SEPARATORS.test(value)) say(field, `${field} may not hold | : # < > or a line break (it is a label in the story's blocks).`);
+        else out[field] = oneLine(value);
+    }
+    const tiers = record.tiers;
+    if (tiers !== undefined) {
+        if (tiers === true) out.tiers = true;
+        else if (!isObject(tiers)) say('tiers', 'tiers must be true or { "size": 10, "numerals": "roman" } (levels grouped into titled tiers).');
+        else {
+            for (const key of Object.keys(tiers)) if (!TERMS_TIER_FIELDS.includes(key)) say(`tiers.${key}`, `"${key}" is not a tiers field (expected ${TERMS_TIER_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+            if (tiers.size !== undefined && (!isInt(tiers.size, 1) || tiers.size > TERMS_LIMITS.tierSize)) say('tiers.size', `tiers.size must be a whole number of levels from 1 to ${TERMS_LIMITS.tierSize}.`);
+            if (tiers.numerals !== undefined && !TERMS_NUMERALS.includes(tiers.numerals)) say('tiers.numerals', `tiers.numerals must be ${TERMS_NUMERALS.map(word => `"${word}"`).join(' or ')}.`);
+            if (tiers.enabled !== undefined && tiers.enabled !== false) say('tiers.enabled', 'tiers.enabled can only be false (to switch tiers off); leave it out otherwise.');
+            out.tiers = { ...tiers };
+        }
+    }
+    if (ok && out.levelName === undefined && out.xpName === undefined && out.tiers === undefined) {
+        ok = false;
+        add('BAD_RECORD', path, `${label}: a terms record suggests at least one of levelName, xpName or tiers.`);
+    }
+    return ok ? out : null;
 }
 
 // The story clock's calendar: an era word, the months in order with their days, and the moment

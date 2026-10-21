@@ -2,7 +2,7 @@
 // + disabled when the budget is spent, keyboard, and new props resetting the count.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stepper, stepperClamp, stepperLimits, stepperRemaining } from '../../../../src/v2/view/widgets/stepper.js';
+import { stepper, stepperBudget, stepperClamp, stepperLimits, stepperRemaining } from '../../../../src/v2/view/widgets/stepper.js';
 import { fakeApi, host, installDom } from './fake-dom.js';
 
 function mount(props, api = fakeApi()) {
@@ -134,4 +134,31 @@ test('stepper: disabled; accessible names; works without onDraft', () => {
     const thrower = mount({ name: 'STR', value: 1 }, { onDraft() { throw new Error('dialog closed'); } });
     thrower.inc.click();
     assert.equal(thrower.field.value, '2', 'a failing onDraft does not break the widget');
+});
+
+test('stepper: a shared pool is a budget of pool − spent; an explicit budget wins', () => {
+    assert.equal(stepperBudget({ budget: null, pool: 12, spent: 7 }), 5);
+    assert.equal(stepperBudget({ budget: 2, pool: 12, spent: 7 }), 2, 'budget wins');
+    assert.equal(stepperBudget({ budget: null, pool: null, spent: 7 }), null, 'no pool, no budget');
+    assert.equal(stepperBudget({ pool: 10 }), 10, 'nothing spent yet');
+    assert.equal(stepperBudget({ pool: 1, spent: 0.7 }), 0.3);
+    assert.equal(stepperBudget(), null);
+    // The pool is spent by every stepper together: this one is at 3 of the 7 spent.
+    const m = mount({ name: 'points.DEX', value: 3, min: 0, pool: 8, spent: 7, label: 'DEX' });
+    assert.equal(m.note.textContent, 'Points left: 1');
+    m.inc.click();
+    assert.equal(m.field.value, '4');
+    assert.ok(m.inc.disabled, 'the pool is spent');
+    assert.equal(m.note.textContent, 'Points left: 0');
+    m.dec.click();
+    m.dec.click();
+    assert.equal(m.note.textContent, 'Points left: 2', 'going down refunds the pool');
+    // The dialog renders again with the new sum.
+    m.handle.update({ name: 'points.DEX', value: 2, min: 0, pool: 8, spent: 6, label: 'DEX' });
+    assert.equal(m.note.textContent, 'Points left: 2');
+    m.handle.update({ name: 'points.DEX', value: 2, min: 0, pool: '8', spent: '9', label: 'DEX' });
+    assert.ok(m.inc.disabled, 'overspent: kept, not raised');
+    assert.equal(m.note.textContent, 'Points left: -1');
+    const free = mount({ name: 'x', value: 1, spent: 40 });
+    assert.ok(free.note.hidden, 'spent without a pool is no budget');
 });

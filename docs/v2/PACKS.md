@@ -184,6 +184,26 @@ The map Story Director's atlas reads.
 Only these fields are allowed. Whether a command exists, and what its payload means, is checked
 when the event runs.
 
+### terms
+
+The words a world uses for levels and XP (MODULES §F25), suggested the way a pack suggests a currency:
+RPG Battle reads them, and the reader's own terms in its settings win, field by field.
+
+```json
+"terms": [{ "name": "Soul Class", "levelName": "Soul Class", "xpName": "Soul Growth", "tiers": { "size": 10, "numerals": "roman" } }]
+```
+
+| Field | Rules |
+|---|---|
+| `id`, `name` | Optional. The slug comes from `id`, else the name, else `terms` (`terms-2` …). |
+| `levelName` | The level word ("Level"), 1–30 characters. |
+| `xpName` | The XP word ("XP"), 1–30 characters. |
+| `tiers` | `true` (tiers of 10 levels, Roman numerals), or `{ "size"?: 1–999, "numerals"?: "roman" \| "arabic", "enabled"?: false }`: levels grouped into titled tiers ("Soul Class III" for levels 21–30). |
+
+A record names at least one of `levelName`, `xpName`, `tiers`; only these fields are allowed. A term is a
+label in RPG Battle's blocks, so it can't hold `|`, `:`, `#`, `<`, `>` or a line break. A pack holds at
+most 4 records; RPG Battle takes the first enabled pack's first record (`packs.content({ kind: 'terms' })`).
+
 ## Calendar
 
 ```json

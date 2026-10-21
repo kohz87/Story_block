@@ -250,6 +250,9 @@
       {"from": "Bluewatch Village", "to": "Gate Forge", "kind": "street", "hours": 0.1, "note": "inside Bluewatch"},
       {"from": "Bluewatch Village", "to": "North Culvert", "kind": "track", "hours": 0.25, "note": "just outside the palisade"},
       {"from": "Bluewatch Village", "to": "East Bluff", "kind": "track", "hours": 0.75, "note": "just outside the palisade"}
+    ],
+    "terms": [
+      {"name": "Soul Class", "levelName": "Soul Class", "xpName": "Soul Growth", "tiers": {"size": 10, "numerals": "roman"}}
     ]
   },
   "start": {
