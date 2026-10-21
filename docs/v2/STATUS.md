@@ -24,7 +24,9 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Assist (optional pre-roll classifier, after-reply extractor), off by default | ✅ | #65 |
 | Performance benchmark + tuning proposals (docs/v2/PERFORMANCE.md) | ✅ | #68 |
 | Storage tuning: checkpoint 100/128 KB, one record copy, ride on SillyTavern's save, op compaction | ⏳ | |
-| QA (state invariants, security, prompt) | 🔧 | |
+| QA (state invariants, security, prompt): 90 tests, 17 findings as todo | ✅ | #70 |
+| Security hardening (packs, templates, CSS, themes) from QA findings | 🔧 | |
+| Core fixes from QA findings (middle-delete replay, failed save, internal commands, prototype keys) | ⏳ | |
 
 ## RPG Battle (module)
 | Piece | State | PR |
@@ -35,11 +37,12 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Trade: sell, buy, commission, collect, market rule, prices per place | ✅ | #66 |
 | Integration: module.js, one currency, payload fixes, index.js bootstrap | ✅ | #71 |
 | Pending d20 checks with reader modifiers (§F16) | ✅ | #70 |
-| Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
+| Character creation: built-in races/talents, wizard, persona (§F12, §F14, §F22) | ✅ | #73 |
 | Return in time after death (§F17) | ✅ | #69 |
 | Battle board widget + Fight screen | ✅ | #72 |
-| Default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
-| QA (conservation, fuzz, v1 parity, cross-part payloads) | 🔧 | |
+| Default screens (Party HUD, Items, Trade, HUD, status card) | ✅ | #74 |
+| QA (conservation, fuzz, v1 parity, cross-part payloads): 155 tests, 8 findings as todo | ✅ | #75 |
+| Fixes for RB QA findings (stuck fights, double-counted draughts, orphaned items, accessories, money from clicks, plural) | ⏳ | |
 
 ## Story Director (module)
 | Piece | State | PR |
@@ -49,8 +52,8 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Integration: module.js, one currency, one fight per kill quest, typed acceptance, v2 bootstrap | ✅ | #75 |
 | Atlas: places, routes, travel, map | ✅ | #77 |
 | Default screens (Quests, Director, status card, HUD) | ✅ | #76 |
-| Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
-| Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) | 🔧 | |
+| Deadlines that lapse on time jumps + "while away" recap (§F21) | ✅ | #78 |
+| Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) + guide | ✅ | #69 |
 
 ## NPC State Delta (standalone, hosted when Story Block v2 is present)
 | Piece | State | PR |

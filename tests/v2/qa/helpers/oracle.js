@@ -1,0 +1,134 @@
+// An independent oracle for SPEC §2.2: the state at carrier N rebuilt from scratch out of the chat
+// alone (latest checkpoint at or before N, then every carrier's ops), with its own strict JSON Patch
+// (RFC 6902 add / replace / remove) instead of src/v2/ops.js. A carrier whose ops do not apply is
+// skipped whole, as the store does with a hand-edited chat. Which swipe's record counts is the
+// store's documented rule (persist.js readRecord), so that one function is shared.
+
+import assert from 'node:assert/strict';
+import { readRecord } from '../../../../src/v2/persist.js';
+import { createStore } from '../../../../src/v2/store.js';
+
+const isCarrier = message => Boolean(message) && typeof message === 'object' && !message.is_user;
+
+export const carriers = chat => chat.map((message, index) => (isCarrier(message) ? index : -1)).filter(index => index >= 0);
+
+const unescape = segment => segment.replace(/~1/g, '/').replace(/~0/g, '~');
+
+/** Strict JSON Patch on a deep copy; throws when a path does not fit. */
+export function strictApply(state, ops) {
+    let root = structuredClone(state);
+    for (const op of ops) {
+        if (!op || !['add', 'replace', 'remove'].includes(op.op)) throw new Error(`bad op ${op?.op}`);
+        if (op.path === '') {
+            if (op.op === 'remove') throw new Error('cannot remove the root');
+            root = structuredClone(op.value);
+            continue;
+        }
+        if (!op.path.startsWith('/')) throw new Error(`bad path ${op.path}`);
+        const keys = op.path.slice(1).split('/').map(unescape);
+        const last = keys.pop();
+        let target = root;
+        for (const key of keys) {
+            if (target === null || typeof target !== 'object' || !Object.hasOwn(target, key)) throw new Error(`no ${op.path}`);
+            target = target[key];
+        }
+        if (target === null || typeof target !== 'object') throw new Error(`no container at ${op.path}`);
+        if (Array.isArray(target)) {
+            const index = last === '-' ? target.length : Number(last);
+            if (!Number.isInteger(index) || index < 0) throw new Error(`bad index ${op.path}`);
+            if (op.op === 'add') {
+                if (index > target.length) throw new Error(`index past end ${op.path}`);
+                target.splice(index, 0, structuredClone(op.value));
+            } else {
+                if (index >= target.length) throw new Error(`no ${op.path}`);
+                if (op.op === 'replace') target[index] = structuredClone(op.value);
+                else target.splice(index, 1);
+            }
+        } else if (op.op === 'add') {
+            target[last] = structuredClone(op.value);
+        } else {
+            if (!Object.hasOwn(target, last)) throw new Error(`no ${op.path}`);
+            if (op.op === 'replace') target[last] = structuredClone(op.value);
+            else delete target[last];
+        }
+    }
+    return root;
+}
+
+/** { state, skipped: [index] } at carrier `upTo`, rebuilt from the chat alone; state null without a checkpoint. */
+export function rebuildAt(chat, upTo) {
+    let from = -1;
+    for (let i = Math.min(upTo, chat.length - 1); i >= 0; i--) {
+        if (readRecord(chat[i])?.checkpoint) { from = i; break; }
+    }
+    if (from < 0) return { state: null, skipped: [] };
+    let state = structuredClone(readRecord(chat[from]).checkpoint);
+    const skipped = [];
+    for (let i = from; i <= upTo && i < chat.length; i++) {
+        const record = readRecord(chat[i]);
+        if (!record) continue;
+        try {
+            state = strictApply(state, record.ops);
+        } catch {
+            skipped.push(i);
+        }
+    }
+    return { state, skipped };
+}
+
+/** The records on the current line of history, oldest first: [{ index, record }]. */
+export function lineRecords(chat) {
+    return carriers(chat).map(index => ({ index, record: readRecord(chat[index]) })).filter(entry => entry.record);
+}
+
+const plain = value => (value === null || value === undefined ? value : JSON.parse(JSON.stringify(value)));
+
+/**
+ * Every state invariant at once, against the host (createHost). `label` says which step this is.
+ * - the store's state at every carrier equals the oracle's rebuild from scratch (and a brand-new
+ *   store over a copy of the chat agrees, so no cache can hide a difference);
+ * - a narrated receipt is told at most once on this line, never before it happened, and the
+ *   store's untold list is exactly the ones nobody told;
+ * - no receipt id appears twice on the line.
+ */
+export function checkInvariants(host, label) {
+    const chat = host.ctx.chat;
+    const store = host.store;
+    const indexes = carriers(chat);
+    for (const index of indexes) {
+        const expected = rebuildAt(chat, index).state;
+        assert.deepEqual(plain(store.at(index)), plain(expected), `${label}: state at carrier ${index} equals a rebuild from scratch`);
+    }
+    const headIndex = indexes.at(-1) ?? -1;
+    assert.equal(store.headIndex(), headIndex, `${label}: head index`);
+    if (headIndex >= 0) {
+        const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {} });
+        assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
+    }
+
+    const records = lineRecords(chat);
+    const owner = new Map();
+    for (const { index, record } of records) {
+        for (const receipt of record.receipts) {
+            assert.ok(!owner.has(receipt.id), `${label}: receipt ${receipt.id} is stored twice on this line (carriers ${owner.get(receipt.id)?.index} and ${index})`);
+            owner.set(receipt.id, { index, receipt });
+        }
+    }
+    const tellers = new Map();
+    for (const { index, record } of records) {
+        for (const id of record.narrated) {
+            if (!tellers.has(id)) tellers.set(id, []);
+            tellers.get(id).push(index);
+        }
+    }
+    const untoldExpected = [];
+    for (const [id, { index, receipt }] of owner) {
+        if (receipt.narrate !== true) continue;
+        const told = tellers.get(id) ?? [];
+        assert.ok(told.length <= 1, `${label}: receipt ${id} ("${receipt.summary}") is told ${told.length} times on this line (carriers ${told.join(', ')})`);
+        if (told.length) assert.ok(told[0] >= index, `${label}: receipt ${id} on carrier ${index} is told by an earlier carrier ${told[0]}`);
+        else untoldExpected.push(id);
+    }
+    assert.deepEqual(store.untold().map(receipt => receipt.id), untoldExpected, `${label}: untold receipts are exactly the ones nobody told, oldest first`);
+    return { records, owner, tellers };
+}
