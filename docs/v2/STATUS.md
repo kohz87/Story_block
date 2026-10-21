@@ -50,7 +50,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Atlas: places, routes, travel, map | ✅ | #77 |
 | Default screens (Quests, Director, status card, HUD) | ✅ | #76 |
 | Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
-| Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) | 🔧 | |
+| Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) + guide | ✅ | #69 |
 
 ## NPC State Delta (standalone, hosted when Story Block v2 is present)
 | Piece | State | PR |
