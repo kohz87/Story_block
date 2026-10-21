@@ -152,6 +152,36 @@ test('saver: the check and the write start in one tick, even behind a save that 
     assert.deepEqual(rescued, ['A'], 'the second change goes to A\'s own file');
 });
 
+test('saver: rapid reader actions while a save is writing share one more save, which writes the newest state', async () => {
+    // In a 3000-message chat one write takes about half a second (measured live): actions made while it
+    // runs must not each write the whole chat again.
+    let n = 0;
+    let release;
+    const wrote = [];
+    const saver = createSaver({
+        save: change => {
+            wrote.push(change.n);
+            if (wrote.length === 1) return new Promise(resolve => { release = resolve; });
+            return undefined;
+        },
+        target: () => ({ chatId: 'A', n }),
+        check: () => '',
+    });
+    n++; saver.touch();
+    const answers = [saver.saveSoon()];
+    await settle();
+    for (let i = 0; i < 4; i++) {
+        n++; saver.touch();
+        answers.push(saver.saveSoon());
+        await settle();
+    }
+    release();
+    const saved = await Promise.all(answers);
+    assert.equal(saved.at(-1), true, 'every action has its answer once the newest state is written');
+    assert.deepEqual(wrote, [1, 5], 'one save running, one more behind it with the newest change');
+    assert.equal(saver.dirty(), false);
+});
+
 // ---- the chat file ----------------------------------------------------------------------------------
 
 test('chat file: SillyTavern\'s save body for a character and a group chat; a refusal says why; read gives the file', async () => {
