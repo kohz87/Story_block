@@ -67,7 +67,8 @@ export function journalState(saved, frames, { scope = '', uuid = randomId } = {}
                 anchor = anchorFor(frames[boundary]);
                 // Earlier replies may acquire IDs after the journal was installed.
                 // They are present history, never a source of unverified old effects.
-                if (anchor.parent || frames.slice(0, boundary).some(frame => byOwner.has(frame.owner) || Object.keys(frame.extra ?? {}).length)) {
+                if (anchor.parent || nodes.some(node => node.position < anchor.position)
+                    || frames.slice(0, boundary).some(frame => byOwner.has(frame.owner) || Object.keys(frame.extra ?? {}).length)) {
                     return fail('Replies before the saved journal boundary need recovery.');
                 }
             }
@@ -82,8 +83,12 @@ export function journalState(saved, frames, { scope = '', uuid = randomId } = {}
             // verified snapshots or effects of an otherwise unchanged suffix.
             let original = null;
             if (boundary > 0 && index === boundary && anchor.owner === frame.owner && anchor.signature === frame.signature) original = anchor;
-            if (boundary > 0 && index > boundary && originalParent) {
+            if (!original && originalParent) {
                 original = variants.find(node => node.parent === originalParent.id && node.signature === frame.signature);
+            }
+            if (!original && parent) {
+                const root = variants.find(node => !node.parent && node.signature === frame.signature && node.position === frame.index + offset);
+                if (root && ancestors(journal, parent.id).every(node => node.position < root.position && !Object.keys(node.extra).length)) original = root;
             }
             let node = variants.find(entry => entry.signature === frame.signature && entry.parent === (parent?.id ?? null));
             if (!node) {

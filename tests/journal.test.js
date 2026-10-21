@@ -97,6 +97,23 @@ test('adding pre-journal identities cannot authorize an edited or missing interi
     }
 });
 
+test('an older saved swipe remains restorable after passive pre-journal replies are attached', () => {
+    const original = frame(6, { extra: { rpgBattleEvidence: { events: ['old-fight'] } } });
+    const alternate = frame(6, { owner: 'other-swipe', signature: 'other', replaces: [original.owner] });
+    const first = read(null, [original]).journal;
+    const second = read(first, [alternate]).journal;
+    const earlier = frame(4);
+    const attached = read(second, [earlier, alternate]);
+    assert.equal(read(attached.journal, [{ ...earlier, owner: 'unknown-earlier' }, original]).availability, 'incomplete',
+        'a saved inactive root cannot bypass replacement of a now-recorded prefix');
+    const restored = read(attached.journal, [earlier, original]);
+    assert.equal(restored.availability, 'available', restored.reason);
+    assert.deepEqual(restored.entries.at(-1).extra.rpgBattleEvidence.events, ['old-fight']);
+    const back = read(restored.journal, [earlier, alternate]);
+    assert.equal(back.availability, 'available', back.reason);
+    assert.equal(back.entries.at(-1).extra.rpgBattleEvidence, undefined);
+});
+
 test('replacing the first retained reply keeps only its proven archived parents, never its own payout', () => {
     const base = [frame(0), frame(1, { extra: { rpgBattleEvidence: { events: ['earned'] } } })];
     const paid = frame(2, { blocks: { Inventory: 'Coins | 8 silver |', Party: 'Level: 2 | XP: 1/120' },
