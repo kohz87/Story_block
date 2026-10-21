@@ -39,7 +39,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.28';
+const VERSION = '0.9.29';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -170,7 +170,7 @@ function keptEntries(chat, type, { ownRolls = false } = {}) {
     const list = Array.isArray(chat) ? chat : [];
     const beforeIndex = replacesLastReply(list, type) ? list.length - 1 : null;
     return keptBlocks().map(def => {
-        const found = latestBlockState(list, def, { beforeIndex });
+        const found = latestBlockState(list, def, { beforeIndex }) ?? archivedState(def);
         if (!found) return null;
         return { def: ownRolls && def.diceModifier ? { ...def, diceModifier: '' } : def, state: found.state, body: found.body };
     }).filter(Boolean);
@@ -330,7 +330,8 @@ function generationEntries(ctx, chat, type) {
     const narrating = fightNarrated(suite, type);
     const blocks = activeBlocks(enabledBlocks(ctx), chat, type).filter(def => !(narrating && def.display === 'dice'));
     return [...keptEntries(chat, type, { ownRolls }), ...blocks.map(def => {
-        const shown = timelineTrimmed(def, def.kind === 'stateful' ? stateForGeneration(chat, def, type) : null, keeper, withoutSections);
+        const state = def.kind === 'stateful' ? (generationSnapshot(chat, def, type) ?? archivedBlock(def.id))?.state ?? formatFor(def).empty(def) : null;
+        const shown = timelineTrimmed(def, state, keeper, withoutSections);
         return {
             def: shown.def,
             state: shown.state,
@@ -398,11 +399,12 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const chat = ctx.chat ?? [];
     // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
     // placeholder and the real context carry the same numbers.
-    const entries = generationEntries(ctx, chat, type);
     const session = {
         chatId,
         type: normalizeType(type),
-        entries,
+        entries: [],
+        replacement: replacesLastReply(chat, type) ? { chat, index: chat.length - 1, prefix: chat.slice(0, -1),
+            owners: replyOwners(chat.at(-1)), previewOwner: randomId() } : null,
         defs: promptDefs(ctx),
         contextInPrompt: typeof ctx.setExtensionPrompt === 'function',
         consumed: false,
@@ -413,9 +415,10 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
         injected: false,
         promptsSeen: 0,
     };
-    const parts = entries.length ? sessionParts(ctx, session) : { static: '', tail: '' };
-    setExtensionPlaceholder(ctx, session.contextInPrompt && (parts.static || parts.tail) ? { static: defuseMacros(parts.static), tail: defuseMacros(parts.tail) } : '');
     pending.set(chatId, session);
+    session.entries = generationEntries(ctx, chat, type);
+    const parts = session.entries.length ? sessionParts(ctx, session) : { static: '', tail: '' };
+    setExtensionPlaceholder(ctx, session.contextInPrompt && (parts.static || parts.tail) ? { static: defuseMacros(parts.static), tail: defuseMacros(parts.tail) } : '');
     armSessionWatchdog(chatId);
     syncMountSuspension();
     return session;
@@ -520,9 +523,15 @@ function messageIdentity(messageIndex) {
     return identity?.swipe === (message?.swipe_id ?? 0) ? identity.id : null;
 }
 
-function ensureMessageIdentity(message) {
+function ensureMessageIdentity(message, replaced = []) {
     const swipe = message.swipe_id ?? 0;
-    if (message.extra?.storyBlockIdentity?.swipe === swipe) return false;
+    const identity = message.extra?.storyBlockIdentity;
+    if (identity?.swipe === swipe) {
+        const replaces = [...new Set([...(identity.replaces ?? []), ...replaced])].filter(id => id !== identity.id);
+        if (replaces.length === (identity.replaces?.length ?? 0)) return false;
+        message.extra.storyBlockIdentity = { ...identity, replaces };
+        return true;
+    }
     const extra = { ...(message.extra ?? {}) };
     if (extra.storyBlockIdentity) {
         // The host may copy extras; the old swipe_info retains its own transactions.
@@ -532,16 +541,30 @@ function ensureMessageIdentity(message) {
         }
         delete extra.storyBlockCommits;
     }
-    message.extra = { ...extra, storyBlockIdentity: { id: randomId(), swipe } };
+    const replaces = [...new Set([...replaced, ...(identity?.id ? [identity.id] : [])])];
+    message.extra = { ...extra, storyBlockIdentity: { id: randomId(), swipe, ...(replaces.length ? { replaces } : {}) } };
     return true;
 }
 
-const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'rpgBattleEvidence', 'rpgBattleAwards'];
+const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'rpgBattleEvidence', 'rpgBattleAwards', 'storyBlockReplacement'];
 const chatMetadata = ctx => ctx?.chatMetadata ?? ctx?.chat_metadata ?? null;
+let uncertainJournalRepair = null;
 
-function stageJournal(ctx = context(), overrideIndex = -1, override = null) {
+const replyOwners = message => [...new Set([message?.extra, ...(message?.swipe_info ?? []).map(info => info?.extra)]
+    .map(extra => extra?.storyBlockIdentity?.id).filter(id => typeof id === 'string' && id))];
+
+function replacementContext(ctx, index) {
+    const replacement = pending.get(chatIdOf(ctx))?.replacement;
+    return replacement?.chat === ctx.chat && replacement.index === index && ctx.chat.length <= index + 1
+        && replacement.prefix.every((message, at) => ctx.chat[at] === message) ? replacement : null;
+}
+
+function stageJournal(ctx = context(), overrideIndex = -1, override = null, preview = false) {
     const meta = chatMetadata(ctx);
     if (!meta) return null;
+    if (uncertainJournalRepair?.chat === ctx.chat && uncertainJournalRepair.chatId === chatIdOf(ctx)) {
+        return { availability: 'incomplete', reason: 'Journal reconnection could not be verified. Reload the page before retrying.' };
+    }
     const defs = transportBlocks(ctx).filter(def => def.kind === 'stateful');
     const frames = [];
     (ctx.chat ?? []).forEach((stored, index) => {
@@ -556,16 +579,48 @@ function stageJournal(ctx = context(), overrideIndex = -1, override = null) {
             if (own || baseline) blocks[def.tag] = (own ?? baseline).text;
         }
         frames.push({ owner: identity.id, index, blocks, extra,
+            replaces: [...new Set([...(identity.replaces ?? []), ...replyOwners(message).filter(id => id !== identity.id)])],
             signature: journalKey(message.mes) + ':' + journalKey(JSON.stringify(extra)) });
     });
+    // A read during generation may need the archived parents of the removed reply.
+    // This placeholder is never saved; receive attaches the actual replacement link.
+    const replacement = pending.get(chatIdOf(ctx))?.replacement;
+    if (preview && replacementContext(ctx, replacement?.index) && !frames.some(frame => frame.index === replacement.index)) {
+        frames.push({ owner: replacement.previewOwner, index: replacement.index, signature: 'pending', replaces: replacement.owners });
+    }
     return journalState(meta.storyBlockJournal, frames, { scope: chatIdOf(ctx) });
 }
 
 function journal() {
-    const state = stageJournal();
+    const state = stageJournal(context(), -1, null, true);
     if (!state) return { availability: 'unavailable', reason: 'Chat metadata is unavailable.', entries: [], prefix: [] };
     const { journal: _saved, ...view } = state;
     return view;
+}
+
+// Older releases could lose the sole journal root during Regenerate. Offer a
+// narrow, explicit repair; never infer an archived parent or reset the journal.
+function regeneratedReplyRecovery() {
+    const ctx = context(), saved = chatMetadata(ctx)?.storyBlockJournal;
+    const head = saved?.nodes?.[saved.head], index = (ctx?.chat?.length ?? 0) - 1;
+    const owner = messageIdentity(index);
+    if (!owner || !head || head.parent || saved.scope !== chatIdOf(ctx) || head.position !== index
+        || pending.has(chatIdOf(ctx)) || Object.values(saved.nodes).some(node => node.owner === owner)
+        || ctx.chat.some((message, at) => at !== index && !message.is_user && messageIdentity(at))) return null;
+    const view = journal();
+    if (view.availability !== 'incomplete' || view.reason !== 'No retained reply matches the saved quest history.') return null;
+    return { chatId: chatIdOf(ctx), messageIndex: index, owner, replacedOwner: head.owner, head: saved.head };
+}
+
+async function recoverRegeneratedReply(expected) {
+    const plan = regeneratedReplyRecovery();
+    if (!plan || JSON.stringify(plan) !== JSON.stringify(expected)) return { status: 'failed', reason: 'The recovery target changed. Reload before retrying.' };
+    const ctx = context(), chat = ctx.chat, message = chat[plan.messageIndex];
+    const result = await commitBlocks({ id: `replacement:${plan.owner}:${plan.head}`, chatId: plan.chatId, messageIndex: plan.messageIndex,
+        expectedText: message.mes, expectedExtra: JSON.stringify(message.extra ?? {}),
+        namespace: 'storyBlockReplacement', value: plan }, plan.replacedOwner);
+    if (result.status === 'uncertain') uncertainJournalRepair = { chatId: plan.chatId, chat };
+    return result;
 }
 
 function archivedBlock(tagOrId) {
@@ -575,6 +630,11 @@ function archivedBlock(tagOrId) {
     if (text == null || !def) return null;
     const found = blockInText(upsertBlock('', def, text), def);
     return found ? { ...found, messageIndex: -1 } : null;
+}
+
+function archivedState(def) {
+    const saved = archivedBlock(def.id);
+    return saved ? { state: saved.state, body: formatFor(def).serialize(saved.state, def) } : null;
 }
 
 // No MESSAGE_UPDATED is emitted here: built-in Translate re-translates (and, with auto mode
@@ -646,7 +706,7 @@ async function receiveMessage(messageId) {
 
     // Keep the blocks in the raw message, but hide their transport from the narration.
     // (0.9.19) The chat is saved once, below, for this and the edits after it.
-    const identified = ensureMessageIdentity(message);
+    const identified = ensureMessageIdentity(message, replacementContext(ctx, id)?.owners ?? []);
     let dirty = await normalizeMessageTransport(id, { rerender: true, save: false }) || identified;
 
     // Record the dice that were handed over on the block itself, so this message (and this
@@ -683,7 +743,7 @@ async function receiveMessage(messageId) {
     }
     // (0.9.17) Every reply holds the whole state: a block it did not write (nothing changed,
     // or the model left it out) is carried into it as it stood, so no reply depends on older ones.
-    const carried = carryStates(message.mes, transportBlocks(ctx), ctx.chat, id);
+    const carried = carryStates(message.mes, transportBlocks(ctx), ctx.chat, id, archivedState);
     if (carried !== message.mes) {
         message.mes = carried;
         await persistMessageEdit(ctx, id, message, { rerender: false, save: false });
@@ -782,7 +842,7 @@ async function savedMessages(ctx, chatId) {
 const blockCommits = new Set();
 
 // Transaction v1: validate the base, save blocks/extras once, then verify readback.
-async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedExtra, changes = [], namespace, value, extras = {} }) {
+async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedExtra, changes = [], namespace, value, extras = {} }, replacement = null) {
     const ctx = context();
     if (!ctx || !chatId || chatIdOf(ctx) !== chatId || blockCommits.has(chatId)) return { status: 'failed', reason: 'Chat changed or a save is in progress.' };
     if (pending.has(chatId) || typeof ctx.saveChat !== 'function') return { status: 'failed', reason: 'A reply is generating or saving is unavailable.' };
@@ -805,7 +865,7 @@ async function commitBlocks({ id, chatId, messageIndex, expectedText, expectedEx
                 if (!def) throw new Error(`Unknown block: ${change.tag}`);
                 candidate.mes = upsertBlock(candidate.mes, def, blockBody(def, change.text));
             }
-            ensureMessageIdentity(candidate);
+            ensureMessageIdentity(candidate, replacement ? [replacement] : []);
             candidate.extra = {
                 ...candidate.extra, ...structuredClone(extras), [namespace]: structuredClone(value),
                 storyBlockCommits: { ...(candidate.extra?.storyBlockCommits ?? {}), [id]: { namespace, ...(Object.keys(extras).length ? { extras: Object.keys(extras) } : {}) } },
@@ -1576,6 +1636,8 @@ globalThis.StoryBlock = Object.freeze({
     transactionVersion: 1,
     journalVersion: JOURNAL_VERSION,
     journal,
+    regeneratedReplyRecovery,
+    recoverRegeneratedReply,
     commitBlocks,
     messageIdentity,
     /**

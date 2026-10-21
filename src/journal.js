@@ -56,9 +56,12 @@ export function journalState(saved, frames, { scope = '', uuid = randomId } = {}
             byOwner.get(node.owner).push(node);
         }
         const first = frames[0];
+        const replaces = node => first.replaces?.includes(node.owner);
         const anchor = [...oldPath].reverse().find(node => node.owner === first.owner && node.signature === first.signature)
             ?? [...nodes].reverse().find(node => node.owner === first.owner && node.signature === first.signature)
-            ?? [...oldPath].reverse().find(node => node.owner === first.owner);
+            ?? [...oldPath].reverse().find(node => node.owner === first.owner)
+            ?? [...oldPath].reverse().find(replaces)
+            ?? [...nodes].reverse().find(replaces);
         if (previous.head && !anchor) return fail('No retained reply matches the saved quest history.');
         const prefix = anchor ? ancestors(journal, anchor.parent) : [];
         const offset = anchor ? anchor.position - first.index : 0;

@@ -235,6 +235,143 @@ test('chat JSONL verifies blocks, XP extras and journal in one save, including f
     assert.equal(save.mock.callCount(), 5, 'one host save per transaction');
 });
 
+test('Regenerate records replacement provenance before the host removes the sole tracked reply', async t => {
+    const sb = globalThis.StoryBlock;
+    const { templateById } = await import('../src/templates.js');
+    setBlocks([{ ...templateById('inventory'), enabled: true }]);
+    ctx.chatMetadata = {};
+    ctx.chat = [{ is_user: false, mes: envelope(inventory(10)) }, { is_user: true, mes: 'Hunt.' },
+        { is_user: false, mes: `Old hunt.\n${envelope(inventory(20))}`, extra: {} }];
+    t.after(() => { delete ctx.chatMetadata; });
+    let stored;
+    t.mock.method(ctx, 'saveChat', async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => stored }));
+    await emit('MESSAGE_RECEIVED', 2);
+    const owner = sb.messageIdentity(2);
+    const message = ctx.chat[2];
+    assert.equal((await sb.commitBlocks({ id: 'old-fight', chatId: 'chat-1', messageIndex: 2,
+        expectedText: message.mes, namespace: 'rpgBattleEvidence', value: { owner, events: ['old-fight'] } })).status, 'durable');
+    const oldHead = ctx.chatMetadata.storyBlockJournal.head;
+    await emit('GENERATION_AFTER_COMMANDS', 'regenerate', {}, false);
+    ctx.chat.pop(); // SillyTavern removes the reply after GENERATION_AFTER_COMMANDS.
+    assert.equal(sb.journal().availability, 'available', 'the in-flight read has a proven replacement boundary');
+    assert.equal(ctx.chatMetadata.storyBlockJournal.head, oldHead, 'a prompt preview cannot advance the saved journal');
+    ctx.chat.push({ is_user: false, mes: 'New hunt.', extra: {} });
+    await emit('MESSAGE_RECEIVED', 2);
+    assert.notEqual(sb.messageIdentity(2), owner);
+    assert.deepEqual(ctx.chat[2].extra.storyBlockIdentity.replaces, [owner]);
+    assert.equal(sb.journal().availability, 'available');
+    assert.equal(sb.journal().entries.at(-1).extra.rpgBattleEvidence, undefined, 'discarded defeats cannot enter the new branch');
+    assert.match(sb.getBlock('Inventory').text, /10 Gold/, 'the old hunt payout is excluded');
+    const next = ctx.chat[2];
+    assert.equal((await sb.commitBlocks({ id: 'new-fight', chatId: 'chat-1', messageIndex: 2,
+        expectedText: next.mes, namespace: 'rpgBattleEvidence', value: { owner: sb.messageIdentity(2), events: ['new-fight'] } })).status, 'durable');
+    ctx.chat = structuredClone(ctx.chat); ctx.chatMetadata = structuredClone(ctx.chatMetadata);
+    assert.deepEqual(sb.journal().entries.at(-1).extra.rpgBattleEvidence.events, ['new-fight']);
+});
+
+test('existing swipes reconnect through their saved variant ownership without importing old battle proof', async t => {
+    const sb = globalThis.StoryBlock;
+    ctx.chatMetadata = {};
+    ctx.chat = [{ is_user: false, mes: 'Old hunt.', extra: {} }];
+    t.after(() => { delete ctx.chatMetadata; });
+    let stored;
+    t.mock.method(ctx, 'saveChat', async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => stored }));
+    await emit('MESSAGE_RECEIVED', 0);
+    const old = structuredClone(ctx.chat[0]);
+    ctx.chat[0] = { is_user: false, mes: 'Already swiped hunt.', swipe_id: 1,
+        swipes: [old.mes, 'Already swiped hunt.'], swipe_info: [{ extra: old.extra }, { extra: {} }],
+        extra: { storyBlockIdentity: { id: 'already-swiped', swipe: 1 } } };
+    assert.equal(sb.journal().availability, 'available');
+    const message = ctx.chat[0];
+    assert.equal((await sb.commitBlocks({ id: 'swiped-fight', chatId: 'chat-1', messageIndex: 0,
+        expectedText: message.mes, namespace: 'rpgBattleEvidence', value: { owner: 'already-swiped', events: ['new'] } })).status, 'durable');
+    ctx.chat[0] = old;
+    assert.equal(sb.journal().availability, 'available');
+    assert.equal(sb.journal().entries.at(-1).extra.rpgBattleEvidence, undefined);
+});
+
+test('Regenerate after prefix archival prompts and carries the archived parent state, excluding the discarded reply', async t => {
+    const sb = globalThis.StoryBlock;
+    const { templateById } = await import('../src/templates.js');
+    setBlocks([{ ...templateById('inventory'), enabled: true }]);
+    ctx.chatMetadata = {};
+    ctx.chat = [{ is_user: false, mes: envelope(inventory(10)), extra: {} }];
+    t.after(() => { delete ctx.chatMetadata; });
+    await emit('MESSAGE_RECEIVED', 0);
+    await finish(envelope(inventory(20)));
+    ctx.chat.shift();
+    assert.equal(sb.journal().prefix.length, 1);
+    assert.match(sb.getBlock('Inventory', { beforeIndex: 0 })?.text ?? 'missing archived inventory', /10 Gold/);
+    await emit('GENERATION_AFTER_COMMANDS', 'regenerate', {}, false);
+    assert.match(placeholder(), /10 Gold/);
+    assert.doesNotMatch(placeholder(), /20 Gold/);
+    ctx.chat.pop();
+    assert.equal(sb.journal().prefix.length, 1);
+    assert.match(sb.blockForGeneration('Inventory', 'regenerate').text, /10 Gold/);
+    ctx.chat.push({ is_user: false, mes: 'Another telling.', extra: {} });
+    await emit('MESSAGE_RECEIVED', 0);
+    assert.equal(sb.journal().availability, 'available');
+    assert.equal(sb.journal().prefix.length, 1);
+    assert.match(sb.getBlock('Inventory').text, /10 Gold/);
+    assert.equal(sb.getBlock('Inventory').messageIndex, 0, 'the archived baseline is saved on the new reply');
+    assert.equal(sb.regeneratedReplyRecovery(), null, 'no manual repair is needed for a recorded regeneration');
+});
+
+test('explicit recovery of a legacy regenerated root verifies readback and preserves the old variant', async t => {
+    const sb = globalThis.StoryBlock;
+    const save = t.mock.method(ctx, 'saveChat');
+    const fetch = t.mock.method(globalThis, 'fetch');
+    t.after(() => { delete ctx.chatMetadata; ctx.chat = []; });
+    for (const mode of ['rejected', 'durable', 'uncertain']) {
+        ctx.chatMetadata = {};
+        ctx.chat = [{ is_user: false, mes: 'Old telling.', extra: {} }];
+        let stored;
+        save.mock.mockImplementation(async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+        fetch.mock.mockImplementation(async () => ({ ok: true, json: async () => stored }));
+        await emit('MESSAGE_RECEIVED', 0);
+        const old = structuredClone(ctx.chat[0]), saved = structuredClone(ctx.chatMetadata.storyBlockJournal);
+        ctx.chat[0] = { is_user: false, mes: 'Regenerated telling.', extra: { storyBlockIdentity: { id: `new-${mode}`, swipe: 0 } } };
+        stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]);
+        const plan = sb.regeneratedReplyRecovery();
+        assert.ok(plan);
+        ctx.chat.unshift({ is_user: true, mes: 'Different position.' });
+        assert.equal(sb.regeneratedReplyRecovery(), null, 'a different message position is not a recovery target');
+        ctx.chat.shift();
+        const head = ctx.chatMetadata.storyBlockJournal.nodes[saved.head];
+        head.parent = 'archived-parent';
+        ctx.chatMetadata.storyBlockJournal.nodes['archived-parent'] = { ...head, id: 'archived-parent', owner: 'archived', parent: null, position: -1 };
+        assert.equal(sb.regeneratedReplyRecovery(), null, 'unanchored archived ancestry cannot be adopted by this repair');
+        head.parent = null;
+        delete ctx.chatMetadata.storyBlockJournal.nodes['archived-parent'];
+        const before = structuredClone(ctx.chat[0]);
+        assert.equal((await sb.recoverRegeneratedReply({ ...plan, head: 'stale' })).status, 'failed');
+        save.mock.mockImplementation(async () => {
+            if (mode !== 'rejected') stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]);
+            if (mode === 'uncertain') throw new Error('Lost response');
+        });
+        if (mode === 'uncertain') fetch.mock.mockImplementation(async () => { throw new Error('Readback failed'); });
+        const result = await sb.recoverRegeneratedReply(plan);
+        assert.equal(result.status, mode === 'rejected' ? 'failed' : mode);
+        assert.ok(ctx.chatMetadata.storyBlockJournal.nodes[saved.head], 'previous variants are retained');
+        if (mode === 'rejected') {
+            assert.deepEqual(ctx.chat[0], before);
+            assert.deepEqual(ctx.chatMetadata.storyBlockJournal, saved);
+        } else if (mode === 'durable') {
+            assert.equal(sb.journal().availability, 'available');
+            assert.deepEqual(ctx.chat[0].extra.storyBlockIdentity.replaces, [old.extra.storyBlockIdentity.id]);
+            assert.equal(ctx.chat[0].mes, before.mes);
+            ctx.chat[0] = old;
+            assert.equal(sb.journal().entries.at(-1).id, saved.head);
+        } else {
+            assert.match(sb.journal().reason, /could not be verified/);
+            assert.equal((await sb.commitBlocks({ id: 'must-wait', chatId: 'chat-1', messageIndex: 0,
+                expectedText: ctx.chat[0].mes, namespace: 'rpgBattleEvidence', value: {} })).status, 'failed');
+        }
+    }
+});
+
 test('new swipes drop copied transactions while preserving the old variant and unrelated extras', async () => {
     const sb = globalThis.StoryBlock;
     const oldExtra = {

@@ -549,12 +549,12 @@ export function latestBlockState(chat, def, { beforeIndex = null } = {}) {
  * unreadable too: that one is warned about and left for the reader) is left as it is.
  * Kept blocks carry their existing owner stamp. Returns `text` when nothing is carried.
  */
-export function carryStates(text, defs, chat, index) {
+export function carryStates(text, defs, chat, index, fallback = () => null) {
     let out = String(text ?? '');
     for (const def of Array.isArray(defs) ? defs : []) {
         if (!def || def.kind !== 'stateful' || def.enabled === false) continue;
         if (extractBlocks(out, [def]).some(entry => ownCopy(entry, def))) continue;
-        const before = latestBlockState(chat, def, { beforeIndex: index });
+        const before = latestBlockState(chat, def, { beforeIndex: index }) ?? fallback(def);
         if (before) out = upsertBlock(out, def, before.body);
     }
     return out;
