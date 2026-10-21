@@ -21,7 +21,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | HTML templates with bindings, scoped CSS | ✅ | #64 |
 | Integration: index.js bootstrap, host fixes (ctx.caller/rev/id/carrier/chat), rewind, wiring | 🔧 | |
 | Default screens (Inventory, Scene, changes card, home) + player guide | 🔧 | |
-| Assist (optional pre-roll classifier, after-reply extractor) | 🔧 | |
+| Assist (optional pre-roll classifier, after-reply extractor), off by default | ✅ | #65 |
 | QA (state invariants, security, prompt) · performance benchmarks | 🔧 | |
 
 ## RPG Battle (module)
