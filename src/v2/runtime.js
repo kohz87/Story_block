@@ -105,6 +105,7 @@ export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError =
         chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId),
         place: () => file.where(),
         save: (change, { keepalive = false } = {}) => {
+            markUsed(context().chatMetadata, ctx.chat);
             const place = file.where();
             if (!place) return ctx.saveChat();
             return file.write(place, ctx.chat, context().chatMetadata ?? {}, { keepalive });
@@ -121,6 +122,16 @@ export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError =
         },
         onSaveError,
     };
+}
+
+/**
+ * Marks a chat holding story state as used (chat_metadata.tainted). SillyTavern treats an untainted chat
+ * holding only the greeting as pristine and replaces that greeting (and the record on it) when the
+ * character card is saved or the chat is renamed.
+ */
+export function markUsed(metadata, chat) {
+    if (!metadata || typeof metadata !== 'object' || metadata.tainted) return;
+    if ((chat ?? []).some(message => message?.extra?.storySuite)) metadata.tainted = true;
 }
 
 /** On a page: the unsaved story goes out when the page is closed (keepalive); see storeSaving. */
