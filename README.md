@@ -363,6 +363,9 @@ Delta and Story Director's mirror still read and write it.
 
 ## Editing and recovery
 
+- An eligible disconnected reply from the earlier Regenerate bug reconnects automatically,
+  including when later replies were already sent. The save is verified before resuming quest
+  choices or battle bookkeeping. Update RPG Battle to **0.5.51** for automatic battle recovery.
 - **Edit** on a tab edits that block's current content; it is checked by the block's own
   parser and saved into the latest reply. Long lines wrap. A World State block also gets
   **Time**, **Location** and **Weather** fields above the text, which write straight into its

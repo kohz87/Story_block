@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.30
+
+- **Regenerate recovery runs automatically.** Reconnect an eligible lost root when opening the chat, before generation or while saving a reply. The repair also works after more replies were sent: verify the saved header, retain old variants and resume the latest reply's bookkeeping so injected Take on choices become accepted quests.
+- Clear the finished generation session before recovery so a blocked save cannot prevent its own repair. Failed or uncertain automatic reconnection stops until reload; missing archived parents, moved roots and known dependent branches remain blocked.
+- With RPG Battle **0.5.51**, an eligible blocked battle reconnects and saves its stored result without a button or combat replay.
+
 ## 0.9.29
 
 - **Regenerate keeps its journal link.** Replacing the only tracked reply in an older chat could leave the new reply unrecognized, blocking battle evidence with `No retained reply matches the saved quest history`. Record replacement ownership before SillyTavern removes the old reply, and recognize saved swipe variants. The new branch keeps proven parents, excluding the discarded reply's defeats, payouts and XP.

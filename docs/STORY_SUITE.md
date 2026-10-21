@@ -100,12 +100,17 @@ discarded-variant evidence/rewards are excluded. In-flight reads may preview tha
 without saving a placeholder node. Archived state also supplies omitted prompt/carried blocks.
 
 The global `StoryBlock` API offers `regeneratedReplyRecovery()` and
-`recoverRegeneratedReply(plan)` for explicit recovery of legacy lost-root cases. A plan is
-offered only for one unknown current tail at the same position as a parentless saved head,
-in the same chat, with no other retained owned replies. Revalidate the plan before applying;
-the action records `storyBlockReplacement`, verifies message/journal readback and keeps all
-inactive nodes. Uncertain reconnection blocks further journal writes until page reload.
-This is not a general reset or a way to adopt unknown archived ancestors.
+`recoverRegeneratedReply(plan)` for legacy lost-root cases. The first retained owned reply
+must be unknown and at the same position as a parentless saved head in the same chat;
+no retained owner may match a saved node. Later unknown replies may remain. Revalidate the
+plan before applying; the action records `storyBlockReplacement`, verifies message/journal
+readback and keeps inactive nodes. Missing archived ancestry is never adopted.
+
+`reconnectRegeneratedReply()` performs this repair automatically, then resumes the latest
+reply's callbacks under `replyBusy()`. Chat loading and foreground generation call it;
+receive also repairs before notifying plugins. RPG Battle can call it before saving a
+blocked result and must wait for `replyBusy()` to clear. Healthy chats do not replay callbacks.
+A failed or uncertain automatic attempt blocks further journal writes until page reload.
 
 `onReply(callback, {priority: 0})` awaits callbacks in ascending order, isolating failures.
 `replyBusy()` covers normalization and callbacks so scheduled awards can wait for completion.
