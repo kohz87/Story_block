@@ -35,10 +35,10 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Trade: sell, buy, commission, collect, market rule, prices per place | ✅ | #66 |
 | Integration: module.js, one currency, payload fixes, index.js bootstrap | ✅ | #71 |
 | Pending d20 checks with reader modifiers (§F16) | ✅ | #70 |
-| Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
+| Character creation: built-in races/talents, wizard, persona (§F12, §F14, §F22) | ✅ | #73 |
 | Return in time after death (§F17) | ✅ | #69 |
 | Battle board widget + Fight screen | ✅ | #72 |
-| Default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
+| Default screens (Party HUD, Items, Trade, HUD, status card) | ✅ | #74 |
 | QA (conservation, fuzz, v1 parity, cross-part payloads) | 🔧 | |
 
 ## Story Director (module)
