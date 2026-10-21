@@ -13,13 +13,17 @@ import { drawScreen } from '../../../../src/v2/view/mounts/common.js';
 import { fakeEvaluate, installFakeDom } from './helpers.js';
 import { screen, screensWith, setupDom } from '../mounts/helpers.js';
 
+// Each render here is a page of its own: the one before is taken down, so a screen's copy is its first.
+let drawn = null;
 function render(html, scope = {}, options = {}) {
+    drawn?.destroy();
     const doc = installFakeDom();
     const el = doc.createElement('div');
     doc.body.appendChild(el);
     const compiled = compileTemplate(html);
     const calls = [];
     const view = renderTemplate(el, compiled, scope, { evaluate: fakeEvaluate, command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; }, ...options });
+    drawn = view;
     return { el, view, compiled, calls };
 }
 
@@ -152,9 +156,15 @@ test('template ids, and everything pointing at them, are prefixed per screen whe
     assert.equal(el.querySelector('use').getAttribute('href'), '#ss-t-rpg-battle-party-shape');
     const cells = render('<table><tr><th id="a">A</th><td headers="a b">1</td></tr></table>', {}, { screenId: 'rpg-battle/party' }).el;
     assert.equal(cells.querySelector('td').getAttribute('headers'), 'ss-t-rpg-battle-party-a ss-t-rpg-battle-party-b');
-    // The screen's CSS follows.
+    // The screen's CSS follows, to every copy drawn at the same time (B-b5b-robust-r2-1).
     assert.equal(scopeCss('#nm, .a > #hint:hover, [data-x="#q"] { color: red }', 'rpg-battle/party').css,
-        '[data-ss-screen="rpg-battle/party"] #ss-t-rpg-battle-party-nm, [data-ss-screen="rpg-battle/party"] .a > #ss-t-rpg-battle-party-hint:hover, [data-ss-screen="rpg-battle/party"] [data-x="#q"] { color: red }');
+        '[data-ss-screen="rpg-battle/party"] :is(#ss-t-rpg-battle-party-nm, [id^="ss-t-rpg-battle-party-nm--c"]), [data-ss-screen="rpg-battle/party"] .a > :is(#ss-t-rpg-battle-party-hint, [id^="ss-t-rpg-battle-party-hint--c"]):hover, [data-ss-screen="rpg-battle/party"] [data-x="#q"] { color: red }');
+    // A second copy drawn while the first is there gets ids (and names) of its own.
+    const first = renderTemplate(el.ownerDocument.createElement('div'), compileTemplate('<input id="nm" name="pick" type="radio">'), {}, { evaluate: fakeEvaluate, screenId: 'rpg-battle/party' });
+    const second = renderTemplate(el.ownerDocument.createElement('div'), compileTemplate('<input id="nm" name="pick" type="radio">'), {}, { evaluate: fakeEvaluate, screenId: 'rpg-battle/party' });
+    assert.deepEqual([second.el.children[0].id, second.el.children[0].getAttribute('name')], ['ss-t-rpg-battle-party-nm--c3', 'ss-t-rpg-battle-party-pick--c3'], 'the cells and the first copy are still drawn');
+    first.destroy();
+    second.destroy();
 });
 
 test('the same element drawn for another screen gets that screen\'s ids', () => {

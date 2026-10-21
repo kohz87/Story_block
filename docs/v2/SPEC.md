@@ -343,8 +343,11 @@ One hidden block at the end of the reply:
   unseen). In a block the reply left open, the last line has no line break after it (SillyTavern trims
   every reply); it is read as written, unless the reader stopped the reply (`GENERATION_STOPPED` before it
   was received: it was cut off mid-way), or it is no change line, or a tag sits in it; then it is a
-  Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150); the
-  rest are one Problem. A Continue reads only the bare blocks it adds; where its text starts is found
+  Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150),
+  counting every non-blank line written, change line or not; the rest are one Problem (`TOO_MANY`).
+  Reasoning tags and the hidden comment are found open by open, close by close, in one pass, so unclosed
+  tags cost no more than the text's length. Every cut Story Block makes (names, settings text, currency,
+  quoted lines) keeps whole characters: a surrogate pair is never split. A Continue reads only the bare blocks it adds; where its text starts is found
   past the whitespace SillyTavern drops when it writes the continued reply back.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
@@ -403,8 +406,10 @@ sdk.registerModule({
   generation, with a reason; MODULES §F12), `beforeGenerate`. Money is one currency (MODULES §F1).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`) render in the
   Story Suite overlay; `section` renders a custom panel for what a schema can't express. Values are stored
-  under `extension_settings.storySuite.modules[id]`. No module has its own drawer panel in v2 (NSD keeps its
-  standalone one and hides it when hosted).
+  under `extension_settings.storySuite.modules[id]`. `settings.set` stores a value as its field allows it:
+  text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
+  options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped).
+  No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
 * **Tabs** render into Story Block's tab bar from the head state; they never read message text.
 * **Events**: `sdk.on('committed' | 'head' | 'turn', fn)`; `head` fires after any rebuild.
 * `sdk.query(name, args)`, `sdk.modules()`, `sdk.id(prefix)`, `sdk.check`, `sdk.settings(id)`.
