@@ -75,6 +75,8 @@ const notices = [];
 globalThis.toastr = Object.fromEntries(['success', 'info', 'warning', 'error'].map(level => [level, message => notices.push(`${level}: ${message}`)]));
 const ctx = {
     chat: [],
+    characters: [{ avatar: 'test.png' }], characterId: 0,
+    getRequestHeaders: () => ({ 'Content-Type': 'application/json' }),
     mainApi: 'openai',
     extensionSettings: {},
     getCurrentChatId: () => 'chat-1',
@@ -119,6 +121,111 @@ const finish = async (mes = 'reply') => {
     await emit('MESSAGE_RECEIVED', ctx.chat.length - 1);
 };
 const setBlocks = list => { ctx.extensionSettings.storyBlock = { blocks: list }; };
+
+test('coordinated quest writes save blocks, receipt and swipe metadata once, with readback', async t => {
+    const { templateById } = await import('../src/templates.js');
+    const sb = globalThis.StoryBlock;
+    setBlocks([{ ...templateById('inventory'), enabled: true }]);
+    sb.registerBlock({ id: 'quest-director', tag: 'Director', name: 'Director' });
+    t.after(() => sb.unregisterBlock('quest-director'));
+    ctx.chat = [{ is_user: false, mes: 'Reply', swipe_id: 0, swipes: ['Reply'], swipe_info: [{ extra: {} }] }];
+    let stored = structuredClone(ctx.chat);
+    let saves = 0;
+    t.mock.method(ctx, 'saveChat', async () => { saves++; stored = structuredClone(ctx.chat); });
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        assert.equal(url, '/api/chats/get');
+        assert.equal(JSON.parse(options.body).file_name, 'chat-1');
+        return { ok: true, json: async () => structuredClone(stored) };
+    });
+    const request = () => ({
+        id: 'quest-one', chatId: 'chat-1', messageIndex: 0, expectedText: ctx.chat[0].mes,
+        expectedExtra: JSON.stringify(ctx.chat[0].extra ?? {}),
+        changes: [{ tag: 'Inventory', text: 'Coins | 8 silver |' }, { tag: 'Director', text: '- Wolves — completed' }],
+        namespace: 'storyDirectorQuest', value: { receipts: [{ id: 'quest-one' }] },
+    });
+    const before = structuredClone(ctx.chat);
+    assert.equal((await sb.commitBlocks({ ...request(), changes: [...request().changes, { tag: 'Unknown' }] })).status, 'failed');
+    assert.deepEqual(ctx.chat, before, 'a later invalid block cannot partially mutate the reply');
+    assert.equal((await sb.commitBlocks(request())).status, 'durable');
+    assert.equal(saves, 1);
+    assert.ok(sb.messageIdentity(0));
+    assert.equal(ctx.chat[0].swipes[0], ctx.chat[0].mes);
+    assert.deepEqual(ctx.chat[0].swipe_info[0].extra, ctx.chat[0].extra);
+    assert.match(sb.getBlock('Inventory').text, /8 silver/);
+    assert.equal((await sb.commitBlocks(request())).status, 'durable');
+    assert.equal(saves, 1, 'a retry verifies the existing receipt without repeating the write');
+    assert.equal((await sb.commitBlocks({ ...request(), expectedText: 'stale' })).status, 'failed');
+    assert.equal((await sb.commitBlocks({ ...request(), chatId: 'wrong-chat' })).status, 'failed');
+});
+
+test('transaction readback distinguishes rejected saves, lost responses and unknown outcomes', async t => {
+    const sb = globalThis.StoryBlock;
+    const save = t.mock.method(ctx, 'saveChat');
+    const fetch = t.mock.method(globalThis, 'fetch');
+    for (const mode of ['rejected', 'lost-response', 'unreadable', 'newer-change']) {
+        ctx.chat = [{ is_user: false, mes: 'Before', extra: { retained: true } }];
+        const before = structuredClone(ctx.chat[0]);
+        let stored = structuredClone(ctx.chat);
+        save.mock.mockImplementation(async () => {
+            if (!['rejected', 'newer-change'].includes(mode)) stored = structuredClone(ctx.chat);
+            if (mode === 'newer-change') ctx.chat[0].mes = 'Newer edit';
+            throw new Error('Connection lost');
+        });
+        fetch.mock.mockImplementation(async () => {
+            if (mode === 'unreadable') throw new Error('Readback unavailable');
+            return { ok: true, json: async () => stored };
+        });
+        const result = await sb.commitBlocks({
+            id: `test-${mode}`, chatId: 'chat-1', messageIndex: 0, expectedText: 'Before',
+            namespace: 'storyDirectorQuest', value: { receipt: mode },
+        });
+        assert.equal(result.status, mode === 'rejected' ? 'failed' : mode === 'lost-response' ? 'durable' : 'uncertain');
+        if (mode === 'rejected') assert.deepEqual(ctx.chat[0], before);
+        if (mode === 'newer-change') assert.equal(ctx.chat[0].mes, 'Newer edit');
+    }
+});
+
+test('new swipes drop copied transactions while preserving the old variant and unrelated extras', async () => {
+    const sb = globalThis.StoryBlock;
+    const oldExtra = {
+        retained: true, storyBlockIdentity: { id: 'old-variant', swipe: 0 },
+        storyDirectorQuest: { receipts: [{ id: 'payment' }] },
+        rpgBattleEvidence: { events: [{ id: 'fight' }] },
+        storyBlockCommits: { payment: { namespace: 'storyDirectorQuest' }, fight: { namespace: 'rpgBattleEvidence' } },
+    };
+    ctx.chat = [{ is_user: false, mes: 'New telling', swipe_id: 1, swipes: ['Old telling', 'New telling'],
+        swipe_info: [{ extra: structuredClone(oldExtra) }, { extra: {} }], extra: structuredClone(oldExtra) }];
+    await emit('MESSAGE_RECEIVED', 0);
+    const message = ctx.chat[0];
+    assert.ok(sb.messageIdentity(0));
+    assert.notEqual(sb.messageIdentity(0), 'old-variant');
+    assert.equal(message.extra.retained, true);
+    assert.equal(message.extra.storyDirectorQuest, undefined);
+    assert.equal(message.extra.rpgBattleEvidence, undefined);
+    assert.equal(message.extra.storyBlockCommits, undefined);
+    assert.deepEqual(message.swipe_info[0].extra, oldExtra);
+    assert.deepEqual(message.swipe_info[1].extra, message.extra);
+});
+
+test('a chat change during transaction save cannot write its receipt into the newly active chat', async t => {
+    const sb = globalThis.StoryBlock;
+    const newChat = [{ is_user: false, mes: 'Unrelated chat' }];
+    ctx.chat = [{ is_user: false, mes: 'Original chat' }];
+    let stored;
+    t.mock.method(ctx, 'saveChat', async () => {
+        stored = structuredClone(ctx.chat);
+        ctx.chat = newChat;
+        t.mock.method(ctx, 'getCurrentChatId', () => 'new-chat');
+    });
+    t.mock.method(globalThis, 'fetch', async (_url, options) => {
+        assert.equal(JSON.parse(options.body).file_name, 'chat-1');
+        return { ok: true, json: async () => stored };
+    });
+    const result = await sb.commitBlocks({ id: 'old-chat-payment', chatId: 'chat-1', messageIndex: 0,
+        expectedText: 'Original chat', namespace: 'storyDirectorQuest', value: { receipts: [] } });
+    assert.equal(result.status, 'durable');
+    assert.deepEqual(newChat, [{ is_user: false, mes: 'Unrelated chat' }]);
+});
 
 test('first run starts from the templates', () => {
     assert.ok(Array.isArray(ctx.extensionSettings.storyBlock?.blocks ?? []));
@@ -377,7 +484,9 @@ test('suite: Story Block announces itself on load with what its enabled blocks o
     assert.deepEqual(provider.owns, ['items'], 'a first install has only Inventory on');
     assert.equal(globalThis.StorySuite.api('story-block').listBlocks, globalThis.StoryBlock.listBlocks);
     assert.equal(globalThis.StorySuite.api('story-block').getBlock, globalThis.StoryBlock.getBlock);
-    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['getBlock', 'listBlocks', 'manage', 'openSuite', 'printsPurse']);
+    assert.deepEqual(Object.keys(globalThis.StorySuite.api('story-block')).sort(), ['commitBlocks', 'getBlock', 'listBlocks', 'manage', 'messageIdentity', 'openSuite', 'printsPurse', 'transactionVersion']);
+    assert.equal(globalThis.StorySuite.api('story-block').commitBlocks, globalThis.StoryBlock.commitBlocks);
+    assert.equal(globalThis.StorySuite.api('story-block').transactionVersion, 1);
     assert.equal(provider.settings, '#story_block_settings', 'its panel, for Story Suite\'s overlay');
 });
 

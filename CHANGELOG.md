@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.26
+
+- **Coordinated quest saves.** Extensions can validate and save Inventory, quest completion and receipt together, then read the saved chat back before reporting success. Rejected saves restore an untouched candidate; ambiguous saves require recovery. Retrying a confirmed transaction does not write it again.
+- **Evidence belongs to its reply and swipe.** Stable message identities and synchronized swipe extras keep quest receipts and battle records with the variant that earned them. A new narration swipe drops copied transactions while preserving the original variant and unrelated extras.
+- Provides the persistence API used by Story Director **0.9.43** and RPG Battle **0.5.48**.
+
 ## 0.9.25
 
 - **Change lines inside the Inventory no longer wipe it.** When the model wrote its changes inside `<Inventory>` itself instead of `<Inventory_Changes>`, e.g. `+ Even Trophy | 2` / `- Minor Healing Draught | 1`, Story Block took those lines as the whole Inventory. Every other row, the Coin Pouch included, vanished from that reply, and RPG Battle's Trade showed *Purse: 0 copper*. Now a list block whose body has any `+`, `~` or `=` line is read as changes to the state before the reply, whether the block is changes-only or rewritten whole. The rows it doesn't mention stay, a plain row beside them reads as `~`, and a list of `- ` bullets alone is still a list. A change naming no row is reported as before. The change rules also say not to write these lines inside the block itself, about 13 tokens in the fixed part.
