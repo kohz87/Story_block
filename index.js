@@ -39,7 +39,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.29';
+const VERSION = '0.9.30';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -382,7 +382,7 @@ function suitePreview() {
     }
 }
 
-function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
+async function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) return null;
     warnCoexistence();
@@ -397,6 +397,8 @@ function prepareGeneration(type = 'normal', _params = null, isDryRun = false) {
     }
     const chatId = chatIdOf(ctx);
     const chat = ctx.chat ?? [];
+    await reconnectRegeneratedReply();
+    if (context()?.chat !== chat || chatIdOf(context()) !== chatId) return null;
     // Dice are rolled here, once per generation: a swipe or regenerate rolls again, and the
     // placeholder and the real context carry the same numbers.
     const session = {
@@ -436,7 +438,7 @@ async function onGenerationInterceptor(_chat, _contextSize, _abort, type = 'norm
     const ctx = context();
     if (!ctx || !hasActiveChat(ctx)) return;
     const chatId = chatIdOf(ctx);
-    if (!pending.has(chatId)) prepareGeneration(type);
+    if (!pending.has(chatId)) await prepareGeneration(type);
     const session = pending.get(chatId);
     if (session) session.armed = true;
 }
@@ -598,15 +600,17 @@ function journal() {
     return view;
 }
 
-// Older releases could lose the sole journal root during Regenerate. Offer a
-// narrow, explicit repair; never infer an archived parent or reset the journal.
+// Older releases could lose the sole journal root during Regenerate. Reconnect
+// only at its original position, without adopting archived ancestry or known descendants.
 function regeneratedReplyRecovery() {
     const ctx = context(), saved = chatMetadata(ctx)?.storyBlockJournal;
-    const head = saved?.nodes?.[saved.head], index = (ctx?.chat?.length ?? 0) - 1;
+    const head = saved?.nodes?.[saved.head];
+    const index = (ctx?.chat ?? []).findIndex((message, at) => !message.is_user && messageIdentity(at));
     const owner = messageIdentity(index);
     if (!owner || !head || head.parent || saved.scope !== chatIdOf(ctx) || head.position !== index
-        || pending.has(chatIdOf(ctx)) || Object.values(saved.nodes).some(node => node.owner === owner)
-        || ctx.chat.some((message, at) => at !== index && !message.is_user && messageIdentity(at))) return null;
+        || pending.has(chatIdOf(ctx)) || blockCommits.has(chatIdOf(ctx))) return null;
+    const known = new Set(Object.values(saved.nodes).map(node => node.owner));
+    if (ctx.chat.some((_message, at) => known.has(messageIdentity(at)))) return null;
     const view = journal();
     if (view.availability !== 'incomplete' || view.reason !== 'No retained reply matches the saved quest history.') return null;
     return { chatId: chatIdOf(ctx), messageIndex: index, owner, replacedOwner: head.owner, head: saved.head };
@@ -621,6 +625,23 @@ async function recoverRegeneratedReply(expected) {
         namespace: 'storyBlockReplacement', value: plan }, plan.replacedOwner);
     if (result.status === 'uncertain') uncertainJournalRepair = { chatId: plan.chatId, chat };
     return result;
+}
+
+async function reconnectRegeneratedReply() {
+    const ctx = context(), chat = ctx?.chat, plan = regeneratedReplyRecovery();
+    if (!plan) return false;
+    replyCallbacks++;
+    try {
+        const result = await recoverRegeneratedReply(plan);
+        if (result.status !== 'durable') {
+            uncertainJournalRepair = { chatId: plan.chatId, chat };
+            throw new Error(`Reply reconnection was not verified: ${result.reason}. Reload before retrying.`);
+        }
+        // The failed receive never reached plugins. Resume only the latest reply,
+        // including its injected quest choices, after the repaired header is verified.
+        if (context()?.chat === chat && chatIdOf(context()) === plan.chatId) await receiveMessage(latestAssistantIndex(chat));
+        return true;
+    } finally { replyCallbacks--; refreshAll(0); }
 }
 
 function archivedBlock(tagOrId) {
@@ -691,6 +712,7 @@ function describeMissing(problems) {
 async function onMessageReceived(messageId) {
     replyCallbacks++;
     try { await receiveMessage(messageId); }
+    catch (error) { notify('warning', `Reply state needs recovery: ${error.message}`); throw error; }
     finally { replyCallbacks--; refreshAll(0); }
 }
 
@@ -749,11 +771,19 @@ async function receiveMessage(messageId) {
         await persistMessageEdit(ctx, id, message, { rerender: false, save: false });
         dirty = true;
     }
+    // Generation is over even when its bookkeeping needs repair. Holding the
+    // session here would prevent the verified recovery transaction itself.
+    clearSession(chatId);
+    const recovery = regeneratedReplyRecovery();
+    if (recovery) {
+        const result = await recoverRegeneratedReply(recovery);
+        if (result.status !== 'durable') throw new Error(`Reply reconnection was not verified: ${result.reason}`);
+    }
     if (dirty || chatMetadata(ctx)) {
         syncActiveSwipeText(message);
         await saveChat(ctx);
     }
-    clearSession(chatId);
+    if (context()?.chat !== ctx.chat || chatIdOf(context()) !== chatId) return;
     refreshAll(0);
     // The Overview's token estimates follow the new reply (nothing is polled).
     refreshSuiteOverlay();
@@ -1560,12 +1590,14 @@ function onCharacterMessageRendered(messageId) {
     void normalizeMessageTransport(messageId).finally(() => refreshAll(20));
 }
 
-function onChatChanged() {
+async function onChatChanged() {
     // Pending sessions are chat-scoped and intentionally survive UI chat switches: a
     // generation already prepared may still reach prompt-ready after the user views another chat.
     syncMountSuspension();
     announceToSuite();
     refreshAll(0);
+    try { await reconnectRegeneratedReply(); }
+    catch (error) { notify('warning', `Reply state needs recovery: ${error.message}`); }
 }
 
 function registerEvents() {
@@ -1638,6 +1670,7 @@ globalThis.StoryBlock = Object.freeze({
     journal,
     regeneratedReplyRecovery,
     recoverRegeneratedReply,
+    reconnectRegeneratedReply,
     commitBlocks,
     messageIdentity,
     /**

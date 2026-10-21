@@ -372,6 +372,82 @@ test('explicit recovery of a legacy regenerated root verifies readback and prese
     }
 });
 
+test('a new reply automatically reconnects a legacy regenerated root before notifying plugins', async t => {
+    const sb = globalThis.StoryBlock;
+    ctx.chatMetadata = {};
+    ctx.chat = [{ is_user: false, mes: 'Original offer.', extra: {} }];
+    let stored;
+    t.mock.method(ctx, 'saveChat', async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => stored }));
+    t.after(() => { delete ctx.chatMetadata; ctx.chat = []; });
+    await emit('MESSAGE_RECEIVED', 0);
+    const oldHead = ctx.chatMetadata.storyBlockJournal.head;
+    await emit('GENERATION_AFTER_COMMANDS', 'normal', {}, false);
+    ctx.chat[0] = { is_user: false, mes: 'Regenerated offer.', extra: { storyBlockIdentity: { id: 'legacy-offer', swipe: 0 } } };
+    ctx.chat.push({ is_user: true, mes: 'Continue.' });
+    ctx.chat.push({ is_user: false, mes: 'Acceptance narrated.', extra: {} });
+    let called = 0;
+    const off = sb.onReply(({ messageIndex }) => {
+        assert.equal(messageIndex, 2);
+        assert.equal(sb.journal().availability, 'available');
+        called++;
+    });
+    t.after(off);
+    await emit('MESSAGE_RECEIVED', 2);
+    assert.equal(called, 1);
+    assert.equal(sb.replyBusy(), false);
+    assert.ok(ctx.chatMetadata.storyBlockJournal.nodes[oldHead], 'discarded history is retained');
+    assert.equal(sb.journal().entries.length, 2);
+    assert.equal(sb.journal().entries.at(-1).owner, sb.messageIdentity(2));
+});
+
+test('reopening a disconnected chat resumes its latest reply once after verified reconnection', async t => {
+    const sb = globalThis.StoryBlock;
+    ctx.chatMetadata = {};
+    ctx.chat = [{ is_user: false, mes: 'Original.', extra: {} }];
+    let stored;
+    t.mock.method(ctx, 'saveChat', async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => stored }));
+    t.after(() => { delete ctx.chatMetadata; ctx.chat = []; });
+    await emit('MESSAGE_RECEIVED', 0);
+    ctx.chat[0] = { is_user: false, mes: 'Regenerated.', extra: { storyBlockIdentity: { id: 'reopened-root', swipe: 0 } } };
+    ctx.chat.push({ is_user: true, mes: 'Continue.' },
+        { is_user: false, mes: 'Previously blocked reply.', extra: { storyBlockIdentity: { id: 'blocked-tail', swipe: 0 } } });
+    let called = 0;
+    const off = sb.onReply(({ messageIndex }) => { assert.equal(messageIndex, 2); called++; });
+    t.after(off);
+    await emit('CHAT_CHANGED');
+    assert.equal(sb.journal().availability, 'available');
+    assert.equal(called, 1);
+    await emit('CHAT_CHANGED');
+    assert.equal(called, 1, 'a healthy reload does not replay effects');
+});
+
+test('automatic reconnection stops after a rejected save without dispatching reply effects', async t => {
+    const sb = globalThis.StoryBlock;
+    ctx.chatMetadata = {};
+    ctx.chat = [{ is_user: false, mes: 'Original.', extra: {} }];
+    let stored;
+    const save = t.mock.method(ctx, 'saveChat', async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => stored }));
+    t.after(() => { delete ctx.chatMetadata; ctx.chat = []; });
+    await emit('MESSAGE_RECEIVED', 0);
+    ctx.chat[0] = { is_user: false, mes: 'Regenerated.', extra: { storyBlockIdentity: { id: 'rejected-repair', swipe: 0 } } };
+    stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]);
+    const before = structuredClone(ctx.chatMetadata.storyBlockJournal);
+    save.mock.mockImplementation(async () => {});
+    let called = 0;
+    const off = sb.onReply(() => { called++; });
+    t.after(off);
+    await assert.rejects(sb.reconnectRegeneratedReply(), /not verified/);
+    assert.deepEqual(ctx.chatMetadata.storyBlockJournal, before);
+    assert.equal(called, 0);
+    const writes = save.mock.callCount();
+    assert.equal(await sb.reconnectRegeneratedReply(), false);
+    assert.equal(save.mock.callCount(), writes, 'redraws do not repeat a rejected repair');
+    assert.match(sb.journal().reason, /Reload the page/);
+});
+
 test('new swipes drop copied transactions while preserving the old variant and unrelated extras', async () => {
     const sb = globalThis.StoryBlock;
     const oldExtra = {
