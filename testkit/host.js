@@ -39,11 +39,12 @@ export async function hostAvailable() {
     };
 }
 
-// The core modules (scene, inventory) when src/v2/domains/ exists: its `modules` (or default)
-// list, or every exported module definition.
-async function coreModules() {
+// The core module (scene, inventory) when src/v2/domains/ exists: createCoreModule({ hooks }) with
+// the registry's hooks, else its `modules` (or default) list, or every exported module definition.
+async function coreModules(registry) {
     const { module } = await load(DOMAINS);
     if (!module) return [];
+    if (typeof module.createCoreModule === 'function') return [module.createCoreModule({ hooks: name => registry.hooks(name) })];
     const list = module.modules ?? module.default;
     if (Array.isArray(list)) return list;
     if (list && typeof list === 'object' && list.id) return [list];
@@ -53,10 +54,10 @@ async function coreModules() {
 /**
  * Builds a host. `options`: { modules?: def[] (registered after the core ones), core?: true
  * (register src/v2/domains/ when present), fakes?: false (use fakes.js), st?: options for
- * createFakeContext, settings?: initial extension_settings.storySuite }.
+ * createFakeContext (plus onBlocked?), settings?: initial extension_settings.storySuite }.
  * Returns { st, ctx, registry, settings, store, bus, events, sdk, turn, send(text, reply),
  * swipe(reply), regenerate(reply), cont(reply), quiet(), head(), close() }; `st` is the fake
- * SillyTavern (fake-st.js). Throws when the runtime is missing and `fakes` is not set.
+ * SillyTavern (fake-st.js), with `st.notices` = [{ reason, moduleId }] for held-back generations. Throws when the runtime is missing and `fakes` is not set.
  */
 export async function createHost(options = {}) {
     const { modules = [], core = true, fakes = false, st: stOptions = {}, settings: initialSettings = null } = options;
@@ -71,10 +72,12 @@ export async function createHost(options = {}) {
     const extensionSettings = stOptions.extensionSettings ?? {};
     if (initialSettings) extensionSettings.storySuite = structuredClone(initialSettings);
     const st = createFakeContext({ ...stOptions, extensionSettings });
+    // What the reader was told when a generation was held back (a toastr warning live).
+    st.notices = [];
     const ctx = st.ctx;
 
     const registry = createRegistry();
-    for (const def of core ? await coreModules() : []) registry.register(def);
+    for (const def of core ? await coreModules(registry) : []) registry.register(def);
     for (const def of modules) registry.register(def);
 
     const settings = createSettings({ root: () => ctx.extensionSettings, registry, save: () => ctx.saveSettingsDebounced() });
@@ -82,7 +85,7 @@ export async function createHost(options = {}) {
     const bus = createCommandBus({ store, registry, settings });
     const events = createEvents();
     const { sdk, markReady } = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat });
-    const turn = createTurn({ ctx, store, bus, registry, settings, events });
+    const turn = createTurn({ ctx, store, bus, registry, settings, events, onBlocked: stOptions.onBlocked ?? null, notify: (reason, moduleId) => st.notices.push({ reason, moduleId }) });
     turn.install({ globalName: null });
     st.interceptor = turn.interceptor;
     await turn.onChatChanged();

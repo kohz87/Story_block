@@ -177,3 +177,19 @@ test('makeView: the frozen head, a query on it, settings and the chat\'s length 
     assert.ok(Object.isFrozen(view));
     assert.deepEqual(view.query('tally.value'), { n: 0 });
 });
+
+test('a query gets (state, args, tools) and can ask other queries over the same state', async () => {
+    const registry = createRegistry();
+    registry.register({
+        id: 'q',
+        domains: { tally: { initial: () => ({ n: 4 }) } },
+        queries: {
+            'tally.n': state => state.domains.tally.n,
+            'tally.double': (state, args, tools) => tools.query('tally.n') * (args?.times ?? 2),
+        },
+    });
+    const state = Object.freeze(registry.initialState());
+    const view = makeView({ store: { head: () => state }, registry, settings: () => ({}) });
+    assert.equal(view.query('tally.double'), 8);
+    assert.equal(view.query('tally.double', { times: 3 }), 12);
+});

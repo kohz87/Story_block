@@ -360,6 +360,87 @@ test('chat change and deleted messages rebuild the head; a chat with no state ge
     host.close();
 });
 
+test('canGenerate: a module can hold a story generation back, with a reason; quiet ones are not asked', async () => {
+    let ready = false;
+    let asked = 0;
+    const opened = [];
+    const host = await fakeHost({
+        modules: [{
+            id: 'creator',
+            name: 'Creator',
+            hooks: {
+                canGenerate: async view => { asked += 1; return ready || { ok: false, reason: `Make your character first (${view.chat.length} messages).` }; },
+                onBlocked: (reason, moduleId) => opened.push([moduleId, reason]),
+            },
+        }, { id: 'maybe', hooks: { canGenerate: () => (asked > 2 ? false : true) } }, { id: 'buggy', hooks: { canGenerate() { throw new Error('oops'); } } }],
+    });
+    const stopped = await host.send('Hello?', 'Should not be written.');
+    assert.equal(stopped.aborted, true);
+    assert.equal(host.ctx.chat.length, 2, 'no reply');
+    assert.equal(host.st.requests.length, 0, 'nothing was sent');
+    assert.deepEqual(host.st.notices, [{ reason: 'Make your character first (2 messages).', moduleId: 'creator' }]);
+    assert.deepEqual(opened, [['creator', 'Make your character first (2 messages).']]);
+    assert.deepEqual(host.turn.blocked(), [{ moduleId: 'creator', reason: 'Make your character first (2 messages).' }]);
+    assert.equal(host.st.prompt(STATIC_KEY), '');
+    assert.equal(host.turn.session(), null);
+    assert.deepEqual(host.turn.problems('buggy').map(item => item.code), ['FAILED'], 'a throwing hook is logged and does not block');
+    // Quiet generations are never asked.
+    await host.quiet('x');
+    assert.equal(asked, 1);
+    // Ready: the next one goes through; `false` alone blocks with a plain default reason.
+    ready = true;
+    const sent = await host.st.generate('normal', { reply: 'Now it goes.' });
+    assert.equal(sent.index, 2);
+    host.st.addUser('Again.');
+    const second = await host.st.generate('normal', { reply: 'no' });
+    assert.equal(second.aborted, true);
+    assert.equal(host.st.notices.at(-1).reason, 'maybe is not ready for the story to go on yet.');
+    host.close();
+});
+
+test('the static instruction asks for <Changes> only, never a state block', async () => {
+    const host = await fakeHost();
+    await host.st.addUser('Hi.');
+    await host.turn.interceptor([], 8192, () => {}, 'normal');
+    const text = host.st.prompt(STATIC_KEY);
+    assert.match(text, /This is the only block you write: no state, inventory or party blocks/);
+    assert.equal(text.match(/<[A-Z][A-Za-z_]*>/g).join(','), '<Changes>', 'no other block tag is named');
+    host.close();
+});
+
+test('the real runtime with the core module: items, coins, place and presence from one reply', async t => {
+    const available = await hostAvailable();
+    if (!available.ok) {
+        t.skip(available.reason);
+        return;
+    }
+    const host = await createHost();
+    assert.ok(host.registry.has('story-block'));
+    const { request } = await host.send('I land the fish and walk into the village.', [
+        'The trout fights, then gives. Fenna waves from the gate of Bluewatch.',
+        '<Changes>',
+        '+ item Moonveil Trout | qty: 1 | note: violet-streaked',
+        '+ item Moonveil Trout | qty: 1',
+        '~ place Bluewatch Village | kind: settlement',
+        '+ present Fenna',
+        '- item Rope',
+        '</Changes>',
+    ].join('\n'));
+    assert.ok(request.chat[0].content.includes('+ item Name | qty: 1'));
+    const head = host.head();
+    const trout = Object.values(head.domains.inventory.stacks).filter(stack => head.domains.inventory.defs[stack.def]?.name === 'Moonveil Trout');
+    assert.equal(trout.reduce((sum, stack) => sum + stack.qty, 0), 2, 'the second line ran on the state the first left');
+    assert.equal(head.domains.scene.place.name, 'Bluewatch Village');
+    assert.deepEqual(head.domains.scene.present, ['Fenna']);
+    assert.deepEqual(host.turn.problems('story-block').map(item => item.line), ['- item Rope']);
+    const receipts = host.ctx.chat[2].extra.storySuite.receipts;
+    assert.ok(receipts.every(receipt => receipt.cause === 'story' && receipt.module === 'story-block'));
+    assert.deepEqual(receipts.map(receipt => receipt.rev), [1, 2, 3, 4], 'one rev per line, in reply order');
+    const next = await host.send('Who is here?', 'Fenna.');
+    assert.ok(next.request.chat.at(-1).content.includes('Fenna'));
+    host.close();
+});
+
 test('the real runtime: a whole turn on store.js and commands.js', async t => {
     const available = await hostAvailable();
     if (!available.ok) {

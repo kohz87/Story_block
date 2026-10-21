@@ -11,7 +11,7 @@
 export const CAPTURE_PREFIX = 'capture.';
 export const INIT_PREFIX = 'module.init.';
 
-const KNOWN_KEYS = ['id', 'name', 'version', 'description', 'domains', 'commands', 'queries', 'capture', 'context', 'hooks', 'settings', 'tabs'];
+const KNOWN_KEYS = ['id', 'name', 'version', 'description', 'domains', 'commands', 'queries', 'capture', 'context', 'hooks', 'settings', 'tabs', 'screens', 'widgets'];
 const FIELD_TYPES = ['bool', 'int', 'choice', 'text', 'list'];
 
 const MODULE_ID = /^[a-z0-9][a-z0-9._-]*$/;
@@ -20,6 +20,9 @@ const DOMAIN = /^[a-z][a-zA-Z0-9_-]*$/;
 const COMMAND = /^[a-z][a-zA-Z0-9_-]*(?:\.[a-zA-Z0-9_-]+)*$/;
 const KIND = /^[a-z][a-z0-9_-]*$/;
 const TAB_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+// Screen ids are namespaced like `rpg-battle/party` (§13.1); widget names like `rpg-battle.battle-board`.
+const SCREEN_ID = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/;
+const WIDGET_NAME = /^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+$/;
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -143,7 +146,7 @@ export function definitionProblems(def) {
     }
     if (map(def.hooks, 'hooks')) for (const [name, hook] of Object.entries(def.hooks)) fn(hook, `hook "${name}"`);
     if (map(def.settings, 'settings')) {
-        const { defaults, schema, section } = def.settings;
+        const { defaults, schema, section, render } = def.settings;
         if (defaults !== undefined) {
             if (!isObject(defaults)) problems.push('settings.defaults is not an object');
             else { const problem = jsonProblem(defaults, 'settings.defaults'); if (problem) problems.push(problem); }
@@ -155,7 +158,13 @@ export function definitionProblems(def) {
                 if (problem) problems.push(problem);
             }
         }
-        if (section !== undefined) fn(section, 'settings.section');
+        // `section` is either the custom panel itself, section(el, api), or its title with the panel
+        // in `render(el, api)` (MODULES §A).
+        if (section !== undefined && typeof section !== 'string') fn(section, 'settings.section');
+        if (render !== undefined) fn(render, 'settings.render');
+        for (const key of Object.keys(def.settings)) {
+            if (!['defaults', 'schema', 'section', 'render'].includes(key)) problems.push(`"settings.${key}" is not a settings field (known: defaults, schema, section, render)`);
+        }
     }
     if (def.tabs !== undefined) {
         if (!Array.isArray(def.tabs)) problems.push('tabs is not a list');
@@ -167,12 +176,28 @@ export function definitionProblems(def) {
             fn(tab.render, `tab "${tab.id ?? index + 1}" render`);
         });
     }
+    // Screens and widgets (§13): only what the registry needs (ids, a render function); the screen
+    // renderer checks the rest of a screen when it shows it.
+    if (def.screens !== undefined) {
+        if (!Array.isArray(def.screens)) problems.push('screens is not a list');
+        else def.screens.forEach((screen, index) => {
+            if (!isObject(screen)) problems.push(`screen ${index + 1} is not an object`);
+            else if (typeof screen.id !== 'string' || !SCREEN_ID.test(screen.id)) problems.push(`screen ${index + 1} has no usable id (like "${def.id ?? 'module'}/name")`);
+        });
+    }
+    if (map(def.widgets, 'widgets')) {
+        for (const [name, widget] of Object.entries(def.widgets)) {
+            if (!WIDGET_NAME.test(name) || (typeof def.id === 'string' && !name.startsWith(`${def.id}.`))) problems.push(`the widget name "${name}" must start with the module id and a dot (like "${def.id}.${name.split('.').at(-1)}")`);
+            if (!isObject(widget)) { problems.push(`widget "${name}" is not an object`); continue; }
+            fn(widget.render, `widget "${name}" render`);
+        }
+    }
     return problems;
 }
 
 export function createRegistry() {
     const defs = new Map();
-    const owners = { domain: new Map(), command: new Map(), query: new Map(), kind: new Map(), tab: new Map() };
+    const owners = { domain: new Map(), command: new Map(), query: new Map(), kind: new Map(), tab: new Map(), screen: new Map(), widget: new Map() };
     // Every capture kind and alias → its canonical kind.
     const canonical = new Map();
 
@@ -194,6 +219,8 @@ export function createRegistry() {
             for (const alias of spec.aliases ?? []) out.push(['kind', alias, `the capture kind "${alias}" (an alias of "${kind}")`]);
         }
         for (const tab of def.tabs ?? []) out.push(['tab', tab.id, `the tab "${tab.id}"`]);
+        for (const screen of def.screens ?? []) out.push(['screen', screen.id, `the screen "${screen.id}"`]);
+        for (const name of Object.keys(def.widgets ?? {})) out.push(['widget', name, `the widget "${name}"`]);
         return out;
     }
 
@@ -304,13 +331,27 @@ export function createRegistry() {
         hookEntries: name => sorted().filter(def => typeof def.hooks?.[name] === 'function').map(def => ({ moduleId: def.id, fn: def.hooks[name] })),
         /** [{ moduleId, id, title, icon, render }] in module-id order, each module's in its own order. */
         tabs: () => sorted().flatMap(def => (def.tabs ?? []).map(tab => ({ ...tab, moduleId: def.id }))),
-        /** [{ moduleId, name, defaults, schema, section }] for modules with settings, in module-id order. */
+        /** [{ moduleId, ...screen }] in module-id order, each module's in its own order (§13.1). */
+        screens: () => sorted().flatMap(def => (def.screens ?? []).map(screen => ({ ...screen, moduleId: def.id }))),
+        /** [{ moduleId, name, props, render }] in module-id order, then by name (§13.5). */
+        widgets: () => sorted().flatMap(def => Object.keys(def.widgets ?? {}).sort().map(name => ({ ...def.widgets[name], name, moduleId: def.id }))),
+        /** One widget by its namespaced name, or null. */
+        widget(name) {
+            const owner = owners.widget.get(name);
+            return owner ? { ...defs.get(owner).widgets[name], name, moduleId: owner } : null;
+        },
+        /**
+         * [{ moduleId, name, title, defaults, schema, section }] for modules with settings, in module-id
+         * order. `section` is the custom panel function (from either form) or null; `title` the
+         * section's title when one was given as text, else the module's name.
+         */
         settingsDefs: () => sorted().filter(def => def.settings).map(def => ({
             moduleId: def.id,
             name: def.name ?? def.id,
             defaults: def.settings.defaults ?? {},
             schema: def.settings.schema ?? {},
-            section: def.settings.section ?? null,
+            title: typeof def.settings.section === 'string' && def.settings.section.trim() ? def.settings.section.trim() : def.name ?? def.id,
+            section: typeof def.settings.section === 'function' ? def.settings.section : def.settings.render ?? null,
         })),
         /** [{ moduleId, name, domains, kinds: [{ kind, grammar }], static, tail, budget }] in module-id order. */
         contexts: () => sorted().map(def => ({

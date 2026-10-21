@@ -195,7 +195,8 @@ export function createFakeContext(options = {}) {
         /**
          * One generation as SillyTavern runs it. `type`: normal | swipe | regenerate | continue |
          * quiet | impersonate. `reply`: the model's text (for continue, the text added).
-         * Returns { request, reply, index } (index: where the reply landed, or -1).
+         * Returns { request, reply, index, aborted? } (index: where the reply landed, or -1; aborted:
+         * an interceptor stopped it, so no request was built).
          */
         async generate(type = 'normal', { reply = '', dryRun = false } = {}) {
             const last = ctx.chat.length - 1;
@@ -217,7 +218,13 @@ export function createFakeContext(options = {}) {
             }
             await emit(EVENT_TYPES.GENERATION_STARTED, type, {}, dryRun);
             const interceptor = fake.interceptor ?? globalThis[interceptorName];
-            if (typeof interceptor === 'function') await interceptor(clone(ctx.chat), 8192, () => {}, type);
+            // An interceptor may stop the generation (SillyTavern's abort argument): nothing is sent.
+            let aborted = false;
+            if (typeof interceptor === 'function') await interceptor(clone(ctx.chat), 8192, () => { aborted = true; }, type);
+            if (aborted) {
+                await emit(EVENT_TYPES.GENERATION_STOPPED);
+                return { request: null, reply: '', index: -1, aborted: true };
+            }
             const request = buildRequest(type);
             request.dryRun = dryRun;
             await emit(ctx.mainApi === 'openai' ? EVENT_TYPES.CHAT_COMPLETION_PROMPT_READY : EVENT_TYPES.GENERATE_AFTER_COMBINE_PROMPTS, request);

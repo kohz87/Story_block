@@ -31,6 +31,7 @@ const CHANGES_HEADER = [
     '</Changes>',
     'op: + new or gained, - gone or lost, ~ changed, ! happened, ? asks code to decide (a check, a roll).',
     'Use only the kinds below. Leave out what did not change, and the whole block when nothing did.',
+    'This is the only block you write: no state, inventory or party blocks; code keeps those and shows them to you.',
     'Kinds:',
 ].join('\n');
 

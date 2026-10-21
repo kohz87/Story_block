@@ -157,3 +157,36 @@ test('definitions that are not modules are refused with what is wrong', () => {
     assert.deepEqual(definitionProblems({ id: 'x', settings: { schema: { a: 'bool', b: ['one', 'two'], c: { type: 'list', of: { name: 'text', n: { type: 'int' } } } } } }), []);
     assert.throws(() => createRegistry().register({ id: 'x', domains: { party: {} } }), /module "x" cannot be registered: domain "party" initial is not a function\./);
 });
+
+test('screens and widgets (§13): namespaced, listed in module-id order, clashes refused', () => {
+    const registry = createRegistry();
+    registry.register({
+        id: 'rpg-battle',
+        screens: [{ id: 'rpg-battle/party', title: 'Party' }, { id: 'rpg-battle/fight' }],
+        widgets: { 'rpg-battle.battle-board': { props: {}, render: () => {} } },
+    });
+    registry.register({ id: 'fishing-activity', widgets: { 'fishing-activity.fishing': { render: () => {} } } });
+    assert.deepEqual(registry.screens().map(screen => [screen.moduleId, screen.id]), [['rpg-battle', 'rpg-battle/party'], ['rpg-battle', 'rpg-battle/fight']]);
+    assert.deepEqual(registry.widgets().map(widget => [widget.moduleId, widget.name]), [['fishing-activity', 'fishing-activity.fishing'], ['rpg-battle', 'rpg-battle.battle-board']]);
+    assert.equal(registry.widget('rpg-battle.battle-board').moduleId, 'rpg-battle');
+    assert.equal(registry.widget('ss.meter'), null);
+    assert.throws(() => registry.register({ id: 'other', screens: [{ id: 'rpg-battle/party' }] }), /the screen "rpg-battle\/party" already belongs to "rpg-battle"/);
+    assert.match(definitionProblems({ id: 'x', widgets: { board: { render: () => {} } } }).join(), /must start with the module id and a dot \(like "x.board"\)/);
+    assert.match(definitionProblems({ id: 'x', widgets: { 'y.board': { render: () => {} } } }).join(), /must start with the module id/);
+    assert.match(definitionProblems({ id: 'x', widgets: { 'x.board': {} } }).join(), /widget "x.board" render is not a function/);
+    assert.match(definitionProblems({ id: 'x', screens: [{ id: 'Bad Id' }] }).join(), /screen 1 has no usable id/);
+    assert.match(definitionProblems({ id: 'x', screens: {} }).join(), /screens is not a list/);
+});
+
+test('settings.section: the panel itself, or a title with render(el, api)', () => {
+    const registry = createRegistry();
+    const render = () => {};
+    const panel = () => {};
+    registry.register({ id: 'a', name: 'A', settings: { section: 'Combat', render, defaults: { x: 1 } } });
+    registry.register({ id: 'b', name: 'B', settings: { section: panel } });
+    registry.register({ id: 'c', name: 'C', settings: { section: 'Only a title' } });
+    assert.deepEqual(registry.settingsDefs().map(def => [def.moduleId, def.title, def.section]), [['a', 'Combat', render], ['b', 'B', panel], ['c', 'Only a title', null]]);
+    assert.match(definitionProblems({ id: 'x', settings: { render: 'no' } }).join(), /settings.render is not a function/);
+    assert.match(definitionProblems({ id: 'x', settings: { section: 3 } }).join(), /settings.section is not a function/);
+    assert.match(definitionProblems({ id: 'x', settings: { panel: () => {} } }).join(), /"settings.panel" is not a settings field/);
+});

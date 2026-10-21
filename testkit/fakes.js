@@ -117,17 +117,20 @@ class CommandError extends Error {
     }
 }
 
-/** createCommandBus's interface; receipts get ids rc_00000001, rc_00000002, … */
+/**
+ * createCommandBus's interface (run takes { cause, seed, state, capture } as the real one); receipts
+ * get ids rc_00000001, rc_00000002, …
+ */
 export function createFakeBus({ store, registry, settings = () => ({}) }) {
     let counter = 0;
     let tokens = 0;
     const previews = new Map();
 
-    function run(type, payload, { cause = 'ui', seed = 0 } = {}) {
-        const handler = registry.command(type);
+    function run(type, payload, { cause = 'story', seed = 0, state = null, capture = null } = {}) {
+        const handler = capture?.apply ?? registry.command(type);
         if (!handler) return { ok: false, code: 'UNKNOWN_COMMAND', message: `Nothing handles "${type}".` };
-        const owner = registry.commandOwner(type);
-        const head = store.head() ?? { v: 2, meta: { rev: 0, claims: {} }, domains: {} };
+        const owner = capture?.moduleId ?? registry.commandOwner(type);
+        const head = state ?? store.head() ?? { v: 2, meta: { rev: 0, claims: {} }, domains: {} };
         const drafts = {};
         const claims = { ...head.meta.claims };
         let claimed = false;
@@ -169,7 +172,7 @@ export function createFakeBus({ store, registry, settings = () => ({}) }) {
         ];
         const summary = typeof out?.summary === 'string' ? out.summary : '';
         const receipt = { id: receiptId, type, module: owner, cause, seed, summary, narrate: out?.narrate ?? Boolean(summary), data: out?.data ?? {}, rev };
-        return { ok: true, ops, receipt };
+        return { ok: true, ops, receipt, state: deepFreeze(applyOps(head, ops)) };
     }
 
     function command(type, payload, { cause = 'ui' } = {}) {

@@ -89,11 +89,15 @@ export function createSettings({ root, registry, save = () => {} }) {
     return settings;
 }
 
-/** Runs a registered query on `state`; the answer is a plain copy. Throws for an unknown query. */
+/**
+ * Runs a registered query on `state`; the answer is a plain copy. Throws for an unknown query.
+ * A query is called (state, args, tools) with tools.query(name, args) over the same state.
+ */
 export function runQuery(registry, state, name, args) {
     const query = registry.query(name);
     if (!query) throw new Error(`Story Suite: no module answers the query "${name}".`);
-    const answer = query(state, args);
+    const tools = Object.freeze({ query: (other, otherArgs) => runQuery(registry, state, other, otherArgs) });
+    const answer = query(state, args === undefined ? undefined : structuredClone(args), tools);
     return answer === undefined ? undefined : structuredClone(answer);
 }
 

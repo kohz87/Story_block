@@ -170,11 +170,12 @@ function fold(doc, key, title, hint = '') {
 /**
  * Renders the settings into `root` (emptied first). `options`: { registry, settings
  * (createSettings), doc?, sdk? }. A module's `section(el, api)` gets api = { get(key), set(key,
- * value), values(), sdk }. Returns { refresh() }.
+ * value), values(), sdk } (a section given as a title plus render(el, api) is the same panel).
+ * Returns { refresh() }.
  */
 export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null }) {
     function moduleFold(def) {
-        const { details, body } = fold(doc, def.moduleId, def.name, def.moduleId);
+        const { details, body } = fold(doc, def.moduleId, def.name, def.title !== def.name ? def.title : def.moduleId);
         const values = settings(def.moduleId);
         for (const [key, field] of Object.entries(def.schema)) {
             const value = Object.hasOwn(values, key) ? values[key] : emptyValue(field);

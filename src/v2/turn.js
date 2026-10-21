@@ -7,6 +7,7 @@
 // At prompt-ready: hidden change blocks leave the prompt history, and when the preset left out
 // the Main Prompt (SillyTavern then drops in-prompt text) the static part is put back at the
 // start of this reply's part, for the story's own prompt only.
+// A module's canGenerate hook may stop a story generation first (the interceptor's abort).
 // After the reply (MESSAGE_RECEIVED for the carrier the interceptor prepared): read its
 // <Changes> block, run each line as its owner's capture command (cause 'story'), append what
 // was accepted, record what the reply was told, save once. A line no module takes, or one its
@@ -35,6 +36,8 @@ const IN_PROMPT = 0;
 const IN_CHAT = 1;
 const ROLE_SYSTEM = 0;
 const MAX_PROBLEMS = 200;
+
+const defaultNotify = reason => globalThis.toastr?.warning?.(reason, 'Story Suite');
 
 export const normalizeType = type => String(type ?? 'normal').trim().toLowerCase() || 'normal';
 
@@ -97,13 +100,14 @@ export function restoreMissing(chat, staticText, tailText) {
 }
 
 /**
- * Wires one SillyTavern context. `deps`: { ctx, store, bus, registry, settings, events? }.
+ * Wires one SillyTavern context. `deps`: { ctx, store, bus, registry, settings, events?,
+ * onBlocked?(reason, moduleId), notify?(reason, moduleId) (default: a toastr warning) }.
  * `settings` is createSettings() (settings() → host settings, settings(id) → a module's).
  * Returns { interceptor, install, uninstall, onPromptReady, onTextPromptReady, onMessageReceived,
  * onChatChanged, onTimelineChanged, onGenerationEnded, preview, problems, clearProblems,
  * session }.
  */
-export function createTurn({ ctx, store, bus, registry, settings, events = null }) {
+export function createTurn({ ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify }) {
     const types = () => ctx?.extension_prompt_types ?? ctx?.extensionPromptTypes ?? {};
     const roles = () => ctx?.extension_prompt_roles ?? ctx?.extensionPromptRoles ?? {};
     const position = place => (place === 'static' ? types().IN_PROMPT ?? IN_PROMPT : types().IN_CHAT ?? IN_CHAT);
@@ -111,6 +115,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
     let session = null;
     let listeners = [];
     const problemLog = [];
+    const blocks = [];
 
     function setPrompt(key, text, place) {
         if (typeof ctx?.setExtensionPrompt !== 'function') return;
@@ -173,7 +178,40 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
     }
 
     /** SillyTavern's generate interceptor: (chat, contextSize, abort, type). */
-    async function interceptor(_chat, _contextSize, _abort, type) {
+    // canGenerate (MODULES §F12): every module may hold a story generation back, e.g. until the
+    // player character exists. `false` or { ok: false, reason } blocks; the first one is the answer.
+    // A hook that throws is logged and does not block (a bug must not lock the reader out).
+    async function blockedBy() {
+        for (const { moduleId, fn } of registry.hookEntries('canGenerate')) {
+            let answer;
+            try { answer = await fn(view()); } catch (error) {
+                problem({ module: moduleId, code: 'FAILED', message: `canGenerate failed: ${error?.message ?? error}` });
+                continue;
+            }
+            if (answer === false || (answer && typeof answer === 'object' && answer.ok === false)) {
+                const name = registry.module(moduleId)?.name ?? moduleId;
+                const reason = typeof answer?.reason === 'string' && answer.reason.trim() ? answer.reason.trim() : `${name} is not ready for the story to go on yet.`;
+                return { moduleId, reason };
+            }
+        }
+        return null;
+    }
+
+    function block({ moduleId, reason }, abort) {
+        session = null;
+        clearPrompts();
+        try { abort?.(true); } catch (error) { console.warn('[Story Suite] the generation could not be stopped', error); }
+        try { notify?.(reason, moduleId); } catch { /* a missing toastr is not an error */ }
+        for (const fn of [registry.module(moduleId)?.hooks?.onBlocked, onBlocked]) {
+            if (typeof fn !== 'function') continue;
+            try { fn(reason, moduleId); } catch (error) {
+                problem({ module: moduleId, code: 'FAILED', message: `onBlocked failed: ${error?.message ?? error}` });
+            }
+        }
+        blocks.push({ moduleId, reason });
+    }
+
+    async function interceptor(_chat, _contextSize, abort, type) {
         const kind = normalizeType(type);
         if (!FOREGROUND.includes(kind)) {
             // A quiet prompt built while the reply's own is pending must not carry its text; the
@@ -190,6 +228,11 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
             if (store.headIndex() !== lastCarrier()) store.rebuild();
             if (hasCarrier()) store.ensureInitial(registry.initialState());
             await ensureModules({ store, bus, registry, events });
+            const blocked = await blockedBy();
+            if (blocked) {
+                block(blocked, abort);
+                return;
+            }
             const cues = await runCues();
             const built = build(cues);
             const chat = ctx.chat;
@@ -260,9 +303,12 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
     }
 
     // Runs the reply's change lines; returns { receipts, problems }.
+    // Each line runs on the state the lines before it left (bus.run's `state`), as its owner's
+    // capture handler (bus.run's `capture`), and is stored on the reply before the next one runs.
     async function captureLines(index, lines) {
         const receipts = [];
         const found = [];
+        let state = store.head();
         for (const line of lines) {
             const entry = registry.capture(line.kind);
             if (!entry) {
@@ -271,7 +317,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
             }
             let result;
             try {
-                result = await bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story' });
+                result = await bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry });
+                if (result?.ok) store.append({ ops: result.ops, receipt: result.receipt });
             } catch (error) {
                 result = { ok: false, code: 'FAILED', message: error?.message ?? String(error) };
             }
@@ -279,7 +326,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
                 found.push(problem({ module: entry.moduleId, index, line: line.raw, code: result?.code ?? 'FAILED', message: `"${line.raw}" was not used: ${result?.message ?? 'unknown error'}` }));
                 continue;
             }
-            store.append({ ops: result.ops, receipt: result.receipt });
+            state = result.state ?? store.head();
             receipts.push(result.receipt);
             events?.emit('committed', { receipt: result.receipt });
         }
@@ -395,6 +442,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null 
         /** The Problems list, oldest first; `moduleId` narrows it (null: the host's own). */
         problems: moduleId => problemLog.filter(item => moduleId === undefined || item.module === moduleId).map(item => ({ ...item })),
         clearProblems: () => { problemLog.length = 0; },
+        /** Generations a canGenerate hook stopped: [{ moduleId, reason }], oldest first. */
+        blocked: () => blocks.map(item => ({ ...item })),
         /** The pending reply's session (for status and tests), or null. */
         session: () => (session ? { ...session } : null),
     };
