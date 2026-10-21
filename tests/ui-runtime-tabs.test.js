@@ -175,8 +175,8 @@ test('a kept block with tab: false is prompted and kept, but has no sidebar tab;
         // A model's copy is still dropped, and the extension's stays current.
         ctx.chat.push(reply('They march.\n<Party>\nHP: 1/62\n</Party>'));
         await emit('MESSAGE_RECEIVED', ctx.chat.length - 1);
-        assert.doesNotMatch(ctx.chat.at(-1).mes, /<Party/);
-        assert.equal(sb.getBlock('Party').messageIndex, 0);
+        assert.match(ctx.chat.at(-1).mes, /<Party kept="RPG Battle">/, 'the owner-stamped state carries forward without a tab');
+        assert.equal(sb.getBlock('Party').messageIndex, ctx.chat.length - 1);
         ctx.chat.splice(1);
         await settle();
         assert.deepEqual(sidebarTabs(), ['block:notes']);

@@ -200,19 +200,28 @@ export function pluginBlockDef(spec, existing = []) {
  */
 export function createListeners(name = 'listener') {
     const listeners = new Set();
+    const priorities = new Map();
+    const ordered = () => [...listeners].sort((a, b) => (priorities.get(a) ?? 0) - (priorities.get(b) ?? 0));
     return {
-        add(callback) {
+        add(callback, { priority = 0 } = {}) {
             if (typeof callback !== 'function') return () => {};
             listeners.add(callback);
-            return () => listeners.delete(callback);
+            priorities.set(callback, priority);
+            return () => { priorities.delete(callback); return listeners.delete(callback); };
         },
         emit(payload) {
-            for (const callback of [...listeners]) {
+            for (const callback of ordered()) {
                 try {
                     callback(payload);
                 } catch (error) {
                     console.warn(`[Story Block] ${name} failed`, error);
                 }
+            }
+        },
+        async emitAsync(payload) {
+            for (const callback of ordered()) {
+                try { await callback(payload); }
+                catch (error) { console.warn(`[Story Block] ${name} failed`, error); }
             }
         },
         get size() { return listeners.size; },
