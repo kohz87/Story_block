@@ -1,0 +1,98 @@
+// The renderer the mounts are given (src/v2/view/render-screen.js), the dialog's onDraft for widgets
+// that edit the draft, and the host's `ss.*` widget names in the registry.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createScreenRenderer, layoutEvaluator } from '../../../src/v2/view/render-screen.js';
+import { createDialogMount } from '../../../src/v2/view/mounts/dialog.js';
+import { createRegistry } from '../../../src/v2/registry.js';
+import { createCoreModule } from '../../../src/v2/domains/index.js';
+import { standardWidgets } from '../../../src/v2/view/widgets/index.js';
+import { fakeApi, fakeChat, fakeQuery, screensWith, setupDom } from './mounts/helpers.js';
+
+const state = { v: 2, meta: { rev: 3, claims: {} }, domains: { n: 4 } };
+const queryAt = (name, args, at) => (name === 'n' ? at.domains.n : null);
+
+function setup(headIndex = 5) {
+    const doc = setupDom();
+    doc.head = doc.createElement('head');
+    const el = doc.createElement('div');
+    doc.body.appendChild(el);
+    const renderer = createScreenRenderer({ queryAt, widgets: () => ({ ...standardWidgets }), headIndex: () => headIndex });
+    return { doc, el, renderer };
+}
+
+const button = { type: 'button', label: 'Go', command: 'x.go' };
+const layoutScreen = root => ({ id: 'test/one', mounts: ['tab', 'card'], layout: { root } });
+
+test('a layout screen queries the state the mount shows and runs commands at the head', async () => {
+    const { el, renderer } = setup();
+    const calls = [];
+    const api = { command: async (type, payload) => { calls.push(type); return { ok: true }; } };
+    renderer.render(el, layoutScreen({ type: 'col', children: [{ type: 'text', value: { query: 'n' } }, button] }), { state, api, mount: 'tab', index: 5 });
+    assert.match(el.textContent, /4/);
+    const go = el.querySelector('button');
+    assert.notEqual(go.disabled, true);
+    go.click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, ['x.go']);
+});
+
+test('a card under an older reply is read-only: its buttons are disabled', () => {
+    const { el, renderer } = setup(5);
+    renderer.render(el, layoutScreen(button), { state, api: { command: async () => ({ ok: true }) }, mount: 'card', index: 2 });
+    assert.equal(el.querySelector('button').disabled, true);
+    renderer.render(el, layoutScreen(button), { state, api: { command: async () => ({ ok: true }) }, mount: 'card', index: 5 });
+    assert.notEqual(el.querySelector('button').disabled, true, 'the newest reply\'s card can act');
+});
+
+test('layout conditions use the events language with the row and the query in scope', () => {
+    const evaluate = layoutEvaluator({ state, q: { pc: { hp: 3 } } });
+    assert.equal(evaluate('item.points > 0', { item: { points: 2 }, index: 0, query: () => null }), true);
+    assert.equal(evaluate("query('n') == 4", { query: name => (name === 'n' ? 4 : null) }), true);
+    assert.equal(evaluate('q.pc.hp >= 5', {}), false);
+    assert.throws(() => evaluate('item.points >', { item: {} }));
+});
+
+test('a template screen without the template renderer says so; setTemplates plugs one in', () => {
+    const { el, renderer } = setup();
+    renderer.render(el, { id: 'test/tpl', mounts: ['tab'], template: '<b>x</b>' }, { state, api: {}, mount: 'tab' });
+    assert.match(el.textContent, /template screens are not available/);
+    const seen = [];
+    renderer.setTemplates({
+        compileTemplate: html => ({ html }),
+        renderTemplate: (target, compiled, scope, options) => { seen.push([compiled.html, typeof options.command, typeof options.evaluate]); target.textContent = 'drawn'; return { destroy() {} }; },
+    });
+    assert.equal(renderer.hasTemplates(), true);
+    const dispose = renderer.render(el, { id: 'test/tpl', mounts: ['tab'], template: '<b>x</b>' }, { state, api: { command: () => {} }, mount: 'tab' });
+    assert.equal(el.textContent, 'drawn');
+    assert.deepEqual(seen, [['<b>x</b>', 'function', 'function']]);
+    assert.equal(typeof dispose, 'function');
+});
+
+test('the dialog gives widgets onDraft: the value lands in the draft and the step is drawn again', () => {
+    const doc = setupDom();
+    const chat = fakeChat(doc, [1]);
+    const scopes = [];
+    const render = (el, screen, scope) => { scopes.push(scope); };
+    const wizard = { id: 'game/make', title: 'Make', mounts: ['dialog'], template: '<div></div>' };
+    const dialogs = createDialogMount({ screens: screensWith([wizard]), render, query: fakeQuery(), stateAt: chat.stateAt, headIndex: chat.headIndex, api: fakeApi() });
+    const handle = dialogs.open('game/make', { draft: { stats: { STR: 1 } } });
+    const before = scopes.length;
+    scopes.at(-1).api.onDraft('stats.STR', 3);
+    assert.equal(handle.draft.stats.STR, 3);
+    assert.equal(scopes.length, before + 1);
+    assert.equal(scopes.at(-1).draft.stats.STR, 3);
+    scopes.at(-1).api.onDraft('__proto__.x', 1);
+    assert.equal({}.x, undefined);
+    handle.close();
+});
+
+test('the host registers the ss.* widgets; any other module must use its own id', () => {
+    const registry = createRegistry();
+    registry.register(createCoreModule());
+    assert.deepEqual(registry.widgets().map(widget => widget.name), Object.keys(standardWidgets).sort());
+    assert.ok(registry.widget('ss.stepper'));
+    assert.throws(() => registry.register({ id: 'rpg-battle', widgets: { 'ss.board': { render() {} } } }), /must start with the module id/);
+    registry.register({ id: 'rpg-battle', widgets: { 'rpg-battle.board': { render() {} } } });
+    assert.ok(registry.widget('rpg-battle.board'));
+});

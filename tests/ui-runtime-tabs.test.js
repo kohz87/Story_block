@@ -65,7 +65,7 @@ globalThis.toastr = Object.fromEntries(['success', 'info', 'warning', 'error'].m
 const { defaultBlocks, templateById } = await import('../src/templates.js');
 ctx.extensionSettings.storyBlock = { blocks: defaultBlocks().filter(block => !['inner-chatter', 'dice'].includes(block.id)) };
 
-await import('../index.js');
+await import('../index.v1.js');
 const sb = globalThis.StoryBlock;
 const emit = (type, ...args) => ctx.eventSource.emit(eventTypes[type], ...args);
 // Mounting is scheduled on a timer; let it run.

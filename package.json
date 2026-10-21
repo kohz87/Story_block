@@ -1,6 +1,6 @@
 {
   "name": "story-block",
-  "version": "0.9.31",
+  "version": "2.0.0-alpha.1",
   "private": true,
   "type": "module",
   "scripts": {
