@@ -207,7 +207,7 @@ export function createRuntime({
             return [`The ${name} check failed: ${error?.message ?? error}`];
         }
     });
-    const store = createStore({ ...storeSaving({ ctx, live, fetch, onSaveError }), validate });
+    const store = createStore({ ...storeSaving({ ctx, live, fetch, onSaveError }), validate, scratch: name => registry.scratch(name) });
     saveOnUnload(store, page);
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();

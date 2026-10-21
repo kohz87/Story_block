@@ -112,7 +112,22 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
   that block as above. A `remove` of a thing that holds a counter (a stack a reply emptied) keeps that
   counter's number (`was`) and where it sits inside the thing (`count`, e.g. `/qty`); on replay, when the
   thing holds another number, `was` is taken from it instead (the rest stays; less than `was` there goes
-  below zero and the validator refuses the block). Ops without `was` apply as written.
+  below zero and the validator refuses the block). A moved count named `qty` that comes to exactly 0
+  removes the thing holding it (a stack is never kept at 0). A count that is not there at all (the reply
+  that made it was deleted) counts from 0: it is added as the op's change alone, and its holder is made for
+  it only when holders there are nothing but that count (a wallet `{ coin }`, never a stack). Ops without
+  `was` apply as written.
+* **Replayed blocks are checked.** After each replayed block the validators of the domains it touches run
+  (§2.5); a block that brings a problem the state did not have before it (a stack whose definition a
+  deleted reply made, a route to a deleted place) is skipped and reported like one that does not apply.
+* **Per-reply bookkeeping** (design rule): what each reply writes for itself (a budget tally, a "seen this
+  reply" mark) is kept under the reply's record ID (`ctx.carrier.sid`, which stays with the reply when an
+  earlier message is deleted), written with `add` and dropped by later replies, or derived from receipts.
+  Never a positional list append (`add /x/N`), and never a `replace` of a field of a shared object an
+  earlier reply created: replayed after that reply is deleted, such an op fails and its block is lost. A
+  domain may name such fields `scratch` (a list of top-level fields, the inventory's `perReply`): on
+  replay a `remove` inside one of something already gone is passed over, missing objects on the way are
+  made, and a `replace` of something not there becomes an `add`.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -186,7 +201,10 @@ replaces the `story` changes stored on it the way a fresh capture would: the rea
 steps on that reply stay after them, with their claims, and later replies are checked again on top (if one
 no longer fits, nothing changes, `CONFLICT`). → `{ ok: true, receipts, problems } | { ok: false, code,
 message }`; refused for the reader's messages, system messages, messages without a record and while a reply
-is being written. It emits `turn` with `{ index, type: 'reread', problems }` and saves once.
+is being written. It emits `turn` with `{ index, type: 'reread', problems }` and saves once. Each story
+receipt keeps a mark of the line that made it (`line`, a hash of its text); a line read again gets the seed
+of the receipt its unchanged text made before (in order, by kind), so what it makes keeps its IDs and the
+reader's later actions on them still fit; a changed or new line gets a fresh seed.
 
 ### 3.2 Handlers
 
@@ -314,7 +332,9 @@ One hidden block at the end of the reply:
   space is a label when the label is one word of letters (`09:00` stays text); a line over 2,000
   characters is a Problem. Nested `<Changes>` are counted. A close tag ends the block only at the start or
   the end of a line (one in the middle of a line belongs to that line, so nothing after it is dropped
-  unseen). In a block the reply left open, a last line with no line break after it was cut off and is a
+  unseen). In a block the reply left open, the last line has no line break after it (SillyTavern trims
+  every reply); it is read as written, unless the reader stopped the reply (`GENERATION_STOPPED` before it
+  was received: it was cut off mid-way), or it is no change line, or a tag sits in it; then it is a
   Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150); the
   rest are one Problem. A Continue reads only the bare blocks it adds; where its text starts is found
   past the whitespace SillyTavern drops when it writes the continued reply back.
@@ -396,9 +416,11 @@ sdk.registerModule({
 { place: { name: '', kind: '' /* settlement|wild|dungeon|… */, region: '' }, present: [ /* names */ ] }
 ```
 Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `present`
-(`+ present Fenna`, `- present Fenna`). A move keeps the stored `kind` and `region` unless the line gives
-them; only an explicit empty value (`kind:` with nothing after it) clears one. After a move only those named
-in `with:` are present.
+(`+ present Fenna`, `- present Fenna`). Without `kind:`, the same place (same name, any case) keeps its
+stored kind, and a move to another place takes the kind a pack gives a place of that name or alias
+(`packs.content({ kind: 'places' })`), else none: never the old place's. The region is kept unless the line
+gives one. Only an explicit empty value (`kind:` with nothing after it) clears one. After a move only those
+named in `with:` are present.
 
 ### inventory
 ```js
@@ -425,8 +447,21 @@ written with one is refused).
 * **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,
   `- item mark`), is money: it goes to or from the party's wallet like `+ coin` / `- coin`.
 * **Story limits.** One reply's story lines pay at most `storyCoinPerReply` (setting; 0 = the top reward of
-  the player character's rank from `quest.ranks`, else 1000 × level) and give at most 20 of one item; past
-  that a line is clamped with a Problem. Code's own payouts are not counted.
+  the player character's rank from `quest.ranks`, else 1000 × level), give at most 20 of one item, give
+  goods worth at most 2 × that coin budget in all (Σ def `value` × count given), and bring in at most 10
+  new item definitions. Past a limit a line is clamped with a `LIMITED` Problem; once it is spent, a line
+  is `REFUSED` (a refused line makes no definition). A `~ item … | qty:` that raises a count is a gain,
+  held to the same limits and to the carry limit when a module answers `items.carry` (`{ owner, add:
+  [{ defId, qty }] }` → `{ ok: false, message }` refuses it); lowering a count is free. The tally is
+  `inventory.perReply[<sid>]` (scratch, §2.2), so a swipe or a deleted reply takes it back. Code's own
+  payouts are not counted, except:
+* **Story-vouched payouts.** `wallet.receive { owner, amount, note?, story: true }`, called by a module
+  (`ctx.call`) while a reply is captured, is money the story alone vouched for (a quest the story closed
+  that no code could count). It counts against the same per-reply coin budget as the story's coin lines and
+  is never refused for it: over the budget what is left is paid, which may be 0; the receipt data's
+  `amount` is what was paid, and the result's `problem` says why (a `LIMITED` note when the module passes
+  it on). Without the flag, or outside a capture, a module's payout is not counted. `story` that is not
+  true or false is `INVALID`.
 * **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
   lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
 Story-introduced items: `+ item Name` resolves an existing def by alias, else creates `story/<slug>` with
@@ -504,7 +539,8 @@ roll(rng, '2d6+1') → { total, dice: [..] }
 
 // store.js + persist.js (SB-state)
 createStore({ chat: () => Message[], save: async (target, { keepalive }) => void, now?: () => number,
-  chatId?: () => string, place?: () => any, rescue?: async (target, [{ message, index }]) => void }) → {
+  chatId?: () => string, place?: () => any, rescue?: async (target, [{ message, index }]) => void,
+  validate?: (state, domains) => string[], scratch?: (domain) => string[] }) → {
   head() → State,                      // frozen
   at(index) → State,                   // state after carrier `index` (frozen)
   headIndex() → number,                // index of the last carrier (-1 if none)

@@ -30,8 +30,11 @@ test('B-b2-timeline-5: Continue of a reply that already had a block captures the
 test('B-b2-timeline-11: a reply stopped mid-line does not capture the cut-off last change line as written', async t => {
     // Stop (or a dropped stream) cuts "+ coin 25 | from: Fenna" to "+ coin 2"; SillyTavern still emits
     // MESSAGE_RECEIVED for the partial text and the open block runs to the end of it.
+    // (r2-2: with no Stop, a block's last line with no line break is whole, since SillyTavern trims every
+    // reply; the reader's Stop is what says it was cut off.)
     const h = await host(t);
-    await h.send('a', 'Fenna pays you.\n<Changes>\n+ item Rope\n+ coin 2');
+    await h.send('a', 'Fenna pays you.\n<Changes>\n+ item Rope\n+ coin 2', { stopped: true });
     assert.deepEqual(items(h), ['Rope'], 'the complete line is kept');
     assert.equal(coin(h), 0, `the cut-off line is not taken as "+ coin 2" (actual: ${coin(h)} coin)`);
+    assert.ok(h.turn.problems().some(problem => problem.code === 'CUT_OFF'), 'and the Problems list says so');
 });

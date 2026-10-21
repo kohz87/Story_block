@@ -155,7 +155,8 @@ test('a reader\'s action is saved at once (B-b2-timeline-1); many change lines, 
     t.mock.timers.tick(1000);
     await settle();
     assert.equal(h.st.saves.length, saves + 10, 'nothing left to save afterwards');
-    const lines = Array.from({ length: 30 }, (_, i) => `+ item Thing ${i}`).join('\n');
+    // Ten kinds (one reply's story lines may bring at most ten new ones), three lines each.
+    const lines = Array.from({ length: 30 }, (_, i) => `+ item Thing ${i % 10}`).join('\n');
     const before = h.st.saves.length;
     await h.send('Many.', `Lots.\n<Changes>\n${lines}\n</Changes>`);
     assert.equal(h.st.saves.length, before + 1, 'thirty change lines, one save at the end of the reply');

@@ -15,6 +15,7 @@ import { unsafeCss } from '../../src/v2/packs/validate.js';
 import { installFakeDom } from '../ui-fake-dom.js';
 import { renderSettingsHost } from '../../src/v2/host-ui.js';
 import { createHost } from '../../testkit/index.js';
+import { readRecord } from '../../src/v2/persist.js';
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 const coin = host => host.head().domains.inventory.wallets.party?.coin ?? 0;
@@ -51,6 +52,13 @@ test('a mid-line close followed by story text is not dropped silently: a Problem
     assert.equal(extractBlock(mes), '+ item Rope');
     assert.equal(cutLine(mes), '+ item Torch </Changes> and then they left.');
     assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n'), null, 'a line with its line break is whole');
+    // r2-2: SillyTavern trims the reply, so an unclosed block's last change line is whole unless the
+    // reader stopped the reply, or it is no change line.
+    assert.equal(extractBlock('Story.\n<Changes>\n+ item Rope\n+ coin 2'), '+ item Rope\n+ coin 2');
+    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ coin 2'), null);
+    assert.equal(extractBlock('Story.\n<Changes>\n+ item Rope\n+ coin 2', 'Changes', null, { stopped: true }), '+ item Rope');
+    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ coin 2', 'Changes', null, { stopped: true }), '+ coin 2');
+    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ ite'), '+ ite', 'no change line yet: cut off');
     assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n</Changes>'), null, 'a closed block has no cut line');
 });
 
@@ -101,10 +109,12 @@ test('the swipe_info copy of a reply\'s record is written once, after all its li
         if (value && typeof value === 'object' && value.v === 2 && Array.isArray(value.spans)) copies += 1;
         return real(value);
     });
-    await host.send('Look.', reply('Rope.', Array.from({ length: 40 }, (_, i) => `+ item Rope${i}`)));
+    // Forty lines of ten kinds (one reply's story lines may bring at most ten new ones).
+    await host.send('Look.', reply('Rope.', Array.from({ length: 40 }, (_, i) => `+ item Rope${i % 10}`)));
     t.mock.restoreAll();
     const message = host.ctx.chat.at(-1);
-    assert.equal(host.sdk.query('inventory.items').length, 40);
+    assert.equal(host.sdk.query('inventory.items').length, 10);
+    assert.equal(readRecord(message).receipts.length, 40);
     assert.deepEqual(message.swipe_info[message.swipe_id].extra.storySuite, message.extra.storySuite);
     assert.ok(copies <= 3, `the record was copied ${copies} times`);
 });
