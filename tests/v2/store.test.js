@@ -195,6 +195,28 @@ test('a swipe that moved down after an earlier swipe was deleted keeps its chang
     assert.equal(store.head().domains.inventory.stacks.it_b, undefined);
 });
 
+test('a shifted swipe is stamped again on rebuild, so a new swipe copied from it at its old index starts empty', () => {
+    const { ctx, store } = story(1);
+    const last = ctx.chat.at(-1);
+    newSwipe(last);
+    action(store, 'it_b', 2);                  // swipe 1 holds it_b, stamped 1
+    showSwipe(last, 0);
+    deleteSwipe(last, 0);                      // swipe 1 becomes swipe 0, still stamped 1
+    assert.equal(last.swipe_id, 0);
+    assert.equal(last.extra.storySuite.swipe, 1);
+    store.rebuild();                           // MESSAGE_SWIPE_DELETED
+    assert.equal(last.extra.storySuite.swipe, 0, 'stamped with the swipe it now is');
+    assert.equal(last.swipe_info[0].extra.storySuite.swipe, 0, 'swipe_info kept in step');
+    assert.equal(store.dirty(), true, 'the new stamp goes with the next save');
+    assert.equal(store.head().domains.inventory.stacks.it_b.qty, 2);
+    newSwipe(last);                            // SillyTavern copies the record into swipe 1
+    assert.equal(store.head().domains.inventory.stacks.it_b, undefined, 'the new swipe 1 is not the old swipe 1');
+    showSwipe(last, 0);
+    assert.equal(store.head().domains.inventory.stacks.it_b.qty, 2, 'the moved swipe keeps its changes');
+    store.rebuild();
+    assert.equal(last.extra.storySuite.swipe, 0, 'a record already stamped right is left alone');
+});
+
 test('deleting the last reply takes back its ops and the actions taken after it', () => {
     const { ctx, store } = story(3);
     const atTwo = store.at(4);

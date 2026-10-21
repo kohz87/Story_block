@@ -20,7 +20,7 @@
 
 import { apply as applyOps } from './ops.js';
 import {
-    KEY, carrierIndexes, createSaver, isCarrier, lastCarrier, newRecordId, readRecord, swipeOf, writeRecord,
+    KEY, carrierIndexes, createSaver, isCarrier, lastCarrier, newRecordId, readRecord, restamp, swipeOf, writeRecord,
 } from './persist.js';
 
 export const CHECKPOINT_EVERY = 20;
@@ -490,6 +490,12 @@ export function createStore({
         rebuild() {
             frozenCheckpoints = new WeakMap();
             cache = null;
+            // A swipe deleted before another shifts that one's index: stamp it again (persist.js), so
+            // the copy SillyTavern makes for the next new swipe is not taken for the new swipe's own.
+            const arr = list();
+            let stamped = false;
+            for (const i of carrierIndexes(arr)) stamped = restamp(arr[i]) || stamped;
+            if (stamped) saver.touch();
             current();
         },
 

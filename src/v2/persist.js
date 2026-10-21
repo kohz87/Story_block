@@ -6,6 +6,7 @@
 // * `sid` and `swipe` say which swipe wrote the record. SillyTavern copies `extra` into a new swipe, so a
 //   record whose `swipe` is not the shown swipe is only trusted when no other swipe holds the same `sid`
 //   (a swipe deleted before it shifted its index); otherwise it is a copy and the swipe has no record.
+//   The store stamps such a shifted record again on rebuild (`restamp`), so it never matches a later copy.
 // * `spans` = [{ n, story }]: how many of `ops` each append added and whether it came from a story capture,
 //   so a Re-read can replace the story ops and keep the rest.
 // * `rev` = meta.rev of the state after this carrier, for the host's check after a save.
@@ -50,6 +51,16 @@ export function readRecord(message) {
     const copied = (message.swipe_info ?? []).some((info, at) => at !== swipe && info?.extra !== message.extra
         && info?.extra?.[KEY]?.sid === record.sid);
     return copied ? null : record;
+}
+
+// A trusted record stamped with another swipe (it moved down when an earlier swipe was deleted) is
+// stamped again with the swipe it now is, so a copy SillyTavern makes of it for a new swipe at its old
+// index is seen as a copy. True when it wrote.
+export function restamp(message) {
+    const record = readRecord(message);
+    if (!record || record.swipe === undefined || record.swipe === swipeOf(message)) return false;
+    writeRecord(message, record);
+    return true;
 }
 
 // Writes the record for the shown swipe and keeps swipe_info in step. Touches nothing else in the message.
