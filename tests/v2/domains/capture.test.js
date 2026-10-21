@@ -225,9 +225,45 @@ test('+ present / - present', () => {
     const left = h.capture(line('-', 'present', 'FENNA'));
     assert.equal(left.result.summary, 'Fenna leaves.');
     assert.deepEqual(h.state.domains.scene.present, ['Old Tam']);
-    rejected(h, line('-', 'present', 'Fenna'), 'NOT_FOUND', /Fenna is not in the scene/);
+    // Someone the story says leaves who is not here (left behind by a move): nothing to change, not refused.
+    const gone = h.capture(line('-', 'present', 'Fenna'));
+    assert.equal(gone.ok, true, gone.message);
+    assert.equal(gone.result.summary, 'Fenna is not here.');
+    assert.deepEqual(gone.result.data.missing, ['Fenna']);
+    assert.deepEqual(h.state.domains.scene.present, ['Old Tam']);
     rejected(h, line('~', 'present', 'Old Tam'), 'INVALID', /use \+ present or - present/);
     rejected(h, line('+', 'present', ' , '), 'INVALID', /needs a name/);
+});
+
+test('a move leaves everyone behind but who came along (| with:); the same place keeps them', () => {
+    const h = setup();
+    h.capture(line('~', 'place', 'Inspection Quay', { kind: 'dock' }));
+    h.capture(line('+', 'present', 'Marrit, Fenna'));
+    assert.deepEqual(h.state.domains.scene.present, ['Marrit', 'Fenna']);
+
+    // Described anew: nobody leaves.
+    const same = h.capture(line('~', 'place', 'inspection quay', { region: 'Bluewatch' }));
+    assert.equal(same.ok, true, same.message);
+    assert.deepEqual(h.state.domains.scene.present, ['Marrit', 'Fenna']);
+
+    // A move with Fenna along: Marrit stays at the quay; a newcomer is added after the move.
+    const moved = h.capture(line('~', 'place', 'Bluewatch Village', { kind: 'settlement', with: 'fenna, Lyra' }));
+    assert.equal(moved.ok, true, moved.message);
+    assert.equal(moved.result.summary, 'The scene moves to Bluewatch Village with fenna, Lyra.');
+    assert.deepEqual(moved.result.data.left, ['Marrit']);
+    assert.deepEqual(h.state.domains.scene.present, ['Fenna', 'Lyra'], 'Fenna keeps her spelling; Lyra came along');
+    h.capture(line('+', 'present', 'Old Tam'));
+    assert.deepEqual(h.state.domains.scene.present, ['Fenna', 'Lyra', 'Old Tam']);
+
+    // A move with no one named: the scene starts empty there.
+    const alone = h.capture(line('~', 'place', 'East Bluff'));
+    assert.deepEqual(alone.result.data.left, ['Fenna', 'Lyra', 'Old Tam']);
+    assert.deepEqual(h.state.domains.scene.present, []);
+    // "Marrit stays behind" after the move is no refusal.
+    assert.equal(h.capture(line('-', 'present', 'Marrit')).ok, true);
+
+    rejected(h, line('~', 'place', 'Weir', { with: 'x'.repeat(81) }), 'INVALID', /at most 80/);
+    assert.deepEqual(h.state.domains.scene.place.name, 'East Bluff', 'nothing is saved on a refusal');
 });
 
 test('an unknown kind handed to the module is rejected', () => {

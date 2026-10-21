@@ -157,6 +157,7 @@ export const STRINGS = deepFreeze({
         quests: 'Quests',
         progress: 'Progress',
         moreQuests: 'and more on the Quests screen',
+        offered: 'Offered',
     },
 });
 

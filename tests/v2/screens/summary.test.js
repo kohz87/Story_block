@@ -29,8 +29,9 @@ test('gains, losses, coin and a move in one line', () => {
         ['inventory.consume', { stack: 'it_rope0001', qty: 1 }],
         ['inventory.drop', { stack: 'it_lant0001', qty: 1 }],
         ['wallet.receive', { owner: 'party', amount: 30, note: 'from the sealer' }],
-        ['scene.place', { name: 'The Weir', kind: 'wild' }],
-        ['scene.present', { add: ['Kael'], remove: ['Fenna'] }],
+        // The move leaves Fenna behind (Old Tam comes along); Kael is met there.
+        ['scene.place', { name: 'The Weir', kind: 'wild', with: 'Old Tam' }],
+        ['scene.present', { add: ['Kael'] }],
     ]);
     const digest = changesDigest(view);
     assert.deepEqual(digest.gained.map(entry => [entry.name, entry.qty]), [['Moonveil Trout', 1]]);

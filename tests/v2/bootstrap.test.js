@@ -54,7 +54,8 @@ test('a reply\'s change lines reach the Inventory tab of the story panel', async
     doc.querySelector('.story-suite-bar-story').click();
     const panel = doc.querySelector('#story_suite_v2_panel');
     assert.equal(panel.hidden, false);
-    assert.deepEqual(texts(panel, '.story-suite-tab-label'), ['Inventory', 'Scene']);
+    assert.deepEqual(texts(panel, '.story-suite-tab-label'), ['Scene', 'Inventory']);
+    panel.querySelector('[data-tab-id="story-block/inventory"]').click();
     assert.match(panel.querySelector('.story-suite-pane').textContent, /Rope/);
     assert.match(panel.querySelector('.story-suite-pane').textContent, /7/);
     doc.querySelector('.story-suite-sheet-close').click();
@@ -82,7 +83,7 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     assert.match(strip.textContent, /plenty/);
     doc.querySelector('.story-suite-bar-story').click();
     const panel = doc.querySelector('#story_suite_v2_panel');
-    assert.deepEqual(texts(panel, '.story-suite-tab-label'), ['Rope', 'Inventory', 'Scene'], 'tab screens by id');
+    assert.deepEqual(texts(panel, '.story-suite-tab-label'), ['Scene', 'Inventory', 'Rope'], 'the usual tabs first, then the rest');
     panel.querySelector('[data-tab-id="gauge/rope"]').click();
     assert.ok(panel.querySelector('.story-suite-pane [data-widget="ss.meter"]'), 'the ss.meter widget is drawn');
     doc.querySelector('.story-suite-sheet-close').click();

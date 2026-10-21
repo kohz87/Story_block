@@ -23,10 +23,12 @@ import { createTabHost, openSettingsOverlay } from './host-ui.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
 import { createScreenRenderer } from './view/render-screen.js';
-import { createScreens } from './view/screens.js';
+import { formatStoryTime, storyCalendar } from './view/clock.js';
+import { byNavOrder, createScreens } from './view/screens.js';
 import { CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, changesSummary } from './screens/index.js';
 import { createReplyNotes } from './reply-notes.js';
 import { STRINGS, fill } from './strings.js';
+import { readRecord } from './persist.js';
 
 const IDS = Object.freeze({ bar: 'story_suite_v2_bar', panel: 'story_suite_v2_panel', drawer: 'story_suite_v2_drawer', menu: 'story_suite_v2_menu' });
 
@@ -53,6 +55,18 @@ const S = STRINGS;
 /** True for Alt+G alone (no Ctrl, Meta or Shift); `code` so it works whatever Alt types on a Mac. */
 export const isGameViewKey = event => Boolean(event?.altKey) && !event.ctrlKey && !event.metaKey && !event.shiftKey
     && (event.code === 'KeyG' || String(event.key ?? '').toLowerCase() === 'g');
+
+/**
+ * Does message `index` of `chat` get inline cards? Only a reply after the reader's first message (not the
+ * greeting) that carries a v2 record for its shown swipe.
+ */
+export function hasReplyRecord(chat, index) {
+    const message = chat?.[index];
+    if (!message || message.is_user) return false;
+    const firstUser = chat.findIndex(item => item?.is_user);
+    if (firstUser < 0 || index < firstUser) return false;
+    return readRecord(message) !== null;
+}
 
 /** The status strip is on unless the reader turned it off (MODULES §F54). */
 export const hudOn = extensionSettings => extensionSettings?.storySuite?.hud !== false;
@@ -95,7 +109,12 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         formatters: () => {
             let currency = null;
             try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
-            return currency?.name ? { money: n => `${n} ${currency.name}` } : {};
+            // fmt.time: the story clock on its calendar (Story Director's, else the pack's, else Gregorian).
+            const calendar = storyCalendar((name, args) => (registry.query(name) ? sdk.query(name, args) : null));
+            return {
+                ...(currency?.name ? { money: n => `${n} ${currency.name}` } : {}),
+                time: minutes => formatStoryTime(minutes, calendar),
+            };
         },
     });
     const screens = createScreens(readerStore(ctx));
@@ -137,6 +156,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         dialog: Object.freeze({ open: (screenId, opts) => sdk.dialog.open(screenId, opts) }),
     });
     const carriers = () => (ctx.chat ?? []).map((message, index) => (message && !message.is_user ? index : -1)).filter(index => index >= 0);
+    // Cards go under replies with a story record of their own; never under the greeting (every message
+    // before the reader's first one), which holds the chat's start, not a reply's changes.
+    const hasCard = index => hasReplyRecord(ctx.chat ?? [], index);
     // ---- notes under replies, and the refused lines the changes card shows ----------------------
     const rereadFn = typeof sdk.reread === 'function' ? index => sdk.reread(index)
         : typeof runtime.turn?.reread === 'function' ? index => runtime.turn.reread(index) : null;
@@ -175,6 +197,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         api,
         on: (name, fn) => events.on(name, fn),
         carriers,
+        hasCard,
         swipeAt: index => ctx.chat?.[index]?.swipe_id ?? 0,
         eventSource: ctx.eventSource,
         eventTypes: ctx.eventTypes ?? ctx.event_types,
@@ -188,8 +211,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         document: doc,
     });
     runtime.setDialog?.((screenId, opts) => mounts.dialog.open(screenId, opts));
-    // The tab host sees the module tabs and the tab screens as one list.
-    const tabSource = { tabs: () => [...registry.tabs(), ...extraTabs.map(tab => ({ ...tab, moduleId: 'screens' }))] };
+    // The tab host sees the module tabs and the tab screens as one list, in navigation order (Home's
+    // neighbours first: Party, Quests, Scene, Inventory, Map, then the rest; a tab's `order` moves it).
+    const tabSource = { tabs: () => byNavOrder([...registry.tabs(), ...extraTabs.map(tab => ({ ...tab, moduleId: 'screens' }))]) };
 
     // ---- the panel ---------------------------------------------------------------------------
     let tabHost = null;

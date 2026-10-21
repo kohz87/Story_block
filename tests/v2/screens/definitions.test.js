@@ -39,8 +39,9 @@ test('the registry takes them as the core module\'s defaults', () => {
     const registry = createScreens({ reader: () => reader, saveReader: next => { reader = next; } });
     registry.addModule('story-block', screens);
     assert.deepEqual(registry.problems(), []);
-    assert.deepEqual(registry.list('screen').map(entry => entry.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID]);
-    assert.deepEqual(registry.list('tab').map(entry => entry.id), [INVENTORY_SCREEN_ID, SCENE_SCREEN_ID]);
+    // Navigation order: Home first, then Scene before Inventory (screens.js DEFAULT_ORDER).
+    assert.deepEqual(registry.list('screen').map(entry => entry.id), [HOME_SCREEN_ID, SCENE_SCREEN_ID, INVENTORY_SCREEN_ID]);
+    assert.deepEqual(registry.list('tab').map(entry => entry.id), [SCENE_SCREEN_ID, INVENTORY_SCREEN_ID]);
     assert.deepEqual(registry.list('card').map(entry => entry.id), [CHANGES_CARD_SCREEN_ID]);
     assert.deepEqual(registry.list('hud'), []);
     // A pack can override one by id; the reader can reset it to this default.

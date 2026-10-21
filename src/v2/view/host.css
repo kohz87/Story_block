@@ -7,6 +7,7 @@
     --story-suite-bg: var(--SmartThemeBlurTintColor, rgba(20, 20, 24, 0.96));
     --story-suite-fg: var(--SmartThemeBodyColor, inherit);
     --story-suite-accent: var(--SmartThemeQuoteColor, #e1a95f);
+    --story-suite-sheet-width: min(420px, 34vw);
 }
 
 /* Screen themes (SPEC §13.3) reach the layout tokens (MODULES §F10); a layout's own tokens still win. */
@@ -61,10 +62,20 @@
 .story-suite-sheet-body { overflow: auto; padding: 8px 12px 16px; min-height: 0; }
 @media (min-width: 900px) {
     .story-suite-sheet {
-        top: var(--topBarBlockSize, 40px); left: auto; right: 0; bottom: auto; width: min(420px, 34vw);
+        top: var(--topBarBlockSize, 40px); left: auto; right: 0; bottom: auto; width: var(--story-suite-sheet-width);
         height: calc(100dvh - var(--topBarBlockSize, 40px));
         border-top: 0; border-left: 1px solid var(--story-suite-line); border-radius: 0;
         box-shadow: -8px 0 28px rgba(0, 0, 0, 0.3);
+    }
+}
+/* With room for both, the side sheet docks: SillyTavern's chat column (#sheld: absolute, left 0 / right 0,
+   auto margins) is centred in what is left of the window instead of running under the sheet. Narrower
+   windows keep the sheet over the chat. A chat the reader moved by hand (inline left / top) keeps its place. */
+@media (min-width: 1000px) {
+    body.story-suite-sheet-open #sheld:not([style*="left"]) {
+        right: var(--story-suite-sheet-width);
+        width: min(var(--sheldWidth, 50vw), calc(100vw - var(--story-suite-sheet-width)));
+        max-width: calc(100vw - var(--story-suite-sheet-width));
     }
 }
 

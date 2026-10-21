@@ -49,11 +49,20 @@ test('a collapsed card under each carrier, only for screens the reader turned on
     assert.equal(render.calls.length, 0, 'a collapsed card draws no body');
 });
 
+test('hasCard leaves a carrier without cards (the host: the greeting, a reply with no v2 record)', () => {
+    const { chat, cards } = world({ users: [1], extra: { hasCard: index => index === 2 } });
+    cards.attachAll();
+    assert.equal(cardsUnder(chat.messages[0]).length, 0, 'the greeting');
+    assert.equal(cardsUnder(chat.messages[2]).length, 1);
+    assert.equal(cardsUnder(chat.messages[3]).length, 0);
+    assert.equal(chat.messages[3].querySelector('.ss-cards'), null, 'no empty box either');
+});
+
 test('opening a card draws it with that reply\'s state and changed paths, not the head', () => {
     const { chat, render, query, cards } = world();
     cards.attachAll();
     const card = cardsUnder(chat.messages[1])[0];
-    assert.equal(card.querySelector('[data-slot="summary"]').textContent, '1 change');
+    assert.equal(card.querySelector('[data-slot="summary"]').textContent, '', 'no raw count of changed paths');
     card.querySelector('.ss-card-head').click();
     assert.equal(card.querySelector('.ss-card-head').getAttribute('aria-expanded'), 'true');
     assert.equal(card.querySelector('.ss-card-body').hidden, false);
@@ -189,10 +198,11 @@ test('SillyTavern events drive the cards when an eventSource is given', () => {
     assert.equal(handlers.swiped.length, 0);
 });
 
-test('a custom summary and the default change count', () => {
+test('a custom summary, and the default one never counts changed paths', () => {
     assert.equal(changeSummary([]), 'No changes');
     assert.equal(changeSummary(['/meta/rev']), 'No changes');
-    assert.equal(changeSummary(['/domains/a', '/domains/b', '/meta/rev']), '2 changes');
+    assert.equal(changeSummary(['/domains/a']), '');
+    assert.equal(changeSummary(['/domains/a', '/domains/b', '/meta/rev']), '');
     const { chat, cards } = world({ extra: { summary: (scr, { index, state }) => `${scr.title} at ${index}: ${state.domains.party.hp} HP` } });
     cards.attachAll();
     assert.equal(cardsUnder(chat.messages[2])[0].querySelector('[data-slot="summary"]').textContent, 'Sheet at 2: 30 HP');

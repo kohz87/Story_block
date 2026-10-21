@@ -1,10 +1,11 @@
 // `story-block/home` (SPEC §13.1, §13.4): the landing page of the full-screen game view. A summary of
 // whatever is installed, read through each module's queries (MODULES §B–C): the hero and the party
 // (RPG Battle), a fight under way or foes ahead, the place, time and who is here, the purse and what is
-// worn, and the quests on hand (Story Director). A query whose module is not installed answers null
-// (the mount catches the "no module answers" error), and every panel that needs it is behind a
-// `data-if`, so a missing module's panel is simply not there. Story Block alone shows the place and the
-// purse.
+// worn, and the quests on hand (Story Director; one offered and not yet taken is marked Offered, as the
+// Director's Quests screen counts offers: open, `offer`, not `taken`). A query whose module is not
+// installed answers null (the mount catches the "no module answers" error), and every panel that needs it
+// is behind a `data-if`, so a missing module's panel is simply not there. Story Block alone shows the
+// place and the purse. The time is written on the story's calendar (the host's fmt.time, view/clock.js).
 
 import { STRINGS, html, jsonText } from '../strings.js';
 import { BASE_CSS } from './style.js';
@@ -73,7 +74,7 @@ const TEMPLATE = `
     <h4><i class="fa-solid fa-scroll" aria-hidden="true"></i> ${html(S.quests)}</h4>
     <ul>
       <li class="quest" data-each="q.quests as t, i" data-if="i < ${MAX_QUESTS}">
-        <b>{{ t.key }}</b><span class="muted" data-if="t.fields.goal"> — {{ t.fields.goal }}</span>
+        <b>{{ t.key }}</b> <span class="chip offered" data-if="t.offer == true && t.taken != true">${html(S.offered)}</span><span class="muted" data-if="t.fields.goal"> — {{ t.fields.goal }}</span>
         <div class="progress" data-if="i == 0">
           <ss-widget name="ss.meter" data-if="q.progress.need" data-props='{"value":"{{ q.progress.have }}","max":"{{ q.progress.need }}","label":"${jsonText(S.progress)}","tone":"accent"}'></ss-widget>
         </div>

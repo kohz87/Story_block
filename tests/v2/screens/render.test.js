@@ -236,7 +236,9 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     const lyra = { id: 'ac_lyra0001', name: 'Lyra', hp: { cur: 30, max: 30 } };
     state.domains.party = { pc: ren.id, order: [ren.id, lyra.id], actors: { [ren.id]: ren, [lyra.id]: lyra } };
     state.domains.director = { time: { minutes: 0 } };
-    const quests = [1, 2, 3, 4].map(n => ({ id: `th_quest000${n}`, key: `Quest ${n}`, fields: n === 1 ? { goal: 'clear the cellar' } : {} }));
+    // Quest 2 is offered and not taken (marked Offered); quest 3 was offered and taken (no mark).
+    const quests = [1, 2, 3, 4].map(n => ({ id: `th_quest000${n}`, key: `Quest ${n}`, fields: n === 1 ? { goal: 'clear the cellar' } : {},
+        ...(n === 2 ? { offer: true } : n === 3 ? { offer: true, taken: true } : {}) }));
     const query = queries(module, state, {
         'party.pc': () => ren,
         'combat.session': () => null,
@@ -262,7 +264,21 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     assert.equal(text(el.querySelector('.time')), 'Day 1, 00:00');
     assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3']);
     assert.equal(text(el.querySelector('.quest')).startsWith('Quest 1 — clear the cellar'), true);
+    assert.deepEqual(el.querySelectorAll('.quest').map(li => li.querySelectorAll('.offered').map(chip => chip.textContent)), [[], ['Offered'], []]);
     assert.equal(text(el.querySelector('.more')), 'and more on the Quests screen');
+});
+
+test('home and scene: the story time through the host\'s fmt.time (the calendar), not "Day N"', { skip }, async () => {
+    const { formatStoryTime } = await import('../../../src/v2/view/clock.js');
+    const ersveil = { era: 'CY', months: ['Dawnwane', 'Rainmoot', 'Greengale', 'Highsun', 'Goldwane', 'Haywane'].map(name => ({ name, days: 30 })) };
+    const module = core();
+    const state = sceneState(module);
+    state.domains.director = { time: { minutes: 3 * 180 * 1440 + 4 * 30 * 1440 + 11 * 1440 + 19 * 60 + 40 } };
+    const formatters = { time: minutes => formatStoryTime(minutes, ersveil) };
+    for (const screen of [homeScreen, sceneScreen]) {
+        const { el } = show(screen, { state, query: queries(module, state), widgets: recordingWidgets().widgets, extra: { formatters } });
+        assert.equal(text(el.querySelector('.time')), 'CY 3, Goldwane 12, 7:40 pm', screen.id);
+    }
 });
 
 test('home: a fight under way replaces the foes ahead', { skip }, () => {
