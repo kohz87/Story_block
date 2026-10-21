@@ -245,3 +245,8 @@ These settle questions agents raised; the host changes they need are made at int
    lore's old copper; all lore prices rescaled into marks.
 21. **Story Director time features** (user decision): deadlines that slip or lapse when story time passes, and
    the "while away" recap of off-screen agendas after a time jump, both in the core (not deferred).
+22. **Name and background from the persona** (user decision): the creation wizard takes the character's name
+   and background from the SillyTavern persona (name, description) and the portrait from the persona avatar;
+   race, talents and stats come from the wizard. Pack ready-made characters pre-fill race/talents/stats only.
+23. **Test setup** (user): SillyTavern 1.19; Gemini mostly (also GLM, Kimi, Gemma); Megumin with only CoT and
+   Writing Style on. The after-reply extractor stays off by default.
