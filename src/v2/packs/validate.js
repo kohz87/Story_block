@@ -294,6 +294,10 @@ function checkRecipe(record, path, add, ref) {
     return ok ? { ...base, makes, qty: record.qty ?? 1, materials } : null;
 }
 
+// Commands the host makes for itself (registry.js CAPTURE_PREFIX, INIT_PREFIX; events/engine.js FIRE):
+// a change line the story never wrote, a module's state reset, an event firing another. Not for packs.
+const HOST_COMMAND = /^(?:capture\.|module\.)|^events\.fire$/;
+
 function checkEvent(record, path, add) {
     const label = `Event "${record.id}"`;
     let ok = true;
@@ -307,6 +311,7 @@ function checkEvent(record, path, add) {
     if (!Array.isArray(then) || then.length > EVENT_LIMITS.then) say('then', `then must be a list of at most ${EVENT_LIMITS.then} { "command": …, "payload": { … } }.`);
     else then.forEach((step, index) => {
         if (!isObject(step) || typeof step.command !== 'string' || !COMMAND.test(step.command)) say(`then[${index}].command`, `then[${index}] needs a command name like "wallet.receive".`);
+        else if (HOST_COMMAND.test(step.command)) say(`then[${index}].command`, `then[${index}] names "${step.command}", a command Story Block runs itself; an event runs only module commands (like "wallet.receive").`);
         else if (step.payload !== undefined && !isObject(step.payload)) say(`then[${index}].payload`, `then[${index}].payload must be an object.`);
         else if (Object.keys(step).some(key => key !== 'command' && key !== 'payload')) say(`then[${index}]`, `then[${index}] holds only command and payload.`);
     });
@@ -610,6 +615,8 @@ function checkTheme(theme, add, path) {
         if (!TOKEN.test(name)) { add('BAD_THEME', `${path}.${name}`, `"${name}" is not a CSS custom property name (two dashes, then letters, digits and dashes, like "--ss-accent").`); continue; }
         if (typeof value === 'number') { out[name] = value; continue; }
         if (typeof value !== 'string' || value.length > 200 || CSS_VALUE_ESCAPE.test(value)) { add('BAD_THEME', `${path}.${name}`, `${path} "${name}" must be a plain CSS value (no url(), no braces, semicolons or backslashes).`); continue; }
+        const loads = cssUrlProblem(value);
+        if (loads) { add('BAD_THEME', `${path}.${name}`, `${path} "${name}" ${loads}.`); continue; }
         out[name] = value.trim();
     }
     return out;
@@ -621,11 +628,50 @@ function checkTheme(theme, add, path) {
 const CSS_URL = /url\s*\(\s*(['"]?)([^'")]*)\1\s*\)/gi;
 const CSS_SAFE_URL = /^(?:https:\/\/|data:image\/(?:png|jpeg|gif|webp)[;,])/i;
 const CSS_UNSAFE = /@import|expression\s*\(|behavior\s*:|-moz-binding|[<\\]/i;
+// Functions whose arguments the browser loads: their strings must be safe URLs, and they may not take
+// a value from var(), attr() or env() (a custom property could hold any URL as a plain string).
+const CSS_LOADERS = /(?:^|[^\w-])((?:-webkit-|-moz-)?(?:image-set|image|cross-fade|src|url|element))\s*\(/gi;
+const CSS_STRING = /"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g;
+// A string that names a URL: a scheme with `//`, a protocol-relative `//`, or a scheme that loads or runs.
+const URLISH = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:javascript|vbscript|livescript|data|blob|file|filesystem):)/i;
+
+/** The arguments of the call whose `(` is at `open`, to its matching `)` (strings respected). */
+function callArgs(text, open) {
+    let depth = 0;
+    let quote = null;
+    for (let i = open; i < text.length; i += 1) {
+        const char = text[i];
+        if (quote) {
+            if (char === quote) quote = null;
+        } else if (char === '"' || char === '\'') quote = char;
+        else if (char === '(') depth += 1;
+        else if (char === ')' && --depth === 0) return text.slice(open + 1, i);
+    }
+    return text.slice(open + 1);
+}
+
+/** Why a CSS text loads something it may not ('' when fine): image-set() and the like, URL strings. */
+function cssUrlProblem(css) {
+    for (const match of css.matchAll(CSS_LOADERS)) {
+        const name = match[1].toLowerCase();
+        const args = callArgs(css, match.index + match[0].length - 1);
+        if (/\b(?:var|attr|env)\s*\(/i.test(args)) return `may not give ${name}() a value from var(), attr() or env()`;
+        for (const string of args.matchAll(CSS_STRING)) {
+            const url = (string[1] ?? string[2]).trim();
+            if (name !== 'element' && !CSS_SAFE_URL.test(url)) return `may load only https or image data URLs (not "${url.slice(0, 40)}" in ${name}())`;
+        }
+    }
+    for (const string of css.matchAll(CSS_STRING)) {
+        const url = (string[1] ?? string[2]).replace(/[\u0000-\u0020\u007f]+/g, '');
+        if (URLISH.test(url) && !CSS_SAFE_URL.test(url)) return `may hold only https or image data URLs (not "${url.slice(0, 40)}")`;
+    }
+    return '';
+}
 
 export function unsafeCss(css) {
     if (CSS_UNSAFE.test(css)) return 'may not use @import, expression(), behavior, -moz-binding, < or backslashes';
     for (const [, , target] of css.matchAll(CSS_URL)) if (!CSS_SAFE_URL.test(target.trim())) return `may load only https or image data URLs (not "${target.trim().slice(0, 40)}")`;
-    return '';
+    return cssUrlProblem(css);
 }
 
 function checkScreens(list, packId, add) {

@@ -227,7 +227,7 @@ test('a pack event runs only command names, never code', () => {
 
 const accepted = input => validatePack(input).ok === true;
 
-test.todo('packs/safety.js EVENT_ATTR: an event attribute after a quoted ">" (<img alt=">" src=x onerror=alert(1)>) is refused', () => {
+test('packs/safety.js EVENT_ATTR: an event attribute after a quoted ">" (<img alt=">" src=x onerror=alert(1)>) is refused', () => {
     // EVENT_ATTR is /<[a-z][^>]*?[\s"'/]on[a-z]+\s*=(?!=)/: [^>] stops at the ">" inside the quoted alt
     // value, so the onerror that follows is never seen. A browser parses alt=">" as one attribute and
     // runs onerror. The template sanitiser (view/template) drops it when the text is drawn as a template;
@@ -237,19 +237,19 @@ test.todo('packs/safety.js EVENT_ATTR: an event attribute after a quoted ">" (<i
     assert.equal(accepted(withScreen({ template: '<div><img title="a>b" src=x onerror=alert(1)></div>' })), false);
 });
 
-test.todo('packs/validate.js unsafeCss: image-set() and -webkit-image-set() may load only https or image data URLs', () => {
+test('packs/validate.js unsafeCss: image-set() and -webkit-image-set() may load only https or image data URLs', () => {
     // CSS_URL only looks inside url(); image-set("http://…" 1x) loads a URL without url().
     assert.equal(accepted(withScreen({ css: '.a { background-image: image-set("http://evil.example/a.png" 1x); }' })), false);
     assert.equal(accepted(withScreen({ css: '.a { background-image: -webkit-image-set("//evil.example/a.png" 1x); }' })), false);
     assert.equal(accepted(base({ theme: { '--ss-bg': 'image-set("http://evil.example/a.png" 1x)' } })), false);
 });
 
-test.todo('packs/safety.js CODE_SCHEME: a link to a data: document (data:application/xhtml+xml, data:text/xml) is refused', () => {
+test('packs/safety.js CODE_SCHEME: a link to a data: document (data:application/xhtml+xml, data:text/xml) is refused', () => {
     assert.equal(accepted(withNote('<a href="data:application/xhtml+xml;base64,PHNjcmlwdD4=">x</a>')), false);
     assert.equal(accepted(withScreen({ template: '<a href="data:text/xml,<x/>">x</a>' })), false);
 });
 
-test.todo('packs/validate.js checkEvent: a pack event cannot run host-internal commands (module.init.*, capture.*)', () => {
+test('packs/validate.js checkEvent: a pack event cannot run host-internal commands (module.init.*, capture.*)', () => {
     // COMMAND accepts "module.init.story-block" (wipes the inventory and scene when run) and
     // "capture.coin" (a change line the story never wrote).
     const event = command => base({ content: { events: [{ id: 'boom', when: 'true', cue: 'Boom.', then: [{ command, payload: {} }] }] } });

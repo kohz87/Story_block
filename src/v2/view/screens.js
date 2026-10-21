@@ -11,7 +11,12 @@
 // * Data bindings (`data: { alias: { query, args } }`) run in dependency order: an argument written as
 //   `$alias.path` takes the value of an earlier binding. An unknown alias or a cycle is an error.
 //
+// * A theme's values pass the same checks the page applies (css.js themeVars: one CSS value each, nothing
+//   that loads or runs anything but data:/https:); a screen with one unsafe value is skipped as a whole.
+//
 // Pure: no DOM, no SillyTavern. Reader settings come in and go out through injected functions.
+
+import { themeVars } from './css.js';
 
 export const MOUNTS = Object.freeze(['tab', 'screen', 'card', 'hud', 'dialog']);
 export const SOURCES = Object.freeze(['reader', 'card', 'pack', 'module']);
@@ -61,6 +66,8 @@ export function validateScreen(def, { id = null } = {}) {
                 if (!PROPERTY.test(key)) errors.push(`${name}: theme key "${key}" is not a CSS custom property (--name).`);
                 else if (typeof value !== 'string' && !(typeof value === 'number' && Number.isFinite(value))) {
                     errors.push(`${name}: theme value for ${key} must be text or a number.`);
+                } else {
+                    for (const warning of themeVars({ [key]: value }).warnings) errors.push(`${name}: ${warning}`);
                 }
             }
         }

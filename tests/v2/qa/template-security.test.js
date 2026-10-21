@@ -196,7 +196,7 @@ test('theme values and data-bound CSS variables pass the same value checks', () 
 
 // ---- problems found (each a failing check, kept as a todo so CI stays green) -----------------
 
-test.todo('template/html.js readAttributes: a quote where an attribute name is expected (<img """>) is read like a browser, not a TypeError', () => {
+test('template/html.js readAttributes: a quote where an attribute name is expected (<img """>) is read like a browser, not a TypeError', () => {
     // nameMatch = /^[^\s"'>/=]+|^=[^\s"'>/=]*/ matches nothing at a quote, so nameMatch[0] throws
     // "Cannot read properties of null": compileTemplate throws on such a template instead of warning.
     assert.doesNotThrow(() => compileTemplate('<img """><b>x</b>'));
@@ -204,7 +204,7 @@ test.todo('template/html.js readAttributes: a quote where an attribute name is e
     assert.doesNotThrow(() => compileTemplate('<p a="1""b">z</p>'));
 });
 
-test.todo('template/sanitize.js: SVG presentation attributes (fill, stroke, clip-path, mask, marker-*) may hold url() only to #fragments, https: or data:', () => {
+test('template/sanitize.js: SVG presentation attributes (fill, stroke, clip-path, mask, marker-*) may hold url() only to #fragments, https: or data:', () => {
     // SVG_ATTRS lets fill="url(http://…)", clip-path, mask and marker-start/mid/end through unchecked (and
     // from data through data-bind-attr): an external SVG resource reference loads from any http: host.
     const { el } = render('<svg><rect fill="url(http://evil.example/p.svg#g)" clip-path="url(http://evil.example/c.svg#c)" mask="url(javascript:alert(1))"/><path marker-end="url(http://evil.example/m.svg#m)"/><rect data-bind-attr="stroke: q.u"/></svg>', { q: { u: 'url(http://evil.example/s.svg#s)' } });
@@ -213,7 +213,7 @@ test.todo('template/sanitize.js: SVG presentation attributes (fill, stroke, clip
     }
 });
 
-test.todo('css.js: a URL kept in a custom property cannot be loaded through image-set(var(--x)) (style attribute, screen CSS, theme, bound variable)', () => {
+test('css.js: a URL kept in a custom property cannot be loaded through image-set(var(--x)) (style attribute, screen CSS, theme, bound variable)', () => {
     // valueProblem looks for quoted strings inside image-set() / image() only literally; with the URL in a
     // custom property ("--a": "\"http://…\"", a plain string, allowed) image-set(var(--a) 1x) loads it.
     const css = scopeCss('.a { --a: "http://evil.example/x.png"; background-image: image-set(var(--a) 1x); }', 'qa/screen').css;
@@ -224,7 +224,7 @@ test.todo('css.js: a URL kept in a custom property cannot be loaded through imag
     assert.equal(cssVarValue('"http://evil.example/x.png"'), '', 'data-bind-var from story data');
 });
 
-test.todo('template/render.js: a <form> without data-submit cannot submit (navigate or reload the SillyTavern page)', () => {
+test('template/render.js: a <form> without data-submit cannot submit (navigate or reload the SillyTavern page)', () => {
     // No submit listener is added to a plain <form>, so its submit button sends a GET to the page itself.
     const { el } = render('<form><input name="q" value="x"><button type="submit">Go</button></form>');
     const form = el.querySelector('form');

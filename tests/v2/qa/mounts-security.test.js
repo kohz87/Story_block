@@ -113,7 +113,7 @@ test('a card screen whose theme key is not a custom property, or whose data path
 
 // ---- problems found (each a failing check, kept as a todo so CI stays green) -----------------
 
-test.todo('screens.js validateScreen / mounts common.js drawScreen: a card screen\'s theme cannot load or run anything (url(javascript:), url(http:), expression())', () => {
+test('screens.js validateScreen / mounts common.js drawScreen: a card screen\'s theme cannot load or run anything (url(javascript:), url(http:), expression())', () => {
     // validateScreen checks only that theme keys are --custom-properties and values are text; drawScreen
     // then sets every value on the mount element with style.setProperty. A character card (untrusted,
     // like a pack) can make any screen load http: or javascript: URLs through var(--…). §13.3 allows
