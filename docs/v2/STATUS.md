@@ -18,7 +18,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Mounts: screen registry, tab / full screen / card under reply / HUD / dialog | ✅ | #61 |
 | Widgets: ss.meter, radar, map, skill-tree, portrait, badge, timeline, stepper | ✅ | #63 |
 | Fishing example activity (public SDK only) | ✅ | #55 |
-| HTML templates with bindings, scoped CSS | 🔧 | |
+| HTML templates with bindings, scoped CSS | ✅ | #64 |
 | Integration: index.js bootstrap, host fixes (ctx.caller/rev/id/carrier/chat), rewind, wiring | 🔧 | |
 | Default screens (Inventory, Scene, changes card, home) + player guide | 🔧 | |
 | Assist (optional pre-roll classifier, after-reply extractor) | 🔧 | |
@@ -32,9 +32,9 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Combat: encounters, v1 engine replayed from stored actions, settlement, foes beaten | ✅ | #67 |
 | Trade: sell, buy, commission, collect, market rule, prices per place | ✅ | #66 |
 | Integration: module.js, one currency, payload fixes, index.js bootstrap | 🔧 | |
-| Pending d20 checks with reader modifiers (§F16) | 🔧 | |
+| Pending d20 checks with reader modifiers (§F16) | ✅ | #70 |
 | Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
-| Return in time after death (§F17) | 🔧 | |
+| Return in time after death (§F17) | ✅ | #69 |
 | Battle board widget, default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
 | QA (conservation, fuzz, v1 parity, cross-part payloads) | 🔧 | |
 
@@ -43,16 +43,17 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 |---|---|---|
 | Tracker: director domain, v1 rules, story clock, note | ✅ | #74 |
 | Quests: take / turn down / abandon / finish, targets, progress, payouts | ✅ | #73 |
-| Integration: module.js, one currency, one fight per kill quest, typed acceptance | 🔧 | |
+| Integration: module.js, one currency, one fight per kill quest, typed acceptance, v2 bootstrap | ✅ | #75 |
 | Atlas: places, routes, travel, map | 🔧 | |
 | Default screens (Quests, Director, status card, HUD) | 🔧 | |
-| v1 extras not yet ported: "while away" recap, slipped/lapsed on time jumps | ⏳ | |
+| Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
+| Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) | 🔧 | |
 
 ## NPC State Delta (standalone, hosted when Story Block v2 is present)
 | Piece | State | PR |
 |---|---|---|
 | Hosted adapter: queries, Cast tab, settings in the overlay | ✅ | #171 |
-| Integration: npc.portrait, release zip, no v1 hookup on a v2 host | 🔧 | |
+| Integration: npc.portrait, release zip, no v1 hookup on a v2 host | ✅ | #172 |
 
 ## Milestones
 - ⏳ **2.0.0-alpha.1**: all four integrated, combined live test passing (creation → offer → fight → quest payout → swipe/delete rollback), tagged on each `v2` branch.

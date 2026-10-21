@@ -227,10 +227,10 @@ These settle questions agents raised; the host changes they need are made at int
    them have their own switch to stop. Only `<Changes>` is v2's.
 16. **d20 for every uncertain action.** (User decision.) The static instruction tells the model: any action
    whose outcome is uncertain gets a `? check <skill> — <what> | dc: …` line and the reply stops before the
-   outcome. The check waits as a **pending check** (RPG Battle `checks` in the party domain): the reader
+   outcome. The check waits as a **pending check** (RPG Battle's `checks` domain, part src/v2/checks): the reader
    may add modifiers before rolling (a stat is applied automatically; the reader can add a skill or ability
-   that fits, an item, or a custom ±n with a reason), then presses Roll (`check.resolve`, d20 + modifiers,
-   seeded). If the reader sends the next message without rolling, the check is rolled with the automatic
+   that fits, an item, or a custom ±n with a reason), then presses Roll (`check.roll { id }`, d20 + modifiers,
+   seeded; party's `check.resolve` stays for direct rolls). If the reader sends the next message without rolling, the check is rolled with the automatic
    modifiers before that generation (`beforeGenerate`). The result is a receipt the next reply narrates.
    An optional setting (off) rolls before the reply via a cheap classifier call.
 17. **Death is a return in time.** (User decision.) When the PC dies, RPG Battle offers **Return**: the chat
@@ -241,3 +241,12 @@ These settle questions agents raised; the host changes they need are made at int
    that moment, with no memory rules imposed.
 18. **Default look** follows the SillyTavern theme's colours (cards, meters, badges), restyled by packs/cards.
 19. **Merging.** (User decision.) PRs into `v2` merge after green CI at the coordinator's discretion.
+20. **Ersveil currency** (user decision): the Ersveil pack's one currency is the **mark** (`mk`), 1 mark = the
+   lore's old copper; all lore prices rescaled into marks.
+21. **Story Director time features** (user decision): deadlines that slip or lapse when story time passes, and
+   the "while away" recap of off-screen agendas after a time jump, both in the core (not deferred).
+22. **Name and background from the persona** (user decision): the creation wizard takes the character's name
+   and background from the SillyTavern persona (name, description) and the portrait from the persona avatar;
+   race, talents and stats come from the wizard. Pack ready-made characters pre-fill race/talents/stats only.
+23. **Test setup** (user): SillyTavern 1.19; Gemini mostly (also GLM, Kimi, Gemma); Megumin with only CoT and
+   Writing Style on. The after-reply extractor stays off by default.
