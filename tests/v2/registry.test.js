@@ -150,7 +150,10 @@ test('definitions that are not modules are refused with what is wrong', () => {
     assert.match(problems({ id: 'x', capture: { kinds: { Item: { grammar: '+ item X' } }, apply: () => ({}) } }), /capture kind "Item" must be lowercase/);
     assert.match(problems({ id: 'x', capture: { kinds: { item: { grammar: '+ item X' } } } }), /capture.apply is not a function/);
     assert.match(problems({ id: 'x', context: { budget: 0 } }), /budget is not a positive whole number/);
-    assert.match(problems({ id: 'x', settings: { schema: { a: { type: 'colour' } } } }), /settings field "a" has type "colour"/);
+    // A newer module's field type is hidden, not a refusal (R2-b7-2).
+    assert.equal(problems({ id: 'x', settings: { schema: { a: { type: 'colour' } } } }), '');
+    assert.match(definitionWarnings({ id: 'x', settings: { schema: { a: { type: 'colour' }, b: { type: 'list', of: { c: 'slider' } } } } }).join(), /"a" has the type "colour".*hidden.*"b\.c" has the type "slider"/);
+    assert.match(problems({ id: 'x', settings: { schema: { a: {} } } }), /settings field "a" has no type/);
     assert.match(problems({ id: 'x', settings: { schema: { a: { type: 'choice', options: [] } } } }), /choice with no options/);
     assert.match(problems({ id: 'x', settings: { schema: { a: { type: 'list' } } } }), /list with no fields/);
     assert.match(problems({ id: 'x', settings: { schema: { a: { type: 'int', min: 0.5 } } } }), /min is not a whole number/);
@@ -192,7 +195,8 @@ test('settings.section: the panel itself, or a title with render(el, api)', () =
     assert.deepEqual(registry.settingsDefs().map(def => [def.moduleId, def.title, def.section]), [['a', 'Combat', render], ['b', 'B', panel], ['c', 'Only a title', null]]);
     assert.match(definitionProblems({ id: 'x', settings: { render: 'no' } }).join(), /settings.render is not a function/);
     assert.match(definitionProblems({ id: 'x', settings: { section: 3 } }).join(), /settings.section is not a function/);
-    assert.match(definitionProblems({ id: 'x', settings: { panel: () => {} } }).join(), /"settings.panel" is not a settings field/);
+    assert.deepEqual(definitionProblems({ id: 'x', settings: { panel: () => {} } }), [], 'a newer settings part is not a refusal (R2-b7-2)');
+    assert.match(definitionWarnings({ id: 'x', settings: { panel: () => {} } }).join(), /"settings.panel" is not a settings field this Story Block knows; it is ignored/);
 });
 
 test('internal commands: capture.*, module.init.* and commands marked internal (object form or flagged handler)', () => {
@@ -217,6 +221,6 @@ test('internal commands: capture.*, module.init.* and commands marked internal (
     assert.deepEqual(definitionProblems({ id: 'bad', commands: { 'bad.a': { handler: 1 }, 'bad.b': { handler: () => {}, internal: 'yes' }, 'bad.c': { handler: () => {}, extra: 1 } } }), [
         'command "bad.a" handler is not a function',
         'command "bad.b" internal is not true or false',
-        '"extra" is not a command field (known: handler, internal)',
     ]);
+    assert.deepEqual(definitionWarnings({ id: 'bad', commands: { 'bad.c': { handler: () => {}, extra: 1 } } }), ['"extra" on command "bad.c" is not a command field this Story Block knows; it is ignored']);
 });

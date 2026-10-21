@@ -328,8 +328,8 @@ test('sub-commands: nested calls share drafts, read sees them, depth limit is 8'
     assert.deepEqual(ctx.store.head().domains.chain.hops, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
     assert.equal(ok.receipt.data.seen, 9, 'the outer read sees what the inner calls drafted');
     assert.deepEqual(ctx.store.appended[0].ops.slice(0, 2), [
-        { op: 'add', path: '/domains/chain/hops/0', value: 0 },
-        { op: 'add', path: '/domains/chain/hops/1', value: 1 },
+        { op: 'add', path: '/domains/chain/hops/-', value: 0 },
+        { op: 'add', path: '/domains/chain/hops/-', value: 1 },
     ]);
     const deep = ctx.bus.command('chain.0', { stop: MAX_DEPTH + 1 });
     assert.equal(deep.code, 'FAILED');

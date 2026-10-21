@@ -338,7 +338,8 @@ test('Re-read of an older reply is refused when a later change depends on what i
     store.append({ ops: [{ op: 'add', path: '/domains/inventory/stacks/it_t', value: { id: 'it_t', qty: 1 } }],
         receipt: receipt({ cause: 'story' }) });
     ctx.chat.push(user(), reply());
-    store.append({ ops: [{ op: 'remove', path: '/domains/inventory/stacks/it_t' }], receipt: receipt() });
+    // A counted take (it carries `was`): replayed onto a stack that is not there, it still fails.
+    store.append({ ops: [{ op: 'remove', path: '/domains/inventory/stacks/it_t', was: 1, count: '/qty' }], receipt: receipt() });
     const snapshot = structuredClone(ctx.chat);
     assert.throws(() => store.replaceStory(2, { ops: [], receipts: [] }), /later change \(message 4\)/);
     assert.deepEqual(ctx.chat, snapshot);
@@ -346,7 +347,7 @@ test('Re-read of an older reply is refused when a later change depends on what i
 
 test('ops stored on a carrier that no longer apply are skipped and reported, not thrown', () => {
     const { ctx, store } = story(3);
-    ctx.chat[4].extra.storySuite.ops.push({ op: 'remove', path: '/domains/missing' });
+    ctx.chat[4].extra.storySuite.ops.push({ op: 'replace', path: '/domains/missing', value: 1 });
     store.rebuild();
     assert.equal(store.problems().length, 1);
     assert.equal(store.problems()[0].index, 4);
@@ -360,7 +361,7 @@ test('replay skips only the block that no longer applies; the carrier\'s other r
     const record = ctx.chat[4].extra.storySuite;
     assert.deepEqual(record.spans.map(span => span.n), [2, 2]);
     const broken = record.receipts[0];
-    record.ops[1] = { op: 'remove', path: '/domains/missing' };   // the first block now fails
+    record.ops[1] = { op: 'replace', path: '/domains/missing', value: 1 };   // the first block now fails
     store.rebuild();
     assert.deepEqual(store.problems().map(problem => [problem.index, problem.block, problem.receipts]), [[4, 0, [broken.id]]]);
     assert.equal(store.head().domains.inventory.stacks.it_2, undefined, 'the broken block is skipped');
@@ -383,7 +384,7 @@ test('Re-read of an older reply keeps a later block that was already skipped ski
     ctx.chat.push(user(), reply());
     action(store, 'it_a', 1);
     action(store, 'it_b', 2);
-    ctx.chat[4].extra.storySuite.ops[1] = { op: 'remove', path: '/domains/missing' };
+    ctx.chat[4].extra.storySuite.ops[1] = { op: 'replace', path: '/domains/missing', value: 1 };
     store.rebuild();
     assert.equal(store.problems().length, 1);
     store.replaceStory(2, { ops: [{ op: 'replace', path: '/domains/scene/place', value: 'New' }], receipts: [receipt({ cause: 'story' })] });

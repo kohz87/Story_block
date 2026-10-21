@@ -175,7 +175,7 @@ export function createStore({
     // so a chat stored before a validator grew stricter still replays.
     function step(state, ops, { replayed = false } = {}) {
         if (!ops.length) return state;
-        const { ops: rebased, rebased: moved } = rebaseOps(state, ops, { scratch });
+        const { ops: rebased, rebased: moved } = rebaseOps(state, ops, { scratch, replayed });
         const next = deepFreeze(apply(state, structuredClone(rebased)));
         if (typeof validate !== 'function') return next;
         const names = new Set(moved);
