@@ -24,7 +24,9 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Assist (optional pre-roll classifier, after-reply extractor), off by default | ✅ | #65 |
 | Performance benchmark + tuning proposals (docs/v2/PERFORMANCE.md) | ✅ | #68 |
 | Storage tuning: checkpoint 100/128 KB, one record copy, ride on SillyTavern's save, op compaction | ⏳ | |
-| QA (state invariants, security, prompt) | 🔧 | |
+| QA (state invariants, security, prompt): 90 tests, 17 findings as todo | ✅ | #70 |
+| Security hardening (packs, templates, CSS, themes) from QA findings | 🔧 | |
+| Core fixes from QA findings (middle-delete replay, failed save, internal commands, prototype keys) | ⏳ | |
 
 ## RPG Battle (module)
 | Piece | State | PR |
