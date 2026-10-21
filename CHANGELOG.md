@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0-alpha.1 (in progress, `v2` branch)
+
+Story Suite v2: a fresh start. State is JSON stored in each reply, every action is a command with a receipt, modules register through an SDK, screens are templates/layouts with widgets. Built so far: the state store, command bus, registry and turn pipeline, core scene and inventory (one currency), packs, events, layouts, mounts, widgets and the fishing example. Status: [docs/v2/STATUS.md](docs/v2/STATUS.md).
+
 ## 0.9.31
 
 - **Recover the saved reply even when earlier replies have acquired IDs.** A journal beginning at reply #6 could stay disconnected because an unrecorded reply #4 was mistaken for its boundary. Automatic recovery now targets the saved position and includes earlier replies that have no structured journal effects. Reopening resumes queued Take on choices without another generation or reconnect click.
