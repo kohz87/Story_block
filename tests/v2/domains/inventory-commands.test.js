@@ -294,34 +294,50 @@ test('merge: only alike stacks join', () => {
     rejects(h, 'inventory.merge', { stack: 'it_ropf0001', into: 'it_rope0001' }, 'REFUSED', /worn and the other is not/);
 });
 
+// Another module's command (a shop's trade.buy, a reward) asking the wallet through ctx.call.
+const BY_MODULE = { caller: 'rpg-battle' };
+
 test('wallet.pay and wallet.receive: { owner, amount, note? } in the smallest unit', () => {
     const h = setup();
-    const paid = h.run('wallet.pay', { amount: 25, note: 'the ferry fare' });
+    const paid = h.run('wallet.pay', { amount: 25, note: 'the ferry fare' }, BY_MODULE);
     assert.equal(paid.ok, true, paid.message);
     assert.equal(paid.result.summary, 'The party pays 25 gold — the ferry fare (100 gold left).');
     assert.deepEqual(paid.result.data, { owner: 'party', amount: 25, now: 100, note: 'the ferry fare' });
     assert.equal(h.state.domains.inventory.wallets.party.coin, 100);
-    const got = h.run('wallet.receive', { amount: 5, owner: 'ac_ren00001' });
+    const got = h.run('wallet.receive', { amount: 5, owner: 'ac_ren00001' }, { cause: 'system' });
     assert.equal(got.result.summary, 'ac_ren00001 receives 5 gold (now 5 gold).');
     assert.deepEqual(h.state.domains.inventory.wallets.ac_ren00001, { coin: 5 });
     // A renamed currency changes the words, not the wallet: still one integer under `coin`.
     const module = core();
     const renamed = createHarness([module], { state: stocked(module), settings: { 'story-block': CROWNS } });
-    const result = renamed.run('wallet.receive', { amount: 261 });
+    const result = renamed.run('wallet.receive', { amount: 261 }, { cause: 'story' });
     assert.equal(result.result.summary, 'The party receives 261 crowns (now 386 crowns).');
+    const marks = createHarness([module], { state: stocked(module), settings: { 'story-block': { currency: 'mark' } } });
+    assert.equal(marks.run('wallet.receive', { amount: 1 }, BY_MODULE).result.summary, 'The party receives 1 mark (now 126 marks).');
+    assert.equal(marks.run('wallet.pay', { amount: 125 }, BY_MODULE).result.summary, 'The party pays 125 marks (1 mark left).');
     assert.deepEqual(renamed.state.domains.inventory.wallets.party, { coin: 386 });
 });
 
 test('wallet rejections', () => {
     const h = setup();
-    rejects(h, 'wallet.pay', { amount: 126 }, 'NOT_ENOUGH', /has only 125 gold; 126 gold is needed/);
-    rejects(h, 'wallet.pay', { amount: 1, owner: 'ac_ren00001' }, 'NOT_ENOUGH', /only 0 gold/);
-    rejects(h, 'wallet.pay', {}, 'INVALID', /amount/);
-    rejects(h, 'wallet.pay', { amount: 0 }, 'INVALID');
-    rejects(h, 'wallet.pay', { amount: 1, note: 7 }, 'INVALID', /note must be text/);
-    rejects(h, 'wallet.receive', { amount: 2.5 }, 'INVALID');
-    rejects(h, 'wallet.receive', { amount: 1, owner: 'nobody' }, 'INVALID');
-    rejects(h, 'wallet.receive', { amount: Number.MAX_SAFE_INTEGER }, 'INVALID', /more money/);
+    rejects(h, 'wallet.pay', { amount: 126 }, 'NOT_ENOUGH', /has only 125 gold; 126 gold is needed/, BY_MODULE);
+    rejects(h, 'wallet.pay', { amount: 1, owner: 'ac_ren00001' }, 'NOT_ENOUGH', /only 0 gold/, BY_MODULE);
+    rejects(h, 'wallet.pay', {}, 'INVALID', /amount/, BY_MODULE);
+    rejects(h, 'wallet.pay', { amount: 0 }, 'INVALID', null, BY_MODULE);
+    rejects(h, 'wallet.pay', { amount: 1, note: 7 }, 'INVALID', /note must be text/, BY_MODULE);
+    rejects(h, 'wallet.receive', { amount: 2.5 }, 'INVALID', null, BY_MODULE);
+    rejects(h, 'wallet.receive', { amount: 1, owner: 'nobody' }, 'INVALID', null, BY_MODULE);
+    rejects(h, 'wallet.receive', { amount: Number.MAX_SAFE_INTEGER }, 'INVALID', /more money/, BY_MODULE);
+});
+
+test('wallet.pay and wallet.receive from a button on their own are refused (as inventory.grant is)', () => {
+    const h = setup();
+    rejects(h, 'wallet.receive', { amount: 1000 }, 'REFUSED', /cannot be handed out from a button/);
+    rejects(h, 'wallet.pay', { amount: 5 }, 'REFUSED', /cannot be paid from a button/);
+    for (const opts of [{ cause: 'story' }, { cause: 'system' }, BY_MODULE]) {
+        assert.equal(h.run('wallet.receive', { amount: 1 }, opts).ok, true, JSON.stringify(opts));
+        assert.equal(h.run('wallet.pay', { amount: 1 }, opts).ok, true, JSON.stringify(opts));
+    }
 });
 
 test('handlers draft only their own domains', () => {

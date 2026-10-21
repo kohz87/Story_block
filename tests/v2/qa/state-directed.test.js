@@ -50,7 +50,7 @@ test('delete the last reply: the state goes back exactly to the one before it, U
     const kept = plain(h.head());
     await h.send('Two.', 'A rope.\n<Changes>\n+ item Rope | qty: 3\n- item Lamp\n</Changes>');
     await h.sdk.command('probe.tick', {});
-    await h.sdk.command('wallet.receive', { owner: 'party', amount: 9 });
+    assert.equal((await h.sdk.command('probe.pay', {})).ok, true);
     await h.st.deleteMessage(4);
     assert.deepEqual(plain(h.head()), kept);
     await h.st.deleteMessage(3);
@@ -234,24 +234,26 @@ test('Continue: a block the continuation adds is captured once; the reply keeps 
     checkInvariants(h, 'continue');
 });
 
-// ---- problems found (each a failing check, kept as a todo so CI stays green) -----------------
+// ---- problems found by QA (#70), fixed ------------------------------------------------------
 
-test.todo('store.js append: a UI command committed onto a head carrier whose old ops no longer apply survives a rebuild', async t => {
-    // Delete a middle reply so the head's stored ops no longer apply: replay skips the head carrier
-    // whole. append() still adds new ops to that same record, so after the next rebuild (any swipe,
-    // delete or chat reload) the new command is gone too, and its claim with it.
+test('store.js append: a UI command committed onto a head carrier whose old ops no longer apply survives a rebuild', async t => {
+    // Delete a middle reply so one of the head's stored changes no longer applies: replay skips that
+    // change alone, so a command committed onto the same carrier afterwards survives any rebuild.
     const h = await host(t);
     await h.send('a', 'A rope.\n<Changes>\n+ item Rope\n</Changes>');
     await h.send('b', 'Rope used.\n<Changes>\n- item Rope\n</Changes>');
     await h.st.deleteMessage(2);
-    assert.equal(h.store.problems().length, 1, 'the head carrier no longer applies');
+    assert.equal(h.store.problems().length, 1, 'the head carrier\'s "- item Rope" no longer applies');
+    assert.equal(h.store.problems()[0].receipts.length, 1, 'only that line\'s receipt is skipped');
     assert.equal((await h.sdk.command('probe.tick', {})).ok, true);
     assert.equal(h.head().domains.probe.n, 1);
     h.store.rebuild();
-    assert.equal(h.head().domains.probe.n, 1, 'the tick committed after the delete is still there after a rebuild (actual: 0)');
+    assert.equal(h.head().domains.probe.n, 1, 'the tick committed after the delete is still there after a rebuild');
+    assert.equal(h.store.problems().length, 1, 'and only the broken change is reported');
+    checkInvariants(h, 'skipped block');
 });
 
-test.todo('store.js append: a claim committed onto a skipped head carrier keeps paying once (no double bonus after a rebuild)', async t => {
+test('store.js append: a claim committed onto a skipped head carrier keeps paying once (no double bonus after a rebuild)', async t => {
     const h = await host(t);
     await h.send('a', 'A rope.\n<Changes>\n+ item Rope\n</Changes>');
     await h.send('b', 'Rope used.\n<Changes>\n- item Rope\n</Changes>');
@@ -259,19 +261,135 @@ test.todo('store.js append: a claim committed onto a skipped head carrier keeps 
     assert.equal((await h.sdk.command('probe.pay', {})).ok, true);
     h.store.rebuild();
     const again = await h.sdk.command('probe.pay', {});
-    assert.equal(again.ok, false, 'the bonus is paid once on this line (actual: paid again)');
+    assert.equal(again.ok, false, 'the bonus is paid once on this line');
+    assert.equal(again.code, 'CLAIMED');
+    assert.equal(coins(h), BONUS);
+    checkInvariants(h, 'skipped block claim');
 });
 
-test.todo('turn.js interceptor: a save that fails before a reply still captures the reply\'s <Changes> and hides the block', async t => {
-    // interceptor → store.flush() throws → catch sets session = null → the reply is sent without the
-    // static part and the tail, onMessageReceived ignores it, its block stays visible in the chat.
+test('store.js replay: UI receipts before and after a broken change in the same carrier all survive', async t => {
+    const h = await host(t);
+    await h.send('a', 'A rope.\n<Changes>\n+ item Rope\n</Changes>');
+    await h.send('b', 'Fine.');
+    await h.sdk.command('probe.tick', {});
+    // A change that will break (the rope's drop), between two UI commands on the same carrier.
+    const record = readRecord(h.ctx.chat[4]);
+    const stacks = Object.keys(h.head().domains.inventory.stacks);
+    assert.equal(stacks.length, 1);
+    assert.equal((await h.sdk.command('inventory.drop', { stack: stacks[0], qty: 1 })).ok, true);
+    await h.sdk.command('probe.tick', {});
+    assert.equal(readRecord(h.ctx.chat[4]).receipts.length, record.receipts.length + 2);
+    await h.st.deleteMessage(2);
+    assert.equal(h.store.problems().length, 1, 'only the drop of the rope (now never gained) is skipped');
+    assert.equal(h.head().domains.probe.n, 2, 'both ticks around it are kept');
+    const rev = h.head().meta.rev;
+    const tick = await h.sdk.command('probe.tick', {});
+    assert.equal(tick.receipt.rev, rev + 1, 'every receipt keeps a rev of its own');
+    assert.ok(h.store.receipts().filter(({ receipt }) => receipt.rev === tick.receipt.rev).length === 1);
+    checkInvariants(h, 'middle of a carrier');
+});
+
+test('turn.js interceptor: a save that fails before a reply still captures the reply\'s <Changes> and hides the block', async t => {
+    // The flush before the reply fails: the reply still gets its notes, its block is captured and
+    // hidden, the state stays marked unsaved until the save after the reply makes it good.
     const h = await host(t);
     await h.send('One.', 'Fine.');
     await h.sdk.command('probe.tick', {});
     h.st.failSaves = 1;
     const result = await h.send('Two.', 'A lamp.\n<Changes>\n+ item Lamp\n</Changes>');
     assert.ok(result.request.chat[0].content.includes('[Story Suite'), 'the static part was sent');
+    assert.ok(tailOf(result.request).includes('Tick 1.'), 'and the tail, with what happened');
     assert.equal(itemQty(h, 'Lamp'), 1, 'the reply\'s change line was captured');
-    assert.ok(!h.ctx.chat[4].mes.includes('<Changes>\n+ item Lamp'), 'the block is hidden');
+    assert.match(h.ctx.chat[4].mes, /^A lamp\.\n\n<!-- STORY_SUITE_V2\n<Changes>/, 'the block is hidden');
     assert.equal(h.store.dirty(), false, 'and saved at the end of the reply');
+    assert.deepEqual(h.st.saved(), JSON.parse(JSON.stringify(h.ctx.chat)), 'the save after the reply wrote everything');
+    assert.deepEqual(h.turn.problems().filter(problem => problem.code === 'SAVE_FAILED').length, 1, 'the failed save is told');
+    assert.match(h.st.notices.at(-1).reason, /could not be saved before the reply/);
+    checkInvariants(h, 'failed save before a reply');
+});
+
+test('turn.js: a save that fails before and after a reply keeps the turn, stays unsaved, and is tried again', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const h = await host(t);
+    await h.send('One.', 'Fine.');
+    await h.sdk.command('probe.tick', {});
+    h.st.failSaves = 2;
+    const result = await h.send('Two.', 'A lamp.\n<Changes>\n+ item Lamp\n</Changes>');
+    assert.ok(result.request, 'the reply was generated');
+    assert.equal(itemQty(h, 'Lamp'), 1, 'and captured');
+    assert.equal(h.store.dirty(), true, 'still unsaved: both saves failed');
+    assert.equal(h.turn.problems().filter(problem => problem.code === 'SAVE_FAILED').length, 2);
+    t.mock.timers.tick(400);
+    await settle();
+    await settle();
+    assert.equal(h.store.dirty(), false, 'the save is tried again after the generation ends');
+    assert.deepEqual(h.st.saved(), JSON.parse(JSON.stringify(h.ctx.chat)));
+});
+
+test('turn.js: cues committed before a reply whose saves fail are kept, told by the reply, and saved after it', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const h = await createHost({ modules: [probeModule({ cues: true })] });
+    t.after(() => h.close());
+    await h.send('One.', 'Fine.');
+    await h.sdk.command('probe.tick', {});
+    h.st.failSaves = 2;     // the flush before the reply, and the one after the cue
+    const result = await h.send('Two.', 'The cue lands.');
+    assert.ok(tailOf(result.request).includes('Cue 1.'), 'the cue committed before the reply is told');
+    assert.ok(h.head().meta.claims['probe:cue:1'], 'and kept');
+    assert.equal(h.turn.problems().filter(problem => problem.code === 'SAVE_FAILED').length, 2);
+    assert.equal(h.store.dirty(), false, 'the save after the reply wrote it all');
+    assert.deepEqual(h.st.saved(), plain(h.ctx.chat));
+    checkInvariants(h, 'cue with failed saves');
+});
+
+test('save verification on the real host: a record replaced during the save after a reply is told and stays unsaved', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const h = await host(t);
+    await h.send('One.', 'Fine.');
+    const save = h.ctx.saveChat;
+    let tamper = true;
+    h.ctx.saveChat = async (...args) => {
+        await save(...args);
+        // Another extension rewrites the reply's extra while SillyTavern saves.
+        if (tamper) h.ctx.chat[4].extra = { storySuite: { ...h.ctx.chat[4].extra.storySuite, rev: 999 } };
+        tamper = false;
+    };
+    await h.send('Two.', 'A lamp.\n<Changes>\n+ item Lamp\n</Changes>');
+    const failed = h.turn.problems().filter(problem => problem.code === 'SAVE_FAILED');
+    assert.equal(failed.length, 1);
+    assert.match(failed[0].message, /could not be saved after the reply: The story was saved, but message 4 no longer holds its latest changes/);
+    assert.match(h.st.notices.at(-1).reason, /no longer holds its latest changes/);
+    assert.equal(h.store.dirty(), true, 'marked unsaved');
+    t.mock.timers.tick(400);   // the generation's end scheduled the save again
+    await settle();
+    await settle();
+    assert.equal(h.store.dirty(), false, 'the next save is not refused again');
+});
+
+test('sdk.command options: missing, null or without a cause run as ui; any other cause is refused', async t => {
+    const h = await host(t);
+    await h.send('One.', 'Fine.');
+    for (const options of [undefined, null, {}, 'ui', { cause: 'ui' }]) {
+        assert.equal((await h.sdk.command('probe.tick', {}, options)).ok, true, JSON.stringify(options));
+    }
+    for (const cause of ['system', 'story', '', null, 0]) {
+        assert.equal((await h.sdk.command('probe.tick', {}, { cause })).code, 'REFUSED', JSON.stringify(cause));
+    }
+    assert.equal(h.head().domains.probe.n, 5);
+});
+
+test('currency plural and money-named items on the real host: the tail and the wallet', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const h = await createHost({ modules: [probeModule()], settings: { modules: { 'story-block': { currency: 'mark', currencyShort: 'mk' } } } });
+    t.after(() => h.close());
+    await h.send('One.', 'A purse.\n<Changes>\n+ item Marks | qty: 44\n+ item mark\n- item Marks | qty: 4\n</Changes>');
+    assert.equal(coins(h), 41);
+    assert.equal(itemQty(h, 'Marks') + itemQty(h, 'mark'), 0, 'no item called Marks');
+    assert.deepEqual(h.sdk.query('inventory.currency'), { name: 'mark', plural: 'marks', short: 'mk' });
+    const next = await h.send('Two.', 'Fine.');
+    assert.match(tailOf(next.request), /41 marks/);
+    await h.send('Three.', 'Spent.\n<Changes>\n- coin 40\n</Changes>');
+    const last = await h.send('Four.', 'Fine.');
+    assert.match(tailOf(last.request), /\b1 mark\b/);
+    assert.doesNotMatch(tailOf(last.request), /1 marks/);
 });

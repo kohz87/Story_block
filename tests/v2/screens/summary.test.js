@@ -28,7 +28,7 @@ test('gains, losses, coin and a move in one line', () => {
         ['inventory.grant', { name: 'Moonveil Trout', note: 'violet' }, 'story'],
         ['inventory.consume', { stack: 'it_rope0001', qty: 1 }],
         ['inventory.drop', { stack: 'it_lant0001', qty: 1 }],
-        ['wallet.receive', { owner: 'party', amount: 30, note: 'from the sealer' }],
+        ['wallet.receive', { owner: 'party', amount: 30, note: 'from the sealer' }, 'system'],
         // The move leaves Fenna behind (Old Tam comes along); Kael is met there.
         ['scene.place', { name: 'The Weir', kind: 'wild', with: 'Old Tam' }],
         ['scene.present', { add: ['Kael'] }],
@@ -54,7 +54,7 @@ test('a hand-over between members, or equipping, is no gain or loss', () => {
 });
 
 test('paying shows a minus in the chat\'s currency', () => {
-    const view = reply([['wallet.pay', { owner: 'party', amount: 5, note: 'the ferry' }]]);
+    const view = reply([['wallet.pay', { owner: 'party', amount: 5, note: 'the ferry' }, 'system']]);
     assert.equal(changesSummary({ ...view, currency: { name: 'crowns', short: 'cr' } }), '−5 crowns');
 });
 

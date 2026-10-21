@@ -195,6 +195,28 @@ test('a swipe that moved down after an earlier swipe was deleted keeps its chang
     assert.equal(store.head().domains.inventory.stacks.it_b, undefined);
 });
 
+test('a shifted swipe is stamped again on rebuild, so a new swipe copied from it at its old index starts empty', () => {
+    const { ctx, store } = story(1);
+    const last = ctx.chat.at(-1);
+    newSwipe(last);
+    action(store, 'it_b', 2);                  // swipe 1 holds it_b, stamped 1
+    showSwipe(last, 0);
+    deleteSwipe(last, 0);                      // swipe 1 becomes swipe 0, still stamped 1
+    assert.equal(last.swipe_id, 0);
+    assert.equal(last.extra.storySuite.swipe, 1);
+    store.rebuild();                           // MESSAGE_SWIPE_DELETED
+    assert.equal(last.extra.storySuite.swipe, 0, 'stamped with the swipe it now is');
+    assert.equal(last.swipe_info[0].extra.storySuite.swipe, 0, 'swipe_info kept in step');
+    assert.equal(store.dirty(), true, 'the new stamp goes with the next save');
+    assert.equal(store.head().domains.inventory.stacks.it_b.qty, 2);
+    newSwipe(last);                            // SillyTavern copies the record into swipe 1
+    assert.equal(store.head().domains.inventory.stacks.it_b, undefined, 'the new swipe 1 is not the old swipe 1');
+    showSwipe(last, 0);
+    assert.equal(store.head().domains.inventory.stacks.it_b.qty, 2, 'the moved swipe keeps its changes');
+    store.rebuild();
+    assert.equal(last.extra.storySuite.swipe, 0, 'a record already stamped right is left alone');
+});
+
 test('deleting the last reply takes back its ops and the actions taken after it', () => {
     const { ctx, store } = story(3);
     const atTwo = store.at(4);
@@ -330,6 +352,88 @@ test('ops stored on a carrier that no longer apply are skipped and reported, not
     assert.equal(store.problems()[0].index, 4);
     assert.equal(store.head().domains.inventory.stacks.it_2, undefined, 'the whole carrier is skipped');
     assert.equal(store.head().domains.inventory.stacks.it_3.qty, 3);
+});
+
+test('replay skips only the block that no longer applies; the carrier\'s other receipts and later commits stay', () => {
+    const { ctx, store } = story(2);
+    const kept = action(store, 'it_x', 7);          // a second block on the head carrier (4)
+    const record = ctx.chat[4].extra.storySuite;
+    assert.deepEqual(record.spans.map(span => span.n), [2, 2]);
+    const broken = record.receipts[0];
+    record.ops[1] = { op: 'remove', path: '/domains/missing' };   // the first block now fails
+    store.rebuild();
+    assert.deepEqual(store.problems().map(problem => [problem.index, problem.block, problem.receipts]), [[4, 0, [broken.id]]]);
+    assert.equal(store.head().domains.inventory.stacks.it_2, undefined, 'the broken block is skipped');
+    assert.deepEqual(store.head().domains.inventory.stacks.it_x, { id: 'it_x', qty: 7 }, 'the block after it applies');
+    assert.equal(store.head().meta.rev, kept.rev, 'the skipped block\'s rev still counts');
+    const later = action(store, 'it_y', 1);
+    assert.equal(later.rev, kept.rev + 1, 'a new receipt gets a rev of its own');
+    store.rebuild();
+    assert.equal(store.head().domains.inventory.stacks.it_y.qty, 1, 'a commit onto the carrier survives the rebuild');
+    assert.equal(store.problems().length, 1);
+    const { store: fresh } = setup(structuredClone(ctx.chat));
+    assert.deepEqual(fresh.head(), store.head(), 'a new store agrees');
+});
+
+test('Re-read of an older reply keeps a later block that was already skipped skipped, and is not refused for it', () => {
+    const { ctx, store } = setup([greeting(), user(), reply(), user(), reply()]);
+    store.ensureInitial(initial());
+    ctx.chat.splice(3);
+    store.append({ ops: [{ op: 'add', path: '/domains/scene/place', value: 'Old' }], receipt: receipt({ cause: 'story' }) });
+    ctx.chat.push(user(), reply());
+    action(store, 'it_a', 1);
+    action(store, 'it_b', 2);
+    ctx.chat[4].extra.storySuite.ops[1] = { op: 'remove', path: '/domains/missing' };
+    store.rebuild();
+    assert.equal(store.problems().length, 1);
+    store.replaceStory(2, { ops: [{ op: 'replace', path: '/domains/scene/place', value: 'New' }], receipts: [receipt({ cause: 'story' })] });
+    assert.equal(store.head().domains.scene.place, 'New');
+    assert.equal(store.head().domains.inventory.stacks.it_b.qty, 2);
+    assert.equal(store.head().domains.inventory.stacks.it_a, undefined, 'still skipped');
+    assert.deepEqual(store.problems().map(problem => [problem.index, problem.block]), [[4, 0]], 'and still reported');
+});
+
+test('save verification (SPEC §3.3): a record replaced while saving fails the save, keeps it dirty, and is told once', async () => {
+    let tamper = null;
+    const errors = [];
+    const { ctx, store } = setup([greeting(), user(), reply()], { save: async () => { tamper?.(); } });
+    store.ensureInitial(initial());
+    action(store, 'it_1', 1);
+    tamper = () => { ctx.chat[2].extra = { storySuite: { ...ctx.chat[2].extra.storySuite, rev: 99 } }; };
+    await assert.rejects(store.flush(), /message 2 no longer holds its latest changes \(change 99 instead of 1\); the story stays marked unsaved/);
+    assert.equal(store.dirty(), true, 'still marked unsaved');
+    tamper = null;
+    await store.flush();
+    assert.equal(store.dirty(), false, 'the next save writes the chat as it is and is not refused again');
+    // A scheduled save that fails the check goes to onSaveError.
+    const timers = { setTimeout: fn => { timers.fn = fn; return 1; }, clearTimeout: () => {} };
+    const second = setup([greeting(), user(), reply()], { save: async () => { tamper?.(); }, onSaveError: error => errors.push(error.message), timers });
+    second.store.ensureInitial(initial());
+    action(second.store, 'it_1', 1);
+    tamper = () => { second.ctx.chat[2].extra.storySuite.rev = 5; };
+    second.store.scheduleSave();
+    timers.fn();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /no longer holds its latest changes/);
+    assert.equal(second.store.dirty(), true);
+});
+
+test('save verification: a change made during the save, or a message deleted, is no false alarm', async () => {
+    let during = null;
+    const { ctx, store } = setup([greeting(), user(), reply()], { save: async () => { await null; during?.(); } });
+    store.ensureInitial(initial());
+    action(store, 'it_1', 1);
+    during = () => action(store, 'it_2', 2);
+    await store.flush();
+    assert.equal(store.dirty(), true, 'the change made during the save goes with the next one');
+    during = null;
+    await store.flush();
+    assert.equal(store.dirty(), false);
+    action(store, 'it_3', 3);
+    during = () => { ctx.chat.splice(1); };
+    await store.flush();
+    assert.equal(store.dirty(), false, 'the written reply is gone: nothing of it to check');
 });
 
 test('a state handed out is never the object stored in the chat', () => {

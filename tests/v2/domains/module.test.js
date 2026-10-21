@@ -25,8 +25,8 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
     assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card']);
-    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyShort: '', assistClassifier: false, assistExtractor: false, assistProfile: '' });
-    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyShort', 'assistClassifier', 'assistExtractor', 'assistProfile']);
+    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', assistClassifier: false, assistExtractor: false, assistProfile: '' });
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'assistClassifier', 'assistExtractor', 'assistProfile']);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));
 });
@@ -96,8 +96,8 @@ test('queries return plain copies', () => {
     assert.equal(h.state.domains.scene.place.name, 'Bluewatch', 'a copy, not the state');
     assert.deepEqual(h.query('scene.present'), ['Fenna']);
     assert.deepEqual(module.queries['scene.place'](undefined), { name: '', kind: '', region: '' });
-    assert.deepEqual(h.query('inventory.currency'), { name: 'gold', short: 'g' });
-    assert.deepEqual(core({}, CROWNS).queries['inventory.currency'](state, {}), { name: 'crowns', short: 'cr' });
+    assert.deepEqual(h.query('inventory.currency'), { name: 'gold', plural: 'gold', short: 'g' });
+    assert.deepEqual(core({}, CROWNS).queries['inventory.currency'](state, {}), { name: 'crowns', plural: 'crowns', short: 'cr' });
 });
 
 test('a handler can use the core queries through ctx.query, drafts included', () => {

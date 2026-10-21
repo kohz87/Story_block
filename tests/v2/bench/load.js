@@ -132,7 +132,7 @@ function captureTime(ctx, line) {
     return { summary: `The clock moves to minute ${director.time.minutes}.`, data: { minutes: director.time.minutes }, narrate: false };
 }
 
-/** The synthetic module: `party` and `director` domains, three UI commands and three capture kinds. */
+/** The synthetic module: `party` and `director` domains, four commands (three for the UI) and three capture kinds. */
 export function createBenchModule() {
     const kinds = { hp: captureHp, thread: captureThread, time: captureTime };
     return {
@@ -149,6 +149,12 @@ export function createBenchModule() {
                 for (let i = 0; i < STACKS; i++) ctx.call('inventory.grant', { name: itemName(i), qty: 3 });
                 ctx.call('wallet.receive', { amount: 200, note: 'starting purse' });
                 return { summary: `The party starts with ${STACKS} kinds of supplies.`, narrate: false };
+            },
+            // A tip the reader gives: the wallet pays through another module's action (a button
+            // cannot pay on its own, as in the game a shop or a service does).
+            'bench.tip'(ctx, { amount = 3, note = 'a tip' } = {}) {
+                ctx.call('wallet.pay', { amount, note });
+                return { summary: `The party tips ${amount}.` };
             },
             'party.heal'(ctx, { actor, amount = 5 } = {}) {
                 const target = ctx.draft('party').actors[actor];
@@ -219,7 +225,7 @@ export const userText = n => `I look around and ask the others what they make of
 export function uiCommands(n) {
     return [
         { type: 'party.heal', payload: { actor: actorId(n % PARTY_SIZE), amount: 4 } },
-        { type: 'wallet.pay', payload: { amount: 3, note: 'a tip' } },
+        { type: 'bench.tip', payload: { amount: 3, note: 'a tip' } },
         { type: 'director.pin', payload: { thread: threadId(n % THREADS) } },
     ];
 }

@@ -167,10 +167,10 @@ test('rejections save nothing: a refused check, a second pre-roll of the same me
     await host.send(ACTION, 'You slip by.');
     const state = JSON.stringify(host.head());
     const payload = { key: `1-${hashText(ACTION)}`, line: { op: '?', kind: 'check', name: 'stealth', text: 'again', labels: { dc: 'hard' } } };
-    const second = await host.sdk.command(PRECHECK, payload, { cause: 'system' });
+    const second = await host.bus.command(PRECHECK, payload, { cause: 'system' });
     assert.equal(second.code, 'CLAIMED');
     for (const bad of [{ ...payload, key: 'nope' }, { ...payload, key: '9-abc', line: { op: '?', kind: 'check', name: 'stealth', labels: {} } }, {}]) {
-        assert.equal((await host.sdk.command(PRECHECK, bad, { cause: 'system' })).code, 'INVALID');
+        assert.equal((await host.bus.command(PRECHECK, bad, { cause: 'system' })).code, 'INVALID');
     }
     assert.equal(JSON.stringify(host.head()), state);
     host.close();

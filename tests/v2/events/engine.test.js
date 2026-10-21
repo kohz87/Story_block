@@ -318,10 +318,13 @@ test('events.status: which fired, which are due, which wait and why, which are i
 test('fireEvent: the handler refuses a bad payload and a second firing on the same line', () => {
     const host = createFakeHost({ commands: { [FIRE]: fireEvent } });
     assert.deepEqual(host.command(FIRE, { id: 'x' }, { cause: 'system' }), { ok: false, code: 'INVALID', message: 'The event "x" has no cue to tell.' });
-    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.', then: [{ command: FIRE }] }).code, 'INVALID');
+    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.', then: [{ command: FIRE }] }, { cause: 'system' }).code, 'INVALID');
     assert.equal(host.command(FIRE, { id: 'x', cue: 'X.' }, { cause: 'system' }).ok, true);
     assert.deepEqual(host.command(FIRE, { id: 'x', cue: 'X.' }, { cause: 'system' }), { ok: false, code: 'CLAIMED', message: 'The event "x" has already happened on this line of the story.' });
-    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.', once: false }).ok, true, 'a repeating event does not claim');
+    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.', once: false }, { cause: 'system' }).ok, true, 'a repeating event does not claim');
+    // Only the host's own system cue fires an event: not a button (ui), not a change line (story).
+    for (const cause of ['ui', 'story']) assert.equal(host.command(FIRE, { id: 'y', cue: 'Y.' }, { cause }).code, 'REFUSED', cause);
+    assert.equal(fireEvent.internal, true, 'marked internal for the registry');
     assert.equal(host.receipts.length, 2);
     assert.equal(host.state().meta.rev, 2, 'nothing saved on rejection');
 });

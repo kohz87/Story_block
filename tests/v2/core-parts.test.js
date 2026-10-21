@@ -19,7 +19,7 @@ test('an enabled pack\'s start goes into the initial state; its currency names t
     assert.deepEqual(names(head), ['Hemp Line', 'Minor Healing Draught', 'Willow Rod']);
     assert.equal(head.domains.inventory.wallets.party.coin, 50);
     assert.ok(host.ctx.chat[0].extra.storySuite.checkpoint, 'the greeting holds it');
-    assert.deepEqual(host.sdk.query('inventory.currency'), { name: 'pennies', short: 'p' });
+    assert.deepEqual(host.sdk.query('inventory.currency'), { name: 'pennies', plural: 'pennies', short: 'p' });
     const { request } = await host.send('What do I carry?', 'Your rod.');
     assert.match(request.chat.at(-1).content, /50 pennies|50 p\b/);
     host.close();

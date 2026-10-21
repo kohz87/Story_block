@@ -197,6 +197,34 @@ test('+ coin with a renamed currency', () => {
     assert.equal(got.result.summary, 'The party receives 30 crowns (now 155 crowns).');
 });
 
+test('an item named exactly the currency (singular or plural) is coin in the wallet, not an item', () => {
+    const module = core();
+    const h = createHarness([module], { state: stocked(module), settings: { 'story-block': { currency: 'mark', currencyShort: 'mk' } } });
+    const defs = Object.keys(inv(h).defs).length;
+    const stacks = Object.keys(inv(h).stacks).length;
+    const plural = h.capture(line('+', 'item', 'Marks', { qty: '44', from: 'the reeve' }));
+    assert.equal(plural.ok, true, plural.message);
+    assert.equal(plural.result.summary, 'The party receives 44 marks — from the reeve (now 169 marks).');
+    const one = h.capture(line('+', 'item', 'mark'));
+    assert.equal(one.result.summary, 'The party receives 1 mark (now 170 marks).');
+    const paid = h.capture(line('-', 'item', 'marks', { qty: '20', to: 'the ferryman' }));
+    assert.equal(paid.result.summary, 'The party pays 20 marks — to the ferryman (150 marks left).');
+    assert.equal(inv(h).wallets.party.coin, 150);
+    assert.equal(Object.keys(inv(h).defs).length, defs, 'no item called Marks was made');
+    assert.equal(Object.keys(inv(h).stacks).length, stacks);
+    rejected(h, line('-', 'item', 'Mark', { qty: '151' }), 'NOT_ENOUGH', /only 150 marks; 151 marks is needed/);
+    rejected(h, line('~', 'item', 'marks', { note: 'shiny' }), 'INVALID', /money, not an item/);
+    rejected(h, line('+', 'item', 'marks', { qty: 'lots' }), 'INVALID', /not a quantity/);
+    // Only the exact name: an item that merely holds the word stays an item.
+    const map = h.capture(line('+', 'item', 'Marked Map'));
+    assert.equal(map.ok, true, map.message);
+    assert.equal(map.result.data.created, true);
+    // The default currency too: "+ item Gold" is 1 gold, "+ item Gold Bar" an item.
+    const plain = setup();
+    assert.equal(plain.capture(line('+', 'item', 'Gold', { qty: '3' })).result.summary, 'The party receives 3 gold (now 128 gold).');
+    assert.equal(plain.capture(line('+', 'item', 'Gold Bar')).result.data.created, true);
+});
+
 test('~ place sets the place; a move clears the kind but keeps the region', () => {
     const h = setup();
     const result = h.capture(line('~', 'place', 'Bluewatch Village', { kind: 'settlement', region: 'Lakeshire' }));

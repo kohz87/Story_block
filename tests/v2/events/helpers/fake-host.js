@@ -35,6 +35,7 @@ export function createFakeHost({ state = baseState(), commands = {}, queries = {
         const receiptId = `rc_${counter.toString(36).padStart(8, '0')}`;
         const ctx = {
             receiptId,
+            cause,
             read: name => deepFreeze(clone(draft.domains[name] ?? null)),
             draft: name => (draft.domains[name] ??= {}),
             call(subType, subPayload) {

@@ -49,8 +49,12 @@ test('command commits, emits committed, and rejections come back as { ok: false,
     assert.equal(done.receipt.cause, 'ui');
     assert.equal(done.receipt.module, 'counter');
     assert.equal(host.sdk.query('tally.value').n, 2);
-    const system = await host.sdk.command('tally.add', {}, { cause: 'system' });
-    assert.equal(system.receipt.cause, 'system');
+    // The public sdk runs the reader's actions only: a raised cause is refused (the host uses the bus).
+    for (const cause of ['system', 'story', 'nonsense']) {
+        const raised = await host.sdk.command('tally.add', {}, { cause });
+        assert.deepEqual({ ok: raised.ok, code: raised.code }, { ok: false, code: 'REFUSED' }, cause);
+    }
+    assert.equal((await host.sdk.command('tally.add', {}, { cause: 'ui' })).receipt.cause, 'ui');
     const over = await host.sdk.command('tally.add', { by: 5 });
     assert.deepEqual({ ok: over.ok, code: over.code }, { ok: false, code: 'INVALID' });
     assert.equal(host.sdk.query('tally.value').n, 3, 'nothing of a rejected command is kept');
