@@ -423,6 +423,31 @@ test('reopening a disconnected chat resumes its latest reply once after verified
     assert.equal(called, 1, 'a healthy reload does not replay effects');
 });
 
+test('recovery finds the saved reply 6 boundary when an unrecorded reply 4 already has an identity', async t => {
+    const sb = globalThis.StoryBlock;
+    ctx.chatMetadata = {};
+    ctx.chat = Array.from({ length: 7 }, (_, index) => ({ is_user: index % 2 === 1, mes: `Reply ${index}.`, extra: {} }));
+    let stored;
+    t.mock.method(ctx, 'saveChat', async () => { stored = structuredClone([{ chat_metadata: ctx.chatMetadata }, ...ctx.chat]); });
+    t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => stored }));
+    t.after(() => { delete ctx.chatMetadata; ctx.chat = []; });
+    await emit('MESSAGE_RECEIVED', 6);
+    const oldHead = ctx.chatMetadata.storyBlockJournal.head, oldOwner = sb.messageIdentity(6);
+    ctx.chat[4].extra = { storyBlockIdentity: { id: 'earlier-unrecorded', swipe: 0 } };
+    ctx.chat[6] = { is_user: false, mes: 'Regenerated acceptance.', extra: { storyBlockIdentity: { id: 'latest-unrecorded', swipe: 0 } } };
+    const plan = sb.regeneratedReplyRecovery();
+    assert.equal(plan?.messageIndex, 6, 'the first live identity is not necessarily the saved boundary');
+    let called = 0;
+    const off = sb.onReply(({ messageIndex }) => { assert.equal(messageIndex, 6); called++; });
+    t.after(off);
+    await emit('CHAT_CHANGED');
+    assert.equal(called, 1);
+    assert.equal(sb.journal().availability, 'available');
+    assert.deepEqual(sb.journal().entries.map(node => node.position), [4, 6]);
+    assert.deepEqual(ctx.chat[6].extra.storyBlockIdentity.replaces, [oldOwner]);
+    assert.ok(ctx.chatMetadata.storyBlockJournal.nodes[oldHead]);
+});
+
 test('automatic reconnection stops after a rejected save without dispatching reply effects', async t => {
     const sb = globalThis.StoryBlock;
     ctx.chatMetadata = {};

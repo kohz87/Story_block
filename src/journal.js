@@ -55,38 +55,61 @@ export function journalState(saved, frames, { scope = '', uuid = randomId } = {}
             if (!byOwner.has(node.owner)) byOwner.set(node.owner, []);
             byOwner.get(node.owner).push(node);
         }
-        const first = frames[0];
-        const replaces = node => first.replaces?.includes(node.owner);
-        const anchor = [...oldPath].reverse().find(node => node.owner === first.owner && node.signature === first.signature)
-            ?? [...nodes].reverse().find(node => node.owner === first.owner && node.signature === first.signature)
-            ?? [...oldPath].reverse().find(node => node.owner === first.owner)
-            ?? [...oldPath].reverse().find(replaces)
-            ?? [...nodes].reverse().find(replaces);
+        const anchorFor = frame => [...oldPath].reverse().find(node => node.owner === frame.owner && node.signature === frame.signature)
+            ?? [...nodes].reverse().find(node => node.owner === frame.owner && node.signature === frame.signature)
+            ?? [...oldPath].reverse().find(node => node.owner === frame.owner)
+            ?? [...oldPath].reverse().find(node => frame.replaces?.includes(node.owner))
+            ?? [...nodes].reverse().find(node => frame.replaces?.includes(node.owner));
+        let boundary = 0, anchor = anchorFor(frames[0]);
+        if (previous.head && !anchor) {
+            boundary = frames.findIndex(frame => anchorFor(frame));
+            if (boundary > 0) {
+                anchor = anchorFor(frames[boundary]);
+                // Earlier replies may acquire IDs after the journal was installed.
+                // They are present history, never a source of unverified old effects.
+                if (anchor.parent || nodes.some(node => node.position < anchor.position)
+                    || frames.slice(0, boundary).some(frame => byOwner.has(frame.owner) || Object.keys(frame.extra ?? {}).length)) {
+                    return fail('Replies before the saved journal boundary need recovery.');
+                }
+            }
+        }
         if (previous.head && !anchor) return fail('No retained reply matches the saved quest history.');
         const prefix = anchor ? ancestors(journal, anchor.parent) : [];
-        const offset = anchor ? anchor.position - first.index : 0;
-        let parent = prefix.at(-1) ?? null;
-        for (const frame of frames) {
+        const offset = anchor ? anchor.position - frames[boundary].index : 0;
+        let parent = prefix.at(-1) ?? null, originalParent = null;
+        for (const [index, frame] of frames.entries()) {
             const variants = byOwner.get(frame.owner) ?? [];
+            // Inserting passive pre-journal replies changes parents, not the
+            // verified snapshots or effects of an otherwise unchanged suffix.
+            let original = null;
+            if (boundary > 0 && index === boundary && anchor.owner === frame.owner && anchor.signature === frame.signature) original = anchor;
+            if (!original && originalParent) {
+                original = variants.find(node => node.parent === originalParent.id && node.signature === frame.signature);
+            }
+            if (!original && parent) {
+                const root = variants.find(node => !node.parent && node.signature === frame.signature && node.position === frame.index + offset);
+                if (root && ancestors(journal, parent.id).every(node => node.position < root.position && !Object.keys(node.extra).length)) original = root;
+            }
             let node = variants.find(entry => entry.signature === frame.signature && entry.parent === (parent?.id ?? null));
             if (!node) {
-                if (variants.length && frame !== frames.at(-1)) {
+                if (!original && variants.length && frame !== frames.at(-1)) {
                     return fail('An earlier reply changed or was removed while its later effects remain. Restore that branch or rewind its suffix.');
                 }
                 // A known unchanged child with a different parent proves an interior gap.
-                if (variants.some(entry => entry.signature === frame.signature)) {
+                if (!original && variants.some(entry => entry.signature === frame.signature)) {
                     return fail('A reply is missing inside the retained history. Restore it or rewind the dependent suffix.');
                 }
-                const blocks = { ...(parent?.blocks ?? {}) };
-                for (const [tag, text] of Object.entries(frame.blocks ?? {})) blocks[tag] = intern(text);
+                const blocks = { ...(original ? original.blocks : parent?.blocks ?? {}) };
+                if (!original) for (const [tag, text] of Object.entries(frame.blocks ?? {})) blocks[tag] = intern(text);
                 node = { id: uuid(), owner: frame.owner, parent: parent?.id ?? null,
-                    position: frame.index + offset, signature: frame.signature, blocks,
-                    extra: Object.fromEntries(Object.entries(frame.extra ?? {}).map(([name, value]) => [name, intern(JSON.stringify(value))])),
+                    position: original?.position ?? frame.index + offset, signature: frame.signature, blocks,
+                    extra: original ? { ...original.extra } : Object.fromEntries(Object.entries(frame.extra ?? {}).map(([name, value]) => [name, intern(JSON.stringify(value))])),
                 };
                 journal.nodes[node.id] = node; nodes.push(node);
                 variants.push(node); byOwner.set(frame.owner, variants);
             }
             parent = node;
+            originalParent = original;
         }
         journal.head = parent.id;
         return { availability: 'available', journal, entries: ancestors(journal, parent.id).map(decode),

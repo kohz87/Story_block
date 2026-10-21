@@ -39,7 +39,7 @@ import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/
 import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
-const VERSION = '0.9.30';
+const VERSION = '0.9.31';
 const SETTINGS_KEY = 'storyBlock';
 // (0.9.21) Two extension prompts, for a provider's prompt cache (docs/STORY_SUITE.md, "Prompt
 // cache"): the instructions, the same text reply after reply, and this reply's part, sent last.
@@ -600,14 +600,14 @@ function journal() {
     return view;
 }
 
-// Older releases could lose the sole journal root during Regenerate. Reconnect
-// only at its original position, without adopting archived ancestry or known descendants.
+// Older releases could lose the sole journal root during Regenerate. Match its
+// original position even if earlier, previously unrecorded replies now have IDs.
 function regeneratedReplyRecovery() {
     const ctx = context(), saved = chatMetadata(ctx)?.storyBlockJournal;
     const head = saved?.nodes?.[saved.head];
-    const index = (ctx?.chat ?? []).findIndex((message, at) => !message.is_user && messageIdentity(at));
+    const index = head?.position;
     const owner = messageIdentity(index);
-    if (!owner || !head || head.parent || saved.scope !== chatIdOf(ctx) || head.position !== index
+    if (!Number.isInteger(index) || !owner || !head || head.parent || saved.scope !== chatIdOf(ctx)
         || pending.has(chatIdOf(ctx)) || blockCommits.has(chatIdOf(ctx))) return null;
     const known = new Set(Object.values(saved.nodes).map(node => node.owner));
     if (ctx.chat.some((_message, at) => known.has(messageIdentity(at)))) return null;

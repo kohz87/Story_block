@@ -49,6 +49,71 @@ test('a proven alternate can replace the only tracked reply without inheriting i
     assert.equal(read(saved, [{ ...alternate, replaces: [] }]).availability, 'incomplete', 'an unrelated reply cannot reset the journal');
 });
 
+test('newly identified replies before the original journal boundary preserve its verified suffix', () => {
+    const root = frame(6, { blocks: { Inventory: 'Coins | 8 silver |' }, extra: { rpgBattleEvidence: { events: ['verified'] } } });
+    const child = frame(8, { extra: { storyDirectorQuest: { receipts: ['paid-once'] } } });
+    const saved = read(null, [root, child]).journal;
+    const earlier = frame(4, { blocks: { Inventory: 'Coins | 1 silver |', Party: 'Earlier sheet' } });
+    const result = read(saved, [earlier, root, child]);
+    assert.equal(result.availability, 'available', result.reason);
+    assert.deepEqual(result.entries.map(node => node.owner), [earlier.owner, root.owner, child.owner]);
+    assert.deepEqual(result.entries[1].blocks, read(saved, [root, child]).entries[0].blocks, 'the verified root snapshot stays authoritative');
+    assert.deepEqual(result.entries[1].extra.rpgBattleEvidence.events, ['verified']);
+    assert.deepEqual(result.entries[2].extra.storyDirectorQuest.receipts, ['paid-once']);
+    assert.ok(result.journal.nodes[saved.head], 'original nodes remain available for rollback');
+    assert.equal(read(result.journal, [earlier, root, child]).journal.head, result.journal.head);
+});
+
+test('a legacy replacement at reply 6 reconnects with an unrecorded reply 4 before it', () => {
+    const root = frame(6, { blocks: { Inventory: 'Coins | 8 silver |' }, extra: { rpgBattleEvidence: { events: ['discarded-fight'] } } });
+    const saved = read(null, [root]).journal;
+    const earlier = frame(4, { owner: 'new-offer', blocks: { Inventory: 'Coins | 1 silver |' } });
+    const replacement = frame(6, { owner: 'new-response', signature: 'regenerated', blocks: {}, replaces: [root.owner] });
+    const result = read(saved, [earlier, replacement]);
+    assert.equal(result.availability, 'available', result.reason);
+    assert.deepEqual(result.entries.map(node => node.owner), ['new-offer', 'new-response']);
+    assert.equal(result.entries[1].blocks.Inventory, 'Coins | 1 silver |');
+    assert.equal(result.entries[1].extra.rpgBattleEvidence, undefined);
+    assert.ok(result.journal.nodes[saved.head]);
+    assert.equal(read(saved, [earlier, { ...replacement, replaces: [] }]).availability, 'incomplete');
+});
+
+test('pre-journal identities cannot adopt unverified evidence or unknown archived parents', () => {
+    const root = frame(6), earlier = frame(4);
+    const saved = read(null, [root]).journal;
+    const proof = { ...earlier, extra: { rpgBattleEvidence: { events: ['unverified'] } } };
+    assert.equal(read(saved, [proof, root]).availability, 'incomplete');
+    const archived = read(null, [frame(2), root]).journal;
+    assert.equal(read(archived, [earlier, root]).availability, 'incomplete');
+});
+
+test('adding pre-journal identities cannot authorize an edited or missing interior reply', () => {
+    const [root, middle, tail] = [frame(6), frame(8), frame(10)];
+    const saved = read(null, [root, middle, tail]).journal;
+    for (const frames of [[frame(4), root, tail], [frame(4), root, { ...middle, signature: 'changed' }, tail]]) {
+        const result = read(saved, frames);
+        assert.equal(result.availability, 'incomplete');
+        assert.equal(result.journal.head, saved.head);
+    }
+});
+
+test('an older saved swipe remains restorable after passive pre-journal replies are attached', () => {
+    const original = frame(6, { extra: { rpgBattleEvidence: { events: ['old-fight'] } } });
+    const alternate = frame(6, { owner: 'other-swipe', signature: 'other', replaces: [original.owner] });
+    const first = read(null, [original]).journal;
+    const second = read(first, [alternate]).journal;
+    const earlier = frame(4);
+    const attached = read(second, [earlier, alternate]);
+    assert.equal(read(attached.journal, [{ ...earlier, owner: 'unknown-earlier' }, original]).availability, 'incomplete',
+        'a saved inactive root cannot bypass replacement of a now-recorded prefix');
+    const restored = read(attached.journal, [earlier, original]);
+    assert.equal(restored.availability, 'available', restored.reason);
+    assert.deepEqual(restored.entries.at(-1).extra.rpgBattleEvidence.events, ['old-fight']);
+    const back = read(restored.journal, [earlier, alternate]);
+    assert.equal(back.availability, 'available', back.reason);
+    assert.equal(back.entries.at(-1).extra.rpgBattleEvidence, undefined);
+});
+
 test('replacing the first retained reply keeps only its proven archived parents, never its own payout', () => {
     const base = [frame(0), frame(1, { extra: { rpgBattleEvidence: { events: ['earned'] } } })];
     const paid = frame(2, { blocks: { Inventory: 'Coins | 8 silver |', Party: 'Level: 2 | XP: 1/120' },

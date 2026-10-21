@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.31
+
+- **Recover the saved reply even when earlier replies have acquired IDs.** A journal beginning at reply #6 could stay disconnected because an unrecorded reply #4 was mistaken for its boundary. Automatic recovery now targets the saved position and includes earlier replies that have no structured journal effects. Reopening resumes queued Take on choices without another generation or reconnect click.
+- Preserve original snapshots, receipts and nodes when adding these earlier identities; discarded-variant battle proof stays inactive. Unverified earlier evidence, missing archived parents and ambiguous interior changes remain blocked.
+
 ## 0.9.30
 
 - **Regenerate recovery runs automatically.** Reconnect an eligible lost root when opening the chat, before generation or while saving a reply. The repair also works after more replies were sent: verify the saved header, retain old variants and resume the latest reply's bookkeeping so injected Take on choices become accepted quests.
