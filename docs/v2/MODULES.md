@@ -227,10 +227,10 @@ These settle questions agents raised; the host changes they need are made at int
    them have their own switch to stop. Only `<Changes>` is v2's.
 16. **d20 for every uncertain action.** (User decision.) The static instruction tells the model: any action
    whose outcome is uncertain gets a `? check <skill> — <what> | dc: …` line and the reply stops before the
-   outcome. The check waits as a **pending check** (RPG Battle `checks` in the party domain): the reader
+   outcome. The check waits as a **pending check** (RPG Battle's `checks` domain, part src/v2/checks): the reader
    may add modifiers before rolling (a stat is applied automatically; the reader can add a skill or ability
-   that fits, an item, or a custom ±n with a reason), then presses Roll (`check.resolve`, d20 + modifiers,
-   seeded). If the reader sends the next message without rolling, the check is rolled with the automatic
+   that fits, an item, or a custom ±n with a reason), then presses Roll (`check.roll { id }`, d20 + modifiers,
+   seeded; party's `check.resolve` stays for direct rolls). If the reader sends the next message without rolling, the check is rolled with the automatic
    modifiers before that generation (`beforeGenerate`). The result is a receipt the next reply narrates.
    An optional setting (off) rolls before the reply via a cheap classifier call.
 17. **Death is a return in time.** (User decision.) When the PC dies, RPG Battle offers **Return**: the chat

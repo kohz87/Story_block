@@ -32,7 +32,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Combat: encounters, v1 engine replayed from stored actions, settlement, foes beaten | ✅ | #67 |
 | Trade: sell, buy, commission, collect, market rule, prices per place | ✅ | #66 |
 | Integration: module.js, one currency, payload fixes, index.js bootstrap | 🔧 | |
-| Pending d20 checks with reader modifiers (§F16) | 🔧 | |
+| Pending d20 checks with reader modifiers (§F16) | ✅ | #70 |
 | Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
 | Return in time after death (§F17) | ✅ | #69 |
 | Battle board widget, default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
