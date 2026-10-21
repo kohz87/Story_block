@@ -18,7 +18,7 @@
 // * Every state handed out is deep-frozen. The head and the checkpoints are cached; the cache is checked
 //   against the chat on each read, and `rebuild()` drops it.
 
-import { apply as applyOps } from './ops.js';
+import { apply as applyOps, rebaseOps } from './ops.js';
 import {
     KEY, carrierIndexes, createSaver, isCarrier, lastCarrier, newRecordId, readRecord, restamp, swipeOf, writeRecord,
 } from './persist.js';
@@ -50,10 +50,12 @@ const revOf = state => (Number.isInteger(state?.meta?.rev) ? state.meta.rev : 0)
  * @param {object} [options.timers]          { setTimeout, clearTimeout } for tests
  * @param {number} [options.checkpointEvery] / [options.checkpointBytes]  thresholds (default 20 / 32 KB)
  * @param {() => string} [options.recordId]  ID of a new carrier record
+ * @param {(state, domains: string[]) => string[]} [options.validate]  the domains' validators, run on a
+ *   state whose counts were moved by a replay (ops.js rebaseOps); a problem skips that block
  */
 export function createStore({
     chat, save, now = null, apply = applyOps, onSaveError = null, timers = globalThis,
-    checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId,
+    checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId, validate = null,
 } = {}) {
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
@@ -104,18 +106,58 @@ export function createStore({
     }
 
     // Ops are cloned on the way in so nothing the chat holds ends up inside (and frozen with) a state.
+    // A count that stands elsewhere than when the op was made (a reply before it was deleted) takes the
+    // op's change rather than its number (ops.js rebaseOps, B3-8); the domains whose counts moved are
+    // checked by their validators, and a problem there throws (the block is skipped and reported).
     function step(state, ops) {
-        return ops.length ? deepFreeze(apply(state, structuredClone(ops))) : state;
+        if (!ops.length) return state;
+        const { ops: rebased, rebased: moved } = rebaseOps(state, ops);
+        const next = deepFreeze(apply(state, structuredClone(rebased)));
+        if (moved.size && typeof validate === 'function') {
+            const problems = validate(next, [...moved].sort()) ?? [];
+            if (problems.length) throw new Error(`Taken onto the counts as they stand now, these changes no longer fit: ${problems.join(' ')}`);
+        }
+        return next;
+    }
+
+    // The checkpoint to replay from for carrier `upTo` and the records after it (B2-4). Each checkpoint
+    // lists the records it was made over (`covers`: the record IDs from the checkpoint before it up to
+    // itself), so one made before a reply was deleted, or another swipe was shown, is passed over: the
+    // replay starts from an earlier one that still holds. A checkpoint without `covers` (older records,
+    // the first one) is trusted. When no checkpoint holds, the latest one is used, as before.
+    // → { from: index | -1, since: the record IDs from `from` through `upTo` }.
+    function chain(arr, upTo) {
+        let from = -1;
+        let latest = -1;
+        let since = [];
+        const last = Math.min(upTo, arr.length - 1);
+        for (let i = 0; i <= last; i++) {
+            if (!isCarrier(arr[i])) continue;
+            const record = readRecord(arr[i]);
+            if (!record) continue;
+            if (record.checkpoint) {
+                latest = i;
+                const covers = Array.isArray(record.covers) ? record.covers : null;
+                if (!covers || (from >= 0 && covers.length === since.length && covers.every((sid, at) => sid === since[at]))) {
+                    from = i;
+                    since = [];
+                }
+            }
+            since.push(record.sid);
+        }
+        if (from < 0 && latest >= 0) {
+            from = latest;
+            since = [];
+            for (let i = latest; i <= last; i++) if (isCarrier(arr[i]) && readRecord(arr[i])) since.push(readRecord(arr[i]).sid);
+        }
+        return { from, since };
     }
 
     // State after the last carrier at or before `upTo`, or null when no checkpoint precedes it. A block
     // of ops that no longer applies (a hand-edited chat, a middle reply deleted) is skipped and reported
     // on its own, so a bad change cannot take the rest of its carrier, or anything later, with it.
     function replay(arr, upTo) {
-        let from = -1;
-        for (let i = Math.min(upTo, arr.length - 1); i >= 0; i--) {
-            if (readRecord(arr[i])?.checkpoint) { from = i; break; }
-        }
+        const { from } = chain(arr, upTo);
         if (from < 0) return { state: null, problems: [] };
         let state = checkpointState(readRecord(arr[from]).checkpoint);
         const problems = [];
@@ -218,7 +260,10 @@ export function createStore({
         const record = { v: 2, sid: recordId(), ops: [], receipts: [], narrated: [], spans: [] };
         if (needsCheckpoint(arr, index)) {
             const base = before === undefined ? stateBefore(arr, index) : before;
-            if (base) record.checkpoint = structuredClone(base);
+            if (base) {
+                record.checkpoint = structuredClone(base);
+                record.covers = chain(arr, index - 1).since;
+            }
         }
         return { message, record, fresh: true };
     }

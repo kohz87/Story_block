@@ -38,8 +38,9 @@ test('the bench run keeps the load it describes, one capture save per reply and 
     assert.equal(run.saves.pre, rounds, 'a burst of UI clicks is saved once, when the next generation starts');
     assert.equal(snapshot.savesPerReply.max, 2);
 
-    // The greeting holds the initial state; carrier 20 gets the next one.
-    assert.equal(snapshot.checkpoints.count, 2);
+    // The greeting holds the initial state; the next comes once 32 KB of ops have passed (the party's
+    // set-up is most of it, and counts carry the value they replaced), then 20 carriers later.
+    assert.equal(snapshot.checkpoints.count, 3);
     const bytes = breakdown(run.chat);
     assert.equal(bytes.carriers, REPLIES + 1);
     assert.equal(bytes.records, bytes.checkpoint + bytes.ops + bytes.receipts + bytes.other);

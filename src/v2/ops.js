@@ -202,6 +202,45 @@ function applyOne(root, op, fresh) {
     return step(root, 0);
 }
 
+// ---------- counters (B3-8) ----------
+//
+// A domain may name number fields that are counts kept by adding and taking away (`counters`, paths
+// relative to the domain with `*` for any one key: the inventory's `wallets/*/coin`, `stacks/*/qty`).
+// A `replace` of such a number keeps the value it replaced (`was`). On replay, when the value found is
+// not `was` (an earlier reply was deleted, so the count stands elsewhere), the op adds its own change
+// (`value - was`) to what is there instead of writing its number (`rebaseOps`); the store then runs the
+// domain's validator on the result. Ops without `was` (older records, other fields) apply as written.
+
+/** True when `path` (/domains/<name>/…) is one of the domain's `counters` patterns. */
+export function isCounterPath(path, patterns) {
+    if (!Array.isArray(patterns) || !patterns.length) return false;
+    let keys;
+    try { keys = parsePath(path); } catch { return false; }
+    if (keys[0] !== 'domains' || keys.length < 3) return false;
+    const rest = keys.slice(2);
+    return patterns.some(pattern => {
+        const parts = String(pattern).split('/').filter(Boolean);
+        return parts.length === rest.length && parts.every((part, i) => part === '*' || part === rest[i]);
+    });
+}
+
+/**
+ * `ops` with each counter op (`replace` with a numeric `was`) moved onto the value `state` holds
+ * there: { ops, rebased: Set of domain names whose counts moved }. Ops are not changed in place.
+ */
+export function rebaseOps(state, ops) {
+    const rebased = new Set();
+    const out = ops.map(op => {
+        if (op?.op !== 'replace' || typeof op.was !== 'number' || typeof op.value !== 'number') return op;
+        const now = valueAt(state, op.path);
+        if (typeof now !== 'number' || now === op.was) return op;
+        const keys = parsePath(op.path);
+        if (keys[0] === 'domains' && keys[1]) rebased.add(keys[1]);
+        return { ...op, value: now + (op.value - op.was), was: now };
+    });
+    return { ops: out, rebased };
+}
+
 /** The value at a JSON Pointer, or undefined when the path does not exist. Never throws. */
 export function valueAt(state, path) {
     let keys;
