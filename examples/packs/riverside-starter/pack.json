@@ -1,0 +1,37 @@
+{
+  "id": "riverside-starter",
+  "version": "1.0.0",
+  "name": "Riverside Starter",
+  "author": "Story Suite examples",
+  "description": "A small river village to begin in: a few goods, a weir rat, a fishmonger, a fishing-rod recipe and two village events.",
+  "requires": { "storyBlock": "^2", "capabilities": ["inventory", "scene"] },
+  "content": {
+    "items": [
+      { "name": "Moonveil Trout", "aliases": ["trout"], "kind": "goods", "rarity": "uncommon", "value": 45, "tags": ["fish"], "note": "violet-streaked, from the lake" },
+      { "name": "Willow Rod", "slug": "willow-rod", "kind": "equipment", "rarity": "common", "value": 120, "stack": false, "slot": "tool", "note": "light and springy" },
+      { "name": "Hemp Line", "kind": "material", "value": 8, "tags": ["fibre"] },
+      { "name": "Minor Healing Draught", "aliases": ["healing draught"], "kind": "consumable", "value": 60, "effect": { "heal": 20 } }
+    ],
+    "creatures": [
+      { "name": "Weir Rat", "tier": "weak", "level": 1, "hp": 8, "habitat": "riverbanks and mill races", "loot": ["hemp-line"] }
+    ],
+    "shops": [
+      { "name": "Hollis the Fishmonger", "kind": "fishmonger", "place": "Bluewatch Village", "stock": ["moonveil-trout", { "item": "Hemp Line", "qty": 10 }, { "item": "willow-rod", "qty": 1, "price": 150 }] }
+    ],
+    "recipes": [
+      { "name": "Willow Rod", "makes": "willow-rod", "materials": [{ "item": "hemp-line", "qty": 2 }], "fee": 40, "minutes": 120 }
+    ],
+    "events": [
+      { "id": "market-day", "when": "query('director.time').minutes >= 480", "cue": "Bells ring across Bluewatch: market day has begun on the green.", "once": true },
+      { "id": "rat-trouble", "after": "market-day", "when": "query('scene.place').name == 'Bluewatch Village'", "cue": "Hollis grumbles that weir rats have been at his nets again.", "once": true }
+    ]
+  },
+  "start": {
+    "scene": { "place": { "name": "Bluewatch Village", "kind": "settlement", "region": "the Lowmere" }, "present": ["Hollis"] },
+    "inventory": {
+      "items": [{ "item": "willow-rod" }, { "item": "Hemp Line", "qty": 3 }, "Minor Healing Draught"],
+      "wallet": { "silver": 5 }
+    }
+  },
+  "theme": { "--accent": "#3f7f8f" }
+}

@@ -1,0 +1,155 @@
+// Lookups over the enabled packs (pure). Every function takes the normalized packs in
+// list order (validate.js `pack`), so the same list always gives the same answer.
+//
+// Order decides ties: a pack earlier in the installed list wins over a later one, for an
+// item name two packs both define and for the start place.
+
+import { CONTENT_KINDS } from './limits.js';
+import { slugify } from './validate.js';
+import { foldKey } from '../../text.js';
+
+// The inventory def fields (SPEC §7), in a fixed order.
+const DEF_FIELDS = ['id', 'name', 'kind', 'rarity', 'value', 'stack', 'slot', 'stats', 'effect', 'tags', 'note'];
+
+const copy = value => JSON.parse(JSON.stringify(value));
+
+/** The item as an inventory def (SPEC §7): `{ id: 'pack.<id>/<slug>', name, kind, … }`. */
+export function itemDef(item) {
+    const def = {};
+    for (const field of DEF_FIELDS) def[field] = copy(item[field]);
+    return def;
+}
+
+/**
+ * Records of one kind from every enabled pack, in pack order then file order.
+ * `kind`: a content kind (items, creatures, shops, recipes, events, quests), `layouts`, or
+ * `theme` (one `{ pack, tokens }` per pack that has a theme). Unknown kinds give [].
+ * `pack` narrows to one pack id.
+ */
+export function contentOf(packs, kind, { pack = null } = {}) {
+    const chosen = pack ? packs.filter(entry => entry.id === pack) : packs;
+    if (CONTENT_KINDS.includes(kind)) return copy(chosen.flatMap(entry => entry.content[kind]));
+    if (kind === 'layouts') return copy(chosen.flatMap(entry => entry.layouts));
+    if (kind === 'theme') return copy(chosen.filter(entry => Object.keys(entry.theme).length).map(entry => ({ pack: entry.id, tokens: entry.theme })));
+    return [];
+}
+
+/**
+ * The pack item a story name means, as an inventory def, or null.
+ *
+ * Precedence: a full def ID (`pack.fantasy/iron-sword`) names that item; else the first
+ * enabled pack whose item has that name or alias (case and width folded); else the first
+ * whose item slug equals the name's slug ("Iron-Sword!" → `iron-sword`). Inventory checks
+ * its own aliases first and creates a `story/<slug>` def only when this returns null.
+ */
+export function resolveItemIn(packs, name) {
+    const text = String(name ?? '').trim();
+    if (!text) return null;
+    if (text.startsWith('pack.') && text.includes('/')) {
+        for (const pack of packs) for (const item of pack.content.items) if (item.id === text) return itemDef(item);
+        return null;
+    }
+    const key = foldKey(text);
+    for (const pack of packs) {
+        for (const item of pack.content.items) if (foldKey(item.name) === key || item.aliases.some(alias => foldKey(alias) === key)) return itemDef(item);
+    }
+    const slug = slugify(text);
+    if (!slug) return null;
+    for (const pack of packs) for (const item of pack.content.items) if (item.slug === slug) return itemDef(item);
+    return null;
+}
+
+/**
+ * The enabled packs' `start` merged into one (SPEC §2.6):
+ * `{ scene: { place, present }, inventory: { items: [{ def, aliases, qty, note }], wallet }, packs, problems }`.
+ *
+ * * `place`: the first pack (in list order) that names one; places are not mixed field by field.
+ * * `present`: every name once, in pack order.
+ * * `items`: in pack order; the same def with the same note is one line with the quantities added.
+ *   A start item from another pack that is not enabled is left out and listed in `problems`.
+ * * `wallet`: amounts of the same coin added up.
+ * * `packs`: the ids of the packs that gave something.
+ */
+export function mergeStart(packs) {
+    const out = { scene: { place: null, present: [] }, inventory: { items: [], wallet: {} }, packs: [], problems: [] };
+    const items = new Map();
+    for (const item of packs.flatMap(pack => pack.content.items)) if (!items.has(item.id)) items.set(item.id, item);
+    const present = new Set();
+    for (const pack of packs) {
+        const start = pack.start;
+        if (!start) continue;
+        let gave = false;
+        if (start.scene.place && !out.scene.place) {
+            out.scene.place = copy(start.scene.place);
+            gave = true;
+        }
+        for (const name of start.scene.present) {
+            gave = true;
+            if (present.has(foldKey(name))) continue;
+            present.add(foldKey(name));
+            out.scene.present.push(name);
+        }
+        for (const line of start.inventory.items) {
+            const item = items.get(line.item);
+            if (!item) {
+                out.problems.push(`${pack.name} starts with ${line.item}, but the pack that defines it is not enabled.`);
+                continue;
+            }
+            gave = true;
+            const same = out.inventory.items.find(entry => entry.def.id === item.id && entry.note === line.note);
+            if (same) same.qty += line.qty;
+            else out.inventory.items.push({ def: itemDef(item), aliases: [...item.aliases], qty: line.qty, note: line.note });
+        }
+        for (const [coin, amount] of Object.entries(start.inventory.wallet)) {
+            gave = true;
+            out.inventory.wallet[coin] = (out.inventory.wallet[coin] ?? 0) + amount;
+        }
+        if (gave) out.packs.push(pack.id);
+    }
+    return out;
+}
+
+/**
+ * Writes a merged start into an initial State (SPEC §2.6, shapes of SPEC §7) and returns the
+ * new State; `state` is not changed. Only the `scene` and `inventory` slices that exist are
+ * touched. `id(prefix)` makes record IDs (the host passes `sdk.id`).
+ *
+ * * The start place is used only when the scene has no place yet; present names are added once.
+ * * Each start item adds its def (if inventory has none with that ID), its name and aliases to
+ *   `aliases` (where free), and a party stack; an item that does not stack gets one stack each.
+ * * Wallet amounts are added to the party's wallet.
+ */
+export function applyStart(state, start, { id } = {}) {
+    if (typeof id !== 'function') throw new Error('applyStart needs an id(prefix) function.');
+    const next = copy(state);
+    const scene = next.domains?.scene;
+    if (scene && start.scene) {
+        if (start.scene.place && !scene.place?.name) scene.place = copy(start.scene.place);
+        if (Array.isArray(scene.present)) {
+            const here = new Set(scene.present.map(foldKey));
+            for (const name of start.scene.present) if (!here.has(foldKey(name))) { here.add(foldKey(name)); scene.present.push(name); }
+        }
+    }
+    const inventory = next.domains?.inventory;
+    if (inventory && start.inventory) {
+        inventory.defs ??= {};
+        inventory.stacks ??= {};
+        inventory.wallets ??= {};
+        inventory.aliases ??= {};
+        for (const line of start.inventory.items) {
+            const def = line.def;
+            inventory.defs[def.id] ??= copy(def);
+            for (const name of [def.name, ...(line.aliases ?? [])]) inventory.aliases[foldKey(name)] ??= def.id;
+            const stacks = def.stack ? [line.qty] : Array.from({ length: line.qty }, () => 1);
+            for (const qty of stacks) {
+                const stackId = id('it');
+                inventory.stacks[stackId] = { id: stackId, def: def.id, qty, owner: 'party', equipped: null, note: line.note ?? '', from: '' };
+            }
+        }
+        for (const [coin, amount] of Object.entries(start.inventory.wallet ?? {})) {
+            const wallet = inventory.wallets.party ??= {};
+            wallet[coin] = (wallet[coin] ?? 0) + amount;
+        }
+    }
+    return next;
+}
