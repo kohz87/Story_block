@@ -8,15 +8,18 @@ import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
 const view = state => ({ state, query: () => null, settings: {}, chat: { length: 1, lastUser: '' } });
 
-test('the definition has the §6 shape', () => {
+test('the definition has the §6 shape (core, packs and events parts merged)', () => {
     const module = createCoreModule();
     assert.equal(module.id, CORE_MODULE_ID);
     assert.deepEqual(Object.keys(module.domains), ['scene', 'inventory']);
     assert.deepEqual(Object.keys(module.commands).sort(), [
-        'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.merge', 'inventory.split',
+        'events.fire', 'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.merge', 'inventory.split',
         'inventory.transfer', 'inventory.unequip', 'scene.place', 'scene.present', 'wallet.pay', 'wallet.receive',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet', 'scene.place', 'scene.present']);
+    assert.deepEqual(Object.keys(module.queries).sort(), ['events.status', 'inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet',
+        'packs.content', 'packs.item', 'packs.list', 'packs.start', 'scene.place', 'scene.present']);
+    assert.deepEqual(Object.keys(module.hooks).sort(), ['beforeGenerate', 'item.resolve', 'start']);
+    assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present']);
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
@@ -114,8 +117,8 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
         assert.equal(kind.grammar, CORE_KINDS[name].grammar);
         assert.equal(typeof kind.apply, 'function');
     }
-    assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands));
-    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries));
+    assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands).filter(name => !name.startsWith('events.')));
+    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs)\./.test(name)));
     assert.equal(part.context.budget, CORE_BUDGET);
 });
 

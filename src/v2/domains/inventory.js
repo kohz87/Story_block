@@ -232,8 +232,32 @@ function defineByName(ctx, inv, written, env, about = {}) {
     const found = resolveDef(inv, name);
     if (found.status === 'ambiguous') ctx.fail('INVALID', ambiguous(inv, name, found.ids));
     if (found.status === 'found') return { def: inv.defs[found.id], created: false };
+    const packed = packDef(ctx, inv, name, env);
+    if (packed) return packed;
     const def = defaultDef(freeId(inv, `story/${slugify(name)}`), name);
     return { def: addDef(inv, def, env, about), created: true };
+}
+
+// The `item.resolve(name)` hooks (packs, MODULES §E): a pack's def for a name the inventory does
+// not know yet, taken as the pack wrote it (its numbers are the rules; item.define does not run),
+// with the written name kept as an alias. The first hook that answers wins.
+function packDef(ctx, inv, name, env) {
+    for (const hook of env.hooks('item.resolve')) {
+        let found;
+        try { found = hook(name); } catch { found = null; }
+        if (!isPlainObject(found) || typeof found.id !== 'string' || !DEF_ID.test(found.id) || !cleanName(found.name)) continue;
+        const known = inv.defs[found.id];
+        const def = known ?? defaultDef(found.id, cleanName(found.name));
+        if (!known) {
+            for (const field of Object.keys(def)) if (field !== 'id' && found[field] !== undefined && found[field] !== null) def[field] = clone(found[field]);
+            if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
+            inv.defs[def.id] = def;
+            inv.aliases[aliasKey(def.name)] ??= def.id;
+        }
+        inv.aliases[aliasKey(name)] ??= def.id;
+        return { def: inv.defs[def.id], created: !known };
+    }
+    return null;
 }
 
 /**

@@ -122,13 +122,15 @@ export function restoreMissing(chat, staticText, tailText) {
 
 /**
  * Wires one SillyTavern context. `deps`: { ctx, store, bus, registry, settings, events?,
- * onBlocked?(reason, moduleId), notify?(reason, moduleId) (default: a toastr warning) }.
+ * onBlocked?(reason, moduleId), notify?(reason, moduleId) (default: a toastr warning),
+ * initial?() → the initial State for a chat with none (default registry.initialState(); the host
+ * adds the packs' start, SPEC §2.6) }.
  * `settings` is createSettings() (settings() → host settings, settings(id) → a module's).
  * Returns { interceptor, install, uninstall, onPromptReady, onTextPromptReady, onMessageReceived,
  * onChatChanged, onTimelineChanged, onGenerationEnded, preview, problems, clearProblems,
  * session }.
  */
-export function createTurn({ ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify }) {
+export function createTurn({ ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState() }) {
     const types = () => ctx?.extension_prompt_types ?? ctx?.extensionPromptTypes ?? {};
     const roles = () => ctx?.extension_prompt_roles ?? ctx?.extensionPromptRoles ?? {};
     const position = place => (place === 'static' ? types().IN_PROMPT ?? IN_PROMPT : types().IN_CHAT ?? IN_CHAT);
@@ -162,7 +164,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
 
     function rebuild() {
         store.rebuild();
-        if (hasCarrier()) store.ensureInitial(registry.initialState());
+        if (hasCarrier()) store.ensureInitial(initial());
         events?.emit('head', { index: store.headIndex() });
     }
 
@@ -247,7 +249,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             await store.flush();
             // A Regenerate removes the old reply before this runs, without an event for it.
             if (store.headIndex() !== lastCarrier()) store.rebuild();
-            if (hasCarrier()) store.ensureInitial(registry.initialState());
+            if (hasCarrier()) store.ensureInitial(initial());
             await ensureModules({ store, bus, registry, events });
             const blocked = await blockedBy();
             if (blocked) {
@@ -370,7 +372,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         if (!isCarrier(message)) return null;
         try {
             if (store.headIndex() !== id) store.rebuild();
-            store.ensureInitial(registry.initialState());
+            store.ensureInitial(initial());
             if (store.headIndex() !== id) {
                 problem({ index: id, code: 'FAILED', message: 'The reply is not the last message that keeps the story, so its changes were not read.' });
                 return null;

@@ -9,12 +9,9 @@
 
 import { createFakeContext } from './fake-st.js';
 import { createFakeBus, createFakeStore } from './fakes.js';
-import { createRegistry } from '../src/v2/registry.js';
-import { createEvents, createSdk, createSettings } from '../src/v2/sdk.js';
-import { createTurn } from '../src/v2/turn.js';
+import { createRuntime } from '../src/v2/runtime.js';
 
 const RUNTIME = { store: '../src/v2/store.js', commands: '../src/v2/commands.js' };
-const DOMAINS = '../src/v2/domains/index.js';
 
 async function load(path) {
     try { return { module: await import(path) }; } catch (error) {
@@ -39,23 +36,11 @@ export async function hostAvailable() {
     };
 }
 
-// The core module (scene, inventory) when src/v2/domains/ exists: createCoreModule({ hooks }) with
-// the registry's hooks, else its `modules` (or default) list, or every exported module definition.
-async function coreModules(registry) {
-    const { module } = await load(DOMAINS);
-    if (!module) return [];
-    if (typeof module.createCoreModule === 'function') return [module.createCoreModule({ hooks: name => registry.hooks(name) })];
-    const list = module.modules ?? module.default;
-    if (Array.isArray(list)) return list;
-    if (list && typeof list === 'object' && list.id) return [list];
-    return Object.values(module).filter(value => value && typeof value === 'object' && typeof value.id === 'string' && value.domains);
-}
-
 /**
  * Builds a host. `options`: { modules?: def[] (registered after the core ones), core?: true
- * (register src/v2/domains/ when present), fakes?: false (use fakes.js), st?: options for
+ * (register Story Block's core module: scene, inventory, packs, events), fakes?: false (use fakes.js), st?: options for
  * createFakeContext (plus onBlocked?), settings?: initial extension_settings.storySuite }.
- * Returns { st, ctx, registry, settings, store, bus, events, sdk, turn, send(text, reply),
+ * Returns { st, ctx, registry, settings, store, bus, events, sdk, turn, packs, send(text, reply),
  * swipe(reply), regenerate(reply), cont(reply), quiet(), head(), close() }; `st` is the fake
  * SillyTavern (fake-st.js), with `st.notices` = [{ reason, moduleId }] for held-back generations. Throws when the runtime is missing and `fakes` is not set.
  */
@@ -76,23 +61,21 @@ export async function createHost(options = {}) {
     st.notices = [];
     const ctx = st.ctx;
 
-    const registry = createRegistry();
-    for (const def of core ? await coreModules(registry) : []) registry.register(def);
-    for (const def of modules) registry.register(def);
-
-    const settings = createSettings({ root: () => ctx.extensionSettings, registry, save: () => ctx.saveSettingsDebounced() });
-    const store = createStore({ chat: () => ctx.chat, save: () => ctx.saveChat() });
-    const bus = createCommandBus({ store, registry, settings });
-    const events = createEvents();
-    const { sdk, markReady } = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat });
-    const turn = createTurn({ ctx, store, bus, registry, settings, events, onBlocked: stOptions.onBlocked ?? null, notify: (reason, moduleId) => st.notices.push({ reason, moduleId }) });
+    // The same wiring as index.js (src/v2/runtime.js): the core module with its packs part over the
+    // fake extension settings, then the given modules.
+    const runtime = createRuntime({
+        ctx, core, modules, createStore, createCommandBus,
+        onBlocked: stOptions.onBlocked ?? null,
+        notify: (reason, moduleId) => st.notices.push({ reason, moduleId }),
+    });
+    const { registry, settings, store, bus, events, sdk, turn, markReady } = runtime;
     turn.install({ globalName: null });
     st.interceptor = turn.interceptor;
     await turn.onChatChanged();
     markReady();
 
     return {
-        st, ctx, registry, settings, store, bus, events, sdk, turn,
+        st, ctx, registry, settings, store, bus, events, sdk, turn, packs: runtime.packs,
         send: (text, reply = '') => st.send(text, { reply }),
         swipe: (reply = '') => st.generate('swipe', { reply }),
         regenerate: (reply = '') => st.generate('regenerate', { reply }),
