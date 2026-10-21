@@ -35,6 +35,38 @@ test('tail rollback restores Party and Inventory together and old swipes remain 
     assert.deepEqual(restore.entries.at(-1), a.entries.at(-1));
 });
 
+test('a proven alternate can replace the only tracked reply without inheriting its rewards or defeats', () => {
+    const original = frame(20, { extra: { rpgBattleEvidence: { events: ['old-fight'] } } });
+    const saved = read(null, [original]).journal;
+    const alternate = frame(20, { owner: 'alternate', signature: 'new telling', replaces: [original.owner] });
+    const result = read(saved, [alternate]);
+    assert.equal(result.availability, 'available');
+    assert.equal(result.entries.length, 1);
+    assert.equal(result.entries[0].owner, alternate.owner);
+    assert.equal(result.entries[0].extra.rpgBattleEvidence, undefined);
+    assert.equal(result.entries[0].parent, null);
+    assert.equal(read(result.journal, [original]).journal.head, saved.head);
+    assert.equal(read(saved, [{ ...alternate, replaces: [] }]).availability, 'incomplete', 'an unrelated reply cannot reset the journal');
+});
+
+test('replacing the first retained reply keeps only its proven archived parents, never its own payout', () => {
+    const base = [frame(0), frame(1, { extra: { rpgBattleEvidence: { events: ['earned'] } } })];
+    const paid = frame(2, { blocks: { Inventory: 'Coins | 8 silver |', Party: 'Level: 2 | XP: 1/120' },
+        extra: { storyDirectorQuest: { receipts: ['paid'] } } });
+    const saved = read(null, [...base, paid]).journal;
+    const alternate = frame(0, { owner: 'retold', signature: 'new telling', replaces: [paid.owner], blocks: {} });
+    const result = read(saved, [alternate]);
+    assert.equal(result.availability, 'available');
+    assert.equal(result.offset, 2);
+    assert.equal(result.prefix.length, 2);
+    assert.equal(result.entries.at(-1).blocks.Inventory, base[1].blocks.Inventory);
+    assert.equal(result.entries.at(-1).extra.storyDirectorQuest, undefined);
+    assert.equal(result.prefix[1].extra.rpgBattleEvidence.events[0], 'earned');
+    const unchangedChild = frame(3);
+    const withChild = read(saved, [...base, paid, unchangedChild]).journal;
+    assert.equal(read(withChild, [alternate, { ...unchangedChild, index: 1 }]).availability, 'incomplete', 'dependent suffixes still need recovery');
+});
+
 test('interior edits and missing anchors never inherit the future as a new checkpoint', () => {
     const frames = [frame(0), frame(1), frame(2), frame(3)];
     const saved = read(null, frames).journal;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.29
+
+- **Regenerate keeps its journal link.** Replacing the only tracked reply in an older chat could leave the new reply unrecognized, blocking battle evidence with `No retained reply matches the saved quest history`. Record replacement ownership before SillyTavern removes the old reply, and recognize saved swipe variants. The new branch keeps proven parents, excluding the discarded reply's defeats, payouts and XP.
+- **Archived state stays available while regenerating.** Inventory and kept Party state can be read from proven archived parents during generation and carried onto the new reply when omitted. Prompt previews do not advance the saved journal.
+- **Targeted recovery for an already blocked battle.** With RPG Battle **0.5.50**, an explicit reconnect action can repair a lost sole-root link at the same reply position. It verifies the save, retains old variants and lets the existing battle resume. Missing archived ancestry and ambiguous edits remain blocked; no journal reset or reward subtraction is attempted.
+
 ## 0.9.28
 
 - **Chat checkpoints work over plain HTTP.** Some LAN browser sessions do not expose `crypto.randomUUID`, which prevented journal reads and could hide Director's Quests tab. Message and journal IDs now use a compatible UUID generator with `getRandomValues` when needed. Existing IDs, quest records and checkpoints are preserved; no chat reset or HTTPS change is required.

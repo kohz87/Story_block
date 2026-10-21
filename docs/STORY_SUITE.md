@@ -94,6 +94,19 @@ ambiguous interior edits return incomplete. Keep metadata in exports and archive
 ID allocation supports plain-HTTP hosts without `crypto.randomUUID`; existing identities
 are retained, and new UUIDs use `getRandomValues` when available.
 
+Regenerate captures the replaced owner before the host deletes its reply. The new
+`storyBlockIdentity.replaces` link and saved swipe variants prove the shared parent;
+discarded-variant evidence/rewards are excluded. In-flight reads may preview that parent
+without saving a placeholder node. Archived state also supplies omitted prompt/carried blocks.
+
+The global `StoryBlock` API offers `regeneratedReplyRecovery()` and
+`recoverRegeneratedReply(plan)` for explicit recovery of legacy lost-root cases. A plan is
+offered only for one unknown current tail at the same position as a parentless saved head,
+in the same chat, with no other retained owned replies. Revalidate the plan before applying;
+the action records `storyBlockReplacement`, verifies message/journal readback and keeps all
+inactive nodes. Uncertain reconnection blocks further journal writes until page reload.
+This is not a general reset or a way to adopt unknown archived ancestors.
+
 `onReply(callback, {priority: 0})` awaits callbacks in ascending order, isolating failures.
 `replyBusy()` covers normalization and callbacks so scheduled awards can wait for completion.
 RPG updates Party at -10, Director settles at 0, and RPG handles later story awards at 10.
