@@ -260,3 +260,79 @@ These settle questions agents raised; the host changes they need are made at int
 27. **Studio** (user decision): after the heavy tests and refinement are done, build Studio as a standalone
    HTML app and ship it inside Story Block as a download (a button in the Story Suite overlay saves the
    self-contained `story-suite-studio.html`); it uses the same renderer, validators and pack format.
+
+### User decisions, batch 3 (F28–F77)
+
+**Play and rules**
+28. XP curve and level cap: v1's, adjustable in settings.
+29. Companions' stat points auto-spent by default; a per-member toggle switches auto ↔ manual.
+30. Healing: rests and items, and story heals (`~ wound X — heal …`) capped by v1's wound shares.
+31. Checks: natural 20 always succeeds, natural 1 always fails, whatever the modifiers.
+32. Up to 2 checks per reply, each rolled separately.
+33. **Modifiers apply to the roll result**: the reader presses Roll, sees the d20 (fixed by the seed through
+    preview), may still add modifiers (abilities, items, custom) to that result, then confirms; total =
+    die + modifiers. No rerolls. If the reader sends the next message without confirming, it is confirmed
+    with what is on it.
+34. Fleeing a fight to the death is allowed (v1's chance).
+35. Loot: v1's drop tables and rarity odds.
+36. Shops restock daily on the story clock, unless the story marks a supply problem
+    (`! market Bluewatch — blockade on the river | until: …` / `~ market Bluewatch — supplies back`):
+    restock pauses and prices rise per v1 shortage rules until it is lifted.
+37. Commission times: v1's crafter rules; the story may make them later, never sooner.
+38. Buyer types (smith pays more for metal…): v1's.
+39. **Carry limit**: added, on by default, toggle and size in settings (a per-member capacity from STR, v1
+    item weights where known, else per-kind defaults); over the limit, actions that add weight are refused
+    with the reason, nothing is lost.
+
+**Story and the model**
+40. A reply without `<Changes>` (extractor off): a small warning on the reply with a one-click Re-read.
+41. Change lines the code refused are listed faintly in the reply's changes card ("not applied: …").
+42. Quests the story starts stay offers until the reader accepts (v1 rule).
+43. Off-screen agenda nudges: v1's frequency.
+44. The story writes the clock; no automatic minutes per reply.
+45. While-away recap threshold: 6 h, adjustable.
+46. Lapsed quests are told briefly to the next reply.
+47. NSD unchanged under v2 (own capture call and prompt part).
+
+**Characters and party**
+48. Party size: you + 3 companions by default, adjustable in settings.
+49. Companions auto-controlled in fights by default, toggle per member.
+50. Companion portraits without NSD: initials.
+51. Respec: kept in view, not built yet.
+52. One PC per chat.
+
+**Screens and UI**
+53. Full-screen game view: a button in Story Block's bar and Alt+G.
+54. Status strip above the message box: on by default.
+55. Phones: cards under replies collapsed, as on desktop.
+56. English for now; all UI text kept in one place per repo for later translation.
+57. Subtle animations; none when the system asks for reduced motion.
+58. No sound.
+59. The v1 sidebar look is replaced by v2's tabs.
+
+**Packs and content**
+60. Packs install from files and card lorebooks only (URLs later).
+61. Packs may change rule numbers (damage, XP curve…) as plain settings values; never code.
+62. Ersveil's lorebooks stay SillyTavern lorebooks.
+63. A pack's screens apply when enabled; one click resets to default.
+64. Readers can export their own screens/layouts as a pack (Studio).
+
+**Saving and data**
+65. The guide recommends raising SillyTavern's chat backup interval on slow disks, with the benchmark numbers.
+66. **Export character**: carry the PC (level, stats, skills, gear, purse) into a new chat — included
+    (a command that writes a portable character file; creation can import it instead of the wizard).
+67. SillyTavern branches keep their own state (already true).
+
+**Releases and process**
+68. Versions are individual per extension (each bumps on its own changes).
+69. v2 replaces v1 on `main` after beta and the user's test play, on the user's word only.
+70. A `v1` branch is kept for v1 users.
+71. GitHub pre-releases with notes for each alpha.
+72. SillyTavern's official extension list: ask the user at release time.
+73. A bug report template in the guide.
+74. `docs/v2/REVIEW.md` for Astra before beta.
+
+**Studio**
+75. Studio edits packs first (items, creatures, quests, events), then screens and themes.
+76. Studio previews by simulating a few turns with fake data and the same rules code, no model.
+77. AI help in Studio ("generate 10 items for a desert town") with the reader's own API key: included.
