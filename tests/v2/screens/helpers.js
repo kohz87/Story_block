@@ -63,7 +63,7 @@ export function recordingWidgets() {
  * Render `screen` the way a mount does: its data through `query`, then the template with the real
  * condition language. → { el, view, q, problems, calls, results }
  */
-export function show(screen, { state, query, changes = [], draft = undefined, widgets = {}, command = null, settings = {} }) {
+export function show(screen, { state, query, changes = [], draft = undefined, widgets = {}, command = null, settings = {}, extra = {} }) {
     const data = resolveData(screen.data, query);
     if (!data.ok) throw new Error(data.message);
     const doc = installFakeDom();
@@ -74,7 +74,7 @@ export function show(screen, { state, query, changes = [], draft = undefined, wi
     const results = [];
     const compiled = template.compileTemplate(screen.template);
     if (compiled.warnings.length) throw new Error(`${screen.id}: ${compiled.warnings.join(' ')}`);
-    const scope = { state, q: data.q, changes, settings, query };
+    const scope = { state, q: data.q, changes, settings, query, ...extra };
     if (draft !== undefined) scope.draft = draft;
     const view = template.renderTemplate(el, compiled, scope, {
         evaluate: bind.conditionEvaluator({ compile, evaluate }),

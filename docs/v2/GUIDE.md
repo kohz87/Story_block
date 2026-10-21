@@ -76,6 +76,16 @@ doesn't make sense is skipped and noted in the problems list instead of breaking
 It's the only block v2 asks for. If your preset also makes the model write a "World State" or other
 blocks, turn those off in the preset: v2 doesn't read them.
 
+When nothing changed, the model leaves the block out. A reply without it gets a small note under its
+text: *No change lines came with this reply, so nothing in it changed the story.* That's fine when
+nothing happened. If something did (you picked up a rope, paid the ferryman), edit the reply, add the
+lines in a `<Changes>` block at its end, and press **Re-read** on the note. With the after-reply
+extractor on (Story Block settings → Assist), the extractor reads such replies instead and the note
+doesn't show.
+
+Lines the extensions couldn't use are listed faintly at the bottom of that reply's card, with the
+reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the inventory.*
+
 ## Buttons first
 
 Anything the screens offer is a button, and a button is done by the code right away, not by the
@@ -136,8 +146,8 @@ Each reply carries its own changes.
   and the old ones return.
 * **Delete** a reply and its changes go with it, including anything you clicked after it.
 * **Branches** and checkpoints keep the state they had.
-* **Editing** a reply's text doesn't change the state. To read an edited reply's `<Changes>` again,
-  use **Re-read** on that reply.
+* **Editing** a reply's text doesn't change the state. An edited reply gets a note with **Re-read**:
+  press it to read the reply's `<Changes>` again and replace what it changed.
 
 Swiping the reply that told an action never does the action twice: the potion was drunk once.
 
@@ -149,15 +159,22 @@ The same screens can show in five places:
   Quests…).
 * **Cards** under each reply, folded to one line, for example *Changed this reply: +1 Moonveil Trout,
   −1 Rope · +30 gold · to Bluewatch Village*. Open one to see the details. A card under an older reply
-  shows the story as it was **at that reply**. Cards are off until you turn them on, one by one, in the
-  settings.
-* **The HUD**, a thin strip above the message box, for example your health and status at a glance.
-* **The full-screen game view**, with its own menu of screens. It opens on **Home**: your character and
+  shows the story as it was **at that reply**. The *Changed this reply* card (and Story Director's
+  status card) show under every reply by default, folded, on phones too.
+* **The HUD** (status strip), a thin strip above the message box, for example your health and status at
+  a glance. It's on by default; turn it off or on again with **Status strip above the message box** in
+  **Extensions → Story Block**.
+* **The full-screen game view**, with its own menu of screens: the **Game view** button in the Story
+  Suite bar, or **Alt+G** (press it again, or Escape, to close). It opens on **Home**: your character and
   party, a fight under way, where you are and when, who is here, your purse and what you wear, and your
   quests. Each part shows only when the extension behind it is installed.
 * **Windows** (dialogs) for things like making your character.
 
-Everything follows your SillyTavern theme's colours.
+Everything follows your SillyTavern theme's colours. Cards, meters and screens move a little when they
+open or change; if your system asks for reduced motion, they don't move at all.
+
+The **Inventory** has a **Filter…** box: type part of a name to see only matching things, together with
+the kind, rarity and *Equipped only* filters next to it.
 
 ## Packs
 
@@ -192,3 +209,65 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
   the real state.
 * After editing a reply: use **Re-read** on it.
 * A screen restyled by a pack or card looks broken: **Reset to default** in the screen settings.
+
+## Slow disk? Raise SillyTavern's chat backup interval
+
+SillyTavern rewrites the whole chat file on every save, and also writes a full **backup copy** of it,
+at most once per *backup interval*. The default interval is 10 seconds, shorter than a reply, so in
+practice every reply costs one or two extra full copies of the file on top of the saves. On a weak
+server (a Raspberry Pi, a cheap VPS, an SD card or a network disk) that is what makes long chats slow.
+
+What Story Suite's benchmark measured (docs/v2/PERFORMANCE.md, a 3,000-reply chat): the chat file is
+about **31 MB** as built (v1 with a 3 KB state block: 24 MB), and a reply writes about **100 MB** in
+full-file saves plus one backup copy (v1: 48 MB). The backup copy alone is one more full file per reply,
+**31 MB** at that length.
+
+Raise the interval to **5 minutes** in SillyTavern's `config.yaml` (in SillyTavern's folder) and restart
+SillyTavern:
+
+```yaml
+backups:
+  chat:
+    throttleInterval: 300000
+```
+
+The value is in milliseconds (300000 = 5 minutes; the default is 10000). Backups then happen at most once
+per 5 minutes per chat, whatever Story Suite and SillyTavern save in between, and you still keep a recent
+copy. With long chats, also look at how many backups are kept: `backups.common.numberOfBackups` (default
+50 per chat) and `backups.chat.maxTotalBackups` (default -1, keep all). Each backup is a full copy of
+the chat, 20–30 MB for a 3,000-reply chat. These are the key names of SillyTavern 1.19's
+`default/config.yaml`; older versions used other names (`chatBackupThrottleInterval`), which SillyTavern
+moves to the new ones on start.
+
+## Reporting a bug
+
+Copy this into a GitHub issue on the extension that misbehaved (Story Block if you're not sure), fill
+it in, and attach what it asks for:
+
+```markdown
+**What I did**
+(The steps, from the last thing that worked: "Sent 'I buy the rope', pressed Use on the draught, swiped".)
+
+**What I expected**
+(What should have happened: "Rope in the Inventory and 5 gold less".)
+
+**What happened**
+(What happened instead, and any message or red notice you saw.)
+
+**Screenshot**
+(The screen, card or notice that shows it.)
+
+**The chat's last two replies**
+(Open each reply's edit box (the pencil) and copy its whole text, including the hidden
+`<!-- STORY_SUITE_V2 … -->` part at the end, which holds the change lines.)
+
+**Setup**
+- SillyTavern version:
+- Story Suite extensions and versions (Extensions → Story Block shows them):
+- Model / API:
+- Pack(s) in use:
+- Phone or desktop, browser:
+```
+
+The **Problems** list in the settings and the browser console (F12, lines starting with
+`[Story Suite]` or `[Story Block v2]`) help too: paste them if they mention the moment it went wrong.

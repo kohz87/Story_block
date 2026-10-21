@@ -110,3 +110,50 @@ body.story-suite-open { overflow: hidden; }
 
 .story-suite-drawer-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
 .story-suite-drawer-buttons .menu_button { width: auto; display: inline-flex; gap: 6px; align-items: center; }
+.story-suite-hud-toggle { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
+
+/* ---- the notes under a reply (src/v2/reply-notes.js): quiet, one line, on the theme ---- */
+.story-suite-reply-note {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 4px 0 2px; padding: 3px 8px;
+    border-radius: 6px; border: 1px dashed var(--story-suite-line);
+    font-size: 0.85em; color: var(--story-suite-fg); opacity: 0.8;
+    animation: story-suite-fade-in 0.2s ease-out;
+}
+.story-suite-reply-note[data-kind="missing"] > i { color: var(--story-suite-accent); }
+.story-suite-reply-note-text { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.story-suite-reply-note-reread {
+    flex: 0 0 auto; padding: 1px 10px; border-radius: 6px; cursor: pointer; font: inherit;
+    color: inherit; background: transparent; border: 1px solid var(--story-suite-line);
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.story-suite-reply-note-reread:hover, .story-suite-reply-note-reread:focus-visible { border-color: var(--story-suite-accent); color: var(--story-suite-accent); }
+.story-suite-reply-note-reread[disabled] { cursor: progress; opacity: 0.7; }
+.story-suite-reply-note-error { flex: 1 1 100%; color: var(--story-suite-accent); }
+.story-suite-reply-note-error[hidden] { display: none; }
+
+/* ---- subtle motion (MODULES §F57): cards open, meters move, the views come in ---- */
+@keyframes story-suite-fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: none; }
+}
+.ss-card { transition: border-color 0.15s ease, background-color 0.15s ease; }
+.ss-card-head { transition: background-color 0.15s ease; }
+.ss-card-head:hover { background: color-mix(in srgb, var(--story-suite-fg) 5%, transparent); }
+.ss-card-open > .ss-card-body { animation: story-suite-fade-in 0.18s ease-out; }
+.ss-l-meter-fill { transition: width 0.3s ease; }
+.ss-hud-item { animation: story-suite-fade-in 0.2s ease-out; }
+.ss-gameview { animation: story-suite-fade-in 0.18s ease-out; }
+.story-suite-sheet:not([hidden]) { animation: story-suite-fade-in 0.18s ease-out; }
+.story-suite-bar .menu_button { transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease; }
+
+/* None when the system asks for reduced motion: the host's, the mounts', the widgets' and every screen's
+   own (a pack's screen CSS included). */
+@media (prefers-reduced-motion: reduce) {
+    .story-suite-bar, .story-suite-bar *, .story-suite-sheet, .story-suite-sheet *, .story-suite-overlay,
+    .story-suite-overlay *, .story-suite-reply-note, .story-suite-reply-note *, .ss-card, .ss-card *, .ss-hud,
+    .ss-hud *, .ss-gameview, .ss-gameview *, .ss-dialog, .ss-dialog *, [data-ss-screen], [data-ss-screen] * {
+        transition: none !important;
+        animation: none !important;
+        scroll-behavior: auto !important;
+    }
+}
