@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
+import { readRecord } from '../../src/v2/persist.js';
 
 // A module that records what its handlers were told.
 function spy(seen) {
@@ -76,13 +77,17 @@ test('ctx.id refuses a bad prefix', async () => {
     host.close();
 });
 
-test('capture runs get ctx.carrier { index, swipe } and ctx.chat { lastUser, reply }', async () => {
+test('capture runs get ctx.carrier { index, swipe, sid, key } and ctx.chat { lastUser, reply }', async () => {
     const seen = [];
     const host = await createHost({ core: false, modules: [spy(seen)] });
     await host.send('I wave at Fenna.', 'Fenna waves back.\n<Changes>\n! mark Fenna\n! mark Bo\n</Changes>');
     const captures = seen.filter(item => item.at === 'capture');
     assert.equal(captures.length, 2);
-    assert.deepEqual({ ...captures[0].carrier }, { index: 2, swipe: 0, key: '2:0' });
+    // `sid` (B-b2-timeline-10): the reply's record ID, handed out before its first record is written.
+    const sid = readRecord(host.ctx.chat[2]).sid;
+    assert.match(sid, /^sw_/);
+    assert.deepEqual({ ...captures[0].carrier }, { index: 2, swipe: 0, sid, key: '2:0' });
+    assert.equal(captures[1].carrier.sid, sid, 'every line of the reply has the same one');
     assert.equal(captures[0].key, '2:0', 'String(ctx.carrier) is its key');
     assert.deepEqual({ ...captures[0].chat }, { lastUser: 'I wave at Fenna.', reply: 'Fenna waves back.' });
     assert.equal(captures[0].caller, null);
@@ -90,6 +95,11 @@ test('capture runs get ctx.carrier { index, swipe } and ctx.chat { lastUser, rep
     await host.swipe('Fenna frowns.\n<Changes>\n! mark Fenna\n</Changes>');
     const last = seen.filter(item => item.at === 'capture').at(-1);
     assert.equal(last.carrier.swipe, 1);
+    assert.equal(last.carrier.sid, readRecord(host.ctx.chat[2]).sid, 'a new swipe has its own record, and its ID');
+    assert.notEqual(last.carrier.sid, sid);
+    // Unlike the index, the ID stays with the reply when an earlier message is deleted.
+    await host.st.deleteMessage(1);
+    assert.equal(readRecord(host.ctx.chat[1]).sid, last.carrier.sid);
     assert.equal(last.chat.reply, 'Fenna frowns.');
     assert.equal(last.chat.lastUser, 'I wave at Fenna.');
     host.close();

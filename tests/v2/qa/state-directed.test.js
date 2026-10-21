@@ -141,25 +141,36 @@ test('a refused command stores nothing and schedules no save', async t => {
     assert.equal(h.store.dirty(), false);
 });
 
-test('one save per burst: many UI commands, then one save 400 ms after the last; many change lines, one save', async t => {
+test('a reader\'s action is saved at once (B-b2-timeline-1); many change lines, one save; system steps wait 400 ms', async t => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const h = await host(t);
     await h.send('One.', 'Fine.');
     const saves = h.st.saves.length;
     for (let i = 0; i < 10; i++) {
         await h.sdk.command('probe.tick', {});
-        t.mock.timers.tick(300);
-        await settle();
+        assert.equal(h.st.saves.length, saves + i + 1, 'saved before sdk.command answers');
+        assert.equal(h.store.dirty(), false);
+        assert.deepEqual(h.st.saved(), JSON.parse(JSON.stringify(h.ctx.chat)), 'the saved chat is the chat');
     }
-    assert.equal(h.st.saves.length, saves, 'no save while the clicks keep coming');
-    t.mock.timers.tick(400);
+    t.mock.timers.tick(1000);
     await settle();
-    assert.equal(h.st.saves.length, saves + 1, 'one save after the burst');
+    assert.equal(h.st.saves.length, saves + 10, 'nothing left to save afterwards');
     const lines = Array.from({ length: 30 }, (_, i) => `+ item Thing ${i}`).join('\n');
     const before = h.st.saves.length;
     await h.send('Many.', `Lots.\n<Changes>\n${lines}\n</Changes>`);
     assert.equal(h.st.saves.length, before + 1, 'thirty change lines, one save at the end of the reply');
     assert.equal(readRecord(h.ctx.chat[4]).receipts.length, 30);
+    // A step Story Block takes itself (here: straight to the bus) still goes in one save 400 ms after the last.
+    const bus = h.st.saves.length;
+    for (let i = 0; i < 5; i++) {
+        assert.equal((await h.bus.command('probe.tick', {}, { cause: 'system' })).ok, true);
+        t.mock.timers.tick(300);
+        await settle();
+    }
+    assert.equal(h.st.saves.length, bus, 'no save while the steps keep coming');
+    t.mock.timers.tick(400);
+    await settle();
+    assert.equal(h.st.saves.length, bus + 1, 'one save after them');
 });
 
 test('a failed save keeps the state unsaved, changes nothing in the chat, and the next save writes it all', async t => {
@@ -167,19 +178,20 @@ test('a failed save keeps the state unsaved, changes nothing in the chat, and th
     const h = await host(t);
     await h.send('One.', 'Fine.');
     const savedBefore = h.st.saved();
-    await h.sdk.command('probe.tick', {});
+    h.st.failSaves = 1;
+    assert.equal((await h.sdk.command('probe.tick', {})).ok, true, 'the action stands when its save fails');
     const chat = JSON.stringify(h.ctx.chat);
     const head = plain(h.head());
-    h.st.failSaves = 1;
-    t.mock.timers.tick(400);
-    await settle();
-    await settle();
     assert.equal(h.store.dirty(), true, 'still marked unsaved');
+    assert.equal(h.store.failing(), true);
     assert.equal(JSON.stringify(h.ctx.chat), chat, 'the chat in memory is as it was');
     assert.deepEqual(plain(h.head()), head);
     assert.deepEqual(h.st.saved(), savedBefore, 'the last good save is untouched');
-    await h.store.flush();
+    t.mock.timers.tick(1000);             // tried again a moment later
+    await settle();
+    await settle();
     assert.equal(h.store.dirty(), false);
+    assert.equal(h.store.failing(), false);
     assert.deepEqual(h.st.saved(), JSON.parse(chat), 'the next save writes everything');
     checkInvariants(h, 'failed save');
 });
@@ -187,7 +199,7 @@ test('a failed save keeps the state unsaved, changes nothing in the chat, and th
 test('a flush that fails while saving throws to its caller and keeps the state dirty', async t => {
     const h = await host(t);
     await h.send('One.', 'Fine.');
-    await h.sdk.command('probe.tick', {});
+    await h.bus.command('probe.tick', {}, { cause: 'system' });   // waits for its 400 ms save
     h.st.failSaves = 1;
     await assert.rejects(h.store.flush());
     assert.equal(h.store.dirty(), true);
@@ -294,7 +306,8 @@ test('turn.js interceptor: a save that fails before a reply still captures the r
     // hidden, the state stays marked unsaved until the save after the reply makes it good.
     const h = await host(t);
     await h.send('One.', 'Fine.');
-    await h.sdk.command('probe.tick', {});
+    // A step Story Block takes itself waits 400 ms for its save (a reader's action would be saved at once).
+    await h.bus.command('probe.tick', {}, { cause: 'system' });
     h.st.failSaves = 1;
     const result = await h.send('Two.', 'A lamp.\n<Changes>\n+ item Lamp\n</Changes>');
     assert.ok(result.request.chat[0].content.includes('[Story Suite'), 'the static part was sent');
@@ -312,7 +325,8 @@ test('turn.js: a save that fails before and after a reply keeps the turn, stays 
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const h = await host(t);
     await h.send('One.', 'Fine.');
-    await h.sdk.command('probe.tick', {});
+    // A step Story Block takes itself waits 400 ms for its save (a reader's action would be saved at once).
+    await h.bus.command('probe.tick', {}, { cause: 'system' });
     h.st.failSaves = 2;
     const result = await h.send('Two.', 'A lamp.\n<Changes>\n+ item Lamp\n</Changes>');
     assert.ok(result.request, 'the reply was generated');
@@ -331,7 +345,8 @@ test('turn.js: cues committed before a reply whose saves fail are kept, told by 
     const h = await createHost({ modules: [probeModule({ cues: true })] });
     t.after(() => h.close());
     await h.send('One.', 'Fine.');
-    await h.sdk.command('probe.tick', {});
+    // A step Story Block takes itself waits 400 ms for its save (a reader's action would be saved at once).
+    await h.bus.command('probe.tick', {}, { cause: 'system' });
     h.st.failSaves = 2;     // the flush before the reply, and the one after the cue
     const result = await h.send('Two.', 'The cue lands.');
     assert.ok(tailOf(result.request).includes('Cue 1.'), 'the cue committed before the reply is told');

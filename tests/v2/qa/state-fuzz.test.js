@@ -162,16 +162,22 @@ async function fuzz(t, seed) {
         assert.deepEqual(st.saved(), plain(ctx.chat), `${log.at(-1)}: the saved chat is the chat`);
     }
 
+    // A reader's action is saved at once, before sdk.command answers (B-b2-timeline-1): one save per
+    // command that went through, none for a refused one. With `failSave` the first of those saves fails:
+    // the state stays unsaved and the chat untouched until the next save, which writes it all.
     async function uiBurst(failSave, label) {
         const count = r.int(1, 3);
         const savesBefore = st.saves.length;
-        let any = false;
+        const dirtyBefore = store.dirty();
+        let ok = 0;
+        if (failSave) st.failSaves = 1;
         for (let i = 0; i < count; i++) {
             const [type, payload] = uiCommand(r, host);
             const before = JSON.stringify(ctx.chat);
             const head = plain(store.head());
             const paidBefore = bonusPaidOnLine(host);
             const claimed = Object.hasOwn(head?.meta?.claims ?? {}, BONUS_CLAIM);
+            const saves = st.saves.length;
             const result = await host.sdk.command(type, payload);
             if (type === 'probe.broken') assert.equal(result.ok, false, `${label}: probe.broken always refuses`);
             // A skipped block can leave the head's inventory pointing at an item whose creation was
@@ -182,31 +188,34 @@ async function fuzz(t, seed) {
             if (!result.ok) {
                 assert.equal(JSON.stringify(ctx.chat), before, `${label}: ${type} ${JSON.stringify(payload)} was refused (${result.code}) and the chat is untouched`);
                 assert.deepEqual(plain(store.head()), head, `${label}: ${type} refused: the head is unchanged`);
+                assert.equal(st.saves.length, saves, `${label}: a refused command saves nothing`);
                 continue;
             }
-            any = true;
+            ok++;
             const record = readRecord(ctx.chat[store.headIndex()]);
             assert.equal(record.receipts.at(-1).id, result.receipt.id, `${label}: ${type}: the receipt is on the head carrier`);
             assert.ok(bonusPaidOnLine(host) <= 1, `${label}: the bonus is paid at most once on this line`);
             if (type === 'probe.pay') assert.equal(bonusPaidOnLine(host), paidBefore + 1);
+            if (failSave && ok === 1) {
+                assert.equal(st.saves.length, saves, `${label}: the failed save stored nothing`);
+                assert.equal(store.dirty(), true, `${label}: a failed save keeps the state marked unsaved`);
+            } else {
+                assert.equal(st.saves.length, saves + 1, `${label}: ${type} is saved at once`);
+                assert.equal(store.dirty(), false, `${label}: ${type}: saved`);
+                assert.deepEqual(st.saved(), plain(ctx.chat), `${label}: the saved chat is the chat`);
+            }
         }
-        assert.equal(st.saves.length, savesBefore, `${label}: nothing is saved while the burst goes on`);
-        if (failSave) st.failSaves = 1;
-        const chatBefore = JSON.stringify(ctx.chat);
-        t.mock.timers.tick(400);
-        await settle();
-        await settle();
-        // Only a commit schedules a save; what was already pending goes with it.
-        const expected = any ? 1 : 0;
-        if (failSave && expected) {
-            assert.equal(st.saves.length, savesBefore, `${label}: the failed save stored nothing`);
-            assert.equal(store.dirty(), true, `${label}: a failed save keeps the state marked unsaved`);
-            assert.equal(JSON.stringify(ctx.chat), chatBefore, `${label}: a failed save leaves the chat as it was`);
-        } else {
-            assert.equal(st.saves.length - savesBefore, expected, `${label}: one save per burst of UI commands`);
-            if (expected) assert.equal(store.dirty(), false);
-        }
+        if (!ok) assert.equal(store.dirty(), dirtyBefore, `${label}: nothing went through, nothing changed`);
+        assert.equal(st.saves.length - savesBefore, failSave && ok ? ok - 1 : ok, `${label}: one save per command that went through`);
         st.failSaves = 0;
+        // A save that failed is tried again a moment later (store.js; persist.js createSaver retry).
+        if (failSave && ok === 1) {
+            t.mock.timers.tick(1000);
+            await settle();
+            await settle();
+            assert.equal(store.dirty(), false, `${label}: the failed save is made good by the retry`);
+            assert.deepEqual(st.saved(), plain(ctx.chat), `${label}: and it writes everything`);
+        }
     }
 
     for (let step = 0; step < STEPS; step++) {

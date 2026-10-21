@@ -80,15 +80,21 @@ message.extra.storySuite = {
 ```
 
 As built (store.js), the record also carries `sid` + `swipe` (which swipe wrote it, so a record SillyTavern
-copied into a new swipe is ignored there), `spans` (`[{ n, story }]`: how many ops each stored receipt
-added, and whether it was a `story` capture), `rev` (`meta.rev` after its last write, for save
-verification) and, with a checkpoint, `covers` (the `sid`s of the records from the checkpoint before it up
-to this one). `head()`/`at()` return `null` for a chat with no v2 state.
+copied into a new swipe is ignored there), `mark` (`{ t, d }`: a hash of the swipe's opening text and its
+send_date; a copy that slid into a deleted swipe's index has the other swipe's text and date, and is ignored
+too; only both parts differing tells a copy, so an edit or a Continue never costs a reply its record),
+`spans` (`[{ n, story }]`: how many ops each stored receipt added, and whether it was a `story` capture),
+`rev` (`meta.rev` after its last write, for save verification) and, with a checkpoint, `covers` (the `sid`s
+of the records from the checkpoint before it up to this one). A checkpoint must be a whole State (`v: 2`,
+object `meta` with a whole-number `rev`, object `domains`); a damaged record is skipped and listed as a
+Problem. `head()`/`at()` return `null` for a chat with no v2 state.
 
 SillyTavern copies `message.extra` per swipe (`swipe_info[n].extra`), so each swipe has its own changes.
 Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in step (as v1 does) before saving.
 
-* **The greeting** (first carrier) always holds a checkpoint: the initial state (§2.6).
+* **The greeting** (first carrier) always holds a checkpoint: the initial state (§2.6). When the first
+  carrier is deleted, the new first carrier gets the state the deleted ones ended with as its checkpoint and
+  keeps its own changes; a record already there is never replaced.
 * A carrier gets a checkpoint when 20 carriers have passed since the last one, or the ops since then
   exceed 32 KB of JSON. The checkpoint is the state *before* that carrier's own ops.
 * **State at carrier N** = the latest checkpoint at or before N that still holds, then every carrier's `ops`
@@ -215,10 +221,28 @@ commands: {
 
 ### 3.3 Saving
 
-One save per burst: UI commands schedule a save 400 ms after the last commit; a generation starting flushes
-the pending save first; the after-reply capture (§4.2) saves once at its end. Story Block uses
-SillyTavern's own chat save and verifies the head carrier's `extra.storySuite.rev` after it (as v1's
-coordinated writes did); a failed save shows an error and keeps the in-memory state marked unsaved.
+A reader's action (`sdk.command`, `sdk.commit`) is saved at once, before its result comes back; Story Block's
+own steps (events, a module set up) save 400 ms after the last one; a generation starting flushes the
+pending save first; the after-reply capture (§4.2) saves once at its end.
+
+Each change remembers the chat it was made in (the chat ID and the head carrier). Right before a save starts
+writing, in the same tick, the store checks that this chat is still the one open: SillyTavern opens another
+chat by emptying the shared `chat` array, then naming the new file, then reading it, so a save in between
+would write the wrong chat. An empty chat (one being opened) is not saved, and tried again shortly; when
+another chat is open, the open chat is not saved and the change goes into its own chat's file (read back
+from the server; only its records are put onto the same messages). The same chat read again (a reload)
+takes the change onto its messages as read back.
+
+In SillyTavern, Story Block writes the chat file itself (`/api/chats/save`, the body SillyTavern's own
+saveChat sends) instead of `ctx.saveChat`, which waits at least 100 ms before reading the chat and swallows
+errors and timeouts. A refused save throws: the state stays marked unsaved, the reader is told once, and it
+is tried again (1, 2, 4, 8, 15 s). It verifies the head carrier's `extra.storySuite.rev` after each save (as
+v1's coordinated writes did). When the page is closed with something unsaved, the save is sent with
+keepalive, and the browser asks first while saves have been failing. Without such a file (the testkit, a
+temporary chat) it is `ctx.saveChat()`.
+
+Not covered: two tabs on one chat are still last writer wins (the file's head is not compared before a
+save).
 
 ## 4. A turn
 
@@ -245,6 +269,11 @@ Quiet and impersonate generations get nothing (both slots emptied) and capture n
    module's Problems list, never thrown at the reader).
 3. Record `narrated` = the untold receipt IDs given to this reply.
 4. One save.
+
+A capture runs with `ctx.carrier = { index, swipe, sid, key }` (frozen; `String(ctx.carrier)` is `key`,
+`"<index>:<swipe>"`) and `ctx.chat = { lastUser, reply }`. `sid` is the reply's record ID (its shown swipe's;
+handed out before the record is first written): unlike `index`, it stays with the reply when an earlier
+message is deleted, so a claim a module keys on a reply should use `sid`. `null` when unknown.
 
 A swipe of that reply is a new carrier swipe: it gets its own capture; the receipts it told are told again
 because the new swipe's `narrated` starts empty. Editing a reply's text does not re-capture; a **Re-read**
@@ -469,17 +498,20 @@ roll(rng, '2d6+1') → { total, dice: [..] }
 // check.js (SB-commands): int, str, oneOf, id, bool, arrayOf, record — each returns '' or an error string
 
 // store.js + persist.js (SB-state)
-createStore({ chat: () => Message[], save: async () => void, now?: () => number }) → {
+createStore({ chat: () => Message[], save: async (target, { keepalive }) => void, now?: () => number,
+  chatId?: () => string, place?: () => any, rescue?: async (target, [{ message, index }]) => void }) → {
   head() → State,                      // frozen
   at(index) → State,                   // state after carrier `index` (frozen)
   headIndex() → number,                // index of the last carrier (-1 if none)
-  ensureInitial(initialState) → void,  // writes the greeting checkpoint when the chat has none
+  ensureInitial(initialState) → string[], // the first carrier's checkpoint when the chat has none (notes: damaged records set up again)
+  carrierSid(index) → string | null,   // the record ID of carrier `index` (ctx.carrier.sid)
   append({ ops, receipt }) → void,     // onto the head carrier; bumps nothing (ops already carry meta.rev)
   replaceStory(index, { ops, receipts }) → void   // Re-read: swap a carrier's cause:'story' receipts
   setNarrated(index, ids) → void,
   untold() → Receipt[],                // §4.1 step 2
   rebuild() → void,                    // after chat change, delete, swipe
-  scheduleSave(ms = 400) → void, flush() → Promise<void>, dirty() → boolean,
+  scheduleSave(ms = 400) → void, saveSoon() → Promise<boolean>, flush() → Promise<void>, dirty() → boolean,
+  failing() → boolean, truncate(index, beforeRev, { dryRun?, chat? }) → { dropped, rev },
 }
 
 // registry.js (SB-turn)
