@@ -10,6 +10,7 @@ export const LIMITS = Object.freeze({
     keys: 200,                       // keys in one object
     array: 1000,                     // entries in one array (records of one kind included)
     string: 4000,                    // characters in one string
+    code: 64 * 1024,                 // characters in a screen's `template` or `css` (SPEC §13.3)
     name: 80,                        // a display name
     errors: 20,                      // problems reported for one pack before giving up
 });
@@ -18,7 +19,7 @@ export const LIMITS = Object.freeze({
 export const CONTENT_KINDS = Object.freeze(['items', 'creatures', 'shops', 'recipes', 'events', 'quests']);
 
 // Top-level fields of pack.json; anything else is refused so a typo is not silently ignored.
-export const PACK_FIELDS = Object.freeze(['id', 'version', 'name', 'author', 'description', 'requires', 'content', 'start', 'layouts', 'theme']);
+export const PACK_FIELDS = Object.freeze(['id', 'version', 'name', 'author', 'description', 'requires', 'content', 'start', 'layouts', 'screens', 'theme']);
 
 // Item definitions follow Story Block's inventory def (SPEC §7).
 export const ITEM_KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
@@ -26,11 +27,17 @@ export const RARITIES = Object.freeze(['common', 'uncommon', 'rare', 'epic', 'le
 export const ITEM_FIELDS = Object.freeze(['name', 'slug', 'aliases', 'kind', 'rarity', 'value', 'stack', 'slot', 'stats', 'effect', 'tags', 'note']);
 export const EVENT_FIELDS = Object.freeze(['id', 'when', 'cue', 'once', 'after', 'then']);
 export const START_FIELDS = Object.freeze(['scene', 'inventory']);
+// Screens (SPEC §13.1) a pack adds or overrides by id.
+export const SCREEN_FIELDS = Object.freeze(['id', 'title', 'icon', 'mounts', 'template', 'layout', 'css', 'theme', 'data', 'steps']);
+export const MOUNTS = Object.freeze(['tab', 'screen', 'card', 'hud', 'dialog']);
 
-export const PACK_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
-export const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// Slugs are lowercase words joined by single dashes, as Story Block's definition IDs need.
+export const PACK_ID = /^(?=.{1,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const SLUG = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const SEMVER = /^(\d{1,6})\.(\d{1,6})\.(\d{1,6})(?:-[0-9A-Za-z.-]{1,40})?(?:\+[0-9A-Za-z.-]{1,40})?$/;
 // A command an event runs: `inventory.grant`, `wallet.receive`, `quest.take` …
 export const COMMAND = /^[a-z][a-z0-9-]{0,39}(?:\.[a-z][A-Za-z0-9-]{0,39}){1,3}$/;
 // A reference to a def outside the pack: `story/rope`, `pack.fantasy/iron-sword`.
-export const DEF_ID = /^(?:story|pack\.[a-z0-9][a-z0-9-]{0,39})\/[a-z0-9][a-z0-9-]{0,63}$/;
+export const DEF_ID = /^(?:story|pack\.[a-z0-9]+(?:-[a-z0-9]+)*)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// A screen id: a module's (`rpg-battle/party`) to override, or the pack's own.
+export const SCREEN_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/;

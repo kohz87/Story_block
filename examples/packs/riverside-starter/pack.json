@@ -8,7 +8,7 @@
   "content": {
     "items": [
       { "name": "Moonveil Trout", "aliases": ["trout"], "kind": "goods", "rarity": "uncommon", "value": 45, "tags": ["fish"], "note": "violet-streaked, from the lake" },
-      { "name": "Willow Rod", "slug": "willow-rod", "kind": "equipment", "rarity": "common", "value": 120, "stack": false, "slot": "tool", "note": "light and springy" },
+      { "name": "Willow Rod", "slug": "willow-rod", "kind": "equipment", "rarity": "common", "value": 120, "slot": "tool", "note": "light and springy" },
       { "name": "Hemp Line", "kind": "material", "value": 8, "tags": ["fibre"] },
       { "name": "Minor Healing Draught", "aliases": ["healing draught"], "kind": "consumable", "value": 60, "effect": { "heal": 20 } }
     ],
@@ -30,8 +30,8 @@
     "scene": { "place": { "name": "Bluewatch Village", "kind": "settlement", "region": "the Lowmere" }, "present": ["Hollis"] },
     "inventory": {
       "items": [{ "item": "willow-rod" }, { "item": "Hemp Line", "qty": 3 }, "Minor Healing Draught"],
-      "wallet": { "silver": 5 }
+      "money": 50
     }
   },
-  "theme": { "--accent": "#3f7f8f" }
+  "theme": { "--ss-accent": "#3f7f8f" }
 }

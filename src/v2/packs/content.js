@@ -22,14 +22,15 @@ export function itemDef(item) {
 
 /**
  * Records of one kind from every enabled pack, in pack order then file order.
- * `kind`: a content kind (items, creatures, shops, recipes, events, quests), `layouts`, or
- * `theme` (one `{ pack, tokens }` per pack that has a theme). Unknown kinds give [].
+ * `kind`: a content kind (items, creatures, shops, recipes, events, quests), `layouts`,
+ * `screens` (each with its `pack`), or `theme` (one `{ pack, tokens }` per pack that has a
+ * theme). Unknown kinds give [].
  * `pack` narrows to one pack id.
  */
 export function contentOf(packs, kind, { pack = null } = {}) {
     const chosen = pack ? packs.filter(entry => entry.id === pack) : packs;
     if (CONTENT_KINDS.includes(kind)) return copy(chosen.flatMap(entry => entry.content[kind]));
-    if (kind === 'layouts') return copy(chosen.flatMap(entry => entry.layouts));
+    if (kind === 'layouts' || kind === 'screens') return copy(chosen.flatMap(entry => entry[kind]));
     if (kind === 'theme') return copy(chosen.filter(entry => Object.keys(entry.theme).length).map(entry => ({ pack: entry.id, tokens: entry.theme })));
     return [];
 }
@@ -61,17 +62,17 @@ export function resolveItemIn(packs, name) {
 
 /**
  * The enabled packs' `start` merged into one (SPEC §2.6):
- * `{ scene: { place, present }, inventory: { items: [{ def, aliases, qty, note }], wallet }, packs, problems }`.
+ * `{ scene: { place, present }, inventory: { items: [{ def, aliases, qty, note }], money }, packs, problems }`.
  *
  * * `place`: the first pack (in list order) that names one; places are not mixed field by field.
  * * `present`: every name once, in pack order.
  * * `items`: in pack order; the same def with the same note is one line with the quantities added.
  *   A start item from another pack that is not enabled is left out and listed in `problems`.
- * * `wallet`: amounts of the same coin added up.
+ * * `money`: added up, in the smallest coin.
  * * `packs`: the ids of the packs that gave something.
  */
 export function mergeStart(packs) {
-    const out = { scene: { place: null, present: [] }, inventory: { items: [], wallet: {} }, packs: [], problems: [] };
+    const out = { scene: { place: null, present: [] }, inventory: { items: [], money: 0 }, packs: [], problems: [] };
     const items = new Map();
     for (const item of packs.flatMap(pack => pack.content.items)) if (!items.has(item.id)) items.set(item.id, item);
     const present = new Set();
@@ -100,9 +101,9 @@ export function mergeStart(packs) {
             if (same) same.qty += line.qty;
             else out.inventory.items.push({ def: itemDef(item), aliases: [...item.aliases], qty: line.qty, note: line.note });
         }
-        for (const [coin, amount] of Object.entries(start.inventory.wallet)) {
+        if (start.inventory.money) {
             gave = true;
-            out.inventory.wallet[coin] = (out.inventory.wallet[coin] ?? 0) + amount;
+            out.inventory.money += start.inventory.money;
         }
         if (gave) out.packs.push(pack.id);
     }
@@ -112,14 +113,15 @@ export function mergeStart(packs) {
 /**
  * Writes a merged start into an initial State (SPEC §2.6, shapes of SPEC §7) and returns the
  * new State; `state` is not changed. Only the `scene` and `inventory` slices that exist are
- * touched. `id(prefix)` makes record IDs (the host passes `sdk.id`).
+ * touched. `id(prefix)` makes record IDs (the host passes `sdk.id`); `coin` is the wallet key,
+ * the smallest coin's name (the core module's currency; 'coin' when there is none).
  *
  * * The start place is used only when the scene has no place yet; present names are added once.
  * * Each start item adds its def (if inventory has none with that ID), its name and aliases to
  *   `aliases` (where free), and a party stack; an item that does not stack gets one stack each.
- * * Wallet amounts are added to the party's wallet.
+ * * Money is added to the party's wallet under `coin`.
  */
-export function applyStart(state, start, { id } = {}) {
+export function applyStart(state, start, { id, coin = 'coin' } = {}) {
     if (typeof id !== 'function') throw new Error('applyStart needs an id(prefix) function.');
     const next = copy(state);
     const scene = next.domains?.scene;
@@ -146,9 +148,9 @@ export function applyStart(state, start, { id } = {}) {
                 inventory.stacks[stackId] = { id: stackId, def: def.id, qty, owner: 'party', equipped: null, note: line.note ?? '', from: '' };
             }
         }
-        for (const [coin, amount] of Object.entries(start.inventory.wallet ?? {})) {
+        if (start.inventory.money) {
             const wallet = inventory.wallets.party ??= {};
-            wallet[coin] = (wallet[coin] ?? 0) + amount;
+            wallet[coin] = (wallet[coin] ?? 0) + start.inventory.money;
         }
     }
     return next;

@@ -12,7 +12,7 @@
 // `capabilities` (the capability names this Story Block has, or null when unknown: then
 // requires.capabilities is checked for form only).
 
-import { CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, ITEM_FIELDS, ITEM_KINDS, LIMITS, PACK_FIELDS, PACK_ID, RARITIES, SEMVER, SLUG, START_FIELDS } from './limits.js';
+import { CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, RARITIES, SCREEN_FIELDS, SCREEN_ID, SEMVER, SLUG, START_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -96,7 +96,8 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
         if (!Array.isArray(raw.layouts) || raw.layouts.some(layout => !isObject(layout))) add('BAD_LAYOUTS', 'layouts', 'layouts must be a list of layout objects.');
         else layouts = raw.layouts.map(layout => ({ ...layout, pack: packId }));
     }
-    const theme = raw.theme === undefined ? {} : checkTheme(raw.theme, add);
+    const screens = raw.screens === undefined ? [] : checkScreens(raw.screens, packId, add);
+    const theme = raw.theme === undefined ? {} : checkTheme(raw.theme, add, 'theme');
 
     return {
         id: packId,
@@ -108,6 +109,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
         content,
         start,
         layouts,
+        screens,
         theme,
     };
 }
@@ -184,8 +186,10 @@ function checkItem(record, path, label, add) {
     if (!RARITIES.includes(rarity)) say('rarity', `rarity must be one of ${RARITIES.join(', ')}.`);
     const value = record.value ?? 0;
     if (!isInt(value)) say('value', 'value must be a whole number of 0 or more (in the smallest coin).');
-    const stack = record.stack ?? true;
+    // Equipment never stacks: each piece is its own stack (MODULES §F.6).
+    const stack = record.stack ?? kind !== 'equipment';
     if (typeof stack !== 'boolean') say('stack', 'stack must be true or false.');
+    else if (stack && kind === 'equipment') say('stack', 'equipment does not stack; leave "stack" out.');
     const slot = record.slot ?? null;
     if (slot !== null && (typeof slot !== 'string' || !slot.trim() || slot.length > 40)) say('slot', 'slot must be a short name like "weapon", or null.');
     const stats = record.stats ?? {};
@@ -323,7 +327,7 @@ function checkStart(start, add, ref) {
         return null;
     }
     for (const key of Object.keys(start)) if (!START_FIELDS.includes(key)) add('UNKNOWN_FIELD', `start.${key}`, `"${key}" is not a start field (expected ${START_FIELDS.join(', ')}).`);
-    const out = { scene: { place: null, present: [] }, inventory: { items: [], wallet: {} } };
+    const out = { scene: { place: null, present: [] }, inventory: { items: [], money: 0 } };
     const scene = start.scene ?? {};
     if (!isObject(scene)) add('BAD_START', 'start.scene', 'start.scene must be an object.');
     else {
@@ -345,7 +349,7 @@ function checkStart(start, add, ref) {
     const inventory = start.inventory ?? {};
     if (!isObject(inventory)) add('BAD_START', 'start.inventory', 'start.inventory must be an object.');
     else {
-        for (const key of Object.keys(inventory)) if (key !== 'items' && key !== 'wallet') add('UNKNOWN_FIELD', `start.inventory.${key}`, `"${key}" is not a start.inventory field (expected items, wallet).`);
+        for (const key of Object.keys(inventory)) if (key !== 'items' && key !== 'money') add('UNKNOWN_FIELD', `start.inventory.${key}`, `"${key}" is not a start.inventory field (expected items, money).`);
         const items = inventory.items ?? [];
         if (!Array.isArray(items)) add('BAD_START', 'start.inventory.items', 'start.inventory.items must be a list.');
         else items.forEach((entry, index) => {
@@ -359,27 +363,76 @@ function checkStart(start, add, ref) {
             if (line.note !== undefined && (typeof line.note !== 'string' || line.note.length > 500)) return add('BAD_START', `${at}.note`, `${at}.note must be text of at most 500 characters.`);
             out.inventory.items.push({ item: id, qty: line.qty ?? 1, note: line.note ?? '' });
         });
-        const wallet = inventory.wallet ?? {};
-        if (!isObject(wallet) || Object.entries(wallet).some(([name, amount]) => !name.trim() || !isInt(amount))) add('BAD_START', 'start.inventory.wallet', 'start.inventory.wallet must map coin names to whole numbers: { "silver": 5 }.');
-        else out.inventory.wallet = { ...wallet };
+        // Money is one whole number in the smallest coin, like item values (MODULES §F.1).
+        const money = inventory.money ?? 0;
+        if (!isInt(money)) add('BAD_START', 'start.inventory.money', 'start.inventory.money must be a whole number of 0 or more, in the smallest coin.');
+        else out.inventory.money = money;
     }
     return out;
 }
 
-const TOKEN = /^(?:--)?[a-z][a-z0-9-]{0,47}$/;
-const CSS_ESCAPE = /url\s*\(|expression\s*\(|@import|[<>{};\\]/i;
+// Themes are CSS custom properties (SPEC §13.3): `{ "--ss-accent": "#7c5cff" }`.
+const TOKEN = /^--[a-z][a-z0-9-]{0,47}$/;
+const CSS_VALUE_ESCAPE = /url\s*\(|expression\s*\(|@import|[<>{};\\]/i;
 
-function checkTheme(theme, add) {
+function checkTheme(theme, add, path) {
     if (!isObject(theme)) {
-        add('BAD_THEME', 'theme', 'theme must map token names to values: { "--accent": "#c90" }.');
+        add('BAD_THEME', path, `${path} must map CSS custom properties to values: { "--ss-accent": "#7c5cff" }.`);
         return {};
     }
     const out = {};
     for (const [name, value] of Object.entries(theme)) {
-        if (!TOKEN.test(name)) { add('BAD_THEME', `theme.${name}`, `"${name}" is not a theme token name (letters, digits and dashes, like "--accent").`); continue; }
+        if (!TOKEN.test(name)) { add('BAD_THEME', `${path}.${name}`, `"${name}" is not a CSS custom property name (two dashes, then letters, digits and dashes, like "--ss-accent").`); continue; }
         if (typeof value === 'number') { out[name] = value; continue; }
-        if (typeof value !== 'string' || value.length > 200 || CSS_ESCAPE.test(value)) { add('BAD_THEME', `theme.${name}`, `theme "${name}" must be a plain CSS value (no url(), no braces, semicolons or backslashes).`); continue; }
+        if (typeof value !== 'string' || value.length > 200 || CSS_VALUE_ESCAPE.test(value)) { add('BAD_THEME', `${path}.${name}`, `${path} "${name}" must be a plain CSS value (no url(), no braces, semicolons or backslashes).`); continue; }
         out[name] = value.trim();
     }
+    return out;
+}
+
+// A screen's stylesheet (SPEC §13.3): Story Block scopes it; here it may not load or run
+// anything. url() only to https or image data, no @import, no expression() or bindings,
+// no markup and no backslash escapes (which could spell any of these).
+const CSS_URL = /url\s*\(\s*(['"]?)([^'")]*)\1\s*\)/gi;
+const CSS_SAFE_URL = /^(?:https:\/\/|data:image\/(?:png|jpeg|gif|webp)[;,])/i;
+const CSS_UNSAFE = /@import|expression\s*\(|behavior\s*:|-moz-binding|[<\\]/i;
+
+export function unsafeCss(css) {
+    if (CSS_UNSAFE.test(css)) return 'may not use @import, expression(), behavior, -moz-binding, < or backslashes';
+    for (const [, , target] of css.matchAll(CSS_URL)) if (!CSS_SAFE_URL.test(target.trim())) return `may load only https or image data URLs (not "${target.trim().slice(0, 40)}")`;
+    return '';
+}
+
+function checkScreens(list, packId, add) {
+    if (!Array.isArray(list)) {
+        add('BAD_SCREENS', 'screens', 'screens must be a list of screen definitions.');
+        return [];
+    }
+    const out = [];
+    const seen = new Set();
+    list.forEach((screen, index) => {
+        const path = `screens[${index}]`;
+        if (!isObject(screen)) return add('BAD_SCREENS', path, `${path} must be an object.`);
+        const label = typeof screen.id === 'string' ? `Screen "${screen.id}"` : path;
+        let ok = true;
+        const say = (field, message, code = 'BAD_SCREENS') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
+        for (const key of Object.keys(screen)) if (!SCREEN_FIELDS.includes(key)) say(key, `"${key}" is not a screen field (expected ${SCREEN_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+        if (typeof screen.id !== 'string' || !SCREEN_ID.test(screen.id) || screen.id.length > 100) say('id', 'id must be a screen id like "rpg-battle/party" (to restyle that screen) or "riverside-board".');
+        else if (seen.has(screen.id)) say('id', 'two screens share this id.', 'DUPLICATE');
+        else seen.add(screen.id);
+        for (const field of ['title', 'icon']) if (screen[field] !== undefined && (typeof screen[field] !== 'string' || screen[field].length > LIMITS.name)) say(field, `${field} must be text of at most ${LIMITS.name} characters.`);
+        if (screen.mounts !== undefined && (!Array.isArray(screen.mounts) || screen.mounts.some(mount => !MOUNTS.includes(mount)))) say('mounts', `mounts must be a list of ${MOUNTS.join(', ')}.`);
+        if (screen.template === undefined && screen.layout === undefined) say('template', 'a screen needs a template or a layout.');
+        if (screen.template !== undefined && typeof screen.template !== 'string') say('template', 'template must be text (an HTML template).');
+        if (screen.layout !== undefined && !isObject(screen.layout)) say('layout', 'layout must be an object: { "root": … }.');
+        if (screen.css !== undefined) {
+            const why = typeof screen.css === 'string' ? unsafeCss(screen.css) : 'must be text';
+            if (why) say('css', `css ${why}.`);
+        }
+        if (screen.data !== undefined && !isObject(screen.data)) say('data', 'data must map names to queries: { "pc": { "query": "party.pc" } }.');
+        if (screen.steps !== undefined && (!Array.isArray(screen.steps) || screen.steps.some(step => !isObject(step) || (step.template !== undefined && typeof step.template !== 'string')))) say('steps', 'steps must be a list of { "id", "title", "template" }.');
+        const theme = screen.theme === undefined ? {} : checkTheme(screen.theme, add, `${path}.theme`);
+        if (ok) out.push({ ...screen, theme, pack: packId });
+    });
     return out;
 }

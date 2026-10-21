@@ -7,17 +7,21 @@
 
 import { LIMITS } from './limits.js';
 
-// Tags that run code or pull in other documents when a string reaches innerHTML.
-const UNSAFE_TAG = /<\s*\/?\s*(?:script|iframe|frame|frameset|object|embed|applet|link|meta|style|base|form|svg|math|template)\b/i;
+// Tags that run code or pull in other documents when a string reaches innerHTML (the
+// SPEC §13.2 list, plus `style`: a screen's CSS goes in its own `css` field). Inline SVG and
+// forms are allowed, a form's `action` is not.
+const UNSAFE_TAG = /<\s*\/?\s*(?:script|iframe|frame|frameset|object|embed|applet|link|meta|style|base)\b|<\s*form\b[^>]*\saction\s*=/i;
 // An event attribute inside a tag: `<img src=x onerror=…>`. The `(?!=)` keeps
 // conditions like `a<b && online == 1` from counting as one.
 const EVENT_ATTR = /<[a-z][^>]*?[\s"'/]on[a-z]+\s*=(?!=)/i;
 // Schemes that run code. Checked after entities, whitespace and control characters
 // are removed, because browsers ignore those inside a scheme (`java&#x09;script:`).
 const CODE_SCHEME = /(?:java|vb|live)script:|data:text\/html|data:image\/svg/i;
-// Keys whose value is a link or an image source: only web and plain image data URLs.
+// Keys whose value is a link or an image source: only https and plain image data URLs (§13.2).
 const URL_KEYS = new Set(['src', 'href', 'url', 'image', 'img', 'background']);
-const SAFE_URL = /^(?:https?:\/\/[^\s"'<>]+|data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
+const SAFE_URL = /^(?:https:\/\/[^\s"'<>]+|data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+)$/i;
+// Keys that hold a screen's template or CSS, allowed to be longer than other text.
+const CODE_KEYS = new Set(['template', 'css']);
 // Keys that would change an object's prototype when copied naively.
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -32,7 +36,7 @@ function decodeEntities(text) {
 
 /** Why a string is unsafe for a pack, or '' when it is fine. */
 export function unsafeText(text) {
-    if (UNSAFE_TAG.test(text)) return 'has an HTML tag that can run code (script, iframe, style …)';
+    if (UNSAFE_TAG.test(text)) return 'has an HTML tag that can run code (script, iframe, style, form action …)';
     if (EVENT_ATTR.test(text)) return 'has an HTML event attribute (on…=)';
     const squeezed = decodeEntities(text).replace(/[\s\u0000-\u001f\u007f]+/g, '');
     if (CODE_SCHEME.test(squeezed)) return 'has a script link (javascript:, data:text/html …)';
@@ -67,10 +71,11 @@ export function checkPlain(value, limits = LIMITS) {
         if (errors.length >= limits.errors) return;
         if (node === null || typeof node === 'boolean') return;
         if (typeof node === 'string') {
-            if (node.length > limits.string) return add('TOO_LONG', path, `is longer than ${limits.string} characters`);
+            const max = CODE_KEYS.has(key) ? limits.code : limits.string;
+            if (node.length > max) return add('TOO_LONG', path, `is longer than ${max} characters`);
             const unsafe = unsafeText(node);
             if (unsafe) return add('UNSAFE_HTML', path, unsafe);
-            if (URL_KEYS.has(key) && !SAFE_URL.test(node.trim())) add('UNSAFE_URL', path, 'must be an http(s) link or a PNG, JPEG, GIF or WebP data URL');
+            if (URL_KEYS.has(key) && !SAFE_URL.test(node.trim())) add('UNSAFE_URL', path, 'must be an https link or a PNG, JPEG, GIF or WebP data URL');
             return;
         }
         if (typeof node === 'number') {

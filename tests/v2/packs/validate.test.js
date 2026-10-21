@@ -46,7 +46,9 @@ test('normalizing fills defaults, writes references as full IDs and links events
         { item: 'pack.riverside-starter/hemp-line', qty: 3, note: '' },
         { item: 'pack.riverside-starter/minor-healing-draught', qty: 1, note: '' },
     ]);
-    assert.deepEqual(out.theme, { '--accent': '#3f7f8f' });
+    assert.deepEqual(out.theme, { '--ss-accent': '#3f7f8f' });
+    assert.equal(out.start.inventory.money, 50);
+    assert.equal(out.content.items.find(item => item.slug === 'willow-rod').stack, false, 'equipment defaults to one stack per piece');
 });
 
 test('the raw copy is detached from the input', () => {
@@ -109,6 +111,8 @@ test('no script HTML, event attributes or script links anywhere', () => {
     refused(withItem({ name: 'Rope', note: '<script>alert(1)</script>' }), 'UNSAFE_HTML');
     refused(withItem({ name: 'Rope', note: '< SCRIPT src=x>' }), 'UNSAFE_HTML');
     refused(withItem({ name: 'Rope', note: 'see <iframe src="https://x">' }), 'UNSAFE_HTML');
+    refused(withItem({ name: 'Rope', note: '<form action="https://x"><input></form>' }), 'UNSAFE_HTML');
+    refused(withItem({ name: 'Rope', note: '<style>body{}</style>' }), 'UNSAFE_HTML');
     refused(withItem({ name: 'Rope', note: '<img src=x onerror=alert(1)>' }), 'UNSAFE_HTML');
     refused(withItem({ name: 'Rope', note: '<a href="#" ONCLICK = "x">hi</a>' }), 'UNSAFE_HTML');
     refused(withItem({ name: 'Rope', note: 'javascript:alert(1)' }), 'UNSAFE_HTML');
@@ -118,6 +122,7 @@ test('no script HTML, event attributes or script links anywhere', () => {
     refused(withItem({ name: 'Rope', note: 'data:text/html;base64,PHNjcmlwdD4=' }), 'UNSAFE_HTML');
     refused(pack({ content: { creatures: [{ name: 'Rat', '<script>': 1 }] } }), 'UNSAFE_HTML', 'in a key too');
     refused(pack({ name: '<svg onload=alert(1)>' }), 'UNSAFE_HTML');
+    assert.equal(validatePack(withItem({ name: 'Rope', note: '<svg viewBox="0 0 1 1"><circle r="1"/></svg> <form><input></form>' })).ok, true, 'inline SVG and plain forms are allowed (SPEC §13.2)');
     // Plain text with angle brackets is fine: conditions compare with < and >.
     const events = pack({ content: { events: [{ id: 'dusk', when: "query('party.pc').level < 30 && online == 1 && a<b", cue: 'Dusk <falls> & the bells ring.' }] } });
     assert.equal(validatePack(events).ok, true, JSON.stringify(validatePack(events).errors));
@@ -129,6 +134,7 @@ test('links and images must be web links or plain image data', () => {
     assert.equal(validatePack(layout('https://example.org/map.png')).ok, true);
     assert.equal(validatePack(layout('data:image/png;base64,iVBORw0KGgo=')).ok, true);
     refused(layout('file:///etc/passwd'), 'UNSAFE_URL');
+    refused(layout('http://example.org/map.png'), 'UNSAFE_URL', 'https only');
     refused(layout('/scripts/extensions/x.png'), 'UNSAFE_URL');
     refused(layout('data:image/svg+xml;base64,PHN2Zz4='), 'UNSAFE_HTML');
     refused(pack({ layouts: [{ id: 'b', root: { type: 'button', href: 'vbscript:x' } }] }), 'UNSAFE_HTML');
@@ -147,6 +153,8 @@ test('limits: depth, string length, list and object sizes', () => {
 test('pack fields: id, version, names, unknown fields', () => {
     refused(pack({ id: 'Fantasy Pack' }), 'BAD_ID');
     refused(pack({ id: '' }), 'BAD_ID');
+    refused(pack({ id: 'two--dashes' }), 'BAD_ID');
+    refused(pack({ id: 'trailing-' }), 'BAD_ID');
     refused(pack({ id: 7 }), 'BAD_ID');
     refused(pack({ version: '1.0' }), 'BAD_VERSION');
     refused(pack({ version: undefined }), 'NOT_PLAIN');
@@ -196,6 +204,7 @@ test('item fields follow the inventory def', () => {
     refused(withItem({ name: 'Rope', value: 2.5 }), 'BAD_RECORD');
     refused(withItem({ name: 'Rope', value: '3' }), 'BAD_RECORD');
     refused(withItem({ name: 'Rope', stack: 'yes' }), 'BAD_RECORD');
+    refused(withItem({ name: 'Sword', kind: 'equipment', stack: true }), 'BAD_RECORD');
     refused(withItem({ name: 'Rope', slot: 3 }), 'BAD_RECORD');
     refused(withItem({ name: 'Rope', stats: { STR: 1.5 } }), 'BAD_RECORD');
     refused(withItem({ name: 'Rope', effect: [] }), 'BAD_RECORD');
@@ -247,7 +256,7 @@ test('events: id, condition, cue, once, after and then', () => {
 
 test('start: scene and inventory of this pack\'s items', () => {
     const start = value => pack({ content: { items: [{ name: 'Rope' }] }, start: value });
-    assert.equal(validatePack(start({ inventory: { items: ['rope'], wallet: { silver: 2 } } })).ok, true);
+    assert.equal(validatePack(start({ inventory: { items: ['rope'], money: 20 } })).ok, true);
     refused(start([]), 'BAD_START');
     refused(start({ party: {} }), 'UNKNOWN_FIELD');
     refused(start({ scene: [] }), 'BAD_START');
@@ -264,8 +273,9 @@ test('start: scene and inventory of this pack\'s items', () => {
     refused(start({ inventory: { items: [{ item: 'rope', qty: 0 }] } }), 'BAD_START');
     refused(start({ inventory: { items: [{ item: 'rope', owner: 'ac_x' }] } }), 'BAD_START');
     refused(start({ inventory: { items: [{ item: 'rope', note: 4 }] } }), 'BAD_START');
-    refused(start({ inventory: { wallet: { silver: -1 } } }), 'BAD_START');
-    refused(start({ inventory: { wallet: { silver: 1.5 } } }), 'BAD_START');
+    refused(start({ inventory: { money: -1 } }), 'BAD_START');
+    refused(start({ inventory: { money: 1.5 } }), 'BAD_START');
+    refused(start({ inventory: { wallet: { silver: 5 } } }), 'UNKNOWN_FIELD', 'money is one number in the smallest coin');
 });
 
 test('layouts and theme', () => {
@@ -273,16 +283,47 @@ test('layouts and theme', () => {
     refused(pack({ layouts: ['x'] }), 'BAD_LAYOUTS');
     refused(pack({ theme: [] }), 'BAD_THEME');
     refused(pack({ theme: { 'Accent Color': 'red' } }), 'BAD_THEME');
+    refused(pack({ theme: { accent: 'red' } }), 'BAD_THEME', 'CSS custom properties only');
     refused(pack({ theme: { '--bg': 'url(https://x/y.png)' } }), 'BAD_THEME');
     refused(pack({ theme: { '--bg': 'red; } body { display: none' } }), 'BAD_THEME');
     refused(pack({ theme: { '--bg': '\\75rl(x)' } }), 'BAD_THEME');
     refused(pack({ theme: { '--bg': {} } }), 'BAD_THEME');
-    const ok = validatePack(pack({ theme: { '--accent': ' #c90 ', radius: 4 }, layouts: [{ id: 'board' }] }));
-    assert.deepEqual(ok.pack.theme, { '--accent': '#c90', radius: 4 });
+    const ok = validatePack(pack({ theme: { '--ss-accent': ' #c90 ', '--ss-radius': 4 }, layouts: [{ id: 'board' }] }));
+    assert.deepEqual(ok.pack.theme, { '--ss-accent': '#c90', '--ss-radius': 4 });
     assert.deepEqual(ok.pack.layouts, [{ id: 'board', pack: 'mini' }]);
 });
 
 test('problems stop at the reporting limit', () => {
     const many = pack({ content: { items: Array.from({ length: 40 }, (_, i) => ({ name: `Item ${i}`, kind: 'bad' })) } });
     assert.equal(validatePack(many).errors.length, LIMITS.errors);
+});
+
+test('screens: added or restyled by id, templates and CSS checked', () => {
+    const screen = fields => pack({ screens: [{ id: 'rpg-battle/party', template: '<div class="sheet">{{ q.pc.name }}</div>', ...fields }] });
+    const ok = validatePack(screen({ title: 'Party', icon: 'fa-users', mounts: ['tab', 'card'], css: '.sheet { color: var(--ss-accent); background: url("https://example.org/p.png") }', theme: { '--ss-accent': '#7c5cff' }, data: { pc: { query: 'party.pc' } }, steps: [{ id: 'one', title: 'One', template: '<p>Hi</p>' }] }));
+    assert.equal(ok.ok, true, JSON.stringify(ok.errors));
+    assert.equal(ok.pack.screens[0].pack, 'mini');
+    assert.equal(validatePack(pack({ screens: [{ id: 'riverside-board', layout: { root: { type: 'box' } } }] })).ok, true);
+    assert.equal(validatePack(screen({ template: 't'.repeat(LIMITS.string + 10) })).ok, true, 'a template may be longer than other text');
+    refused(screen({ template: 't'.repeat(LIMITS.code + 1) }), 'TOO_LONG');
+    refused(pack({ screens: {} }), 'BAD_SCREENS');
+    refused(pack({ screens: ['x'] }), 'BAD_SCREENS');
+    refused(screen({ id: 'Party Screen' }), 'BAD_SCREENS');
+    refused(pack({ screens: [{ id: 'a', template: 'x' }, { id: 'a', template: 'y' }] }), 'DUPLICATE');
+    refused(screen({ mounts: ['sidebar'] }), 'BAD_SCREENS');
+    refused(screen({ title: 3 }), 'BAD_SCREENS');
+    refused(pack({ screens: [{ id: 'a' }] }), 'BAD_SCREENS', 'a template or a layout');
+    refused(screen({ template: 5 }), 'BAD_SCREENS');
+    refused(pack({ screens: [{ id: 'a', layout: [] }] }), 'BAD_SCREENS');
+    refused(screen({ data: 'party.pc' }), 'BAD_SCREENS');
+    refused(screen({ steps: [{ template: 3 }] }), 'BAD_SCREENS');
+    refused(screen({ script: 'x' }), 'UNKNOWN_FIELD');
+    refused(screen({ theme: { color: 'red' } }), 'BAD_THEME');
+    refused(screen({ template: '<div onclick="steal()">x</div>' }), 'UNSAFE_HTML');
+    refused(screen({ template: '<a href="javascript:steal()">x</a>' }), 'UNSAFE_HTML');
+    refused(screen({ css: 5 }), 'BAD_SCREENS');
+    for (const css of ['@import "https://x/y.css";', '.a { background: url(http://x/y.png) }', '.a { background: url(/etc/x.png) }', '.a { width: expression(alert(1)) }', '.a { behavior: url(x.htc) }', '.a { -moz-binding: none }', '.a { content: "\\75rl" }', '</style><script>']) {
+        const result = validatePack(screen({ css }));
+        assert.equal(result.ok, false, css);
+    }
 });

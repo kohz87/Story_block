@@ -1,7 +1,7 @@
 // Packs (SPEC §9, MODULES §E): a part of Story Block's core module.
 //
 // A pack is a pack.json of plain data: items, creatures, shops, recipes, events, quests, a
-// start state, layouts and a theme. Packs are installed from a file or from a character's
+// start state, screens, layouts and a theme. Packs are installed from a file or from a character's
 // lorebook into `extension_settings.storySuite.packs` and read by other parts through the
 // queries and hooks below. The part has no domain and no commands: installing a pack is a
 // settings change, not a story event, and what a pack gives a chat is copied into the chat's

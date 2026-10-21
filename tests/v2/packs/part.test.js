@@ -39,7 +39,7 @@ test('queries answer from the enabled packs, whatever the state', async () => {
     assert.equal(ctx.query('packs.item'), null);
     assert.equal(ctx.query('packs.start').scene.place.name, 'Bluewatch Village');
     assert.equal(part.hooks['item.resolve']('Willow Rod').id, 'pack.riverside-starter/willow-rod');
-    assert.equal(part.hooks.start().inventory.wallet.silver, 5);
+    assert.equal(part.hooks.start().inventory.money, 50);
     await packs.setEnabled('riverside-starter', false);
     assert.deepEqual(ctx.query('packs.content', { kind: 'items' }), []);
     assert.equal(part.hooks['item.resolve']('Willow Rod'), null);
