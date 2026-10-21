@@ -43,7 +43,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 |---|---|---|
 | Tracker: director domain, v1 rules, story clock, note | ✅ | #74 |
 | Quests: take / turn down / abandon / finish, targets, progress, payouts | ✅ | #73 |
-| Integration: module.js, one currency, one fight per kill quest, typed acceptance | 🔧 | |
+| Integration: module.js, one currency, one fight per kill quest, typed acceptance, v2 bootstrap | ✅ | #75 |
 | Atlas: places, routes, travel, map | 🔧 | |
 | Default screens (Quests, Director, status card, HUD) | 🔧 | |
 | Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
