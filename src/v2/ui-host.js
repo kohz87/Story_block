@@ -69,6 +69,11 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         widgets,
         headIndex: () => store.headIndex(),
         sanitize: globalThis.SillyTavern?.libs?.DOMPurify?.sanitize?.bind(globalThis.SillyTavern.libs.DOMPurify) ?? null,
+        formatters: () => {
+            let currency = null;
+            try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
+            return currency?.name ? { money: n => `${n} ${currency.name}` } : {};
+        },
     });
     const screens = createScreens(readerStore(ctx));
     const extraTabs = [];
@@ -255,7 +260,6 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     syncScreens();
     refresh();
     mounts.card?.attachAll?.();
-    renderer.loadTemplates().then(found => { if (found) refresh(); });
 
     return {
         refresh,

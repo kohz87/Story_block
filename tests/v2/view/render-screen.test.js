@@ -53,19 +53,27 @@ test('layout conditions use the events language with the row and the query in sc
     assert.throws(() => evaluate('item.points >', { item: {} }));
 });
 
-test('a template screen without the template renderer says so; setTemplates plugs one in', () => {
-    const { el, renderer } = setup();
-    renderer.render(el, { id: 'test/tpl', mounts: ['tab'], template: '<b>x</b>' }, { state, api: {}, mount: 'tab' });
+test('a template screen: bindings, the query at the mount\'s state, scoped css; off says so', () => {
+    const { doc, el, renderer } = setup();
+    const screen = { id: 'test/tpl', mounts: ['tab'], template: '<b class="n">{{ q.n }}</b><i data-if="q.n > 3">big</i>', css: '.n { color: red; }' };
+    renderer.render(el, screen, { state, q: { n: queryAt('n', {}, state) }, api: {}, mount: 'tab' });
+    assert.equal(el.querySelector('.n').textContent, '4');
+    assert.match(el.textContent, /big/);
+    const style = doc.head.querySelector('#ss-css-test_tpl');
+    assert.ok(style, 'the screen css is put in the head once');
+    assert.match(style.textContent, /\[data-ss-screen="test\/tpl"\] \.n/);
+    renderer.setTemplates(null);
+    assert.equal(renderer.hasTemplates(), false);
+    renderer.render(el, screen, { state, api: {}, mount: 'tab' });
     assert.match(el.textContent, /template screens are not available/);
     const seen = [];
     renderer.setTemplates({
         compileTemplate: html => ({ html }),
-        renderTemplate: (target, compiled, scope, options) => { seen.push([compiled.html, typeof options.command, typeof options.evaluate]); target.textContent = 'drawn'; return { destroy() {} }; },
+        renderTemplate: (target, compiled, scope, options) => { seen.push([compiled.html, typeof options.command, typeof scope.query]); target.textContent = 'drawn'; return { destroy() {} }; },
     });
-    assert.equal(renderer.hasTemplates(), true);
-    const dispose = renderer.render(el, { id: 'test/tpl', mounts: ['tab'], template: '<b>x</b>' }, { state, api: { command: () => {} }, mount: 'tab' });
+    const dispose = renderer.render(el, screen, { state, api: { command: () => {} }, mount: 'tab' });
     assert.equal(el.textContent, 'drawn');
-    assert.deepEqual(seen, [['<b>x</b>', 'function', 'function']]);
+    assert.deepEqual(seen, [[screen.template, 'function', 'function']]);
     assert.equal(typeof dispose, 'function');
 });
 
