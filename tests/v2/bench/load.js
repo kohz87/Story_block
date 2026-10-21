@@ -584,9 +584,10 @@ export function relayout(chat, { every = 20, bytes = 32 * 1024 } = {}) {
     return copy;
 }
 
+// Keeps a copy the shown swipe holds in step (where the record is kept once, there is none to keep).
 function syncSwipe(message, record) {
     const info = message.swipe_info?.[message.swipe_id ?? 0];
-    if (info?.extra) info.extra[KEY] = structuredClone(record);
+    if (info?.extra?.[KEY]) info.extra[KEY] = structuredClone(record);
 }
 
 /**
@@ -650,6 +651,22 @@ export function singleCopy(chat) {
         const info = message.swipe_info?.[message.swipe_id ?? 0];
         if (index !== lastIndex && info?.extra && info.extra !== message.extra) delete info.extra[KEY];
     });
+    return copy;
+}
+
+/**
+ * The chat as it was stored before each record was kept once: the shown swipe's copy in `swipe_info` on
+ * every carrier.
+ */
+export function everyCopy(chat) {
+    const copy = structuredClone(chat);
+    for (const message of copy) {
+        const info = message.swipe_info?.[message.swipe_id ?? 0];
+        if (readRecord(message) && info && info.extra !== message.extra) {
+            info.extra ??= {};
+            info.extra[KEY] = structuredClone(message.extra[KEY]);
+        }
+    }
     return copy;
 }
 

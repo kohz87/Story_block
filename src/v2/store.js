@@ -3,10 +3,16 @@
 // * State at carrier N = the latest checkpoint at or before N, then every carrier's `ops` from there
 //   through N. Head state = state at the last carrier. Rebuilding replays stored ops only; it never runs a
 //   command handler.
-// * A carrier that gets its first record also gets a checkpoint (the state before its own ops) when 20
-//   carriers have passed since the last checkpoint, or the ops since then exceed 32 KB of JSON.
+// * A carrier that gets its first record also gets a checkpoint (the state before its own ops) when 100
+//   carriers have passed since the last checkpoint, or the ops since then exceed 128 KB of JSON. Older
+//   chats have them every 20 carriers / 32 KB: a checkpoint is read wherever it is.
 // * Writes go to the head carrier (actions after reply N belong to reply N, so swiping or deleting reply N
 //   takes them back) and only ever touch `extra.storySuite` and the matching `swipe_info` extra.
+// * Each record is kept once (persist.js): the shown swipe's copy in `swipe_info` only on the last
+//   carrier and on carriers with more than one swipe. When a reply gets its first record, the carrier
+//   before it drops that copy, and the carrier `receiptKeep` back drops its receipts' `data`; a rebuild
+//   does the same over the whole chat (so an older chat shrinks with its next save) and gives the last
+//   carrier its copy back. Neither changes any state: replay reads `message.extra` only.
 // * Told and untold (§4.1 step 2): a receipt is told once a carrier at or after its own lists its ID in
 //   `narrated`. Untold receipts are the `narrate: true` ones that no such carrier lists, oldest first. "At
 //   or after" rather than "after" so a cue committed on the head carrier while it is being re-generated
@@ -20,12 +26,12 @@
 
 import { apply as applyOps, rebaseOps } from './ops.js';
 import {
-    KEY, carrierIndexes, carryRecord, createSaver, isCarrier, lastCarrier, newRecordId, readRecord, recordFault, restamp,
-    swipeOf, writeRecord,
+    KEY, RECEIPT_KEEP, carrierIndexes, carryRecord, createSaver, dropCopy, isCarrier, keepsCopy, lastCarrier, mirrorCopy,
+    newRecordId, readRecord, recordFault, restamp, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 
-export const CHECKPOINT_EVERY = 20;
-export const CHECKPOINT_BYTES = 32 * 1024;
+export const CHECKPOINT_EVERY = 100;
+export const CHECKPOINT_BYTES = 128 * 1024;
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -54,7 +60,8 @@ const revOf = state => (Number.isInteger(state?.meta?.rev) ? state.meta.rev : 0)
  * @param {(state, ops) => object} [options.apply]  defaults to ops.js; tests inject a fake
  * @param {(error) => void} [options.onSaveError]   told when a scheduled (not flushed) save fails, once until one works
  * @param {object} [options.timers]          { setTimeout, clearTimeout } for tests
- * @param {number} [options.checkpointEvery] / [options.checkpointBytes]  thresholds (default 20 / 32 KB)
+ * @param {number} [options.checkpointEvery] / [options.checkpointBytes]  thresholds (default 100 / 128 KB)
+ * @param {number} [options.receiptKeep]     carriers back (the head is 0) from which receipts drop `data` (200)
  * @param {() => string} [options.recordId]  ID of a new carrier record
  * @param {(state, domains: string[]) => string[]} [options.validate]  the domains' validators, run on a
  *   state whose counts were moved by a replay (ops.js rebaseOps), and on every replayed block's touched
@@ -64,7 +71,7 @@ const revOf = state => (Number.isInteger(state?.meta?.rev) ? state.meta.rev : 0)
 export function createStore({
     chat, save, now = null, apply = applyOps, onSaveError = null, timers = globalThis,
     checkpointEvery = CHECKPOINT_EVERY, checkpointBytes = CHECKPOINT_BYTES, recordId = newRecordId, validate = null,
-    chatId = () => undefined, place = () => null, rescue = null, scratch = null,
+    chatId = () => undefined, place = () => null, rescue = null, scratch = null, receiptKeep = RECEIPT_KEEP,
 } = {}) {
     if (typeof chat !== 'function') throw new TypeError('createStore needs a chat() function.');
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
@@ -83,7 +90,9 @@ export function createStore({
     // left in a chat that is no longer open can be found again (rescue).
     function write(message, record) {
         if (holding) held.add(message);
-        const stored = writeRecord(message, record, { mirror: !holding });
+        const keep = keeps(message);
+        const stored = writeRecord(message, record, { mirror: !holding && keep });
+        if (!keep) dropCopy(message);
         lastWrite = { message, swipe: stored.swipe, rev: stored.rev };
         unsaved.set(message, { index: list().indexOf(message), chatId: chatId(), n: ++writes });
         return stored;
@@ -158,6 +167,49 @@ export function createStore({
         const arr = chat();
         return Array.isArray(arr) ? arr : [];
     };
+
+    // Is the shown swipe's copy of this carrier's record kept in swipe_info (persist.js keepsCopy)?
+    function keeps(message, arr = list()) {
+        return keepsCopy(message, arr[lastCarrier(arr)] === message);
+    }
+
+    // A rebuild's pass over the whole chat (persist.js): the last carrier gets its copy (again), the
+    // others with one swipe drop theirs, and receipts `receiptKeep` or more carriers back drop `data`.
+    // Only records that are the shown swipe's own are touched. In memory: the next save writes it.
+    // True when a record was stamped again (that one is a change to save).
+    function settleAll(arr) {
+        const carriers = carrierIndexes(arr);
+        let stamped = false;
+        carriers.forEach((i, at) => {
+            const message = arr[i];
+            const last = at === carriers.length - 1;
+            const keep = keepsCopy(message, last);
+            // A swipe deleted before another shifts that one's index: stamp it again, so the copy
+            // SillyTavern makes for the next new swipe is not taken for the new swipe's own.
+            stamped = restamp(message, { mirror: keep }) || stamped;
+            if (!readRecord(message)) return;
+            if (last) mirrorCopy(message);
+            else if (!keep) dropCopy(message);
+            if (carriers.length - 1 - at >= receiptKeep) trimReceipts(message);
+        });
+        return stamped;
+    }
+
+    // A new record on the last carrier `index`: the carrier before it is no longer the one the reader
+    // can swipe, so it drops its copy (unless it has other swipes), and the one `receiptKeep` back drops
+    // its receipts' data.
+    function settleBehind(arr, index) {
+        let back = 0;
+        for (let i = index - 1; i >= 0; i--) {
+            if (!isCarrier(arr[i])) continue;
+            back += 1;
+            if (back === 1 && !keepsCopy(arr[i], false) && readRecord(arr[i])) dropCopy(arr[i]);
+            if (back >= receiptKeep) {
+                trimReceipts(arr[i]);
+                return;
+            }
+        }
+    }
 
     function checkpointState(raw) {
         let state = frozenCheckpoints.get(raw);
@@ -356,6 +408,7 @@ export function createStore({
         const own = readRecord(message);
         if (own) return { message, record: own, fresh: false };
         const record = { v: 2, sid: sidFor(message), ops: [], receipts: [], narrated: [], spans: [] };
+        if (index === lastCarrier(arr)) settleBehind(arr, index);
         if (needsCheckpoint(arr, index)) {
             const base = before === undefined ? stateBefore(arr, index) : before;
             if (base) {
@@ -718,12 +771,9 @@ export function createStore({
         rebuild() {
             frozenCheckpoints = new WeakMap();
             cache = null;
-            // A swipe deleted before another shifts that one's index: stamp it again (persist.js), so
-            // the copy SillyTavern makes for the next new swipe is not taken for the new swipe's own.
-            const arr = list();
-            let stamped = false;
-            for (const i of carrierIndexes(arr)) stamped = restamp(arr[i]) || stamped;
-            if (stamped) saver.touch();
+            // The record copies and old receipts are settled over the whole chat, and a record whose
+            // swipe moved is stamped again (settleAll).
+            if (settleAll(list())) saver.touch();
             current();
         },
 
@@ -742,7 +792,9 @@ export function createStore({
                     const kept = cache && sameKey(cache.key, headKey(arr)) ? cache : null;
                     for (const message of held) {
                         const record = message.extra?.[KEY];
-                        if (record) writeRecord(message, record);
+                        if (!record) continue;
+                        if (keeps(message, arr)) writeRecord(message, record);
+                        else dropCopy(message);
                     }
                     held.clear();
                     if (kept) retain(arr, kept.state, kept.problems);

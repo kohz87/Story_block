@@ -329,7 +329,8 @@ test('a checkpoint that is not a whole state is skipped, set up again, and liste
     await h.send('a', 'A rope.\n<Changes>\n+ item Rope\n</Changes>');
     await h.store.flush();
     const chat = structuredClone(h.ctx.chat);
-    for (const extra of [chat[0].extra, chat[0].swipe_info[0].extra]) extra.storySuite.checkpoint = { v: 2 };
+    // (the greeting keeps no swipe_info copy once a reply follows it: each record is kept once)
+    for (const extra of [chat[0].extra, chat[0].swipe_info[0].extra]) if (extra.storySuite) extra.storySuite.checkpoint = { v: 2 };
     await h.st.loadChat(chat);
     assert.ok(h.head().domains?.inventory, 'the head is a whole state');
     assert.deepEqual(items(h), ['Rope'], 'the reply after it still applies');

@@ -3,10 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { readRecord } from '../../../src/v2/persist.js';
+import { KEY, readRecord } from '../../../src/v2/persist.js';
+import { CHECKPOINT_BYTES, CHECKPOINT_EVERY } from '../../../src/v2/store.js';
 import {
     PARTY_SIZE, STACKS, THREADS, UI_COMMANDS, UI_EVERY,
-    breakdown, changeLines, compactCarrierOps, compactOps, measureLoad, measureSwipe, relayout, runScenario, sameHead,
+    breakdown, changeLines, compactCarrierOps, compactOps, everyCopy, measureLoad, measureSwipe, relayout, runScenario, sameHead,
     singleCopy, stripOldReceipts, v1Size,
 } from './load.js';
 
@@ -23,7 +24,7 @@ const shape = head => ({
     coin: head.domains.inventory.wallets.party.coin,
 });
 
-test('the bench run keeps the load it describes, one capture save per reply and a checkpoint every 20', { skip }, async () => {
+test('the bench run keeps the load it describes, one capture save per reply, the checkpoint rule, one copy', { skip }, async () => {
     const run = await runScenario({ replies: REPLIES, repeat: 1, fast: false });
     assert.deepEqual(run.problems, []);
     const [snapshot] = run.snapshots;
@@ -39,21 +40,34 @@ test('the bench run keeps the load it describes, one capture save per reply and 
     assert.equal(run.saves.pre, rounds, 'a burst of UI clicks is saved once, when the next generation starts');
     assert.equal(snapshot.savesPerReply.max, 2);
 
-    // The greeting holds the initial state; the next comes once 32 KB of ops have passed (the party's
-    // set-up is most of it, and counts carry the value they replaced), then every 20 carriers after it.
-    // Where 32 KB falls moves with the size of the ops, so the count is worked out from where it fell.
-    const carrier = index => !run.chat[index].is_user;
-    const placed = run.chat.map((message, index) => (carrier(index) && readRecord(message)?.checkpoint ? index : -1)).filter(index => index >= 0);
-    const carriersBetween = (from, to) => run.chat.slice(from + 1, to + 1).filter(message => !message.is_user).length;
+    // The greeting holds the initial state; a later carrier gets one when CHECKPOINT_EVERY carriers have
+    // passed since the last, or the ops since then (the last checkpoint's carrier's own included) exceed
+    // CHECKPOINT_BYTES (store.js needsCheckpoint). Worked out here from the stored ops.
+    const placed = run.chat.map((message, index) => (!message.is_user && readRecord(message)?.checkpoint ? index : -1)).filter(index => index >= 0);
     assert.equal(placed[0], 0);
-    assert.ok(placed.length >= 2 && carriersBetween(placed[0], placed[1]) < 20, 'the 32 KB checkpoint comes before 20 carriers');
-    for (let n = 2; n < placed.length; n++) assert.equal(carriersBetween(placed[n - 1], placed[n]), 20);
-    assert.equal(placed.length, 2 + Math.floor(carriersBetween(placed[1], run.chat.length - 1) / 20));
+    const expected = [0];
+    let carriers = 0;
+    let opBytes = new TextEncoder().encode(JSON.stringify(readRecord(run.chat[0]).ops)).length;
+    run.chat.forEach((message, index) => {
+        if (message.is_user || index === 0) return;
+        carriers += 1;
+        if (carriers >= CHECKPOINT_EVERY || opBytes > CHECKPOINT_BYTES) {
+            expected.push(index);
+            carriers = 0;
+            opBytes = 0;
+        }
+        opBytes += new TextEncoder().encode(JSON.stringify(readRecord(message).ops)).length;
+    });
+    assert.deepEqual(placed, expected);
     assert.equal(snapshot.checkpoints.count, placed.length);
     const bytes = breakdown(run.chat);
     assert.equal(bytes.carriers, REPLIES + 1);
     assert.equal(bytes.records, bytes.checkpoint + bytes.ops + bytes.receipts + bytes.other);
-    assert.equal(bytes.shown * 2, bytes.records, 'each record is stored twice: message.extra and the shown swipe');
+    // Each record is kept once: the shown swipe's copy only on the last carrier (every reply here has
+    // one swipe).
+    const copies = run.chat.map((message, index) => (message.swipe_info?.[message.swipe_id ?? 0]?.extra?.[KEY] ? index : -1)).filter(index => index >= 0);
+    assert.deepEqual(copies, [run.chat.length - 1]);
+    assert.deepEqual(run.chat.at(-1).swipe_info[0].extra[KEY], run.chat.at(-1).extra[KEY]);
     assert.ok(bytes.changeText > 0);
     assert.ok(snapshot.v1.perReply > 5800 && snapshot.v1.perReply < 6400, 'v1: about 3 KB in mes and again in the swipe');
     assert.equal(snapshot.swipe.sameAsBefore, true, 'a swipe of the last reply takes its changes back, swiping back restores them');
@@ -84,8 +98,11 @@ test('the tuning variants keep the head: checkpoints moved, ops compacted, old r
     assert.ok(sameHead(chat, stripOldReceipts(chat, { keep: 5, summaries: true })));
     const once = singleCopy(chat);
     assert.ok(sameHead(chat, once));
-    assert.ok(breakdown(once).records < breakdown(chat).records * 0.6);
-    assert.ok(measureLoad(once, { repeat: 1 }).rebuildMs.median >= 0);
+    assert.equal(breakdown(once).records, breakdown(chat).records, 'as built, each record is kept once already');
+    const twice = everyCopy(chat);
+    assert.ok(sameHead(chat, twice));
+    assert.ok(breakdown(twice).records > breakdown(chat).records * 1.7, 'the copy on every carrier, as before');
+    assert.ok(measureLoad(twice, { repeat: 1 }).rebuildMs.median >= 0);
     assert.ok(v1Size(chat).file > 0);
 });
 

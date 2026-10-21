@@ -3,6 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
+import { CHECKPOINT_EVERY } from '../../../src/v2/store.js';
+
+// Enough replies after the first that a checkpoint comes after it (the rule: every CHECKPOINT_EVERY carriers).
+const LONG = CHECKPOINT_EVERY + 5;
 
 const items = h => {
     const inv = h.head()?.domains?.inventory;
@@ -19,7 +23,7 @@ async function host(t, options) {
 
 test('B-b2-timeline-4: deleting a middle reply takes its changes back the same way wherever the checkpoints fall', async t => {
     const outcome = [];
-    for (const filler of [3, 25]) {
+    for (const filler of [3, LONG]) {
         const h = await host(t);
         await h.send('a', reply('A rope.', ['+ item Rope']));
         for (let i = 0; i < filler; i++) await h.send(`m${i}`, `Nothing ${i}.`);
@@ -33,7 +37,7 @@ test('B-b2-timeline-4: deleting a middle reply takes its changes back the same w
 test('B-b2-timeline-4: checkpoints list the records they were made over; the long chat starts from the greeting again', async t => {
     const h = await host(t);
     await h.send('a', reply('A rope.', ['+ item Rope']));
-    for (let i = 0; i < 25; i++) await h.send(`m${i}`, `Nothing ${i}.`);
+    for (let i = 0; i < LONG; i++) await h.send(`m${i}`, `Nothing ${i}.`);
     const records = h.ctx.chat.map(message => message.extra?.storySuite).filter(Boolean);
     const later = records.filter(record => record.checkpoint && Array.isArray(record.covers));
     assert.ok(later.length >= 1);

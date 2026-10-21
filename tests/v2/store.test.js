@@ -9,8 +9,12 @@ import {
 const isDeepFrozen = value => !value || typeof value !== 'object'
     || (Object.isFrozen(value) && Object.values(value).every(isDeepFrozen));
 
+// The checkpoint rule these tests walk through (every 20 carriers / 32 KB, the old defaults): many
+// checkpoints in a short chat. The defaults (100 / 128 KB) are checked on their own below.
+const SHORT = { checkpointEvery: 20, checkpointBytes: 32 * 1024 };
+
 // A chat of `n` user/reply turns after the greeting, one action per reply.
-function story(n, options) {
+function story(n, options = SHORT) {
     const { ctx, store } = setup([greeting()], options);
     store.ensureInitial(initial());
     for (let i = 1; i <= n; i++) {
@@ -119,7 +123,7 @@ test('replay equals a full rebuild at every message, across many checkpoints', (
     const checkpoints = ctx.chat.map((m, i) => (m.extra.storySuite?.checkpoint ? i : -1)).filter(i => i >= 0);
     assert.deepEqual(checkpoints, [0, 40, 80, 120], 'one every 20 carriers');
     for (let i = 0; i < ctx.chat.length; i++) assert.deepEqual(store.at(i), fullReplay(ctx.chat, i), `message ${i}`);
-    const { store: fresh } = setup(ctx.chat);
+    const { store: fresh } = setup(ctx.chat, SHORT);
     assert.deepEqual(fresh.head(), store.head(), 'a new store on the same chat rebuilds the same head');
     assert.deepEqual(fresh.head(), fullReplay(ctx.chat, ctx.chat.length - 1));
     assert.equal(fresh.head().meta.rev, 65);
@@ -147,7 +151,7 @@ test('carriers with no changes still count toward the next checkpoint', () => {
 
 test('a checkpoint is due once the ops since the last one exceed 32 KB of JSON', () => {
     const big = n => [{ op: 'add', path: '/domains/scene/note', value: 'x'.repeat(n) }];
-    const { ctx, store } = setup([greeting()]);
+    const { ctx, store } = setup([greeting()], SHORT);
     store.ensureInitial(initial());
     const overhead = JSON.stringify(big(0)).length;
     store.append({ ops: big(32 * 1024 - overhead) });
@@ -234,7 +238,7 @@ test('deleting the last reply takes back its ops and the actions taken after it'
 test('a rebuild after a swipe of the last reply replays only from the nearest checkpoint', () => {
     let calls = 0;
     const counting = (state, ops) => { calls++; return apply(state, ops); };
-    const { ctx, store } = story(45, { apply: counting });
+    const { ctx, store } = story(45, { ...SHORT, apply: counting });
     newSwipe(ctx.chat.at(-1));
     calls = 0;
     store.rebuild();
@@ -328,8 +332,26 @@ test('Re-read of an older reply refreshes later checkpoints so replay still equa
     assert.equal(store.head().domains.inventory.stacks.it_1.qty, 1);
     assert.equal(ctx.chat[40].extra.storySuite.checkpoint.domains.scene.place, 'Reread');
     for (let i = 0; i < ctx.chat.length; i += 7) assert.deepEqual(store.at(i), fullReplay(ctx.chat, i));
-    const { store: fresh } = setup(ctx.chat);
+    const { store: fresh } = setup(ctx.chat, SHORT);
     assert.deepEqual(fresh.head(), store.head());
+});
+
+test('by default a checkpoint comes every 100 carriers, or once the ops since the last exceed 128 KB', () => {
+    const { ctx, store } = story(205, {});
+    const checkpoints = ctx.chat.map((m, i) => (m.extra.storySuite?.checkpoint ? i : -1)).filter(i => i >= 0);
+    assert.deepEqual(checkpoints, [0, 200, 400], 'carriers 0, 100 and 200');
+    for (let i = 0; i < ctx.chat.length; i += 13) assert.deepEqual(store.at(i), fullReplay(ctx.chat, i), `message ${i}`);
+    const big = n => [{ op: 'add', path: '/domains/scene/note', value: 'x'.repeat(n) }];
+    const { ctx: heavy, store: heavyStore } = setup([greeting()]);
+    heavyStore.ensureInitial(initial());
+    const overhead = JSON.stringify(big(0)).length;
+    heavyStore.append({ ops: big(128 * 1024 - overhead) });
+    heavy.chat.push(user(), reply());
+    heavyStore.append({ ops: [{ op: 'replace', path: '/meta/rev', value: 1 }] });
+    assert.equal(heavy.chat[2].extra.storySuite.checkpoint, undefined, 'exactly 128 KB is not over');
+    heavy.chat.push(user(), reply());
+    heavyStore.append({ ops: [{ op: 'replace', path: '/meta/rev', value: 2 }] });
+    assert.ok(heavy.chat[4].extra.storySuite.checkpoint, 'one byte more is');
 });
 
 test('Re-read of an older reply is refused when a later change depends on what it replaces', () => {
