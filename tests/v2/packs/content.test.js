@@ -77,7 +77,7 @@ test('start states merge in pack order', () => {
     assert.deepEqual(start.packs, ['a', 'b']);
     assert.equal(start.problems.length, 1);
     assert.match(start.problems[0], /pack\.gone\/lamp/);
-    assert.deepEqual(mergeStart([]), { scene: { place: null, present: [] }, inventory: { items: [], money: 0 }, packs: [], problems: [] });
+    assert.deepEqual(mergeStart([]), { scene: { place: null, present: [] }, inventory: { items: [], money: 0 }, currency: null, packs: [], problems: [] });
     // Without pack a, its items are not there to give.
     const later = mergeStart(packs.slice(1));
     assert.deepEqual(later.inventory.items.map(line => line.def.id), ['pack.b/rope']);
@@ -91,6 +91,7 @@ test('the sample pack\'s start', () => {
     assert.deepEqual(start.inventory.items.map(line => [line.def.name, line.qty]), [['Willow Rod', 1], ['Hemp Line', 3], ['Minor Healing Draught', 1]]);
     assert.deepEqual(start.inventory.items[2].aliases, ['healing draught']);
     assert.equal(start.inventory.money, 50);
+    assert.deepEqual(start.currency, { name: 'pennies', short: 'p' });
     assert.equal(start.inventory.items[0].def.stack, false, 'equipment does not stack');
 });
 
@@ -130,4 +131,26 @@ test('applyStart keeps a place already set and skips missing slices', () => {
     assert.deepEqual(next, placed);
     const empty = applyStart({ v: 2, meta: { rev: 0, claims: {} }, domains: { inventory: {} } }, mergeStart(normalized(pack())), { id: () => 'it_x' });
     assert.deepEqual(empty.domains.inventory, { defs: {}, stacks: {}, wallets: {}, aliases: {} }, 'no wallet for no coins');
+});
+
+test('events come as one flat list of defs for the events part', () => {
+    const packs = normalized(sample(), pack({ id: 'extra', content: { events: [{ id: 'dawn', when: 'true', cue: 'Dawn.', once: false, then: [{ command: 'wallet.receive', payload: { owner: 'party', amount: 5 } }] }] } }));
+    const events = contentOf(packs, 'events');
+    assert.ok(Array.isArray(events));
+    assert.deepEqual(events.map(event => [event.id, event.pack, event.after]), [
+        ['pack.riverside-starter/market-day', 'riverside-starter', null],
+        ['pack.riverside-starter/rat-trouble', 'riverside-starter', 'pack.riverside-starter/market-day'],
+        ['pack.extra/dawn', 'extra', null],
+    ]);
+    assert.deepEqual(events[2], { when: 'true', cue: 'Dawn.', once: false, after: null, then: [{ command: 'wallet.receive', payload: { owner: 'party', amount: 5 } }], id: 'pack.extra/dawn', slug: 'dawn', pack: 'extra' });
+    for (const event of events) assert.match(event.id, /^[A-Za-z0-9][A-Za-z0-9._/:-]*$/, 'ids fit the events part\'s id rule');
+});
+
+test('currency suggestions and creation choices by kind', () => {
+    const packs = normalized(sample(), pack({ id: 'gil', currency: { name: 'Gil' }, content: { races: [{ name: 'Moogle' }] } }));
+    assert.deepEqual(contentOf(packs, 'currency'), [{ pack: 'riverside-starter', name: 'pennies', short: 'p' }, { pack: 'gil', name: 'Gil', short: '' }]);
+    assert.deepEqual(contentOf(packs, 'currency', { pack: 'gil' }), [{ pack: 'gil', name: 'Gil', short: '' }]);
+    assert.deepEqual(contentOf(packs, 'races').map(race => race.id), ['pack.riverside-starter/riverfolk', 'pack.gil/moogle']);
+    assert.deepEqual(contentOf(packs, 'talents').map(talent => talent.name), ['Patient Angler']);
+    assert.deepEqual(mergeStart(packs.slice(1)).currency, { name: 'Gil', short: '' }, 'a pack without a start can still name the currency');
 });

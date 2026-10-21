@@ -20,7 +20,10 @@ test('the sample pack validates, as text and as an object', () => {
         const result = validatePack(input);
         assert.equal(result.ok, true, JSON.stringify(result.errors));
         assert.equal(result.pack.id, 'riverside-starter');
-        assert.deepEqual(Object.keys(result.pack.content), ['items', 'creatures', 'shops', 'recipes', 'events', 'quests']);
+        assert.deepEqual(Object.keys(result.pack.content), ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents']);
+        assert.deepEqual(result.pack.content.races.map(race => race.id), ['pack.riverside-starter/riverfolk']);
+        assert.deepEqual(result.pack.content.talents.map(talent => talent.id), ['pack.riverside-starter/patient-angler']);
+        assert.deepEqual(result.pack.currency, { name: 'pennies', short: 'p' });
         assert.deepEqual(result.pack.content.items.map(item => item.id), [
             'pack.riverside-starter/moonveil-trout', 'pack.riverside-starter/willow-rod',
             'pack.riverside-starter/hemp-line', 'pack.riverside-starter/minor-healing-draught',
@@ -240,17 +243,19 @@ test('events: id, condition, cue, once, after and then', () => {
     refused(event({ when: '' }), 'BAD_RECORD');
     refused(event({ when: 'x'.repeat(501) }), 'BAD_RECORD');
     refused(event({ cue: 3 }), 'BAD_RECORD');
+    refused(event({ cue: 'c'.repeat(501) }), 'BAD_RECORD', 'the events part reads cues of at most 500 characters');
     refused(event({ once: 'yes' }), 'BAD_RECORD');
     refused(event({ then: { command: 'x.y' } }), 'BAD_RECORD');
     refused(event({ then: [{ command: 'grant' }] }), 'BAD_RECORD');
     refused(event({ then: [{ command: 'wallet.receive', payload: [] }] }), 'BAD_RECORD');
     refused(event({ then: [{ command: 'wallet.receive', run: 'x' }] }), 'BAD_RECORD');
-    refused(event({ then: Array.from({ length: 21 }, () => ({ command: 'a.b' })) }), 'BAD_RECORD');
+    refused(event({ then: Array.from({ length: 9 }, () => ({ command: 'a.b' })) }), 'BAD_RECORD', 'at most 8 commands');
     refused(event({ repeat: 2 }), 'UNKNOWN_FIELD');
     refused(event({ after: 'nowhere' }), 'UNKNOWN_REF');
     refused(event({ after: 'dawn' }), 'UNKNOWN_REF', 'not after itself');
     const loop = pack({ content: { events: [{ id: 'a', after: 'b', when: 'true', cue: 'A' }, { id: 'b', after: 'a', when: 'true', cue: 'B' }] } });
     refused(loop, 'BAD_RECORD');
+    refused(pack({ content: { events: [{ id: 'a', once: false, when: 'true', cue: 'A' }, { id: 'b', after: 'a', when: 'true', cue: 'B' }] } }), 'BAD_RECORD', 'after a repeating event');
     refused(pack({ content: { events: [{ id: 'a', when: 'true', cue: 'A' }, { id: 'a', when: 'true', cue: 'B' }] } }), 'DUPLICATE');
 });
 
@@ -326,4 +331,29 @@ test('screens: added or restyled by id, templates and CSS checked', () => {
         const result = validatePack(screen({ css }));
         assert.equal(result.ok, false, css);
     }
+});
+
+test('currency: a suggested name for the chat\'s one currency', () => {
+    assert.deepEqual(validatePack(pack({ currency: { name: 'Gil' } })).pack.currency, { name: 'Gil', short: '' });
+    assert.equal(validatePack(pack()).pack.currency, null);
+    refused(pack({ currency: 'gold' }), 'BAD_CURRENCY');
+    refused(pack({ currency: { name: '' } }), 'BAD_CURRENCY');
+    refused(pack({ currency: { name: 'g'.repeat(25) } }), 'BAD_CURRENCY');
+    refused(pack({ currency: { name: 'gold', short: 'gold pieces' } }), 'BAD_CURRENCY');
+    refused(pack({ currency: { name: 'gold', tiers: [] } }), 'BAD_CURRENCY', 'one currency, no tiers');
+});
+
+test('races and talents for character creation', () => {
+    const choices = (races, talents = []) => pack({ content: { races, talents } });
+    const ok = validatePack(choices([{ id: 'elf', name: 'Elf', note: 'Long-lived.', stats: { DEX: 2, VIT: -1 }, tags: ['fey'] }], [{ name: 'Keen Eye' }]));
+    assert.equal(ok.ok, true, JSON.stringify(ok.errors));
+    assert.deepEqual(ok.pack.content.races, [{ name: 'Elf', note: 'Long-lived.', stats: { DEX: 2, VIT: -1 }, tags: ['fey'], id: 'pack.mini/elf', slug: 'elf', pack: 'mini' }]);
+    assert.deepEqual(ok.pack.content.talents, [{ name: 'Keen Eye', note: '', stats: {}, tags: [], id: 'pack.mini/keen-eye', slug: 'keen-eye', pack: 'mini' }], 'the id comes from the name when left out');
+    refused(choices([{ id: 'elf' }]), 'BAD_RECORD', 'a name is needed');
+    refused(choices([{ id: 'High Elf', name: 'High Elf' }]), 'BAD_RECORD');
+    refused(choices([{ name: 'Elf', stats: { DEX: 1.5 } }]), 'BAD_RECORD');
+    refused(choices([{ name: 'Elf', tags: 'fey' }]), 'BAD_RECORD');
+    refused(choices([{ name: 'Elf', note: 4 }]), 'BAD_RECORD');
+    refused(choices([{ name: 'Elf', hp: 10 }]), 'UNKNOWN_FIELD');
+    refused(choices([], [{ name: 'Keen Eye' }, { id: 'keen-eye', name: 'Sharp Eye' }]), 'DUPLICATE');
 });

@@ -5,6 +5,7 @@
   "author": "Story Suite examples",
   "description": "A small river village to begin in: a few goods, a weir rat, a fishmonger, a fishing-rod recipe and two village events.",
   "requires": { "storyBlock": "^2", "capabilities": ["inventory", "scene"] },
+  "currency": { "name": "pennies", "short": "p" },
   "content": {
     "items": [
       { "name": "Moonveil Trout", "aliases": ["trout"], "kind": "goods", "rarity": "uncommon", "value": 45, "tags": ["fish"], "note": "violet-streaked, from the lake" },
@@ -24,6 +25,12 @@
     "events": [
       { "id": "market-day", "when": "query('director.time').minutes >= 480", "cue": "Bells ring across Bluewatch: market day has begun on the green.", "once": true },
       { "id": "rat-trouble", "after": "market-day", "when": "query('scene.place').name == 'Bluewatch Village'", "cue": "Hollis grumbles that weir rats have been at his nets again.", "once": true }
+    ],
+    "races": [
+      { "id": "riverfolk", "name": "Riverfolk", "note": "Born on the water; strong swimmers.", "stats": { "VIT": 1, "AGI": 1 }, "tags": ["swimmer"] }
+    ],
+    "talents": [
+      { "name": "Patient Angler", "note": "Fish bite a little more often.", "stats": { "LUK": 1 }, "tags": ["fishing"] }
     ]
   },
   "start": {

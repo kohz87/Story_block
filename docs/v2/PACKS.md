@@ -1,7 +1,8 @@
 # Story Suite v2: pack format (pack.json)
 
 A **pack** adds ready-made content to Story Suite: items with their numbers, creatures, shops,
-crafting recipes, events, quests, a start state for new chats, screens, layouts and a theme. A pack is one
+crafting recipes, events, quests, races and talents for character creation, a start state for new
+chats, a currency name, screens, layouts and a theme. A pack is one
 JSON file of plain data. Nothing in a pack runs as code. This page is the reference for people who
 make packs; the contract behind it is [SPEC.md §9 and §13](SPEC.md) and [MODULES.md §E and §F](MODULES.md).
 
@@ -36,7 +37,9 @@ a story already told.
   "author": "You",
   "description": "A small river village to begin in.",
   "requires": { "storyBlock": "^2", "capabilities": ["inventory", "scene"] },
-  "content": { "items": [], "creatures": [], "shops": [], "recipes": [], "events": [], "quests": [] },
+  "currency": { "name": "pennies", "short": "p" },
+  "content": { "items": [], "creatures": [], "shops": [], "recipes": [], "events": [], "quests": [],
+               "races": [], "talents": [] },
   "start": { "scene": { … }, "inventory": { … } },
   "screens": [],
   "layouts": [],
@@ -52,6 +55,7 @@ a story already told.
 | `description` | no | Text. |
 | `requires.storyBlock` | yes | A version range: `^2`, `~2.1`, `2.x`, `>=2.0.0 <3`, `^1 \|\| ^2`. Story Block's alpha versions count as their release (2.0.0-alpha.3 counts as 2.0.0). |
 | `requires.capabilities` | no | Names the pack needs, like `inventory`, `scene`, `party`, `combat`, `director`: a module id or a state area a module owns. If Story Block knows a name is missing, the pack is refused at install. If a module is switched off later, the list shows what is missing. |
+| `currency` | no | `{ "name": "pennies", "short": "p" }`: a suggested name for the chat's one currency (MODULES §F1). `name` can be up to 24 characters, `short` up to 8. It is used only when the reader hasn't named the currency; the first enabled pack that suggests one counts. |
 | `content` | no | Lists of records by kind (below). No other kinds. |
 | `start` | no | The start state (below). |
 | `screens` | no | Screens the pack adds, or restyles by id (below). |
@@ -84,7 +88,7 @@ These are inventory definitions (SPEC §7). Only these fields are allowed:
 | `aliases` | `[]` | Other names the story may use ("trout" for "Moonveil Trout"). |
 | `kind` | `goods` | `goods`, `material`, `consumable`, `equipment`, `quest`, `money`. |
 | `rarity` | `common` | `common`, `uncommon`, `rare`, `epic`, `legendary`. |
-| `value` | `0` | Whole number ≥ 0, in the smallest coin. |
+| `value` | `0` | Whole number ≥ 0 of the chat's one currency. |
 | `stack` | `true` (`false` for equipment) | `false` keeps each piece as its own stack. Equipment never stacks. |
 | `slot` | `null` | A short slot name (`weapon`, `tool` …) for equipment. |
 | `stats` | `{}` | Names to whole numbers: `{ "STR": 2 }`. |
@@ -103,6 +107,14 @@ These are inventory definitions (SPEC §7). Only these fields are allowed:
 
 These are free-form records for RPG Battle's bestiary and Story Director's quests: a `name`
 (required), an optional `slug`, and any other plain fields those modules read (see their docs).
+
+### races, talents
+
+These are choices for the character creation wizard. Every chat creates its character before the story
+starts (MODULES §F12). Only these fields are allowed:
+`{ "id"?, "name", "note"?, "stats"?: { "DEX": 2, "VIT": -1 }, "tags"?: ["fey"] }`. `id` is a slug
+(from the name if left out), `note` is at most 500 characters, `stats` are whole numbers (they can
+be negative).
 
 ### shops
 
@@ -126,10 +138,10 @@ These are free-form records for RPG Battle's bestiary and Story Director's quest
 |---|---|
 | `id` | Required slug, unique in the pack. |
 | `when` | The condition, 1–500 characters, in the events condition language (MODULES §E *events*). |
-| `cue` | What the next reply is told when the event fires, 1–1000 characters. |
+| `cue` | What the next reply is told when the event fires, 1–500 characters. |
 | `once` | `true` (default) or `false`. |
-| `after` | Optional id of another event in this pack that has to fire first. Loops are refused. |
-| `then` | Up to 20 `{ "command": "module.action", "payload": { … } }` steps run as commands. |
+| `after` | Optional id of another event in this pack that has to fire first. That event must be a `once` event (a repeating one never counts as having happened). Loops are refused. |
+| `then` | Up to 8 `{ "command": "module.action", "payload": { … } }` steps run as commands. |
 
 Only these fields are allowed. Whether a command exists, and what its payload means, is checked
 when the event runs.
@@ -152,8 +164,8 @@ When a new chat begins, the enabled packs' start states are merged into the init
 * `inventory.items`: references to items **defined by a pack** (not `story/…`), with `qty` ≥ 1 and an
   optional `note`. They go to the party. The same item with the same note adds up across packs. An
   item that doesn't stack gets one stack per piece.
-* `inventory.money`: a whole number in the smallest coin, like item values (with copper, silver and gold
-  at 1, 10 and 100, `50` is 5 silver). It goes into the party's wallet. Amounts from several packs add up.
+* `inventory.money`: a whole number of the chat's one currency, like item values. It goes into the
+  party's wallet. Amounts from several packs add up.
 
 ## Screens
 
@@ -215,7 +227,7 @@ The importer lists up to 20 problems per pack, each in plain words with where it
 | `NOT_PLAIN`, `UNSAFE_KEY`, `UNSAFE_HTML`, `UNSAFE_URL` | Breaks the safety rules. |
 | `TOO_DEEP`, `TOO_LONG`, `TOO_MANY` | Over a limit. |
 | `UNKNOWN_FIELD`, `UNKNOWN_KIND` | A field or content kind that doesn't exist. |
-| `BAD_ID`, `BAD_VERSION`, `BAD_FIELD` | Top-level fields. |
+| `BAD_ID`, `BAD_VERSION`, `BAD_FIELD`, `BAD_CURRENCY` | Top-level fields. |
 | `BAD_REQUIRES`, `HOST_VERSION`, `MISSING_CAPABILITY` | `requires`. |
 | `BAD_CONTENT`, `BAD_RECORD`, `DUPLICATE`, `UNKNOWN_REF` | Content records and references. |
 | `BAD_START`, `BAD_SCREENS`, `BAD_LAYOUTS`, `BAD_THEME` | `start`, `screens`, `layouts`, `theme`. |
@@ -226,11 +238,12 @@ The packs part (`src/v2/packs/index.js`) offers these through Story Block's core
 
 * query `packs.list` → the installed packs: `{ id, version, name, author, description, enabled,
   source, origin, counts, hasStart, missing, problem }[]`;
-* query `packs.content({ kind, pack? })` → records of a content kind from the enabled packs, each
-  with `id`, `slug` and `pack` (also `kind: 'screens'`, `kind: 'layouts'`, and `kind: 'theme'` →
-  `[{ pack, tokens }]`);
+* query `packs.content({ kind, pack? })` → a flat list of records of a content kind from the enabled
+  packs, each with `id` (`pack.<pack>/<slug>`), `slug` and `pack`. Events come as
+  `{ id, pack, slug, when, cue, once, after, then }` with `after` as a full id. Also
+  `kind: 'screens'`, `'layouts'`, `'theme'` → `[{ pack, tokens }]` and `'currency'` → `[{ pack, name, short }]`;
 * query `packs.item({ name })` and hook `item.resolve(name)` → the pack item def (SPEC §7 fields)
   for a story name, or `null`;
 * query `packs.start` and hook `start()` → the merged start: `{ scene: { place, present },
-  inventory: { items: [{ def, aliases, qty, note }], money }, packs, problems }`, and
+  inventory: { items: [{ def, aliases, qty, note }], money }, currency, packs, problems }`, and
   `applyStart(state, start, { id, coin })` to write it into an initial state.

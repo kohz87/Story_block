@@ -22,12 +22,14 @@ export function itemDef(item) {
 
 /**
  * Records of one kind from every enabled pack, in pack order then file order.
- * `kind`: a content kind (items, creatures, shops, recipes, events, quests), `layouts`,
+ * `kind`: a content kind (items, creatures, shops, recipes, events, quests, races, talents),
+ * `currency` (one `{ pack, name, short }` per pack that suggests one), `layouts`,
  * `screens` (each with its `pack`), or `theme` (one `{ pack, tokens }` per pack that has a
  * theme). Unknown kinds give [].
  * `pack` narrows to one pack id.
  */
 export function contentOf(packs, kind, { pack = null } = {}) {
+    if (kind === 'currency') return copy(packs.filter(entry => entry.currency && (!pack || entry.id === pack)).map(entry => ({ pack: entry.id, ...entry.currency })));
     const chosen = pack ? packs.filter(entry => entry.id === pack) : packs;
     if (CONTENT_KINDS.includes(kind)) return copy(chosen.flatMap(entry => entry.content[kind]));
     if (kind === 'layouts' || kind === 'screens') return copy(chosen.flatMap(entry => entry[kind]));
@@ -62,21 +64,24 @@ export function resolveItemIn(packs, name) {
 
 /**
  * The enabled packs' `start` merged into one (SPEC §2.6):
- * `{ scene: { place, present }, inventory: { items: [{ def, aliases, qty, note }], money }, packs, problems }`.
+ * `{ scene: { place, present }, inventory: { items: [{ def, aliases, qty, note }], money }, currency, packs, problems }`.
  *
  * * `place`: the first pack (in list order) that names one; places are not mixed field by field.
  * * `present`: every name once, in pack order.
  * * `items`: in pack order; the same def with the same note is one line with the quantities added.
  *   A start item from another pack that is not enabled is left out and listed in `problems`.
- * * `money`: added up, in the smallest coin.
+ * * `money`: added up, a whole number of the chat's one currency.
+ * * `currency`: the first enabled pack's suggested `{ name, short }`, or null. The host uses it only
+ *   when the reader has not named the currency.
  * * `packs`: the ids of the packs that gave something.
  */
 export function mergeStart(packs) {
-    const out = { scene: { place: null, present: [] }, inventory: { items: [], money: 0 }, packs: [], problems: [] };
+    const out = { scene: { place: null, present: [] }, inventory: { items: [], money: 0 }, currency: null, packs: [], problems: [] };
     const items = new Map();
     for (const item of packs.flatMap(pack => pack.content.items)) if (!items.has(item.id)) items.set(item.id, item);
     const present = new Set();
     for (const pack of packs) {
+        if (pack.currency && !out.currency) out.currency = copy(pack.currency);
         const start = pack.start;
         if (!start) continue;
         let gave = false;
@@ -114,7 +119,7 @@ export function mergeStart(packs) {
  * Writes a merged start into an initial State (SPEC §2.6, shapes of SPEC §7) and returns the
  * new State; `state` is not changed. Only the `scene` and `inventory` slices that exist are
  * touched. `id(prefix)` makes record IDs (the host passes `sdk.id`); `coin` is the wallet key,
- * the smallest coin's name (the core module's currency; 'coin' when there is none).
+ * `coin` by default (MODULES §F1: `wallets[owner] = { coin: n }`).
  *
  * * The start place is used only when the scene has no place yet; present names are added once.
  * * Each start item adds its def (if inventory has none with that ID), its name and aliases to

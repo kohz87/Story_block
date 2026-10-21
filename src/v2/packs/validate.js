@@ -12,7 +12,7 @@
 // `capabilities` (the capability names this Story Block has, or null when unknown: then
 // requires.capabilities is checked for form only).
 
-import { CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, RARITIES, SCREEN_FIELDS, SCREEN_ID, SEMVER, SLUG, START_FIELDS } from './limits.js';
+import { CHOICE_FIELDS, CONTENT_KINDS, COMMAND, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, RARITIES, SCREEN_FIELDS, SCREEN_ID, SEMVER, SLUG, START_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -74,6 +74,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
     if (raw.description !== undefined && typeof raw.description !== 'string') add('BAD_FIELD', 'description', 'description must be text.');
 
     const requires = checkRequires(raw.requires, { add, hostVersion, capabilities });
+    const currency = raw.currency === undefined ? null : checkCurrency(raw.currency, add);
 
     const content = {};
     if (raw.content !== undefined && !isObject(raw.content)) add('BAD_CONTENT', 'content', 'content must be an object of lists: { "items": [ … ], "events": [ … ] }.');
@@ -88,6 +89,8 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
     content.recipes = records(given.recipes, 'recipes', { add, packId, check: (record, path) => checkRecipe(record, path, add, ref) });
     content.events = records(given.events, 'events', { add, packId, check: (record, path) => checkEvent(record, path, add), slugField: 'id' });
     content.quests = records(given.quests, 'quests', { add, packId, check: openRecord });
+    content.races = records(given.races, 'races', { add, packId, check: (record, path, label) => checkChoice(record, path, label, add), slugField: 'id', named: true });
+    content.talents = records(given.talents, 'talents', { add, packId, check: (record, path, label) => checkChoice(record, path, label, add), slugField: 'id', named: true });
     linkEvents(content.events, packId, add);
 
     const start = raw.start === undefined ? null : checkStart(raw.start, add, ref);
@@ -106,6 +109,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
         author: oneLine(raw.author ?? '', limits.name),
         description: String(raw.description ?? ''),
         requires,
+        currency,
         content,
         start,
         layouts,
@@ -138,7 +142,9 @@ function checkRequires(requires, { add, hostVersion, capabilities }) {
 }
 
 // One content list: every record an object, a unique slug, the record's own check.
-function records(list, kind, { add, packId, check, slugField = 'slug' }) {
+// `slugField`: the record's own slug field (`slug`, or `id` for events, races and talents);
+// `named`: the record needs a name (always for `slug` records).
+function records(list, kind, { add, packId, check, slugField = 'slug', named = slugField === 'slug' }) {
     if (list === undefined) return [];
     if (!Array.isArray(list)) {
         add('BAD_CONTENT', `content.${kind}`, `content.${kind} must be a list.`);
@@ -150,12 +156,12 @@ function records(list, kind, { add, packId, check, slugField = 'slug' }) {
         const path = `content.${kind}[${index}]`;
         if (!isObject(record)) return add('BAD_RECORD', path, `${path} must be an object.`);
         const label = typeof record.name === 'string' ? `"${record.name}"` : path;
-        if (slugField === 'slug') {
+        if (named) {
             if (typeof record.name !== 'string' || !record.name.trim() || record.name.length > LIMITS.name) return add('BAD_RECORD', `${path}.name`, `${path} needs a name of 1 to ${LIMITS.name} characters.`);
         }
         const given = record[slugField];
         let slug;
-        if (given !== undefined || slugField === 'id') {
+        if (given !== undefined || !named) {
             if (typeof given !== 'string' || !SLUG.test(given)) return add('BAD_RECORD', `${path}.${slugField}`, `${label}: ${slugField} must be lowercase letters, digits and dashes (like "iron-sword").`);
             slug = given;
         } else {
@@ -185,7 +191,7 @@ function checkItem(record, path, label, add) {
     const rarity = record.rarity ?? 'common';
     if (!RARITIES.includes(rarity)) say('rarity', `rarity must be one of ${RARITIES.join(', ')}.`);
     const value = record.value ?? 0;
-    if (!isInt(value)) say('value', 'value must be a whole number of 0 or more (in the smallest coin).');
+    if (!isInt(value)) say('value', 'value must be a whole number of 0 or more (of the chat\'s currency).');
     // Equipment never stacks: each piece is its own stack (MODULES §F.6).
     const stack = record.stack ?? kind !== 'equipment';
     if (typeof stack !== 'boolean') say('stack', 'stack must be true or false.');
@@ -276,12 +282,12 @@ function checkEvent(record, path, add) {
     let ok = true;
     const say = (field, message, code = 'BAD_RECORD') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
     for (const key of Object.keys(record)) if (!EVENT_FIELDS.includes(key)) say(key, `"${key}" is not an event field (expected ${EVENT_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
-    if (typeof record.when !== 'string' || !record.when.trim() || record.when.length > 500) say('when', 'when must be a condition of 1 to 500 characters.');
-    if (typeof record.cue !== 'string' || !record.cue.trim() || record.cue.length > 1000) say('cue', 'cue must be text of 1 to 1000 characters.');
+    if (typeof record.when !== 'string' || !record.when.trim() || record.when.length > EVENT_LIMITS.when) say('when', `when must be a condition of 1 to ${EVENT_LIMITS.when} characters.`);
+    if (typeof record.cue !== 'string' || !record.cue.trim() || record.cue.trim().length > EVENT_LIMITS.cue) say('cue', `cue must be text of 1 to ${EVENT_LIMITS.cue} characters.`);
     if (record.once !== undefined && typeof record.once !== 'boolean') say('once', 'once must be true or false.');
     if (record.after !== undefined && (typeof record.after !== 'string' || !SLUG.test(record.after))) say('after', 'after must be the id of another event in this pack.');
     const then = record.then ?? [];
-    if (!Array.isArray(then) || then.length > 20) say('then', 'then must be a list of at most 20 { "command": …, "payload": { … } }.');
+    if (!Array.isArray(then) || then.length > EVENT_LIMITS.then) say('then', `then must be a list of at most ${EVENT_LIMITS.then} { "command": …, "payload": { … } }.`);
     else then.forEach((step, index) => {
         if (!isObject(step) || typeof step.command !== 'string' || !COMMAND.test(step.command)) say(`then[${index}].command`, `then[${index}] needs a command name like "wallet.receive".`);
         else if (step.payload !== undefined && !isObject(step.payload)) say(`then[${index}].payload`, `then[${index}].payload must be an object.`);
@@ -306,6 +312,11 @@ function linkEvents(events, packId, add) {
             add('UNKNOWN_REF', `content.events.${event.slug}.after`, `Event "${event.slug}" comes after "${event.after}", which is not another event of this pack.`);
             continue;
         }
+        // Only a once event leaves the claim that `after` waits for.
+        if (events.find(other => other.slug === event.after).once === false) {
+            add('BAD_RECORD', `content.events.${event.slug}.after`, `Event "${event.slug}" comes after "${event.after}", which repeats (once: false) and so never counts as happened.`);
+            continue;
+        }
         event.after = fullId(packId, event.after);
     }
     const bySlug = new Map(events.map(event => [event.id, event]));
@@ -319,6 +330,34 @@ function linkEvents(events, packId, add) {
             chain.add(next.id);
         }
     }
+}
+
+// A currency the pack suggests (MODULES §F1): one name for the chat's one currency, used only
+// when the reader has not named one.
+function checkCurrency(currency, add) {
+    const short = currency?.short;
+    if (!isObject(currency) || Object.keys(currency).some(key => key !== 'name' && key !== 'short')
+        || typeof currency.name !== 'string' || !currency.name.trim() || currency.name.length > 24
+        || (short !== undefined && (typeof short !== 'string' || !short.trim() || short.length > 8))) {
+        add('BAD_CURRENCY', 'currency', 'currency must be { "name": "gold" } (at most 24 characters), with an optional "short" of at most 8, like "g".');
+        return null;
+    }
+    return { name: oneLine(currency.name), short: oneLine(short ?? '') };
+}
+
+// A race or talent for the character creation wizard: { id?, name, note?, stats?, tags? }.
+function checkChoice(record, path, label, add) {
+    let ok = true;
+    const say = (field, message, code = 'BAD_RECORD') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
+    for (const key of Object.keys(record)) if (!CHOICE_FIELDS.includes(key)) say(key, `"${key}" is not a field here (expected ${CHOICE_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
+    const note = record.note ?? '';
+    if (typeof note !== 'string' || note.length > 500) say('note', 'note must be text of at most 500 characters.');
+    const stats = record.stats ?? {};
+    if (!isObject(stats) || Object.values(stats).some(n => !Number.isInteger(n))) say('stats', 'stats must map names to whole numbers: { "STR": 1 }.');
+    const tags = record.tags ?? [];
+    if (!Array.isArray(tags) || tags.some(tag => typeof tag !== 'string' || !tag.trim() || tag.length > 40)) say('tags', 'tags must be a list of short words.');
+    if (!ok) return null;
+    return { name: oneLine(record.name, LIMITS.name), note, stats: { ...stats }, tags: tags.map(tag => tag.trim()) };
 }
 
 function checkStart(start, add, ref) {
@@ -363,9 +402,9 @@ function checkStart(start, add, ref) {
             if (line.note !== undefined && (typeof line.note !== 'string' || line.note.length > 500)) return add('BAD_START', `${at}.note`, `${at}.note must be text of at most 500 characters.`);
             out.inventory.items.push({ item: id, qty: line.qty ?? 1, note: line.note ?? '' });
         });
-        // Money is one whole number in the smallest coin, like item values (MODULES §F.1).
+        // Money is one whole number of the chat's one currency, like item values (MODULES §F1).
         const money = inventory.money ?? 0;
-        if (!isInt(money)) add('BAD_START', 'start.inventory.money', 'start.inventory.money must be a whole number of 0 or more, in the smallest coin.');
+        if (!isInt(money)) add('BAD_START', 'start.inventory.money', 'start.inventory.money must be a whole number of 0 or more.');
         else out.inventory.money = money;
     }
     return out;

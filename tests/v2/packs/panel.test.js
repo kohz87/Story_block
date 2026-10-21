@@ -42,7 +42,7 @@ test('an empty list, then a pack imported from a file', async () => {
     assert.deepEqual(notes, ['Installed Riverside Starter.']);
     assert.deepEqual(texts(root, '.ss-packs-message'), ['Installed Riverside Starter.']);
     assert.deepEqual(texts(root, '.ss-packs-name'), ['Riverside Starter 1.0.0']);
-    assert.deepEqual(texts(root, '.ss-packs-facts'), ['4 items, 1 creature, 1 shop, 1 recipe, 2 events, start state · by Story Suite examples · riverside.json']);
+    assert.deepEqual(texts(root, '.ss-packs-facts'), ['4 items, 1 creature, 1 shop, 1 recipe, 2 events, 1 race, 1 talent, start state · by Story Suite examples · riverside.json']);
     const again = root.querySelector('.ss-packs-file');
     again.files = [fakeFile('riverside.json', sampleText)];
     again.dispatch('change');
