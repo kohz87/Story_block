@@ -35,7 +35,8 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Pending d20 checks with reader modifiers (§F16) | ✅ | #70 |
 | Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
 | Return in time after death (§F17) | ✅ | #69 |
-| Battle board widget, default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
+| Battle board widget + Fight screen | ✅ | #72 |
+| Default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
 | QA (conservation, fuzz, v1 parity, cross-part payloads) | 🔧 | |
 
 ## Story Director (module)
@@ -45,7 +46,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Quests: take / turn down / abandon / finish, targets, progress, payouts | ✅ | #73 |
 | Integration: module.js, one currency, one fight per kill quest, typed acceptance, v2 bootstrap | ✅ | #75 |
 | Atlas: places, routes, travel, map | 🔧 | |
-| Default screens (Quests, Director, status card, HUD) | 🔧 | |
+| Default screens (Quests, Director, status card, HUD) | ✅ | #76 |
 | Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
 | Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) | 🔧 | |
 
