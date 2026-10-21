@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness, line } from './helpers/fake-ctx.js';
-import { COINS, CURRENCY, core, def, stocked } from './fixtures.js';
+import { CROWNS, core, def, stocked } from './fixtures.js';
 
 function setup(hookMap, state) {
     const module = core(hookMap);
@@ -172,36 +172,29 @@ test('item lines with other ops or no name are rejected', () => {
     rejected(h, line('+', 'item', 'x'.repeat(121)), 'INVALID', /1 to 120/);
 });
 
-test('+ coin / - coin with the default currency', () => {
+test('+ coin / - coin: only the number counts, in the chat currency', () => {
     const h = setup();
     const got = h.capture(line('+', 'coin', '30', { from: 'the sealer' }));
     assert.equal(got.ok, true, got.message);
-    assert.equal(got.result.summary, 'The party receives 30 coin — from the sealer (now 155 coin).');
+    assert.equal(got.result.summary, 'The party receives 30 gold — from the sealer (now 155 gold).');
     assert.equal(got.result.narrate, false);
-    const paid = h.capture(line('-', 'coin', '5 coins', { to: 'the ferryman' }));
-    assert.equal(paid.result.summary, 'The party pays 5 coin — to the ferryman (150 coin left).');
-    rejected(h, line('-', 'coin', '151'), 'NOT_ENOUGH', /only 150 coin/);
-    rejected(h, line('+', 'coin', '3 silver'), 'INVALID', /no coin called "silver"/);
+    const paid = h.capture(line('-', 'coin', '5 silver coins', { to: 'the ferryman' }));
+    assert.equal(paid.result.summary, 'The party pays 5 gold — to the ferryman (150 gold left).', 'coin words are ignored');
+    assert.equal(inv(h).wallets.party.coin, 150);
+    const labelled = h.capture(line('+', 'coin', 'reward', { amount: '12' }));
+    assert.equal(labelled.result.data.amount, 12);
+    rejected(h, line('-', 'coin', '163'), 'NOT_ENOUGH', /only 162 gold; 163 gold is needed/);
+    rejected(h, line('+', 'coin', '3 silver, 8 copper'), 'INVALID', /more than one number/);
+    rejected(h, line('+', 'coin', 'a few'), 'INVALID', /No amount/);
+    rejected(h, line('+', 'coin', '0'), 'INVALID', /more than nothing/);
+    rejected(h, line('~', 'coin', '3'), 'INVALID', /use \+ coin or - coin/);
 });
 
-test('+ coin with the currency hook: "3 silver, 8 copper"', () => {
-    const module = core({ currency: [() => null, () => CURRENCY] });
-    const state = stocked(module);
-    state.domains.inventory.wallets = { party: { coin: 0 } };
-    const h = createHarness([module], { state });
-    const got = h.capture(line('+', 'coin', '3 silver, 8 copper', { from: 'the sealer' }));
-    assert.equal(got.ok, true, got.message);
-    assert.equal(inv(h).wallets.party.coin, 38);
-    assert.equal(got.result.summary, 'The party receives 3 silver, 8 copper — from the sealer (now 3 silver, 8 copper).');
-    h.capture(line('+', 'coin', '1 gold and 2 silver'));
-    assert.equal(inv(h).wallets.party.coin, 158);
-    const paid = h.capture(line('-', 'coin', '1g'));
-    assert.equal(paid.result.summary, 'The party pays 1 gold (5 silver, 8 copper left).');
-    rejected(h, line('-', 'coin', '6 silver'), 'NOT_ENOUGH', /only 5 silver, 8 copper; 6 silver is needed/);
-    rejected(h, line('+', 'coin', '3 zorkmids'), 'INVALID', /no coin called "zorkmids"/);
-    rejected(h, line('+', 'coin', 'a few'), 'INVALID', /not an amount/);
-    rejected(h, line('+', 'coin', '0 silver'), 'INVALID', /more than nothing/);
-    rejected(h, line('~', 'coin', '3 silver'), 'INVALID', /use \+ coin or - coin/);
+test('+ coin with a renamed currency', () => {
+    const module = core();
+    const h = createHarness([module], { state: stocked(module), settings: { 'story-block': CROWNS } });
+    const got = h.capture(line('+', 'coin', '30 gold'));
+    assert.equal(got.result.summary, 'The party receives 30 crowns (now 155 crowns).');
 });
 
 test('~ place sets the place; a move clears the kind but keeps the region', () => {

@@ -49,10 +49,10 @@ export function initialState(modules) {
 }
 
 /**
- * modules: module definitions (the first is the one under test); returns
+ * modules: module definitions (the first is the one under test); settings: { [moduleId]: object }; returns
  * { state, run(type, payload, opts), capture(line, opts), query(name, args) }.
  */
-export function createHarness(modules, { state } = {}) {
+export function createHarness(modules, { state, settings = {} } = {}) {
     const list = Array.isArray(modules) ? modules : [modules];
     let current = deepFreeze(clone(state ?? initialState(list)));
     let receipts = 0;
@@ -102,7 +102,7 @@ export function createHarness(modules, { state } = {}) {
             query: (name, args) => deepFreeze(runQuery(working, name, args)),
             rng,
             roll: () => ({ total: 1 + Math.floor(rng() * 6), dice: [] }),
-            settings: () => ({}),
+            settings: (id = self.id) => deepFreeze(clone(settings[id] ?? {})),
             time: () => null,
             fail: (code, message) => {
                 throw failure(code, message);

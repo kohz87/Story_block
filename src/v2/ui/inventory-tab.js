@@ -6,7 +6,7 @@
 
 import { KIND_ORDER, listItems } from '../domains/inventory.js';
 import { ownerName } from '../domains/common.js';
-import { DEFAULT_COINS, formatWallet } from '../domains/money.js';
+import { DEFAULT_CURRENCY, formatWallet } from '../domains/money.js';
 
 const KIND_TITLES = {
     quest: 'Quest items', equipment: 'Equipment', consumable: 'Consumables',
@@ -28,14 +28,14 @@ function actionButton(doc, action, stack, text) {
     return node;
 }
 
-/** (el, view, api, { coins }): `api.command(type, payload, { cause })` as the sdk's. */
-export function renderInventoryTab(el, view, api, { coins = DEFAULT_COINS } = {}) {
+/** (el, view, api, { currency }): `api.command(type, payload, { cause })` as the sdk's. */
+export function renderInventoryTab(el, view, api, { currency = DEFAULT_CURRENCY } = {}) {
     const doc = el.ownerDocument ?? globalThis.document;
     const state = view?.state;
     const inventory = state?.domains?.inventory;
     const items = listItems(inventory);
     const root = make(doc, 'div', 'ss-inv');
-    root.append(make(doc, 'div', 'ss-inv-wallet', `Wallet: ${formatWallet(inventory?.wallets?.party, coins)}`));
+    root.append(make(doc, 'div', 'ss-inv-wallet', `Wallet: ${formatWallet(inventory?.wallets?.party, currency)}`));
     const status = make(doc, 'div', 'ss-inv-status');
     root.append(status);
     if (!items.length) root.append(make(doc, 'div', 'ss-inv-empty', 'Nothing carried.'));

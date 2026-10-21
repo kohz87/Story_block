@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness } from './helpers/fake-ctx.js';
-import { CURRENCY, core, stocked } from './fixtures.js';
+import { CROWNS, core, stocked } from './fixtures.js';
 
 function setup(hookMap) {
     const module = core(hookMap);
@@ -58,6 +58,34 @@ test('grant: by defId; equipment makes one stack per piece', () => {
     assert.equal(result.result.data.stacks.length, 2);
     assert.ok(!result.result.data.stacks.includes('it_sword001'), 'never joins another piece');
     assert.ok(result.result.data.stacks.every(id => inv(h).stacks[id].qty === 1));
+});
+
+test('grant: a full def not yet known is added through the hooks, keeping the caller\'s rarity and value', () => {
+    const seen = [];
+    const hooks = { 'item.define': [(definition, about) => { seen.push(about); return { rarity: 'common', value: 1, tags: ['fire'], stats: { ATK: 3 } }; }] };
+    const h = setup(hooks);
+    const piece = { id: 'pack.fantasy/ember-blade', name: 'Ember Blade', kind: 'equipment', slot: 'hand', rarity: 'rare', value: 300, stack: true, junk: 1 };
+    const result = h.run('inventory.grant', { def: piece, qty: 2, owner: 'ac_ren00001', note: 'warm' }, { cause: 'system' });
+    assert.equal(result.ok, true, result.message);
+    const made = inv(h).defs['pack.fantasy/ember-blade'];
+    assert.equal(made.rarity, 'rare');
+    assert.equal(made.value, 300);
+    assert.deepEqual(made.tags, ['fire'], 'other fields are the hooks\' to set');
+    assert.equal(made.stack, false, 'equipment never stacks');
+    assert.equal(made.junk, undefined, 'only def fields are kept');
+    assert.deepEqual(seen, [{ note: 'warm', owner: 'ac_ren00001' }]);
+    assert.equal(result.result.data.stacks.length, 2);
+    assert.equal(inv(h).aliases['ember blade'], 'pack.fantasy/ember-blade');
+    // A def ID already known wins over the fields handed in.
+    const again = h.run('inventory.grant', { def: { ...piece, rarity: 'legendary' } }, { cause: 'system' });
+    assert.equal(again.result.data.created, false);
+    assert.equal(inv(h).defs['pack.fantasy/ember-blade'].rarity, 'rare');
+    // No ID: a story slug.
+    const plain = h.run('inventory.grant', { def: { name: 'Odd Pebble' } }, { cause: 'story' });
+    assert.equal(plain.result.data.def, 'story/odd-pebble');
+    rejects(h, 'inventory.grant', { def: { id: 'Bad ID', name: 'Thing' } }, 'INVALID', /not a well-formed item definition ID/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: { id: 'story/thing' } }, 'INVALID', /needs a name/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: { name: 'Thing', kind: 'food' } }, 'INVALID', /unknown kind/, { cause: 'story' });
 });
 
 test('grant: by name resolves or creates a story def', () => {
@@ -270,23 +298,24 @@ test('wallet.pay and wallet.receive: { owner, amount, note? } in the smallest un
     const h = setup();
     const paid = h.run('wallet.pay', { amount: 25, note: 'the ferry fare' });
     assert.equal(paid.ok, true, paid.message);
-    assert.equal(paid.result.summary, 'The party pays 25 coin — the ferry fare (100 coin left).');
+    assert.equal(paid.result.summary, 'The party pays 25 gold — the ferry fare (100 gold left).');
     assert.deepEqual(paid.result.data, { owner: 'party', amount: 25, now: 100, note: 'the ferry fare' });
     assert.equal(h.state.domains.inventory.wallets.party.coin, 100);
     const got = h.run('wallet.receive', { amount: 5, owner: 'ac_ren00001' });
-    assert.equal(got.result.summary, 'ac_ren00001 receives 5 coin (now 5 coin).');
+    assert.equal(got.result.summary, 'ac_ren00001 receives 5 gold (now 5 gold).');
     assert.deepEqual(h.state.domains.inventory.wallets.ac_ren00001, { coin: 5 });
-    // With a currency hook the wallet still holds one integer under `coin`; the tiers are display.
-    const tiered = setup({ currency: [() => CURRENCY] });
-    const result = tiered.run('wallet.receive', { amount: 261 });
-    assert.equal(result.result.summary, 'The party receives 2 gold, 6 silver, 1 copper (now 3 gold, 8 silver, 6 copper).');
-    assert.equal(tiered.state.domains.inventory.wallets.party.coin, 386);
+    // A renamed currency changes the words, not the wallet: still one integer under `coin`.
+    const module = core();
+    const renamed = createHarness([module], { state: stocked(module), settings: { 'story-block': CROWNS } });
+    const result = renamed.run('wallet.receive', { amount: 261 });
+    assert.equal(result.result.summary, 'The party receives 261 crowns (now 386 crowns).');
+    assert.deepEqual(renamed.state.domains.inventory.wallets.party, { coin: 386 });
 });
 
 test('wallet rejections', () => {
     const h = setup();
-    rejects(h, 'wallet.pay', { amount: 126 }, 'NOT_ENOUGH', /has only 125 coin; 126 coin is needed/);
-    rejects(h, 'wallet.pay', { amount: 1, owner: 'ac_ren00001' }, 'NOT_ENOUGH', /only 0 coin/);
+    rejects(h, 'wallet.pay', { amount: 126 }, 'NOT_ENOUGH', /has only 125 gold; 126 gold is needed/);
+    rejects(h, 'wallet.pay', { amount: 1, owner: 'ac_ren00001' }, 'NOT_ENOUGH', /only 0 gold/);
     rejects(h, 'wallet.pay', {}, 'INVALID', /amount/);
     rejects(h, 'wallet.pay', { amount: 0 }, 'INVALID');
     rejects(h, 'wallet.pay', { amount: 1, note: 7 }, 'INVALID', /note must be text/);

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CORE_BUDGET, CORE_KINDS, CORE_MODULE_ID, CORE_STATIC, createCoreModule, createCorePart } from '../../../src/v2/domains/index.js';
 import { createHarness, initialState, line } from './helpers/fake-ctx.js';
-import { COINS, CURRENCY, core, def, stack, stocked } from './fixtures.js';
+import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
 const view = state => ({ state, query: () => null, settings: {}, chat: { length: 1, lastUser: '' } });
 
@@ -21,12 +21,14 @@ test('the definition has the §6 shape', () => {
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), ['inventory', 'scene']);
+    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyShort: '' });
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyShort']);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));
 });
 
 test('static() is byte-identical whatever the state', () => {
-    const module = core({ currency: [() => CURRENCY] });
+    const module = core({}, CROWNS);
     const a = module.context.static();
     const h = createHarness([module], { state: stocked(module) });
     h.capture(line('+', 'item', 'Moonveil Trout'));
@@ -84,12 +86,8 @@ test('queries return plain copies', () => {
     assert.equal(h.state.domains.scene.place.name, 'Bluewatch', 'a copy, not the state');
     assert.deepEqual(h.query('scene.present'), ['Fenna']);
     assert.deepEqual(module.queries['scene.place'](undefined), { name: '', kind: '', region: '' });
-    assert.deepEqual(h.query('inventory.currency'), { tiers: [{ name: 'coin', rate: 1, worth: 1 }], single: 'coin' });
-    const tiered = core({ currency: [() => CURRENCY] });
-    assert.deepEqual(tiered.queries['inventory.currency'](state, {}), {
-        tiers: [{ name: 'copper', rate: 1, worth: 1 }, { name: 'silver', rate: 10, worth: 10 }, { name: 'gold', rate: 10, worth: 100 }],
-        single: 'coins',
-    });
+    assert.deepEqual(h.query('inventory.currency'), { name: 'gold', short: 'g' });
+    assert.deepEqual(core({}, CROWNS).queries['inventory.currency'](state, {}), { name: 'crowns', short: 'cr' });
 });
 
 test('a handler can use the core queries through ctx.query, drafts included', () => {
@@ -122,7 +120,7 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
 });
 
 test('tail: place, present, equipped, wallet and carried items with notes trimmed', () => {
-    const module = core({ currency: [() => CURRENCY] });
+    const module = core({}, CROWNS);
     const state = stocked(module);
     state.domains.scene = { place: { name: 'Bluewatch Village', kind: 'settlement', region: 'Lakeshire' }, present: ['Fenna', 'Old Tam'] };
     const inv = state.domains.inventory;
@@ -139,7 +137,7 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
             'Present: Fenna, Old Tam',
             'Equipped: Iron Sword [hand]',
             'Equipped (Ren): Dagger [hand]',
-            'Wallet: 3 silver, 8 copper; Ren 5 copper',
+            'Wallet: 38 crowns; Ren 5 crowns',
             'Carried: Minor Healing Draught ×2, Minor Healing Draught (cloudy), Lantern, Rope ×3 (tarred hemp, sixty feet, knotted every…)',
         ],
         optional: [],
@@ -148,7 +146,7 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
 
 test('tail: an empty start says so', () => {
     const module = core();
-    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: ['Wallet: 0 coin', 'Carried: nothing'], optional: [] });
+    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: ['Wallet: 0 gold', 'Carried: nothing'], optional: [] });
 });
 
 test('tail: a long inventory overflows into optional, then into a count, within the budget', () => {

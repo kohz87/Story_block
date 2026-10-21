@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createCommandBus } from '../../../src/v2/commands.js';
 import { counterIds, fakeRegistry, fakeStore } from '../helpers/bus-fakes.js';
 import { initialState, line } from './helpers/fake-ctx.js';
-import { COINS, CURRENCY, core, stocked } from './fixtures.js';
+import { core, stocked } from './fixtures.js';
 
 function setup(extra = [], hookMap = {}) {
     const module = core(hookMap);
@@ -59,13 +59,13 @@ test('ui commands commit with a narrated receipt', () => {
 });
 
 test('capture lines run through bus.run and chain within one reply', () => {
-    const { bus, module, store } = setup([], { currency: [() => CURRENCY] });
+    const { bus, module, store } = setup();
     const capture = { moduleId: module.id, apply: module.capture.apply };
     let state = store.head();
     state = { ...state, domains: { ...state.domains, inventory: { ...state.domains.inventory, wallets: { party: { coin: 0 } } } } };
     for (const change of [
         line('+', 'item', 'Moonveil Trout', { note: 'violet-streaked' }),
-        line('+', 'coin', '3 silver, 8 copper', { from: 'the sealer' }),
+        line('+', 'coin', '38 gold', { from: 'the sealer' }),
         line('~', 'place', 'Bluewatch Village', { kind: 'settlement' }),
         line('+', 'present', 'Fenna'),
         line('-', 'item', 'Rope'),

@@ -3,14 +3,12 @@ import { createCoreModule } from '../../../src/v2/domains/index.js';
 import { defaultDef } from '../../../src/v2/domains/inventory.js';
 import { initialState } from './helpers/fake-ctx.js';
 
-// The `currency` hook's answer (v1 shape: each rate counts the tier before) and the same as the
-// internal coin list (each rate the worth in copper).
-export const CURRENCY = { tiers: [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 10 }], single: 'coins' };
-export const COINS = [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 100 }];
+// Story Block's settings with the chat's currency renamed.
+export const CROWNS = { currency: 'crowns', currencyShort: 'cr' };
 
-/** A core module whose hooks are the given { name: fn[] } map. */
-export function core(hookMap = {}) {
-    return createCoreModule({ hooks: name => hookMap[name] ?? [] });
+/** A core module whose hooks are the given { name: fn[] } map, with the given settings. */
+export function core(hookMap = {}, settings = {}) {
+    return createCoreModule({ hooks: name => hookMap[name] ?? [], settings: () => settings });
 }
 
 export const def = (id, name, fields = {}) => ({ ...defaultDef(id, name), ...fields });

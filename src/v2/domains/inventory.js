@@ -10,7 +10,7 @@ import {
     OWNER_RE, isPlainObject, clone, labelOf, parseCount, newId, ownerName, ownerNameIn, capitalize,
 } from './common.js';
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
-import { WALLET_KEY, currencyView, formatAmount, formatWallet, parseAmount } from './money.js';
+import { WALLET_KEY, currencyOf, formatAmount, formatWallet, parseAmount } from './money.js';
 import { DEF_ID, isId } from '../check.js';
 
 export const KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
@@ -203,42 +203,69 @@ function knownDef(ctx, inv, name) {
     return inv.defs[found.id];
 }
 
-/**
- * The def a name means, created when there is none: `story/<slug>` with the §7 defaults, then
- * each `item.define(def, { note, owner })` hook may change it (mutating the def or returning
- * fields to merge). The ID is never the hooks' to change, and equipment never stacks.
- */
+const freeId = (inv, base) => {
+    let id = base;
+    for (let n = 2; inv.defs[id]; n += 1) id = `${base}-${n}`;
+    return id;
+};
+
+// A new def through the `item.define(def, { note, owner })` hooks (each may mutate the def or
+// return fields to merge), then stored with its name as an alias. `keep` = fields the caller set
+// that the hooks may not change; the ID is never theirs to change, and equipment never stacks.
+function addDef(inv, def, env, about, keep = {}) {
+    const id = def.id;
+    for (const hook of env.hooks('item.define')) {
+        const out = hook(def, { note: about.note ?? '', owner: about.owner ?? 'party' });
+        if (isPlainObject(out) && out !== def) Object.assign(def, out);
+    }
+    Object.assign(def, keep, { id });
+    if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
+    inv.defs[id] = clone(def);
+    inv.aliases[aliasKey(def.name)] ??= id;
+    return inv.defs[id];
+}
+
+/** The def a name means, created as `story/<slug>` with the §7 defaults when there is none. */
 function defineByName(ctx, inv, written, env, about = {}) {
     const name = cleanName(written);
     if (!name || name.length > MAX_NAME) ctx.fail('INVALID', `An item needs a name of 1 to ${MAX_NAME} characters.`);
     const found = resolveDef(inv, name);
     if (found.status === 'ambiguous') ctx.fail('INVALID', ambiguous(inv, name, found.ids));
     if (found.status === 'found') return { def: inv.defs[found.id], created: false };
-    const base = `story/${slugify(name)}`;
-    let id = base;
-    for (let n = 2; inv.defs[id]; n += 1) id = `${base}-${n}`;
-    const def = defaultDef(id, name);
-    for (const hook of env.hooks('item.define')) {
-        const out = hook(def, { note: about.note ?? '', owner: about.owner ?? 'party' });
-        if (isPlainObject(out) && out !== def) Object.assign(def, out);
+    const def = defaultDef(freeId(inv, `story/${slugify(name)}`), name);
+    return { def: addDef(inv, def, env, about), created: true };
+}
+
+/**
+ * A full def handed to inventory.grant (MODULES.md F5): an existing def with that ID wins;
+ * otherwise it is added (defaults for missing fields, `story/<slug>` when it has no ID) and passed
+ * through the hooks, keeping the caller's own rarity and value.
+ */
+function defineGiven(ctx, inv, given, env, about) {
+    if (typeof given.id === 'string' && inv.defs[given.id]) return { def: inv.defs[given.id], created: false };
+    const name = cleanName(given.name);
+    if (!name || name.length > MAX_NAME) ctx.fail('INVALID', `An item needs a name of 1 to ${MAX_NAME} characters.`);
+    if (given.id !== undefined && (typeof given.id !== 'string' || !DEF_ID.test(given.id))) {
+        ctx.fail('INVALID', `"${given.id}" is not a well-formed item definition ID (namespace/slug).`);
     }
-    def.id = id;
-    if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
-    inv.defs[id] = clone(def);
-    inv.aliases[aliasKey(name)] = id;
-    return { def: inv.defs[id], created: true };
+    const id = given.id ?? freeId(inv, `story/${slugify(name)}`);
+    const def = defaultDef(id, name);
+    for (const field of Object.keys(def)) if (field !== 'id' && field !== 'name' && given[field] !== undefined) def[field] = clone(given[field]);
+    const keep = {};
+    for (const field of ['rarity', 'value']) if (given[field] !== undefined) keep[field] = given[field];
+    return { def: addDef(inv, def, env, about, keep), created: true };
 }
 
 function receive(ctx, env, { owner, amount, note }) {
     const inv = ctx.draft('inventory');
-    const coins = env.coins();
+    const currency = currencyOf(ctx.settings());
     const wallet = (inv.wallets[owner] ??= {});
     const now = (wallet[WALLET_KEY] ?? 0) + amount;
     if (!Number.isSafeInteger(now)) ctx.fail('INVALID', 'That is more money than can be counted.');
     wallet[WALLET_KEY] = now;
     const who = capitalize(ownerNameIn(ctx, owner));
     return {
-        summary: `${who} receives ${formatAmount(amount, coins)}${note ? ` — ${note}` : ''} (now ${formatAmount(now, coins)}).`,
+        summary: `${who} receives ${formatAmount(amount, currency)}${note ? ` — ${note}` : ''} (now ${formatAmount(now, currency)}).`,
         data: { owner, amount, now, note },
         narrate: told(ctx),
     };
@@ -246,13 +273,13 @@ function receive(ctx, env, { owner, amount, note }) {
 
 function pay(ctx, env, { owner, amount, note }) {
     const inv = ctx.draft('inventory');
-    const coins = env.coins();
+    const currency = currencyOf(ctx.settings());
     const have = inv.wallets[owner]?.[WALLET_KEY] ?? 0;
     const who = capitalize(ownerNameIn(ctx, owner));
-    if (have < amount) ctx.fail('NOT_ENOUGH', `${who} has only ${formatAmount(have, coins)}; ${formatAmount(amount, coins)} is needed.`);
+    if (have < amount) ctx.fail('NOT_ENOUGH', `${who} has only ${formatAmount(have, currency)}; ${formatAmount(amount, currency)} is needed.`);
     inv.wallets[owner][WALLET_KEY] = have - amount;
     return {
-        summary: `${who} pays ${formatAmount(amount, coins)}${note ? ` — ${note}` : ''} (${formatAmount(have - amount, coins)} left).`,
+        summary: `${who} pays ${formatAmount(amount, currency)}${note ? ` — ${note}` : ''} (${formatAmount(have - amount, currency)} left).`,
         data: { owner, amount, now: have - amount, note },
         narrate: told(ctx),
     };
@@ -260,11 +287,11 @@ function pay(ctx, env, { owner, amount, note }) {
 
 // ---------- commands ----------
 
-/** The inventory commands; `env` = { hooks: name => fn[], coins: () => currency }. */
+/** The inventory commands; `env` = { hooks: name => fn[], settings: () => this module's settings }. */
 export function createInventoryCommands(env) {
     return {
-        // { def | defId | name, qty, owner, note? }. Internal (§7): the story, the host, or another
-        // module's command through ctx.call.
+        // { def | defId | name, qty, owner, note? }: `def` is a def ID or a full def. Internal (§7):
+        // the story, the host, or another module's command through ctx.call.
         'inventory.grant'(ctx, payload = {}) {
             if (!(ctx.caller || ctx.cause === 'story' || ctx.cause === 'system')) {
                 ctx.fail('REFUSED', 'Items cannot be handed out from a button; they come from the story or from another module.');
@@ -276,7 +303,9 @@ export function createInventoryCommands(env) {
             let def;
             let created = false;
             const wanted = payload.def ?? payload.defId;
-            if (wanted !== undefined) {
+            if (isPlainObject(wanted)) {
+                ({ def, created } = defineGiven(ctx, inv, wanted, env, { note, owner }));
+            } else if (wanted !== undefined) {
                 def = typeof wanted === 'string' ? inv.defs[wanted] : null;
                 if (!def) ctx.fail('NOT_FOUND', 'There is no such item to give.');
             } else if (payload.name !== undefined) {
@@ -534,14 +563,13 @@ export function captureItem(ctx, line, env) {
     return ctx.fail('INVALID', `"${line.op} item" is not a change the inventory understands; use +, - or ~.`);
 }
 
-/** `+ coin 3 silver | from: who`, `- coin 2 silver | to: who`: the party's wallet. */
+/** `+ coin 30 | from: who`, `- coin 5 | to: who`: the party's wallet; only the number counts. */
 export function captureCoin(ctx, line, env) {
-    const coins = env.coins();
     const written = labelOf(line, 'amount') ?? String(line?.name ?? '');
     if (line?.op !== '+' && line?.op !== '-') {
         ctx.fail('INVALID', `"${line?.op} coin" is not a change the wallet understands; use + coin or - coin.`);
     }
-    const parsed = parseAmount(written, coins);
+    const parsed = parseAmount(written);
     if (parsed.error) ctx.fail('INVALID', parsed.error);
     const who = labelOf(line, line.op === '+' ? 'from' : 'to');
     const note = who ? `${line.op === '+' ? 'from' : 'to'} ${trimText(who, 80)}` : '';
@@ -572,10 +600,10 @@ export function listItems(inventory, owner = null) {
             || (a.stack < b.stack ? -1 : a.stack > b.stack ? 1 : 0));
 }
 
-/** The inventory queries; `env.coins()` gives the currency for `inventory.currency`. */
+/** The inventory queries; `env.settings()` gives the currency for `inventory.currency`. */
 export const createInventoryQueries = env => ({
-    // { tiers: [{ name, rate, worth }], single }: the currency hook's answer (MODULES.md F1).
-    'inventory.currency': () => currencyView(env.coins()),
+    // { name, short }: the chat's one currency (MODULES.md F1).
+    'inventory.currency': () => currencyOf(env.settings()),
     'inventory.items': (state, args = {}) => listItems(state?.domains?.inventory, args?.owner ?? null),
     'inventory.wallet': (state, args = {}) => ({ ...(state?.domains?.inventory?.wallets?.[args?.owner ?? 'party'] ?? {}) }),
     // { status: 'found' | 'ambiguous' | 'none', defs: [def copies], stacks: [items of the found def] }
@@ -634,7 +662,7 @@ function pack(label, phrases, room) {
  * they fit in `chars` characters, the rest in `optional` (dropped first by the host) up to
  * `optionalChars`, then a count of what is left out.
  */
-export function inventoryTail(state, { coins, chars, optionalChars }) {
+export function inventoryTail(state, { currency, chars, optionalChars }) {
     const inventory = state?.domains?.inventory;
     const items = listItems(inventory);
     const lines = [];
@@ -645,9 +673,9 @@ export function inventoryTail(state, { coins, chars, optionalChars }) {
         lines.push(`Equipped${owner === 'party' ? '' : ` (${ownerName(state, owner)})`}: ${worn.join(', ')}`);
     }
     const wallets = inventory?.wallets ?? {};
-    const purse = [formatWallet(wallets.party, coins)];
+    const purse = [formatWallet(wallets.party, currency)];
     for (const owner of Object.keys(wallets).filter(key => key !== 'party').sort()) {
-        if (Object.values(wallets[owner]).some(Boolean)) purse.push(`${ownerName(state, owner)} ${formatWallet(wallets[owner], coins)}`);
+        if (Object.values(wallets[owner]).some(Boolean)) purse.push(`${ownerName(state, owner)} ${formatWallet(wallets[owner], currency)}`);
     }
     lines.push(`Wallet: ${purse.join('; ')}`);
     const carried = items.filter(item => item.equipped === null);
