@@ -119,7 +119,7 @@ test('saver: a change in one chat while another chat\'s change waits hands that 
     }
     assert.deepEqual(tries, ['A', 'A', 'A']);
     assert.equal(told.length, 1);
-    assert.match(told[0], /made in chat "A" was not saved: another chat was opened before it was saved, and the server is away/);
+    assert.match(told[0], /made in chat "A" was not saved: that chat was no longer open when it was saved, and the server is away/);
     assert.equal(saver.dirty(), false);
     rescueFails = false;
 });

@@ -153,11 +153,10 @@ async function fuzz(t, seed) {
             if (lines.length) assert.ok(tail.startsWith([HAPPENED, ...lines].join('\n')), `${log.at(-1)}: [Happened] tells exactly what the reply records as told\n${tail}`);
             else assert.ok(!tail.includes(HAPPENED), `${log.at(-1)}: nothing to tell, no [Happened]`);
         }
-        // A cue committed before the reply is flushed at once (turn.js runCues), before the request.
-        const cue = [...committed].some(id => readRecord(ctx.chat[index])?.receipts.some(receipt => receipt.id === id && receipt.type === 'probe.cue')
-            || ctx.chat.some(message => readRecord(message)?.receipts.some(receipt => receipt.id === id && receipt.type === 'probe.cue')));
+        // A cue committed before the reply is saved with the reply (turn.js runCues): the whole chat file
+        // is written once for both.
         const saves = st.saves.length - savesBefore;
-        assert.equal(saves, (dirtyBefore ? 1 : 0) + (cue ? 1 : 0) + 1, `${log.at(-1)}: one flush of what was pending, one for a cue, one save at the end of the reply`);
+        assert.equal(saves, (dirtyBefore ? 1 : 0) + 1, `${log.at(-1)}: one flush of what was pending, one save at the end of the reply (with any cue)`);
         assert.equal(store.dirty(), false, `${log.at(-1)}: saved after the reply`);
         assert.deepEqual(st.saved(), plain(ctx.chat), `${log.at(-1)}: the saved chat is the chat`);
     }

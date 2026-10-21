@@ -128,14 +128,19 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
   domain may name such fields `scratch` (a list of top-level fields, the inventory's `perReply`): on
   replay a `remove` inside one of something already gone is passed over, missing objects on the way are
   made, and a `replace` of something not there becomes an `add`.
-* **Two replay rules that keep such bookkeeping bounded.** (a) On replay (never for a live command), a
+* **Three replay rules that keep such bookkeeping bounded.** (a) On replay (never for a live command), a
   `remove` of an object key that is not there (the reply that added it was deleted) does nothing instead
   of failing its block; a `remove` that carries a counted `was` (a take of a stack) still fails, so a sale
   of a thing that is gone is not paid. A later reply may so prune what earlier replies added: an entry
   the deleted reply had already pruned may come back until the next prune. (b) When a list only grew at
   its end, `diff` stores each new element as `add /path/-`, which appends at the end as the list stands
   on replay. Other list changes replace the list whole. A `replace` of a list element by its position
-  is still positional, so a module keeps records it changes later under keys, not in a list.
+  is still positional, so a module keeps records it changes later under keys, not in a list. (c) On replay
+  (never for a live command), a `replace` of an object key inside a domain that is not there, because only
+  a deleted reply had added it, is applied as an `add` when its parent object is there: the value is the one the later
+  reply set, so the result is the same (a later `~ hook X | now: …` survives deleting the reply that first
+  set `now`). Not for counted ops (`was`), which keep the counter rules above; with no parent object (or
+  a list position) the op stays as written and its block fails.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -253,7 +258,10 @@ commands: {
 
 A reader's action (`sdk.command`, `sdk.commit`) is saved at once, before its result comes back; Story Block's
 own steps (events, a module set up) save 400 ms after the last one; a generation starting flushes the
-pending save first; the after-reply capture (§4.2) saves once at its end.
+pending save first; the after-reply capture (§4.2) saves once at its end. Cues committed before a reply
+(§4.1 step 3) are saved with that reply's save, not on their own (each save writes the whole chat file); a
+generation that ends without the reply (GENERATION_ENDED / GENERATION_STOPPED), or a chat opened meanwhile,
+saves them then.
 
 Each change remembers the chat it was made in (the chat ID and the head carrier). Right before a save starts
 writing, in the same tick, the store checks that this chat is still the one open: SillyTavern opens another
@@ -284,6 +292,8 @@ save).
 3. Each module's `beforeGenerate(view, { type, dryRun, commit })` may return cues (due events, met
    conditions) as receipts of cause `system` (committed now, on the head carrier) or as plain tail lines.
    On a Continue or a dry run (SillyTavern counting tokens) `commit` is false and nothing is committed.
+   (SillyTavern 1.19 runs no interceptor for a dry run, so the interceptor never takes its own generation
+   for one; it is not read from GENERATION_STARTED, which another caller's dry run can send in between.)
    A pack event fires only from its own definition (the payload names its id); a repeating one at most
    once per reply (claim `event:<id>:<reply index>`).
 4. Assemble the prompt (§5).
