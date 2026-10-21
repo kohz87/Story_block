@@ -16,6 +16,7 @@ import { renderSceneTab } from '../ui/scene-tab.js';
 import { createAssistPart } from '../assist/index.js';
 import { createEventsPart } from '../events/index.js';
 import { standardWidgets } from '../view/widgets/index.js';
+import { screens as defaultScreens } from '../screens/index.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 
 // The packs part bound to SillyTavern (src/v2/packs/index.js), in createPacksPart()'s shape.
@@ -23,6 +24,8 @@ const livePacks = Object.freeze({ part: livePart, packs: liveInstalled, resolveI
 export { createPacksPart };
 
 export const CORE_MODULE_ID = 'story-block';
+// The core part's code tabs that the default screens replace in the module definition.
+const SCREEN_TABS = Object.freeze(['inventory', 'scene']);
 export const CORE_BUDGET = 400;
 
 // One line for the static prompt part: no names, counts or coins, so it is byte-identical every reply.
@@ -217,7 +220,10 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
                 }
             },
         },
-        tabs: merged.tabs,
+        // The Inventory and Scene tabs are screens now (src/v2/screens/: inventory, scene, the changes
+        // card, the game view's home), so packs, cards and the reader can restyle them (SPEC §13.7).
+        tabs: merged.tabs.filter(tab => !SCREEN_TABS.includes(tab.id)),
+        screens: defaultScreens.map(screen => ({ ...screen })),
         // The standard widgets (SPEC §13.5, MODULES §F9) for layouts, templates and mounts.
         widgets: { ...standardWidgets },
     };

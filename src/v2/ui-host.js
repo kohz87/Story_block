@@ -18,6 +18,7 @@ import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
 import { createScreenRenderer } from './view/render-screen.js';
 import { createScreens } from './view/screens.js';
+import { CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, changesSummary } from './screens/index.js';
 
 const IDS = Object.freeze({ bar: 'story_suite_v2_bar', panel: 'story_suite_v2_panel', drawer: 'story_suite_v2_drawer', menu: 'story_suite_v2_menu' });
 
@@ -62,7 +63,10 @@ function readerStore(ctx) {
  */
 export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' }) {
     const { registry, store, sdk, settings, events } = runtime;
-    const queryAt = mountQuery(registry, () => store.receipts());
+    // A screen asking a query no module answers (an optional module that is not installed, like NSD's
+    // npc.portrait) gets null, not a problem line.
+    const runAt = mountQuery(registry, () => store.receipts());
+    const queryAt = (name, args, state) => (registry.query(name) ? runAt(name, args, state) : null);
     const widgets = () => Object.fromEntries(registry.widgets().map(widget => [widget.name, widget]));
     const renderer = createScreenRenderer({
         queryAt,
@@ -120,6 +124,13 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         headIndex: () => store.headIndex(),
         query: queryAt,
         changesAt: index => store.changesAt(index),
+        opsAt: index => store.opsAt(index),
+        summary(screen, { state, before, changes }) {
+            if (screen?.id !== CHANGES_CARD_SCREEN_ID) return null;
+            let currency = null;
+            try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
+            return changesSummary({ state, before, changes, currency });
+        },
         settings: () => sdk.settings('story-block'),
         api,
         on: (name, fn) => events.on(name, fn),
@@ -184,7 +195,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     notice.append(noticeText, noticeClose);
     bar.append(storyButton, gameButton, settingsButton, notice);
     storyButton.addEventListener('click', () => (panel.hidden ? openPanel() : closePanel()));
-    gameButton.addEventListener('click', () => mounts.screen.open());
+    gameButton.addEventListener('click', () => mounts.screen.open(HOME_SCREEN_ID));
     settingsButton.addEventListener('click', openSettings);
     noticeClose.addEventListener('click', () => clearBlocked());
     const placeBar = () => {

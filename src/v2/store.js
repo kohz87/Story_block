@@ -197,6 +197,13 @@ export function createStore({
             return lastCarrier(list());
         },
 
+        // Carrier `index`'s own ops (frozen copies), [] for a message with no record.
+        opsAt(index) {
+            const arr = list();
+            if (!Number.isInteger(index) || index < 0 || index >= arr.length) return [];
+            return deepFreeze(structuredClone(readRecord(arr[index])?.ops ?? []));
+        },
+
         // The JSON Pointers carrier `index`'s ops touched, in first-touched order (for a card's
         // "only what changed" and changed(path)). [] for a message with no record.
         changesAt(index) {

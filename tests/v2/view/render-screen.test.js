@@ -104,3 +104,37 @@ test('the host registers the ss.* widgets; any other module must use its own id'
     registry.register({ id: 'rpg-battle', widgets: { 'rpg-battle.board': { render() {} } } });
     assert.ok(registry.widget('rpg-battle.board'));
 });
+
+test('contains(a, b): case-insensitive text search for filter boxes, in templates', async () => {
+    const { contains } = await import('../../../src/v2/view/bind.js');
+    assert.equal(contains('Moonveil Trout', 'TROUT'), true);
+    assert.equal(contains('Rope', 'lamp'), false);
+    assert.equal(contains('Rope', ''), true, 'an empty filter keeps everything');
+    assert.equal(contains(['Fenna', 'Bo'], 'fen'), true);
+    assert.equal(contains(null, 'x'), false);
+    const { el, renderer } = setup();
+    renderer.render(el, { id: 'test/find', mounts: ['tab'], template: '<p data-each="q.names as n" data-if="contains(n, draft.find)">{{ n }}</p>' },
+        { state, q: { names: ['Rope', 'Lamp', 'Rowboat'] }, draft: { find: 'ro' }, api: {}, mount: 'tab' });
+    assert.deepEqual(el.querySelectorAll('p').map(node => node.textContent), ['Rope', 'Rowboat']);
+});
+
+test('card scopes carry the state before the reply and the reply\'s own ops; every scope has query()', async () => {
+    const { createCardMount } = await import('../../../src/v2/view/mounts/card.js');
+    const doc = setupDom();
+    const chat = fakeChat(doc, [1, 5, 9]);
+    const scopes = [];
+    const card = createCardMount({
+        screens: screensWith([{ id: 'game/card', mounts: ['card'], template: '<div></div>' }]),
+        render: (el, screen, scope) => { scopes.push(scope); },
+        query: fakeQuery(), stateAt: chat.stateAt, headIndex: chat.headIndex, carriers: chat.carriers, IntersectionObserver: null,
+        opsAt: index => [{ op: 'remove', path: `/domains/x/${index}` }],
+    });
+    card.mount(doc.createElement('div'), 'game/card', { index: 2 });
+    const scope = scopes.at(-1);
+    assert.equal(scope.before, chat.states[1]);
+    assert.deepEqual(scope.replyOps, [{ op: 'remove', path: '/domains/x/2' }]);
+    assert.equal(scope.query('party.hp'), 90, 'query() at the card\'s own state');
+    card.mount(doc.createElement('div'), 'game/card', { index: 0 });
+    assert.equal(scopes.at(-1).before, null, 'the first carrier has nothing before it');
+    card.destroy();
+});

@@ -3,6 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom, texts } from '../../ui-fake-dom.js';
 import { CROWNS, core, stocked } from './fixtures.js';
+import { createCorePart } from '../../../src/v2/domains/index.js';
+
+// The code tabs are the core part's; the module shows the default screens instead (src/v2/screens/).
+const codeTabs = settings => createCorePart({ settings: () => settings }).tabs;
 
 const doc = installFakeDom();
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -19,7 +23,7 @@ test('inventory tab: grouped by kind with qty, rarity, equipped marker and walle
     state.domains.inventory.wallets = { party: { coin: 38 } };
     state.domains.inventory.stacks.it_sword001.equipped = 'hand';
     const el = host();
-    const tab = module.tabs.find(item => item.id === 'inventory');
+    const tab = codeTabs(CROWNS).find(item => item.id === 'inventory');
     tab.render(el, { state }, { command: () => ({ ok: true }) });
     assert.deepEqual(texts(el, '.ss-inv-wallet'), ['Wallet: 38 crowns']);
     assert.deepEqual(texts(el, '.ss-inv-group-title'), ['Equipment', 'Consumables', 'Goods']);
@@ -42,7 +46,7 @@ test('inventory tab: buttons call sdk commands; Drop asks twice; a rejection is 
     let answer = { ok: true };
     const api = { command: (type, payload, options) => { calls.push([type, payload, options]); return Promise.resolve(answer); } };
     const el = host();
-    module.tabs[0].render(el, { state: stocked(module) }, api);
+    codeTabs({})[0].render(el, { state: stocked(module) }, api);
     el.querySelector('.ss-inv-row[data-stack="it_dagg0001"] button[data-action="equip"]').click();
     assert.deepEqual(calls[0], ['inventory.equip', { stack: 'it_dagg0001' }, { cause: 'ui' }]);
     const drop = el.querySelector('.ss-inv-row[data-stack="it_rope0001"] button[data-action="drop"]');
@@ -60,8 +64,8 @@ test('inventory tab: buttons call sdk commands; Drop asks twice; a rejection is 
 test('inventory tab: empty, and a re-render replaces the old content', () => {
     const module = core();
     const el = host();
-    module.tabs[0].render(el, { state: stocked(module) }, {});
-    module.tabs[0].render(el, { state: { domains: { inventory: { defs: {}, stacks: {}, wallets: {}, aliases: {} } } } }, {});
+    codeTabs({})[0].render(el, { state: stocked(module) }, {});
+    codeTabs({})[0].render(el, { state: { domains: { inventory: { defs: {}, stacks: {}, wallets: {}, aliases: {} } } } }, {});
     assert.equal(el.children.length, 1);
     assert.deepEqual(texts(el, '.ss-inv-empty'), ['Nothing carried.']);
     assert.deepEqual(texts(el, '.ss-inv-wallet'), ['Wallet: 0 gold']);
@@ -69,7 +73,7 @@ test('inventory tab: empty, and a re-render replaces the old content', () => {
 
 test('scene tab: place and who is present', () => {
     const module = core();
-    const tab = module.tabs.find(item => item.id === 'scene');
+    const tab = codeTabs(CROWNS).find(item => item.id === 'scene');
     const el = host();
     tab.render(el, { state: { domains: { scene: { place: { name: 'Bluewatch', kind: 'settlement', region: 'Lakeshire' }, present: ['Fenna', 'Tam'] } } } }, {});
     assert.deepEqual(texts(el, '.ss-scene-place'), ['Bluewatch']);

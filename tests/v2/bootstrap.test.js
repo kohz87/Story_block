@@ -82,7 +82,7 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     assert.match(strip.textContent, /plenty/);
     doc.querySelector('.story-suite-bar-story').click();
     const panel = doc.querySelector('#story_suite_v2_panel');
-    assert.deepEqual(texts(panel, '.story-suite-tab-label'), ['Inventory', 'Scene', 'Rope']);
+    assert.deepEqual(texts(panel, '.story-suite-tab-label'), ['Rope', 'Inventory', 'Scene'], 'tab screens by id');
     panel.querySelector('[data-tab-id="gauge/rope"]').click();
     assert.ok(panel.querySelector('.story-suite-pane [data-widget="ss.meter"]'), 'the ss.meter widget is drawn');
     doc.querySelector('.story-suite-sheet-close').click();
@@ -110,4 +110,18 @@ test('a canGenerate hook that says no stops the reply and leaves a notice; the n
     ready = true;
     await st.generate('normal', { reply: 'Now it goes.' });
     assert.equal(notice.hidden, true);
+});
+
+test('the game view opens on the home screen; a screen asking a query no module answers still draws', () => {
+    const game = doc.querySelector('.story-suite-bar-game');
+    assert.equal(game.hidden, false, 'the default screens offer a game view');
+    game.click();
+    const view = doc.querySelector('.ss-gameview');
+    assert.ok(view);
+    assert.equal(view.querySelector('.ss-gameview-body').getAttribute('data-ss-screen'), 'story-block/home');
+    view.querySelector('[data-ss-target="story-block/scene"]').click();
+    assert.equal(view.querySelector('.ss-gameview-body').getAttribute('data-ss-screen'), 'story-block/scene');
+    assert.equal(view.querySelector('.ss-mount-problem'), null, 'npc.portrait is absent without NSD: no problem line');
+    view.querySelector('.ss-gameview-close').click();
+    assert.equal(doc.querySelector('.ss-gameview'), null);
 });

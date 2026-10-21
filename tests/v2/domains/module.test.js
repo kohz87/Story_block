@@ -23,7 +23,8 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present']);
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
-    assert.deepEqual(module.tabs.map(tab => tab.id), ['inventory', 'scene']);
+    assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
+    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card']);
     assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyShort: '', assistClassifier: false, assistExtractor: false, assistProfile: '' });
     assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyShort', 'assistClassifier', 'assistExtractor', 'assistProfile']);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
