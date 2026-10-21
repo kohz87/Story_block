@@ -65,6 +65,7 @@ the Story Suite overlay shows.
 | `ratio(a, b)` | `a / b`, clamped to 0…1 (4 decimals); 0 when `b` is not above 0. For meters: `--hp: ratio(hp.cur, hp.max)`. |
 | `pct(a, b)` | The same as a whole percentage, 0…100. |
 | `len(x)` | Items in a list, keys in a record, characters in a word; 0 otherwise. |
+| `contains(a, b)` | Does text `a` hold `b`, ignoring case? An empty `b` matches everything; a list matches when one item does. For filter boxes: `data-if="contains(state.inventory.defs[s.def].name, draft.find)"`. |
 | `changed(path)` | True when **this reply's** changes touched the path: a change at it, inside it, or one that replaced something above it. Write the path bare (`changed(s.qty)`), quoted (`changed('state.scene.place')`), or as a JSON Pointer (`changed('/domains/scene')`). Loop items know where they came from, so `changed(s)` inside `data-each="state.inventory.stacks as s"` asks about that one stack. Query results (`q.…`) are copies and are never "changed". |
 | `fmt.money(n)` | Money in the smallest unit as the rules write it (`3 silver 4 copper`). |
 | `fmt.time(m)` | Story minutes on the reader's calendar. |

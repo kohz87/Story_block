@@ -51,6 +51,27 @@ export function defuseMacros(text) {
         .replace(/<(USER|BOT|CHAR|CHARIFNOTGROUP|GROUP)>/gi, '<​$1>');
 }
 
+/**
+ * `{{user}}` and `{{char}}` in the static and tail text become the persona's and the character's
+ * names (SillyTavern's substituteParams when the context has it, else name1 / name2); any other
+ * macro is left for defuseMacros. Both names are fixed for a chat, so the static text stays
+ * byte-identical reply after reply.
+ */
+export function substituteNames(text, ctx) {
+    const cache = new Map();
+    const name = macro => {
+        const key = macro.toLowerCase();
+        if (!cache.has(key)) {
+            let value = null;
+            try { value = typeof ctx?.substituteParams === 'function' ? ctx.substituteParams(`{{${key}}}`) : null; } catch { value = null; }
+            if (typeof value !== 'string' || value === `{{${key}}}`) value = key === 'user' ? ctx?.name1 : ctx?.name2;
+            cache.set(key, typeof value === 'string' && value ? value : null);
+        }
+        return cache.get(key);
+    };
+    return String(text ?? '').replace(/\{\{\s*(user|char)\s*\}\}/gi, (whole, macro) => name(macro) ?? whole);
+}
+
 // Message content is a string or, for multimodal prompts, a list of parts.
 function mapContent(content, transform) {
     if (typeof content === 'string') return transform(content);
@@ -101,13 +122,15 @@ export function restoreMissing(chat, staticText, tailText) {
 
 /**
  * Wires one SillyTavern context. `deps`: { ctx, store, bus, registry, settings, events?,
- * onBlocked?(reason, moduleId), notify?(reason, moduleId) (default: a toastr warning) }.
+ * onBlocked?(reason, moduleId), notify?(reason, moduleId) (default: a toastr warning),
+ * initial?() → the initial State for a chat with none (default registry.initialState(); the host
+ * adds the packs' start, SPEC §2.6) }.
  * `settings` is createSettings() (settings() → host settings, settings(id) → a module's).
  * Returns { interceptor, install, uninstall, onPromptReady, onTextPromptReady, onMessageReceived,
  * onChatChanged, onTimelineChanged, onGenerationEnded, preview, problems, clearProblems,
  * session }.
  */
-export function createTurn({ ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify }) {
+export function createTurn({ ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState() }) {
     const types = () => ctx?.extension_prompt_types ?? ctx?.extensionPromptTypes ?? {};
     const roles = () => ctx?.extension_prompt_roles ?? ctx?.extensionPromptRoles ?? {};
     const position = place => (place === 'static' ? types().IN_PROMPT ?? IN_PROMPT : types().IN_CHAT ?? IN_CHAT);
@@ -141,18 +164,18 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
 
     function rebuild() {
         store.rebuild();
-        if (hasCarrier()) store.ensureInitial(registry.initialState());
+        if (hasCarrier()) store.ensureInitial(initial());
         events?.emit('head', { index: store.headIndex() });
     }
 
     // beforeGenerate (§4.1 step 3): each hook may return lines for the tail, or commands to
     // commit now as `system` receipts: string[] | { lines?: string[], commands?: [{ type, payload }] }.
-    async function runCues() {
+    async function runCues(type = 'normal') {
         const cues = {};
         let committed = false;
         for (const { moduleId, fn } of registry.hookEntries('beforeGenerate')) {
             let out;
-            try { out = await fn(view()); } catch (error) {
+            try { out = await fn(view(), { type }); } catch (error) {
                 problem({ module: moduleId, code: 'FAILED', message: `beforeGenerate failed: ${error?.message ?? error}` });
                 continue;
             }
@@ -226,14 +249,14 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             await store.flush();
             // A Regenerate removes the old reply before this runs, without an event for it.
             if (store.headIndex() !== lastCarrier()) store.rebuild();
-            if (hasCarrier()) store.ensureInitial(registry.initialState());
+            if (hasCarrier()) store.ensureInitial(initial());
             await ensureModules({ store, bus, registry, events });
             const blocked = await blockedBy();
             if (blocked) {
                 block(blocked, abort);
                 return;
             }
-            const cues = await runCues();
+            const cues = await runCues(kind);
             const built = build(cues);
             const chat = ctx.chat;
             const last = chat.length - 1;
@@ -242,8 +265,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
                 type: kind,
                 index,
                 untold: built.untold.map(receipt => receipt.id),
-                staticText: defuseMacros(built.staticText),
-                tailText: defuseMacros(built.tailText),
+                staticText: defuseMacros(substituteNames(built.staticText, ctx)),
+                tailText: defuseMacros(substituteNames(built.tailText, ctx)),
                 parts: built.parts,
                 // A Continue whose reply already held a block was captured then; only a block
                 // the continuation adds is read.
@@ -309,6 +332,11 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         const receipts = [];
         const found = [];
         let state = store.head();
+        // ctx.carrier and ctx.chat for the capture handlers (MODULES §F2's capture context).
+        const message = ctx?.chat?.[index];
+        const carrier = { index, swipe: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0 };
+        const reader = (ctx?.chat ?? []).slice(0, index).findLast(item => item?.is_user);
+        const chat = { lastUser: String(reader?.mes ?? ''), reply: stripBlock(String(message?.mes ?? '')) };
         for (const line of lines) {
             const entry = registry.capture(line.kind);
             if (!entry) {
@@ -317,7 +345,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             }
             let result;
             try {
-                result = await bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry });
+                result = await bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier, chat });
                 if (result?.ok) store.append({ ops: result.ops, receipt: result.receipt });
             } catch (error) {
                 result = { ok: false, code: 'FAILED', message: error?.message ?? String(error) };
@@ -333,6 +361,10 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         return { receipts, problems: found };
     }
 
+    function redraw(index, message) {
+        try { ctx.updateMessageBlock?.(index, message); } catch { /* not drawn yet: SillyTavern draws it from the saved text */ }
+    }
+
     /** MESSAGE_RECEIVED: (messageId, type). */
     async function onMessageReceived(messageId) {
         const id = Number(messageId);
@@ -344,7 +376,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         if (!isCarrier(message)) return null;
         try {
             if (store.headIndex() !== id) store.rebuild();
-            store.ensureInitial(registry.initialState());
+            store.ensureInitial(initial());
             if (store.headIndex() !== id) {
                 problem({ index: id, code: 'FAILED', message: 'The reply is not the last message that keeps the story, so its changes were not read.' });
                 return null;
@@ -370,14 +402,55 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             }
             if (store.dirty()) await store.flush();
             else if (edited) await ctx.saveChat?.();
-            if (edited) ctx.updateMessageBlock?.(id, message);
+            // At MESSAGE_RECEIVED SillyTavern has not drawn the reply yet (it draws the text as saved), so
+            // redrawing can fail; that is not a reason to lose the turn.
+            if (edited) redraw(id, message);
             const turn = { index: id, type: current.type, receipts: result.receipts, problems, told: current.untold };
             events?.emit('turn', turn);
+            if (!parsed.lines.length) afterReply(id, current.type, message);
             return turn;
         } catch (error) {
             problem({ index: id, code: 'FAILED', message: `The reply's changes could not be kept: ${error?.message ?? error}` });
             return null;
         }
+    }
+
+    // afterReply (the assist extractor): a reply that came without change lines may get them from a
+    // module after all. Not awaited; a failure is logged. `capture(text, { index, swipe })` runs the
+    // lines as story captures on that reply when it is still the head on the same swipe.
+    function afterReply(index, type, message) {
+        const swipe = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
+        for (const { moduleId, fn } of registry.hookEntries('afterReply')) {
+            Promise.resolve()
+                .then(() => fn({ index, swipe, type, mes: String(message?.mes ?? ''), capture: (text, at = { index, swipe }) => captureLate(at, text) }))
+                .catch(error => problem({ module: moduleId, index, code: 'FAILED', message: `afterReply failed: ${error?.message ?? error}` }));
+        }
+    }
+
+    /** Change lines found after the reply (afterReply): captured on it and kept in its hidden block. */
+    async function captureLate({ index, swipe } = {}, text = '') {
+        const message = ctx?.chat?.[index];
+        if (!isCarrier(message) || store.headIndex() !== index || (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== swipe || session) {
+            return { receipts: [], problems: ['The reply changed before its late change lines arrived; they were not used.'] };
+        }
+        const parsed = parseChanges(String(text ?? ''));
+        const problems = parsed.problems.map(line => problem({ index, code: 'UNREADABLE', message: line }));
+        const result = await captureLines(index, parsed.lines);
+        problems.push(...result.problems);
+        if (parsed.lines.length) {
+            // Kept in the reply's hidden block, so Re-read finds them too.
+            const before = extractBlock(message.mes);
+            const body = [before?.trim(), ...parsed.lines.map(line => line.raw)].filter(Boolean).join('\n');
+            const mes = hideBlock(`${stripBlock(message.mes)}\n\n<Changes>\n${body}\n</Changes>`);
+            message.mes = mes;
+            if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = mes;
+        }
+        if (store.dirty()) await store.flush();
+        else if (parsed.lines.length) await ctx.saveChat?.();
+        if (parsed.lines.length) redraw(index, message);
+        const turn = { index, type: 'late', receipts: result.receipts, problems, told: [] };
+        events?.emit('turn', turn);
+        return turn;
     }
 
     /** CHAT_CHANGED: a new chat (or the same one reloaded). */

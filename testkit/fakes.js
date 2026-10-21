@@ -66,6 +66,9 @@ export function createFakeStore({ chat, save = async () => {} }) {
         head: () => at(headIndex()),
         at,
         headIndex,
+        receipts: () => carriers().flatMap(i => (chat()[i].extra?.storySuite?.receipts ?? []).map(receipt => ({ index: i, receipt: clone(receipt) }))),
+        opsAt: index => clone(chat()[index]?.extra?.storySuite?.ops ?? []),
+        changesAt: index => [...new Set((chat()[index]?.extra?.storySuite?.ops ?? []).map(op => op.path))],
         ensureInitial(initial) {
             const first = carriers()[0];
             if (first === undefined || carriers().some(i => chat()[i].extra?.storySuite?.checkpoint)) return;
@@ -126,7 +129,7 @@ export function createFakeBus({ store, registry, settings = () => ({}) }) {
     let tokens = 0;
     const previews = new Map();
 
-    function run(type, payload, { cause = 'story', seed = 0, state = null, capture = null } = {}) {
+    function run(type, payload, { cause = 'story', seed = 0, state = null, capture = null, carrier = null, chat = null } = {}) {
         const handler = capture?.apply ?? registry.command(type);
         if (!handler) return { ok: false, code: 'UNKNOWN_COMMAND', message: `Nothing handles "${type}".` };
         const owner = capture?.moduleId ?? registry.commandOwner(type);
@@ -135,8 +138,16 @@ export function createFakeBus({ store, registry, settings = () => ({}) }) {
         const claims = { ...head.meta.claims };
         let claimed = false;
         const receiptId = `rc_${String(counter + 1).padStart(8, '0')}`;
+        let ids = 0;
         const ctx = {
             receiptId,
+            cause,
+            module: owner,
+            caller: null,
+            rev: head.meta.rev + 1,
+            carrier: carrier ? { ...carrier, key: `${carrier.index}:${carrier.swipe ?? 0}` } : null,
+            chat: chat ? { lastUser: String(chat.lastUser ?? ''), reply: String(chat.reply ?? '') } : null,
+            id: prefix => `${prefix}_${String(counter + 1).padStart(4, '0')}${String(ids += 1).padStart(4, '0')}`,
             read: domain => deepFreeze(clone(drafts[domain] ?? head.domains[domain])),
             draft(domain) {
                 if (registry.domainOwner(domain) !== owner) throw new CommandError('NOT_OWNER', `"${owner}" cannot change "${domain}".`);

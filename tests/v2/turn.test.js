@@ -308,12 +308,31 @@ test('a swipe is captured on its own; a message the interceptor did not prepare 
     host.close();
 });
 
-test('macros in the story\'s own words reach the model as written', async () => {
+test('macros in the story\'s own words reach the model as written, except the persona and character names', async () => {
     const host = await fakeHost();
-    await host.send('Go.', 'Done.\n<Changes>\n+ item {{user}}\'s Map\n</Changes>');
+    await host.send('Go.', 'Done.\n<Changes>\n+ item {{random::a,b}} Map\n+ item <USER> Key\n</Changes>');
     const { request } = await host.send('Look.', 'Ok.');
-    assert.ok(request.chat.at(-1).content.includes('{​{user}}\'s Map'));
-    assert.ok(!request.chat.at(-1).content.includes('You\'s Map'));
+    const tail = request.chat.at(-1).content;
+    assert.ok(tail.includes('{\u200b{random::a,b}} Map'), 'other macros are kept as written');
+    assert.ok(tail.includes('<\u200bUSER> Key'));
+    host.close();
+});
+
+test('{{user}} and {{char}} in the static and tail text become the persona\'s and character\'s names', async () => {
+    const note = {
+        id: 'note',
+        context: { static: () => 'Only {{user}} decides what {{user}} does.', tail: () => ({ lines: ['{{char}} waits for {{ user }}.'], optional: [] }) },
+    };
+    const host = await createHost({ fakes: true, core: false, modules: [note] });
+    const one = await host.send('Hi.', 'Hello.');
+    const two = await host.send('Again.', 'Hello again.');
+    const text = request => request.chat.map(message => message.content).join('\n');
+    assert.ok(text(one.request).includes(`Only ${host.ctx.name1} decides what ${host.ctx.name1} does.`));
+    assert.ok(text(one.request).includes(`${host.ctx.name2} waits for ${host.ctx.name1}.`));
+    assert.ok(!text(one.request).includes('{{user}}') && !text(one.request).includes('{\u200b{user}}'));
+    assert.equal(host.turn.session(), null);
+    const statics = [one, two].map(({ request }) => request.chat.find(message => message.content.includes('Only ')).content);
+    assert.equal(statics[0], statics[1], 'the static part stays byte-identical');
     host.close();
 });
 
@@ -466,5 +485,17 @@ test('the real runtime: a whole turn on store.js and commands.js', async t => {
     await host.st.deleteMessage(3);
     await host.st.deleteMessage(2);
     assert.deepEqual(items(host), {});
+    host.close();
+});
+
+test('a redraw that fails at MESSAGE_RECEIVED (the reply is not drawn yet) does not lose the turn', async () => {
+    const host = await createHost();
+    host.ctx.updateMessageBlock = () => { throw new TypeError("Cannot read properties of undefined (reading 'getAttribute')"); };
+    const turns = [];
+    host.sdk.on('turn', turn => turns.push(turn.index));
+    await host.send('Go.', 'Rope.\n<Changes>\n+ item Rope\n</Changes>');
+    assert.deepEqual(turns, [2]);
+    assert.match(host.ctx.chat[2].mes, /<!-- STORY_SUITE_V2/);
+    assert.deepEqual(host.turn.problems(), []);
     host.close();
 });

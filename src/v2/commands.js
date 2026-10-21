@@ -15,6 +15,11 @@
 //   catch it to treat the other module as absent.
 // * Every committed receipt bumps `meta.rev` by one, even when it changed nothing else, so each
 //   receipt has its own rev.
+// * What a handler is told about where it runs (MODULES §F2, the capture context): `ctx.caller` is the
+//   module whose handler made this ctx.call (null at the top), `ctx.rev` the meta.rev this receipt will
+//   have, `ctx.id(prefix)` a new `<prefix>_<8 base36>` drawn from the receipt's seed (so the same seed
+//   gives the same IDs, and ctx.rng() is not disturbed), and, for capture runs, `ctx.carrier`
+//   ({ index, swipe, key }) and `ctx.chat` ({ lastUser, reply }); both are null for other commands.
 
 import { apply, checkOps, clone, deepFreeze, diff, escapeKey, isJson } from './ops.js';
 import { isSeed, rng as makeRng, roll as rollDice, seed as freshSeed } from './rng.js';
@@ -23,6 +28,10 @@ export const MAX_DEPTH = 8;
 const CAUSES = ['ui', 'story', 'system'];
 const CODE = /^[A-Z][A-Z0-9_]*$/;
 const MAX_PREVIEWS = 16;
+const ID_PREFIX = /^[a-z][a-z0-9]*$/;
+const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+// Mixed into the receipt's seed for ctx.id's own stream (any odd constant; fixed, so IDs replay).
+const ID_STREAM = 0x5bd1e995;
 
 /** The error `ctx.fail` throws; the bus turns it into { ok: false, code, message }. */
 export class CommandError extends Error {
@@ -118,8 +127,23 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return deepFreeze({ ...tx.head, meta: tx.meta ? clone(tx.meta) : tx.head.meta, domains });
     }
 
-    function invoke(tx, type, target, payload, depth) {
-        const ctx = makeCtx(tx, target.moduleId, depth);
+    // A query's third argument (MODULES §F3): other queries over the same transaction state, and the
+    // stored receipts in chat order.
+    function queryTools(tx) {
+        const state = currentState(tx);
+        const tools = Object.freeze({
+            query(name, args) {
+                const fn = findQuery(name);
+                if (!fn) fail('NOT_FOUND', `There is no query called "${name}".`);
+                return deepFreeze(clone(fn(state, deepFreeze(clone(args)), tools)));
+            },
+            receipts: () => store.receipts?.() ?? [],
+        });
+        return tools;
+    }
+
+    function invoke(tx, type, target, payload, depth, caller = null) {
+        const ctx = makeCtx(tx, target.moduleId, depth, caller);
         const out = target.handler(ctx, deepFreeze(clone(payload)));
         if (out && typeof out.then === 'function') {
             out.then(null, () => {});   // nobody waits on it; keep a late rejection quiet
@@ -128,7 +152,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return out;
     }
 
-    function makeCtx(tx, moduleId, depth) {
+    function makeCtx(tx, moduleId, depth, caller) {
         const open = () => {
             if (tx.closed) throw new Error('This command has already finished; its ctx cannot be used any more.');
         };
@@ -136,6 +160,17 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             receiptId: tx.receiptId,
             cause: tx.cause,
             module: moduleId,
+            caller,
+            rev: tx.rev,
+            carrier: tx.carrier,
+            chat: tx.chat,
+            id(prefix) {
+                open();
+                if (typeof prefix !== 'string' || !ID_PREFIX.test(prefix)) fail('INVALID', `An id prefix is lowercase letters and digits (like "it"), not "${prefix}".`);
+                let out = '';
+                for (let n = 0; n < 8; n += 1) out += BASE36[Math.floor(tx.idRandom() * 36) % 36];
+                return `${prefix}_${out}`;
+            },
             read(domain) {
                 open();
                 return readOf(tx, domain);
@@ -155,7 +190,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 }
                 const target = resolve(type);   // UNKNOWN_COMMAND here has changed nothing
                 try {
-                    return invoke(tx, type, target, payload, depth + 1);
+                    return invoke(tx, type, target, payload, depth + 1, moduleId);
                 } catch (error) {
                     tx.failure ??= asCommandError(type, error);
                     throw error;
@@ -185,7 +220,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 open();
                 const fn = findQuery(name);
                 if (!fn) fail('NOT_FOUND', `There is no query called "${name}".`);
-                return deepFreeze(clone(fn(currentState(tx), deepFreeze(clone(args)))));
+                return deepFreeze(clone(fn(currentState(tx), deepFreeze(clone(args)), queryTools(tx))));
             },
             settings(id = moduleId) {
                 return deepFreeze(clone(settings(id) ?? {}));
@@ -195,7 +230,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             time() {
                 open();
                 const fn = findQuery('director.time');
-                const value = fn ? fn(currentState(tx), deepFreeze({})) : readOf(tx, 'director')?.time;
+                const value = fn ? fn(currentState(tx), deepFreeze({}), queryTools(tx)) : readOf(tx, 'director')?.time;
                 const minutes = isRecord(value) ? value.minutes : value;
                 return Number.isInteger(minutes) ? minutes : null;
             },
@@ -237,7 +272,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     }
 
     // Runs one command against `head` and returns { ok, ops, receipt, state } without storing anything.
-    function transact(head, type, payload, { cause, seed: seedValue, receiptId, capture }) {
+    function transact(head, type, payload, { cause, seed: seedValue, receiptId, capture, carrier = null, chat = null }) {
         let tx = null;
         try {
             if (!CAUSES.includes(cause)) fail('INVALID', `"${cause}" is not a cause (ui, story or system).`);
@@ -247,8 +282,10 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 ? { moduleId: capture.moduleId, handler: capture.apply }
                 : resolve(type);
             if (typeof target.handler !== 'function' || !target.moduleId) fail('UNKNOWN_COMMAND', `There is no capture handler for "${type}".`);
+            const headRev = Number.isInteger(head.meta?.rev) ? head.meta.rev : 0;
             tx = {
-                head, cause, receiptId, random: makeRng(seedValue),
+                head, cause, receiptId, random: makeRng(seedValue), idRandom: makeRng((seedValue ^ ID_STREAM) >>> 0),
+                rev: headRev + 1, carrier: carrierOf(carrier), chat: chatOf(chat),
                 drafts: new Map(), frozen: new Map(), meta: null, failure: null, closed: false,
             };
             const out = invoke(tx, type, target, payload, 0);
@@ -286,6 +323,21 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         } finally {
             if (tx) tx.closed = true;
         }
+    }
+
+    // The reply a capture runs for, frozen; `key` (and String(carrier)) is "<index>:<swipe>".
+    function carrierOf(carrier) {
+        if (!isRecord(carrier) || !Number.isInteger(carrier.index)) return null;
+        const swipe = Number.isInteger(carrier.swipe) ? carrier.swipe : 0;
+        const key = `${carrier.index}:${swipe}`;
+        const out = { index: carrier.index, swipe, key };
+        Object.defineProperty(out, 'toString', { value: () => key });
+        return Object.freeze(out);
+    }
+
+    function chatOf(chat) {
+        if (!isRecord(chat)) return null;
+        return Object.freeze({ lastUser: String(chat.lastUser ?? ''), reply: String(chat.reply ?? '') });
     }
 
     // ---- storing ------------------------------------------------------------------------------
@@ -364,10 +416,11 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
          * run(type, payload, { cause = 'story', seed, state, capture }) → { ok, ops, receipt, state }:
          * the command's result without storing it (capture). `state` is the state to run against
          * (default: the head), so lines of one reply can chain; `capture` = registry.capture(kind)'s
-         * { moduleId, apply } runs that capture handler as command `type`.
+         * { moduleId, apply } runs that capture handler as command `type`; `carrier` ({ index, swipe })
+         * and `chat` ({ lastUser, reply }) become ctx.carrier and ctx.chat.
          */
-        run(type, payload, { cause = 'story', seed: seedValue, state, capture } = {}) {
-            return guarded(() => transact(state ?? store.head(), type, payload, { ...fresh(cause, seedValue), capture }));
+        run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null } = {}) {
+            return guarded(() => transact(state ?? store.head(), type, payload, { ...fresh(cause, seedValue), capture, carrier, chat }));
         },
     };
 }

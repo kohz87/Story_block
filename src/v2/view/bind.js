@@ -1,7 +1,7 @@
 // Bindings (SPEC §13.2): what a screen's template (and the JSON layout renderer, which shares this file)
 // reads from. A binding is resolved against a **scope**:
 //
-//   { state, q, draft, settings, query?, <loop names>…, ratio, pct, changed, len, fmt: { money, time } }
+//   { state, q, draft, settings, query?, <loop names>…, ratio, pct, changed, len, contains, fmt: { money, time } }
 //
 // Every name is a top-level identifier, so the scope is what `evaluate(expr, scope)` gets as it is (the
 // layout renderer's `{ item, index, query }` scope has the same shape).
@@ -31,8 +31,8 @@ import { escapeKey } from '../ops.js';
 const FORBIDDEN = new Set(['__proto__', 'prototype', 'constructor']);
 const IDENT = /^[A-Za-z_$][\w$]*$/;
 /** Names a loop may not take: they are the scope's own roots and helpers. */
-export const RESERVED = new Set(['state', 'q', 'draft', 'settings', 'query', 'ratio', 'pct', 'changed', 'len', 'fmt', 'true', 'false', 'null']);
-const HELPERS = new Set(['ratio', 'pct', 'changed', 'len', 'fmt.money', 'fmt.time']);
+export const RESERVED = new Set(['state', 'q', 'draft', 'settings', 'query', 'ratio', 'pct', 'changed', 'len', 'contains', 'fmt', 'true', 'false', 'null']);
+const HELPERS = new Set(['ratio', 'pct', 'changed', 'len', 'contains', 'fmt.money', 'fmt.time']);
 const POINTERS = Symbol('ss.pointers');
 const EMPTY = Object.freeze({});
 
@@ -228,6 +228,18 @@ export function len(value) {
     return 0;
 }
 
+/**
+ * contains(a, b): does text `a` hold text `b`, ignoring case (a filter box: `contains(name, draft.find)`)?
+ * An empty or missing `b` is held by everything; a list holds `b` when one of its items does.
+ */
+export function contains(a, b) {
+    const needle = typeof b === 'string' || typeof b === 'number' ? String(b).trim().toLocaleLowerCase() : '';
+    if (!needle) return true;
+    if (Array.isArray(a)) return a.some(item => contains(item, needle));
+    if (typeof a !== 'string' && typeof a !== 'number') return false;
+    return String(a).toLocaleLowerCase().includes(needle);
+}
+
 /** Plain fallbacks; the host injects the real ones (the rules' coin names, the Director's calendar). */
 export const defaultFormatters = {
     money: n => (Number.isInteger(n) ? String(n) : ''),
@@ -259,7 +271,7 @@ export function makeScope({ state = null, q = EMPTY, draft = EMPTY, settings = E
         money: n => safeFormat(format.money, n),
         time: m => safeFormat(format.time, m),
     });
-    const scope = { state: stateView(state), q: q ?? EMPTY, draft: draft ?? EMPTY, settings: settings ?? EMPTY, ratio, pct, len, fmt };
+    const scope = { state: stateView(state), q: q ?? EMPTY, draft: draft ?? EMPTY, settings: settings ?? EMPTY, ratio, pct, len, contains, fmt };
     if (typeof query === 'function') scope.query = query;
     Object.defineProperty(scope, POINTERS, { value: {}, enumerable: true });
     Object.defineProperty(scope, CHANGED, { value: pointers, enumerable: true });
@@ -345,7 +357,7 @@ export function evalExpr(compiled, scope, evaluate = null, onWarn = null) {
 }
 
 /** The helpers as extra calls of the events condition language (`parse(source, { names, calls })`). */
-export const TEMPLATE_CALLS = Object.freeze({ ratio: [2, 2], pct: [2, 2], changed: [1, 1], len: [1, 1], 'fmt.money': [1, 1], 'fmt.time': [1, 1] });
+export const TEMPLATE_CALLS = Object.freeze({ ratio: [2, 2], pct: [2, 2], changed: [1, 1], len: [1, 1], contains: [2, 2], 'fmt.money': [1, 1], 'fmt.time': [1, 1] });
 
 /**
  * Wrap the events condition language (src/v2/events: `compile(source, options)` → `{ ok, ast }`,
@@ -359,7 +371,7 @@ export function conditionEvaluator({ compile, evaluate }) {
         const parsed = compile(expr, { names: true, calls: TEMPLATE_CALLS });
         if (!parsed?.ok) throw new Error(parsed?.error?.message ?? 'The expression could not be read.');
         const calls = {
-            ratio: scope.ratio, pct: scope.pct, changed: scope.changed, len: scope.len,
+            ratio: scope.ratio, pct: scope.pct, changed: scope.changed, len: scope.len, contains: scope.contains,
             'fmt.money': scope.fmt?.money, 'fmt.time': scope.fmt?.time,
         };
         const result = evaluate(parsed.ast, { scope, calls, query: typeof scope.query === 'function' ? scope.query : () => null });

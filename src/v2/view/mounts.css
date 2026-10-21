@@ -32,7 +32,8 @@
 .ss-gameview {
     position: fixed;
     inset: 0;
-    z-index: 3000;
+    /* Above SillyTavern's top bar (3005): the game view is full screen. */
+    z-index: 3020;
     display: flex;
     flex-direction: column;
     height: 100dvh;
@@ -255,7 +256,9 @@
 .ss-dialog-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 3010;
+    /* <html> may be the 0-high box fixed elements sit in (SillyTavern's mobile layout): give the height. */
+    height: 100dvh;
+    z-index: 3030;
     display: flex;
     align-items: flex-end;
     justify-content: center;

@@ -4,8 +4,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EXTRACTOR_HEAD, MAX_LINES, SETTING, createAssistPart, extractorPrompt, grammarKind, parseExtractorAnswer } from '../../../src/v2/assist/index.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
-import { parseChanges } from '../../../src/v2/capture.js';
-import { CAPTURE_PREFIX } from '../../../src/v2/registry.js';
 import { NEVER, fakeModel, flush, manualTimer, on } from './helpers/fakes.js';
 
 const GRAMMAR = [
@@ -143,47 +141,33 @@ test('the capture given per reply (the host\'s) wins over the one given at creat
 
 const available = await hostAvailable();
 
-// The host hook this part needs, as turn.js would add it (see the report): extra lines for one
-// carrier, still the head and on the same swipe, run as its owners' capture commands.
-function lateCapture(host) {
-    return async (text, { index, swipe }) => {
-        const message = host.ctx.chat[index];
-        if (host.store.headIndex() !== index || (message?.swipe_id ?? 0) !== swipe) return { receipts: [], problems: ['stale'] };
-        const receipts = [];
-        let state = host.store.head();
-        for (const line of parseChanges(text).lines) {
-            const entry = host.registry.capture(line.kind);
-            if (!entry) continue;
-            const result = await host.bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry });
-            if (!result.ok) continue;
-            host.store.append({ ops: result.ops, receipt: result.receipt });
-            state = result.state;
-            receipts.push(result.receipt);
-        }
-        await host.store.flush();
-        return { receipts, problems: [] };
-    };
-}
-
-test('on the real host: a reply without a block gets its item through the normal capture', { skip: available.ok ? false : available.reason }, async () => {
-    let host = null;
-    const part = createAssistPart({
-        callModel: fakeModel('+ item Rope | qty: 1'),
-        settings: () => on({ extractor: true }),
-        grammar: () => host.registry.contexts().flatMap(context => context.kinds.map(kind => kind.grammar)),
-        chatId: () => host.ctx.chatId,
-        warn: () => {},
-    });
-    host = await createHost({ modules: [{ id: 'zz-assist', queries: part.queries, hooks: part.hooks, settings: part.settings }] });
+test('on the real host: a reply without a block gets its item through the host\'s own late capture', { skip: available.ok ? false : available.reason }, async () => {
+    const host = await createHost({ callModel: fakeModel('+ item Rope | qty: 1'), settings: { modules: { 'story-block': { [SETTING.extractor]: true } } } });
     assert.ok(host.registry.capture('item'), 'the core module keeps items');
+    const late = new Promise(resolve => host.sdk.on('turn', turn => { if (turn.type === 'late') resolve(turn); }));
     const { index } = await host.send('I buy rope.', STORY);
+    const turn = await late;
     const message = host.ctx.chat[index];
-    const result = await part.hooks.afterReply({ index, swipe: message.swipe_id ?? 0, type: 'normal', mes: message.mes, capture: lateCapture(host) });
-    assert.equal(result.receipts.length, 1);
-    assert.equal(result.receipts[0].cause, 'story');
+    assert.equal(turn.receipts.length, 1);
+    assert.equal(turn.receipts[0].cause, 'story');
     const items = host.sdk.query('inventory.items', {});
     assert.ok(items.some(item => item.name === 'Rope' && item.qty === 1), JSON.stringify(items));
-    assert.ok(message.extra.storySuite.receipts.some(receipt => receipt.id === result.receipts[0].id), 'kept on the reply, so a swipe takes it back');
+    assert.ok(message.extra.storySuite.receipts.some(receipt => receipt.id === turn.receipts[0].id), 'kept on the reply, so a swipe takes it back');
+    assert.match(message.mes, /^You buy a coil of rope and walk to the mill\.\n\n<!-- STORY_SUITE_V2\n<Changes>\n\+ item Rope \| qty: 1\n<\/Changes>\n-->$/, 'the lines are kept in the hidden block');
+    // A swipe takes them back.
+    await host.swipe('Another ending, with no rope.');
+    await flush();
+    assert.ok(!host.sdk.query('inventory.items', {}).some(item => item.name === 'Rope' && item.qty === 1 && item.stack === turn.receipts[0].data.stacks?.[0]), 'the first swipe\'s rope is not on this swipe');
+    host.close();
+});
+
+test('the extractor is off by default: a reply without a block stays without changes', { skip: available.ok ? false : available.reason }, async () => {
+    let asked = 0;
+    const host = await createHost({ callModel: async () => { asked += 1; return '+ item Rope'; } });
+    await host.send('I buy rope.', STORY);
+    await flush();
+    assert.equal(asked, 0);
+    assert.deepEqual(host.sdk.query('inventory.items', {}), []);
     host.close();
 });
 

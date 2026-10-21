@@ -8,21 +8,25 @@ import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
 const view = state => ({ state, query: () => null, settings: {}, chat: { length: 1, lastUser: '' } });
 
-test('the definition has the §6 shape', () => {
+test('the definition has the §6 shape (core, packs, events and assist parts merged)', () => {
     const module = createCoreModule();
     assert.equal(module.id, CORE_MODULE_ID);
     assert.deepEqual(Object.keys(module.domains), ['scene', 'inventory']);
     assert.deepEqual(Object.keys(module.commands).sort(), [
-        'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.merge', 'inventory.split',
+        'assist.precheck', 'events.fire', 'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.merge', 'inventory.split',
         'inventory.transfer', 'inventory.unequip', 'scene.place', 'scene.present', 'wallet.pay', 'wallet.receive',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet', 'scene.place', 'scene.present']);
+    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'events.status', 'inventory.currency', 'inventory.find', 'inventory.items', 'inventory.wallet', 'packs.calendar',
+        'packs.content', 'packs.item', 'packs.list', 'packs.start', 'scene.place', 'scene.present']);
+    assert.deepEqual(Object.keys(module.hooks).sort(), ['afterReply', 'beforeGenerate', 'item.resolve', 'start']);
+    assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present']);
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
-    assert.deepEqual(module.tabs.map(tab => tab.id), ['inventory', 'scene']);
-    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyShort: '' });
-    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyShort']);
+    assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
+    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card']);
+    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyShort: '', assistClassifier: false, assistExtractor: false, assistProfile: '' });
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyShort', 'assistClassifier', 'assistExtractor', 'assistProfile']);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));
 });
@@ -114,8 +118,8 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
         assert.equal(kind.grammar, CORE_KINDS[name].grammar);
         assert.equal(typeof kind.apply, 'function');
     }
-    assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands));
-    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries));
+    assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands).filter(name => !/^(events|assist)\./.test(name)));
+    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist)\./.test(name)));
     assert.equal(part.context.budget, CORE_BUDGET);
 });
 
