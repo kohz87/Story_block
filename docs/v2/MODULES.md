@@ -344,3 +344,16 @@ These settle questions agents raised; the host changes they need are made at int
     result shows on that reply's card at once and the next reply narrates it. With Assist's pre-roll
     classifier on (F16's option), the roll happens before the reply so the same reply narrates it.
 79. Market shortages (F36) confirmed as written.
+80. **Checks roll in the same reply, like v1's dice** (user decision; supersedes F16's "stop at the check"
+    and F78's timing). Before every reply, swipe and regenerate, code rolls a fresh set of d20s (seeded, kept
+    on that reply) and gives them to the model in the tail tied to attempts ("Roll 1 = 12 · Roll 2 = 5 — the
+    first uncertain attempt takes Roll 1, the next Roll 2…", v1 `promptRolls`), together with the PC's and
+    present companions' check modifiers as a short code-built table (stat modifiers, plus skills/talents/items
+    that apply by code's rule). The model decides whether an attempt needs a roll and how hard it is, uses
+    the next roll, and narrates the outcome **in the same reply**, writing `? check stealth — slipping past
+    the guard | dc: hard | roll: 1 | result: success` in `<Changes>`. Code then recomputes the total from the
+    given roll and its own modifiers against the DC (natural 20/1 rule, F31); that is the recorded result. If
+    the model's stated result or narration disagrees, the reply's card flags it ("narrated as success, the
+    dice say fail") — v1's verdict rule — and the recorded result stands. Modifiers are code's only; the
+    reader can't change them; a swipe or regenerate brings fresh rolls. Up to 2 checks per reply (F32). The
+    Assist pre-roll classifier is no longer needed for checks (kept as an option for typed actions).
