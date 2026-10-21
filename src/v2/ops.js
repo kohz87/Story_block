@@ -214,7 +214,8 @@ function applyOne(root, op, fresh) {
 // (`was`) and where it is inside the thing (`count`, '/qty'). On replay, when the thing holds another
 // number (an earlier reply was deleted), it is taken from instead: `was` comes off and the rest stays;
 // holding less than `was` goes below zero, which the validator refuses (that block is skipped). Holding
-// `was` exactly, it goes, as written.
+// `was` exactly, it goes, as written. The other way round, a moved `replace` of a counter named `qty`
+// that comes to exactly 0 removes the thing holding it (r2-3: a stack is never kept at 0).
 
 /** True when `path` (/domains/<name>/…) is one of the domain's `counters` patterns. */
 export function isCounterPath(path, patterns) {
@@ -249,19 +250,100 @@ export function counterInside(path, patterns) {
     return null;
 }
 
+// ---------- per-reply scratch ----------
+//
+// A domain may name top-level fields that hold per-reply bookkeeping (`scratch`, the inventory's
+// `perReply`): each reply adds its own entry under its record ID and drops the others. On replay, after
+// an earlier reply was deleted (or one of this reply's own blocks was skipped), what an op inside such a
+// field expects may not be there: a `remove` of something not there is passed over, missing objects on
+// the way are made ({}), and a `replace` of something not there becomes an `add`. Bookkeeping only
+// counts what did happen, so fitting it never makes anything. Nothing outside scratch fields changes.
+
+/** The pointer of the scratch field `path` (/domains/<name>/<field>/…) lies in (`scratchOf(name)` lists it), or null. */
+export function scratchRoot(path, scratchOf) {
+    if (typeof scratchOf !== 'function') return null;
+    let keys;
+    try { keys = parsePath(path); } catch { return null; }
+    if (keys[0] !== 'domains' || keys.length < 3) return null;
+    const fields = scratchOf(keys[1]);
+    return Array.isArray(fields) && fields.includes(keys[2]) ? `/domains/${escapeKey(keys[1])}/${escapeKey(keys[2])}` : null;
+}
+
+function scratchOps(state, ops, scratchOf) {
+    // What each scratch field holds as the block goes (a copy; the ops are what is returned).
+    const shadow = new Map();
+    const out = [];
+    for (const op of ops) {
+        const root = op && typeof op.path === 'string' ? scratchRoot(op.path, scratchOf) : null;
+        if (!root || !OPS.has(op.op)) {
+            out.push(op);
+            continue;
+        }
+        if (!shadow.has(root)) shadow.set(root, { value: clone(valueAt(state, root)) });
+        const held = shadow.get(root);
+        const keys = parsePath(op.path).slice(3);
+        if (!keys.length) {
+            if (op.op === 'remove') {
+                if (held.value === undefined) continue;
+                held.value = undefined;
+            } else held.value = clone(op.value);
+            out.push(op);
+            continue;
+        }
+        if (op.op === 'remove') {
+            const parent = keys.slice(0, -1).reduce((node, key) => (isPlainObject(node) && Object.hasOwn(node, key) ? node[key] : undefined), held.value);
+            if (!isPlainObject(parent) || !Object.hasOwn(parent, keys.at(-1))) continue;
+            delete parent[keys.at(-1)];
+            out.push(op);
+            continue;
+        }
+        if (!isPlainObject(held.value)) {
+            held.value = {};
+            out.push({ op: 'add', path: root, value: {} });
+        }
+        let node = held.value;
+        let at = root;
+        for (const key of keys.slice(0, -1)) {
+            at = `${at}/${escapeKey(key)}`;
+            if (!isPlainObject(node[key])) {
+                node[key] = {};
+                out.push({ op: 'add', path: at, value: {} });
+            }
+            node = node[key];
+        }
+        const last = keys.at(-1);
+        out.push(op.op === 'replace' && !Object.hasOwn(node, last) ? { op: 'add', path: op.path, value: op.value } : op);
+        node[last] = clone(op.value);
+    }
+    return out;
+}
+
 /**
  * `ops` with each counter op (`replace` with a numeric `was`) moved onto the value `state` holds
  * there, and each `remove` of a thing holding a counter (`was`, `count`) that now holds another
  * number turned into taking `was` from it: { ops, rebased: Set of domain names whose counts moved }.
+ * With `scratch` (a domain name → its scratch fields), ops inside those fields are fitted as above.
  * Ops are not changed in place.
  */
-export function rebaseOps(state, ops) {
+export function rebaseOps(state, ops, { scratch = null } = {}) {
     const rebased = new Set();
     const moved = path => {
         const keys = parsePath(path);
         if (keys[0] === 'domains' && keys[1]) rebased.add(keys[1]);
     };
-    const out = ops.map(op => {
+    // Paths earlier ops in the list put something at: a count under one of them stands as they left it.
+    const written = [];
+    const writtenAbove = path => written.some(at => path === at || path.startsWith(`${at}/`));
+    const out = (scratch ? scratchOps(state, ops, scratch) : ops).map(op => {
+        const fitted = fit(op);
+        if ((op?.op === 'add' || op?.op === 'replace') && typeof op.path === 'string') written.push(op.path);
+        return fitted;
+    });
+    return { ops: out, rebased };
+
+    function fit(op) {
+        // Under something an earlier op in the list put there, the op stands as it was made.
+        if (typeof op?.path === 'string' && typeof op.was === 'number' && writtenAbove(op.path)) return op;
         if (op?.op === 'remove' && typeof op.was === 'number' && typeof op.count === 'string' && op.count.startsWith('/')) {
             const at = `${op.path}${op.count}`;
             const now = valueAt(state, at);
@@ -273,11 +355,38 @@ export function rebaseOps(state, ops) {
         }
         if (op?.op !== 'replace' || typeof op.was !== 'number' || typeof op.value !== 'number') return op;
         const now = valueAt(state, op.path);
+        if (now === undefined) {
+            // The count, or the thing holding it, is not there (the reply that made it was deleted): it
+            // counts from 0, as the op's change alone. Its holder is made for it only when a holder is
+            // nothing but that count (a wallet { coin }: every other one there is so); a thing with more
+            // to it (a stack) is not made up, so the op stays as written and that block is skipped.
+            const key = parsePath(op.path).at(-1);
+            const parent = op.path.slice(0, op.path.lastIndexOf('/'));
+            const holder = valueAt(state, parent);
+            const value = op.value - op.was;
+            if (isPlainObject(holder)) {
+                moved(op.path);
+                return { op: 'add', path: op.path, value };
+            }
+            const above = holder === undefined ? valueAt(state, parent.slice(0, parent.lastIndexOf('/'))) : null;
+            const bare = other => isPlainObject(other) && Object.keys(other).every(field => field === key);
+            if (isPlainObject(above) && Object.values(above).every(bare)) {
+                moved(op.path);
+                return { op: 'add', path: parent, value: { [key]: value } };
+            }
+            return op;
+        }
         if (typeof now !== 'number' || now === op.was) return op;
         moved(op.path);
-        return { ...op, value: now + (op.value - op.was), was: now };
-    });
-    return { ops: out, rebased };
+        const value = now + (op.value - op.was);
+        // A `qty` brought to exactly 0 removes the thing that holds it, as a live take to 0 does (a stack
+        // is never kept at 0, §2.5); below 0 stays a number, which the validator refuses.
+        const keys = parsePath(op.path);
+        if (value === 0 && keys.length > 3 && keys[keys.length - 1] === 'qty') {
+            return { op: 'remove', path: op.path.slice(0, op.path.lastIndexOf('/')) };
+        }
+        return { ...op, value, was: now };
+    }
 }
 
 /** The value at a JSON Pointer, or undefined when the path does not exist. Never throws. */

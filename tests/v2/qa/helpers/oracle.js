@@ -8,7 +8,8 @@
 // Two rules from the break round, written here on their own: a checkpoint whose `covers` (the record
 // IDs since the checkpoint before it) no longer matches the chat is passed over (B2-4); an op with a
 // numeric `was` on a number that now stands elsewhere adds its change (value − was) instead, and the
-// inventory's own validator must then accept the block (B3-8).
+// inventory's own validator must then accept the block (B3-8); a moved `qty` that comes to exactly 0
+// removes the thing that holds it (r2-3).
 
 import assert from 'node:assert/strict';
 import { readRecord } from '../../../../src/v2/persist.js';
@@ -22,18 +23,50 @@ export const carriers = chat => chat.map((message, index) => (isCarrier(message)
 const unescape = segment => segment.replace(/~1/g, '/').replace(/~0/g, '~');
 
 /** Strict JSON Patch on a deep copy; throws when a path does not fit. Counts with `was` move (above). */
+const SCRATCH = '/domains/inventory/perReply';
+const at = (root, keys) => keys.reduce((node, key) => (node !== null && typeof node === 'object' && Object.hasOwn(node, key) ? node[key] : undefined), root);
+const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+
 export function strictApply(state, ops) {
     let root = structuredClone(state);
+    const startProblems = new Set(root?.domains?.inventory ? validateInventory(root.domains.inventory) : []);
     let moved = false;
+    let touched = false;
     for (const original of ops) {
         let op = original;
+        if (typeof op?.path === 'string' && op.path.startsWith('/domains/inventory/')) touched = true;
+        // The inventory's per-reply tally (scratch): a drop of something already gone is passed over;
+        // anything else is put in place, making the objects on the way.
+        if (typeof op?.path === 'string' && op.path.startsWith(`${SCRATCH}/`)) {
+            const keys = op.path.slice(1).split('/').map(unescape);
+            if (op.op === 'remove') {
+                if (at(root, keys) === undefined) continue;
+            } else {
+                let node = root;
+                for (const key of keys.slice(0, -1)) {
+                    if (!record(node[key])) node[key] = {};
+                    node = node[key];
+                }
+                node[keys.at(-1)] = structuredClone(op.value);
+                continue;
+            }
+        }
         if (op?.op === 'replace' && typeof op.was === 'number' && typeof op.value === 'number') {
             const keys = op.path.slice(1).split('/').map(unescape);
-            let now = root;
-            for (const key of keys) now = now !== null && typeof now === 'object' && Object.hasOwn(now, key) ? now[key] : undefined;
-            if (typeof now === 'number' && now !== op.was) {
+            const now = at(root, keys);
+            // A count whose holder is gone counts from 0 (a holder that is only that count, a wallet, made again).
+            if (now === undefined && record(at(root, keys.slice(0, -1)))) {
+                op = { op: 'add', path: op.path, value: op.value - op.was };
+                moved = true;
+            } else if (now === undefined && at(root, keys.slice(0, -1)) === undefined && record(at(root, keys.slice(0, -2)))
+                && Object.values(at(root, keys.slice(0, -2))).every(other => record(other) && Object.keys(other).every(field => field === keys.at(-1)))) {
+                op = { op: 'add', path: op.path.replace(/\/[^/]*$/, ''), value: { [keys.at(-1)]: op.value - op.was } };
+                moved = true;
+            } else if (typeof now === 'number' && now !== op.was) {
                 op = { ...op, value: now + op.value - op.was };
                 moved = true;
+                // A moved `qty` at exactly 0 removes the thing holding it (r2-3: no stack is kept at 0).
+                if (op.value === 0 && keys.length > 3 && keys[keys.length - 1] === 'qty') op = { op: 'remove', path: op.path.replace(/\/[^/]*$/, '') };
             }
         }
         if (!op || !['add', 'replace', 'remove'].includes(op.op)) throw new Error(`bad op ${op?.op}`);
@@ -70,7 +103,10 @@ export function strictApply(state, ops) {
             else delete target[last];
         }
     }
-    if (moved && root?.domains?.inventory && validateInventory(root.domains.inventory).length) throw new Error('moved counts break the inventory');
+    // A replayed block may not leave the inventory with a problem it did not have before (r2-14).
+    if ((moved || touched) && root?.domains?.inventory && validateInventory(root.domains.inventory).some(problem => !startProblems.has(problem))) {
+        throw new Error('the changes break the inventory');
+    }
     return root;
 }
 
@@ -159,9 +195,11 @@ export function checkInvariants(host, label) {
     const headIndex = indexes.at(-1) ?? -1;
     assert.equal(store.headIndex(), headIndex, `${label}: head index`);
     if (headIndex >= 0) {
-        // With the validators the host passes (runtime.js): a replay that moves counts is checked by them.
+        // With the validators the host passes (runtime.js): a replay that moves counts, or any replayed block, is checked by them.
         const validate = (state, names) => (names.includes('inventory') ? validateInventory(state.domains.inventory) : []);
-        const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate });
+        // And the inventory's per-reply tally as the scratch it is declared to be (ops.js).
+        const scratch = name => (name === 'inventory' ? ['perReply'] : []);
+        const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate, scratch });
         assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
     }
 

@@ -98,6 +98,9 @@ test('continuation(): a cut-off line in the added block is still told', () => {
     const base = 'Rain.  \nOn.';
     const mes = 'Rain.\nOn. And.\n<Changes>\n+ coin 7\n+ coin 2';
     const at = continuation(base, mes);
-    assert.equal(extractBlock(mes, 'Changes', at), '+ coin 7');
-    assert.equal(cutLine(mes, 'Changes', at), '+ coin 2');
+    assert.equal(extractBlock(mes, 'Changes', at, { stopped: true }), '+ coin 7');
+    assert.equal(cutLine(mes, 'Changes', at, { stopped: true }), '+ coin 2');
+    // Not stopped (r2-2): SillyTavern trimmed the reply, so the last line is whole.
+    assert.equal(extractBlock(mes, 'Changes', at), '+ coin 7\n+ coin 2');
+    assert.equal(cutLine(mes, 'Changes', at), null);
 });

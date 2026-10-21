@@ -225,7 +225,7 @@ test('an item named exactly the currency (singular or plural) is coin in the wal
     assert.equal(plain.capture(line('+', 'item', 'Gold Bar')).result.data.created, true);
 });
 
-test('~ place sets the place; a move without kind: keeps the kind and the region; kind: with no value clears it', () => {
+test('~ place sets the place; the same place without kind: keeps its kind, a move keeps the region; kind: with no value clears it', () => {
     const h = setup();
     const result = h.capture(line('~', 'place', 'Bluewatch Village', { kind: 'settlement', region: 'Lakeshire' }));
     assert.equal(result.ok, true, result.message);
@@ -235,7 +235,10 @@ test('~ place sets the place; a move without kind: keeps the kind and the region
     h.capture(line('~', 'place', 'bluewatch village', { region: 'North Lakeshire' }));
     assert.equal(h.state.domains.scene.place.kind, 'settlement', 'the same place keeps its kind');
     h.capture(line('+', 'place', 'Drowned Crypt'));
-    assert.deepEqual(h.state.domains.scene.place, { name: 'Drowned Crypt', kind: 'settlement', region: 'North Lakeshire' }, 'no kind: written, the stored one stays');
+    assert.deepEqual(h.state.domains.scene.place, { name: 'Drowned Crypt', kind: '', region: 'North Lakeshire' }, 'B4r2-5: a move without kind: does not carry the old place\'s kind');
+    h.capture(line('~', 'place', 'Drowned Crypt', { kind: 'crypt' }));
+    h.capture(line('~', 'place', 'Drowned Crypt'));
+    assert.equal(h.state.domains.scene.place.kind, 'crypt', 'the same place keeps its kind');
     h.capture(line('~', 'place', 'Drowned Crypt', { kind: '' }));
     assert.equal(h.state.domains.scene.place.kind, '', 'only an explicit empty kind clears it');
     h.capture(line('~', 'place', 'Old Mill', { kind: 'ruin' }));
@@ -243,6 +246,22 @@ test('~ place sets the place; a move without kind: keeps the kind and the region
     rejected(h, line('-', 'place', 'Drowned Crypt'), 'INVALID', /use ~ place/);
     rejected(h, line('~', 'place', ''), 'INVALID', /needs a name/);
     rejected(h, line('~', 'place', 'x'.repeat(81)), 'INVALID', /longer than 80/);
+});
+
+test('B4r2-5: a move without kind: takes the kind a pack gives a place of that name, else none', () => {
+    const places = [{ name: 'Bluewatch Village', aliases: ['Bluewatch'], kind: 'settlement', region: 'Lakeshire' }, { name: 'East Ridge', aliases: [], kind: '' }];
+    const packs = { id: 'zz-packs', name: 'Packs', queries: { 'packs.content': (state, args) => (args?.kind === 'places' ? places : []) } };
+    const module = core();
+    const h = createHarness([packs, module], { state: stocked(module) });
+    h.capture(line('~', 'place', 'Bluewatch', { kind: 'town' }));
+    h.capture(line('~', 'place', 'East Ridge', { kind: 'wild' }));
+    assert.equal(h.state.domains.scene.place.kind, 'wild');
+    h.capture(line('~', 'place', 'Bluewatch'));
+    assert.equal(h.state.domains.scene.place.kind, 'settlement', 'the pack\'s kind for Bluewatch (an alias), not East Ridge\'s');
+    h.capture(line('~', 'place', 'East Ridge'));
+    assert.equal(h.state.domains.scene.place.kind, '', 'a pack place with no kind: none');
+    h.capture(line('~', 'place', 'Bluewatch Village', { kind: '' }));
+    assert.equal(h.state.domains.scene.place.kind, '', 'an explicit empty kind: still clears it');
 });
 
 test('+ present / - present', () => {

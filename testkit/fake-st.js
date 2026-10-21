@@ -212,7 +212,9 @@ export function createFakeContext(options = {}) {
          * Returns { request, reply, index, aborted? } (index: where the reply landed, or -1; aborted:
          * an interceptor stopped it, so no request was built).
          */
-        async generate(type = 'normal', { reply = '', dryRun = false } = {}) {
+        // `stopped`: the reader pressed Stop while it was written (GENERATION_STOPPED comes before the
+        // partial reply is received, as SillyTavern's stopGeneration does).
+        async generate(type = 'normal', { reply = '', dryRun = false, stopped = false } = {}) {
             const last = ctx.chat.length - 1;
             if (type === 'regenerate' && ctx.chat[last] && !ctx.chat[last].is_user) {
                 ctx.chat.pop();
@@ -256,15 +258,16 @@ export function createFakeContext(options = {}) {
                 message.swipes[message.swipe_id] = message.mes;
                 message.swipe_info[message.swipe_id] = { ...message.swipe_info[message.swipe_id], extra: clone(message.extra ?? {}) };
             }
+            if (stopped) await emit(EVENT_TYPES.GENERATION_STOPPED);
             if (index >= 0) await emit(EVENT_TYPES.MESSAGE_RECEIVED, index, type);
-            if (type !== 'quiet') await emit(EVENT_TYPES.GENERATION_ENDED, ctx.chat.length);
+            if (type !== 'quiet' && !stopped) await emit(EVENT_TYPES.GENERATION_ENDED, ctx.chat.length);
             return { request, reply, index };
         },
         /** The user sends `text`; the model answers `reply`. */
-        async send(text, { reply = '' } = {}) {
+        async send(text, { reply = '', stopped = false } = {}) {
             fake.addUser(text);
             await emit(EVENT_TYPES.MESSAGE_SENT, ctx.chat.length - 1);
-            return fake.generate('normal', { reply });
+            return fake.generate('normal', { reply, stopped });
         },
         /** The reader swipes message `index` to its existing swipe `swipeId`. */
         async swipeTo(index, swipeId) {

@@ -127,6 +127,9 @@ export function definitionProblems(def) {
             if (domain.counters !== undefined && (!Array.isArray(domain.counters) || domain.counters.some(path => typeof path !== 'string' || !/^[^/~][^~]*$/.test(path)))) {
                 problems.push(`domain "${name}" counters must be a list of paths inside the domain, like "wallets/*/coin"`);
             }
+            if (domain.scratch !== undefined && (!Array.isArray(domain.scratch) || domain.scratch.some(key => typeof key !== 'string' || !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(key)))) {
+                problems.push(`domain "${name}" scratch must be a list of field names in the domain, like "perReply"`);
+            }
             if (typeof domain.initial === 'function') {
                 let slice;
                 try { slice = domain.initial(); } catch (error) { problems.push(`domain "${name}" initial() threw: ${error?.message ?? error}`); continue; }
@@ -442,6 +445,12 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         validator(name) {
             const owner = owners.domain.get(name);
             return owner ? defs.get(owner).domains[name].validate ?? null : null;
+        },
+        /** The fields a domain keeps per-reply bookkeeping in (`scratch`, ops.js), [] when none. */
+        scratch(name) {
+            const owner = owners.domain.get(name);
+            const list = owner ? defs.get(owner).domains[name].scratch : null;
+            return Array.isArray(list) ? [...list] : [];
         },
         /** The number paths a domain keeps as counts (`counters`, ops.js), [] when none. */
         counters(name) {

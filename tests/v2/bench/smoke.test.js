@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
+import { readRecord } from '../../../src/v2/persist.js';
 import {
     PARTY_SIZE, STACKS, THREADS, UI_COMMANDS, UI_EVERY,
     breakdown, changeLines, compactCarrierOps, compactOps, measureLoad, measureSwipe, relayout, runScenario, sameHead,
@@ -39,8 +40,16 @@ test('the bench run keeps the load it describes, one capture save per reply and 
     assert.equal(snapshot.savesPerReply.max, 2);
 
     // The greeting holds the initial state; the next comes once 32 KB of ops have passed (the party's
-    // set-up is most of it, and counts carry the value they replaced), then 20 carriers later.
-    assert.equal(snapshot.checkpoints.count, 3);
+    // set-up is most of it, and counts carry the value they replaced), then every 20 carriers after it.
+    // Where 32 KB falls moves with the size of the ops, so the count is worked out from where it fell.
+    const carrier = index => !run.chat[index].is_user;
+    const placed = run.chat.map((message, index) => (carrier(index) && readRecord(message)?.checkpoint ? index : -1)).filter(index => index >= 0);
+    const carriersBetween = (from, to) => run.chat.slice(from + 1, to + 1).filter(message => !message.is_user).length;
+    assert.equal(placed[0], 0);
+    assert.ok(placed.length >= 2 && carriersBetween(placed[0], placed[1]) < 20, 'the 32 KB checkpoint comes before 20 carriers');
+    for (let n = 2; n < placed.length; n++) assert.equal(carriersBetween(placed[n - 1], placed[n]), 20);
+    assert.equal(placed.length, 2 + Math.floor(carriersBetween(placed[1], run.chat.length - 1) / 20));
+    assert.equal(snapshot.checkpoints.count, placed.length);
     const bytes = breakdown(run.chat);
     assert.equal(bytes.carriers, REPLIES + 1);
     assert.equal(bytes.records, bytes.checkpoint + bytes.ops + bytes.receipts + bytes.other);

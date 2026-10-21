@@ -125,23 +125,29 @@ function findBlocks(mes, tag) {
     return blocks;
 }
 
-// A block left open ends where the reply stopped. Its last line is only whole when a line break
-// follows it; otherwise it was cut off mid-way ("+ coin 2" of "+ coin 25") and is left out (B2-11).
+// A block left open ends where the reply stopped. Its last line is whole when a line break follows
+// it; with none (SillyTavern trims every reply, so a block the model forgot to close ends that way) it
+// is still read, unless the reader stopped the reply (`stopped`: it was cut off mid-way, "+ coin 2" of
+// "+ coin 25", B2-11), the line is not a change line, or a tag sits in it (a close in mid-line, story
+// text after it) (r2-2); then it is left out.
 // → { body, cut } (`cut`: the line left out, or '').
-function wholeLines(block) {
+function wholeLines(block, stopped = false) {
     if (!block.open || block.body.endsWith('\n')) return { body: block.body, cut: '' };
     const nl = block.body.lastIndexOf('\n');
-    return { body: nl < 0 ? '' : block.body.slice(0, nl + 1), cut: block.body.slice(nl + 1).trim() };
+    const last = block.body.slice(nl + 1).trim();
+    if (!stopped && (!last || (!last.includes('</') && !parseLine(last).error))) return { body: block.body, cut: '' };
+    return { body: nl < 0 ? '' : block.body.slice(0, nl + 1), cut: last };
 }
 
 /**
  * The change line a reply stopped in the middle of (its block left open, the last line with no line
- * break after it), or null. extractBlock and hideBlock leave that line out; turn.js tells it as a Problem.
+ * break after it, and the reply `stopped` by the reader or the line no change line), or null.
+ * extractBlock and hideBlock leave that line out; turn.js tells it as a Problem.
  * `at` (continuation()): only a Continue's own blocks are looked at.
  */
-export function cutLine(mes, tag = 'Changes', at = null) {
+export function cutLine(mes, tag = 'Changes', at = null, { stopped = false } = {}) {
     const last = (at ? laterBlocks(mes, tag, at) : findBlocks(withoutReasoning(mes), tag)).at(-1);
-    const cut = last ? wholeLines(last).cut : '';
+    const cut = last ? wholeLines(last, stopped).cut : '';
     return cut || null;
 }
 
@@ -200,11 +206,12 @@ export function continuation(base, mes, tag = 'Changes') {
  * whether the block is bare or already hidden in Story Suite's comment; several blocks are
  * read as one, in order, so no line is lost. Blocks inside closed reasoning are not read.
  * `at` ({ from, skip }, from continuation()): only the bare blocks a Continue added are read.
+ * `stopped`: the reader stopped the reply, so an open block's unfinished last line is left out.
  */
-export function extractBlock(mes, tag = 'Changes', at = null) {
+export function extractBlock(mes, tag = 'Changes', at = null, { stopped = false } = {}) {
     const blocks = at ? laterBlocks(mes, tag, at) : findBlocks(withoutReasoning(mes), tag);
     if (!blocks.length) return null;
-    return blocks.map(block => blockBody(wholeLines(block).body)).join('\n');
+    return blocks.map(block => blockBody(wholeLines(block, stopped).body)).join('\n');
 }
 
 /**
@@ -227,13 +234,13 @@ const commentSafe = text => text.replace(/-(?=-)/g, '- ');
  * `from`, `skip` (continuation()): only blocks that start at or after `from`, from the `skip`th bare
  * block on (a Continue's own text), are moved; the ones before are left as they are.
  */
-export function hideBlock(mes, tag = 'Changes', { from = 0, skip = 0 } = {}) {
+export function hideBlock(mes, tag = 'Changes', { from = 0, skip = 0, stopped = false } = {}) {
     const text = String(mes ?? '');
     const bare = laterBlocks(text, tag, { from, skip });
     if (!bare.length) return text;
     let story = text;
     for (const block of [...bare].reverse()) story = story.slice(0, block.start) + story.slice(block.end);
-    const kept = bare.map(block => `<${tag}>\n${commentSafe(blockBody(wholeLines(block).body))}\n</${tag}>`).join('\n');
+    const kept = bare.map(block => `<${tag}>\n${commentSafe(blockBody(wholeLines(block, stopped).body))}\n</${tag}>`).join('\n');
     return `${trimEnd(story)}\n\n<!-- ${HIDDEN_MARKER}\n${kept}\n-->`;
 }
 
