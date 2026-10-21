@@ -164,6 +164,7 @@ commands: {
   transaction (its changes land in the same receipt chain; its summary is not narrated separately).
 * `ctx.rng()` → float in [0, 1) from the receipt's seed (sfc32). `ctx.roll('2d6+1')` helper. No `Math.random`.
 * `ctx.claim(key)` → false if already claimed on this line of history, else claims it.
+* `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.fail(code, message)` throws.
 * Handlers are synchronous and pure apart from `ctx`: no network, no model calls, no DOM, no awaits.
 * Commit: run the handler on drafts → diff drafts into ops → validate (§2.5) → bump `meta.rev` → append ops
