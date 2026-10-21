@@ -40,7 +40,7 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | Counts move on replay (`was`); checkpoints know what they cover | ✅ | #80 |
 | Docs: SPEC §2.2/§3.1/§4/§7, MODULES §C, F1, F81–F103 | ✅ | #81 |
 | Saves follow their chat, refused saves seen, greeting delete keeps state, swipe marks, rewind dry run | ✅ | #82 |
-| Continue finds its own block after SillyTavern's clean-up; an emptied stack's take moves on replay; this status | 🔧 | #83 |
+| Continue finds its own block after SillyTavern's clean-up; an emptied stack's take moves on replay; this status | ✅ | #83 |
 | Storage tuning: checkpoint 100/128 KB, ride on SillyTavern's save, op compaction (one record copy done in #77) | ⏳ | |
 
 ## RPG Battle (module)
