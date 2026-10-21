@@ -4,7 +4,7 @@
 // on the code before.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isCounterPath, rebaseOps } from '../../src/v2/ops.js';
+import { counterInside, isCounterPath, rebaseOps } from '../../src/v2/ops.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { createHost } from '../../testkit/index.js';
 
@@ -98,6 +98,67 @@ test('ops stored without was (older records) apply as written', async t => {
     await host.st.deleteMessage(middle);
     await host.st.deleteMessage(middle - 1);
     assert.equal(coin(host), 16, 'the absolute total comes back, as before');
+});
+
+// A stack a later reply emptied is stored as a `remove`; it keeps how much it held (`was`, `count`), so
+// after a middle delete the take moves too (SB-fix4).
+test('counterInside and rebaseOps: an emptied stack that now holds more keeps the rest', () => {
+    const patterns = ['wallets/*/coin', 'stacks/*/qty'];
+    assert.equal(counterInside('/domains/inventory/stacks/it_aaaaaaaa', patterns), '/qty');
+    assert.equal(counterInside('/domains/inventory/stacks', patterns), null, 'a * is left: not one counter');
+    assert.equal(counterInside('/domains/inventory/stacks/it_aaaaaaaa/qty', patterns), null);
+    assert.equal(counterInside('/domains/inventory/defs/x', patterns), null);
+    const path = '/domains/inventory/stacks/it_aaaaaaaa';
+    const op = { op: 'remove', path, was: 3, count: '/qty' };
+    const at = n => ({ domains: { inventory: { stacks: { it_aaaaaaaa: { qty: n } } } } });
+    const more = rebaseOps(at(5), [op]);
+    assert.deepEqual(more.ops[0], { op: 'replace', path: `${path}/qty`, value: 2, was: 5 });
+    assert.deepEqual([...more.rebased], ['inventory']);
+    assert.equal(rebaseOps(at(3), [op]).ops[0], op, 'holding just what it held: removed as written');
+    assert.equal(rebaseOps(at(3), [op]).rebased.size, 0);
+    assert.equal(rebaseOps(at(1), [op]).ops[0].value, -2, 'less than it held: below zero, for the validator to refuse');
+    assert.equal(rebaseOps({ domains: { inventory: { stacks: {} } } }, [op]).ops[0], op, 'gone already: as written');
+    assert.equal(rebaseOps(at(5), [{ op: 'remove', path }]).ops[0].op, 'remove', 'without was: as written');
+});
+
+test('the bus stores was and count on the remove of an emptied stack', async t => {
+    const host = await fresh(t);
+    await host.send('Rope.', reply('Rope.', ['+ item Rope | qty: 3']));
+    await host.send('Lost.', reply('Lost.', ['- item Rope | qty: 3']));
+    const removed = host.store.opsAt(host.ctx.chat.length - 1).filter(op => op.op === 'remove');
+    assert.equal(removed.length, 1);
+    assert.match(removed[0].path, /^\/domains\/inventory\/stacks\/it_/);
+    assert.deepEqual({ was: removed[0].was, count: removed[0].count }, { was: 3, count: '/qty' });
+});
+
+test('deleting a middle reply that took from a stack a later reply emptied keeps what it took', async t => {
+    const host = await fresh(t);
+    await host.send('Rope.', reply('Rope.', ['+ item Rope | qty: 5']));
+    await host.send('Some breaks.', reply('Two break.', ['- item Rope | qty: 2']));
+    const middle = host.ctx.chat.length - 1;
+    await host.send('The rest.', reply('The rest is lost.', ['- item Rope | qty: 3', '+ coin 4']));
+    assert.equal(qty(host, 'Rope'), 0);
+    await host.st.deleteMessage(middle);
+    await host.st.deleteMessage(middle - 1);
+    assert.deepEqual({ rope: qty(host, 'Rope'), coin: coin(host) }, { rope: 2, coin: 14 }, 'the later reply took its 3 of 5');
+    assert.deepEqual(host.store.problems(), []);
+    const live = host.head();
+    host.store.rebuild();
+    assert.deepEqual(host.head(), live, 'a cold rebuild says the same');
+});
+
+test('deleting the reply that added to a stack a later reply emptied: that take no longer fits and is skipped', async t => {
+    const host = await fresh(t);
+    await host.send('Rope.', reply('Rope.', ['+ item Rope | qty: 2']));
+    await host.send('More rope.', reply('Three more.', ['+ item Rope | qty: 3']));
+    const middle = host.ctx.chat.length - 1;
+    await host.send('Sell.', reply('All sold.', ['- item Rope | qty: 5']));
+    assert.equal(qty(host, 'Rope'), 0);
+    await host.st.deleteMessage(middle);
+    await host.st.deleteMessage(middle - 1);
+    // 5 cannot come off 2, as a take of more than is held is refused live: the 2 stay, and it is told.
+    assert.equal(qty(host, 'Rope'), 2);
+    assert.match(host.store.problems()[0]?.message ?? '', /no longer fit/);
 });
 
 test('a domain\'s counters must be paths inside it', () => {

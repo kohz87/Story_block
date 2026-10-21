@@ -109,7 +109,10 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
   has `wallets/*/coin` and `stacks/*/qty`). A `replace` of a counter keeps the number it replaced (`was`).
   On replay, when the path holds another number (an earlier reply was deleted), the op adds its change
   (`value − was`) instead of writing its number, and the moved domains' validators run; a refusal skips
-  that block as above. Ops without `was` apply as written.
+  that block as above. A `remove` of a thing that holds a counter (a stack a reply emptied) keeps that
+  counter's number (`was`) and where it sits inside the thing (`count`, e.g. `/qty`); on replay, when the
+  thing holds another number, `was` is taken from it instead (the rest stays; less than `was` there goes
+  below zero and the validator refuses the block). Ops without `was` apply as written.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -118,8 +121,9 @@ Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in ste
 
 ### 2.3 Ops
 
-A subset of JSON Patch (RFC 6902): `{ op: 'add' | 'replace' | 'remove', path, value?, was? }` (`was`: the
-number a counter's `replace` replaced, §2.2). Paths are JSON
+A subset of JSON Patch (RFC 6902): `{ op: 'add' | 'replace' | 'remove', path, value?, was?, count? }` (`was`:
+the number a counter's `replace` replaced, or the counter's number in a thing a `remove` took away, `count`
+naming that counter inside it, §2.2). Paths are JSON
 Pointers into the State (`/domains/inventory/stacks/it_k3f9a2qz/qty`). No `move`, `copy`, `test`.
 Ops are produced only by Story Block's commit step from what a handler wrote (§3.2); modules never write ops
 by hand.
@@ -312,7 +316,8 @@ One hidden block at the end of the reply:
   the end of a line (one in the middle of a line belongs to that line, so nothing after it is dropped
   unseen). In a block the reply left open, a last line with no line break after it was cut off and is a
   Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150); the
-  rest are one Problem. A Continue reads only the blocks it adds.
+  rest are one Problem. A Continue reads only the bare blocks it adds; where its text starts is found
+  past the whitespace SillyTavern drops when it writes the continued reply back.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).

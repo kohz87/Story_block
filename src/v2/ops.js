@@ -210,6 +210,11 @@ function applyOne(root, op, fresh) {
 // not `was` (an earlier reply was deleted, so the count stands elsewhere), the op adds its own change
 // (`value - was`) to what is there instead of writing its number (`rebaseOps`); the store then runs the
 // domain's validator on the result. Ops without `was` (older records, other fields) apply as written.
+// A `remove` of a thing that holds a counter (a stack a reply emptied) keeps that counter's number then
+// (`was`) and where it is inside the thing (`count`, '/qty'). On replay, when the thing holds another
+// number (an earlier reply was deleted), it is taken from instead: `was` comes off and the rest stays;
+// holding less than `was` goes below zero, which the validator refuses (that block is skipped). Holding
+// `was` exactly, it goes, as written.
 
 /** True when `path` (/domains/<name>/…) is one of the domain's `counters` patterns. */
 export function isCounterPath(path, patterns) {
@@ -225,17 +230,51 @@ export function isCounterPath(path, patterns) {
 }
 
 /**
+ * The pointer, inside the thing at `path`, of the one counter it holds ('/qty' for a stack, with
+ * the inventory's stack pattern), or null when no `patterns` entry reaches past `path` to a fixed key.
+ */
+export function counterInside(path, patterns) {
+    if (!Array.isArray(patterns) || !patterns.length) return null;
+    let keys;
+    try { keys = parsePath(path); } catch { return null; }
+    if (keys[0] !== 'domains' || keys.length < 3) return null;
+    const rest = keys.slice(2);
+    for (const pattern of patterns) {
+        const parts = String(pattern).split('/').filter(Boolean);
+        if (parts.length <= rest.length || !rest.every((key, i) => parts[i] === '*' || parts[i] === key)) continue;
+        const inside = parts.slice(rest.length);
+        if (inside.includes('*')) continue;
+        return inside.map(key => `/${escapeKey(key)}`).join('');
+    }
+    return null;
+}
+
+/**
  * `ops` with each counter op (`replace` with a numeric `was`) moved onto the value `state` holds
- * there: { ops, rebased: Set of domain names whose counts moved }. Ops are not changed in place.
+ * there, and each `remove` of a thing holding a counter (`was`, `count`) that now holds another
+ * number turned into taking `was` from it: { ops, rebased: Set of domain names whose counts moved }.
+ * Ops are not changed in place.
  */
 export function rebaseOps(state, ops) {
     const rebased = new Set();
+    const moved = path => {
+        const keys = parsePath(path);
+        if (keys[0] === 'domains' && keys[1]) rebased.add(keys[1]);
+    };
     const out = ops.map(op => {
+        if (op?.op === 'remove' && typeof op.was === 'number' && typeof op.count === 'string' && op.count.startsWith('/')) {
+            const at = `${op.path}${op.count}`;
+            const now = valueAt(state, at);
+            if (typeof now !== 'number' || now === op.was) return op;
+            // Take `was` from what is there: the rest stays; less than `was` there is below zero, which
+            // the domain's validator refuses (the block is skipped), as a take of more than is held is.
+            moved(op.path);
+            return { op: 'replace', path: at, value: now - op.was, was: now };
+        }
         if (op?.op !== 'replace' || typeof op.was !== 'number' || typeof op.value !== 'number') return op;
         const now = valueAt(state, op.path);
         if (typeof now !== 'number' || now === op.was) return op;
-        const keys = parsePath(op.path);
-        if (keys[0] === 'domains' && keys[1]) rebased.add(keys[1]);
+        moved(op.path);
         return { ...op, value: now + (op.value - op.was), was: now };
     });
     return { ops: out, rebased };
