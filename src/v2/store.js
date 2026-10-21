@@ -289,9 +289,24 @@ export function createStore({
 
     const sameKey = (a, b) => Object.keys(a).every(name => a[name] === b[name]);
 
+    // The cached head still holds when all that changed is messages after its carrier that hold no
+    // record (the reader's next message, a reply not read yet): replaying them would give it again.
+    function stillHolds(arr, key) {
+        const old = cache?.key;
+        if (!cache?.state || old.arr !== arr || old.index < 0 || key.index < old.index || arr.length < old.length) return false;
+        const message = arr[old.index];
+        if (message !== old.message || message?.swipe_id !== old.swipe || message?.extra !== old.extra || message?.extra?.[KEY] !== old.record) return false;
+        for (let i = old.index + 1; i < arr.length; i++) if (arr[i]?.extra?.[KEY] !== undefined) return false;
+        return true;
+    }
+
     function current() {
         const arr = list();
         const key = headKey(arr);
+        if (cache && !sameKey(cache.key, key) && stillHolds(arr, key)) {
+            cache = { ...cache, key };
+            known = carrierIndexes(arr).map(i => arr[i]);
+        }
         if (!cache || !sameKey(cache.key, key)) {
             const { state, problems } = key.index < 0 ? { state: null, problems: [] } : replay(arr, key.index);
             cache = { key, state, problems };
@@ -722,11 +737,15 @@ export function createStore({
             } finally {
                 holding -= 1;
                 if (!holding) {
+                    // The copies are written again as they are: a head cached before stays the head.
+                    const arr = list();
+                    const kept = cache && sameKey(cache.key, headKey(arr)) ? cache : null;
                     for (const message of held) {
                         const record = message.extra?.[KEY];
                         if (record) writeRecord(message, record);
                     }
                     held.clear();
+                    if (kept) retain(arr, kept.state, kept.problems);
                 }
             }
         },
