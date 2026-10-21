@@ -250,3 +250,13 @@ These settle questions agents raised; the host changes they need are made at int
    race, talents and stats come from the wizard. Pack ready-made characters pre-fill race/talents/stats only.
 23. **Test setup** (user): SillyTavern 1.19; Gemini mostly (also GLM, Kimi, Gemma); Megumin with only CoT and
    Writing Style on. The after-reply extractor stays off by default.
+24. **Cards under replies** (user decision): the "changed this reply" card and Story Director's status card
+   show under every reply by default, collapsed to one line; the reader can turn either off per screen.
+25. **Pack terms** (user decision): packs may suggest terms (level name, XP name, tier titles) as they suggest a
+   currency; the reader's own setting wins.
+26. **Companions** (user decision): a companion who dies in a fight to the death is removed from the party
+   permanently (no offer); when the story has a companion leave the group (`- join Lyra — leaves`, or a
+   `leave` line), the reader is offered to remove them.
+27. **Studio** (user decision): after the heavy tests and refinement are done, build Studio as a standalone
+   HTML app and ship it inside Story Block as a download (a button in the Story Suite overlay saves the
+   self-contained `story-suite-studio.html`); it uses the same renderer, validators and pack format.

@@ -20,7 +20,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Fishing example activity (public SDK only) | ✅ | #55 |
 | HTML templates with bindings, scoped CSS | ✅ | #64 |
 | Integration: index.js bootstrap, host fixes (ctx.caller/rev/id/carrier/chat), rewind, wiring | 🔧 | |
-| Default screens (Inventory, Scene, changes card, home) + player guide | 🔧 | |
+| Default screens (Inventory, Scene, changes card, home) + player guide | ✅ | #66 |
 | Assist (optional pre-roll classifier, after-reply extractor), off by default | ✅ | #65 |
 | QA (state invariants, security, prompt) · performance benchmarks | 🔧 | |
 
@@ -31,11 +31,12 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Items: item.define rules, use / equip / give | ✅ | #65 |
 | Combat: encounters, v1 engine replayed from stored actions, settlement, foes beaten | ✅ | #67 |
 | Trade: sell, buy, commission, collect, market rule, prices per place | ✅ | #66 |
-| Integration: module.js, one currency, payload fixes, index.js bootstrap | 🔧 | |
+| Integration: module.js, one currency, payload fixes, index.js bootstrap | ✅ | #71 |
 | Pending d20 checks with reader modifiers (§F16) | ✅ | #70 |
 | Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
 | Return in time after death (§F17) | ✅ | #69 |
-| Battle board widget, default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
+| Battle board widget + Fight screen | ✅ | #72 |
+| Default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
 | QA (conservation, fuzz, v1 parity, cross-part payloads) | 🔧 | |
 
 ## Story Director (module)
@@ -44,8 +45,8 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Tracker: director domain, v1 rules, story clock, note | ✅ | #74 |
 | Quests: take / turn down / abandon / finish, targets, progress, payouts | ✅ | #73 |
 | Integration: module.js, one currency, one fight per kill quest, typed acceptance, v2 bootstrap | ✅ | #75 |
-| Atlas: places, routes, travel, map | 🔧 | |
-| Default screens (Quests, Director, status card, HUD) | 🔧 | |
+| Atlas: places, routes, travel, map | ✅ | #77 |
+| Default screens (Quests, Director, status card, HUD) | ✅ | #76 |
 | Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
 | Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) | 🔧 | |
 
