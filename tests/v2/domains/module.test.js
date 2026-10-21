@@ -53,8 +53,14 @@ test('scene commands', () => {
     assert.equal(both.result.summary, 'Ivo is here; Tam leaves.');
     const none = h.run('scene.present', {});
     assert.equal(none.result.narrate, false);
+    // A move leaves behind whoever is not named in `with` (Fenna); Ivo comes along.
+    const moved = h.run('scene.place', { name: 'The Weir', with: ['Ivo'] });
+    assert.equal(moved.ok, true, moved.message);
+    assert.deepEqual(moved.result.data.left, ['Fenna']);
+    assert.deepEqual(h.state.domains.scene.present, ['Ivo']);
     for (const [type, payload, code] of [
         ['scene.place', {}, 'INVALID'], ['scene.place', { name: 5 }, 'INVALID'], ['scene.place', { name: 'A', kind: 3 }, 'INVALID'],
+        ['scene.place', { name: 'A', with: [3] }, 'INVALID'],
         ['scene.present', { remove: 'Nobody' }, 'NOT_FOUND'], ['scene.present', { add: [''] }, 'INVALID'],
         ['scene.present', { add: ['x'.repeat(81)] }, 'INVALID'], ['scene.present', { remove: [3] }, 'INVALID'],
     ]) {

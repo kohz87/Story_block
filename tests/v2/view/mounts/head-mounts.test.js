@@ -37,12 +37,13 @@ test('tab: registers each tab screen with the tab host and draws it from the vie
     const added = [];
     const removed = [];
     const tabs = createTabMount({ ...deps, addTab: tab => { added.push(tab); return () => removed.push(tab.id); } });
-    assert.deepEqual(tabs.register(), ['a/inv', 'm/party']);
-    assert.deepEqual(added.map(tab => [tab.id, tab.title, tab.icon]), [['a/inv', 'inv', 'fa-star'], ['m/party', 'party', 'fa-star']]);
+    // Navigation order: a party screen before the rest (screens.js screenOrder).
+    assert.deepEqual(tabs.register(), ['m/party', 'a/inv']);
+    assert.deepEqual(added.map(tab => [tab.id, tab.title, tab.icon]), [['m/party', 'party', 'fa-star'], ['a/inv', 'inv', 'fa-star']]);
 
     const el = doc.createElement('div');
     const view = { state: chat.states[2] };
-    const handle = added[1].render(el, view, null);
+    const handle = added[0].render(el, view, null);
     assert.equal(handle.result.ok, true);
     const { screen: drawn, scope } = render.last();
     assert.equal(drawn.id, 'm/party');
@@ -55,7 +56,7 @@ test('tab: registers each tab screen with the tab host and draws it from the vie
 
     // Registering again replaces the earlier set.
     tabs.register();
-    assert.deepEqual(removed, ['a/inv', 'm/party']);
+    assert.deepEqual(removed, ['m/party', 'a/inv']);
 });
 
 test('a mount shows a plain line instead of a broken screen', () => {
@@ -101,15 +102,15 @@ test('screen: a full-screen view with navigation between screen screens; Esc clo
     assert.ok(root);
     assert.equal(root.getAttribute('aria-modal'), 'true');
     const items = root.querySelectorAll('.ss-gameview-navitem');
-    assert.deepEqual(items.map(item => item.getAttribute('data-ss-target')), ['m/map', 'm/party']);
-    assert.equal(items[0].getAttribute('aria-current'), 'page');
+    assert.deepEqual(items.map(item => item.getAttribute('data-ss-target')), ['m/party', 'm/map'], 'party before map');
+    assert.equal(items[1].getAttribute('aria-current'), 'page');
     assert.equal(root.querySelector('.ss-gameview-title').textContent, 'Map');
     assert.equal(render.last().screen.id, 'm/map');
     assert.equal(render.last().scope.state, chat.states[2]);
 
     const body = root.querySelector('.ss-gameview-body');
     assert.equal(body.style.getPropertyValue('--ss-accent'), 'teal');
-    items[1].click();
+    items[0].click();
     assert.equal(view.current(), 'm/party');
     assert.equal(body.style.getPropertyValue('--ss-accent'), '', 'the last screen\'s theme is dropped');
     assert.equal(render.last().screen.id, 'm/party');
@@ -133,7 +134,7 @@ test('screen: a full-screen view with navigation between screen screens; Esc clo
 
     // Unknown id opens the first; the close button closes; a single screen hides the nav.
     assert.equal(view.open('m/zzz'), true);
-    assert.equal(view.current(), 'm/map');
+    assert.equal(view.current(), 'm/party', 'the first in navigation order');
     doc.body.querySelector('.ss-gameview-close').click();
     assert.equal(view.isOpen(), false);
 });

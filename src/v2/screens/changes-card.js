@@ -59,6 +59,9 @@ const CSS = `${BASE_CSS}
 .lines { display: grid; gap: 2px; }
 .line { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
 .line > i { width: 1.1em; text-align: center; color: var(--sb-accent); }
+/* One text after the icon (the wallet, the place, who is here): it wraps beside the icon, never under it. */
+.coin, .place, .present { flex-wrap: nowrap; }
+.coin > span, .place > span, .present > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
 .name { font-weight: 600; }
 .none { margin: 0; }
 .refused { display: grid; gap: 2px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--sb-border);
