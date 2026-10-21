@@ -1,0 +1,9 @@
+{
+  "name": "story-suite-fishing",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

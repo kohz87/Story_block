@@ -1,0 +1,16 @@
+/* Story Suite Fishing: minimal styling; colours come from SillyTavern's theme variables. */
+.sbf { display: flex; flex-direction: column; gap: 0.5em; }
+.sbf-water { display: flex; align-items: center; gap: 0.5em; padding: 0.6em; border-radius: 6px;
+    border: 1px solid var(--SmartThemeBorderColor, #444); }
+.sbf-bobber { transition: transform 0.2s; color: var(--SmartThemeQuoteColor, #e18a24); }
+.sbf-water[data-phase="waiting"] .sbf-bobber { animation: sbf-drift 1.6s ease-in-out infinite; }
+.sbf-water[data-phase="bite"] { border-color: var(--SmartThemeQuoteColor, #e18a24); }
+.sbf-water[data-phase="bite"] .sbf-bobber { transform: translateY(4px) scale(1.3); }
+.sbf-actions, .sbf-spot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em; }
+.sbf-kind { width: auto; margin: 0; }
+.sbf-message:empty { display: none; }
+.sbf-log { list-style: none; margin: 0; padding: 0; }
+.sbf-catch { display: flex; align-items: center; justify-content: space-between; gap: 0.5em; padding: 0.2em 0; }
+.sbf-released, .sbf-empty { opacity: 0.6; }
+@keyframes sbf-drift { 50% { transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) { .sbf-water[data-phase="waiting"] .sbf-bobber { animation: none; } }
