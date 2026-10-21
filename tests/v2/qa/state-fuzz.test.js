@@ -21,7 +21,7 @@ import { readRecord } from '../../../src/v2/persist.js';
 import { HAPPENED } from '../../../src/v2/prompt.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { BONUS_CLAIM, probeModule } from './helpers/probe-module.js';
-import { carriers, checkInvariants } from './helpers/oracle.js';
+import { carriers, checkInvariants, rebuildAt } from './helpers/oracle.js';
 
 // QA_FUZZ_SEEDS=200 QA_FUZZ_STEPS=200 runs a longer hunt locally (QA_FUZZ_SEED=n one seed); CI runs the fixed list.
 const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 7, 42, 1337, 2024, 31337, 90210, 424242];
@@ -82,12 +82,20 @@ function uiCommand(r, host) {
 }
 
 function bonusPaidOnLine(host) {
-    const skipped = new Set(host.store.problems().map(problem => problem.index));
+    // A skipped block takes only its own receipts with it (store.js replays block by block). The
+    // store reports the blocks skipped since the latest checkpoint; the oracle finds the older ones.
+    const chat = host.ctx.chat;
+    const skipped = new Set();
+    // One rebuild per checkpoint segment: at the carrier before each later checkpoint, and at the head.
+    const list = carriers(chat);
+    const ends = list.filter((index, at) => at === list.length - 1 || readRecord(chat[list[at + 1]])?.checkpoint);
+    for (const index of ends) {
+        for (const entry of rebuildAt(chat, index).skipped) for (const rev of entry.revs) skipped.add(`${entry.index}:${rev}`);
+    }
     let paid = 0;
-    for (const index of carriers(host.ctx.chat)) {
-        if (skipped.has(index)) continue;
-        const record = readRecord(host.ctx.chat[index]);
-        paid += (record?.receipts ?? []).filter(receipt => receipt.type === 'probe.pay').length;
+    for (const index of carriers(chat)) {
+        const record = readRecord(chat[index]);
+        paid += (record?.receipts ?? []).filter(receipt => receipt.type === 'probe.pay' && !skipped.has(`${index}:${receipt.rev}`)).length;
     }
     return paid;
 }
@@ -166,7 +174,11 @@ async function fuzz(t, seed) {
             const claimed = Object.hasOwn(head?.meta?.claims ?? {}, BONUS_CLAIM);
             const result = await host.sdk.command(type, payload);
             if (type === 'probe.broken') assert.equal(result.ok, false, `${label}: probe.broken always refuses`);
-            if (type === 'probe.pay') assert.equal(result.ok, !claimed, `${label}: probe.pay pays only while the claim is free (claimed: ${claimed})`);
+            // A skipped block can leave the head's inventory pointing at an item whose creation was
+            // skipped (its reply deleted); the inventory's validator then refuses any change to it
+            // until the reader tidies up, so a free claim may still be refused, as INVALID, then.
+            const brokenInventory = result.code === 'INVALID' && store.problems().length > 0 && /inventory would not be valid/.test(result.message);
+            if (type === 'probe.pay' && !brokenInventory) assert.equal(result.ok, !claimed, `${label}: probe.pay pays only while the claim is free (claimed: ${claimed}): ${result.message ?? 'paid'}`);
             if (!result.ok) {
                 assert.equal(JSON.stringify(ctx.chat), before, `${label}: ${type} ${JSON.stringify(payload)} was refused (${result.code}) and the chat is untouched`);
                 assert.deepEqual(plain(store.head()), head, `${label}: ${type} refused: the head is unchanged`);
@@ -227,11 +239,11 @@ async function fuzz(t, seed) {
                 const at = r.int(1, ctx.chat.length - 2);
                 for (const message of ctx.chat.slice(at)) finals.delete(message);
                 await st.deleteMessage(at);
-                // A later reply whose changes no longer apply is skipped whole on replay, and so is
-                // everything committed onto it afterwards: a known problem with its own todo in
-                // state-directed.test.js. Like a reader tidying up, the fuzz then deletes from the
-                // end until every stored change applies again (QA_FUZZ_KEEP_BROKEN=1 keeps them).
-                if (!process.env.QA_FUZZ_KEEP_BROKEN) {
+                // A later reply's change that no longer applies is skipped alone on replay; what was
+                // committed onto that reply before and after it still applies (store.js, block by
+                // block), so the fuzz keeps such carriers and goes on committing onto them.
+                // QA_FUZZ_TIDY=1 deletes from the end until every stored change applies again.
+                if (process.env.QA_FUZZ_TIDY) {
                     while (store.problems().length && ctx.chat.length > 1) await st.deleteMessage(ctx.chat.length - 1);
                 }
                 break;

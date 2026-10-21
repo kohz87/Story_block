@@ -179,7 +179,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const mounts = createMounts({
         screens,
         render: renderer.render,
-        stateAt: index => store.at(index),
+        // A chat with no carrier has head index -1 (and a stale index can point past the end): no
+        // state there, so the mounts show nothing instead of failing on store.at's RangeError.
+        stateAt: index => (Number.isInteger(index) && index >= 0 && index < (ctx.chat?.length ?? 0) ? store.at(index) : null),
         headIndex: () => store.headIndex(),
         query: queryAt,
         changesAt: index => store.changesAt(index),

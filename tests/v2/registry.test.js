@@ -190,3 +190,29 @@ test('settings.section: the panel itself, or a title with render(el, api)', () =
     assert.match(definitionProblems({ id: 'x', settings: { section: 3 } }).join(), /settings.section is not a function/);
     assert.match(definitionProblems({ id: 'x', settings: { panel: () => {} } }).join(), /"settings.panel" is not a settings field/);
 });
+
+test('internal commands: capture.*, module.init.* and commands marked internal (object form or flagged handler)', () => {
+    const registry = createRegistry();
+    registry.register(party());
+    const flagged = () => ({ summary: 'flagged' });
+    flagged.internal = true;
+    const host = { id: 'host-steps', domains: { steps: { initial: () => ({}) } },
+        commands: { 'steps.run': { handler: () => ({ summary: 'ran' }), internal: true }, 'steps.flag': flagged, 'steps.open': { handler: () => ({}) } } };
+    registry.register(host);
+    assert.equal(registry.isInternal(`${CAPTURE_PREFIX}wound`), true);
+    assert.equal(registry.isInternal(`${CAPTURE_PREFIX}nothing`), true, 'the whole prefix, whether or not a kind answers');
+    assert.equal(registry.isInternal(`${INIT_PREFIX}rpg-battle`), true);
+    assert.equal(registry.isInternal('steps.run'), true);
+    assert.equal(registry.isInternal('steps.flag'), true);
+    assert.equal(registry.isInternal('steps.open'), false);
+    assert.equal(registry.isInternal('item.use'), false);
+    assert.equal(registry.isInternal('no.such'), false);
+    assert.equal(typeof registry.command('steps.run'), 'function', 'the object form hands out its handler');
+    assert.equal(registry.command('steps.run')().summary, 'ran');
+    assert.equal(registry.commandOwner('steps.run'), 'host-steps');
+    assert.deepEqual(definitionProblems({ id: 'bad', commands: { 'bad.a': { handler: 1 }, 'bad.b': { handler: () => {}, internal: 'yes' }, 'bad.c': { handler: () => {}, extra: 1 } } }), [
+        'command "bad.a" handler is not a function',
+        'command "bad.b" internal is not true or false',
+        '"extra" is not a command field (known: handler, internal)',
+    ]);
+});

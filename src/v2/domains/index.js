@@ -39,12 +39,14 @@ export const CORE_KINDS = Object.freeze({
     present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave' }),
 });
 
-// The chat's one currency (MODULES.md F1): its name, renamable by the reader, never a second one.
+// The chat's one currency (MODULES.md F1): its name (singular) and plural, renamable by the reader,
+// never a second one.
 export const CORE_SETTINGS = Object.freeze({
     section: 'Story Block',
-    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyShort: '' }),
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '' }),
     schema: Object.freeze({
-        currency: Object.freeze({ type: 'text', label: 'Currency', max: 24 }),
+        currency: Object.freeze({ type: 'text', label: 'Currency (one coin: mark, crown, gold)', max: 24 }),
+        currencyPlural: Object.freeze({ type: 'text', label: 'Currency, plural (blank: the name with an s)', max: 24 }),
         currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
     }),
 });

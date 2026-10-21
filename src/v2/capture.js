@@ -111,7 +111,10 @@ function stripDecoration(line) {
 }
 
 function addLabel(labels, label, value) {
-    labels[label] = Object.hasOwn(labels, label) && labels[label] && value ? `${labels[label]}; ${value}` : (labels[label] || value);
+    const had = Object.hasOwn(labels, label) ? labels[label] : '';
+    const next = had && value ? `${had}; ${value}` : (had || value);
+    // "__proto__" would set the prototype even of a prototype-less object: define it as a key.
+    Object.defineProperty(labels, label, { value: next, enumerable: true, writable: true, configurable: true });
 }
 
 // One line → { op, kind, name, text, labels } or { error }.
@@ -128,7 +131,8 @@ function parseLine(source) {
     const name = (dash ? first.slice(0, dash.index) : first).trim();
     const texts = [dash ? first.slice(dash.index + dash[0].length).trim() : ''];
     if (!name) return { error: `the ${kind} has no name` };
-    const labels = {};
+    // No prototype: a label named "constructor" or "toString" is the line's own, never inherited.
+    const labels = Object.create(null);
     for (const part of rest) {
         const trimmed = part.trim();
         if (!trimmed) continue;

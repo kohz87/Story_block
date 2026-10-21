@@ -89,3 +89,30 @@ test('the saver needs a save function and serializes overlapping flushes', async
     assert.equal(saver.dirty(), false);
     assert.equal(saver.pending(), false);
 });
+
+test('the saver asks verify around a save; a problem fails the save and keeps it dirty (SPEC §3.3)', async () => {
+    const seen = [];
+    let problem = 'the head does not hold rev 3';
+    const saver = createSaver({
+        save: async () => { seen.push('save'); },
+        verify: { before: () => { seen.push('before'); return 'token'; }, after: token => { seen.push(`after ${token}`); return problem; } },
+    });
+    saver.touch();
+    await assert.rejects(saver.flush(), /does not hold rev 3/);
+    assert.deepEqual(seen, ['before', 'save', 'after token']);
+    assert.equal(saver.dirty(), true);
+    problem = '';
+    await saver.flush();
+    assert.equal(saver.dirty(), false);
+    // A change made while the save runs is not checked now: the next save takes it, and checks it.
+    seen.length = 0;
+    let touchDuring = true;
+    const busy = createSaver({ save: async () => { if (touchDuring) busy.touch(); touchDuring = false; }, verify: { before: () => 1, after: () => { seen.push('after'); return ''; } } });
+    busy.touch();
+    await busy.flush();
+    assert.deepEqual(seen, [], 'not verified while a newer change waits');
+    assert.equal(busy.dirty(), true);
+    await busy.flush();
+    assert.deepEqual(seen, ['after']);
+    assert.equal(busy.dirty(), false);
+});

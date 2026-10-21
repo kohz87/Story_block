@@ -239,3 +239,33 @@ test('checkOps with the state before: integers stay integers', () => {
     assert.match(checkOps([{ op: 'replace', path: '/d/list', value: [1, 2.5] }], before)[0], /\/d\/list\/1/);
     assert.deepEqual(checkOps([{ op: 'replace', path: '/d/hp/cur', value: 60.5 }]), [], 'without the state, nothing to compare');
 });
+
+test('checkOps: no value may hold a key named __proto__, constructor or prototype, at any depth (QA #70)', () => {
+    const own = (key, value) => Object.defineProperty({}, key, { value, enumerable: true, configurable: true, writable: true });
+    const cases = [
+        [{ op: 'add', path: '/domains/a/x', value: JSON.parse('{"__proto__": {"polluted": 1}}') }, /\/domains\/a\/x holds a key named "__proto__"/],
+        [{ op: 'add', path: '/domains/a/x', value: { constructor: 'Kael' } }, /"constructor"/],
+        [{ op: 'replace', path: '/domains/a/x', value: { list: [{ deep: own('prototype', 1) }] } }, /\/domains\/a\/x\/list\/0\/deep holds a key named "prototype"/],
+    ];
+    for (const [op, pattern] of cases) {
+        const errors = checkOps([op]);
+        assert.equal(errors.length, 1, JSON.stringify(op));
+        assert.match(errors[0], pattern);
+    }
+    assert.equal(({}).polluted, undefined);
+    // A path segment named constructor (an alias key for an item called "Constructor") is a plain key.
+    assert.deepEqual(checkOps([{ op: 'add', path: '/domains/inventory/aliases/constructor', value: 'story/constructor' }]), []);
+    assert.deepEqual(checkOps([{ op: 'add', path: '/domains/a/x', value: { constructors: 1, proto: 2, Prototype: 3 } }]), [], 'only the exact names');
+    assert.match(checkOps([{ op: 'add', path: '/domains/a/__proto__', value: 1 }])[0], /names __proto__/, 'a path naming __proto__ is still refused');
+});
+
+test('clone keeps a prototype-less object prototype-less; plain objects stay plain', () => {
+    const bare = Object.assign(Object.create(null), { qty: '2', inner: Object.assign(Object.create(null), { a: 1 }) });
+    const copy = clone({ labels: bare, plain: { b: 2 } });
+    assert.equal(Object.getPrototypeOf(copy.labels), null);
+    assert.equal(Object.getPrototypeOf(copy.labels.inner), null);
+    assert.equal(copy.labels.constructor, undefined, 'nothing inherited');
+    assert.equal(Object.getPrototypeOf(copy.plain), Object.prototype);
+    assert.notEqual(copy.labels, bare);
+    assert.equal(equal(copy.labels, bare), true);
+});

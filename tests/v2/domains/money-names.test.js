@@ -1,15 +1,18 @@
 // Money (one currency, amounts) and item names (aliases, plurals, slugs).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_CURRENCY, currencyOf, formatAmount, formatWallet, parseAmount } from '../../../src/v2/domains/money.js';
+import { DEFAULT_CURRENCY, currencyOf, formatAmount, formatWallet, isCurrencyName, parseAmount, pluralOf } from '../../../src/v2/domains/money.js';
 import { aliasKey, cleanName, nameForms, resolveDef, slugify, trimText } from '../../../src/v2/domains/names.js';
 import { DEF_ID } from '../../../src/v2/check.js';
 
 test('currency: one name from settings, default gold', () => {
     assert.deepEqual(currencyOf(undefined), DEFAULT_CURRENCY);
-    assert.deepEqual(currencyOf({}), { name: 'gold', short: 'g' });
-    assert.deepEqual(currencyOf({ currency: '  Gil ' }), { name: 'Gil', short: 'g' });
-    assert.deepEqual(currencyOf({ currency: 'crowns', currencyShort: 'cr' }), { name: 'crowns', short: 'cr' });
+    assert.deepEqual(currencyOf({}), { name: 'gold', plural: 'gold', short: 'g' });
+    assert.deepEqual(currencyOf({ currency: '  Gil ' }), { name: 'Gil', plural: 'Gils', short: 'g' });
+    assert.deepEqual(currencyOf({ currency: 'crowns', currencyShort: 'cr' }), { name: 'crowns', plural: 'crowns', short: 'cr' });
+    assert.deepEqual(currencyOf({ currency: 'mark', currencyShort: 'mk' }), { name: 'mark', plural: 'marks', short: 'mk' });
+    assert.deepEqual(currencyOf({ currency: 'denarius', currencyPlural: ' denarii ' }), { name: 'denarius', plural: 'denarii', short: 'd' });
+    assert.deepEqual(currencyOf({ currency: 'Gil', currencyPlural: '   ' }).plural, 'Gils', 'a blank plural is the default');
     assert.deepEqual(currencyOf({ currency: '   ' }), DEFAULT_CURRENCY);
     assert.equal(currencyOf({ currency: 'x'.repeat(40) }).name.length, 24);
 });
@@ -26,9 +29,30 @@ test('parseAmount: only the number counts', () => {
 
 test('formatAmount and formatWallet', () => {
     assert.equal(formatAmount(386), '386 gold');
-    assert.equal(formatAmount(0, { name: 'Gil', short: 'g' }), '0 Gil');
+    assert.equal(formatAmount(0, { name: 'Gil', plural: 'Gil', short: 'g' }), '0 Gil');
+    assert.equal(formatAmount(0, { name: 'Gil', short: 'g' }), '0 Gils', 'no plural given: the name + s');
+    const mark = currencyOf({ currency: 'mark' });
+    assert.equal(formatAmount(1, mark), '1 mark');
+    assert.equal(formatAmount(44, mark), '44 marks');
+    assert.equal(formatAmount(0, mark), '0 marks');
+    assert.equal(formatAmount(1, currencyOf({ currency: 'denarius', currencyPlural: 'denarii' })), '1 denarius');
+    assert.equal(formatAmount(2, currencyOf({ currency: 'denarius', currencyPlural: 'denarii' })), '2 denarii');
+    assert.equal(formatAmount(1), '1 gold');
     assert.equal(formatWallet(undefined), '0 gold');
     assert.equal(formatWallet({ coin: 12 }, { name: 'crowns', short: 'cr' }), '12 crowns');
+});
+
+test('pluralOf and isCurrencyName: the singular and the plural are both the money', () => {
+    assert.equal(pluralOf('mark'), 'marks');
+    assert.equal(pluralOf('gold'), 'gold');
+    assert.equal(pluralOf('Gold'), 'Gold');
+    assert.equal(pluralOf('crowns'), 'crowns');
+    assert.equal(pluralOf(''), 'gold');
+    const mark = currencyOf({ currency: 'mark' });
+    for (const word of ['mark', 'Marks', ' MARK ', 'marks']) assert.equal(isCurrencyName(word, mark), true, word);
+    for (const word of ['', 'mark of the beast', 'Marked Map', 'gold']) assert.equal(isCurrencyName(word, mark), false, word);
+    assert.equal(isCurrencyName('Gold'), true, 'the default currency');
+    assert.equal(isCurrencyName('denarii', currencyOf({ currency: 'denarius', currencyPlural: 'denarii' })), true);
 });
 
 test('names: clean, alias key, forms', () => {

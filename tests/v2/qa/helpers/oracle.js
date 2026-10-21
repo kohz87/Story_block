@@ -1,8 +1,10 @@
 // An independent oracle for SPEC §2.2: the state at carrier N rebuilt from scratch out of the chat
 // alone (latest checkpoint at or before N, then every carrier's ops), with its own strict JSON Patch
-// (RFC 6902 add / replace / remove) instead of src/v2/ops.js. A carrier whose ops do not apply is
-// skipped whole, as the store does with a hand-edited chat. Which swipe's record counts is the
-// store's documented rule (persist.js readRecord), so that one function is shared.
+// (RFC 6902 add / replace / remove) instead of src/v2/ops.js. A block of ops (the record's `spans`,
+// one per stored receipt) that does not apply is skipped alone, its /meta/rev still counted, as the
+// store does with a hand-edited chat or a deleted middle reply; a record whose spans do not add up is
+// one block. Which swipe's record counts is the store's documented rule (persist.js readRecord), so
+// that one function is shared.
 
 import assert from 'node:assert/strict';
 import { readRecord } from '../../../../src/v2/persist.js';
@@ -55,7 +57,21 @@ export function strictApply(state, ops) {
     return root;
 }
 
-/** { state, skipped: [index] } at carrier `upTo`, rebuilt from the chat alone; state null without a checkpoint. */
+/** A record's ops as its stored blocks (`spans`), or one block when the spans do not add up. */
+export function blocksOf(record) {
+    const spans = Array.isArray(record.spans) ? record.spans : null;
+    const total = spans ? spans.reduce((sum, span) => sum + (Number.isInteger(span?.n) && span.n >= 0 ? span.n : NaN), 0) : NaN;
+    if (total !== record.ops.length) return record.ops.length ? [record.ops] : [];
+    const out = [];
+    let at = 0;
+    for (const span of spans) {
+        if (span.n) out.push(record.ops.slice(at, at + span.n));
+        at += span.n;
+    }
+    return out;
+}
+
+/** { state, skipped: [{ index, block, revs }] } at carrier `upTo`, rebuilt from the chat alone; state null without a checkpoint. */
 export function rebuildAt(chat, upTo) {
     let from = -1;
     for (let i = Math.min(upTo, chat.length - 1); i >= 0; i--) {
@@ -67,11 +83,15 @@ export function rebuildAt(chat, upTo) {
     for (let i = from; i <= upTo && i < chat.length; i++) {
         const record = readRecord(chat[i]);
         if (!record) continue;
-        try {
-            state = strictApply(state, record.ops);
-        } catch {
-            skipped.push(i);
-        }
+        blocksOf(record).forEach((ops, block) => {
+            try {
+                state = strictApply(state, ops);
+            } catch {
+                const revs = ops.filter(op => op.path === '/meta/rev').map(op => op.value);
+                skipped.push({ index: i, block, revs });
+                if (revs.length && revs.at(-1) > state.meta.rev) state.meta.rev = revs.at(-1);
+            }
+        });
     }
     return { state, skipped };
 }

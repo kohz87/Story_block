@@ -70,7 +70,7 @@ test('with Story Block alone, its queries answer and the modules\' come out null
     assert.equal(home.q.place.name, 'Bluewatch Village');
     assert.deepEqual(home.q.present, ['Fenna', 'Old Tam']);
     assert.deepEqual(home.q.wallet, { coin: 125 });
-    assert.deepEqual(home.q.currency, { name: 'gold', short: 'g' });
+    assert.deepEqual(home.q.currency, { name: 'gold', plural: 'gold', short: 'g' });
     assert.equal(home.q.items.length, 6);
     for (const alias of ['pc', 'fight', 'offers', 'quests', 'progress']) assert.equal(home.q[alias], null, alias);
     assert.equal(home.problems.length, 5);

@@ -69,7 +69,9 @@ export function writeRecord(message, record) {
 // One save per burst. `touch()` marks a change; `schedule(ms)` saves `ms` after the last call; `flush()`
 // saves now (waiting for a save already running) and rethrows a failure. A failed save leaves `dirty()`
 // true so the next flush tries again.
-export function createSaver({ save, onError = null, timers = globalThis } = {}) {
+// `verify` (SPEC §3.3): `{ before() → token, after(token) → '' | problem }`, asked around each save that
+// nothing was changed during; a problem counts as a failed save (stays dirty, thrown or told to onError).
+export function createSaver({ save, onError = null, timers = globalThis, verify = null } = {}) {
     if (typeof save !== 'function') throw new TypeError('createSaver needs a save function.');
     let version = 0;
     let saved = 0;
@@ -87,9 +89,13 @@ export function createSaver({ save, onError = null, timers = globalThis } = {}) 
         while (running) await running.catch(() => {});
         if (!dirty()) return;
         const target = version;
+        const token = verify?.before?.();
         running = Promise.resolve().then(() => save());
         try {
             await running;
+            // A change made while the save ran goes with the next save, which checks it then.
+            const problem = version === target ? verify?.after?.(token) : '';
+            if (problem) throw new Error(problem);
             saved = target;
         } finally {
             running = null;

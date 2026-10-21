@@ -19,7 +19,7 @@ test('reads every op of the spec example', () => {
         '? check stealth — slipping past the gate guard | dc: hard',
     ].join('\n'));
     assert.deepEqual(problems, []);
-    assert.deepEqual(lines.map(({ op, kind, name, text, labels, index }) => ({ op, kind, name, text, labels, index })), [
+    assert.deepEqual(lines.map(({ op, kind, name, text, labels, index }) => ({ op, kind, name, text, labels: { ...labels }, index })), [
         { op: '+', kind: 'item', name: 'Moonveil Trout', text: '', labels: { qty: '1', note: 'violet-streaked, from the lake' }, index: 0 },
         { op: '-', kind: 'item', name: 'Rope', text: '', labels: { qty: '1' }, index: 1 },
         { op: '~', kind: 'quest', name: 'Granary Rats', text: '', labels: { step: 'the cellar is cleared' }, index: 2 },
@@ -31,15 +31,15 @@ test('reads every op of the spec example', () => {
 
 test('the Director\'s v1 lines keep their kind, name and text', () => {
     const quest = one('~ Quests: North Levee Vipers — step: completed, voucher paid');
-    assert.deepEqual({ op: quest.op, kind: quest.kind, name: quest.name, text: quest.text, labels: quest.labels },
+    assert.deepEqual({ op: quest.op, kind: quest.kind, name: quest.name, text: quest.text, labels: { ...quest.labels } },
         { op: '~', kind: 'quests', name: 'North Levee Vipers', text: 'step: completed, voucher paid', labels: {} });
     const agenda = one('+ agenda Courier — now: rides north | then: reaches Haywane');
     assert.equal(agenda.name, 'Courier');
     assert.equal(agenda.text, 'now: rides north');
-    assert.deepEqual(agenda.labels, { then: 'reaches Haywane' });
+    assert.deepEqual({ ...agenda.labels }, { then: 'reaches Haywane' });
     const clock = one('~ clock Flood Rising — 3/6 | due: day 4');
     assert.equal(clock.text, '3/6');
-    assert.deepEqual(clock.labels, { due: 'day 4' });
+    assert.deepEqual({ ...clock.labels }, { due: 'day 4' });
     assert.equal(one('- hook Missing Ferryman — found drowned').text, 'found drowned');
     assert.equal(one('! beat Bell Tower — the bell rings at midnight').kind, 'beat');
 });
@@ -56,14 +56,15 @@ test('the text separator is an em dash, an en dash or a spaced hyphen; names kee
 
 test('labels are lowercased, values trimmed; a part with no label is more text', () => {
     const line = one('+ item Iron Key | QTY:  2  | Note: rusty | found under the floor');
-    assert.deepEqual(line.labels, { qty: '2', note: 'rusty' });
+    assert.deepEqual({ ...line.labels }, { qty: '2', note: 'rusty' });
+    assert.equal(Object.getPrototypeOf(line.labels), null, 'labels have no prototype (QA #70)');
     assert.equal(line.text, 'found under the floor');
     // 09:00 is not a label; the value of a label may hold a colon.
     const time = one('~ time Morning | at: 09:00 | 10:30');
-    assert.deepEqual(time.labels, { at: '09:00' });
+    assert.deepEqual({ ...time.labels }, { at: '09:00' });
     assert.equal(time.text, '10:30');
     // A label written twice keeps both values.
-    assert.deepEqual(one('+ item Cloak | note: wool | note: patched').labels, { note: 'wool; patched' });
+    assert.deepEqual({ ...one('+ item Cloak | note: wool | note: patched').labels }, { note: 'wool; patched' });
 });
 
 test('bullets, numbers, bold, quotes, blank lines, code fences and the tags are tolerated', () => {

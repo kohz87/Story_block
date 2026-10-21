@@ -35,7 +35,8 @@ test('rejections store nothing', () => {
     for (const [type, payload, code] of [
         ['inventory.grant', { def: 'story/rope' }, 'REFUSED'],
         ['inventory.equip', { stack: 'it_rope0001' }, 'REFUSED'],
-        ['wallet.pay', { amount: 1000 }, 'NOT_ENOUGH'],
+        ['wallet.pay', { amount: 1000 }, 'REFUSED'],
+        ['wallet.receive', { amount: 1000 }, 'REFUSED'],
         ['inventory.drop', { stack: 'it_nope0001' }, 'NOT_FOUND'],
     ]) {
         const result = bus.command(type, payload, { cause: 'ui' });
