@@ -121,8 +121,27 @@ function findBlocks(mes, tag) {
         depth -= 1;
         if (!depth) blocks.push({ start, end: re.lastIndex, body: text.slice(bodyStart, match.index) });
     }
-    if (depth) blocks.push({ start, end: text.length, body: text.slice(bodyStart) });
+    if (depth) blocks.push({ start, end: text.length, body: text.slice(bodyStart), open: true });
     return blocks;
+}
+
+// A block left open ends where the reply stopped. Its last line is only whole when a line break
+// follows it; otherwise it was cut off mid-way ("+ coin 2" of "+ coin 25") and is left out (B2-11).
+// → { body, cut } (`cut`: the line left out, or '').
+function wholeLines(block) {
+    if (!block.open || block.body.endsWith('\n')) return { body: block.body, cut: '' };
+    const nl = block.body.lastIndexOf('\n');
+    return { body: nl < 0 ? '' : block.body.slice(0, nl + 1), cut: block.body.slice(nl + 1).trim() };
+}
+
+/**
+ * The change line a reply stopped in the middle of (its block left open, the last line with no line
+ * break after it), or null. extractBlock and hideBlock leave that line out; turn.js tells it as a Problem.
+ */
+export function cutLine(mes, tag = 'Changes') {
+    const last = findBlocks(withoutReasoning(mes), tag).at(-1);
+    const cut = last ? wholeLines(last).cut : '';
+    return cut || null;
 }
 
 // Reasoning a model writes in the reply itself (<think>, <thinking>, <reasoning>), closed
@@ -149,7 +168,7 @@ const maskReasoning = text => text.replace(REASONING_RE, match => ' '.repeat(mat
 export function extractBlock(mes, tag = 'Changes') {
     const blocks = findBlocks(withoutReasoning(mes), tag);
     if (!blocks.length) return null;
-    return blocks.map(block => blockBody(block.body)).join('\n');
+    return blocks.map(block => blockBody(wholeLines(block).body)).join('\n');
 }
 
 /**
@@ -179,7 +198,7 @@ export function hideBlock(mes, tag = 'Changes', { from = 0 } = {}) {
     if (!bare.length) return text;
     let story = text;
     for (const block of [...bare].reverse()) story = story.slice(0, block.start) + story.slice(block.end);
-    const kept = bare.map(block => `<${tag}>\n${commentSafe(blockBody(block.body))}\n</${tag}>`).join('\n');
+    const kept = bare.map(block => `<${tag}>\n${commentSafe(blockBody(wholeLines(block).body))}\n</${tag}>`).join('\n');
     return `${trimEnd(story)}\n\n<!-- ${HIDDEN_MARKER}\n${kept}\n-->`;
 }
 

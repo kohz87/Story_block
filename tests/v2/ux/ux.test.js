@@ -19,7 +19,7 @@ const HUD_MODULE = {
     screens: [{ id: 'hud-test/strip', title: 'Strip', mounts: ['hud'], template: '<b class="where">{{ state.scene.place.name }}</b>' }],
 };
 
-/** A host, a page with a message box, and the UI; `reread` (optional) becomes sdk.reread. */
+/** A host, a page with a message box, and the UI; `reread` (optional) becomes sdk.reread; false: none at all. */
 async function page({ reread = null, modules = [], settings = null } = {}) {
     const doc = setupDom();
     const form = doc.createElement('div');
@@ -30,8 +30,10 @@ async function page({ reread = null, modules = [], settings = null } = {}) {
     doc.body.appendChild(drawerHost);
     const host = await createHost({ modules, ...(settings ? { settings } : {}) });
     const calls = [];
-    const sdk = reread ? { ...host.sdk, reread: async index => { calls.push(index); return reread(index, host); } } : host.sdk;
-    const runtime = { registry: host.registry, store: host.store, sdk, settings: host.settings, events: host.events, turn: host.turn };
+    const sdk = reread === false ? { ...host.sdk, reread: undefined }
+        : reread ? { ...host.sdk, reread: async index => { calls.push(index); return reread(index, host); } } : host.sdk;
+    const turn = reread === false ? { ...host.turn, reread: undefined } : host.turn;
+    const runtime = { registry: host.registry, store: host.store, sdk, settings: host.settings, events: host.events, turn };
     const ui = mountUi({ runtime, ctx: host.ctx, doc, version: '2.0.0-test' });
     /** SillyTavern drawing every message of the chat. */
     const draw = () => {
@@ -47,7 +49,7 @@ async function page({ reread = null, modules = [], settings = null } = {}) {
 // §F40: a reply without change lines
 
 test('a reply without change lines gets the warning; the greeting, the reader and a reply with lines do not', async () => {
-    const { host, draw, noteAt } = await page();
+    const { host, draw, noteAt } = await page({ reread: false });
     await host.send('hi', WITH_LINES);
     await host.send('and now?', 'Nothing much happens.');
     draw();
@@ -115,7 +117,7 @@ test('Re-read that fails says why and keeps the note', async () => {
 });
 
 test('an edited reply gets the edited note with Re-read (only when Re-read exists); Re-read clears it', async () => {
-    const plain = await page();
+    const plain = await page({ reread: false });
     await plain.host.send('hi', WITH_LINES);
     plain.draw();
     await plain.host.st.editMessage(2, `${WITH_LINES}\nedited`);

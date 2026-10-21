@@ -249,9 +249,10 @@ test('events/engine.js fireEvent: "events.fire" runs only as the host\'s system 
     assert.equal(h.head().meta.claims['event:dragon-hoard'], undefined, 'no event claim was forged');
     assert.equal((await h.sdk.command('events.fire', fire, { cause: 'system' })).code, 'REFUSED', 'nor with a raised cause through the sdk');
     assert.equal(h.bus.command('events.fire', fire, { cause: 'story' }).code, 'REFUSED', 'nor as a change line');
+    // Even the host's own system cue fires only an event an enabled pack defines (B3-1): this one is made up.
     const real = h.bus.command('events.fire', fire, { cause: 'system' });
-    assert.equal(real.ok, true, `the host's own system cue fires it: ${real.message}`);
-    assert.equal(h.head().domains.inventory.wallets.party.coin, 5000);
+    assert.equal(real.code, 'REFUSED', real.message);
+    assert.equal(h.head().domains.inventory.wallets.party?.coin ?? 0, 0);
 });
 
 test('sdk.js command: screens, widgets and modules cannot raise the cause above "ui"', async t => {

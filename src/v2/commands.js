@@ -188,8 +188,11 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 if (owner !== moduleId) fail('NOT_OWNER', `${moduleId} cannot change ${domain}: only ${owner} writes it (ask it through a command).`);
                 return draftOf(tx, domain);
             },
-            call(type, payload) {
+            // `options.as` ("event:<id>") names the step a host handler runs for, as the sub-command's
+            // ctx.caller (the events part's steps run as `event:<id>`); otherwise the caller is this module.
+            call(type, payload, options) {
                 open();
+                const as = typeof options?.as === 'string' && /^event:[A-Za-z0-9][A-Za-z0-9._/:-]{0,119}$/.test(options.as) ? options.as : null;
                 if (depth >= MAX_DEPTH) {
                     tx.failure ??= new CommandError('FAILED', `Commands called each other more than ${MAX_DEPTH} levels deep (at ${type}).`);
                     throw tx.failure;
@@ -200,7 +203,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                     throw tx.failure;
                 }
                 try {
-                    return invoke(tx, type, target, payload, depth + 1, moduleId);
+                    return invoke(tx, type, target, payload, depth + 1, as ?? moduleId);
                 } catch (error) {
                     tx.failure ??= asCommandError(type, error);
                     throw error;

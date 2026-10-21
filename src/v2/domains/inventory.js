@@ -136,6 +136,26 @@ function ownerArg(ctx, value, fallback = 'party') {
     return owner;
 }
 
+// An actor who can hold things now (B3-7): the party, or a member the party module lists
+// (`party.actors` when a module answers it, else the `party` domain's actors). An `ac_` id nobody
+// has is refused, so nothing is handed to someone who is not there.
+function ownerKnown(ctx, owner) {
+    if (owner === 'party') return true;
+    try {
+        const list = ctx.query('party.actors');
+        if (Array.isArray(list)) return list.some(actor => actor?.id === owner);
+    } catch { /* no module answers party.actors: the domain, if there is one */ }
+    let party = null;
+    try { party = ctx.read('party'); } catch { party = null; }
+    return isPlainObject(party?.actors) && Object.hasOwn(party.actors, owner);
+}
+
+function receiverArg(ctx, value, fallback = 'party') {
+    const owner = ownerArg(ctx, value, fallback);
+    if (!ownerKnown(ctx, owner)) ctx.fail('REFUSED', `${owner} is not in the party, so nothing can be given to them.`);
+    return owner;
+}
+
 function textArg(ctx, value, max, what) {
     if (value === undefined || value === null) return '';
     if (typeof value !== 'string') ctx.fail('INVALID', `The ${what} must be text.`);
@@ -336,7 +356,7 @@ export function createInventoryCommands(env) {
             byModule(ctx, 'Items cannot be handed out from a button; they come from the story or from another module.');
             const inv = ctx.draft('inventory');
             const qty = count(ctx, payload.qty, 1);
-            const owner = ownerArg(ctx, payload.owner);
+            const owner = receiverArg(ctx, payload.owner);
             const note = textArg(ctx, payload.note, MAX_NOTE, 'note');
             let def;
             let created = false;
@@ -386,7 +406,7 @@ export function createInventoryCommands(env) {
             const stack = stackIn(ctx, inv, payload.stack);
             const def = inv.defs[stack.def];
             if (payload.to === undefined || payload.to === null) ctx.fail('INVALID', 'Say who should get it.');
-            const to = ownerArg(ctx, payload.to);
+            const to = receiverArg(ctx, payload.to);
             const from = stack.owner;
             if (to === from) ctx.fail('REFUSED', `${def.name} is already with ${ownerNameIn(ctx, to)}.`);
             const qty = count(ctx, payload.qty, stack.qty);
@@ -513,7 +533,7 @@ export function createInventoryCommands(env) {
         'wallet.receive'(ctx, payload = {}) {
             byModule(ctx, 'Money cannot be handed out from a button; it comes from the story or from another module\'s action.');
             return receive(ctx, env, {
-                owner: ownerArg(ctx, payload.owner),
+                owner: receiverArg(ctx, payload.owner),
                 amount: count(ctx, payload.amount, undefined, 'amount'),
                 note: textArg(ctx, payload.note, 120, 'note'),
             });
@@ -599,6 +619,41 @@ function lineQty(ctx, line, fallback) {
     return n;
 }
 
+// A consumable the story says was used (MODULES §F96): `- item Potion | used: yes`, or a used-word in
+// the line or the reply, and no word that says it went another way. Copied from RPG Battle's
+// items/story-use.js (usedByLine), so both read a line the same way.
+export const USED_WORDS = /\b(?:used|uses|drank|drinks|drunk|ate|eats|eaten|applied|applies|quaffed|swallowed|consumed)\b/i;
+export const GONE_WORDS = /\b(?:lost|loses|sold|sells|gave|given|gives|dropped|stolen|traded|handed|broke|broken|spilled|spilt)\b/i;
+
+/** Whether a `- item` line says the thing was used (not lost, sold, given…): see USED_WORDS. */
+export function usedByLine(line, replyText = '') {
+    const labels = Object.entries(line?.labels ?? {}).map(([name, value]) => `${name} ${value}`).join(' ');
+    const own = `${line?.text ?? ''} ${labels}`;
+    if (GONE_WORDS.test(own)) return false;
+    if (/^(?:yes|true|1)$/i.test(String(line?.labels?.used ?? '').trim())) return true;
+    return USED_WORDS.test(own) || USED_WORDS.test(String(replyText ?? ''));
+}
+
+// A used consumable goes to the module that answers `item.use` (its effect is that module's rules):
+// `item.use { name, on, qty, story: true }`. Null when no module answers it (the line then takes the
+// thing away, as before); a refusal there refuses the line, so the thing stays.
+function useInStory(ctx, line, def, qty) {
+    const on = labelOf(line, 'on', 'who', 'by');
+    let out;
+    try {
+        out = ctx.call('item.use', { name: def.name, ...(on ? { on } : {}), qty, story: true });
+    } catch (error) {
+        if (error?.code === 'UNKNOWN_COMMAND' && String(error.message).includes('"item.use"')) return null;
+        throw error;
+    }
+    const data = isPlainObject(out?.data) ? out.data : {};
+    return {
+        summary: typeof out?.summary === 'string' && out.summary ? out.summary : `${itemText(def.name, qty)} used.`,
+        data: { ...clone(data), def: def.id, qty, used: true },
+        narrate: typeof out?.narrate === 'boolean' ? out.narrate : false,
+    };
+}
+
 /** `+ item Name | qty | note`, `- item Name | qty`, `~ item Name | note | qty | name` (a rename). */
 export function captureItem(ctx, line, env) {
     const inv = ctx.draft('inventory');
@@ -626,6 +681,10 @@ export function captureItem(ctx, line, env) {
         const def = knownDef(ctx, inv, name);
         const qty = lineQty(ctx, line, 1);
         if (qty < 1) ctx.fail('INVALID', 'A lost item needs a quantity of at least 1.');
+        if (def.kind === 'consumable' && usedByLine(line, ctx.chat?.reply)) {
+            const used = useInStory(ctx, line, def, qty);
+            if (used) return used;
+        }
         const held = stacksOf(inv, def.id);
         const have = held.reduce((sum, stack) => sum + stack.qty, 0);
         if (!have) ctx.fail('NOT_FOUND', `There is no ${def.name} in the inventory.`);

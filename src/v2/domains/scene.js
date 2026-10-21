@@ -65,7 +65,9 @@ function companions(ctx, value) {
     return names;
 }
 
-// A new place clears its kind (a village is not a dungeon) but keeps the region unless told. Who was
+// A place keeps the stored kind and region unless the line says otherwise: a move line without
+// `kind:` keeps it (Story Director's map knows the place's kind; a model often leaves it out), and only
+// an explicit empty value (`kind:` with nothing after it) clears it. Who was
 // present stays behind: after a move only the people named in `with` (they came along) are here, and
 // the story adds whoever it meets there (`+ present`). The same place keeps everyone; `with` adds to them.
 function setPlace(ctx, { name, kind, region, with: along }) {
@@ -76,7 +78,7 @@ function setPlace(ctx, { name, kind, region, with: along }) {
     const came = companions(ctx, along);
     scene.place = {
         name: placeName,
-        kind: field(ctx, kind, 'kind') ?? (moved ? '' : scene.place.kind),
+        kind: field(ctx, kind, 'kind') ?? scene.place.kind,
         region: field(ctx, region, 'region') ?? scene.place.region,
     };
     const keys = list => new Set(list.map(person => person.toLowerCase()));

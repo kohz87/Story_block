@@ -1,7 +1,7 @@
 // The events engine: definitions, beforeGenerate firing, claims, rollback, chains, then-commands, status.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FIRE, claimKey, createEngine, fireEvent, inspect, normalizeEvents } from '../../../src/v2/events/engine.js';
+import { FIRE, claimKey, createEngine, createFireEvent, fireEvent, inspect, normalizeEvents, repeatKey } from '../../../src/v2/events/engine.js';
 import { baseState, createFakeHost } from './helpers/fake-host.js';
 
 // A tiny wallet module for `then`: its command writes its own domain, as SPEC §3.2 handlers do.
@@ -22,8 +22,8 @@ const walletCommands = {
 function setup({ defs, domains = {}, queries = {}, claims = {} }) {
     const state = baseState({ inventory: { defs: {}, stacks: {}, wallets: {}, aliases: {} }, director: { time: { minutes: 600 }, threads: {}, keys: {}, notes: [] }, ...domains });
     state.meta.claims = { ...claims };
-    const host = createFakeHost({ state, commands: { [FIRE]: fireEvent, ...walletCommands }, queries });
     let list = defs;
+    const host = createFakeHost({ state, commands: { [FIRE]: createFireEvent(() => list), ...walletCommands }, queries });
     const engine = createEngine({ events: () => list, command: host.command, query: host.query });
     return { host, engine, setDefs: next => { list = next; } };
 }
@@ -98,7 +98,8 @@ test('a met event commits one system receipt: the cue as summary, claim event:<i
     assert.equal(host.state().meta.claims[claimKey('pack.fantasy/dragon-sighted')], true);
     assert.equal(claimKey('x'), 'event:x');
     assert.deepEqual(host.calls.map(call => [call.type, call.cause]), [[FIRE, 'system']]);
-    assert.deepEqual(host.calls[0].payload, { id: 'pack.fantasy/dragon-sighted', cue: 'Smoke over the eastern ridge: a dragon.', once: true, then: [] });
+    // Only the id (and the reply it is for) goes in the payload: the handler reads the rest from the pack.
+    assert.deepEqual(host.calls[0].payload, { id: 'pack.fantasy/dragon-sighted', at: host.view().chat.length });
 });
 
 test('an unmet, erroring or claimed event commits nothing', () => {
@@ -132,7 +133,7 @@ test('claims stop re-firing on the same history; a rollback without the claim le
     assert.deepEqual(fired(host), ['arrival'], 'it happens again on the new line');
     assert.equal(host.state().meta.claims['event:arrival'], true);
     // A stale view (taken before the claim) can't fire twice: the handler's claim refuses it.
-    const stale = createFakeHost({ state: host.state(), commands: { [FIRE]: fireEvent } });
+    const stale = createFakeHost({ state: host.state(), commands: { [FIRE]: createFireEvent(() => [{ id: 'arrival', when: 'true', cue: 'x' }]) } });
     const staleEngine = createEngine({ events: () => [{ id: 'arrival', when: 'true', cue: 'x' }], command: stale.command });
     const old = before.state;
     staleEngine.beforeGenerate({ state: old, query: () => null });
@@ -140,12 +141,20 @@ test('claims stop re-firing on the same history; a rollback without the claim le
     assert.deepEqual(staleEngine.status(old).lastRun.failed, [{ id: 'arrival', code: 'CLAIMED', message: 'The event "arrival" has already happened on this line of the story.' }]);
 });
 
-test('once: false repeats before every reply while the condition holds, and never claims', () => {
+test('once: false repeats before every reply while the condition holds, once per reply (B3-9)', () => {
     const { host, engine } = setup({ defs: [{ id: 'rain', when: 'time() >= 480', cue: 'Rain keeps falling.', once: false }] });
-    engine.beforeGenerate(host.view());
-    engine.beforeGenerate(host.view());
+    const at = length => ({ ...host.view(), chat: { length, lastUser: '' } });
+    engine.beforeGenerate(at(3));
+    engine.beforeGenerate(at(3));
+    assert.deepEqual(fired(host), ['rain'], 'the same reply again (a regenerate) does not pay again');
+    engine.beforeGenerate(at(5));
     assert.deepEqual(fired(host), ['rain', 'rain']);
-    assert.deepEqual(host.state().meta.claims, {});
+    // That reply (index 5) swiped or continued: the chat now holds it, so it is the last message.
+    engine.beforeGenerate(at(6), { type: 'swipe' });
+    engine.beforeGenerate(at(6), { type: 'continue' });
+    engine.beforeGenerate(at(7), { dryRun: true });
+    assert.equal(fired(host).length, 2, 'a swipe of the last reply, a Continue and a dry run pay nothing more');
+    assert.deepEqual(Object.keys(host.state().meta.claims), ['event:rain:3', 'event:rain:5'], 'claimed per reply, never once and for all');
     const state = host.state();
     host.setState({ ...state, domains: { ...state.domains, director: { ...state.domains.director, time: { minutes: 100 } } } });
     engine.beforeGenerate(host.view());
@@ -253,7 +262,7 @@ test('determinism: the same view and definitions give the same commands, whateve
 });
 
 test('async command buses: beforeGenerate waits for each commit in order, then gives nothing', async () => {
-    const { host } = setup({ defs: [] });
+    const { host } = setup({ defs: [{ id: 'b', when: 'true', cue: 'B.' }, { id: 'a', when: 'true', cue: 'A.' }, { id: 'c', when: 'true', cue: 'C.' }] });
     const order = [];
     const engine = createEngine({
         events: () => [{ id: 'b', when: 'true', cue: 'B.' }, { id: 'a', when: 'true', cue: 'A.' }, { id: 'c', when: 'true', cue: 'C.' }],
@@ -315,16 +324,30 @@ test('events.status: which fired, which are due, which wait and why, which are i
     assert.deepEqual(inspect(host.view(), [{ id: 'one', when: 'true', cue: 'x' }]).fired, ['one']);
 });
 
-test('fireEvent: the handler refuses a bad payload and a second firing on the same line', () => {
-    const host = createFakeHost({ commands: { [FIRE]: fireEvent } });
-    assert.deepEqual(host.command(FIRE, { id: 'x' }, { cause: 'system' }), { ok: false, code: 'INVALID', message: 'The event "x" has no cue to tell.' });
-    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.', then: [{ command: FIRE }] }, { cause: 'system' }).code, 'INVALID');
-    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.' }, { cause: 'system' }).ok, true);
-    assert.deepEqual(host.command(FIRE, { id: 'x', cue: 'X.' }, { cause: 'system' }), { ok: false, code: 'CLAIMED', message: 'The event "x" has already happened on this line of the story.' });
-    assert.equal(host.command(FIRE, { id: 'x', cue: 'X.', once: false }, { cause: 'system' }).ok, true, 'a repeating event does not claim');
+test('fireEvent: the handler fires only a due event of an enabled pack, as its definition says (B3-1, B3-9)', () => {
+    const defs = [
+        { id: 'x', when: 'true', cue: 'X.', then: [{ command: 'director.note', payload: { text: 'from the pack' } }] },
+        { id: 'r', when: 'true', cue: 'R.', once: false },
+        { id: 'n', when: 'false', cue: 'N.' },
+    ];
+    const host = createFakeHost({ state: baseState({ director: { notes: [] } }), commands: { [FIRE]: createFireEvent(() => defs), ...walletCommands } });
+    assert.equal(host.command(FIRE, { id: 'bad id!' }, { cause: 'system' }).code, 'INVALID');
+    assert.deepEqual(host.command(FIRE, { id: 'nobody' }, { cause: 'system' }), { ok: false, code: 'REFUSED', message: 'No enabled pack has an event "nobody".' });
+    assert.equal(host.command(FIRE, { id: 'n' }, { cause: 'system' }).code, 'REFUSED', 'not due');
+    // The payload's cue and steps are ignored: the definition's run.
+    const done = host.command(FIRE, { id: 'x', cue: 'Forged.', then: [{ command: 'wallet.receive', payload: { amount: 999 } }] }, { cause: 'system' });
+    assert.equal(done.ok, true);
+    assert.equal(done.receipt.summary, 'X.');
+    assert.deepEqual(host.state().domains.director.notes, ['from the pack']);
+    assert.equal(host.state().domains.inventory, undefined, 'no wallet step ran');
+    assert.deepEqual(host.command(FIRE, { id: 'x' }, { cause: 'system' }), { ok: false, code: 'CLAIMED', message: 'The event "x" has already happened on this line of the story.' });
+    // A repeating event: once per reply index.
+    assert.equal(host.command(FIRE, { id: 'r', at: 4 }, { cause: 'system' }).ok, true);
+    assert.equal(host.command(FIRE, { id: 'r', at: 4 }, { cause: 'system' }).code, 'CLAIMED');
+    assert.equal(host.command(FIRE, { id: 'r', at: 6 }, { cause: 'system' }).ok, true);
+    assert.equal(host.state().meta.claims[repeatKey('r', 4)], true);
     // Only the host's own system cue fires an event: not a button (ui), not a change line (story).
-    for (const cause of ['ui', 'story']) assert.equal(host.command(FIRE, { id: 'y', cue: 'Y.' }, { cause }).code, 'REFUSED', cause);
+    for (const cause of ['ui', 'story']) assert.equal(host.command(FIRE, { id: 'x' }, { cause }).code, 'REFUSED', cause);
     assert.equal(fireEvent.internal, true, 'marked internal for the registry');
-    assert.equal(host.receipts.length, 2);
-    assert.equal(host.state().meta.rev, 2, 'nothing saved on rejection');
+    assert.equal(createFireEvent(() => defs).internal, true);
 });

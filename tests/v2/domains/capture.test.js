@@ -225,7 +225,7 @@ test('an item named exactly the currency (singular or plural) is coin in the wal
     assert.equal(plain.capture(line('+', 'item', 'Gold Bar')).result.data.created, true);
 });
 
-test('~ place sets the place; a move clears the kind but keeps the region', () => {
+test('~ place sets the place; a move without kind: keeps the kind and the region; kind: with no value clears it', () => {
     const h = setup();
     const result = h.capture(line('~', 'place', 'Bluewatch Village', { kind: 'settlement', region: 'Lakeshire' }));
     assert.equal(result.ok, true, result.message);
@@ -235,7 +235,11 @@ test('~ place sets the place; a move clears the kind but keeps the region', () =
     h.capture(line('~', 'place', 'bluewatch village', { region: 'North Lakeshire' }));
     assert.equal(h.state.domains.scene.place.kind, 'settlement', 'the same place keeps its kind');
     h.capture(line('+', 'place', 'Drowned Crypt'));
-    assert.deepEqual(h.state.domains.scene.place, { name: 'Drowned Crypt', kind: '', region: 'North Lakeshire' });
+    assert.deepEqual(h.state.domains.scene.place, { name: 'Drowned Crypt', kind: 'settlement', region: 'North Lakeshire' }, 'no kind: written, the stored one stays');
+    h.capture(line('~', 'place', 'Drowned Crypt', { kind: '' }));
+    assert.equal(h.state.domains.scene.place.kind, '', 'only an explicit empty kind clears it');
+    h.capture(line('~', 'place', 'Old Mill', { kind: 'ruin' }));
+    assert.equal(h.state.domains.scene.place.kind, 'ruin');
     rejected(h, line('-', 'place', 'Drowned Crypt'), 'INVALID', /use ~ place/);
     rejected(h, line('~', 'place', ''), 'INVALID', /needs a name/);
     rejected(h, line('~', 'place', 'x'.repeat(81)), 'INVALID', /longer than 80/);

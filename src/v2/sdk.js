@@ -214,10 +214,11 @@ export async function ensureModules({ store, bus, registry, events = null }) {
 /**
  * The public sdk. `deps`: { store, bus, registry, settings (createSettings), events
  * (createEvents), chat?: () => Message[], check?, onRegister?(def) (after each registerModule),
- * rewind?({ index, beforeRev }) (src/v2/rewind.js), substitute?(text), dialog?(screenId, opts) }. Returns { sdk, events, markReady }:
+ * rewind?({ index, beforeRev }) (src/v2/rewind.js), substitute?(text), dialog?(screenId, opts), reread?(index) (turn.js) }.
+ * Returns { sdk, events, markReady }:
  * `sdk.ready` resolves to the sdk once the host calls markReady().
  */
-export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null }) {
+export function createSdk({ store, bus, registry, settings, events = createEvents(), chat = () => [], check = checkModule, onRegister = null, rewind = null, substitute = text => String(text ?? ''), dialog = null, reread = null }) {
     let markReady;
     const ready = new Promise(resolve => { markReady = () => resolve(sdk); });
     const refused = message => ({ ok: false, code: 'REFUSED', message });
@@ -260,6 +261,12 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
          * that carrier's receipts from `beforeRev` on, opened as the current chat. → Promise<{ ok, … }>.
          */
         rewind: async options => (typeof rewind === 'function' ? rewind(options) : { ok: false, code: 'FAILED', message: 'Going back in time is not available here.' }),
+        /**
+         * Re-read (F40): reply `index`'s <Changes> block read again from its shown swipe, replacing the
+         * story changes stored on it (the reader's actions on it stay). → Promise<{ ok, receipts, problems }
+         * | { ok: false, code, message }> (turn.js reread).
+         */
+        reread: async index => (typeof reread === 'function' ? reread(index) : { ok: false, code: 'FAILED', message: 'Re-read is not available here.' }),
         /** The view tabs and contexts get: { state, query, settings, chat }. */
         view: () => makeView({ store, registry, settings, chat: chat() }),
         on: (name, fn) => events.on(name, fn),

@@ -2,8 +2,8 @@
 
 A **pack** adds ready-made content to Story Suite: items with their numbers, creatures, shops,
 crafting recipes, events, quests, races, talents, skills and ready-made characters for character
-creation, places and routes for the map, a calendar for the story clock, a start state for new chats,
-a currency name, screens, layouts and a theme. A pack is one
+creation, places and routes for the map, terms for levels and XP, a ladder of quest ranks, a calendar
+for the story clock, a start state for new chats, a currency name, screens, layouts and a theme. A pack is one
 JSON file of plain data. Nothing in a pack runs as code. This page is the reference for people who
 make packs; the contract behind it is [SPEC.md §9 and §13](SPEC.md) and [MODULES.md §E and §F](MODULES.md).
 
@@ -43,7 +43,8 @@ a story already told.
   "currency": { "name": "pennies", "short": "p" },
   "calendar": { "era": "CY", "months": [{ "name": "Dawnwane", "days": 30 }], "start": { "year": 611, "month": "Dawnwane", "day": 1 } },
   "content": { "items": [], "creatures": [], "shops": [], "recipes": [], "events": [], "quests": [],
-               "races": [], "talents": [], "skills": [], "presets": [], "places": [], "routes": [] },
+               "races": [], "talents": [], "skills": [], "presets": [], "places": [], "routes": [],
+               "terms": [], "ranks": [] },
   "start": { "scene": { … }, "inventory": { … } },
   "screens": [],
   "layouts": [],
@@ -59,7 +60,7 @@ a story already told.
 | `description` | no | Text. |
 | `requires.storyBlock` | yes | A version range: `^2`, `~2.1`, `2.x`, `>=2.0.0 <3`, `^1 \|\| ^2`. Story Block's alpha versions count as their release (2.0.0-alpha.3 counts as 2.0.0). |
 | `requires.capabilities` | no | Names the pack needs, like `inventory`, `scene`, `party`, `combat`, `director`: a module id or a state area a module owns. If Story Block knows a name is missing, the pack is refused at install. If a module is switched off later, the list shows what is missing. |
-| `currency` | no | `{ "name": "pennies", "short": "p" }`: a suggested name for the chat's one currency (MODULES §F1). `name` can be up to 24 characters, `short` up to 8. It is used only when the reader hasn't named the currency; the first enabled pack that suggests one counts. |
+| `currency` | no | `{ "name": "mark", "plural": "marks", "short": "mk" }`: a suggested name for the chat's one currency (MODULES §F1). `name` (the singular, "1 mark") can be up to 24 characters, the optional `plural` ("44 marks"; left out: the name with an s, and gold stays gold) up to 24, `short` up to 8. It is used only when the reader hasn't named the currency; the first enabled pack that suggests one counts, and its plural and short form go with it. |
 | `calendar` | no | The story clock's calendar (below). Problems are `BAD_CALENDAR`. |
 | `content` | no | Lists of records by kind (below). No other kinds. |
 | `start` | no | The start state (below). |
@@ -151,7 +152,7 @@ The map Story Director's atlas reads.
 
 | Kind | Fields |
 |---|---|
-| `places` | `{ name, slug?, aliases?, region?, kind?, layer?, x, y, note? }`: `x`, `y` are numbers (map units; Ersveil: x east, y north, 1 unit = 10 km); `layer` is a plane such as `underground` ('' on the surface). |
+| `places` | `{ name, slug?, aliases?, region?, kind?, layer?, x, y, note?, hidden? }`: `x`, `y` are numbers (map units; Ersveil: x east, y north, 1 unit = 10 km); `layer` is a plane such as `underground` ('' on the surface). `hidden: true` (or its alias `secret: true`) keeps the place off Story Director's map, and out of its search, until the story goes there; the record keeps `hidden: true` either way. |
 | `routes` | `{ from, to, kind, km?, hours?, corridor?, slug?, note? }`: `from` and `to` name places of the same pack (by name, alias or slug) and are kept as their names; `km` and `hours` are numbers above 0. The id is made from from, to and kind unless a `slug` is given. A route joins two different places. |
 
 ### shops
@@ -340,9 +341,9 @@ The packs part (`src/v2/packs/index.js`) offers these through Story Block's core
 * query `packs.content({ kind, pack? })` → a flat list of records of a content kind from the enabled
   packs, each with `id` (`pack.<pack>/<slug>`), `slug` and `pack`. Events come as
   `{ id, pack, slug, when, cue, once, after, then }` with `after` as a full id. Also
-  `kind: 'screens'`, `'layouts'`, `'theme'` → `[{ pack, tokens }]` and `'currency'` → `[{ pack, name, short }]`;
-  `kind: 'places' | 'routes' | 'skills' | 'presets'` like every kind (a pack without them normalizes
-  exactly as before);
+  `kind: 'screens'`, `'layouts'`, `'theme'` → `[{ pack, tokens }]` and `'currency'` → `[{ pack, name, short, plural? }]`;
+  `kind: 'places' | 'routes' | 'skills' | 'presets' | 'terms' | 'ranks'` like every kind (a pack without
+  them normalizes exactly as before);
 * query `packs.calendar` → `{ pack, era, months, start }` from the first enabled pack with a calendar,
   or `null`;
 * query `packs.item({ name })` and hook `item.resolve(name)` → the pack item def (SPEC §7 fields)

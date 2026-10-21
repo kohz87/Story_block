@@ -2,7 +2,7 @@
 // tests/v2/break/ do not pin down on their own. Each test here fails on the code before the fix.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_LINE, extractBlock, hideBlock, parseChanges, stripBlock, withoutReasoning } from '../../src/v2/capture.js';
+import { MAX_LINE, cutLine, extractBlock, hideBlock, parseChanges, stripBlock, withoutReasoning } from '../../src/v2/capture.js';
 import { HAPPENED, MIN_HAPPENED, assemble } from '../../src/v2/prompt.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { MAX_CHANGE_LINES, createSettings, settingValue } from '../../src/v2/sdk.js';
@@ -45,12 +45,13 @@ test('a close tag at the end of a change line still ends the block; story after 
     assert.equal(stripBlock(mes), 'Story.\n\nThe end.');
 });
 
-test('a mid-line close followed by story text is not dropped silently: the story lines become Problems', () => {
-    const mes = 'Story.\n<Changes>\n+ item Rope </Changes> and then they left.';
-    const { lines, problems } = parseChanges(extractBlock(mes));
-    assert.equal(lines.length, 1);
-    assert.equal(lines[0].name, 'Rope </Changes> and then they left.');
-    assert.deepEqual(problems, []);
+test('a mid-line close followed by story text is not dropped silently: a Problem says so', () => {
+    const mes = 'Story.\n<Changes>\n+ item Rope\n+ item Torch </Changes> and then they left.';
+    // The block is still open, and its last line has no line break after it: a cut-off line (B2-11).
+    assert.equal(extractBlock(mes), '+ item Rope');
+    assert.equal(cutLine(mes), '+ item Torch </Changes> and then they left.');
+    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n'), null, 'a line with its line break is whole');
+    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n</Changes>'), null, 'a closed block has no cut line');
 });
 
 test('mismatched reasoning tags (<thinking>…</think>) are reasoning too', () => {

@@ -361,17 +361,18 @@ function linkEvents(events, packId, add) {
     }
 }
 
-// A currency the pack suggests (MODULES §F1): one name for the chat's one currency, used only
-// when the reader has not named one.
+// A currency the pack suggests (MODULES §F1): one name for the chat's one currency (singular, with an
+// optional plural and short form), used only when the reader has not named one.
 function checkCurrency(currency, add) {
-    const short = currency?.short;
-    if (!isObject(currency) || Object.keys(currency).some(key => key !== 'name' && key !== 'short')
+    const { short, plural } = currency ?? {};
+    const optional = (value, max) => value === undefined || (typeof value === 'string' && value.trim() && value.length <= max);
+    if (!isObject(currency) || Object.keys(currency).some(key => !['name', 'plural', 'short'].includes(key))
         || typeof currency.name !== 'string' || !currency.name.trim() || currency.name.length > 24
-        || (short !== undefined && (typeof short !== 'string' || !short.trim() || short.length > 8))) {
-        add('BAD_CURRENCY', 'currency', 'currency must be { "name": "gold" } (at most 24 characters), with an optional "short" of at most 8, like "g".');
+        || !optional(short, 8) || !optional(plural, 24)) {
+        add('BAD_CURRENCY', 'currency', 'currency must be { "name": "mark" } (at most 24 characters), with an optional "plural" of at most 24 ("marks") and "short" of at most 8 ("m").');
         return null;
     }
-    return { name: oneLine(currency.name), short: oneLine(short ?? '') };
+    return { name: oneLine(currency.name), short: oneLine(short ?? ''), ...(plural === undefined ? {} : { plural: oneLine(plural) }) };
 }
 
 // A race or talent for the character creation wizard: { id?, name, note?, stats?, tags? }.
@@ -522,11 +523,14 @@ function checkPlace(record, path, label, add) {
     if (!Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > LIMITS.name)) say('aliases', 'aliases must be a list of other names for the place.');
     const note = record.note ?? '';
     if (!isText(note, 500)) say('note', 'note must be text of at most 500 characters.');
+    for (const flag of ['hidden', 'secret']) if (record[flag] !== undefined && typeof record[flag] !== 'boolean') say(flag, `${flag} must be true or false.`);
     if (!ok) return null;
     return {
         name: oneLine(record.name, LIMITS.name), aliases: [...new Set(aliases.map(alias => oneLine(alias, LIMITS.name)))],
         region: oneLine(record.region ?? '', LIMITS.name), kind: oneLine(record.kind ?? '', LIMITS.name), layer: oneLine(record.layer ?? '', LIMITS.name),
         x: record.x, y: record.y, note,
+        // `secret` is another word for `hidden`; the map reads either.
+        ...(record.hidden === true || record.secret === true ? { hidden: true } : {}),
     };
 }
 
