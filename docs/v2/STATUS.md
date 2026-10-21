@@ -20,7 +20,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Fishing example activity (public SDK only) | ✅ | #55 |
 | HTML templates with bindings, scoped CSS | ✅ | #64 |
 | Integration: index.js bootstrap, host fixes (ctx.caller/rev/id/carrier/chat), rewind, wiring | 🔧 | |
-| Default screens (Inventory, Scene, changes card, home) + player guide | 🔧 | |
+| Default screens (Inventory, Scene, changes card, home) + player guide | ✅ | #66 |
 | Assist (optional pre-roll classifier, after-reply extractor), off by default | ✅ | #65 |
 | QA (state invariants, security, prompt) · performance benchmarks | 🔧 | |
 
