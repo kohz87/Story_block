@@ -124,6 +124,9 @@ export function definitionProblems(def) {
             if (!isObject(domain)) { problems.push(`domain "${name}" is not an object`); continue; }
             fn(domain.initial, `domain "${name}" initial`);
             if (domain.validate !== undefined) fn(domain.validate, `domain "${name}" validate`);
+            if (domain.counters !== undefined && (!Array.isArray(domain.counters) || domain.counters.some(path => typeof path !== 'string' || !/^[^/~][^~]*$/.test(path)))) {
+                problems.push(`domain "${name}" counters must be a list of paths inside the domain, like "wallets/*/coin"`);
+            }
             if (typeof domain.initial === 'function') {
                 let slice;
                 try { slice = domain.initial(); } catch (error) { problems.push(`domain "${name}" initial() threw: ${error?.message ?? error}`); continue; }
@@ -439,6 +442,12 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         validator(name) {
             const owner = owners.domain.get(name);
             return owner ? defs.get(owner).domains[name].validate ?? null : null;
+        },
+        /** The number paths a domain keeps as counts (`counters`, ops.js), [] when none. */
+        counters(name) {
+            const owner = owners.domain.get(name);
+            const list = owner ? defs.get(owner).domains[name].counters : null;
+            return Array.isArray(list) ? [...list] : [];
         },
         query(name) {
             const owner = owners.query.get(name);

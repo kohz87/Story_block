@@ -135,7 +135,18 @@ export function createRuntime({
     }
     for (const def of modules) registry.register(def);
 
-    const store = createStore({ chat: () => ctx.chat, save: () => ctx.saveChat(), onSaveError });
+    // A replay that moves counts (a reply before them deleted) checks the domains it moved (B3-8).
+    const validate = (state, names) => names.flatMap(name => {
+        const fn = registry.validator(name);
+        if (typeof fn !== 'function') return [];
+        try {
+            const errors = fn(state?.domains?.[name], state);
+            return Array.isArray(errors) ? errors.map(String) : [];
+        } catch (error) {
+            return [`The ${name} check failed: ${error?.message ?? error}`];
+        }
+    });
+    const store = createStore({ chat: () => ctx.chat, save: () => ctx.saveChat(), onSaveError, validate });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
     const rewind = createRewind({ ctx, store, events, ...(branch ? { branch } : {}) });

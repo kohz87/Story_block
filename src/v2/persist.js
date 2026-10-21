@@ -10,6 +10,9 @@
 // * `spans` = [{ n, story }]: how many of `ops` each append added and whether it came from a story capture,
 //   so a Re-read can replace the story ops and keep the rest.
 // * `rev` = meta.rev of the state after this carrier, for the host's check after a save.
+// * `covers` (with a checkpoint) = the `sid`s of the records from the checkpoint before it up to this one,
+//   so the store can tell a checkpoint made over a reply since deleted (store.js chain).
+// * An op on a count a domain keeps (`counters`) carries `was`, the number it replaced (ops.js).
 // The record is written to `message.extra` and copied to `swipe_info[swipe_id].extra`, as v1 did.
 
 import { randomId } from '../id.js';

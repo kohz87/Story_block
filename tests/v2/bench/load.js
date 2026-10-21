@@ -555,6 +555,7 @@ export function relayout(chat, { every = 20, bytes = 32 * 1024 } = {}) {
     let carriers = 0;
     let opBytes = 0;
     let first = true;
+    let since = [];   // the records a new checkpoint covers (store.js chain)
     for (const message of copy) {
         const record = readRecord(message);
         if (!isCarrier(message) || !record) continue;
@@ -566,10 +567,16 @@ export function relayout(chat, { every = 20, bytes = 32 * 1024 } = {}) {
             const due = carriers >= every || opBytes > bytes;
             if (due) {
                 record.checkpoint = structuredClone(state);
+                record.covers = since;
+                since = [];
                 carriers = 0;
                 opBytes = 0;
-            } else delete record.checkpoint;
+            } else {
+                delete record.checkpoint;
+                delete record.covers;
+            }
         }
+        since.push(record.sid);
         opBytes += bytesOf(record.ops);
         state = applyOps(state, record.ops);
         syncSwipe(message, record);
@@ -589,8 +596,15 @@ function syncSwipe(message, record) {
  */
 export function compactCarrierOps(ops) {
     const lastAt = new Map();
-    ops.forEach((op, index) => { if (op.op === 'replace') lastAt.set(op.path, index); });
-    return ops.filter((op, index) => !(op.op === 'replace' && lastAt.get(op.path) !== index));
+    const firstWas = new Map();   // a count's kept op takes the `was` of the first op it stands for
+    ops.forEach((op, index) => {
+        if (op.op !== 'replace') return;
+        lastAt.set(op.path, index);
+        if (typeof op.was === 'number' && !firstWas.has(op.path)) firstWas.set(op.path, op.was);
+    });
+    return ops
+        .filter((op, index) => !(op.op === 'replace' && lastAt.get(op.path) !== index))
+        .map(op => (op.op === 'replace' && firstWas.has(op.path) ? { ...op, was: firstWas.get(op.path) } : op));
 }
 
 /**
