@@ -22,7 +22,9 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Integration: index.js bootstrap, host fixes (ctx.caller/rev/id/carrier/chat), rewind, wiring | 🔧 | |
 | Default screens (Inventory, Scene, changes card, home) + player guide | ✅ | #66 |
 | Assist (optional pre-roll classifier, after-reply extractor), off by default | ✅ | #65 |
-| QA (state invariants, security, prompt) · performance benchmarks | 🔧 | |
+| Performance benchmark + tuning proposals (docs/v2/PERFORMANCE.md) | ✅ | #68 |
+| Storage tuning: checkpoint 100/128 KB, one record copy, ride on SillyTavern's save, op compaction | ⏳ | |
+| QA (state invariants, security, prompt) | 🔧 | |
 
 ## RPG Battle (module)
 | Piece | State | PR |
