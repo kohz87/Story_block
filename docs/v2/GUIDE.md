@@ -201,7 +201,8 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
   name with an s) and its short form.
 * **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: the top quest
   reward for your character's rank, or 1000 per level). The rest is not paid, and **Problems** says so.
-  A reply also gives at most 20 of one item.
+  A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
+  gift (the potion an old man hands you) worth up to five times the goods.
 * **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
   one reply may hold, 150 by default; any after them are not used.
 * **Screens**: turn each card on or off, and pick which version of a screen to use (the default, the

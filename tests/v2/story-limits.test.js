@@ -66,15 +66,16 @@ test('~ item | qty: a raise past the carry limit is refused with the module\'s r
 test('story goods are held to a worth budget (2 × the coin budget): clamped with LIMITED, then REFUSED', async t => {
     assert.equal(STORY_WORTH_TIMES, 2);
     const host = await fresh(t, { modules: [pricing] });
-    await host.send('A hoard.', reply('Gems.', ['+ item Gem A | qty: 5', '+ item Gem B | qty: 5', '+ item Gem C', '+ item Rope | qty: 3']));
-    // 2000 of worth: 5 Gem A (1500), 1 Gem B (300, 1800); Gem C is refused (200 left); Rope is worth nothing.
-    assert.deepEqual([qty(host, 'Gem A'), qty(host, 'Gem B'), qty(host, 'Gem C'), qty(host, 'Rope')], [5, 1, 0, 3]);
+    await host.send('A hoard.', reply('Gems.', ['+ item Gem A | qty: 5', '+ item Gem B | qty: 5', '+ item Gem C', '+ item Gem D', '+ item Rope | qty: 3']));
+    // 2000 of worth: 5 Gem A (1500), 1 Gem B (300, 1800); Gem C (300, 200 left) is the reply's one notable
+    // item (story-notable.test.js), so Gem D is refused; Rope is worth nothing.
+    assert.deepEqual([qty(host, 'Gem A'), qty(host, 'Gem B'), qty(host, 'Gem C'), qty(host, 'Gem D'), qty(host, 'Rope')], [5, 1, 1, 0, 3]);
     assert.deepEqual(host.turn.problems().map(problem => problem.code), ['LIMITED', 'REFUSED']);
     assert.match(host.turn.problems()[0].message, /Gem B ×5 was written, but one reply may give goods worth at most 2,?000 gold in all; 1 was given/);
     assert.match(host.turn.problems()[1].message, /already given goods worth 1,?800 gold/);
-    assert.equal(host.sdk.query('inventory.find', { name: 'Gem C' }).status, 'none', 'a refused line makes no definition');
-    await host.send('Another.', reply('One more gem.', ['+ item Gem C | qty: 6']));
-    assert.equal(qty(host, 'Gem C'), 6, 'the next reply starts again');
+    assert.equal(host.sdk.query('inventory.find', { name: 'Gem D' }).status, 'none', 'a refused line makes no definition');
+    await host.send('Another.', reply('One more gem.', ['+ item Gem D | qty: 6']));
+    assert.equal(qty(host, 'Gem D'), 6, 'the next reply starts again');
 });
 
 test('the worth tally rolls back with a swipe', async t => {

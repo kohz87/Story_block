@@ -474,14 +474,19 @@ written with one is refused).
 * **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,
   `- item mark`), is money: it goes to or from the party's wallet like `+ coin` / `- coin`.
 * **Story limits.** One reply's story lines pay at most `storyCoinPerReply` (setting; 0 = the top reward of
-  the player character's rank from `quest.ranks`, else 1000 × level), give at most 20 of one item, give
-  goods worth at most 2 × that coin budget in all (Σ def `value` × count given), and bring in at most 10
-  new item definitions. Past a limit a line is clamped with a `LIMITED` Problem; once it is spent, a line
-  is `REFUSED` (a refused line makes no definition). A `~ item … | qty:` that raises a count is a gain,
-  held to the same limits and to the carry limit when a module answers `items.carry` (`{ owner, add:
-  [{ defId, qty }] }` → `{ ok: false, message }` refuses it); lowering a count is free. The tally is
-  `inventory.perReply[<sid>]` (scratch, §2.2), so a swipe or a deleted reply takes it back. Code's own
-  payouts are not counted, except:
+  the player character's rank from `quest.ranks`, else 1000 × level), give at most 20 of one item, give goods
+  worth at most 2 × that coin budget in all (Σ def `value` × count given), and bring in at most 10 new item
+  definitions. Past a limit a line is clamped with a `LIMITED` Problem; once it is spent, a line is `REFUSED`
+  (a refused line makes no definition). **One notable item per reply:** the first `+ item` line whose one item
+  is worth more than the goods budget has left is given outside the worth tally, up to 5 × the goods budget
+  (value × count; past that the count is clamped with a `LIMITED` Problem); its receipt says "notable gift:
+  <name>" and its data has `notable: true`. An item worth more than 5 × the goods budget on its own is not
+  notable. Later lines over the budget are held as above, and the 20-of-one and 10-new-definitions limits
+  still apply. A `~ item` raise is never notable. A `~ item … | qty:` that raises a count is a gain, held to
+  the same limits and to the carry limit when a module answers `items.carry`
+  (`{ owner, add: [{ defId, qty }] }` → `{ ok: false, message }` refuses it); lowering a count is free. The
+  tally is `inventory.perReply[<sid>]` (scratch, §2.2; `notable: true` once the reply's notable item is given), so a
+  swipe or a deleted reply takes it back. Code's own payouts are not counted, except:
 * **Story-vouched payouts.** `wallet.receive { owner, amount, note?, story: true }`, called by a module
   (`ctx.call`) while a reply is captured, is money the story alone vouched for (a quest the story closed
   that no code could count). It counts against the same per-reply coin budget as the story's coin lines and
