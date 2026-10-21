@@ -16,8 +16,9 @@ import { WALLET_KEY } from './domains/money.js';
 import { applyStart, createPacksPart } from './packs/index.js';
 import { createRegistry } from './registry.js';
 import { createEvents, createSdk, createSettings, newId } from './sdk.js';
+import { createRewind } from './rewind.js';
 import { createStore as realStore } from './store.js';
-import { createTurn } from './turn.js';
+import { createTurn, substituteNames } from './turn.js';
 
 export const VERSION = '2.0.0-alpha.1';
 
@@ -78,13 +79,13 @@ export function packsFor(ctx, options = {}) {
 
 /**
  * createRuntime({ ctx, packs?, core = true, modules = [], createStore?, createCommandBus?, notify?,
- * onBlocked?, onSaveError?, onRegister?(def) }) → { registry, settings, store, bus, events, sdk, turn, markReady,
+ * onBlocked?, onSaveError?, onRegister?(def), branch?(index) (src/v2/rewind.js stBranch) }) → { registry, settings, store, bus, events, sdk, turn, markReady,
  * initial, packs }. `ctx` is SillyTavern's context (or the testkit's fake); `packs` a
  * createPacksPart() result (default: one over ctx.extensionSettings).
  */
 export function createRuntime({
     ctx, packs = null, core = true, modules = [], createStore = realStore, createCommandBus = realBus,
-    notify, onBlocked = null, onSaveError = null, onRegister = null,
+    notify, onBlocked = null, onSaveError = null, onRegister = null, branch = null,
 } = {}) {
     const registry = createRegistry();
     const packPart = packs ?? packsFor(ctx);
@@ -109,7 +110,8 @@ export function createRuntime({
     const store = createStore({ chat: () => ctx.chat, save: () => ctx.saveChat(), onSaveError });
     const bus = createCommandBus({ store, registry, settings });
     const events = createEvents();
-    const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def) });
+    const rewind = createRewind({ ctx, store, events, ...(branch ? { branch } : {}) });
+    const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind, substitute: text => substituteNames(text, ctx) });
     sdk = made.sdk;
     const initial = () => initialWithStart(registry);
     const turn = createTurn({ ctx, store, bus, registry, settings, events, onBlocked, initial, ...(notify ? { notify } : {}) });

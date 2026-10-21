@@ -62,7 +62,7 @@ function readerStore(ctx) {
  */
 export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' }) {
     const { registry, store, sdk, settings, events } = runtime;
-    const queryAt = mountQuery(registry);
+    const queryAt = mountQuery(registry, () => store.receipts());
     const widgets = () => Object.fromEntries(registry.widgets().map(widget => [widget.name, widget]));
     const renderer = createScreenRenderer({
         queryAt,
@@ -104,6 +104,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         commit: token => sdk.commit(token),
         query: (name, args) => sdk.query(name, args),
         on: (name, fn) => sdk.on(name, fn),
+        rewind: options => sdk.rewind(options),
+        substitute: text => sdk.substitute(text),
     });
     const carriers = () => (ctx.chat ?? []).map((message, index) => (message && !message.is_user ? index : -1)).filter(index => index >= 0);
     const mounts = createMounts({

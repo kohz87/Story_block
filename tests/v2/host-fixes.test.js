@@ -125,3 +125,34 @@ test('mountQuery adapts the mounts\' query(name, args, state) to the registry\'s
     assert.equal(query('q.count', undefined, { domains: { n: 1 } }), 1, 'each call reads the state it was given');
     assert.throws(() => query('q.none', {}, { domains: {} }), /no module answers/);
 });
+
+test('inside a command, ctx.query gives the query tools.query and tools.receipts over the transaction', async () => {
+    const seen = [];
+    const mod = {
+        id: 'tq',
+        domains: { tq: { initial: () => ({ n: 1 }) } },
+        queries: {
+            'tq.n': state => state.domains.tq.n,
+            'tq.both': (state, args, tools) => ({ n: tools.query('tq.n'), receipts: tools.receipts().length }),
+        },
+        commands: {
+            'tq.bump'(ctx) {
+                ctx.draft('tq').n = 5;
+                seen.push(ctx.query('tq.both'));
+                return { summary: '', narrate: false };
+            },
+        },
+    };
+    const host = await createHost({ core: false, modules: [mod] });
+    await host.send('Hi.', 'Hello.');
+    await host.sdk.command('tq.bump', {});
+    await host.sdk.command('tq.bump', {});
+    assert.deepEqual(seen, [{ n: 5, receipts: 0 }, { n: 5, receipts: 1 }], 'the draft is seen; stored receipts are listed');
+    host.close();
+});
+
+test('sdk.substitute turns {{user}} and {{char}} into the names, for tabs and screens', async () => {
+    const host = await createHost({ core: false });
+    assert.equal(host.sdk.substitute('Only {{user}} may take it; {{char}} waits.'), `Only ${host.ctx.name1} may take it; ${host.ctx.name2} waits.`);
+    host.close();
+});
