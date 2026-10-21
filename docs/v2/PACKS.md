@@ -184,7 +184,7 @@ The map Story Director's atlas reads.
 Only these fields are allowed. Whether a command exists, and what its payload means, is checked
 when the event runs.
 
-### terms
+### terms, ranks
 
 The words a world uses for levels and XP (MODULES §F25), suggested the way a pack suggests a currency:
 RPG Battle reads them, and the reader's own terms in its settings win, field by field.
@@ -203,6 +203,25 @@ RPG Battle reads them, and the reader's own terms in its settings win, field by 
 A record names at least one of `levelName`, `xpName`, `tiers`; only these fields are allowed. A term is a
 label in RPG Battle's blocks, so it can't hold `|`, `:`, `#`, `<`, `>` or a line break. A pack holds at
 most 4 records; RPG Battle takes the first enabled pack's first record (`packs.content({ kind: 'terms' })`).
+
+`ranks` is a ladder of quest ranks, **lowest first**, that Story Director reads for `quest.ranks` and RPG
+Battle for foe strength:
+
+```json
+"ranks": [{ "id": "F", "title": "Registered", "levels": [1, 10], "reward": [50, 400] }, { "id": "E", "title": "Journeyman" }]
+```
+
+| Field | Rules |
+|---|---|
+| `id` | Required: the rank as the story writes it, 1–8 letters, digits, `+` or `-` (`F`, `SS`, `EG1`). Kept as written; unique in the pack, ignoring case. |
+| `title` | Optional, 1–30 characters, the same rules as a term. |
+| `levels` | Optional `[lowest, highest]`: whole levels from 1 to 999, the first not above the second. |
+| `reward` | Optional `[lowest, highest]`: whole amounts ≥ 0 of the chat's one currency (its smallest unit). |
+
+Only these fields are allowed, and a pack holds at most 12 ranks. Ranges may overlap, but a rank's
+`levels` or `reward` can't start below the last rank before it that has one. `packs.content({ kind:
+'ranks' })` lists every enabled pack's ladder one after another, each record with its `pack`, so a reader
+takes one pack's ranks (the first that has any).
 
 ## Calendar
 

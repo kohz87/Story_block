@@ -253,6 +253,15 @@
     ],
     "terms": [
       {"name": "Soul Class", "levelName": "Soul Class", "xpName": "Soul Growth", "tiers": {"size": 10, "numerals": "roman"}}
+    ],
+    "ranks": [
+      {"id": "F", "title": "Registered", "levels": [1, 10], "reward": [50, 400]},
+      {"id": "E", "title": "Journeyman", "levels": [11, 20], "reward": [800, 3000]},
+      {"id": "D", "title": "Proven", "levels": [21, 30], "reward": [3000, 12000]},
+      {"id": "C", "title": "Veteran", "levels": [26, 40], "reward": [12000, 60000]},
+      {"id": "B", "title": "Elite", "levels": [31, 45], "reward": [60000, 360000]},
+      {"id": "A", "title": "Paragon", "levels": [41, 50], "reward": [360000, 2000000]},
+      {"id": "S", "title": "Legend", "levels": [46, 60], "reward": [2000000, 10000000]}
     ]
   },
   "start": {
