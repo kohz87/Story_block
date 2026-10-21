@@ -1,5 +1,8 @@
 # Story Block v0.9.26
 
+> **Story Suite v2 is being built on the `v2` branch.** It is a fresh start (state as JSON in replies, an SDK, modular screens). Progress: [docs/v2/STATUS.md](docs/v2/STATUS.md). The rest of this README describes v1 until v2 is released.
+
+
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
 every reply's prompt, and draws them as one tabbed card under the latest reply.
