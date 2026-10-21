@@ -34,7 +34,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Integration: module.js, one currency, payload fixes, index.js bootstrap | 🔧 | |
 | Pending d20 checks with reader modifiers (§F16) | 🔧 | |
 | Character creation: built-in races/talents, wizard (§F12, §F14) | 🔧 | |
-| Return in time after death (§F17) | 🔧 | |
+| Return in time after death (§F17) | ✅ | #69 |
 | Battle board widget, default screens (Party HUD, Items, Trade, HUD, status card) | 🔧 | |
 | QA (conservation, fuzz, v1 parity, cross-part payloads) | 🔧 | |
 
@@ -46,13 +46,14 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Integration: module.js, one currency, one fight per kill quest, typed acceptance | 🔧 | |
 | Atlas: places, routes, travel, map | 🔧 | |
 | Default screens (Quests, Director, status card, HUD) | 🔧 | |
-| v1 extras not yet ported: "while away" recap, slipped/lapsed on time jumps | ⏳ | |
+| Deadlines that lapse on time jumps + "while away" recap (§F21) | 🔧 | |
+| Ersveil starter test pack (places, routes, calendar, Bluewatch jobs, marks) | 🔧 | |
 
 ## NPC State Delta (standalone, hosted when Story Block v2 is present)
 | Piece | State | PR |
 |---|---|---|
 | Hosted adapter: queries, Cast tab, settings in the overlay | ✅ | #171 |
-| Integration: npc.portrait, release zip, no v1 hookup on a v2 host | 🔧 | |
+| Integration: npc.portrait, release zip, no v1 hookup on a v2 host | ✅ | #172 |
 
 ## Milestones
 - ⏳ **2.0.0-alpha.1**: all four integrated, combined live test passing (creation → offer → fight → quest payout → swipe/delete rollback), tagged on each `v2` branch.
