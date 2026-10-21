@@ -51,6 +51,27 @@ export function defuseMacros(text) {
         .replace(/<(USER|BOT|CHAR|CHARIFNOTGROUP|GROUP)>/gi, '<​$1>');
 }
 
+/**
+ * `{{user}}` and `{{char}}` in the static and tail text become the persona's and the character's
+ * names (SillyTavern's substituteParams when the context has it, else name1 / name2); any other
+ * macro is left for defuseMacros. Both names are fixed for a chat, so the static text stays
+ * byte-identical reply after reply.
+ */
+export function substituteNames(text, ctx) {
+    const cache = new Map();
+    const name = macro => {
+        const key = macro.toLowerCase();
+        if (!cache.has(key)) {
+            let value = null;
+            try { value = typeof ctx?.substituteParams === 'function' ? ctx.substituteParams(`{{${key}}}`) : null; } catch { value = null; }
+            if (typeof value !== 'string' || value === `{{${key}}}`) value = key === 'user' ? ctx?.name1 : ctx?.name2;
+            cache.set(key, typeof value === 'string' && value ? value : null);
+        }
+        return cache.get(key);
+    };
+    return String(text ?? '').replace(/\{\{\s*(user|char)\s*\}\}/gi, (whole, macro) => name(macro) ?? whole);
+}
+
 // Message content is a string or, for multimodal prompts, a list of parts.
 function mapContent(content, transform) {
     if (typeof content === 'string') return transform(content);
@@ -242,8 +263,8 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
                 type: kind,
                 index,
                 untold: built.untold.map(receipt => receipt.id),
-                staticText: defuseMacros(built.staticText),
-                tailText: defuseMacros(built.tailText),
+                staticText: defuseMacros(substituteNames(built.staticText, ctx)),
+                tailText: defuseMacros(substituteNames(built.tailText, ctx)),
                 parts: built.parts,
                 // A Continue whose reply already held a block was captured then; only a block
                 // the continuation adds is read.
@@ -309,6 +330,11 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         const receipts = [];
         const found = [];
         let state = store.head();
+        // ctx.carrier and ctx.chat for the capture handlers (MODULES §F2's capture context).
+        const message = ctx?.chat?.[index];
+        const carrier = { index, swipe: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0 };
+        const reader = (ctx?.chat ?? []).slice(0, index).findLast(item => item?.is_user);
+        const chat = { lastUser: String(reader?.mes ?? ''), reply: stripBlock(String(message?.mes ?? '')) };
         for (const line of lines) {
             const entry = registry.capture(line.kind);
             if (!entry) {
@@ -317,7 +343,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             }
             let result;
             try {
-                result = await bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry });
+                result = await bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier, chat });
                 if (result?.ok) store.append({ ops: result.ops, receipt: result.receipt });
             } catch (error) {
                 result = { ok: false, code: 'FAILED', message: error?.message ?? String(error) };

@@ -103,9 +103,9 @@ test('another module reads the inventory and pays through ctx.call', () => {
     assert.equal(broke.command('trade.fee', {}, { cause: 'ui' }).code, 'NOT_ENOUGH');
 });
 
-// Spec question: the bus's ctx says nothing about being inside ctx.call, so a click that buys an
-// item (trade.buy → inventory.grant, cause 'ui') is refused until the bus sets `ctx.caller`.
-test('a ui-caused grant through another module\'s ctx.call', { todo: 'needs ctx.caller from the bus' }, () => {
+// A click that buys an item (trade.buy → inventory.grant, cause 'ui') is allowed: inside ctx.call the
+// bus sets `ctx.caller` to the calling module; the same grant from a button directly is refused.
+test('a ui-caused grant through another module\'s ctx.call', () => {
     const shop = { id: 'rpg-battle', domains: {}, commands: { 'trade.buy': ctx => ctx.call('inventory.grant', { def: 'story/rope' }) } };
     const { bus } = setup([shop]);
     const result = bus.command('trade.buy', {}, { cause: 'ui' });

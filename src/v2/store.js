@@ -197,6 +197,15 @@ export function createStore({
             return lastCarrier(list());
         },
 
+        // The JSON Pointers carrier `index`'s ops touched, in first-touched order (for a card's
+        // "only what changed" and changed(path)). [] for a message with no record.
+        changesAt(index) {
+            const arr = list();
+            if (!Number.isInteger(index) || index < 0 || index >= arr.length) return [];
+            const record = readRecord(arr[index]);
+            return [...new Set((record?.ops ?? []).map(op => op?.path).filter(path => typeof path === 'string'))];
+        },
+
         // Problems met by the last head rebuild: carriers whose stored ops no longer apply.
         problems() {
             return current().problems.map(problem => ({ ...problem }));

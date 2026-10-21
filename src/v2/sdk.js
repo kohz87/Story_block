@@ -102,6 +102,13 @@ export function runQuery(registry, state, name, args) {
 }
 
 /**
+ * The mounts' query (src/v2/view/mounts/common.js): `(name, args, state)` → runQuery over that
+ * state, so a card asks against its own reply's state and the registry's queries still get
+ * (state, args, tools). A query that throws is the mount's to report (resolveData gives null).
+ */
+export const mountQuery = registry => (name, args, state) => runQuery(registry, state, name, args);
+
+/**
  * What modules read (§6): { state (frozen head), query(name, args), settings(id), chat: { length,
  * lastUser } }. `chat`: SillyTavern's chat array (or nothing).
  */
