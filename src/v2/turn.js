@@ -361,6 +361,10 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         return { receipts, problems: found };
     }
 
+    function redraw(index, message) {
+        try { ctx.updateMessageBlock?.(index, message); } catch { /* not drawn yet: SillyTavern draws it from the saved text */ }
+    }
+
     /** MESSAGE_RECEIVED: (messageId, type). */
     async function onMessageReceived(messageId) {
         const id = Number(messageId);
@@ -398,7 +402,9 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
             }
             if (store.dirty()) await store.flush();
             else if (edited) await ctx.saveChat?.();
-            if (edited) ctx.updateMessageBlock?.(id, message);
+            // At MESSAGE_RECEIVED SillyTavern has not drawn the reply yet (it draws the text as saved), so
+            // redrawing can fail; that is not a reason to lose the turn.
+            if (edited) redraw(id, message);
             const turn = { index: id, type: current.type, receipts: result.receipts, problems, told: current.untold };
             events?.emit('turn', turn);
             if (!parsed.lines.length) afterReply(id, current.type, message);
@@ -441,7 +447,7 @@ export function createTurn({ ctx, store, bus, registry, settings, events = null,
         }
         if (store.dirty()) await store.flush();
         else if (parsed.lines.length) await ctx.saveChat?.();
-        if (parsed.lines.length) ctx.updateMessageBlock?.(index, message);
+        if (parsed.lines.length) redraw(index, message);
         const turn = { index, type: 'late', receipts: result.receipts, problems, told: [] };
         events?.emit('turn', turn);
         return turn;

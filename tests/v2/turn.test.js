@@ -487,3 +487,15 @@ test('the real runtime: a whole turn on store.js and commands.js', async t => {
     assert.deepEqual(items(host), {});
     host.close();
 });
+
+test('a redraw that fails at MESSAGE_RECEIVED (the reply is not drawn yet) does not lose the turn', async () => {
+    const host = await createHost();
+    host.ctx.updateMessageBlock = () => { throw new TypeError("Cannot read properties of undefined (reading 'getAttribute')"); };
+    const turns = [];
+    host.sdk.on('turn', turn => turns.push(turn.index));
+    await host.send('Go.', 'Rope.\n<Changes>\n+ item Rope\n</Changes>');
+    assert.deepEqual(turns, [2]);
+    assert.match(host.ctx.chat[2].mes, /<!-- STORY_SUITE_V2/);
+    assert.deepEqual(host.turn.problems(), []);
+    host.close();
+});
