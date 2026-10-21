@@ -61,3 +61,16 @@ test('missing saved state bodies require recovery rather than a partial checkpoi
     delete saved.bodies[saved.nodes[saved.head].blocks.Party];
     assert.equal(read(saved, frames).availability, 'incomplete');
 });
+
+test('HTTP fallback extends an existing native-ID journal without replacing its IDs', t => {
+    const frames = [frame(0)];
+    const saved = read(null, frames).journal;
+    const nativeCrypto = globalThis.crypto;
+    t.mock.getter(globalThis, 'crypto', () => ({ getRandomValues: bytes => nativeCrypto.getRandomValues(bytes) }));
+    const continued = read(saved, [...frames, frame(1)]);
+    assert.equal(continued.availability, 'available');
+    assert.equal(continued.journal.id, saved.id);
+    assert.equal(continued.entries[0].id, saved.head);
+    assert.equal(continued.entries[1].parent, saved.head);
+    assert.notEqual(continued.journal.head, saved.head);
+});

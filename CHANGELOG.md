@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.28
+
+- **Chat checkpoints work over plain HTTP.** Some LAN browser sessions do not expose `crypto.randomUUID`, which prevented journal reads and could hide Director's Quests tab. Message and journal IDs now use a compatible UUID generator with `getRandomValues` when needed. Existing IDs, quest records and checkpoints are preserved; no chat reset or HTTPS change is required.
+
 ## 0.9.27
 
 - **Shared chat checkpoints.** Inventory, Party/XP and structured quest evidence share a branch-aware journal in SillyTavern's existing chat JSONL metadata. Hidden replies and removed old prefixes retain proven history; tail rollback restores the earlier branch. Unchanged state bodies are deduplicated. Keep chat metadata when exporting or archiving.

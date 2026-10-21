@@ -1,5 +1,7 @@
 // Persistent chat-local ancestry. Copies share immutable nodes/bodies; a head selects
 // one swipe branch. Prefix archival preserves ancestors; an interior gap is ambiguous.
+import { randomId } from './id.js';
+
 export const JOURNAL_VERSION = 1;
 
 export function journalKey(value) {
@@ -22,7 +24,7 @@ function ancestors(journal, id) {
     return path.reverse();
 }
 
-export function journalState(saved, frames, { scope = '', uuid = () => crypto.randomUUID() } = {}) {
+export function journalState(saved, frames, { scope = '', uuid = randomId } = {}) {
     if (saved && saved.version !== JOURNAL_VERSION) return { availability: 'incomplete', reason: 'Unsupported checkpoint version.' };
     const previous = saved ?? { version: JOURNAL_VERSION, id: uuid(), scope, head: null, nodes: {}, bodies: {} };
     const journal = { ...previous, nodes: { ...previous.nodes }, bodies: { ...previous.bodies } };

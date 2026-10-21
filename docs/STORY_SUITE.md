@@ -91,6 +91,8 @@ to logical positions. The backing `chatMetadata.storyBlockJournal` retains inact
 variants and deduplicated bodies in the native chat JSONL. Never inject it into prompts.
 Prefix archival requires a recognized retained reply; missing anchors, missing bodies or
 ambiguous interior edits return incomplete. Keep metadata in exports and archive operations.
+ID allocation supports plain-HTTP hosts without `crypto.randomUUID`; existing identities
+are retained, and new UUIDs use `getRandomValues` when available.
 
 `onReply(callback, {priority: 0})` awaits callbacks in ascending order, isolating failures.
 `replyBusy()` covers normalization and callbacks so scheduled awards can wait for completion.

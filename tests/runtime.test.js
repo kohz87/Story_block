@@ -187,6 +187,8 @@ test('transaction readback distinguishes rejected saves, lost responses and unkn
 
 test('chat JSONL verifies blocks, XP extras and journal in one save, including failed readback', async t => {
     const sb = globalThis.StoryBlock;
+    const nativeCrypto = globalThis.crypto;
+    t.mock.getter(globalThis, 'crypto', () => ({ getRandomValues: bytes => nativeCrypto.getRandomValues(bytes) }));
     const { templateById } = await import('../src/templates.js');
     setBlocks([{ ...templateById('inventory'), enabled: true }]);
     sb.registerBlock({ id: 'journal-party', tag: 'Party', name: 'Party', kept: true, owner: 'RPG Battle' });
