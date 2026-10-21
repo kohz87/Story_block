@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compileTemplate, renderTemplate, strictSanitize } from '../../../../src/v2/view/template/index.js';
 import { parseHtml } from '../../../../src/v2/view/template/html.js';
-import { RESERVED_CLASSES, cleanClasses, paintAllowed } from '../../../../src/v2/view/template/sanitize.js';
+import { RESERVED_CLASSES, RESERVED_NAMES, cleanClasses, paintAllowed } from '../../../../src/v2/view/template/sanitize.js';
 import { cssVarValue, scopeCss, templateIdPrefix, themeVars, valueProblem } from '../../../../src/v2/view/css.js';
 import { validateScreen } from '../../../../src/v2/view/screens.js';
 import { drawScreen } from '../../../../src/v2/view/mounts/common.js';
@@ -186,4 +186,19 @@ test('classes SillyTavern acts on are never set, bound or toggled; control names
     assert.ok(view.warnings.some(line => /swipe_right/.test(line)));
     assert.ok(view.warnings.some(line => /swipe_left/.test(line)));
     assert.ok(view.warnings.some(line => /chat_display/.test(line)));
+});
+
+test('SillyTavern 1.19\'s own radio group names are dropped from template controls, bound or written', () => {
+    for (const name of ['character_names', 'continue_postfix', 'extension_default_position', 'extension_floating_char_position', 'extension_floating_position']) {
+        assert.ok(RESERVED_NAMES.has(name), name);
+    }
+    const { el, view } = render('<input type="radio" name="character_names" value="x"><input type="radio" data-bind-attr="name: q.n"><input type="radio" name="mine">',
+        { q: { n: 'extension_floating_position' } });
+    const [written, bound, mine] = el.children;
+    assert.equal(written.getAttribute('name'), null);
+    assert.equal(bound.getAttribute('name'), null);
+    assert.equal(mine.getAttribute('name'), 'mine');
+    assert.ok(view.warnings.some(line => /character_names/.test(line)));
+    assert.ok(view.warnings.some(line => /extension_floating_position/.test(line)));
+    assert.equal(strictSanitize('<input type="radio" name="character_names">'), '<input type="radio">');
 });

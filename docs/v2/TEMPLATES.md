@@ -145,6 +145,27 @@ hold with or without DOMPurify).
   `style` is dropped. Use `data-bind-var` and CSS variables.
 * **Tables**: write `<tbody>` yourself and keep text inside cells; browsers move stray text out of tables.
 
+### 3.1 Ids, names and reserved classes
+
+A screen shares the page with SillyTavern and with other screens, so a few things are renamed or refused:
+
+* **Ids** are drawn as `ss-t-<screen>-<id>` (`id="hp"` in `rpg-battle/party` becomes `ss-t-rpg-battle-party-hp`).
+  What points at an id is rewritten to match: `#id` selectors in the screen's CSS, `for`, `aria-*` id lists
+  (`aria-labelledby`, `aria-describedby`, …), `href="#id"` and `url(#id)` in SVG paint. Attribute selectors
+  such as `[id="hp"]` are **not** rewritten and match nothing: write `#hp`.
+* **Form names**: a `<form name="…">` gets the same prefix, so it never takes over a `document.<name>`.
+  Control names SillyTavern reads as its own radio groups (`character_names`, `continue_postfix`,
+  `extension_default_position`, `extension_floating_char_position`, `extension_floating_position`) are
+  removed, written or bound; use your own names.
+* **Reserved classes**: the classes SillyTavern's own handlers and lookups act on (`mes`, `mes_text`,
+  `swipe_left`, `swipe_right`, `mes_edit`, `select_chat_block` and the rest of `RESERVED_CLASSES` in
+  `src/v2/view/template/sanitize.js`) are refused in `class`, bound class lists and `data-class`, so a
+  template button can't edit, swipe or delete a message. `menu_button` (SillyTavern's button look, with no
+  handler of its own) is allowed for styling.
+* **CSS URLs**: write every quoted URL in screen CSS (custom properties included) as `https:` or a raster
+  `data:` image (PNG, JPEG, GIF, WebP). Other schemes drop the declaration, and a pack whose text holds a
+  `data:image/svg` or `data:text/html` URL is refused at install.
+
 ## 4. CSS and themes
 
 A screen's `css` is scoped to its root, `[data-ss-screen="<id>"]`:

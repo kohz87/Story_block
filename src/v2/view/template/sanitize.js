@@ -113,8 +113,15 @@ export const RESERVED_CLASSES = Object.freeze(new Set([
     'mes_img_enlarge', 'mes_img_delete', 'mes_file_open', 'mes_file_delete',
     'select_chat_block', 'character_select', 'group_select', 'bogus_folder_select', 'dragClose',
 ]));
-/** Control names SillyTavern's settings read with `input[name="…"]:checked` (a template radio would answer). */
-export const RESERVED_NAMES = Object.freeze(new Set(['avatar_style', 'chat_display']));
+/**
+ * Control names of SillyTavern 1.19's own radio groups (read with `input[name="…"]:checked`): a template radio
+ * with one of these names outside a form would join SillyTavern's group. `avatar_style` and `chat_display`
+ * (select ids in 1.19, radio names in older versions) are kept; they cost nothing.
+ */
+export const RESERVED_NAMES = Object.freeze(new Set([
+    'character_names', 'continue_postfix', 'extension_default_position', 'extension_floating_char_position',
+    'extension_floating_position', 'avatar_style', 'chat_display',
+]));
 
 /** A class list without the reserved classes: `{ value, dropped }`. */
 export function cleanClasses(value) {
