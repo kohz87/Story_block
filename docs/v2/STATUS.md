@@ -42,6 +42,7 @@ Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 | Battle board widget + Fight screen | ✅ | #72 |
 | Default screens (Party HUD, Items, Trade, HUD, status card) | ✅ | #74 |
 | QA (conservation, fuzz, v1 parity, cross-part payloads): 155 tests, 8 findings as todo | ✅ | #75 |
+| Wiring pass: board, creation, screens, presets, terms, companions on death/leaving (§F25, §F26) | ✅ | #76 |
 | Fixes for RB QA findings (stuck fights, double-counted draughts, orphaned items, accessories, money from clicks, plural) | ⏳ | |
 
 ## Story Director (module)
