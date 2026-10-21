@@ -1,7 +1,7 @@
 // The change-line grammar (docs/v2/SPEC.md §4.4) and the <Changes> block in a reply.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractBlock, hideBlock, parseChanges, stripBlock } from '../../src/v2/capture.js';
+import { extractBlock, hideBlock, parseChanges, stripBlock, withoutReasoning } from '../../src/v2/capture.js';
 
 const one = text => {
     const { lines, problems } = parseChanges(text);
@@ -132,4 +132,23 @@ test('stripBlock and hideBlock leave the story as written', () => {
     // An arrow inside the block cannot end the comment early.
     const arrow = hideBlock('S.\n<Changes>\n! event Sign — it reads -->\n</Changes>');
     assert.equal(arrow.match(/-->/g).length, 1);
+});
+
+test('a change block drafted inside closed reasoning is not read, so it is not applied twice', () => {
+    const mes = '<think>Plan:\n<Changes>\n+ item Rope\n</Changes>\nok</think>The story.\n<Changes>\n+ item Rope\n</Changes>';
+    assert.equal(extractBlock(mes), '+ item Rope');
+    assert.equal(extractBlock('<thinking a="1">x <Changes>\n- item Oar\n</Changes></thinking>No block here.'), null);
+    assert.equal(extractBlock('<reasoning>r</reasoning>\n<Changes>\n~ place Gate\n</Changes>'), '~ place Gate');
+});
+
+test('an unclosed reasoning tag keeps the block after it', () => {
+    assert.equal(extractBlock('<think>cut off\n<Changes>\n+ item Rope\n</Changes>'), '+ item Rope');
+    assert.equal(withoutReasoning('a<think>b</think>c'), 'ac');
+});
+
+test('hiding leaves a draft inside reasoning where it is, so the hidden block is read once', () => {
+    const mes = '<think>\n<Changes>\n+ item Rope\n</Changes>\n</think>The story.\n<Changes>\n+ item Rope\n</Changes>';
+    const hidden = hideBlock(mes);
+    assert.equal(extractBlock(hidden), '+ item Rope');
+    assert.ok(hidden.startsWith('<think>\n<Changes>'));
 });
