@@ -417,7 +417,10 @@ function scratchOps(state, ops, scratchOf) {
  * With `scratch` (a domain name → its scratch fields), ops inside those fields are fitted as above.
  * With `replayed` (stored ops replayed, never a live command), a `remove` of an object key that is not
  * there (the reply that added it was deleted) is passed over; one that carries a counted `was` (a take
- * of a stack) is not, so a take of something gone still fails its block. Ops are not changed in place.
+ * of a stack) is not, so a take of something gone still fails its block. And (rule c) a `replace` of an
+ * object key inside a domain that is not there, in an object that is, becomes an `add`: only a deleted reply had added
+ * the key, and the value is the one this later reply set. Counted ops (`was`) keep the counter rules
+ * above. Ops are not changed in place.
  */
 export function rebaseOps(state, ops, { scratch = null, replayed = false } = {}) {
     const rebased = new Set();
@@ -430,7 +433,7 @@ export function rebaseOps(state, ops, { scratch = null, replayed = false } = {})
     const writtenAbove = path => written.some(at => path === at || path.startsWith(`${at}/`));
     const out = [];
     for (const op of scratch ? scratchOps(state, ops, scratch) : ops) {
-        if (!(replayed && goneKey(op))) out.push(fit(op));
+        if (!(replayed && goneKey(op))) out.push(replayed && newKey(op) ? { op: 'add', path: op.path, value: op.value } : fit(op));
         if ((op?.op === 'add' || op?.op === 'replace') && typeof op.path === 'string') written.push(op.path);
     }
     return { ops: out, rebased };
@@ -447,6 +450,22 @@ export function rebaseOps(state, ops, { scratch = null, replayed = false } = {})
             node = node[key];
         }
         return false;
+    }
+
+    // Rule (c): a `replace` (no counted `was`) of an object key inside a domain that is not there, nor put
+    // there earlier in the list, whose parent is an object that is there.
+    function newKey(op) {
+        if (op?.op !== 'replace' || typeof op.was === 'number' || typeof op.path !== 'string' || writtenAbove(op.path)) return false;
+        let keys;
+        try { keys = parsePath(op.path); } catch { return false; }
+        // Inside a domain that is there (never a domain of its own, nor /meta).
+        if (keys[0] !== 'domains' || keys.length < 3) return false;
+        let node = state;
+        for (const key of keys.slice(0, -1)) {
+            if (!isPlainObject(node) || !Object.hasOwn(node, key)) return false;
+            node = node[key];
+        }
+        return isPlainObject(node) && !Object.hasOwn(node, keys.at(-1));
     }
 
     function fit(op) {

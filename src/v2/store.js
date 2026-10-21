@@ -750,7 +750,30 @@ export function createStore({
             }
         },
 
+        /**
+         * B-b2-timeline-r2-2: chat `from` was renamed `to` (SillyTavern's CHAT_RENAMED). A change not yet
+         * saved, or left for its old chat's file, goes into the renamed chat's file instead: the old one
+         * is gone, and a renamed open chat is read back as new messages, which looks like another chat.
+         */
+        renamed(from, to) {
+            if (typeof from !== 'string' || typeof to !== 'string' || !from || !to || from === to) return false;
+            let moved = saver.renamed(from, to);
+            for (const entry of unsaved.values()) {
+                if (entry.chatId !== from) continue;
+                entry.chatId = to;
+                moved = true;
+            }
+            if (moved && saver.dirty()) saver.schedule();
+            return moved;
+        },
+
         scheduleSave(ms = 400) { saver.schedule(ms); },
+        /**
+         * Puts off a save that was only scheduled (not one already running): the turn's cues before a reply
+         * are saved with the reply's own save, one write of the chat file instead of two. The change stays
+         * dirty; the caller saves it (or schedules it again) when the reply comes or the generation ends.
+         */
+        deferSave() { saver.cancel(); },
         /** Saves now (a reader's action is saved at once); → Promise<true | false>, never throws: a failure is told and tried again. */
         saveSoon(options) { return saver.saveSoon(options); },
         flush() { return saver.flush(); },

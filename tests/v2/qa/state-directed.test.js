@@ -348,11 +348,11 @@ test('turn.js: cues committed before a reply whose saves fail are kept, told by 
     await h.send('One.', 'Fine.');
     // A step Story Block takes itself waits 400 ms for its save (a reader's action would be saved at once).
     await h.bus.command('probe.tick', {}, { cause: 'system' });
-    h.st.failSaves = 2;     // the flush before the reply, and the one after the cue
+    h.st.failSaves = 1;     // the flush before the reply (the cue is saved with the reply)
     const result = await h.send('Two.', 'The cue lands.');
     assert.ok(tailOf(result.request).includes('Cue 1.'), 'the cue committed before the reply is told');
     assert.ok(h.head().meta.claims['probe:cue:1'], 'and kept');
-    assert.equal(h.turn.problems().filter(problem => problem.code === 'SAVE_FAILED').length, 2);
+    assert.equal(h.turn.problems().filter(problem => problem.code === 'SAVE_FAILED').length, 1);
     assert.equal(h.store.dirty(), false, 'the save after the reply wrote it all');
     assert.deepEqual(h.st.saved(), plain(h.ctx.chat));
     checkInvariants(h, 'cue with failed saves');
