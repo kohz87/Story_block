@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom, texts } from '../../ui-fake-dom.js';
-import { COINS, core, stocked } from './fixtures.js';
+import { COINS, CURRENCY, core, stocked } from './fixtures.js';
 
 const doc = installFakeDom();
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -14,9 +14,9 @@ function host() {
 }
 
 test('inventory tab: grouped by kind with qty, rarity, equipped marker and wallet', () => {
-    const module = core({ currency: [() => COINS] });
+    const module = core({ currency: [() => CURRENCY] });
     const state = stocked(module);
-    state.domains.inventory.wallets = { party: { copper: 38 } };
+    state.domains.inventory.wallets = { party: { coin: 38 } };
     state.domains.inventory.stacks.it_sword001.equipped = 'hand';
     const el = host();
     const tab = module.tabs.find(item => item.id === 'inventory');

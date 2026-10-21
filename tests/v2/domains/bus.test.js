@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createCommandBus } from '../../../src/v2/commands.js';
 import { counterIds, fakeRegistry, fakeStore } from '../helpers/bus-fakes.js';
 import { initialState, line } from './helpers/fake-ctx.js';
-import { COINS, core, stocked } from './fixtures.js';
+import { COINS, CURRENCY, core, stocked } from './fixtures.js';
 
 function setup(extra = [], hookMap = {}) {
     const module = core(hookMap);
@@ -33,8 +33,8 @@ test('rejections store nothing', () => {
     const { bus, store } = setup();
     const before = store.head();
     for (const [type, payload, code] of [
-        ['inventory.grant', { def: 'story/rope' }, 'INVALID'],
-        ['inventory.equip', { stack: 'it_rope0001' }, 'INVALID'],
+        ['inventory.grant', { def: 'story/rope' }, 'REFUSED'],
+        ['inventory.equip', { stack: 'it_rope0001' }, 'REFUSED'],
         ['wallet.pay', { amount: 1000 }, 'NOT_ENOUGH'],
         ['inventory.drop', { stack: 'it_nope0001' }, 'NOT_FOUND'],
     ]) {
@@ -59,10 +59,10 @@ test('ui commands commit with a narrated receipt', () => {
 });
 
 test('capture lines run through bus.run and chain within one reply', () => {
-    const { bus, module, store } = setup([], { currency: [() => COINS] });
+    const { bus, module, store } = setup([], { currency: [() => CURRENCY] });
     const capture = { moduleId: module.id, apply: module.capture.apply };
     let state = store.head();
-    state = { ...state, domains: { ...state.domains, inventory: { ...state.domains.inventory, wallets: { party: { copper: 0 } } } } };
+    state = { ...state, domains: { ...state.domains, inventory: { ...state.domains.inventory, wallets: { party: { coin: 0 } } } } };
     for (const change of [
         line('+', 'item', 'Moonveil Trout', { note: 'violet-streaked' }),
         line('+', 'coin', '3 silver, 8 copper', { from: 'the sealer' }),
@@ -74,7 +74,7 @@ test('capture lines run through bus.run and chain within one reply', () => {
         assert.equal(result.ok, true, `${change.raw}: ${result.message}`);
         state = result.state;
     }
-    assert.equal(state.domains.inventory.wallets.party.copper, 38);
+    assert.equal(state.domains.inventory.wallets.party.coin, 38);
     assert.equal(state.domains.scene.place.name, 'Bluewatch Village');
     assert.deepEqual(state.domains.scene.present, ['Fenna']);
     assert.equal(state.domains.inventory.stacks.it_rope0001.qty, 2);

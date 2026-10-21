@@ -48,7 +48,7 @@ export function renderInventoryTab(el, view, api, { coins = DEFAULT_COINS } = {}
         section.append(make(doc, 'div', 'ss-inv-group-title', KIND_TITLES[kind] ?? kind));
         for (const item of group) {
             const row = make(doc, 'div', `ss-inv-row ss-rarity-${item.rarity}${item.equipped ? ' is-equipped' : ''}`);
-            row.dataset.stack = item.id;
+            row.dataset.stack = item.stack;
             row.append(make(doc, 'span', 'ss-inv-name', item.name));
             if (item.qty !== 1) row.append(make(doc, 'span', 'ss-inv-qty', `×${item.qty}`));
             row.append(make(doc, 'span', 'ss-inv-rarity', item.rarity));
@@ -56,9 +56,9 @@ export function renderInventoryTab(el, view, api, { coins = DEFAULT_COINS } = {}
             if (item.owner !== 'party') row.append(make(doc, 'span', 'ss-inv-owner', ownerName(state, item.owner)));
             if (item.note) row.append(make(doc, 'div', 'ss-inv-note', item.note));
             const actions = make(doc, 'div', 'ss-inv-actions');
-            if (item.equipped) actions.append(actionButton(doc, 'unequip', item.id, 'Unequip'));
-            else if (item.kind === 'equipment') actions.append(actionButton(doc, 'equip', item.id, 'Equip'));
-            actions.append(actionButton(doc, 'drop', item.id, 'Drop'));
+            if (item.equipped) actions.append(actionButton(doc, 'unequip', item.stack, 'Unequip'));
+            else if (item.kind === 'equipment') actions.append(actionButton(doc, 'equip', item.stack, 'Equip'));
+            actions.append(actionButton(doc, 'drop', item.stack, 'Drop'));
             row.append(actions);
             section.append(row);
         }

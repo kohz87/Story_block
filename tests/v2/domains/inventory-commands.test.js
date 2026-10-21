@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness } from './helpers/fake-ctx.js';
-import { core, stocked } from './fixtures.js';
+import { CURRENCY, core, stocked } from './fixtures.js';
 
 function setup(hookMap) {
     const module = core(hookMap);
@@ -51,6 +51,15 @@ test('grant: a non-stacking item makes one stack each', () => {
     assert.ok(result.result.data.stacks.every(id => inv(h).stacks[id].qty === 1));
 });
 
+test('grant: by defId; equipment makes one stack per piece', () => {
+    const h = setup();
+    const result = h.run('inventory.grant', { defId: 'pack.fantasy/iron-sword', qty: 2 }, { cause: 'story' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.result.data.stacks.length, 2);
+    assert.ok(!result.result.data.stacks.includes('it_sword001'), 'never joins another piece');
+    assert.ok(result.result.data.stacks.every(id => inv(h).stacks[id].qty === 1));
+});
+
 test('grant: by name resolves or creates a story def', () => {
     const h = setup();
     assert.equal(h.run('inventory.grant', { name: 'ropes' }, { cause: 'story' }).result.data.def, 'story/rope');
@@ -80,7 +89,7 @@ test('grant: through ctx.call from another module, even from a click', () => {
 
 test('grant rejections', () => {
     const h = setup();
-    rejects(h, 'inventory.grant', { def: 'story/rope' }, 'INVALID', /cannot be handed out from a button/, { cause: 'ui' });
+    rejects(h, 'inventory.grant', { def: 'story/rope' }, 'REFUSED', /cannot be handed out from a button/, { cause: 'ui' });
     rejects(h, 'inventory.grant', { def: 'story/nothing' }, 'NOT_FOUND', /no such item/, { cause: 'story' });
     rejects(h, 'inventory.grant', {}, 'INVALID', /which item/, { cause: 'story' });
     rejects(h, 'inventory.grant', { def: 'story/rope', qty: 0 }, 'INVALID', /at least 1/, { cause: 'story' });
@@ -148,7 +157,7 @@ test('transfer: part of a stack, then onto the matching stack', () => {
 test('transfer rejections', () => {
     const h = setup();
     rejects(h, 'inventory.transfer', { stack: 'it_rope0001' }, 'INVALID', /who should get it/);
-    rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'party' }, 'INVALID', /already with the party/);
+    rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'party' }, 'REFUSED', /already with the party/);
     rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'ac_ren00001', qty: 4 }, 'NOT_ENOUGH');
     rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'someone' }, 'INVALID');
     rejects(h, 'inventory.transfer', { stack: 'it_none0001', to: 'ac_ren00001' }, 'NOT_FOUND');
@@ -188,10 +197,10 @@ test('equip: into its slot, putting away what was there', () => {
 
 test('equip: only equipment, and only with a slot', () => {
     const h = setup();
-    rejects(h, 'inventory.equip', { stack: 'it_rope0001' }, 'INVALID', /Rope is not equipment/);
-    rejects(h, 'inventory.equip', { stack: 'it_rope0001', slot: 'hand' }, 'INVALID', /not equipment/);
+    rejects(h, 'inventory.equip', { stack: 'it_rope0001' }, 'REFUSED', /Rope is not equipment/);
+    rejects(h, 'inventory.equip', { stack: 'it_rope0001', slot: 'hand' }, 'REFUSED', /not equipment/);
     h.run('inventory.equip', { stack: 'it_sword001' });
-    rejects(h, 'inventory.equip', { stack: 'it_sword001' }, 'INVALID', /already equipped/);
+    rejects(h, 'inventory.equip', { stack: 'it_sword001' }, 'REFUSED', /already equipped/);
     rejects(h, 'inventory.equip', { stack: 'it_nope0001' }, 'NOT_FOUND');
     const slotless = setup();
     slotless.state = (() => {
@@ -199,13 +208,13 @@ test('equip: only equipment, and only with a slot', () => {
         state.domains.inventory.defs['pack.fantasy/dagger'].slot = null;
         return state;
     })();
-    rejects(slotless, 'inventory.equip', { stack: 'it_dagg0001' }, 'INVALID', /no slot/);
-    rejects(slotless, 'inventory.equip', { stack: 'it_dagg0001', slot: '  ' }, 'INVALID', /no slot/);
+    rejects(slotless, 'inventory.equip', { stack: 'it_dagg0001' }, 'REFUSED', /no slot/);
+    rejects(slotless, 'inventory.equip', { stack: 'it_dagg0001', slot: '  ' }, 'REFUSED', /no slot/);
 });
 
 test('unequip', () => {
     const h = setup();
-    rejects(h, 'inventory.unequip', { stack: 'it_sword001' }, 'INVALID', /not equipped/);
+    rejects(h, 'inventory.unequip', { stack: 'it_sword001' }, 'REFUSED', /not equipped/);
     rejects(h, 'inventory.unequip', { stack: 'it_nope0001' }, 'NOT_FOUND');
     h.run('inventory.equip', { stack: 'it_sword001' });
     const result = h.run('inventory.unequip', { stack: 'it_sword001' });
@@ -222,7 +231,7 @@ test('split', () => {
     assert.equal(inv(h).stacks.it_rope0001.qty, 2);
     assert.equal(inv(h).stacks[made].qty, 1);
     assert.equal(inv(h).stacks[made].def, 'story/rope');
-    rejects(h, 'inventory.split', { stack: made, qty: 1 }, 'INVALID', /only one Rope/);
+    rejects(h, 'inventory.split', { stack: made, qty: 1 }, 'REFUSED', /only one Rope/);
     rejects(h, 'inventory.split', { stack: 'it_rope0001', qty: 2 }, 'INVALID', /between 1 and 1/);
     rejects(h, 'inventory.split', { stack: 'it_rope0001' }, 'INVALID');
     rejects(h, 'inventory.split', { stack: 'it_nope0001', qty: 1 }, 'NOT_FOUND');
@@ -237,41 +246,41 @@ test('merge: only alike stacks join', () => {
     assert.equal(inv(h).stacks[made], undefined);
 
     rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_rope0001' }, 'INVALID', /itself/);
-    rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_pota0001' }, 'INVALID', /different items/);
-    rejects(h, 'inventory.merge', { stack: 'it_potb0001', into: 'it_pota0001' }, 'INVALID', /different notes/);
+    rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_pota0001' }, 'REFUSED', /different items/);
+    rejects(h, 'inventory.merge', { stack: 'it_potb0001', into: 'it_pota0001' }, 'REFUSED', /different notes/);
     rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_nope0001' }, 'NOT_FOUND');
 
     const away = h.run('inventory.split', { stack: 'it_rope0001', qty: 1 }).result.data.made;
     h.run('inventory.transfer', { stack: away, to: 'ac_ren00001' });
-    rejects(h, 'inventory.merge', { stack: away, into: 'it_rope0001' }, 'INVALID', /different owners/);
-
-    const twin = h.run('inventory.grant', { def: 'pack.fantasy/iron-sword' }, { cause: 'story' }).result.data.stacks[0];
-    assert.equal(twin, 'it_sword001', 'a loose copy joins the loose stack');
-    h.run('inventory.equip', { stack: 'it_sword001' });
-    const third = h.run('inventory.split', { stack: 'it_sword001', qty: 1 }).result.data.made;
-    rejects(h, 'inventory.merge', { stack: third, into: 'it_sword001' }, 'INVALID', /worn and the other is not/);
+    rejects(h, 'inventory.merge', { stack: away, into: 'it_rope0001' }, 'REFUSED', /different owners/);
 
     const lamp = h.run('inventory.grant', { def: 'story/lantern' }, { cause: 'story' }).result.data.stacks[0];
-    rejects(h, 'inventory.merge', { stack: lamp, into: 'it_lant0001' }, 'INVALID', /does not stack/);
+    rejects(h, 'inventory.merge', { stack: lamp, into: 'it_lant0001' }, 'REFUSED', /does not stack/);
+
+    // Only equipment is worn and equipment never stacks, so a worn/loose pair cannot arise in a valid
+    // state; the rule still holds when a state is handed in that way.
+    const worn = structuredClone(h.state);
+    worn.domains.inventory.stacks.it_rope0001.equipped = 'belt';
+    worn.domains.inventory.stacks.it_ropf0001 = { ...worn.domains.inventory.stacks.it_rope0001, id: 'it_ropf0001', equipped: null };
+    h.state = worn;
+    rejects(h, 'inventory.merge', { stack: 'it_ropf0001', into: 'it_rope0001' }, 'REFUSED', /worn and the other is not/);
 });
 
-test('wallet.pay and wallet.receive', () => {
-    const h = setup({ currency: [() => [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }]] });
-    const h2 = setup();
-    // The default currency is one coin named 'coin'; the stocked wallet is under 'coin'.
-    const paid = h2.run('wallet.pay', { amount: 25, to: 'the ferryman' });
+test('wallet.pay and wallet.receive: { owner, amount, note? } in the smallest unit', () => {
+    const h = setup();
+    const paid = h.run('wallet.pay', { amount: 25, note: 'the ferry fare' });
     assert.equal(paid.ok, true, paid.message);
-    assert.equal(paid.result.summary, 'The party pays 25 coin to the ferryman (100 coin left).');
-    assert.equal(h2.state.domains.inventory.wallets.party.coin, 100);
-    const got = h2.run('wallet.receive', { amount: 5, from: 'a sealer', owner: 'ac_ren00001' });
-    assert.equal(got.result.summary, 'ac_ren00001 receives 5 coin from a sealer (now 5 coin).');
-    assert.deepEqual(h2.state.domains.inventory.wallets.ac_ren00001, { coin: 5 });
-    // With a currency hook the wallet key is the smallest coin.
-    const tiered = h.run('wallet.receive', { amount: 38 });
-    assert.equal(tiered.result.summary, 'The party receives 3 silver, 8 copper (now 3 silver, 8 copper).');
-    assert.equal(h.state.domains.inventory.wallets.party.copper, 38);
-    const other = h.run('wallet.receive', { amount: 2, currency: 'gems' });
-    assert.equal(other.result.summary, 'The party receives 2 gems (now 2 gems).');
+    assert.equal(paid.result.summary, 'The party pays 25 coin — the ferry fare (100 coin left).');
+    assert.deepEqual(paid.result.data, { owner: 'party', amount: 25, now: 100, note: 'the ferry fare' });
+    assert.equal(h.state.domains.inventory.wallets.party.coin, 100);
+    const got = h.run('wallet.receive', { amount: 5, owner: 'ac_ren00001' });
+    assert.equal(got.result.summary, 'ac_ren00001 receives 5 coin (now 5 coin).');
+    assert.deepEqual(h.state.domains.inventory.wallets.ac_ren00001, { coin: 5 });
+    // With a currency hook the wallet still holds one integer under `coin`; the tiers are display.
+    const tiered = setup({ currency: [() => CURRENCY] });
+    const result = tiered.run('wallet.receive', { amount: 261 });
+    assert.equal(result.result.summary, 'The party receives 2 gold, 6 silver, 1 copper (now 3 gold, 8 silver, 6 copper).');
+    assert.equal(tiered.state.domains.inventory.wallets.party.coin, 386);
 });
 
 test('wallet rejections', () => {
@@ -280,8 +289,8 @@ test('wallet rejections', () => {
     rejects(h, 'wallet.pay', { amount: 1, owner: 'ac_ren00001' }, 'NOT_ENOUGH', /only 0 coin/);
     rejects(h, 'wallet.pay', {}, 'INVALID', /amount/);
     rejects(h, 'wallet.pay', { amount: 0 }, 'INVALID');
+    rejects(h, 'wallet.pay', { amount: 1, note: 7 }, 'INVALID', /note must be text/);
     rejects(h, 'wallet.receive', { amount: 2.5 }, 'INVALID');
-    rejects(h, 'wallet.receive', { amount: 1, currency: '' }, 'INVALID', /currency/);
     rejects(h, 'wallet.receive', { amount: 1, owner: 'nobody' }, 'INVALID');
     rejects(h, 'wallet.receive', { amount: Number.MAX_SAFE_INTEGER }, 'INVALID', /more money/);
 });

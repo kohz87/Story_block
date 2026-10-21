@@ -1,20 +1,24 @@
 // Coins (currency hook, amounts) and item names (aliases, plurals, slugs).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_COINS, currencyFrom, formatAmount, formatWallet, normalizeCoins, parseAmount } from '../../../src/v2/domains/money.js';
+import { DEFAULT_COINS, currencyFrom, currencyView, formatAmount, formatWallet, normalizeCoins, parseAmount } from '../../../src/v2/domains/money.js';
 import { aliasKey, cleanName, nameForms, resolveDef, slugify, trimText } from '../../../src/v2/domains/names.js';
-import { COINS } from './fixtures.js';
+import { COINS, CURRENCY } from './fixtures.js';
 import { DEF_ID } from '../../../src/v2/check.js';
 
-test('currency: default, hook arrays, v1 tiers, unusable answers skipped', () => {
+test('currency: the hook answer { tiers, single }, unusable answers skipped', () => {
     assert.deepEqual(currencyFrom([]), DEFAULT_COINS);
-    assert.deepEqual(currencyFrom([() => null, () => { throw new Error('broken'); }, () => COINS]), COINS);
-    assert.deepEqual(currencyFrom([() => [{ name: 'silver', rate: 10 }]]), DEFAULT_COINS, 'no coin worth 1: unusable');
-    assert.deepEqual(normalizeCoins([{ name: 'gold', rate: 100 }, { name: 'copper', rate: 1 }, { name: 'Copper', rate: 5 }, { name: '', rate: 2 }]),
-        [{ name: 'copper', rate: 1 }, { name: 'gold', rate: 100 }]);
-    assert.deepEqual(normalizeCoins({ mode: 'tiers', tiers: [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 10 }] }), COINS);
+    assert.deepEqual(currencyFrom([() => null, () => { throw new Error('broken'); }, () => CURRENCY]), COINS);
+    assert.deepEqual(normalizeCoins({ mode: 'tiers', ...CURRENCY }), COINS);
+    assert.deepEqual(normalizeCoins({ tiers: [{ name: 'copper', rate: 1 }, { name: 'Copper', rate: 5 }, { name: '', rate: 2 }, { name: 'crown', rate: 20 }] }),
+        [{ name: 'copper', rate: 1 }, { name: 'crown', rate: 20 }], 'duplicates and nameless tiers are dropped');
+    assert.deepEqual(normalizeCoins({ mode: 'single', tiers: [], single: 'crowns' }), [{ name: 'crowns', rate: 1 }]);
+    assert.deepEqual(normalizeCoins({ tiers: [], single: 'marks' }), [{ name: 'marks', rate: 1 }]);
     assert.equal(normalizeCoins({ mode: 'off', tiers: [] }), null);
+    assert.equal(normalizeCoins({ tiers: [], single: '' }), null);
+    assert.equal(normalizeCoins([{ name: 'coin', rate: 1 }]), null, 'a bare list is not the hook shape');
     assert.equal(normalizeCoins('coins'), null);
+    assert.deepEqual(currencyView(COINS), { tiers: [{ name: 'copper', rate: 1, worth: 1 }, { name: 'silver', rate: 10, worth: 10 }, { name: 'gold', rate: 10, worth: 100 }], single: 'coins' });
 });
 
 test('parseAmount', () => {
@@ -37,7 +41,7 @@ test('formatAmount and formatWallet', () => {
     assert.equal(formatAmount(40, COINS), '4 silver');
     assert.equal(formatAmount(7, DEFAULT_COINS), '7 coin');
     assert.equal(formatWallet(undefined, COINS), '0 copper');
-    assert.equal(formatWallet({ copper: 12, gems: 2, shells: 0 }, COINS), '1 silver, 2 copper, 2 gems');
+    assert.equal(formatWallet({ coin: 12 }, COINS), '1 silver, 2 copper');
 });
 
 test('names: clean, alias key, forms', () => {

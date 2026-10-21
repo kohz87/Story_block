@@ -4,8 +4,9 @@
 // The handler ctx (§3.2) has no hooks accessor, so the hooks this module calls (`item.define`
 // for story-introduced items, `currency` for coin names and rates) come in through the factory:
 //   registry.register(createCoreModule({ hooks: name => registry.hooks(name) }))
+// createCorePart gives the same thing as a MODULES.md part, for a host that merges parts.
 
-import { createInventoryCommands, captureCoin, captureItem, initialInventory, inventoryQueries, inventoryTail, validateInventory } from './inventory.js';
+import { createInventoryCommands, createInventoryQueries, captureCoin, captureItem, initialInventory, inventoryTail, validateInventory } from './inventory.js';
 import { capturePlace, capturePresent, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
 import { currencyFrom } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
@@ -26,38 +27,29 @@ export const CORE_KINDS = Object.freeze({
 });
 
 /**
- * The core module definition. `hooks(name) → fn[]` in module-id order (the registry's `hooks`);
+ * The core part in MODULES.md A's shape ({ domains, commands, queries, kinds, context, tabs }),
+ * for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's `hooks`);
  * without it no hooks run and the currency is one coin, 'coin'.
  */
-export function createCoreModule({ hooks = () => [], version = '2.0.0-alpha.1' } = {}) {
+export function createCorePart({ hooks = () => [] } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
     };
     const env = { hooks: hookList, coins: () => currencyFrom(hookList('currency')) };
-    const capturers = {
-        item: (ctx, line) => captureItem(ctx, line, env),
-        coin: (ctx, line) => captureCoin(ctx, line, env),
-        place: (ctx, line) => capturePlace(ctx, line),
-        present: (ctx, line) => capturePresent(ctx, line),
-    };
+    const kind = (grammar, apply) => ({ grammar, apply });
     return {
-        id: CORE_MODULE_ID,
-        name: 'Story Block',
-        version,
         domains: {
             scene: { initial: initialScene, validate: slice => validateScene(slice) },
             inventory: { initial: initialInventory, validate: slice => validateInventory(slice) },
         },
         commands: { ...createInventoryCommands(env), ...sceneCommands },
-        queries: { ...inventoryQueries, ...sceneQueries },
-        capture: {
-            kinds: CORE_KINDS,
-            apply(ctx, line) {
-                const capture = capturers[line?.kind];
-                if (!capture) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);
-                return capture(ctx, line);
-            },
+        queries: { ...createInventoryQueries(env), ...sceneQueries },
+        kinds: {
+            item: kind(CORE_KINDS.item.grammar, (ctx, line) => captureItem(ctx, line, env)),
+            coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
+            place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
+            present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
         },
         context: {
             static: () => CORE_STATIC,
@@ -75,5 +67,28 @@ export function createCoreModule({ hooks = () => [], version = '2.0.0-alpha.1' }
             { id: 'inventory', title: 'Inventory', icon: 'fa-box-open', render: (el, view, api) => renderInventoryTab(el, view, api, { coins: env.coins() }) },
             { id: 'scene', title: 'Scene', icon: 'fa-map-location-dot', render: (el, view, api) => renderSceneTab(el, view, api) },
         ],
+    };
+}
+
+/** The core module definition for `sdk.registerModule` (§6), built from the core part. */
+export function createCoreModule({ hooks = () => [], version = '2.0.0-alpha.1' } = {}) {
+    const part = createCorePart({ hooks });
+    return {
+        id: CORE_MODULE_ID,
+        name: 'Story Block',
+        version,
+        domains: part.domains,
+        commands: part.commands,
+        queries: part.queries,
+        capture: {
+            kinds: CORE_KINDS,
+            apply(ctx, line) {
+                const kind = part.kinds[line?.kind];
+                if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);
+                return kind.apply(ctx, line);
+            },
+        },
+        context: part.context,
+        tabs: part.tabs,
     };
 }

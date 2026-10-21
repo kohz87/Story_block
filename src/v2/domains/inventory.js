@@ -3,13 +3,14 @@
 //
 // Handlers follow §3.2: synchronous, everything through ctx (read/draft/call/claim/rng/fail).
 // A stack whose count reaches 0 is removed, never kept at 0 (§2.5). Numbers are set by code:
-// a change line proposes, these functions decide.
+// a change line proposes, these functions decide. Payloads, codes and money follow MODULES.md F:
+// a rule refusal is REFUSED, a malformed payload INVALID; a wallet is { coin: n } in the smallest unit.
 
 import {
     OWNER_RE, isPlainObject, clone, labelOf, parseCount, newId, ownerName, ownerNameIn, capitalize,
 } from './common.js';
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
-import { baseCoin, formatAmount, formatWallet, parseAmount } from './money.js';
+import { WALLET_KEY, currencyView, formatAmount, formatWallet, parseAmount } from './money.js';
 import { DEF_ID, isId } from '../check.js';
 
 export const KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
@@ -47,6 +48,7 @@ function defErrors(key, def) {
     if (!RARITIES.includes(def.rarity)) errors.push(`${label} has an unknown rarity "${def.rarity}".`);
     if (!isCount(def.value, 0)) errors.push(`${label} has a value that is not a whole number of at least 0.`);
     if (typeof def.stack !== 'boolean') errors.push(`${label} must say whether it stacks (true or false).`);
+    else if (def.kind === 'equipment' && def.stack) errors.push(`${label} is equipment, which never stacks.`);
     if (def.slot !== null && !nonBlank(def.slot)) errors.push(`${label} has a slot that is neither empty nor a name.`);
     if (!isPlainObject(def.stats)) errors.push(`${label} has stats that are not a record.`);
     if (!isPlainObject(def.effect)) errors.push(`${label} has an effect that is not a record.`);
@@ -95,9 +97,9 @@ export function validateInventory(slice) {
             errors.push(`The wallet of ${owner} is not a record.`);
             continue;
         }
-        for (const [currency, amount] of Object.entries(wallet)) {
-            if (!currency.trim()) errors.push(`The wallet of ${owner} has a currency with no name.`);
-            if (!isCount(amount, 0)) errors.push(`The wallet of ${owner} holds ${amount} ${currency}; money is a whole number of at least 0.`);
+        for (const [key, amount] of Object.entries(wallet)) {
+            if (key !== WALLET_KEY) errors.push(`The wallet of ${owner} holds "${key}"; a wallet keeps one amount, under ${WALLET_KEY}.`);
+            else if (!isCount(amount, 0)) errors.push(`The wallet of ${owner} holds ${amount}; money is a whole number of at least 0.`);
         }
     }
     for (const [key, id] of Object.entries(aliases)) {
@@ -203,10 +205,10 @@ function knownDef(ctx, inv, name) {
 
 /**
  * The def a name means, created when there is none: `story/<slug>` with the §7 defaults, then
- * each `item.define` hook may change it (mutating the def or returning fields to merge). The ID
- * is never the hooks' to change.
+ * each `item.define(def, { note, owner })` hook may change it (mutating the def or returning
+ * fields to merge). The ID is never the hooks' to change, and equipment never stacks.
  */
-function defineByName(ctx, inv, written, env) {
+function defineByName(ctx, inv, written, env, about = {}) {
     const name = cleanName(written);
     if (!name || name.length > MAX_NAME) ctx.fail('INVALID', `An item needs a name of 1 to ${MAX_NAME} characters.`);
     const found = resolveDef(inv, name);
@@ -217,50 +219,41 @@ function defineByName(ctx, inv, written, env) {
     for (let n = 2; inv.defs[id]; n += 1) id = `${base}-${n}`;
     const def = defaultDef(id, name);
     for (const hook of env.hooks('item.define')) {
-        const out = hook(def);
+        const out = hook(def, { note: about.note ?? '', owner: about.owner ?? 'party' });
         if (isPlainObject(out) && out !== def) Object.assign(def, out);
     }
     def.id = id;
+    if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
     inv.defs[id] = clone(def);
     inv.aliases[aliasKey(name)] = id;
     return { def: inv.defs[id], created: true };
 }
 
-function money(amount, currency, coins) {
-    return currency === baseCoin(coins) ? formatAmount(amount, coins) : `${amount} ${currency}`;
-}
-
-function currencyArg(ctx, value, coins) {
-    if (value === undefined || value === null) return baseCoin(coins);
-    if (!nonBlank(value)) ctx.fail('INVALID', 'The currency must be named.');
-    return value.trim();
-}
-
-function receive(ctx, env, { owner, amount, currency, from }) {
+function receive(ctx, env, { owner, amount, note }) {
     const inv = ctx.draft('inventory');
     const coins = env.coins();
     const wallet = (inv.wallets[owner] ??= {});
-    const now = (wallet[currency] ?? 0) + amount;
+    const now = (wallet[WALLET_KEY] ?? 0) + amount;
     if (!Number.isSafeInteger(now)) ctx.fail('INVALID', 'That is more money than can be counted.');
-    wallet[currency] = now;
+    wallet[WALLET_KEY] = now;
     const who = capitalize(ownerNameIn(ctx, owner));
     return {
-        summary: `${who} receives ${money(amount, currency, coins)}${from ? ` from ${from}` : ''} (now ${money(now, currency, coins)}).`,
-        data: { owner, amount, currency, now, from },
+        summary: `${who} receives ${formatAmount(amount, coins)}${note ? ` — ${note}` : ''} (now ${formatAmount(now, coins)}).`,
+        data: { owner, amount, now, note },
         narrate: told(ctx),
     };
 }
 
-function pay(ctx, env, { owner, amount, currency, to }) {
+function pay(ctx, env, { owner, amount, note }) {
     const inv = ctx.draft('inventory');
     const coins = env.coins();
-    const have = inv.wallets[owner]?.[currency] ?? 0;
+    const have = inv.wallets[owner]?.[WALLET_KEY] ?? 0;
     const who = capitalize(ownerNameIn(ctx, owner));
-    if (have < amount) ctx.fail('NOT_ENOUGH', `${who} has only ${money(have, currency, coins)}; ${money(amount, currency, coins)} is needed.`);
-    inv.wallets[owner][currency] = have - amount;
+    if (have < amount) ctx.fail('NOT_ENOUGH', `${who} has only ${formatAmount(have, coins)}; ${formatAmount(amount, coins)} is needed.`);
+    inv.wallets[owner][WALLET_KEY] = have - amount;
     return {
-        summary: `${who} pays ${money(amount, currency, coins)}${to ? ` to ${to}` : ''} (${money(have - amount, currency, coins)} left).`,
-        data: { owner, amount, currency, now: have - amount, to },
+        summary: `${who} pays ${formatAmount(amount, coins)}${note ? ` — ${note}` : ''} (${formatAmount(have - amount, coins)} left).`,
+        data: { owner, amount, now: have - amount, note },
         narrate: told(ctx),
     };
 }
@@ -270,10 +263,11 @@ function pay(ctx, env, { owner, amount, currency, to }) {
 /** The inventory commands; `env` = { hooks: name => fn[], coins: () => currency }. */
 export function createInventoryCommands(env) {
     return {
-        // Internal (§7): the story, the host, or another module's command through ctx.call.
+        // { def | defId | name, qty, owner, note? }. Internal (§7): the story, the host, or another
+        // module's command through ctx.call.
         'inventory.grant'(ctx, payload = {}) {
             if (!(ctx.caller || ctx.cause === 'story' || ctx.cause === 'system')) {
-                ctx.fail('INVALID', 'Items cannot be handed out from a button; they come from the story or from another module.');
+                ctx.fail('REFUSED', 'Items cannot be handed out from a button; they come from the story or from another module.');
             }
             const inv = ctx.draft('inventory');
             const qty = count(ctx, payload.qty, 1);
@@ -281,11 +275,12 @@ export function createInventoryCommands(env) {
             const note = textArg(ctx, payload.note, MAX_NOTE, 'note');
             let def;
             let created = false;
-            if (payload.def !== undefined) {
-                def = typeof payload.def === 'string' ? inv.defs[payload.def] : null;
+            const wanted = payload.def ?? payload.defId;
+            if (wanted !== undefined) {
+                def = typeof wanted === 'string' ? inv.defs[wanted] : null;
                 if (!def) ctx.fail('NOT_FOUND', 'There is no such item to give.');
             } else if (payload.name !== undefined) {
-                ({ def, created } = defineByName(ctx, inv, String(payload.name), env));
+                ({ def, created } = defineByName(ctx, inv, String(payload.name), env, { note, owner }));
             } else ctx.fail('INVALID', 'Say which item to give.');
             const stacks = grantInto(ctx, inv, def, qty, owner, note);
             return {
@@ -326,7 +321,7 @@ export function createInventoryCommands(env) {
             if (payload.to === undefined || payload.to === null) ctx.fail('INVALID', 'Say who should get it.');
             const to = ownerArg(ctx, payload.to);
             const from = stack.owner;
-            if (to === from) ctx.fail('INVALID', `${def.name} is already with ${ownerNameIn(ctx, to)}.`);
+            if (to === from) ctx.fail('REFUSED', `${def.name} is already with ${ownerNameIn(ctx, to)}.`);
             const qty = count(ctx, payload.qty, stack.qty);
             if (qty > stack.qty) ctx.fail('NOT_ENOUGH', shortOf(def.name, stack.qty));
             const target = def.stack ? looseMatch(inv, def.id, to, stack.note) : null;
@@ -369,11 +364,11 @@ export function createInventoryCommands(env) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
             const def = inv.defs[stack.def];
-            if (def.kind !== 'equipment') ctx.fail('INVALID', `${def.name} is not equipment; it cannot be worn or wielded.`);
+            if (def.kind !== 'equipment') ctx.fail('REFUSED', `${def.name} is not equipment; it cannot be worn or wielded.`);
             const slot = payload.slot ?? def.slot;
-            if (!nonBlank(slot)) ctx.fail('INVALID', `${def.name} has no slot to be worn in.`);
+            if (!nonBlank(slot)) ctx.fail('REFUSED', `${def.name} has no slot to be worn in.`);
             const where = slot.trim();
-            if (stack.equipped === where) ctx.fail('INVALID', `${def.name} is already equipped.`);
+            if (stack.equipped === where) ctx.fail('REFUSED', `${def.name} is already equipped.`);
             const occupant = Object.values(inv.stacks).find(other => other.id !== stack.id && other.owner === stack.owner && other.equipped === where);
             if (occupant) occupant.equipped = null;
             stack.equipped = where;
@@ -389,7 +384,7 @@ export function createInventoryCommands(env) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
             const def = inv.defs[stack.def];
-            if (stack.equipped === null) ctx.fail('INVALID', `${def.name} is not equipped.`);
+            if (stack.equipped === null) ctx.fail('REFUSED', `${def.name} is not equipped.`);
             const slot = stack.equipped;
             stack.equipped = null;
             return {
@@ -403,7 +398,7 @@ export function createInventoryCommands(env) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
             const def = inv.defs[stack.def];
-            if (stack.qty < 2) ctx.fail('INVALID', `There is only one ${def.name}; it cannot be split.`);
+            if (stack.qty < 2) ctx.fail('REFUSED', `There is only one ${def.name}; it cannot be split.`);
             const qty = payload.qty;
             if (!isCount(qty, 1) || qty >= stack.qty) ctx.fail('INVALID', `Split off between 1 and ${stack.qty - 1} ${def.name}.`);
             stack.qty -= qty;
@@ -422,11 +417,11 @@ export function createInventoryCommands(env) {
             const into = stackIn(ctx, inv, payload.into);
             const def = inv.defs[stack.def];
             if (stack.id === into.id) ctx.fail('INVALID', 'A stack cannot be put together with itself.');
-            if (stack.def !== into.def) ctx.fail('INVALID', `${def.name} and ${inv.defs[into.def].name} are different items.`);
-            if (!def.stack) ctx.fail('INVALID', `${def.name} does not stack.`);
-            if (stack.owner !== into.owner) ctx.fail('INVALID', `These ${def.name} are held by different owners.`);
-            if (stack.equipped !== into.equipped) ctx.fail('INVALID', `One ${def.name} is worn and the other is not.`);
-            if (stack.note !== into.note) ctx.fail('INVALID', `These ${def.name} have different notes.`);
+            if (stack.def !== into.def) ctx.fail('REFUSED', `${def.name} and ${inv.defs[into.def].name} are different items.`);
+            if (!def.stack) ctx.fail('REFUSED', `${def.name} does not stack.`);
+            if (stack.owner !== into.owner) ctx.fail('REFUSED', `These ${def.name} are held by different owners.`);
+            if (stack.equipped !== into.equipped) ctx.fail('REFUSED', `One ${def.name} is worn and the other is not.`);
+            if (stack.note !== into.note) ctx.fail('REFUSED', `These ${def.name} have different notes.`);
             into.qty += stack.qty;
             delete inv.stacks[stack.id];
             return {
@@ -436,23 +431,20 @@ export function createInventoryCommands(env) {
             };
         },
 
+        // { owner, amount, note? }, amount in the smallest unit.
         'wallet.pay'(ctx, payload = {}) {
-            const coins = env.coins();
             return pay(ctx, env, {
                 owner: ownerArg(ctx, payload.owner),
                 amount: count(ctx, payload.amount, undefined, 'amount'),
-                currency: currencyArg(ctx, payload.currency, coins),
-                to: textArg(ctx, payload.to, 80, 'payee'),
+                note: textArg(ctx, payload.note, 120, 'note'),
             });
         },
 
         'wallet.receive'(ctx, payload = {}) {
-            const coins = env.coins();
             return receive(ctx, env, {
                 owner: ownerArg(ctx, payload.owner),
                 amount: count(ctx, payload.amount, undefined, 'amount'),
-                currency: currencyArg(ctx, payload.currency, coins),
-                from: textArg(ctx, payload.from, 80, 'payer'),
+                note: textArg(ctx, payload.note, 120, 'note'),
             });
         },
     };
@@ -478,7 +470,7 @@ export function captureItem(ctx, line, env) {
         const qty = lineQty(ctx, line, 1);
         if (qty < 1) ctx.fail('INVALID', 'A gained item needs a quantity of at least 1.');
         const note = trimText(labelOf(line, 'note') ?? text, MAX_NOTE);
-        const { def, created } = defineByName(ctx, inv, name, env);
+        const { def, created } = defineByName(ctx, inv, name, env, { note, owner: 'party' });
         const stacks = grantInto(ctx, inv, def, qty, 'party', note);
         return {
             summary: `The party gains ${itemText(def.name, qty)}.`,
@@ -510,7 +502,7 @@ export function captureItem(ctx, line, env) {
             const key = aliasKey(next);
             const taken = (inv.aliases[key] && inv.aliases[key] !== def.id)
                 || Object.values(inv.defs).some(other => other.id !== def.id && aliasKey(other.name) === key);
-            if (taken) ctx.fail('INVALID', `"${next}" is already the name of another item.`);
+            if (taken) ctx.fail('REFUSED', `"${next}" is already the name of another item.`);
             if (next.length > MAX_NAME) ctx.fail('INVALID', `An item needs a name of 1 to ${MAX_NAME} characters.`);
             const old = def.name;
             inv.aliases[aliasKey(old)] ??= def.id;
@@ -530,7 +522,7 @@ export function captureItem(ctx, line, env) {
                 changes.push(`${def.name}: ${stack.note || 'note cleared'}`);
             }
             if (qty !== null) {
-                if (qty > 1 && !def.stack) ctx.fail('INVALID', `${def.name} does not stack.`);
+                if (qty > 1 && !def.stack) ctx.fail('REFUSED', `${def.name} does not stack.`);
                 if (qty === 0) delete inv.stacks[stack.id];
                 else stack.qty = qty;
                 changes.push(`${def.name} now ${qty}`);
@@ -551,10 +543,11 @@ export function captureCoin(ctx, line, env) {
     }
     const parsed = parseAmount(written, coins);
     if (parsed.error) ctx.fail('INVALID', parsed.error);
-    const base = { owner: 'party', amount: parsed.amount, currency: baseCoin(coins) };
+    const who = labelOf(line, line.op === '+' ? 'from' : 'to');
+    const note = who ? `${line.op === '+' ? 'from' : 'to'} ${trimText(who, 80)}` : '';
     return line.op === '+'
-        ? receive(ctx, env, { ...base, from: trimText(labelOf(line, 'from') ?? '', 80) })
-        : pay(ctx, env, { ...base, to: trimText(labelOf(line, 'to') ?? '', 80) });
+        ? receive(ctx, env, { owner: 'party', amount: parsed.amount, note })
+        : pay(ctx, env, { owner: 'party', amount: parsed.amount, note });
 }
 
 // ---------- queries (read-only, plain copies) ----------
@@ -570,15 +563,19 @@ export function listItems(inventory, owner = null) {
         .map(stack => {
             const def = defs[stack.def];
             return {
-                id: stack.id, def: def.id, name: def.name, kind: def.kind, rarity: def.rarity, value: def.value,
+                stack: stack.id, def: def.id, name: def.name, kind: def.kind, rarity: def.rarity, value: def.value,
                 slot: def.slot, qty: stack.qty, owner: stack.owner, equipped: stack.equipped, note: stack.note, from: stack.from,
             };
         })
         .sort((a, b) => ownerRank(a.owner) - ownerRank(b.owner) || (a.owner < b.owner ? -1 : a.owner > b.owner ? 1 : 0)
-            || kindRank(a.kind) - kindRank(b.kind) || a.name.localeCompare(b.name, 'en', { numeric: true }) || byId(a, b));
+            || kindRank(a.kind) - kindRank(b.kind) || a.name.localeCompare(b.name, 'en', { numeric: true })
+            || (a.stack < b.stack ? -1 : a.stack > b.stack ? 1 : 0));
 }
 
-export const inventoryQueries = {
+/** The inventory queries; `env.coins()` gives the currency for `inventory.currency`. */
+export const createInventoryQueries = env => ({
+    // { tiers: [{ name, rate, worth }], single }: the currency hook's answer (MODULES.md F1).
+    'inventory.currency': () => currencyView(env.coins()),
     'inventory.items': (state, args = {}) => listItems(state?.domains?.inventory, args?.owner ?? null),
     'inventory.wallet': (state, args = {}) => ({ ...(state?.domains?.inventory?.wallets?.[args?.owner ?? 'party'] ?? {}) }),
     // { status: 'found' | 'ambiguous' | 'none', defs: [def copies], stacks: [items of the found def] }
@@ -591,7 +588,7 @@ export const inventoryQueries = {
             stacks: found.status === 'found' ? listItems(inventory).filter(item => item.def === found.id) : [],
         };
     },
-};
+});
 
 // ---------- prompt view (§5) ----------
 

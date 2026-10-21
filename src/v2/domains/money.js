@@ -1,35 +1,52 @@
 // Coins: the currency the `currency` hooks name, amounts written in it, and the wallet line. Pure.
 //
-// A currency is a list of coins, smallest first, each with its worth in the smallest coin:
-//   [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 100 }]
-// A hook may also return RPG Battle's v1 shape { mode: 'tiers', tiers: [{ name, rate }] }, where
-// each tier's rate counts the tier before it; it is converted. With no usable hook there is one
-// coin, 'coin'. A wallet keeps money as one integer in the smallest coin (§2.1), under that coin's
-// name: { party: { copper: 386 } }.
+// A wallet holds one integer per owner in the smallest unit, always under `coin`:
+// wallets[owner] = { coin: 386 } (MODULES.md F1). Coin names are display and parsing only. The
+// `currency` hook answers v1's shape { mode?, tiers: [{ name, rate }], single }, smallest tier
+// first, each tier's rate counting the tier before it (copper=1, silver=10, gold=10); with no tiers,
+// `single` names the one coin. Inside, a currency is a list of coins with each one's worth in the
+// smallest coin: [{ name: 'copper', rate: 1 }, { name: 'silver', rate: 10 }, { name: 'gold', rate: 100 }].
 
+export const WALLET_KEY = 'coin';
 export const DEFAULT_COINS = Object.freeze([Object.freeze({ name: 'coin', rate: 1 })]);
 
-/** A currency from a hook's return value, or null when it is not usable. */
+/** A currency from a hook's answer, or null when it is not usable. */
 export function normalizeCoins(value) {
-    let list = null;
-    if (Array.isArray(value)) {
-        list = value.map(coin => ({ name: String(coin?.name ?? '').trim(), rate: Number(coin?.rate) }));
-    } else if (value && typeof value === 'object' && value.mode !== 'off' && Array.isArray(value.tiers)) {
-        let worth = 1;
-        list = value.tiers.map((tier, index) => {
-            if (index > 0) worth *= Math.max(1, Math.round(Number(tier?.rate) || 1));
-            return { name: String(tier?.name ?? '').trim(), rate: worth };
-        });
-    }
-    if (!list) return null;
+    if (!value || typeof value !== 'object' || Array.isArray(value) || value.mode === 'off') return null;
+    // Nameless and repeated tiers are dropped first, so they do not count towards the next one's worth.
     const seen = new Set();
-    list = list.filter(coin => {
-        const key = coin.name.toLowerCase();
-        if (!coin.name || seen.has(key) || !Number.isSafeInteger(coin.rate) || coin.rate < 1) return false;
-        seen.add(key);
-        return true;
-    }).sort((a, b) => a.rate - b.rate);
+    const tiers = (Array.isArray(value.tiers) ? value.tiers : [])
+        .map(tier => ({ name: String(tier?.name ?? '').trim(), rate: Math.max(1, Math.round(Number(tier?.rate) || 1)) }))
+        .filter(tier => {
+            const key = tier.name.toLowerCase();
+            if (!tier.name || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    let list;
+    if (tiers.length && value.mode !== 'single') {
+        let worth = 1;
+        list = tiers.map((tier, index) => {
+            if (index > 0) worth *= tier.rate;
+            return { name: tier.name, rate: worth };
+        });
+    } else {
+        const single = String(value.single ?? '').trim();
+        list = single ? [{ name: single, rate: 1 }] : [];
+    }
+    if (!list.every(coin => Number.isSafeInteger(coin.rate))) return null;
     return list.length && list[0].rate === 1 ? list.map(coin => Object.freeze(coin)) : null;
+}
+
+/**
+ * The `inventory.currency` query's answer: the hook's shape back ({ tiers: [{ name, rate }], single },
+ * rate counting the tier before), each tier also with `worth`, its value in the smallest unit.
+ */
+export function currencyView(coins) {
+    return {
+        tiers: coins.map((coin, index) => ({ name: coin.name, rate: index ? coin.rate / coins[index - 1].rate : 1, worth: coin.rate })),
+        single: coins.length === 1 ? coins[0].name : 'coins',
+    };
 }
 
 /** The currency from the `currency` hooks (module-id order): the first usable answer wins. */
@@ -45,9 +62,6 @@ export function currencyFrom(fns) {
     }
     return DEFAULT_COINS;
 }
-
-/** The wallet key: the smallest coin's name. */
-export const baseCoin = coins => coins[0].name;
 
 function matchCoin(word, coins) {
     const w = word.toLowerCase();
@@ -99,12 +113,7 @@ export function formatAmount(amount, coins = DEFAULT_COINS) {
     return parts.length ? parts.join(', ') : `0 ${coins[0].name}`;
 }
 
-/** One wallet ({ [currency]: amount }) as text; keys other than the base coin are shown as they are. */
+/** One wallet ({ coin: amount }) as text. */
 export function formatWallet(wallet, coins = DEFAULT_COINS) {
-    const base = baseCoin(coins);
-    const parts = [formatAmount(wallet?.[base] ?? 0, coins)];
-    for (const key of Object.keys(wallet ?? {}).sort()) {
-        if (key !== base && wallet[key]) parts.push(`${wallet[key]} ${key}`);
-    }
-    return parts.join(', ');
+    return formatAmount(wallet?.[WALLET_KEY] ?? 0, coins);
 }

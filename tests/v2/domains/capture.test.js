@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness, line } from './helpers/fake-ctx.js';
-import { COINS, core, def, stocked } from './fixtures.js';
+import { COINS, CURRENCY, core, def, stocked } from './fixtures.js';
 
 function setup(hookMap, state) {
     const module = core(hookMap);
@@ -68,6 +68,16 @@ test('+ item: a new name creates story/<slug> with defaults, then the item.defin
     const again = h.capture(line('+', 'item', 'Moonveil Trouts'));
     assert.equal(again.result.data.def, 'story/moonveil-trout');
     assert.equal(again.result.data.created, false);
+});
+
+test('+ item: the item.define hooks get { note, owner }; equipment never stacks', () => {
+    const seen = [];
+    const h = setup({ 'item.define': [(definition, about) => { seen.push(about); return { kind: 'equipment', slot: 'head' }; }] });
+    const result = h.capture(line('+', 'item', 'Iron Cap', { qty: '2', note: 'dented' }));
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(seen, [{ note: 'dented', owner: 'party' }]);
+    assert.equal(inv(h).defs['story/iron-cap'].stack, false);
+    assert.equal(result.result.data.stacks.length, 2);
 });
 
 test('+ item: a slug already taken by another name gets a suffix', () => {
@@ -147,8 +157,8 @@ test('~ item rejections', () => {
     const h = setup();
     rejected(h, line('~', 'item', 'Minor Healing Draught', { note: 'x' }), 'INVALID', /several lots/);
     rejected(h, line('~', 'item', 'Rope'), 'INVALID', /changes nothing/);
-    rejected(h, line('~', 'item', 'Rope', { name: 'Iron Sword' }), 'INVALID', /already the name of another item/);
-    rejected(h, line('~', 'item', 'Lantern', { qty: '2' }), 'INVALID', /does not stack/);
+    rejected(h, line('~', 'item', 'Rope', { name: 'Iron Sword' }), 'REFUSED', /already the name of another item/);
+    rejected(h, line('~', 'item', 'Lantern', { qty: '2' }), 'REFUSED', /does not stack/);
     rejected(h, line('~', 'item', 'Golden Idol', { note: 'x' }), 'NOT_FOUND');
     h.run('inventory.drop', { stack: 'it_rope0001' });
     rejected(h, line('~', 'item', 'Rope', { note: 'x' }), 'NOT_FOUND', /no Rope/);
@@ -166,25 +176,25 @@ test('+ coin / - coin with the default currency', () => {
     const h = setup();
     const got = h.capture(line('+', 'coin', '30', { from: 'the sealer' }));
     assert.equal(got.ok, true, got.message);
-    assert.equal(got.result.summary, 'The party receives 30 coin from the sealer (now 155 coin).');
+    assert.equal(got.result.summary, 'The party receives 30 coin — from the sealer (now 155 coin).');
     assert.equal(got.result.narrate, false);
     const paid = h.capture(line('-', 'coin', '5 coins', { to: 'the ferryman' }));
-    assert.equal(paid.result.summary, 'The party pays 5 coin to the ferryman (150 coin left).');
+    assert.equal(paid.result.summary, 'The party pays 5 coin — to the ferryman (150 coin left).');
     rejected(h, line('-', 'coin', '151'), 'NOT_ENOUGH', /only 150 coin/);
     rejected(h, line('+', 'coin', '3 silver'), 'INVALID', /no coin called "silver"/);
 });
 
 test('+ coin with the currency hook: "3 silver, 8 copper"', () => {
-    const module = core({ currency: [() => null, () => COINS] });
+    const module = core({ currency: [() => null, () => CURRENCY] });
     const state = stocked(module);
-    state.domains.inventory.wallets = { party: { copper: 0 } };
+    state.domains.inventory.wallets = { party: { coin: 0 } };
     const h = createHarness([module], { state });
     const got = h.capture(line('+', 'coin', '3 silver, 8 copper', { from: 'the sealer' }));
     assert.equal(got.ok, true, got.message);
-    assert.equal(inv(h).wallets.party.copper, 38);
-    assert.equal(got.result.summary, 'The party receives 3 silver, 8 copper from the sealer (now 3 silver, 8 copper).');
+    assert.equal(inv(h).wallets.party.coin, 38);
+    assert.equal(got.result.summary, 'The party receives 3 silver, 8 copper — from the sealer (now 3 silver, 8 copper).');
     h.capture(line('+', 'coin', '1 gold and 2 silver'));
-    assert.equal(inv(h).wallets.party.copper, 158);
+    assert.equal(inv(h).wallets.party.coin, 158);
     const paid = h.capture(line('-', 'coin', '1g'));
     assert.equal(paid.result.summary, 'The party pays 1 gold (5 silver, 8 copper left).');
     rejected(h, line('-', 'coin', '6 silver'), 'NOT_ENOUGH', /only 5 silver, 8 copper; 6 silver is needed/);
