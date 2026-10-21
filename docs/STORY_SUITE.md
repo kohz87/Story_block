@@ -100,11 +100,14 @@ discarded-variant evidence/rewards are excluded. In-flight reads may preview tha
 without saving a placeholder node. Archived state also supplies omitted prompt/carried blocks.
 
 The global `StoryBlock` API offers `regeneratedReplyRecovery()` and
-`recoverRegeneratedReply(plan)` for legacy lost-root cases. The first retained owned reply
-must be unknown and at the same position as a parentless saved head in the same chat;
-no retained owner may match a saved node. Later unknown replies may remain. Revalidate the
-plan before applying; the action records `storyBlockReplacement`, verifies message/journal
-readback and keeps inactive nodes. Missing archived ancestry is never adopted.
+`recoverRegeneratedReply(plan)` for legacy lost-root cases. The unknown replacement must
+be at the saved parentless head's position in the same chat; no retained owner may match
+a saved node. Earlier replies may have acquired IDs since the journal was installed.
+They can precede its original root only when unknown and without supported journal extras;
+unchanged verified suffix snapshots and receipts are preserved when attaching that prefix.
+Later unknown replies may remain. Revalidate the plan before applying; the action records
+`storyBlockReplacement`, verifies message/journal readback and keeps inactive nodes.
+Missing archived ancestry is never adopted.
 
 `reconnectRegeneratedReply()` performs this repair automatically, then resumes the latest
 reply's callbacks under `replyBusy()`. Chat loading and foreground generation call it;
