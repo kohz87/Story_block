@@ -1,6 +1,6 @@
 # Story Suite v2 releases
 
-## 2.0.0-alpha.2 (draft, baseline)
+## 2.0.0-alpha.2 (2026-10-22, baseline)
 
 **The alpha.2 baseline.** This records where all four modules stand after the feature freeze (F103), two break rounds and their fixes. **Beta is now in progress, built in waves A–E.** The queued features below are being built as part of beta, and the full combined test moves to beta.
 
@@ -114,13 +114,18 @@ Still for test play only. Don't use it for your real campaigns yet.
   - RPG Battle #85–#87
   - Story Director #86–#87
   - NPC State Delta #190
-- The 3 balance questions wait for your decision (below).
+- The 3 balance questions are decided (below) and are being built in beta wave C.
 - The main lesson from round 2: anything a later reply writes is now kept by reply ID. Each repo's CI now runs a "delete a middle reply" fuzz test.
+
+**Round 3 (confirmation, stopped early so beta could start).**
+- Capture (b1): all 14 round-2 findings hold; nothing new.
+- Economy (b3): all 7 round-2 findings hold; nothing new. A 300-step conservation checker ran clean on 12 honest seeds and 8 of 12 cheat seeds.
+- Timeline (b2) and the long soak (b6) were wound down; what they found goes into the combined beta round.
+
+**Fixed after the live test:** the Packs panel refused the Ersveil pack (Story Block #94), and quest payouts said "50 mark" instead of "50 marks" (Story Director #88).
 
 ### Known issues
 
-- **The Ersveil pack can't be imported from the Packs panel.** Story Block's capability check never finds its own areas (inventory, scene), so it refuses the pack. Found in the alpha.2 live test; the fix is next.
-- **Quest payout wording:** quest payouts say "50 mark paid" instead of "50 marks". The amount paid is right.
 - **A big fight offer can be cut down:**
   - A weak offer can field fewer foes than the story wrote. The rest hang back, and the fight's receipt says so.
   - A hunting quest that asked for all of them then needs another story encounter.
@@ -135,32 +140,34 @@ Still for test play only. Don't use it for your real campaigns yet.
   | 500 messages | 1.2 MB | 97 ms |
   | 3000 messages | 7.3 MB | 551 ms |
 
-  Storage tuning is still to do.
+  Storage tuning (checkpoints, records kept once, receipt trimming) is being built for beta.
 - **Two browser tabs on one chat:** the tab that saves last wins.
 - **Switching chats while a reply streams in:** SillyTavern throws its own TypeError (not ours).
 - **Change lines:**
   - `+ item` ignores the carry limit; only raising a count with `~` checks it.
   - If a reply is cut off by the length limit and its half-written last line still makes sense, that line is read.
-- **Balance:**
+- **Balance** (being fixed in beta wave C):
   - Lone foes miss their targets.
   - A group's size is weighed but not the creatures' power.
   - Weak and deadly don't scale at level 20.
+- **High written quest ranks:** a story-vouched quest written as `rank: S` is held to one rank above the party, which can still pay up to 3000 in one reply at levels 1–6 (about 7.5× the per-reply coin budget). Under review.
 - **Docs:** the player guide's "Checks and modifiers" section still describes the old Roll button.
 
-### Decisions waiting for you
+### Decisions made
 
-1. **Save cost / disk writes:** (a) answer before the save confirms, (b) storage tuning, (c) keep.
-2. **RPG Battle balance:** lone foes, an AoE/creature-power budget, high-level scaling, a stun-lock rule.
-3. **NSD prompt changes:** steps 12–13 and the group-chat capture rules.
-4. **NSD one-pass extra model calls.**
-5. **C-1 revival wording.**
-6. **The frozen feature queue:** Features toggles, Equip on…, crafting, wear, the TRS ideas.
+1. **Save cost:** storage tuning.
+2. **RPG Battle balance:** each tier plus a power value per creature (lone foes included), checked by a level-band simulation, with a stun rule and a floor for bosses. The party's build is not looked at.
+3. **NSD prompt changes:** steps 12–13 and the group-chat role words are approved.
+4. **NSD one-pass calls:** relationship passes are skipped while Story Block hosts NSD; a backfill runs only on its schedule or when you ask.
+5. **NPC revival:** the model's output never brings an NPC back.
+6. **Two tabs on one chat:** the last writer wins (accepted).
+7. **The frozen feature queue:** all of it goes ahead, in beta waves A–E.
 
 ### How to test
 
 1. Use a separate SillyTavern profile on SillyTavern 1.19 or later.
 2. Install Story Block, RPG Battle, Story Director and NPC State Delta from their `v2` branches.
-3. Set up Ersveil with `docs/v2/ERSVEIL.md`. Until the import fix lands, the pack import in step 3 of that page is refused (see Known issues).
+3. Set up Ersveil with `docs/v2/ERSVEIL.md`.
 4. Player guide: `docs/v2/GUIDE.md`. Status: `docs/v2/STATUS.md`.
 
 **Live test of this baseline (SillyTavern 1.19, mock model, Ersveil pack):**
@@ -179,7 +186,7 @@ Still for test play only. Don't use it for your real campaigns yet.
   - The NSD Cast tab shows meters and leaves other tabs alone.
   - The map's search and zoom work, and so does the Chronicle tab.
   - The page logs no unexpected errors.
-- This failed: the pack import (see Known issues).
+- This failed: the pack import, now fixed in Story Block #94.
 
 **Versions in this baseline:**
 
