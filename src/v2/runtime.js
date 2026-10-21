@@ -90,16 +90,20 @@ export function createRuntime({
     ctx, packs = null, core = true, modules = [], createStore = realStore, createCommandBus = realBus,
     notify, onBlocked = null, onSaveError = null, onRegister = null, branch = null, callModel = null,
 } = {}) {
-    const registry = createRegistry();
+    const registry = createRegistry({ hostVersion: VERSION });
     const packPart = packs ?? packsFor(ctx);
     const base = createSettings({ root: () => ctx.extensionSettings, registry, save: () => ctx.saveSettingsDebounced?.() });
     const settings = withPackCurrency(base, () => packPart.startState().currency);
     let sdk = null;
     let bus = null;
     let events = null;
+    let turn = null;
     if (core) {
         registry.register(createCoreModule({
             hooks: name => registry.hooks(name),
+            hookEntries: name => registry.hookEntries(name),
+            // A failing item.define hook goes to the Problems list (the turn is made below).
+            problem: entry => turn?.report(entry),
             settings: () => settings(CORE_MODULE_ID),
             version: VERSION,
             packs: packPart,
@@ -140,7 +144,7 @@ export function createRuntime({
         substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null });
     sdk = made.sdk;
     const initial = () => initialWithStart(registry);
-    const turn = createTurn({ ctx, store, bus, registry, settings, events, onBlocked, initial, ...(notify ? { notify } : {}) });
+    turn = createTurn({ ctx, store, bus, registry, settings, events, onBlocked, initial, ...(notify ? { notify } : {}) });
     // The UI (ui-host.js) plugs its dialog mount in here, for sdk.dialog.open.
     const setDialog = fn => { dialogOpener = typeof fn === 'function' ? fn : null; };
     return { registry, settings, store, bus, events, sdk, turn, markReady: made.markReady, initial, packs: packPart, setDialog };

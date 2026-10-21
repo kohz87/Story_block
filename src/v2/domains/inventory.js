@@ -212,11 +212,21 @@ const freeId = (inv, base) => {
 // A new def through the `item.define(def, { note, owner })` hooks (each may mutate the def or
 // return fields to merge), then stored with its name as an alias. `keep` = fields the caller set
 // that the hooks may not change; the ID is never theirs to change, and equipment never stacks.
+// A hook that throws leaves the def as it was before that hook and goes to the Problems list: one
+// module's bug never stops the item being gained.
 function addDef(inv, def, env, about, keep = {}) {
     const id = def.id;
-    for (const hook of env.hooks('item.define')) {
-        const out = hook(def, { note: about.note ?? '', owner: about.owner ?? 'party' });
-        if (isPlainObject(out) && out !== def) Object.assign(def, out);
+    const hooks = env.hookEntries?.('item.define') ?? env.hooks('item.define').map(fn => ({ moduleId: null, fn }));
+    for (const { moduleId, fn } of hooks) {
+        const before = clone(def);
+        try {
+            const out = fn(def, { note: about.note ?? '', owner: about.owner ?? 'party' });
+            if (isPlainObject(out) && out !== def) Object.assign(def, out);
+        } catch (error) {
+            for (const key of Object.keys(def)) delete def[key];
+            Object.assign(def, before);
+            env.problem?.({ module: moduleId, code: 'FAILED', message: `item.define failed on "${def.name}": ${error?.message ?? error}. The item keeps the rules it had before.` });
+        }
     }
     Object.assign(def, keep, { id });
     if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
