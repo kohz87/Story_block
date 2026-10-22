@@ -510,7 +510,12 @@ named in `with:` are present.
 }
 ```
 Commands: `inventory.grant`, `inventory.consume`, `inventory.transfer`, `inventory.drop`, `inventory.equip`,
-`inventory.unequip`, `inventory.split`, `inventory.merge`, `wallet.pay`, `wallet.receive`. Capture kind
+`inventory.unequip`, `inventory.split`, `inventory.merge`, `wallet.pay`, `wallet.receive`. Query
+`inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }` (MODULES §F104): the money scale
+that every built-in default money number is multiplied by (rounded, at least 1). The reader's `economyScale`
+setting wins (0 or blank: the pack's), then the first enabled pack's `economy.scale`, then 1. Numbers a pack
+writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, falling back to a scale of 1.
+Capture kind
 `item` (`+ / - / ~ item`) and `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
 written with one is refused).
 * **The caller rule.** What makes items or money out of nothing (`inventory.grant`, `wallet.receive`) and
@@ -522,7 +527,7 @@ written with one is refused).
 * **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,
   `- item mark`), is money: it goes to or from the party's wallet like `+ coin` / `- coin`.
 * **Story limits.** One reply's story lines pay at most `storyCoinPerReply` (setting; 0 = the top reward of
-  the player character's rank from `quest.ranks`, else 1000 × level), give at most 20 of one item, give goods
+  the player character's rank from `quest.ranks`, else 1000 × level × the money scale, rounded, at least 1), give at most 20 of one item, give goods
   worth at most 2 × that coin budget in all (Σ def `value` × count given), and bring in at most 10 new item
   definitions. Past a limit a line is clamped with a `LIMITED` Problem; once it is spent, a line is `REFUSED`
   (a refused line makes no definition). **One notable item per reply:** the first `+ item` line whose one item

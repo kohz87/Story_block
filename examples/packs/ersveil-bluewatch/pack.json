@@ -1,6 +1,6 @@
 {
   "id": "ersveil-bluewatch",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "name": "Ersveil: Bluewatch Starter",
   "author": "Story Suite examples",
   "description": "Test-play pack for Story Suite v2 in the Ersveil world: Wessel arrives at Bluewatch Village, the northernmost village, with three F-letter jobs on the Guild board. Money is one coin, the mark. Lore stays in the Ersveil lorebooks.",
@@ -15,6 +15,7 @@
     "name": "mark",
     "short": "mk"
   },
+  "economy": {"scale": 8, "note": "marks are small coin: about 8 marks to one coin of the built-in defaults"},
   "calendar": {
     "era": "CY",
     "months": [
@@ -39,11 +40,11 @@
       {"name": "Patched Oilcloth Coat", "kind": "equipment", "value": 60, "slot": "armour", "stats": {"DEF": 1}, "aliases": ["oilcloth coat"], "note": "River-worn and patched."},
       {"name": "Knife", "kind": "goods", "value": 40, "tags": ["tool"], "aliases": ["work knife"]},
       {"name": "Whetstone", "kind": "goods", "value": 8, "tags": ["tool"]},
-      {"name": "Minor Healing Draught", "kind": "consumable", "value": 2000, "effect": {"heal": 20}, "aliases": ["healing draught", "minor healing potion"], "note": "Closes wounds, leaves weakness and a scar."},
-      {"name": "Healing Salve", "kind": "consumable", "value": 200, "effect": {"heal": 10}, "aliases": ["salve"]},
+      {"name": "Minor Healing Draught", "kind": "consumable", "value": 30, "effect": {"heal": 20}, "aliases": ["healing draught", "minor healing potion"], "note": "Closes wounds, leaves weakness and a scar."},
+      {"name": "Healing Salve", "kind": "consumable", "value": 12, "effect": {"heal": 10}, "aliases": ["salve"]},
       {"name": "Bandage", "kind": "consumable", "value": 4, "effect": {"cure": ["bleed"]}, "aliases": ["bandages"]},
-      {"name": "Common Antidote", "kind": "consumable", "value": 1200, "effect": {"cure": ["poison"]}, "aliases": ["antidote"]},
-      {"name": "Mana Draught", "kind": "consumable", "value": 3000, "rarity": "uncommon", "effect": {"mp": 20}, "aliases": ["mana potion"]},
+      {"name": "Common Antidote", "kind": "consumable", "value": 24, "effect": {"cure": ["poison"]}, "aliases": ["antidote"]},
+      {"name": "Mana Draught", "kind": "consumable", "value": 50, "rarity": "uncommon", "effect": {"mp": 20}, "aliases": ["mana potion"]},
       {"name": "Leech-salt Pouch", "kind": "consumable", "value": 6, "effect": {"damage": 6}, "tags": ["salt"], "note": "Coarse salt in burlap, thrown or packed: leeches let go and shrivel."},
       {"name": "Coarse Bread", "kind": "goods", "value": 2, "tags": ["food"]},
       {"name": "Hot Meal", "kind": "goods", "value": 8, "tags": ["food"]},
@@ -72,7 +73,10 @@
       {"name": "Rat Tail", "kind": "material", "value": 1, "aliases": ["rat tails"]},
       {"name": "Live Leech", "kind": "material", "value": 3, "aliases": ["leech"], "note": "Alchemists and barber-surgeons buy them."},
       {"name": "Small Monster Core", "kind": "material", "value": 50, "rarity": "uncommon", "aliases": ["monster core"], "note": "Intact core of a Soul Class I creature."},
-      {"name": "River Drake Scale", "kind": "material", "value": 300, "rarity": "uncommon"}
+      {"name": "River Drake Scale", "kind": "material", "value": 300, "rarity": "uncommon"},
+      {"name": "Bluecap Moss", "kind": "material", "value": 4, "aliases": ["moss"], "tags": ["herb"], "note": "Pale moss off the culvert stones; alchemists steep it for salves and draughts."},
+      {"name": "Cleansing Spirits", "kind": "material", "value": 8, "aliases": ["spirits"], "tags": ["alchemy"], "note": "A stoppered flask of strong clear spirit for wounds and glassware."},
+      {"name": "Iron Filings", "kind": "material", "value": 2, "tags": ["iron", "salt"], "note": "A twist of forge filings: the iron in salt-and-iron mixes."}
     ],
     "creatures": [
       {"name": "Starved Crag Wolf", "aliases": ["Crag Wolf", "Starved Wolf"], "template": "beast", "level": 3, "role": "skirmisher", "talks": false, "coins": false, "temperament": "wild", "traits": ["swift", "frail"], "moves": [{"name": "Bite", "type": "physical", "stat": "STR", "target": "one", "effect": ["bleed"], "cooldown": 2, "description": "Teeth that tear."}, {"name": "Pounce", "type": "physical", "stat": "AGI", "target": "one", "effect": ["stun"], "cooldown": 3, "description": "A leap off the rocks."}, {"name": "Howl", "type": "debuff", "stat": "CHA", "target": "all", "effect": ["weaken"], "cooldown": 4, "description": "A howl from the bluff."}], "loot": [{"name": "Crag Wolf Pelt", "chance": 60, "qty": [1, 1], "kind": "material"}, {"name": "Crag Wolf Fang", "chance": 40, "qty": [1, 2], "kind": "material"}, {"name": "Small Monster Core", "chance": 5, "qty": [1, 1], "kind": "material"}], "look": "Gaunt grey wolf of the bluffs, ribs showing through a patchy coat; hunger has made it bold.", "eg": "EG3 as a pack", "soulClass": "I"},
@@ -84,14 +88,18 @@
     ],
     "shops": [
       {"name": "Watch Stores", "kind": "general goods", "place": "Bluewatch Village", "spot": "Watch Granary", "keeper": "the storehouse quartermaster", "note": "Garrison exchange: frontier river provisions, cold-weather gear, Auvoth convoy supplies.", "stock": [{"item": "Trail Rations", "qty": 20}, {"item": "Coarse Bread", "qty": 20}, {"item": "Torch", "qty": 20}, {"item": "Lamp Oil", "qty": 10}, {"item": "Flint and Steel", "qty": 4}, {"item": "Hemp Rope", "qty": 4}, {"item": "Waterskin", "qty": 4}, {"item": "Bedroll", "qty": 3}, {"item": "Wool Blanket", "qty": 3}, {"item": "Backpack", "qty": 2, "price": 150}, {"item": "Burlap Sack", "qty": 30}, {"item": "Fur-lined Cloak", "qty": 2}]},
-      {"name": "Salt-and-Ash Dispensary", "kind": "apothecary", "place": "Bluewatch Village", "spot": "Salt-and-Ash Yard", "keeper": "the lay sealer", "note": "Salts and remedies from the salt-and-ash yard; imported potions cost half again as much this far north.", "stock": [{"item": "Bandage", "qty": 20}, {"item": "Healing Salve", "qty": 4, "price": 300}, {"item": "Minor Healing Draught", "qty": 2, "price": 3000}, {"item": "Common Antidote", "qty": 1, "price": 1800}, {"item": "Coarse Salt", "qty": 40}, {"item": "Completion Salts", "qty": 10}]},
-      {"name": "Gate Forge", "kind": "smith", "place": "Bluewatch Village", "spot": "Gate Forge", "keeper": "the Watch smith", "note": "Repairs and plain iron; no fine blades.", "stock": [{"item": "Knife", "qty": 3}, {"item": "Whetstone", "qty": 5}, {"item": "Spear", "qty": 2}, {"item": "Hatchet", "qty": 2}, {"item": "Iron-bound Buckler", "qty": 1}, {"item": "Iron Cap", "qty": 1}, {"item": "Gambeson", "qty": 1}]},
+      {"name": "Salt-and-Ash Dispensary", "kind": "apothecary", "place": "Bluewatch Village", "spot": "Salt-and-Ash Yard", "keeper": "the lay sealer", "note": "Salts and remedies from the salt-and-ash yard; imported potions cost half again as much this far north.", "stock": [{"item": "Bandage", "qty": 20}, {"item": "Healing Salve", "qty": 4, "price": 18}, {"item": "Minor Healing Draught", "qty": 2, "price": 45}, {"item": "Common Antidote", "qty": 1, "price": 36}, {"item": "Coarse Salt", "qty": 40}, {"item": "Completion Salts", "qty": 10}, {"item": "Bluecap Moss", "qty": 10}, {"item": "Cleansing Spirits", "qty": 6}]},
+      {"name": "Gate Forge", "kind": "smith", "place": "Bluewatch Village", "spot": "Gate Forge", "keeper": "the Watch smith", "note": "Repairs and plain iron; no fine blades.", "stock": [{"item": "Knife", "qty": 3}, {"item": "Whetstone", "qty": 5}, {"item": "Spear", "qty": 2}, {"item": "Hatchet", "qty": 2}, {"item": "Iron-bound Buckler", "qty": 1}, {"item": "Iron Cap", "qty": 1}, {"item": "Gambeson", "qty": 1}, {"item": "Iron Filings", "qty": 10}]},
       {"name": "Stray Oar", "kind": "inn", "place": "Bluewatch Village", "spot": "Stray Oar", "keeper": "the innkeeper", "note": "Common bunk 8-16 marks a night.", "stock": [{"item": "Hot Meal", "qty": 20}, {"item": "Common Ale", "qty": 30}, {"item": "Coarse Bread", "qty": 10}, {"item": "Trail Rations", "qty": 10}]}
     ],
     "recipes": [
-      {"name": "Leech-salt Pouch", "makes": "Leech-salt Pouch", "qty": 2, "materials": [{"item": "Coarse Salt", "qty": 2}, {"item": "Burlap Sack", "qty": 1}], "fee": 0, "minutes": 10, "crafter": "anyone"},
-      {"name": "Pitch Torches", "slug": "pitch-torches", "makes": "Torch", "qty": 2, "materials": [{"item": "Lamp Oil", "qty": 1}, {"item": "Burlap Sack", "qty": 1}], "fee": 0, "minutes": 15, "crafter": "anyone"},
-      {"name": "Wolf-pelt Mantle", "makes": "Wolf-pelt Mantle", "materials": [{"item": "Crag Wolf Pelt", "qty": 3}], "fee": 60, "minutes": 480, "crafter": "Gate Forge"}
+      {"name": "Leech-salt Pouch", "makes": "Leech-salt Pouch", "qty": 2, "materials": [{"item": "Coarse Salt", "qty": 2}, {"item": "Burlap Sack", "qty": 1}], "fee": 0, "minutes": 10, "crafter": "anyone", "craft": "fieldcraft", "dc": 6, "known": true},
+      {"name": "Pitch Torches", "slug": "pitch-torches", "makes": "Torch", "qty": 2, "materials": [{"item": "Lamp Oil", "qty": 1}, {"item": "Burlap Sack", "qty": 1}], "fee": 0, "minutes": 15, "crafter": "anyone", "craft": "fieldcraft", "dc": 5, "known": true},
+      {"name": "Camp Stew", "makes": "Hot Meal", "qty": 2, "materials": [{"item": "Trail Rations", "qty": 1}, {"item": "Coarse Bread", "qty": 1}], "minutes": 30, "craft": "cooking", "dc": 5, "station": "campfire", "known": true},
+      {"name": "Healing Salve", "makes": "Healing Salve", "materials": [{"item": "Bluecap Moss", "qty": 2}, {"item": "Lamp Oil", "qty": 1}], "minutes": 60, "craft": "alchemy", "dc": 10, "station": "alchemy-table", "known": true},
+      {"name": "Minor Healing Draught", "makes": "Minor Healing Draught", "materials": [{"item": "Bluecap Moss", "qty": 3}, {"item": "Cleansing Spirits", "qty": 1}], "minutes": 120, "craft": "alchemy", "dc": 16, "station": "alchemy-table", "teaches": "the lay sealer at the Salt-and-Ash Yard"},
+      {"name": "Completion Salts", "makes": "Completion Salts", "materials": [{"item": "Coarse Salt", "qty": 3}, {"item": "Iron Filings", "qty": 1}], "minutes": 60, "craft": "alchemy", "dc": 18, "station": "alchemy-table", "teaches": "the lay sealer at the Salt-and-Ash Yard, as licensed work"},
+      {"name": "Wolf-pelt Mantle", "makes": "Wolf-pelt Mantle", "materials": [{"item": "Crag Wolf Pelt", "qty": 3}], "fee": 60, "minutes": 480, "crafter": "Gate Forge", "craft": "leather", "dc": 14, "station": "workbench", "teaches": "the Watch smith at the Gate Forge"}
     ],
     "events": [
       {"id": "guild-board", "when": "query('scene.place').name == 'Bluewatch Village' && time() != null && time() >= 316931520", "cue": "The Guild office beside the Watchhouse opens its shutters. Fenna, the branch clerk, pins three F-letter notices to the board: Granary Rats (6 cellar rats, 50 marks), East Bluff Wolves (4 starved crag wolves, 200 marks) and Culvert Leeches (8 sluice leeches off the north culvert grate by Goldwane 14 dusk, 120 marks)."},
@@ -262,6 +270,27 @@
       {"id": "B", "title": "Elite", "levels": [31, 45], "reward": [60000, 360000]},
       {"id": "A", "title": "Paragon", "levels": [41, 50], "reward": [360000, 2000000]},
       {"id": "S", "title": "Legend", "levels": [46, 60], "reward": [2000000, 10000000]}
+    ],
+    "crafts": [
+      {"id": "alchemy", "title": "Alchemy", "stats": ["INT", "DEX"], "stations": ["alchemy-table"], "note": "A craft, not spellcasting: clean reagents, glassware, heat and time. A slip poisons or burns the alchemist."},
+      {"id": "fieldcraft", "title": "Fieldcraft", "stats": ["DEX"], "stations": [], "note": "Frontier makeshift work, done anywhere: salt pouches, pitch torches, snares."}
+    ],
+    "meterPresets": [
+      {"id": "frontier-regard", "title": "Frontier Regard", "meters": [
+        {"id": "regard", "name": "Regard", "min": -100, "max": 100, "start": -20, "describe": "How far a frontier local trusts an outsider. Strangers start below even.", "bands": [{"at": -100, "word": "hostile"}, {"at": -50, "word": "wary"}, {"at": -10, "word": "guarded"}, {"at": 20, "word": "civil"}, {"at": 50, "word": "trusting"}, {"at": 80, "word": "sworn"}]},
+        {"id": "owed", "name": "Owed", "min": 0, "max": 100, "start": 0, "describe": "Favours this person owes you. Nothing on the frontier is free, and debts are remembered for a while.", "bands": [{"at": 0, "word": "even"}, {"at": 20, "word": "owes a little"}, {"at": 50, "word": "in your debt"}], "drift": {"toward": 0, "perDay": 1}}
+      ], "stages": [
+        {"id": "marked", "name": "Marked as trouble", "needs": [{"meter": "regard", "at": -60}], "milestone": "They name you to the Watch as trouble."},
+        {"id": "known-face", "name": "Known face", "needs": [{"meter": "regard", "at": 20}]},
+        {"id": "vouched", "name": "Vouched for", "needs": [{"meter": "regard", "at": 50}, {"meter": "owed", "at": 20}], "milestone": "They will speak for you at the Watchhouse or the Guild desk."}
+      ]},
+      {"id": "road-companion", "title": "Road Companion", "meters": [
+        {"id": "loyalty", "name": "Loyalty", "min": -100, "max": 100, "start": 0, "describe": "Whether they stay when staying costs them.", "bands": [{"at": -100, "word": "ready to leave"}, {"at": -30, "word": "doubtful"}, {"at": 10, "word": "with you"}, {"at": 60, "word": "loyal"}]},
+        {"id": "nerve", "name": "Nerve", "min": 0, "max": 100, "start": 50, "describe": "How steady they are after blood and bad nights. Rest brings it back.", "bands": [{"at": 0, "word": "breaking"}, {"at": 25, "word": "shaken"}, {"at": 50, "word": "steady"}, {"at": 80, "word": "hardened"}], "drift": {"toward": 50, "perDay": 5}}
+      ], "stages": [
+        {"id": "wavering", "name": "Wavering", "needs": [{"meter": "loyalty", "at": -30}], "milestone": "They start counting what staying costs them."},
+        {"id": "shield-mate", "name": "Shield-mate", "needs": [{"meter": "loyalty", "at": 60}, {"meter": "nerve", "at": 40}], "milestone": "They would hold the line beside you."}
+      ]}
     ]
   },
   "start": {

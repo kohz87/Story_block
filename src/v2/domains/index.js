@@ -55,14 +55,19 @@ export const CORE_FEATURES = Object.freeze([
 // never a second one.
 export const CORE_SETTINGS = Object.freeze({
     section: 'Story Block',
-    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', storyCoinPerReply: 0 }),
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0' }),
     schema: Object.freeze({
         currency: Object.freeze({ type: 'text', label: 'Currency (one coin: mark, crown, gold)', max: 24 }),
         currencyPlural: Object.freeze({ type: 'text', label: 'Currency, plural (blank: the name with an s)', max: 24 }),
         currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
         storyCoinPerReply: Object.freeze({
             type: 'int', min: 0, max: 1000000000, label: 'Money one reply may give',
-            help: 'The most + coin lines of one reply may pay, in whole coins. 0: the top quest reward for the player character\'s rank (or 1000 per level).',
+            help: 'The most + coin lines of one reply may pay, in whole coins. 0: the top quest reward for the player character\'s rank (or 1000 per level, times the money scale).',
+        }),
+        // A number from 0.001 to 1000, kept as text so it can hold a fraction (MODULES §F104).
+        economyScale: Object.freeze({
+            type: 'text', max: 12, label: 'Money scale (0: the pack\'s)',
+            help: 'How many of your coins one coin of the built-in defaults is worth, from 0.001 to 1000: 0.01 for a copper-coin world, 1 for gold. 0 or blank: the enabled pack\'s scale, else 1. Numbers a pack writes are never scaled.',
         }),
     }),
 });
@@ -72,7 +77,7 @@ export const CORE_SETTINGS = Object.freeze({
  * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
  * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
@@ -87,6 +92,8 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         hooks: hookList,
         hookEntries: entries,
         settings: () => settings() ?? {},
+        // The enabled pack's money scale ({ scale } or null) for inventory.economy.
+        economy,
         problem: entry => { try { problem?.(entry); } catch { /* the Problems list is not essential */ } },
     };
     const currency = () => currencyOf(env.settings());
@@ -190,7 +197,7 @@ export function mergeParts(parts) {
  * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
 export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null } = {}) {
-    const core = createCorePart({ hooks, settings, hookEntries, problem });
+    const core = createCorePart({ hooks, settings, hookEntries, problem, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null) });
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),

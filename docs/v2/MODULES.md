@@ -204,6 +204,7 @@ These settle questions agents raised; the host changes they need are made at int
    by default the name with an s, and gold stays gold; a pack may suggest all three). `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }`. Prices, rewards
    and loot are whole numbers of that currency (v1's copper-based numbers are kept as they are). The change
    line is `+ coin 30 | from: the sealer`; any coin words the model adds are ignored, only the number counts.
+   The currency is only a name: the money **scale** comes from the pack (F104, query `inventory.economy`).
 2. **`ctx.rev`** is the `meta.rev` this receipt will have. Use it for `taken.rev`, `ended.rev`, etc.
 3. **Queries can use queries:** a query is called `(state, args, tools)` with `tools.query(name, args)`
    over the same state.
@@ -447,3 +448,15 @@ These settle questions agents raised; the host changes they need are made at int
       budget; names flattened before budgets (SPEC §4.3, §4.4).
     * Screens: control names prefixed like ids; templates nest at most 64 deep and @-rules 8 deep; text
       settings keep their `max`.
+104. **A pack sets the money scale** (the currency is only a name; lorebooks carry flavour for the model,
+    never numbers). The pack's own numbers (ranks' `reward`, item `value`, shop `price`) are used exactly as
+    written. Built-in defaults that come from no pack are gold-scale, so a pack may say `economy: { scale,
+    note? }` (0.001–1000, default 1; PACKS.md). Story Block's query `inventory.economy` → `{ scale, source:
+    'pack' | 'settings' | 'default' }`: the reader's `economyScale` setting (0 or blank: use the pack's), else
+    the first enabled pack's, else 1. Every built-in default money number is multiplied by `scale`, rounded,
+    at least 1: Story Block's 1000 × level story coin budget, Story Director's default ranks, RPG Battle's
+    default loot, coin and prices. Modules read it with `tryQuery('inventory.economy')` and a fallback of
+    `{ scale: 1 }`. Ersveil sets scale 8: its F rank tops at 400 marks against the built-in F top of 50, so
+    the built-in defaults land in marks about right; its own ranks, values and prices stay as written.
+    Crafting data in packs (F102): recipes' `craft`, `dc`, `station`, `stat`, `known`, `teaches`, the `crafts`
+    kind and query `packs.crafts`; NPC meter presets: the `meterPresets` kind (PACKS.md).
