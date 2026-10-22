@@ -5,8 +5,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../ui-fake-dom.js';
-import { createHost, createFakeModel } from '../../testkit/index.js';
-import { MODEL_CALL_TIMEOUT_MS, createModelCalls, listProfiles, safeReason, stModelCall } from '../../src/v2/model-call.js';
+import { EVENT_TYPES, createHost, createFakeContext, createFakeModel } from '../../testkit/index.js';
+import { MODEL_CALL_TIMEOUT_MS, createModelCalls, createOwnCalls, listProfiles, promptKey, safeReason, stModelCall } from '../../src/v2/model-call.js';
+import { createRuntime } from '../../src/v2/runtime.js';
 import { PROFILE_TEXT, profileChoices } from '../../src/v2/profile-field.js';
 import { createRegistry, definitionProblems } from '../../src/v2/registry.js';
 import { createSettings, settingValue } from '../../src/v2/sdk.js';
@@ -362,4 +363,138 @@ test('testkit: createFakeModel scripts answers, errors, computed answers, delays
     const host = await createHost({ callModel: createFakeModel(['solo']), modules: [planner()] });
     assert.equal((await host.sdk.callModel({ feature: 'planner.arc', prompt: 'p' })).text, 'solo');
     host.close();
+});
+
+// ---- the chat's connection and the reader's reply (own calls marked; sdk calls wait for the reply) ----
+
+// A runtime on the fake SillyTavern, wired as the testkit's host is, whose model call on the chat's connection
+// behaves as generateRaw does: SillyTavern's prompt-ready event for its own short chat, then the answer.
+async function rawHost({ modules = [], hold = null } = {}) {
+    const st = createFakeContext({});
+    const ctx = st.ctx;
+    const seen = { calls: [], interceptor: 0 };
+    const callModel = async (prompt, { profile = '', system = '' } = {}) => {
+        seen.calls.push({ prompt, profile, at: rt?.turn.replyBusy() });
+        if (!profile) {
+            const chat = [{ role: 'system', content: system }, { role: 'user', content: prompt }];
+            await ctx.eventSource.emit(EVENT_TYPES.CHAT_COMPLETION_PROMPT_READY, { chat, dryRun: false });
+            seen.lastChat = chat;
+        }
+        return `answer to ${prompt}`;
+    };
+    const rt = createRuntime({ ctx, modules, callModel, notify: () => {} });
+    rt.turn.install({ globalName: null });
+    st.interceptor = async (...args) => {
+        seen.interceptor += 1;
+        await rt.turn.interceptor(...args);
+        if (hold) await hold(rt);
+    };
+    await rt.turn.onChatChanged();
+    rt.markReady();
+    return { st, ctx, rt, seen };
+}
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('own calls: a chat-connection call\'s prompt during a reply\'s build is never taken for the reply\'s', async () => {
+    let own = null;
+    const { st, rt, seen } = await rawHost({
+        modules: [planner()],
+        // Between the reply's interceptor and its prompt: our own raw call's prompt-ready comes first.
+        hold: async runtime => {
+            assert.equal(runtime.turn.session().prompted, false);
+            own = await runtime.ownCalls.around('Plan the next arc for the story.', () => ownRawCall());
+            assert.equal(runtime.turn.session().prompted, false, 'the reply\'s session did not take our prompt');
+        },
+    });
+    async function ownRawCall() {
+        const chat = [{ role: 'system', content: 'You plan.' }, { role: 'user', content: 'Plan the next arc for the story.' }];
+        await st.ctx.eventSource.emit(EVENT_TYPES.CHAT_COMPLETION_PROMPT_READY, { chat, dryRun: false });
+        seen.ownChat = chat;
+        return 'arc';
+    }
+    const result = await st.send('Hello.', 'Hi there.');
+    assert.equal(own, 'arc');
+    assert.equal(seen.interceptor, 1, 'only the reply ran the interceptor');
+    assert.equal(seen.ownChat.length, 2, 'nothing of Story Suite\'s added to our call\'s chat');
+    assert.ok(!JSON.stringify(seen.ownChat).includes('Changes'), 'no notes in our prompt');
+    assert.equal(result.index, 2, 'the reply came');
+    assert.equal(rt.turn.session(), null, 'and was received as the reply');
+    assert.equal(rt.turn.replyBusy(), false);
+
+    // The matching itself: by the prompt's macro-free key, once; never a long chat; a short prompt by position.
+    const calls = createOwnCalls();
+    assert.equal(promptKey('{{char}} meets {{user}}\nPlan the next arc, three beats.'), 'Plan the next arc, three beats.');
+    assert.equal(promptKey('Hi {{user}}'), '');
+    await calls.around('Plan the next arc for {{user}}.', async () => {
+        assert.equal(calls.owns({ chat: Array.from({ length: 6 }, () => ({ role: 'user', content: 'Plan the next arc for Ann.' })) }), false, 'a long chat is the reply\'s');
+        assert.equal(calls.owns({ chat: [{ role: 'user', content: 'Plan the next arc for Ann.' }] }), true);
+        assert.equal(calls.owns({ chat: [{ role: 'user', content: 'Plan the next arc for Ann.' }] }), false, 'matched once');
+    });
+    await calls.around('Go', async () => {
+        assert.equal(calls.owns({ prompt: 'Go' }), false, 'a short prompt never takes a text prompt');
+        assert.equal(calls.owns({ chat: [{ role: 'user', content: 'Go' }] }), true);
+    });
+    assert.equal(calls.owns({ chat: [{ role: 'user', content: 'anything' }] }), false, 'none in flight');
+    assert.equal(calls.size(), 0);
+});
+
+test('a chat-connection sdk.callModel waits while a reply is built or awaited, runs after it; a named profile goes at once', async () => {
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    const gated = {
+        id: 'gated', name: 'Gated',
+        features: [{ id: 'gated.plan', label: 'Plan' }],
+        hooks: { beforeGenerate: async () => { await held; } },
+    };
+    const { st, rt, seen } = await rawHost({ modules: [gated] });
+    const reply = st.send('Hello.', 'Hi there.');
+    while (!rt.turn.replyBusy()) await tick();
+    // The reply's build is held in its beforeGenerate hook: a call on the chat's connection waits.
+    const queued = rt.sdk.callModel({ feature: 'gated.plan', prompt: 'Plan the next arc for the story.' });
+    const named = await rt.sdk.callModel({ module: 'other', profile: 'Cheap', prompt: 'Describe a rat, briefly.' });
+    assert.deepEqual(named, { ok: true, text: 'answer to Describe a rat, briefly.', error: null }, 'a named profile is not queued');
+    await tick();
+    assert.deepEqual(seen.calls.map(call => call.prompt), ['Describe a rat, briefly.'], 'the chat-connection call has not run');
+    release();
+    const done = await reply;
+    assert.equal(done.index, 2);
+    const result = await queued;
+    assert.equal(result.text, 'answer to Plan the next arc for the story.');
+    assert.equal(seen.calls[1].at, false, 'it ran once the reply was received');
+    assert.equal(seen.interceptor, 1, 'it never hit the interceptor');
+    assert.equal(seen.lastChat.length, 2, 'and was not taken for the reply');
+    // While the reader is idle it goes at once; a queued call keeps its time limit and abort.
+    assert.equal((await rt.sdk.callModel({ feature: 'gated.plan', prompt: 'Once more, please.' })).ok, true);
+    let again;
+    const second = new Promise(resolve => { again = resolve; });
+    gated.hooks.beforeGenerate = async () => { await second; };
+    const reply2 = st.send('Again.', 'Fine.');
+    while (!rt.turn.replyBusy()) await tick();
+    const controller = new AbortController();
+    const waiting = rt.sdk.callModel({ feature: 'gated.plan', prompt: 'Plan the next arc for the story.', signal: controller.signal });
+    await tick();
+    controller.abort();
+    assert.equal((await waiting).error, 'ABORTED');
+    again();
+    await reply2;
+    assert.equal(seen.calls.length, 3, 'the cancelled call never ran');
+});
+
+test('the reply stops counting as in progress when it is received, ended, stopped, held back or the chat changes', async () => {
+    const { st, rt } = await rawHost({ modules: [planner()] });
+    let resolved = false;
+    rt.turn.whenIdle().then(() => { resolved = true; });
+    await tick();
+    assert.equal(resolved, true, 'idle at once');
+    await st.send('Hello.', 'Hi.');
+    assert.equal(rt.turn.replyBusy(), false);
+    await st.send('Stop it.', 'Hi', { stopped: true });
+    assert.equal(rt.turn.replyBusy(), false);
+    await st.generate('quiet', { reply: 'x' });
+    assert.equal(rt.turn.replyBusy(), false, 'a quiet generation is not the reply');
+    // Held back by a module: idle again.
+    const blocker = await rawHost({ modules: [{ id: 'gate', name: 'Gate', hooks: { canGenerate: () => ({ ok: false, reason: 'Make a character first.' }) } }] });
+    const out = await blocker.st.send('Go.', 'never');
+    assert.equal(out.aborted, true);
+    assert.equal(blocker.rt.turn.replyBusy(), false);
 });

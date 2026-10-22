@@ -573,6 +573,13 @@ const result = await sdk.callModel({
 - **Time limit**: 60 s unless the call's `timeoutMs` says otherwise (the runtime's `modelTimeoutMs` option
   sets the default). On a timeout or abort a profile's request is cut off; the chat's connection's cannot be
   (generateRaw takes no signal), so its late answer is dropped.
+- **The reader's reply comes first on the chat's connection.** While a reply is being built or awaited (its
+  generation interceptor ran; not yet received, ended, stopped or held back; at most 5 minutes), a call on
+  the chat's connection waits and then runs; its time limit and `signal` count while it waits. A named
+  profile's call does not touch SillyTavern's generation and goes at once. Every call on the chat's connection
+  (the assist helpers' too) is marked as Story Suite's own, and the turn's prompt handlers skip its prompt
+  (matched by the prompt's text outside macros, once, in a chat of at most three messages), so it is never
+  taken for the reply's prompt and never gets Story Suite's notes.
 - **Logged**: one console line per call with the module, the profile's name ('the chat's connection'), the
   time taken and the outcome code. Never the prompt, the answer, an error's words or anything of a profile
   (address, key, model).
