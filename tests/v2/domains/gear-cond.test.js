@@ -264,3 +264,23 @@ test('fuzz: middle deletes around wear and repair: no Problems, the condition is
         }
     }
 });
+
+test('a wear line answered by item.wear with its feature off is a quiet Problem, and Story Block wears nothing', async t => {
+    const { createHost } = await import('../../../testkit/index.js');
+    t.mock.method(console, 'warn', () => {});
+    const gear = {
+        id: 'zz-gear', name: 'Gear', version: '0.0.0',
+        features: [{ id: 'zz-gear.wear', label: 'Gear wear', default: true }],
+        commands: { 'item.wear': { handler: () => ({ summary: 'worn' }), feature: 'zz-gear.wear' } },
+    };
+    const host = await createHost({ modules: [gear], settings: { features: { 'zz-gear.wear': false } } });
+    t.after(() => host.close());
+    const say = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
+    await host.send('Hello.', 'The road.');
+    await host.send('Gear.', say('A coat.', ['+ item Wool Coat']));
+    await host.send('Brambles.', say('Thorns.', ['~ item Wool Coat — torn by brambles | wear: tear']));
+    const problems = host.turn.problems();
+    assert.deepEqual(problems.map(problem => [problem.code, problem.quiet]), [['FEATURE_OFF', true]]);
+    assert.equal(host.sdk.query('inventory.items')[0].cond, undefined);
+    assert.equal(host.head().domains.inventory.condLog, undefined);
+});

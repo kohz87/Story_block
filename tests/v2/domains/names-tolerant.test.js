@@ -30,6 +30,14 @@ test('the word-order key: stop and portion words out, each word singular, sorted
     assert.equal(looseKey('a bunch of Wild Berries'), 'berry wild');
     assert.equal(looseKey('Berries, wild'), 'berry wild');
     assert.equal(looseKey(''), '');
+    // Numbers and sizes keep their order: only plain words change places.
+    assert.equal(looseKey('Charm 1-2'), 'charm #1 2');
+    assert.notEqual(looseKey('Charm 1-2'), looseKey('Charm 2-1'));
+    assert.equal(looseKey('2-1 charm'), looseKey('Charm 2-1'));
+    assert.equal(looseKey('Large Iron Shield 3'), looseKey('Iron Shield, Large 3'));
+    const charms = inventory([['story/charm-1-2', 'Charm 1-2']]);
+    assert.equal(resolveDef(charms, 'Charm 2-1').status, 'none', 'never merged with Charm 1-2');
+    assert.equal(resolveDef(charms, 'a charm 1-2').id, 'story/charm-1-2');
 });
 
 test('plural handling is kept', () => {
