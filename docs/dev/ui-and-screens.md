@@ -379,6 +379,8 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted; on a phone it takes the next
   line, two at most), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
   folded by default, as before (the card mount's fold, unchanged).
+  SillyTavern's swipe row (the arrows and the 1/1 counter) is drawn at the bottom right of the last message only; the last message's
+  cards keep clear of it with a bottom margin (`.last_mes .ss-cards`), which was already overlapping before step 4a.
 - **The Choices strip** (`extras-ui.js`, `host.css`). The strip is a `details` element, **folded by default** (the beta test's
   request): its summary is a glass row with the signpost, "Choices", the count and a chevron that turns when open. Opened, the
   options are one per row, each a full-width glass button (`.story-suite-choice`); a click still only fills the message box, never
