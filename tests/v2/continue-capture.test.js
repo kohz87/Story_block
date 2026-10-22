@@ -100,7 +100,7 @@ test('continuation(): a cut-off line in the added block is still told', () => {
     const at = continuation(base, mes);
     assert.equal(extractBlock(mes, 'Changes', at, { stopped: true }), '+ coin 7');
     assert.equal(cutLine(mes, 'Changes', at, { stopped: true }), '+ coin 2');
-    // Not stopped (r2-2): SillyTavern trimmed the reply, so the last line is whole.
-    assert.equal(extractBlock(mes, 'Changes', at), '+ coin 7\n+ coin 2');
-    assert.equal(cutLine(mes, 'Changes', at), null);
+    // Not stopped (B-a1-14, replaces r2-2): the last line with nothing after it is still not applied.
+    assert.equal(extractBlock(mes, 'Changes', at), '+ coin 7');
+    assert.equal(cutLine(mes, 'Changes', at), '+ coin 2');
 });

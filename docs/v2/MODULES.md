@@ -541,7 +541,12 @@ These settle questions agents raised; the host changes they need are made at int
     (`+ coin 3 silver`) or the smallest unit (`+ coin 35`); it changes only when the coins do. Capture reads
     `+ coin`, `+ item <coin> | qty`, and loot money with a known coin name and converts it before the reply's
     budget and caps (rule 1); with coins, an unknown coin word or two numbers in one line is refused (as strict
-    as SB #118). Displays (`fmt.money`, receipts, the changes card, Inventory, Home) show mixed coins, "3
+    as SB #118). Money words read the same on every path (beta-candidate break): an item or loot named as
+    money (`+ item Silver Coins | qty: 3`, `+ item 3 silver coins`, `+ item Silvers`, `? loot 2 gold pieces`)
+    goes to the wallet in the smallest unit, as `+ coin 3 silver coins` does; and with coins the currency's
+    own name is not a coin unless no coin is worth 1 (`+ coin 2 gold` with copper and silver is refused, "not
+    a coin here: write copper, silver or a number of coppers", never paid as 2 copper; `+ item Gold` is then
+    an item). Displays (`fmt.money`, receipts, the changes card, Inventory, Home) show mixed coins, "3
     silver 5 copper", or the smallest unit with **Coin display: base** (`coinDisplay`). Ersveil 1.4.0 counts
     in the lore's copper, silver and gold (1 gold = 10 silver = 100 copper; the old marks were copper, so no
     number changed).
@@ -557,7 +562,8 @@ These settle questions agents raised; the host changes they need are made at int
     again from the reply's hidden block (its shown swipe) each time they are drawn, so the live reply, Re-read,
     swipes, deletes and a reload show the same. Lines past the cap and lines that do not read (no text, no
     name) are Problems on the card (the cap counts the whole reply: lines a Continue or the extractor adds
-    count after the ones it already shows); a line of a feature that is off is a quiet `FEATURE_OFF`. Choices show as
+    count after the ones it already shows); a line of a feature that is off is a quiet `FEATURE_OFF` and stays unshown
+    when the feature is turned on later, until a Re-read reads it again (SPEC §4.4, the comment's `off:`). Choices show as
     buttons under the **latest** reply only, until the reader answers; a click puts the text in SillyTavern's
     message box after what is typed there and **never sends** (no Shift-click send as in v1): it is not a
     story action (F95, F96). Chatter shows in a folded "Inner chatter (N)" strip under every reply; the name is

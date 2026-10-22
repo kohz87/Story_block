@@ -52,10 +52,11 @@ test('a mid-line close followed by story text is not dropped silently: a Problem
     assert.equal(extractBlock(mes), '+ item Rope');
     assert.equal(cutLine(mes), '+ item Torch </Changes> and then they left.');
     assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n'), null, 'a line with its line break is whole');
-    // r2-2: SillyTavern trims the reply, so an unclosed block's last change line is whole unless the
-    // reader stopped the reply, or it is no change line.
-    assert.equal(extractBlock('Story.\n<Changes>\n+ item Rope\n+ coin 2'), '+ item Rope\n+ coin 2');
-    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ coin 2'), null);
+    // B-a1-14 (beta-candidate break, replaces r2-2): an unclosed block's last line with nothing after it
+    // is never applied, stopped or not ("+ coin 2" may be "+ coin 25" cut by the length limit); a
+    // Continue finishes it.
+    assert.equal(extractBlock('Story.\n<Changes>\n+ item Rope\n+ coin 2'), '+ item Rope');
+    assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ coin 2'), '+ coin 2');
     assert.equal(extractBlock('Story.\n<Changes>\n+ item Rope\n+ coin 2', 'Changes', null, { stopped: true }), '+ item Rope');
     assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ coin 2', 'Changes', null, { stopped: true }), '+ coin 2');
     assert.equal(cutLine('Story.\n<Changes>\n+ item Rope\n+ ite'), '+ ite', 'no change line yet: cut off');

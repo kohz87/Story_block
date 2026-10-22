@@ -155,6 +155,10 @@ updated.
 - A settings field may be `readOnly` (true, or a function of the module's values): drawn disabled with its value and help.
 
 **More fixes**
+- Change lines in the story: dialogue, quotes, code blocks and prose that start like a change line stay story, near misses ("– coin 5", "+ coins 5") are told, a line written in the story and in the block counts once, and Re-read reads what the live reply read (after a stop, a Continue, a "--" in a line, a tag on a line). A `</Changes>` inside a line no longer shows the block's rest. A block's last line cut by the length limit is never applied; Continue finishes it (Story Block, beta-candidate break).
+- Choices told "not used" while Choices was off stay hidden when you turn it on (Re-read shows them).
+- Coins: "Silver Coins" as an item and "2 gold pieces" as loot are money; "+ coin 2 gold" in a world without gold is refused with the coins named.
+- Closing the page saves a non-English chat (the keepalive limit is counted in bytes); Diagnostics shares no chat text and removes more key shapes.
 - Radios and checkboxes in templates work in SillyTavern (its DOMPurify dropped their type; Story Block #120).
 - A middle delete never skips a later reply's rest (RPG Battle #100); a fight's actions stay with their fight, and conditions it left keep their rounds (#101); two flaky tests root-caused (#105).
 - Story time is kept as a count, with a most-per-reply jump; the digest can be turned off and on (Story Director #98); calendar months typed as text (#97); the Calendar settings show the pack's calendar (#101).
