@@ -294,21 +294,30 @@ is tried again (1, 2, 4, 8, 15 s). A save (or a rescue) the server does not answ
 refused (the request is given up), so it never holds later saves, the reader's command or the next reply.
 A request given up that way may still be written: its body can already be at the server, which writes it
 when it gets to it, after the retry that carried a newer change (both carry the same integrity token). So
-after a timeout the saver is *suspect* for that chat: each later save carries a rising number in
-`chat_metadata.storySuiteSave`, and once one is answered the file is read back (`/api/chats/get`) after 10,
-20, 40, 80 and 160 s (about five minutes, past which a server drops a request whose body has not arrived);
-a file holding a lower number (or none) is saved again at once. Without a timeout nothing is stamped or
-read, and the read-backs never hold a save, a command or the next reply (each is given up after 20 s too).
-A late write that lands after the chat was closed, or more than five minutes later, is not found.
+after a timeout of a save or a rescue, that chat is *suspect*, by its chat ID: each later write of it (a
+save or a rescue) carries a rising number in `chat_metadata.storySuiteSave`, the page keeps a copy of what
+it wrote, and once one is answered the file is read back (`/api/chats/get`) after 10, 20, 40, 80 and 160 s
+(about five minutes, past which a server drops a request whose body has not arrived), whether that chat is
+still open or not. A file holding a lower number (or none) is put right at once: the open chat is saved
+again when it holds that write or a newer one (its newest record, by `sid` and `rev`), otherwise the copy is
+written back into that chat's file (the reader is told to reload when that chat is open). A rename moves
+the read-backs with the chat; they are kept in the browser's storage too, so a reload of the page goes on
+with them (without the copy: if the file is then found older, the reader is told). Without a timeout
+nothing is stamped, kept or read, and the read-backs never hold a save, a command or the next reply (each
+is given up after 20 s too). A late write more than five minutes later is not found.
+
 A chat being opened is waited for however long it takes (every 200 ms for 10 s, then every 15 s); the
 change is never dropped for it. It verifies the head carrier's `extra.storySuite.rev` after each save (as
 v1's coordinated writes did), finding the record by its `sid` when a deleted swipe moved it. A save that
 was on its way while the chat was renamed does not count: the change is saved again into the renamed
 chat's file (the copy the late request made under the old name stays on the server). A rescue finds each
 message in the other chat's file by its record's `sid` (or its story text), skips one the file already
-holds as it is, and marks the file as used (`chat_metadata.tainted`), as a save of the open chat does. When the page is closed with something unsaved, the save is sent with
-keepalive, and the browser asks first while saves have been failing. Without such a file (the testkit, a
+holds as it is, and marks the file as used (`chat_metadata.tainted`), as a save of the open chat does. Without such a file (the testkit, a
 temporary chat) it is `ctx.saveChat()`.
+
+When the page is closed with something unsaved, the newest state goes out with keepalive at once, even
+while an earlier save is still on its way (it is not queued behind it), and the browser asks first while
+saves are failing or one is still on its way.
 
 Not covered: two tabs on one chat are still last writer wins (the file's head is not compared before a
 save).
