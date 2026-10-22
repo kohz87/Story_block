@@ -98,7 +98,8 @@ text: *No change lines came with this reply, so nothing in it changed the story.
 nothing happened. If something did (you picked up a rope, paid the ferryman), edit the reply, add the
 lines in a `<Changes>` block at its end, and press **Re-read** on the note. With the after-reply
 extractor on (Story Suite settings → **Features** → *Read changes from replies that forgot them*), the
-extractor reads such replies instead and the note doesn't show.
+extractor reads such replies instead and the note doesn't show, unless its call fails (an error or a
+time-out): then nobody read the reply and the note comes back.
 
 Lines the extensions couldn't use are listed faintly at the bottom of that reply's card, with the
 reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the inventory.*

@@ -142,8 +142,11 @@ test('a change block drafted inside closed reasoning is not read, so it is not a
     assert.equal(extractBlock('<reasoning>r</reasoning>\n<Changes>\n~ place Gate\n</Changes>'), '~ place Gate');
 });
 
-test('an unclosed reasoning tag keeps the block after it', () => {
-    assert.equal(extractBlock('<think>cut off\n<Changes>\n+ item Rope\n</Changes>'), '+ item Rope');
+// C2-3 (beta fuzz): an unclosed reasoning tag is reasoning to the end of the reply, so a block after
+// it is a draft and is not read (this test said the opposite before); a block before it is kept.
+test('an unclosed reasoning tag keeps the block before it, not one inside it', () => {
+    assert.equal(extractBlock('<think>cut off\n<Changes>\n+ item Rope\n</Changes>'), null);
+    assert.equal(extractBlock('Story.\n<Changes>\n+ item Rope\n</Changes>\n<think>cut off'), '+ item Rope');
     assert.equal(withoutReasoning('a<think>b</think>c'), 'ac');
 });
 

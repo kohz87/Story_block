@@ -143,6 +143,12 @@ updated.
 - A timed-out save that reaches the server more than about five minutes later, or after you opened another
   chat, is not found by the read-back.
 - Deleting a reply in the middle of a day that already has its digest leaves that digest as it was written.
+- Fixed after the beta fuzz and matrix cells (Story Block): draft lines inside an unclosed `<think>`, reasoning
+  erased by hiding a block, a mid-line `<Changes>` hiding the story, a spoofed hidden marker on Re-read,
+  Re-read and preview/commit while a feature is off, `onBlocked` while its feature is off, the whole-context
+  feature prompt flag, other minus signs and fractions in `+ coin`, and the missing note when the extractor
+  fails. Gear wear after a middle delete was already fixed (#110).
+- Renaming a chat while it saves can leave a copy under the old name (needs a SillyTavern server change).
 
 ### Module versions
 

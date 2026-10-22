@@ -263,7 +263,7 @@ commands: {
   For a capture the sentence goes to the Problems list (`LIMITED`); it is not kept in the receipt.
 * `ctx.call(type, payload, { as: 'event:<id>' })`: the events part's steps run with that `ctx.caller`.
 * Every committed receipt bumps `meta.rev`. A preview goes `STALE` if `meta.rev`, the head index or the head
-  state changed. ID rule (check.js): `<prefix>_<8 base36>` or a namespaced slug (`story/moonveil-trout`).
+  state changed, or a feature was turned on or off; its command's feature is checked again (`FEATURE_OFF`). ID rule (check.js): `<prefix>_<8 base36>` or a namespaced slug (`story/moonveil-trout`).
 * `bus.run(type, payload, { cause, seed, state, capture })` (used by capture) runs a handler without
   appending; `state` chains the lines of one reply; `capture` passes `registry.capture(kind)` as is.
 * Handlers are synchronous and pure apart from `ctx`: no network, no model calls, no DOM, no awaits.
@@ -385,7 +385,14 @@ One hidden block at the end of the reply:
   space is a label when the label is one word of letters (`09:00` stays text); a line over 2,000
   characters is a Problem. Nested `<Changes>` are counted. A close tag ends the block only at the start or
   the end of a line (one in the middle of a line belongs to that line, so nothing after it is dropped
-  unseen). In a block the reply left open, the last line has no line break after it (SillyTavern trims
+  unseen); an open tag opens one only there too, or with a change line after it on its line (`a <Changes>
+  word` in the story is a mention, and the story after it stays visible). Reasoning in the reply
+  (`<think>`, `<thinking>`, `<reasoning>`) is not read: a closed pair, and an open tag with no close after
+  it, which is reasoning to the end of the reply (it was cut off mid-thought), so nothing drafted inside
+  it applies; a block before it is kept. Hiding a block leaves reasoning that sat inside it in the story,
+  as written. A copy of the hidden comment's marker in the model's own text is defanged when the reply is
+  read (`STORY_SUITE_V2_`), so only the comment Story Block writes is the hidden one and Re-read of an
+  unchanged reply reads what was applied. In a block the reply left open, the last line has no line break after it (SillyTavern trims
   every reply); it is read as written, unless the reader stopped the reply (`GENERATION_STOPPED` before it
   was received: it was cut off mid-way), or it is no change line, or a tag sits in it; then it is a
   Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150),
@@ -524,6 +531,13 @@ sdk.registerModule({
     there. A dialog for an off screen does not open (`sdk.dialog.open` gives `null`, as for an id no one
     has), and one already open closes when its feature is turned off. Its settings fields and custom
     panel leave the overlay (their stored values are kept) and come back with it. **Its state is never touched**: turning the feature on again brings everything back as it was.
+    A Re-read while it is off runs again each line that made a change before (matched by its receipt's
+    `line`, as for seeds) as if its features were on, so the reply keeps what it made; a line that made
+    none is not used (`FEATURE_OFF`). A preview of its command cannot be committed once it is off
+    (`FEATURE_OFF`), and a preview from before any feature was turned on or off is `STALE`. Home's
+    blockers (`turn.blockers`, `turn.unblock`) and a held-back generation run only an `onBlocked` hook
+    whose feature is on. A feature that owns a whole `context` changes the static part (`prompt: true`)
+    when that context or any of its parts has a `static`.
   * `ctx.feature(id)`, `view.feature(id)` and `sdk.feature(id)` say whether a feature is on; an id no
     registered module declares is `false`. `sdk.features()` lists every feature with `on`;
     `sdk.modules()` lists each module's feature ids; `sdk.on('feature', ({ id, on, prompt }) => …)` fires
@@ -594,7 +608,8 @@ Commands: `inventory.grant`, `inventory.consume`, `inventory.transfer`, `invento
 `inventory.unequip`, `inventory.split`, `inventory.merge`, `inventory.equipOn`, `inventory.wear`,
 `inventory.repair`, `inventory.lootTake`, `wallet.pay`, `wallet.receive`. Capture kinds `item`
 (`+ / - / ~ item`), `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
-written with one is refused) and `loot` (`? loot A, B x2 — where`, feature `story-block.loot`). Queries
+written with one, any dash or minus sign, is refused, and so is one with other than plain digits: a
+fraction, a superscript, other scripts' digits or a decimal point in front) and `loot` (`? loot A, B x2 — where`, feature `story-block.loot`). Queries
 `inventory.currency`, `inventory.items`, `inventory.wallet`, `inventory.find`, `inventory.equipment`,
 `inventory.encumbrance`, `inventory.loot`, `inventory.condition`. Features (MODULES §F100): `story-block.loot` and `story-block.encumbrance`, both
 on by default; a host without the Features API keeps them on. Query `inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }` (MODULES §F104): the money scale
