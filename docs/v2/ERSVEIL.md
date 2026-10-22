@@ -6,9 +6,9 @@ Wessel, a runaway barge hand with a hidden cane-blade, comes ashore at Bluewatch
 northernmost village in the known world. The Adventurer Guild office there has three small jobs on
 its board.
 
-The pack holds only what code uses: items with their numbers, creatures, shops, recipes, the three
-jobs, a short chain of events, races, talents, Wessel's two skills, a ready-made character, the map
-around Bluewatch and the Compact Year calendar. The world's lore stays in your two Ersveil lorebooks;
+The pack holds only what code uses: items with their numbers, creatures, shops, recipes and crafts, the
+three jobs, a short chain of events, races, talents, Wessel's two skills, a ready-made character, the map
+around Bluewatch, the Guild ranks, two NPC meter presets and the Compact Year calendar. The world's lore stays in your two Ersveil lorebooks;
 nothing from them is copied into the pack.
 
 Setup used for this guide: SillyTavern 1.19; Gemini most of the time, also GLM, Kimi and Gemma.
@@ -39,8 +39,9 @@ the model writes is `<Changes>`, and Story Block's own instruction asks for it.
 ## 3. The pack
 
 1. Story Suite settings → **Packs** → **Import pack file** → `examples/packs/ersveil-bluewatch/pack.json`.
-   The list shows "38 items, 6 creatures, 4 shops, 3 recipes, 6 events, 3 quests, 7 races,
-   6 talents, 2 skills, 1 ready-made character, 54 places, 63 routes, start state".
+   The list shows "41 items, 6 creatures, 4 shops, 7 recipes, 6 events, 3 quests, 7 races,
+   6 talents, 2 skills, 1 ready-made character, 54 places, 63 routes, 1 term set, 7 ranks, 2 crafts,
+   2 meter presets, start state".
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`). The
    first enabled pack that has one sets the start place and suggests the currency.
 3. **Currency:** the pack suggests one coin, the **mark** (`mk`). Story Block uses it when you haven't
@@ -144,8 +145,35 @@ Sluice Leech. A fight with them counts toward the job whose target names them.
 | granary-cleared | rats job done | The quartermaster takes notice. |
 
 **Shops** at Bluewatch: **Watch Stores** (general goods), **Salt-and-Ash Dispensary** (apothecary; the
-lay sealer), **Gate Forge** (smith) and the **Stray Oar** (inn). **Recipes:** Leech-salt Pouch (2 coarse salt
-and a burlap sack make 2), Pitch Torches, Wolf-pelt Mantle (3 crag wolf pelts and 60 marks at the Gate Forge).
+lay sealer), **Gate Forge** (smith) and the **Stray Oar** (inn).
+
+**Crafting.** Seven recipes, with the crafting data RPG Battle's crafting reads (MODULES §F102). Four are
+basics every character knows from the start; the other three are taught.
+
+| Recipe | Craft | DC | Station | Makes from | Known / taught by |
+|---|---|---|---|---|---|
+| Leech-salt Pouch | fieldcraft | 6 | anywhere | 2 coarse salt, 1 burlap sack → 2 pouches | known |
+| Pitch Torches | fieldcraft | 5 | anywhere | 1 lamp oil, 1 burlap sack → 2 torches | known |
+| Camp Stew | cooking | 5 | campfire | 1 trail rations, 1 coarse bread → 2 hot meals | known |
+| Healing Salve | alchemy | 10 | alchemy-table | 2 bluecap moss, 1 lamp oil | known |
+| Minor Healing Draught | alchemy | 16 | alchemy-table | 3 bluecap moss, 1 cleansing spirits | the lay sealer at the Salt-and-Ash Yard |
+| Completion Salts | alchemy | 18 | alchemy-table | 3 coarse salt, 1 iron filings | the lay sealer, as licensed work |
+| Wolf-pelt Mantle | leather | 14 | workbench | 3 crag wolf pelts (60 marks at the Gate Forge) | the Watch smith at the Gate Forge |
+
+The pack's **crafts** change one default and add one: Ersveil **alchemy** rolls INT+DEX (the lore calls it
+a craft, not spellcasting, where a slip poisons or burns the alchemist), and **fieldcraft** (DEX, done
+anywhere) covers frontier makeshift work. The other crafts keep the defaults (smithing STR+DEX, leather
+DEX, cooking VIT, enchanting INT+LUK).
+
+**NPC meters.** Two meter presets for NPC State Delta:
+
+* **Frontier Regard**, for Bluewatch folk and other frontier locals: *Regard* (-100 to 100, strangers
+  start at -20: hostile, wary, guarded, civil, trusting, sworn) and *Owed* (0 to 100, favours they owe
+  you, fading by 1 a day). Stages: *Marked as trouble* (regard -60 or below), *Known face* (regard 20),
+  *Vouched for* (regard 50 and owed 20).
+* **Road Companion**, for someone who travels with Wessel: *Loyalty* (-100 to 100) and *Nerve* (0 to 100,
+  starting at 50 and coming back toward it by 5 a day). Stages: *Wavering* (loyalty -30 or below) and
+  *Shield-mate* (loyalty 60 and nerve 40).
 
 **Map.** 54 places (Bluewatch and its nine spots, Auvoth and its wards, the Auvoth Depths, Shornmarch,
 the Ledger and Grand Vein river towns, and the cities on the main corridors as far as Highmark
@@ -174,6 +202,33 @@ Scale: coarse bread 1-2 marks; hot meal 5-10; common bunk 8-16 a night; unskille
 Older price lists in this lorebook still name copper, silver and gold: read 1 copper as 1 mark, 1 silver as 10 marks and 1 gold as 100 marks, and write the result in marks.
 Coin is physical and heavy. Clipped or counterfeit coin is refused. Listed prices are Northern Belt town prices: frontier and remote places charge one and a half to three times for imported goods, Auvoth about double for food and lodging, and goods are cheapest where they are made. Haggling moves a price by a tenth to a quarter; Church, Guild and state fees are fixed. River Confederacy bank notes serve the wealthy; villages want metal.
 ```
+
+### The value scale
+
+The pack keeps the lore's prices for everyday goods, gear and loot, read in marks: coarse bread 2, a hot
+meal 8, rope 40, a spear 150, a gambeson 600, a wolf pelt 30, a Soul Class I core 50. The F-rank jobs pay
+50 to 400 marks (the pack's `ranks`), a few days of a guard's pay.
+
+**Potions are the exception.** The lore asks 1 to 60 gold for them (a minor healing potion 10-30 gold,
+1,000-3,000 marks), so one draught would cost five to forty F jobs. Shops, loot and Story Director's rewards
+would never line up with that. The pack prices the consumables a fight uses on the play scale instead: each
+one costs no more than the poorest F job, keeping the lore's order.
+
+| Item | Lore price | Pack value | Bluewatch price |
+|---|---|---|---|
+| Healing Salve | 1-3 gold | 12 marks | 18 |
+| Common Antidote | 6-20 gold | 24 marks | 36 |
+| Minor Healing Draught | 10-30 gold | 30 marks | 45 |
+| Mana Draught | 20-60 gold | 50 marks | — |
+
+The Granary Rats job (50 marks) buys one draught at the frontier price, and the wolf hunt (200 marks) four.
+If you want the lore's rare, costly healing in the story, leave the potion line of the World lorebook as it
+is: the narration keeps the price talk, and the code uses the play scale. PACKS.md's
+[value guide](PACKS.md#value-guide) gives the rules for pack makers.
+
+The pack sets no `economy`, so the money scale stays 1 (MODULES §F104): every number code uses here is
+written in the pack, and a scale would only multiply the built-in defaults of other modules. Change it in
+Story Block's settings (**Money scale**) if those defaults feel too rich or too poor in marks.
 
 About 35 other World lore entries still give prices in the old coins (the Prices and Wages entries,
 the Guild, mana stones and cores, slavery, the mercenary companies…). The third line of the
@@ -205,6 +260,14 @@ here; change them freely.
 * **Item numbers.** The Cane-Blade (ATK +4) and the coat (DEF +1) are from the kit. Their values
   (600 and 60 marks) are new, and so are the other gear stats, the Leech-salt Pouch (damage 6), and
   the healing amounts (minor draught 20, salve 10).
+* **Potion values** are on the play scale, not the lore's (see [§8](#the-value-scale)): salve 12, antidote
+  24, minor healing draught 30, mana draught 50 marks.
+* **Crafting.** Bluecap Moss (a pale moss off the culvert stones, 4 marks) and Iron Filings (2 marks) are
+  new; Cleansing Spirits are the lore's (5-15 copper, 8 marks). The four new recipes (Camp Stew, Healing
+  Salve, Minor Healing Draught, Completion Salts), every recipe's craft, DC, station and teacher, the
+  fieldcraft craft and Ersveil alchemy's INT+DEX are the pack's.
+* **Meter presets.** Frontier Regard and Road Companion, their meters, words and stages are new; they
+  follow the lore's tone (strangers are suspected, nothing is free, nerve wears down).
 * **Creatures.** Starved Crag Wolf, Crag Wolf Matriarch, Cellar Rat Swarm and Sluice Leech are local
   variants of the lore's wolves, plague rats and giant leeches (Soul Class I). The River Drake is from
   the lore (Soul Class II), and the Salt-crew Tough stands for Brecht's smugglers from the first

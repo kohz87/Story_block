@@ -580,6 +580,34 @@ export const STORY_WORTH_TIMES = 2;
 export const STORY_NEW_DEFS = 10;
 export const STORY_NOTABLE_TIMES = 5;
 
+// The money scale (MODULES §F104): how many of the chat's coins one coin of the built-in defaults is worth.
+// Defaults are gold-scale; a pack whose currency is copper-like says `economy: { scale }`. The scale only
+// multiplies built-in default numbers, never what a pack or the reader wrote.
+export const ECONOMY_SCALE = Object.freeze({ min: 0.001, max: 1000 });
+
+const scaleIn = value => {
+    const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value.trim()) : NaN;
+    return Number.isFinite(n) && n >= ECONOMY_SCALE.min && n <= ECONOMY_SCALE.max ? n : null;
+};
+
+/**
+ * `{ scale, source }`: the reader's `economyScale` setting when it is a number from 0.001 to 1000
+ * (`source: 'settings'`; 0 or blank: use the pack's), else the enabled pack's `economy.scale`
+ * (`'pack'`), else 1 (`'default'`). `packEconomy` is packs.economy's answer ({ scale } or null).
+ */
+export function economyOf(settings, packEconomy = null) {
+    const set = scaleIn(settings?.economyScale);
+    if (set !== null) return { scale: set, source: 'settings' };
+    const pack = scaleIn(packEconomy?.scale);
+    if (pack !== null) return { scale: pack, source: 'pack' };
+    return { scale: 1, source: 'default' };
+}
+
+/** A built-in default amount in the chat's coins: × scale, rounded, at least 1. */
+export function scaledDefault(amount, scale = 1) {
+    return Math.max(1, Math.round(amount * (scaleIn(scale) ?? 1)));
+}
+
 function storyCoinBudget(ctx) {
     const set = Number(ctx.settings()?.storyCoinPerReply);
     if (Number.isSafeInteger(set) && set > 0) return set;
@@ -594,7 +622,10 @@ function storyCoinBudget(ctx) {
         const top = rank?.reward?.[1];
         if (Number.isSafeInteger(top) && top > 0) return top;
     } catch { /* no quest module: by level */ }
-    return STORY_COIN_PER_LEVEL * level;
+    // The built-in fallback is gold-scale: the money scale brings it to the chat's coin.
+    let scale = 1;
+    try { scale = ctx.query('inventory.economy')?.scale ?? 1; } catch { /* no economy query: as written */ }
+    return scaledDefault(STORY_COIN_PER_LEVEL * level, scale);
 }
 
 const tallied = value => (isCount(value, 0) ? value : 0);
@@ -894,8 +925,17 @@ export function listItems(inventory, owner = null) {
             || (a.stack < b.stack ? -1 : a.stack > b.stack ? 1 : 0));
 }
 
-/** The inventory queries; `env.settings()` gives the currency for `inventory.currency`. */
+/**
+ * The inventory queries; `env.settings()` gives the currency for `inventory.currency` and the reader's
+ * money scale, `env.economy()` the enabled pack's ({ scale } or null) for `inventory.economy`.
+ */
 export const createInventoryQueries = env => ({
+    // { scale, source: 'pack' | 'settings' | 'default' } (MODULES §F104): multiply built-in money defaults by scale.
+    'inventory.economy': () => {
+        let pack = null;
+        try { pack = typeof env.economy === 'function' ? env.economy() : null; } catch { /* no packs: none */ }
+        return economyOf(env.settings(), pack);
+    },
     // { name, plural, short }: the chat's one currency (MODULES.md F1); name singular ("mark").
     'inventory.currency': () => currencyOf(env.settings()),
     'inventory.items': (state, args = {}) => listItems(state?.domains?.inventory, args?.owner ?? null),
