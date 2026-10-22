@@ -70,12 +70,12 @@ test('+ item: a new name creates story/<slug> with defaults, then the item.defin
     assert.equal(again.result.data.created, false);
 });
 
-test('+ item: the item.define hooks get { note, owner }; equipment never stacks', () => {
+test('+ item: the item.define hooks get { note, owner, scale }; equipment never stacks', () => {
     const seen = [];
     const h = setup({ 'item.define': [(definition, about) => { seen.push(about); return { kind: 'equipment', slot: 'head' }; }] });
     const result = h.capture(line('+', 'item', 'Iron Cap', { qty: '2', note: 'dented' }));
     assert.equal(result.ok, true, result.message);
-    assert.deepEqual(seen, [{ note: 'dented', owner: 'party' }]);
+    assert.deepEqual(seen, [{ note: 'dented', owner: 'party', scale: 1 }]);
     assert.equal(inv(h).defs['story/iron-cap'].stack, false);
     assert.equal(result.result.data.stacks.length, 2);
 });

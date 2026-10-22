@@ -73,7 +73,7 @@ test('grant: a full def not yet known is added through the hooks, keeping the ca
     assert.deepEqual(made.tags, ['fire'], 'other fields are the hooks\' to set');
     assert.equal(made.stack, false, 'equipment never stacks');
     assert.equal(made.junk, undefined, 'only def fields are kept');
-    assert.deepEqual(seen, [{ note: 'warm', owner: 'ac_ren00001' }]);
+    assert.deepEqual(seen, [{ note: 'warm', owner: 'ac_ren00001', scale: 1 }]);
     assert.equal(result.result.data.stacks.length, 2);
     assert.equal(inv(h).aliases['ember blade'], 'pack.fantasy/ember-blade');
     // A def ID already known wins over the fields handed in.

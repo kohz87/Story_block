@@ -46,7 +46,7 @@ a story already told.
   "calendar": { "era": "CY", "months": [{ "name": "Dawnwane", "days": 30 }], "start": { "year": 611, "month": "Dawnwane", "day": 1 } },
   "content": { "items": [], "creatures": [], "shops": [], "recipes": [], "events": [], "quests": [],
                "races": [], "talents": [], "skills": [], "presets": [], "places": [], "routes": [],
-               "terms": [], "ranks": [], "crafts": [], "meterPresets": [] },
+               "terms": [], "ranks": [], "crafts": [], "meterPresets": [], "markets": [] },
   "start": { "scene": { … }, "inventory": { … } },
   "screens": [],
   "layouts": [],
@@ -104,6 +104,21 @@ These are inventory definitions (SPEC §7). Only these fields are allowed:
 | `effect` | `{}` | An object, like `{ "heal": 20 }` (RPG Battle reads it). |
 | `tags` | `[]` | Short words (`fish`, `fire`). |
 | `note` | `""` | At most 500 characters. |
+| `carry` | none | Whole number 1–1000: the carry capacity the item adds (see below). |
+
+**Carry capacity.** An item with `carry` adds that much to what someone can carry while it is owned: a
+member's own thing raises that member's capacity, a thing in the shared bag (a cart, a barge's hold) the
+party's; equipment (a spatial ring, a harness) counts only while it is worn. RPG Battle's carry limit
+(`items.carry`) adds it, and Story Block's Equip on… and loot checks ask the same query. Losing the item
+lowers the capacity again: the party is then encumbered, and nothing is dropped. Only the pack sets it: a
+story-made thing never has `carry`, whatever its note says (`+ item Bag of Holding | note: carry +500` is a
+plain bag), and only a `pack.` def keeps it. The reader can name items that add capacity in RPG Battle's
+settings (Items: *Items that add carry capacity*). Inventory shows "+80 carry" on such a thing.
+
+```json
+{ "name": "Pack Mule", "kind": "goods", "stack": false, "value": 800, "carry": 80 },
+{ "name": "Spatial Ring", "kind": "equipment", "slot": "accessory", "rarity": "rare", "value": 5000, "carry": 100 }
+```
 
 **When the story names an item**, Story Block looks it up in this order:
 1. an item the chat already has (by name or alias);
@@ -155,7 +170,7 @@ The map Story Director's atlas reads.
 
 | Kind | Fields |
 |---|---|
-| `places` | `{ name, slug?, aliases?, region?, kind?, layer?, x, y, note?, hidden? }`: `x`, `y` are numbers (map units; Ersveil: x east, y north, 1 unit = 10 km); `layer` is a plane such as `underground` ('' on the surface). `hidden: true` (or its alias `secret: true`) keeps the place off Story Director's map, and out of its search, until the story goes there; the record keeps `hidden: true` either way. |
+| `places` | `{ name, slug?, aliases?, region?, kind?, layer?, x, y, note?, hidden?, market?, tags? }`: `x`, `y` are numbers (map units; Ersveil: x east, y north, 1 unit = 10 km); `layer` is a plane such as `underground` ('' on the surface). `hidden: true` (or its alias `secret: true`) keeps the place off Story Director's map, and out of its search, until the story goes there; the record keeps `hidden: true` either way. `market` is its settlement type and `tags` its environment tags (at most 8), lowercase words, for its prices (see markets). |
 | `routes` | `{ from, to, kind, km?, hours?, corridor?, slug?, note? }`: `from` and `to` name places of the same pack (by name, alias or slug) and are kept as their names; `km` and `hours` are numbers above 0. The id is made from from, to and kind unless a `slug` is given. A route joins two different places. |
 
 ### shops
@@ -278,6 +293,58 @@ Only these fields are allowed, and a pack holds at most 12 ranks. Ranges may ove
 `levels` or `reward` can't start below the last rank before it that has one. `packs.content({ kind:
 'ranks' })` lists every enabled pack's ladder one after another, each record with its `pack`, so a reader
 takes one pack's ranks (the first that has any).
+
+**The reader's ladder.** Story Block's settings have a **Rank ladder** under Terms: one rank a line,
+lowest first ("Soul Class I" … "Soul Class IX", or `F`, `E` … `SSS`), optionally with the first level of
+each ("Soul Class II: 11"). When it is set, `packs.content({ kind: 'ranks' })` answers with it instead of the
+packs' ladders, so Story Director's quest ranks, RPG Battle's party and foe ranks and Story Block's coin
+budget all use it, with or without each other. Its records are `{ id, title, levels?, reward?, pack: null,
+reader: true }`: the title as typed, the id the short word the story writes (the line itself when it is one
+short word, else its last word, "IX"; else R1, R2 …). A rank keeps the first enabled pack's numbers at its
+place (levels, unless every line gives its first level; the reward range always), so renaming a ladder
+never changes what quests pay; past the pack's ranks, modules give rewards by place, times the money scale.
+Empty: the pack's ladder, then each module's built-in F to S. `packs.content({ kind: 'ranks', pack })` is
+always that pack's own.
+
+### markets
+
+What sets a place's prices, read by RPG Battle's trade over its built-in factors. Two kinds of record:
+
+```json
+"markets": [
+  { "type": "lock-town", "buy": 1.05, "sell": 0.95, "stock": [4, 6], "note": "toll towns on the river" },
+  { "tag": "coastal", "prices": { "fish": 0.7, "salt": 0.9 } }
+]
+```
+
+| Field | Rules |
+|---|---|
+| `type` | A settlement type, a lowercase word (`hamlet`, `village`, `town`, `city`, `capital`, `outpost`, `camp`, or the pack's own like `lock-town`). Defines a new one or overrides the built-in one. |
+| `buy`, `sell` | A type's factors, 0.25–4 (1 = as usual): what things cost there, and what is paid for the party's. |
+| `stock` | A type's `[least, most]` things one trader has, 1–20. |
+| `tag` | An environment tag, a lowercase word (`coastal`, `river`, `port`, `mountain`, `mining`, `forest`, `desert`, `farmland`, `frontier`, `swamp`, or the pack's own). |
+| `prices` | A tag's factor per item category, 0.25–4, at most 20: `fish`, `grain`, `ore`, `metal`, `timber`, `herbs`, `salt`, `cloth`, `gems`, or `all` for every thing. |
+| `note` | Optional, at most 200 characters. |
+
+A record is a type or a tag, never both; one of each name per pack, and the first enabled pack's wins.
+A place gets its type and tags from its `market` and `tags` (places), or from a lorebook entry. RPG Battle
+holds a place's tags together to ±30 % for any one category. Where nothing names a place's market, every
+factor is 1.
+
+**A lorebook entry's market line.** A World Info entry of the open character's lorebook can say what kind
+of market its place is with one plain line in its content:
+
+```
+market: town; coastal, port
+market: village; river; buy 0.9, sell 0.85
+```
+
+the settlement type, then its environment tags (comma separated, may be left out), then optionally the
+place's own buy and sell factors (0.25–4). The place is the entry's title (Title/Memo), else its first key;
+its other keys are other names for it. The entry stays an ordinary lorebook entry. Story Block reads the
+lines when a chat opens and when **Read from character lorebook** is pressed in the Packs fold, never from
+the story. For a place the lorebook names, its line comes first, then the pack's `market`/`tags`, then the
+scene's place kind, then the built-in defaults. `packs.markets` gives modules all of it.
 
 ### meterPresets
 
@@ -503,8 +570,13 @@ The packs part (`src/v2/packs/index.js`) offers these through Story Block's core
   packs, each with `id` (`pack.<pack>/<slug>`), `slug` and `pack`. Events come as
   `{ id, pack, slug, when, cue, once, after, then }` with `after` as a full id. Also
   `kind: 'screens'`, `'layouts'`, `'theme'` → `[{ pack, tokens }]` and `'currency'` → `[{ pack, name, short, plural? }]`;
-  `kind: 'places' | 'routes' | 'skills' | 'presets' | 'terms' | 'ranks' | 'crafts' | 'meterPresets'` like every
-  kind (a pack without them normalizes exactly as before). Recipes carry their crafting fields only when given;
+  `kind: 'places' | 'routes' | 'skills' | 'presets' | 'terms' | 'ranks' | 'crafts' | 'meterPresets' | 'markets'` like every
+  kind (a pack without them normalizes exactly as before). Recipes carry their crafting fields only when given.
+  `kind: 'ranks'` is the reader's Rank ladder when it is set (records with `reader: true`, see "terms, ranks");
+* query `packs.markets` → `{ types, tags, places }`: the enabled packs' `markets` types and tags (the first
+  pack's per name) and the places with a market, the lorebook's `market:` lines first (`from: 'lorebook'`),
+  then the packs' places with `market` or `tags` (`from: 'pack'`): `{ place, aliases, type, tags, buy?,
+  sell?, from, pack? }`;
 * query `packs.crafts` → the craft table: `[{ craft, title, stats, stations, note?, pack }]`, the default
   crafts (`pack: null`) with the enabled packs' crafts laid over them, then the packs' new crafts in pack
   order (also `craftsOf(packs)` and `DEFAULT_CRAFTS`, `STATIONS` from `src/v2/packs/index.js`);
