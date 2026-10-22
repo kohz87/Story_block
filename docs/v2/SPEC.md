@@ -782,7 +782,9 @@ numbers. A later rename changes `name` and adds an alias; it never changes value
 * Story Block ships `testkit/` (a fake SillyTavern context: chat array with swipes and extras, `saveChat`,
   `setExtensionPrompt`, event source, interceptor) plus the real runtime. Modules vendor it into
   `tests/vendor/story-block/` with `npm run sync-testkit` (copies from a Story Block checkout; records the
-  commit in `tests/vendor/story-block/VERSION`). CI uses the committed copy.
+  commit in `tests/vendor/story-block/VERSION`). CI uses the committed copy. `stPurify` (testkit) stands
+  in for SillyTavern's DOMPurify as compileTemplate calls it (`{ sanitize: stPurify }`): it drops controls'
+  `type`, as the real one does, so a screen test shows what SillyTavern draws.
 * Required tests per module: commands (success, each rejection, nothing saved on rejection), capture of
   each kind, validators, replay (state at N equals state rebuilt from scratch), swipe and delete rollback,
   re-narration not repeating, claims, static prompt byte-identical across replies.

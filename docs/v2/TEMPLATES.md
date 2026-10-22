@@ -136,7 +136,10 @@ hold with or without DOMPurify).
   animation elements. Other unknown elements are removed and their content kept.
 * **Attributes**: each element's usual ones, `class`, `id`, `title`, `role`, `aria-*`, `data-*`. Never
   `on…` (no inline handlers), `action`, `formaction`, `srcdoc`, `srcset`, `data-ss-*` (Story Block's own).
-  `input type="password" | "file" | "image"` are not available.
+  `input type="password" | "file" | "image"` are not available. SillyTavern's DOMPurify drops the `type`
+  of an `<input>` or `<button>`; Story Block carries it past as `data-ss-type` and puts it back, held to
+  the same allowed types (text, number, range, checkbox, radio, search, color, hidden, email, tel, date,
+  time, and the button types; anything else is a text box), so radios and checkboxes work in SillyTavern.
 * **URLs**: images (`src`) `https:` or `data:image/…`; links `https:` or `#…` (with `target="_blank"` they
   get `rel="noopener noreferrer"`); SVG `href` `#…`. A bound URL is checked again after it is filled, so data
   holding `javascript:` never reaches the page. A URL attribute that is only a hole (`src="{{ x }}"`) is
