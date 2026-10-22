@@ -62,8 +62,8 @@ a story already told.
 | `description` | no | Text. |
 | `requires.storyBlock` | yes | A version range: `^2`, `~2.1`, `2.x`, `>=2.0.0 <3`, `^1 \|\| ^2`. Story Block's alpha versions count as their release (2.0.0-alpha.3 counts as 2.0.0). |
 | `requires.capabilities` | no | Names the pack needs, like `inventory`, `scene`, `party`, `combat`, `director`: a module id or a state area a module owns. If Story Block knows a name is missing, the pack is refused at install. If a module is switched off later, the list shows what is missing. |
-| `currency` | no | `{ "name": "mark", "plural": "marks", "short": "mk" }`: a suggested name for the chat's one currency (MODULES §F1). `name` (the singular, "1 mark") can be up to 24 characters, the optional `plural` ("44 marks"; left out: the name with an s, and gold stays gold) up to 24, `short` up to 8. It is used only when the reader hasn't named the currency; the first enabled pack that suggests one counts, and its plural and short form go with it. |
-| `economy` | no | `{ "scale": 0.01, "note": "One coin is a copper." }`: the pack's money scale (below, MODULES §F104). Problems are `BAD_ECONOMY`. |
+| `currency` | no | `{ "name": "mark", "plural": "marks", "short": "mk" }`: a suggested name for the chat's one currency (MODULES §F1). `name` (the singular, "1 mark") can be up to 24 characters, the optional `plural` ("44 marks"; left out: the name with an s, and gold stays gold) up to 24, `short` up to 8. It is used only when the reader hasn't named the currency; the first enabled pack that suggests one counts, and its plural and short form go with it. Optional `coins` (MODULES §F108): see [Coins](#coins). |
+| `economy` | no | `{ "scale": 100, "note": "One coin is a copper: a hundred to a gold piece." }`: the pack's money scale (below, MODULES §F104). Problems are `BAD_ECONOMY`. |
 | `calendar` | no | The story clock's calendar (below). Problems are `BAD_CALENDAR`. |
 | `content` | no | Lists of records by kind (below). No other kinds. |
 | `start` | no | The start state (below). |
@@ -396,6 +396,34 @@ Only these fields are allowed, and a pack holds at most 4 presets.
 
 ## Value guide
 
+### Coins
+
+A world that counts its money in coins of different worth names them in `currency.coins`, each worth a
+whole number of the smallest:
+
+```json
+"currency": {
+  "name": "penny", "plural": "pennies", "short": "p",
+  "coins": [
+    { "name": "penny", "plural": "pennies", "value": 1 },
+    { "name": "silver", "value": 10 },
+    { "name": "gold", "value": 100 }
+  ]
+}
+```
+
+* 1 to 8 coins; `name` up to 24 characters without digits, once each (names and plurals, ignoring case);
+  `plural` optional (left out: a metal stays as it is, "15 copper"; "penny" → "pennies"; else an s);
+  `value` a whole number from 1 to 1,000,000. Two coins may be worth the same ("copper" and "bronze": both
+  are read, the first is shown). Give the smallest coin `value: 1`: it is the unit the wallet counts.
+* Every number the pack writes (item `value`, shop `price`, rank `reward`, start money, event payouts) is
+  in that smallest unit.
+* The reader's own **Coins** setting beats the pack's coins, and a pack's coins are used only while its
+  currency is (a reader who named their own currency gets no pack coins). Without coins, the one name.
+* The model is told the coins in one static line; a money line may name one coin (`+ coin 3 silver` is 30)
+  and code converts it before the reply's limits. Amounts show in mixed coins ("3 silver 5 pennies").
+* Keep the pack's coins the ones your lorebook names: the model writes the coins the lore talks about.
+
 ### The money scale (`economy`)
 
 The currency is only a name; the pack sets the economy. What a pack writes itself (its ranks' `reward`,
@@ -405,7 +433,7 @@ reward applies), Story Director's default ranks, RPG Battle's default loot, coin
 scale says how many of its coins one of those defaults' coins is worth:
 
 ```json
-"economy": { "scale": 0.01, "note": "One coin is a copper: a hundred to a gold piece." }
+"economy": { "scale": 100, "note": "One coin is a copper: a hundred to a gold piece." }
 ```
 
 * `scale`: a number from 0.001 to 1000, default 1. Every built-in default money number is multiplied by
@@ -415,8 +443,9 @@ scale says how many of its coins one of those defaults' coins is worth:
 The first enabled pack that has an `economy` sets it; scales aren't mixed. The reader can override it in
 Story Block's settings (**Money scale**, 0 or blank: the pack's). Modules read the result with the query
 `inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }`. Lorebooks carry flavour for the
-model only, never numbers code uses. Ersveil sets `scale: 8`: its marks are small coin, and its F jobs top out
-at 400 marks where the built-in F rank tops out at 50.
+model only, never numbers code uses. Ersveil sets `scale: 8`: it counts in copper, small coin, and its F jobs top
+out at 400 copper where the built-in F rank tops out at 50. (A world counting in copper where the built-in
+defaults are gold coins would say 100: a scale above 1 for a smaller coin, below 1 for a bigger one.)
 
 ### Rules for a pack's own numbers
 
@@ -425,14 +454,14 @@ currency (MODULES §F1), so they have to be on one scale. Code compares them: RP
 value, Story Director holds a reward inside its rank's range, and inventory caps how much a reply can
 hand out by worth. An item that's worth fifty jobs breaks all three. Anchor the scale like this:
 
-1. **Pick the smallest coin as 1.** Ersveil: 1 mark is the old copper; silver × 10, gold × 100.
+1. **Pick the smallest coin as 1.** Ersveil: copper is 1, silver 10, gold 100 (its `currency.coins`).
 2. **Everyday goods and gear keep the world's prices.** Bread, a meal, a bunk, rope, a spear and a
    gambeson cost what the lore says in that coin. A day's unskilled wage should buy food and a bunk.
 3. **Rank rewards set the play scale.** Give `ranks` a `reward` range. The lowest rank's jobs should
-   pay a few days' wages: Ersveil's F jobs pay 50–400 marks.
+   pay a few days' wages: Ersveil's F jobs pay 50–400 copper.
 4. **Consumables a fight uses are a fraction of a job.** A basic healing draught, salve or antidote
    costs no more than the lowest reward of the lowest rank, and at most a quarter of its highest
-   (Ersveil: a minor healing draught is 30 marks, and 45 at the frontier). Stronger ones scale with the rank
+   (Ersveil: a minor healing draught is 30 copper, and 45 at the frontier). Stronger ones scale with the rank
    where they're needed: a fraction of that rank's lowest reward. If the world's own price list is far
    above that, as Ersveil's potions are (10–30 gold), use the play scale and say so in the pack's notes.
 5. **Gear costs one to three jobs of its rank.** A starter weapon or armour piece is worth about one to

@@ -121,8 +121,10 @@ down. Your own takes, buys and hand-overs past the limit are still refused. Turn
 **Things that carry for you.** Some things add carry capacity while you have them: a pack mule (+80), a
 share of a barge's hold (+200), a spatial ring while it is worn (+100). The pack says which (its items'
 `carry`), or you do, in RPG Battle's settings (**Items that add carry capacity**, one per line:
-`Spatial Ring: 100`). The Inventory and the Party screen show "+80 carry". What the story writes never adds
-capacity: a "bag of holding" the story invents is a plain bag. When you lose such a thing, your capacity
+`Spatial Ring: 100`). That list goes by name, so it counts for a thing the story gave you too: list
+`Saddlebags: 60` and the story's Saddlebags add 60. The Inventory and the Party screen show "+80 carry".
+What the story writes never adds capacity: a "bag of holding" the story invents is a plain bag unless you
+list it. When you lose such a thing, your capacity
 drops back; if you then carry too much you are encumbered, and nothing is dropped.
 
 **Choices and thoughts.** With the features on (see [Choices and Inner chatter](#choices-and-inner-chatter)),
@@ -172,11 +174,16 @@ Your character has a **rank** from their level: F to S by default, or the pack's
 runs from F Registered to S Legend). Quests and the money a reply may give follow it.
 
 **Your world's words.** One game says XP and Level, another Soul Growth and Soul Class; one ranks F to
-SSS, another Soul Class I to IX. Set them in the settings, under **Terms**: RPG Battle's **XP word** and
-**Level word**, and Story Block's **Rank ladder**, one rank a line from lowest to highest (add the first
-level of each, `Soul Class II: 11`, to set where they begin). Empty means the pack's words, then the
-built-in ones. Every screen, fight summary, note to the model and quest line uses them; the ladder is the
-one quest ranks, foe ranks and your character's rank all read, with or without the other extensions.
+SSS, another Soul Class I to IX. Set them in RPG Battle's settings, under **Terms**: the **XP word**, the
+**Level word**, the **Rank ladder** (one rank a line from lowest to highest) and **Levels per rank** (10:
+Soul Class I is levels 1–10, II is 11–20). A line may give its own first level instead, `Soul Class II: 15`,
+which wins over Levels per rank. Under them a preview shows each rank with its levels
+("Soul Class I: Lv 1–10 · II: 11–20 · …"). Empty means the pack's words, then the built-in ones. Every
+screen, fight summary, note to the model and quest line uses them: the ladder is the one quest ranks, foe
+ranks, your character's rank and a fight's tier all read, so a fight card says "Weir Rat ×8 · Soul Class I
+· weak". A ladder is levels in bands, so it needs RPG Battle: without it Story Director keeps its quest
+ranks from the pack, else F to S. (A ladder typed in Story Block's Terms before moves to RPG Battle's
+by itself.)
 
 The story can say how strong foes are: weak, even, strong or deadly next to your party, or a rank
 ("three wolves, rank D"). Code picks the foes' levels from that, never the model, and holds a rank far
@@ -335,7 +342,20 @@ Turn crafting off with **Crafting** in the Features.
 
 There is one currency per chat. Its name is only a name: gold unless you rename it in Story Block's
 settings (pennies, crowns, marks, Gil…), or the name a pack suggests. Renaming it changes no amounts.
-Whatever coin words the model writes, only the number counts.
+
+**Coins.** Many worlds count money in coins of different worth: copper, silver and gold. Name them in
+Story Block's settings, **Coins**, one a line, smallest first, with what each is worth in the smallest:
+`copper: 1`, `silver: 10`, `gold: 100` (a plural after a slash: `penny/pennies: 1`). Empty: the pack's coins
+(when you use the pack's currency), else the one name. Your wallet counts the smallest coin. The model is
+told the coins in one line, and a money line may name one coin: `+ coin 3 silver` pays 30 copper, before
+the limit on what one reply may give. A coin you didn't name, or two coins in one line
+(`+ coin 3 silver 5 copper`), is not paid, and **Problems** says why. Amounts show in mixed coins
+("3 silver 5 copper"), or in the smallest coin with **Coin display**.
+
+*Why does the story say copper and silver when my currency is pennies?* The lorebook, the character card or
+the pack's lore names those coins, and the model follows them. With only a currency name, Story Suite
+knew nothing of them. Name the same coins under **Coins** (or keep the lore's words close to your
+currency), and the story's coins and your wallet agree.
 
 How much things cost and how much the story may pay come from the **pack**, not from the model:
 
@@ -348,17 +368,17 @@ How much things cost and how much the story may pay come from the **pack**, not 
   paid and the rest stay Ready for the next reply. A pack's own quests pay the reward the pack sets,
   outside this limit.
 * **Prices.** Each item in the pack has a value. Shops sell and buy by it.
-* **Money scale.** A pack can say how big its coin is next to the built-in amounts. Ersveil's marks are
-  small coin, so its scale is 8. The scale only changes the built-in numbers (the default rank ladder,
+* **Money scale.** A pack can say how big its coin is next to the built-in amounts. Ersveil counts in
+  copper, small coin, so its scale is 8. The scale only changes the built-in numbers (the default rank ladder,
   1000 per level), never the numbers the pack writes itself.
 * **Your own numbers.** In Story Block's settings, **Money one reply may give** replaces the budget
-  from the ranks, and **Money scale** replaces the pack's scale (0.01 for a world that counts in
+  from the ranks, and **Money scale** replaces the pack's scale (100 for a world that counts in
   copper). Leave both at 0 to follow the pack.
-* **Lorebooks** only give flavour to the model (what a mark looks like, who mints it). They never set
-  prices or rewards. Keep the lorebook's money words close to the pack's so the story sounds right.
+* **Lorebooks** only give flavour to the model (what a coin looks like, who mints it). They never set
+  prices or rewards. Keep the lorebook's money words close to the pack's coins so the story sounds right.
 
-Ersveil, for example, pays 50 to 400 marks for an F-rank job, so one reply may give at most 400 marks
-while your character is in that rank. A minor healing draught there is worth 30 marks.
+Ersveil, for example, pays 50 to 400 copper (5 silver to 4 gold) for an F-rank job, so one reply may give
+at most 4 gold while your character is in that rank. A minor healing draught there is worth 3 silver.
 
 **Key items.** Now and then the story hands you something special, worth more than one reply may
 normally give: the potion an old man presses into your hand, a sealed letter, a family blade. One reply
@@ -513,7 +533,8 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
   with all four extensions), or turn features off.
 
 * **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
-  name with an s) and its short form.
+  name with an s) and its short form. **Coins** (smallest first, `silver: 10`) and **Coin display**
+  (mixed coins or the smallest only); see [Economy and currency](#economy-and-currency).
 * **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: worked out
   from your installed extensions: the top quest reward for your character's rank, or 1000 per level, or
   1000 when neither is installed, the last two times the money scale; see
@@ -521,8 +542,8 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
   A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
   item (the potion an old man hands you) worth up to five times the goods. That one is a **key item**
   (tagged "Key" in the Inventory): yours to use, equip or give away, but it can't be sold.
-* **Terms** (Story Block's and RPG Battle's folds): the **Rank ladder** (Story Block), the **XP word** and the
-  **Level word** (RPG Battle); see [Ranks, foes and companions](#ranks-foes-and-companions). A changed word
+* **Terms** (RPG Battle's fold): the **XP word**, the **Level word**, the **Rank ladder** and **Levels per
+  rank**, with a preview of the ranks' levels; see [Ranks, foes and companions](#ranks-foes-and-companions). A changed word
   changes the instructions the model gets once; otherwise they stay the same reply after reply.
 * **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
   one reply may hold, 150 by default; any after them are not used.

@@ -97,7 +97,7 @@ test('the settings overlay opens from the bar with the Packs fold second and the
     assert.ok(overlay.querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
     // The prompt size, then the Story Block fold's panels; its features are in the Features fold, with a line to them.
     assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Prompt size', 'Events', 'Assist']);
-    assert.deepEqual(texts(overlay, 'details[data-fold="story-block"] .story-suite-subfold > summary > b'), ['General', 'Terms', 'More']);
+    assert.deepEqual(texts(overlay, 'details[data-fold="story-block"] .story-suite-subfold > summary > b'), ['General', 'More']);
     assert.match(overlay.querySelector('details[data-fold="story-block"] .story-suite-feature-link').textContent, /^Features: \d+ of \d+ on — change$/);
     assert.ok(overlay.querySelector('details[data-fold="story-suite-features::story-block"]'), 'Story Block\'s sub-fold in Features');
     overlay.querySelector('.story-suite-close').click();

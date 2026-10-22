@@ -44,16 +44,16 @@ the model writes is `<Changes>`, and Story Block's own instruction asks for it.
    2 meter presets, start state".
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`). The
    first enabled pack that has one sets the start place and suggests the currency.
-3. **Currency:** the pack suggests one coin, the **mark** (`mk`). Story Block uses it when you haven't
-   named the chat's currency yourself. If you have, set it to `mark` in Story Block's settings.
+3. **Currency:** the pack suggests the lore's coins, counted in **copper** (silver 10, gold 100). Story
+   Block uses them when you haven't named the chat's currency yourself. If you have, clear it, or set
+   Story Block's **Coins** to `copper: 1`, `silver: 10`, `gold: 100`.
 
 ## 4. Lorebooks
 
 * Import **Ersveil World Lore v1.24** and **Ersveil Map Lore v1.16** and make both active for the
   chat (or global). Leave Vector Storage's "Enabled for all entries" off.
-* Replace the text of the World lorebook's **"[CORE] Currency"** entry with the text in
-  [§8](#8-currency-one-coin-the-mark) (your choice; the pack doesn't need it, but the model then talks
-  about money in the same coin the code counts).
+* The World lorebook's **"[CORE] Currency"** entry stays as it is: its copper, silver and gold are the
+  pack's coins ([§8](#8-currency-the-lores-coins-counted-in-copper)).
 
 ## 5. Persona and character card
 
@@ -71,7 +71,7 @@ Paste this as the card's first message. It is the visible text of
 
 * The `<!-- STORY_BLOCKS_V1 … -->` hidden block at the end is removed. v2 doesn't read it: the start
   place, the kit and the purse come from the pack, the skills from the ready-made character.
-* "twenty copper a day" now reads "twenty marks a day" (one coin).
+* "twenty copper a day" stays as written: copper is the pack's smallest coin.
 
 ```text
 Eighteen days of poling up the Bluewatch Branch from Glassdock, and the *Kettle Wife* finally came out of the mist. Your hands had split on the tenth day and again on the fifteenth. This morning they would barely let go of the pole.
@@ -80,7 +80,7 @@ Bluewatch rose out of the grey: a signal tower trailing brazier smoke, a stone r
 
 Your walking stick leaned against the cargo within reach. It was ash with an iron ferrule, and nobody aboard had asked why a man without a limp carried one. Six weeks of river lay behind you, back to Hulkrow's rotting barges and the morning a man in a good coat had come asking for the name on your bond.
 
-Marrit, the bargemaster, came down the deck slapping her crew list against her palm. "Line up. Inspector names every hand before a boot touches stone, and nobody's paid till he's done." That was eighteen days at twenty marks a day, still in her purse.
+Marrit, the bargemaster, came down the deck slapping her crew list against her palm. "Line up. Inspector names every hand before a boot touches stone, and nobody's paid till he's done." That was eighteen days at twenty copper a day, still in her purse.
 
 The inspector worked down the line with his ledger open and a spearman at his back. Past him, notices curled on a board in the damp: *Salvage convoy to Auvoth, guards wanted, ask at the Stray Oar.* Auvoth was four or five days down the Frontier Road, and there no Confederacy claim was heard. By the salt sheds, two men who weren't unloading anything watched each hand come ashore and counted.
 
@@ -112,7 +112,7 @@ level cap 90.
 
 **Start state.** A new chat begins at Bluewatch Village (settlement), with Marrit and the quay
 inspector present. Wessel carries the Cane-Blade, the Patched Oilcloth Coat, a Knife ("For work, not
-fights") and a Whetstone ("Worn thin"), and has **44 marks** (his old 3 silver 14 copper).
+fights") and a Whetstone ("Worn thin"), and has **44 copper**, shown as "4 silver 4 copper".
 
 **Clock.** The pack's calendar is the Compact Year: era `CY`, Dawnwane … Yearsend, 30 days each, and the
 story starts at **CY 611, Goldwane 12, 06:40 am**. Story Director's atlas and clock read it with the
@@ -126,9 +126,9 @@ targets and rewards are written the way Story Director reads them (`target:` / `
 
 | Job | Where | Target | Reward | Due |
 |---|---|---|---|---|
-| Granary Rats | Watch Granary | 6 cellar rats | 50 marks | — |
-| East Bluff Wolves | East Bluff | 4 crag wolves | 200 marks | — |
-| Culvert Leeches | North Culvert | 8 sluice leeches | 120 marks | Goldwane 14, 07:00 pm |
+| Granary Rats | Watch Granary | 6 cellar rats | 50 copper | — |
+| East Bluff Wolves | East Bluff | 4 crag wolves | 200 copper | — |
+| Culvert Leeches | North Culvert | 8 sluice leeches | 120 copper | Goldwane 14, 07:00 pm |
 
 The foes are pack creatures: Cellar Rat Swarm, Starved Crag Wolf (and their Crag Wolf Matriarch),
 Sluice Leech. A fight with them counts toward the job whose target names them.
@@ -141,7 +141,7 @@ Sluice Leech. A fight with them counts toward the job whose target names them.
 | wolves-at-dusk | after the board, from Goldwane 12, 07:00 pm, wolves not done | The crag wolves howl from the east bluff. |
 | culvert-rising | after the board, from Goldwane 13, 06:00 pm, culvert not done | Rain in the hills; the culvert runs high. |
 | culvert-floods | after it rises, from Goldwane 14, 07:00 pm, culvert not done | The culvert backs up and floods the storehouse lane. |
-| culvert-cleared | culvert job done before Goldwane 14, 07:00 pm | Watch-Captain Rorke sends **20 marks** on top (paid by code). |
+| culvert-cleared | culvert job done before Goldwane 14, 07:00 pm | Watch-Captain Rorke sends **20 copper** on top (paid by code). |
 | granary-cleared | rats job done | The quartermaster takes notice. |
 
 **Shops** at Bluewatch: **Watch Stores** (general goods), **Salt-and-Ash Dispensary** (apothecary; the
@@ -158,7 +158,7 @@ basics every character knows from the start; the other three are taught.
 | Healing Salve | alchemy | 10 | alchemy-table | 2 bluecap moss, 1 lamp oil | known |
 | Minor Healing Draught | alchemy | 16 | alchemy-table | 3 bluecap moss, 1 cleansing spirits | the lay sealer at the Salt-and-Ash Yard |
 | Completion Salts | alchemy | 18 | alchemy-table | 3 coarse salt, 1 iron filings | the lay sealer, as licensed work |
-| Wolf-pelt Mantle | leather | 14 | workbench | 3 crag wolf pelts (60 marks at the Gate Forge) | the Watch smith at the Gate Forge |
+| Wolf-pelt Mantle | leather | 14 | workbench | 3 crag wolf pelts (60 copper at the Gate Forge) | the Watch smith at the Gate Forge |
 
 The pack's **crafts** change one default and add one: Ersveil **alchemy** rolls INT+DEX (the lore calls it
 a craft, not spellcasting, where a slip poisons or burns the alchemist), and **fieldcraft** (DEX, done
@@ -186,57 +186,53 @@ follow the `<Changes>` instruction well enough, and the extractor costs a second
 smaller local models such as Gemma if you see replies where something clearly changed (an item
 picked up, coin paid, a place left) but no `<Changes>` lines came with it.
 
-## 8. Currency: one coin, the mark
+## 8. Currency: the lore's coins, counted in copper
 
-The lore names three coins (copper, silver, gold). v2 keeps one currency per chat (MODULES §F1), so
-the user chose **one coin, the mark**: 1 mark is the old copper, every price, reward and purse is a whole
-number of marks (old silver × 10, old gold × 100). The pack says `currency: { "name": "mark", "short": "mk" }`
-and every item value, shop price, reward and the starting purse are marks.
+The lore names three coins: copper (also called bronze), silver and gold, 1 gold = 10 silver = 100
+copper. Since pack 1.4.0 the pack names the same coins (MODULES §F108):
+`currency: { "name": "copper", "coins": [copper 1, bronze 1, silver 10, gold 100] }`. The wallet counts
+copper; every item value, shop price, reward and the starting purse is a whole number of copper (the
+old "marks" were copper, so no number changed). The model is told the coins, may write `+ coin 3 silver`
+(30 copper), and amounts show as "3 silver 5 copper".
 
-Ready-to-paste replacement for the World lorebook's **"[CORE] Currency"** entry (keep its keys and
-settings: it is a constant entry, so the rule is always in context):
-
-```text
-Money is one coin, the mark. Write every amount as a number of marks ("6 marks", "250 marks", "1 mark"), never in any other coin.
-Scale: coarse bread 1-2 marks; hot meal 5-10; common bunk 8-16 a night; unskilled laborer 16-30 a day; town guard 30-60 a day; journeyman craftsman 40-100 a day; proper completion of a body 50-200; sword 1,000-3,000; riding horse 5,000-12,000.
-Older price lists in this lorebook still name copper, silver and gold: read 1 copper as 1 mark, 1 silver as 10 marks and 1 gold as 100 marks, and write the result in marks.
-Coin is physical and heavy. Clipped or counterfeit coin is refused. Listed prices are Northern Belt town prices: frontier and remote places charge one and a half to three times for imported goods, Auvoth about double for food and lodging, and goods are cheapest where they are made. Haggling moves a price by a tenth to a quarter; Church, Guild and state fees are fixed. River Confederacy bank notes serve the wealthy; villages want metal.
-```
+The lorebook's **"[CORE] Currency"** entry needs no change: it already speaks of copper, silver and
+gold. (Before 1.4.0 this section gave a one-coin "mark" replacement for it; if you pasted that in, put the
+original entry back, or keep it and set Story Block's **Coins** to `mark: 1`.)
 
 ### The value scale
 
-The pack keeps the lore's prices for everyday goods, gear and loot, read in marks: coarse bread 2, a hot
+The pack keeps the lore's prices for everyday goods, gear and loot, read in copper: coarse bread 2, a hot
 meal 8, rope 40, a spear 150, a gambeson 600, a wolf pelt 30, a Soul Class I core 50. The F-rank jobs pay
-50 to 400 marks (the pack's `ranks`), a few days of a guard's pay.
+50 to 400 copper (the pack's `ranks`), a few days of a guard's pay.
 
 **Potions are the exception.** The lore asks 1 to 60 gold for them (a minor healing potion 10-30 gold,
-1,000-3,000 marks), so one draught would cost five to forty F jobs. Shops, loot and Story Director's rewards
+1,000-3,000 copper), so one draught would cost five to forty F jobs. Shops, loot and Story Director's rewards
 would never line up with that. The pack prices the consumables a fight uses on the play scale instead: each
 one costs no more than the poorest F job, keeping the lore's order.
 
 | Item | Lore price | Pack value | Bluewatch price |
 |---|---|---|---|
-| Healing Salve | 1-3 gold | 12 marks | 18 |
-| Common Antidote | 6-20 gold | 24 marks | 36 |
-| Minor Healing Draught | 10-30 gold | 30 marks | 45 |
-| Mana Draught | 20-60 gold | 50 marks | — |
+| Healing Salve | 1-3 gold | 12 copper | 18 |
+| Common Antidote | 6-20 gold | 24 copper | 36 |
+| Minor Healing Draught | 10-30 gold | 30 copper | 45 |
+| Mana Draught | 20-60 gold | 50 copper | — |
 
-The Granary Rats job (50 marks) buys one draught at the frontier price, and the wolf hunt (200 marks) four.
+The Granary Rats job (50 copper) buys one draught at the frontier price, and the wolf hunt (200 copper) four.
 If you want the lore's rare, costly healing in the story, leave the potion line of the World lorebook as it
 is: the narration keeps the price talk, and the code uses the play scale. PACKS.md's
 [value guide](PACKS.md#value-guide) gives the rules for pack makers.
 
-The pack sets the money scale to **8** (`economy: { scale: 8 }`, MODULES §F104): marks are small coin, about
-8 marks to a gold of the built-in defaults. Its F jobs top out at 400 marks where the built-in F rank tops
+The pack sets the money scale to **8** (`economy: { scale: 8 }`, MODULES §F104): copper is small coin, about
+8 copper to a gold of the built-in defaults. Its F jobs top out at 400 copper where the built-in F rank tops
 out at 50. The scale multiplies only the built-in defaults: RPG Battle's default loot coin, Story Director's
 default rewards, and Story Block's fallback coin budget of 1000 × level. The pack's own ranks, item values and
 shop prices stay exactly as written. With these ranks the story coin budget per reply still comes from the
-player character's rank (400 marks at F). Change the scale in Story Block's settings (**Money scale**) if
-the built-in defaults feel too rich or too poor in marks.
+player character's rank (400 copper at F). Change the scale in Story Block's settings (**Money scale**) if
+the built-in defaults feel too rich or too poor in copper.
 
-About 35 other World lore entries still give prices in the old coins (the Prices and Wages entries,
-the Guild, mana stones and cores, slavery, the mercenary companies…). The third line of the
-replacement covers them. If you later rewrite those entries in marks, you can drop that line.
+About 35 other World lore entries give prices in copper, silver and gold (the Prices and Wages
+entries, the Guild, mana stones and cores, slavery, the mercenary companies…). They need no change: the
+pack's coins are the same, and "3 silver" in a money line is read as 30 copper.
 
 ## 9. What this pack made up
 
@@ -248,9 +244,9 @@ here; change them freely.
   from your earlier Bluewatch play: Story Director's tests and changelog record "Granary Rats — kill
   6 cellar rats, 5 silver" and "EastBluffWolves — hunt the starved crag wolf pack, giver Fenna,
   claimed 2 gold".
-* **Job numbers.** Granary Rats: 6 cellar rats, 50 marks (from that play). East Bluff Wolves:
-  200 marks (from that play), the count of **4** wolves is new. Culvert Leeches is new: 8 sluice
-  leeches, 120 marks, due Goldwane 14 at dusk.
+* **Job numbers.** Granary Rats: 6 cellar rats, 50 copper (from that play). East Bluff Wolves:
+  200 copper (from that play), the count of **4** wolves is new. Culvert Leeches is new: 8 sluice
+  leeches, 120 copper, due Goldwane 14 at dusk.
 * **Places inside Bluewatch.** The lore names the Watchhouse and signal tower, the inspection quay,
   the storehouses, the Stray Oar and the salt-and-ash yard. The Guild Office, Watch Granary, Gate
   Forge, North Culvert and East Bluff are new, and so are the coordinates of all nine spots (a few
@@ -258,16 +254,16 @@ here; change them freely.
   km offsets from Auvoth. Walking times inside a settlement assume about 4 km an hour.
 * **Place kinds** (city, town, fort, lock town, depot…) are read from the map lore's descriptions.
 * **Shops.** The names Watch Stores, Salt-and-Ash Dispensary and Gate Forge are new, and so are the
-  keepers' roles and the stock counts. Prices are the lore's Northern Belt prices in marks. Imported
+  keepers' roles and the stock counts. Prices are the lore's Northern Belt prices in copper. Imported
   pieces (a backpack, healing salve, minor healing draughts, antidotes) cost half again as much at the
   frontier, as the lore's currency rule says.
 * **Item numbers.** The Cane-Blade (ATK +4) and the coat (DEF +1) are from the kit. Their values
-  (600 and 60 marks) are new, and so are the other gear stats, the Leech-salt Pouch (damage 6), and
+  (600 and 60 copper) are new, and so are the other gear stats, the Leech-salt Pouch (damage 6), and
   the healing amounts (minor draught 20, salve 10).
 * **Potion values** are on the play scale, not the lore's (see [§8](#the-value-scale)): salve 12, antidote
-  24, minor healing draught 30, mana draught 50 marks.
-* **Crafting.** Bluecap Moss (a pale moss off the culvert stones, 4 marks) and Iron Filings (2 marks) are
-  new; Cleansing Spirits are the lore's (5-15 copper, 8 marks). The four new recipes (Camp Stew, Healing
+  24, minor healing draught 30, mana draught 50 copper.
+* **Crafting.** Bluecap Moss (a pale moss off the culvert stones, 4 copper) and Iron Filings (2 copper) are
+  new; Cleansing Spirits are the lore's (5-15 copper, 8 copper). The four new recipes (Camp Stew, Healing
   Salve, Minor Healing Draught, Completion Salts), every recipe's craft, DC, station and teacher, the
   fieldcraft craft and Ersveil alchemy's INT+DEX are the pack's.
 * **Meter presets.** Frontier Regard and Road Companion, their meters, words and stages are new; they
@@ -283,8 +279,8 @@ here; change them freely.
   people moves one stat up and one down by 1.
 * **Talents.** Shadow-bent and River-born come from the persona; Hulkrow-raised, Hidden Draw,
   Inward Bent and Frontier Tracker come from the lore. Each costs 1 point (Inward Bent 2).
-* **Events** and the Watch-Captain's 20-mark thanks are new.
-* **Wages.** The first message says eighteen days at twenty a day (360 marks). The old hidden
+* **Events** and the Watch-Captain's 20-copper thanks are new.
+* **Wages.** The first message says eighteen days at twenty a day (360 copper). The old hidden
   Director block said "3 silver 6 copper" (36). The pack pays no wages: Marrit's pay stays the
   story's hook.
 * **Burlap sacks** are sold at the Watch Stores and used in the Leech-salt Pouch. They aren't in

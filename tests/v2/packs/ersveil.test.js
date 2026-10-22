@@ -11,7 +11,7 @@ import { validatePack } from '../../../src/v2/packs/validate.js';
 import { byteLength } from '../../../src/v2/packs/safety.js';
 import { initialInventory, validateInventory } from '../../../src/v2/domains/inventory.js';
 import { initialScene, validateScene } from '../../../src/v2/domains/scene.js';
-import { WALLET_KEY } from '../../../src/v2/domains/money.js';
+import { WALLET_KEY, currencyOf, parseAmount } from '../../../src/v2/domains/money.js';
 import { evaluateCondition, parse } from '../../../src/v2/events/condition.js';
 import { fakeSettings } from './helpers/fake-settings.js';
 
@@ -51,21 +51,23 @@ test('the pack validates, under the size limit, with every content kind', () => 
     assert.ok(byteLength(text) < LIMITS.packBytes, `${byteLength(text)} bytes`);
     const pack = checked();
     assert.equal(pack.id, PACK);
-    assert.deepEqual(pack.currency, { name: 'mark', short: 'mk' });
+    assert.deepEqual(pack.currency, { name: 'copper', plural: 'copper', short: 'c', coins: [{ name: 'copper', plural: 'copper', value: 1 }, { name: 'bronze', plural: 'bronze', value: 1 }, { name: 'silver', plural: 'silver', value: 10 }, { name: 'gold', plural: 'gold', value: 100 }] });
     for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets']) {
         assert.ok(pack.content[kind].length > 0, `${kind} is not empty`);
     }
     assert.deepEqual(pack.requires, { storyBlock: '^2', capabilities: ['inventory', 'scene'] });
 });
 
-test('money is one coin, the mark: whole numbers, and no copper, silver or gold coins in the text', () => {
+test('money is the lore\'s coins, counted in copper: whole numbers, and every amount in the text a known coin', () => {
     const pack = checked();
     for (const item of pack.content.items) assert.ok(Number.isInteger(item.value) && item.value >= 0, item.name);
     for (const shop of pack.content.shops) for (const line of shop.stock) assert.ok(line.price === undefined || Number.isInteger(line.price), shop.name);
-    assert.equal(pack.start.inventory.money, 44, '3 silver 14 copper in the old coins');
-    // "Silver Mark" is an order and a region (the lore's proper name), not a coin.
-    const coins = text.replace(/Silver Mark/g, '').match(/\b(?:copper|silver|gold)\b/gi);
-    assert.equal(coins, null, `coin words: ${coins}`);
+    assert.equal(pack.start.inventory.money, 44, '4 silver 4 copper');
+    // No "marks" left from the one-coin days (MODULES §F108): "Silver Mark" and Highmark are proper names.
+    assert.equal(text.replace(/Silver Mark|Highmark/g, '').match(/\bmarks?\b/gi), null);
+    // Every "<number> <word>" money amount names one of the pack's coins.
+    const currency = currencyOf({ currency: pack.currency.name, currencyPlural: pack.currency.plural, coins: pack.currency.coins });
+    for (const [, amount] of text.matchAll(/\b(\d+ (?:copper|silver|gold|bronze))\b/g)) assert.ok(parseAmount(amount, currency).amount > 0, amount);
 });
 
 test('places, routes and the calendar come out of the packs queries', async () => {
@@ -101,9 +103,9 @@ test('places, routes and the calendar come out of the packs queries', async () =
     assert.deepEqual(calendar.start, { year: 611, month: 'Goldwane', day: 12, hour: 6, minute: 40 }, 'the first message: CY 611, Goldwane 12, 06:40 am');
 });
 
-test('the start state applies to a new chat: Bluewatch, Wessel\'s kit and a purse of marks', () => {
+test('the start state applies to a new chat: Bluewatch, Wessel\'s kit and a purse of copper', () => {
     const start = mergeStart([checked()]);
-    assert.deepEqual(start.currency, { name: 'mark', short: 'mk' });
+    assert.deepEqual(start.currency, { name: 'copper', plural: 'copper', short: 'c', coins: [{ name: 'copper', plural: 'copper', value: 1 }, { name: 'bronze', plural: 'bronze', value: 1 }, { name: 'silver', plural: 'silver', value: 10 }, { name: 'gold', plural: 'gold', value: 100 }] });
     assert.deepEqual(start.scene, { place: { name: 'Bluewatch Village', kind: 'settlement', region: 'River Confederacy' }, present: ['Marrit', 'Quay inspector'] });
     let n = 0;
     const id = prefix => `${prefix}_${String(++n).padStart(8, '0')}`;
@@ -155,7 +157,7 @@ test('creatures have RPG Battle\'s template shape', () => {
     }) : undefined;
 });
 
-test('the three Bluewatch jobs: giver, place, target and reward in marks, as Story Director reads them', director, async () => {
+test('the three Bluewatch jobs: giver, place, target and reward in copper, as Story Director reads them', director, async () => {
     const { parseTarget, parseReward, settleReward, nameMatches } = await import(`${DIRECTOR}/src/v2/quests/parse.js`);
     const pack = checked();
     const creatures = pack.content.creatures.map(creature => creature.name);

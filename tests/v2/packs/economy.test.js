@@ -121,7 +121,7 @@ const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/
 test('Ersveil sets scale 8; its own ranks, values and prices stay as written', () => {
     const ersveil = ok(ERSVEIL);
     const raw = JSON.parse(ERSVEIL);
-    assert.deepEqual(ersveil.economy, { scale: 8, note: 'marks are small coin: about 8 marks to one coin of the built-in defaults' });
+    assert.deepEqual(ersveil.economy, { scale: 8, note: 'copper is small coin: about 8 copper to one coin of the built-in defaults' });
     assert.deepEqual(ersveil.content.ranks.map(rank => rank.reward), raw.content.ranks.map(rank => rank.reward));
     assert.deepEqual(ersveil.content.items.map(item => item.value), raw.content.items.map(item => item.value ?? 0));
     assert.deepEqual(ersveil.content.shops.flatMap(shop => shop.stock.map(line => line.price ?? null)), raw.content.shops.flatMap(shop => shop.stock.map(line => line.price ?? null)));
