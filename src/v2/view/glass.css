@@ -273,7 +273,6 @@
 
 /* ---- status badge ---- */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-status {
-    --ss-ring: var(--ss-accent);
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -283,9 +282,9 @@
     flex: none;
     margin: 0 6px 6px 0;
     border-radius: 12px;
-    border: 1.5px solid var(--ss-ring);
-    background: color-mix(in srgb, var(--ss-ring) 13%, transparent);
-    color: var(--ss-ring);
+    border: 1.5px solid var(--ss-ring, var(--ss-accent));
+    background: color-mix(in srgb, var(--ss-ring, var(--ss-accent)) 13%, transparent);
+    color: var(--ss-ring, var(--ss-accent));
     font-family: var(--ss-font);
     font-size: 22px;
     box-sizing: border-box;
@@ -297,7 +296,7 @@
     bottom: -6px;
     padding: 0 5px;
     border-radius: 7px;
-    background: var(--ss-ring);
+    background: var(--ss-ring, var(--ss-accent));
     color: var(--ss-on-ring);
     font-size: 12px;
     font-weight: 700;
