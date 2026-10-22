@@ -18,7 +18,7 @@
 // range, a text cut, a refused one) says so under the field and shows what is stored. Nothing here writes markup.
 
 import {
-    FIELD_TYPES, FORM_TEXT, changeNote, fieldKind, fieldReadOnly, fill, groupFields, labelOf, matchesSearch, normalizeField, rowValue,
+    FIELD_TYPES, FORM_TEXT, changeNote, emptyValue, fieldKind, fieldReadOnly, fill, groupFields, labelOf, matchesSearch, normalizeField, rowValue,
 } from './schema.js';
 import { RENDERERS, newId, searchField, sectionBlock } from './fields.js';
 
@@ -50,13 +50,14 @@ function checkNote(field, value) {
  * `featureOn(featureId)` (a field with `feature` shows while it says true; default: always), `profiles()` (the
  * Connection Manager answer for profile fields; default: the page's), `search` (a search box on top), `onChange({ moduleId,
  * key, value })` (after a value was stored), `memo` (a Map keeping a list's rows/lines choice across redraws), `disabled`,
+ * `sources` ({ key: { get(), set(value) } }: a field whose value lives elsewhere, a feature's switch or a host setting),
  * `quiet` (no "N settings shown" or "No settings match" line: a window around it says it), `className` (another class on the form).
  * → { el, filter(text), refresh(), setDisabled(on), field(key), keys(), destroy() }.
  */
 export function renderSettingsForm(parent, options) {
     const {
         moduleId = null, schema = {}, settings, doc = parent?.ownerDocument ?? globalThis.document, title = '', hint = '', featureOn = null, profiles = null, search = false,
-        onChange = null, memo = new Map(), quiet = false, className = '',
+        onChange = null, memo = new Map(), quiet = false, className = '', sources = null,
     } = options ?? {};
     if (typeof settings !== 'function' || typeof settings.set !== 'function') throw new TypeError('The settings form needs the settings store (settings(id) and settings.set(id, key, value)).');
     let disabled = Boolean(options?.disabled);
@@ -85,6 +86,14 @@ export function renderSettingsForm(parent, options) {
     root.appendChild(empty);
 
     const values = () => settings(moduleId);
+    // A field whose value lives elsewhere than the module's settings (a feature's switch, a host setting): `sources[key]` is
+    // { get() → the value, set(value) → what was stored, or undefined for a refusal }.
+    const sourceOf = key => (sources && Object.hasOwn(sources, key) ? sources[key] : null);
+    const valueOf = (key, f, now) => {
+        const source = sourceOf(key);
+        if (!source) return rowValue(key, f, now);
+        try { return source.get(); } catch { return emptyValue(f); }
+    };
 
     // ---- one row
     function buildRow(key, field, group) {
@@ -139,12 +148,14 @@ export function renderSettingsForm(parent, options) {
             error.hidden = !message;
             describe();
         };
-        const entry = { row, f, group, kind, key, setError, handle: null, volatile: typeof f.readOnly === 'function' || typeof f.shows === 'function' || typeof f.format === 'function' };
+        const entry = { row, f, group, kind, key, setError, tag, handle: null, volatile: typeof f.readOnly === 'function' || typeof f.shows === 'function' || typeof f.format === 'function' };
         // What the store keeps of a value the reader chose: shown, with a note when it is not what was typed.
         const commit = (value, meta) => {
-            const stored = settings.set(moduleId, key, value);
+            const source = sourceOf(key);
+            let stored;
+            try { stored = source ? source.set(value) : settings.set(moduleId, key, value); } catch { stored = undefined; }
             if (stored === undefined) {
-                const now = values()[key];
+                const now = valueOf(key, f, values());
                 handle.set(now);
                 setError(fill(FORM_TEXT.refused, { value: Array.isArray(now) ? `${now.length} items` : String(now ?? '') }));
                 return;
@@ -159,7 +170,7 @@ export function renderSettingsForm(parent, options) {
         const now = values();
         const readOnly = fieldReadOnly(f, now);
         const ctx = {
-            doc, id, key, field: f, value: rowValue(key, f, now), label: labelOf(key, f), labelledBy: label.id, disabled, readOnly, memo, profiles,
+            doc, id, key, field: f, value: valueOf(key, f, now), label: labelOf(key, f), labelledBy: label.id, disabled, readOnly, memo, profiles,
             onChange: commit, invalid: message => setError(message), note: message => { note.textContent = message ?? ''; note.hidden = !message; if (handle) describe(); },
         };
         handle = RENDERERS[kind](ctx);
@@ -172,7 +183,11 @@ export function renderSettingsForm(parent, options) {
         return entry;
     }
     function paintLock(entry, readOnly) {
-        entry.row.querySelector('.ss-field-tag').hidden = !readOnly;
+        // The tag says "Read only", or, for a field with `lockText` (a sentence, or a function of the values), why it is locked.
+        const why = readOnly && entry.f.lockText !== undefined ? (typeof entry.f.lockText === 'function' ? entry.f.lockText(values()) : entry.f.lockText) : '';
+        entry.tag.textContent = why ? String(why) : FORM_TEXT.readOnly;
+        entry.tag.classList.toggle('ss-field-tag-why', Boolean(why));
+        entry.tag.hidden = !readOnly;
         entry.row.classList.toggle('ss-field-readonly', readOnly);
         entry.row.classList.toggle('ss-field-disabled', disabled);
         entry.row.setAttribute('data-readonly', String(readOnly));
@@ -185,7 +200,7 @@ export function renderSettingsForm(parent, options) {
         for (const entry of rows.values()) {
             if (!entry.volatile || entry.key === except) continue;
             const readOnly = fieldReadOnly(entry.f, now);
-            entry.handle.set(rowValue(entry.key, entry.f, now));
+            entry.handle.set(valueOf(entry.key, entry.f, now));
             paintLock(entry, readOnly);
         }
         paintVisibility();
@@ -254,7 +269,7 @@ export function renderSettingsForm(parent, options) {
         refresh() {
             const now = values();
             for (const entry of rows.values()) {
-                entry.handle.set(rowValue(entry.key, entry.f, now));
+                entry.handle.set(valueOf(entry.key, entry.f, now));
                 paintLock(entry, fieldReadOnly(entry.f, now));
                 entry.setError('');
             }

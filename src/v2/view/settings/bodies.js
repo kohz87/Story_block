@@ -12,11 +12,11 @@
 // changed that other pages draw: it redraws them), options (what the window was opened with: registry, settings, sdk,
 // features, theme, …) }.
 //
-// Look, Features (3b) and Money (3c, money.js) are the form engine's (below). The other sections are still today's settings
-// (host-ui.js `renderSettingsHost`), drawn into the section each belongs to (sections.js `routeOf`) by one shared host.
-// Steps 3d–3g replace one entry each:
+// Look, Features (3b), Money (3c, money.js) and Assist (3d, assist.js) are the form engine's (below). The other sections are still
+// today's settings (host-ui.js `renderSettingsHost`), drawn into the section each belongs to (sections.js `routeOf`) by one shared
+// host. Steps 3e–3g replace one entry each:
 //
-//     SECTION_BODIES.assist = (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(), destroy: () => form.destroy() }; };
+//     SECTION_BODIES.tabs = (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(), destroy: () => form.destroy() }; };
 //
 // A section with its own body is not drawn by the shared host (it never gets a pane), so its old folds go away with
 // the entry.
@@ -25,6 +25,7 @@ import { FEATURES_FOLD, SUB_FOLD, renderSettingsHost } from '../../host-ui.js';
 import { HOST_SETTINGS_SCHEMA } from '../../sdk.js';
 import { renderFeaturesForm } from '../form/features.js';
 import { renderSettingsForm } from '../form/form.js';
+import { ASSIST_HOST_KEYS, assistBody } from './assist.js';
 import { moneyBody } from './money.js';
 import { LOOK_KEYS, SECTION_IDS, opensByDefault, routeOf } from './sections.js';
 import { filterPane } from './search.js';
@@ -49,8 +50,8 @@ export function createLegacySettings(options) {
                 ...options,
                 sections: {
                     ids: [...panes.keys()], place: id => panes.get(id) ?? null, route: routeOf, defaultOpen: opensByDefault, show, open, afterRefresh,
-                    // The look settings are the Look section's; the Story Suite fold keeps the rest.
-                    hostKeys: key => !LOOK_KEYS.includes(key),
+                    // The look settings are the Look section's, the call queue the Assist section's; the Story Suite fold keeps the rest.
+                    hostKeys: key => !LOOK_KEYS.includes(key) && !ASSIST_HOST_KEYS.includes(key),
                 },
             });
         },
@@ -105,4 +106,5 @@ export const SECTION_BODIES = Object.freeze({
     look: lookBody,
     features: featuresBody,
     money: moneyBody,
+    assist: assistBody,
 });

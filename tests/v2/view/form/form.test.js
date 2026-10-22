@@ -224,6 +224,59 @@ test('read-only: the control is locked and the row says "Read only"; nothing is 
     assert.deepEqual(lock.saved(), {});
 });
 
+test('lockText: a locked row says why in its tag (a sentence, or a function of the values); the plain tag is "Read only"', () => {
+    let reason = 'Off while the net is off';
+    const t = setup({}, {
+        net: { type: 'bool', label: 'Net' },
+        kinds: { type: 'text', label: 'Kinds', readOnly: values => values.net !== true, lockText: values => (values.net === true ? '' : reason) },
+        plain: { type: 'text', label: 'Plain', readOnly: true },
+        fixed: { type: 'text', label: 'Fixed', readOnly: true, lockText: 'Set by the pack' },
+    }, { net: false, kinds: 'a', plain: 'x', fixed: 'y' });
+    const tagOf = key => row(t, key).querySelector('.ss-field-tag');
+    assert.equal(tagOf('kinds').hidden, false);
+    assert.equal(tagOf('kinds').textContent, 'Off while the net is off');
+    assert.ok(hasClass(tagOf('kinds'), 'ss-field-tag-why'));
+    assert.equal(tagOf('plain').textContent, 'Read only');
+    assert.ok(!hasClass(tagOf('plain'), 'ss-field-tag-why'));
+    assert.equal(tagOf('fixed').textContent, 'Set by the pack');
+    assert.equal(tagOf('net').hidden, true);
+    input(t, 'net').click();
+    assert.equal(tagOf('kinds').hidden, true, 'open: no tag');
+    assert.equal(input(t, 'kinds').readOnly, false);
+    reason = 'Off again';
+    input(t, 'net').click();
+    assert.equal(tagOf('kinds').textContent, 'Off again');
+    assert.equal(input(t, 'kinds').readOnly, true);
+});
+
+test('sources: a field can live outside the module\'s settings; its value is read from and written to the source, which can refuse', () => {
+    const store = { on: false, refuse: false };
+    const sources = {
+        on: { get: () => store.on, set: value => { if (store.refuse) return undefined; store.on = value; return value; } },
+        broken: { get: () => { throw new Error('gone'); }, set: value => value },
+    };
+    const t = setup({ sources }, { on: { type: 'bool', label: 'On' }, broken: { type: 'text', label: 'Broken' }, title: { type: 'text', label: 'Title' } }, { on: true, broken: 'kept', title: 'Lowmere' });
+    assert.equal(input(t, 'on').getAttribute('aria-checked'), 'false', 'the source\'s value, not the module default');
+    input(t, 'on').click();
+    assert.equal(store.on, true);
+    assert.deepEqual(t.saved(), {}, 'nothing written to the module\'s settings for it');
+    assert.deepEqual(t.changes.at(-1).key, 'on');
+    // A source that throws reads as an empty value; a refusal shows the field's old value again.
+    assert.equal(input(t, 'broken').value, '');
+    store.refuse = true;
+    input(t, 'on').click();
+    assert.equal(store.on, true, 'the source refused');
+    assert.equal(input(t, 'on').getAttribute('aria-checked'), 'true', 'the field shows what is stored');
+    // A field with no source still goes to the settings store.
+    input(t, 'title').value = 'Mill';
+    input(t, 'title').dispatch('change');
+    assert.equal(t.saved().title, 'Mill');
+    // refresh() rereads the source.
+    store.on = false;
+    t.form.refresh();
+    assert.equal(input(t, 'on').getAttribute('aria-checked'), 'false');
+});
+
 test('disabled: the whole form can be switched off and on', () => {
     const t = setup({ disabled: true });
     assert.ok(hasClass(row(t, 'title'), 'ss-field-disabled'));

@@ -220,6 +220,28 @@ test('the Money page: cards of stacked fields, one column and two from 900px, th
     assert.equal(weight(`${ROOT_SELECTOR} .ss-money .ss-field`), 20);
 });
 
+// ---- step 3d
+
+test('the Assist page: cards of stacked fields, one column and two from 900px, the Safety net card down the right; a locked row\'s tag is a sentence', () => {
+    const glass = read('view/glass.css');
+    const rule = (selector, media = null) => {
+        const body = media ? glass.slice(glass.indexOf(media, glass.indexOf('the Assist page'))) : glass;
+        const head = `${ROOT_SELECTOR} ${selector} {`;
+        const at = body.indexOf(head);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return body.slice(at, body.indexOf('}', at));
+    };
+    assert.match(rule('.ss-assist-page .ss-field'), /grid-template-columns: minmax\(0, 1fr\);/);
+    assert.match(rule('.ss-assist-page'), /display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
+    assert.match(rule('.ss-assist-page', '@media (min-width: 900px)'), /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    assert.match(rule('.ss-assist-page > .ss-section:nth-of-type(3)', '@media (min-width: 900px)'), /grid-column: 2;\s*grid-row: 1 \/ span 2;/);
+    assert.match(rule('.ss-assist-page', '@media (min-width: 900px)'), /grid-template-rows: auto 1fr;/, 'the Checks card sits under Extra calls, not spread down the Safety net\'s height');
+    assert.match(rule('.ss-field-tag-why'), /text-transform: none;/);
+    assert.match(rule('.ss-assist-wall'), /border-left: 3px solid var\(--ss-accent\);/);
+    assert.match(rule('.ss-input:disabled'), /opacity: 0.6;/, 'a locked control reads as locked');
+    assert.equal(weight(`${ROOT_SELECTOR} .ss-assist-page .ss-field`), 20);
+});
+
 test('a select never clips its text: it ends in an ellipsis; the Look choices are short words, their help says what each is', () => {
     const glass = read('view/glass.css');
     const at = glass.indexOf(`${ROOT_SELECTOR} .ss-select {`);

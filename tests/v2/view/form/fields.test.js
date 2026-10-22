@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../../../ui-fake-dom.js';
-import { RENDERERS, chipsField, linesField, newId, numberField, profileField, searchField, sectionBlock, selectField, sliderField, switchField, textField } from '../../../../src/v2/view/form/fields.js';
+import { RENDERERS, chipsField, chipsetField, linesField, newId, numberField, profileField, searchField, sectionBlock, selectField, sliderField, switchField, textField } from '../../../../src/v2/view/form/fields.js';
 import { FIELD_KINDS, changeNote, fieldKind, labelOf, matchesSearch, optionsOf } from '../../../../src/v2/view/form/schema.js';
 import { PROFILE_TEXT } from '../../../../src/v2/profile-field.js';
 
@@ -35,6 +35,8 @@ test('the renderers by kind, and which kind a schema field gets', () => {
     assert.equal(fieldKind(['a', 'b']), 'select', 'an array is a choice');
     assert.equal(fieldKind({ type: 'choice', options: ['a'], form: 'chips' }), 'chips');
     assert.equal(fieldKind({ type: 'profile' }), 'profile');
+    assert.equal(fieldKind({ type: 'text', form: 'chips', options: ['a'] }), 'chipset', 'chips over a text');
+    assert.equal(fieldKind({ type: 'text', form: 'chips' }), 'text', 'no options: a plain text');
     assert.equal(fieldKind({ type: 'list', of: {} }), 'lines');
     assert.equal(fieldKind({ type: 'hologram' }), null, 'a newer module\'s type: not drawn');
     assert.equal(fieldKind(null), null);
@@ -211,6 +213,45 @@ test('profile: "Same as chat" then the Connection Manager\'s profiles; a profile
     const none = make(profileField, { type: 'profile' }, '', { profiles: () => ({ usable: false, why: 'The Connection Manager is off.' }) });
     assert.equal(none.notes.at(-1), 'The Connection Manager is off.');
     assert.deepEqual(none.input.querySelectorAll('option').map(o => o.textContent), [PROFILE_TEXT.same]);
+    // Nothing to pick but "Same as chat": the select is disabled (the note says why); a profile that is gone can still be changed.
+    assert.equal(none.input.disabled, true);
+    assert.equal(m.input.disabled, false);
+    m.handle.setReadOnly(true);
+    assert.equal(m.input.disabled, true);
+    m.handle.setReadOnly(false);
+    assert.equal(m.input.disabled, false);
+    const empty = make(profileField, { type: 'profile' }, '', { profiles: () => ({ usable: true, profiles: [] }) });
+    assert.equal(empty.input.disabled, true);
+    assert.equal(empty.notes.at(-1), PROFILE_TEXT.none);
+    const gone = make(profileField, { type: 'profile' }, 'Old One', { profiles: () => ({ usable: true, profiles: [] }) });
+    assert.equal(gone.input.disabled, false, 'a stored profile that is gone can be changed');
+    gone.handle.set('');
+    assert.equal(gone.input.disabled, true);
+});
+
+test('chipset: several chips over a comma-separated text; entries the options do not list are kept and never drawn', () => {
+    const field = { type: 'text', form: 'chips', options: [{ value: '~ time', label: 'Time' }, { value: '~ place', label: 'Place' }, { value: '~ weather', label: 'Weather' }], read: text => String(text).split(',').map(part => part.trim()).filter(Boolean) };
+    const m = make(chipsetField, field, '~ weather, ~ mood, ~ time');
+    const chips = () => m.el.querySelectorAll('.ss-chip');
+    assert.deepEqual(chips().map(c => c.textContent), ['Time', 'Place', 'Weather']);
+    assert.deepEqual(chips().map(c => c.getAttribute('aria-pressed')), ['true', 'false', 'true']);
+    assert.equal(m.handle.get(), '~ time, ~ weather, ~ mood', 'the options\' order, then the kept entries');
+    chips()[1].click();
+    assert.deepEqual(m.calls.at(-1), ['~ time, ~ place, ~ weather, ~ mood', { typed: '~ time, ~ place, ~ weather, ~ mood' }]);
+    chips()[0].click();
+    chips()[1].click();
+    chips()[2].click();
+    assert.equal(m.calls.at(-1)[0], '~ mood', 'the kept entry stays when every chip is off');
+    m.handle.set('~ place');
+    assert.deepEqual(chips().map(c => c.getAttribute('aria-pressed')), ['false', 'true', 'false']);
+    assert.equal(m.handle.get(), '~ place', 'a text without the kept entry forgets it');
+    m.handle.setDisabled(true);
+    chips()[0].click();
+    assert.equal(m.calls.length, 4, 'a locked chipset reports nothing');
+    // Without `read`: split on commas, semicolons and new lines, lower-cased.
+    const plain = make(chipsetField, { type: 'text', form: 'chips', options: ['red', 'green'] }, 'Green; blue\nRED');
+    assert.deepEqual(plain.el.querySelectorAll('.ss-chip').map(c => c.getAttribute('aria-pressed')), ['true', 'true']);
+    assert.equal(plain.handle.get(), 'red, green, blue');
 });
 
 test('chips, one of: a radio group with aria-checked, one Tab stop, the arrow keys move and choose (wrapping), Home and End', () => {

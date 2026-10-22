@@ -289,23 +289,29 @@ export function profileField(ctx) {
     const { doc } = ctx;
     const select = h(doc, 'select', 'ss-input ss-select ss-profile');
     named(select, ctx);
+    let off = false;
+    let locked = false;
+    // With nothing to pick but "Same as chat" (no Connection Manager, or no profiles in it) the select is disabled, and the
+    // note under the label says why; a stored profile that is gone still shows (as "not found") and can be changed.
+    let nothing = false;
+    const lock = () => setDisabled(select, off || locked || nothing);
     const draw = value => {
         const list = typeof ctx.profiles === 'function' ? ctx.profiles() : undefined;
         const { options, selected, note } = list === undefined ? profileChoices(value) : profileChoices(value, list);
         fillSelect(doc, select, options);
         select.value = selected;
+        nothing = options.length <= 1;
+        lock();
         ctx.note?.(note);
     };
-    let off = false;
-    let locked = false;
     draw(ctx.value);
     select.addEventListener('change', () => ctx.onChange(select.value, { typed: select.value }));
     const handle = {
         el: select, input: select,
         get: () => select.value,
         set(value) { draw(value); },
-        setDisabled(value) { off = Boolean(value); setDisabled(select, off || locked); },
-        setReadOnly(value) { locked = Boolean(value); setDisabled(select, locked || off); },
+        setDisabled(value) { off = Boolean(value); lock(); },
+        setReadOnly(value) { locked = Boolean(value); lock(); },
         destroy() {},
     };
     handle.setDisabled(Boolean(ctx.disabled));
@@ -658,9 +664,35 @@ export function sectionBlock(doc, { title = '', hint = '', id = newId('section')
     return { el: root, body, title: name, setHidden(on) { root.hidden = Boolean(on); } };
 }
 
+// ---- chips that fill a text -------------------------------------------------------------------------
+
+/**
+ * Several chips over a text setting: the stored text is a comma-separated list ("~ time, ~ place") and each option is one entry
+ * (`options`: the entries the reader may choose). Entries the options do not list are kept as they are, never drawn and never
+ * dropped by a change here. The value reported is the text, the chosen entries in the options' order, then the kept ones.
+ * `field.read(text)` → the entries (default: split on commas, semicolons and newlines, each trimmed, lower-cased).
+ */
+export function chipsetField(ctx) {
+    const { field } = ctx;
+    const options = optionsOf(field);
+    const read = typeof field.read === 'function' ? field.read : text => String(text ?? '').split(/[,;\n]+/).map(part => part.replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean);
+    const known = new Set(options.map(option => option.value));
+    let extras = [];
+    const split = text => {
+        const entries = read(text);
+        extras = entries.filter(entry => !known.has(entry));
+        return options.map(option => option.value).filter(value => entries.includes(value));
+    };
+    const inner = chipsField({ ...ctx, field: { ...field, multiple: true }, value: split(ctx.value), onChange: chosen => {
+        const text = [...chosen, ...extras].join(', ');
+        ctx.onChange(text, { typed: text });
+    } });
+    return { ...inner, get: () => [...inner.get(), ...extras].join(', '), set(text) { inner.set(split(text)); } };
+}
+
 /** The renderers by kind. */
 export const RENDERERS = Object.freeze({
-    switch: switchField, text: textField, number: numberField, slider: sliderField, select: selectField, chips: chipsField, profile: profileField, lines: linesField,
+    switch: switchField, text: textField, number: numberField, slider: sliderField, select: selectField, chips: chipsField, chipset: chipsetField, profile: profileField, lines: linesField,
 });
 
 export { FIELD_KINDS };

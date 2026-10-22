@@ -1136,9 +1136,12 @@
     outline: 2px solid var(--ss-accent);
     outline-offset: 1px;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-input:disabled,
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-input[readonly] {
     opacity: 0.75;
+}
+/* a locked control reads as locked at a glance (the same dimming as a locked switch) */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-input:disabled {
+    opacity: 0.6;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-input[aria-invalid="true"] {
     border-color: var(--ss-bad);
@@ -1269,7 +1272,8 @@
     min-height: 36px;
     margin: 0;
     padding: 0 13px;
-    border: 1px solid var(--ss-border);
+    /* an off chip still has an edge in a light scheme, where the glass border is faint */
+    border: 1px solid color-mix(in srgb, var(--ss-muted) 55%, var(--ss-border));
     border-radius: var(--ss-radius-pill);
     background: transparent;
     color: var(--ss-text);
@@ -1512,6 +1516,54 @@
     /* The Coins card runs down the left, the other cards stack on its right. */
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-money > .ss-section:first-of-type {
         grid-row: span 2;
+    }
+}
+
+/* ---- the Assist page (view/settings/assist.js, UI stage step 3d): cards of stacked fields; a locked row says why ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-page .ss-field {
+    grid-template-columns: minmax(0, 1fr);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ss-space-3);
+    align-items: start;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-runs-card {
+    margin-top: var(--ss-space-3);
+}
+/* a locked row's tag is a sentence, not a badge */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-field-tag-why {
+    max-width: 100%;
+    padding: 1px 10px;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+/* the value wall, said plainly under the kinds */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-wall {
+    margin: 0;
+    padding: 8px 12px;
+    border-left: 3px solid var(--ss-accent);
+    border-radius: var(--ss-radius-s);
+    background: var(--ss-accent-soft);
+    font-size: 13px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-wall + .ss-assist-wall {
+    margin-top: var(--ss-space-2);
+}
+@media (min-width: 900px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-page {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto 1fr;
+    }
+    /* Extra calls and Checks stack on the left; the Safety net card runs down the right. */
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-assist-page > .ss-section:nth-of-type(3) {
+        grid-column: 2;
+        grid-row: 1 / span 2;
     }
 }
 
