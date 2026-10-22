@@ -1085,7 +1085,7 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
     function decorate() {
         for (const node of bar.querySelectorAll('.ss-tabs-item')) {
             node.classList.add('story-suite-tab');
-            node.dataset.tabId = node.getAttribute('data-id') ?? '';
+            node.setAttribute('data-tab-id', node.getAttribute('data-id') ?? '');
         }
         for (const node of bar.querySelectorAll('.ss-tabs-label')) node.classList.add('story-suite-tab-label');
     }
