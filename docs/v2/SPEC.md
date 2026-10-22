@@ -565,11 +565,18 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   the player character's rank from `quest.ranks`, else 1000 × level × the money scale, rounded, at least 1), give at most 20 of one item, give goods
   worth at most 2 × that coin budget in all (Σ def `value` × count given), and bring in at most 10 new item
   definitions. Past a limit a line is clamped with a `LIMITED` Problem; once it is spent, a line is `REFUSED`
-  (a refused line makes no definition). **One notable item per reply:** the first `+ item` line whose one item
-  is worth more than the goods budget has left is given outside the worth tally, up to 5 × the goods budget
-  (value × count; past that the count is clamped with a `LIMITED` Problem); its receipt says "notable gift:
-  <name>" and its data has `notable: true`. An item worth more than 5 × the goods budget on its own is not
-  notable. Later lines over the budget are held as above, and the 20-of-one and 10-new-definitions limits
+  (a refused line makes no definition). **One notable item per reply, given as a key item:** the first
+  `+ item` line whose one item is worth more than the goods budget has left gives one of it outside the worth
+  tally, when it is worth at most 5 × the goods budget (a count over 1 is clamped to 1 with a `LIMITED`
+  Problem: the rest is over the goods budget). Its receipt says "<name>, given as a key item" and its data
+  has `notable: true, key: true`. An item worth more than 5 × the goods budget on its own is not notable.
+  A **key item** is a stack of its own marked `key: true` (also on `inventory.items` rows; the Inventory
+  screen tags it "Key"): used, equipped, given away and consumed like any other, but with no cash value. It
+  never joins another stack of the item, nor another stack it (a grant, a transfer, a story line; `inventory.merge`
+  is `REFUSED`), and a part given away or split off stays a key item. Modules that buy things back or count
+  what they are worth treat it as worth 0 (RPG Battle's trade refuses to buy it: "<name> is a key item; it
+  can't be sold"; its crafting and commissions count it as 0), so story text never sells for more than a
+  reply's goods. Later lines over the budget are held as above, and the 20-of-one and 10-new-definitions limits
   still apply. A `~ item` raise is never notable. A `~ item … | qty:` that raises a count is a gain, held to
   the same limits and to the carry limit when a module answers `items.carry`
   (`{ owner, add: [{ defId, qty }] }` → `{ ok: false, message }` refuses it); lowering a count is free. The
