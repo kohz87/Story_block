@@ -135,27 +135,27 @@
 }
 
 /* More items than fit (a phone's bottom bar, the tab bar): the edge with more fades (scroll-cue.js). */
-:is(.ss-gameview-nav, .story-suite-tabs)[data-ss-axis="x"][data-ss-more="end"] {
+:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="x"][data-ss-more="end"] {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .story-suite-tabs)[data-ss-axis="x"][data-ss-more="start"] {
+:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="x"][data-ss-more="start"] {
     -webkit-mask-image: linear-gradient(to left, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to left, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .story-suite-tabs)[data-ss-axis="x"][data-ss-more="both"] {
+:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="x"][data-ss-more="both"] {
     -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to right, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .story-suite-tabs)[data-ss-axis="y"][data-ss-more="end"] {
+:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="y"][data-ss-more="end"] {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .story-suite-tabs)[data-ss-axis="y"][data-ss-more="start"] {
+:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="y"][data-ss-more="start"] {
     -webkit-mask-image: linear-gradient(to top, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to top, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .story-suite-tabs)[data-ss-axis="y"][data-ss-more="both"] {
+:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="y"][data-ss-more="both"] {
     -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to bottom, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
 }

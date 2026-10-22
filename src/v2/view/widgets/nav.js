@@ -29,18 +29,21 @@ const navProps = {
 
 const short = (value, max) => cutAt(str(value).replace(/\s+/g, ' ').trim(), max);
 
-/** The items as drawn: at most NAV_MAX_ITEMS, each { id, label, icon, count, disabled }, the first of each id. */
-export function navItems(list) {
+/**
+ * The items as drawn: at most `max` (NAV_MAX_ITEMS), each { id, label, icon, count, disabled }, the first of each id;
+ * a label is cut at `labelMax` (LABEL_MAX). A host with its own longer list (the story panel's tabs) passes its limits.
+ */
+export function navItems(list, max = NAV_MAX_ITEMS, labelMax = LABEL_MAX) {
     const out = [];
     const seen = new Set();
     for (const raw of Array.isArray(list) ? list : []) {
         if (!raw || typeof raw !== 'object') continue;
-        const label = short(raw.label, LABEL_MAX);
+        const label = short(raw.label, labelMax);
         const id = short(raw.id, 64) || label;
         if (!id || seen.has(id)) continue;
         seen.add(id);
         out.push({ id, label: label || id, icon: typeof raw.icon === 'string' ? raw.icon : '', count: short(raw.count, COUNT_MAX), disabled: raw.disabled === true || raw.disabled === 'true' });
-        if (out.length >= NAV_MAX_ITEMS) break;
+        if (out.length >= max) break;
     }
     return out;
 }
@@ -59,10 +62,11 @@ export function revealItem(list, item, smooth = false) {
 }
 
 // One implementation, two blocks: `kind` is the block's name (its classes and its command's payload key).
-function renderNav(kind) {
+// `options` (`max`, `labelMax`) are a host's own limits, for a strip that is longer than the block's default (see renderTabStrip).
+function renderNav(kind, { max = NAV_MAX_ITEMS, labelMax = LABEL_MAX } = {}) {
     return function render(el, input, api) {
         let p = resolveProps(navProps, input);
-        let items = navItems(p.items);
+        let items = navItems(p.items, max, labelMax);
         let shown = p.current;       // what is marked current: the prop, or the reader's choice since
         let lastProp = p.current;
         return shell(el, 'nav', kind, ({ doc, root, listen, cleanup }) => {
@@ -166,7 +170,7 @@ function renderNav(kind) {
             return {
                 update(next) {
                     p = resolveProps(navProps, next);
-                    items = navItems(p.items);
+                    items = navItems(p.items, max, labelMax);
                     // A new `current` from the screen wins over the reader's last choice.
                     if (p.current !== lastProp) shown = p.current;
                     lastProp = p.current;
@@ -185,3 +189,12 @@ function make(kind) {
 
 export const tabs = make('tabs');
 export const navbar = make('navbar');
+
+/**
+ * The `ss.tabs` render for a host's own tab strip (the story panel's tab bar, host-ui.js createTabHost): the same
+ * block (roving tabindex, arrows, Home and End, aria-current, a choice runs `onSelect` with `{ tabs: id }`), with
+ * the host's own limits. Returns the widget's shell: `update(props)` redraws it and keeps the focus on the item it was on.
+ */
+export function renderTabStrip(options = {}) {
+    return renderNav('tabs', options);
+}

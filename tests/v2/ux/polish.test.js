@@ -124,7 +124,7 @@ test('the game view\'s navigation and the tab bar carry the cue; mounts.css fade
     assert.ok(nav.getAttribute('data-ss-more'), 'the cue is set on the navigation');
     view.close();
     const css = read('view/mounts.css');
-    assert.match(css, /:is\(\.ss-gameview-nav, \.story-suite-tabs\)\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
+    assert.match(css, /:is\(\.ss-gameview-nav, \.ss-tabs-list\)\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
     assert.match(css, /\[data-ss-axis="y"\]\[data-ss-more="both"\][^}]*mask-image/);
 });
 

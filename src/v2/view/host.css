@@ -89,14 +89,8 @@
     }
 }
 
-/* ---- the tab host ---- */
-.story-suite-tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 6px; border-bottom: 1px solid var(--story-suite-line); }
-.story-suite-tab {
-    display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
-    padding: 6px 10px; border: 1px solid transparent; border-radius: 8px;
-    background: transparent; color: inherit; cursor: pointer; font: inherit;
-}
-.story-suite-tab.active { border-color: var(--story-suite-line); background: rgba(128, 128, 128, 0.14); color: var(--story-suite-accent); }
+/* ---- the tab host: the tab bar is the ss.tabs block (glass.css draws it, its list scrolls); the pane under it ---- */
+.story-suite-tabs { min-width: 0; }
 .story-suite-pane { padding-top: 8px; min-width: 0; }
 
 /* ---- the settings window ----
