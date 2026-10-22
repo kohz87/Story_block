@@ -1793,6 +1793,79 @@
     border-top: 1px solid color-mix(in srgb, var(--ss-muted) 28%, transparent);
 }
 
+/* ---- the Modules page (view/settings/modules.js, UI stage step 3f): a card per module, two columns on a wide window, Versions across both ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button[hidden] {
+    display: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ss-space-3);
+    align-items: start;
+}
+@media (min-width: 900px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules > .ss-versions-card {
+        grid-column: 1 / -1;
+    }
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-features {
+    align-self: flex-start;
+    margin-bottom: var(--ss-space-2);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-panel,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-own {
+    margin: var(--ss-space-2) 0;
+    min-width: 0;
+}
+/* A module's groups are sub-sections of its card, not cards in a card; a fold's summary is the group's heading */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-card .ss-form {
+    gap: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-card .ss-form .ss-section,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-card .ss-module-own {
+    padding: 0;
+    border: 0;
+    border-top: 1px solid color-mix(in srgb, var(--ss-muted) 28%, transparent);
+    border-radius: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-card .ss-form .ss-section-head {
+    padding: 10px 0 4px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold > .ss-section-head {
+    cursor: pointer;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold > .ss-section-head::before {
+    content: "\25B8";
+    flex: none;
+    width: 1em;
+    color: var(--ss-muted);
+    transition: transform var(--ss-motion, 0.2s) ease;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold-open > .ss-section-head::before {
+    transform: rotate(90deg);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold > .ss-section-head .ss-section-title {
+    flex: 1 1 auto;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold > .ss-section-head:focus-visible {
+    outline: 2px solid var(--ss-accent);
+    outline-offset: 2px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-card .ss-field {
+    grid-template-columns: minmax(0, 1fr);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-warn .ss-section-hint {
+    color: var(--ss-warn);
+    font-weight: 700;
+}
+
 /* helpers of the UI sample's demo form */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-sample-form {
     display: flex;

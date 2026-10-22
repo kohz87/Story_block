@@ -277,6 +277,48 @@ test('sources: a field can live outside the module\'s settings; its value is rea
     assert.equal(input(t, 'on').getAttribute('aria-checked'), 'false');
 });
 
+test('destroy: a box that still holds the focus says its change as the form leaves; nothing throws and nothing is asked of an emptied form', () => {
+    const t = setup({}, { a: { type: 'int', label: 'One: A', min: 1, max: 9 }, b: { type: 'int', label: 'Two: B', min: 1, max: 9 } }, { a: 3, b: 4 });
+    const box = input(t, 'a');
+    t.form.destroy();
+    box.value = '5';
+    assert.doesNotThrow(() => box.dispatch('change'), 'the late change of a removed box');
+    assert.equal(t.form.keys().length, 0);
+    assert.doesNotThrow(() => t.form.refresh());
+});
+
+test('fold: with more than one group each group is a fold keyed by its name, the first open; the state is kept; openGroup opens one; a search opens the matches and gives the reader\'s choice back', () => {
+    const state = new Map();
+    const schema = { a: { type: 'int', label: 'One: A', min: 1, max: 9 }, b: { type: 'int', label: 'Two: B', min: 1, max: 9 }, c: { type: 'int', label: 'Three: C', min: 1, max: 9 } };
+    const t = setup({ fold: { prefix: 'm::group:', state } }, schema, { a: 1, b: 2, c: 3 });
+    const folds = () => t.parent.querySelectorAll('details.ss-section');
+    assert.deepEqual(folds().map(node => node.dataset.fold), ['m::group:One', 'm::group:Two', 'm::group:Three']);
+    assert.deepEqual(folds().map(node => node.open), [true, false, false]);
+    assert.ok(folds().every(node => hasClass(node, 'ss-section-fold')));
+    assert.deepEqual(folds().map(node => hasClass(node, 'ss-section-fold-open')), [true, false, false]);
+    assert.deepEqual(t.form.groups().map(group => [group.name, group.key, group.fold, group.open]), [['One', 'm::group:One', true, true], ['Two', 'm::group:Two', true, false], ['Three', 'm::group:Three', true, false]]);
+    assert.equal(t.form.openGroup('nothing'), null);
+    assert.ok(t.form.openGroup('Three') === folds()[2]);
+    assert.equal(folds()[2].open, true);
+    assert.equal(state.get('m::group:Three'), true, 'the reader\'s choice is kept');
+    // A toggle by the reader is kept too.
+    folds()[0].open = false;
+    folds()[0].dispatch('toggle');
+    assert.equal(state.get('m::group:One'), false);
+    // A search opens the groups with a match, hides the others, and the reader's own choice comes back.
+    t.form.filter('B');
+    assert.deepEqual(folds().map(node => node.hidden), [true, false, true]);
+    assert.equal(folds()[1].open, true);
+    t.form.filter('');
+    assert.deepEqual(folds().map(node => node.open), [false, false, true]);
+    // The state is read again by the next form: the first one no longer opens by itself once the reader closed it.
+    const again = setup({ fold: { prefix: 'm::group:', state } }, schema, { a: 1, b: 2, c: 3 });
+    assert.deepEqual(again.parent.querySelectorAll('details.ss-section').map(node => node.open), [false, false, true]);
+    // One group alone is not a fold; without `fold` nothing is.
+    assert.equal(setup({ fold: { prefix: 'x::' } }, { a: { type: 'int', label: 'A', min: 1, max: 9 } }, { a: 1 }).parent.querySelectorAll('details').length, 0);
+    assert.equal(setup({}, schema, { a: 1, b: 2, c: 3 }).parent.querySelectorAll('details').length, 0);
+});
+
 test('disabled: the whole form can be switched off and on', () => {
     const t = setup({ disabled: true });
     assert.ok(hasClass(row(t, 'title'), 'ss-field-disabled'));

@@ -141,7 +141,7 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
             for (const other of pages.values()) if (other !== entry) other.body?.refresh?.();
             footer?.refresh();
         };
-        entry.body = make(entry.pane, { doc, openState, label: entry.section.label, legacy, options, changed });
+        entry.body = make(entry.pane, { doc, openState, label: entry.section.label, legacy, options, changed, open: key => { if (open) openFold(key); } });
     }
 
     footer = createFooter(doc, { reader, onOpen: () => openFold(PROMPT_FOLD) });
@@ -205,6 +205,15 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
         }
     };
     layer.addEventListener('keydown', onKey);
+    // Escape closes the window even when the focus has fallen to the page (a control that held it was disabled or taken out): a key
+    // that starts outside the window never reaches the layer's own listener.
+    const onPageKey = event => {
+        if (open && event?.key === 'Escape' && !layer.contains(event.target)) {
+            event.preventDefault?.();
+            api.close();
+        }
+    };
+    doc.addEventListener?.('keydown', onPageKey);
     doc.addEventListener?.('focusin', onFocus, true);
     // A click on the dimmed page beside the window closes it, but a drag that starts inside (selecting text) and ends
     // outside does not.
@@ -235,6 +244,7 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
             open = false;
             if (current === api) current = null;
             doc.removeEventListener?.('focusin', onFocus, true);
+            doc.removeEventListener?.('keydown', onPageKey);
             for (const entry of pages.values()) { try { entry.body?.destroy?.(); } catch { /* closed either way */ } }
             railBlock.destroy();
             footer.destroy();

@@ -81,10 +81,10 @@ test('Settings → Tabs & Packs → Tabs lists each tab once with where it shows
     assert.equal(home.querySelector('.ss-tabrow-up').disabled, true);
     assert.equal(home.querySelector('.ss-tabrow-down').disabled, true);
     assert.equal(home.querySelector('[role="switch"]').getAttribute('aria-checked'), 'true', 'Home is shown');
+    assert.equal(home.querySelector('[role="switch"]').disabled, true, 'Home\'s switch is locked');
+    assert.equal(home.querySelector('.ss-tabrow-lock').textContent, 'Always shown');
     home.querySelector('[role="switch"]').click();
     assert.equal(home.querySelector('[role="switch"]').getAttribute('aria-checked'), 'true', 'Home cannot be hidden');
-    assert.match(doc.querySelector('.ss-tabrows-refusal').textContent, /^Home stays\./, 'and says why');
-    assert.equal(doc.querySelector('.ss-tabrows-refusal').hidden, false);
     assert.match(row(doc, 'npc-state-delta/cast').textContent, /Story panel and game view/, 'the Dossiers tab and the Dossiers screen are one row');
     assert.match(row(doc, 'story-block/home').textContent, /game view/);
     const party = row(doc, 'rpg-battle/party');

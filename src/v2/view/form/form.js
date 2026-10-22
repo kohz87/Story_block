@@ -51,13 +51,16 @@ function checkNote(field, value) {
  * Connection Manager answer for profile fields; default: the page's), `search` (a search box on top), `onChange({ moduleId,
  * key, value })` (after a value was stored), `memo` (a Map keeping a list's rows/lines choice across redraws), `disabled`,
  * `sources` ({ key: { get(), set(value) } }: a field whose value lives elsewhere, a feature's switch or a host setting),
- * `quiet` (no "N settings shown" or "No settings match" line: a window around it says it), `className` (another class on the form).
- * → { el, filter(text), refresh(), setDisabled(on), field(key), keys(), destroy() }.
+ * `quiet` (no "N settings shown" or "No settings match" line: a window around it says it), `className` (another class on the form),
+ * `fold` ({ prefix, state?, openFirst? }: with more than one group, each group is a fold (a `details`) whose key is `prefix + group name`;
+ * `state` is a Map of key → open kept across redraws, the first group opens unless the state says otherwise; a search opens the
+ * groups that have a match and the reader's choice comes back when it is cleared).
+ * → { el, filter(text), refresh(), setDisabled(on), field(key), keys(), groups(), openGroup(name), destroy() }.
  */
 export function renderSettingsForm(parent, options) {
     const {
         moduleId = null, schema = {}, settings, doc = parent?.ownerDocument ?? globalThis.document, title = '', hint = '', featureOn = null, profiles = null, search = false,
-        onChange = null, memo = new Map(), quiet = false, className = '', sources = null,
+        onChange = null, memo = new Map(), quiet = false, className = '', sources = null, fold = null,
     } = options ?? {};
     if (typeof settings !== 'function' || typeof settings.set !== 'function') throw new TypeError('The settings form needs the settings store (settings(id) and settings.set(id, key, value)).');
     let disabled = Boolean(options?.disabled);
@@ -217,8 +220,16 @@ export function renderSettingsForm(parent, options) {
             entry.row.hidden = !visible;
             if (visible) shown += 1;
         }
-        for (const section of sections) section.setHidden(!section.keys.some(key => !rows.get(key).row.hidden));
         const searching = filterText.trim() !== '';
+        for (const section of sections) {
+            const any = section.keys.some(key => rows.get(key) && !rows.get(key).row.hidden);
+            section.setHidden(!any);
+            // A fold with a match is open while the search is on; the reader's own choice comes back after it.
+            if (section.fold) {
+                section.el.open = searching ? any : section.userOpen;
+                section.el.classList.toggle('ss-section-fold-open', section.el.open === true);
+            }
+        }
         // `quiet`: a window around the form says how many matched (all its pages together), so the form does not.
         if (quiet) {
             status.hidden = true;
@@ -247,10 +258,29 @@ export function renderSettingsForm(parent, options) {
             }
         }
         if (!entries.length) continue;
-        // One group alone needs no heading of its own.
-        const section = sectionBlock(doc, { title: single ? '' : group.name, id: newId(`${moduleId ?? 'host'}-group`) });
+        // One group alone needs no heading of its own (and is never folded).
+        const folded = Boolean(fold) && !single;
+        const foldKey = `${fold?.prefix ?? ''}${group.name}`;
+        const wasOpen = fold?.state instanceof Map && fold.state.has(foldKey) ? fold.state.get(foldKey) === true : fold?.openFirst !== false && sections.length === 0;
+        const section = sectionBlock(doc, { title: single ? '' : group.name, id: newId(`${moduleId ?? 'host'}-group`), collapsible: folded, open: wasOpen });
         for (const entry of entries) section.body.appendChild(entry.row);
+        if (!folded && !single) section.title.tabIndex = -1;   // a group's heading can take the focus (a fold id opens it)
         section.keys = entries.map(entry => entry.key);
+        section.group = group.name;
+        section.fold = folded;
+        section.userOpen = wasOpen;
+        section.foldKey = foldKey;
+        if (folded) {
+            section.el.classList.add('ss-section-fold');
+            section.el.classList.toggle('ss-section-fold-open', wasOpen);
+            section.el.dataset.fold = foldKey;
+            section.el.addEventListener('toggle', () => {
+                if (filterText.trim() !== '') return;
+                section.el.classList.toggle('ss-section-fold-open', section.el.open === true);
+                section.userOpen = section.el.open === true;
+                if (fold.state instanceof Map) fold.state.set(foldKey, section.userOpen);
+            });
+        }
         sections.push(section);
         root.appendChild(section.el);
     }
@@ -286,10 +316,26 @@ export function renderSettingsForm(parent, options) {
         /** One row: { row, handle, kind, f, setError }, or undefined. */
         field: key => rows.get(key),
         keys: () => [...rows.keys()],
+        /** The groups drawn, in order: [{ name, key, fold, open, el }]. */
+        groups: () => sections.map(section => ({ name: section.group, key: section.foldKey, fold: section.fold, open: section.fold ? section.el.open === true : true, el: section.el })),
+        /** Opens a group's fold (and the reader's choice with it) and returns its element, or null when there is no such group. */
+        openGroup(name) {
+            const section = sections.find(item => item.group === name);
+            if (!section) return null;
+            if (section.fold) {
+                section.el.open = true;
+                section.el.classList.add('ss-section-fold-open');
+                section.userOpen = true;
+                if (fold.state instanceof Map) fold.state.set(section.foldKey, true);
+            }
+            return section.el;
+        },
         destroy() {
+            // The form leaves the page first: a box that still holds the focus then says its `change` (the browser's blur) while the
+            // rows are still here, so what the reader typed last is kept, and nothing is asked of a form already emptied.
+            root.remove();
             for (const entry of rows.values()) entry.handle.destroy();
             rows.clear();
-            root.remove();
         },
     };
     return api;
