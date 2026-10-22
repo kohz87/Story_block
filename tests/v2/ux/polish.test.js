@@ -20,16 +20,18 @@ const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta
 
 // ---- navigation order -----------------------------------------------------------------------------
 
-test('screenOrder: Home first whatever it says; then Party, Quests, Scene, Inventory, Map; then the rest', () => {
+test('screenOrder: Home first whatever it says; then the suite\'s default order; the Director last', () => {
     assert.equal(screenOrder(HOME_ID), 0);
     assert.equal(screenOrder(HOME_ID, 99), 0, 'a pack or reader version of Home cannot move it down');
-    assert.equal(screenOrder('rpg-battle/party'), 10);
-    assert.equal(screenOrder('story-director/quests'), 20);
-    assert.equal(screenOrder('story-block/scene'), 30);
-    assert.equal(screenOrder('story-block/inventory'), 40);
-    assert.equal(screenOrder('story-director/map'), 50);
-    assert.equal(screenOrder('rpg-battle/fight'), REST_ORDER);
-    assert.equal(screenOrder('a/b', 5), 5, 'a screen\'s own order wins over the defaults');
+    const suite = ['rpg-battle/party', 'story-block/inventory', 'story-director/quests', 'story-director/world', 'story-director/map',
+        'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'npc-state-delta/cast', 'story-block/scene',
+        'story-director/chronicle', 'story-director/director'];
+    assert.deepEqual(suite.map(id => screenOrder(id)), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 200]);
+    assert.equal(screenOrder('npc-state-delta/cast', 35), 90, 'the suite\'s own keep their default place whatever order they say');
+    assert.equal(screenOrder('a/b'), REST_ORDER);
+    assert.ok(REST_ORDER > screenOrder('story-director/chronicle') && REST_ORDER < screenOrder('story-director/director'), 'others go before the Director');
+    assert.equal(screenOrder('mypack/party'), 10, 'another screen takes the default place of its last part');
+    assert.equal(screenOrder('a/b', 5), 5, 'another screen\'s own order wins over the defaults');
     assert.equal(screenOrder('a/b', -10), 1, 'nothing goes before Home');
     assert.equal(screenOrder('a/b', 0), 1);
     assert.equal(screenOrder('a/b', Number.NaN), REST_ORDER);
@@ -43,8 +45,8 @@ test('the registry lists screens in navigation order; ties keep id order; order 
     screens.addModule('x', [s('x/zeta', { order: 5 }), s('x/pushy', { order: -3 })]);
     screens.addModule('story-block', [s('story-block/home', { order: 1000 }), s('story-block/scene'), s('story-block/inventory')]);
     assert.deepEqual(screens.list('screen').map(entry => entry.id), [
-        'story-block/home', 'x/pushy', 'x/zeta', 'rpg-battle/party', 'story-director/quests', 'story-block/scene',
-        'story-block/inventory', 'story-director/map', 'rpg-battle/fight', 'rpg-battle/items', 'story-director/director',
+        'story-block/home', 'x/pushy', 'x/zeta', 'rpg-battle/party', 'story-block/inventory', 'story-director/quests',
+        'story-director/map', 'rpg-battle/fight', 'story-block/scene', 'rpg-battle/items', 'story-director/director',
     ]);
     assert.match(validateScreen(s('a/b', { order: 'first' })).join(' '), /order must be a number/);
     assert.deepEqual(validateScreen(s('a/b', { order: 2.5 })), []);
@@ -52,7 +54,7 @@ test('the registry lists screens in navigation order; ties keep id order; order 
 
 test('byNavOrder sorts the Story panel\'s tabs (module tabs and tab screens together)', () => {
     const tabs = [{ id: 'trade' }, { id: 'rpg-battle/party' }, { id: 'items', order: 45 }, { id: 'story-block/scene' }, { id: 'story-block/inventory' }];
-    assert.deepEqual(byNavOrder(tabs).map(tab => tab.id), ['rpg-battle/party', 'story-block/scene', 'story-block/inventory', 'items', 'trade']);
+    assert.deepEqual(byNavOrder(tabs).map(tab => tab.id), ['rpg-battle/party', 'story-block/inventory', 'items', 'trade', 'story-block/scene']);
 });
 
 // ---- the scroll cue --------------------------------------------------------------------------------
