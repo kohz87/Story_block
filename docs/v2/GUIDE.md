@@ -88,8 +88,9 @@ reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the i
 
 **Loot to pick from.** When the story lays things out rather than handing them over (a shelf, a chest,
 a fallen foe's belt), the model writes `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar shelf`.
-Nothing is given yet: the reply's card shows the things as chips. Tick the ones you want and press
-**Take selected**; they go into the party's bag. Each reply's loot is taken once, things you already
+Nothing is given yet: the reply's card shows the things as chips, and so does **To pick up** at the top of
+the Inventory (handy with the cards off). Tick the ones you want and press **Take selected**; they go into
+the party's bag. Each reply's loot is taken once, things you already
 carry are left out, and what one reply may lay out is held to the same limits as what it may give. A
 take you cannot carry is refused, and the loot stays there. Turn it off with **Pick what you take** in
 the Features.
