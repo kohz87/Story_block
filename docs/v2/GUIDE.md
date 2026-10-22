@@ -687,6 +687,9 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
   recent Story Suite errors, and each extension's own lines (NPC State Delta: its scanner's profile and how
   its last call went). It never holds API keys, passwords, addresses or any of the chat's text: settings
   that name a key, token, password or address are left out, and quoted text keeps only its length.
+  Below the report, folded until you open it, is **Events**: every event your packs define, its condition,
+  whether it has happened, is due or waits, and what the last reply fired. It is for checking packs and
+  shows what is coming, so it can spoil the story.
 * **Versions** (last): every Story Suite extension installed, its version and the Story Block it says
   it needs. One that is out of step (it needs a newer Story Block, was made for a newer one, clashes
   with another, or is installed twice) says so with one sentence on how to fix it.

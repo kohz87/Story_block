@@ -610,12 +610,19 @@ sdk.registerModule({
   While a field is read-only, its optional `shows` (`values => value`) gives the value the row shows
   instead of the stored one, for display only: the stored value is kept and is shown again once the field
   is editable (one that throws or returns `undefined` shows the stored value).
+  `settings.place: 'diagnostics'` (optional) says the module's fold is debug information rather than
+  settings: it is drawn as a sub-fold of **Diagnostics** (below the report; a Diagnostics fold is drawn
+  for it even without a report), folded until the reader opens it and remembered like any fold, not
+  among the module folds. A fold in `settings.folds` may say the same with its own `place`. Any other
+  `place` is a warning when the module registers and the fold stays where it was. Story Block's Events
+  (every pack event, its condition and status) is such a fold, `story-block/events`, since it tells what
+  is coming.
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
   The overlay is one centred column of folds: Story Suite (the tail budget, the share of the context and
   the prompt size, with the context size and the share used), the
-  modules' own folds (`settings.folds: [{ id, title, hint?, render(el, api) }]`; Story Block's Packs),
+  modules' own folds (`settings.folds: [{ id, title, hint?, render(el, api), place? }]`; Story Block's Packs),
   Features (a filter box, then a sub-fold per module by name, "N of M on"), a fold per module with
-  settings, Versions. A module with features but no settings has no fold of its own. Inside a module's
+  settings, Diagnostics (with what is placed there), Versions. A module with features but no settings has no fold of its own. Inside a module's
   fold one line says how many of its features are on and opens Features at that module; then a sub-fold
   per settings group: a field's optional `group` (text), else its label's prefix ("Calendar: Era" → group
   Calendar, label Era), else General; then its `section`. A `list` field draws one compact line per item.
