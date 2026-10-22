@@ -526,9 +526,12 @@ The same screens can show in five places:
 ### Your order of tabs
 
 The tabs and the game view's screens come in one order: **Home** (game view), **Party**, **Inventory**,
-**Quests**, **World**, **Map**, **Fight**, **Crafting**, **Trade**, **Cast**, **Scene**, **Chronicle**
-(when it is on), then any other extension's screens, and **Director** last (the game master's view, with
-what your character has not been told). Only the installed extensions' tabs show.
+**Quests**, **World**, **Map**, **Fight**, **Crafting**, **Trade**, **Scene**, **Chronicle**
+(when it is on), then any other extension's screens, **Director** (the game master's view, with
+what your character has not been told), and NPC State Delta's **Dossiers** last (the people present are on
+the World screen). An order you saved before keeps Dossiers where you put Cast. With Story Director
+installed, **Scene** starts hidden: World → Now shows the same place, time and people. It is still listed in
+Settings → Story Suite → Tabs to show again (and an order you saved before with Scene in it keeps it). Only the installed extensions' tabs show.
 
 Change it in **Settings → Story Suite → Tabs**: every tab and screen of every installed extension, one row
 each, with where it shows (*Story panel and game view*, or one of them). **Up** and **Down** move one

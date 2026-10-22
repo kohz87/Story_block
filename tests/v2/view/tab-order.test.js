@@ -17,10 +17,10 @@ const DEFAULT = [HOME_ID, 'rpg-battle/party', 'story-block/inventory', 'story-di
 
 test('readTabChoice: strings only, no repeats, never Home, bounded; anything else is the default', () => {
     for (const raw of [undefined, null, 7, 'x', [], { order: 'a' }, { order: [1, null, {}], hidden: true }]) {
-        assert.deepEqual(readTabChoice(raw), { order: [], hidden: [] }, JSON.stringify(raw));
+        assert.deepEqual(readTabChoice(raw), { order: [], hidden: [], shown: [] }, JSON.stringify(raw));
     }
     assert.deepEqual(readTabChoice({ order: ['a/b', 'a/b', '', HOME_ID, 'c/d', 'x'.repeat(TAB_ID_MAX + 1)], hidden: [HOME_ID, 'c/d'] }),
-        { order: ['a/b', 'c/d'], hidden: ['c/d'] });
+        { order: ['a/b', 'c/d'], hidden: ['c/d'], shown: [] });
     const many = Array.from({ length: TAB_LIST_MAX + 50 }, (_, i) => `m/t${i}`);
     assert.equal(readTabChoice({ order: many }).order.length, TAB_LIST_MAX);
     assert.equal(isDefaultChoice({}), true);
@@ -61,27 +61,55 @@ test('visibleNav leaves the hidden ones out; Home is never hidden', () => {
     assert.deepEqual(ids(visibleNav(ALL, choice)), DEFAULT.filter(id => id !== 'rpg-battle/fight'));
 });
 
+test('Scene is hidden by default while Story Director\'s World is there; the reader\'s choice wins', () => {
+    const scene = 'story-block/scene';
+    const world = 'story-director/world';
+    const withWorld = [...ALL, { id: world }];
+    assert.equal(isHiddenNav({}, scene, id => id === world), true, 'World there: hidden by default');
+    assert.equal(isHiddenNav({}, scene, () => false), false, 'no World: shown as before');
+    assert.equal(isHiddenNav({}, scene), false, 'a caller that cannot say what is there gets no default');
+    assert.ok(!ids(visibleNav(withWorld, null)).includes(scene));
+    assert.ok(ids(visibleNav(ALL, null)).includes(scene), 'without World, Scene shows');
+    assert.ok(ids(orderNav(withWorld, null)).includes(scene), 'still listed (Settings → Tabs shows it to show again)');
+    // Shown again by the reader: kept in `shown`, so the default no longer hides it; hidden again: gone from it.
+    const again = setNavHidden({}, scene, false);
+    assert.deepEqual(again, { order: [], hidden: [], shown: [scene] });
+    assert.equal(isDefaultChoice(again), false);
+    assert.ok(ids(visibleNav(withWorld, again)).includes(scene));
+    assert.deepEqual(setNavHidden(again, scene, true), { order: [], hidden: [scene], shown: [] });
+    // Moving another tab keeps the reader's `shown` (and an empty one stays empty: Scene stays hidden).
+    assert.deepEqual(moveNav(again, ids(orderNav(withWorld, again)).slice(1), 'rpg-battle/party', 1).shown, [scene]);
+    const moved = moveNav({}, ids(orderNav(withWorld, null)).slice(1), 'rpg-battle/party', 1);
+    assert.ok(moved.order.includes(scene) && !ids(visibleNav(withWorld, moved)).includes(scene));
+    // An order saved before `shown` existed that names Scene: the reader had it in view, so it stays.
+    const old = { order: ['rpg-battle/party', scene], hidden: [] };
+    assert.deepEqual(readTabChoice(old).shown, [scene]);
+    assert.ok(ids(visibleNav(withWorld, old)).includes(scene));
+    assert.ok(!ids(visibleNav(withWorld, { order: ['rpg-battle/party', scene], hidden: [scene] })).includes(scene), 'a saved hidden wins');
+    assert.ok(!ids(visibleNav(withWorld, { order: ['rpg-battle/party'] })).includes(scene), 'an old order that does not name it: the default');
+});
+
 test('moveNav: up and down by one; the edges and Home stay; saved ids of a removed module are kept', () => {
     const shown = DEFAULT.slice(1);
     const down = moveNav({}, shown, 'rpg-battle/party', 1);
     assert.deepEqual(down.order, ['story-block/inventory', 'rpg-battle/party', ...shown.slice(2)]);
     const up = moveNav(down, ids(orderNav(ALL, down)).slice(1), 'rpg-battle/party', -1);
     assert.deepEqual(up.order, shown);
-    assert.deepEqual(moveNav({}, shown, shown[0], -1), { order: [], hidden: [] }, 'the first cannot go up');
-    assert.deepEqual(moveNav({}, shown, shown.at(-1), 1), { order: [], hidden: [] }, 'the last cannot go down');
-    assert.deepEqual(moveNav({}, shown, HOME_ID, 1), { order: [], hidden: [] }, 'Home is not in the list to move');
-    assert.deepEqual(moveNav({}, shown, 'nope/x', 1), { order: [], hidden: [] });
+    assert.deepEqual(moveNav({}, shown, shown[0], -1), { order: [], hidden: [], shown: [] }, 'the first cannot go up');
+    assert.deepEqual(moveNav({}, shown, shown.at(-1), 1), { order: [], hidden: [], shown: [] }, 'the last cannot go down');
+    assert.deepEqual(moveNav({}, shown, HOME_ID, 1), { order: [], hidden: [], shown: [] }, 'Home is not in the list to move');
+    assert.deepEqual(moveNav({}, shown, 'nope/x', 1), { order: [], hidden: [], shown: [] });
     const kept = moveNav({ order: ['gone/a', 'rpg-battle/party'], hidden: ['gone/b'] }, ['rpg-battle/party', 'story-block/scene'], 'story-block/scene', -1);
-    assert.deepEqual(kept, { order: ['gone/a', 'story-block/scene', 'rpg-battle/party'], hidden: ['gone/b'] }, 'the removed one keeps its slot');
+    assert.deepEqual(kept, { order: ['gone/a', 'story-block/scene', 'rpg-battle/party'], hidden: ['gone/b'], shown: [] }, 'the removed one keeps its slot');
     const slots = moveNav({ order: ['a/1', 'gone/x', 'a/2', 'gone/y'] }, ['a/1', 'a/2', 'a/3'], 'a/3', -1);
     assert.deepEqual(slots.order, ['a/1', 'gone/x', 'a/3', 'gone/y', 'a/2']);
 });
 
 test('setNavHidden hides and shows again; Home cannot be hidden', () => {
     const hidden = setNavHidden({}, 'rpg-battle/fight', true);
-    assert.deepEqual(hidden, { order: [], hidden: ['rpg-battle/fight'] });
+    assert.deepEqual(hidden, { order: [], hidden: ['rpg-battle/fight'], shown: [] });
     assert.deepEqual(setNavHidden(hidden, 'rpg-battle/fight', true), hidden, 'twice is once');
-    assert.deepEqual(setNavHidden(hidden, 'rpg-battle/fight', false), { order: [], hidden: [] });
+    assert.deepEqual(setNavHidden(hidden, 'rpg-battle/fight', false), { order: [], hidden: [], shown: [] });
     assert.deepEqual(setNavHidden(hidden, HOME_ID, true), hidden);
     assert.deepEqual(setNavHidden(hidden, '', true), hidden);
 });
@@ -90,13 +118,13 @@ test('createTabOrderStore keeps the choice in extension_settings.storySuite.tabs
     let saves = 0;
     const ctx = { extensionSettings: {}, saveSettingsDebounced: () => { saves += 1; } };
     const store = createTabOrderStore(ctx);
-    assert.deepEqual(store.choice(), { order: [], hidden: [] });
+    assert.deepEqual(store.choice(), { order: [], hidden: [], shown: [] });
     store.set({ order: ['a/b', 'a/b', 3], hidden: ['c/d'] });
-    assert.deepEqual(ctx.extensionSettings.storySuite.tabs, { order: ['a/b'], hidden: ['c/d'] });
-    assert.deepEqual(store.choice(), { order: ['a/b'], hidden: ['c/d'] });
+    assert.deepEqual(ctx.extensionSettings.storySuite.tabs, { order: ['a/b'], hidden: ['c/d'], shown: [] });
+    assert.deepEqual(store.choice(), { order: ['a/b'], hidden: ['c/d'], shown: [] });
     // A hand-edited file is read safely.
     ctx.extensionSettings.storySuite.tabs = { order: 'nonsense', hidden: [HOME_ID] };
-    assert.deepEqual(store.choice(), { order: [], hidden: [] });
+    assert.deepEqual(store.choice(), { order: [], hidden: [], shown: [] });
     store.reset();
     assert.equal(Object.hasOwn(ctx.extensionSettings.storySuite, 'tabs'), false);
     assert.equal(saves, 2);

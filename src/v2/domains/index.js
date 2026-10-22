@@ -18,7 +18,7 @@ import { renderInventoryTab } from '../ui/inventory-tab.js';
 import { renderSceneTab } from '../ui/scene-tab.js';
 import { FEATURE_TEXT, createAssistPart } from '../assist/index.js';
 import { CORE_FEATURE } from '../features.js';
-import { EXTRA_KINDS, answeredReply, chatterTail } from '../extras.js';
+import { EXTRA_KINDS, answeredReply, chatterTail, headChatter } from '../extras.js';
 import { STRINGS } from '../strings.js';
 import { createEventsPart } from '../events/index.js';
 import { standardWidgets } from '../view/widgets/index.js';
@@ -258,6 +258,21 @@ export function chatterBack(settings, extras) {
 }
 
 /**
+ * `scene.moved` → true when the head reply (the last carrier) moved the scene to another place: one of
+ * its receipts is a `scene.place` (a `~ place` line: `capture.place`) that says `moved`. From the line's receipts (tools.receipts), so a
+ * swipe, a delete or a Re-read answers as a rebuild does. False without a head or receipts.
+ */
+const PLACE_RECEIPTS = new Set(['scene.place', 'capture.place']);
+export function headMoved(tools, headIndex) {
+    let head = -1;
+    try { head = typeof headIndex === 'function' ? headIndex() : -1; } catch { head = -1; }
+    if (!Number.isInteger(head) || head < 0) return false;
+    let list = [];
+    try { list = typeof tools?.receipts === 'function' ? tools.receipts() ?? [] : []; } catch { list = []; }
+    return list.some(entry => entry?.index === head && PLACE_RECEIPTS.has(entry.receipt?.type) && entry.receipt?.data?.moved === true);
+}
+
+/**
  * The core module definition for `sdk.registerModule` (§6): the core part (scene, inventory), the
  * packs part (item.resolve before story defs, the start state, pack queries and its settings
  * section) and the events part (beforeGenerate, events.fire, events.status, its debug section, in
@@ -307,7 +322,13 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         features: [...CORE_FEATURES, ...INVENTORY_FEATURES].map(feature => ({ ...feature })),
         domains: merged.domains,
         commands: merged.commands,
-        queries: merged.queries,
+        // The newest reply's Inner chatter, [{ name, text }] (MODULES §F115; null while the feature is off), and
+        // whether the head reply moved the scene to another place (Story Director's World → Here, §F119).
+        queries: {
+            ...merged.queries,
+            'chatter.head': Object.assign(() => headChatter(extras?.chat?.(), extras?.display), { feature: CORE_FEATURE.chatter }),
+            'scene.moved': (_state, _args, tools) => headMoved(tools, extras?.headIndex),
+        },
         capture: {
             kinds: CORE_KINDS,
             apply(ctx, line) {

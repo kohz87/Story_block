@@ -207,6 +207,50 @@ test('Re-read, swipes, a middle delete and a rebuild show the same choices and c
     assert.deepEqual(extrasOf(other, at - 2), before);
 });
 
+test('chatter.head: the newest reply\'s chatter as [{ name, text }], read as the strip reads it; null while the feature is off', async t => {
+    const host = await fresh(t);
+    assert.deepEqual(host.sdk.query('chatter.head'), [], 'a reply without chatter');
+    await host.send('I look.', REPLY);
+    const want = [{ name: 'Minke', text: '…he\'d better not die down there' }, { name: 'Arn', text: 'keep your head down, boy' }];
+    assert.deepEqual(host.sdk.query('chatter.head'), want);
+    assert.deepEqual(host.sdk.query('chatter.head'), extrasOf(host).chatter, 'the same lines the strip under the reply shows');
+    // A swipe shows its own; swiping back, the first one's again; a delete of the newest falls back a reply.
+    const at = lastIndex(host);
+    await host.swipe(block('Another take.', ['~ chatter Minke: hmm']));
+    assert.deepEqual(host.sdk.query('chatter.head'), [{ name: 'Minke', text: 'hmm' }]);
+    await host.st.swipeTo(at, 0);
+    assert.deepEqual(host.sdk.query('chatter.head'), want);
+    await host.send('Next.', block('Next.', ['~ chatter Arn: quiet now']));
+    assert.deepEqual(host.sdk.query('chatter.head'), [{ name: 'Arn', text: 'quiet now' }]);
+    // The reader's own message after it: still the newest reply's (the one being answered).
+    host.ctx.chat.push({ name: 'You', is_user: true, mes: 'And then?' });
+    assert.deepEqual(host.sdk.query('chatter.head'), [{ name: 'Arn', text: 'quiet now' }]);
+    host.ctx.chat.pop();
+    await host.st.deleteMessage(lastIndex(host));
+    await host.st.deleteMessage(lastIndex(host));
+    assert.deepEqual(host.sdk.query('chatter.head'), want, 'after deleting the newest exchange, the reply before it');
+    // Off: null, as every query of a feature that is off.
+    host.features.set(CHATTER_FEATURE, false);
+    assert.equal(host.sdk.query('chatter.head'), null);
+});
+
+test('scene.moved: true only while the head reply moved the place; a swipe, a later reply and a delete follow', async t => {
+    const host = await fresh(t);
+    assert.equal(host.sdk.query('scene.moved'), false, 'no place line yet');
+    await host.send('We go.', block('The gate.', ['~ place Watch Granary | kind: settlement | region: Bluewatch']));
+    assert.equal(host.sdk.query('scene.moved'), true);
+    const at = lastIndex(host);
+    await host.swipe(block('We stay.', ['~ chatter Minke: hmm']));
+    assert.equal(host.sdk.query('scene.moved'), false, 'the swipe that stays');
+    await host.st.swipeTo(at, 0);
+    assert.equal(host.sdk.query('scene.moved'), true);
+    await host.send('Look around.', block('The same yard.', ['~ place Watch Granary | region: Bluewatch']));
+    assert.equal(host.sdk.query('scene.moved'), false, 'the same place described again is no move');
+    await host.st.deleteMessage(lastIndex(host));
+    await host.st.deleteMessage(lastIndex(host));
+    assert.equal(host.sdk.query('scene.moved'), true, 'after a delete, the reply before it again');
+});
+
 // ---------------------------------------------------------------------------------------------------
 // Never sent back, unless the reader asks
 

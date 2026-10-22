@@ -16,8 +16,8 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
         'assist.precheck', 'events.fire', 'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.equipOn', 'inventory.grant', 'inventory.lootTake',
         'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'scene.place', 'scene.present', 'wallet.pay', 'wallet.receive',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'events.status', 'inventory.condition', 'inventory.currency', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
-        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.list', 'packs.markets', 'packs.start', 'scene.place', 'scene.present']);
+    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'events.status', 'inventory.condition', 'inventory.currency', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
+        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.list', 'packs.markets', 'packs.start', 'scene.moved', 'scene.place', 'scene.present']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterReply', 'beforeGenerate', 'item.resolve', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'loot', 'choice', 'chatter']);
@@ -26,6 +26,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.equal(module.capture.kinds.loot.feature, 'story-block.loot');
     assert.equal(module.commands['inventory.lootTake'].feature, 'story-block.loot');
     assert.equal(module.queries['inventory.encumbrance'].feature, 'story-block.encumbrance');
+    assert.equal(module.queries['chatter.head'].feature, 'story-block.chatter', 'Inner chatter\'s query, null while it is off');
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
@@ -136,7 +137,7 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
         assert.equal(typeof kind.apply, 'function');
     }
     assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands).filter(name => !/^(events|assist)\./.test(name)));
-    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist)\./.test(name)));
+    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist|chatter)\./.test(name) && name !== 'scene.moved'));
     assert.equal(part.context.budget, CORE_BUDGET);
 });
 
