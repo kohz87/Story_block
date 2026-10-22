@@ -530,41 +530,84 @@ function amountArg(ctx, value, fallback, what) {
     return Math.min(COND_MAX, n);
 }
 
-// `inventory.wear { stack, by }`: the condition goes down by `by` (1…100), never below 0 (broken).
+// `inventory.wear { stack, amount }`: the condition goes down by `amount` (1…100), never below 0 (broken).
 function wear(ctx, payload) {
     moduleOnly(ctx, 'Wear');
     const inv = ctx.draft('inventory');
     const stack = stackIn(ctx, inv, payload.stack);
     const def = inv.defs[stack.def];
-    const by = amountArg(ctx, payload.by, undefined, 'wear');
-    if (by < 1) ctx.fail('INVALID', 'The wear must be a whole number of at least 1.');
+    const amount = amountArg(ctx, payload.amount, undefined, 'wear');
+    if (amount < 1) ctx.fail('INVALID', 'The wear must be a whole number of at least 1.');
     const before = condOf(stack);
-    const now = Math.max(0, before - by);
+    const now = Math.max(0, before - amount);
     if (now !== before) stack.cond = now;
     return {
         summary: before === 0 ? `${def.name} is already broken.` : now === 0 ? `${def.name} breaks.` : `${def.name} wears (${before} → ${now}).`,
-        data: { stack: stack.id, def: def.id, by, before, now, broken: now === 0 },
+        data: { stack: stack.id, def: def.id, amount, before, now, broken: now === 0 },
         narrate: false,
     };
 }
 
-// `inventory.repair { stack, to = 100 }`: the condition goes up to `to` (0…100), never down; as new
-// (100), the field is dropped again.
+// `inventory.repair { stack, amount }`: the condition goes up by `amount` (1…100), never above 100;
+// as new (100), the field is dropped again.
 function repair(ctx, payload) {
     moduleOnly(ctx, 'Repair');
     const inv = ctx.draft('inventory');
     const stack = stackIn(ctx, inv, payload.stack);
     const def = inv.defs[stack.def];
-    const to = amountArg(ctx, payload.to, COND_MAX, 'condition');
+    const amount = amountArg(ctx, payload.amount, undefined, 'repair');
+    if (amount < 1) ctx.fail('INVALID', 'The repair must be a whole number of at least 1.');
     const before = condOf(stack);
-    const now = Math.max(before, to);
+    const now = Math.min(COND_MAX, before + amount);
     if (now === COND_MAX) delete stack.cond;
-    else if (now !== before) stack.cond = now;
+    else stack.cond = now;
     return {
-        summary: now === before ? `${def.name} needs no mending to ${to}.` : `${def.name} is mended (${before} → ${now}).`,
-        data: { stack: stack.id, def: def.id, to, before, now },
+        summary: now === before ? `${def.name} is already as good as new.` : `${def.name} is mended (${before} → ${now}).`,
+        data: { stack: stack.id, def: def.id, amount, before, now },
         narrate: false,
     };
+}
+
+// The story's word for wear on a piece (`~ item Coat — torn by brambles | wear: scuff|tear|ruin`). With a
+// module answering `item.wear` (RPG Battle's gear rules: bands, refinement, its own claim) the line goes
+// there as `item.wear { name, wear, why, story: true }`; without one Story Block wears the stack itself
+// by STORY_WEAR, once per piece per reply. Words and numbers are RPG Battle's (items/condition.js), so
+// both read a line the same way.
+export const STORY_WEAR = Object.freeze({ scuff: 5, tear: 15, ruin: 40 });
+const WEAR_WORDS = Object.freeze({
+    scuff: 'scuff', scuffed: 'scuff', scratch: 'scuff', scratched: 'scuff', nick: 'scuff', nicked: 'scuff', dent: 'scuff', dented: 'scuff',
+    tear: 'tear', torn: 'tear', tore: 'tear', rip: 'tear', ripped: 'tear', cut: 'tear', gash: 'tear', crack: 'tear', cracked: 'tear', burn: 'tear', burned: 'tear', burnt: 'tear',
+    ruin: 'ruin', ruined: 'ruin', wreck: 'ruin', wrecked: 'ruin', smash: 'ruin', smashed: 'ruin', shatter: 'ruin', shattered: 'ruin', destroy: 'ruin', destroyed: 'ruin',
+});
+
+/** scuff | tear | ruin for a wear label's words, or null. */
+export function wearWord(value) {
+    const said = String(value ?? '').normalize('NFKC').toLowerCase().trim().split(/[^a-z]+/).filter(Boolean);
+    for (const word of said) if (Object.hasOwn(WEAR_WORDS, word)) return WEAR_WORDS[word];
+    return null;
+}
+
+function storyWear(ctx, inv, def, written, why) {
+    const word = wearWord(written);
+    if (!word) ctx.fail('INVALID', 'Say how the piece suffered: wear: scuff, wear: tear or wear: ruin.');
+    let out;
+    try {
+        out = ctx.call('item.wear', { name: def.name, wear: word, ...(why ? { why } : {}), story: true });
+    } catch (error) {
+        if (!(error?.code === 'UNKNOWN_COMMAND' && String(error.message).includes('item.wear'))) throw error;
+        out = null;
+    }
+    if (out) return typeof out.summary === 'string' && out.summary ? out.summary : `${def.name}: ${word}.`;
+    // Without a gear module: the piece worn, else the first lot (as `- item` takes them).
+    const held = stacksOf(inv, def.id);
+    const stack = held.find(other => other.equipped !== null) ?? held[0];
+    if (!stack) ctx.fail('NOT_FOUND', `There is no ${def.name} in the inventory.`);
+    const reply = ctx.carrier?.sid ?? ctx.receiptId ?? '';
+    if (!ctx.claim(`wear:${reply}:${stack.id}`)) ctx.fail('CLAIMED', `${def.name} already took its wear in this reply.`);
+    const before = condOf(stack);
+    const now = Math.max(0, before - STORY_WEAR[word]);
+    if (now !== before) stack.cond = now;
+    return now === 0 ? `${def.name} is broken` : `${def.name} is ${{ scuff: 'scuffed', tear: 'damaged', ruin: 'badly damaged' }[word]} (${now}/100)`;
 }
 
 // ---------- loot to pick from (`story-block.loot`) ----------
@@ -934,7 +977,7 @@ export function createInventoryCommands(env) {
 
         // { stack, actor }: move a piece to a member and put it on, in one step (MODULES §F99).
         'inventory.equipOn': (ctx, payload = {}) => equipOn(ctx, payload),
-        // { stack, by } / { stack, to }: gear condition, for another module's rules only (ctx.caller).
+        // { stack, amount }: gear condition down / up, for another module's rules only (ctx.caller).
         'inventory.wear': (ctx, payload = {}) => wear(ctx, payload),
         'inventory.repair': (ctx, payload = {}) => repair(ctx, payload),
         // { sid, pick: [index…] }: the reader takes what they picked of a reply's loot.
@@ -1246,6 +1289,8 @@ export function captureItem(ctx, line, env) {
     if (line.op === '~') {
         const def = knownDef(ctx, inv, name);
         const changes = [];
+        const worn = labelOf(line, 'wear');
+        if (worn !== null) changes.push(storyWear(ctx, inv, def, worn, trimText(text, MAX_NOTE)).replace(/\.$/, ''));
         const rename = labelOf(line, 'name', 'rename');
         if (rename !== null && cleanName(rename) && cleanName(rename) !== def.name) {
             const next = cleanName(rename);
@@ -1260,7 +1305,8 @@ export function captureItem(ctx, line, env) {
             def.name = next;
             changes.push(`${old} is now called ${next}`);
         }
-        const note = labelOf(line, 'note') ?? (text || null);
+        // With a wear label the text says how it happened, not a new note.
+        const note = labelOf(line, 'note') ?? (worn === null ? text || null : null);
         const qty = labelOf(line, 'qty', 'quantity', 'count') === null ? null : lineQty(ctx, line, null);
         let problem = null;
         let heavy = false;

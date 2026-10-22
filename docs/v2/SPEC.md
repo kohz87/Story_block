@@ -558,12 +558,18 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   carry `cond` when it is there. It is a plain value, not a counter (a replay keeps the value the later
   reply wrote). Two commands, **another module's calls only** (`ctx.call`, so `ctx.caller` is set; at the
   top, whatever the cause, `REFUSED`), for RPG Battle's wear rules:
-  * `inventory.wear { stack, by }`: `by` a whole number ≥ 1 (more than 100 counts as 100); the condition goes
-    down by it, never below 0. → `data: { stack, def, by, before, now, broken }`. Wearing a broken piece
-    changes nothing and does not fail.
-  * `inventory.repair { stack, to = 100 }`: `to` a whole number ≥ 0 (more than 100 counts as 100); the
-    condition goes up to it, never down; at 100 the field is dropped. → `data: { stack, def, to, before, now }`.
+  * `inventory.wear { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); the
+    condition goes down by it, never below 0. → `data: { stack, def, amount, before, now, broken }`. Wearing
+    a broken piece changes nothing and does not fail.
+  * `inventory.repair { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); the
+    condition goes up by it, never above 100; at 100 the field is dropped. → `data: { stack, def, amount,
+    before, now }`. RPG Battle keeps a piece's own maximum (below 100 after field patches) and asks for the
+    difference.
   A malformed amount is `INVALID`; neither is narrated.
+  The story's word for wear, `~ item Coat — torn by brambles | wear: scuff|tear|ruin` (or a word for one of
+  them: scratched, ripped, shattered…), goes to `item.wear { name, wear, why, story: true }` when a module
+  answers it (RPG Battle's gear rules); without one Story Block wears the piece (the worn one, else the first
+  lot) by 5, 15 or 40, once per piece per reply (claim `wear:<sid>:<stack>`, else `CLAIMED`).
 * **Equip on…** (MODULES §F99). `inventory.equipOn { stack, actor }` (`actor` a party member's `ac_` id)
   hands the piece to that member and puts it on in one step. It must be equipment with a slot that member
   can wear: a slot this chat's rules count, and what `items.canWear({ actor, defId })` says when a module
