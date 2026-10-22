@@ -218,15 +218,26 @@
     overflow: hidden;
 }
 
+/* A card is a glass card under a reply, as Reply.dc.html's "Changed this reply" (the card is a theme root: its own
+   tokens, so Solid and Follow SillyTavern take their colours from the look). The shape of Glass: a larger radius,
+   the blur and the soft shadow. */
+.ss-card {
+    border-radius: var(--ss-radius-l, var(--ss-radius));
+    background: var(--ss-glass, var(--ss-chat-surface));
+    -webkit-backdrop-filter: var(--ss-blur, none);
+    backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none);
+}
+
 .ss-card-head {
     display: flex;
     align-items: center;
     gap: var(--ss-gap);
     width: 100%;
-    min-height: 36px;
-    padding: 4px 10px;
+    min-height: 44px;
+    padding: 10px 14px;
     border: 0;
-    color: inherit;
+    color: var(--ss-text, inherit);
     background: transparent;
     font: inherit;
     text-align: left;
@@ -234,18 +245,22 @@
 }
 
 .ss-card-title {
-    font-weight: 600;
+    font-weight: 700;
+    font-size: 1.05em;
+    letter-spacing: 0.3px;
     white-space: nowrap;
 }
 
+/* The summary line of the header: the one line on the right, muted (Reply.dc.html's "+1 Wolf Pelt · …"). */
 .ss-card-summary {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    opacity: 0.75;
-    font-size: 0.9em;
+    color: var(--ss-muted, inherit);
+    font-size: 0.85em;
+    text-align: right;
 }
 
 .ss-card-chevron {
@@ -257,7 +272,7 @@
 }
 
 .ss-card-body {
-    padding: 8px 10px;
+    padding: 12px 14px 14px;
     border-top: 1px solid var(--ss-border);
     overflow-x: auto;
 }

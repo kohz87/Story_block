@@ -350,7 +350,7 @@ body.story-suite-open { overflow: hidden; }
 }
 .ss-card { transition: border-color 0.15s ease, background-color 0.15s ease; }
 .ss-card-head { transition: background-color 0.15s ease; }
-.ss-card-head:hover { background: color-mix(in srgb, var(--story-suite-fg) 5%, transparent); }
+.ss-card-head:hover { background: color-mix(in srgb, var(--ss-text, var(--story-suite-fg)) 6%, transparent); }
 .ss-card-open > .ss-card-body { animation: story-suite-fade-in 0.18s ease-out; }
 .ss-l-meter-fill { transition: width 0.3s ease; }
 .ss-hud-item { animation: story-suite-fade-in 0.2s ease-out; }
