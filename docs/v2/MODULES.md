@@ -15,7 +15,7 @@ export const part = {
   queries:  { /* name: (state, args) => plain data */ },
   kinds:    { /* kind: { grammar: 'one line', apply(ctx, line) } */ },   // change-line kinds
   context:  { static: () => '' /* may be '' */, tail: view => ({ lines: [], optional: [] }), budget: 0 },
-  hooks:    { /* 'item.define' | 'currency' | 'beforeGenerate': fn */ },
+  hooks:    { /* 'item.define' | 'currency' | 'beforeGenerate' | 'afterCapture': fn */ },
   settings: { section: 'Combat', defaults: {}, schema: {} },
   tabs:     [ /* { id, title, icon, render(el, view, api) } */ ],
 };
@@ -181,8 +181,10 @@ per-reply tally (`inventory.storyBudget`, which honours the reader's `storyCoinP
 reply's own `+ coin` lines too), and Story Director's own tally only on a Story Block without that query
 (RX-E-2). One story-vouched turn-in a reply.
 A story turn-in refused only by the place waits until the end of the reply (`director.turn.now.pending`); a
-later Director line of the same reply, or the `quest.settle` system step before the next reply (replan),
-pays or refuses it on the scene after all the reply's lines (Story Director #112).
+later Director line of the same reply, else the `quest.settle` step of the tracker's `afterCapture` hook
+(§F121: right after the reply's last line, in that reply), pays or refuses it on the scene after all the
+reply's lines. On a Story Block without that hook the same step runs before the next reply (beforeGenerate,
+replan; Story Director #112).
 Screen: **Quests** (status text per quest: Not yet / Ready / Ready to turn in here; finished quests kept).
 
 ## D. NPC State Delta (agent NSD-hosted)
@@ -664,6 +666,23 @@ These settle questions agents raised; the host changes they need are made at int
     other scene fields. Shown on Scene (with the place) and Home's scene panel. The tail's Place line ends with
     it while the feature is on, cut to 26 code points (`Place: Vell Harbour (settlement); cold drizzle, low
     fog`, at most 28 characters more: about 8 tokens), and only when there is a place.
+
+### User decision from the beta-candidate live test (2026-10-22, F121)
+
+121. **A step after the reply's last story line** (live test: a turn-in sat at "checked where this reply ends
+    up, before the next reply", which read as failing to complete). A module's hook **`afterCapture(view, {
+    index, type })`** may return `{ commands: [{ type, payload }] }`; Story Block runs it once right after a
+    reply's capture, after all its story lines, and runs the commands as `system` steps (SPEC §4.2 step 3):
+    chained on the state the lines left, stored on that reply right after its story receipts (receipt
+    `afterCapture: true`, with `replan: { payload }`), as part of that reply. Not run for an empty capture
+    (nothing kept), for a click or for a system step. A **Continue** runs it again after the Continue's lines
+    (a step that finds nothing to do refuses or does nothing, so it pays once). A **Re-read** asks the hook
+    again after the new story lines, on the state as the Re-read has it, `ctx.reply` that reply, each new step
+    at the seed of the old one of its type (SPEC §3.2), so a Re-read of unchanged text gives the live state.
+    A swipe or delete of the reply takes its steps back; a rebuild applies their stored ops (§2.2). Hook
+    failures, a hook slower than 2.5 s and refused steps are Problems. Story Director settles its waiting
+    turn-ins there (`quest.settle`), and keeps its beforeGenerate `quest.settle` as the fallback on an older
+    Story Block, which never calls `afterCapture`.
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
