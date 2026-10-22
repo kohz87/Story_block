@@ -329,6 +329,10 @@ A capture runs with `ctx.carrier = { index, swipe, sid, key }` (frozen; `String(
 `"<index>:<swipe>"`) and `ctx.chat = { lastUser, reply }`. `sid` is the reply's record ID (its shown swipe's;
 handed out before the record is first written): unlike `index`, it stays with the reply when an earlier
 message is deleted, so a claim a module keys on a reply should use `sid`. `null` when unknown.
+Every command also has `ctx.reply = { index, sid }` (frozen, or `null` with no reply yet): the reply its
+changes are stored on, the capture's carrier during a capture, else the head carrier (a click's ops go
+to the last reply, §2.2). A query gets the same as `tools.reply` (for `sdk.query`, the head carrier), so
+per-reply bookkeeping can be kept and read for a click after the reply as well (RX-E-2).
 
 A swipe of that reply is a new carrier swipe: it gets its own capture; the receipts it told are told again
 because the new swipe's `narrated` starts empty. Editing a reply's text does not re-capture; a **Re-read**
@@ -576,8 +580,16 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   that no code could count). It counts against the same per-reply coin budget as the story's coin lines and
   is never refused for it: over the budget what is left is paid, which may be 0; the receipt data's
   `amount` is what was paid, and the result's `problem` says why (a `LIMITED` note when the module passes
-  it on). Without the flag, or outside a capture, a module's payout is not counted. `story` that is not
-  true or false is `INVALID`.
+  it on). Called outside a capture (a quest Finish click after the reply), it counts against the reply the
+  click is stored on (`ctx.reply`, the head carrier) in the same tally, so one reply's `+ coin` lines and
+  the clicks after it (a Continue's lines too) give at most one budget (RX-E-2). Without the flag, or with
+  no module caller, a payout is not counted. `story` that is not true or false is `INVALID`.
+* **`inventory.storyBudget`** → `{ budget, paid, left, vouched }`: the story money the current reply
+  (`tools.reply`: the asking command's reply, else the head carrier) may give, has given (`+ coin` lines and
+  vouched payouts, clicks included) and has left; `vouched` is the part of `paid` that vouched payouts gave
+  (kept in the tally as `vouched` once there is some). `budget` is the coin budget above, so it honours the
+  reader's `storyCoinPerReply`. A module that holds its own story payouts to the budget (Story Director's quest
+  turn-ins) reads it with `tryQuery`, falling back to its own tally on an older Story Block.
 * **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
   lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
 * **Gear condition** (`cond`, optional on a stack): a whole number 0 (broken) … 100 (as new); absent means

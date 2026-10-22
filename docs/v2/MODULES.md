@@ -167,7 +167,10 @@ times `inventory.economy`'s `scale`; F86, F104). A rank the story writes (`rank:
 held to the party's own, whether code counts the goal or not, so it can only lower the reward; a pack's
 rank is kept. Every reward but a pack quest's own is the story's money (`wallet.receive { story: true }`),
 and one reply pays at most the party rank's top in such rewards, clicks after the reply included; a
-turn-in past that waits, open and unpaid, for the next reply (RX-E-1). One story-vouched turn-in a reply.
+turn-in past that waits, open and unpaid, for the next reply (RX-E-1). The budget is Story Block's one
+per-reply tally (`inventory.storyBudget`, which honours the reader's `storyCoinPerReply` and counts the
+reply's own `+ coin` lines too), and Story Director's own tally only on a Story Block without that query
+(RX-E-2). One story-vouched turn-in a reply.
 Screen: **Quests** (status text per quest: Offered / Held back / Not yet / Ready / Ready to turn in here;
 finished quests kept).
 
@@ -209,7 +212,8 @@ These settle questions agents raised; the host changes they need are made at int
    The currency is only a name: the money **scale** comes from the pack (F104, query `inventory.economy`).
 2. **`ctx.rev`** is the `meta.rev` this receipt will have. Use it for `taken.rev`, `ended.rev`, etc.
 3. **Queries can use queries:** a query is called `(state, args, tools)` with `tools.query(name, args)`
-   over the same state.
+   over the same state, and `tools.reply` (`{ index, sid }` or null): the reply the asking command is
+   stored on, as its `ctx.reply` (SPEC §4.2), the head carrier for `sdk.query`.
 4. **`REFUSED`** is the code for a rule refusal (full HP, wrong place, slot limit, not ready); `INVALID`
    stays for malformed payloads and failed validators.
 5. **Command payloads** (callers use exactly these):
