@@ -147,7 +147,8 @@ updated.
   erased by hiding a block, a mid-line `<Changes>` hiding the story, a spoofed hidden marker on Re-read,
   Re-read and preview/commit while a feature is off, `onBlocked` while its feature is off, the whole-context
   feature prompt flag, other minus signs and fractions in `+ coin`, and the missing note when the extractor
-  fails. Gear wear after a middle delete was already fixed (#110).
+  fails. Gear wear after a middle delete was already fixed (#110). A Re-read after a quest Finish no longer
+  pays the reply's coin budget twice (a click made before this fix, in an older chat, still can).
 - Renaming a chat while it saves can leave a copy under the old name (needs a SillyTavern server change).
 
 ### Module versions
