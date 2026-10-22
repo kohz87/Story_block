@@ -141,7 +141,8 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   earlier reply created: replayed after that reply is deleted, such an op fails and its block is lost. A
   domain may name such fields `scratch` (a list of top-level fields, the inventory's `perReply`): on
   replay a `remove` inside one of something already gone is passed over, missing objects on the way are
-  made, and a `replace` of something not there becomes an `add`.
+  made, and a `replace` of something not there becomes an `add`. A list inside a scratch field
+  is not fitted: an append (`/-`) or a list position in it applies as written, as anywhere else.
 * **Three replay rules that keep such bookkeeping bounded.** (a) On replay (never for a live command), a
   `remove` of an object key that is not there (the reply that added it was deleted) does nothing instead
   of failing its block; a `remove` that carries a counted `was` (a take of a stack) still fails, so a sale

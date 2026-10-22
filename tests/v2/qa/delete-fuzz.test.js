@@ -14,7 +14,7 @@ import { createHost } from '../../../testkit/index.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { checkInvariants } from './helpers/oracle.js';
 
-const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 11, 29, 101];
+const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 11, 19, 29, 101];
 const REPLIES = 20;
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
 
@@ -31,7 +31,10 @@ function replyLines(r, step) {
             case 1: { const k = r.int(1, 5); out.lines.push(`- coin ${k} | to: the ferryman`); out.coin -= k; break; }
             case 2: { const k = r.int(1, 3); out.lines.push(`+ item Torch | qty: ${k}`); out.torches += k; break; }
             case 3: { out.lines.push('- item Torch'); out.torches -= 1; break; }
-            case 4: { const name = `Charm ${step}-${out.own.length + 1}`; out.lines.push(`+ item ${name}`); out.own.push(name); break; }
+            // A letter for the reply's own count: the tolerant lookup ignores word order, so "Charm 1-2" and
+            // "Charm 2-1" are one name to it (names.js looseKey), and the later reply's line would add to
+            // the earlier one's stack, which a delete of that reply then skips (seed 19).
+            case 4: { const name = `Charm ${step}${'abcd'[out.own.length]}`; out.lines.push(`+ item ${name}`); out.own.push(name); break; }
             case 5: { const name = `Walker ${step}-${out.lines.length}`; out.lines.push(`+ present ${name}`); out.people = [...(out.people ?? []), name]; break; }
             // Loot laid out by this reply (its own things); taken at once below, so the take is on this reply too.
             case 6: {
