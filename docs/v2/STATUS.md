@@ -54,8 +54,15 @@ merges. The beta.1 notes are drafted at the top of RELEASES.md as features land.
 | 2.0.0-alpha.2 release notes | ✅ | #93 |
 | Packs: installed modules satisfy a pack's capabilities (Ersveil imports) | ✅ | #94 |
 | A card edit or rename before the first reply keeps the greeting's state | ✅ | #95 |
-| Player guide: checks, story item use, quests, economy and currency, Ersveil import, backup interval | 🔧 | |
 | Features: reader switches for optional mechanics (F100) | ✅ | #96 |
+| Docs: quest ranks for story-vouched quests, F104 money scale (MODULES) | ✅ | #97, #102 |
+| Player guide: checks, story item use, quests, economy and currency, Ersveil import, backup interval | ✅ | #98 |
+| Packs: crafting data, meter presets, money scale (F104), Ersveil value scale | ✅ | #99 |
+| The extractor ignores closed reasoning | ✅ | #101 |
+| A pack's own rank ladder sets the story coin budget without a quest module | ✅ | #103 |
+| Inventory: Equip on… (F99), loot to pick from, encumbered, tolerant names, gear condition | ✅ | #104 |
+| State inspector (F92), save points (F93), Versions fold, meter marks, Home quest status | ✅ | #105 |
+| Release prep: 2.0.0-beta.1 (draft, merged at the beta candidate) | 🔧 | #100 |
 | Storage tuning: checkpoint 100/128 KB, ride on SillyTavern's save, op compaction (one record copy done in #77) | 🔧 | |
 
 ## RPG Battle (module)
@@ -83,6 +90,11 @@ merges. The beta.1 notes are drafted at the top of RELEASES.md as features land.
 | Round 2: a character file's things held to a worth | ✅ | #85 |
 | Round 2: b4-combat fixes (opening draught, return cue, per-tier budget, boss level) | ✅ | #86 |
 | Round 2: keyed bookkeeping that survives a middle delete, fuzz-delete CI, requires alpha.2 | ✅ | #87 |
+| Wave C party: rank ladder, foes of a fixed rank, companions by formula, points to spend, timed effects | ✅ | #92 |
+| Gear: condition, wear, repair, refinement | 🔧 | #88 |
+| Crafting (F102) | 🔧 | #89 |
+| Screens pass: one bag, gear condition, effects, companion switches, Crafting, wizard fixes | 🔧 | #90 |
+| Release prep: 2.0.0-beta.1 (draft) | 🔧 | #91 |
 | v1 (`main`) 0.5.52: steps aside next to Story Block 2 | ✅ (main) | #81 |
 
 ## Story Director (module)
@@ -103,6 +115,10 @@ merges. The beta.1 notes are drafted at the top of RELEASES.md as features land.
 | Round 2: story-vouched quests one a reply, written rewards never raised, difficulty one rank up | ✅ | #86 |
 | Round 2: keyed Director bookkeeping, atlas limits, live threads in the tail, fuzz-delete CI | ✅ | #87 |
 | Quest payouts use the currency plural ("50 marks") | ✅ | #88 |
+| A written rank only lowers a story-vouched reward; built-in rank rewards follow the money scale (F104) | ✅ | #89 |
+| Day digest, Days screen, chronicle.days, time.now | ✅ | #90 |
+| Story-written rewards held to one reply's budget; written ranks held to the party's (RX-E-1) | ✅ | #91 |
+| Release prep: 2.0.0-beta.1 (draft) | 🔧 | #92 |
 | v1 (`main`) 0.9.47: steps aside next to Story Block 2 | ✅ (main) | #84 |
 
 ## NPC State Delta (standalone, hosted when Story Block v2 is present)
@@ -116,6 +132,7 @@ merges. The beta.1 notes are drafted at the top of RELEASES.md as features land.
 | Cleanup steps 0–11 (locks, caps, golden outputs, field registry, profileUpdates, gates, markers, merges, targeted passes, index.js split in three parts, dead code) | ✅ | #174, #176, #178–#189 |
 | Round 2: Cast tab keeps to its own pane, failed loads say so, swipe guard, caller rules, requires alpha.2 | ✅ | #190 |
 | Prompt alignment (audit steps 12–13, approved by the user) | ✅ | #191 |
+| Fewer model calls while hosted; backfills never hold a reply; rules kept on swipes | ✅ | #192 |
 
 ## Break round (F103)
 Seven break runs went at the merged wave 4 code; each wrote a report with failing tests. The findings below

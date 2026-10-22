@@ -31,8 +31,8 @@ Then, logged in as that profile:
 
 1. Open **Extensions → Install extension**.
 2. Paste `https://github.com/kohz87/Story_block` and choose the branch **`v2`** (type `v2` in the branch
-   box). Install.
-3. Do the same for the others you want, each on its branch `v2`:
+   box). Install. **Story Block always comes first.**
+3. Then do the same for the others you want, each on its branch `v2`:
    `https://github.com/kohz87/rpg_battle`, `https://github.com/kohz87/Story_director`,
    `https://github.com/kohz87/npc_state_delta`.
 4. Reload the page.
@@ -41,6 +41,12 @@ If your SillyTavern has no branch box, install it the usual way and switch it to
 extension's folder (`git checkout v2`), or ask whoever set up your SillyTavern.
 
 To update later, use **Extensions → Manage extensions → Update** as usual; the branch stays `v2`.
+**Update Story Block first, then the modules.** Each module says which Story Block it needs, and an
+older Story Block refuses a newer module. When that happens, the page shows a red notice such as
+*Story Suite: RPG Battle needs Story Block ≥ 2.0.0-beta.1; this is 2.0.0-alpha.2. Update Story Block to
+use it.*, and that module's row in **Story Suite settings → Versions** says the same. Update Story Block
+and reload the page. NPC State Delta is the exception: it keeps working on its own, without its meters,
+Cast tab or Story Suite section, until Story Block is updated.
 
 ## Your first chat
 
@@ -137,6 +143,18 @@ the others act in turn. Rolls are fair and repeatable: the same fight played the
 way. When it ends, loot, experience and the result are added for you, and the next reply narrates the
 fight.
 
+### Ranks, foes and companions
+
+Your character has a **rank** from their level: F to S by default, or the pack's own ladder (Ersveil's
+runs from F Registered to S Legend). Quests and the money a reply may give follow it.
+
+The story can say how strong foes are: weak, even, strong or deadly next to your party, or a rank
+("three wolves, rank D"). Code picks the foes' levels from that, never the model, and holds a rank far
+beyond your party back to the strongest that still fits a deadly fight.
+
+A companion who joins gets stats worked out by code from their level and role, never from numbers the
+model writes. Their level is at most two above your character's.
+
 ## Return in time
 
 If your character dies, you're offered **Return**: the chat goes back to the moment just before that
@@ -170,6 +188,17 @@ trust), the story says when it is met, and the quest shows Ready. **Details** on
 goal, progress, reward, who gave it, when it is due and what has happened so far. A finished quest
 stays in the list under Finished. New jobs come at a calm pace; a passer-by stays a passer-by.
 
+### The days behind you
+
+When a story day ends, Story Director writes a short digest of it from what code recorded: where you
+went, quests taken and finished, fights, money in and out, which people's feelings reached a new
+stage, and world news. The model writes none of it.
+
+The **Days** screen lists the days, newest first. Open one to see its digest, or search them all. After
+a time skip, the next reply gets one line about the last day, so the story remembers it. Story
+Director's settings choose how many days are kept and can turn that reminder off. Turn the digest off
+with **Day digest** in the Features.
+
 ## Using things in the story
 
 To drink a potion or use a salve, just do it in the story ("I drink the draught", "I put the salve on
@@ -183,6 +212,21 @@ turn.
 
 There is no Use button. **Equip**, **Take off** and **Give** stay in the Inventory, because they only
 manage your things.
+
+### Effects that wear off
+
+Some things last a while: a blessing that sharpens your eyes, a potion's strength, a curse, or a
+*Setback* after a failed quest. The story writes them as a change line, for example
+`+ effect Hawk's Eye — the shrine's blessing | on: perception | for: 2h`, and ends one early with
+`- effect Hawk's Eye`.
+
+* Code sets the strength: minor or moderate, up to ±3 on a check in all. It also sets how the effect
+  changes fights.
+* An effect fades on the story clock, or after some replies when there is no clock. A day at most.
+* One reply can start at most three new effects.
+* The model is told only the effects' names and short notes, never their numbers.
+
+Turn them off with **Timed buffs and debuffs** in the Features.
 
 ## Trade and crafting
 
@@ -200,16 +244,33 @@ Whatever coin words the model writes, only the number counts.
 How much things cost and how much the story may pay come from the **pack**, not from the model:
 
 * **Rewards.** The pack's quest rank ladder sets how much a quest of each rank pays. The top reward of
-  your character's rank is also the most the story may hand out in one reply (a purse found, a tip, a
-  sold trinket). Without a pack, Story Director's own ladder is used, or 1000 per level.
+  your character's rank is also the most the story may hand out in one reply: coins it writes (a purse
+  found, a tip) and the rewards of quests it made up, together. Without a pack ladder, Story Director's
+  own F-to-S ladder is used, or 1000 per level.
+* **Quests the story made up** pay at your character's rank or lower, never higher, whatever rank the
+  story wrote for them. When one reply's turn-ins would pay more than one reply may give, the first is
+  paid and the rest stay Ready for the next reply. A pack's own quests pay the reward the pack sets,
+  outside this limit.
 * **Prices.** Each item in the pack has a value. Shops sell and buy by it.
-* **Your own limit.** **Money one reply may give** in Story Block's settings replaces the budget from
-  the ranks with your own number. Leave it at 0 to follow the pack.
+* **Money scale.** A pack can say how big its coin is next to the built-in amounts. Ersveil's marks are
+  small coin, so its scale is 8. The scale only changes the built-in numbers (the default rank ladder,
+  1000 per level), never the numbers the pack writes itself.
+* **Your own numbers.** In Story Block's settings, **Money one reply may give** replaces the budget
+  from the ranks, and **Money scale** replaces the pack's scale (0.01 for a world that counts in
+  copper). Leave both at 0 to follow the pack.
 * **Lorebooks** only give flavour to the model (what a mark looks like, who mints it). They never set
   prices or rewards. Keep the lorebook's money words close to the pack's so the story sounds right.
 
 Ersveil, for example, pays 50 to 400 marks for an F-rank job, so one reply may give at most 400 marks
-while your character is in that rank.
+while your character is in that rank. A minor healing draught there is worth 30 marks.
+
+**Key items.** Now and then the story hands you something special, worth more than one reply may
+normally give: the potion an old man presses into your hand, a sealed letter, a family blade. One reply
+can give one such thing, and only one of it. It is a **key item**, tagged **Key** in the Inventory:
+
+* it is always one item, in its own stack, never merged with others of the same name;
+* you can use it, equip it or give it to a companion as usual;
+* it can't be sold, and in crafting it counts as worth nothing.
 
 If you delete a reply in the middle of the chat, the coin and items it gained or spent are taken back,
 and the later replies' own gains and spending stay.
@@ -292,7 +353,8 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
   name with an s) and its short form.
 * **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: worked out
   from your installed extensions: the top quest reward for your character's rank, or 1000 per level, or
-  1000 when neither is installed; see [Economy and currency](#economy-and-currency)). The rest is not paid, and **Problems** says so.
+  1000 when neither is installed, the last two times the money scale; see
+  [Economy and currency](#economy-and-currency)). The rest is not paid, and **Problems** says so.
   A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
   item (the potion an old man hands you) worth up to five times the goods. That one is a **key item**
   (tagged "Key" in the Inventory): yours to use, equip or give away, but it can't be sold.
