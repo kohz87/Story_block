@@ -40,7 +40,9 @@ test('C4-2: a change whose save lands after the chat was renamed ends up in the 
     await h.store.flush();
 
     slow = true;
-    const command = h.sdk.command('scene.present', { add: 'Bo' });
+    assert.equal((await h.sdk.command('scene.present', { add: 'Bo' })).ok, true);
+    // Its save goes out (the turn's idle save, or at once without a chat file; here sent now).
+    const command = h.store.saveSoon();
     await settle();
     assert.equal(late.length, 1, 'the save of the change is on its way');
     // SillyTavern's renameChat: the server renames the file, the chat is read back from it, CHAT_CHANGED, CHAT_RENAMED.

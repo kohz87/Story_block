@@ -466,7 +466,11 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // It is not read from GENERATION_STARTED: another caller's dry run (token counting) can start
         // between this generation's GENERATION_STARTED and this call, and would cost the reply its capture.
         try {
-            await trySave('before the reply');
+            // What is waiting for the turn's idle save goes with the reply's own save (it is on its way);
+            // without idle saves it is written now.
+            if (store.idleSaves?.()) {
+                if (store.dirty()) store.deferSave?.();
+            } else await trySave('before the reply');
             // A Regenerate removes the old reply before this runs, without an event for it.
             if (store.headIndex() !== lastCarrier()) store.rebuild();
             if (hasCarrier()) store.ensureInitial(initial());
@@ -798,6 +802,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         clearPrompts();
         const message = ctx?.chat?.[id];
         if (!isCarrier(message)) return null;
+        // The turn's save window opens now, so the capture's lines are not saved one by one (400 ms each).
+        const idle = store.saveIdle?.() === true;
         try {
             if (store.headIndex() !== id) store.rebuild();
             ensureInitial();
@@ -846,7 +852,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 edited = true;
             }
             deferred = false;
-            if (store.dirty()) await trySave('after the reply');
+            // One write for the reply, its capture and the reader's actions after it (store.saveIdle).
+            if (idle && store.dirty()) store.saveIdle();
+            else if (store.dirty()) await trySave('after the reply');
             else if (edited) await saveText();
             // At MESSAGE_RECEIVED SillyTavern has not drawn the reply yet (it draws the text as saved), so
             // redrawing can fail; that is not a reason to lose the turn.
@@ -895,8 +903,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             message.mes = mes;
             if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = mes;
         }
-        if (store.dirty()) await trySave('after the late change lines');
-        else if (parsed.lines.length) await saveText();
+        if (store.dirty()) {
+            if (store.saveIdle?.() !== true) await trySave('after the late change lines');
+        } else if (parsed.lines.length) await saveText();
         if (parsed.lines.length) redraw(index, message);
         const turn = { index, type: 'late', receipts: result.receipts, problems, told: [] };
         events?.emit('turn', turn);

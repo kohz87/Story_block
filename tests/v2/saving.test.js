@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFakeContext, createHost } from '../../testkit/index.js';
 import { createChatFile } from '../../src/v2/chat-file.js';
-import { createSaver, markFits, readRecord, swipeMark, writeRecord } from '../../src/v2/persist.js';
+import { IDLE_MS, createSaver, markFits, readRecord, swipeMark, writeRecord } from '../../src/v2/persist.js';
 import { createRewind } from '../../src/v2/rewind.js';
 import { createRuntime, saveOnUnload } from '../../src/v2/runtime.js';
 import { serveChats } from './helpers/st-server.js';
@@ -233,6 +233,8 @@ test('runtime: a page closed with something unsaved sends it with keepalive; the
     await runtime.store.flush();
     server.failing = true;
     assert.equal((await runtime.sdk.command('scene.present', { add: 'Ser Nine' })).ok, true);
+    t.mock.timers.tick(IDLE_MS);           // the turn's save goes out, and fails
+    await settled();
     assert.equal(told.length, 1, 'the reader is told (once)');
     assert.match(told[0], /the server answered 500/);
     server.failing = false;
