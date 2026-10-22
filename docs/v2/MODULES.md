@@ -234,7 +234,9 @@ These settle questions agents raised; the host changes they need are made at int
    → `{ name, plural, short }` (`name` is singular, "1 mark"; `plural` for any other amount, "44 marks",
    by default the name with an s, and gold stays gold; a pack may suggest all three). `wallet.pay` / `wallet.receive` take `{ owner, amount, note? }`. Prices, rewards
    and loot are whole numbers of that currency (v1's copper-based numbers are kept as they are). The change
-   line is `+ coin 30 | from: the sealer`; any coin words the model adds are ignored, only the number counts.
+   line is `+ coin 30 | from: the sealer`; the currency's own words around the number are ignored, only the
+   number counts, and a coin word that is not this chat's money ("40 silver" where money is pennies) is refused
+   (F122).
    The currency is only a name: the money **scale** comes from the pack (F104, query `inventory.economy`).
 2. **`ctx.rev`** is the `meta.rev` this receipt will have. Use it for `taken.rev`, `ended.rev`, etc.
 3. **Queries can use queries:** a query is called `(state, args, tools)` with `tools.query(name, args)`
@@ -697,6 +699,24 @@ These settle questions agents raised; the host changes they need are made at int
     failures, a hook slower than 2.5 s and refused steps are Problems. Story Director settles its waiting
     turn-ins there (`quest.settle`), and keeps its beforeGenerate `quest.settle` as the fallback on an older
     Story Block, which never calls `afterCapture`.
+
+### User decisions from beta live test 5 (2026-10-22, F122)
+
+122. **Weather by rule, and no money in a coin the chat does not know** (live test: "weather is not working":
+    the model wrote no `~ weather` lines, so the Status card never had one; a reward of "40 silver" showed as
+    "40 pennies"). *Weather:* new command **`scene.weather({ text?, key? })`** (feature `story-block.weather`,
+    causes `system` and `ui`, refused for the story, which writes `~ weather`): with `text`, the weather now
+    (cleaned as a `~ weather` line is) marked with `key` (one line, at most 80 code points: what a module's
+    rule chose it for, such as the story day and region); without `text`, the weather as it stands is marked
+    with `key`, its words kept. `scene.weather` becomes `{ text, rev, key? }`; a story `~ weather` writes
+    `{ text, rev }`, so its key goes. A module sets it as an `afterCapture` step (F121): Story Director picks
+    the day's weather from its calendar's season and the region, seeded per story day and region, and keeps
+    the story's own weather for the rest of that day and place by marking it. A pack may give a **`weather`**
+    table (PACKS.md "Weather", query `packs.weather` → `{ pack, seasons, tables }` | null). *Money:* a chat
+    without coins reads a coin line's number and refuses a coin word that is not its own currency (its name,
+    plural or short form, "gp" for gold, a bare "coin"): `+ coin 40 silver` where money is pennies is a
+    Problem naming the chat's money, never 40 pennies (money.js `foreignCoin`, `parseAmount`). With coins,
+    a word that is not one of them was already refused (F108). Story Director reads rewards by the same rule.
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 

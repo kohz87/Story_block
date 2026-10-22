@@ -178,8 +178,10 @@ test('+ coin / - coin: only the number counts, in the chat currency', () => {
     assert.equal(got.ok, true, got.message);
     assert.equal(got.result.summary, 'The party receives 30 gold — from the sealer (now 155 gold).');
     assert.equal(got.result.narrate, false);
-    const paid = h.capture(line('-', 'coin', '5 silver coins', { to: 'the ferryman' }));
-    assert.equal(paid.result.summary, 'The party pays 5 gold — to the ferryman (150 gold left).', 'coin words are ignored');
+    const paid = h.capture(line('-', 'coin', '5 gold coins', { to: 'the ferryman' }));
+    assert.equal(paid.result.summary, 'The party pays 5 gold — to the ferryman (150 gold left).', 'the currency\'s own words are money');
+    // MODULES §F122: a coin this chat does not know is refused, never read as that many gold.
+    rejected(h, line('-', 'coin', '5 silver coins', { to: 'the ferryman' }), 'INVALID', /"silver" is not this chat's money: it counts in gold/);
     assert.equal(inv(h).wallets.party.coin, 150);
     const labelled = h.capture(line('+', 'coin', 'reward', { amount: '12' }));
     assert.equal(labelled.result.data.amount, 12);
@@ -193,8 +195,10 @@ test('+ coin / - coin: only the number counts, in the chat currency', () => {
 test('+ coin with a renamed currency', () => {
     const module = core();
     const h = createHarness([module], { state: stocked(module), settings: { 'story-block': CROWNS } });
-    const got = h.capture(line('+', 'coin', '30 gold'));
+    const got = h.capture(line('+', 'coin', '30 crowns'));
     assert.equal(got.result.summary, 'The party receives 30 crowns (now 155 crowns).');
+    assert.equal(h.capture(line('+', 'coin', '30')).ok, true, 'a bare number is the chat\'s money');
+    rejected(h, line('+', 'coin', '30 gold'), 'INVALID', /"gold" is not this chat's money: it counts in crowns/);
 });
 
 test('an item named exactly the currency (singular or plural) is coin in the wallet, not an item', () => {
