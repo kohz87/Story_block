@@ -12,11 +12,11 @@
 // changed that other pages draw: it redraws them), options (what the window was opened with: registry, settings, sdk,
 // features, theme, …) }.
 //
-// Look, Features (3b), Money (3c, money.js) and Assist (3d, assist.js) are the form engine's (below). The other sections are still
-// today's settings (host-ui.js `renderSettingsHost`), drawn into the section each belongs to (sections.js `routeOf`) by one shared
-// host. Steps 3e–3g replace one entry each:
+// Look, Features (3b), Money (3c, money.js), Assist (3d, assist.js), Tabs & Packs (3e, tabs-packs.js) and Modules (3f, modules.js) are the
+// form engine's (below). The last section, Diagnostics, is still today's settings (host-ui.js `renderSettingsHost`), drawn into the section
+// it belongs to (sections.js `routeOf`) by one shared host. Step 3g replaces that entry:
 //
-//     SECTION_BODIES.tabs = (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(), destroy: () => form.destroy() }; };
+//     SECTION_BODIES.diagnostics = (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(), destroy: () => form.destroy() }; };
 //
 // A section with its own body is not drawn by the shared host (it never gets a pane), so its old folds go away with
 // the entry.
@@ -26,6 +26,7 @@ import { HOST_SETTINGS_SCHEMA } from '../../sdk.js';
 import { renderFeaturesForm } from '../form/features.js';
 import { renderSettingsForm } from '../form/form.js';
 import { assistBody } from './assist.js';
+import { modulesBody } from './modules.js';
 import { moneyBody } from './money.js';
 import { tabsPacksBody } from './tabs-packs.js';
 import { LOOK_KEYS, SECTION_IDS, opensByDefault, routeOf } from './sections.js';
@@ -106,4 +107,5 @@ export const SECTION_BODIES = Object.freeze({
     money: moneyBody,
     assist: assistBody,
     tabs: tabsPacksBody,
+    modules: modulesBody,
 });

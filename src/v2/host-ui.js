@@ -148,8 +148,8 @@ export const TABS_TEXT = Object.freeze({
     nowHidden: '{name} is hidden.',
     nowShown: '{name} is shown.',
     wasReset: 'Back to the default order, all shown.',
-    // Hiding is refused when no tab would stay shown (Home always is, so the refusal is Home's).
-    homeStays: 'Home stays. It is always the first tab and always shown, so there is always a tab to open.',
+    // Home's switch is locked; hiding is refused when no tab would stay shown.
+    alwaysShown: 'Always shown',
     lastOne: 'At least one tab has to stay shown, so {name} stays.',
 });
 // The Diagnostics fold (diagnostics.js builds the report).
@@ -1101,10 +1101,12 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             if (!placed.has(id)) placed.set(id, []);
             placed.get(id).push(...nodes.filter(Boolean));
         };
-        const shown = [...defs].filter(def => Object.keys(def.schema).length || def.section).sort(byId);
-        const modules = shown.filter(def => !inDiagnostics(def)).map(def => ({ def, parts: moduleParts(def, ownOf(def.moduleId)) }));
-        // A module's own fold whose section a body of its own draws (Story Block's Packs: the Tabs & Packs page) is not drawn here.
+        // A piece whose section a body of its own draws (Story Block's Packs: the Tabs & Packs page; every module's settings: the
+        // Modules page; Versions) is not drawn here, and not even built.
         const hasPane = piece => !sections || Boolean(sections.place(sections.route(piece)));
+        const wantsModule = def => !sections || [{ type: 'module' }, { type: 'panel' }, ...groupFields(def.schema).map(group => ({ type: 'group', group: group.name }))].some(piece => hasPane({ ...piece, moduleId: def.moduleId }));
+        const shown = [...defs].filter(def => Object.keys(def.schema).length || def.section).sort(byId);
+        const modules = shown.filter(def => !inDiagnostics(def) && wantsModule(def)).map(def => ({ def, parts: moduleParts(def, ownOf(def.moduleId)) }));
         const own = [...defs].sort(byId).flatMap(def => (hasPane({ type: 'own-fold', moduleId: def.moduleId }) ? ownFolds(def, def.folds.filter(item => !inDiagnostics(item))) : []).map(node => ({ def, node })));
         const subs = [
             ...[...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(inDiagnostics), 'story-suite-subfold')),
@@ -1133,7 +1135,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             if (kept.link || kept.panel || kept.subs.length) put({ type: 'module', moduleId: def.moduleId }, moduleFold(def, ownOf(def.moduleId), 'story-suite-fold', kept));
         }
         for (const node of diag) put({ type: 'diagnostics' }, node);
-        put({ type: 'versions' }, versionsFold());
+        if (hasPane({ type: 'versions' })) put({ type: 'versions' }, versionsFold());
         if (!sections) {
             root.replaceChildren(...(placed.get('') ?? []));
             root.classList.add('story-suite-folds');

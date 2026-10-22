@@ -52,6 +52,7 @@ async function open(options = {}) {
 const page = (root, id) => root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === id);
 const foldsOf = (root, id) => page(root, id).querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
 const foldAt = (root, key) => root.querySelectorAll('details.story-suite-fold, details.story-suite-subfold').find(node => node.dataset.fold === key);
+const cardOf = (root, id) => root.querySelectorAll('.ss-module-card').find(node => node.dataset.module === id);
 const railItems = root => root.querySelectorAll('.ss-tabs-item');
 const shownPages = root => root.querySelectorAll('.ss-settings-page').filter(node => !node.hidden).map(node => node.dataset.ssSection);
 const search = (root, text) => {
@@ -167,7 +168,7 @@ test('the rail: aria-current on the chosen section, one Tab stop, arrow keys mov
     host.close();
 });
 
-test('each section holds what it should: Look, Features, Money, Assist and Tabs & Packs are the form engine\'s; Modules (with Versions) and Diagnostics hold folds', async () => {
+test('each section holds what it should: Look, Features, Money, Assist, Tabs & Packs and Modules (with Versions) are the form engine\'s; Diagnostics holds folds', async () => {
     const { root, host } = await open();
     assert.deepEqual(foldsOf(root, 'look'), [], 'no folds: the form engine');
     assert.deepEqual(foldsOf(root, 'features'), [], 'no folds: the form engine');
@@ -176,7 +177,9 @@ test('each section holds what it should: Look, Features, Money, Assist and Tabs 
     assert.deepEqual(foldsOf(root, 'tabs'), [], 'the form engine: Tabs, Packs and Prompt cards, no fold');
     assert.equal(foldAt(root, HOST_FOLD), undefined, 'Story Suite\'s own fold is gone');
     assert.deepEqual(texts(page(root, 'tabs'), '.ss-section-title').filter(Boolean), ['Tabs', 'Packs', 'Prompt']);
-    assert.deepEqual(foldsOf(root, 'modules'), ['rpg-battle', 'story-block', VERSIONS_FOLD]);
+    assert.deepEqual(foldsOf(root, 'modules'), [], 'the form engine: a card per module, then Versions');
+    assert.deepEqual(page(root, 'modules').querySelectorAll('.ss-module-card').map(node => node.dataset.module), ['loot', 'rpg-battle', 'story-block']);
+    assert.equal(page(root, 'modules').querySelector('.ss-versions-card').dataset.fold, VERSIONS_FOLD);
     assert.deepEqual(foldsOf(root, 'diagnostics'), [DIAGNOSTICS_FOLD]);
     assert.deepEqual(foldsOf(root, 'money'), [], 'the form engine');
     assert.equal(page(root, 'money').querySelectorAll('details').length, 0);
@@ -185,17 +188,16 @@ test('each section holds what it should: Look, Features, Money, Assist and Tabs 
     assert.equal(root.querySelector('details[data-fold="story-block::group:Assist"]'), null, 'the Assist group is the Assist page now');
     assert.ok(page(root, 'assist').querySelector('.ss-assist-page .ss-field[data-field="assistExtractorKinds"]'), 'the safety net\'s kinds');
     assert.ok(page(root, 'assist').querySelector('.ss-assist-runs-card .ss-assist'), 'the old Assist panel, as Recent runs');
-    // What is left of Story Block's fold stays in Modules, with the line to its features.
-    const kept = foldAt(root, 'story-block');
+    // What is left of Story Block's settings stays in its card in Modules, with the line to its features.
+    const kept = cardOf(root, 'story-block');
     assert.ok(page(root, 'modules').contains(kept));
-    assert.ok(kept.querySelector('.story-suite-feature-link'));
-    assert.equal(kept.querySelector('.story-suite-section'), null);
-    assert.equal(kept.querySelector('[data-field="currency"]'), null);
-    // A group of Story Block's own starts open; the rest as the reader left them.
-    assert.equal(foldAt(root, 'rpg-battle').open, false);
+    assert.ok(kept.querySelector('.ss-module-features'));
+    assert.equal(kept.querySelector('.story-suite-section'), null, 'its Assist panel is the Assist page\'s');
+    assert.equal(kept.querySelector('[data-field="currency"]'), null, 'its money settings are the Money page\'s');
     assert.equal(foldAt(root, DIAGNOSTICS_FOLD).open, false);
     // Every settings row is on exactly one page: the money ones are the form engine's fields, not the old rows.
-    assert.ok(root.querySelectorAll('.story-suite-row[data-field]').length >= 3);
+    assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row').length, 0, 'the Modules page draws no old rows');
+    assert.deepEqual(cardOf(root, 'rpg-battle').querySelectorAll('.ss-field').map(row => row.dataset.field), ['hardMode', 'level', 'title']);
     assert.equal(page(root, 'money').querySelectorAll('.story-suite-row').length, 0);
     assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'storyCoinPerReply', 'economyScale', 'currency', 'currencyPlural', 'currencyShort']);
     host.close();
@@ -205,7 +207,7 @@ test('the Features line in a module\'s fold goes to that module\'s group on the 
     const { root, win, host, doc } = await open();
     win.select('modules');
     assert.deepEqual(shownPages(root), ['modules']);
-    const link = foldAt(root, 'story-block').querySelector('.story-suite-feature-link');
+    const link = cardOf(root, 'story-block').querySelector('.ss-module-features');
     link.click();
     assert.deepEqual(shownPages(root), ['features']);
     const group = page(root, 'features').querySelectorAll('.ss-features-group').find(node => node.dataset.fold === featuresFoldOf('story-block'));
@@ -294,6 +296,19 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
             host.close();
             continue;
         }
+        if (section === 'modules') {
+            // Modules is the form engine's: the module's card (its heading), a group of its settings (that group's heading), Versions.
+            const at = page(root, 'modules');
+            const id = fold.split('::')[0];
+            const wantedNode = fold === VERSIONS_FOLD ? at.querySelector('.ss-versions-card .ss-section-title')
+                : fold.includes('::group:') ? [...cardOf(root, id).querySelectorAll('.ss-section-title')].find(node => node.textContent === fold.split('::group:')[1])
+                    : cardOf(root, id).querySelector('.ss-section-title');
+            assert.ok(wantedNode, `${fold} is drawn`);
+            assert.ok(doc.activeElement === wantedNode, `${fold} has the focus`);
+            win.close();
+            host.close();
+            continue;
+        }
         const node = foldAt(root, wanted);
         assert.ok(node, `${fold} is drawn`);
         assert.equal(node.open, true, `${fold} is open`);
@@ -307,6 +322,29 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
     const { root, win, host, doc } = await open({ window: { fold: 'nowhere' } });
     assert.equal(win.section(), 'features');
     assert.ok(doc.activeElement === railItems(root)[1]);
+    host.close();
+});
+
+test('Escape closes the window when the focus has fallen to the page (a control that held it was disabled or removed)', async () => {
+    const doc = setupDom();
+    const listeners = [];
+    doc.addEventListener = (type, fn) => listeners.push({ type, fn });
+    doc.removeEventListener = (type, fn) => { const at = listeners.findIndex(entry => entry.type === type && entry.fn === fn); if (at >= 0) listeners.splice(at, 1); };
+    const host = await createHost({ modules: [loot(), rpg()] });
+    const closed = [];
+    const win = openSettingsWindow({ registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk, openState: new Map(), onClose: () => closed.push(true) });
+    const key = listeners.filter(entry => entry.type === 'keydown');
+    assert.equal(key.length, 1, 'one listener on the page');
+    // A key from inside the window is the window\'s own business (its layer handles it): the page-level listener leaves it.
+    key[0].fn({ key: 'Escape', target: win.root.querySelector('.ss-search-input'), preventDefault() {} });
+    assert.equal(win.isOpen(), true);
+    key[0].fn({ key: 'Enter', target: doc.body, preventDefault() {} });
+    assert.equal(win.isOpen(), true, 'only Escape');
+    // From the page (the focus fell to the body): it closes.
+    key[0].fn({ key: 'Escape', target: doc.body, preventDefault() {} });
+    assert.equal(win.isOpen(), false);
+    assert.deepEqual(closed, [true]);
+    assert.equal(listeners.length, 0, 'the listener left with the window');
     host.close();
 });
 
@@ -422,8 +460,8 @@ test('search words: one match says "1 setting shown", none says so with the text
     search(root, 'hard mode');
     assert.equal(live.textContent, FORM_TEXT.shownOne);
     assert.deepEqual(shownPages(root), ['modules']);
-    assert.equal(foldAt(root, 'rpg-battle').open, true, 'opened for the search');
-    assert.equal(foldAt(root, 'story-block').hidden, true, 'a fold with no match is out');
+    assert.equal(cardOf(root, 'rpg-battle').hidden, false, 'the module with the match');
+    assert.equal(cardOf(root, 'story-block').hidden, true, 'a card with no match is out');
     search(root, 'xyzzy nothing');
     assert.equal(live.textContent, '');
     const empty = root.querySelector('.ss-form-empty');
@@ -441,57 +479,14 @@ test('search words: one match says "1 setting shown", none says so with the text
     assert.equal(page(root, 'tabs').querySelector('.ss-prompt-card').hidden, true, 'a card with no match is out');
     search(root, 'rpg battle');
     assert.deepEqual(shownPages(root), ['modules']);
-    assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row[data-field]').filter(row => !row.hidden).length, 3, 'its three settings');
+    assert.equal(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden && !row.parentNode.hidden).length, 3, 'its three settings (the module\'s name shows them all)');
     // What it says finds it ("money" → "Money one reply may give", "Money scale" and the "Money words" card), not the section's own name.
     search(root, 'money');
     assert.ok(shownPages(root).includes('money'));
     assert.equal(page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'storyCoinPerReply,economyScale,currency,currencyPlural,currencyShort');
     // Words are all needed, in any order, any case.
     search(root, 'SHOP trade');
-    assert.deepEqual(page(root, 'modules').querySelectorAll('.story-suite-row[data-field]').filter(row => !row.hidden).map(row => row.dataset.field), ['title']);
-    host.close();
-});
-
-test('search: a fold opened for it goes back as the reader left it; the window opened again starts without the search', async () => {
-    const { root, win, host } = await open();
-    const closedFold = foldAt(root, 'rpg-battle');
-    assert.equal(closedFold.open, false);
-    search(root, 'hard');
-    assert.equal(closedFold.open, true);
-    assert.equal(closedFold.dataset.filtered, 'true');
-    search(root, '');
-    assert.equal(closedFold.open, false, 'closed again');
-    assert.equal(closedFold.dataset.filtered, undefined);
-    // A fold the reader had open stays open.
-    closedFold.open = true;
-    search(root, 'hard');
-    search(root, '');
-    assert.equal(closedFold.open, true);
-    // A redraw while searching keeps the search (a feature switched on elsewhere).
-    search(root, 'hard');
-    win.refresh();
-    assert.deepEqual(shownPages(root), ['modules']);
-    assert.equal(status(root).textContent, FORM_TEXT.shownOne);
-    host.close();
-});
-
-test('Escape in the search box empties it first; choosing a section ends the search; Escape then closes the window', async () => {
-    const { root, win, host } = await open();
-    const input = root.querySelector('.ss-search-input');
-    search(root, 'coin');
-    input.focus();
-    const first = input.dispatch('keydown', { key: 'Escape' });
-    assert.equal(first.defaultPrevented, true);
-    assert.equal(input.value, '');
-    assert.equal(win.isOpen(), true, 'the first Escape only cleared the box');
-    assert.deepEqual(shownPages(root), ['features']);
-    search(root, 'coin');
-    railItems(root)[5].click();
-    assert.equal(input.value, '', 'the search ended');
-    assert.deepEqual(shownPages(root), ['modules']);
-    assert.equal(status(root).hidden, true);
-    input.dispatch('keydown', { key: 'Escape' });
-    assert.equal(win.isOpen(), false, 'the second one closes it');
+    assert.deepEqual(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field), ['title']);
     host.close();
 });
 
@@ -499,7 +494,7 @@ test('search takes the Features line into account: it opens its page from anothe
     const { root, win, host } = await open();
     win.select('modules');
     search(root, 'story block');
-    const link = root.querySelectorAll('.story-suite-feature-link').find(node => !node.hidden);
+    const link = root.querySelectorAll('.ss-module-features').find(node => !node.hidden && !node.parentNode.parentNode.hidden);
     assert.ok(link);
     link.click();
     assert.equal(root.querySelector('.ss-search-input').value, '', 'going to Features ends the search');
@@ -666,7 +661,7 @@ test('Features: a group of switch tiles per module, "N of M on", the same store 
     assert.equal(weight.querySelector('.ss-feature-name').textContent, 'Weight');
     assert.equal(weight.querySelector('.ss-switch').getAttribute('role'), 'switch');
     // Switching it stores the reader's choice, the count follows, and the line in the module's fold (Modules) says so too.
-    const link = () => foldAt(root, 'story-block').querySelector('.story-suite-feature-link').textContent;
+    const link = () => cardOf(root, 'story-block').querySelector('.ss-module-features').textContent;
     const before = link();
     const sb = host.features.list().filter(feature => feature.moduleId === 'story-block');
     const off = sb.find(feature => feature.on === false && feature.available !== false);

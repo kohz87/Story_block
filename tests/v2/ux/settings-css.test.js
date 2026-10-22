@@ -274,6 +274,34 @@ test('the Tabs & Packs page: one column, two from 900px with Prompt across both;
     assert.doesNotMatch(read('view/host.css') + settings, /story-suite-taborder/);
 });
 
+// ---- step 3f
+
+test('the Modules page: one column, two from 900px with Versions across both; a module\'s groups are sub-sections, a fold has a caret that turns', () => {
+    const glass = read('view/glass.css');
+    const rule = (selector, media = null, after = 'the Modules page') => {
+        const from = glass.indexOf(after);
+        const body = media ? glass.slice(glass.indexOf(media, from)) : glass.slice(from);
+        const head = `${ROOT_SELECTOR} ${selector} {`;
+        const at = body.indexOf(head);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return body.slice(at, body.indexOf('}', at));
+    };
+    assert.match(rule('.ss-modules'), /display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
+    assert.match(rule('.ss-modules', '@media (min-width: 900px)'), /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    assert.match(rule('.ss-modules > .ss-versions-card', '@media (min-width: 900px)'), /grid-column: 1 \/ -1;/);
+    assert.match(rule('.ss-button[hidden]'), /display: none;/, 'a hidden button is hidden whatever its display');
+    assert.match(rule('.ss-module-card .ss-module-own'), /border: 0;\s*border-top: 1px solid/, 'a group is a sub-section, not a card in a card');
+    assert.match(rule('.ss-section-fold-open > .ss-section-head::before'), /transform: rotate\(90deg\);/);
+    assert.equal(weight(`${ROOT_SELECTOR} .ss-section-fold-open > .ss-section-head::before`) <= 30, true);
+    // The end of a page clears the footer bar: the page scrolls inside a box that ends where the bar begins (the bar is in the flow, not over
+    // the page), and keeps a bottom padding of its own.
+    const settings = read('view/settings.css');
+    const at = settings.indexOf(`${ROOT_SELECTOR} .ss-settings-content {`);
+    assert.match(settings.slice(at, settings.indexOf('}', at)), /padding: var\(--ss-space-4\) var\(--ss-space-4\) calc\(var\(--ss-space-5\) \+ env\(safe-area-inset-bottom, 0px\)\);/);
+    const foot = settings.slice(settings.indexOf(`${ROOT_SELECTOR} .ss-settings-foot {`));
+    assert.doesNotMatch(foot.slice(0, foot.indexOf('}')), /position: (fixed|absolute)/, 'the bar is not over the page');
+});
+
 test('a select never clips its text: it ends in an ellipsis; the Look choices are short words, their help says what each is', () => {
     const glass = read('view/glass.css');
     const at = glass.indexOf(`${ROOT_SELECTOR} .ss-select {`);

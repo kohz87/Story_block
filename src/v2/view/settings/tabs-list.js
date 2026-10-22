@@ -5,7 +5,7 @@
 // game view's navigation follow at once.
 //
 // * Home is always first and always shown. Hiding is refused with a message when it would leave no tab shown (Home counts, so the
-//   refusal is Home's: its switch is there, and says so when it is pressed).
+//   refusal can only be another tab's; Home's own switch is locked: drawn on and disabled, with "Always shown" beside it).
 // * A change redraws this list only; the focus stays on the same control of the same row, or its neighbour when that one is now
 //   disabled (Up on the first row). A status line says what changed, for screen readers too.
 //
@@ -103,6 +103,14 @@ export function renderTabsCard(parent, { doc, tabs, onChange = null }) {
             title.id = nameId;
             const where = row.where?.includes('tab') && row.where?.includes('screen') ? T.both : row.where?.includes('tab') ? T.tab : T.screen;
             name.append(title, h(doc, 'small', 'ss-tabrow-where', row.hidden ? `${where} · ${T.hidden}` : where));
+            // Home cannot be hidden: its switch is locked, and the reason is said beside it (as a locked row says why).
+            let lockId = '';
+            if (row.fixed) {
+                const lock = h(doc, 'small', 'ss-field-tag ss-field-tag-why ss-tabrow-lock', T.alwaysShown);
+                lock.id = newId('tab-lock');
+                lockId = lock.id;
+                name.appendChild(lock);
+            }
             const at = movable.indexOf(row);
             const up = press(doc, 'ss-iconbutton ss-tabrow-up', fill(T.upTitle, { name: row.title }), 'fa-arrow-up');
             const down = press(doc, 'ss-iconbutton ss-tabrow-down', fill(T.downTitle, { name: row.title }), 'fa-arrow-down');
@@ -111,10 +119,9 @@ export function renderTabsCard(parent, { doc, tabs, onChange = null }) {
             up.addEventListener('click', () => { tabs.move(row.id, -1); say(T.movedUp, row.title); onChange?.(); after(row.id, 'up'); });
             down.addEventListener('click', () => { tabs.move(row.id, 1); say(T.movedDown, row.title); onChange?.(); after(row.id, 'down'); });
             const toggle = switchField({
-                doc, id: newId('tab-shown'), key: row.id, field: { type: 'bool' }, value: !row.hidden, labelledBy: nameId, disabled: false, readOnly: false,
+                doc, id: newId('tab-shown'), key: row.id, field: { type: 'bool' }, value: !row.hidden, labelledBy: nameId, disabled: false, readOnly: row.fixed,
                 onChange: on => {
-                    // Hiding is refused when nothing would stay shown (Home is always shown, so it is Home's switch that says no).
-                    if (!on && row.fixed) { toggle.set(true); refuse(T.homeStays); return; }
+                    // Hiding is refused when nothing would stay shown.
                     if (!on && rows.filter(other => !other.hidden && other.id !== row.id).length === 0) { toggle.set(true); refuse(fill(T.lastOne, { name: row.title })); return; }
                     tabs.setHidden(row.id, !on);
                     say(on ? T.nowShown : T.nowHidden, row.title);
@@ -124,6 +131,7 @@ export function renderTabsCard(parent, { doc, tabs, onChange = null }) {
                 },
             });
             toggle.el.title = row.fixed ? T.homeTitle : fill(T.shownTitle, { name: row.title });
+            if (lockId) toggle.el.setAttribute('aria-describedby', lockId);
             toggle.el.classList.add('ss-tabrow-shown');
             item.append(glyph, name, up, down, toggle.el);
             list.appendChild(item);

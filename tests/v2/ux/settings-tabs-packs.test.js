@@ -112,20 +112,23 @@ test('Tabs: a row each with a switch and Up and Down; every control is a button,
     host.close();
 });
 
-test('Tabs: hiding the last tab that is shown is refused with a message; Home always stays', async () => {
+test('Tabs: Home\'s switch is locked, on and disabled, with "Always shown"; hiding the last tab that is shown is refused with a message', async () => {
     const { page, host, tabs } = await open();
-    // Home: its switch is there and says no.
+    // Home: drawn on and locked (disabled), with the reason beside it; pressing it does nothing.
     const home = row(page, 'home').querySelector('[role="switch"]');
+    assert.equal(home.getAttribute('aria-checked'), 'true');
+    assert.equal(home.disabled, true);
+    const lock = row(page, 'home').querySelector('.ss-tabrow-lock');
+    assert.equal(lock.textContent, TABS_TEXT.alwaysShown);
+    assert.equal(lock.textContent, 'Always shown');
+    assert.ok(lock.classList.contains('ss-field-tag-why'));
+    assert.equal(home.getAttribute('aria-describedby'), lock.id, 'the switch is described by it');
     home.click();
     assert.equal(home.getAttribute('aria-checked'), 'true');
     assert.equal(tabs.state.calls.some(call => call[0] === 'hide' && call[1] === 'home'), false, 'nothing was written');
-    const refusal = page.querySelector('.ss-tabrows-refusal');
-    assert.equal(refusal.hidden, false);
-    assert.equal(refusal.getAttribute('role'), 'alert');
-    assert.equal(refusal.textContent, TABS_TEXT.homeStays);
-    // A change that goes through clears the message.
-    row(page, 'party').querySelector('[role="switch"]').click();
     assert.equal(page.querySelector('.ss-tabrows-refusal').hidden, true);
+    assert.equal(page.querySelectorAll('.ss-tabrow-lock').length, 1, 'only Home is locked');
+    assert.equal(row(page, 'party').querySelector('[role="switch"]').disabled, false);
     host.close();
     // The guard is the card's own, whatever the control: with no other tab shown, a tab that is not Home may not be hidden either.
     const doc = setupDom();

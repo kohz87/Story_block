@@ -155,7 +155,8 @@ test('the overlay opens on the body, marks it, and closes', () => {
     const overlay = openSettingsOverlay({ registry, settings, doc });
     assert.ok(doc.body.classList.contains(OPEN_CLASS));
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1);
-    assert.equal(overlay.root.querySelectorAll('details.story-suite-fold').length, 2, 'the module\'s fold and Versions');
+    assert.equal(overlay.root.querySelectorAll('details.story-suite-fold').length, 0, 'the Modules page is the form engine\'s: a card per module and Versions, no fold');
+    assert.equal(overlay.root.querySelectorAll('.ss-module-card').length, 1);
     const again = openSettingsOverlay({ registry, settings, doc });
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1, 'opening again replaces it');
     again.root.querySelector('.story-suite-close').click();
@@ -470,7 +471,6 @@ test('the settings window: a side with the rail and a page; Escape closes it and
     const atPacks = openSettingsOverlay({ registry, settings, doc, fold: PACKS_FOLD, openState: new Map() });
     assert.equal(atPacks.section(), 'tabs');
     assert.equal(foldAt(atPacks.root, PACKS_FOLD), undefined, 'the Packs fold is the Packs card now');
-    assert.equal(foldAt(atPacks.root, 'rpg-battle').open, false);
     assert.ok(doc.activeElement === atPacks.root.querySelector('.ss-packs-import'), 'the Import button has the focus');
     // Opening again closes the first one (one window, one focus guard).
     const second = openSettingsOverlay({ registry, settings, doc, openState: new Map() });
@@ -535,7 +535,7 @@ test('a real browser\'s querySelectorAll gives a NodeList (no find, no at): the 
         assert.equal(settings('story-director')['tracker.calendar.months'].length, 3);
         root.remove();
         const overlay = openSettingsOverlay({ registry, settings, doc, features, fold: 'story-director', openState: new Map() });
-        assert.ok(doc.activeElement === find(overlay.root, 'details.story-suite-fold', node => node.dataset.fold === 'story-director').querySelector('summary'));
+        assert.ok(doc.activeElement === find(overlay.root, '.ss-module-card', node => node.dataset.module === 'story-director').querySelector('.ss-section-title'), 'the module\'s card has the focus');
         overlay.close();
     } finally {
         proto.querySelectorAll = plain;
