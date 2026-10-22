@@ -120,6 +120,7 @@ export function validateInventory(slice) {
         if (stack.cond !== undefined && !(Number.isSafeInteger(stack.cond) && stack.cond >= 0 && stack.cond <= COND_MAX)) {
             errors.push(`${label} has a condition of ${stack.cond}; it is a whole number from 0 to ${COND_MAX}.`);
         }
+        if (stack.key !== undefined && stack.key !== true) errors.push(`${label} is marked as a key item with something other than true.`);
     }
     for (const [owner, wallet] of Object.entries(wallets)) {
         if (!OWNER_RE.test(owner)) errors.push(`A wallet belongs to "${owner}", who is neither the party nor an actor ID.`);
@@ -216,20 +217,30 @@ function takeAcross(inv, stacks, qty) {
     }
 }
 
-function addStack(ctx, inv, def, qty, owner, note) {
+// A key item (`key: true` on its stack): the one notable item a reply's story gives outside its goods
+// budget (storyItems), a stack kept apart from the rest of that item. It is used, worn, given and consumed like any other, but it has no cash value: a module
+// that buys things back or counts what they are worth (RPG Battle's trade and crafting) counts it as 0.
+// It never joins another stack, nor another stack it (looseMatch, inventory.merge), and the part of it
+// that is given away or split off stays a key stack.
+function addStack(ctx, inv, def, qty, owner, note, key = false) {
     const id = newId(ctx, 'it', taken => Boolean(inv.stacks[taken]));
-    inv.stacks[id] = { id, def, qty, owner, equipped: null, note, from: typeof ctx.receiptId === 'string' ? ctx.receiptId : '' };
+    inv.stacks[id] = { id, def, qty, owner, equipped: null, note, from: typeof ctx.receiptId === 'string' ? ctx.receiptId : '', ...(key ? { key: true } : {}) };
     return id;
 }
 
 // A loose stack to add to: the same def, owner and note, not worn, in the same condition (`cond`).
 function looseMatch(inv, def, owner, note, except = null, cond = COND_MAX) {
     return Object.values(inv.stacks).sort(byId)
-        .find(stack => stack.id !== except && stack.def === def && stack.owner === owner && stack.equipped === null && stack.note === note && condOf(stack) === cond) ?? null;
+        .find(stack => stack.id !== except && stack.def === def && stack.owner === owner && stack.equipped === null && stack.note === note && condOf(stack) === cond && stack.key !== true) ?? null;
 }
 
-/** Puts `qty` of a def with an owner: onto a matching loose stack when it stacks, else new stacks. */
-function grantInto(ctx, inv, def, qty, owner, note) {
+/** Puts `qty` of a def with an owner: onto a matching loose stack when it stacks, else new stacks (a key item always its own). */
+function grantInto(ctx, inv, def, qty, owner, note, key = false) {
+    if (key) {
+        if (def.stack) return [addStack(ctx, inv, def.id, qty, owner, note, true)];
+        if (qty > MAX_UNSTACKED) ctx.fail('INVALID', `${def.name} does not stack; at most ${MAX_UNSTACKED} can be given at once.`);
+        return Array.from({ length: qty }, () => addStack(ctx, inv, def.id, 1, owner, note, true));
+    }
     if (def.stack) {
         const same = looseMatch(inv, def.id, owner, note);
         if (same) {
@@ -835,7 +846,7 @@ export function createInventoryCommands(env) {
             if (qty > stack.qty) ctx.fail('NOT_ENOUGH', shortOf(def.name, stack.qty));
             // The reader's hand-over (Give on the Inventory screen): only the taker's own load is checked.
             if (ctx.cause === 'ui') readerCarry(ctx, [{ defId: def.id, qty }], to, true);
-            const target = def.stack ? looseMatch(inv, def.id, to, stack.note, null, condOf(stack)) : null;
+            const target = def.stack && stack.key !== true ? looseMatch(inv, def.id, to, stack.note, null, condOf(stack)) : null;
             const note = stack.note;
             let moved;
             if (qty === stack.qty && !target) {
@@ -848,7 +859,7 @@ export function createInventoryCommands(env) {
                     target.qty += qty;
                     moved = target.id;
                 } else {
-                    moved = addStack(ctx, inv, def.id, qty, to, note);
+                    moved = addStack(ctx, inv, def.id, qty, to, note, stack.key === true);
                     if (stack.cond !== undefined) inv.stacks[moved].cond = stack.cond;
                 }
             }
@@ -916,7 +927,7 @@ export function createInventoryCommands(env) {
             const qty = payload.qty;
             if (!isCount(qty, 1) || qty >= stack.qty) ctx.fail('INVALID', `Split off between 1 and ${stack.qty - 1} ${def.name}.`);
             stack.qty -= qty;
-            const made = addStack(ctx, inv, def.id, qty, stack.owner, stack.note);
+            const made = addStack(ctx, inv, def.id, qty, stack.owner, stack.note, stack.key === true);
             if (stack.cond !== undefined) inv.stacks[made].cond = stack.cond;
             return {
                 summary: `${itemText(def.name, qty)} set apart from the rest.`,
@@ -938,6 +949,7 @@ export function createInventoryCommands(env) {
             if (stack.equipped !== into.equipped) ctx.fail('REFUSED', `One ${def.name} is worn and the other is not.`);
             if (stack.note !== into.note) ctx.fail('REFUSED', `These ${def.name} have different notes.`);
             if (condOf(stack) !== condOf(into)) ctx.fail('REFUSED', `These ${def.name} are in different condition.`);
+            if ((stack.key === true) !== (into.key === true)) ctx.fail('REFUSED', `One ${def.name} is a key item, kept apart from the rest.`);
             into.qty += stack.qty;
             delete inv.stacks[stack.id];
             return {
@@ -999,11 +1011,14 @@ export function createInventoryCommands(env) {
 //   Past either, a line gives what is left, and the Problems list says so. A `~ item … | qty:` that
 //   raises a count is a gain, counted the same way; lowering one is free.
 // * A notable item: the first `+ item` line of a reply whose one item is worth more than the goods
-//   budget has left (so none of it would fit) is given outside the worth tally, up to
-//   STORY_NOTABLE_TIMES × the goods budget (value × count; the count is clamped to fit). "The old man
+//   budget has left (so none of it would fit) gives one of it outside the worth tally, when it is worth
+//   at most STORY_NOTABLE_TIMES × the goods budget (a count over 1 is clamped to 1: the rest is over
+//   the goods budget). "The old man
 //   hands you a potion" is a normal story moment even when that potion is worth more than a reply's
 //   goods. One per reply: a later line over the budget is held as above. An item worth more than the
 //   notable limit on its own is not notable, and is refused as above.
+//   The notable item is given as a key item, a stack of its own (`key: true`, see addStack): usable,
+//   never sold.
 // * New kinds: at most STORY_NEW_DEFS item definitions made by one reply's story lines; past that a
 //   line naming something new is refused.
 // The tally is kept in the inventory slice under the reply's record ID (`perReply[<sid>]` =
@@ -1137,12 +1152,13 @@ function storyItems(ctx, inv, def, qty, created = false, more = false, notableOk
         const gift = STORY_NOTABLE_TIMES * cap;
         if (!fits && notableOk && !tally.notable && value <= gift) {
             // The reply's notable item: not counted in the worth tally, held to its own limit.
+            // One item (approved "one notable item per reply"): what else the line wrote is over the goods
+            // budget (none of it fits), so it is not given, and the Problems list says so.
             notable = true;
             tally.notable = true;
-            const room = Math.floor(gift / value);
-            if (room < given) {
-                given = room;
-                limits.push(`one notable item worth at most ${formatAmount(gift, currency)}`);
+            if (given > 1) {
+                given = 1;
+                limits.push(`only one key item beyond goods worth ${formatAmount(cap, currency)} in all`);
             }
         } else {
             if (!fits) {
@@ -1160,7 +1176,7 @@ function storyItems(ctx, inv, def, qty, created = false, more = false, notableOk
     return {
         qty: given,
         notable,
-        problem: given < qty ? `${itemText(def.name, qty)}${more ? ' more' : ''} was written, but one reply may give ${limits.join(' and ')}; ${given} ${given === 1 ? 'was' : 'were'} given.` : null,
+        problem: given < qty ? `${itemText(def.name, qty)}${more ? ' more' : ''} was written, but one reply may give ${limits.join(' and ')}; ${given} ${given === 1 ? 'was' : 'were'} given${notable ? ' as a key item' : ''}.` : null,
     };
 }
 
@@ -1257,12 +1273,13 @@ export function captureItem(ctx, line, env) {
         const held = storyItems(ctx, inv, def, qty, created);
         // Asked before the stacks change: `add` is weight on top of what is carried now.
         const heavy = storyCarry(ctx, def, held.qty, 'party');
-        const stacks = grantInto(ctx, inv, def, held.qty, 'party', note);
+        // The notable item is given as a key item, a stack of its own (addStack): usable, never sold.
+        const stacks = grantInto(ctx, inv, def, held.qty, 'party', note, held.notable);
         return {
             summary: (held.notable
-                ? `The party gains ${itemText(def.name, held.qty)} (notable gift: ${def.name}, outside this reply's goods budget).`
+                ? `The party gains ${itemText(def.name, held.qty)}, given as a key item (outside this reply's goods budget; it can't be sold).`
                 : `The party gains ${itemText(def.name, held.qty)}.`) + (heavy ? ENCUMBERED_NOTE : ''),
-            data: { def: def.id, qty: held.qty, owner: 'party', stacks, created, from: labelOf(line, 'from') ?? '', ...(held.notable ? { notable: true } : {}), ...(heavy ? { encumbered: true } : {}) },
+            data: { def: def.id, qty: held.qty, owner: 'party', stacks, created, from: labelOf(line, 'from') ?? '', ...(held.notable ? { notable: true, key: true } : {}), ...(heavy ? { encumbered: true } : {}) },
             narrate: false,
             ...(held.problem ? { problem: held.problem } : {}),
         };
@@ -1397,6 +1414,7 @@ export function listItems(inventory, owner = null) {
                 stack: stack.id, def: def.id, name: def.name, kind: def.kind, rarity: def.rarity, value: def.value,
                 slot: def.slot, qty: stack.qty, owner: stack.owner, equipped: stack.equipped, note: stack.note, from: stack.from,
                 ...(stack.cond === undefined ? {} : { cond: stack.cond }),
+                ...(stack.key === true ? { key: true } : {}),
             };
         })
         .sort((a, b) => ownerRank(a.owner) - ownerRank(b.owner) || (a.owner < b.owner ? -1 : a.owner > b.owner ? 1 : 0)

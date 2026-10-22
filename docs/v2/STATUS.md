@@ -50,6 +50,7 @@ merges. The beta.1 notes are drafted at the top of RELEASES.md as features land.
 | Speed: frozen views for reads and queries, no head replay for record-less messages | ✅ | #89, #90 |
 | b2 round 2: dry runs, swipe marks, renamed chats, Re-read races, one write less per reply | ✅ | #91 |
 | One notable story item per reply, outside the goods budget | ✅ | #92 |
+| The notable item is one key item: its own stack, usable, never sold (RPG Battle) | ✅ | (this PR) |
 | 2.0.0-alpha.2 release notes | ✅ | #93 |
 | Packs: installed modules satisfy a pack's capabilities (Ersveil imports) | ✅ | #94 |
 | A card edit or rename before the first reply keeps the greeting's state | ✅ | #95 |

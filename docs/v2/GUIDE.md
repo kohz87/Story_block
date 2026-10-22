@@ -293,7 +293,8 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
   from your installed extensions: the top quest reward for your character's rank, or 1000 per level, or
   1000 when neither is installed; see [Economy and currency](#economy-and-currency)). The rest is not paid, and **Problems** says so.
   A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
-  gift (the potion an old man hands you) worth up to five times the goods.
+  item (the potion an old man hands you) worth up to five times the goods. That one is a **key item**
+  (tagged "Key" in the Inventory): yours to use, equip or give away, but it can't be sold.
 * **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
   one reply may hold, 150 by default; any after them are not used.
 * **Screens**: turn each card on or off, and pick which version of a screen to use (the default, the
