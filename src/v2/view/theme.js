@@ -104,7 +104,12 @@ const TINT = 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))';
 const mixTint = base => `color-mix(in srgb, ${TINT} ${TINT_SHARE}%, ${base})`;
 
 // What the legacy surfaces paint under Glass: the dense glass, its blur and no extra layers (the game view's opaque fallback).
-const SHEET_TOKENS = Object.freeze([['--ss-sheet-bg', 'var(--ss-glass-strong)'], ['--ss-sheet-blur', 'var(--ss-blur)'], ['--ss-sheet-layers', 'none']]);
+// The shape of the glass for the frames that were opaque (the HUD strip, the dialog mount): their radius, edge and shadow.
+// Set for Glass only, so Solid and Follow SillyTavern keep those frames' own shape (the frames read each with a fallback).
+const SHEET_TOKENS = Object.freeze([
+    ['--ss-sheet-bg', 'var(--ss-glass-strong)'], ['--ss-sheet-blur', 'var(--ss-blur)'], ['--ss-sheet-layers', 'none'],
+    ['--ss-sheet-radius', 'var(--ss-radius-l)'], ['--ss-sheet-edge', '1px solid var(--ss-border)'], ['--ss-sheet-shadow', 'var(--ss-shadow)'],
+]);
 const SHEET_RESET = Object.freeze(SHEET_TOKENS.map(([name]) => [name, 'initial']));
 
 /** The reader's Glass strength (host setting `glassStrength`, a percentage): its range and default. */
