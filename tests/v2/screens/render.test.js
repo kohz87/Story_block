@@ -228,7 +228,7 @@ test('home: Story Block alone shows the place and the purse, and nothing else', 
     assert.equal(text(el.querySelector('.here')), 'Here: Fenna, Old Tam');
     assert.equal(text(el.querySelector('.wallet')), '125 gold · 6 things carried');
     assert.deepEqual(el.querySelectorAll('.worn li').map(li => text(li)), ['Iron Sword']);
-    assert.deepEqual(drawn, { 'story-block.savepoints': [{}], 'story-block.packs-hint': [{}] }, 'only the save points and packs slots (the host widgets draw or hide them)');
+    assert.deepEqual(drawn, { 'story-block.ready-hint': [{}], 'story-block.savepoints': [{}], 'story-block.packs-hint': [{}] }, 'only the "before you start", save points and packs slots (the host widgets draw or hide them)');
 });
 
 test('home: with RPG Battle and Story Director, their panels appear', { skip }, () => {

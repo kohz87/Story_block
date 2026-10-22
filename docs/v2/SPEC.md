@@ -466,8 +466,10 @@ sdk.registerModule({
 
 * `view` = `{ state (frozen head), query, settings, feature(id), chat: { length, lastUser } }`.
 * **Hooks** let a module shape another's work without writing its domain: `item.define` (RPG Battle sets
-  rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` blocks a story
-  generation, with a reason; MODULES §F12), `beforeGenerate`. Money is one currency (MODULES §F1).
+  rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` or
+  `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
+  start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
+  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`. Money is one currency (MODULES §F1).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`) render in the
   Story Suite overlay; `section` renders a custom panel for what a schema can't express. Values are stored
   under `extension_settings.storySuite.modules[id]`. `settings.set` stores a value as its field allows it:

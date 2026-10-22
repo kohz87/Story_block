@@ -54,13 +54,22 @@ Cast tab or Story Suite section, until Story Block is updated.
 your character's name, background and portrait.
 
 Open a chat with any character. The greeting shows as normal, but **before the story can go on you make
-your character** (when RPG Battle is installed): a window opens where you pick a race and talents (if the
-game has them) and spend points on your stats. **Random** on the Talents step rolls talents for you:
-**Keep it** takes that roll. Press **Create**. To bring a character you made before, use **Import
-character** on the first step and pick its file (made with **Save character file** on your Party card). Until then the story waits; if you
-close the window, sending a message opens it again.
+your character** (when RPG Battle is installed). Open the character window from any of these:
 
-With Story Block alone there is no character to make; you can start right away.
+- **Create your character** on the *Before you start* card at the top of Home (Game view);
+- **Create your character** on the Party tab (Story);
+- **Create** on the status strip above the message box;
+- or just send a message: the story waits, says why, and the window opens.
+
+In the window you start from a pack's ready-made character (it fills in race, talents and points) or
+your own, pick a race and talents (if the game has them) and spend points on your stats. **Random** on
+the Talents step rolls talents for you: **Keep it** takes that roll. Press **Create**. To bring a
+character you made before, use **Import character** on the first step and pick its file (made with
+**Save character file** on your Party card). If you close the window, any of the buttons above opens it
+again. Once your character exists the buttons and the card are gone.
+
+With Story Block alone there is no character to make and no *Before you start* card; you can start
+right away. Any other module that needs something first shows its reason on that card the same way.
 
 ## The `<Changes>` block
 
