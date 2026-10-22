@@ -338,7 +338,8 @@ When the page is hidden (a tab switch, a phone putting the browser away: `visibi
 good (`pagehide`) or closed (`beforeunload`) with something unsaved, the newest state goes out with
 keepalive at once, even while an earlier save is still on its way (it is not queued behind it; on hidden a
 save on its way that already carries the newest change is not sent again). A browser sends keepalive only
-for a body up to 64 KiB, which most real chats are over, and SillyTavern 1.19 cannot write part of a chat
+for a body up to 64 KiB, counted in bytes as sent (UTF-8, so a chat in Japanese or with emoji is 2-4 bytes a
+character; Story Block measures with TextEncoder and allows 60 KiB for the headers), which most real chats are over, and SillyTavern 1.19 cannot write part of a chat
 file: so on `beforeunload` the browser asks first whenever the unsaved body is too big for keepalive, as it
 does while saves are failing or one is still on its way. On a phone, where a page often goes from hidden to
 gone, the save on hidden is what keeps the change.
@@ -420,19 +421,21 @@ One hidden block at the end of the reply:
   characters); an ambiguous name is held as a Problem.
 * Reading is lenient and linear: bullets, bold and either dash are decoration; `label:value` without a
   space is a label when the label is one word of letters (`09:00` stays text); a line over 2,000
-  characters is a Problem. Nested `<Changes>` are counted. A close tag ends the block only at the start or
-  the end of a line (one in the middle of a line belongs to that line, so nothing after it is dropped
-  unseen); an open tag opens one only there too, or with a change line after it on its line (`a <Changes>
+  characters is a Problem. Nested `<Changes>` are counted. A close tag ends the block only at the start of
+  a line, or at the end of a line that is a whole change line before it (`+ item Rope</Changes>`); one in
+  a line (`| who: </Changes>`, a label with no value, or story text after it) belongs to that line, so
+  nothing after it is dropped unseen or shown (C-3); an open tag opens one only there too, or with a change line after it on its line (`a <Changes>
   word` in the story is a mention, and the story after it stays visible). Reasoning in the reply
   (`<think>`, `<thinking>`, `<reasoning>`) is not read: a closed pair, and an open tag with no close after
   it, which is reasoning to the end of the reply (it was cut off mid-thought), so nothing drafted inside
   it applies; a block before it is kept. Hiding a block leaves reasoning that sat inside it in the story,
   as written. A copy of the hidden comment's marker in the model's own text is defanged when the reply is
   read (`STORY_SUITE_V2_`), so only the comment Story Block writes is the hidden one and Re-read of an
-  unchanged reply reads what was applied. In a block the reply left open, the last line has no line break after it (SillyTavern trims
-  every reply); it is read as written, unless the reader stopped the reply (`GENERATION_STOPPED` before it
-  was received: it was cut off mid-way), or it is no change line, or a tag sits in it; then it is a
-  Problem (`CUT_OFF`), not a change. A reply holds at most `maxChangeLines` lines (host setting, 150),
+  unchanged reply reads what was applied. In a block the reply left open, a last line with no line break
+  after it is never applied, whether the reader stopped the reply or the length limit cut it ("+ item Ro"
+  of "+ item Rope"; a block the model forgot to close loses its last line the same way): it is a Problem
+  (`CUT_OFF`), and it is kept in the hidden comment, so a Continue that goes on with the block reads the
+  Continue's text up to its first line break joined onto it, as one line, once (B-a1-14). A reply holds at most `maxChangeLines` lines (host setting, 150),
   counting every non-blank line written, change line or not; the rest are one Problem (`TOO_MANY`).
   Reasoning tags and the hidden comment are found open by open, close by close, in one pass, so unclosed
   tags cost no more than the text's length. Every cut Story Block makes (names, settings text, currency,
@@ -442,28 +445,60 @@ One hidden block at the end of the reply:
   it hidden with `open` after the comment's marker; a Continue that goes on with that block (a close tag
   before any open one, or a change line first) has its lines read and hidden too, and story text that
   goes on is left as it is.
-* **Change lines written in the story** (fix-encounter). A model now and then writes a line in the story,
-  on its own line just before the block (or with no block at all): `! encounter 8 Weir Rat — cellar pack |
-  tier: weak`. Such a line is read as one of the reply's changes and hidden like the block, but only when
-  it is a whole line that starts exactly as a kind's grammar line does (its head: the op, one space, the
-  kind in lower case, as the kind's `grammar` writes it, so `! encounter`, `+ present`, `- present`; bold
-  and backticks around it are decoration), parses, and sits near the end: in the last 3 story paragraphs
-  before the first block (a paragraph made only of change lines is not counted), or after it. A `-` line
-  (a Markdown bullet too) is taken only from a paragraph made only of change lines. A line close to one
-  that is not taken (another op, a capital, no space or a colon after the op or kind, too far up, part of
-  a story paragraph, the last line of a reply the reader stopped) is a Problem (`STRAY`, with the line)
-  and stays in the story; a mention in a sentence is neither. The lines taken are read after the
-  blocks and kept after them in the hidden comment (before them when the last block was left open), so
-  the live capture, Re-read, swipes, Continue (its own text only) and the rebuild read the same. Re-read
-  of a reply saved before this takes such a line too and hides it. Kinds of a feature that is off have
-  no head. Reasoning is never read.
+* **Change lines written in the story** (fix-encounter, narrowed by the beta-candidate break). A model now
+  and then writes a line in the story, on its own line just before the block (or with no block at all):
+  `! encounter 8 Weir Rat — cellar pack | tier: weak`. Such a line is read as one of the reply's changes and
+  hidden like the block, but only when all of these hold; when in doubt the line stays story, with a Problem:
+  * it starts exactly as a kind's grammar line does (its head: the op, one space, the kind in lower case,
+    as the kind's `grammar` writes it, so `! encounter`, `+ present`, `- present`; bold and backticks around
+    it are decoration) and parses **completely**: nothing after the head reads as prose (no quote marks, no
+    sentence end `. ! ? …` at its end or before another word, no `, she said` / `, and …` speech or sentence
+    going on) and no `<Changes>` tag sits in it;
+  * it stands alone: its paragraph is made only of change lines (any op; a change line inside a story
+    paragraph is story);
+  * it is not someone's words: not inside a quotation left open in an earlier paragraph (a paragraph that
+    starts with a quote mark opens a new one, as speech over several paragraphs is written);
+  * it is not something shown: not in a fenced (```` ``` ````, `~~~`, one left open to the end) or indented
+    code block, a `>` quote, a `<details>`, `<style>`, `<pre>`, `<script>`, `<code>` or `<textarea>` element
+    over several lines, or a multi-line `<!-- … -->` comment;
+  * it sits near the end: in the last 3 story paragraphs before the first block (a paragraph made only of
+    change lines is not counted), or after it.
+
+  A line close to one that is not taken is a Problem (`STRAY`, with the line) and stays in the story: another
+  op or an op look-alike (`–`, `—`, `−`, `＋`), a capital, no space or a colon after the op or kind, the kind
+  in the plural (`+ coins 5`), prose after the head, a tag in it, inside code, a quote or a quotation, too
+  far up, part of a story paragraph, the last line of a reply the reader stopped. A mention in a sentence
+  ("He shouted "! encounter"") is neither. A story line equal to a line the reply's blocks hold (without
+  decoration and extra spaces) is the same change written twice: it is taken out of the story but read
+  once, from the block (C-1).
+
+  **One rule for live and Re-read.** The lines taken are read after the blocks and kept after them in the
+  hidden comment (before them when the last block was left open). Every line with a change line's shape
+  that a read leaves in the story is listed in the hidden comment (`<Changes-story>`), and a later read
+  (Re-read) leaves each listed line again (the nearest one above that comment, not claimed by an earlier
+  one); so what the live read knew and the text does not say (the reader stopped the reply, a Continue
+  reads only its own text and counts its distance from its own block, a tag that shared the line before the
+  block was hidden) never makes a Re-read read differently. A Re-read lists what it leaves the same way.
+  Re-read of a reply saved before this takes such a line too and hides it. Kinds of a feature that is off
+  have no head. Reasoning is never read.
+* **The hidden comment.** `<!-- STORY_SUITE_V2[ open][ off:word,…]` then each block's body in
+  `<Changes>…</Changes>`, then, when there are any, the lines left in the story (`<Changes-story>`), an open
+  block's unfinished last line (`<Changes-cut>`) and the story lines that echoed a block line
+  (`<Changes-echo>`, never read). An HTML comment ends at `--`, so each `--` in it is written with a word
+  joiner (U+2060) between and a word joiner already there is written twice; reading the comment undoes
+  both, so a Re-read reads exactly what the live capture read (B-a1-11). A comment written before this broke
+  `--` up as `- -` and reads as it always did. Each comment's blocks are read inside it (a nested tag never
+  runs past its end). `off:` names the display kinds (written words) whose lines were read while their
+  feature was off (below).
 * **Display kinds** (MODULES §F115). A kind may be `display: true | { perReply?, noun?, read?(line) → { value } |
   { error } }`: its lines are for the reader alone. No command runs for them and nothing is stored (no receipt,
   no op, no `meta.rev`); they stay in the reply's hidden comment, and what is shown is read from there each time
   it is drawn (`extras.js displayLines`, the same rule as at capture: `readDisplayLine`), so the live reply,
   Re-read, swipes, deletes and a rebuild agree. At capture a line `read` refuses is a Problem (`INVALID`), one
-  past `perReply` too (`LIMITED`, the first ones kept); a line of a feature that is off is a quiet
-  `FEATURE_OFF`. Story Block's two: `? choice Text` (4 a reply, 80 code points; buttons under the latest reply
+  past `perReply` too (`LIMITED`, the first ones kept, counted over the whole reply: a Continue's lines
+  count after the ones it already shows); a line of a feature that is off is a quiet `FEATURE_OFF`, and its
+  hidden comment marks that kind `off:`, so turning the feature on later does not show what the reader was
+  told was not used; a Re-read reads it again and marks every comment of the reply as it found them. Story Block's two: `? choice Text` (4 a reply, 80 code points; buttons under the latest reply
   that only fill the message box) and `~ chatter Name: thought` (3 a reply, 40 + 140 code points; a folded
   strip under each reply, never sent back unless the reader's `chatterInPrompt` setting adds the answered
   reply's thoughts as one optional tail line).

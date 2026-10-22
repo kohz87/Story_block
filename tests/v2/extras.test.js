@@ -95,8 +95,11 @@ test('off (the default): no grammar line, and a line written anyway is a quiet P
     // The rest of the reply was used, and the lines are hidden like any block.
     assert.equal(host.sdk.query('inventory.items').find(item => item.name === 'Rope')?.qty, 1);
     assert.doesNotMatch(host.ctx.chat[index].mes.replace(/<!--[\s\S]*?-->/g, ''), /choice|chatter/);
-    // Turned on later, the reply's own lines show (read from its text; nothing was stored either way).
+    // B-a1-5 (beta-candidate break): turned on later, lines told as not used stay unshown (the hidden
+    // comment marks them `off:`); a Re-read reads them again, and then they show.
     host.features.set(CHOICES_FEATURE, true);
+    assert.deepEqual(extrasOf(host), {}, 'told as not used, so not shown when turned on');
+    assert.equal((await host.turn.reread(index)).ok, true);
     assert.deepEqual(extrasOf(host).choice.map(item => item.text), ['Climb the wall', 'Bribe the guard']);
 });
 

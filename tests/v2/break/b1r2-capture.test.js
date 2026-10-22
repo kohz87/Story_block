@@ -26,9 +26,15 @@ test('~ item | qty cannot raise a stack past the per-reply story item budget', a
 // B-b1r2-2: an unclosed block's last line is always dropped as CUT_OFF when the reply ends without a
 // line break, and SillyTavern trims every reply (power_user.trim_spaces, default on: cleanUpMessage
 // ends with getMessage.trim()), so a block the model forgot to close always loses its last line.
-test('an unclosed block whose last line is whole (reply trimmed, as SillyTavern saves it) keeps that line', async t => {
+// Beta-candidate break (B-a1-14) changed the rule on purpose: a reply cut by the length limit ends the same
+// way ("+ item To" of "+ item Torch"), so that last line is never applied; it is told (CUT_OFF), and a
+// Continue that ends the line (or closes the block) reads it whole.
+test('an unclosed block whose last line has nothing after it: told, not applied; a Continue that ends it reads it', async t => {
     const host = await fresh(t);
     await host.send('I search.', 'You find things.\n\n<Changes>\n+ item Rope\n+ item Torch');
+    assert.deepEqual(host.sdk.query('inventory.items').map(item => item.name).sort(), ['Rope']);
+    assert.ok(host.turn.problems().some(item => item.code === 'CUT_OFF' && item.line === '+ item Torch'));
+    await host.cont('\n</Changes>');
     assert.deepEqual(host.sdk.query('inventory.items').map(item => item.name).sort(), ['Rope', 'Torch']);
 });
 
