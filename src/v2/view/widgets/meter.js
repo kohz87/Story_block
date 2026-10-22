@@ -42,6 +42,8 @@ const props = {
 // A number given as a prop, or null when it is not one (null, '', a word): the mark is left out.
 const numberOr = value => (value === null || value === undefined || value === '' ? null : num(value, null));
 const ratio4 = value => String(Math.round(value * 10000) / 10000);
+// A custom property taken off (an empty value removes it too, where a page has no removeProperty).
+const unset = (node, name) => (typeof node.style.removeProperty === 'function' ? node.style.removeProperty(name) : node.style.setProperty(name, ''));
 
 /** The fill ratio in [0, 1] (0 when the range is empty). */
 export function meterRatio(value, min, max) {
@@ -172,7 +174,7 @@ function render(el, input) {
                 track.style.setProperty('--ss-w-ceiling', ratio4(meterRatio(cap, min, max)));
                 ceiling.setAttribute('title', `Up to ${fmt(cap)} for now`);
             } else {
-                track.style.removeProperty('--ss-w-ceiling');
+                unset(track, '--ss-w-ceiling');
                 ceiling.removeAttribute('title');
             }
             root.classList.toggle('ss-w-capped', hasCap);
@@ -196,9 +198,9 @@ function render(el, input) {
             low.hidden = !hasLo;
             high.hidden = !hasHi;
             if (hasLo) track.style.setProperty('--ss-w-warn-lo', ratio4(meterRatio(lo, min, max)));
-            else track.style.removeProperty('--ss-w-warn-lo');
+            else unset(track, '--ss-w-warn-lo');
             if (hasHi) track.style.setProperty('--ss-w-warn-hi', ratio4(meterRatio(hi, min, max)));
-            else track.style.removeProperty('--ss-w-warn-hi');
+            else unset(track, '--ss-w-warn-hi');
             low.classList.toggle('ss-w-in', warning === 'low');
             high.classList.toggle('ss-w-in', warning === 'high');
             root.classList.toggle('ss-w-critical', warning !== null);
