@@ -4,6 +4,12 @@
 
 **Not released yet.** These notes grow as each beta wave merges. Still for test play only.
 
+**Update Story Block first, then the modules.** Every beta module needs Story Block 2.0.0-beta.1 or later.
+An older Story Block refuses it with a red notice, for example *Story Suite: RPG Battle needs Story Block
+≥ 2.0.0-beta.1; this is 2.0.0-alpha.2. Update Story Block to use it.*, and the module's row in **Story
+Suite settings → Versions** says the same. NPC State Delta keeps working on its own until Story Block is
+updated.
+
 ### What's new since alpha.2
 
 **Features: switch optional mechanics on and off** (F100, Story Block #96)
@@ -14,16 +20,120 @@
 - Your switches hold in every chat.
 - Story Block's own: Status strip, Cards under replies (both on), and two helpers that make one small extra model call each (both off).
 
+**Inventory: Equip on…, loot to pick from, encumbered** (F99, Story Block #104)
+- The Inventory is the one bag for the whole party. Each character has an **Equipped** section with **Take off**.
+- **Equip on…** lists only the members who can wear a piece. It hands the piece over and puts it on in one step. Whatever was in that slot goes back into their pack.
+- **Give…** hands a thing to someone else in the party.
+- **Loot to pick from** (feature *Pick what you take*, on): the story can lay things out (`? loot …`). The card under the reply shows them as chips, and you take the ones you want.
+- **Encumbered** (feature *Encumbered*, on): what the story gives past the carry limit is kept, and the party is encumbered (AGI and DEX checks −2) until something is put down.
+- Item names are matched more loosely: "a handful of berries" finds Berries.
+- Pieces can carry a condition, for RPG Battle's wear rules.
+
+**Tools for testers** (F92, F93, Story Block #105)
+- **State inspector** (feature, off): a read-only screen with any reply's story state, what changed, its receipts and its problems.
+- **Save points** (feature, on): **Save point** on Home keeps the moment as a named SillyTavern branch, listed with **Return here**.
+- **Versions**: the last fold in Story Suite settings lists each extension, its version and the Story Block it needs. One that is out of step says how to fix it.
+- Meters can show stage marks, a ceiling and the last change. Home shows each quest with Story Director's own status line.
+
+**Money: the pack sets the scale** (F104, Story Block #99, #103; RPG Battle #92; Story Director #89)
+- The currency is only a name. The pack's rank ladder sets quest rewards and the most one reply may give. Item values set prices.
+- A pack can set a money scale (`economy.scale`). It multiplies only the built-in amounts (the default rank ladder, 1000 per level), never what the pack writes. **Money scale** in Story Block's settings overrides it.
+- Lorebooks carry flavour only, never numbers.
+- **Ersveil 1.2.0:** potions are now on the play scale (Minor Healing Draught 30 marks, Healing Salve 12), the money scale is 8, and 7 recipes and 2 NPC meter presets are added.
+- With Story Block alone, a pack's own rank ladder now sets the coin budget (Ersveil: 400 marks at F).
+
+**Quests the story made up pay inside one reply's budget** (RX-E-1, Story Director #89, #91)
+- Every quest reward except a pack quest's own counts as story money. One reply pays at most the party rank's top in such rewards, clicks after the reply included. A turn-in past that stays Ready for the next reply.
+- A rank the story writes for a quest can lower its reward, never raise it.
+- Pack quests keep their pack reward, outside this budget.
+
+**Ranks, foes, companions and timed effects** (F86, F91, RPG Battle #92)
+- Your character's rank follows the pack's ladder, or F to S. The story can name a foe's rank (`rank: D`), and code picks the level inside that band, near yours.
+- Companions' stats come from a formula by level and role, never from the model's numbers.
+- **Timed buffs and debuffs** (feature, on): `+ effect Name | on: perception | for: 2h`. Code sets the strength (±3 on checks in all), and the effect fades on the story clock. At most 3 new effects per reply. A failed quest can bring a *Setback*.
+- How many points each member has to spend is ready for the screens.
+
+**Day digest** (Story Director #90)
+- When a story day ends, code writes a digest of it from the receipts: places, quests, fights, money, NPC stages and world news. The model writes none of it.
+- A new **Days** screen lists the days with search. After a time skip, the next reply gets one line about the last day.
+- Feature *Day digest*, on.
+
+**NPC State Delta: fewer model calls while hosted** (NSD #191, #192)
+- Prompt alignment (audit steps 12–13, approved): the model sees whole stored values instead of shortened copies, and group chats keep the cached rules.
+- While Story Block hosts NSD, an ordinary reply makes no extra model calls. The relationship passes are skipped because the story's `~ npc` lines move the meters, and backfills run only on the catch-up schedule or when you press Scan.
+- Backfills never hold a reply back from showing. A reply admits at most 4 new people at once.
+- Swipes and regenerates keep the cached rules.
+
+**Smaller chat files** (storage tuning, Story Block #108)
+- Checkpoints every 100 replies or 128 KB, each record kept once, and receipts more than 200 replies back keep everything but their data.
+- A 3,000-reply chat file goes from about 33 MB to about 15 MB. A reply now writes about as much as v1 did, counting SillyTavern's own save and one backup.
+
+**Key items and one story-money budget** (Story Block #109, #111; RPG Battle #94; Story Director #94)
+- The one notable thing a reply's story may give past the goods budget is a **key item**: always one, in its own stack, tagged **Key** in the Inventory. It can be used, equipped and given, but not sold, and it counts as worth 0 in crafting and commissions.
+- One reply has one story-money budget, shared by its `+ coin` lines and the quest rewards the story wrote, clicks after the reply included. The budget honours **Money one reply may give**.
+
+**Gear: wear, repair and refinement** (RPG Battle #88; Story Block #110)
+- Pieces are good, worn (85% of stats), tattered (60%) or broken (none). Armour wears with damage taken, weapons a little each fight, and the story can say a piece suffered (`| wear: scuff|tear|ruin`). Code sets the amount.
+- Repair kits patch a piece in the field. A smith or tailor repairs it to full for a fee.
+- A smith refines a piece to +1, +2 or +3 (+8% stats a level). The +3 attempt can fail.
+- Repairing or refining a piece and then selling it never brings in more than selling it as it was.
+- Deleting a reply takes back exactly its wear, fees and materials.
+- Features *Gear wear and repair* and *Gear refinement*, both on.
+
+**Crafting** (F102, RPG Battle #89; Story Director #93)
+- Story-driven: `! craft X | with: …`. The craft uses the reply's own dice, and code adds stats, craft skill, tools and material quality against the recipe's difficulty.
+- Results: fail (half the materials lost), made, fine, masterwork, or botched on a natural 1.
+- Stations come from the place, and companions craft with their own stats. Recipes are known from the pack or learned in the story (`+ recipe … | from: …`).
+- If the party couldn't carry the result, the whole craft is refused and nothing is used.
+- A made thing is worth what went into it, and key items count as 0. With Story Director, the clock moves on by the recipe's time (`director.advance`).
+- Feature *Crafting*, on.
+
+**RPG Battle screens** (RPG Battle #90)
+- One bag: the Items screen is gone. Story Block's Inventory rows show RPG Battle's details (slot, stats, wearer, condition, refinement, what a potion would do).
+- Party cards show what each member wears, their effects, their carry load and when they are encumbered. A companion has **In fights** and **Stat points** switches, and your card has **Save character file**.
+- A read-only **Crafting** screen. The status strip shows points to spend and effects under way.
+- Creation wizard: **Random** only on the Talents step (with **Keep it**), "Points left" said once, and **Import character** on the first step.
+
+**Fights: balance wave C** (RPG Battle #93, #95, #96)
+- A tier (weak, even, strong, deadly) now means the same danger for every creature, headcount and level, lone foes included. Each creature's power is measured and evened out.
+- No one is stunned two turns running: a second stun dazes instead (−2 on the next action). A story stun costs one turn.
+- A boss fight is never below strong.
+- A story effect is always small and one per reply. Effects can't be stretched by deletes or a clock set back. Encumbered means −2 to AGI and DEX in checks and fights.
+- Built-in loot coin follows the pack's money scale.
+
+**NPC meters, wave C** (NPC State Delta #193)
+- Stage ladders: a rung can need several meters and a story milestone (`+ milestone Mira — saved her brother`). There's no promotion during a conflict, and a demotion needs a few replies in a row.
+- Per-NPC ceilings and floors, meter presets from packs, optional drift per story day (feature, off), band words in the prompt instead of numbers.
+- Hidden notes can show a title while locked ("🔒 Her past — unlocks at Trust 60").
+- Features *stages* and *presets* on, *drift* off.
+
+**Story Director**
+- Works without RPG Battle: the pack's or the built-in ladder sets the budget (#93, #94).
+- The day digest and quest history keep their facts before old receipts are trimmed (#95).
+
+**Fixes**
+- The after-reply extractor ignores closed reasoning, as capture does (Story Block #101).
+- Feature follow-ups (Story Block #106): a dialog of a switched-off screen doesn't open, settings of a switched-off feature are hidden, and a feature that needs another module shows as unavailable until that module is there.
+- From the beta fuzz run (Story Block #112, #113): a save that hangs counts as failed after 20 s and is retried, a slow Re-read waits instead of giving up, a rewind after a middle delete replays correctly, a Continue whose block was split is read, and Equip on… respects the carry limit.
+
 **Player guide**
 - "Checks and modifiers" now tells the same-reply dice (F80). The old Roll button is gone from the guide.
 - New sections: "Using things in the story" (F96) and "Economy and currency".
 - Quests are described as story-led, with no quest buttons (F94, F95).
 - The Ersveil pack is set up with **Import pack file** in the Packs panel.
 - We recommend a SillyTavern chat backup interval of at least 5 minutes.
+- New sections: ranks, foes and companions; effects that wear off; the day digest; money scale and quest pay in "Economy and currency"; update Story Block first.
 
 ### Known issues
 
-- Carried over from alpha.2 until a wave fixes them: see "Known issues" under 2.0.0-alpha.2 below.
+- Fixed since alpha.2's list:
+  - high written quest ranks (Story Director #89, #91);
+  - save cost, now halved by storage tuning (#108);
+  - balance (RPG Battle #96);
+  - `+ item` past the carry limit, which now makes the party encumbered (#104).
+- The rest of alpha.2's list still holds: see "Known issues" under 2.0.0-alpha.2 below.
+- The story's `rank:` on a foe is read, but the fight instructions don't mention it yet.
+- Deleting a reply in the middle of a day that already has its digest leaves that digest as it was written.
 
 ### Module versions
 

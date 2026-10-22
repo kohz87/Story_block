@@ -63,11 +63,10 @@ copied into `swipe_info[swipe_id].extra`, every receipt kept whole. "After" is t
 | Checkpoints | 51 | 11 | 151 | 31 |
 | Story Suite bytes written per reply (1.25 saves) | 13.8 MB | 6.4 MB | 41.1 MB | 18.9 MB |
 | + SillyTavern's own save + one backup copy | 35.8 MB | 16.7 MB | 106.9 MB | 49.1 MB |
-| Rebuild at load, longest replay, swipe rebuild | see the timing table below | | | |
 
 ### Time
 
-(The interleaved timing run is being measured; its table goes here before merge.)
+Load and swipe timings for this layout come with the beta soak numbers. The method below is how they are measured.
 
 Timings: the median of 15 alternating before/after rounds on the same machine (each round 3 tries), so
 both sides met the same load. "Rebuild at load" depends on where the last checkpoint falls: exactly at
