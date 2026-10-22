@@ -55,7 +55,9 @@ your character's name, background and portrait.
 
 Open a chat with any character. The greeting shows as normal, but **before the story can go on you make
 your character** (when RPG Battle is installed): a window opens where you pick a race and talents (if the
-game has them) and spend points on your stats. Press **Create**. Until then the story waits; if you
+game has them) and spend points on your stats. **Random** on the Talents step rolls talents for you:
+**Keep it** takes that roll. Press **Create**. To bring a character you made before, use **Import
+character** on the first step and pick its file (made with **Save character file** on your Party card). Until then the story waits; if you
 close the window, sending a message opens it again.
 
 With Story Block alone there is no character to make; you can start right away.
@@ -220,20 +222,68 @@ Some things last a while: a blessing that sharpens your eyes, a potion's strengt
 `+ effect Hawk's Eye — the shrine's blessing | on: perception | for: 2h`, and ends one early with
 `- effect Hawk's Eye`.
 
-* Code sets the strength: minor or moderate, up to ±3 on a check in all. It also sets how the effect
-  changes fights.
-* An effect fades on the story clock, or after some replies when there is no clock. A day at most.
-* One reply can start at most three new effects.
+* Code sets the strength. An effect the story writes is always small (±1 on checks, a little in
+  fights), and one reply can start only one. Each character keeps one story effect per kind of check;
+  a new one replaces the old.
+* Effects from items, quests and gear can be stronger, up to ±3 on a check in all.
+* An effect fades on the story clock or after a number of replies, whichever comes first. A day at
+  most. Deleting a reply or setting the clock back never makes one last longer.
 * The model is told only the effects' names and short notes, never their numbers.
 
 Turn them off with **Timed buffs and debuffs** in the Features.
 
-## Trade and crafting
+## Trade
 
 Where there's a market (a town, or a trader present), the **Trade** screen lets you sell what you
-carry and buy from what's on offer. Prices come from the rules and from the place, and money moves only
-when you click. A smith or crafter can make something from your materials for a fee; you come back
-when it's ready and **Collect** it.
+carry and buy from what's on offer. Prices come from item values and from the place, and money moves
+only when you click. A smith or crafter can make something from your materials for a fee; you come back
+when it's ready and **Collect** it. A key item can't be sold.
+
+## Gear: wear, repair and refinement
+
+Weapons and armour wear down. A piece is **good**, **worn** (85% of its stats), **tattered** (60%) or
+**broken** (none, though it stays on). Armour wears with the damage you take in a fight, and a weapon a
+little with each fight. The story can also say a piece suffered (`~ item Coat — torn by brambles |
+wear: tear`); code decides how much. When a piece gets worse, the next reply is told.
+
+* **Repair kits** patch a piece in the field: use one in the story ("I patch my coat"). Each patch
+  takes a little off how good the piece can get until it is properly repaired.
+* **A smith or tailor** repairs a piece to full for a fee: in the story (`! repair Chain Shirt | at:
+  smith`) or on the Trade screen.
+* **Refinement**: a smith can make a piece +1, +2 or +3 for materials and a fee. Each level adds 8% to
+  its stats and shows in its name ("Iron Sword +2"). The +3 attempt can fail; then the materials and fee
+  are spent and the piece stays +2.
+* Repairing or refining a piece and then selling it never brings in more than selling it as it was.
+
+The Inventory and the Party cards show each piece's condition and refinement. Turn these off with
+**Gear wear and repair** and **Gear refinement** in the Features.
+
+## Crafting
+
+Crafting follows the story, like everything else. Say what you make and with what ("I brew a salve
+from the moss"), and the story writes it as a change line, for example
+`! craft Healing Salve | with: Bluecap Moss x2`. Companions craft too, with their own stats.
+
+* **Dice.** The craft uses the reply's own dice, like a check. Code adds the character's stats for
+  that craft, their skill in it, their tools and the materials' quality, against the recipe's
+  difficulty.
+* **Results.** Below the difficulty the craft fails and half the materials are lost. Just over it
+  makes the item. Well over it makes a **fine** piece (stronger), and far over it, or a natural 20,
+  a **masterwork**. A natural 1 loses everything and leaves you a botched piece.
+* **Stations.** Smithing needs a forge, alchemy an alchemy table, cooking a campfire or an inn. Code
+  reads them from where you are: a smith has a forge, an apothecary an alchemy table. Out in the wild,
+  `at: campfire` makes a campfire.
+* **Recipes.** Some recipes everyone knows. Others are learned in the story from someone who teaches
+  them (`+ recipe Healing Salve | from: Hollis`). A recipe the story makes up is kept for this chat,
+  with a difficulty code sets.
+* **Carry limit.** If the party couldn't carry what the craft makes, the whole craft is refused and
+  nothing is used up.
+* **Value.** A made thing is worth what went into it. Key items count as worth nothing here.
+* **Time.** With Story Director, a craft moves the story clock on by the recipe's time.
+
+The **Crafting** screen shows each character's craft skills and recipes: the materials you have and
+still need, the station, the difficulty and the chances. It has no buttons; you craft in the story.
+Turn crafting off with **Crafting** in the Features.
 
 ## Economy and currency
 
@@ -324,7 +374,16 @@ the kind, rarity and *Equipped only* filters next to it. It is the one place for
 **Equip on…** under a piece lists only the members who can wear it; picking one hands it over and puts it
 on in one step, and whatever was in that slot goes back into their pack (for rings and other accessories,
 the oldest one once all are worn: 2 by default, up to 3 by RPG Battle's rules). **Give…** hands a thing to
-someone else in the party, or back to the party's bag.
+someone else in the party, or back to the party's bag. With RPG Battle, each row also shows what only it
+knows: the slot and stats, who wears the piece, its condition and refinement, and for a potion what it
+does and whom it would help now. There is no separate Items screen any more.
+
+RPG Battle's **Party** screen has a card per member: their stats, what they wear (with condition and
+refinement), their active effects, how much they carry, and when they are encumbered. A companion's
+card has two switches: **In fights** (*On their own* or *You lead*) and **Stat points** (*By build* or
+*By hand*). Your own card has **Save character file**, which saves your character to a file you can
+import into another chat. The status strip shows when someone has points to spend, and the effects
+under way.
 
 ## Packs
 

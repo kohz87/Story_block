@@ -64,8 +64,57 @@ updated.
 - Backfills never hold a reply back from showing. A reply admits at most 4 new people at once.
 - Swipes and regenerates keep the cached rules.
 
+**Smaller chat files** (storage tuning, Story Block #108)
+- Checkpoints every 100 replies or 128 KB, each record kept once, and receipts more than 200 replies back keep everything but their data.
+- A 3,000-reply chat file goes from about 33 MB to about 15 MB. A reply now writes about as much as v1 did, counting SillyTavern's own save and one backup.
+
+**Key items and one story-money budget** (Story Block #109, #111; RPG Battle #94; Story Director #94)
+- The one notable thing a reply's story may give past the goods budget is a **key item**: always one, in its own stack, tagged **Key** in the Inventory. It can be used, equipped and given, but not sold, and it counts as worth 0 in crafting and commissions.
+- One reply has one story-money budget, shared by its `+ coin` lines and the quest rewards the story wrote, clicks after the reply included. The budget honours **Money one reply may give**.
+
+**Gear: wear, repair and refinement** (RPG Battle #88; Story Block #110)
+- Pieces are good, worn (85% of stats), tattered (60%) or broken (none). Armour wears with damage taken, weapons a little each fight, and the story can say a piece suffered (`| wear: scuff|tear|ruin`). Code sets the amount.
+- Repair kits patch a piece in the field. A smith or tailor repairs it to full for a fee.
+- A smith refines a piece to +1, +2 or +3 (+8% stats a level). The +3 attempt can fail.
+- Repairing or refining a piece and then selling it never brings in more than selling it as it was.
+- Deleting a reply takes back exactly its wear, fees and materials.
+- Features *Gear wear and repair* and *Gear refinement*, both on.
+
+**Crafting** (F102, RPG Battle #89; Story Director #93)
+- Story-driven: `! craft X | with: …`. The craft uses the reply's own dice, and code adds stats, craft skill, tools and material quality against the recipe's difficulty.
+- Results: fail (half the materials lost), made, fine, masterwork, or botched on a natural 1.
+- Stations come from the place, and companions craft with their own stats. Recipes are known from the pack or learned in the story (`+ recipe … | from: …`).
+- If the party couldn't carry the result, the whole craft is refused and nothing is used.
+- A made thing is worth what went into it, and key items count as 0. With Story Director, the clock moves on by the recipe's time (`director.advance`).
+- Feature *Crafting*, on.
+
+**RPG Battle screens** (RPG Battle #90)
+- One bag: the Items screen is gone. Story Block's Inventory rows show RPG Battle's details (slot, stats, wearer, condition, refinement, what a potion would do).
+- Party cards show what each member wears, their effects, their carry load and when they are encumbered. A companion has **In fights** and **Stat points** switches, and your card has **Save character file**.
+- A read-only **Crafting** screen. The status strip shows points to spend and effects under way.
+- Creation wizard: **Random** only on the Talents step (with **Keep it**), "Points left" said once, and **Import character** on the first step.
+
+**Fights: balance wave C** (RPG Battle #93, #95, #96)
+- A tier (weak, even, strong, deadly) now means the same danger for every creature, headcount and level, lone foes included. Each creature's power is measured and evened out.
+- No one is stunned two turns running: a second stun dazes instead (−2 on the next action). A story stun costs one turn.
+- A boss fight is never below strong.
+- A story effect is always small and one per reply. Effects can't be stretched by deletes or a clock set back. Encumbered means −2 to AGI and DEX in checks and fights.
+- Built-in loot coin follows the pack's money scale.
+
+**NPC meters, wave C** (NPC State Delta #193)
+- Stage ladders: a rung can need several meters and a story milestone (`+ milestone Mira — saved her brother`). There's no promotion during a conflict, and a demotion needs a few replies in a row.
+- Per-NPC ceilings and floors, meter presets from packs, optional drift per story day (feature, off), band words in the prompt instead of numbers.
+- Hidden notes can show a title while locked ("🔒 Her past — unlocks at Trust 60").
+- Features *stages* and *presets* on, *drift* off.
+
+**Story Director**
+- Works without RPG Battle: the pack's or the built-in ladder sets the budget (#93, #94).
+- The day digest and quest history keep their facts before old receipts are trimmed (#95).
+
 **Fixes**
 - The after-reply extractor ignores closed reasoning, as capture does (Story Block #101).
+- Feature follow-ups (Story Block #106): a dialog of a switched-off screen doesn't open, settings of a switched-off feature are hidden, and a feature that needs another module shows as unavailable until that module is there.
+- From the beta fuzz run (Story Block #112, #113): a save that hangs counts as failed after 20 s and is retried, a slow Re-read waits instead of giving up, a rewind after a middle delete replays correctly, a Continue whose block was split is read, and Equip on… respects the carry limit.
 
 **Player guide**
 - "Checks and modifiers" now tells the same-reply dice (F80). The old Roll button is gone from the guide.
@@ -77,9 +126,12 @@ updated.
 
 ### Known issues
 
-- Carried over from alpha.2 until a wave fixes them: see "Known issues" under 2.0.0-alpha.2 below. The "high written quest ranks" issue is fixed (Story Director #89, #91).
-- Selling goods the story made can pay more than one reply's story money, because of the notable item (Story Block #92). The fix to RPG Battle's sale path is in progress.
-- A quest's per-reply budget at click time uses the default (the party rank's top), not **Money one reply may give**.
+- Fixed since alpha.2's list:
+  - high written quest ranks (Story Director #89, #91);
+  - save cost, now halved by storage tuning (#108);
+  - balance (RPG Battle #96);
+  - `+ item` past the carry limit, which now makes the party encumbered (#104).
+- The rest of alpha.2's list still holds: see "Known issues" under 2.0.0-alpha.2 below.
 - The story's `rank:` on a foe is read, but the fight instructions don't mention it yet.
 - Deleting a reply in the middle of a day that already has its digest leaves that digest as it was written.
 
