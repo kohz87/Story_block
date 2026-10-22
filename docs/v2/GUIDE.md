@@ -524,11 +524,19 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
   extension's share. It uses SillyTavern's tokenizer when there is one ("312 tokens"), else an estimate
   at four characters a token ("about 312 tokens"). It counts again when you switch a feature or change
   the budget. After a reply it also shows your **context size** and **Story Suite's share** of it.
+  What an extension sends on its own goes in a row of its own and in the total: NPC State Delta's
+  dossiers (*NPC State Delta, sent by itself*, often 2,000–4,000 tokens).
+
+* **Show what's sent** (under the prompt size): the exact text of the next reply's Story Suite part, as
+  it would go out now: the instructions, this reply's part and what an extension sends on its own, each
+  part with its extension and size, and lines left out to fit the budget counted. **Copy** copies all of
+  it (each part headed in square brackets). It only reads: opening it sends nothing and changes nothing.
 
 * **Share of the context** (Story Suite's own section, 40 % by default): the most of your context size
   (less the reply's length) that Story Suite's instructions and notes take together. SillyTavern fits
   extension prompts before the conversation, so a small context could otherwise leave no room for the chat
-  itself. The notes for each reply are cut to fit; the instructions are never cut. If the instructions
+  itself. What an extension sends on its own (NPC State Delta's dossiers) counts toward it too. The notes
+  for each reply are cut to fit; the instructions are never cut. If the instructions
   alone are too big for the share, you are told once per chat ("Your context size (4,095 tokens) is too
   small for Story Suite's instructions …"): raise the context size in SillyTavern's API settings (8K or more
   with all four extensions), or turn features off.

@@ -484,6 +484,17 @@ Story Block is the only v2 code that calls `setExtensionPrompt` for the host and
   settings' prompt size shows the context size, the share and that notice. No context size known: the
   tail budget alone.
 * NSD keeps its own keys (`story_suite_tail_4_npc_state_delta…`) and sorts after `story_suite_tail_1`.
+  A module that sends text with the reply under its own keys says what through its `ownPrompt(view)`
+  hook: `[{ label, text }]` (one `{ label, text }` or a string also do), answered at once (a promise is
+  not waited for; one that throws counts nothing), at most 8 parts of 200,000 characters each. Story
+  Block never sends it; it counts it (about four characters a token) toward the share of the context:
+  the tail gets what the static part and the modules' own text leave, never below 200 tokens, and
+  `CONTEXT_SMALL` still speaks of the instructions alone. `turn.previewFit()` gives `{ parts, fit, own }`
+  (`own`: `[{ module, label, place: 'own', text, tokens }]`, `fit.own` their tokens), and the settings'
+  prompt size shows each such module as a row of its own, counted in the total.
+* The settings' **Show what's sent** (under the prompt size) lists the exact text of every part the next
+  reply would get (static, tail and the modules' own), per module with its size and the lines dropped to
+  fit, and copies it all; it only reads (`turn.previewFit()`), nothing is sent or stored.
 * If the preset leaves out the Main Prompt (SillyTavern then drops IN_PROMPT text), the static part is put
   back at the start of the tail for the story's own prompt only (v1 rule).
 * Old v1 keys are cleared on load.
@@ -519,7 +530,7 @@ sdk.registerModule({
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
   start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
   labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`, `ranks.reader()` (→ `{ lines, perRank }`: the reader's rank ladder lines and levels per rank, which `packs.content({ kind: 'ranks' })` answers with; MODULES §F105),
-  and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
+  `ownPrompt` (what the module sends with the reply under its own prompt keys, §5) and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
   lines or `{ lines, data }`, a promise of one answered within 2 s; MODULES §F118). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the
   Story Suite overlay; `section` renders a custom panel for what a schema can't express, right in the
