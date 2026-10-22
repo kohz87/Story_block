@@ -20,7 +20,7 @@ const HUD_MODULE = {
 };
 
 /** A host, a page with a message box, and the UI; `reread` (optional) becomes sdk.reread; false: none at all. */
-async function page({ reread = null, modules = [], settings = null } = {}) {
+async function page({ reread = null, modules = [], settings = null, callModel = null } = {}) {
     const doc = setupDom();
     const form = doc.createElement('div');
     form.id = 'send_form';
@@ -28,7 +28,7 @@ async function page({ reread = null, modules = [], settings = null } = {}) {
     const drawerHost = doc.createElement('div');
     drawerHost.id = 'extensions_settings';
     doc.body.appendChild(drawerHost);
-    const host = await createHost({ modules, ...(settings ? { settings } : {}) });
+    const host = await createHost({ modules, ...(settings ? { settings } : {}), ...(callModel ? { callModel } : {}) });
     const calls = [];
     const sdk = reread === false ? { ...host.sdk, reread: undefined }
         : reread ? { ...host.sdk, reread: async index => { calls.push(index); return reread(index, host); } } : host.sdk;
@@ -67,9 +67,12 @@ test('a reply without change lines gets the warning; the greeting, the reader an
     assert.equal(text.nextElementSibling, note);
 });
 
+// The extractor's call answers (here: nothing to add). One that fails leaves the note (C2-ext,
+// break/c2-extractor-failed-no-note); with no model to call, this test's extractor failed before.
 test('with the after-reply extractor on, no warning', async () => {
-    const { host, draw, noteAt } = await page({ settings: { modules: { 'story-block': { assistExtractor: true } } } });
+    const { host, draw, noteAt } = await page({ settings: { modules: { 'story-block': { assistExtractor: true } } }, callModel: async () => 'none' });
     await host.send('and now?', 'Nothing much happens.');
+    await new Promise(resolve => setTimeout(resolve, 10));
     draw();
     assert.equal(host.sdk.settings('story-block').assistExtractor, true);
     assert.equal(noteAt(2), null);
