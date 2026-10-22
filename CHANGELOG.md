@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (v2-ui)
+
+The UI stage on the `v2-ui` branch: one look for every Story Suite screen (glass panels over SillyTavern's
+background, light and dark, the font Nunito). Step 1a: tokens, the theme bridge, the first building blocks.
+
+- **Design tokens on every Story Suite root** (`src/v2/view/theme.js`): `--ss-glass`, `--ss-glass-strong`, `--ss-tile`, `--ss-border`, `--ss-shadow`, `--ss-text`, `--ss-muted`, `--ss-track`, `--ss-accent` (`#7b6cf0`), `--ss-accent-soft`, pill and badge colours, bar colours `--ss-hp|mp|sp|exp`, tones and rarities, `--ss-radius-*`, `--ss-space-*`, `--ss-font`, `--ss-blur`, `--ss-motion`; all under `:where()` on the same roots as controls.css, so SillyTavern's own UI is untouched. Existing screens take the look's text, border, accent and muted colours through the same names; "Follow SillyTavern only" gives back SillyTavern's own.
+- **Theme bridge**: light or dark from SillyTavern's body text against its blur tint, re-read when SillyTavern changes its theme; the tint mixed into the glass. New host settings (Settings → Story Suite): **Panel style** Glass (default), Solid (no blur, opaque) or Follow SillyTavern only; **Font** Nunito (default; fetched from Google Fonts only while SillyTavern's "Forbid external media" is off, else a local Nunito or the system font) or the theme's font. The system's reduced transparency turns Glass into Solid; reduced motion turns transitions off.
+- **Building blocks** (`src/v2/view/glass.css`, loaded with host.css): glass card `.ss-glass` / `.ss-glass-strong`, section label `.ss-label`, pill `.ss-pill` (soft, outline), progress bar `.ss-bar` (HP/MP/SP/EXP colours), tile `.ss-tile` (icon, label, number badge, tick, lock, chosen), status badge `.ss-status` (icon and time left), ring tones `.ss-tone-*`. As widgets for templates: `ss.tile`, `ss.bar`, `ss.status` ("2t", "40m", "∞", spoken in words), `ss.pill` (WIDGETS.md).
+- **UI sample** for developers: Settings → Diagnostics → Show the UI sample, every block in a light and a dark pane over SillyTavern's background (`src/v2/screens/ui-sample.js`).
+- Docs: docs/dev/ui-and-screens.md "The look", WIDGETS.md. Tests: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`, `tests/v2/view/widgets/glass.test.js`, `tests/v2/screens/ui-sample.test.js`.
+
 ## 2.0.0-beta.1 (`v2` branch)
 
 Story Suite v2, first beta. What's new, known issues and every module's version: [docs/v2/RELEASES.md](docs/v2/RELEASES.md). The player guide: [docs/v2/GUIDE.md](docs/v2/GUIDE.md).

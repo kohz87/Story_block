@@ -27,10 +27,14 @@ export const SAMPLES = {
     'ss.badge': { icon: 'fa-skull-crossbones', label: 'Poisoned', counter: 3, unit: 'turns left', tone: 'bad' },
     'ss.timeline': { events: [{ time: 'Day 1', title: 'Arrived', text: 'At Bluewatch.' }, { time: 'Day 2', title: 'The weir' }], current: 1 },
     'ss.stepper': { name: 'STR', value: 5, min: 1, max: 10, budget: 3, label: 'Strength' },
+    'ss.tile': { label: 'Moonlight Slash', icon: 'fa-wand-sparkles', count: '3', state: 'ready', tone: 'info' },
+    'ss.bar': { label: 'HP', kind: 'hp', value: 50, max: 82 },
+    'ss.status': { label: 'Bleeding', icon: 'fa-droplet', left: 40, unit: 'minutes', tone: 'bad' },
+    'ss.pill': { text: 'Soul Class II · Lv 12', style: 'solid' },
 };
 
-test('standardWidgets: the eight namespaced widgets, each { props, render, validate }', () => {
-    assert.deepEqual(Object.keys(standardWidgets), ['ss.meter', 'ss.radar', 'ss.map', 'ss.skill-tree', 'ss.portrait', 'ss.badge', 'ss.timeline', 'ss.stepper']);
+test('standardWidgets: the twelve namespaced widgets, each { props, render, validate }', () => {
+    assert.deepEqual(Object.keys(standardWidgets), ['ss.meter', 'ss.radar', 'ss.map', 'ss.skill-tree', 'ss.portrait', 'ss.badge', 'ss.timeline', 'ss.stepper', 'ss.tile', 'ss.bar', 'ss.status', 'ss.pill']);
     for (const [name, widget] of Object.entries(standardWidgets)) {
         assert.equal(typeof widget.render, 'function', name);
         assert.equal(typeof widget.validate, 'function', name);

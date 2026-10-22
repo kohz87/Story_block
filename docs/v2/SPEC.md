@@ -1134,8 +1134,11 @@ the path — the "only what changed" toggle), `len(x)`, `fmt.money(n)`, `fmt.tim
 ### 13.3 CSS and themes
 A screen's `css` is scoped by prefixing every selector with `[data-ss-screen="<id>"]`; `@import` and
 `position: fixed` are dropped; `url()` only `data:`/`https:`; `@font-face` allowed with those URLs; 64 KB
-limit. `theme` sets custom properties on the screen root. Story Block's default theme follows SillyTavern's
-own colours.
+limit. `theme` sets custom properties on the screen root. Story Block's default theme is Story Suite's look
+(view/theme.js): design tokens (`--ss-glass`, `--ss-text`, `--ss-accent`, `--ss-radius-*`, …) on every Story
+Suite root, light or dark from SillyTavern's own colours, and the reader's Panel style (Glass, Solid, Follow
+SillyTavern only) and Font; the building blocks (`.ss-glass`, `.ss-label`, `.ss-pill`, `.ss-bar`, `.ss-tile`,
+`.ss-status`) are classes any template may use (docs/dev/ui-and-screens.md "The look").
 
 ### 13.4 Mounts
 | Mount | Where | State shown |
@@ -1158,7 +1161,7 @@ module tab goes by `<module>/<tab id>` there. Form controls inside any mount tak
 `registerModule({ widgets: { name: { props, render(el, props, api) } } })`; `api` has `query`, `command`,
 `preview`, `commit`, `on`. Story Block ships: `meter`, `radar`, `map` (nodes, routes, layers, zoom/pan,
 minimap, legend), `skill-tree`, `portrait`, `badge` (icon + counter), `timeline`, `stepper` (number input
-under a budget). Modules add their own (`battle-board`, `fishing`). The page adds two host widgets that
+under a budget), and the look's building blocks `tile`, `bar`, `status` (icon + time left), `pill`. Modules add their own (`battle-board`, `fishing`). The page adds two host widgets that
 need the store and the chat, `story-block.inspector` (the Inspector screen, MODULES §F92) and
 `story-block.savepoints` (on Home, §F93); outside the page (a test, a preview) they are not there.
 
