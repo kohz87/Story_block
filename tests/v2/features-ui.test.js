@@ -66,7 +66,7 @@ test('the overlay: one Features overview of every module, then a Features subsec
     assert.equal(weight.querySelector('input').checked, false);
     // No features, no subsection.
     assert.equal(foldOf(root, 'plain').querySelector('.story-suite-features'), null);
-    assert.deepEqual(texts(foldOf(root, 'story-block'), '.story-suite-features .story-suite-feature b'), ['Status strip', 'Cards under replies', 'Roll checks before the reply', 'Read changes from replies that forgot them']);
+    assert.deepEqual(texts(foldOf(root, 'story-block'), '.story-suite-features .story-suite-feature b'), ['Status strip', 'Cards under replies', 'Roll checks before the reply', 'Read changes from replies that forgot them', 'Pick what you take', 'Encumbered']);
     host.close();
 });
 

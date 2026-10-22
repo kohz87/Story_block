@@ -46,7 +46,8 @@ function changeLine(r) {
         case 7: return `${r.pick(['+', '-'])} present ${r.pick(PEOPLE)}`;
         case 8: return `! probe ${r.pick(WORDS)}`;
         case 9: return r.pick(['+ dragon Smaug', 'not a change line', '* - item', '~ wound Ren — a scratch']);
-        default: return `+ item ${r.pick(ITEMS)}`;
+        // Loot to pick from (story-block.loot): laid out by the reply, taken by a ui burst below.
+        default: return r.chance(0.5) ? `+ item ${r.pick(ITEMS)}` : `? loot ${r.pick(ITEMS)}, ${r.pick(ITEMS)} x${r.int(1, 3)} — ${r.pick(PLACES)}`;
     }
 }
 
@@ -78,6 +79,8 @@ function uiCommand(r, host) {
         if (twin) choices.push(['inventory.merge', { stack: stack.id, into: twin.id }]);
     }
     choices.push(['inventory.drop', { stack: 'it_00000000', qty: 1 }]);
+    const offers = Object.keys(head?.domains?.inventory?.loot ?? {}).sort();
+    if (offers.length) choices.push(['inventory.lootTake', { sid: r.pick(offers), pick: [0, r.int(0, 1)] }]);
     return r.pick(choices);
 }
 

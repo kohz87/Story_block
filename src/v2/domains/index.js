@@ -8,7 +8,10 @@
 //   registry.register(createCoreModule({ hooks: name => registry.hooks(name), settings: () => sdk.settings('story-block') }))
 // createCorePart gives the same thing as a MODULES.md part, for a host that merges parts.
 
-import { createInventoryCommands, createInventoryQueries, captureCoin, captureItem, initialInventory, inventoryTail, validateInventory } from './inventory.js';
+import {
+    FEATURE, INVENTORY_FEATURES, createInventoryCommands, createInventoryQueries, captureCoin, captureItem, captureLoot, encumbranceTail,
+    featureOn, initialInventory, inventoryTail, validateInventory,
+} from './inventory.js';
 import { capturePlace, capturePresent, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
 import { DEFAULT_CURRENCY, currencyOf } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
@@ -39,6 +42,8 @@ export const CORE_KINDS = Object.freeze({
     coin: Object.freeze({ grammar: '+ coin 30 | from: who (- coin 5 | to: who when paid; one number, in the wallet\'s currency)' }),
     place: Object.freeze({ grammar: '~ place Name | kind: settlement|wild|dungeon|… | region: wider area | with: who came along (the rest stay behind)' }),
     present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave' }),
+    // MODULES §F100: off, the kind and its grammar line are left out (a host without Features keeps it).
+    loot: Object.freeze({ grammar: '? loot Thing, Other Thing x2 — where it lies (things the party could pick up; the reader chooses what to take)', feature: FEATURE.loot }),
 });
 
 // Story Block's own optional pieces as features (MODULES §F100): the status strip and the cards under
@@ -102,7 +107,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         domains: {
             scene: { initial: initialScene, validate: slice => validateScene(slice) },
             // Coin and stack sizes are counts: a replay after a deleted reply adds each change to them.
-            inventory: { initial: initialInventory, validate: slice => validateInventory(slice), counters: ['wallets/*/coin', 'stacks/*/qty'], scratch: ['perReply'] },
+            inventory: { initial: initialInventory, validate: slice => validateInventory(slice), counters: ['wallets/*/coin', 'stacks/*/qty'], scratch: ['perReply', 'loot'] },
         },
         commands: { ...createInventoryCommands(env), ...sceneCommands },
         queries: { ...createInventoryQueries(env), ...sceneQueries },
@@ -111,6 +116,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
             coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
             place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
             present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
+            loot: { ...kind(CORE_KINDS.loot.grammar, (ctx, line) => captureLoot(ctx, line, env)), feature: FEATURE.loot },
         },
         context: {
             static: () => CORE_STATIC,
@@ -118,9 +124,14 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
             tail(view) {
                 const chars = CORE_BUDGET * 4;
                 const scene = sceneTail(view?.state);
-                const used = scene.reduce((sum, line) => sum + line.length + 1, 0);
+                // The encumbered condition, when the carry module reports it (one short line).
+                // Asked through the query, which a host with Features answers with null while it is off.
+                let found = null;
+                try { found = featureOn(view, FEATURE.encumbrance) ? view.query('inventory.encumbrance') : null; } catch { found = null; }
+                const heavy = encumbranceTail(found);
+                const used = [...scene, ...heavy].reduce((sum, line) => sum + line.length + 1, 0);
                 const inventory = inventoryTail(view?.state, { currency: currency(), chars: chars / 2 - used, optionalChars: chars / 2 });
-                return { lines: [...scene, ...inventory.lines], optional: inventory.optional };
+                return { lines: [...scene, ...inventory.lines, ...heavy], optional: inventory.optional };
             },
             budget: CORE_BUDGET,
         },
@@ -207,7 +218,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         id: CORE_MODULE_ID,
         name: 'Story Block',
         version,
-        features: CORE_FEATURES.map(feature => ({ ...feature })),
+        features: [...CORE_FEATURES, ...INVENTORY_FEATURES].map(feature => ({ ...feature })),
         domains: merged.domains,
         commands: merged.commands,
         queries: merged.queries,

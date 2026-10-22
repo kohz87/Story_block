@@ -72,7 +72,8 @@ export function createHarness(modules, { state, settings = {} } = {}) {
         return clone(fn(frozen, deepFreeze(clone(args ?? {})), { query: (other, more) => runQuery(frozen, other, more) }));
     };
 
-    function execute(module, body, { cause = 'ui', seed = 1, caller = null } = {}) {
+    // `extra`: more ctx fields for the handler (`feature`, `carrier`, `chat`), as a newer host gives them.
+    function execute(module, body, { cause = 'ui', seed = 1, caller = null, extra = {} } = {}) {
         const working = clone(current);
         const touched = new Set();
         const rng = seeded(seed);
@@ -107,6 +108,7 @@ export function createHarness(modules, { state, settings = {} } = {}) {
             fail: (code, message) => {
                 throw failure(code, message);
             },
+            ...extra,
         });
         let result;
         try {

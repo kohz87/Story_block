@@ -302,7 +302,8 @@ test('the static part is byte-identical reply after reply, and a toggle changes 
     await host.send('On.', 'On again.');
     assert.equal(statics(host).at(-1), first[0]);
     // The overlay's hint is shown for this feature only.
-    assert.deepEqual(host.features.list().filter(feature => feature.prompt).map(feature => feature.id), ['gear.wear']);
+    // (and Story Block's loot, whose capture kind is a grammar line)
+    assert.deepEqual(host.features.list().filter(feature => feature.prompt).map(feature => feature.id), ['gear.wear', 'story-block.loot']);
     host.close();
 });
 
@@ -361,6 +362,7 @@ test('Story Block\'s own features: the status strip, the cards and the two assis
     const host = await createHost();
     assert.deepEqual(host.sdk.features().map(feature => [feature.id, feature.on, feature.prompt]), [
         [CORE_FEATURE.hud, true, false], [CORE_FEATURE.cards, true, false], [CORE_FEATURE.preroll, false, false], [CORE_FEATURE.extractor, false, false],
+        ['story-block.loot', true, true], ['story-block.encumbrance', true, false],
     ]);
     host.close();
     // The switches older versions kept are the choice until the reader touches the feature.

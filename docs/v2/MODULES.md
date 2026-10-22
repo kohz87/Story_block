@@ -421,7 +421,7 @@ These settle questions agents raised; the host changes they need are made at int
     ones too, never hidden or secret ones), place details with code's travel time; the view is per reader.
 99. Equipment as in MVU: an "equip on…" picker, one step `inventory.equipOn { stack, actor }` (a full slot
     sends its oldest piece back to that member's carry), a per-character Equipped list, accessories up to
-    3 (later, SB-equip).
+    3 (built: SPEC §7 "Equip on…"; the counts from RPG Battle's `items.slots`, eligibility from `items.canWear`).
 100. **Features**: optional mechanics are toggles in a Features subsection, declared by
     `registerModule({ features: [{ id, label, describe, default, prompt? }] })`; an off feature contributes
     no capture kind, context, command (`FEATURE_OFF`), screen or widget (after the freeze). Built as SPEC §6

@@ -504,20 +504,24 @@ named in `with:` are present.
                        rarity: 'common'|'uncommon'|'rare'|'epic'|'legendary', value: 0 /* smallest unit */,
                        stack: true, slot: null, stats: {}, effect: {}, tags: [], note: '' } },
   stacks: { [stackId]: { id, def, qty, owner: 'ac_…' /* actor */ | 'party', equipped: null | slot,
-                         note: '', from: '' /* receipt id */ } },
+                         note: '', from: '' /* receipt id */, cond?: 0–100 /* gear condition; absent = 100 */ } },
   wallets:{ [owner]: { coin: 0 } },                // one currency, smallest unit (MODULES §F1)
   aliases:{ [lowercase name]: defId },
+  perReply?: { [sid]: { coin, worth, made, items, notable? } },   // scratch: a reply's story tally
+  loot?:   { [sid]: { sid, n, where, claim, items: { "0": { name, qty }, … } } },   // scratch: loot on offer
 }
 ```
 Commands: `inventory.grant`, `inventory.consume`, `inventory.transfer`, `inventory.drop`, `inventory.equip`,
-`inventory.unequip`, `inventory.split`, `inventory.merge`, `wallet.pay`, `wallet.receive`. Query
-`inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }` (MODULES §F104): the money scale
+`inventory.unequip`, `inventory.split`, `inventory.merge`, `inventory.equipOn`, `inventory.wear`,
+`inventory.repair`, `inventory.lootTake`, `wallet.pay`, `wallet.receive`. Capture kinds `item`
+(`+ / - / ~ item`), `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
+written with one is refused) and `loot` (`? loot A, B x2 — where`, feature `story-block.loot`). Queries
+`inventory.currency`, `inventory.items`, `inventory.wallet`, `inventory.find`, `inventory.equipment`,
+`inventory.encumbrance`. Features (MODULES §F100): `story-block.loot` and `story-block.encumbrance`, both
+on by default; a host without the Features API keeps them on. Query `inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }` (MODULES §F104): the money scale
 that every built-in default money number is multiplied by (rounded, at least 1). The reader's `economyScale`
 setting wins (0 or blank: the pack's), then the first enabled pack's `economy.scale`, then 1. Numbers a pack
 writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, falling back to a scale of 1.
-Capture kind
-`item` (`+ / - / ~ item`) and `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
-written with one is refused).
 * **The caller rule.** What makes items or money out of nothing (`inventory.grant`, `wallet.receive`) and
   `wallet.pay` run for the story, the host, or another module's command (`ctx.call`, which sets
   `ctx.caller`); the same command at the top with cause `ui` is `REFUSED`. A shop's `trade.buy` pays, a
@@ -549,6 +553,62 @@ written with one is refused).
   true or false is `INVALID`.
 * **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
   lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
+* **Gear condition** (`cond`, optional on a stack): a whole number 0 (broken) … 100 (as new); absent means
+  100. Stacks in different condition never merge or pile together; a split keeps it; `inventory.items` rows
+  carry `cond` when it is there. It is a plain value, not a counter (a replay keeps the value the later
+  reply wrote). Two commands, **another module's calls only** (`ctx.call`, so `ctx.caller` is set; at the
+  top, whatever the cause, `REFUSED`), for RPG Battle's wear rules:
+  * `inventory.wear { stack, by }`: `by` a whole number ≥ 1 (more than 100 counts as 100); the condition goes
+    down by it, never below 0. → `data: { stack, def, by, before, now, broken }`. Wearing a broken piece
+    changes nothing and does not fail.
+  * `inventory.repair { stack, to = 100 }`: `to` a whole number ≥ 0 (more than 100 counts as 100); the
+    condition goes up to it, never down; at 100 the field is dropped. → `data: { stack, def, to, before, now }`.
+  A malformed amount is `INVALID`; neither is narrated.
+* **Equip on…** (MODULES §F99). `inventory.equipOn { stack, actor }` (`actor` a party member's `ac_` id)
+  hands the piece to that member and puts it on in one step. It must be equipment with a slot that member
+  can wear: a slot this chat's rules count, and what `items.canWear({ actor, defId })` says when a module
+  answers it (`{ ok: false, message }` refuses). Slots `accessory` and `worn` hold several pieces, each copy
+  under its own key (`accessory-1`, `accessory-2`, as RPG Battle keys them); their counts come from
+  `items.slots` (`{ accessory | accessories, worn }`, RPG Battle's rules), held to 0…3, else 2 accessories
+  and 1 worn piece. Every other slot holds one piece. What sits in the slot goes back into that member's own
+  carry: for a one-piece slot the piece there (a two-handed weapon also puts the off-hand away; an off-hand
+  is refused while a two-handed weapon is held); for a full many-piece slot the oldest (keys are renumbered
+  in the order pieces went on, the new one last). A piece the shared bag holds counts as the main
+  character's (`party.pc`). A piece someone else wears comes off them. The hand-over follows the carry limit
+  (`items.carry` with `move: true`). The receipt names both pieces: `data: { stack, def, actor, from, slot,
+  replaced: [stack ids], replacedNames }`. `inventory.unequip` leaves the piece in its wearer's carry.
+  `inventory.equipment` → `{ members, worn: [{ id, name, items }], wearers: { [stack]: [{ id, name }] },
+  givers: { [stack]: [{ id, name }] }, limits, detail }` is what the Inventory screen's Equipped section,
+  "Equip on…" and "Give…" pickers draw (`detail`: RPG Battle's `rpg-battle.itemDetail` is answered, so its
+  `rpg-battle.item-detail` widget is drawn in each row). A reader's `inventory.transfer` (cause `ui`, Give)
+  is refused when the taker cannot carry it (`items.carry`, `move: true`).
+* **Loot to pick from** (`story-block.loot`). `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar
+  shelf | qty: 1` lays things out without giving them (a count per thing as `Name x2`, else `qty:`, else 1).
+  The offer is held to the reply's story limits when it is read, each thing as a `+ item` line would be but
+  never the notable one (so the chips show what can be taken); things the party already carries (tolerant
+  names) and money are left out with a `LIMITED` note; at most 8 things per reply. It makes no definition.
+  One offer per reply, `inventory.loot[<sid>] = { sid, n, where, claim, items: { "0": { name, qty }, … } }`
+  (a record keyed by position, not a list, so a second loot line of the reply adds keys); `loot` is scratch
+  like `perReply`, and a reply keeps the 5 newest offers. The reply's card shows them as chips with **Take
+  selected**: `inventory.lootTake { sid, pick: [index…] }` (cause `ui`, the reader's) claims `loot:<sid>`
+  (each reply's loot is taken once; a second take is `REFUSED`), skips what is carried by then, and puts the
+  rest in the party's bag as the offer held it, making the definitions then; past the carry limit it is
+  `REFUSED` and the claim stays free. An offer no longer there is `NOT_FOUND`; an empty or bad pick `INVALID`.
+* **Encumbered** (`story-block.encumbrance`). A story `+ item`, or a `~ item | qty:` raise, past the carry
+  limit (`items.carry … → { ok: false }`) is kept, and its receipt says the party is encumbered
+  (`data.encumbered: true`). The condition is derived from the load, never stored: `inventory.encumbrance`
+  → `{ on, encumbered, party, who: [{ id, name, load, capacity }], load, capacity, penalty, stats }` reads
+  `items.carry` without `add` (`who`: members over their own capacity, named through the party module;
+  `party`: the whole load over the whole capacity). While encumbered `penalty` is −2 on checks of `stats`
+  (AGI, DEX), for the checks module to add; the tail carries one line ("Encumbered (carrying more than they
+  can): Mira (9/8); AGI and DEX checks -2 until something is put down."). The reader's own takes, buys and
+  hand-overs past the limit are still refused. With the feature off, the story's line past the limit is
+  refused with the carry module's reason (MODULES §F39).
+* **Tolerant names.** When a name's exact alias, def name and singular/plural all miss, the lookup tries
+  it without portion words ("a handful of", "pieces of", "a pair of", "some", "a few", a part in
+  parentheses), then a word-order key (stop and portion words out, each word singular, sorted: "alloy of
+  sulfur (piece)" = "Sulfur Alloy"). A key two defs share is ambiguous. Fetch quests (`inventory.find`),
+  `- item` lines and loot use the same lookup.
 Story-introduced items: `+ item Name` resolves an existing def by alias, else creates `story/<slug>` with
 defaults (`goods`, `common`, value 0), then calls the `item.define` hooks so RPG Battle can set its rules'
 numbers. A later rename changes `name` and adds an alias; it never changes value, rarity or effects.
