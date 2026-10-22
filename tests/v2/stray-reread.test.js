@@ -147,6 +147,9 @@ const STORY = ['The rain did not stop.', 'Fenna laughed at him.', '+ coin 5, she
 const STRAYS = ['+ coin 4', '- present Mira', '+ item Lamp | qty: 2', '+ present Ivo\n- coin 1'];
 const BLOCK = ['+ coin 2', '+ item Rope -- frayed', '~ item Rope | note: tied -- twice', '- present Mira', '+ item Torch'];
 
+// The text ends with a hidden comment for a block left open (a Continue goes on with it).
+const endsOpen = text => { const at = text.lastIndexOf(`<!-- STORY_SUITE_V2`); return at >= 0 && text.startsWith('<!-- STORY_SUITE_V2 open', at) && text.endsWith('-->'); };
+
 function randomReply(r, { open = false } = {}) {
     const parts = [];
     for (let n = r.int(1, 6); n > 0; n -= 1) parts.push(r.chance(0.25) ? r.pick(STRAYS) : r.pick(STORY));
@@ -159,16 +162,30 @@ function randomReply(r, { open = false } = {}) {
 
 test('random replies, stops and Continues: Re-read reads what the live capture read', () => {
     const r = prng(123);
+    let echoed = 0;
     for (let n = 0; n < 1500; n += 1) {
         const open = r.chance(0.2);
         const stopped = r.chance(0.3);
         const first = live(randomReply(r, { open }), { stopped });
         let text = first.text;
         const read = [...first.read];
-        if (r.chance(0.5)) {
+        const continued = r.chance(0.5);
+        if (continued) {
             const added = open && r.chance(0.6) ? `${r.pick(['pe | qty: 2', '0', ''])}\n${r.pick(BLOCK)}\n</Changes>` : `\n\n${randomReply(r)}`;
             const mes = `${text}${added}`;
             const cont = live(mes, { at: continuation(text, mes), stopped: r.chance(0.3) });
+            read.push(...cont.read);
+            text = cont.text;
+        }
+        // FB-1: a Continue whose block lists a line the reply took from the story: that line is read once.
+        const strays = continued ? [] : first.read.filter(line => STRAYS.some(stray => stray.split('\n').includes(line)) && !BLOCK.includes(line));
+        if (strays.length && r.chance(0.5)) {
+            const echo = r.pick(strays);
+            const tail = endsOpen(text);
+            const mes = `${text}${tail ? '\n' : '\n\n<Changes>\n'}${echo}\n${r.pick(BLOCK)}\n</Changes>`;
+            const cont = live(mes, { at: continuation(text, mes) });
+            echoed += 1;
+            assert.equal(cont.read.filter(line => line === echo).length, 0, `case ${n}: the echo of ${echo} is not read again`);
             read.push(...cont.read);
             text = cont.text;
         }
@@ -176,4 +193,5 @@ test('random replies, stops and Continues: Re-read reads what the live capture r
         assert.deepEqual(again, read, `case ${n}:\n${text}`);
         assert.deepEqual(reread(hideBlock(text, 'Changes', { heads: HEADS })), read, `case ${n}: Re-read twice`);
     }
+    assert.ok(echoed > 50, `cross-Continue echoes tried: ${echoed}`);
 });

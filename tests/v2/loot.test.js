@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LOOT_ITEMS, LOOT_KEEP, captureLoot } from '../../src/v2/domains/inventory.js';
+import { readFileSync } from 'node:fs';
 import { createHost } from '../../testkit/index.js';
 import { createHarness, line } from './domains/helpers/fake-ctx.js';
 import { core, stocked } from './domains/fixtures.js';
@@ -174,4 +175,25 @@ test('a host with Features: off, the loot grammar leaves the static part and a l
     assert.deepEqual(off.turn.problems().map(problem => problem.code), ['FEATURE_OFF']);
     assert.equal(off.head().domains.inventory.loot, undefined);
     assert.equal((await take(off, [0])).code, 'FEATURE_OFF');
+});
+
+// FB-2: loot the story offered is the story's own (`story: true`, as a `+ item` line's, B-a2-2), a pack's
+// goods too: a module that buys things back holds what it pays to their worth at the sell rate, not past
+// the reply's budget. A stack it joins is the story's.
+test('what is taken from a story\'s loot is the story\'s own (story: true), a pack\'s goods and story/ ones', async t => {
+    const sample = JSON.parse(readFileSync(new URL('../../examples/packs/riverside-starter/pack.json', import.meta.url), 'utf8'));
+    const host = await fresh(t, { settings: { packs: [{ id: sample.id, version: sample.version, enabled: true, source: 'file', origin: 'test', pack: sample }] } });
+    await host.send('Search the weir.', reply('Things in the reeds.', ['? loot Moonveil Trout x2, Old Boot — in the reeds']));
+    const out = await take(host, [0, 1]);
+    assert.equal(out.ok, true, out.message);
+    const inv = host.head().domains.inventory;
+    const taken = out.receipt.data.stacks.map(id => inv.stacks[id]);
+    assert.deepEqual(taken.map(stack => [inv.defs[stack.def].name, stack.qty, stack.story]), [['Moonveil Trout', 2, true], ['Old Boot', 1, true]]);
+    assert.match(taken[0].def, /^pack\.riverside-starter\//, 'the pack\'s own def');
+    // What the pack's start gave stays code's (no flag).
+    assert.ok(Object.values(inv.stacks).filter(stack => !out.receipt.data.stacks.includes(stack.id)).every(stack => stack.story !== true));
+    // A rebuild equals live.
+    const live = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, live);
 });

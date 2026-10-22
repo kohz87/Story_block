@@ -544,7 +544,12 @@ These settle questions agents raised; the host changes they need are made at int
     budget and caps (rule 1); with coins, an unknown coin word or two numbers in one line is refused (as strict
     as SB #118). Money words read the same on every path (beta-candidate break): an item or loot named as
     money (`+ item Silver Coins | qty: 3`, `+ item 3 silver coins`, `+ item Silvers`, `? loot 2 gold pieces`)
-    goes to the wallet in the smallest unit, as `+ coin 3 silver coins` does; and with coins the currency's
+    goes to the wallet in the smallest unit, as `+ coin 3 silver coins` does. The bare money words are money
+    too (final break FB-3), with coins or without: **coin**, **coins**, the currency's own name and its
+    plural, each with `qty` or a number in front (`+ item Coins | qty: 5`, `+ item Coin`, `+ item 5 coins`,
+    `+ item Gold Coins | qty: 4`, `- item Coins | qty: 2`, `? loot 3 coins`); "coin" or "coins" alone is the
+    smallest unit, as `+ coin 5` is (`+ coin 5 coins` too), and a name with another word (`+ item Coin
+    Purse`) is an item; and with coins the currency's
     own name is not a coin unless no coin is worth 1 (`+ coin 2 gold` with copper and silver is refused, "not
     a coin here: write copper, silver or a number of coppers", never paid as 2 copper; `+ item Gold` is then
     an item). Displays (`fmt.money`, receipts, the changes card, Inventory, Home) show mixed coins, "3

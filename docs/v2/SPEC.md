@@ -478,7 +478,10 @@ One hidden block at the end of the reply:
   far up, part of a story paragraph, the last line of a reply the reader stopped. A mention in a sentence
   ("He shouted "! encounter"") is neither. A story line equal to a line the reply's blocks hold (without
   decoration and extra spaces) is the same change written twice: it is taken out of the story but read
-  once, from the block (C-1).
+  once, from the block (C-1). This holds across a reply and its Continues (FB-1): a Continue's block line
+  that repeats a line an earlier read of the reply took from the story is its echo and is not read again
+  (one block line for each such story line), and a Continue's story line that repeats a line of an earlier
+  read's blocks is read once, from that block.
 
   **One rule for live and Re-read.** The lines taken are read after the blocks and kept after them in the
   hidden comment (before them when the last block was left open). Every line with a change line's shape
@@ -491,8 +494,11 @@ One hidden block at the end of the reply:
   have no head. Reasoning is never read.
 * **The hidden comment.** `<!-- STORY_SUITE_V2[ open][ off:word,…]` then each block's body in
   `<Changes>…</Changes>`, then, when there are any, the lines left in the story (`<Changes-story>`), an open
-  block's unfinished last line (`<Changes-cut>`) and the story lines that echoed a block line
-  (`<Changes-echo>`, never read). An HTML comment ends at `--`, so each `--` in it is written with a word
+  block's unfinished last line (`<Changes-cut>`) and the lines that echoed another (`<Changes-echo>`, never
+  read: a story line that echoed a block line, or a Continue's block line that echoed a story line an
+  earlier read took). The lines a read took from the story are one body of their own, `<Changes story>`, read
+  like any other and known to a later Continue as the story's. A comment's blocks are read up to its first
+  `<Changes-…>` section. An HTML comment ends at `--`, so each `--` in it is written with a word
   joiner (U+2060) between and a word joiner already there is written twice; reading the comment undoes
   both, so a Re-read reads exactly what the live capture read (B-a1-11). A comment written before this broke
   `--` up as `- -` and reads as it always did. Each comment's blocks are read inside it (a nested tag never
@@ -786,8 +792,10 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   is `REFUSED`), and a part given away or split off stays a key item. Modules that buy things back or count
   what they are worth treat it as worth 0 (RPG Battle's trade refuses to buy it: "<name> is a key item; it
   can't be sold"; its crafting and commissions count it as 0), so story text never sells for more than a
-  reply's goods. **The story's own:** every stack a `+ item` line gives is marked `story: true` (also on
-  `inventory.items` rows), whatever its def (a pack item the story names too); a stack it joins, or that
+  reply's goods. **The story's own:** every stack a `+ item` line gives, and every thing the reader takes from
+  a story's `? loot` (`inventory.lootTake`), is marked `story: true` (also on `inventory.items` rows), whatever
+  its def (a pack item the story names too); `inventory.grant` never marks it (no story line reaches it: a
+  module or a pack event names what it gives, and it moves no stack); a stack it joins, or that
   joins it (a grant, a transfer, `inventory.merge`), is the story's too, and a part given away or split off
   stays the story's. Its worth was counted in the reply's goods budget, so a module that buys things back
   holds what it pays for it to its worth at the sell rate (RPG Battle's trade). Later lines over the budget
