@@ -34,6 +34,8 @@ export const FORM_TEXT = Object.freeze({
     none: 'No settings match "{text}".',
     noRows: 'Nothing here yet.',
     sliderValue: '{value}',
+    rowNote: 'Row {n}, {field}: {note}',
+    rowsCut: 'Only {kept} of the {typed} rows could be kept.',
 });
 
 /**
@@ -76,6 +78,16 @@ export function changeNote(field, typed, stored) {
     }
     if (f?.type === 'text' && typeof typed === 'string' && typeof stored === 'string' && typed !== stored && Number.isInteger(f.max)) {
         return fill(FORM_TEXT.cut, { max: f.max });
+    }
+    // A list: rows the store left out, else the first field of a row it moved (a number into its range, a text cut), by row.
+    if (f?.type === 'list' && Array.isArray(typed) && Array.isArray(stored)) {
+        if (stored.length < typed.length) return fill(FORM_TEXT.rowsCut, { kept: stored.length, typed: typed.length });
+        for (let at = 0; at < stored.length; at += 1) {
+            for (const [key, sub] of Object.entries(f.of ?? {})) {
+                const note = changeNote(sub, typed[at]?.[key], stored[at]?.[key]);
+                if (note) return fill(FORM_TEXT.rowNote, { n: at + 1, field: normalizeField(sub)?.label ?? humanize(key), note });
+            }
+        }
     }
     return '';
 }

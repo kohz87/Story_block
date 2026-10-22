@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { installFakeDom } from '../../../ui-fake-dom.js';
 import { createRegistry } from '../../../../src/v2/registry.js';
 import { HOST_SETTINGS_SCHEMA, createSettings } from '../../../../src/v2/sdk.js';
-import { renderModuleForm, renderSettingsForm } from '../../../../src/v2/view/form/index.js';
+import { changeNote, renderModuleForm, renderSettingsForm } from '../../../../src/v2/view/form/index.js';
 import { groupFields, rowValue, fieldReadOnly } from '../../../../src/v2/host-ui.js';
 import { UI_SAMPLE_FORM, mountDemoForm } from '../../../../src/v2/screens/ui-sample.js';
 
@@ -30,10 +30,10 @@ const SCHEMA = {
 };
 const DEFAULTS = { strict: false, harder: 3, title: 'Lowmere', notes: '', pace: 'steady', prices: 'by-place', budget: 60, coins: [{ name: 'penny', worth: 1 }], days: 7, months: [{ name: 'Frost', days: 30 }], connection: '', pack: 'mine', ghost: 'kept', fancy: false };
 
-function setup(extra = {}, schema = SCHEMA) {
+function setup(extra = {}, schema = SCHEMA, defaults = DEFAULTS) {
     const registry = createRegistry();
     const es = {};
-    const stored = { m: { settings: { schema, defaults: DEFAULTS } } };
+    const stored = { m: { settings: { schema, defaults } } };
     const settings = createSettings({ root: () => es, registry: { module: id => stored[id] ?? null }, save: () => {} });
     const parent = doc.createElement('div');
     doc.body.appendChild(parent);
@@ -356,4 +356,110 @@ test('the demo form of the UI sample draws one of each field and shows what the 
     assert.deepEqual(demo.form.field('connection').handle.input.querySelectorAll('option').map(o => o.textContent), ['Same as chat', 'Flash Lite (cheap)', 'Main']);
     demo.destroy();
     assert.equal(slot.querySelector('.ss-form'), null);
+});
+
+// ---- step 3c: what the Money page needs of the engine
+
+test('slider: a `format` says the value in words, `sliderMax` is the range offered and grows to a larger value, a function field follows the others', () => {
+    const calls = [];
+    const schema = { budget: { type: 'int', form: 'slider', min: 0, max: 1_000_000, sliderMax: 100, label: 'Budget', format: n => (n === 0 ? 'Automatic' : `${n} units`) } };
+    const { form } = setup({}, schema, { budget: 60 });
+    const slider = form.field('budget').handle.input;
+    const out = form.field('budget').row.querySelector('.ss-slider-value');
+    assert.equal(slider.max, '100', 'the offered range, not the store\'s');
+    assert.equal(out.textContent, '60 units');
+    assert.equal(slider.getAttribute('aria-valuetext'), '60 units');
+    slider.value = '0';
+    slider.dispatch('input');
+    assert.equal(out.textContent, 'Automatic');
+    // A stored value past the offered range: the range grows to it, the value is shown whole.
+    form.field('budget').handle.set(5000);
+    assert.equal(slider.max, '5000');
+    assert.equal(slider.value, '5000');
+    assert.equal(out.textContent, '5000 units');
+    form.field('budget').handle.set(10);
+    assert.equal(slider.max, '100');
+    // A format that throws or says nothing falls back to the number and the unit.
+    const plain = setup({}, { n: { type: 'int', form: 'slider', min: 0, max: 10, label: 'N', unit: ' coins', format: () => { throw new Error('x'); } } }, { n: 0 }).form;
+    assert.equal(plain.field('n').row.querySelector('.ss-slider-value').textContent, '0 coins');
+    assert.ok(calls.length === 0);
+});
+
+test('a field whose `format` reads other values follows them after any change (the budget\'s unit follows the coins)', () => {
+    const schema = {
+        word: { type: 'text', label: 'Word', max: 10 },
+        n: { type: 'int', form: 'slider', min: 0, max: 100, label: 'N', format: n => `${n} ${registryValues().word}` },
+    };
+    let current = { word: 'penny' };
+    const registryValues = () => current;
+    const { form, settings } = setup({}, schema, { word: 'penny', n: 5 });
+    assert.equal(form.field('n').row.querySelector('.ss-slider-value').textContent, '5 penny');
+    current = { word: 'mark' };
+    const box = form.field('word').handle.input;
+    box.value = 'mark';
+    box.dispatch('change');
+    assert.equal(settings('m').word, 'mark');
+    assert.equal(form.field('n').row.querySelector('.ss-slider-value').textContent, '5 mark');
+});
+
+test('a field\'s `check` says what the store cannot (a row the module will not use), after the value is stored, with the note of what the store moved', () => {
+    const schema = { coins: { type: 'list', label: 'Coins', of: { name: { type: 'text', label: 'Name', max: 12 }, worth: { type: 'int', label: 'Worth', min: 1, max: 1000 } }, check: rows => (rows.some(row => !row.name) ? 'A coin has no name, so it is not used.' : '') } };
+    const { form, settings } = setup({}, schema, { coins: [{ name: 'penny', worth: 1 }] });
+    const coins = form.field('coins').row;
+    coins.querySelector('.ss-lines-add').click();
+    const error = coins.querySelector('.ss-field-error');
+    assert.equal(error.textContent, 'A coin has no name, so it is not used.');
+    assert.equal(settings('m').coins.length, 2, 'kept as typed');
+    const name = coins.querySelectorAll('.ss-lines-row')[1].querySelector('.ss-lines-cell[data-field="name"] input');
+    name.value = 'silver';
+    name.dispatch('change');
+    assert.equal(error.hidden, true);
+    // A check that throws or answers a non-string says nothing.
+    const bad = setup({}, { n: { type: 'int', label: 'N', check: () => { throw new Error('x'); } } }, { n: 1 }).form;
+    const box = bad.field('n').handle.input;
+    box.value = '2';
+    box.dispatch('change');
+    assert.equal(bad.field('n').row.querySelector('.ss-field-error').hidden, true);
+});
+
+test('a number in a list row that the box moved into its range, or refused, is named by row and field', () => {
+    const schema = { coins: { type: 'list', label: 'Coins', of: { name: { type: 'text', label: 'Name', max: 12 }, worth: { type: 'int', label: 'Worth', min: 1, max: 1000 } } } };
+    const { form, settings } = setup({}, schema, { coins: [{ name: 'penny', worth: 1 }, { name: 'gold', worth: 100 }] });
+    const coins = form.field('coins').row;
+    const worth = at => coins.querySelectorAll('.ss-lines-row')[at].querySelector('.ss-lines-cell[data-field="worth"] input');
+    worth(1).value = '5000';
+    worth(1).dispatch('change');
+    assert.equal(settings('m').coins[1].worth, 1000);
+    assert.equal(coins.querySelector('.ss-field-error').textContent, 'Row 2, Worth: Set to 1000, the most this allows.');
+    worth(0).value = '0';
+    worth(0).dispatch('change');
+    assert.equal(coins.querySelector('.ss-field-error').textContent, 'Row 1, Worth: Set to 1, the least this allows.');
+    worth(0).value = 'lots';
+    worth(0).dispatch('change');
+    assert.equal(coins.querySelector('.ss-field-error').textContent, 'Row 1, Worth: Enter a whole number. The setting stays 1.');
+    worth(0).value = '3';
+    worth(0).dispatch('change');
+    assert.equal(coins.querySelector('.ss-field-error').hidden, true, 'a plain change says nothing');
+});
+
+test('changeNote on a list: rows the store left out, else the first row\'s field it moved', () => {
+    const field = { type: 'list', of: { name: { type: 'text', label: 'Name', max: 4 }, worth: { type: 'int', label: 'Worth', min: 1, max: 9 } } };
+    assert.equal(changeNote(field, [{ name: 'a', worth: 1 }], [{ name: 'a', worth: 1 }]), '');
+    assert.equal(changeNote(field, [{ name: 'abcdefg', worth: 1 }], [{ name: 'abcd', worth: 1 }]), 'Row 1, Name: Cut to 4 characters, the most this allows.');
+    assert.equal(changeNote(field, [{ worth: 1 }, { worth: 50 }], [{ worth: 1 }, { worth: 9 }]), 'Row 2, Worth: Set to 9, the most this allows.');
+    assert.equal(changeNote(field, [{}, {}, {}], [{}]), 'Only 1 of the 3 rows could be kept.');
+    assert.equal(changeNote(field, 'x', []), '');
+});
+
+test('`quiet` leaves the search count and the empty message to a window around the form; `className` adds a class', () => {
+    const { form, parent } = setup({ search: false, className: 'ss-money', quiet: true });
+    assert.ok(form.el.classList.contains('ss-form') && form.el.classList.contains('ss-money'));
+    assert.equal(form.filter('title') > 0, true, 'the count is still returned');
+    assert.equal(form.el.querySelector('.ss-form-status').hidden, true);
+    assert.equal(form.filter('zzzz'), 0);
+    assert.equal(form.el.querySelector('.ss-form-empty').hidden, true);
+    assert.equal(parent.querySelectorAll('.ss-form-status').filter(node => !node.hidden).length, 0);
+    const loud = setup({ search: false });
+    loud.form.filter('zzzz');
+    assert.equal(loud.form.el.querySelector('.ss-form-empty').hidden, false, 'without it the form says so itself');
 });

@@ -22,7 +22,7 @@
 // help and option names come from module settings, never from markup.
 
 import {
-    FIELD_KINDS, FORM_TEXT, SETTINGS_TEXT, SETTING_LIST_ROWS, emptyValue, fieldKind, fill, linesToList, listTextFields, listToLines, normalizeField, optionsOf, readInt,
+    FIELD_KINDS, FORM_TEXT, SETTINGS_TEXT, SETTING_LIST_ROWS, changeNote, emptyValue, fieldKind, fill, linesToList, listTextFields, listToLines, normalizeField, optionsOf, readInt,
 } from './schema.js';
 import { profileChoices } from '../../profile-field.js';
 import { cutAt } from '../../../text.js';
@@ -191,20 +191,34 @@ export function sliderField(ctx) {
     const root = h(doc, 'div', 'ss-slider');
     const input = h(doc, 'input', 'ss-slider-input');
     input.type = 'range';
+    // The range is the field's min and max; `sliderMax` (below `max`) is the range the slider offers while the value is
+    // within it, for a field whose store allows far more than a slider can place (the range grows to a larger value).
+    const top = value => (Number.isInteger(field.sliderMax) && field.sliderMax > field.min ? Math.min(field.max, Math.max(field.sliderMax, Number.isInteger(value) ? value : 0)) : field.max);
     input.min = String(field.min);
-    input.max = String(field.max);
+    input.max = String(top(ctx.value));
     input.step = '1';
     named(input, ctx);
     const out = h(doc, 'output', 'ss-slider-value');
     out.setAttribute('aria-hidden', 'true');
     const clampNow = value => (Number.isInteger(value) ? Math.min(field.max, Math.max(field.min, value)) : field.min);
+    // What the value is called: `format(n)` (a function: "60 pennies", "Automatic"), else the number and a short `unit` text.
+    const say = n => {
+        if (typeof field.format === 'function') {
+            try {
+                const text = field.format(n);
+                if (typeof text === 'string' && text) return cutAt(text, 40);
+            } catch { /* the number alone */ }
+        }
+        return `${n}${typeof field.unit === 'string' ? cutAt(field.unit, 8) : ''}`;
+    };
     // The fill (0…1) is a custom property the track paints from; the value is shown beside it and spoken.
     const show = () => {
         const n = Number(input.value);
-        const unit = typeof field.unit === 'string' ? cutAt(field.unit, 8) : '';
-        out.textContent = `${n}${unit}`;
-        input.setAttribute('aria-valuetext', `${n}${unit}`);
-        input.style.setProperty('--ss-fill', String(Math.round(((n - field.min) / (field.max - field.min)) * 10000) / 10000));
+        const text = say(n);
+        out.textContent = text;
+        input.setAttribute('aria-valuetext', text);
+        const max = Number(input.max);
+        input.style.setProperty('--ss-fill', String(Math.round(((n - field.min) / (max - field.min)) * 10000) / 10000));
     };
     let off = false;
     let locked = false;
@@ -219,7 +233,11 @@ export function sliderField(ctx) {
     const handle = {
         el: root, input,
         get: () => Number(input.value),
-        set(value) { input.value = String(clampNow(value)); show(); },
+        set(value) {
+            input.max = String(top(value));
+            input.value = String(clampNow(value));
+            show();
+        },
         setDisabled(value) { off = Boolean(value); setDisabled(input, off || locked); },
         setReadOnly(value) { locked = Boolean(value); setDisabled(input, locked || off); },
         destroy() {},
@@ -418,7 +436,8 @@ export function linesField(ctx) {
     let off = Boolean(ctx.disabled);
     let cells = [];            // [{ key, handle }] per row, for set()
     const fieldName = ctx.label ?? field.label ?? SETTINGS_TEXT.add;
-    const emit = () => ctx.onChange(structuredClone(list), { typed: structuredClone(list) });
+    // `note`: what a row's own box moved or refused (a number moved into its range), said under the whole list.
+    const emit = note => ctx.onChange(structuredClone(list), { typed: structuredClone(list), note: note ?? '' });
 
     function toggleButton() {
         const toggle = button(doc, 'ss-lines-toggle', fill(asText ? SETTINGS_TEXT.asRowsTitle : SETTINGS_TEXT.asTextTitle, { field: fieldName }));
@@ -493,10 +512,11 @@ export function linesField(ctx) {
                 const sctx = {
                     doc, id: `${id}-${index}-${key}`, key, field: sub, value, label: subLabel(key, sub),
                     ariaLabel: `${subLabel(key, sub)}, ${fill(SETTINGS_TEXT.listItem, { n: index + 1 })}`, disabled: off, readOnly: locked, memo: ctx.memo, profiles: ctx.profiles,
-                    invalid: () => {}, note: () => {},
-                    onChange: next => {
+                    invalid: message => ctx.invalid?.(fill(FORM_TEXT.rowNote, { n: index + 1, field: subLabel(key, sub), note: message })), note: () => {},
+                    onChange: (next, meta) => {
                         list[index] = { ...list[index], [key]: next };
-                        emit();
+                        const moved = typeof meta?.typed === 'number' ? changeNote(sub, meta.typed, next) : '';
+                        emit(moved ? fill(FORM_TEXT.rowNote, { n: index + 1, field: subLabel(key, sub), note: moved }) : '');
                     },
                 };
                 const made = RENDERERS[kind === 'slider' ? 'number' : kind](sctx);

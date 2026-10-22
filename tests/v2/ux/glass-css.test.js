@@ -180,13 +180,16 @@ test('the form engine\'s rules are in glass.css: rows, switch, inputs, slider, c
     // The slider's track and thumb, for both engines (separate rules: one unknown pseudo-element would drop a shared rule).
     for (const part of ['::-webkit-slider-runnable-track', '::-moz-range-track', '::-webkit-slider-thumb', '::-moz-range-thumb']) assert.ok(selectors.some(s => s.endsWith(part)), part);
     assert.ok(all.filter(rule => rule.selectors.some(s => /::-webkit-slider-runnable-track$/.test(s))).every(rule => rule.selectors.length === 1));
-    assert.match(block('.ss-slider-input::-webkit-slider-runnable-track'), /var\(--ss-fill, 0\)/);
+    // One class heavier than `.ss-slider-input` alone: SillyTavern paints every range with a body-coloured bar and a thumb of its own.
+    assert.match(block('.ss-slider .ss-slider-input::-webkit-slider-runnable-track'), /var\(--ss-fill, 0\)/);
+    assert.match(block('.ss-slider .ss-slider-input'), /background: transparent;\s*box-shadow: none;\s*filter: none;/);
+    assert.ok(!selectors.some(s => /\.ss-slider-input/.test(s) && !/\.ss-slider \.ss-slider-input/.test(s)), 'every slider rule is under .ss-slider');
     assert.ok(/min-height: 40px/.test(block('.ss-lines-add')) && /width: 40px/.test(block('.ss-lines-remove')));
     assert.ok(block('.ss-chip-on').includes('var(--ss-accent-soft)'));
     // The switch\'s hit area reaches past its 28 px.
     assert.ok(all.some(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-switch::after`) && /inset: -8px/.test(rule.block)));
     // Every focusable control has a visible focus.
-    for (const name of ['ss-input', 'ss-switch', 'ss-chip', 'ss-lines-add', 'ss-lines-remove', 'ss-lines-toggle', 'ss-search-clear', 'ss-slider-input']) {
+    for (const name of ['ss-input', 'ss-switch', 'ss-chip', 'ss-lines-add', 'ss-lines-remove', 'ss-lines-toggle', 'ss-search-clear', 'ss-slider .ss-slider-input']) {
         assert.ok(all.some(rule => rule.selectors.some(s => s.includes(`.${name}:focus-visible`)) && /outline: 2px solid var\(--ss-accent\)/.test(rule.block)), `${name} focus ring`);
     }
     // No literal colour anywhere in the form rules.

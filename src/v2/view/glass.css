@@ -1196,7 +1196,9 @@
     gap: 12px;
     min-width: 0;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input {
+/* One class heavier than the block's own name (`.ss-slider .ss-slider-input`): SillyTavern paints every range with a bar of its
+   own in the body colour (dark on a light theme) and a thumb in its tick colour, which would beat a rule of one class. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input {
     -webkit-appearance: none;
     appearance: none;
     flex: 1 1 0;
@@ -1204,20 +1206,24 @@
     min-width: 0;
     height: 28px;
     margin: 0;
+    padding: 0;
+    border-radius: 0;
     background: transparent;
+    box-shadow: none;
+    filter: none;
     cursor: pointer;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input::-webkit-slider-runnable-track {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input::-webkit-slider-runnable-track {
     height: 7px;
     border-radius: var(--ss-radius-pill);
     background: linear-gradient(to right, var(--ss-accent) calc(var(--ss-fill, 0) * 100%), var(--ss-track) 0);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input::-moz-range-track {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input::-moz-range-track {
     height: 7px;
     border-radius: var(--ss-radius-pill);
     background: linear-gradient(to right, var(--ss-accent) calc(var(--ss-fill, 0) * 100%), var(--ss-track) 0);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input::-webkit-slider-thumb {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 22px;
@@ -1228,7 +1234,7 @@
     background: var(--ss-knob);
     box-shadow: 0 1px 3px color-mix(in srgb, var(--ss-on-ring) 40%, transparent);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input::-moz-range-thumb {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input::-moz-range-thumb {
     width: 18px;
     height: 18px;
     border: 2px solid var(--ss-accent);
@@ -1236,12 +1242,12 @@
     background: var(--ss-knob);
     box-shadow: 0 1px 3px color-mix(in srgb, var(--ss-on-ring) 40%, transparent);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input:focus-visible {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input:focus-visible {
     outline: 2px solid var(--ss-accent);
     outline-offset: 4px;
     border-radius: var(--ss-radius-s);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider-input:disabled {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-slider .ss-slider-input:disabled {
     cursor: default;
     opacity: 0.6;
 }
@@ -1480,6 +1486,33 @@
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature .ss-switch {
     margin-top: 2px;
+}
+
+/* ---- a select never clips its text: it ends in an ellipsis ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-select {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- the Money page (view/settings/money.js, UI stage step 3c): cards of stacked fields, two columns on a wide window ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-money .ss-field {
+    grid-template-columns: minmax(0, 1fr);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-money {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ss-space-3);
+    align-items: start;
+}
+@media (min-width: 900px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-money {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    /* The Coins card runs down the left, the other cards stack on its right. */
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-money > .ss-section:first-of-type {
+        grid-row: span 2;
+    }
 }
 
 /* helpers of the UI sample's demo form */

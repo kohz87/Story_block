@@ -5,7 +5,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROOT_SELECTOR } from '../../../src/v2/view/theme.js';
+import { PALETTES, ROOT_SELECTOR, parseColor } from '../../../src/v2/view/theme.js';
+import { HOST_SETTINGS_SCHEMA } from '../../../src/v2/sdk.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8');
 const css = read('view/settings.css');
@@ -199,4 +200,51 @@ test('the features form: tiles on the tokens, two columns where there is room an
     assert.match(group, /background: none;/);
     assert.match(group, /backdrop-filter: none;/);
     assert.equal(weight(`${ROOT_SELECTOR} .ss-features .ss-features-group.ss-section`), 30);
+});
+
+// ---- step 3c
+
+test('the Money page: cards of stacked fields, one column and two from 900px, the Coins card down the left', () => {
+    const glass = read('view/glass.css');
+    const rule = (selector, media = null) => {
+        const body = media ? glass.slice(glass.indexOf(media)) : glass;
+        const head = `${ROOT_SELECTOR} ${selector} {`;
+        const at = body.indexOf(head);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return body.slice(at, body.indexOf('}', at));
+    };
+    assert.match(rule('.ss-money .ss-field'), /grid-template-columns: minmax\(0, 1fr\);/, 'label over its control, in every width (the cards are narrow)');
+    assert.match(rule('.ss-money'), /display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
+    assert.match(rule('.ss-money', '@media (min-width: 900px)'), /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    assert.match(rule('.ss-money > .ss-section:first-of-type', '@media (min-width: 900px)'), /grid-row: span 2;/);
+    assert.equal(weight(`${ROOT_SELECTOR} .ss-money .ss-field`), 20);
+});
+
+test('a select never clips its text: it ends in an ellipsis; the Look choices are short words, their help says what each is', () => {
+    const glass = read('view/glass.css');
+    const at = glass.indexOf(`${ROOT_SELECTOR} .ss-select {`);
+    assert.ok(at >= 0);
+    assert.match(glass.slice(at, glass.indexOf('}', at)), /overflow: hidden;\s*text-overflow: ellipsis;\s*white-space: nowrap;/);
+    const panel = HOST_SETTINGS_SCHEMA.panelStyle;
+    assert.deepEqual(panel.options.map(option => option.label), ['Glass', 'Solid', 'Follow SillyTavern']);
+    for (const option of [...panel.options, ...HOST_SETTINGS_SCHEMA.font.options]) assert.ok(option.label.length <= 24, `"${option.label}" fits a phone's select`);
+    for (const word of ['Glass:', 'Solid:', 'Follow SillyTavern:']) assert.ok(panel.help.includes(word), `the help says what ${word} is`);
+});
+
+test('a light scheme\'s slider track is a light token: the unfilled part is a faint tint, not the body colour, and nothing of SillyTavern\'s bar is left under it', () => {
+    const track = parseColor(PALETTES.light.track);
+    assert.ok(track && track.a <= 0.15, `light track ${PALETTES.light.track}`);
+    const glass = read('view/glass.css');
+    for (const pseudo of ['::-webkit-slider-runnable-track', '::-moz-range-track']) {
+        const head = `${ROOT_SELECTOR} .ss-slider .ss-slider-input${pseudo} {`;
+        const at = glass.indexOf(head);
+        assert.ok(at >= 0, pseudo);
+        assert.match(glass.slice(at, glass.indexOf('}', at)), /linear-gradient\(to right, var\(--ss-accent\) calc\(var\(--ss-fill, 0\) \* 100%\), var\(--ss-track\) 0\)/);
+    }
+    // SillyTavern paints a range with a body-coloured bar, a thumb in its tick colour and a hover filter (`input[type="range"]`,
+    // one class and an element heavy): the block's rules weigh more, and clear them.
+    const input = glass.slice(glass.indexOf(`${ROOT_SELECTOR} .ss-slider .ss-slider-input {`), glass.indexOf('}', glass.indexOf(`${ROOT_SELECTOR} .ss-slider .ss-slider-input {`)));
+    assert.match(input, /background: transparent;\s*box-shadow: none;\s*filter: none;/);
+    assert.ok(weight(`${ROOT_SELECTOR} .ss-slider .ss-slider-input::-webkit-slider-thumb`) > weight('input[type="range"]::-webkit-slider-thumb'));
+    assert.ok(weight(`${ROOT_SELECTOR} .ss-slider .ss-slider-input`) > weight('input[type="range"]'));
 });

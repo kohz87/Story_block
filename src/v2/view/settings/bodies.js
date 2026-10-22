@@ -1,4 +1,4 @@
-// What each section of the settings window holds (UI stage, step 3a; Look and Features in 3b): a map of section id →
+// What each section of the settings window holds (UI stage, step 3a; Look and Features in 3b, Money in 3c): a map of section id →
 // body. A body is a function
 //
 //     (pane, ctx) → { filter(text) → number, refresh?(), destroy?(), has?(foldKey), open?(foldKey) }
@@ -12,11 +12,11 @@
 // changed that other pages draw: it redraws them), options (what the window was opened with: registry, settings, sdk,
 // features, theme, …) }.
 //
-// Step 3b: Look and Features are the form engine's (below). The other sections are still today's settings
+// Look, Features (3b) and Money (3c, money.js) are the form engine's (below). The other sections are still today's settings
 // (host-ui.js `renderSettingsHost`), drawn into the section each belongs to (sections.js `routeOf`) by one shared host.
-// Steps 3c–3g replace one entry each:
+// Steps 3d–3g replace one entry each:
 //
-//     SECTION_BODIES.money = (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(), destroy: () => form.destroy() }; };
+//     SECTION_BODIES.assist = (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(), destroy: () => form.destroy() }; };
 //
 // A section with its own body is not drawn by the shared host (it never gets a pane), so its old folds go away with
 // the entry.
@@ -25,6 +25,7 @@ import { FEATURES_FOLD, SUB_FOLD, renderSettingsHost } from '../../host-ui.js';
 import { HOST_SETTINGS_SCHEMA } from '../../sdk.js';
 import { renderFeaturesForm } from '../form/features.js';
 import { renderSettingsForm } from '../form/form.js';
+import { moneyBody } from './money.js';
 import { LOOK_KEYS, SECTION_IDS, opensByDefault, routeOf } from './sections.js';
 import { filterPane } from './search.js';
 
@@ -68,7 +69,7 @@ function lookBody(pane, ctx) {
     const { settings, theme } = ctx.options;
     const schema = Object.fromEntries(LOOK_KEYS.map(key => [key, HOST_SETTINGS_SCHEMA[key]]));
     const form = renderSettingsForm(pane, {
-        moduleId: null, schema, settings, doc: ctx.doc,
+        moduleId: null, schema, settings, doc: ctx.doc, quiet: true,
         onChange: () => { try { theme?.apply?.(); } catch { /* the look follows on the next load */ } },
     });
     return { filter: text => form.filter(text), refresh: () => form.refresh(), destroy: () => form.destroy() };
@@ -103,4 +104,5 @@ export const SECTION_BODIES = Object.freeze({
     ...Object.fromEntries(SECTION_IDS.map(id => [id, legacyBody(id)])),
     look: lookBody,
     features: featuresBody,
+    money: moneyBody,
 });

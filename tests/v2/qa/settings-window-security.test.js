@@ -78,7 +78,7 @@ test('hostile module text is drawn as text only: no markup, no data-picked class
 test('no innerHTML, outerHTML, insertAdjacentHTML, document.write or eval in the settings window\'s sources', () => {
     const dir = new URL('../../../src/v2/view/settings/', import.meta.url);
     const files = readdirSync(dir).filter(file => file.endsWith('.js'));
-    assert.deepEqual(files.sort(), ['bodies.js', 'search.js', 'sections.js', 'window.js']);
+    assert.deepEqual(files.sort(), ['bodies.js', 'money.js', 'search.js', 'sections.js', 'window.js']);
     for (const file of files) {
         const source = readFileSync(new URL(file, dir), 'utf8');
         assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Math\.random|Date\.now/, file);
