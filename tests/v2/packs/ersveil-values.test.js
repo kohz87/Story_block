@@ -1,4 +1,4 @@
-// The Ersveil pack's value scale (PACKS.md "Value guide", ERSVEIL.md §8): one mark is the old copper,
+// The Ersveil pack's value scale (PACKS.md "Value guide", ERSVEIL.md §8): money is counted in copper (1 silver = 10, 1 gold = 100),
 // everyday goods and gear keep the lore's prices, and the consumables a fight uses are on the play scale,
 // a fraction of an F-rank job. Also its crafting data (recipes, crafts) and its meter presets.
 import test from 'node:test';
@@ -21,7 +21,7 @@ const byName = name => pack.content.items.find(item => item.name === name);
 const F = pack.content.ranks.find(rank => rank.id === 'F');
 
 // The lore's prices ("Prices: …" and "Mana Stones and Monster Cores" entries of the World lorebook), in
-// marks (1 copper = 1 mark, 1 silver = 10, 1 gold = 100), for every item the lore prices.
+// copper (1 silver = 10 copper, 1 gold = 100), for every item the lore prices.
 const LORE = {
     'Knife': [40, 100], 'Coarse Bread': [1, 2], 'Hot Meal': [5, 10], 'Common Ale': [2, 4], 'Trail Rations': [8, 16],
     'Torch': [1, 3], 'Lamp Oil': [2, 5], 'Flint and Steel': [4, 10], 'Hemp Rope': [20, 60], 'Waterskin': [10, 30],
@@ -38,12 +38,12 @@ const OWN = ['Cane-Blade', 'Pack Mule', 'Barge Hold Share', 'Whetstone', 'Leech-
 test('a minor healing draught is a fraction of an F-rank job', () => {
     const draught = byName('Minor Healing Draught');
     assert.deepEqual(F.reward, [50, 400]);
-    assert.ok(draught.value <= F.reward[0], `${draught.value} marks: no more than the poorest F job (${F.reward[0]})`);
-    assert.ok(draught.value * 4 <= F.reward[1], `${draught.value} marks: a quarter of the best F job at most`);
+    assert.ok(draught.value <= F.reward[0], `${draught.value} copper: no more than the poorest F job (${F.reward[0]})`);
+    assert.ok(draught.value * 4 <= F.reward[1], `${draught.value} copper: a quarter of the best F job at most`);
     const price = pack.content.shops.flatMap(shop => shop.stock).find(line => line.item === draught.id).price;
     assert.ok(price <= F.reward[0], `Bluewatch asks ${price}: the poorest F job still pays for one`);
     for (const quest of pack.content.quests) {
-        const reward = Number(/^(\d+) marks$/.exec(quest.reward)[1]);
+        const reward = Number(/^(\d+) copper$/.exec(quest.reward)[1]);
         assert.ok(reward >= F.reward[0] && reward <= F.reward[1], `${quest.name} pays inside the F range`);
         assert.ok(reward / draught.value >= 1.5, `${quest.name} buys more than one draught`);
     }
@@ -55,7 +55,7 @@ test('every item is on one scale: the lore\'s prices, the play scale, or the pac
         assert.equal(where, 1, `${item.name} is listed once (add a new item to one of the lists)`);
         if (item.name in LORE) {
             const [low, high] = LORE[item.name];
-            assert.ok(item.value >= low && item.value <= high, `${item.name}: ${item.value} marks, the lore says ${low}–${high}`);
+            assert.ok(item.value >= low && item.value <= high, `${item.name}: ${item.value} copper, the lore says ${low}–${high}`);
         }
         assert.ok(item.value <= 1000, `${item.name}: nothing in a starter pack is worth more than a few F jobs`);
     }
@@ -69,7 +69,7 @@ test('every item is on one scale: the lore\'s prices, the play scale, or the pac
 test('event payouts are tips, not jobs', () => {
     const paid = pack.content.events.flatMap(event => event.then).filter(step => step.command === 'wallet.receive');
     assert.ok(paid.length > 0);
-    for (const step of paid) assert.ok(step.payload.amount <= F.reward[0], `${step.payload.amount} marks`);
+    for (const step of paid) assert.ok(step.payload.amount <= F.reward[0], `${step.payload.amount} copper`);
 });
 
 test('shops ask the value or the frontier markup on it, never less and never more than three times', () => {

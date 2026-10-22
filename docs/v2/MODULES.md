@@ -489,13 +489,19 @@ These settle questions agents raised; the host changes they need are made at int
 
 105. **The reader names the world's words again** (v1 had them; v2 lost the settings). RPG Battle's settings,
     group Terms: **XP word** (`party.xpName`) and **Level word** (`party.levelName`), over a pack's `terms`,
-    over XP and Level. Story Block's settings, group Terms: **Rank ladder** (`ranks`, a `form: 'lines'` list of
-    `{ rank }`, lowest first, a line optionally "Name: first level"). It is read where every module reads ranks:
-    `packs.content({ kind: 'ranks' })` answers with the reader's ladder when it is set (records `{ id, title,
-    levels?, reward?, pack: null, reader: true }`, the first pack's levels and rewards kept by place), so Story
-    Director's `quest.ranks`, RPG Battle's `party.ranks` (and its level labels: "Soul Class III (Lv 24)") and
-    Story Block's coin budget follow it with or without each other. Empty: the pack's, then each module's
-    built-in. Static prompt text that names XP, levels or ranks takes the words from the settings: a changed
+    over XP and Level. **Rank ladder** (`party.ranks`, a `form: 'lines'` list of `{ rank }`, lowest first, a
+    line optionally "Name: first level") and **Levels per rank** (`party.levelsPerRank`, 0–999: a rank with no
+    first level of its own starts that many levels after the one before; a line's own first level wins when it
+    rises), with a read-only preview of each rank's levels in the field's help (terms2, 2026-10-22: the ladder
+    moved here from Story Block's Terms, since a ladder bands levels; a stored Story Block `ranks` value moves
+    to RPG Battle once, when RPG Battle starts and has none). RPG Battle gives the lines to Story Block through
+    the hook `ranks.reader()` → `{ lines, perRank }`; `packs.content({ kind: 'ranks' })` answers with the
+    reader's ladder when a module gives one (records `{ id, title, levels?, reward?, pack: null, reader: true
+    }`, levels from the lines and Levels per rank, else the first pack's at each place; its rewards kept by
+    place), so Story Director's `quest.ranks`, RPG Battle's `party.ranks` (its level labels: "Soul Class III
+    (Lv 24)", a foe's rank and a fight's tier, "Weir Rat ×8 · Soul Class I · weak") and Story Block's coin
+    budget all use the same bands. Without such a module there is no reader's ladder: the pack's, then each
+    module's built-in (Story Director's F to S). Static prompt text that names XP, levels or ranks takes the words from the settings: a changed
     setting may change the static part; otherwise it stays byte-identical reply to reply.
 106. **Items add carry capacity**: a pack item's `carry` (1–1000) adds to its owner's capacity while owned (a
     member's thing to them, a shared-bag thing to the party), equipment only while worn; the reader may name
@@ -512,6 +518,20 @@ These settle questions agents raised; the host changes they need are made at int
     its place (read by Story Block when a chat opens, `packs.markets`). Order for a place: lorebook, pack, the
     scene's place kind, built-in; unknown means factor 1. The money scale (F104) multiplies the built-in prices
     and worths (shop stock, a story-made thing's worth through `item.define`'s new `scale`), never a pack's own.
+108. **Coins** (terms2, 2026-10-22; the live test's "currency is pennies but the story says copper and
+    silver": the lorebook and card named three coins, Story Suite knew one name). The one currency may have
+    coins: Story Block's setting **Coins** (`coins`, lines `name: worth`, a plural after a slash, smallest
+    first) beats a pack's `currency.coins: [{ name, plural?, value }]` (only while the pack's currency is in
+    use), which beats the single name. `inventory.currency` gives `coins: [{ name, plural, value }]` (and
+    `display: 'base'`) when there are any. The wallet holds the smallest unit (the coin worth 1). The static
+    part gets one line naming the coins and their worth and saying a money line names one coin
+    (`+ coin 3 silver`) or the smallest unit (`+ coin 35`); it changes only when the coins do. Capture reads
+    `+ coin`, `+ item <coin> | qty`, and loot money with a known coin name and converts it before the reply's
+    budget and caps (rule 1); with coins, an unknown coin word or two numbers in one line is refused (as strict
+    as SB #118). Displays (`fmt.money`, receipts, the changes card, Inventory, Home) show mixed coins, "3
+    silver 5 copper", or the smallest unit with **Coin display: base** (`coinDisplay`). Ersveil 1.4.0 counts
+    in the lore's copper, silver and gold (1 gold = 10 silver = 100 copper; the old marks were copper, so no
+    number changed).
 
 ### User decision: v1's Choices and Inner chatter come back in a v2 form (2026-10-22, F115)
 

@@ -518,7 +518,7 @@ sdk.registerModule({
   rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` or
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
   start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
-  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`. Money is one currency (MODULES §F1).
+  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`, `ranks.reader()` (→ `{ lines, perRank }`: the reader's rank ladder lines and levels per rank, which `packs.content({ kind: 'ranks' })` answers with; MODULES §F105). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the
   Story Suite overlay; `section` renders a custom panel for what a schema can't express. Values are stored
   under `extension_settings.storySuite.modules[id]`. `settings.set` stores a value as its field allows it:
