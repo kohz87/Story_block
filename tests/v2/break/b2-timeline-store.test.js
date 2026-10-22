@@ -71,7 +71,8 @@ test('B-b2-timeline-7: a malformed checkpoint (no meta, no domains) is a Problem
     await h.store.flush();
     const chat = structuredClone(h.ctx.chat);
     chat[0].extra.storySuite.checkpoint = {};
-    chat[0].swipe_info[0].extra.storySuite.checkpoint = {};
+    // (the greeting keeps no swipe_info copy once a reply follows it: each record is kept once)
+    if (chat[0].swipe_info[0].extra.storySuite) chat[0].swipe_info[0].extra.storySuite.checkpoint = {};
     await h.st.loadChat(chat);
     const result = await h.sdk.command('scene.present', { add: 'Cy' });
     assert.ok(!/Cannot read properties|is not a function|undefined/.test(result.message ?? ''), `no raw TypeError reaches the reader (actual: "${result.message}")`);

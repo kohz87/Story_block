@@ -1,8 +1,8 @@
 # Story Suite v2: storage performance
 
 What v2's storage (docs/v2/SPEC.md §2.2, §3.3) costs on disk and in time over a long chat, measured
-with a benchmark, and what could be tuned. Nothing here changes the runtime yet: the tuning below is a
-**proposal** for the coordinator.
+with a benchmark, and how it was tuned. The tuning described under "Storage tuning" is built (store.js,
+persist.js); the rest of this page measures what it gives and what was left out.
 
 Why it matters: SillyTavern rewrites the whole chat `.jsonl` on every save, and also writes a backup
 copy of it, throttled by `backups.chat.throttleInterval`. On a weak server (a Raspberry Pi, a cheap VPS,
@@ -18,7 +18,7 @@ node scripts/bench-v2.mjs --json out.json   # the raw numbers too
 ```
 
 `npm test` runs a short version only (`tests/v2/bench/smoke.test.js`: 24 replies, plus checks that each
-tuning variant keeps the same head state). The harness is `tests/v2/bench/load.js`.
+layout variant keeps the same head state). The harness is `tests/v2/bench/load.js`.
 
 ## What the benchmark does
 
@@ -35,197 +35,144 @@ tuning variant keeps the same head state). The harness is `tests/v2/bench/load.j
   the fake SillyTavern deep-copies the whole chat on every generation; the smoke test checks that both
   drivers store the same thing.
 * Sizes are exact and deterministic: each message is measured as the JSON line SillyTavern writes for it
-  (the chat's header line is left out). Timings are one machine's (Node 22, x64 Linux): read them as
-  orders of magnitude, and expect a phone or an old laptop to be several times slower.
+  (the chat's header line is left out). Every reply here has one swipe. Timings are one machine's
+  (Node 22, x64 Linux): read them as orders of magnitude, and expect a phone or an old laptop to be
+  several times slower.
 * **v1 for comparison:** the same story text, with a ~3 KB state block at the end of each reply. In
   SillyTavern a reply's text is stored twice (`mes` and its swipe in `swipes`), so v1 costs ~6 KB per
   reply. Note that 3 KB is less state than v2 keeps here: the v2 head state of this load is 37 KB.
 
-## Results
+## Storage tuning: before and after
 
-### Chat size
+"Before" is v2 at e44039b (alpha.2): a checkpoint every 20 carriers or 32 KB of ops, every record also
+copied into `swipe_info[swipe_id].extra`, every receipt kept whole. "After" is this layout:
 
-| Replies | Chat file | storySuite records | share | v1 (3 KB block per reply) | v2 / v1 |
-|---|---|---|---|---|---|
-| 100 | 1.13 MB | 896.7 KB | 78% | 817.4 KB | 1.41× |
-| 1000 | 10.37 MB | 7.87 MB | 76% | 7.98 MB | 1.30× |
-| 3000 | 30.96 MB | 23.47 MB | 76% | 23.94 MB | 1.29× |
+1. **Checkpoints every 100 carriers, or 128 KB of ops** (with `covers`, as before). The bytes rule also
+   waits for twice the last checkpoint's own size of ops and 10 carriers: one domain that rewrites a
+   large list whole on every reply cannot make every few replies write the whole state again (the b6
+   soak saw the 32 KB rule fire every ~4 carriers for that reason).
+2. **Each record kept once.** The shown swipe's copy in `swipe_info` stays on the last carrier and on
+   carriers with more than one swipe; it is dropped on the others (see below for why that is safe).
+3. **Old receipts drop `data`.** A receipt 200 or more carriers back keeps every field but `data`.
 
-As built, v2's records are three quarters of the file, and the file is about 1.3 times v1's.
+| | 1,000 replies before | after | 3,000 replies before | after |
+|---|---|---|---|---|
+| Chat file (= bytes per save) | 11.01 MB | **5.13 MB** (−53%) | 32.89 MB | **15.12 MB** (−54%) |
+| storySuite records in it | 8.52 MB | 2.63 MB (−69%) | 25.41 MB | 7.63 MB (−70%) |
+| Records per reply | 8.7 KB | 2.7 KB | 8.7 KB | 2.6 KB |
+| Checkpoints | 51 | 11 | 151 | 31 |
+| Story Suite bytes written per reply (1.25 saves) | 13.8 MB | 6.4 MB | 41.1 MB | 18.9 MB |
+| + SillyTavern's own save + one backup copy | 35.8 MB | 16.7 MB | 106.9 MB | 49.1 MB |
+| Rebuild at load, longest replay, swipe rebuild | see the timing table below | | | |
 
-### Bytes added per reply
+### Time
 
-Both copies of each record are counted: SPEC §2.2 writes the record to `message.extra` and keeps
-`swipe_info[swipe_id].extra` in step, and SillyTavern writes both to the file.
+(The interleaved timing run is being measured; its table goes here before merge.)
 
-| Replies | All | checkpoints | ops | receipts | (of which data) | (of which summary) | other fields | hidden change text | v1 block (mes + swipe) |
-|---|---|---|---|---|---|---|---|---|---|
-| 100 | 9.0 KB | 4.0 KB | 1.9 KB | 2.5 KB | 0.5 KB | 0.4 KB | 0.5 KB | 0.4 KB | 6.0 KB |
-| 1000 | 8.1 KB | 3.7 KB | 1.3 KB | 2.6 KB | 0.5 KB | 0.4 KB | 0.5 KB | 0.4 KB | 6.0 KB |
-| 3000 | 8.0 KB | 3.7 KB | 1.3 KB | 2.6 KB | 0.5 KB | 0.4 KB | 0.5 KB | 0.4 KB | 6.0 KB |
+Timings: the median of 15 alternating before/after rounds on the same machine (each round 3 tries), so
+both sides met the same load. "Rebuild at load" depends on where the last checkpoint falls: exactly at
+1,000 or 3,000 replies there is one on the head carrier now (both are multiples of 100), so the rows at
+1,050 and 2,950 replies (half an interval from one) show a typical load. The **longest replay** is the
+worst case: the carrier just before a checkpoint, replayed from the one before it (a whole interval).
+"Rebuild after swipe" is a new swipe of the last reply, then the rebuild (swipe back: the same with the
+old swipe shown again); both versions roll back exactly.
 
-"Other fields" are `sid`, `swipe`, `spans`, `narrated`, `rev` and the keys. The hidden change text is the
-`<Changes>` block kept in the reply's text (in `mes` and in its swipe) for Re-read; it is not part of the
-record. A reply's 5 changes plus a quarter of 3 UI commands come to about 6 receipts and ~13 ops.
+What it means: the file and every save are about half the size (0.63× v1's file instead of 1.37×), and a
+reply writes about as much as v1 did (49 MB against v1's 48 MB at 3,000 replies, counting SillyTavern's
+own save and one backup). A rebuild replays up to 100 carriers instead of 20, which costs a few
+milliseconds more on the client, once per chat load or swipe; the disk writes saved are on the server.
+JSON.parse of the chat, which SillyTavern does on every load, shrinks with the file.
 
-### Checkpoints
+### Why keeping each record once is safe (SillyTavern 1.19)
 
-| Replies | Count | Median size | Largest | All (one copy) | Head state | Carriers replayed at load |
-|---|---|---|---|---|---|---|
-| 100 | 6 | 37.0 KB | 37.0 KB | 202.0 KB | 37.0 KB | 16 |
-| 1000 | 51 | 37.0 KB | 37.0 KB | 1.82 MB | 37.0 KB | 16 |
-| 3000 | 151 | 37.0 KB | 37.0 KB | 5.44 MB | 37.0 KB | 16 |
+SillyTavern sets `message.extra` from `swipe_info` in one function only, `syncSwipeToMes`, and calls it:
 
-A checkpoint is the whole state (37 KB here), every 20 carriers: 1.85 KB per reply, 3.7 KB with both
-copies, the largest single part. The 32 KB ops rule never fires first with this load (the ops of 20
-replies are ~13 KB).
+* when a message is swiped (`swipe` → `loadFromSwipeId`). The reader can swipe only the last message
+  (`isMessageSwipeable`). Before moving away from the shown swipe SillyTavern copies `extra` into that
+  swipe's `swipe_info` itself (`syncMesToSwipe(mesId)`), on every path but two: deleting the shown swipe
+  (it then moves to another swipe, whose copy is that swipe's own) and turning back a failed swipe (to
+  the swipe it has just copied). Swipe deletion from the swipe list on an older message is allowed only
+  for swipes that are not shown;
+* when a branch is made from a swipe picked in the **swipe list** (bookmarks.js
+  `getBranchChatSnapshot`). The list opens on any message with more than one swipe, older ones included,
+  and does not copy the shown swipe first: a branch from the shown swipe takes `extra` from its
+  `swipe_info` copy. So a carrier with more than one swipe keeps its copy.
 
-### Saves
+Nothing else reads it back: deleting messages, editing, Continue, the normal Branch button (it copies
+`message.extra`) and loading a chat all use `extra` itself. The store drops the copy of the carrier before
+a new reply when that reply gets its record, and on a rebuild it drops the copies it no longer keeps and
+gives the last carrier its copy back when a deletion made an earlier one the last. That copy is written
+only for a message at rest: SillyTavern tells of a deleted swipe (`MESSAGE_SWIPE_DELETED`) before it
+shows the next one, and the slot under `swipe_id` is then the next swipe's own copy, which is never
+written over. The swipe marks and copied-record checks (persist.js `readRecord`) read other swipes'
+copies only, which stay as SillyTavern made them. Tests: `tests/v2/storage-once.test.js` (swipe
+right/left, swipe deletion shown and not, swipe-list branch from the shown and the other swipe, delete
+of the last reply, reload, a chat written before).
+
+**Older chats** need no migration: replay reads `message.extra` only, and accepts checkpoints anywhere.
+The first rebuild of an older chat (opening it) drops the copies it no longer keeps and old receipts'
+`data`, in memory; the next save writes the smaller file. It changes no state at any message.
+
+### Old receipts' `data`
+
+The contract (SPEC §2.2): **receipt `data` older than 200 carriers may be dropped; modules must not rely
+on it.** What a module needs from its past receipts later it keeps in its own state. Story Block itself
+never reads it then: claims live in `meta.claims`; Re-read matches a line by the receipt's `line` and
+`seed`; narration uses `summary` and `narrate`; story-vouched payouts and the per-reply budgets are kept
+in state (`perReply`, `director.turn.vouched`). On v2 at e44039b no module's query read `tools.receipts()`;
+Story Director's day digest (in progress on its own branch) read old receipts' `data` for the clock and
+the day's facts, and keeps them in its own state instead (RX-TL-3). So `data` goes, everything else stays
+(`id`, `type`, `module`, `cause`, `seed`, `summary`, `narrate`, `line`, `rev`). Summaries stay because
+they feed quest history.
+
+### What was left out
+
+| Variant (on the 3,000-reply chat, as built) | Chat file | Same head |
+|---|---|---|
+| as built | 15.12 MB | yes |
+| before: a copy in `swipe_info` on every reply | 22.66 MB | yes |
+| before: checkpoints every 20 / 32 KB | 19.43 MB | yes |
+| not adopted: ops compacted (one `/meta/rev` per carrier, no replace overwritten later) | 14.10 MB (−7%) | yes |
+| not adopted: old receipts' `summary` emptied too | 14.71 MB (−3%) | yes |
+
+* **One `/meta/rev` per reply** would leave the head state the same, but not the rest of what reads
+  ops: Return in time (`store.truncate`, MODULES §F17) cuts a carrier's changes at each receipt's
+  `/meta/rev` op, so a return to a receipt in the middle of a reply's capture would take the whole
+  capture back; a skipped block names its receipts by those revs (Problems); a Re-read renumbers kept
+  blocks by them. Not worth 7%. A lossless form (the rev implied by the block's span) could come later.
+* **Folding the capture save into SillyTavern's own save** is not done: SillyTavern 1.19's `saveChat`
+  swallows errors (a toast, no throw, no event when it ends), so Story Block could not tell that the
+  change reached the file and could not keep "a failed save never drops a turn" (SPEC §3.3, B-1/B-2).
+  Since #91 a reply costs Story Block one write of its own (the capture's; cues ride on it), plus one per
+  burst of the reader's clicks; with the file halved each write is half the size.
+
+## Checkpoint rule (on the 3,000-reply chat, each record once)
+
+| Rule (every / ops bytes) | Checkpoints | Checkpoint bytes per reply | Chat file | Same head |
+|---|---|---|---|---|
+| 20 replies / 32 KB (before) | 151 | 1.9 KB | 19.43 MB | yes |
+| 50 replies / 64 KB | 61 | 0.7 KB | 16.16 MB | yes |
+| **100 replies / 128 KB (as built)** | 31 | 0.4 KB | 15.12 MB | yes |
+| 200 replies / 256 KB | 16 | 0.2 KB | 14.57 MB | yes |
+
+Past 100 the file barely shrinks (−0.5 MB for 200) while the longest replay doubles.
+
+## Saves
 
 | UI clicks | Story Suite saves per reply (mean) | Most in one reply | Capture saves | UI saves |
 |---|---|---|---|---|
 | burst (3 clicks within 400 ms) | 1.25 | 2 | 1 per reply | 1 per UI round, flushed when the next generation starts |
 | spread (each click saved alone) | 1.72 | 4 | 1 per reply | 3 per UI round |
 
-These are Story Suite's own saves (§3.3: one per UI burst, one at the end of the after-reply capture).
-SillyTavern also saves the chat itself after each reply, so as built a reply costs at least
-**2.25 full-file writes** plus the backup copies.
-
-### Time
-
-The last 100 replies before each length; "before reply" is the interceptor (flush, cues, untold
-receipts, prompt assembly), "capture" is the `MESSAGE_RECEIVED` handler for 5 lines (run, append,
-narrated, one save).
-
-| Replies | Before reply (median / p95) | Capture of 5 lines (median / p95) | UI command (median / p95) | JSON.parse of the chat | Head rebuild at load | Longest replay (a whole interval) | Rebuild after swipe | Swipe back | Swipe rolls back |
-|---|---|---|---|---|---|---|---|---|---|
-| 100 | 3.86 ms / 5.86 ms | 5.94 ms / 10.26 ms | 0.70 ms / 2.06 ms | 12.09 ms | 1.86 ms | 4.02 ms | 2.06 ms | 1.81 ms | yes |
-| 1000 | 2.64 ms / 4.36 ms | 3.16 ms / 5.63 ms | 0.37 ms / 0.84 ms | 67.97 ms | 1.30 ms | 2.20 ms | 1.13 ms | 0.97 ms | yes |
-| 3000 | 3.53 ms / 7.74 ms | 3.15 ms / 6.23 ms | 0.39 ms / 1.16 ms | 239.37 ms | 1.91 ms | 20.52 ms | 0.94 ms | 1.01 ms | yes |
-
-* Capture and commands do not slow down as the chat grows: they touch the head carrier only. The
-  interceptor grows slightly (untold receipts scan every carrier), still a few milliseconds at 3,000.
-* A rebuild replays at most one checkpoint interval, so it is flat too (1–2 ms; the 20 ms in one cell is
-  most likely a garbage-collection pause: the same chat measures 6 ms in the tuning table).
-* Parsing the chat's JSON grows with the file (240 ms at 31 MB) and dwarfs the rebuild: on load, the
-  file size matters more than the replay.
-
-### Memory of the caches
-
-| Replies | Heap held by a built store (head + checkpoint copy) | Head state JSON | Checkpoint JSON |
-|---|---|---|---|
-| 100 | 66.0 KB | 37.0 KB | 37.0 KB |
-| 1000 | 74.2 KB | 37.0 KB | 37.0 KB |
-| 3000 | 88.4 KB | 37.0 KB | 37.0 KB |
-
-The store's own caches stay under 100 KB. The chat array SillyTavern holds is the real memory cost, and
-the record copies in it are 76% of it.
-
-## Tuning experiments
-
-Run on the finished 3,000-reply chat by rewriting where checkpoints are, or what records hold, then
-replaying through a fresh store; every variant gives exactly the same head state ("Same head").
-
-### Checkpoint rule
-
-| Rule (every / ops bytes) | Checkpoints | Checkpoint bytes per reply | Chat file | Rebuild at load | Longest replay (a whole interval) | Rebuild after swipe | Same head |
-|---|---|---|---|---|---|---|---|
-| 20 replies / 32 KB (as built) | 151 | 3.7 KB | 30.96 MB | 1.30 ms | 6.08 ms | 1.00 ms | yes |
-| 50 replies / 32 KB | 62 | 1.5 KB | 24.52 MB | 0.62 ms | 5.90 ms | 0.66 ms | yes |
-| 50 replies / 64 KB | 61 | 1.5 KB | 24.44 MB | 0.63 ms | 6.39 ms | 0.51 ms | yes |
-| 100 replies / 64 KB | 31 | 0.8 KB | 22.27 MB | 3.11 ms | 8.50 ms | 2.50 ms | yes |
-| 100 replies / 128 KB | 31 | 0.8 KB | 22.27 MB | 0.56 ms | 13.58 ms | 5.10 ms | yes |
-| 200 replies / 256 KB | 16 | 0.4 KB | 21.19 MB | 0.76 ms | 13.47 ms | 13.45 ms | yes |
-
-"Rebuild at load" depends on where the last checkpoint happens to fall; the longest replay is the
-worst case. Going from 20 to 100 carriers saves 8.7 MB of a 31 MB file and costs at most ~10 ms more per
-rebuild, on the client, where it is cheap; disk writes are on the server, where it is not.
-
-### Other reductions
-
-| Variant | Chat file | storySuite records | per reply | vs v1 file | Same head |
-|---|---|---|---|---|---|
-| as built | 30.96 MB | 23.47 MB | 8.0 KB | 1.29× | yes |
-| ops compacted (one /meta/rev per carrier, no replace overwritten later) | 28.94 MB | 21.45 MB | 7.3 KB | 1.21× | yes |
-| receipts older than 200 replies: data emptied | 29.67 MB | 22.18 MB | 7.6 KB | 1.24× | yes |
-| receipts older than 200 replies: data and summary emptied | 28.50 MB | 21.02 MB | 7.2 KB | 1.19× | yes |
-| record kept once (swipe_info copy only on the last reply) | 19.23 MB | 11.74 MB | 4.0 KB | 0.80× | yes |
-| checkpoint 100 / 128 KB | 22.27 MB | 14.79 MB | 5.0 KB | 0.93× | yes |
-| all of the above (data only stripped) | 13.27 MB | 5.78 MB | 2.0 KB | 0.55× | yes |
-| all but "kept once" | 18.97 MB | 11.48 MB | 3.9 KB | 0.79× | yes |
-
-### Bytes written per reply
-
-SillyTavern rewrites the whole file on every save, so a reply costs the file size times the saves.
-
-| At reply 3000 | File | Story Suite saves | + SillyTavern's own save | + one backup copy | Total per reply |
-|---|---|---|---|---|---|
-| v1 (3 KB block) | 23.94 MB | – | 23.94 MB | 23.94 MB | 47.89 MB |
-| v2 as built | 30.96 MB | 38.69 MB | 30.96 MB | 30.96 MB | 100.60 MB |
-| v2 tuned (checkpoints, compaction, receipts), capture save folded into SillyTavern's | 18.97 MB | 4.74 MB | 18.97 MB | 18.97 MB | 42.67 MB |
-
-## Proposals (not implemented)
-
-### 1. Checkpoints: every 100 carriers or 128 KB of ops
-
-Change `CHECKPOINT_EVERY` from 20 to 100 and `CHECKPOINT_BYTES` from 32 KB to 128 KB (SPEC §2.2). That
-cuts checkpoint bytes per reply from 3.7 KB to 0.8 KB (−28% of the file at 3,000 replies). The worst
-replay is ~14 ms here, maybe 50–100 ms on a slow phone, once per chat load or swipe. The bytes rule is a
-guard for heavy chats: replay time follows the op bytes (~0.1 ms per KB here), so 128 KB keeps the worst
-rebuild bounded whatever the load. An option for later: size the interval by the state, for example
-"ops since the last checkpoint exceed 3 times the checkpoint's size", so a small state checkpoints more
-often and a large one less.
-
-Old chats need no migration: reading accepts checkpoints anywhere; only new carriers follow the new rule.
-
-### 2. Keep each record once
-
-The biggest single saving (−38% of the file, records 23.5 → 11.7 MB). Each record is written twice
-because SPEC §2.2 keeps `swipe_info[swipe_id].extra` in step with `message.extra`. SillyTavern only
-restores `extra` from `swipe_info` when the reader swipes, and only the last message can be swiped, so
-the shown swipe's copy is only needed on the last carrier. Proposal: write the `swipe_info` copy only for
-the last carrier; when a deletion makes an earlier carrier the last one, copy its record into its shown
-swipe then (the store already rebuilds on `MESSAGE_DELETED`). Other swipes keep their own records as now.
-Before adopting it, check in SillyTavern that nothing else restores `extra` from `swipe_info` on an
-earlier message (branches, checkpoints, swipe deletion, any "swipe any message" option).
-
-### 3. Op compaction
-
-When a carrier's ops are written, drop every `/meta/rev` replace but the last and any `replace` that a
-later op of the same carrier replaces again (`compactCarrierOps` in the harness): −7% of the file. It
-is safe because `diff` only ever appends to arrays or replaces them whole, so no later op shifts an
-earlier one's path. It has to keep `spans` right (story ops and kept ops compacted separately), and
-receipts keep their own `rev`, so nothing that reads revs changes. Cheaper still: one `/meta/rev` op per
-capture instead of one per line, since the capture writes one carrier in one go.
-
-### 4. Receipts: strip `data` after 200 replies
-
-Receipts are the largest part after checkpoints (2.6 KB per reply with both copies), but `data` is only
-0.5 KB of it and `summary` 0.4 KB: the rest is the fixed fields. Emptying `data` of receipts older than
-200 carriers saves 4%, plus `summary` 8%. Narration only needs untold receipts, Re-read re-runs a
-reply's text, and claims live in `meta.claims`, so nothing in the runtime needs old `data`; only a
-history view would show less. Worth doing only together with the rest, and as a background trim of
-carriers that are at least 200 back (the head carrier is never touched), saved with the next ordinary
-save rather than as a save of its own. A larger and riskier gain would be a shorter receipt for story
-captures with `narrate: false`: their change line is already in the reply's hidden text.
-
-### 5. Saves
-
-* The after-reply capture save comes right before SillyTavern's own after-reply save: two full-file
-  writes within the same second. Proposal: mark the store dirty and let SillyTavern's save carry the
-  change, then check `extra.storySuite.rev` of the head carrier (as §3.3 does today) and save only if it
-  is not on disk. To check before changing it: that SillyTavern's after-reply save always follows
-  `MESSAGE_RECEIVED` (streaming and non-streaming, and when another extension stops the generation).
-* Keep the 400 ms UI burst: in "spread" use (each click alone) saves go from 1.25 to 1.72 per reply. A
-  longer delay (1.5–2 s) would catch more clicks in one save; the generation start flushes anyway, so
-  nothing is lost when the reader sends right after clicking.
+These are Story Suite's own saves (§3.3: one per UI burst, one at the end of the after-reply capture;
+cues before a reply are saved with it). SillyTavern also saves the chat itself after each reply.
 
 ### SillyTavern's `backups.chat.throttleInterval`
 
 The backup is a full copy of the chat, throttled: at most one copy per interval (plus one at the end
 of the interval when saves came during it). The default, 10 seconds, is shorter than a reply, so in
-practice each reply costs one or two more full copies of the file on top of the saves.
-For weak servers, set it to **300000 (5 minutes)** in `config.yaml`:
+practice each reply costs one or two more full copies of the file on top of the saves (the b6 soak saw a
+43 MB copy every 10 s). For weak servers, set it to **300000 (5 minutes)** in `config.yaml`:
 
 ```yaml
 backups:
@@ -235,16 +182,20 @@ backups:
 
 That brings backup writes to about one per 5 minutes, whatever Story Suite and SillyTavern save in
 between, and still keeps a recent copy. With long chats also look at how many backups are kept
-(`backups.common.numberOfBackups`): each one is a full copy, 20–30 MB for a 3,000-reply chat. Check the
-names against your SillyTavern version's `default/config.yaml`; older versions used other keys.
+(`backups.common.numberOfBackups`): each one is a full copy, about 15 MB for a 3,000-reply chat. Check
+the names against your SillyTavern version's `default/config.yaml`; older versions used other keys. The
+guide says the same (docs/v2/GUIDE.md, "Slow disk?").
 
-## Recommended order
+## Memory of the caches
 
-1. **Checkpoints every 100 carriers / 128 KB** (spec number change only, no migration): −28% file.
-2. **Record kept once** (the `swipe_info` copy only on the last carrier): −38% file, after the
-   SillyTavern check above.
-3. **Fewer full-file writes**: fold the capture save into SillyTavern's own after-reply save, and set
-   `backups.chat.throttleInterval` to 300000 on weak servers.
+The store's own caches (the head state and the frozen copy of the checkpoint it started from) stay under
+100 KB at every length (62–92 KB here). The chat array SillyTavern holds is the real memory cost, and it
+is half the size it was.
 
-Together with op compaction and stripping old receipts' data, the file at 3,000 replies goes from 31.0 MB
-to 13.3 MB (0.55× v1's), and the bytes written per reply from ~100 MB to ~30 MB.
+## Possible later steps
+
+* Size the checkpoint interval by the state ("ops since the last checkpoint exceed 3 times its size"),
+  so a small state checkpoints more often and a large one less; the 2× rule above is a first step.
+* A shorter receipt for story captures with `narrate: false` (their change line is already in the
+  reply's hidden text).
+* The lossless op compaction above (−7%).

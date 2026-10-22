@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-    breakdown, compactOps, measureLoad, measureSwipe, relayout, runScenario, sameHead, singleCopy, stripOldReceipts, v1Size,
+    breakdown, compactOps, everyCopy, measureLoad, measureSwipe, relayout, runScenario, sameHead, stripOldReceipts, v1Size,
 } from '../tests/v2/bench/load.js';
 
 if (typeof globalThis.gc !== 'function' && !process.execArgv.includes('--expose-gc')) {
@@ -97,7 +97,7 @@ const chat = run.chat;
 const base = breakdown(chat);
 print(`## Tuning experiments (on the ${max}-reply chat)\n`);
 print('### Checkpoint rule\n');
-const rules = [[20, 32], [50, 32], [50, 64], [100, 64], [100, 128], [200, 256]];
+const rules = [[20, 32], [50, 64], [100, 128], [200, 256]];
 const ruleRows = [];
 for (const [every, limit] of rules) {
     const laid = relayout(chat, { every, bytes: limit * 1024 });
@@ -109,19 +109,16 @@ for (const [every, limit] of rules) {
 print(table(['Rule (every / ops bytes)', 'Checkpoints', 'Checkpoint bytes per reply', 'Chat file', 'Rebuild at load', 'Longest replay (a whole interval)', 'Rebuild after swipe', 'Same head'], ruleRows));
 print('');
 
-print('### Other reductions (each alone, then together)\n');
+print('### Other layouts (as built, what it was before, what was left out)\n');
+// As built: checkpoints every 100 carriers / 128 KB, each record kept once, receipts 200 carriers back
+// without data. "Before" puts back what the storage tuning took out, one part at a time.
 const variants = [
     ['as built', chat],
-    ['ops compacted (one /meta/rev per carrier, no replace overwritten later)', compactOps(chat)],
-    ['receipts older than 200 replies: data emptied', stripOldReceipts(chat, { keep: 200 })],
-    ['receipts older than 200 replies: data and summary emptied', stripOldReceipts(chat, { keep: 200, summaries: true })],
-    ['record kept once (swipe_info copy only on the last reply)', singleCopy(chat)],
-    ['checkpoint 100 / 128 KB', relayout(chat, { every: 100, bytes: 128 * 1024 })],
+    ['before: a copy in swipe_info on every reply', everyCopy(chat)],
+    ['before: checkpoints every 20 / 32 KB', relayout(chat, { every: 20, bytes: 32 * 1024 })],
+    ['not adopted: ops compacted (one /meta/rev per carrier, no replace overwritten later)', compactOps(chat)],
+    ['not adopted: old receipts\' summary emptied too', stripOldReceipts(chat, { keep: 200, summaries: true })],
 ];
-const together = singleCopy(stripOldReceipts(compactOps(relayout(chat, { every: 100, bytes: 128 * 1024 })), { keep: 200 }));
-variants.push(['all of the above (data only stripped)', together]);
-const togetherNoCopy = stripOldReceipts(compactOps(relayout(chat, { every: 100, bytes: 128 * 1024 })), { keep: 200 });
-variants.push(['all but "kept once"', togetherNoCopy]);
 const v1 = v1Size(chat);
 print(table(['Variant', 'Chat file', 'storySuite records', 'per reply', 'vs v1 file', 'Same head'], variants.map(([name, variant]) => {
     const sizes = breakdown(variant);
@@ -132,11 +129,9 @@ print('');
 print('### Bytes written per reply (SillyTavern rewrites the whole file on every save)\n');
 const written = (file, saves) => size(file * saves);
 const capture = last.savesPerReply.mean;
-const best = breakdown(togetherNoCopy).file;
-print(table(['At reply ' + max, 'File', 'Story Suite saves', '+ SillyTavern\'s own save', '+ one backup copy', 'Total per reply'], [
+print(table(['At reply ' + max, 'File (bytes per save)', 'Story Suite saves', '+ SillyTavern\'s own save', '+ one backup copy', 'Total per reply'], [
     ['v1 (3 KB block)', size(v1.file), '–', written(v1.file, 1), written(v1.file, 1), written(v1.file, 2)],
     ['v2 as built', size(base.file), written(base.file, capture), written(base.file, 1), written(base.file, 1), written(base.file, capture + 2)],
-    ['v2 tuned (checkpoints, compaction, receipts; one copy not counted), capture save folded into SillyTavern\'s', size(best), written(best, capture - 1), written(best, 1), written(best, 1), written(best, capture + 1)],
 ]));
 print('');
 

@@ -364,9 +364,9 @@ practice every reply costs one or two extra full copies of the file on top of th
 server (a Raspberry Pi, a cheap VPS, an SD card or a network disk) that is what makes long chats slow.
 
 What Story Suite's benchmark measured (docs/v2/PERFORMANCE.md, a 3,000-reply chat): the chat file is
-about **31 MB** as built (v1 with a 3 KB state block: 24 MB), and a reply writes about **100 MB** in
-full-file saves plus one backup copy (v1: 48 MB). The backup copy alone is one more full file per reply,
-**31 MB** at that length.
+about **15 MB** (v1 with a 3 KB state block: 24 MB), and a reply writes about **49 MB** in full-file
+saves plus one backup copy (v1: 48 MB). The backup copy alone is one more full file per reply, **15 MB**
+at that length, so on a slow disk it is one of the largest costs left.
 
 Raise the interval to **5 minutes or more** in SillyTavern's `config.yaml` (in SillyTavern's folder) and restart
 SillyTavern:
@@ -381,7 +381,7 @@ The value is in milliseconds (300000 = 5 minutes; the default is 10000). Backups
 per 5 minutes per chat, whatever Story Suite and SillyTavern save in between, and you still keep a recent
 copy. With long chats, also look at how many backups are kept: `backups.common.numberOfBackups` (default
 50 per chat) and `backups.chat.maxTotalBackups` (default -1, keep all). Each backup is a full copy of
-the chat, 20–30 MB for a 3,000-reply chat. These are the key names of SillyTavern 1.19's
+the chat, about 15 MB for a 3,000-reply chat. These are the key names of SillyTavern 1.19's
 `default/config.yaml`; older versions used other names (`chatBackupThrottleInterval`), which SillyTavern
 moves to the new ones on start.
 
