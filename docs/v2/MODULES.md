@@ -184,7 +184,8 @@ Screen: **Quests** (status text per quest: Not yet / Ready / Ready to turn in he
 
 ## D. NPC State Delta (agent NSD-hosted)
 No domain. When `globalThis.StoryBlock?.sdk` (v2) is present, NSD registers module `npc-state-delta` with
-queries `npc.present`, `npc.dossier({ name })`, `npc.known`, a **Cast** tab (its existing cards), and a
+queries `npc.present`, `npc.dossier({ name })`, `npc.known`, a **Dossiers** tab (id `cast`: its dossier list;
+the present cast's cards are on Story Director's World screen, F119, or at the top of Dossiers without it), and a
 settings `section` that mounts its existing settings panel; its drawer copy is hidden while hosted and
 comes back if the host goes away. NSD's own storage, capture and prompt keys are unchanged.
 
@@ -572,6 +573,10 @@ These settle questions agents raised; the host changes they need are made at int
     stripped from the history); the setting **Inner chatter: Send the last reply's thoughts back to the story**
     (`chatterInPrompt`, off) adds the thoughts of the reply the reader's latest message answered as one
     optional tail line. All text is drawn with textContent, flattened (no invisible or control characters).
+    Read-only query **`chatter.head`** → the newest reply's chatter as `[{ name, text }]` (the last message
+    that is not the reader's or a system one, after the reader's first; its shown swipe), read the same way
+    the strip reads it (extras.js displayLines); `[]` when it has none, `null` while `story-block.chatter` is
+    off. Story Director's World screen puts each thought under the person who had it (F119).
 
 ### User decisions from live test #4 (2026-10-22, F116–F118)
 
@@ -598,6 +603,35 @@ These settle questions agents raised; the host changes they need are made at int
     cleaning applies). Never chat text: no message is read for its words, and quoted text in a Problem or an
     error keeps only its length. NPC State Delta's section: scanner route and profile, call counts, the last
     call's outcome, dossier counts (no names). `src/v2/diagnostics.js`.
+
+### User decisions from the beta live test (2026-10-22, F119)
+
+119. **The people here are on the World screen; NPC State Delta's Cast becomes Dossiers, last** ("Cast becomes
+    redundant when present is already present character in world tab"; "the World tab character part should
+    inherit what Cast is doing and include the inner chatter"; "the NSD link doesn't refresh until I change
+    tab"). Story Director's World → Now → Here (widget `story-director.people`, bound to
+    `director.world.here`) draws, with NPC State Delta installed and on, NSD's own present-cast cards (the now
+    lines, chatter bubbles and meters its Cast tab drew, NSD's markup and classes), through a small page API NSD
+    offers (`globalThis.NPCStateDeltaCast`: `available()`, `render(el, { slot })`, `onChange(fn)` → off);
+    without it, plain chips. Under each person, their thought from the newest reply's Inner chatter
+    (`chatter.head`, F115), matched by name the way the chatter strip links a dossier (`npc.dossier` knows the
+    name or alias, else the same name). The cards and dossier links follow NSD's changes (a scan that ends after
+    the reply, a dossier added) through `onChange`, and the screen redraws on `head` and `committed` as before,
+    so no tab switch is needed; a redraw is one query and the few cards, never a pass over the chat.
+    NPC State Delta's Cast tab and screen are titled **Dossiers** and are the dossier browser (every dossier,
+    with search, each opening its dossier view); their id stays `npc-state-delta/cast`, so a reader's saved
+    tab order still finds it. Its default place is **last**, after the Director (`screens.js` DEFAULT_ORDER
+    `cast: 210`); a saved order keeps the place it gives. Without Story Director, Dossiers keeps the present
+    cast's cards at the top, so nothing is lost. The chatter strip under each reply stays as it is.
+    **Scene is hidden by default while World is there** ("is Scene doing the same thing as World?": it is):
+    Story Block's `story-block/scene` (place, kind, region, story time, the people with portraits) leaves the
+    tab strip and the game view's navigation while `story-director/world` is registered (`screens.js`
+    DEFAULT_HIDDEN), and World → Now → Here shows all of it: the place with its kind and region, "moved this
+    reply" (new read-only query `scene.moved` → true while the head reply's receipts moved the place), the story time while Story Director keeps a clock, the people (portraits on NSD's cards, else names
+    with their thought). Settings → Tabs still lists Scene, hidden, to show again; the reader's choice wins:
+    `storySuite.tabs.shown` keeps one they showed, `hidden` one they hid, and an order saved before `shown`
+    existed that names Scene counts as showing it. Without Story Director, Scene shows as before. Home's scene
+    panel is unchanged.
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 

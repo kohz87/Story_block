@@ -686,7 +686,8 @@ sdk.registerModule({
   * Story Block's own: `story-block.hud` (the status strip, on), `story-block.cards` (the cards under
     replies, on; each card screen keeps its own switch), `story-block.preroll` (needs the `check` kind)
     and `story-block.extractor` (the assist helpers, off), `story-block.choices` and `story-block.chatter`
-    (the display kinds `choice` and `chatter`, off; §4.4, MODULES §F115). The older switches (`storySuite.hud`, the
+    (the display kinds `choice` and `chatter`, off; §4.4, MODULES §F115; the read-only query `chatter.head`
+    gives the newest reply's chatter, `[{ name, text }]`, `null` while it is off, §F119). The older switches (`storySuite.hud`, the
     `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
   * A module without `features` behaves as before. On a host older than features, `features` and the
     `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:
@@ -732,7 +733,8 @@ Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `pres
 stored kind, and a move to another place takes the kind a pack gives a place of that name or alias
 (`packs.content({ kind: 'places' })`), else none: never the old place's. The region is kept unless the line
 gives one. Only an explicit empty value (`kind:` with nothing after it) clears one. After a move only those
-named in `with:` are present.
+named in `with:` are present. Queries `scene.place`, `scene.present` and `scene.moved` (true while the head
+reply's receipts moved the place; MODULES §F119).
 
 ### inventory
 ```js
@@ -1087,9 +1089,10 @@ own colours.
 | `dialog` | a modal; wizards | head + draft |
 
 The `tab` and `screen` mounts share one navigation order: Home first, then the suite's own screens in their
-default order (Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, Cast, Scene, Chronicle, Director
-last), other screens by their `order` (a number, lower first). The reader's own order and hidden tabs
-(Settings → Story Suite → Tabs, `extension_settings.storySuite.tabs = { order, hidden }`) apply to both; a
+default order (Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, Scene, Chronicle, Director, and
+NPC State Delta's Dossiers, id `npc-state-delta/cast`, last; MODULES §F119), other screens by their `order` (a number, lower first). Scene starts hidden while Story Director's World is registered (World → Now shows
+the same; MODULES §F119). The reader's own order and hidden tabs (Settings → Story Suite → Tabs,
+`extension_settings.storySuite.tabs = { order, hidden, shown }`; `shown`: default-hidden ones shown again) apply to both; a
 module tab goes by `<module>/<tab id>` there. Form controls inside any mount take SillyTavern's theme colours
 (`controls.css`); a screen's own CSS for its fields still wins.
 

@@ -287,8 +287,14 @@ stays in the list under Finished. New jobs come at a calm pace; a passer-by stay
 ### The World screen and your journal
 
 The **World** tab (also in the full-screen view) shows only what your character knows, in two views.
-**Now**: where you are and who is here (with NPC State Delta, each person is a chip with how they stand
-toward you; tap it to open their dossier), the news, events and factions you have learned of, newest
+**Now**: where you are (the place, its kind and region, marked when the last reply moved you there; the
+story time is at the top) and who is here. With NPC State Delta on, the people here are its own cards, the
+ones its Cast tab used to show (portrait, mood, condition and outfit, meters); tap one to open the dossier.
+Someone the scene lists but Delta has no dossier for yet is a name below the cards. Without NPC State Delta,
+each person is a name. With **Inner chatter** on, each person's unspoken thought from the latest reply sits
+in their card or under their name (the strip under the reply stays too). It all follows the story as it
+goes: a new reply, a swipe, a delete, or NPC State Delta finishing a scan, with no need to switch tabs.
+Then the news, events and factions you have learned of, newest
 first, and what you know is coming in the next 30 story days: your quests' due dates, dated events and
 leads the story told you, and your pack's holidays. **Journal**: one entry per story day, newest first:
 where you went, who you met, the news, quests taken on and finished, fights, money, and which people's
@@ -526,9 +532,12 @@ The same screens can show in five places:
 ### Your order of tabs
 
 The tabs and the game view's screens come in one order: **Home** (game view), **Party**, **Inventory**,
-**Quests**, **World**, **Map**, **Fight**, **Crafting**, **Trade**, **Cast**, **Scene**, **Chronicle**
-(when it is on), then any other extension's screens, and **Director** last (the game master's view, with
-what your character has not been told). Only the installed extensions' tabs show.
+**Quests**, **World**, **Map**, **Fight**, **Crafting**, **Trade**, **Scene**, **Chronicle**
+(when it is on), then any other extension's screens, **Director** (the game master's view, with
+what your character has not been told), and NPC State Delta's **Dossiers** last (the people present are on
+the World screen). An order you saved before keeps Dossiers where you put Cast. With Story Director
+installed, **Scene** starts hidden: World → Now shows the same place, time and people. It is still listed in
+Settings → Story Suite → Tabs to show again (and an order you saved before with Scene in it keeps it). Only the installed extensions' tabs show.
 
 Change it in **Settings → Story Suite → Tabs**: every tab and screen of every installed extension, one row
 each, with where it shows (*Story panel and game view*, or one of them). **Up** and **Down** move one

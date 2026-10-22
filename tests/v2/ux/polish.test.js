@@ -20,14 +20,14 @@ const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta
 
 // ---- navigation order -----------------------------------------------------------------------------
 
-test('screenOrder: Home first whatever it says; then the suite\'s default order; the Director last', () => {
+test('screenOrder: Home first whatever it says; then the suite\'s default order; the Director, then Dossiers, last', () => {
     assert.equal(screenOrder(HOME_ID), 0);
     assert.equal(screenOrder(HOME_ID, 99), 0, 'a pack or reader version of Home cannot move it down');
     const suite = ['rpg-battle/party', 'story-block/inventory', 'story-director/quests', 'story-director/world', 'story-director/map',
-        'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'npc-state-delta/cast', 'story-block/scene',
-        'story-director/chronicle', 'story-director/director'];
-    assert.deepEqual(suite.map(id => screenOrder(id)), [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 200]);
-    assert.equal(screenOrder('npc-state-delta/cast', 35), 90, 'the suite\'s own keep their default place whatever order they say');
+        'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'story-block/scene',
+        'story-director/chronicle', 'story-director/director', 'npc-state-delta/cast'];
+    assert.deepEqual(suite.map(id => screenOrder(id)), [10, 20, 30, 40, 50, 60, 70, 80, 100, 110, 200, 210]);
+    assert.equal(screenOrder('npc-state-delta/cast', 35), 210, 'the suite\'s own keep their default place whatever order they say (Dossiers, once Cast at 35, last)');
     assert.equal(screenOrder('a/b'), REST_ORDER);
     assert.ok(REST_ORDER > screenOrder('story-director/chronicle') && REST_ORDER < screenOrder('story-director/director'), 'others go before the Director');
     assert.equal(screenOrder('mypack/party'), 10, 'another screen takes the default place of its last part');

@@ -125,7 +125,7 @@ export const SETTINGS_TEXT = Object.freeze({
 export const TABS_TEXT = Object.freeze({
     title: 'Tabs',
     hint: 'order, show or hide',
-    help: 'The order of the Story panel\'s tabs and the game view\'s screens, one list for both. Up and Down move one; a hidden one leaves the tabs and the game view and stays here to show again. Home is always first and always shown.',
+    help: 'The order of the Story panel\'s tabs and the game view\'s screens, one list for both. Up and Down move one; a hidden one leaves the tabs and the game view and stays here to show again. Home is always first and always shown. Scene starts hidden while Story Director\'s World is installed (its Now shows the same place, time and people).',
     none: 'No module has a tab or a screen yet.',
     listLabel: 'Tabs and screens, in order',
     up: 'Up',
