@@ -22,6 +22,12 @@ test('ranges a pack may give', () => {
         ['2.0.0-alpha.10', '>2.0.0-alpha.9', true], ['2.0.0-beta', '>2.0.0-alpha.9', true], ['2.0.0', '>2.0.0-alpha.9', true],
         ['2.0.0-alpha', '<2.0.0-alpha.1', true], ['3.0.0-alpha.1', '^2', false], ['3.0.0-alpha.1', '<3', false],
         ['2.0.0-alpha.2', '=2.0.0-alpha.2', true], ['2.0.0-alpha.2', '2.0.0', false],
+        // The beta (2.0.0-beta.1): after every alpha, before the release; modules ask for >=2.0.0-beta.1.
+        ['2.0.0-beta.1', '>=2.0.0-alpha.2', true], ['2.0.0-beta.1', '>=2.0.0-beta.1', true],
+        ['2.0.0-alpha.2', '>=2.0.0-beta.1', false], ['2.0.0-alpha.10', '>=2.0.0-beta.1', false],
+        ['2.0.0-beta.2', '>=2.0.0-beta.1', true], ['2.0.0-beta.10', '>2.0.0-beta.9', true],
+        ['2.0.0', '>=2.0.0-beta.1', true], ['2.0.0-beta.1', '>=2.0.0', false], ['2.0.0-beta.1', '<2.0.0', true],
+        ['2.0.0-rc.1', '>=2.0.0-beta.1', true], ['2.0.0-beta', '>=2.0.0-beta.1', false],
     ];
     for (const [version, range, expected] of table) assert.equal(satisfies(version, range), expected, `${version} in ${range}`);
 });
