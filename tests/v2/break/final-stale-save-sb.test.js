@@ -99,7 +99,8 @@ test('a read-back that hangs holds neither a command nor its save', async t => {
     assert.equal(h.store.dirty(), false);
 });
 
-test('createSaver: an older file found by the read-back is written again; other chats are not read', async () => {
+// A saver on hand-run timers: `run(filter)` fires the first pending timer it matches.
+function harness({ memo = null } = {}) {
     const pending = [];
     const timers = {
         setTimeout: (fn, ms) => { const job = { fn, ms }; pending.push(job); return job; },
@@ -107,27 +108,33 @@ test('createSaver: an older file found by the read-back is written again; other 
     };
     const run = async (filter = () => true) => {
         const job = pending.find(filter);
+        assert.ok(job, 'a timer is pending');
         pending.splice(pending.indexOf(job), 1);
         job.fn();
         for (let i = 0; i < 10; i++) await settle();
         return job;
     };
-    let hang = true;
-    const saves = [];
-    const holds = [];
-    let open = 'a';
-    let fileHolds = true;
+    const state = { hang: true, saves: [], holds: [], restores: [], open: 'a', fileHolds: true, fresh: true, stamp: 100 };
     const saver = createSaver({
-        timers, timeout: 20000, recheck: [10, 20],
-        target: () => ({ chatId: open }),
-        check: change => (change.chatId === open ? '' : { moved: 'another chat' }),
-        save: (change, { signal } = {}) => {
-            saves.push(change.chatId);
-            if (hang) { hang = false; return new Promise((_, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted')))); }
-            return Promise.resolve();
+        timers, timeout: 20000, recheck: [10, 20], memo,
+        target: () => ({ chatId: state.open, place: { chatId: state.open } }),
+        check: change => (change.chatId === state.open ? '' : { moved: 'another chat' }),
+        save: (change, { signal, stamp } = {}) => {
+            state.saves.push([change.chatId, stamp === true]);
+            if (state.hang) { state.hang = false; return new Promise((_, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted')))); }
+            return Promise.resolve(stamp ? { stamp: ++state.stamp } : null);
         },
-        confirm: { mark: () => saves.length + 100, holds: async (change, token) => { holds.push([change.chatId, token]); return fileHolds; } },
+        confirm: {
+            holds: async (change, stamp) => { state.holds.push([change.chatId, stamp]); return state.fileHolds; },
+            fresh: () => state.fresh,
+            restore: async (change, stamp) => { state.restores.push([change.chatId, stamp]); return true; },
+        },
     });
+    return { saver, run, state, pending };
+}
+
+test('createSaver: an older file is saved again while open, put back from the copy once another chat is open', async () => {
+    const { saver, run, state } = harness();
     saver.touch();
     const first = saver.saveSoon();
     await settle();
@@ -135,17 +142,48 @@ test('createSaver: an older file found by the read-back is written again; other 
     assert.equal(await first, false);
     assert.equal(saver.suspect(), true);
     await run(job => job.ms === 1000);          // the retry, stamped
+    assert.deepEqual(state.saves, [['a', false], ['a', true]]);
     assert.equal(saver.dirty(), false);
-    fileHolds = false;                           // the late write landed
+    state.fileHolds = false;                    // the late write landed
     await run(job => job.ms === 10);
-    assert.deepEqual(holds, [['a', 101]], 'the stamp the retry carried');
-    assert.deepEqual(saves, ['a', 'a', 'a'], 'written again at once');
-    assert.equal(saver.dirty(), false);
-    fileHolds = true;
-    open = 'b';                                  // another chat now: its file is not read
-    saver.touch();
-    await saver.saveSoon();
+    assert.deepEqual(state.holds, [['a', 101]]);
+    assert.deepEqual(state.saves.at(-1), ['a', true], 'the open chat written again at once, stamped');
+    // Another chat open now; the late write lands again: chat a's file gets the copy back.
+    state.open = 'b';
+    await run(job => job.ms === 10);
+    assert.deepEqual(state.holds.at(-1), ['a', 102], 'chat a is read although b is open');
+    assert.deepEqual(state.restores, [['a', 102]]);
+    state.fileHolds = true;
+    await run(job => job.ms === 10);
     await run(job => job.ms === 20);
-    assert.equal(holds.length, 1);
     assert.equal(saver.suspect(), false, 'the read-backs are over');
+    assert.equal(state.saves.filter(([id]) => id === 'b').length, 0, 'chat b was never written');
+});
+
+test('createSaver: a rename moves the read-backs; a reload of the page goes on with them (memo)', async () => {
+    const store = new Map();
+    const memo = { get: id => store.get(id) ?? null, set: (id, value) => (value ? store.set(id, structuredClone(value)) : store.delete(id)) };
+    const { saver, run, state } = harness({ memo });
+    saver.touch();
+    saver.saveSoon();
+    await settle();
+    await run(job => job.ms === 20000);
+    await run(job => job.ms === 1000);
+    assert.deepEqual(store.get('a'), { good: 101, step: 0, place: { chatId: 'a' } });
+    state.open = 'a2';
+    assert.equal(saver.renamed('a', 'a2'), true);
+    assert.equal(store.has('a'), false);
+    assert.equal(store.get('a2').place.chatId, 'a2');
+    state.fileHolds = false;
+    await run(job => job.ms === 10);
+    assert.deepEqual(state.holds, [['a2', 101]], 'read under its new name');
+    // A new page (F5) on the same chat: the memo's read-backs go on.
+    const next = harness({ memo });
+    next.state.open = 'a2';
+    next.state.fileHolds = false;
+    assert.equal(next.saver.resume({ chatId: 'a2', place: { chatId: 'a2' } }), true);
+    await next.run(job => job.ms === 10);
+    assert.deepEqual(next.state.holds, [['a2', store.get('a2')?.good ?? 102]]);
+    assert.deepEqual(next.state.saves.at(-1), ['a2', true], 'saved again from the reloaded chat');
+    assert.equal(next.saver.resume({ chatId: 'zz' }), false, 'nothing kept for another chat');
 });

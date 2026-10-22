@@ -796,6 +796,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         session = null;
         clearPrompts();
         rebuild();
+        // A1-2: read-backs of a write that timed out before a reload of the page go on.
+        try { store.resume?.(); } catch { /* only a guard */ }
         // A cue left for the reply's save (runCues) whose reply will not come here: saved now (into its
         // own chat's file when this is another chat, the store's rescue).
         if (deferred) {
