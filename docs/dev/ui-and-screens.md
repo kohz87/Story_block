@@ -395,7 +395,7 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   receipt are the mount's own.
 
 Solid draws each of these with the palette's opaque glass (the same tokens with no blur); Follow SillyTavern draws them with
-SillyTavern's own colours. The HUD strip and the dialog mount keep their old look under both (the glass is Glass only).
+SillyTavern's own colours. The dialog's buttons take the action pills under every panel style; the dialog panel and the HUD strip keep their old look under Solid and Follow SillyTavern (the glass is Glass only).
 
 ## Key files and functions
 

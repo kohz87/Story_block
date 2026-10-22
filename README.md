@@ -51,7 +51,7 @@ is off is gone from the story; nothing it made is lost.
   Modules add their own lines, such as RPG Battle's checks with the die and its bonuses.
 - **Status strip** above the message box (`story-block.hud`, on) and **Save points** on Home
   (`story-block.savepoints`, on). The read-only **State inspector** is off (`story-block.inspector`).
-- **Choices** (`story-block.choices`, off): two to four next moves as buttons under the latest reply.
+- **Choices** (`story-block.choices`, off): two to four next moves under the latest reply, in a folded row (open it to see the buttons).
   **Inner chatter** (`story-block.chatter`, off): unspoken thoughts, shown on World, or on Scene without Story Director.
 - **Assist safety net** (*Safety net: read changes the reply forgot*, `story-block.extractor`, **off**): one cheap
   call after each reply keeps time, place, who came or went, weather, quest progress or a hand-over the story

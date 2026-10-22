@@ -38,7 +38,7 @@ The first beta. In short, what changed for you (the full list is in
   and you review it before it is used. People's plans, planned beats, clocks and secrets stay hidden on the
   Director tab until you press **Reveal**. See [Arc planning](#arc-planning-and-what-stays-behind-the-scenes).
 * **Back from v1**: HP and MP come back with story time; the story can award experience (`+ xp major`);
-  **Choices** (next moves as buttons that fill your message box) and **Inner chatter** (the people's
+  **Choices** (next moves, in a folded row under the latest reply, that fill your message box) and **Inner chatter** (the people's
   unspoken thoughts, next to each person on the World screen), both off until you turn them on; the
   **weather** in a few words on Scene, Home and the reply's Status card (on).
 * **Things and money**: gear wears and can be repaired and refined; crafting; one bag for the whole
@@ -583,8 +583,8 @@ when it comes back.
 
 Two extras from Story Block v1, each off until you turn it on in **Features**:
 
-* **Choices**: the story ends its reply with 2 to 4 short next moves, shown as buttons under the latest
-  reply. A click puts the words in your message box (after anything you already typed) and does nothing
+* **Choices**: the story ends its reply with 2 to 4 short next moves. Under the latest reply they are a row
+  labelled Choices with a count; it is folded until you open it, then each move is a button on its own line. A click puts the words in your message box (after anything you already typed) and does nothing
   else: you still send it, change it or write something of your own. Nothing happens in the story until
   you send. Once you answer, the buttons go; an older reply shows none.
 * **Inner chatter**: short unspoken thoughts of the people in the scene (at most 3 a reply), shown next

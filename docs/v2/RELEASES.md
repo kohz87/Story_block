@@ -141,7 +141,7 @@ updated.
 **Back from v1** (RPG Battle #109; Story Block #127; NPC State Delta #195)
 - HP and MP come back with story time (Story Director's clock); 6 hours or more is a full rest. Feature, on.
 - Story XP awards: `+ xp minor|major|milestone — why`; code sets the amount, at most one big and two small a reply.
-- **Choices** (next moves as buttons that only fill your message box) and **Inner chatter** (unspoken thoughts in a folded strip), both off.
+- **Choices** (next moves in a folded row under the latest reply, that only fill your message box) and **Inner chatter** (unspoken thoughts in a folded strip), both off.
 - NPC State Delta's Cast in the game view; while hosted it shows Story Director's story date and counts its own prompt in Story Block's prompt size (NPC State Delta #197).
 
 **Making your character, settings and diagnostics** (RPG Battle #99, #103; Story Block #114, #116, #117, #124; NPC State Delta #196)
