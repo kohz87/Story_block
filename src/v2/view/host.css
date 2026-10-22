@@ -300,23 +300,35 @@ body.story-suite-open { overflow: hidden; }
 .story-suite-drawer-buttons .menu_button { width: auto; display: inline-flex; gap: 6px; align-items: center; }
 .story-suite-hud-toggle { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
 
-/* ---- the notes under a reply (src/v2/reply-notes.js): quiet, one line, on the theme ---- */
+/* ---- the notes under a reply (src/v2/reply-notes.js): one glass row, as Reply.dc.html's card: the icon in a tile, the
+   line, Re-read as a pill. The note is a theme root (the tokens reach it under Glass, Solid and Follow SillyTavern). ---- */
 .story-suite-reply-note {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 4px 0 2px; padding: 3px 8px;
-    border-radius: 6px; border: 1px dashed var(--story-suite-line);
-    font-size: 0.85em; color: var(--story-suite-fg); opacity: 0.8;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+    margin: 6px 0 4px; padding: 8px 12px; box-sizing: border-box;
+    border-radius: var(--ss-radius-m, 14px); border: 1px solid var(--ss-border, var(--story-suite-line));
+    background: var(--ss-glass, transparent); -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none);
+    color: var(--ss-text, var(--story-suite-fg)); font-family: var(--ss-font, inherit); font-size: 0.9em;
     animation: story-suite-fade-in 0.2s ease-out;
 }
-.story-suite-reply-note[data-kind="missing"] > i { color: var(--story-suite-accent); }
-.story-suite-reply-note-text { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.story-suite-reply-note > i {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: var(--ss-radius-s, 10px);
+    background: var(--ss-tile, transparent); color: var(--ss-muted, inherit);
+}
+.story-suite-reply-note[data-kind="missing"] > i { color: var(--ss-accent, var(--story-suite-accent)); }
+.story-suite-reply-note-text { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; color: var(--ss-muted, inherit); }
 .story-suite-reply-note-reread {
-    flex: 0 0 auto; padding: 1px 10px; border-radius: 6px; cursor: pointer; font: inherit;
-    color: inherit; background: transparent; border: 1px solid var(--story-suite-line);
+    flex: 0 0 auto; min-height: 30px; padding: 0 12px; cursor: pointer; font: inherit; font-weight: 600;
+    border-radius: var(--ss-radius-pill, 999px); border: 1px solid var(--ss-border, var(--story-suite-line));
+    background: var(--ss-tile, transparent); color: var(--ss-text, inherit);
     transition: border-color 0.15s ease, color 0.15s ease;
 }
-.story-suite-reply-note-reread:hover, .story-suite-reply-note-reread:focus-visible { border-color: var(--story-suite-accent); color: var(--story-suite-accent); }
+.story-suite-reply-note-reread:hover, .story-suite-reply-note-reread:focus-visible {
+    border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-accent, var(--story-suite-accent));
+}
 .story-suite-reply-note-reread[disabled] { cursor: progress; opacity: 0.7; }
-.story-suite-reply-note-error { flex: 1 1 100%; color: var(--story-suite-accent); }
+.story-suite-reply-note-error { flex: 1 1 100%; color: var(--ss-accent, var(--story-suite-accent)); }
 .story-suite-reply-note-error[hidden] { display: none; }
 
 /* ---- Choices under a reply (src/v2/extras-ui.js, MODULES §F115) ---- */
