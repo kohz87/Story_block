@@ -718,6 +718,46 @@ These settle questions agents raised; the host changes they need are made at int
     Problem naming the chat's money, never 40 pennies (money.js `foreignCoin`, `parseAmount`). With coins,
     a word that is not one of them was already refused (F108). Story Director reads rewards by the same rule.
 
+### Beta request: Assist safety net and one queue per connection (2026-10-22, F123)
+
+123. **The Assist extractor is a safety net for change lines the reply missed** (the reader plays on a fast,
+    cheap model that narrates time passing, a move, an arrival, the weather, a quest handed in or an item
+    handed over, and leaves them out of `<Changes>`). Feature `story-block.extractor` (F100, **off** by
+    default; label "Safety net: read changes the reply forgot"), its own profile `assistExtractorProfile`
+    (empty: the Assist profile). *When:* after **every** captured reply (not quiet, impersonate or a
+    Continue), once per carrier and swipe: one cheap call per reply. *What it reads:* the reply's story text,
+    its own change lines (sent so it proposes only what they miss) and the grammar of the allowed kinds.
+    *What it may write:* only the kinds of the setting `assistExtractorKinds` (default
+    `! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item`), and under
+    any setting never value (src/v2/assist/safety.js): no coin kind, no `+` of item, coin, loot, XP, reward,
+    join or skill, no `?` line, no `heal:`/`reward:`/`price:` label. A turn-in (`- quest`) is still checked by
+    its owner (goal, place, budget, F121); `- item` only moves or removes what the party holds (the owner
+    refuses the rest). *No duplicates:* a line the reply's lines already hold (C-1's matching, capture.js
+    `sameChangeLine`, or the same op, kind and name) is dropped. *How it applies:* as story lines on that
+    reply after its own (cause `story`, same capture rules, claims and the reply's `maxChangeLines` cap),
+    receipt `assist: 'now'` and `assistLine`; Problems they meet are marked `assist` and start "(assist)";
+    the reply's changes card lists them with "(assist)". *Stored with the reply:* the lines go to the hidden
+    comment as `<Changes-assist>` (capture.js `withAssist`, `assistSections`), never read as the reply's own
+    block. **Re-read uses the stored lines and never calls the model again**; replay applies stored ops; a swipe
+    is a new reply (read once). *Timing:* a send waits for a run still reading the last reply at most
+    `ASSIST_WAIT_MS` (1.5 s, turn.js); an answer within it applies on that reply before the next prompt is
+    built. An answer after it is stored on that reply as `<Changes-assist-next>` through a stricter wall (no
+    coin, not even as an item name; nothing added but `+ present`; no turn-in) and applied on the **next**
+    reply right after its own lines, receipt `assist: 'late'`, shown "(assist, from the previous reply)"; Re-read
+    and swipes of that next reply read them from the stored section again. An answer after the next reply
+    was captured, or for a reply swiped or deleted meanwhile, is not used. (We used the existing assist path,
+    story lines through the turn's capture, rather than an `afterCapture` system step, so the lines keep the
+    story caps and claims and a turn-in step of F121 sees them.)
+124. **One queue per connection for Story Suite's own model calls** (Delta's scan, the arc planner and Assist
+    collided on single-slot local servers). `createCallQueue` (model-call.js): calls on the same named
+    profile run one at a time in the order they came, each with its own time limit and signal (a call that
+    times out or is cancelled while waiting leaves the queue and is never made; a running one frees its place
+    when it ends or is cancelled); different profiles run side by side. The chat's connection has its own lane,
+    entered only after the turn's `whenIdle` wait, so a reply in progress never holds it. The assist helpers'
+    calls now go through `sdk.callModel`'s rules and this queue too (as the host's own call, without the idle
+    wait). Host setting **`callQueue`** "Run extra calls one at a time per connection" (default on);
+    Diagnostics → "Model calls" shows how many wait now and how long calls waited (counts and times only).
+
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
 For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster
@@ -752,6 +792,8 @@ const result = await sdk.callModel({
   had before the call), `BAD_REQUEST` (no prompt text, or a system that is not text), `NO_PROFILE`, `EMPTY` (the
   model answered nothing), `UNAVAILABLE` (no SillyTavern, no generateRaw), `FAILED` (anything else; the message
   holds the first line of SillyTavern's reason, cut at 160, with key-like runs masked).
+- **One call at a time per connection** (F124): calls on the same profile from different modules wait their
+  turn in order (the wait counts toward the time limit); the host setting `callQueue` turns this off.
 - **One call in flight per module**: a second while the first is on its way is refused with `BUSY`, not
   queued (retry when the first answers). The module is `module`, else the owner of `feature`; callers that
   name neither share one slot. Modules do not hold each other up.

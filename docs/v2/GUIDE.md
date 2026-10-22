@@ -141,10 +141,23 @@ blocks, turn those off in the preset: v2 doesn't read them.
 When nothing changed, the model leaves the block out. A reply without it gets a small note under its
 text: *No change lines came with this reply, so nothing in it changed the story.* That's fine when
 nothing happened. If something did (you picked up a rope, paid the ferryman), edit the reply, add the
-lines in a `<Changes>` block at its end, and press **Re-read** on the note. With the after-reply
-extractor on (Story Suite settings → **Features** → *Read changes from replies that forgot them*), the
-extractor reads such replies instead and the note doesn't show, unless its call fails (an error or a
-time-out): then nobody read the reply and the note comes back.
+lines in a `<Changes>` block at its end, and press **Re-read** on the note. With the safety net on (Story
+Suite settings → **Features** → *Safety net: read changes the reply forgot*), it reads such replies instead
+and the note doesn't show, unless its call fails (an error or a time-out): then nobody read the reply and
+the note comes back.
+
+**The safety net (Assist).** Turn it on when your model tells things in the story but often leaves them out
+of its change lines: the time passing, a move to a new place, who arrived or left, the weather, a quest
+handed in ("slammed the pelt on Elula's counter"), an item handed over. After each reply it makes **one
+cheap extra model call** (pick a cheaper model in **Assist** → *Connection profile for the safety net*), and
+keeps only what the story clearly showed and the reply's own lines didn't already say. It never adds coin,
+items or XP: by default it may write time, place, who is here, weather, quest progress or a turn-in (still
+checked like any turn-in), wounds and conditions, and an item handed over or used up (*Kinds the safety net
+may write*). Its lines are marked **(assist)** on the reply's card and in the Problems list. If you send
+before it has finished, your message waits at most a moment; what it finds later is applied with your next
+reply, marked **(assist, from the previous reply)**, and never moves coin. Re-read and swipes use what it
+found the first time; it never asks the model again for the same reply. Leave it off with a model that
+writes its change lines well: it costs a call per reply.
 
 Lines the extensions couldn't use are listed faintly at the bottom of that reply's card, with the
 reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the inventory.*
@@ -694,6 +707,10 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
 * **Features**: every optional part of every extension, each with an on/off switch and a line saying
   what it does (see below).
 * Each module has its own section (combat, the story clock and calendar, NPCs).
+* **Run extra calls one at a time per connection** (on by default): Story Suite's own model calls (NPC
+  State Delta's scan, the arc planner, Assist) take turns when they use the same connection profile, so a
+  local server that answers one request at a time is never asked twice at once. Diagnostics shows how many
+  wait and how long.
 * **Assist** (in Story Block's fold): **Connection profile for these calls**, the profile the two helpers'
   extra calls use (a cheaper model, say): *Same as chat*, or one of SillyTavern's Connection Manager
   profiles. With no profile yet it says so: make one in SillyTavern's Connection Manager
