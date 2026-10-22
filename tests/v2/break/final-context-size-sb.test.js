@@ -11,7 +11,8 @@ import { DEFAULT_CONTEXT_SHARE, MIN_TAIL_BUDGET, assemble, contextFit, contextNo
 import { contextRoom } from '../../../src/v2/turn.js';
 import { createRegistry } from '../../../src/v2/registry.js';
 import { createSettings } from '../../../src/v2/sdk.js';
-import { SETTINGS_TEXT, renderSettingsHost } from '../../../src/v2/host-ui.js';
+import { SETTINGS_TEXT } from '../../../src/v2/host-ui.js';
+import { createPromptReader, renderPromptCard } from '../../../src/v2/view/settings/prompt.js';
 import { installFakeDom } from '../../ui-fake-dom.js';
 
 // A module with a big static part (`words` × 5 characters) and a long tail: 4 required lines, 150 optional.
@@ -147,7 +148,7 @@ test('the settings\' prompt size shows the context size, the share and the notic
     const parts = [{ module: 'story-suite', place: 'static', text: 'x'.repeat(4000) }, { module: 'story-suite', place: 'tail', text: 'y'.repeat(400) }];
     const fit = contextFit({ size: 2000, reply: 300, room: 1700 }, 1000, {});
     const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc, promptParts: () => ({ parts, fit }) });
+    renderPromptCard(root, { doc, settings, reader: createPromptReader({ registry, settings, promptParts: () => ({ parts, fit }) }) });
     const size = root.querySelector('.story-suite-size');
     const rows = size.querySelectorAll('.story-suite-size-sum > li').map(li => [li.querySelector('span').textContent, li.querySelector('b').textContent]);
     assert.deepEqual(rows.slice(0, 2), [
@@ -158,7 +159,7 @@ test('the settings\' prompt size shows the context size, the share and the notic
     assert.match(rows[3][1], new RegExp(`of ${MIN_TAIL_BUDGET}$`), 'the tail budget the context leaves');
     // An older source (parts only): no context lines, a note instead.
     const old = doc.createElement('div');
-    renderSettingsHost(old, { registry, settings, doc, promptParts: () => parts });
+    renderPromptCard(old, { doc, settings, reader: createPromptReader({ registry, settings, promptParts: () => parts }) });
     assert.equal(old.querySelector('.story-suite-size-warn'), null);
     assert.equal(old.querySelector('.story-suite-size-context-unknown').textContent, SETTINGS_TEXT.size.contextUnknown);
 });

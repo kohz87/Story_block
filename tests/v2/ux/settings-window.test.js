@@ -5,9 +5,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { setupDom } from '../view/mounts/helpers.js';
-import { DIAGNOSTICS_FOLD, FEATURES_FOLD, OPEN_CLASS, PACKS_FOLD, SETTINGS_TEXT, TABS_FOLD, VERSIONS_FOLD, featuresFoldOf } from '../../../src/v2/host-ui.js';
+import { DIAGNOSTICS_FOLD, FEATURES_FOLD, HOST_FOLD, OPEN_CLASS, PACKS_FOLD, SENT_FOLD, SETTINGS_TEXT, TABS_FOLD, VERSIONS_FOLD, featuresFoldOf } from '../../../src/v2/host-ui.js';
 import { FORM_TEXT } from '../../../src/v2/view/form/schema.js';
 import { SECTION_BODIES, createLegacySettings } from '../../../src/v2/view/settings/bodies.js';
+import { PROMPT_FOLD } from '../../../src/v2/view/settings/prompt.js';
 import { filterPane } from '../../../src/v2/view/settings/search.js';
 import { DEFAULT_SECTION, LOOK_KEYS, SECTION_IDS, SETTINGS_SECTIONS, WINDOW_TEXT, opensByDefault, routeOf } from '../../../src/v2/view/settings/sections.js';
 import { openSettingsWindow } from '../../../src/v2/view/settings/window.js';
@@ -103,7 +104,7 @@ test('the frame: a dialog with the title, the search and the rail in its side, C
     assert.equal(root.querySelector('#story_suite_v2_overlay_title').textContent, WINDOW_TEXT.title);
     // Close first (it sits at the window's top right on every width), then the side (the title, the search under it, the
     // rail), then the page. The concept's layout: the search is in the rail under the title.
-    assert.deepEqual(frame.children.map(node => node.className), ['ss-settings-close story-suite-close', 'ss-settings-side', 'ss-settings-content']);
+    assert.deepEqual(frame.children.map(node => node.className), ['ss-settings-close story-suite-close', 'ss-settings-side', 'ss-settings-content', 'ss-settings-foot']);
     const side = root.querySelector('.ss-settings-side');
     assert.deepEqual(side.children.map(node => node.className), ['ss-settings-title', 'ss-search ss-settings-search', 'ss-settings-rail']);
     assert.equal(side.children[1].getAttribute('role'), 'search');
@@ -166,14 +167,15 @@ test('the rail: aria-current on the chosen section, one Tab stop, arrow keys mov
     host.close();
 });
 
-test('each section holds what it should: Look and Features are the form engine\'s; Tabs & Packs, Modules (with Versions) and Diagnostics hold folds; Money and Assist are Story Block\'s own', async () => {
+test('each section holds what it should: Look, Features, Money, Assist and Tabs & Packs are the form engine\'s; Modules (with Versions) and Diagnostics hold folds', async () => {
     const { root, host } = await open();
     assert.deepEqual(foldsOf(root, 'look'), [], 'no folds: the form engine');
     assert.deepEqual(foldsOf(root, 'features'), [], 'no folds: the form engine');
     assert.equal(root.querySelector('details[data-fold="story-suite-features"]'), null, 'the old Features fold is gone');
     assert.ok(page(root, 'features').querySelector('.ss-features-group'));
-    assert.deepEqual(foldsOf(root, 'tabs'), ['story-suite', PACKS_FOLD]);
-    assert.ok(foldAt(root, TABS_FOLD) && page(root, 'tabs').contains(foldAt(root, TABS_FOLD)), 'Tabs under Story Suite\'s fold, on the Tabs & Packs page');
+    assert.deepEqual(foldsOf(root, 'tabs'), [], 'the form engine: Tabs, Packs and Prompt cards, no fold');
+    assert.equal(foldAt(root, HOST_FOLD), undefined, 'Story Suite\'s own fold is gone');
+    assert.deepEqual(texts(page(root, 'tabs'), '.ss-section-title').filter(Boolean), ['Tabs', 'Packs', 'Prompt']);
     assert.deepEqual(foldsOf(root, 'modules'), ['rpg-battle', 'story-block', VERSIONS_FOLD]);
     assert.deepEqual(foldsOf(root, 'diagnostics'), [DIAGNOSTICS_FOLD]);
     assert.deepEqual(foldsOf(root, 'money'), [], 'the form engine');
@@ -193,7 +195,7 @@ test('each section holds what it should: Look and Features are the form engine\'
     assert.equal(foldAt(root, 'rpg-battle').open, false);
     assert.equal(foldAt(root, DIAGNOSTICS_FOLD).open, false);
     // Every settings row is on exactly one page: the money ones are the form engine's fields, not the old rows.
-    assert.ok(root.querySelectorAll('.story-suite-row[data-field]').length > 5);
+    assert.ok(root.querySelectorAll('.story-suite-row[data-field]').length >= 3);
     assert.equal(page(root, 'money').querySelectorAll('.story-suite-row').length, 0);
     assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'storyCoinPerReply', 'economyScale', 'currency', 'currencyPlural', 'currencyShort']);
     host.close();
@@ -234,6 +236,9 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
     const cases = [
         [PACKS_FOLD, 'tabs'],
         [TABS_FOLD, 'tabs'],
+        [HOST_FOLD, 'tabs'],
+        [PROMPT_FOLD, 'tabs'],
+        [SENT_FOLD, 'tabs'],
         [FEATURES_FOLD, 'features'],
         [featuresFoldOf('loot'), 'features'],
         ['loot::features', 'features'],
@@ -246,7 +251,7 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
         [VERSIONS_FOLD, 'modules'],
     ];
     for (const [fold, section] of cases) {
-        const { root, win, host, doc } = await open({ window: { fold } });
+        const { root, win, host, doc } = await open({ window: { fold, promptParts: () => [{ module: 'story-suite', place: 'static', text: 'Rules.' }] } });
         const wanted = fold.endsWith('::features') ? featuresFoldOf(fold.slice(0, -'::features'.length)) : fold;
         assert.equal(win.section(), section, fold);
         assert.deepEqual(shownPages(root), [section], fold);
@@ -270,6 +275,21 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
             // The Assist group is the form engine's Assist page: its first control has the focus.
             const first = page(root, 'assist').querySelector('.ss-assist-page .ss-field input, .ss-assist-page .ss-field select, .ss-assist-page .ss-field button');
             assert.ok(first && doc.activeElement === first, `${fold} has the focus`);
+            win.close();
+            host.close();
+            continue;
+        }
+        if (section === 'tabs') {
+            // Tabs & Packs is the form engine's: the Packs fold's Import button, the Tabs card's first control (the Story Suite fold's id
+            // too), the Prompt card's first budget, or "Show what's sent" opened with its summary focused.
+            const at = page(root, 'tabs');
+            const wantedNode = fold === PACKS_FOLD ? at.querySelector('.ss-packs-import')
+                : fold === SENT_FOLD ? at.querySelector('details.story-suite-sent summary')
+                    : fold === PROMPT_FOLD ? at.querySelector('.ss-prompt-card .ss-field input')
+                        : at.querySelector('.ss-tabs-card [role="switch"]');
+            assert.ok(wantedNode, `${fold} is drawn`);
+            assert.ok(doc.activeElement === wantedNode, `${fold} has the focus`);
+            if (fold === SENT_FOLD) assert.equal(at.querySelector('details.story-suite-sent').open, true, 'Show what\'s sent is open');
             win.close();
             host.close();
             continue;
@@ -416,9 +436,9 @@ test('search words: one match says "1 setting shown", none says so with the text
     assert.equal(live.textContent, FORM_TEXT.shownOne);
     assert.equal(root.querySelectorAll('.ss-feature').filter(row => !row.hidden).map(row => row.dataset.feature).join(), 'loot.weight');
     search(root, 'packs');
-    assert.ok(shownPages(root).includes('tabs'), 'the Packs fold, found by its name');
-    assert.equal(foldAt(root, PACKS_FOLD).hidden, false);
-    assert.equal(foldAt(root, 'story-suite').hidden, true);
+    assert.ok(shownPages(root).includes('tabs'), 'the Packs card, found by its name');
+    assert.equal(page(root, 'tabs').querySelector('.ss-packs-card').hidden, false);
+    assert.equal(page(root, 'tabs').querySelector('.ss-prompt-card').hidden, true, 'a card with no match is out');
     search(root, 'rpg battle');
     assert.deepEqual(shownPages(root), ['modules']);
     assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row[data-field]').filter(row => !row.hidden).length, 3, 'its three settings');
@@ -574,11 +594,10 @@ test('filterPane on its own: matches, covered panels and the count', async () =>
     assert.equal(outer.hidden, false);
 });
 
-test('createLegacySettings: nothing attached draws nothing; refresh and refreshSize before start do nothing', () => {
+test('createLegacySettings: nothing attached draws nothing; refresh before start does nothing', () => {
     const legacy = createLegacySettings({});
     legacy.start({});
     assert.equal(legacy.refresh(), undefined);
-    assert.equal(legacy.refreshSize(), undefined);
     const body = legacy.attach('features', {}, { label: 'Features', openState: new Map() });
     assert.equal(body.filter('x'), 0, 'not started: no matches');
 });
@@ -590,18 +609,17 @@ test('the old host text is still where it was: the window adds none to SETTINGS_
 
 // ---- Look and Features (step 3b)
 
-test('Look: Panel style, Glass strength and Font come from the host schema, are written to the host settings and applied through the theme; the Story Suite fold keeps the rest', async () => {
+test('Look: Panel style, Glass strength and Font come from the host schema, are written to the host settings and applied through the theme; the budgets are the Prompt card\'s', async () => {
     const applied = [];
     const { root, host } = await open({ window: { theme: { apply: () => applied.push(host.settings().panelStyle) } } });
     const look = page(root, 'look');
     assert.deepEqual(look.querySelectorAll('.ss-field').map(row => row.dataset.field), LOOK_KEYS);
     assert.deepEqual(texts(look, '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font']);
     assert.equal(look.querySelectorAll('details').length, 0, 'no folds');
-    // The Story Suite fold under Tabs & Packs has the budgets, not the look.
-    const hostFold = foldAt(root, 'story-suite');
-    assert.deepEqual(hostFold.querySelectorAll('.story-suite-row[data-field]').map(row => row.dataset.field), ['tailBudget', 'contextShare', 'maxChangeLines']);
+    // The budgets are the Prompt card's (Tabs & Packs), the call queue the Assist page's; the Story Suite fold is gone.
+    assert.deepEqual(page(root, 'tabs').querySelectorAll('.ss-prompt-card .ss-field').map(row => row.dataset.field), ['tailBudget', 'contextShare', 'maxChangeLines']);
     assert.ok(page(root, 'assist').querySelector('.ss-field[data-field="callQueue"]'), 'the call queue is on the Assist page now');
-    assert.ok(page(root, 'tabs').contains(hostFold));
+    assert.equal(foldAt(root, HOST_FOLD), undefined);
     // A choice goes through the settings store (the host's own, `settings.set(null, key, value)`) and the look follows at once.
     const select = look.querySelector('.ss-field[data-field="panelStyle"] select');
     select.value = 'solid';

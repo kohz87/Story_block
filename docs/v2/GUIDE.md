@@ -55,7 +55,7 @@ The first beta. In short, what changed for you (the full list is in
   (or asks first when it can't).
 * **NPC State Delta**: the Cast is in the game view too, and its settings are no longer three folds deep.
 * **Your order of tabs**: move, hide and show the Story panel's tabs and the game view's screens in
-  **Settings → Story Suite → Tabs** (one list for both). See [Your order of tabs](#your-order-of-tabs).
+  **Settings → Tabs & Packs → Tabs** (one list for both). See [Your order of tabs](#your-order-of-tabs).
 * **Text boxes follow your theme**: search boxes, text and number fields, lists and sliders in Story
   Suite's screens and settings take SillyTavern's theme colours, dark or light, instead of bright white.
 
@@ -568,13 +568,13 @@ what your character has not been told), and NPC State Delta's **Dossiers** last 
 the World screen). An order you saved before keeps Dossiers where you put Cast. With Story Director
 installed, **Scene** starts hidden: World → Now shows the same place, time and people. Without it, Scene
 shows the place, the weather and the people here, each with their Inner chatter thought. It is still listed in
-Settings → Story Suite → Tabs to show again (and an order you saved before with Scene in it keeps it). Only the installed extensions' tabs show.
+Settings → Tabs & Packs to show again (and an order you saved before with Scene in it keeps it). Only the installed extensions' tabs show.
 
-Change it in **Settings → Story Suite → Tabs**: every tab and screen of every installed extension, one row
+Change it in **Settings → Tabs & Packs → Tabs**: every tab and screen of every installed extension, one row
 each, with where it shows (*Story panel and game view*, or one of them). **Up** and **Down** move one
-place (they are buttons, so Tab and Enter work too); untick **Shown** to hide one from both the panel's
+place (they are buttons, so Tab and Enter work too); switch one off to hide it from both the panel's
 tabs and the game view's menu. A hidden one stays in that list, so you can show it again there, and a
-screen that opens by itself (a fight starting) still opens. **Home** is always first and always shown.
+screen that opens by itself (a fight starting) still opens. **Home** is always first and always shown (the last tab you could hide is refused, with a message).
 **Reset to default** puts back the order above with everything shown. The order is yours, in every
 chat; an extension you install later puts its tabs at the end, and one you remove keeps its place for
 when it comes back.
@@ -629,14 +629,14 @@ A **pack** is a ready-made setting in one file: items with their prices and effe
 recipes, quests, events, races and talents, a starting place and purse, a currency name, and its own
 look for the screens. Packs are data only; nothing in them can run code.
 
-* **Install from a file:** Story Suite settings → **Packs** (the second fold, right under Story Suite)
+* **Install from a file:** Story Suite settings → **Tabs & Packs** → the **Packs** card
   → **Import pack file**. With no pack installed, the game view's **Home** has an **Import a pack**
   button that opens the settings right there.
 * **From a character card:** some cards carry a pack in their lorebook. Story Suite asks first: click
   **Read from character lorebook** in the Packs section.
 
-You can switch a pack off or remove it at any time. A story already told keeps what it got from the
-pack.
+You can switch a pack off or remove it at any time (Remove asks first). A story already told keeps what it got from the
+pack. Each pack in the list says what it adds: its items and creatures, a currency, a calendar, weather tables, screens.
 
 **Trying Ersveil.** Story Block comes with the Ersveil starter pack
 (`examples/packs/ersveil-bluewatch/pack.json` in Story Block's folder). Import it with **Import pack

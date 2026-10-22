@@ -102,11 +102,13 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.deepEqual(foldsOf('features'), []);
     assert.ok(page('features').querySelector('.ss-features-group[data-fold="story-suite-features::story-block"]'), 'Story Block\'s group of tiles');
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
-    assert.deepEqual(foldsOf('tabs'), ['story-suite', 'story-block/packs']);
-    assert.ok(page('tabs').querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
-    // The prompt size is under Story Suite's own fold; its Tabs sub-fold with it.
-    assert.deepEqual(texts(page('tabs'), '.story-suite-subsection > h4'), ['Prompt size']);
-    assert.ok(page('tabs').querySelector('details[data-fold="story-suite::tabs"]'));
+    // Tabs & Packs is the form engine's: Tabs, Packs (the Import button is there) and Prompt, no fold.
+    assert.deepEqual(foldsOf('tabs'), []);
+    assert.deepEqual(texts(page('tabs'), '.ss-section-title').filter(Boolean), ['Tabs', 'Packs', 'Prompt']);
+    assert.ok(page('tabs').querySelector('.ss-packs-card .ss-packs-import'), 'Import pack file in the Packs card');
+    assert.ok(page('tabs').querySelector('.ss-prompt-card .story-suite-size, .ss-prompt-card .ss-field[data-field="tailBudget"]'), 'the budgets and the size in the Prompt card');
+    assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
+    assert.ok(overlay.querySelector('.ss-settings-foot'), 'the footer bar: what is sent each reply');
     // Story Block's money settings (its General group) are the form engine's Money page: three cards, no fold.
     assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'What the story may pay', 'Money words']);
     assert.equal(page('money').querySelectorAll('details').length, 0);

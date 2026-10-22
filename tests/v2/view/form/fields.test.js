@@ -162,6 +162,9 @@ test('slider: a native range; the value beside it and spoken (aria-valuetext) wh
     const m = make(sliderField, { type: 'int', min: 30, max: 90, form: 'slider', unit: '%' }, 50);
     assert.equal(m.input.type, 'range');
     assert.deepEqual([m.input.min, m.input.max, m.input.step, m.input.value], ['30', '90', '1', '50']);
+    // `step`: a whole number from 1 up (a budget in steps of 50); anything else is 1.
+    assert.equal(make(sliderField, { type: 'int', min: 100, max: 6000, form: 'slider', step: 50 }, 1500).input.step, '50');
+    assert.equal(make(sliderField, { type: 'int', min: 0, max: 10, form: 'slider', step: 0.5 }, 5).input.step, '1');
     assert.equal(m.el.querySelector('.ss-slider-value').textContent, '50%');
     assert.equal(m.el.querySelector('.ss-slider-value').getAttribute('aria-hidden'), 'true');
     assert.equal(m.input.getAttribute('aria-valuetext'), '50%');

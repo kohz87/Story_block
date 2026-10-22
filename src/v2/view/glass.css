@@ -1567,6 +1567,232 @@
     }
 }
 
+/* ---- buttons the settings pages share: a pill button, a small icon button (move up and down), a danger tone ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 16px;
+    /* an edge that shows in a light scheme, where the glass border is faint */
+    border: 1px solid color-mix(in srgb, var(--ss-muted) 55%, var(--ss-border));
+    border-radius: var(--ss-radius-pill);
+    background: var(--ss-tile);
+    color: var(--ss-text);
+    font-family: var(--ss-font);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button-primary {
+    border-color: var(--ss-accent);
+    background: var(--ss-accent-soft);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button-quiet {
+    background: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button-danger {
+    border-color: var(--ss-bad);
+    background: color-mix(in srgb, var(--ss-bad) 18%, transparent);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button:focus-visible,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-iconbutton:focus-visible {
+    outline: 2px solid var(--ss-accent);
+    outline-offset: 2px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button:disabled,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-iconbutton:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-iconbutton {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    /* an edge that shows in a light scheme, where the glass border is faint */
+    border: 1px solid color-mix(in srgb, var(--ss-muted) 55%, var(--ss-border));
+    border-radius: var(--ss-radius-m);
+    background: var(--ss-tile);
+    color: var(--ss-text);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* ---- the Tabs & Packs page (view/settings/tabs-packs.js, UI stage step 3e): Tabs and Packs side by side, Prompt under them ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabspacks {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ss-space-3);
+    align-items: start;
+}
+@media (min-width: 900px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabspacks {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabspacks > .ss-prompt-card {
+        grid-column: 1 / -1;
+    }
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-card-help {
+    margin: 0 0 var(--ss-space-2);
+    color: var(--ss-muted);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+/* Tabs: a row each, with Up, Down and the switch */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrows {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--ss-muted) 28%, transparent);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow:last-child {
+    border-bottom: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow-icon {
+    flex: none;
+    width: 28px;
+    text-align: center;
+    color: var(--ss-muted);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow-name {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow-title {
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow-where {
+    color: var(--ss-muted);
+    font-size: 12px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow-hidden .ss-tabrow-title {
+    color: var(--ss-muted);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrow .ss-switch {
+    flex: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrows-empty {
+    padding: 8px 0;
+    color: var(--ss-muted);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrows-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ss-space-2);
+    margin-top: var(--ss-space-2);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrows-status {
+    color: var(--ss-muted);
+    font-size: 13px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-tabrows-refusal {
+    margin: 0 0 var(--ss-space-2);
+    padding: 8px 12px;
+    border: 1px solid var(--ss-bad);
+    border-radius: var(--ss-radius-m);
+    background: color-mix(in srgb, var(--ss-bad) 12%, transparent);
+    font-size: 13px;
+}
+/* Packs: list rows with a switch and Remove; the question under a row that is being removed */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ss-space-2);
+    margin-bottom: var(--ss-space-2);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-message {
+    color: var(--ss-muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-message:empty {
+    display: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-errors {
+    margin: 4px 0 8px;
+    padding-left: 20px;
+    color: var(--ss-bad);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-errors:empty {
+    display: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-item {
+    flex-wrap: wrap;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-item .ss-listcard-main {
+    flex-basis: 12em;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-problem {
+    color: var(--ss-bad);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-row {
+    min-width: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-confirm {
+    margin: 0 6px 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--ss-bad);
+    border-radius: var(--ss-radius-m);
+    background: color-mix(in srgb, var(--ss-bad) 10%, transparent);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-confirm-text {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-packs-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ss-space-2);
+}
+/* Prompt: the budgets in the card with no card of their own, then the size under them */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-prompt-card .ss-form {
+    gap: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-prompt-card .ss-form .ss-section {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-prompt-card .ss-field {
+    grid-template-columns: minmax(0, 1fr);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-prompt-card .story-suite-size {
+    margin-top: var(--ss-space-3);
+    padding-top: var(--ss-space-3);
+    border-top: 1px solid color-mix(in srgb, var(--ss-muted) 28%, transparent);
+}
+
 /* helpers of the UI sample's demo form */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-sample-form {
     display: flex;

@@ -22,6 +22,8 @@
 
 import { DIAGNOSTICS_FOLD, OPEN_CLASS, SUB_FOLD, diagnosticsKeys, featuresFoldOf } from '../../host-ui.js';
 import { fill } from '../../strings.js';
+import { createFooter } from './footer.js';
+import { PROMPT_FOLD, createPromptReader } from './prompt.js';
 import { FORM_TEXT } from '../form/schema.js';
 import { searchField } from '../form/fields.js';
 import { tabs as tabsBlock } from '../widgets/nav.js';
@@ -122,8 +124,13 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
     railBlock = tabsBlock.render(rail, railProps(), { command: (type, payload) => { if (type === 'settings.section') select(payload?.tabs); } });
 
     // ---- the bodies
-    const options = { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs, theme, profiles };
+    // One reader of the prompt's size for the Prompt card and the footer bar, so both always say the same.
+    const reader = createPromptReader({ registry, settings, promptParts, countTokens });
+    const options = { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs, theme, profiles, reader };
     const legacy = createLegacySettings(options);
+    // The footer bar: what is sent each reply against its budget; pressing it opens the Prompt card. Declared before the bodies (their
+    // `changed()` refreshes it) and shown after them.
+    let footer = null;
     for (const id of SECTION_IDS) {
         const entry = pages.get(id);
         const make = bodies[id];
@@ -132,9 +139,13 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
         const changed = () => {
             legacy.refresh();
             for (const other of pages.values()) if (other !== entry) other.body?.refresh?.();
+            footer?.refresh();
         };
         entry.body = make(entry.pane, { doc, openState, label: entry.section.label, legacy, options, changed });
     }
+
+    footer = createFooter(doc, { reader, onOpen: () => openFold(PROMPT_FOLD) });
+    win.appendChild(footer.el);
 
     // ---- showing a page
     function paint() {
@@ -208,8 +219,14 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
         refresh() {
             legacy.refresh();
             for (const entry of pages.values()) entry.body?.refresh?.();
+            footer.refresh();
         },
-        refreshSize: () => legacy.refreshSize(),
+        // The story moved (a new head, a commit, a turn): the prompt's size is read again, nothing else.
+        refreshSize() {
+            for (const entry of pages.values()) entry.body?.refreshSize?.();
+            footer.refresh();
+        },
+        footer: () => footer,
         select,
         section: () => chosen,
         isOpen: () => open,
@@ -220,6 +237,7 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
             doc.removeEventListener?.('focusin', onFocus, true);
             for (const entry of pages.values()) { try { entry.body?.destroy?.(); } catch { /* closed either way */ } }
             railBlock.destroy();
+            footer.destroy();
             layer.remove();
             doc.body.classList.remove(OPEN_CLASS);
             try { onClose?.(); } catch { /* the window is closed either way */ }

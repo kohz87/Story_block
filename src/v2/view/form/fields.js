@@ -196,7 +196,8 @@ export function sliderField(ctx) {
     const top = value => (Number.isInteger(field.sliderMax) && field.sliderMax > field.min ? Math.min(field.max, Math.max(field.sliderMax, Number.isInteger(value) ? value : 0)) : field.max);
     input.min = String(field.min);
     input.max = String(top(ctx.value));
-    input.step = '1';
+    // `step` (a whole number, default 1): a budget in steps of 50 is easier to place than one in steps of 1.
+    input.step = String(Number.isInteger(field.step) && field.step >= 1 ? field.step : 1);
     named(input, ctx);
     const out = h(doc, 'output', 'ss-slider-value');
     out.setAttribute('aria-hidden', 'true');

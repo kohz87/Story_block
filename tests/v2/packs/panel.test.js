@@ -42,7 +42,7 @@ test('an empty list, then a pack imported from a file', async () => {
     assert.deepEqual(notes, ['Installed Riverside Starter.']);
     assert.deepEqual(texts(root, '.ss-packs-message'), ['Installed Riverside Starter.']);
     assert.deepEqual(texts(root, '.ss-packs-name'), ['Riverside Starter 1.0.0']);
-    assert.deepEqual(texts(root, '.ss-packs-facts'), ['4 items, 1 creature, 1 shop, 1 recipe, 2 events, 1 race, 1 talent, start state · by Story Suite examples · riverside.json']);
+    assert.deepEqual(texts(root, '.ss-packs-facts'), ['4 items, 1 creature, 1 shop, 1 recipe, 2 events, 1 race, 1 talent, start state, a money word, a theme · by Story Suite examples · riverside.json']);
     const again = root.querySelector('.ss-packs-file');
     again.files = [fakeFile('riverside.json', sampleText)];
     again.dispatch('change');
@@ -101,27 +101,49 @@ test('reading the character lorebook', async () => {
     assert.deepEqual(texts(none.root, '.ss-packs-message'), ['Open a chat with a character first.']);
 });
 
-test('switching off and removing (two clicks)', async () => {
+test('switching off, and removing after a question (Remove, then Remove or Cancel, the focus on Cancel)', async () => {
     const { root, packs } = mount();
     await packs.install(pack({ id: 'a', name: 'Pack A' }));
     await packs.install(pack({ id: 'b', name: 'Pack B' }));
-    const { panel } = { panel: renderPacksPanel(root, { packs, readLorebook: async () => ({}), doc }) };
+    const panel = renderPacksPanel(root, { packs, readLorebook: async () => ({}), doc });
+    doc.body.appendChild(root);
     const row = id => root.querySelector(`.ss-packs-row[data-pack-id="${id}"]`);
+    // The switch is a role=switch button, in an ss.listcard row.
+    assert.ok(row('a').classList.contains('ss-listcard-row'));
     const toggle = row('a').querySelector('.ss-packs-enabled');
-    assert.equal(toggle.checked, true);
-    toggle.checked = false;
-    toggle.dispatch('change');
+    assert.equal(toggle.getAttribute('role'), 'switch');
+    assert.equal(toggle.getAttribute('aria-checked'), 'true');
+    toggle.click();
     await tick();
     assert.equal(packs.list()[0].enabled, false);
-    assert.equal(row('a').querySelector('.ss-packs-enabled').checked, false);
+    assert.equal(row('a').querySelector('.ss-packs-enabled').getAttribute('aria-checked'), 'false');
+    assert.ok(doc.activeElement === row('a').querySelector('.ss-packs-enabled'), 'the focus stays on the switch');
+    // Remove asks first: nothing is removed, the question names the pack, the focus is on Cancel.
     row('b').querySelector('.ss-packs-remove').click();
-    assert.equal(row('b').querySelector('.ss-packs-remove').textContent, 'Remove? Click again');
     assert.equal(packs.list().length, 2);
+    assert.match(texts(row('b'), '.ss-packs-confirm-text')[0], /^Remove Pack B\? /);
+    assert.ok(doc.activeElement === root.querySelector('.ss-packs-confirm-no'));
+    // Cancel keeps it and puts the focus back on its Remove button.
+    root.querySelector('.ss-packs-confirm-no').click();
+    assert.equal(row('b').querySelector('.ss-packs-confirm'), null);
+    assert.equal(packs.list().length, 2);
+    assert.ok(doc.activeElement === row('b').querySelector('.ss-packs-remove'));
+    // Escape in the question cancels the question only (the window around it stays).
     row('b').querySelector('.ss-packs-remove').click();
+    let reached = false;
+    root.addEventListener('keydown', () => { reached = true; });
+    row('b').querySelector('.ss-packs-confirm').dispatch('keydown', { key: 'Escape' });
+    assert.equal(row('b').querySelector('.ss-packs-confirm'), null);
+    assert.equal(reached, false, 'Escape did not go on to close anything');
+    // Remove, then Remove: gone; the focus goes to Import.
+    row('b').querySelector('.ss-packs-remove').click();
+    root.querySelector('.ss-packs-confirm-yes').click();
     await tick();
     assert.deepEqual(packs.list().map(entry => entry.id), ['a']);
     assert.deepEqual(texts(root, '.ss-packs-message'), ['Removed Pack B.']);
+    assert.ok(doc.activeElement === root.querySelector('.ss-packs-import'));
     panel.refresh();
+    root.remove();
 });
 
 test('pack text is shown as text, problems and missing parts are shown', async () => {

@@ -16,7 +16,7 @@
 //   that only fill the message box. Inner chatter is not drawn under replies (World → Now or Scene shows it).
 // * The tab panel: the tab host (src/v2/host-ui.js) with every module tab and every `tab` screen, a
 //   side sheet on wide screens and a bottom sheet on phones. Redrawn from the head on every change.
-// * The reader's tab order (src/v2/view/tab-order.js, Settings → Story Suite → Tabs): one list for the
+// * The reader's tab order (src/v2/view/tab-order.js, Settings → Tabs & Packs → Tabs): one list for the
 //   panel's tabs and the game view's screens, Up/Down, Shown, Reset to default. Hidden ones leave the
 //   tab strip and the game view's navigation; Home is always first and shown.
 // * The Story Block drawer in Extensions: version, modules, the same buttons.
@@ -207,7 +207,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         },
     });
     // The screen registry as the mounts see it: a screen under a feature that is off is not there, and the
-    // game view's and the tab strip's screens come in the reader's order (Settings → Story Suite → Tabs).
+    // game view's and the tab strip's screens come in the reader's order (Settings → Tabs & Packs → Tabs).
     const allScreens = createScreens(readerStore(ctx));
     const screenOff = id => registry.screenOff?.(id) === true;
     const tabOrder = createTabOrderStore(ctx);
@@ -367,7 +367,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const panelTabs = () => [...registry.tabs(), ...extraTabs.map(tab => ({ ...tab, moduleId: 'screens' }))];
     const tabSource = { tabs: () => visibleNav(panelTabs(), tabOrder.choice(), navKey, tab => tab.order, navPresent) };
 
-    // Settings → Story Suite → Tabs: every tab and screen once (by id), where it shows, in the reader's order.
+    // Settings → Tabs & Packs → Tabs: every tab and screen once (by id), where it shows, in the reader's order.
     function tabRows() {
         const rows = new Map();
         const add = (id, { title, icon, order }, where) => {

@@ -119,7 +119,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 
 `src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
 the look, and writes through the same settings store the settings window writes through. The settings window (below)
-draws Look, Features, Money and Assist with it (steps 3b to 3d) and still draws today's folds elsewhere; steps 3d–3g move the other sections one by one. The UI sample shows a demo form
+draws Look, Features, Money, Assist and Tabs & Packs with it (steps 3b to 3e) and still draws today's folds elsewhere; steps 3f–3g move the other sections. The UI sample shows a demo form
 (`mountDemoForm`, `UI_SAMPLE_FORM`).
 
 ```js
@@ -204,11 +204,11 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 - The helpers shared with the settings window's folds (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are
   imported from `host-ui.js` through `view/form/schema.js`: they move there when the last section leaves the folds.
 
-## The settings window (UI stage, steps 3a to 3d)
+## The settings window (UI stage, steps 3a to 3e)
 
 `src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
 `openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
-Look and Features the form engine's, step 3c Money, step 3d Assist** (below). 3e–3g replace the other bodies.
+Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs** (below). 3f–3g replace the other bodies.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
@@ -225,8 +225,9 @@ Look and Features the form engine's, step 3c Money, step 3d Assist** (below). 3e
   End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
 - **Where today's folds go** (`routeOf`): Story Block's **Assist panel and Assist group → Assist** (both are the form engine's Assist page now,
   below, and so is its General group's Money page; the route is unused);
-  the Story Suite fold (the budgets, Prompt size, its Tabs sub-fold: Panel style, Glass strength and Font moved to Look) and
-  Story Block's **Packs** fold → Tabs & Packs; every module's fold (what is left of Story Block's: the line to its features and
+  the Story Suite fold (the budgets, Prompt size, its Tabs sub-fold) and Story Block's **Packs** fold → Tabs & Packs, which the
+  form engine draws now (below; the Story Suite fold is gone, and `renderSettingsHost` leaves out an own fold whose section has a body of
+  its own); every module's fold (what is left of Story Block's: the line to its features and
   its Inner chatter group) and **Versions** → Modules; Diagnostics (with Events) → Diagnostics. Fold ids did not change:
   `openSettings({ fold: PACKS_FOLD })` shows the section that holds the fold (found in the DOM, not in a table), opens it
   and focuses its summary; a module's features are a **group** on the Features page (key `story-suite-features::<module id>`, the
@@ -279,6 +280,34 @@ Look and Features the form engine's, step 3c Money, step 3d Assist** (below). 3e
   the net finishes after the reader has already sent the next message its lines wait for the next reply and may not add anything new
   but someone arriving. There is no "late lines" setting; the page only says it. A test keeps every chip on the right side of the wall.
   The fold key `story-block::group:Assist` (`ASSIST_FOLD`) opens the page with its first control focused.
+- **Tabs & Packs** (`tabs-packs.js`, step 3e): three cards on the form engine's look (`ss-tabspacks`: one column, two from 900px with Prompt across
+  both) in place of the Story Suite fold and the Packs fold.
+  * **Tabs** (`tabs-list.js`, `renderTabsCard`): every tab and screen once, in the reader's order, as a row (`ss-tabrow`, `data-tab-id`: icon, name,
+    where it shows) with Up and Down (`ss-iconbutton`, real buttons named "Move Party up") and a show/hide switch (the engine's `switchField`);
+    no dragging. It writes through the same tabs control as before (`ui-host.js` `tabsControl`: `rows()`, `move(id, delta)`, `setHidden(id, hidden)`,
+    `reset()`, `isDefault()`, stored in `extension_settings.storySuite.tabs`), so the Story panel's tab strip and the game view follow at once.
+    A change redraws the list only; the focus stays on the same control of the same row, or on its neighbour when that one is now disabled; a status
+    line says what changed. **Hiding the last tab that is shown is refused with a message** (`ss-tabrows-refusal`, `role="alert"`, above the list):
+    Home is always shown, so in practice it is Home's switch that says no ("Home stays…"); the guard is the card's own, whatever the control is.
+  * **Packs**: Story Block's own `packs` fold (`settings.folds`, `packs/panel.js` `renderPacksPanel`) drawn into a card: Import pack file and Read from
+    character lorebook, then the installed packs as `ss.listcard` rows (`ss-listcard-row`: name and version, what it adds, author and origin, a
+    switch, Remove). **What it adds** is its content lists, a start state and `extras` (`installed.js` `extrasOf`: coins or a money word, a money scale,
+    a calendar, weather tables, screens, layouts, a theme). Remove asks first (the row shows the question with Remove and Cancel, the focus on
+    Cancel; Escape cancels the question, not the window); after a removal the focus goes to Import. Import and the lorebook read work as before.
+  * **Prompt** (`prompt.js`): the budgets (`PROMPT_SCHEMA` over `HOST_SETTINGS_SCHEMA`: Notes per reply a slider in steps of 50 that stretches to a
+    larger stored value, Share of the context a slider in steps of 5, Change lines per reply a number; the engine's `step` option), then the prompt's
+    size (the estimate at once, SillyTavern's tokenizer's count when it answers: the context size and Story Suite's share, the instructions, this
+    reply's part against its budget with a meter, what modules send themselves, the total, a table per module) and "Show what's sent" (the exact
+    texts, Copy). `createPromptReader({ registry, settings, promptParts, countTokens })` is the one reader of all this: `read()` (the estimate, or null with
+    no chat) and `readExact(read)` (a promise of the counted one); the card and the footer both use it.
+  * **The footer bar** (`footer.js`, in `window.js`: the window's last child, under the pages, on every page): "What's sent each reply", a meter and
+    "N of M tokens" (this reply's part against its budget, "· T in all" on a wide window); over its budget it turns to the warn colour; pressing it opens
+    this page with the first budget focused. It is read when the window opens, after a setting changes (`win.refresh()`, and any page's `changed()`) and when
+    the story moves (`win.refreshSize()`, which `ui-host.js` calls on a new head, a commit and a turn), never per keystroke in the search box:
+    reading assembles the prompt. With no chat open it says "Open a chat to see it".
+  * **Fold ids**: `story-suite` (the old Story Suite fold) and `story-suite::tabs` focus the Tabs card, `story-block/packs` (Home's "Import a pack")
+    the Import button, `story-suite::size` the first budget and `story-suite::sent` open "Show what's sent" (the first budget with no chat).
+  `bodies.js`'s `tabs` entry is `tabsPacksBody`; bodies may also answer `refreshSize()`.
 - **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
   answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
   the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
@@ -305,7 +334,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist** (below). 3e
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
   `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/form/` (`fields.js`, `form.js`, `schema.js`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
   (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`), `view/settings/` (`window.js`, `sections.js`,
-  `bodies.js`, `search.js`) and `view/settings.css`.
+  `bodies.js`, `search.js`, `money.js`, `assist.js`, `tabs-packs.js`, `tabs-list.js`, `prompt.js`, `footer.js`) and `view/settings.css`.
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
@@ -318,6 +347,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist** (below). 3e
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
 - The settings window: `tests/v2/ux/settings-window.test.js` (frame, rail, sections, Look, Features, folds, keyboard, search, bodies),
   `tests/v2/view/form/features.test.js` (the features form), `tests/v2/ux/settings-money.test.js` (the Money page: cards, coins, slider words, validation, a story `+ coin` paying after edits),
+  `tests/v2/ux/settings-tabs-packs.test.js` (the Tabs & Packs page: the Tabs rows and their refusals, the Packs card, the budgets, the size and tokenizer, the footer bar, the fold ids), `tests/v2/ux/tabs-ui.test.js` (the tab order through the real UI), `tests/v2/packs/panel.test.js`, `tests/v2/whats-sent.test.js` ("Show what's sent" in the Prompt card),
   `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,

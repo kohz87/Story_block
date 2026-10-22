@@ -25,8 +25,9 @@ import { FEATURES_FOLD, SUB_FOLD, renderSettingsHost } from '../../host-ui.js';
 import { HOST_SETTINGS_SCHEMA } from '../../sdk.js';
 import { renderFeaturesForm } from '../form/features.js';
 import { renderSettingsForm } from '../form/form.js';
-import { ASSIST_HOST_KEYS, assistBody } from './assist.js';
+import { assistBody } from './assist.js';
 import { moneyBody } from './money.js';
+import { tabsPacksBody } from './tabs-packs.js';
 import { LOOK_KEYS, SECTION_IDS, opensByDefault, routeOf } from './sections.js';
 import { filterPane } from './search.js';
 
@@ -50,13 +51,10 @@ export function createLegacySettings(options) {
                 ...options,
                 sections: {
                     ids: [...panes.keys()], place: id => panes.get(id) ?? null, route: routeOf, defaultOpen: opensByDefault, show, open, afterRefresh,
-                    // The look settings are the Look section's, the call queue the Assist section's; the Story Suite fold keeps the rest.
-                    hostKeys: key => !LOOK_KEYS.includes(key) && !ASSIST_HOST_KEYS.includes(key),
                 },
             });
         },
         refresh: () => host?.refresh(),
-        refreshSize: () => host?.refreshSize(),
     };
 }
 
@@ -107,4 +105,5 @@ export const SECTION_BODIES = Object.freeze({
     features: featuresBody,
     money: moneyBody,
     assist: assistBody,
+    tabs: tabsPacksBody,
 });

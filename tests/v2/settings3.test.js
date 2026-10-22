@@ -308,7 +308,7 @@ test('the Diagnostics fold: last before Versions; built on open; Copy uses the c
         let builds = 0;
         const root = doc.createElement('div');
         renderSettingsHost(root, { registry, settings, doc, diagnostics: { report: async () => { builds += 1; return `REPORT ${builds}`; }, fileName: () => 'story-suite-diagnostics-x.txt' } });
-        assert.deepEqual(root.children.map(node => node.dataset.fold), ['story-suite', 'aaa', DIAGNOSTICS_FOLD, 'story-suite-versions']);
+        assert.deepEqual(root.children.map(node => node.dataset.fold), ['aaa', DIAGNOSTICS_FOLD, 'story-suite-versions']);
         const fold = foldOf(root, DIAGNOSTICS_FOLD);
         assert.deepEqual(fold.querySelectorAll(':scope > summary > *').map(node => node.textContent), [DIAGNOSTICS_TEXT.title, DIAGNOSTICS_TEXT.hint]);
         assert.equal(builds, 0, 'nothing built while it is closed');

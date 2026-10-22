@@ -1,5 +1,5 @@
-// The reader's tab order on the page (ui-host.js, host-ui.js): Settings → Story Suite → Tabs lists every
-// tab and screen of every installed module once, with Up / Down / Shown and Reset to default; one saved
+// The reader's tab order on the page (ui-host.js, view/settings/tabs-list.js): Settings → Tabs & Packs → Tabs lists every
+// tab and screen of every installed module once, with Up / Down / a Shown switch and Reset to default; one saved
 // list orders both the Story panel's tab strip and the game view's navigation; hidden ones leave both and
 // stay in Settings; Home is first and always shown; it works with any subset of modules.
 import test from 'node:test';
@@ -45,7 +45,7 @@ async function setup(modules = ALL_MODULES, extensionSettings = {}) {
 
 const stripIds = doc => doc.querySelectorAll('.story-suite-tab').map(node => node.textContent);
 const navIds = doc => doc.querySelectorAll('.ss-gameview-navitem').map(node => node.getAttribute('data-ss-target'));
-const rows = doc => doc.querySelectorAll('.story-suite-taborder-row');
+const rows = doc => doc.querySelectorAll('.ss-tabrow');
 const rowIds = doc => rows(doc).map(node => node.dataset.tabId);
 const row = (doc, id) => rows(doc).find(node => node.dataset.tabId === id);
 const saved = st => st.ctx.extensionSettings.storySuite?.tabs;
@@ -67,32 +67,35 @@ test('the default order: Home, Party, Inventory, Quests, World, Map, Fight, Craf
     ui.mounts.screen.close();
 });
 
-test('Settings → Story Suite → Tabs lists each tab once with where it shows; Home is fixed', async t => {
+test('Settings → Tabs & Packs → Tabs lists each tab once with where it shows; Home is fixed', async t => {
     t.mock.method(console, 'warn', () => {});
     const { doc, ui } = await setup();
     ui.openSettings({ fold: TABS_FOLD });
-    const fold = doc.querySelectorAll('details.story-suite-subfold').find(node => node.dataset.fold === TABS_FOLD);
-    assert.ok(fold, 'the Tabs group');
-    assert.equal(fold.open, true, 'opened by name');
-    assert.equal(fold.closest('details.story-suite-fold').dataset.fold, 'story-suite', 'inside Story Suite\'s own settings');
+    const card = doc.querySelector('.ss-tabs-card');
+    assert.ok(card, 'the Tabs card, on the Tabs & Packs page');
+    assert.equal(card.dataset.fold, TABS_FOLD);
+    assert.ok(doc.activeElement && card.contains(doc.activeElement), 'opened by name: the focus is in it');
     assert.deepEqual(rowIds(doc), DEFAULT_ROWS);
     assert.match(row(doc, 'story-block/scene').textContent, /hidden/, 'Scene is listed, hidden by default with World there');
     const home = row(doc, 'story-block/home');
-    assert.equal(home.querySelector('.story-suite-taborder-up').disabled, true);
-    assert.equal(home.querySelector('.story-suite-taborder-down').disabled, true);
-    assert.equal(home.querySelector('input').disabled, true, 'Home cannot be hidden');
-    assert.equal(home.querySelector('input').checked, true);
+    assert.equal(home.querySelector('.ss-tabrow-up').disabled, true);
+    assert.equal(home.querySelector('.ss-tabrow-down').disabled, true);
+    assert.equal(home.querySelector('[role="switch"]').getAttribute('aria-checked'), 'true', 'Home is shown');
+    home.querySelector('[role="switch"]').click();
+    assert.equal(home.querySelector('[role="switch"]').getAttribute('aria-checked'), 'true', 'Home cannot be hidden');
+    assert.match(doc.querySelector('.ss-tabrows-refusal').textContent, /^Home stays\./, 'and says why');
+    assert.equal(doc.querySelector('.ss-tabrows-refusal').hidden, false);
     assert.match(row(doc, 'npc-state-delta/cast').textContent, /Story panel and game view/, 'the Dossiers tab and the Dossiers screen are one row');
     assert.match(row(doc, 'story-block/home').textContent, /game view/);
     const party = row(doc, 'rpg-battle/party');
-    assert.equal(party.querySelector('.story-suite-taborder-up').disabled, true, 'the first after Home cannot go up');
-    assert.equal(row(doc, 'npc-state-delta/cast').querySelector('.story-suite-taborder-down').disabled, true, 'the last (Dossiers) cannot go down');
+    assert.equal(party.querySelector('.ss-tabrow-up').disabled, true, 'the first after Home cannot go up');
+    assert.equal(row(doc, 'npc-state-delta/cast').querySelector('.ss-tabrow-down').disabled, true, 'the last (Dossiers) cannot go down');
     // Real buttons with names, for the keyboard and screen readers.
-    const down = party.querySelector('.story-suite-taborder-down');
+    const down = party.querySelector('.ss-tabrow-down');
     assert.equal(down.tagName.toLowerCase(), 'button');
     assert.equal(down.type, 'button');
     assert.equal(down.getAttribute('aria-label'), 'Move Party down');
-    assert.equal(doc.querySelector('.story-suite-taborder-reset').disabled, true, 'nothing to reset yet');
+    assert.equal(doc.querySelector('.ss-tabrows-reset').disabled, true, 'nothing to reset yet');
 });
 
 test('Up / Down: one saved order moves the tab strip and the game view together; the focus stays on the button', async t => {
@@ -101,22 +104,22 @@ test('Up / Down: one saved order moves the tab strip and the game view together;
     ui.openPanel();
     ui.mounts.screen.open();
     ui.openSettings({ fold: TABS_FOLD });
-    row(doc, 'rpg-battle/party').querySelector('.story-suite-taborder-down').click();
-    row(doc, 'rpg-battle/party').querySelector('.story-suite-taborder-down').click();
+    row(doc, 'rpg-battle/party').querySelector('.ss-tabrow-down').click();
+    row(doc, 'rpg-battle/party').querySelector('.ss-tabrow-down').click();
     // The focus followed Party's Down button through both redraws.
-    assert.equal(doc.activeElement, row(doc, 'rpg-battle/party').querySelector('.story-suite-taborder-down'));
-    row(doc, 'story-director/director').querySelector('.story-suite-taborder-up').click();
+    assert.equal(doc.activeElement, row(doc, 'rpg-battle/party').querySelector('.ss-tabrow-down'));
+    row(doc, 'story-director/director').querySelector('.ss-tabrow-up').click();
     const want = ['Inventory', 'Quests', 'Party', 'World', 'Map', 'Fight', 'Crafting', 'Trade', 'Director', 'Chronicle', 'Dossiers'];
     assert.deepEqual(stripIds(doc), want, 'the strip follows at once');
     assert.deepEqual(navIds(doc), ['story-block/home', 'story-block/inventory', 'story-director/quests', 'rpg-battle/party', 'story-director/world', 'story-director/map',
         'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'story-director/director', 'story-director/chronicle', 'npc-state-delta/cast']);
     assert.deepEqual(saved(st).order, rowIds(doc).slice(1), 'stored as an ordered list of ids (Home is not stored)');
-    assert.match(doc.querySelector('.story-suite-taborder-status').textContent, /Director moved up/);
-    assert.equal(doc.querySelector('.story-suite-taborder-reset').disabled, false);
+    assert.match(doc.querySelector('.ss-tabrows-status').textContent, /Director moved up/);
+    assert.equal(doc.querySelector('.ss-tabrows-reset').disabled, false);
     // Moving to the top: Up is then disabled, so the focus goes to the same row's Down.
-    for (let i = 0; i < 3; i += 1) row(doc, 'rpg-battle/party').querySelector('.story-suite-taborder-up').click();
+    for (let i = 0; i < 3; i += 1) row(doc, 'rpg-battle/party').querySelector('.ss-tabrow-up').click();
     assert.equal(rowIds(doc)[1], 'rpg-battle/party');
-    assert.equal(doc.activeElement, row(doc, 'rpg-battle/party').querySelector('.story-suite-taborder-down'));
+    assert.equal(doc.activeElement, row(doc, 'rpg-battle/party').querySelector('.ss-tabrow-down'));
 });
 
 test('Shown: a hidden tab leaves the strip and the game view, stays in Settings, still opens by name; shown again', async t => {
@@ -125,27 +128,23 @@ test('Shown: a hidden tab leaves the strip and the game view, stays in Settings,
     ui.openPanel();
     ui.mounts.screen.open();
     ui.openSettings({ fold: TABS_FOLD });
-    const check = () => row(doc, 'rpg-battle/fight').querySelector('input');
-    check().checked = false;
-    check().dispatch('change');
+    const check = () => row(doc, 'rpg-battle/fight').querySelector('[role="switch"]');
+    check().click();
     assert.deepEqual(saved(st).hidden, ['rpg-battle/fight']);
     assert.ok(!stripIds(doc).includes('Fight'));
     assert.ok(!navIds(doc).includes('rpg-battle/fight'));
-    assert.ok(row(doc, 'rpg-battle/fight').classList.contains('story-suite-taborder-hidden'), 'listed, marked hidden');
+    assert.ok(row(doc, 'rpg-battle/fight').classList.contains('ss-tabrow-hidden'), 'listed, marked hidden');
     assert.match(row(doc, 'rpg-battle/fight').textContent, /hidden/);
     assert.equal(doc.activeElement, check(), 'the focus stays on the switch');
     // A fight starting opens its screen by name even while it is out of the navigation.
     assert.equal(ui.mounts.screen.open('rpg-battle/fight'), true);
     assert.equal(ui.mounts.screen.current(), 'rpg-battle/fight');
     // Dossiers hidden: both its panel tab (NPC State Delta's own) and its screen go.
-    const cast = row(doc, 'npc-state-delta/cast').querySelector('input');
-    cast.checked = false;
-    cast.dispatch('change');
+    row(doc, 'npc-state-delta/cast').querySelector('[role="switch"]').click();
     assert.ok(!stripIds(doc).includes('Dossiers'));
     assert.ok(!navIds(doc).includes('npc-state-delta/cast'));
     // Shown again.
-    check().checked = true;
-    check().dispatch('change');
+    check().click();
     assert.ok(stripIds(doc).includes('Fight'));
     assert.deepEqual(saved(st).hidden, ['npc-state-delta/cast']);
 });
@@ -157,13 +156,13 @@ test('Reset to default: the default order, everything shown, nothing stored', as
     assert.deepEqual(stripIds(doc).slice(0, 2), ['Director', 'Trade'], 'a saved order is read at start');
     assert.ok(!stripIds(doc).includes('Scene'));
     ui.openSettings({ fold: TABS_FOLD });
-    const reset = doc.querySelector('.story-suite-taborder-reset');
+    const reset = doc.querySelector('.ss-tabrows-reset');
     reset.click();
     assert.equal(saved(st), undefined);
     assert.deepEqual(stripIds(doc), DEFAULT_TABS);
     assert.deepEqual(rowIds(doc), DEFAULT_ROWS);
-    assert.equal(doc.querySelector('.story-suite-taborder-reset').disabled, true);
-    assert.equal(doc.activeElement, doc.querySelector('.story-suite-taborder-reset'));
+    assert.equal(doc.querySelector('.ss-tabrows-reset').disabled, true);
+    assert.equal(doc.activeElement, doc.querySelector('.ss-tabrows-reset'));
 });
 
 test('Dossiers is last by default; an order saved when it was Cast, in its old place, keeps that place', async t => {
@@ -193,20 +192,19 @@ test('Scene is hidden by default with Story Director\'s World; shown without it;
     assert.ok(!navIds(doc).includes('story-block/scene'));
     assert.equal(ui.mounts.screen.open('story-block/scene'), true);
     ui.openSettings({ fold: TABS_FOLD });
-    const check = () => row(doc, 'story-block/scene').querySelector('input');
-    assert.equal(check().checked, false);
-    assert.equal(doc.querySelector('.story-suite-taborder-reset').disabled, true, 'that is the default: nothing to reset');
+    const check = () => row(doc, 'story-block/scene').querySelector('[role="switch"]');
+    assert.equal(check().getAttribute('aria-checked'), 'false');
+    assert.equal(doc.querySelector('.ss-tabrows-reset').disabled, true, 'that is the default: nothing to reset');
     // Shown again: in both, and kept as the reader's (`shown`).
-    check().checked = true;
-    check().dispatch('change');
+    check().click();
     assert.ok(stripIds(doc).includes('Scene'));
     assert.ok(navIds(doc).includes('story-block/scene'));
     assert.deepEqual(saved(st).shown, ['story-block/scene']);
     // Moving another tab keeps it shown.
-    row(doc, 'rpg-battle/party').querySelector('.story-suite-taborder-down').click();
+    row(doc, 'rpg-battle/party').querySelector('.ss-tabrow-down').click();
     assert.ok(stripIds(doc).includes('Scene'));
     // Reset to default hides it again.
-    doc.querySelector('.story-suite-taborder-reset').click();
+    doc.querySelector('.ss-tabrows-reset').click();
     assert.ok(!stripIds(doc).includes('Scene'));
     ui.destroy();
     // Without Story Director: Scene shows as before.
@@ -238,7 +236,7 @@ test('any subset of modules; ids of modules not installed are ignored and kept; 
         assert.deepEqual(stripIds(doc), strip.map(id => row(doc, id).querySelector('b').textContent), 'the strip agrees');
         // Moving the last one up works whatever is installed.
         const last = want.at(-1);
-        row(doc, last).querySelector('.story-suite-taborder-up').click();
+        row(doc, last).querySelector('.ss-tabrow-up').click();
         assert.equal(rowIds(doc).at(-2), last);
         ui.destroy();
     }
@@ -246,7 +244,7 @@ test('any subset of modules; ids of modules not installed are ignored and kept; 
     const { doc, st, ui, runtime } = await setup(['story-director'], { storySuite: { tabs: { order: ['rpg-battle/fight', 'story-director/map', 'rpg-battle/party', 'story-block/scene'] } } });
     ui.openSettings({ fold: TABS_FOLD });
     assert.deepEqual(rowIds(doc).slice(0, 3), ['story-block/home', 'story-director/map', 'story-block/scene']);
-    row(doc, 'story-block/scene').querySelector('.story-suite-taborder-up').click();
+    row(doc, 'story-block/scene').querySelector('.ss-tabrow-up').click();
     assert.deepEqual(saved(st).order.slice(0, 4), ['rpg-battle/fight', 'story-block/scene', 'rpg-battle/party', 'story-director/map'], 'kept in their slots, for when it comes back');
     // RPG Battle installed now: Fight and Party take the places the reader gave them before; Trade and
     // Crafting (never placed) go at the end, in default order.
@@ -265,9 +263,9 @@ test('Enter on Up or Down stays with the button (SillyTavern\'s page-wide Enter 
     const seen = [];
     // Where SillyTavern listens (keyboard.js: document, bubbling): the overlay's root stands in for it here.
     doc.querySelector('#story_suite_v2_overlay').addEventListener('keydown', event => seen.push(event.key));
-    const up = row(doc, 'rpg-battle/fight').querySelector('.story-suite-taborder-up');
+    const up = row(doc, 'rpg-battle/fight').querySelector('.ss-tabrow-up');
     assert.equal(up.dispatch('keydown', { key: 'Enter' }).stopped, true);
     up.dispatch('keydown', { key: 'ArrowDown' });
-    row(doc, 'rpg-battle/fight').querySelector('input').dispatch('keydown', { key: 'Enter' });
+    row(doc, 'rpg-battle/fight').querySelector('.ss-tabrow-name').dispatch('keydown', { key: 'Enter' });
     assert.deepEqual(seen, ['ArrowDown', 'Enter'], 'only a button\'s Enter is kept back; other keys and other controls pass');
 });
