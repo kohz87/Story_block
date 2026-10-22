@@ -1025,6 +1025,13 @@ own colours.
 | `hud` | a thin strip above the message box | head |
 | `dialog` | a modal; wizards | head + draft |
 
+The `tab` and `screen` mounts share one navigation order: Home first, then the suite's own screens in their
+default order (Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, Cast, Scene, Chronicle, Director
+last), other screens by their `order` (a number, lower first). The reader's own order and hidden tabs
+(Settings → Story Suite → Tabs, `extension_settings.storySuite.tabs = { order, hidden }`) apply to both; a
+module tab goes by `<module>/<tab id>` there. Form controls inside any mount take SillyTavern's theme colours
+(`controls.css`); a screen's own CSS for its fields still wins.
+
 ### 13.5 Widgets
 `registerModule({ widgets: { name: { props, render(el, props, api) } } })`; `api` has `query`, `command`,
 `preview`, `commit`, `on`. Story Block ships: `meter`, `radar`, `map` (nodes, routes, layers, zoom/pan,

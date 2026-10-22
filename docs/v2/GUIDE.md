@@ -53,6 +53,10 @@ The first beta. In short, what changed for you (the full list is in
 * **Saving is safer**: a late save never undoes a newer one, and closing the page saves what you have
   (or asks first when it can't).
 * **NPC State Delta**: the Cast is in the game view too, and its settings are no longer three folds deep.
+* **Your order of tabs**: move, hide and show the Story panel's tabs and the game view's screens in
+  **Settings → Story Suite → Tabs** (one list for both). See [Your order of tabs](#your-order-of-tabs).
+* **Text boxes follow your theme**: search boxes, text and number fields, lists and sliders in Story
+  Suite's screens and settings take SillyTavern's theme colours, dark or light, instead of bright white.
 
 What is still not right: see "Known issues" under 2.0.0-beta.1 in [RELEASES.md](RELEASES.md).
 
@@ -497,7 +501,7 @@ Swiping the reply that told an action never does the action twice: the potion wa
 The same screens can show in five places:
 
 * **Tabs** in Story Block's panel: Inventory, Scene, and one per installed module (Party, Fight,
-  Quests…).
+  Quests…). On a phone the row of tabs scrolls sideways, and the tab you pick is scrolled into view.
 * **Cards** under each reply, folded to one line, for example *Changed this reply: +1 Moonveil Trout,
   −1 Rope · +30 gold · to Bluewatch Village*. Open one to see the details. A card under an older reply
   shows the story as it was **at that reply**. The *Changed this reply* card (and Story Director's
@@ -518,6 +522,22 @@ The same screens can show in five places:
   search, what changed since the reply before (path by path, and the stored ops), its receipts and its
   problems. It changes nothing.
 * **Windows** (dialogs) for things like making your character.
+
+### Your order of tabs
+
+The tabs and the game view's screens come in one order: **Home** (game view), **Party**, **Inventory**,
+**Quests**, **World**, **Map**, **Fight**, **Crafting**, **Trade**, **Cast**, **Scene**, **Chronicle**
+(when it is on), then any other extension's screens, and **Director** last (the game master's view, with
+what your character has not been told). Only the installed extensions' tabs show.
+
+Change it in **Settings → Story Suite → Tabs**: every tab and screen of every installed extension, one row
+each, with where it shows (*Story panel and game view*, or one of them). **Up** and **Down** move one
+place (they are buttons, so Tab and Enter work too); untick **Shown** to hide one from both the panel's
+tabs and the game view's menu. A hidden one stays in that list, so you can show it again there, and a
+screen that opens by itself (a fight starting) still opens. **Home** is always first and always shown.
+**Reset to default** puts back the order above with everything shown. The order is yours, in every
+chat; an extension you install later puts its tabs at the end, and one you remove keeps its place for
+when it comes back.
 
 ### Choices and Inner chatter
 
@@ -584,7 +604,8 @@ ready-made character.
 
 Open the settings with **Settings** on the Story Suite bar above the message box, **Story Suite** in the
 wand menu, or **Extensions → Story Block → Settings**. They open over the whole window in one column that
-scrolls; **Close** or Esc closes them. Each part is a fold you open and close: **Story Suite**, **Packs**,
+scrolls; **Close** or Esc closes them. Each part is a fold you open and close: **Story Suite** (the
+prompt size, **Show what's sent**, and **Tabs**: [your order of tabs](#your-order-of-tabs)), **Packs**,
 **Features**, one fold per extension with settings, **Diagnostics**, **Versions**. Inside an extension's
 fold, one line says how many of its features are on (*Features: 3 of 4 on — change*, which takes you to
 them), then the extension's own panel if it has one (NPC State Delta's whole settings, with its own
