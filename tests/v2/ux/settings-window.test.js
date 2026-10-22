@@ -179,8 +179,10 @@ test('each section holds what it should: Look and Features are the form engine\'
     assert.deepEqual(foldsOf(root, 'money'), [], 'the form engine');
     assert.equal(page(root, 'money').querySelectorAll('details').length, 0);
     assert.equal(root.querySelector('details[data-fold="story-block::group:General"]'), null, 'the General group is the Money page now');
-    assert.deepEqual(page(root, 'assist').querySelectorAll('details').map(node => node.dataset.fold), ['story-block::group:Assist']);
-    assert.ok(page(root, 'assist').querySelector('.story-suite-section .ss-assist'), 'the Assist panel');
+    assert.deepEqual(foldsOf(root, 'assist'), [], 'the form engine');
+    assert.equal(root.querySelector('details[data-fold="story-block::group:Assist"]'), null, 'the Assist group is the Assist page now');
+    assert.ok(page(root, 'assist').querySelector('.ss-assist-page .ss-field[data-field="assistExtractorKinds"]'), 'the safety net\'s kinds');
+    assert.ok(page(root, 'assist').querySelector('.ss-assist-runs-card .ss-assist'), 'the old Assist panel, as Recent runs');
     // What is left of Story Block's fold stays in Modules, with the line to its features.
     const kept = foldAt(root, 'story-block');
     assert.ok(page(root, 'modules').contains(kept));
@@ -260,6 +262,14 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
         if (section === 'money') {
             // The General group is the form engine's Money page: the first field has the focus.
             assert.ok(doc.activeElement === page(root, 'money').querySelector('.ss-field[data-field="coins"] input, .ss-field[data-field="coins"] button'), `${fold} has the focus`);
+            win.close();
+            host.close();
+            continue;
+        }
+        if (section === 'assist') {
+            // The Assist group is the form engine's Assist page: its first control has the focus.
+            const first = page(root, 'assist').querySelector('.ss-assist-page .ss-field input, .ss-assist-page .ss-field select, .ss-assist-page .ss-field button');
+            assert.ok(first && doc.activeElement === first, `${fold} has the focus`);
             win.close();
             host.close();
             continue;
@@ -498,7 +508,8 @@ test('a section can take another body: it gets its own pane, the shared host doe
     const { root, win, host } = await open({ window: { bodies } });
     assert.equal(page(root, 'money').querySelector('.own-money').textContent, 'Money body for Money');
     assert.equal(page(root, 'money').querySelectorAll('details').length, 0, 'the shared host drew nothing there');
-    assert.deepEqual(page(root, 'assist').querySelectorAll('details').map(node => node.dataset.fold), ['story-block::group:Assist'], 'the rest are as before');
+    assert.equal(page(root, 'assist').querySelectorAll('details').length, 0, 'the rest are as before: Assist is the form engine\'s');
+    assert.ok(page(root, 'assist').querySelector('.ss-assist-page'));
     assert.equal(root.querySelector('details[data-fold="story-block::group:General"]'), null);
     search(root, 'coin');
     assert.ok(calls.some(call => call[0] === 'filter' && call[1] === 'coin'));
@@ -588,7 +599,8 @@ test('Look: Panel style, Glass strength and Font come from the host schema, are 
     assert.equal(look.querySelectorAll('details').length, 0, 'no folds');
     // The Story Suite fold under Tabs & Packs has the budgets, not the look.
     const hostFold = foldAt(root, 'story-suite');
-    assert.deepEqual(hostFold.querySelectorAll('.story-suite-row[data-field]').map(row => row.dataset.field), ['tailBudget', 'contextShare', 'maxChangeLines', 'callQueue']);
+    assert.deepEqual(hostFold.querySelectorAll('.story-suite-row[data-field]').map(row => row.dataset.field), ['tailBudget', 'contextShare', 'maxChangeLines']);
+    assert.ok(page(root, 'assist').querySelector('.ss-field[data-field="callQueue"]'), 'the call queue is on the Assist page now');
     assert.ok(page(root, 'tabs').contains(hostFold));
     // A choice goes through the settings store (the host's own, `settings.set(null, key, value)`) and the look follows at once.
     const select = look.querySelector('.ss-field[data-field="panelStyle"] select');

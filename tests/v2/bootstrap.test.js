@@ -110,10 +110,10 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     // Story Block's money settings (its General group) are the form engine's Money page: three cards, no fold.
     assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'What the story may pay', 'Money words']);
     assert.equal(page('money').querySelectorAll('details').length, 0);
-    // Its Assist settings are the Assist panel and the Assist group.
-    assert.deepEqual(texts(page('assist'), '.story-suite-subsection > h4'), ['Assist']);
-    assert.ok(page('assist').querySelector('.story-suite-section .ss-assist'));
-    assert.deepEqual(texts(page('assist'), '.story-suite-subfold > summary > b'), ['Assist']);
+    // Its Assist settings are the form engine's Assist page: Extra calls, Checks, Safety net, then the old panel as Recent runs.
+    assert.equal(page('assist').querySelectorAll('details').length, 0);
+    assert.deepEqual(texts(page('assist'), '.ss-section-title'), ['Extra calls', 'Checks', 'Safety net', 'Recent runs']);
+    assert.ok(page('assist').querySelector('.ss-assist-runs-card .ss-assist'));
     // Its fold stays in Modules with the line to its features (its features are in the Features fold).
     assert.match(page('modules').querySelector('details[data-fold="story-block"] .story-suite-feature-link').textContent, /^Features: \d+ of \d+ on — change$/);
     // Events, debug information that can spoil the story, is a folded sub-fold of Diagnostics; Versions is with the modules.

@@ -55,8 +55,8 @@ const focusablesIn = root => Array.from(root.querySelectorAll(FOCUSABLE)).filter
 let current = null;
 const windowOpenState = new Map();
 
-/** Opens the settings window on `doc.body` (closing one already open). Returns { root, window, refresh, refreshSize, select, section, isOpen, close }. */
-export function openSettingsWindow({ registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, diagnostics = null, tabs = null, theme = null, fold: target = null, openState = windowOpenState, onClose = null, bodies = SECTION_BODIES }) {
+/** Opens the settings window on `doc.body` (closing one already open). `profiles()` is the Connection Manager's list for the profile selects (default: read from SillyTavern). Returns { root, window, refresh, refreshSize, select, section, isOpen, close }. */
+export function openSettingsWindow({ registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, diagnostics = null, tabs = null, theme = null, profiles = null, fold: target = null, openState = windowOpenState, onClose = null, bodies = SECTION_BODIES }) {
     if (current?.root?.ownerDocument === doc) current.close();
     doc.querySelector?.(`#${WINDOW_ID}`)?.remove();
     const before = doc.activeElement ?? null;
@@ -122,7 +122,7 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
     railBlock = tabsBlock.render(rail, railProps(), { command: (type, payload) => { if (type === 'settings.section') select(payload?.tabs); } });
 
     // ---- the bodies
-    const options = { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs, theme };
+    const options = { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs, theme, profiles };
     const legacy = createLegacySettings(options);
     for (const id of SECTION_IDS) {
         const entry = pages.get(id);

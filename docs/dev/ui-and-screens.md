@@ -119,7 +119,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 
 `src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
 the look, and writes through the same settings store the settings window writes through. The settings window (below)
-draws Look, Features and Money with it (steps 3b and 3c) and still draws today's folds elsewhere; steps 3d–3g move the other sections one by one. The UI sample shows a demo form
+draws Look, Features, Money and Assist with it (steps 3b to 3d) and still draws today's folds elsewhere; steps 3d–3g move the other sections one by one. The UI sample shows a demo form
 (`mountDemoForm`, `UI_SAMPLE_FORM`).
 
 ```js
@@ -148,7 +148,9 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   `sliderMax` < `max` is the range the slider offers, which grows to a larger stored value so it is never shown wrong); `choice` → select, or chips (one of them) with `form: 'chips'`;
   `text` → text box (`multiline`: a text area with a character count when it has a `max`); `profile` → the Connection
   Manager select (`profileChoices`: "Same as chat", the profiles, a gone one kept as "(not found)", the note under the
-  label); `list` → rows with Add and Remove, or one line per item for text and whole-number fields (`form: 'lines'`
+  label; with nothing to pick but "Same as chat" the select is disabled and the note says why); `text` with `form: 'chips'` and `options`
+  → `chipset`: several chips over the comma-separated text (`read(text)` → the entries; entries the options do not list are kept, never drawn
+  and never dropped by a change); `list` → rows with Add and Remove, or one line per item for text and whole-number fields (`form: 'lines'`
   starts there; "Edit as text" / "Edit as rows"; `linesToList` / `listToLines`, the overlay's reader, so "Day: of Ash: 30"
   reads the same and a bad line is named). Several-of chips (`multiple: true`, a list of values) are a renderer of their own
   (`chipsField`); the store has no multi-valued type yet, so the form does not map a schema field to them. A type the
@@ -163,9 +165,11 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   ("Only 100 of the 120 rows could be kept."). A field's own `check(value)` adds what only its module knows after the value is
   stored (the Coins field: "Coin 4 (silver) is named like an earlier coin, so it is not used."), a sentence or nothing. Options
   `quiet` (no "N settings shown" or "No settings match" line: a window around the form says it) and `className` (another class
-  on the form) are for a form inside such a window. A field with a `format` function follows the other values after any change.
+  on the form) are for a form inside such a window. **`sources`** (`{ key: { get(), set(value) } }`) puts a field's value somewhere other than the module's
+  settings (the Assist page's switches live in the feature store): the row reads with `get()` (a throw reads as empty) and writes with `set(value)`, whose
+  answer is the stored value, or `undefined` for a refusal, which shows the old value again. A field with a `format` function follows the other values after any change.
 - **Rows**: `.ss-field` with `.ss-field-label` (a `label` for the controls that can be named by `for`, a `span` plus
-  `aria-labelledby` for chips and lists), `.ss-field-help`, `.ss-field-note`, `.ss-field-tag` ("Read only"), the control, and
+  `aria-labelledby` for chips and lists), `.ss-field-help`, `.ss-field-note`, `.ss-field-tag` ("Read only", or the field's `lockText`, a sentence or a function of the values, which says why it is locked; `.ss-field-tag-why`), the control, and
   `.ss-field-error` (`role="alert"`). The control carries `aria-describedby` (help, note, read-only tag, error) and
   `aria-invalid` while there is an error. Groups are the overlay's (`groupFields`: a field's `group`, else the label's
   "Group: " prefix, else General): a `.ss-section` glass card each, no heading when there is only one.
@@ -200,11 +204,11 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 - The helpers shared with the settings window's folds (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are
   imported from `host-ui.js` through `view/form/schema.js`: they move there when the last section leaves the folds.
 
-## The settings window (UI stage, steps 3a and 3b)
+## The settings window (UI stage, steps 3a to 3d)
 
 `src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
 `openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
-Look and Features the form engine's, step 3c Money** (below). 3d–3g replace the other bodies.
+Look and Features the form engine's, step 3c Money, step 3d Assist** (below). 3e–3g replace the other bodies.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
@@ -219,8 +223,8 @@ Look and Features the form engine's, step 3c Money** (below). 3d–3g replace th
   label, Font Awesome icon, title, sub). Look is first in the rail; the window opens on Features (`DEFAULT_SECTION`). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
   command that selects): a `nav` of buttons, `aria-current="page"` on the chosen one, roving tabindex (one Tab stop, arrows, Home,
   End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
-- **Where today's folds go** (`routeOf`): Story Block's **Assist panel and Assist group → Assist** (its General group is the form engine's
-  Money page, below; the route is unused);
+- **Where today's folds go** (`routeOf`): Story Block's **Assist panel and Assist group → Assist** (both are the form engine's Assist page now,
+  below, and so is its General group's Money page; the route is unused);
   the Story Suite fold (the budgets, Prompt size, its Tabs sub-fold: Panel style, Glass strength and Font moved to Look) and
   Story Block's **Packs** fold → Tabs & Packs; every module's fold (what is left of Story Block's: the line to its features and
   its Inner chatter group) and **Versions** → Modules; Diagnostics (with Events) → Diagnostics. Fold ids did not change:
@@ -234,7 +238,7 @@ Look and Features the form engine's, step 3c Money** (below). 3d–3g replace th
   use that).
 - **Bodies** (`bodies.js`): `SECTION_BODIES`, a map **section id → `(pane, ctx) → { filter(text) → number, refresh?(), destroy?(),
   has?(key), open?(key) }`**; `ctx` is `{ doc, openState, label, legacy, options, changed() }` (`changed()`: a setting this page drew changed
-  and other pages draw what depends on it: they are drawn again). Steps 3c–3g replace one entry each, e.g. `SECTION_BODIES.money =
+  and other pages draw what depends on it: they are drawn again). Steps 3c–3g replace one entry each (Money and Assist are done), e.g. `SECTION_BODIES.money =
   (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(),
   destroy: () => form.destroy() }; }`; a section with its own body never gets drawn by the shared legacy host (it gets no pane), and
   `openSettingsWindow({ bodies })` takes another map (tests). `createLegacySettings` is the shared host behind the default entries.
@@ -256,6 +260,25 @@ Look and Features the form engine's, step 3c Money** (below). 3d–3g replace th
   `baseUnit(currencyOf(values))`: the coin worth 1, else the money word, the **Currency** setting ("gold" by default; Terms (RPG Battle's
   level and XP words) has no money word). It follows the coins and the Currency box after any change. The General group's fold key
   (`MONEY_FOLD`, `story-block::group:General`) opens the Money page with its first field focused (`has`/`open` on the body).
+- **Assist** (`assist.js`, step 3d): Story Block's two optional helpers in the concept's Assist page, four cards: **Extra calls** (the Connection
+  Manager profile both helpers use, `assistProfile`, and the host's "one call at a time per connection" switch `callQueue`, which moved here
+  from the Story Suite fold: `ASSIST_HOST_KEYS` keeps it out of that fold), **Checks** (the pre-roll, "Roll checks before the reply", the strict
+  mode: the check is rolled first, from the reader's message), **Safety net** ("Read changes the reply forgot", its own profile
+  `assistExtractorProfile`, and the allowed kinds `assistExtractorKinds`) and **Recent runs** (the old Assist panel, `renderAssistSection`, with
+  its Refresh). `assistSchema({ featureOn…})` builds the page's schema; `renderSettingsForm` draws it (`quiet`, `className: 'ss-assist-page'`;
+  two columns from 900px with the Safety net card down the right, one column below; fields stacked). **The two switches are Features**
+  (`story-block.preroll`, `story-block.extractor`): they live in the form's **`sources`** (below), not in the settings store, so the
+  Features page and this one agree (a switch here redraws the other pages through `ctx.changed()`, and the Features page's switch redraws this
+  one). **A row that cannot work is drawn and locked, with the reason, never hidden** (`lockText`): the pre-roll says what the feature says
+  ("Needs a module that keeps checks, like RPG Battle.") while no module keeps checks; the safety net's profile and kinds say "Off while the
+  safety net is off"; the shared profile says "Off while both helpers are off"; a profile select with only "Same as chat" to pick is disabled
+  and its note says why (no Connection Manager, it is off, no profiles yet). The kinds are **chips** (`chipsetField` over the stored text,
+  one chip per `KIND_CHOICES` entry in assist/safety.js: time set, time moves on, place, someone arrives or leaves, weather, quest progress
+  and turn-in, wounds, an item handed over); an entry the chips do not list stays in the stored text. **The value wall is stated plainly and
+  has no chips**: coin, new items, XP, loot and healing are never written, whatever is stored (`refusedWhy`, the code, not a setting), and if
+  the net finishes after the reader has already sent the next message its lines wait for the next reply and may not add anything new
+  but someone arriving. There is no "late lines" setting; the page only says it. A test keeps every chip on the right side of the wall.
+  The fold key `story-block::group:Assist` (`ASSIST_FOLD`) opens the page with its first control focused.
 - **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
   answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
   the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
@@ -295,6 +318,7 @@ Look and Features the form engine's, step 3c Money** (below). 3d–3g replace th
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
 - The settings window: `tests/v2/ux/settings-window.test.js` (frame, rail, sections, Look, Features, folds, keyboard, search, bodies),
   `tests/v2/view/form/features.test.js` (the features form), `tests/v2/ux/settings-money.test.js` (the Money page: cards, coins, slider words, validation, a story `+ coin` paying after edits),
+  `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.

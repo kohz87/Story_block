@@ -15,7 +15,7 @@ import { fill } from '../../strings.js';
 export { FIELD_TYPES, SETTING_LIST_ROWS, SETTINGS_TEXT, emptyValue, fieldReadOnly, fill, groupFields, linesToList, listTextFields, listToLines, normalizeField, readInt, rowValue };
 
 /** The kinds of control the engine draws (a field's `kind`, `fieldKind`). */
-export const FIELD_KINDS = Object.freeze(['switch', 'text', 'number', 'slider', 'select', 'chips', 'profile', 'lines']);
+export const FIELD_KINDS = Object.freeze(['switch', 'text', 'number', 'slider', 'select', 'chips', 'chipset', 'profile', 'lines']);
 
 /** What the form says to the reader (plain words). */
 export const FORM_TEXT = Object.freeze({
@@ -42,7 +42,7 @@ export const FORM_TEXT = Object.freeze({
  * The kind of control a field gets, or null for a type the engine does not know (a newer module's: it is not
  * drawn and its value is kept). bool: a switch. int: a number box, or a slider with `form: 'slider'` and whole-
  * number min and max. choice: a select, or chips (one of them) with `form: 'chips'`. text: a text box (a text area
- * with `multiline`). profile: the Connection Manager profile select. list: rows with Add and Remove, or one line per
+ * with `multiline`; with `form: 'chips'` and `options`, chips that fill the text, several at once). profile: the Connection Manager profile select. list: rows with Add and Remove, or one line per
  * item (`form: 'lines'` starts there).
  */
 export function fieldKind(field) {
@@ -51,7 +51,8 @@ export function fieldKind(field) {
         case 'bool': return 'switch';
         case 'int': return f.form === 'slider' && Number.isInteger(f.min) && Number.isInteger(f.max) && f.max > f.min ? 'slider' : 'number';
         case 'choice': return f.form === 'chips' ? 'chips' : 'select';
-        case 'text': return 'text';
+        // Text that holds a list of words the reader picks from ("~ time, ~ place"): chips, several at once (`chipsetField`).
+        case 'text': return f.form === 'chips' && optionsOf(f).length ? 'chipset' : 'text';
         case 'profile': return 'profile';
         case 'list': return 'lines';
         default: return null;
