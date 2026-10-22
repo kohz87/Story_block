@@ -478,7 +478,10 @@ sdk.registerModule({
   that version's pre-releases, so `^2` holds on 2.0.0-alpha.2 and ends before 3.0.0-alpha. A module that
   needs this alpha's changes says `>=2.0.0-alpha.2`. A host that does not meet it refuses the module with
   one sentence, "Name needs Story Block ≥ 2.1.0; this is 2.0.0-alpha.2. Update Story Block to use it.",
-  and keeps nothing of it. A definition field the host does not know (one a newer module added, as
+  and keeps nothing of it (the registry remembers the refusal, `registry.refusals()`, until that module
+  registers). The Story Suite overlay's **Versions** fold (src/v2/compat.js) lists every module with its
+  version and `requires`, and each one out of step (refused for the version, a clash, a second copy, or
+  one with fields this host does not know) with one plain sentence on how to fix it. A definition field the host does not know (one a newer module added, as
   MODULES §F100's `features` was to hosts before it, or another key under `requires`) is logged as a warning and ignored, never
   a refusal; one level down the same: an unknown command option, `settings.*` part, or settings field
   type (that field is hidden in the settings and its value kept as stored). A module whose domains grow keeps the data of the domains a chat already has: only the
@@ -800,7 +803,9 @@ own colours.
 `registerModule({ widgets: { name: { props, render(el, props, api) } } })`; `api` has `query`, `command`,
 `preview`, `commit`, `on`. Story Block ships: `meter`, `radar`, `map` (nodes, routes, layers, zoom/pan,
 minimap, legend), `skill-tree`, `portrait`, `badge` (icon + counter), `timeline`, `stepper` (number input
-under a budget). Modules add their own (`battle-board`, `fishing`).
+under a budget). Modules add their own (`battle-board`, `fishing`). The page adds two host widgets that
+need the store and the chat, `story-block.inspector` (the Inspector screen, MODULES §F92) and
+`story-block.savepoints` (on Home, §F93); outside the page (a test, a preview) they are not there.
 
 ### 13.6 Wizards and forms
 Inputs fill a draft held by the dialog, never the state. Steps share the draft; the last step submits one

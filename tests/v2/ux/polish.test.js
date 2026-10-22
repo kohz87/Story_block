@@ -241,8 +241,10 @@ test('radar labels: never under the minimum on screen, growing with a big chart'
     assert.match(read('view/widgets/styles.js'), /\.ss-w-radar-label\) \{[^}]*font-size: calc\(var\(--ss-w-radar-label, 11\) \* 1px\)/);
 });
 
-test('Home marks a quest that is offered and not yet taken', () => {
-    assert.match(homeScreen.template, /<span class="chip offered" data-if="t\.offer == true && t\.taken != true">Offered<\/span>/);
+test('Home shows Story Director\'s own status line for each quest (an offer says Offered), never its own', () => {
+    assert.match(homeScreen.template, /<span class="chip status" data-state="\{\{ t\.status\.state \}\}">\{\{ t\.status\.text \}\}<\/span>/);
+    assert.doesNotMatch(homeScreen.template, /t\.offer == true|t\.taken/);
+    assert.deepEqual(homeScreen.data.board, { query: 'quest.board' });
 });
 
 test('CSS: hud items cannot collapse, the game view is opaque, the side sheet docks beside the chat', () => {

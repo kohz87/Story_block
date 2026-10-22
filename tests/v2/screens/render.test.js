@@ -222,13 +222,13 @@ test('home: Story Block alone shows the place and the purse, and nothing else', 
     const { drawn, widgets } = recordingWidgets();
     const { el, view, problems } = show(homeScreen, { state, query: queries(module, state), widgets });
     assert.deepEqual(view.warnings, []);
-    assert.equal(problems.length, 5, 'the missing modules\' queries are reported to the mount, not drawn');
+    assert.equal(problems.length, 4, 'the missing modules\' queries are reported to the mount, not drawn');
     assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel scene', 'panel purse']);
     assert.equal(text(el.querySelector('.place')), 'Bluewatch Village · Lakeshore');
     assert.equal(text(el.querySelector('.here')), 'Here: Fenna, Old Tam');
     assert.equal(text(el.querySelector('.wallet')), '125 gold · 6 things carried');
     assert.deepEqual(el.querySelectorAll('.worn li').map(li => text(li)), ['Iron Sword']);
-    assert.deepEqual(drawn, {});
+    assert.deepEqual(drawn, { 'story-block.savepoints': [{}] }, 'only the save points slot (the host widget draws or hides it)');
 });
 
 test('home: with RPG Battle and Story Director, their panels appear', { skip }, () => {
@@ -238,15 +238,17 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     const lyra = { id: 'ac_lyra0001', name: 'Lyra', hp: { cur: 30, max: 30 } };
     state.domains.party = { pc: ren.id, order: [ren.id, lyra.id], actors: { [ren.id]: ren, [lyra.id]: lyra } };
     state.domains.director = { time: { minutes: 0 } };
-    // Quest 2 is offered and not taken (marked Offered); quest 3 was offered and taken (no mark).
-    const quests = [1, 2, 3, 4].map(n => ({ id: `th_quest000${n}`, key: `Quest ${n}`, fields: n === 1 ? { goal: 'clear the cellar' } : {},
-        ...(n === 2 ? { offer: true } : n === 3 ? { offer: true, taken: true } : {}) }));
+    // Story Director's board: four open quests (three shown) and one offer, each with the Director's own
+    // status line; Home shows the words as they are and works nothing out.
+    const active = [1, 2, 3, 4].map(n => ({ id: `th_quest000${n}`, key: `Quest ${n}`, goal: n === 1 ? 'clear the cellar' : '',
+        meter: n === 1, progress: n === 1 ? { have: 2, need: 3, met: false } : null,
+        status: n === 2 ? { state: 'here', text: 'Ready to turn in' } : { state: 'notyet', text: n === 1 ? 'Not yet: 2/3 rats' : 'Not yet' } }));
+    const offers = [{ id: 'th_offer0001', key: 'Lost Ring', goal: 'find the ring', status: { state: 'offered', text: 'Offered — say you take it' } }];
     const query = queries(module, state, {
         'party.pc': () => ren,
         'combat.session': () => null,
         'combat.offers': () => [{ id: 'of_1', foes: [{ name: 'Cellar Rat', count: 6 }, { name: 'Rat King', count: 1 }], stakes: 'death' }],
-        'director.threads': (s, args) => (args.kind === 'quest' ? quests : []),
-        'quest.progress': () => ({ have: 2, need: 3, met: false }),
+        'quest.board': () => ({ active, offers, hasActive: true, hasOffers: true }),
     });
     const { drawn, widgets } = recordingWidgets();
     const { el, view, problems } = show(homeScreen, { state, query, widgets });
@@ -264,9 +266,12 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     assert.equal(text(el.querySelector('.offer')), 'Ahead: 6 Cellar Rat, 1 Rat King to the death');
     assert.equal(el.querySelectorAll('.fight .on').length, 0);
     assert.equal(text(el.querySelector('.time')), 'Day 1, 00:00');
-    assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3']);
-    assert.equal(text(el.querySelector('.quest')).startsWith('Quest 1 — clear the cellar'), true);
-    assert.deepEqual(el.querySelectorAll('.quest').map(li => li.querySelectorAll('.offered').map(chip => chip.textContent)), [[], ['Offered'], []]);
+    assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3', 'Lost Ring']);
+    assert.equal(text(el.querySelector('.quest')), 'Quest 1 Not yet: 2/3 rats — clear the cellar ss.meter:Progress');
+    assert.deepEqual(el.querySelectorAll('.quest .status').map(chip => [chip.getAttribute('data-state'), chip.textContent]), [
+        ['notyet', 'Not yet: 2/3 rats'], ['here', 'Ready to turn in'], ['notyet', 'Not yet'], ['offered', 'Offered — say you take it'],
+    ]);
+    assert.equal(el.querySelectorAll('.quest .progress').length, 1, 'only the first open quest with a target gets a bar');
     assert.equal(text(el.querySelector('.more')), 'and more on the Quests screen');
 });
 

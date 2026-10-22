@@ -16,12 +16,14 @@
 import { FIELD_TYPES, normalizeField } from './registry.js';
 import { HOST_SETTINGS_SCHEMA } from './sdk.js';
 import { PROMPT_HINT } from './features.js';
+import { compatReport, renderCompat } from './compat.js';
 import { scrollCue } from './view/scroll-cue.js';
 import { cutAt } from '../text.js';
 
 export const OPEN_CLASS = 'story-suite-open';
 export const HOST_FOLD = 'story-suite';
 export const FEATURES_FOLD = 'story-suite-features';
+export const VERSIONS_FOLD = 'story-suite-versions';
 export const FEATURE_TEXT = Object.freeze({
     title: 'Features',
     overviewHint: 'every module',
@@ -292,6 +294,14 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         }
         return details;
     }
+    // Versions (compat.js): each module, its version, the Story Block it needs, and what is out of step.
+    function versionsFold() {
+        const report = compatReport({ hostVersion: registry.hostVersion?.() ?? '', modules: registry.modules(), refusals: registry.refusals?.() ?? [] });
+        const { details, body } = fold(doc, VERSIONS_FOLD, 'Versions', report.outOfStep ? `${report.outOfStep} out of step` : 'all in step');
+        if (report.outOfStep) details.classList.add('story-suite-fold-warn');
+        renderCompat(body, report, { doc });
+        return details;
+    }
     function refresh() {
         const open = new Set([...root.querySelectorAll('details.story-suite-fold')].filter(node => node.open).map(node => node.dataset.fold));
         root.replaceChildren();
@@ -310,7 +320,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             .filter(def => Object.keys(def.schema).length || def.section || ownOf(def.moduleId).length)
             .sort((a, b) => (a.moduleId < b.moduleId ? -1 : a.moduleId > b.moduleId ? 1 : 0))
             .map(def => moduleFold(def, ownOf(def.moduleId)));
-        const folds = [hostFold(), ...(all.length ? [featuresFold(all)] : []), ...modules];
+        const folds = [hostFold(), ...(all.length ? [featuresFold(all)] : []), ...modules, versionsFold()];
         for (const node of folds) {
             if (open.has(node.dataset.fold)) node.open = true;
             root.appendChild(node);

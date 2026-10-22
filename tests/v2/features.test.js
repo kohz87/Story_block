@@ -358,10 +358,11 @@ test('the feature store works on its own over any settings root', () => {
 // ---------------------------------------------------------------------------------------------------
 // Story Block's own features
 
-test('Story Block\'s own features: the status strip, the cards and the two assist helpers', async () => {
+test('Story Block\'s own features: the status strip, the cards, the two assist helpers, the inspector and save points', async () => {
     const host = await createHost();
     assert.deepEqual(host.sdk.features().map(feature => [feature.id, feature.on, feature.prompt]), [
         [CORE_FEATURE.hud, true, false], [CORE_FEATURE.cards, true, false], [CORE_FEATURE.preroll, false, false], [CORE_FEATURE.extractor, false, false],
+        [CORE_FEATURE.inspector, false, false], [CORE_FEATURE.savepoints, true, false],
         ['story-block.loot', true, true], ['story-block.encumbrance', true, false],
     ]);
     host.close();

@@ -17,7 +17,10 @@
 // * The Story Block drawer in Extensions: version, modules, the same buttons.
 // * The wand menu: Story Suite (the overlay).
 // * The five mounts (SPEC §13.4) over the screen registry, drawn by the layout renderer (and the
-//   template renderer when it is in this checkout), with the standard and module widgets.
+//   template renderer when it is in this checkout), with the standard and module widgets, and the
+//   host's own two that need the store and the chat: `story-block.inspector` (the Inspector screen,
+//   MODULES §F92; feature `story-block.inspector`, off by default) and `story-block.savepoints` (the
+//   save points on Home, §F93; feature `story-block.savepoints`, on).
 //
 // Every text is set with textContent; nothing a module or a pack wrote becomes markup here. The texts are
 // in src/v2/strings.js.
@@ -33,6 +36,10 @@ import { createReplyNotes } from './reply-notes.js';
 import { STRINGS, fill } from './strings.js';
 import { readRecord } from './persist.js';
 import { CORE_FEATURE } from './features.js';
+import { createInspectorSource } from './inspect.js';
+import { createSavePoints } from './rewind.js';
+import { createInspectorWidget, INSPECTOR_WIDGET } from './screens/inspector.js';
+import { createSavePointsWidget, SAVEPOINTS_WIDGET } from './screens/savepoints.js';
 
 const IDS = Object.freeze({ bar: 'story_suite_v2_bar', panel: 'story_suite_v2_panel', drawer: 'story_suite_v2_drawer', menu: 'story_suite_v2_menu' });
 
@@ -102,7 +109,7 @@ function readerStore(ctx) {
 /**
  * mountUi({ runtime, ctx, doc?, version? }) → { refresh(), blocked(reason, moduleId), clearBlocked(),
  * openPanel(), closePanel(), openSettings(), toggleGameView(), setHud(on), hudOn(), screens, mounts,
- * renderer, notes, syncScreens(), destroy() }.
+ * renderer, notes, savePoints, inspector, syncScreens(), destroy() }.
  * Re-read uses `sdk.reread(index)` (or `runtime.turn.reread(index)`) when the runtime has one.
  */
 export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' }) {
@@ -113,12 +120,34 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const queryAt = (name, args, state) => (registry.query(name) ? runAt(name, args, state) : null);
     // A widget whose feature is off draws nothing (instead of "there is no widget called …").
     const hiddenWidget = Object.freeze({ render: el => { el.hidden = true; return null; } });
-    const widgets = () => Object.fromEntries([
-        ...(registry.widgetsOff?.() ?? []).map(name => [name, { ...hiddenWidget, name }]),
-        ...registry.widgets().map(widget => [widget.name, widget]),
-    ]);
+    // The host's own two (the Inspector, the save points) after the modules' ones; each checks its
+    // feature itself (the Inspector's screen is left out while it is off, the save points draw nothing).
+    const widgets = () => ({
+        ...Object.fromEntries([
+            ...(registry.widgetsOff?.() ?? []).map(name => [name, { ...hiddenWidget, name }]),
+            ...registry.widgets().map(widget => [widget.name, widget]),
+        ]),
+        ...hostWidgets,
+    });
     // A feature of a module that is not here (a runtime without Story Block's core) counts as on.
     const coreOn = id => (registry.feature?.(id) ? registry.featureOn(id) : true);
+    // The host's own widgets: the Inspector (over the store's replay) and the save points (over the chat).
+    const liveCtx = () => globalThis.SillyTavern?.getContext?.() ?? ctx;
+    const savePoints = createSavePoints({ ctx, store, live: liveCtx, ...(runtime.createBranch ? { createBranch: runtime.createBranch } : {}) });
+    const inspector = createInspectorSource({
+        store,
+        chat: () => ctx.chat ?? [],
+        chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId),
+        problems: index => inspectorProblems(index),
+    });
+    const hostWidgets = {
+        [INSPECTOR_WIDGET]: createInspectorWidget(inspector, { enabled: () => coreOn(CORE_FEATURE.inspector) }),
+        [SAVEPOINTS_WIDGET]: createSavePointsWidget({
+            points: savePoints,
+            enabled: () => coreOn(CORE_FEATURE.savepoints),
+            notify: text => globalThis.toastr?.warning?.(text, S.savepoints.title),
+        }),
+    };
     const renderer = createScreenRenderer({
         queryAt,
         widgets,
@@ -201,6 +230,17 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         },
         onChanged: index => mounts?.card?.refresh?.(index, { force: true }),
     });
+    // What the Inspector lists as a reply's problems: blocks its replay skipped, and what the turn met
+    // reading it in this session (change lines not used, with why); the refused lines the notes keep
+    // stand in when the turn's list has nothing for that reply.
+    function inspectorProblems(index) {
+        const out = [];
+        for (const item of store.problems?.() ?? []) if (item.index === index) out.push({ code: item.code ?? 'SKIPPED', message: item.message });
+        const told = (runtime.turn?.problems?.() ?? []).filter(item => item?.index === index);
+        for (const item of told) out.push({ code: item.code ?? '', message: item.line ? `"${item.line}": ${item.message}` : item.message });
+        if (!told.length) for (const item of notes.refusedAt(index)) out.push({ code: 'REFUSED', message: item.reason ? `"${item.line}": ${item.reason}` : `"${item.line}"` });
+        return out;
+    }
     // A card's scope also gets `refused`: that reply's change lines the code did not apply.
     const drawScreen = renderer.render;
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card' ? { ...scope, refused: notes.refusedAt(scope.index) } : scope);
@@ -444,6 +484,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         mounts,
         renderer,
         notes,
+        savePoints,
+        inspector,
         destroy() {
             doc.removeEventListener?.('keydown', onKey);
             offs.splice(0).forEach(off => off?.());
