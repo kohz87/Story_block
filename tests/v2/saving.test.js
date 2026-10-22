@@ -84,13 +84,15 @@ test('saver: check() right before the write: wait writes nothing and tries again
     assert.deepEqual(writes, [1], 'the open chat is not written');
     assert.deepEqual(rescued, [3], 'the change goes to its own chat');
     assert.equal(saver.dirty(), false);
-    // A chat that stays empty (every message deleted) has nothing of the change left: given up after `waits`.
-    const empty = createSaver({ save: () => { throw new Error('never written'); }, target: () => ({ chatId: 'A' }), check: () => ({ wait: 'empty' }), waits: 2 });
+    // C4-3: a chat that stays empty (a slow re-read of a big chat) is waited for: the change is never
+    // dropped for it, after `waits` it is tried less often (the longest retry).
+    const timers = [];
+    const empty = createSaver({ save: () => { throw new Error('never written'); }, target: () => ({ chatId: 'A' }), check: () => ({ wait: 'empty' }), waits: 2,
+        timers: { setTimeout: (fn, ms) => { timers.push(ms); return timers.length; }, clearTimeout: () => {} } });
     empty.touch();
-    await assert.rejects(empty.flush(), /not saved yet/);
-    await assert.rejects(empty.flush(), /not saved yet/);
-    await empty.flush();
-    assert.equal(empty.dirty(), false);
+    for (let i = 0; i < 4; i++) await assert.rejects(empty.flush(), /not saved yet/);
+    assert.equal(empty.dirty(), true, 'still unsaved, not dropped');
+    assert.deepEqual(timers, [200, 200, 15000, 15000]);
 });
 
 test('saver: a change in one chat while another chat\'s change waits hands that one to rescue; it is given up and told after three tries', async t => {

@@ -535,7 +535,7 @@ test('flush saves a pending burst at once and waits for it', async () => {
     let done = false;
     const flushing = store.flush().then(() => { done = true; });
     await settle();
-    assert.equal(timers.count(), 0, 'the timer is cancelled');
+    assert.equal(timers.count(), 1, 'the scheduled save is cancelled (what waits is the save\'s 20 s answer timeout)');
     assert.equal(done, false);
     action(store, 'it_during', 1);
     release();
