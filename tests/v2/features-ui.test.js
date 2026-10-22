@@ -271,3 +271,16 @@ test('the overlay: a settings field or panel of a feature that is off is not dra
     assert.throws(() => host.registry.register({ id: 'odd', settings: { schema: { x: { type: 'bool', feature: 'odd.nope' } } } }), /the settings field "x" names the feature "odd\.nope"/);
     host.close();
 });
+
+test('the overlay: a feature whose needs are not met is drawn off and disabled, with its reason', async () => {
+    const { root, host } = await overlay({ settings: { features: { [CORE_FEATURE.preroll]: true } } });
+    const rows = root.querySelectorAll('.story-suite-feature').filter(row => row.dataset.feature === CORE_FEATURE.preroll);
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+        const input = row.querySelector('input');
+        assert.equal(input.disabled, true);
+        assert.equal(input.checked, false);
+        assert.ok(texts(row, 'small').includes('Needs a module that keeps checks, like RPG Battle.'));
+    }
+    host.close();
+});

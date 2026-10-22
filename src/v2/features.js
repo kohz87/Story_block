@@ -17,7 +17,12 @@
 
 export const FEATURE_OFF = 'FEATURE_OFF';
 // The fields a feature entry has; any other is a newer module's, warned and ignored.
-export const FEATURE_KEYS = Object.freeze(['id', 'label', 'describe', 'default', 'prompt']);
+export const FEATURE_KEYS = Object.freeze(['id', 'label', 'describe', 'default', 'prompt', 'needs']);
+// `needs`: what another module must register for the feature to work at all.
+export const NEEDS_KEYS = Object.freeze(['kinds', 'commands', 'queries', 'why']);
+export const WHY_MAX = 120;
+// The overlay's reason for an unavailable feature that gives none.
+export const NEEDS_HINT = 'Needs a module that is not installed.';
 // The overlay's hint on a feature that changes the static prompt part (SPEC §5).
 export const PROMPT_HINT = 'Changes the fixed prompt once (one slower reply).';
 // The part of an id after `<module-id>.`.
@@ -102,6 +107,15 @@ export function featureProblems(def) {
             else if (typeof feature.describe === 'string' && feature.describe.length > DESCRIBE_MAX) problems.push(`${name} describe is longer than ${DESCRIBE_MAX} characters`);
             if (feature.default !== undefined && typeof feature.default !== 'boolean') problems.push(`${name} default is not true or false`);
             if (feature.prompt !== undefined && typeof feature.prompt !== 'boolean') problems.push(`${name} prompt is not true or false`);
+            if (feature.needs !== undefined) {
+                const needs = feature.needs;
+                const names = list => Array.isArray(list) && list.every(item => typeof item === 'string' && item.trim());
+                if (!isObject(needs)) problems.push(`${name} needs is not an object (like { kinds: ["check"], why: "…" })`);
+                else {
+                    for (const key of ['kinds', 'commands', 'queries']) if (needs[key] !== undefined && !names(needs[key])) problems.push(`${name} needs.${key} is not a list of names`);
+                    if (needs.why !== undefined && (typeof needs.why !== 'string' || needs.why.length > WHY_MAX)) problems.push(`${name} needs.why is not text of at most ${WHY_MAX} characters`);
+                }
+            }
         });
     }
     for (const { where, feature } of featureRefs(def)) {
@@ -114,9 +128,12 @@ export function featureProblems(def) {
 /** A newer module's fields on a feature entry: plain sentences (logged, ignored). */
 export function featureWarnings(def) {
     if (!isObject(def) || !Array.isArray(def.features)) return [];
-    return def.features.filter(isObject).flatMap(feature => Object.keys(feature)
-        .filter(key => !FEATURE_KEYS.includes(key))
-        .map(key => `"${key}" on feature "${feature.id}" is not a feature field this Story Block knows; it is ignored`));
+    return def.features.filter(isObject).flatMap(feature => [
+        ...Object.keys(feature).filter(key => !FEATURE_KEYS.includes(key))
+            .map(key => `"${key}" on feature "${feature.id}" is not a feature field this Story Block knows; it is ignored`),
+        ...(isObject(feature.needs) ? Object.keys(feature.needs) : []).filter(key => !NEEDS_KEYS.includes(key))
+            .map(key => `"needs.${key}" on feature "${feature.id}" is not a needs field this Story Block knows; it is ignored`),
+    ]);
 }
 
 /**
@@ -175,7 +192,7 @@ export function createFeatureStore({ root, registry, save = () => {}, legacy = C
             if (before !== Boolean(on)) tell(id);
             return Boolean(on);
         },
-        /** Every declared feature with its state: [{ id, moduleId, moduleName, label, describe, default, prompt, on }]. */
+        /** Every declared feature with its state: [{ id, moduleId, moduleName, label, describe, default, prompt, needs, available, why, on }]. */
         list: () => registry.features().map(feature => ({ ...feature, on: registry.featureOn(feature.id) })),
     };
 }

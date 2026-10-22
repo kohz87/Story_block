@@ -289,8 +289,9 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
 
 * **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
   name with an s) and its short form.
-* **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: the top quest
-  reward for your character's rank, or 1000 per level; see [Economy and currency](#economy-and-currency)). The rest is not paid, and **Problems** says so.
+* **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: worked out
+  from your installed extensions: the top quest reward for your character's rank, or 1000 per level, or
+  1000 when neither is installed; see [Economy and currency](#economy-and-currency)). The rest is not paid, and **Problems** says so.
   A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
   gift (the potion an old man hands you) worth up to five times the goods.
 * **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
@@ -314,7 +315,8 @@ off: in the **Features** list at the top of that extension's section, or all tog
 **Features** page of the Story Suite settings. Story Block's own are the **Status strip**, the **Cards
 under replies**, **Save points** (on), the **State inspector** (off), and two helpers that each make one
 small extra model call, off until you turn them on: *Roll checks before the reply* and *Read changes
-from replies that forgot them*.
+from replies that forgot them*. A feature that needs another extension (the pre-roll needs one that
+keeps checks, like RPG Battle) shows greyed out, with the reason, until that extension is installed.
 
 * A feature that's off is gone from the story: the model isn't told about it, its lines are not used
   (Problems lists them quietly), its buttons, screens and tabs are hidden.

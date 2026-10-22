@@ -7,7 +7,8 @@
 //   Features (MODULES §F100): each module's fold opens with a "Features" subsection, a switch per
 //   feature with its label and description, and one "Features" fold lists every module's; a feature
 //   that changes the static prompt part says so (PROMPT_HINT). A settings field (`{ …, feature }`) or
-//   custom panel (a function with `feature`) of a feature that is off is not drawn; a switch redraws. The choices are the reader's
+//   custom panel (a function with `feature`) of a feature that is off is not drawn; a switch redraws. A
+//   feature whose `needs` no installed module meets is drawn off and disabled, with its reason. The choices are the reader's
 //   (createFeatureStore, extension_settings.storySuite.features), not the chat's.
 // - the tab host: a tab bar with every module tab, each rendered from the head state's view.
 //
@@ -211,13 +212,21 @@ function featureRow(doc, feature, onChange, place) {
     text.appendChild(el(doc, 'b', '', feature.label));
     if (feature.describe) text.appendChild(el(doc, 'small', '', feature.describe));
     if (feature.prompt) text.appendChild(el(doc, 'small', 'story-suite-feature-hint', PROMPT_HINT));
+    // A feature whose `needs` no module meets: shown off, not switchable, with the reason.
+    const unavailable = feature.available === false;
+    if (unavailable) {
+        row.classList.add('story-suite-feature-unavailable');
+        text.appendChild(el(doc, 'small', 'story-suite-feature-why', feature.why));
+    }
     row.appendChild(text);
     const input = el(doc, 'input');
     input.type = 'checkbox';
     input.id = id;
     input.setAttribute('role', 'switch');
-    input.checked = feature.on === true;
+    input.checked = feature.on === true && !unavailable;
+    input.disabled = unavailable;
     input.setAttribute('aria-checked', String(input.checked));
+    if (unavailable) input.setAttribute('aria-disabled', 'true');
     input.addEventListener('change', () => onChange(Boolean(input.checked)));
     row.appendChild(input);
     return row;
