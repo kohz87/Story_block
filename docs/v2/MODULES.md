@@ -261,7 +261,8 @@ These settle questions agents raised; the host changes they need are made at int
    goes back to the last point where the PC was alive before the fatal fight (the state just before
    `combat.start`), as a SillyTavern branch so the old timeline is kept; the fight's actions are not on the
    new branch. Story Block provides `sdk.rewind({ index, beforeRev })` (branch the chat at carrier `index`,
-   dropping that carrier's receipts from `beforeRev` on). A short cue tells the next reply the PC is back at
+   dropping that carrier's receipts from `beforeRev` on; it answers `{ ok: false, code, message }`, never
+   throws, also when the story cannot be saved first). A short cue tells the next reply the PC is back at
    that moment, with no memory rules imposed.
 18. **Default look** follows the SillyTavern theme's colours (cards, meters, badges), restyled by packs/cards.
 19. **Merging.** (User decision.) PRs into `v2` merge after green CI at the coordinator's discretion.

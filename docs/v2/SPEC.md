@@ -290,8 +290,15 @@ takes the change onto its messages as read back.
 In SillyTavern, Story Block writes the chat file itself (`/api/chats/save`, the body SillyTavern's own
 saveChat sends) instead of `ctx.saveChat`, which waits at least 100 ms before reading the chat and swallows
 errors and timeouts. A refused save throws: the state stays marked unsaved, the reader is told once, and it
-is tried again (1, 2, 4, 8, 15 s). It verifies the head carrier's `extra.storySuite.rev` after each save (as
-v1's coordinated writes did). When the page is closed with something unsaved, the save is sent with
+is tried again (1, 2, 4, 8, 15 s). A save (or a rescue) the server does not answer within 20 s counts as
+refused (the request is given up), so it never holds later saves, the reader's command or the next reply.
+A chat being opened is waited for however long it takes (every 200 ms for 10 s, then every 15 s); the
+change is never dropped for it. It verifies the head carrier's `extra.storySuite.rev` after each save (as
+v1's coordinated writes did), finding the record by its `sid` when a deleted swipe moved it. A save that
+was on its way while the chat was renamed does not count: the change is saved again into the renamed
+chat's file (the copy the late request made under the old name stays on the server). A rescue finds each
+message in the other chat's file by its record's `sid` (or its story text), skips one the file already
+holds as it is, and marks the file as used (`chat_metadata.tainted`), as a save of the open chat does. When the page is closed with something unsaved, the save is sent with
 keepalive, and the browser asks first while saves have been failing. Without such a file (the testkit, a
 temporary chat) it is `ctx.saveChat()`.
 
@@ -378,7 +385,11 @@ One hidden block at the end of the reply:
   Reasoning tags and the hidden comment are found open by open, close by close, in one pass, so unclosed
   tags cost no more than the text's length. Every cut Story Block makes (names, settings text, currency,
   quoted lines) keeps whole characters: a surrogate pair is never split. A Continue reads only the bare blocks it adds; where its text starts is found
-  past the whitespace SillyTavern drops when it writes the continued reply back.
+  past the whitespace SillyTavern drops when it writes the continued reply back. A block whose open tag
+  the cut-off reply had begun (`<Chan` + `ges>…`) is read with it. A reply cut off inside its block keeps
+  it hidden with `open` after the comment's marker; a Continue that goes on with that block (a close tag
+  before any open one, or a change line first) has its lines read and hidden too, and story text that
+  goes on is left as it is.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).
@@ -641,7 +652,8 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   is refused while a two-handed weapon is held); for a full many-piece slot the oldest (keys are renumbered
   in the order pieces went on, the new one last). A piece the shared bag holds counts as the main
   character's (`party.pc`). A piece someone else wears comes off them. The hand-over follows the carry limit
-  (`items.carry` with `move: true`). The receipt names both pieces: `data: { stack, def, actor, from, slot,
+  (`items.carry` with `move: true`), and so do the pieces going back into that member's carry from the
+  shared bag: when they do not fit along with the new piece, it is refused with the module's reason. The receipt names both pieces: `data: { stack, def, actor, from, slot,
   replaced: [stack ids], replacedNames }`. `inventory.unequip` leaves the piece in its wearer's carry.
   `inventory.equipment` → `{ members, worn: [{ id, name, items }], wearers: { [stack]: [{ id, name }] },
   givers: { [stack]: [{ id, name }] }, limits, detail }` is what the Inventory screen's Equipped section,
@@ -769,6 +781,7 @@ createStore({ chat: () => Message[], save: async (target, { keepalive }) => void
   rebuild() → void,                    // after chat change, delete, swipe
   scheduleSave(ms = 400) → void, saveSoon() → Promise<boolean>, flush() → Promise<void>, dirty() → boolean,
   failing() → boolean, truncate(index, beforeRev, { dryRun?, chat? }) → { dropped, rev },
+                                       // truncate replays the kept blocks by the replay rules (§2.2)
 }
 
 // registry.js (SB-turn)
