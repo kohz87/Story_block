@@ -37,7 +37,8 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 
 - **Tokens** (`src/v2/view/theme.js` `themeTokens`): custom properties on every Story Suite root
   (`THEME_ROOTS`, the same list as controls.css: `.story-suite-overlay`, `.story-suite-sheet`, `.ss-gameview`,
-  `.ss-dialog`, `.ss-cards`, `.ss-card`, `.ss-hud`, `[data-ss-screen]`), always under `:where()`.
+  `.ss-dialog`, `.ss-cards`, `.ss-card`, `.ss-hud`, `[data-ss-screen]`, and since step 4a `.story-suite-bar`,
+  `.story-suite-extras`, `.story-suite-reply-note`: the bar, the Choices strip and the notes, which sit in the chat), always under `:where()`.
   Colours: `--ss-glass`, `--ss-glass-strong`, `--ss-tile`, `--ss-border` (the hairline), `--ss-shadow` (a whole
   box-shadow), `--ss-text`, `--ss-muted`, `--ss-track`, `--ss-accent`, `--ss-accent-soft`, `--ss-pill`,
   `--ss-pill-text`, `--ss-badge`, `--ss-badge-text`, `--ss-field`, `--ss-overlay`, `--ss-good`, `--ss-chatter`,
@@ -67,7 +68,9 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   `--ss-sheet-layers: none`, and host.css / mounts.css paint `var(--ss-sheet-bg, <the old tint>)`. Solid and Follow
   SillyTavern leave the three unset (and `prefers-reduced-transparency` resets them to `initial`), so those surfaces
   keep SillyTavern's tint exactly as before. The settings window's layer (`.story-suite-overlay`) is only a scrim now.
-  Still opaque, for steps 2 and later: the HUD strip and the dialog mount (`.ss-hud`, `.ss-dialog`). `prefers-reduced-transparency` turns Glass into Solid; `prefers-reduced-motion`
+  Since step 4a the HUD strip and the dialog mount are glass under Glass as well: their background and blur come from `--ss-sheet-bg`
+  and `--ss-sheet-blur`, their shape from `--ss-sheet-radius`, `--ss-sheet-edge` and `--ss-sheet-shadow` (set under Glass only, each read
+  with the old value as fallback, so Solid and Follow SillyTavern keep those frames). `prefers-reduced-transparency` turns Glass into Solid; `prefers-reduced-motion`
   sets `--ss-motion: 0s`. SillyTavern's own "No blur effect" (`body.no-blur`) still removes every blur. The
   class `ss-scheme-light` / `ss-scheme-dark` inside a root forces a scheme there (`data-ss-*` attributes are
   reserved by the sanitiser, so it is a class). Nothing is set on SillyTavern's elements.
@@ -352,6 +355,48 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   folds (step 3b removed what only the old Features fold needed). The form engine's sections inside the window are tiles, not glass on
   glass.
 
+## The surfaces on the glass (UI stage, step 4a)
+
+The hand-built surfaces of Story Block's own UI, moved onto the glass design (Main.dc.html, Reply.dc.html and Panel.dc.html
+are the approved mockups; the spacing, type and glass are the tokens above, no new colours). Each keeps its markup, its ids,
+its data attributes, its keys and its commands; what changed is how it is drawn and the few places named below.
+
+- **The story panel** (`ui-host.js` `openPanel`, `host-ui.js` `createTabHost`). The tab bar is the **`ss.tabs` block**: a `nav`
+  of buttons (`.ss-tabs-item`, aria-current on the chosen tab, one Tab stop, the arrows, Home and End, a click chooses; the
+  choice runs `story-suite.tab` with `{ tabs: id }`, which the host takes as its own `select`). The host draws the block with
+  `renderTabStrip({ max: 100, labelMax: 200 })` (`view/widgets/nav.js`, the same render with the host's limits) and keeps the names
+  the tests and modules use on its buttons: `story-suite-tab`, `story-suite-tab-label`, `data-tab-id`; the pane keeps
+  `story-suite-pane`. The block is drawn once and updated on each draw, so the focus stays on its tab. The head keeps its title and
+  Close and takes Panel.dc.html's 12px gutters with no rule; Close is a 40px glass tile. The scroll fade is on the block's list
+  (`.ss-tabs-list`). The sheet's glass background is unchanged (`--ss-sheet-*`).
+- **The bar above the message box and its notice** (`ui-host.js`, `host.css`). Story, Game view and Suite are glass pills (the
+  SillyTavern `menu_button` class is kept, the look is on top); the held-back notice is a glass card with the accent hairline and
+  the dismiss pill. The bar and the notice are theme roots (`.story-suite-bar`). The notice's class is shared with NPC State Delta's
+  own warning (`#npc_state_delta_custom_fields_stats_warning` carries `story-suite-notice`); the look follows the class.
+- **The notes under a reply** (`reply-notes.js`, `host.css`). One glass row: the note's icon in a 28px tile, the line in the muted
+  colour, Re-read as a pill, the error line in the accent. A note is not folded and was not folded before; it stays one row.
+- **The changes card** (`screens/changes-card.js`, `mounts.css` `.ss-card`). The card under a reply is a glass card (the frame is a
+  theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted; on a phone it takes the next
+  line, two at most), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
+  folded by default, as before (the card mount's fold, unchanged).
+- **The Choices strip** (`extras-ui.js`, `host.css`). The strip is a `details` element, **folded by default** (the beta test's
+  request): its summary is a glass row with the signpost, "Choices", the count and a chevron that turns when open. Opened, the
+  options are one per row, each a full-width glass button (`.story-suite-choice`); a click still only fills the message box, never
+  sends. A new reply's strip starts folded; a refresh of the same reply keeps the reader's choice. The Chatter strip the brief names
+  is not drawn under replies in this checkout (inner chatter reads on World and on the Scene screen), so nothing changed for it.
+- **The game view's navigation** (`mounts.css` `.ss-gameview-nav`, `mounts/screen.js`). The navbar's look (Main.dc.html's bottom bar):
+  a glass pill floating above the foot on a phone, 64px items, the muted colour and the accent for the current screen; a glass column
+  on a wide screen. The mount keeps its own buttons (`data-ss-target`, Tab stops, the scroll cue): the `ss.navbar` block's roving
+  tabindex would change the game view's keyboard path, so the block's look is taken, not its markup.
+- **The HUD strip and the dialog mount** (`mounts.css` `.ss-hud`, `.ss-dialog`, `mounts/dialog.js`). Glass under Glass only (the
+  `--ss-sheet-*` tokens; the shape tokens are set under Glass too). The dialog's backdrop keeps its dim and light blur, so the page
+  behind the translucent panel is already blurred. The dialog's own buttons (Back, Random, Next, Done, Accept) keep their classes
+  and take `ss-modal-action` (and `ss-modal-primary` on Done and Accept): the `ss.dialog` action pills. The wizard steps and the
+  receipt are the mount's own.
+
+Solid draws each of these with the palette's opaque glass (the same tokens with no blur); Follow SillyTavern draws them with
+SillyTavern's own colours. The HUD strip and the dialog mount keep their old look under both (the glass is Glass only).
+
 ## Key files and functions
 
 - `src/v2/view/screens.js`: `validateScreen`, `resolveData`, `screenOrder`, `byNavOrder`, `DEFAULT_ORDER`,
@@ -367,6 +412,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
 - `src/v2/ui-host.js` (`mountUi`: bar, panel, drawer, mounts), `src/v2/host-ui.js` (`renderSettingsHost`: the settings folds, drawn into the settings window's sections), `src/v2/view/settings/window.js` (the window).
+- Step 4a: `src/v2/host-ui.js` `createTabHost` (the story panel's tab bar, on `renderTabStrip` in `view/widgets/nav.js`), `src/v2/extras-ui.js` (the Choices strip), `src/v2/reply-notes.js` (the notes), `src/v2/screens/changes-card.js` (the card's CSS), `src/v2/view/mounts.css` and `host.css` (the frames and the furniture).
 - `testkit/purify.js`: `stPurify`, stands in for SillyTavern's DOMPurify (drops controls' `type` as the real one does).
 
 ## Tests that guard it
@@ -380,6 +426,8 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   `tests/v2/ux/settings-diagnostics.test.js` (the Diagnostics page: the report card built on first show, Copy, Save, the sample button, Events, placed modules, search, the scrub),
   `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
+- The surfaces of step 4a: `tests/v2/ux/surfaces-css.test.js` (the bar, notes, Choices, card, HUD, dialog, game view nav, the Glass-only shape tokens),
+  `tests/v2/ux/surfaces-ui.test.js` (the story panel's tab bar keys and focus, the Choices fold), `tests/v2/qa/surfaces-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`,
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.
 - Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`, `form-security`, `settings-window-security`.

@@ -434,7 +434,7 @@ A glass card of rows: a title, a quieter line under it, and on the right a value
 
 ### `ss.tabs` and `ss.navbar`
 
-`ss.tabs`: a row of tabs (text, with an icon when the item has one), for a panel's or screen's sections.
+`ss.tabs`: a row of tabs (text, with an icon when the item has one), for a panel's or screen's sections. The story panel's own tab bar is this block too, drawn with `renderTabStrip` (view/widgets/nav.js) at the host's limits (100 tabs, labels in full): the widget's 24-item cap is for module widgets.
 `ss.navbar`: the game view's bottom bar, an icon over a label in a dense glass pill. Both are a `<nav>` of
 buttons: the current item is `aria-current="page"`; one Tab stop (the current item), and the arrow keys, Home and
 End move the focus along the row (they do not choose; Enter or Space does, as any button; disabled items are
