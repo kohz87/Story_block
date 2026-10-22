@@ -1,5 +1,39 @@
 # Story Suite v2 releases
 
+## 2.0.0-beta.1 (draft)
+
+**Not released yet.** These notes grow as each beta wave merges. Still for test play only.
+
+### What's new since alpha.2
+
+**Features: switch optional mechanics on and off** (F100, Story Block #96)
+- Story Suite settings have a **Features** page, and each extension's section has its own Features list.
+- Each optional mechanic has a switch and one line saying what it does.
+- A feature that's off is gone from the story: the model isn't told about it, its lines aren't used, and its buttons and screens are hidden.
+- Nothing is lost. Turning a feature on again brings back what the story already held.
+- Your switches hold in every chat.
+- Story Block's own: Status strip, Cards under replies (both on), and two helpers that make one small extra model call each (both off).
+
+**Player guide**
+- "Checks and modifiers" now tells the same-reply dice (F80). The old Roll button is gone from the guide.
+- New sections: "Using things in the story" (F96) and "Economy and currency".
+- Quests are described as story-led, with no quest buttons (F94, F95).
+- The Ersveil pack is set up with **Import pack file** in the Packs panel.
+- We recommend a SillyTavern chat backup interval of at least 5 minutes.
+
+### Known issues
+
+- Carried over from alpha.2 until a wave fixes them: see "Known issues" under 2.0.0-alpha.2 below.
+
+### Module versions
+
+| Module | `v2` head | Version | `requires` |
+|---|---|---|---|
+| Story Block | (at the beta candidate) | 2.0.0-beta.1 | — |
+| RPG Battle | (at the beta candidate) | 2.0.0-beta.1 | `storyBlock >=2.0.0-beta.1` |
+| Story Director | (at the beta candidate) | 2.0.0-beta.1 | `storyBlock >=2.0.0-beta.1` |
+| NPC State Delta | (at the beta candidate) | (see its bump PR) | `storyBlock >=2.0.0-beta.1` |
+
 ## 2.0.0-alpha.2 (2026-10-22, baseline)
 
 **The alpha.2 baseline.** This records where all four modules stand after the feature freeze (F103), two break rounds and their fixes. **Beta is now in progress, built in waves A–E.** The queued features below are being built as part of beta, and the full combined test moves to beta.

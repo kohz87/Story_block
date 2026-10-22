@@ -5,8 +5,10 @@ merge. Contract: [SPEC.md](SPEC.md), [MODULES.md](MODULES.md) (§F = binding dec
 
 Legend: ✅ merged into `v2` · 🔧 in progress · ⏳ planned
 
-Where things stand: wave 4 is merged in all four repos. Feature freeze (F103) is on: the break round (b1–b7)
-ran against the merged code and its findings are fixed; only bug fixes go in until the re-break and alpha.2.
+Where things stand: **2.0.0-alpha.2 is the baseline** (notes: [RELEASES.md](RELEASES.md), #93). Three break
+rounds ran and their findings are fixed. **Beta is being built now in waves A–E**: the Features toggles (F100)
+and storage tuning first, then the queued features in parallel. Breakers attack each wave PR as it opens and
+merges. The beta.1 notes are drafted at the top of RELEASES.md as features land.
 
 ## Story Block (host)
 | Piece | State | PR |
@@ -41,7 +43,19 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | Docs: SPEC §2.2/§3.1/§4/§7, MODULES §C, F1, F81–F103 | ✅ | #81 |
 | Saves follow their chat, refused saves seen, greeting delete keeps state, swipe marks, rewind dry run | ✅ | #82 |
 | Continue finds its own block after SillyTavern's clean-up; an emptied stack's take moves on replay; this status | ✅ | #83 |
-| Storage tuning: checkpoint 100/128 KB, ride on SillyTavern's save, op compaction (one record copy done in #77) | ⏳ | |
+| Docs: SB-fix4 status, save cost per chat length | ✅ | #84, #85 |
+| Round 2 fixes: story goods worth and kinds, story-vouched payouts, sid-keyed tally, replay checks, place kind | ✅ | #86 |
+| Replay passes over a gone key's remove; pre-release version order; VERSION 2.0.0-alpha.2 | ✅ | #87 |
+| b5b round 2: linear tag scans, whole-character cuts, settings list clamps, loop and props limits | ✅ | #88 |
+| Speed: frozen views for reads and queries, no head replay for record-less messages | ✅ | #89, #90 |
+| b2 round 2: dry runs, swipe marks, renamed chats, Re-read races, one write less per reply | ✅ | #91 |
+| One notable story item per reply, outside the goods budget | ✅ | #92 |
+| 2.0.0-alpha.2 release notes | ✅ | #93 |
+| Packs: installed modules satisfy a pack's capabilities (Ersveil imports) | ✅ | #94 |
+| A card edit or rename before the first reply keeps the greeting's state | ✅ | #95 |
+| Player guide: checks, story item use, quests, economy and currency, Ersveil import, backup interval | 🔧 | |
+| Features: reader switches for optional mechanics (F100) | ✅ | #96 |
+| Storage tuning: checkpoint 100/128 KB, ride on SillyTavern's save, op compaction (one record copy done in #77) | 🔧 | |
 
 ## RPG Battle (module)
 | Piece | State | PR |
@@ -65,6 +79,9 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | Break fixes (b4 combat, b1 capture, b3 economy, b5b, b2 claims) | ✅ | #82 |
 | Balance: a tier is a threat budget for the whole group (B-b4-11) | ✅ | #83 |
 | Story Block testkit at da54eaf (carrier sid), b2-timeline claims | ✅ | #84 |
+| Round 2: a character file's things held to a worth | ✅ | #85 |
+| Round 2: b4-combat fixes (opening draught, return cue, per-tier budget, boss level) | ✅ | #86 |
+| Round 2: keyed bookkeeping that survives a middle delete, fuzz-delete CI, requires alpha.2 | ✅ | #87 |
 | v1 (`main`) 0.5.52: steps aside next to Story Block 2 | ✅ (main) | #81 |
 
 ## Story Director (module)
@@ -82,6 +99,9 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | Atlas map: every known place, pan/zoom, search, details (F98) | ✅ | #82 |
 | Break fixes (b1 capture, b3 economy, b4 combat, b5b robustness) | ✅ | #83 |
 | Written quest ranks held to the party's, thread summaries capped | ✅ | #85 |
+| Round 2: story-vouched quests one a reply, written rewards never raised, difficulty one rank up | ✅ | #86 |
+| Round 2: keyed Director bookkeeping, atlas limits, live threads in the tail, fuzz-delete CI | ✅ | #87 |
+| Quest payouts use the currency plural ("50 marks") | ✅ | #88 |
 | v1 (`main`) 0.9.47: steps aside next to Story Block 2 | ✅ (main) | #84 |
 
 ## NPC State Delta (standalone, hosted when Story Block v2 is present)
@@ -93,7 +113,8 @@ ran against the merged code and its findings are fixed; only bug fixes go in unt
 | Meters in the per-reply state, stages, hidden notes (F81, F90) | ✅ | #175 |
 | Hosted fixes from b7: the capture strip keeps `<Changes>`, Cast tab redraws, awaited registration | ✅ | #177 |
 | Cleanup steps 0–11 (locks, caps, golden outputs, field registry, profileUpdates, gates, markers, merges, targeted passes, index.js split in three parts, dead code) | ✅ | #174, #176, #178–#189 |
-| One-pass prompt changes (audit steps 12–13): need the user's sign-off (C10) | ⏳ | |
+| Round 2: Cast tab keeps to its own pane, failed loads say so, swipe guard, caller rules, requires alpha.2 | ✅ | #190 |
+| Prompt alignment (audit steps 12–13, approved by the user) | ✅ | #191 |
 
 ## Break round (F103)
 Seven break runs went at the merged wave 4 code; each wrote a report with failing tests. The findings below
@@ -119,7 +140,6 @@ typed into a reply by hand stays shown until Re-read, by design.
 - Two tabs on one chat: the last writer wins (documented; no lock across tabs).
 - SillyTavern's own TypeError when the chat is switched mid-stream (`onProgressStreaming` reads `mes` of a
   message that is gone); seen in every live chaos run, not ours to fix.
-- NSD: the cleanup is done (#174–#189); the prompt-changing steps 12–13 wait for the user's sign-off.
 - Save cost grows with the chat: the reader's actions are saved before sdk.command answers, and the
   whole chat file is written each time. Measured live (SillyTavern 1.19, messages of about 2.4 KB with
   their records): 50 messages 0.13 MB, 13 ms a save; 500 messages 1.2 MB, 97 ms; 3000 messages 7.3 MB,
@@ -130,18 +150,17 @@ typed into a reply by hand stays shown until Re-read, by design.
 - To watch: `src/v2/chat-file.js` mirrors SillyTavern's save body; check it on each SillyTavern release.
 
 ## Next
-1. Re-break: the break runs again on the fixed code (same harnesses, new seeds).
-2. Combined live test of all four on SillyTavern (creation → offer → fight → quest payout → swipe/delete
-   rollback → Continue → reload).
-3. 2.0.0-alpha.2 tagged on each `v2` branch.
-4. Then the queued features (SB features, equip picker, crafting, wear, TRS ideas), storage tuning, beta.
+1. Beta waves A–E land (Features toggles and storage tuning first), each attacked by the rolling breakers.
+2. Combined attack round and soak on the frozen beta candidate.
+3. Version bumps to 2.0.0-beta.1 (draft PRs, merged at the beta candidate), then the user's own test.
+4. No merge of `v2` into `main` until the user has tested.
 
 ## Milestones
 - ✅ **2.0.0-alpha.1**: all four integrated, combined live test passing (creation → offer → fight → quest payout → swipe/delete rollback), tagged on each `v2` branch.
 - ✅ **Wave 4**: the F28–F102 features and the QA fixes, merged in all four repos.
 - ✅ **Break round (b1–b7)**: findings fixed.
-- ⏳ **2.0.0-alpha.2**: after the re-break and the combined live test.
-- ⏳ **2.0.0-beta**: performance tuned, screens polished, guide complete, TRS ideas 1–12 (F101).
+- ✅ **2.0.0-alpha.2**: baseline after three break rounds (#93).
+- 🔧 **2.0.0-beta.1**: waves A–E (Features toggles, storage tuning, equip picker, crafting, wear, TRS ideas 1–12), guide complete.
 - ⏳ Studio (separate app): after beta.
 
 ## Decisions log

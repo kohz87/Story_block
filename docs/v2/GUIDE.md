@@ -86,24 +86,34 @@ extractor reads such replies instead and the note doesn't show.
 Lines the extensions couldn't use are listed faintly at the bottom of that reply's card, with the
 reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the inventory.*
 
-## Buttons first
+## The story leads, buttons manage your things
 
-Anything the screens offer is a button, and a button is done by the code right away, not by the
-model: using a potion, equipping a sword, dropping something, starting a fight, buying, selling. The
-next reply is told what happened, with the exact numbers, and narrates it. A thing done once is told
-once.
+Story actions happen in the story. You take a quest or drink a potion by saying so in your
+message, and the story tells it. Code checks each change and sets the numbers in the same reply.
+There are no buttons for story actions.
+
+Buttons are for managing your things and the game: equipping a sword or taking it off, giving
+something to a companion, dropping it, starting a fight, buying, selling. A button is done by the code
+right away, not by the model. The next reply is told what happened, with the exact numbers, and
+narrates it. A thing done once is told once.
 
 ## Checks and modifiers
 
 When you try something whose outcome isn't certain (sneaking past a guard, climbing a wet wall), the
-model stops before the outcome and asks for a **check**: a d20 roll against a difficulty.
+dice decide. You don't roll them yourself, and you don't wait.
 
-The check waits for you in RPG Battle. Your stat is already added. Before you roll you can add what
-fits: a skill or ability you have, an item that helps, or your own bonus or penalty with a short
-reason. Press **Roll**. The roll and every bonus are shown, and the next reply tells what happened.
+* Before each reply, code rolls two d20s. The story gets them with a short table of your party's
+  bonuses for each kind of check. Code builds that table from your stats, skills and gear.
+* The story sets how hard the attempt is (easy 10, normal 15, hard 20, very hard 25), takes the first
+  roll, adds the bonus and tells the outcome in the same reply. A second attempt in the same reply
+  takes the second roll.
+* A natural 20 always succeeds and a natural 1 always fails. Falling 1 or 2 short succeeds at a cost.
+* Code works the result out again from the same dice and records it. The card under the reply shows
+  each check with its roll and bonus. If the story told a different outcome than the dice give, the
+  card says so.
+* A reply holds at most two checks. A swipe brings fresh dice.
 
-If you just send your next message without rolling, the check is rolled for you first, with only the
-automatic bonuses.
+There is no Roll button, and nobody adds or changes a bonus by hand.
 
 ## Fights
 
@@ -130,6 +140,25 @@ once and hands over any items the job asked for, or the story is told why not ye
 buttons. One fight counts for one hunting quest; items you carry can count for an item quest at the
 same time.
 
+Every quest has a clear goal. When code can't count it (find the missing girl, win the mayor's
+trust), the story says when it is met, and the quest shows Ready. **Details** on a quest shows its
+goal, progress, reward, who gave it, when it is due and what has happened so far. A finished quest
+stays in the list under Finished. New jobs come at a calm pace; a passer-by stays a passer-by.
+
+## Using things in the story
+
+To drink a potion or use a salve, just do it in the story ("I drink the draught", "I put the salve on
+Wessel's arm"). The story writes the use as a change line, for example
+`! use Healing Salve | on: Wessel`, and code applies the item's effect in the same reply, from the
+item's own numbers. The bag shows one less.
+
+If it can't be used (you're at full health, there's nothing to cure, it isn't in the bag), code keeps
+it in the bag and the next reply is told why. During a fight, using something is your action for that
+turn.
+
+There is no Use button. **Equip**, **Take off** and **Give** stay in the Inventory, because they only
+manage your things.
+
 ## Trade and crafting
 
 Where there's a market (a town, or a trader present), the **Trade** screen lets you sell what you
@@ -137,10 +166,28 @@ carry and buy from what's on offer. Prices come from the rules and from the plac
 when you click. A smith or crafter can make something from your materials for a fee; you come back
 when it's ready and **Collect** it.
 
-There is one currency per chat, called gold unless you rename it in Story Block's settings (pennies,
-crowns, Gil…). Whatever coin words the model writes, only the number counts. If you delete a reply in the
-middle of the chat, the coin and items it gained or spent are taken back, and the later replies' own gains
-and spending stay.
+## Economy and currency
+
+There is one currency per chat. Its name is only a name: gold unless you rename it in Story Block's
+settings (pennies, crowns, marks, Gil…), or the name a pack suggests. Renaming it changes no amounts.
+Whatever coin words the model writes, only the number counts.
+
+How much things cost and how much the story may pay come from the **pack**, not from the model:
+
+* **Rewards.** The pack's quest rank ladder sets how much a quest of each rank pays. The top reward of
+  your character's rank is also the most the story may hand out in one reply (a purse found, a tip, a
+  sold trinket). Without a pack, Story Director's own ladder is used, or 1000 per level.
+* **Prices.** Each item in the pack has a value. Shops sell and buy by it.
+* **Your own limit.** **Money one reply may give** in Story Block's settings replaces the budget from
+  the ranks with your own number. Leave it at 0 to follow the pack.
+* **Lorebooks** only give flavour to the model (what a mark looks like, who mints it). They never set
+  prices or rewards. Keep the lorebook's money words close to the pack's so the story sounds right.
+
+Ersveil, for example, pays 50 to 400 marks for an F-rank job, so one reply may give at most 400 marks
+while your character is in that rank.
+
+If you delete a reply in the middle of the chat, the coin and items it gained or spent are taken back,
+and the later replies' own gains and spending stay.
 
 ## Swipe, delete, edit
 
@@ -194,6 +241,12 @@ look for the screens. Packs are data only; nothing in them can run code.
 You can switch a pack off or remove it at any time. A story already told keeps what it got from the
 pack.
 
+**Trying Ersveil.** Story Block comes with the Ersveil starter pack
+(`examples/packs/ersveil-bluewatch/pack.json` in Story Block's folder). Import it with **Import pack
+file** in the Packs section, like any pack. Switch off other packs that set a start or a currency.
+[ERSVEIL.md](ERSVEIL.md) walks through the rest: the lorebooks, the persona, the first message and the
+ready-made character.
+
 ## Settings
 
 Open **Extensions → Story Block**, or the Story Suite overlay when two or more are installed.
@@ -201,7 +254,7 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
 * **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
   name with an s) and its short form.
 * **Money one reply may give**: the most the story's `+ coin` lines of one reply can pay (0: the top quest
-  reward for your character's rank, or 1000 per level). The rest is not paid, and **Problems** says so.
+  reward for your character's rank, or 1000 per level; see [Economy and currency](#economy-and-currency)). The rest is not paid, and **Problems** says so.
   A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
   gift (the potion an old man hands you) worth up to five times the goods.
 * **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
@@ -212,6 +265,8 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
 * **Features**: every optional part of every extension, each with an on/off switch and a line saying
   what it does (see below).
 * Each module has its own section (combat, the story clock and calendar, NPCs).
+* **Problems**: lines the model wrote that couldn't be used, and why. Useful when something you expected
+  didn't happen.
 
 ### Features
 
@@ -229,8 +284,6 @@ under replies**, and two helpers that each make one small extra model call, off 
 * A feature marked *Changes the fixed prompt once (one slower reply)* changes the part of the prompt
   the model's provider keeps cached, so the next reply after the switch may take a little longer and
   cost a little more; the replies after it are fast again.
-* **Problems**: lines the model wrote that couldn't be used, and why. Useful when something you expected
-  didn't happen.
 
 ## When something looks wrong
 
@@ -260,7 +313,10 @@ script (**Extensions → Regex → New global script**):
 * **Ephemerality**: tick only **Alter Outgoing Prompt**, so the replies keep their lists (Story Block
   reads them again if you turn it back on) and only the prompt loses them.
 
-## Slow disk? Raise SillyTavern's chat backup interval
+## Raise SillyTavern's chat backup interval to at least 5 minutes
+
+We recommend a chat backup interval of **at least 5 minutes**. Every backup is a full copy of the
+chat file, and long Story Suite chats are large, so short intervals mean many large copies.
 
 SillyTavern rewrites the whole chat file on every save, and also writes a full **backup copy** of it,
 at most once per *backup interval*. The default interval is 10 seconds, shorter than a reply, so in
@@ -272,7 +328,7 @@ about **31 MB** as built (v1 with a 3 KB state block: 24 MB), and a reply writes
 full-file saves plus one backup copy (v1: 48 MB). The backup copy alone is one more full file per reply,
 **31 MB** at that length.
 
-Raise the interval to **5 minutes** in SillyTavern's `config.yaml` (in SillyTavern's folder) and restart
+Raise the interval to **5 minutes or more** in SillyTavern's `config.yaml` (in SillyTavern's folder) and restart
 SillyTavern:
 
 ```yaml
