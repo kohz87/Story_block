@@ -1,4 +1,4 @@
-// The README teaches the scene board's markup with an example; it must keep drawing as a
+// The v1 README (docs/v1/README.md) teaches the scene board's markup with an example; it must keep drawing as a
 // board, not fall back to plain text, or the guide would be teaching something that fails.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { parseScene } from '../src/scene.js';
 import { templateById } from '../src/templates.js';
 
-const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+const readme = readFileSync(new URL('../docs/v1/README.md', import.meta.url), 'utf8');
 
 test('the README scene board example reads as a full scene', () => {
     const match = /\*\*Scene board\*\* \(World State\)\. Markdown the board understands:\n\n```\n([\s\S]*?)\n```/.exec(readme);
