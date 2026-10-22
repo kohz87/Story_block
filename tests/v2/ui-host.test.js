@@ -43,3 +43,45 @@ test('stateAt with a carrier still reads that reply\'s state', async t => {
     assert.equal(el.textContent.trim(), String(runtime.store.head().meta.rev));
     assert.ok(st.ctx.chat.length >= 1);
 });
+
+test('settings: the overlay counts the next reply\'s prompt (turn.preview) with the context\'s tokenizer, and the Packs fold is there', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const { doc, ui, runtime, st } = setup(undefined);
+    await runtime.turn.onChatChanged();
+    const counted = [];
+    st.ctx.getTokenCountAsync = async text => { counted.push(text); return Math.ceil(text.length / 3); };
+    const sent = JSON.stringify(st.ctx.extensionPrompts ?? null);
+    const overlay = ui.openSettings();
+    const root = doc.querySelector('#story_suite_v2_overlay');
+    const folds = root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
+    assert.deepEqual(folds.slice(0, 2), ['story-suite', 'story-block/packs'], 'Packs second, from the live core module');
+    assert.equal(runtime.registry.settingsDefs().find(def => def.moduleId === 'story-block').folds[0].id, 'packs');
+    const size = root.querySelector('.story-suite-size');
+    assert.equal(size.dataset.exact, 'false');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(size.dataset.exact, 'true', 'the tokenizer\'s numbers');
+    const staticText = runtime.turn.preview().filter(part => part.place === 'static').map(part => part.text).join('\n\n');
+    assert.ok(counted.includes(staticText), 'the static part as sent');
+    assert.equal(JSON.stringify(st.ctx.extensionPrompts ?? null), sent, 'nothing set in the prompt');
+    // A feature switched elsewhere: the overlay draws again (and counts again).
+    runtime.features.set('story-block.inspector', true);
+    assert.equal(root.querySelectorAll('.story-suite-feature input').find(input => input.id.endsWith('module_story-block.inspector')).checked, true);
+    overlay.close();
+    assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
+});
+
+test('Home: "Import a pack" while no pack is installed opens the settings at the Packs fold', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const { doc, ui, runtime } = setup(undefined);
+    await runtime.turn.onChatChanged();
+    assert.equal(runtime.packs.packs.list().length, 0, 'no pack installed in the fake context');
+    ui.mounts.screen.open('story-block/home');
+    const button = doc.querySelectorAll('.sb-packs-import')[0];
+    assert.ok(button, 'the button on Home');
+    button.click();
+    assert.equal(ui.mounts.screen.isOpen(), false, 'the game view steps aside');
+    const packs = doc.querySelector('#story_suite_v2_overlay').querySelectorAll('details.story-suite-fold').find(node => node.dataset.fold === 'story-block/packs');
+    assert.equal(packs.open, true);
+    assert.ok(packs.querySelector('.ss-packs-import'));
+    doc.querySelector('#story_suite_v2_overlay .story-suite-close').click();
+});

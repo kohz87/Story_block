@@ -455,6 +455,11 @@ sdk.registerModule({
   text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
   options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped).
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
+  The overlay is one centred column of folds: Story Suite (the tail budget and the prompt size), the
+  modules' own folds (`settings.folds: [{ id, title, hint?, render(el, api) }]`; Story Block's Packs),
+  Features, a fold per module, Versions. Inside a module's fold its Features come first, then a sub-fold
+  per settings group: a field's optional `group` (text), else its label's prefix ("Calendar: Era" → group
+  Calendar, label Era), else General; then its `section`. A `list` field draws one compact line per item.
 * **Features** (MODULES §F100): the optional mechanics a reader switches on and off.
   * `features: [{ id, label, describe?, default?, prompt?, needs? }]`. `id` is `<module-id>.<name>` (lowercase
     letters, digits, `_`, `-` after the dot); `label` is text of at most 60 characters, `describe` at most

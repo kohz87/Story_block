@@ -391,7 +391,9 @@ A **pack** is a ready-made setting in one file: items with their prices and effe
 recipes, quests, events, races and talents, a starting place and purse, a currency name, and its own
 look for the screens. Packs are data only; nothing in them can run code.
 
-* **Install from a file:** Story Suite settings → **Packs** → **Import pack file**.
+* **Install from a file:** Story Suite settings → **Packs** (the second fold, right under Story Suite)
+  → **Import pack file**. With no pack installed, the game view's **Home** has an **Import a pack**
+  button that opens the settings right there.
 * **From a character card:** some cards carry a pack in their lorebook. Story Suite asks first: click
   **Read from character lorebook** in the Packs section.
 
@@ -406,7 +408,20 @@ ready-made character.
 
 ## Settings
 
-Open **Extensions → Story Block**, or the Story Suite overlay when two or more are installed.
+Open the settings with **Settings** on the Story Suite bar above the message box, **Story Suite** in the
+wand menu, or **Extensions → Story Block → Settings**. They open over the whole window in one column that
+scrolls; **Close** or Esc closes them. Each part is a fold you open and close: **Story Suite**, **Packs**,
+**Features**, one fold per extension, **Versions**. Inside an extension's fold, its **Features** come
+first (open), then one smaller fold per group of settings (Story Director's **Calendar**, for one), and
+**General** for the rest. Folds stay as you left them while the page is open. A list (the months of a
+calendar) shows one line per entry, `[January] [31] ×`: × removes that line, **Add** adds one.
+
+* **Prompt size** (in the **Story Suite** fold): what Story Suite adds to the prompt of the next reply in
+  the open chat, counted now and never sent. The instructions (the same every reply, so the prompt cache
+  keeps them), this reply's part against **Notes per reply** (the budget above it), the total, and each
+  extension's share. It uses SillyTavern's tokenizer when there is one ("312 tokens"), else an estimate
+  at four characters a token ("about 312 tokens"). It counts again when you switch a feature or change
+  the budget.
 
 * **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
   name with an s) and its short form.
@@ -421,7 +436,8 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
   one reply may hold, 150 by default; any after them are not used.
 * **Screens**: turn each card on or off, and pick which version of a screen to use (the default, the
   card's, or a pack's). **Reset to default** always brings back the standard one.
-* **Packs**: install, switch off, remove.
+* **Packs** (second, right after Story Suite, even with no pack installed): import a pack file or read
+  one from the character's lorebook, switch one off, remove one.
 * **Features**: every optional part of every extension, each with an on/off switch and a line saying
   what it does (see below).
 * Each module has its own section (combat, the story clock and calendar, NPCs).

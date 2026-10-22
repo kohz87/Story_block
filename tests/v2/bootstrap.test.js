@@ -89,12 +89,15 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     doc.querySelector('.story-suite-sheet-close').click();
 });
 
-test('the settings overlay opens from the bar with the Story Block fold and its Packs, Events and Assist panels', () => {
+test('the settings overlay opens from the bar with the Packs fold second and the Story Block fold\'s Events and Assist panels', () => {
     doc.querySelector('.story-suite-bar-settings').click();
     const overlay = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlay);
-    // The Features overview's Story Block group, then the Story Block fold's own Features and its panels.
-    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Story Block', 'Features', 'Packs', 'Events', 'Assist']);
+    assert.deepEqual(overlay.querySelectorAll('details.story-suite-fold').slice(0, 3).map(node => node.dataset.fold), ['story-suite', 'story-block/packs', 'story-suite-features']);
+    assert.ok(overlay.querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
+    // The prompt size, the Features overview's Story Block group, then the Story Block fold's panels.
+    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Prompt size', 'Story Block', 'Events', 'Assist']);
+    assert.deepEqual(texts(overlay, 'details[data-fold="story-block"] .story-suite-subfold > summary > b'), ['Features', 'General', 'More']);
     overlay.querySelector('.story-suite-close').click();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });
