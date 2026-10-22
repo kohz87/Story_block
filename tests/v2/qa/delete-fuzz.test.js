@@ -19,6 +19,10 @@ const REPLIES = 20;
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
+// fix-encounter: a model now and then writes a change line in the story, on its own line before the
+// block; it is read with the block (capture.js strayLines). Every fourth reply does (by step, so the
+// seeds draw the same chats).
+const strayReply = (text, lines) => (lines.length > 1 ? `${text}\n\n${lines.at(-1)}\n\n<Changes>\n${lines.slice(0, -1).join('\n')}\n</Changes>` : reply(text, lines));
 const coin = host => host.head().domains.inventory.wallets.party?.coin ?? 0;
 const qty = (host, name) => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
 
@@ -73,7 +77,7 @@ for (const seed of SEEDS) {
         const done = new Map();
         for (let step = 0; step < REPLIES; step += 1) {
             const made = replyLines(r, step);
-            await host.send(`Step ${step}.`, reply(`Step ${step} goes on.`, made.lines));
+            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, made.lines));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);
