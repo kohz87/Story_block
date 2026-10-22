@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { installFakeDom } from '../ui-fake-dom.js';
 import { createRegistry, definitionProblems } from '../../src/v2/registry.js';
 import { createSettings } from '../../src/v2/sdk.js';
-import { fieldReadOnly, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { fieldReadOnly, renderSettingsHost, rowValue } from '../../src/v2/host-ui.js';
 
 const doc = installFakeDom();
 
@@ -109,4 +109,32 @@ test('settings.set from code is not limited by readOnly', () => {
     const { settings } = setup();
     assert.equal(settings.set('clock', 'era', 'AE'), 'AE');
     assert.equal(settings('clock').era, 'AE');
+});
+
+// `shows`: what a read-only row shows instead of its stored value (Story Director: the pack's calendar
+// while Calendar is pack, though the reader's own calendar is stored from an earlier Custom).
+test('a read-only field with shows() shows its value, display-only; editable again, the stored value is back', () => {
+    const registry = createRegistry();
+    const def = calendarLike();
+    def.settings.schema.era.shows = values => (values.preset === 'pack' ? 'PACK' : undefined);
+    def.settings.schema.months.shows = () => { throw new Error('no'); };
+    registry.register(def);
+    const es = { storySuite: { modules: { clock: { preset: 'pack', era: 'MINE' } } } };
+    const settings = createSettings({ root: () => es, registry, save: () => {} });
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc });
+    assert.equal(rowOf(root, 'era').querySelector('input').value, 'PACK');
+    assert.equal(rowOf(root, 'months').querySelectorAll('input').length, 2, 'a shows() that throws: the stored value');
+    assert.equal(es.storySuite.modules.clock.era, 'MINE', 'kept');
+    const select = rowOf(root, 'preset').querySelector('select');
+    select.value = 'custom';
+    select.dispatch('change');
+    assert.equal(rowOf(root, 'era').querySelector('input').value, 'MINE', 'Custom: the stored value is back');
+    select.value = 'pack';
+    select.dispatch('change');
+    assert.equal(rowOf(root, 'era').querySelector('input').value, 'PACK');
+    assert.equal(rowValue('era', def.settings.schema.era, { preset: 'custom', era: 'MINE' }), 'MINE');
+    const bad = calendarLike();
+    bad.settings.schema.era.shows = 'PACK';
+    assert.ok(definitionProblems(bad).some(problem => /"era"\.shows is not a function/.test(problem)));
 });

@@ -548,6 +548,9 @@ sdk.registerModule({
   one that throws counts as false) draws it disabled with its value and help shown, and the overlay stores
   nothing from it; a function's rows are drawn again when another field of the module changes (Story
   Director's calendar fields while Calendar is `pack`). `settings.set` from code is not limited by it.
+  While a field is read-only, its optional `shows` (`values => value`) gives the value the row shows
+  instead of the stored one, for display only: the stored value is kept and is shown again once the field
+  is editable (one that throws or returns `undefined` shows the stored value).
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
   The overlay is one centred column of folds: Story Suite (the tail budget, the share of the context and
   the prompt size, with the context size and the share used), the
