@@ -440,13 +440,19 @@ sdk.registerModule({
   options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped).
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
 * **Features** (MODULES §F100): the optional mechanics a reader switches on and off.
-  * `features: [{ id, label, describe?, default?, prompt? }]`. `id` is `<module-id>.<name>` (lowercase
+  * `features: [{ id, label, describe?, default?, prompt?, needs? }]`. `id` is `<module-id>.<name>` (lowercase
     letters, digits, `_`, `-` after the dot); `label` is text of at most 60 characters, `describe` at most
     240; `default` is `true` (when left out) or `false`; `prompt: true` says the feature changes the
     static part through the module's own code. A feature that owns a capture kind or static text is
     marked so without it. A wrong entry, an id named twice, or a `feature` that names no feature of the
     same module refuses the module with a plain sentence; an unknown field on an entry is warned and
     ignored.
+  * `needs: { kinds?, commands?, queries?, why? }` names what another module must register for the
+    feature to work at all (Story Block's pre-roll needs the `check` kind). While any of it is not
+    registered (by any module, whatever that module's features say), the feature is **unavailable**: off
+    whatever the reader chose (their choice is kept), drawn off and disabled in the overlay with `why`
+    (at most 120 characters; "Needs a module that is not installed." when left out). `sdk.features()`
+    gives `available` and `why`.
   * What a feature owns says `feature: '<id>'`:
     * a capture kind: `kinds: { wear: { grammar, feature } }`;
     * a command: `{ handler, feature }`, or a handler function with a `feature` property;
@@ -455,14 +461,18 @@ sdk.registerModule({
       functions there, still takes it;
     * the context: `context.feature` covers the whole context; `context.parts: [{ feature?, static?,
       tail? }]` adds static text and tail lines of their own to the module's, under its `budget`;
-    * a screen, a tab or a widget: `{ …, feature }`.
+    * a screen, a tab or a widget: `{ …, feature }`;
+    * a settings schema field: `{ type, …, feature }`; the custom settings panel: a `section` or `render`
+      function with a `feature` property.
   * **Off means fully off.** Its kinds leave the static grammar, and a line of one is not used: it gets a
     quiet Problem (`FEATURE_OFF`, "… is turned off (feature off)"), not a refusal on the reply's card.
     Its context (parts) leaves the static and the tail. Its commands are refused with `FEATURE_OFF`, at
     the top or through `ctx.call`; as with `UNKNOWN_COMMAND` nothing ran, so a caller may catch it. Its
     queries answer `null`. Its hooks are not called. Its screens (whoever restyled them: a pack, the
     card, the reader), tabs and widgets are hidden; a template that names an off widget draws nothing
-    there. **Its state is never touched**: turning the feature on again brings everything back as it was.
+    there. A dialog for an off screen does not open (`sdk.dialog.open` gives `null`, as for an id no one
+    has), and one already open closes when its feature is turned off. Its settings fields and custom
+    panel leave the overlay (their stored values are kept) and come back with it. **Its state is never touched**: turning the feature on again brings everything back as it was.
   * `ctx.feature(id)`, `view.feature(id)` and `sdk.feature(id)` say whether a feature is on; an id no
     registered module declares is `false`. `sdk.features()` lists every feature with `on`;
     `sdk.modules()` lists each module's feature ids; `sdk.on('feature', ({ id, on, prompt }) => …)` fires
@@ -474,8 +484,8 @@ sdk.registerModule({
     label, the description) and one "Features" overview of every module's; a feature that changes the
     static part says "Changes the fixed prompt once (one slower reply)."
   * Story Block's own: `story-block.hud` (the status strip, on), `story-block.cards` (the cards under
-    replies, on; each card screen keeps its own switch), `story-block.preroll` and
-    `story-block.extractor` (the assist helpers, off). The older switches (`storySuite.hud`, the
+    replies, on; each card screen keeps its own switch), `story-block.preroll` (needs the `check` kind)
+    and `story-block.extractor` (the assist helpers, off). The older switches (`storySuite.hud`, the
     `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
   * A module without `features` behaves as before. On a host older than features, `features` and the
     `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:

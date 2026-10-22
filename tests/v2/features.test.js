@@ -93,7 +93,10 @@ test('features: a well-formed list registers, and its lookups describe each feat
         ['gear.weather', false, false],
         ['gear.extras', true, false],       // no default given: on
     ]);
-    assert.deepEqual(registry.feature('gear.weather'), { id: 'gear.weather', moduleId: 'gear', moduleName: 'Gear', label: 'Weather', describe: 'A weather line each reply.', default: false, prompt: false });
+    assert.deepEqual(registry.feature('gear.weather'), {
+        id: 'gear.weather', moduleId: 'gear', moduleName: 'Gear', label: 'Weather', describe: 'A weather line each reply.', default: false, prompt: false,
+        needs: { kinds: [], commands: [], queries: [], why: 'Needs a module that is not installed.' }, available: true, why: '',
+    });
     assert.equal(registry.feature('gear.nope'), null);
     assert.equal(registry.featureOn('gear.wear'), true);
     assert.equal(registry.featureOn('gear.weather'), false);
@@ -358,16 +361,42 @@ test('the feature store works on its own over any settings root', () => {
 // ---------------------------------------------------------------------------------------------------
 // Story Block's own features
 
+// A module that keeps `? check` lines, so the pre-roll has something to roll for.
+const CHECKS = { id: 'checks', capture: { kinds: { check: { grammar: '? check skill — what | dc: normal' } }, apply: () => ({ summary: 'checked', narrate: false }) } };
+
+test('needs: a feature is unavailable (off, its choice kept) until a module registers what it needs', async () => {
+    const host = await createHost({ settings: { features: { [CORE_FEATURE.preroll]: true } } });
+    assert.equal(host.sdk.feature(CORE_FEATURE.preroll), false, 'off without a module that keeps checks');
+    const [preroll] = host.sdk.features().filter(feature => feature.id === CORE_FEATURE.preroll);
+    assert.equal(preroll.available, false);
+    assert.equal(preroll.why, 'Needs a module that keeps checks, like RPG Battle.');
+    assert.equal(host.sdk.query('assist.status').classifier.on, false);
+    await host.sdk.registerModule(CHECKS);
+    assert.equal(host.sdk.feature(CORE_FEATURE.preroll), true, 'the reader\'s choice, kept, now counts');
+    assert.equal(host.sdk.features().find(feature => feature.id === CORE_FEATURE.preroll).why, '');
+    // Commands and queries can be needed too; a wrong `needs` is refused, an unknown key in it warned.
+    const registry = createRegistry({ warn: () => {} });
+    registry.register({ id: 'n', features: [{ id: 'n.a', label: 'A', needs: { commands: ['x.go'], queries: ['x.q'] } }] });
+    assert.equal(registry.featureOn('n.a'), false);
+    registry.register({ id: 'x', commands: { 'x.go': () => ({}) }, queries: { 'x.q': () => 1 } });
+    assert.equal(registry.featureOn('n.a'), true);
+    assert.ok(definitionProblems({ id: 'm', features: [{ id: 'm.a', label: 'A', needs: { kinds: 'check' } }] }).some(p => /needs\.kinds is not a list of names/.test(p)));
+    assert.ok(definitionProblems({ id: 'm', features: [{ id: 'm.a', label: 'A', needs: { why: 'x'.repeat(121) } }] }).some(p => /needs\.why is not text of at most 120/.test(p)));
+    assert.deepEqual(definitionWarnings({ id: 'm', features: [{ id: 'm.a', label: 'A', needs: { modules: ['x'] } }] }), ['"needs.modules" on feature "m.a" is not a needs field this Story Block knows; it is ignored']);
+    host.close();
+});
+
 test('Story Block\'s own features: the status strip, the cards, the two assist helpers, the inspector and save points', async () => {
     const host = await createHost();
-    assert.deepEqual(host.sdk.features().map(feature => [feature.id, feature.on, feature.prompt]), [
-        [CORE_FEATURE.hud, true, false], [CORE_FEATURE.cards, true, false], [CORE_FEATURE.preroll, false, false], [CORE_FEATURE.extractor, false, false],
-        [CORE_FEATURE.inspector, false, false], [CORE_FEATURE.savepoints, true, false],
-        ['story-block.loot', true, true], ['story-block.encumbrance', true, false],
+    assert.deepEqual(host.sdk.features().map(feature => [feature.id, feature.on, feature.prompt, feature.available]), [
+        [CORE_FEATURE.hud, true, false, true], [CORE_FEATURE.cards, true, false, true], [CORE_FEATURE.preroll, false, false, false], [CORE_FEATURE.extractor, false, false, true],
+        [CORE_FEATURE.inspector, false, false, true], [CORE_FEATURE.savepoints, true, false, true],
+        ['story-block.loot', true, true, true], ['story-block.encumbrance', true, false, true],
     ]);
     host.close();
-    // The switches older versions kept are the choice until the reader touches the feature.
-    const old = await createHost({ settings: { hud: false, modules: { 'story-block': { assistClassifier: true, assistExtractor: true } } } });
+    // The switches older versions kept are the choice until the reader touches the feature. (The
+    // pre-roll needs a module that keeps checks.)
+    const old = await createHost({ modules: [CHECKS], settings: { hud: false, modules: { 'story-block': { assistClassifier: true, assistExtractor: true } } } });
     assert.equal(old.sdk.feature(CORE_FEATURE.hud), false);
     assert.equal(old.sdk.feature(CORE_FEATURE.preroll), true);
     assert.equal(old.sdk.feature(CORE_FEATURE.extractor), true);
