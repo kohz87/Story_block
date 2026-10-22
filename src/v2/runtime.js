@@ -17,7 +17,7 @@
 //   use), else SillyTavern's own (stModelCall): one call per module at a time, a time limit
 //   (`modelTimeoutMs`), FEATURE_OFF while the calling module's feature is off.
 
-import { createChatFile } from './chat-file.js';
+import { KEEPALIVE_MAX, createChatFile } from './chat-file.js';
 import { createCommandBus as realBus } from './commands.js';
 import { CORE_MODULE_ID, createCoreModule } from './domains/index.js';
 import { WALLET_KEY } from './domains/money.js';
@@ -128,6 +128,16 @@ export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError =
     }
     const memoKey = chatId => `${MEMO_PREFIX}${chatId}`;
     return {
+        /**
+         * Would a save of the open chat now go out with keepalive (a body of at most KEEPALIVE_MAX)? Measured
+         * only when asked (the page is closing). True where this page does not write the file itself.
+         */
+        keepaliveFits() {
+            if (!file.where()) return true;
+            try {
+                return JSON.stringify({ chat: [context().chatMetadata ?? {}, ...(ctx.chat ?? [])] }).length + 256 <= KEEPALIVE_MAX;
+            } catch { return false; }
+        },
         chat: () => ctx.chat,
         chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId),
         place: () => file.where(),
@@ -272,25 +282,50 @@ export function markUsed(metadata, chat) {
 }
 
 /**
- * On a page: the unsaved story goes out when the page is closed (keepalive), at once even while an earlier
- * save is still on its way; the browser asks first while saves fail or one is on its way. See storeSaving.
+ * On a page: the unsaved story goes out as early as the page lets it (see storeSaving).
+ * * Hidden (`visibilitychange` to hidden: a tab switch, a phone putting the browser away) or `pagehide`:
+ *   the newest state is saved at once, with keepalive, past a save still on its way. A page often goes
+ *   from hidden to gone without another event, on a phone always.
+ * * `beforeunload`: the same, and the browser asks first while saves fail, while one is still on its way,
+ *   or when the body is too big to go out with keepalive (`fits()` false: more than 64 KiB, most real
+ *   chats), since then the save is cut off with the page. SillyTavern 1.19 has no way to write part of a
+ *   chat file, so a smaller keepalive request is not possible.
  */
-export function saveOnUnload(store, page) {
+export function saveOnUnload(store, page, { fits = () => true } = {}) {
     if (typeof page?.addEventListener !== 'function') return () => {};
+    const doc = page.document ?? null;
+    const urgent = (options = {}) => (store.saveUrgent ?? store.saveSoon)?.call(store, { keepalive: true, ...options });
     const onUnload = event => {
         // A1-4: a save still on its way (the server has not answered) would hold a queued one until the
-        // page is gone: the newest state goes out at once past it, and the browser asks first, as it does
-        // while saves are failing (the one on its way may still land after it, or be cut off by the close).
+        // page is gone: the newest state goes out at once past it.
         const inFlight = store.inFlight?.() === true;
-        if (!store.dirty?.() && !inFlight) return;
-        if (store.dirty?.()) (store.saveUrgent ?? store.saveSoon)?.call(store, { keepalive: true });
-        if (store.failing?.() || inFlight) {
+        const dirty = store.dirty?.() === true;
+        if (!dirty && !inFlight) return;
+        if (dirty) urgent();
+        let big = false;
+        if (dirty) {
+            try { big = fits() === false; } catch { big = true; }
+        }
+        if (store.failing?.() || inFlight || big) {
             event.preventDefault?.();
             event.returnValue = true;
         }
     };
+    // The page may be going away (pagehide), so a save on its way is sent again with keepalive.
+    const onHide = () => {
+        if (store.dirty?.() === true) urgent({ force: true });
+    };
+    const onVisibility = () => {
+        if (doc?.visibilityState === 'hidden' && store.dirty?.() === true) urgent();
+    };
     page.addEventListener('beforeunload', onUnload);
-    return () => page.removeEventListener?.('beforeunload', onUnload);
+    page.addEventListener('pagehide', onHide);
+    doc?.addEventListener?.('visibilitychange', onVisibility);
+    return () => {
+        page.removeEventListener?.('beforeunload', onUnload);
+        page.removeEventListener?.('pagehide', onHide);
+        doc?.removeEventListener?.('visibilitychange', onVisibility);
+    };
 }
 
 /**
@@ -385,8 +420,9 @@ export function createRuntime({
             return [`The ${name} check failed: ${error?.message ?? error}`];
         }
     });
-    const store = createStore({ ...storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page) }), validate, scratch: name => registry.scratch(name) });
-    saveOnUnload(store, page);
+    const saving = storeSaving({ ctx, live, fetch, onSaveError, storage: pageStorage(page) });
+    const store = createStore({ ...saving, validate, scratch: name => registry.scratch(name) });
+    saveOnUnload(store, page, { fits: saving.keepaliveFits });
     bus = createCommandBus({ store, registry, settings });
     events = createEvents();
     const rewind = createRewind({ ctx, store, events, ...(branch ? { branch } : {}) });

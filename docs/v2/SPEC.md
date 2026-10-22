@@ -315,9 +315,14 @@ message in the other chat's file by its record's `sid` (or its story text), skip
 holds as it is, and marks the file as used (`chat_metadata.tainted`), as a save of the open chat does. Without such a file (the testkit, a
 temporary chat) it is `ctx.saveChat()`.
 
-When the page is closed with something unsaved, the newest state goes out with keepalive at once, even
-while an earlier save is still on its way (it is not queued behind it), and the browser asks first while
-saves are failing or one is still on its way.
+When the page is hidden (a tab switch, a phone putting the browser away: `visibilitychange`), hidden for
+good (`pagehide`) or closed (`beforeunload`) with something unsaved, the newest state goes out with
+keepalive at once, even while an earlier save is still on its way (it is not queued behind it; on hidden a
+save on its way that already carries the newest change is not sent again). A browser sends keepalive only
+for a body up to 64 KiB, which most real chats are over, and SillyTavern 1.19 cannot write part of a chat
+file: so on `beforeunload` the browser asks first whenever the unsaved body is too big for keepalive, as it
+does while saves are failing or one is still on its way. On a phone, where a page often goes from hidden to
+gone, the save on hidden is what keeps the change.
 
 Not covered: two tabs on one chat are still last writer wins (the file's head is not compared before a
 save).

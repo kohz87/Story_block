@@ -143,6 +143,9 @@ updated.
 - Fixed in the final break cell: the late-save guard now also covers another chat opened meanwhile, a reload
   of the chat or the page, a rename, and a rescue write into another chat's file; closing the page while a
   save is still on its way sends the newest state at once and asks first.
+- Closing the page: Story Suite now saves as soon as the tab is hidden, and when the unsaved story is
+  too big to send while the page closes (over 64 KiB, most chats) the browser asks before leaving. A phone
+  that closes a backgrounded browser without warning keeps what was saved when it was hidden.
 - A timed-out save that reaches the server more than about five minutes later is not found by the
   read-back. After a reload of the page, a file found older can no longer be put back (the copy was on the
   old page): you are told.
