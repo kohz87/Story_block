@@ -115,3 +115,39 @@ test('inventory: RPG Battle\'s item detail widget sits in each row when its quer
     assert.deepEqual(view.warnings, []);
     assert.deepEqual(drawn.sort(), Object.keys(state.domains.inventory.stacks).sort());
 });
+
+test('inventory: "To pick up" lists the loot not yet taken, newest first, each with its own picks and Take selected (cards off too)', { skip }, async () => {
+    const module = core();
+    const state = lootState(module);
+    state.meta.claims['loot:sw_taken000001'] = true;
+    state.domains.inventory.loot.sw_taken000001 = { sid: 'sw_taken000001', n: 9, where: '', claim: 'loot:sw_taken000001', items: { 0: { name: 'Gone Thing', qty: 1 } } };
+    const store = fakeStore(state);
+    const registry = Object.assign(fakeRegistry([module]), { featureOn: () => true });
+    const bus = createCommandBus({ store, registry, id: counterIds(), seed: () => 11 });
+    const { el, view, calls, results } = show(inventoryScreen, {
+        state, query: queries(module, state), command: (type, payload, options) => bus.command(type, payload, options),
+    });
+    assert.deepEqual(view.warnings, []);
+    const offers = el.querySelectorAll('.loot .offer');
+    assert.deepEqual(offers.map(offer => text(offer.querySelector('.loot-head'))), ['Loot — on the cellar shelf', 'Loot'], 'newest first; a taken one is not listed');
+    assert.deepEqual(offers[1].querySelectorAll('.pick').map(chip => text(chip)), ['Old Boot']);
+    // Ticks in one offer are that offer's own.
+    const boxes = offers[0].querySelectorAll('input[type="checkbox"]');
+    boxes[2].checked = true;
+    boxes[2].dispatch('change');
+    const other = offers[1].querySelector('input[type="checkbox"]');
+    other.checked = true;
+    other.dispatch('change');
+    offers[0].querySelector('.take').click();
+    await settle();
+    offers[1].querySelector('.take').click();
+    await settle();
+    assert.deepEqual(calls.map(([type, payload]) => [type, payload]), [
+        ['inventory.lootTake', { sid: SID, pick: ['2'] }],
+        ['inventory.lootTake', { sid: 'sw_older0000001', pick: ['0'] }],
+    ]);
+    assert.deepEqual(results.map(result => result.ok), [true, true]);
+    const names = Object.values(store.head().domains.inventory.stacks).map(stack => store.head().domains.inventory.defs[stack.def].name);
+    assert.ok(names.includes('Torn Map') && names.includes('Old Boot'));
+    assert.deepEqual(queries(module, store.head())('inventory.loot'), [], 'both taken: nothing left to pick up');
+});

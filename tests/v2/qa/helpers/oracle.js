@@ -35,8 +35,8 @@ export const carriers = chat => chat.map((message, index) => (isCarrier(message)
 const unescape = segment => segment.replace(/~1/g, '/').replace(/~0/g, '~');
 
 /** Strict JSON Patch on a deep copy; throws when a path does not fit. Counts with `was` move (above). */
-// The inventory's per-reply scratch fields (its domain's `scratch`): the tally and the loot on offer.
-const SCRATCH = ['/domains/inventory/perReply', '/domains/inventory/loot'];
+// The inventory's scratch fields (its domain's `scratch`): the tally, the loot on offer, the condition events.
+const SCRATCH = ['/domains/inventory/perReply', '/domains/inventory/loot', '/domains/inventory/condLog'];
 const at = (root, keys) => keys.reduce((node, key) => (node !== null && typeof node === 'object' && Object.hasOwn(node, key) ? node[key] : undefined), root);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -250,7 +250,7 @@ export function checkInvariants(host, label) {
         // With the validators the host passes (runtime.js): a replay that moves counts, or any replayed block, is checked by them.
         const validate = (state, names) => validateDomains(state, names);
         // And the inventory's per-reply tally as the scratch it is declared to be (ops.js).
-        const scratch = name => (name === 'inventory' ? ['perReply', 'loot'] : []);
+        const scratch = name => (name === 'inventory' ? ['perReply', 'loot', 'condLog'] : []);
         const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate, scratch });
         assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
     }

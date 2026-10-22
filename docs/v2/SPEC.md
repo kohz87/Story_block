@@ -536,10 +536,11 @@ named in `with:` are present.
                        rarity: 'common'|'uncommon'|'rare'|'epic'|'legendary', value: 0 /* smallest unit */,
                        stack: true, slot: null, stats: {}, effect: {}, tags: [], note: '' } },
   stacks: { [stackId]: { id, def, qty, owner: 'ac_…' /* actor */ | 'party', equipped: null | slot,
-                         note: '', from: '' /* receipt id */, cond?: 0–100 /* gear condition; absent = 100 */ } },
+                         note: '', from: '' /* receipt id */, cond?: 0–100 /* older chats only: where the condition starts */ } },
   wallets:{ [owner]: { coin: 0 } },                // one currency, smallest unit (MODULES §F1)
   aliases:{ [lowercase name]: defId },
   perReply?: { [sid]: { coin, worth, made, items, notable? } },   // scratch: a reply's story tally
+  condLog?: { [stackId]: { ['<sid>#<n>']: { d, n } } },          // scratch: gear condition events
   loot?:   { [sid]: { sid, n, where, claim, items: { "0": { name, qty }, … } } },   // scratch: loot on offer
 }
 ```
@@ -549,7 +550,7 @@ Commands: `inventory.grant`, `inventory.consume`, `inventory.transfer`, `invento
 (`+ / - / ~ item`), `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
 written with one is refused) and `loot` (`? loot A, B x2 — where`, feature `story-block.loot`). Queries
 `inventory.currency`, `inventory.items`, `inventory.wallet`, `inventory.find`, `inventory.equipment`,
-`inventory.encumbrance`. Features (MODULES §F100): `story-block.loot` and `story-block.encumbrance`, both
+`inventory.encumbrance`, `inventory.loot`, `inventory.condition`. Features (MODULES §F100): `story-block.loot` and `story-block.encumbrance`, both
 on by default; a host without the Features API keeps them on. Query `inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }` (MODULES §F104): the money scale
 that every built-in default money number is multiplied by (rounded, at least 1). The reader's `economyScale`
 setting wins (0 or blank: the pack's), then the first enabled pack's `economy.scale`, then 1. Numbers a pack
@@ -600,23 +601,35 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   turn-ins) reads it with `tryQuery`, falling back to its own tally on an older Story Block.
 * **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
   lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
-* **Gear condition** (`cond`, optional on a stack): a whole number 0 (broken) … 100 (as new); absent means
-  100. Stacks in different condition never merge or pile together; a split keeps it; `inventory.items` rows
-  carry `cond` when it is there. It is a plain value, not a counter (a replay keeps the value the later
-  reply wrote). Two commands, **another module's calls only** (`ctx.call`, so `ctx.caller` is set; at the
-  top, whatever the cause, `REFUSED`), for RPG Battle's wear rules:
-  * `inventory.wear { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); the
-    condition goes down by it, never below 0. → `data: { stack, def, amount, before, now, broken }`. Wearing
-    a broken piece changes nothing and does not fail.
-  * `inventory.repair { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); the
-    condition goes up by it, never above 100; at 100 the field is dropped. → `data: { stack, def, amount,
-    before, now }`. RPG Battle keeps a piece's own maximum (below 100 after field patches) and asks for the
-    difference.
+* **Gear condition**: a whole number 0 (broken) … 100 (as new), **derived, never stored as the truth**.
+  Each wear or repair is an event of its own, `condLog[<stack>]['<sid>#<n>'] = { d, n }` (`d` the change
+  asked for, −100…100; `n` the rev it was written at; keyed by the carrier sid, or the receipt id outside a
+  reply, and only added). The condition is the start (100, or an older chat's plain `stack.cond`, read as the
+  starting point) folded through the events in rev order, held to 0…100 at each step. A middle delete takes
+  exactly that reply's events away, and nothing can go out of range, so no block is refused for it.
+  `condLog` is scratch (on replay missing records are made, a drop of something gone is passed over). Back
+  at 100, a stack's events (and an old `cond`) are dropped **by key**; the records holding them are never
+  removed while their stack exists (a record a later reply found missing would be written whole, and that
+  whole write replayed after a delete would drop or bring back other replies' events). Past 40 events a
+  stack's are folded into one. A stack's log goes once the stack is gone. Read it with
+  `inventory.condition { stack }` → `{ stack, cond, events: [{ key, d, n }] }` (null for no such stack), or
+  the `cond` of `inventory.items` rows (there while below 100); never from the stack. Stacks in different
+  condition never merge or pile together; a split or part hand-over starts the new lot where the old one
+  stands. Two commands, **another module's calls only** (`ctx.call`, so `ctx.caller` is set; at the top,
+  whatever the cause, `REFUSED`), for RPG Battle's wear rules:
+  * `inventory.wear { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); an event
+    of −amount. → `data: { stack, def, amount, before, now, broken }`. Wearing a broken piece changes
+    nothing and does not fail.
+  * `inventory.repair { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); an
+    event of +amount, held at 100. → `data: { stack, def, amount, before, now }`. RPG Battle keeps a piece's
+    own maximum (below 100 after field patches) and asks for the difference.
   A malformed amount is `INVALID`; neither is narrated.
   The story's word for wear, `~ item Coat — torn by brambles | wear: scuff|tear|ruin` (or a word for one of
   them: scratched, ripped, shattered…), goes to `item.wear { name, wear, why, story: true }` when a module
   answers it (RPG Battle's gear rules); without one Story Block wears the piece (the worn one, else the first
-  lot) by 5, 15 or 40, once per piece per reply (claim `wear:<sid>:<stack>`, else `CLAIMED`).
+  lot) by 5, 15 or 40, once per piece per reply (claim `wear:<sid>:<stack>`, else `CLAIMED`). With `item.wear`
+  there Story Block writes nothing for the line itself: RPG Battle's gear rules own it (and write through
+  `inventory.wear` / `inventory.repair`).
 * **Equip on…** (MODULES §F99). `inventory.equipOn { stack, actor }` (`actor` a party member's `ac_` id)
   hands the piece to that member and puts it on in one step. It must be equipment with a slot that member
   can wear: a slot this chat's rules count, and what `items.canWear({ actor, defId })` says when a module
@@ -636,14 +649,19 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   `rpg-battle.item-detail` widget is drawn in each row). A reader's `inventory.transfer` (cause `ui`, Give)
   is refused when the taker cannot carry it (`items.carry`, `move: true`).
 * **Loot to pick from** (`story-block.loot`). `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar
-  shelf | qty: 1` lays things out without giving them (a count per thing as `Name x2`, else `qty:`, else 1).
+  shelf | qty: 1` lays things out without giving them (a count per thing as `Name x2`, of any length, else `qty:`, else 1; a count is never part of a name).
   The offer is held to the reply's story limits when it is read, each thing as a `+ item` line would be but
   never the notable one (so the chips show what can be taken); things the party already carries (tolerant
-  names) and money are left out with a `LIMITED` note; at most 8 things per reply. It makes no definition.
+  names) are left out with a `LIMITED` note; at most 8 things per reply. It makes no definition. Money in the
+  line ("1000 gold", "Gold x500", the chat's currency) is one coin offer in that loot (`{ name, qty: 1, coin }`),
+  held to the reply's coin budget like a `+ coin` line (`LIMITED` past it) and paid into the party's wallet on
+  Take; never an item.
   One offer per reply, `inventory.loot[<sid>] = { sid, n, where, claim, items: { "0": { name, qty }, … } }`
   (a record keyed by position, not a list, so a second loot line of the reply adds keys); `loot` is scratch
   like `perReply`, and a reply keeps the 5 newest offers. The reply's card shows them as chips with **Take
-  selected**: `inventory.lootTake { sid, pick: [index…] }` (cause `ui`, the reader's) claims `loot:<sid>`
+  selected**, and so does the Inventory screen's **To pick up** section (query `inventory.loot` → the offers
+  not taken yet, newest first, `[{ sid, where, n, items }]`), so loot works with the cards off:
+  `inventory.lootTake { sid, pick: [index…] }` (cause `ui`, the reader's) claims `loot:<sid>`
   (each reply's loot is taken once; a second take is `REFUSED`), skips what is carried by then, and puts the
   rest in the party's bag as the offer held it, making the definitions then; past the carry limit it is
   `REFUSED` and the claim stays free. An offer no longer there is `NOT_FOUND`; an empty or bad pick `INVALID`.
