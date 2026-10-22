@@ -15,7 +15,7 @@ const checkModule = await import('./check.js').catch(() => null);
 export const EVENTS = Object.freeze(['committed', 'head', 'turn', 'feature']);
 // The most change lines one reply's block may hold; the rest are one Problem (turn.js).
 export const MAX_CHANGE_LINES = 150;
-export const HOST_SETTINGS_DEFAULTS = Object.freeze({ tailBudget: 1500, contextShare: 40, maxChangeLines: MAX_CHANGE_LINES, callQueue: true });
+export const HOST_SETTINGS_DEFAULTS = Object.freeze({ tailBudget: 1500, contextShare: 40, maxChangeLines: MAX_CHANGE_LINES, callQueue: true, panelStyle: 'glass', font: 'nunito' });
 export const HOST_SETTINGS_SCHEMA = Object.freeze({
     tailBudget: Object.freeze({
         type: 'int', min: 100, max: 20000, label: 'Notes per reply (tokens)',
@@ -32,6 +32,22 @@ export const HOST_SETTINGS_SCHEMA = Object.freeze({
     callQueue: Object.freeze({
         type: 'bool', label: 'Run extra calls one at a time per connection',
         help: 'Story Suite\'s own model calls (Delta\'s scan, the arc planner, Assist) wait for each other when they use the same connection profile, so a local server that answers one request at a time is never asked twice at once. Calls on different profiles still go side by side.',
+    }),
+    // Story Suite's look (src/v2/view/theme.js): the panels and the font, for every Story Suite screen.
+    panelStyle: Object.freeze({
+        type: 'choice', label: 'Panel style', options: Object.freeze([
+            Object.freeze({ value: 'glass', label: 'Glass (see-through panels over your background)' }),
+            Object.freeze({ value: 'solid', label: 'Solid (less transparency, no blur)' }),
+            Object.freeze({ value: 'sillytavern', label: 'Follow SillyTavern only (its own colours and blur)' }),
+        ]),
+        help: 'How Story Suite\'s panels look. Light or dark follows your SillyTavern theme either way. Solid suits a busy background or a slow device; your system\'s "reduce transparency" setting also turns Glass into Solid.',
+    }),
+    font: Object.freeze({
+        type: 'choice', label: 'Font', options: Object.freeze([
+            Object.freeze({ value: 'nunito', label: 'Nunito (soft and round)' }),
+            Object.freeze({ value: 'theme', label: 'Your theme\'s font' }),
+        ]),
+        help: 'Nunito is loaded from Google Fonts only while SillyTavern allows external media (User Settings → Forbid external media off); otherwise a Nunito on this device is used, else your system\'s own font.',
     }),
 });
 

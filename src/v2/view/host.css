@@ -1,8 +1,10 @@
 /* Story Block v2: the host's own furniture (src/v2/ui-host.js, src/v2/host-ui.js), on SillyTavern's theme
-   colours. The mounts' styles come from mounts.css, the form controls' from controls.css; layouts and
+   colours. The mounts' styles come from mounts.css, the form controls' from controls.css, Story Suite's
+   building blocks (glass card, tile, bar, status, pill, label) from glass.css; layouts and
    widgets inject their own sheets. */
 @import url('./mounts.css');
 @import url('./controls.css');
+@import url('./glass.css');
 
 :root {
     --story-suite-line: var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35));

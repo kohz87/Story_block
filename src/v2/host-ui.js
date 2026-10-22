@@ -163,6 +163,9 @@ export const DIAGNOSTICS_TEXT = Object.freeze({
     saved: 'Saved the report as {name}.',
     saveFailed: 'The report could not be saved: {why}',
     failed: 'The report could not be built: {why}',
+    sample: 'Show the UI sample',
+    sampleTitle: 'Every building block of Story Suite\'s look, in light and dark, for checking a theme and for screenshots',
+    sampleFailed: 'The UI sample could not be shown: {why}',
 });
 export const FEATURE_TEXT = Object.freeze({
     title: 'Features',
@@ -714,7 +717,7 @@ const FOLD_SELECTOR = 'details.story-suite-fold, details.story-suite-subfold';
  * A module's `section(el, api)` gets api = { get(key), set(key, value), values(), sdk } (a section
  * given as a title plus render(el, api) is the same panel). Returns { refresh(), refreshSize() }.
  */
-export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, openState = new Map(), diagnostics = null, tabs = null }) {
+export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, openState = new Map(), diagnostics = null, tabs = null, theme = null }) {
     const featureList = () => (features && typeof features.list === 'function' ? features.list() : []);
     // A settings field or panel under a feature that is off is not drawn (its stored value is kept).
     const hiddenByFeature = item => {
@@ -1112,6 +1115,8 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             body.appendChild(fieldRow(doc, key, field, values[key], next => {
                 settings.set(null, key, next);
                 if (key === 'tailBudget' || key === 'contextShare') refreshSize();
+                // The look (view/theme.js) follows at once, on every Story Suite screen.
+                if (key === 'panelStyle' || key === 'font') { try { theme?.apply?.(); } catch { /* the look follows on the next load */ } }
             }, 'story_suite_host'));
         }
         if (typeof promptParts === 'function') {
@@ -1246,6 +1251,12 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const copy = action('story-suite-diagnostics-copy', 'fa-copy', T.copy);
         const save = action('story-suite-diagnostics-save', 'fa-download', T.save);
         const again = action('story-suite-diagnostics-refresh', 'fa-rotate', T.refresh);
+        // The UI sample (screens/ui-sample.js): every building block of Story Suite's look, light and dark.
+        if (typeof diagnostics.sample === 'function') {
+            const sample = action('story-suite-diagnostics-sample', 'fa-swatchbook', T.sample);
+            sample.title = T.sampleTitle;
+            sample.addEventListener('click', () => { try { diagnostics.sample(); } catch (error) { status.textContent = fill(T.sampleFailed, { why: error?.message ?? error }); } });
+        }
         actions.appendChild(status);
         body.append(report, actions, ...subs);
         let run = 0;
@@ -1352,7 +1363,7 @@ let currentOverlay = null;
  * bring into view (PACKS_FOLD for Home's "Import a pack"). The other options are renderSettingsHost's.
  * Returns { root, close(), refresh(), refreshSize(), isOpen() }.
  */
-export function openSettingsOverlay({ registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, diagnostics = null, tabs = null, fold: target = null, openState = overlayOpenState, onClose = null }) {
+export function openSettingsOverlay({ registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, diagnostics = null, tabs = null, theme = null, fold: target = null, openState = overlayOpenState, onClose = null }) {
     // One overlay at a time: opening it again closes the one there (its listeners with it).
     if (currentOverlay?.root?.ownerDocument === doc) currentOverlay.close();
     doc.querySelector?.('#story_suite_v2_overlay')?.remove();
@@ -1382,7 +1393,7 @@ export function openSettingsOverlay({ registry, settings, doc = globalThis.docum
         if (target.includes(SUB_FOLD)) openState.set(target.split(SUB_FOLD)[0], true);
         if (diagnosticsKeys(registry).includes(target)) openState.set(DIAGNOSTICS_FOLD, true);
     }
-    const host = renderSettingsHost(body, { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs });
+    const host = renderSettingsHost(body, { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs, theme });
     let open = true;
     // The focus stays in the dialog: a Tab that would leave it, or a click on the page behind, comes back.
     const onFocus = event => {

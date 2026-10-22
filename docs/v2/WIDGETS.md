@@ -1,8 +1,9 @@
 # Story Suite v2: the standard widgets
 
-Story Block ships eight widgets (SPEC §13.5) under the `ss.` namespace (MODULES §F9):
+Story Block ships twelve widgets (SPEC §13.5) under the `ss.` namespace (MODULES §F9):
 `ss.meter`, `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`, `ss.badge`, `ss.timeline`,
-`ss.stepper`. They live in `src/v2/view/widgets/`; `index.js` exports them as `standardWidgets`
+`ss.stepper`, and the building blocks of Story Suite's look (the UI stage, `view/widgets/glass.js`):
+`ss.tile`, `ss.bar`, `ss.status`, `ss.pill`. They live in `src/v2/view/widgets/`; `index.js` exports them as `standardWidgets`
 (name → widget).
 
 ## The widget contract
@@ -282,4 +283,86 @@ moved) start the count again from them.
 <ss-widget name="ss.stepper" data-props='{"name":"STR","label":"Strength","value":"{{ draft.STR }}","min":1,"max":20,"budget":"{{ draft.pointsLeft }}"}'></ss-widget>
 <!-- or one pool shared by every stat's stepper (TEMPLATES.md, Example 3) -->
 <ss-widget name="ss.stepper" data-props='{"name":"points.DEX","label":"Dexterity","value":"{{ draft.points.DEX }}","pool":"{{ q.rules.points }}","spent":"{{ sum(draft.points) }}"}'></ss-widget>
+```
+
+---
+
+## The look's building blocks: `ss.tile`, `ss.bar`, `ss.status`, `ss.pill`
+
+These draw the classes of `view/glass.css` (docs/dev/ui-and-screens.md "The look"), not `ss-w-*` ones:
+they take the theme tokens (`--ss-glass`, `--ss-accent`, …), so they follow the reader's Panel style and
+light or dark. Every root also has `ss-w ss-w-<name>`. Ring colours (`tone`) come from a fixed list:
+`neutral`, `accent`, `good`, `warn`, `bad`, `info` and the rarities `uncommon`, `rare`, `epic`,
+`legendary` (class `ss-tone-<tone>`; anything else: no ring class, or the default named below).
+
+### `ss.tile`
+
+An icon in a rounded square, a label under it, a number badge, a tick or a lock. With `onSelect` it is a
+button (`aria-pressed` = `selected`) running `api.command(onSelect, { tile: id || label })`: choosing a
+skill to read or an item to manage, never a story action (F95/F96). A locked tile is never a button.
+Spoken: "Moonlight Slash, Lv 3, ready".
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `label` | string | `''` | required |
+| `icon` | string | `''` | none: the label's first letter |
+| `count` | string | `''` | the badge ("3", "–"); `''`: none |
+| `countStyle` | string | `badge` | `badge` (under the icon) or `corner` (a bag's count) |
+| `state` | string | `none` | `none`, `ready` (a tick), `locked` (a lock, dimmed) |
+| `tone` | string | `''` | the ring; `''`: the hairline |
+| `selected` | boolean | `false` | ring in the accent |
+| `showLabel` | boolean | `true` | |
+| `hint` | string | `''` | spoken after the label instead of the count ("Lv 3") |
+| `id`, `kind` | string | `''` | |
+| `onSelect` | string | `''` | |
+
+```html
+<ss-widget data-each="q.skills as k" name="ss.tile" data-props='{"label":"{{ k.name }}","icon":"{{ k.icon }}","count":"{{ k.level }}","state":"{{ k.state }}","id":"{{ k.id }}"}'></ss-widget>
+```
+
+### `ss.bar`
+
+A labelled bar: label left, "50 / 82" right, a 7 px track. `kind` `hp`, `mp`, `sp` or `exp` picks the
+suite's bar colour (else the accent). ARIA `meter`. Sets `--ss-fill` (0–1) on `.ss-bar-track`.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `value` | number | `0` | required |
+| `max` | number | `100` | |
+| `label` | string | `''` | |
+| `kind` | string | `''` | `hp`, `mp`, `sp`, `exp` |
+| `text` | string | `''` | the value as shown (default "value / max") |
+| `showValue` | boolean | `true` | |
+
+```html
+<ss-widget name="ss.bar" data-props='{"label":"HP","kind":"hp","value":{{ q.pc.hp.cur }},"max":{{ q.pc.hp.max }}}'></ss-widget>
+```
+
+### `ss.status`
+
+A status effect: its icon in a square tinted with its tone, the time left in the corner. `unit` `turns`
+("2t"), `rounds` ("2r") or `minutes` (story minutes: "40m", whole hours "3h" from an hour, whole days
+"2d" from 48 hours); `left` `null` or empty: "∞". More than 99: "99+". Spoken in words: "Bleeding: 40
+story minutes left", "Blessed: no set end". `tone` defaults to `accent`.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `label` | string | `''` | required |
+| `icon` | string | `''` | none: the label's first letter |
+| `left` | number | `null` | |
+| `unit` | string | `turns` | `turns`, `rounds`, `minutes` |
+| `tone` | string | `accent` | |
+| `id`, `kind` | string | `''` | |
+
+```html
+<ss-widget data-each="q.pc.conditions as c" name="ss.status" data-props='{"label":"{{ c.label }}","icon":"{{ c.icon }}","left":"{{ c.left }}","unit":"minutes","tone":"bad"}'></ss-widget>
+```
+
+### `ss.pill`
+
+Short text in a pill, with an optional icon; `style` `solid` (default), `soft` (the accent, soft) or
+`outline`.
+
+```html
+<ss-widget name="ss.pill" data-props='{"text":"{{ q.pc.class }} · Lv {{ q.pc.level }}"}'></ss-widget>
 ```
