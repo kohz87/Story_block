@@ -242,6 +242,7 @@
 
 .ss-card-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--ss-gap);
     width: 100%;
@@ -262,13 +263,16 @@
     white-space: nowrap;
 }
 
-/* The summary line of the header: the one line on the right, muted (Reply.dc.html's "+1 Wolf Pelt · …"). */
+/* The summary line of the header, muted, on the right (Reply.dc.html's "+1 Wolf Pelt · …"). On a phone it takes the
+   next line when the title leaves no room, and runs to two lines at most. */
 .ss-card-summary {
-    flex: 1;
+    flex: 1 1 160px;
     min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     color: var(--ss-muted, inherit);
     font-size: 0.85em;
     text-align: right;
