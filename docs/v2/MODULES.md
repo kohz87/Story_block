@@ -240,7 +240,10 @@ These settle questions agents raised; the host changes they need are made at int
    No image generation.
 12. **Character creation is mandatory.** A chat without a PC (`party.pc` null) cannot generate: Story Block
    asks the `canGenerate` hooks before each story generation; RPG Battle answers no until `party.create`
-   ran, and opens its creation wizard (dialog mount, §13.6). The greeting may show before that.
+   ran, and opens its creation wizard (dialog mount, §13.6). The greeting may show before that. Before the
+   first message the wizard is also one click away: Home's "Before you start" card (the module's reason and
+   `action` button, which runs its `onBlocked` hook), and RPG Battle's "Create your character" on the Party
+   tab, the status strip and the card under a reply.
 13. **No model-written state blocks.** v2 never asks the model for World State, Inventory, Party or other
    state blocks; screens and the prompt's tail come from the state. The only block the model writes is
    `<Changes>`.
