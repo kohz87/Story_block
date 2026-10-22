@@ -736,7 +736,7 @@ These settle questions agents raised; the host changes they need are made at int
     `sameChangeLine`, or the same op, kind and name) is dropped. *How it applies:* as story lines on that
     reply after its own (cause `story`, same capture rules, claims and the reply's `maxChangeLines` cap),
     receipt `assist: 'now'` and `assistLine`; Problems they meet are marked `assist` and start "(assist)";
-    the reply's changes card lists them with "(assist)". *Stored with the reply:* the lines go to the hidden
+    the reply's changes card lists them with "(assist)" and its folded header counts them ("1 line from the safety net (assist)"; before, a reply whose only change was the safety net's said "No item, coin or place changes", the final live check's FL-3). *Stored with the reply:* the lines go to the hidden
     comment as `<Changes-assist>` (capture.js `withAssist`, `assistSections`), never read as the reply's own
     block. **Re-read uses the stored lines and never calls the model again**; replay applies stored ops; a swipe
     is a new reply (read once). *Timing:* a send waits for a run still reading the last reply at most

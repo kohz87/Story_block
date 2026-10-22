@@ -153,7 +153,7 @@ cheap extra model call** (pick a cheaper model in **Assist** → *Connection pro
 keeps only what the story clearly showed and the reply's own lines didn't already say. It never adds coin,
 items or XP: by default it may write time, place, who is here, weather, quest progress or a turn-in (still
 checked like any turn-in), wounds and conditions, and an item handed over or used up (*Kinds the safety net
-may write*). Its lines are marked **(assist)** on the reply's card and in the Problems list. If you send
+may write*). Its lines are marked **(assist)** on the reply's card (open it to read them; the folded header says "1 line from the safety net (assist)") and in the Problems list. If you send
 before it has finished, your message waits at most a moment; what it finds later is applied with your next
 reply, marked **(assist, from the previous reply)**, and never moves coin. Re-read and swipes use what it
 found the first time; it never asks the model again for the same reply. Leave it off with a model that

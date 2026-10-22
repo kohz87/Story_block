@@ -12,6 +12,7 @@ import { hudOn, isGameViewKey, mountUi } from '../../../src/v2/ui-host.js';
 import { problemReason, refusedFrom } from '../../../src/v2/reply-notes.js';
 import { CHANGES_CARD_SCREEN_ID } from '../../../src/v2/screens/index.js';
 import { STRINGS } from '../../../src/v2/strings.js';
+import { CORE_FEATURE } from '../../../src/v2/features.js';
 
 const WITH_LINES = 'You find a rope.\n<Changes>\n+ item Rope | qty: 1\n- item Lantern | qty: 1\n</Changes>';
 const HUD_MODULE = {
@@ -337,4 +338,30 @@ test('the changes card shows a module\'s lines for that reply (summary and body)
     draw();
     assert.equal(cardAt(4).querySelector('.ss-card-summary').textContent, 'rest 3');
     assert.equal(cardAt(2).querySelector('.ss-card-summary').textContent, 'climb 14', 'the earlier reply keeps its own');
+});
+
+// ---------------------------------------------------------------------------------------------------
+// §F123: the safety net's lines on the card (final live check FL-3: the folded card said "No item, coin or
+// place changes" while its body held "! time +20m (assist)", so the reader never saw the mark)
+
+test('the changes card\'s folded header counts the lines the safety net applied, and its body lists them marked (assist)', async () => {
+    // The live path: a reply with no block, the model's answer in plain lines (no <Changes> tags).
+    const { doc, host, ui, draw } = await page({ callModel: async () => '~ weather fog\n+ present Fenna' });
+    await host.send('hi', WITH_LINES);
+    host.features.set(CORE_FEATURE.extractor, true);
+    await host.send('We wait by the weir.', 'Fog rolls in and Fenna comes to wait with you.');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    draw();
+    const cardAt = index => {
+        ui.mounts.card.refresh(index, { force: true });
+        return doc.querySelector(`.mes[mesid="${index}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+    };
+    const summary = cardAt(4).querySelector('.ss-card-summary').textContent;
+    assert.match(summary, /Fenna arrived/, 'the arrival, as any change');
+    assert.match(summary, /2 lines from the safety net \(assist\)$/, summary);
+    ui.mounts.card.toggle(4, CHANGES_CARD_SCREEN_ID, true);
+    const listed = [...cardAt(4).querySelectorAll('.assisted .line')].map(line => line.textContent.replace(/\s+/g, ' ').trim());
+    assert.deepEqual(listed, ['~ weather fog (assist)', '+ present Fenna (assist)']);
+    // The reply before it (the safety net was off) has no mark in its header.
+    assert.doesNotMatch(cardAt(2).querySelector('.ss-card-summary').textContent, /safety net/);
 });
