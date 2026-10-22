@@ -586,7 +586,10 @@ the kind, rarity and *Equipped only* filters next to it. It is the one place for
 **Equipped** section lists what each character wears, with **Take off** (the piece stays in their pack).
 **Equip on…** under a piece lists only the members who can wear it; picking one hands it over and puts it
 on in one step, and whatever was in that slot goes back into their pack (for rings and other accessories,
-the oldest one once all are worn: 2 by default, up to 3 by RPG Battle's rules). **Give…** hands a thing to
+the oldest one once all are worn: 2 by default, up to 3 by RPG Battle's rules). **Use on…** under a potion
+or other consumable lists the members it would help now (with RPG Battle: not someone at full HP with
+nothing to cure); picking one uses a dose on them at once. In a fight there is no Use on…: use it with the
+Fight screen's **Item**. The story can still use things itself (`! use … | on: …`). **Give…** hands a thing to
 someone else in the party, or back to the party's bag. With RPG Battle, each row also shows what only it
 knows: the slot and stats, who wears the piece, its condition and refinement, and for a potion what it
 does and whom it would help now. There is no separate Items screen any more.

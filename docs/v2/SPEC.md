@@ -905,8 +905,11 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   shared bag: when they do not fit along with the new piece, it is refused with the module's reason. The receipt names both pieces: `data: { stack, def, actor, from, slot,
   replaced: [stack ids], replacedNames }`. `inventory.unequip` leaves the piece in its wearer's carry.
   `inventory.equipment` → `{ members, worn: [{ id, name, items }], wearers: { [stack]: [{ id, name }] },
-  givers: { [stack]: [{ id, name }] }, limits, detail }` is what the Inventory screen's Equipped section,
-  "Equip on…" and "Give…" pickers draw (`detail`: RPG Battle's `rpg-battle.itemDetail` is answered, so its
+  givers: { [stack]: [{ id, name }] }, users: { [stack]: [{ id, name }] }, limits, detail }` is what the
+  Inventory screen's Equipped section, "Equip on…", "Use on…" and "Give…" pickers draw (`users`: for each
+  consumable the party holds, the members a module answering `items.useOn` → `{ [stack]: [{ id }] }` names,
+  RPG Battle's "a dose would help them now, nobody while a fight has the party"; `{}` without one, so there
+  is no Use on…; a choice runs that module's `item.use { stack, target }`) (`detail`: RPG Battle's `rpg-battle.itemDetail` is answered, so its
   `rpg-battle.item-detail` widget is drawn in each row). A reader's `inventory.transfer` (cause `ui`, Give)
   is refused when the taker cannot carry it (`items.carry`, `move: true`).
 * **Loot to pick from** (`story-block.loot`). `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar

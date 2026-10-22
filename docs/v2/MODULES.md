@@ -463,8 +463,10 @@ These settle questions agents raised; the host changes they need are made at int
 95. **No quest buttons** (Accept, Decline, Take, Finish, Abandon); screens show status text; the commands
     stay for templates, Studio and tests; the `quests.turnIn` setting is dropped.
 96. **Using a consumable is story-driven**: `! use X | on: Y`, or `- item X` marked used (SPEC §7), runs
-    `item.use` by code in the same reply; a refusal keeps the item and tells the story. No Use button (the
-    command stays); Equip, Take off and Give stay as bag management.
+    `item.use` by code in the same reply; a refusal keeps the item and tells the story. Equip, Take off and
+    Give stay as bag management. *Changed in beta.1 (live test: "use item is missing"):* the Inventory has
+    **Use on…** for a consumable too, bag management (rule 6): the members RPG Battle's `items.useOn` says a
+    dose would help now, none while a fight has the party (the Fight screen's Item does it then).
 
 **Screens and later work**
 97. The UI overhaul waits until the base structure is ready; polish now is functional fixes only.
