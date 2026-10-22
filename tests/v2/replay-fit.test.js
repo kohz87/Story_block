@@ -3,7 +3,7 @@
 // replayed block that would leave a domain invalid is skipped and reported (r2-14).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rebaseOps } from '../../src/v2/ops.js';
+import { apply, rebaseOps } from '../../src/v2/ops.js';
 import { validateInventory } from '../../src/v2/domains/inventory.js';
 import { createHost } from '../../testkit/index.js';
 import { readRecord } from '../../src/v2/persist.js';
@@ -131,4 +131,26 @@ test('rebaseOps: replayed, a remove of a key already gone is passed over; a coun
     assert.deepEqual(rebaseOps(state, [take], { replayed: true }).ops, [take], 'a take of a stack that is gone still fails its block');
     const listed = { op: 'remove', path: '/domains/keeper/log/3' };
     assert.deepEqual(rebaseOps({ domains: { keeper: { log: [] } } }, [listed], { replayed: true }).ops, [listed], 'a list position stays as written');
+});
+
+test('rebaseOps: a list inside a scratch field is not fitted; an append stays an append, a remove of an item is kept', () => {
+    const scratch = name => (name === 'keeper' ? ['perReply'] : []);
+    const state = { domains: { keeper: { perReply: { sw_a: { seen: ['alpha'] } } } } };
+    const append = { op: 'add', path: '/domains/keeper/perReply/sw_a/seen/-', value: 'beta' };
+    for (const replayed of [false, true]) {
+        const { ops } = rebaseOps(state, [append], { scratch, replayed });
+        assert.deepEqual(ops, [append], `the append is as written (replayed: ${replayed})`);
+        assert.deepEqual(apply(state, ops).domains.keeper.perReply.sw_a.seen, ['alpha', 'beta'], 'the list is still a list, the item at its end');
+    }
+    const remove = { op: 'remove', path: '/domains/keeper/perReply/sw_a/seen/0' };
+    assert.deepEqual(rebaseOps(state, [remove], { scratch }).ops, [remove], 'a remove of a list item is not dropped');
+    // Later ops of the block see the list as the earlier ones left it.
+    const two = [append, { op: 'add', path: '/domains/keeper/perReply/sw_a/seen/-', value: 'gamma' }, { op: 'replace', path: '/domains/keeper/perReply/sw_a/n', value: 1 }];
+    const { ops } = rebaseOps(state, two, { scratch, replayed: true });
+    assert.deepEqual(apply(state, ops).domains.keeper.perReply.sw_a, { seen: ['alpha', 'beta', 'gamma'], n: 1 }, 'objects around it are still fitted');
+    // An append to a list a deleted reply made is not made up: as written, its block fails.
+    const bare = { domains: { keeper: { perReply: {} } } };
+    const { ops: lost } = rebaseOps(bare, [append], { scratch, replayed: true });
+    assert.deepEqual(lost, [append]);
+    assert.throws(() => apply(bare, lost));
 });

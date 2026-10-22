@@ -11,11 +11,22 @@
 // inventory's own validator must then accept the block (B3-8); a moved `qty` that comes to exactly 0
 // removes the thing that holds it (r2-3); a remove of an object key already gone does nothing, unless it
 // is a counted take (`was`); a list append (`/-`) lands at the end.
+// Two more from SPEC §2.2 the oracle lacked until fix-fuzz150 (the 150-step fuzz found the store right):
+// a counted remove (`was` at `count`, a stack a reply emptied) of a thing that now holds another number
+// takes `was` from it and the rest stays; rule (c), a replace of an object key inside a domain that is
+// not there, in an object that is, is an add. Inside a scratch field, a list is applied as written.
+// A replayed block is checked by the validator of every domain it touches, not the inventory's alone
+// (SPEC §2.2 "Replayed blocks are checked", as the host does in runtime.js): a block that brings a
+// problem its state did not have is skipped. So `+ present Fenna`, `- present Fenna`, `+ present Fenna`
+// with the middle reply deleted keeps Fenna once: the last append would list her twice, which the
+// scene's validator refuses, and that block is skipped.
 
 import assert from 'node:assert/strict';
 import { readRecord } from '../../../../src/v2/persist.js';
 import { createStore } from '../../../../src/v2/store.js';
 import { validateInventory } from '../../../../src/v2/domains/inventory.js';
+import { validateScene } from '../../../../src/v2/domains/scene.js';
+import { probeModule } from './probe-module.js';
 
 const isCarrier = message => Boolean(message) && typeof message === 'object' && !message.is_user;
 
@@ -29,17 +40,33 @@ const SCRATCH = ['/domains/inventory/perReply', '/domains/inventory/loot'];
 const at = (root, keys) => keys.reduce((node, key) => (node !== null && typeof node === 'object' && Object.hasOwn(node, key) ? node[key] : undefined), root);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+// The validators of the domains the QA chats hold (Story Block's core two and the probe's), by domain name.
+const VALIDATORS = Object.freeze({ inventory: validateInventory, scene: validateScene, probe: probeModule().domains.probe.validate });
+/** The problems of the named domains in `state` (a domain the state lacks has none). */
+export function validateDomains(state, names) {
+    return names.flatMap(name => {
+        const fn = VALIDATORS[name];
+        const slice = state?.domains?.[name];
+        return typeof fn === 'function' && slice !== undefined ? fn(slice).map(problem => `${name}: ${problem}`) : [];
+    });
+}
+
 export function strictApply(state, ops) {
     let root = structuredClone(state);
-    const startProblems = new Set(root?.domains?.inventory ? validateInventory(root.domains.inventory) : []);
-    let moved = false;
-    let touched = false;
+    // The domains the block touches (any op under /domains/<name>), checked after it as the host does.
+    const touched = new Set();
+    for (const op of ops) {
+        const name = typeof op?.path === 'string' && /^\/domains\/[^/]/.test(op.path) ? unescape(op.path.split('/')[2]) : null;
+        if (name !== null) touched.add(name);
+    }
+    const startProblems = new Set(validateDomains(root, [...touched]));
     for (const original of ops) {
         let op = original;
-        if (typeof op?.path === 'string' && op.path.startsWith('/domains/inventory/')) touched = true;
         // The inventory's per-reply tally (scratch): a drop of something already gone is passed over;
         // anything else is put in place, making the objects on the way.
-        if (typeof op?.path === 'string' && SCRATCH.some(root => op.path.startsWith(`${root}/`))) {
+        // A list inside one (an append `/-`, a position) is not fitted: it applies as written below.
+        const inList = keys => keys.at(-1) === '-' || keys.slice(0, -1).some((_, n) => Array.isArray(at(root, keys.slice(0, n + 1))));
+        if (typeof op?.path === 'string' && SCRATCH.some(root => op.path.startsWith(`${root}/`)) && !inList(op.path.slice(1).split('/').map(unescape))) {
             const keys = op.path.slice(1).split('/').map(unescape);
             if (op.op === 'remove') {
                 if (at(root, keys) === undefined) continue;
@@ -65,20 +92,30 @@ export function strictApply(state, ops) {
             }
             if (gone) continue;
         }
+        // A counted remove (a stack a reply emptied: `was` at `count`) of a thing that now holds another
+        // number takes `was` from it instead; the rest stays (less than `was` goes below zero, refused below).
+        if (op?.op === 'remove' && typeof op.was === 'number' && typeof op.count === 'string' && op.count.startsWith('/') && typeof op.path === 'string') {
+            const now = at(root, `${op.path}${op.count}`.slice(1).split('/').map(unescape));
+            if (typeof now === 'number' && now !== op.was) op = { op: 'replace', path: `${op.path}${op.count}`, value: now - op.was };
+        }
+        // Rule (c): a replace (not counted) of an object key inside a domain that is not there, in an object
+        // that is, is an add (only a deleted reply had added the key).
+        if (op?.op === 'replace' && typeof op.was !== 'number' && typeof op.path === 'string' && op.path.startsWith('/domains/')) {
+            const keys = op.path.slice(1).split('/').map(unescape);
+            const parent = at(root, keys.slice(0, -1));
+            if (keys.length >= 3 && record(parent) && !Object.hasOwn(parent, keys.at(-1))) op = { op: 'add', path: op.path, value: op.value };
+        }
         if (op?.op === 'replace' && typeof op.was === 'number' && typeof op.value === 'number') {
             const keys = op.path.slice(1).split('/').map(unescape);
             const now = at(root, keys);
             // A count whose holder is gone counts from 0 (a holder that is only that count, a wallet, made again).
             if (now === undefined && record(at(root, keys.slice(0, -1)))) {
                 op = { op: 'add', path: op.path, value: op.value - op.was };
-                moved = true;
             } else if (now === undefined && at(root, keys.slice(0, -1)) === undefined && record(at(root, keys.slice(0, -2)))
                 && Object.values(at(root, keys.slice(0, -2))).every(other => record(other) && Object.keys(other).every(field => field === keys.at(-1)))) {
                 op = { op: 'add', path: op.path.replace(/\/[^/]*$/, ''), value: { [keys.at(-1)]: op.value - op.was } };
-                moved = true;
             } else if (typeof now === 'number' && now !== op.was) {
                 op = { ...op, value: now + op.value - op.was };
-                moved = true;
                 // A moved `qty` at exactly 0 removes the thing holding it (r2-3: no stack is kept at 0).
                 if (op.value === 0 && keys.length > 3 && keys[keys.length - 1] === 'qty') op = { op: 'remove', path: op.path.replace(/\/[^/]*$/, '') };
             }
@@ -117,9 +154,10 @@ export function strictApply(state, ops) {
             else delete target[last];
         }
     }
-    // A replayed block may not leave the inventory with a problem it did not have before (r2-14).
-    if ((moved || touched) && root?.domains?.inventory && validateInventory(root.domains.inventory).some(problem => !startProblems.has(problem))) {
-        throw new Error('the changes break the inventory');
+    // A replayed block may not leave a domain it touches with a problem it did not have before (r2-14).
+    // (A moved count is always under /domains/inventory, so the inventory is among them then.)
+    if (validateDomains(root, [...touched]).some(problem => !startProblems.has(problem))) {
+        throw new Error('the changes break a domain they touch');
     }
     return root;
 }
@@ -210,7 +248,7 @@ export function checkInvariants(host, label) {
     assert.equal(store.headIndex(), headIndex, `${label}: head index`);
     if (headIndex >= 0) {
         // With the validators the host passes (runtime.js): a replay that moves counts, or any replayed block, is checked by them.
-        const validate = (state, names) => (names.includes('inventory') ? validateInventory(state.domains.inventory) : []);
+        const validate = (state, names) => validateDomains(state, names);
         // And the inventory's per-reply tally as the scratch it is declared to be (ops.js).
         const scratch = name => (name === 'inventory' ? ['perReply', 'loot'] : []);
         const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate, scratch });

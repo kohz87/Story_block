@@ -26,6 +26,13 @@ import { carriers, checkInvariants, rebuildAt } from './helpers/oracle.js';
 // QA_FUZZ_SEEDS=200 QA_FUZZ_STEPS=200 runs a longer hunt locally (QA_FUZZ_SEED=n one seed); CI runs the fixed list.
 const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 7, 42, 1337, 2024, 31337, 90210, 424242];
 const STEPS = Number(process.env.QA_FUZZ_STEPS) || 90;
+// CI also runs a few seeds as long chats (LONG_STEPS): some states only come after many steps (someone
+// present, gone, back again, then the middle reply deleted), and 90 steps did not reach them (fix-fuzz150).
+const LONG_SEEDS = [16, 25, 36];
+const LONG_STEPS = 150;
+const RUNS = process.env.QA_FUZZ_SEED || process.env.QA_FUZZ_SEEDS || process.env.QA_FUZZ_STEPS
+    ? SEEDS.map(seed => [seed, STEPS])
+    : [...SEEDS.map(seed => [seed, STEPS]), ...LONG_SEEDS.map(seed => [seed, LONG_STEPS])];
 
 const ITEMS = ['Rope', 'Lamp', 'Moonveil Trout', 'Iron Key', 'Apple', 'Torch'];
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
@@ -105,7 +112,7 @@ function bonusPaidOnLine(host) {
 
 const tailOf = request => request.chat.filter(message => message.role === 'system').slice(1).map(message => message.content).join('\n');
 
-async function fuzz(t, seed) {
+async function fuzz(t, seed, steps) {
     const restore = seedCrypto(seed);
     t.after(restore);
     t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -220,7 +227,7 @@ async function fuzz(t, seed) {
         }
     }
 
-    for (let step = 0; step < STEPS; step++) {
+    for (let step = 0; step < steps; step++) {
         const roll = r.int(0, 19);
         let action;
         if (roll <= 4) action = 'send';
@@ -327,8 +334,8 @@ async function fuzz(t, seed) {
     assert.deepEqual(host.turn.problems().filter(problem => problem.module === null && problem.code === 'FAILED'), [], `seed ${seed}: the host itself never failed`);
 }
 
-for (const seed of SEEDS) {
-    test(`fuzz seed ${seed}: replay equals rebuild, rollback is exact, told once, claims once, saves per burst`, async t => {
-        await fuzz(t, seed);
+for (const [seed, steps] of RUNS) {
+    test(`fuzz seed ${seed}${steps === STEPS ? '' : ` (${steps} steps)`}: replay equals rebuild, rollback is exact, told once, claims once, saves per burst`, async t => {
+        await fuzz(t, seed, steps);
     });
 }
