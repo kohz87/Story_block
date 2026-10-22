@@ -168,3 +168,147 @@ test('a domain\'s counters must be paths inside it', () => {
     assert.deepEqual(registry.counters('good'), ['pool/*/n']);
     assert.deepEqual(registry.counters('nobody'), []);
 });
+
+// ---- a count set rather than moved (ctx.absolute, SPEC §2.2) ---------------------------------------
+
+// A clock like Story Director's: `! tick 5` moves it on, `~ tick 100` sets it (ctx.absolute).
+const clockModule = () => ({
+    id: 'clock',
+    name: 'Clock',
+    domains: { clock: { initial: () => ({ minutes: 0 }), counters: ['minutes'] } },
+    capture: {
+        kinds: { tick: { grammar: '! tick <n> moves it on; ~ tick <n> sets it' } },
+        apply(ctx, line) {
+            const clock = ctx.draft('clock');
+            const n = Number(line.name);
+            if (line.op === '~') {
+                ctx.absolute('clock', '/minutes');
+                clock.minutes = n;
+            } else clock.minutes += n;
+            return { summary: `Clock ${clock.minutes}.`, narrate: false };
+        },
+    },
+});
+const clockOf = host => host.head().domains.clock.minutes;
+
+async function clockHost(t) {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost({ modules: [clockModule()] });
+    t.after(() => host.close());
+    await host.send('Hello.', reply('Start.', ['~ tick 100']));
+    return host;
+}
+
+test('ctx.absolute: a set keeps no was and is written even when the count holds that number', async t => {
+    const host = await clockHost(t);
+    const last = () => host.store.opsAt(host.ctx.chat.length - 1).filter(op => op.path === '/domains/clock/minutes');
+    await host.send('On.', reply('Later.', ['! tick 5']));
+    assert.deepEqual(last().map(op => [op.value, op.was]), [[105, 100]], 'a move keeps was');
+    await host.send('Set.', reply('Set.', ['~ tick 200']));
+    assert.deepEqual(last(), [{ op: 'replace', path: '/domains/clock/minutes', value: 200 }], 'a set: no was');
+    await host.send('Again.', reply('Same.', ['~ tick 200']));
+    assert.deepEqual(last(), [{ op: 'replace', path: '/domains/clock/minutes', value: 200 }], 'the same number is still written');
+});
+
+test('ctx.absolute: after an earlier middle delete a set stays exact and later moves add on top', async t => {
+    const host = await clockHost(t);
+    await host.send('A.', reply('A.', ['! tick 7']));
+    const a = host.ctx.chat.length - 1;
+    await host.send('B.', reply('B.', ['~ tick 500']));
+    await host.send('C.', reply('C.', ['! tick 3']));
+    assert.equal(clockOf(host), 503);
+    await host.st.deleteMessage(a);
+    await host.st.deleteMessage(a - 1);
+    assert.deepEqual(host.store.problems(), []);
+    assert.equal(clockOf(host), 503, 'the set is a set: the deleted +7 before it changes nothing after it');
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'rebuild == live');
+    // Deleting the set itself: the later move adds on top of what is left.
+    const b = host.ctx.chat.length - 3;
+    await host.st.deleteMessage(b);
+    await host.st.deleteMessage(b - 1);
+    assert.equal(clockOf(host), 103);
+});
+
+test('ctx.absolute is the domain owner\'s and takes a path inside the domain', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const other = {
+        id: 'other',
+        commands: {
+            'other.poke': ctx => { ctx.absolute('clock', '/minutes'); return {}; },
+            'other.bad': ctx => { ctx.absolute('other', 'minutes'); return {}; },
+        },
+        domains: { other: { initial: () => ({}) } },
+    };
+    const host = await createHost({ modules: [clockModule(), other] });
+    t.after(() => host.close());
+    await host.send('Hello.', 'Start.');
+    assert.equal((await host.sdk.command('other.poke', {})).code, 'NOT_OWNER');
+    assert.equal((await host.sdk.command('other.bad', {})).code, 'INVALID');
+});
+
+// ---- writes inside a thing that may be gone (ctx.ifThere, SPEC §2.2 rule d) -----------------------
+
+// Notes made by `+ note Name`; `! close Name` (a later reply, or time) closes it and stamps the log
+// in the same block, marking the note's writes with ctx.ifThere.
+const notesModule = () => ({
+    id: 'notes',
+    name: 'Notes',
+    domains: { notes: { initial: () => ({ items: {}, closedCount: 0, log: {} }), counters: ['closedCount'] } },
+    capture: {
+        kinds: { note: { grammar: '+ note Name makes it; ! note Name closes it' } },
+        apply(ctx, line) {
+            const notes = ctx.draft('notes');
+            const id = `n_${line.name.toLowerCase()}`;
+            if (line.op === '+') notes.items[id] = { name: line.name, open: true };
+            else {
+                ctx.ifThere('notes', `/items/${id}`);
+                if (notes.items[id]) notes.items[id].open = false;
+                notes.closedCount += 1;
+                notes.log[ctx.receiptId] = line.name;
+            }
+            return { summary: 'ok', narrate: false };
+        },
+    },
+});
+
+test('ctx.ifThere: writes inside a gone thing are passed over on replay; the rest of the block applies', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost({ modules: [notesModule()] });
+    t.after(() => host.close());
+    await host.send('Hello.', reply('Start.', ['+ note Base']));
+    await host.send('A.', reply('A.', ['+ note Rats']));
+    const a = host.ctx.chat.length - 1;
+    await host.send('B.', reply('B.', ['! note Rats', '! note Base']));
+    const ops = host.store.opsAt(host.ctx.chat.length - 1);
+    assert.deepEqual(ops.filter(op => op.within).map(op => [op.path, op.within]), [
+        ['/domains/notes/items/n_rats/open', '/domains/notes/items/n_rats'],
+        ['/domains/notes/items/n_base/open', '/domains/notes/items/n_base'],
+    ]);
+    await host.st.deleteMessage(a);
+    await host.st.deleteMessage(a - 1);
+    assert.deepEqual(host.store.problems(), [], 'no block is skipped');
+    const notes = host.head().domains.notes;
+    assert.deepEqual(notes.items, { n_base: { name: 'Base', open: false } }, 'no ghost of the gone note');
+    assert.equal(notes.closedCount, 2, 'the rest of the block applied');
+    assert.equal(Object.keys(notes.log).length, 2);
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'rebuild == live');
+});
+
+test('rebaseOps rule d: only on replay, only inside the marked thing, never the add that makes it', () => {
+    const state = { domains: { notes: { items: {}, n: 1 } } };
+    const within = '/domains/notes/items/n_x';
+    const ops = [
+        { op: 'replace', path: `${within}/open`, value: false, within },
+        { op: 'replace', path: '/domains/notes/n', value: 2 },
+    ];
+    assert.deepEqual(rebaseOps(state, ops, { replayed: true }).ops, [ops[1]]);
+    assert.deepEqual(rebaseOps(state, ops).ops, ops, 'a live command is never fitted');
+    const made = [{ op: 'add', path: within, value: { open: true }, within }, { op: 'replace', path: `${within}/open`, value: false, within }];
+    assert.deepEqual(rebaseOps(state, made, { replayed: true }).ops, made, 'made in the block: kept');
+    const there = { domains: { notes: { items: { n_x: { open: true } }, n: 1 } } };
+    assert.deepEqual(rebaseOps(there, ops, { replayed: true }).ops, ops, 'there: as written');
+});

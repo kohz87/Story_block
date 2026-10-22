@@ -136,6 +136,33 @@ test('hostile input: too many lines are Problems (first ones kept), markup and j
     assert.equal(Array.from(extrasOf(host).choice[0].text).length, CHOICE_CHARS);
 });
 
+test('choices a Continue adds past the cap get the same "not applied" Problem as the original reply\'s', async t => {
+    const host = await fresh(t);
+    await host.send('Go.', block('The gate.', ['? choice One', '? choice Two', '? choice Three', '~ chatter A: one', '~ chatter B: two']));
+    const index = lastIndex(host);
+    assert.deepEqual(host.turn.problems().filter(item => item.index === index), []);
+    await host.cont(`\n\nThe guard turns.\n\n${block('', ['? choice Four', '? choice Five', '? choice Six', '~ chatter C: three', '~ chatter D: four']).trim()}`);
+    assert.equal(lastIndex(host), index, 'the same reply');
+    const told = host.turn.problems().filter(item => item.index === index);
+    assert.deepEqual(told.map(item => [item.code, item.line]), [['LIMITED', '? choice Five'], ['LIMITED', '? choice Six'], ['LIMITED', '~ chatter D: four']]);
+    assert.match(told[0].message, /"\? choice Five" was not used: a reply shows at most 4 choices, and this one had more/);
+    assert.ok(told.every(item => item.quiet !== true));
+    // What the card shows agrees: the first four, in order; Re-read tells the same lines.
+    assert.deepEqual(extrasOf(host).choice.map(item => item.text), ['One', 'Two', 'Three', 'Four']);
+    assert.deepEqual(extrasOf(host).chatter.map(item => item.name), ['A', 'B', 'C']);
+    const again = await host.turn.reread(index);
+    assert.deepEqual((again?.problems ?? []).filter(item => item.code === 'LIMITED').map(item => item.line), ['? choice Five', '? choice Six', '~ chatter D: four']);
+});
+
+test('a Continue under the cap tells nothing', async t => {
+    const host = await fresh(t);
+    await host.send('Go.', block('The gate.', ['? choice One', '? choice Two']));
+    const index = lastIndex(host);
+    await host.cont(`\n\nThen.\n\n${block('', ['? choice Three', '? choice Four']).trim()}`);
+    assert.deepEqual(host.turn.problems().filter(item => item.index === index), []);
+    assert.deepEqual(extrasOf(host).choice.map(item => item.text), ['One', 'Two', 'Three', 'Four']);
+});
+
 test('a choice line written in the story near the block is taken and hidden like any change line', async t => {
     const host = await fresh(t);
     await host.send('Go.', 'The gate stood open.\n\n? choice Slip through the gate\n\n<Changes>\n? choice Wait for dusk\n</Changes>');
