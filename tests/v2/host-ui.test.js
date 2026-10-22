@@ -698,4 +698,3 @@ test('text form: every list of text and whole numbers has the toggle; others and
 
 const coreFor = () => createCoreModule({ packs: packsFor({ extensionSettings: {} }) });
 const report = { report: () => 'REPORT' };
-

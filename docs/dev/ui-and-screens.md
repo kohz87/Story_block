@@ -380,7 +380,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   `tests/v2/ux/settings-diagnostics.test.js` (the Diagnostics page: the report card built on first show, Copy, Save, the sample button, Events, placed modules, search, the scrub),
   `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
-- The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, 
+- The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`,
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.
 - Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`, `form-security`, `settings-window-security`.
 - Break findings: `rx-ui-*`, `b5b-deep-screens`, `b5b-form-names`, `b5b-r2-props-depth`, `c3-features-*`.
