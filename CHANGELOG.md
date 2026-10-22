@@ -13,6 +13,9 @@ background, light and dark, the font Nunito). Step 1a: tokens, the theme bridge,
 - **UI sample** for developers: Settings → Diagnostics → Show the UI sample, every block in a light and a dark pane over SillyTavern's background (`src/v2/screens/ui-sample.js`).
 - Docs: docs/dev/ui-and-screens.md "The look", WIDGETS.md. Tests: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`, `tests/v2/view/widgets/glass.test.js`, `tests/v2/screens/ui-sample.test.js`.
 
+- **Step 1b, PR A: the remaining building blocks** (`src/v2/view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`, `dialog.js`; rules in `glass.css`): `ss.hero` (portrait from the persona avatar, the card's image or a Delta `portraitQuery`, the initial as fallback; name; level/class pill; HP/MP/SP bars and the Terms' experience word; a place/time/weather corner; status badges; a compact variant for the reply status strip; a container query for the wide layout), `ss.tiers` (tiers of tiles with a label and a connector between tiers), `ss.listcard` (rows with title, sub and a value or a toned tag), `ss.tabs` and `ss.navbar` (icons and labels, `aria-current`, roving tabindex, arrow keys, Home/End, the current item scrolled into view on a phone), `ss.dialog` (a glass modal with a focus trap, Escape, a labelled title, focus returned on close; classes `ss-modal*` because `ss-dialog*` is the dialog mount's). New token `--ss-scrim`. All in the UI sample, which also has "Open a dialog". Each block works at 390 px and at desktop width.
+- Docs: docs/v2/WIDGETS.md (the six widgets), docs/dev/ui-and-screens.md. Tests: `tests/v2/view/widgets/blocks.test.js`, the sample, security and common tests.
+
 ## 2.0.0-beta.1 (`v2` branch)
 
 Story Suite v2, first beta. What's new, known issues and every module's version: [docs/v2/RELEASES.md](docs/v2/RELEASES.md). The player guide: [docs/v2/GUIDE.md](docs/v2/GUIDE.md).

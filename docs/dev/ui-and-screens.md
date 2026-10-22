@@ -89,6 +89,19 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 - **Type scale** (the concept's): section label 15px / 600 / 1.4px spacing / uppercase / muted; bar head 13px /
   600 / 0.8px / uppercase, label muted and value 700 in the text colour; names 800; body 14px / 400–600; pill
   3px 10px, 14px / 600; status badge 44px with a 12px / 700 counter chip; bar track 7px, fully round, flat fill.
+- **Blocks built from them** (step 1b; the widgets' props and keys are in WIDGETS.md): `ss.hero` (`.ss-hero`, `-body`,
+  `-portrait`, `-who`, `-name`, `-pill`, `-corner`, `-vitals`, `-pools`, `-exp`, `-statuses`, `-compact`): the
+  portrait from a safe URL or a `portraitQuery` (Delta's `npc.portrait`), the initial as fallback, the Terms' word on the
+  experience bar, a container query at 600 px for the wide layout; `ss.tiers` (`.ss-tiers`, `-tier`, `-link`, `-dot`,
+  `-line`, `-label`, `-grid`: `ss.tile`s in a glass grid of `--ss-cols` columns, a connector between tiers);
+  `ss.listcard` (`.ss-listcard`, `-head`, `-rows`, `-row`, `-item`, `-icon`, `-main`, `-title`, `-sub`, `-value`,
+  `-tag` + `.ss-tone-*`); `ss.tabs` and `ss.navbar` (`.ss-tabs`, `-list`, `-item`, `-icon`, `-label`, `-count`; the same
+  for `ss-navbar`; `nav.js`: roving tabindex, arrows/Home/End, `revealItem` scrolls the row, not the page);
+  `ss.dialog` (`.ss-modal`, `-panel`, `-head`, `-title`, `-close`, `-text`, `-foot`, `-action` + `-primary|plain|danger`;
+  a fixed panel placed from the top with `100dvh`, `--ss-scrim` behind it; the dialog mount keeps `ss-dialog*` until step 2).
+  A new token, `--ss-scrim`. `[hidden]` inside a Story Suite root is `display: none !important`, so a block can hide a part
+  whatever display it gives it. One thing to remember when adding a block with a tone: a block must not set `--ss-ring`
+  itself (it would beat the `.ss-tone-*` rules, which come earlier); read `var(--ss-ring, <default>)` (a test guards it).
 - **The UI sample** (`src/v2/screens/ui-sample.js`, developers): Settings → Diagnostics → **Show the UI
   sample** draws every block in a light and a dark pane (no background of their own, over see-through colour
   blobs and stripes on SillyTavern's background), through DOMPurify and
@@ -106,7 +119,8 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   `view/css.js` (`scopeCss`, `filterDeclarations`, `isSafeCssUrl`, `themeVars`), `view/render-screen.js`.
 - `src/v2/view/mounts/` (`tab`, `screen`, `card`, `hud`, `dialog`), `view/widgets/`, `view/tab-order.js`.
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
-  `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `src/v2/screens/ui-sample.js` (`openUiSample`).
+  `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
+  (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`).
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
@@ -118,7 +132,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 - `tests/v2/view/` (`template/`, `mounts/`, `widgets/`, `render-screen.test.js`, `tab-order.test.js`),
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
-  `tests/v2/view/widgets/glass.test.js`, `tests/v2/screens/ui-sample.test.js`.
+  `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/screens/ui-sample.test.js`.
 - Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`.
 - Break findings: `rx-ui-*`, `b5b-deep-screens`, `b5b-form-names`, `b5b-r2-props-depth`, `c3-features-*`.
 

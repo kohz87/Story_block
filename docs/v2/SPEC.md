@@ -1161,7 +1161,7 @@ module tab goes by `<module>/<tab id>` there. Form controls inside any mount tak
 `registerModule({ widgets: { name: { props, render(el, props, api) } } })`; `api` has `query`, `command`,
 `preview`, `commit`, `on`. Story Block ships: `meter`, `radar`, `map` (nodes, routes, layers, zoom/pan,
 minimap, legend), `skill-tree`, `portrait`, `badge` (icon + counter), `timeline`, `stepper` (number input
-under a budget), and the look's building blocks `tile`, `bar`, `status` (icon + time left), `pill`. Modules add their own (`battle-board`, `fishing`). The page adds two host widgets that
+under a budget), and the look's building blocks `tile`, `bar`, `status` (icon + time left), `pill`, and the blocks built from them: `hero`, `tiers`, `listcard`, `tabs`, `navbar`, `dialog`. Modules add their own (`battle-board`, `fishing`). The page adds two host widgets that
 need the store and the chat, `story-block.inspector` (the Inspector screen, MODULES §F92) and
 `story-block.savepoints` (on Home, §F93); outside the page (a test, a preview) they are not there.
 

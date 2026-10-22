@@ -90,7 +90,7 @@ test('the blocks read the theme tokens: glass, blur, hairline, shadow, radii, fo
     // Every token the blocks use is one the theme sets (or one a block sets itself).
     const used = new Set([...css.matchAll(/var\((--ss-[a-z0-9-]+)/g)].map(m => m[1]));
     const set = new Set(themeTokens().map(([name]) => name));
-    for (const name of used) assert.ok(set.has(name) || ['--ss-fill', '--ss-ring', '--ss-bar-color', '--ss-tile-size'].includes(name), `token ${name} is set by the theme`);
+    for (const name of used) assert.ok(set.has(name) || ['--ss-fill', '--ss-ring', '--ss-bar-color', '--ss-tile-size', '--ss-cols'].includes(name), `token ${name} is set by the theme`);
     // Transitions follow the motion token (0s when the system asks for less motion).
     for (const rule of all) if (/transition:/.test(rule.block)) assert.match(rule.block, /var\(--ss-motion/, rule.selectors[0]);
 });
@@ -143,4 +143,23 @@ test('a tone\'s ring colour reaches the block: no block sets --ss-ring itself af
     const setters = all.filter(rule => /(^|[\s;])--ss-ring\s*:/.test(rule.block)).flatMap(rule => rule.selectors);
     assert.ok(setters.every(selector => /\.ss-tone-[a-z]+$/.test(selector)), `only the tones set it: ${setters.join(' | ')}`);
     assert.match(all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-status`)).map(rule => rule.block).join('\n'), /var\(--ss-ring, var\(--ss-accent\)\)/, 'the badge falls back to the accent');
+});
+
+test('the 1b blocks are in glass.css: hero with container queries, tiers, listcard, tabs, navbar and the modal (not the dialog mount\'s classes)', () => {
+    const selectors = all.flatMap(rule => rule.selectors);
+    for (const name of ['ss-hero', 'ss-hero-body', 'ss-hero-portrait', 'ss-hero-compact', 'ss-tiers-grid', 'ss-tiers-line', 'ss-listcard-item', 'ss-listcard-tag', 'ss-tabs-item', 'ss-navbar-item', 'ss-modal', 'ss-modal-panel', 'ss-modal-action']) {
+        assert.ok(selectors.some(s => s.includes(`.${name}`)), `.${name} has a rule`);
+    }
+    assert.ok(!selectors.some(s => /\.ss-dialog(?:-|\s|$|,)/.test(s.replace(ROOT_SELECTOR, ''))), 'no rule of the dialog mount\'s ss-dialog*');
+    assert.match(css, /container-type: inline-size/);
+    assert.match(css, /@container \(min-width: 600px\)/);
+    assert.ok(!/@keyframes/.test(css), 'transitions only (the keyframe selectors would be outside the roots)');
+    // Hidden stays hidden whatever display a block gives it.
+    assert.ok(all.some(rule => rule.selectors.includes(`${ROOT_SELECTOR} [hidden]`) && /display: none !important/.test(rule.block)));
+    // The modal is placed from the top with a height, over everything the mounts draw.
+    const modal = all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-modal`)).map(rule => rule.block).join('\n');
+    for (const part of ['position: fixed', 'top: 0', 'left: 0', 'height: 100dvh', 'var(--ss-scrim)', 'z-index: 3040']) assert.ok(modal.includes(part), part);
+    // Touch targets of 44 px or more for what the reader presses.
+    for (const name of ['ss-tabs-item', 'ss-modal-action']) assert.match(all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .${name}`)).map(rule => rule.block).join('\n'), /min-height: 4[4-9]px|min-height: [5-9]\d px/, name);
+    assert.match(all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-navbar-item`)).map(rule => rule.block).join('\n'), /min-height: 64px/);
 });
