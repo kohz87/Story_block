@@ -103,8 +103,16 @@
 .ss-gameview-nav {
     display: flex;
     overflow-x: auto;
-    border-top: 1px solid var(--ss-border);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* The navbar's glass pill (Main.dc.html's bottom bar), floating above the screen's foot on a phone. */
+    margin: 8px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 4px;
+    box-sizing: border-box;
+    border: 1px solid var(--ss-border);
+    border-radius: var(--ss-radius-xxl, 26px);
+    background: var(--ss-glass-strong, transparent);
+    -webkit-backdrop-filter: var(--ss-blur, none);
+    backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none);
 }
 
 .ss-gameview-single .ss-gameview-nav {
@@ -117,21 +125,20 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    min-height: var(--ss-nav-size);
+    gap: 4px;
+    min-height: 64px;
     padding: 4px;
     border: 0;
-    color: inherit;
+    border-radius: var(--ss-radius-xl, 22px);
+    color: var(--ss-muted, inherit);
     background: transparent;
-    opacity: 0.7;
     font-size: 0.8em;
+    font-weight: 600;
     cursor: pointer;
 }
 
 .ss-gameview-navitem[aria-current="page"] {
-    opacity: 1;
     color: var(--ss-accent);
-    box-shadow: inset 0 2px 0 var(--ss-accent);
 }
 
 /* More items than fit (a phone's bottom bar, the tab bar): the edge with more fades (scroll-cue.js). */
@@ -178,9 +185,12 @@
         width: 200px;
         overflow-x: hidden;
         overflow-y: auto;
-        border-top: 0;
+        margin: 0;
+        padding: 8px;
+        border: 0;
         border-right: 1px solid var(--ss-border);
-        padding-bottom: 0;
+        border-radius: 0;
+        box-shadow: none;
     }
 
     .ss-gameview-navitem {
@@ -194,6 +204,7 @@
     }
 
     .ss-gameview-navitem[aria-current="page"] {
+        background: var(--ss-accent-soft, transparent);
         box-shadow: inset 3px 0 0 var(--ss-accent);
     }
 
@@ -286,8 +297,15 @@
     scrollbar-width: none;
     padding: 2px 4px;
     color: var(--ss-text);
-    background: var(--ss-surface);
-    border-top: 1px solid var(--ss-border);
+    /* Under Glass the theme sets --ss-sheet-*: the glass strip with its edge, radius, blur and shadow. Solid and
+       Follow SillyTavern leave them unset: the opaque strip with a hairline on top, as before. */
+    background: var(--ss-sheet-bg, var(--ss-surface));
+    -webkit-backdrop-filter: var(--ss-sheet-blur, none);
+    backdrop-filter: var(--ss-sheet-blur, none);
+    border: var(--ss-sheet-edge, 0);
+    border-top: var(--ss-sheet-edge, 1px solid var(--ss-border));
+    border-radius: var(--ss-sheet-radius, 0);
+    box-shadow: var(--ss-sheet-shadow, none);
     font-size: 0.85em;
 }
 
@@ -353,10 +371,13 @@
     width: 100%;
     max-height: 92dvh;
     color: var(--ss-text);
-    background: var(--ss-surface);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    /* Glass (--ss-sheet-*, set by the theme under Glass only): the glass panel, its blur, radius and shadow. */
+    background: var(--ss-sheet-bg, var(--ss-surface));
+    backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 10px)));
+    -webkit-backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 10px)));
     border: 1px solid var(--ss-border);
-    border-radius: var(--ss-radius) var(--ss-radius) 0 0;
+    border-radius: var(--ss-sheet-radius, var(--ss-radius) var(--ss-radius) 0 0);
+    box-shadow: var(--ss-sheet-shadow, none);
     padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -462,7 +483,7 @@
     .ss-dialog {
         width: min(640px, 92vw);
         max-height: 85dvh;
-        border-radius: var(--ss-radius);
+        border-radius: var(--ss-sheet-radius, var(--ss-radius));
     }
 }
 
