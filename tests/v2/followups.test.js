@@ -223,3 +223,48 @@ test('a pack place may be hidden (or secret); anything else there is refused', (
 test('the packs panel counts terms and ranks', () => {
     assert.equal(countsLine({ items: 2, terms: 1, ranks: 7 }, false), '2 items, 1 term set, 7 ranks');
 });
+
+// ---- Re-read plans a `replan` system step again (B-a1-13) -------------------------------------------
+
+// A clock the story moves (`! tick +N`) and a cue before each reply that folds what the clock gave into a
+// total (like RPG Battle's story-time heal): `replan: true` says it was planned from the story state.
+const folding = replan => ({
+    id: 'fold-test', name: 'Fold test', version: '0.0.0',
+    domains: { fold: { initial: () => ({ clock: 0, folded: 0, gained: 0 }), validate: () => [] } },
+    commands: {
+        'fold.cue'(ctx) {
+            const fold = ctx.draft('fold');
+            const gain = Math.max(0, fold.clock - fold.folded);
+            fold.gained += gain;
+            fold.folded = Math.max(fold.folded, fold.clock);
+            return { summary: `Folded ${gain}.`, narrate: false, ...(replan ? { replan: true } : {}) };
+        },
+    },
+    hooks: { beforeGenerate: view => (view?.state?.domains?.fold?.clock > view?.state?.domains?.fold?.folded ? { commands: [{ type: 'fold.cue', payload: {} }] } : { commands: [] }) },
+    capture: {
+        kinds: { tick: { grammar: '! tick +<n>' } },
+        apply(ctx, line) {
+            const fold = ctx.draft('fold');
+            fold.clock += Number(String(line.name).replace('+', '')) || 0;
+            return { summary: `Tick ${fold.clock}.`, narrate: false };
+        },
+    },
+});
+
+test('reread: a system step marked replan runs again on the new story changes; one not marked is applied as it was', async t => {
+    for (const replan of [true, false]) {
+        const host = await fresh(t, { modules: [folding(replan)] });
+        await host.send('Wait.', reply('Hours pass.', ['! tick +8']));
+        const index = host.ctx.chat.length - 1;
+        await host.send('Go on.', 'Morning.');
+        assert.deepEqual(host.head().domains.fold, { clock: 8, folded: 8, gained: 8 }, 'the cue folded the 8');
+        const cue = host.sdk.receipts().map(entry => entry.receipt).find(receipt => receipt.type === 'fold.cue');
+        assert.equal(Boolean(cue?.replan), replan, 'the receipt keeps what to run it again with');
+        await host.st.editMessage(index, reply('Only an hour.', ['! tick +1']));
+        const done = await host.sdk.reread(index);
+        assert.equal(done.ok, true, done.message);
+        assert.deepEqual(host.head().domains.fold, replan ? { clock: 1, folded: 1, gained: 1 } : { clock: 1, folded: 8, gained: 8 },
+            replan ? 'planned again: the 1 the reply now gives' : 'applied as it was');
+        host.close();
+    }
+});

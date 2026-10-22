@@ -109,7 +109,7 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
 * **Old receipts (a contract for modules).** Receipt `data` older than 200 carriers may be dropped;
   modules must not rely on it. Story Block drops it from receipts 200 or more carriers before the head;
   every other field stays (`id`, `type`, `module`, `cause`, `seed`, `summary`, `narrate`, Re-read's `line`,
-  `rev`). What a module needs from its own past receipts later (a clock, a day's facts, a history) it
+  a system step's `replan`, `rev`). What a module needs from its own past receipts later (a clock, a day's facts, a history) it
   keeps in its own state.
 * **State at carrier N** = the latest checkpoint at or before N that still holds, then every carrier's `ops`
   from there through N. A checkpoint holds when its `covers` matches the records the chat has now since the
@@ -276,6 +276,10 @@ commands: {
   and `FEATURE_OFF` (nothing ran), which a handler may catch to treat another module's command as optional.
 * A handler may add `problem: 'sentence'` to its result: done, but not all of what was asked (a clamp).
   For a capture the sentence goes to the Problems list (`LIMITED`); it is not kept in the receipt.
+* A system step (cause `system`, a beforeGenerate cue) may add `replan: true` to its result: what it did is
+  planned from the story state it ran on (RPG Battle's story-time heal). Its receipt keeps `replan: {
+  payload }`, and a Re-read of the reply it is kept on runs it again on the new story changes, at its place
+  and with its seed, instead of applying its old ops; a step that is then refused leaves its block out.
 * `ctx.call(type, payload, { as: 'event:<id>' })`: the events part's steps run with that `ctx.caller`.
 * Every committed receipt bumps `meta.rev`. A preview goes `STALE` if `meta.rev`, the head index or the head
   state changed, or a feature was turned on or off; its command's feature is checked again (`FEATURE_OFF`). ID rule (check.js): `<prefix>_<8 base36>` or a namespaced slug (`story/moonveil-trout`).
@@ -384,7 +388,8 @@ per-reply bookkeeping can be kept and read for a click after the reply as well (
 
 A swipe of that reply is a new carrier swipe: it gets its own capture; the receipts it told are told again
 because the new swipe's `narrated` starts empty. Editing a reply's text does not re-capture; a **Re-read**
-action in Story Block (`sdk.reread`, §3.1) replaces that carrier's `story` receipts with a fresh capture.
+action in Story Block (`sdk.reread`, §3.1) replaces that carrier's `story` receipts with a fresh capture
+(its `ui` and `system` receipts stay after them; a system step marked `replan`, §3, runs again on them).
 
 ### 4.3 What the model is told
 
@@ -729,8 +734,12 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   is `REFUSED`), and a part given away or split off stays a key item. Modules that buy things back or count
   what they are worth treat it as worth 0 (RPG Battle's trade refuses to buy it: "<name> is a key item; it
   can't be sold"; its crafting and commissions count it as 0), so story text never sells for more than a
-  reply's goods. Later lines over the budget are held as above, and the 20-of-one and 10-new-definitions limits
-  still apply. A `~ item` raise is never notable. A `~ item … | qty:` that raises a count is a gain, held to
+  reply's goods. **The story's own:** every stack a `+ item` line gives is marked `story: true` (also on
+  `inventory.items` rows), whatever its def (a pack item the story names too); a stack it joins, or that
+  joins it (a grant, a transfer, `inventory.merge`), is the story's too, and a part given away or split off
+  stays the story's. Its worth was counted in the reply's goods budget, so a module that buys things back
+  holds what it pays for it to its worth at the sell rate (RPG Battle's trade). Later lines over the budget
+  are held as above, and the 20-of-one and 10-new-definitions limits still apply. A `~ item` raise is never notable. A `~ item … | qty:` that raises a count is a gain, held to
   the same limits and to the carry limit when a module answers `items.carry`
   (`{ owner, add: [{ defId, qty }] }` → `{ ok: false, message }` refuses it); lowering a count is free. The
   tally is `inventory.perReply[<sid>]` (scratch, §2.2; `notable: true` once the reply's notable item is given), so a
