@@ -65,6 +65,7 @@ a story already told.
 | `currency` | no | `{ "name": "mark", "plural": "marks", "short": "mk" }`: a suggested name for the chat's one currency (MODULES §F1). `name` (the singular, "1 mark") can be up to 24 characters, the optional `plural` ("44 marks"; left out: the name with an s, and gold stays gold) up to 24, `short` up to 8. It is used only when the reader hasn't named the currency; the first enabled pack that suggests one counts, and its plural and short form go with it. Optional `coins` (MODULES §F108): see [Coins](#coins). |
 | `economy` | no | `{ "scale": 100, "note": "One coin is a copper: a hundred to a gold piece." }`: the pack's money scale (below, MODULES §F104). Problems are `BAD_ECONOMY`. |
 | `calendar` | no | The story clock's calendar (below). Problems are `BAD_CALENDAR`. |
+| `weather` | no | Weather by season and region (below), read by Story Director's weather by rule. Problems are `BAD_WEATHER`. |
 | `content` | no | Lists of records by kind (below). No other kinds. |
 | `start` | no | The start state (below). |
 | `screens` | no | Screens the pack adds, or restyles by id (below). |
@@ -423,7 +424,9 @@ whole number of the smallest:
 * Every number the pack writes (item `value`, shop `price`, rank `reward`, start money, event payouts) is
   in that smallest unit.
 * The reader's own **Coins** setting beats the pack's coins, and a pack's coins are used only while its
-  currency is (a reader who named their own currency gets no pack coins). Without coins, the one name.
+  currency is (a reader who named their own currency gets no pack coins). Without coins, the one name: an
+  amount the story writes in another coin word ("40 silver" where money is pennies) is refused, never read as
+  that many of the chat's money (MODULES §F122).
 * The model is told the coins in one static line; a money line may name one coin (`+ coin 3 silver` is 30)
   and code converts it before the reply's limits. Amounts show in mixed coins ("3 silver 5 pennies").
 * Keep the pack's coins the ones your lorebook names: the model writes the coins the lore talks about.
@@ -508,6 +511,33 @@ rules, and are a model for a pack's own checks.
 
 Any problem here is reported as `BAD_CALENDAR` and the pack is refused. Story Director reads the first
 enabled pack's calendar (query `packs.calendar`) for its clock.
+
+## Weather
+
+```json
+"weather": {
+  "seasons": [{ "name": "winter", "months": ["Frostfall", "Deepwinter", "Icewane"] },
+              { "name": "summer", "months": ["Highsun", "Goldwane", "Haywane"] }],
+  "tables": [{ "season": "winter", "region": "Shornmarch", "weather": ["hard frost, clear sky", "snow on the wind"] },
+             { "season": "winter", "weather": ["sleet and grey cloud", "cold, still and clear"] },
+             { "weather": ["mild and overcast"] }]
+}
+```
+
+`{ seasons?, tables }` (MODULES §F122): the weather Story Director sets each story day (Status card, Scene,
+the tail's Place line) when the story writes none.
+
+* `seasons`: at most 12 `{ "name", "months" }`, the name at most 24 characters, `months` 1 to 60 of the
+  calendar's month names (a month in one season only). Left out: the year is split into winter, spring, summer
+  and autumn by where a month falls (the last and first twelfth of the year are winter's middle).
+* `tables`: 1 to 120 `{ "season"?, "region"?, "weather": [ … ] }`, each `weather` 1 to 24 texts of at most 60
+  characters ("cold drizzle, low fog"). Story Director takes the table for the season and the scene's region
+  (the region's name, any case; a region containing it counts), else the season's table without a region,
+  else the region's without a season, else one with neither, else its own temperate table.
+* Nothing in it is a number or a rule: weather is descriptive only.
+
+Read with the query `packs.weather` → `{ pack, seasons, tables }` from the first enabled pack with one, or
+`null`. Any problem is reported as `BAD_WEATHER` and the pack is refused.
 
 ## Start state
 
@@ -622,6 +652,8 @@ The packs part (`src/v2/packs/index.js`) offers these through Story Block's core
   order (also `craftsOf(packs)` and `DEFAULT_CRAFTS`, `STATIONS` from `src/v2/packs/index.js`);
 * query `packs.calendar` → `{ pack, era, months, start, holidays? }` from the first enabled pack with a calendar,
   or `null`;
+* query `packs.weather` → `{ pack, seasons, tables }` from the first enabled pack with a `weather` table, or
+  `null` (see Weather);
 * query `packs.economy` → `{ pack, scale, note }` from the first enabled pack with an `economy`, or `null`.
   Read the settled scale through Story Block's `inventory.economy` (it applies the reader's override);
 * query `packs.item({ name })` and hook `item.resolve(name)` → the pack item def (SPEC §7 fields)

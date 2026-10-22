@@ -762,7 +762,7 @@ sdk.registerModule({
 ### scene
 ```js
 { place: { name: '', kind: '' /* settlement|wild|dungeon|… */, region: '' }, present: [ /* names */ ],
-  weather: { text: 'cold drizzle, low fog', rev: 12 } /* absent until a reply writes one */ }
+  weather: { text: 'cold drizzle, low fog', rev: 12, key: 'day 3|lowmere' /* key: set by a module's rule */ } /* absent until one is set */ }
 ```
 Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `present`
 (`+ present Fenna`, `- present Fenna`). Without `kind:`, the same place (same name, any case) keeps its
@@ -774,7 +774,9 @@ reply's receipts moved the place; MODULES §F119).
 Capture kind `weather` (`~ weather cold drizzle, low fog`, feature `story-block.weather`, on; MODULES §F120):
 the text flattened, without markup, cut at 60 code points; `rev` the `meta.rev` of the receipt that wrote it;
 the same text again changes nothing. Descriptive only: no mechanic reads it. `weather` is a `scratch` field
-(§2.2). Query `scene.weather` → `{ text } | null` (null while the feature is off). The tail's Place line ends
+(§2.2). Command `scene.weather({ text?, key? })` (same feature; `system` or `ui`, never the story; MODULES
+§F122): a module's rule sets the weather with `text`, marked with `key` (at most 80 code points), or marks the
+weather as it stands with `key` alone; the story's `~ weather` writes no key. Query `scene.weather` → `{ text } | null` (null while the feature is off). The tail's Place line ends
 with it (cut to 26 code points) while the feature is on. Query `scene.chatter` → the newest reply's Inner
 chatter under each present person, for the Scene screen while Story Director's World is not there (MODULES
 §F115).
