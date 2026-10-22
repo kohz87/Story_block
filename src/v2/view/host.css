@@ -331,17 +331,36 @@ body.story-suite-open { overflow: hidden; }
 .story-suite-reply-note-error { flex: 1 1 100%; color: var(--ss-accent, var(--story-suite-accent)); }
 .story-suite-reply-note-error[hidden] { display: none; }
 
-/* ---- Choices under a reply (src/v2/extras-ui.js, MODULES §F115) ---- */
-.story-suite-extras { display: grid; gap: 4px; margin: 4px 0 2px; font-size: 0.9em; color: var(--story-suite-fg); animation: story-suite-fade-in 0.2s ease-out; }
-.story-suite-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-.story-suite-choices > i { color: var(--story-suite-accent); opacity: 0.85; }
+/* ---- Choices under a reply (src/v2/extras-ui.js, MODULES §F115): folded by default; the summary is a glass row, the
+   options one per row, each a full-width glass button (the strip is a theme root: the tokens reach it) ---- */
+.story-suite-extras { display: grid; gap: 4px; margin: 6px 0 4px; font-size: 0.9em; color: var(--ss-text, var(--story-suite-fg)); animation: story-suite-fade-in 0.2s ease-out; }
+.story-suite-choices-fold { min-width: 0; }
+.story-suite-choices-summary {
+    display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px; box-sizing: border-box;
+    border-radius: var(--ss-radius-m, 14px); border: 1px solid var(--ss-border, var(--story-suite-line));
+    background: var(--ss-glass, transparent); -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none); color: var(--ss-text, inherit); cursor: pointer; list-style: none; font-weight: 600;
+}
+.story-suite-choices-summary::-webkit-details-marker { display: none; }
+.story-suite-choices-summary:hover, .story-suite-choices-summary:focus-visible { border-color: var(--ss-accent, var(--story-suite-accent)); }
+.story-suite-choices-summary > i { flex: none; color: var(--ss-accent, var(--story-suite-accent)); }
+.story-suite-choices-label { flex: 1 1 auto; min-width: 0; }
+.story-suite-choices-count {
+    min-width: 20px; padding: 0 6px; border-radius: 10px; line-height: 20px; text-align: center; font-size: 0.9em;
+    background: var(--ss-badge, var(--story-suite-accent)); color: var(--ss-badge-text, inherit);
+}
+.story-suite-choices-chevron { transition: transform 0.15s ease; }
+.story-suite-choices-fold[open] > .story-suite-choices-summary > .story-suite-choices-chevron { transform: rotate(180deg); }
+.story-suite-choices { display: grid; gap: 6px; margin-top: 6px; }
 .story-suite-choice {
-    flex: 0 1 auto; max-width: 100%; min-width: 0; padding: 3px 10px; border-radius: 999px; cursor: pointer;
-    font: inherit; text-align: left; overflow-wrap: anywhere; white-space: normal;
-    color: inherit; background: color-mix(in srgb, var(--story-suite-fg) 4%, transparent); border: 1px solid var(--story-suite-line);
+    display: flex; align-items: center; justify-content: flex-start; width: 100%; min-width: 0; min-height: 44px; margin: 0;
+    padding: 8px 14px; box-sizing: border-box; text-align: left; overflow-wrap: anywhere; white-space: normal;
+    border-radius: var(--ss-radius-m, 14px); border: 1px solid var(--ss-border, var(--story-suite-line));
+    background: var(--ss-glass, transparent); -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none); color: var(--ss-text, inherit); font: inherit; cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
 }
-.story-suite-choice:hover, .story-suite-choice:focus-visible { border-color: var(--story-suite-accent); color: var(--story-suite-accent); }
+.story-suite-choice:hover, .story-suite-choice:focus-visible { border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-accent, var(--story-suite-accent)); }
 
 /* ---- subtle motion (MODULES §F57): cards open, meters move, the views come in ---- */
 @keyframes story-suite-fade-in {
