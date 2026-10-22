@@ -138,3 +138,9 @@ test('Nunito is bundled: fonts.css points at files that exist, with the licence;
 });
 
 const themeFontStack = () => FONT_STACKS.nunito;
+
+test('a tone\'s ring colour reaches the block: no block sets --ss-ring itself after the tone rules (it would win the tie)', () => {
+    const setters = all.filter(rule => /(^|[\s;])--ss-ring\s*:/.test(rule.block)).flatMap(rule => rule.selectors);
+    assert.ok(setters.every(selector => /\.ss-tone-[a-z]+$/.test(selector)), `only the tones set it: ${setters.join(' | ')}`);
+    assert.match(all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-status`)).map(rule => rule.block).join('\n'), /var\(--ss-ring, var\(--ss-accent\)\)/, 'the badge falls back to the accent');
+});
