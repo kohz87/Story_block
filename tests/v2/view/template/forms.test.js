@@ -3,12 +3,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compileTemplate, renderTemplate } from '../../../../src/v2/view/template/index.js';
 import { fakeEvaluate, installFakeDom } from './helpers.js';
+import { stPurify } from '../../../../testkit/index.js';
 
-function setup(html, scope, options = {}) {
+function setup(html, scope, options = {}, { sanitize = null } = {}) {
     const doc = installFakeDom();
     const el = doc.createElement('div');
     doc.body.appendChild(el);
-    const compiled = compileTemplate(html);
+    const compiled = compileTemplate(html, { sanitize });
     assert.deepEqual(compiled.warnings, []);
     const drafts = [];
     const calls = [];
@@ -47,9 +48,13 @@ const scope = () => ({
     draft: { stats: { STR: 1, VIT: 1 } },
 });
 
-test('every input type fills the draft the host holds; the view re-renders from it', () => {
+// Also through SillyTavern's DOMPurify (testkit stPurify), which drops controls' `type`: the types come
+// back (compileTemplate carries them as data-ss-type), so radios and checkboxes stay radios and checkboxes.
+for (const [label, sanitize] of [['', null], [' (after SillyTavern\'s DOMPurify)', stPurify]]) test(`every input type fills the draft the host holds; the view re-renders from it${label}`, () => {
     const given = scope();
-    const { el, view, drafts } = setup(FORM, given);
+    const { el, view, drafts } = setup(FORM, given, {}, { sanitize });
+    assert.deepEqual(el.querySelectorAll('input').map(input => input.getAttribute('type')),
+        [null, 'number', 'range', 'radio', 'radio', 'checkbox', 'checkbox', 'checkbox', 'checkbox']);
     const inputs = el.querySelectorAll('input');
     const [name, str, vit] = inputs;
     assert.equal(str.value, '1', 'the draft is shown');
@@ -68,7 +73,8 @@ test('every input type fills the draft the host holds; the view re-renders from 
     assert.deepEqual(select.querySelectorAll('option').map(o => o.getAttribute('value')), ['', 'ranger', 'mage']);
     type(select, 'mage', 'change');
 
-    const radios = inputs.filter(input => input.getAttribute('name') === 'ss-t-origin');
+    const radios = inputs.filter(input => input.getAttribute('type') === 'radio');
+    assert.equal(new Set(radios.map(radio => radio.getAttribute('name'))).size, 1, 'one group');
     radios[1].checked = true;
     radios[1].dispatch('change');
     radios[0].checked = false;
