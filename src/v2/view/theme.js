@@ -24,8 +24,12 @@
 // no class, attribute or style is set on any of SillyTavern's elements. The class `ss-scheme-light` or
 // `ss-scheme-dark` inside a root forces one scheme there (the UI sample shows both side by side).
 
-/** The Story Suite roots (as in controls.css): every token and building block is scoped under them. */
-export const THEME_ROOTS = Object.freeze(['.story-suite-overlay', '.story-suite-sheet', '.ss-gameview', '.ss-dialog', '.ss-cards', '.ss-card', '.ss-hud', '[data-ss-screen]']);
+/**
+ * The Story Suite roots (as in controls.css): every token and building block is scoped under them. The last three are
+ * the furniture in the chat: the bar above the message box, the Choices under a reply, the notes under a reply. They are
+ * roots so the same tokens reach them (Glass, Solid and Follow SillyTavern alike).
+ */
+export const THEME_ROOTS = Object.freeze(['.story-suite-overlay', '.story-suite-sheet', '.ss-gameview', '.ss-dialog', '.ss-cards', '.ss-card', '.ss-hud', '[data-ss-screen]', '.story-suite-bar', '.story-suite-extras', '.story-suite-reply-note']);
 export const ROOT_SELECTOR = `:where(${THEME_ROOTS.join(', ')})`;
 
 /** The reader's choices (host settings `panelStyle` and `font`). */
@@ -100,7 +104,13 @@ const TINT = 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))';
 const mixTint = base => `color-mix(in srgb, ${TINT} ${TINT_SHARE}%, ${base})`;
 
 // What the legacy surfaces paint under Glass: the dense glass, its blur and no extra layers (the game view's opaque fallback).
-const SHEET_TOKENS = Object.freeze([['--ss-sheet-bg', 'var(--ss-glass-strong)'], ['--ss-sheet-blur', 'var(--ss-blur)'], ['--ss-sheet-layers', 'none']]);
+// The shape of the glass for the frames that were opaque (the HUD strip, the dialog mount): their radius, edge and shadow.
+// Set for Glass only, so Solid and Follow SillyTavern keep those frames' own shape (the frames read each with a fallback).
+const SHEET_TOKENS = Object.freeze([
+    ['--ss-sheet-bg', 'var(--ss-glass-strong)'], ['--ss-sheet-blur', 'var(--ss-blur)'], ['--ss-sheet-layers', 'none'],
+    ['--ss-sheet-radius', 'var(--ss-radius-l)'], ['--ss-sheet-radius-top', 'var(--ss-radius-l) var(--ss-radius-l) 0 0'],
+    ['--ss-sheet-edge', '1px solid var(--ss-border)'], ['--ss-sheet-shadow', 'var(--ss-shadow)'],
+]);
 const SHEET_RESET = Object.freeze(SHEET_TOKENS.map(([name]) => [name, 'initial']));
 
 /** The reader's Glass strength (host setting `glassStrength`, a percentage): its range and default. */

@@ -30,11 +30,19 @@ import { FIELD_TYPES, normalizeField } from './registry.js';
 import { SETTING_LIST_ROWS } from './sdk.js';
 import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
-import { bringIntoView, scrollCue } from './view/scroll-cue.js';
+import { scrollCue } from './view/scroll-cue.js';
+import { renderTabStrip } from './view/widgets/nav.js';
+import { TAB_ID_MAX } from './view/tab-order.js';
 import { DEFAULT_TAIL_BUDGET, contextNotice, estimateTokens } from './prompt.js';
-import { fill } from './strings.js';
+import { STRINGS, fill } from './strings.js';
 import { cutAt } from '../text.js';
 import { profileNote, profileSelect } from './profile-field.js';
+
+const S = STRINGS;
+/** The story panel's tab strip (createTabHost): a longer list than the block's default, and its labels in full. */
+const PANEL_TABS_MAX = 100;
+const PANEL_TAB_LABEL_MAX = 200;
+const TAB_COMMAND = 'story-suite.tab';
 
 export const OPEN_CLASS = 'story-suite-open';
 export const HOST_FOLD = 'story-suite';
@@ -1052,50 +1060,56 @@ export function diagnosticsKeys(registry) {
 }
 
 /**
- * The tab bar in `root`: a button per tab `registry.tabs()` gives, in its order (Story Block's panel
- * gives the module tabs and the tab screens in the reader's order, without the hidden ones), and one
- * pane, the chosen tab's, rendered with `tab.render(pane, view, api)`. `options`: { registry,
- * view: () => view, api (the sdk), doc?, active? }. Tabs read the head state's view only, never
- * message text. The bar scrolls sideways when the tabs do not fit (a phone); the chosen tab is
- * scrolled into view when it changes (a click, or the one shown was hidden). Returns
- * { refresh(), select(id), active() }.
+ * The story panel's tab host, drawn into `root`: a tab bar (the `ss.tabs` block, view/widgets/nav.js) with one button
+ * per tab `registry.tabs()` gives, in its order (Story Block's panel gives the module tabs and the tab screens in the
+ * reader's order, without the hidden ones), and one pane under it, the chosen tab's, rendered with
+ * `tab.render(pane, view(), api)`. The block takes the keys (arrows, Home, End; one Tab stop) and scrolls the strip
+ * sideways when the tabs do not fit; it moves the strip only when the chosen tab changes, so a redraw keeps the
+ * reader's scroll. Each button's `title` is its full label. A tab that is gone falls back to the first.
+ * `options`: { registry, view: () => view, api (the sdk), doc?, active? }. Tabs read the head state's view only,
+ * never message text. Returns { refresh(), select(id), active() }.
  */
 export function createTabHost(root, { registry, view, api = null, doc = globalThis.document, active = null }) {
     let current = active;
+    // The story panel's tab bar is the `ss.tabs` block (view/widgets/nav.js): one Tab stop, the arrows, Home and End,
+    // aria-current on the chosen tab. Its choice runs `TAB_COMMAND` with { tabs: id }; here that is `select`. The block is
+    // drawn once and updated on each draw, so the focus stays on the tab it was on.
     const bar = el(doc, 'div', 'story-suite-tabs');
-    bar.setAttribute('role', 'tablist');
     const pane = el(doc, 'div', 'story-suite-pane');
-    pane.setAttribute('role', 'tabpanel');
     root.replaceChildren(bar, pane);
+    const choice = Object.freeze({ command: (type, payload) => select(payload?.tabs ?? null) });
+    const renderStrip = renderTabStrip({ max: PANEL_TABS_MAX, labelMax: PANEL_TAB_LABEL_MAX, idMax: TAB_ID_MAX });
+    let strip = null;
     // Tabs that do not fit scroll sideways; the edge with more of them fades (scroll-cue.js).
-    const cue = scrollCue(bar, { win: doc.defaultView ?? globalThis });
+    let cue = null;
 
-    let revealed = null;
+    // The block's buttons also carry the panel's own names: `story-suite-tab` and `data-tab-id` (the tests and the modules use them).
+    function decorate() {
+        for (const node of bar.querySelectorAll('.ss-tabs-item')) {
+            node.classList.add('story-suite-tab');
+            node.setAttribute('data-tab-id', node.getAttribute('data-id') ?? '');
+            // The label is ellipsised on a narrow strip: the full label is the button's title.
+            node.setAttribute('title', node.querySelector('.ss-tabs-label')?.textContent ?? '');
+        }
+        for (const node of bar.querySelectorAll('.ss-tabs-label')) node.classList.add('story-suite-tab-label');
+    }
+
     function draw() {
         const tabs = registry.tabs();
         if (!tabs.some(tab => tab.id === current)) current = tabs[0]?.id ?? null;
-        bar.replaceChildren();
-        let chosen = null;
-        for (const tab of tabs) {
-            const node = button(doc, `story-suite-tab${tab.id === current ? ' active' : ''}`, '', tab.title);
-            node.dataset.tabId = tab.id;
-            node.setAttribute('role', 'tab');
-            node.setAttribute('aria-selected', String(tab.id === current));
-            if (tab.icon) {
-                const glyph = el(doc, 'i', `fa-solid ${tab.icon}`);
-                glyph.setAttribute('aria-hidden', 'true');
-                node.appendChild(glyph);
-            }
-            node.appendChild(el(doc, 'span', 'story-suite-tab-label', tab.title));
-            node.addEventListener('click', () => select(tab.id));
-            if (tab.id === current) chosen = node;
-            bar.appendChild(node);
+        const props = {
+            items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: tab.icon || '' })),
+            current: current ?? '',
+            onSelect: TAB_COMMAND,
+            label: S.panel.tabs,
+        };
+        if (strip) strip.update(props);
+        else {
+            strip = renderStrip(bar, props, choice);
+            cue = scrollCue(bar.querySelector('.ss-tabs-list'), { win: doc.defaultView ?? globalThis });
         }
-        cue.update();
-        if (chosen && revealed !== current) {
-            bringIntoView(bar, chosen);
-            revealed = current;
-        }
+        decorate();
+        cue?.update();
         pane.replaceChildren();
         const tab = tabs.find(item => item.id === current);
         pane.dataset.tabId = tab?.id ?? '';
