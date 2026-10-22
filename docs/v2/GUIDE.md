@@ -497,10 +497,11 @@ ready-made character.
 Open the settings with **Settings** on the Story Suite bar above the message box, **Story Suite** in the
 wand menu, or **Extensions → Story Block → Settings**. They open over the whole window in one column that
 scrolls; **Close** or Esc closes them. Each part is a fold you open and close: **Story Suite**, **Packs**,
-**Features**, one fold per extension with settings, **Versions**. Inside an extension's fold, one line
-says how many of its features are on (*Features: 3 of 4 on — change*, which takes you to them), then one
-smaller fold per group of settings (Story Director's **Calendar**, for one), and **General** for the
-rest. Folds stay as you left them while the page is open. A list (the months of a calendar) shows one
+**Features**, one fold per extension with settings, **Diagnostics**, **Versions**. Inside an extension's
+fold, one line says how many of its features are on (*Features: 3 of 4 on — change*, which takes you to
+them), then the extension's own panel if it has one (NPC State Delta's whole settings, with its own
+groups; Story Block's **Assist**), then one smaller fold per group of settings (Story Director's
+**Calendar**, for one), and **General** for the rest. Nothing is more than two folds deep. Folds stay as you left them while the page is open. A list (the months of a calendar) shows one
 line per entry, `[January] [31] ×`: × removes that line, **Add** adds one.
 
 A list of names and numbers can also be typed as text: **Edit as text** turns it into a box with one
@@ -554,8 +555,21 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
 * **Features**: every optional part of every extension, each with an on/off switch and a line saying
   what it does (see below).
 * Each module has its own section (combat, the story clock and calendar, NPCs).
+* **Assist** (in Story Block's fold): **Connection profile for these calls**, the profile the two helpers'
+  extra calls use (a cheaper model, say): *Same as chat*, or one of SillyTavern's Connection Manager
+  profiles. With no profile yet it says so: make one in SillyTavern's Connection Manager
+  (the plug icon, **Connection Profile**) and it is listed. A picked profile you delete later stays shown as
+  missing and the helpers' calls fail until you pick another; they never use a different one quietly.
+  NPC State Delta's **Scanner connection profile** works the same way for its scans.
 * **Problems**: lines the model wrote that couldn't be used, and why. Useful when something you expected
   didn't happen.
+* **Diagnostics** (just before Versions): a plain report for a bug report, shown before you share it, with
+  **Copy report** and **Save report** (a .txt file). It lists the versions of SillyTavern and every Story
+  Suite extension, the features that are on, each extension's settings, the prompt size and context size,
+  the last 20 Problems, how saving is going, how many replies and records the chat holds and its size,
+  recent Story Suite errors, and each extension's own lines (NPC State Delta: its scanner's profile and how
+  its last call went). It never holds API keys, passwords, addresses or any of the chat's text: settings
+  that name a key, token, password or address are left out, and quoted text keeps only its length.
 * **Versions** (last): every Story Suite extension installed, its version and the Story Block it says
   it needs. One that is out of step (it needs a newer Story Block, was made for a newer one, clashes
   with another, or is installed twice) says so with one sentence on how to fix it.
@@ -658,6 +672,9 @@ it in, and attach what it asks for:
 
 **Screenshot**
 (The screen, card or notice that shows it.)
+
+**Diagnostics**
+(Settings → Diagnostics → **Copy report**, and paste it here. It has no keys and no chat text.)
 
 **The chat's last two replies**
 (Open each reply's edit box (the pencil) and copy its whole text, including the hidden

@@ -553,6 +553,32 @@ These settle questions agents raised; the host changes they need are made at int
     (`chatterInPrompt`, off) adds the thoughts of the reply the reader's latest message answered as one
     optional tail line. All text is drawn with textContent, flattened (no invisible or control characters).
 
+### User decisions from live test #4 (2026-10-22, F116–F118)
+
+116. **A module's own panel sits in its fold, not a sub-fold** (NPC State Delta's settings were three folds
+    deep). In a module's fold: the features line, then its custom panel (`settings.section` / `render`; a
+    titled section shows its title as a heading), then the schema's groups as sub-folds. A panel may have
+    folds of its own (Delta's Scanning, Roster…), which are then the second level: never three. A panel that
+    brings its own SillyTavern drawer (`.inline-drawer.story-suite-drawer`) has it held open with no header.
+117. **The assist's connection profile is a dropdown** (it was a name typed in a text box). `assistProfile` is
+    a `profile` field (§G) in Story Block's group **Assist**: *Same as chat*, then Connection Manager's profiles
+    that can make a text call, by name; it stores the name ('' the chat's connection), so a name typed by an
+    older version is the same value, and the pre-roll and extractor calls go through it. A stored profile that
+    is gone stays picked and is named, and the calls fail with a sentence (never another profile quietly). No
+    profile, or Connection Profiles off: a plain note. One list for every picker: `listProfiles()` in
+    `src/v2/model-call.js`.
+118. **Settings → Diagnostics** (last before Versions; v1's RPG Battle had one): **Copy report** and **Save
+    report** (a .txt) of one plain report, shown first. It holds SillyTavern's, Story Block's and each module's
+    version; the features on and off; each module's settings with every key naming a key, token, password,
+    secret, address or session left out (named) and secret-looking values replaced; the prompt size panel's
+    numbers and the context size; the last 20 Problems; saving (failing, unsaved, a read-back waiting, the
+    failed saves this page load); the chat's message, reply and record counts and its size; the Story Suite
+    console errors caught since the page loaded; and each module's own section from its optional
+    `hooks.diagnostics()` (a string, a list of lines, or `{ lines, data }`; 2 s, else "no answer"; the same
+    cleaning applies). Never chat text: no message is read for its words, and quoted text in a Problem or an
+    error keeps only its length. NPC State Delta's section: scanner route and profile, call counts, the last
+    call's outcome, dossier counts (no names). `src/v2/diagnostics.js`.
+
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
 For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster

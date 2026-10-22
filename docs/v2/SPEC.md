@@ -506,7 +506,7 @@ sdk.registerModule({
   capture:  { kinds: { wound: { grammar: '~ wound Name — how | harm: scratch|wound|grave' }, check: {…} },
               apply(ctx, line) { /* runs as a story command */ } },
   context:  { static: () => '…', tail: view => ({ lines: [], optional: [] }), budget: 400 },
-  hooks:    { beforeGenerate(view) {}, canGenerate(view) {}, 'item.define'(def) {} },
+  hooks:    { beforeGenerate(view) {}, canGenerate(view) {}, 'item.define'(def) {}, diagnostics() {} },
   settings: { defaults: {…}, schema: {…}, section?: (el, api) => {} },
   tabs:     [{ id: 'party', title: 'Party', icon: 'fa-users', render: (el, view, api) => {} }],
   features: [{ id: 'rpg-battle.wear', label: 'Wear', describe: 'Gear wears out and breaks.', default: false }],
@@ -518,9 +518,13 @@ sdk.registerModule({
   rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` or
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
   start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
-  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`, `ranks.reader()` (→ `{ lines, perRank }`: the reader's rank ladder lines and levels per rank, which `packs.content({ kind: 'ranks' })` answers with; MODULES §F105). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
+  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`, `ranks.reader()` (→ `{ lines, perRank }`: the reader's rank ladder lines and levels per rank, which `packs.content({ kind: 'ranks' })` answers with; MODULES §F105),
+  and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
+  lines or `{ lines, data }`, a promise of one answered within 2 s; MODULES §F118). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the
-  Story Suite overlay; `section` renders a custom panel for what a schema can't express. Values are stored
+  Story Suite overlay; `section` renders a custom panel for what a schema can't express, right in the
+  module's fold under its features line (never a sub-fold; MODULES §F116), the schema's groups below it as
+  sub-folds. Values are stored
   under `extension_settings.storySuite.modules[id]`. `settings.set` stores a value as its field allows it:
   text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
   options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped), a
