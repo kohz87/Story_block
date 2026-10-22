@@ -38,6 +38,25 @@ test('Panel style and Font are choices in Story Suite\'s fold; a change is store
     font.dispatch('change');
     assert.equal(es.storySuite.host.font, 'theme');
     assert.equal(applied, 2);
+    // Glass strength: a slider under Panel style, 30–90, stored when let go, the look follows at once.
+    const order = fold.querySelectorAll('.story-suite-row').map(node => node.dataset.field);
+    assert.equal(order.indexOf('glassStrength'), order.indexOf('panelStyle') + 1);
+    const slider = row('glassStrength').querySelector('input');
+    assert.equal(slider.type, 'range');
+    assert.deepEqual([slider.min, slider.max, slider.value], ['30', '90', '50']);
+    assert.equal(row('glassStrength').querySelector('output').textContent, '50');
+    assert.equal(row('glassStrength').getAttribute('for'), slider.id, 'the label names the slider itself');
+    slider.value = '72';
+    slider.dispatch('input');
+    assert.equal(row('glassStrength').querySelector('output').textContent, '72', 'shown while moving');
+    assert.equal(es.storySuite.host.glassStrength, undefined, 'stored when let go');
+    slider.dispatch('change');
+    assert.equal(es.storySuite.host.glassStrength, 72);
+    assert.equal(applied, 3);
+    slider.value = '5';
+    slider.dispatch('change');
+    assert.equal(es.storySuite.host.glassStrength, 30, 'kept inside the range');
+    applied = 2;
     // Other host rows do not redraw the look.
     const budget = row('tailBudget').querySelector('input');
     budget.value = '1200';

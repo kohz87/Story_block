@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    ACCENT, FONT_STACKS, NUNITO_URL, PANEL_STYLES, ROOT_SELECTOR, THEME_ROOTS, createThemeBridge, decideScheme, externalMediaAllowed,
+    ACCENT, DEFAULT_GLASS, FONT_STACKS, GLASS_MAX, GLASS_MIN, PANEL_STYLES, ROOT_SELECTOR, THEME_ROOTS, createThemeBridge, decideScheme, glassAlphas,
     luminance, parseColor, schemeTokens, themeChoice, themeCss, themeTokens,
 } from '../../../src/v2/view/theme.js';
 import { HOST_SETTINGS_DEFAULTS, HOST_SETTINGS_SCHEMA, createSettings } from '../../../src/v2/sdk.js';
@@ -99,7 +99,11 @@ test('every token is set for every panel style and scheme; the shared sizes and 
     }
     const glass = themeTokens({ scheme: 'dark', panel: 'glass' });
     assert.equal(valueOf(glass, '--ss-accent'), ACCENT);
-    assert.match(valueOf(glass, '--ss-glass'), /color-mix\(in srgb, var\(--SmartThemeBlurTintColor[^)]*\)\) 30%, rgba\(30, 33, 50, 0\.52\)\)/, 'the tint mixed into the glass');
+    // The concept's own glass (dark 0.50, strong 0.66); the tint's colour is mixed in only where relative colours work.
+    assert.equal(valueOf(glass, '--ss-glass'), 'rgba(30, 33, 50, 0.5)');
+    assert.equal(valueOf(glass, '--ss-glass-strong'), 'rgba(30, 33, 50, 0.66)');
+    assert.equal(valueOf(themeTokens({ scheme: 'light' }), '--ss-glass'), 'rgba(255, 255, 255, 0.55)');
+    assert.equal(valueOf(themeTokens({ scheme: 'light' }), '--ss-glass-strong'), 'rgba(255, 255, 255, 0.72)');
     assert.equal(valueOf(glass, '--ss-blur'), 'blur(16px) saturate(1.2)');
     assert.equal(valueOf(themeTokens({ scheme: 'light' }), '--ss-text'), '#23253a');
     assert.equal(valueOf(themeTokens({ scheme: 'dark' }), '--ss-text'), '#f1f2f8');
@@ -155,10 +159,10 @@ test('themeCss: every rule under Story Suite\'s roots, forced schemes, reduced t
 });
 
 test('themeChoice: the reader\'s settings, anything unknown is the default (Glass, Nunito); host settings hold them', () => {
-    assert.deepEqual(themeChoice({}), { panel: 'glass', font: 'nunito' });
-    assert.deepEqual(themeChoice({ panelStyle: 'solid', font: 'theme' }), { panel: 'solid', font: 'theme' });
-    assert.deepEqual(themeChoice({ panelStyle: '<b>', font: 3 }), { panel: 'glass', font: 'nunito' });
-    assert.deepEqual(themeChoice(null), { panel: 'glass', font: 'nunito' });
+    assert.deepEqual(themeChoice({}), { panel: 'glass', font: 'nunito', strength: 50 });
+    assert.deepEqual(themeChoice({ panelStyle: 'solid', font: 'theme', glassStrength: 70 }), { panel: 'solid', font: 'theme', strength: 70 });
+    assert.deepEqual(themeChoice({ panelStyle: '<b>', font: 3, glassStrength: 'lots' }), { panel: 'glass', font: 'nunito', strength: 50 });
+    assert.deepEqual(themeChoice(null), { panel: 'glass', font: 'nunito', strength: 50 });
     assert.equal(HOST_SETTINGS_DEFAULTS.panelStyle, 'glass');
     assert.equal(HOST_SETTINGS_DEFAULTS.font, 'nunito');
     assert.deepEqual(HOST_SETTINGS_SCHEMA.panelStyle.options.map(o => o.value), ['glass', 'solid', 'sillytavern']);
@@ -169,13 +173,6 @@ test('themeChoice: the reader\'s settings, anything unknown is the default (Glas
     assert.equal(settings.set(null, 'panelStyle', 'neon'), undefined, 'not an option: not stored');
     assert.equal(settings().panelStyle, 'solid');
     assert.equal(settings().font, 'nunito');
-});
-
-test('externalMediaAllowed: only when SillyTavern\'s "Forbid external media" is off', () => {
-    assert.equal(externalMediaAllowed({ powerUserSettings: { forbid_external_media: false } }), true);
-    assert.equal(externalMediaAllowed({ powerUserSettings: { forbid_external_media: true } }), false);
-    assert.equal(externalMediaAllowed({ powerUserSettings: {} }), false);
-    assert.equal(externalMediaAllowed(null), false);
 });
 
 // A page with SillyTavern's theme variables on <html> and a MutationObserver the test can fire.
@@ -198,25 +195,16 @@ test('the bridge writes one theme sheet, follows the settings and SillyTavern\'s
     const p = page({ '--SmartThemeBodyColor': 'rgba(220, 220, 210, 1)', '--SmartThemeBlurTintColor': 'rgba(23, 23, 23, 1)' });
     const before = [p.snapshot(p.doc.documentElement), p.snapshot(p.doc.body)];
     let values = { panelStyle: 'glass', font: 'nunito' };
-    let allowed = false;
-    const bridge = createThemeBridge({ doc: p.doc, settings: () => values, externalMedia: () => allowed, readVar: p.readVar });
+    const bridge = createThemeBridge({ doc: p.doc, settings: () => values, readVar: p.readVar });
     const sheets = () => p.doc.head.querySelectorAll('style[data-ss-theme]');
     assert.equal(sheets().length, 1);
-    assert.deepEqual(bridge.current(), { scheme: 'dark', panel: 'glass', font: 'nunito', fontLoaded: false });
+    assert.deepEqual(bridge.current(), { scheme: 'dark', panel: 'glass', font: 'nunito', strength: 50 });
     assert.equal(sheets()[0].textContent, themeCss({ scheme: 'dark', panel: 'glass', font: 'nunito' }));
-    assert.equal(p.doc.head.querySelector('link[data-ss-font]'), null, 'no Google Fonts while external media is forbidden');
-    // External media allowed: Nunito's stylesheet, once.
-    allowed = true;
-    bridge.apply();
-    bridge.apply();
-    const links = p.doc.head.querySelectorAll('link[data-ss-font]');
-    assert.equal(links.length, 1);
-    assert.equal(links[0].getAttribute('href'), NUNITO_URL);
-    assert.equal(links[0].getAttribute('rel'), 'stylesheet');
-    // The theme's own font: no Nunito fetched.
+    // Nunito ships with the extension (fonts.css): the bridge never adds a font stylesheet, whatever SillyTavern allows.
     values = { panelStyle: 'solid', font: 'theme' };
     bridge.apply();
     assert.equal(p.doc.head.querySelector('link[data-ss-font]'), null);
+    assert.equal(p.doc.head.querySelector('link'), null, 'no link of any kind');
     assert.equal(sheets().length, 1, 'the same sheet, rewritten');
     assert.match(sheets()[0].textContent, /--ss-blur: none;/);
     // SillyTavern applies a light theme (it sets the variables on <html>'s style): read again, light now.
@@ -238,8 +226,39 @@ test('the bridge writes one theme sheet, follows the settings and SillyTavern\'s
 
 test('the bridge survives a page without a MutationObserver, settings that throw and an unreadable theme', () => {
     const doc = installDom();
-    const bridge = createThemeBridge({ doc, settings: () => { throw new Error('no'); }, externalMedia: () => { throw new Error('no'); }, readVar: () => '' });
-    assert.deepEqual(bridge.current(), { scheme: 'dark', panel: 'glass', font: 'nunito', fontLoaded: false });
+    const bridge = createThemeBridge({ doc, settings: () => { throw new Error('no'); }, readVar: () => '' });
+    assert.deepEqual(bridge.current(), { scheme: 'dark', panel: 'glass', font: 'nunito', strength: 50 });
     assert.equal(doc.head.querySelectorAll('style[data-ss-theme]').length, 1);
     bridge.destroy();
+});
+
+test('Glass strength: 30–90%, the concept\'s alphas at 50%; the tint gives the glass its colour, never its alpha', () => {
+    assert.deepEqual([GLASS_MIN, GLASS_MAX, DEFAULT_GLASS], [30, 90, 50]);
+    assert.deepEqual(glassAlphas('dark', 50), { glass: 0.5, strong: 0.66 });
+    assert.deepEqual(glassAlphas('light', 50), { glass: 0.55, strong: 0.72 });
+    assert.deepEqual(glassAlphas('dark', 30), { glass: 0.3, strong: 0.46 });
+    assert.deepEqual(glassAlphas('light', 90), { glass: 0.95, strong: 0.98 }, 'never fully opaque');
+    assert.deepEqual(glassAlphas('dark', 5), glassAlphas('dark', 30), 'kept inside the range');
+    assert.deepEqual(glassAlphas('dark', 'x'), glassAlphas('dark', 50));
+    assert.equal(themeChoice({ glassStrength: 400 }).strength, 90);
+    assert.equal(themeChoice({ glassStrength: 12.6 }).strength, 30);
+    assert.equal(valueOf(themeTokens({ scheme: 'dark', strength: 70 }), '--ss-glass'), 'rgba(30, 33, 50, 0.7)');
+    // Where relative colours work, the tint's COLOUR is mixed in at 30% and the alpha is the strength's.
+    const tinted = valueOf(schemeTokens('dark', 'glass', { strength: 50, tinted: true }), '--ss-glass');
+    assert.match(tinted, /^rgb\(from color-mix\(in srgb, rgb\(from var\(--SmartThemeBlurTintColor, rgba\(23, 23, 23, 1\)\) r g b \/ 1\) 30%, rgb\(30 33 50\)\) r g b \/ 0\.5\)$/);
+    const css = themeCss({ scheme: 'dark', panel: 'glass', strength: 40 });
+    const supported = rules(css).filter(rule => rule.at.length === 1 && rule.at[0] === '@supports (color: rgb(from red r g b))');
+    assert.ok(supported.length >= 3 && supported.every(rule => /--ss-glass: rgb\(from color-mix/.test(rule.block) && / r g b \/ 0\.\d+\)/.test(rule.block)), 'root and both forced schemes');
+    assert.match(supported[0].block, / r g b \/ 0\.4\);/);
+    // The plain value stays in the base block for browsers without relative colours.
+    assert.match(rules(css)[0].block, /--ss-glass: rgba\(30, 33, 50, 0\.4\);/);
+    // The system's reduced transparency still wins over the tinted glass (it comes later).
+    assert.ok(css.indexOf('@supports (color: rgb(from red r g b))') < css.indexOf('@media (prefers-reduced-transparency'));
+    // Solid and Follow SillyTavern ignore it.
+    assert.equal(themeCss({ scheme: 'dark', panel: 'solid', strength: 30 }), themeCss({ scheme: 'dark', panel: 'solid', strength: 90 }));
+    assert.equal(themeCss({ panel: 'sillytavern', strength: 30 }), themeCss({ panel: 'sillytavern', strength: 90 }));
+    assert.equal(HOST_SETTINGS_DEFAULTS.glassStrength, 50);
+    const field = HOST_SETTINGS_SCHEMA.glassStrength;
+    assert.deepEqual([field.type, field.min, field.max, field.form], ['int', 30, 90, 'slider']);
+    assert.deepEqual(Object.keys(HOST_SETTINGS_SCHEMA).slice(-3), ['panelStyle', 'glassStrength', 'font'], 'under Panel style');
 });

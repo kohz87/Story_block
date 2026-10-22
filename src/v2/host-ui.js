@@ -218,6 +218,27 @@ export function readInt(text, field) {
     return out;
 }
 
+// A whole number as a slider: the value is stored when the reader lets go (change), shown beside it while moving.
+function sliderControl(doc, f, value, onChange) {
+    const root = el(doc, 'div', 'story-suite-slider');
+    const input = el(doc, 'input');
+    input.type = 'range';
+    input.min = String(f.min);
+    input.max = String(f.max);
+    input.step = '1';
+    const now = Number.isInteger(value) ? Math.min(f.max, Math.max(f.min, value)) : f.min;
+    input.value = String(now);
+    const out = el(doc, 'output', 'story-suite-slider-value', `${now}`);
+    const show = () => { out.textContent = input.value; input.setAttribute('aria-valuetext', `${input.value}`); };
+    input.addEventListener('input', show);
+    input.addEventListener('change', () => { show(); onChange(Number(input.value)); });
+    show();
+    root.append(input, out);
+    // The row's label points at the control by id: the input takes it (see fieldRow).
+    root.focusTarget = input;
+    return root;
+}
+
 // One control for one field; `onChange(value)` gets the new value.
 function control(doc, field, value, onChange, id, memo = null) {
     const f = normalizeField(field);
@@ -241,6 +262,8 @@ function control(doc, field, value, onChange, id, memo = null) {
     }
     // A Connection Manager profile's name, or '' for the chat's connection (profile-field.js).
     if (f.type === 'profile') return profileSelect(doc, value, onChange);
+    // `form: 'slider'` (with whole-number min and max): a range with its value beside it (Glass strength).
+    if (f.type === 'int' && f.form === 'slider' && Number.isInteger(f.min) && Number.isInteger(f.max)) return sliderControl(doc, f, value, onChange);
     if (f.type === 'int') {
         const input = el(doc, 'input', 'text_pole');
         input.type = 'number';
@@ -551,7 +574,7 @@ function fieldRow(doc, key, field, value, onChange, prefix, memo = null, readOnl
     if (note) text.appendChild(note);
     row.appendChild(text);
     const input = control(doc, f, value, readOnly ? () => {} : onChange, id, memo);
-    input.id = id;
+    (input.focusTarget ?? input).id = id;
     if (f.type === 'list') input.setAttribute('aria-labelledby', name.id);
     row.appendChild(input);
     if (readOnly) {
@@ -1116,7 +1139,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
                 settings.set(null, key, next);
                 if (key === 'tailBudget' || key === 'contextShare') refreshSize();
                 // The look (view/theme.js) follows at once, on every Story Suite screen.
-                if (key === 'panelStyle' || key === 'font') { try { theme?.apply?.(); } catch { /* the look follows on the next load */ } }
+                if (key === 'panelStyle' || key === 'font' || key === 'glassStrength') { try { theme?.apply?.(); } catch { /* the look follows on the next load */ } }
             }, 'story_suite_host'));
         }
         if (typeof promptParts === 'function') {

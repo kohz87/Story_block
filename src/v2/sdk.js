@@ -15,7 +15,7 @@ const checkModule = await import('./check.js').catch(() => null);
 export const EVENTS = Object.freeze(['committed', 'head', 'turn', 'feature']);
 // The most change lines one reply's block may hold; the rest are one Problem (turn.js).
 export const MAX_CHANGE_LINES = 150;
-export const HOST_SETTINGS_DEFAULTS = Object.freeze({ tailBudget: 1500, contextShare: 40, maxChangeLines: MAX_CHANGE_LINES, callQueue: true, panelStyle: 'glass', font: 'nunito' });
+export const HOST_SETTINGS_DEFAULTS = Object.freeze({ tailBudget: 1500, contextShare: 40, maxChangeLines: MAX_CHANGE_LINES, callQueue: true, panelStyle: 'glass', glassStrength: 50, font: 'nunito' });
 export const HOST_SETTINGS_SCHEMA = Object.freeze({
     tailBudget: Object.freeze({
         type: 'int', min: 100, max: 20000, label: 'Notes per reply (tokens)',
@@ -42,12 +42,16 @@ export const HOST_SETTINGS_SCHEMA = Object.freeze({
         ]),
         help: 'How Story Suite\'s panels look. Light or dark follows your SillyTavern theme either way. Solid suits a busy background or a slow device; your system\'s "reduce transparency" setting also turns Glass into Solid.',
     }),
+    glassStrength: Object.freeze({
+        type: 'int', min: 30, max: 90, form: 'slider', label: 'Glass strength (%)',
+        help: 'How dense the Glass panels are: low shows more of your background through them, high is easier to read on a busy one. Solid ignores it.',
+    }),
     font: Object.freeze({
         type: 'choice', label: 'Font', options: Object.freeze([
             Object.freeze({ value: 'nunito', label: 'Nunito (soft and round)' }),
             Object.freeze({ value: 'theme', label: 'Your theme\'s font' }),
         ]),
-        help: 'Nunito is loaded from Google Fonts only while SillyTavern allows external media (User Settings → Forbid external media off); otherwise a Nunito on this device is used, else your system\'s own font.',
+        help: 'Nunito comes with Story Block, so it looks the same offline and with "Forbid external media" on. "Your theme\'s font" uses the font SillyTavern\'s theme sets.',
     }),
 });
 

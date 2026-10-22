@@ -59,7 +59,7 @@ import { createSavePointsWidget, SAVEPOINTS_WIDGET } from './screens/savepoints.
 import { createPacksHintWidget, PACKS_HINT_WIDGET } from './screens/packs-hint.js';
 import { createReadyHintWidget, READY_HINT_WIDGET } from './screens/ready-hint.js';
 import { buildReport, captureConsole, caughtSoFar, reportFileName } from './diagnostics.js';
-import { createThemeBridge, externalMediaAllowed } from './view/theme.js';
+import { createThemeBridge } from './view/theme.js';
 import { openUiSample } from './screens/ui-sample.js';
 
 const IDS = Object.freeze({ bar: 'story_suite_v2_bar', panel: 'story_suite_v2_panel', drawer: 'story_suite_v2_drawer', menu: 'story_suite_v2_menu' });
@@ -458,7 +458,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     };
     // Story Suite's look (view/theme.js): light or dark from SillyTavern's theme, the reader's panel style
     // and font, on every Story Suite root; SillyTavern's own elements are never touched.
-    const theme = createThemeBridge({ doc, settings: () => settings(), externalMedia: () => externalMediaAllowed(liveCtx()) });
+    const theme = createThemeBridge({ doc, settings: () => settings() });
     const sanitizer = globalThis.SillyTavern?.libs?.DOMPurify?.sanitize?.bind(globalThis.SillyTavern.libs.DOMPurify) ?? null;
     const diagnostics = Object.freeze({
         // Settings → Diagnostics → Show the UI sample: every building block, light and dark (screens/ui-sample.js).
