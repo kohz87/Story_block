@@ -425,7 +425,7 @@ test('prompt size: per module and in all, against the tail budget, "about N toke
     assert.equal(sums()[1], `about ${tail} tokens of 1,200`);
     assert.equal(calls, 2, 'built again on demand, nothing kept or sent');
     // promptSize alone, and no chat (nothing to build): a line instead of numbers.
-    assert.deepEqual(promptSize(parts, { budget: 5 }), { modules: [{ id: 'story-suite', name: 'story-suite', static: 100, tail: estimateTokens('[Happened]\nA wolf ran off.') }, { id: 'rpg-battle', name: 'rpg-battle', static: 20, tail: 51 }], static: stat, tail, total: stat + tail, budget: 5 });
+    assert.deepEqual(promptSize(parts, { budget: 5 }), { modules: [{ id: 'story-suite', name: 'story-suite', static: 100, tail: estimateTokens('[Happened]\nA wolf ran off.') }, { id: 'rpg-battle', name: 'rpg-battle', static: 20, tail: 51 }], static: stat, tail, own: [], total: stat + tail, budget: 5 });
     const none = doc.createElement('div');
     renderSettingsHost(none, { registry, settings, doc, promptParts: () => { throw new Error('no chat'); } });
     assert.equal(none.querySelector('.story-suite-size p').textContent, SETTINGS_TEXT.size.none);
