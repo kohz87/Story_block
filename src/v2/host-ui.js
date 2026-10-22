@@ -1,10 +1,7 @@
 // Story Suite v2's two hosts for module UI (docs/v2/SPEC.md §6):
 //
-// - the settings host: one centred column of folds. Story Suite's own (the tail budget and the prompt
-//   size: what Story Suite adds to the prompt, per module, against the tail budget, counted with
-//   SillyTavern's tokenizer when there is one, with what a module sends on its own as a row of its own,
-//   and "Show what's sent": the exact text of each part, with Copy), the modules' own folds (Story Block's Packs), Features,
-//   one fold per module with settings, Versions. Inside a module's fold: one line saying how many of its
+// - the settings host: one centred column of folds: the modules' own folds (Story Block's Packs), Features, one fold per module
+//   with settings, Versions. Inside a module's fold: one line saying how many of its
 //   features are on (it opens the Features fold there), its custom `section` right there (no sub-fold of
 //   its own), then a sub-fold per settings group (a field's `group`, else its label's "Group: …" prefix,
 //   else General). Diagnostics (a report to copy or save, diagnostics.js, then the folds a module placed
@@ -13,11 +10,11 @@
 //   numbers, a textarea with one item per line: `form: 'lines'` starts there); values are read and
 //   written through createSettings() (extension_settings.storySuite.modules[id]). Open folds stay open
 //   across redraws. The settings window (view/settings/window.js, UI step 3a) shows it in sections: `renderSettingsHost`
-//   with `sections` ({ ids, place(id), route(piece), defaultOpen(key), hostKeys(key), show(id), open(foldKey),
+//   with `sections` ({ ids, place(id), route(piece), defaultOpen(key), show(id), open(foldKey),
 //   afterRefresh() }) draws each fold, and for Story Block's own fold each of its parts (Money, Assist), into the page of
 //   the section it belongs to (view/settings/sections.js), and lists what a search can find (`entries()`). A section
-//   with no pane (one the form engine draws: Look, Features) is not drawn here: `hostKeys` leaves the look settings out of
-//   the Story Suite fold and the Features fold is not built.
+//   with no pane (one the form engine draws: Look, Features, Money, Assist, Tabs & Packs) is not drawn here. The Story Suite
+//   fold (the budgets, the prompt size, Tabs) is gone: the Tabs & Packs page draws them (view/settings/tabs-packs.js).
 //   Features (MODULES §F100): the Features fold has a filter box and one sub-fold per module (by name,
 //   "N of M on"), a switch per feature with its label and description; a feature that changes the
 //   static prompt part says so (PROMPT_HINT). A settings field (`{ …, feature }`) or custom panel (a
@@ -30,7 +27,7 @@
 // `doc` is the document to build in (tests pass a fake one).
 
 import { FIELD_TYPES, normalizeField } from './registry.js';
-import { HOST_SETTINGS_SCHEMA, SETTING_LIST_ROWS } from './sdk.js';
+import { SETTING_LIST_ROWS } from './sdk.js';
 import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
 import { bringIntoView, scrollCue } from './view/scroll-cue.js';
@@ -126,7 +123,7 @@ export const SETTINGS_TEXT = Object.freeze({
         textLabel: 'What is sent: {part}',
     }),
 });
-// Settings → Story Suite → Tabs (view/tab-order.js keeps the choice).
+// Settings → Tabs & Packs → Tabs (view/tab-order.js keeps the choice).
 export const TABS_TEXT = Object.freeze({
     title: 'Tabs',
     hint: 'order, show or hide',
@@ -151,6 +148,9 @@ export const TABS_TEXT = Object.freeze({
     nowHidden: '{name} is hidden.',
     nowShown: '{name} is shown.',
     wasReset: 'Back to the default order, all shown.',
+    // Hiding is refused when no tab would stay shown (Home always is, so the refusal is Home's).
+    homeStays: 'Home stays. It is always the first tab and always shown, so there is always a tab to open.',
+    lastOne: 'At least one tab has to stay shown, so {name} stays.',
 });
 // The Diagnostics fold (diagnostics.js builds the report).
 export const DIAGNOSTICS_TEXT = Object.freeze({
@@ -729,23 +729,20 @@ function featureRow(doc, feature, onChange, place) {
 const FOLD_SELECTOR = 'details.story-suite-fold, details.story-suite-subfold';
 
 /**
- * Renders the settings into `root` (emptied first), as one centred column of folds: Story Suite (the
- * host's own, with the prompt size), the modules' own folds (Story Block's Packs), Features (a sub-fold
- * per module), one fold per module with settings (a line to its features, its custom panel, then a
+ * Renders the settings into `root` (emptied first), as one centred column of folds: the modules' own folds (Story Block's
+ * Packs), Features (a sub-fold per module), one fold per module with settings (a line to its features, its custom panel, then a
  * sub-fold per settings group), Diagnostics (the report with `diagnostics`, then as folded sub-folds the
- * folds and module folds placed there with `place: 'diagnostics'`; drawn when either is there) and Versions.
+ * folds and module folds placed there with `place: 'diagnostics'`; drawn when either is there) and Versions. Story Suite's own
+ * fold (the budgets, the prompt size, Tabs) is gone: the settings window's Tabs & Packs page draws them (view/settings/).
  *
  * `options`: { registry, settings (createSettings), doc?, sdk?, features? (createFeatureStore; without
- * it no Features are shown), promptParts?() (the parts of the prompt the next reply would get, as
- * prompt.js assemble() lists them, or { parts, fit } with how they fit the context (prompt.js contextFit);
- * without it no prompt size is shown), countTokens?(text) (SillyTavern's
- * tokenizer, a number or a promise of one; without it the size is estimated at four characters a token),
- * openState? (a Map of fold key → open, kept across redraws; a new one by default), diagnostics? ({ report()
- * → text or a promise of it, fileName?() }: the Diagnostics fold, built when it opens; without it none) }.
+ * it no Features are shown), openState? (a Map of fold key → open, kept across redraws; a new one by default),
+ * diagnostics? ({ report() → text or a promise of it, fileName?() }: the Diagnostics fold, built when it opens; without it none),
+ * sections? (the settings window's placing, above) }.
  * A module's `section(el, api)` gets api = { get(key), set(key, value), values(), sdk } (a section
- * given as a title plus render(el, api) is the same panel). Returns { refresh(), refreshSize() }.
+ * given as a title plus render(el, api) is the same panel). Returns { refresh(), entries() }.
  */
-export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, openState = new Map(), diagnostics = null, tabs = null, theme = null, sections = null }) {
+export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, openState = new Map(), diagnostics = null, sections = null }) {
     // What a search can find: every settings row, feature and panel drawn, `{ kind, key, field: { label, help }, group,
     // node }` (`node` is where it is now: a row drawn again replaces it). Rebuilt with each draw; `entries()` gives it.
     let found = [];
@@ -978,305 +975,6 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         });
     }
 
-    // ---- the prompt size (Story Suite's fold) ----------------------------------------------------
-    let sizeRun = 0;
-    const moduleName = id => (id === 'story-suite' ? 'Story Suite' : registry.module?.(id)?.name ?? id);
-    const tailBudget = () => {
-        const value = settings()?.tailBudget;
-        return Number.isInteger(value) && value > 0 ? value : DEFAULT_TAIL_BUDGET;
-    };
-    // "Show what's sent" (a sub-fold under the prompt size): every part's exact text, by place, with its
-    // size, and Copy (the clipboard, else the text is selected for copying by hand). It only reads. The
-    // texts are drawn only while it is open (they are long, and the size is drawn again on every change).
-    function sentFold(parts, own, tokensOf, exact) {
-        const T = SETTINGS_TEXT.sent;
-        const { details, body } = fold(doc, SENT_FOLD, T.title, T.hint, 'story-suite-subfold');
-        details.classList.add('story-suite-sent');
-        note('panel', SENT_FOLD, { label: T.title, help: T.hint }, 'Story Suite', details);
-        const draw = () => {
-            if (!details.open || body.children.length) return;
-            drawSent(body, sentText(parts, own, { names: moduleName }), tokensOf, exact);
-        };
-        details.addEventListener('toggle', draw);
-        remember(details);
-        draw();
-        return details;
-    }
-    function drawSent(body, text, tokensOf, exact) {
-        const T = SETTINGS_TEXT.sent;
-        body.appendChild(el(doc, 'p', 'story-suite-muted', T.help));
-        const actions = el(doc, 'div', 'story-suite-sent-actions');
-        const copy = button(doc, 'menu_button story-suite-sent-copy', '', T.copyTitle);
-        const glyph = el(doc, 'i', 'fa-solid fa-copy');
-        glyph.setAttribute('aria-hidden', 'true');
-        copy.append(glyph, el(doc, 'span', '', T.copy));
-        const status = el(doc, 'span', 'story-suite-sent-status');
-        status.setAttribute('role', 'status');
-        actions.append(copy, status);
-        body.appendChild(actions);
-        const texts = el(doc, 'div', 'story-suite-sent-texts');
-        const sections = [['static', T.static, text.static], ['tail', T.tail, text.tail]];
-        if (text.own.length) sections.push(['own', T.own, text.own]);
-        for (const [place, heading, list] of sections) {
-            const section = el(doc, 'section', 'story-suite-sent-section');
-            section.dataset.place = place;
-            section.appendChild(el(doc, 'h5', '', heading));
-            if (!list.length) section.appendChild(el(doc, 'p', 'story-suite-muted', T.nothing));
-            for (const part of list) {
-                const item = el(doc, 'div', 'story-suite-sent-part');
-                item.dataset.module = part.module;
-                const n = part.text ? tokensOf(part.text) : 0;
-                const head = el(doc, 'p', 'story-suite-sent-head');
-                head.append(el(doc, 'b', '', part.title), doc.createTextNode(' · '), el(doc, 'small', '', fill(exact ? T.tokens : T.about, { n: n.toLocaleString('en-US') })));
-                item.appendChild(head);
-                if (part.text) {
-                    const pre = el(doc, 'pre', 'story-suite-sent-text', part.text);
-                    pre.tabIndex = 0;
-                    pre.setAttribute('aria-label', fill(T.textLabel, { part: part.title }));
-                    item.appendChild(pre);
-                }
-                if (part.dropped) item.appendChild(el(doc, 'p', 'story-suite-muted story-suite-sent-dropped', part.dropped === 1 ? T.droppedOne : fill(T.dropped, { n: part.dropped })));
-                section.appendChild(item);
-            }
-            texts.appendChild(section);
-        }
-        body.appendChild(texts);
-        copy.addEventListener('click', async () => {
-            const clipboard = (doc.defaultView ?? globalThis).navigator?.clipboard;
-            try {
-                if (typeof clipboard?.writeText !== 'function') throw new Error('no clipboard');
-                await clipboard.writeText(text.copy);
-                status.textContent = T.copied;
-            } catch {
-                const win = doc.defaultView ?? globalThis;
-                const range = doc.createRange?.();
-                const selection = win.getSelection?.();
-                if (range && selection) {
-                    range.selectNodeContents(texts);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                }
-                status.textContent = T.copyFailed;
-            }
-        });
-    }
-    function paintSize(block, size, exact, fit = null, sent = null) {
-        const T = SETTINGS_TEXT.size;
-        const amount = n => fill(exact ? T.exact : T.about, { n: n.toLocaleString('en-US') });
-        const num = n => Number(n).toLocaleString('en-US');
-        const list = el(doc, 'ul', 'story-suite-size-sum');
-        const line = (label, value, className = '') => {
-            const item = el(doc, 'li', className);
-            item.append(el(doc, 'span', '', label), el(doc, 'b', 'story-suite-size-n', value));
-            list.appendChild(item);
-            return item;
-        };
-        // The context size and the share Story Suite may take of it (the tail's budget follows from it).
-        if (fit) {
-            line(T.context, fit.reply ? fill(T.contextReply, { n: num(fit.size), reply: num(fit.reply) }) : fill(T.contextValue, { n: num(fit.size) }), 'story-suite-size-context');
-            const share = line(T.share, fill(T.shareValue, { share: num(fit.share), room: num(fit.room), percent: fit.percent }), 'story-suite-size-share');
-            if (fit.tooSmall) share.classList.add('story-suite-size-over');
-        }
-        line(T.static, amount(size.static));
-        const tail = line(T.tail, fill(T.ofBudget, { size: amount(size.tail), budget: size.budget.toLocaleString('en-US') }), 'story-suite-size-tail');
-        const meter = el(doc, 'meter', 'story-suite-size-meter');
-        meter.min = 0;
-        meter.max = size.budget;
-        meter.value = Math.min(size.tail, size.budget);
-        meter.setAttribute('aria-label', T.tail);
-        tail.appendChild(meter);
-        if (size.tail > size.budget) tail.classList.add('story-suite-size-over');
-        // What modules send on their own (NPC State Delta's dossiers): a row each, counted in the total.
-        for (const row of size.own ?? []) {
-            const item = line(fill(T.own, { name: row.name }), amount(row.tokens), 'story-suite-size-own');
-            item.dataset.module = row.id;
-        }
-        line(T.total, amount(size.total), 'story-suite-size-total');
-        const table = el(doc, 'table', 'story-suite-size-table');
-        table.appendChild(el(doc, 'caption', '', T.perModule));
-        const head = el(doc, 'tr');
-        for (const name of [T.module, T.staticShort, T.tailShort]) {
-            const cell = el(doc, 'th', '', name);
-            cell.setAttribute('scope', 'col');
-            head.appendChild(cell);
-        }
-        const thead = el(doc, 'thead');
-        thead.appendChild(head);
-        const tbody = el(doc, 'tbody');
-        for (const row of size.modules) {
-            const tr = el(doc, 'tr');
-            tr.dataset.module = row.id;
-            const name = el(doc, 'th', '', row.name);
-            name.setAttribute('scope', 'row');
-            tr.append(name, el(doc, 'td', '', row.static.toLocaleString('en-US')), el(doc, 'td', '', row.tail.toLocaleString('en-US')));
-            tbody.appendChild(tr);
-        }
-        table.append(thead, tbody);
-        block.dataset.exact = String(exact);
-        const warn = fit?.tooSmall ? el(doc, 'p', 'story-suite-size-warn', contextNotice(fit)) : null;
-        if (warn) warn.setAttribute('role', 'status');
-        block.replaceChildren(...[
-            el(doc, 'h4', '', T.title),
-            el(doc, 'p', 'story-suite-muted', T.help),
-            warn,
-            list,
-            table,
-            fit ? null : el(doc, 'p', 'story-suite-muted story-suite-size-context-unknown', T.contextUnknown),
-            el(doc, 'p', 'story-suite-muted story-suite-size-how', exact ? T.howExact : T.howAbout),
-            sent ? sentFold(sent.parts, sent.own, sent.tokensOf, exact) : null,
-        ].filter(Boolean));
-    }
-    function drawSize(block) {
-        const run = ++sizeRun;
-        let parts = null;
-        let fit = null;
-        let own = [];
-        try {
-            const got = promptParts();
-            parts = Array.isArray(got) ? got : got?.parts;
-            fit = Array.isArray(got) ? null : got?.fit ?? null;
-            own = Array.isArray(got?.own) ? got.own : [];
-        } catch { parts = null; }
-        if (!Array.isArray(parts)) {
-            block.replaceChildren(el(doc, 'h4', '', SETTINGS_TEXT.size.title), el(doc, 'p', 'story-suite-muted', SETTINGS_TEXT.size.none));
-            return;
-        }
-        // A small context cuts the tail's budget (prompt.js contextFit).
-        const budget = Number.isInteger(fit?.budget) ? fit.budget : tailBudget();
-        const names = moduleName;
-        paintSize(block, promptSize(parts, { names, budget, own }), false, fit, { parts, own, tokensOf: estimateTokens });
-        if (typeof countTokens !== 'function') return;
-        // SillyTavern's tokenizer: every text counted once, then the same sums with its numbers.
-        const texts = [...new Set([
-            ...parts.map(part => String(part?.text ?? '')),
-            parts.filter(part => part?.place === 'static').map(part => part.text).join('\n\n'),
-            parts.filter(part => part?.place !== 'static').map(part => part.text).filter(Boolean).join('\n'),
-            ...ownParts(own).map(part => part.text),
-        ])];
-        Promise.all(texts.map(text => Promise.resolve().then(() => countTokens(text))))
-            .then(counts => {
-                if (run !== sizeRun || !counts.every(n => Number.isFinite(n) && n >= 0)) return;
-                const known = new Map(texts.map((text, at) => [text, Math.round(counts[at])]));
-                const tokensOf = text => known.get(text) ?? estimateTokens(text);
-                paintSize(block, promptSize(parts, { names, budget, own, tokensOf }), true, fit, { parts, own, tokensOf });
-            })
-            .catch(() => { /* the estimate stays */ });
-    }
-    function refreshSize() {
-        const block = root.querySelector('.story-suite-size');
-        if (block && typeof promptParts === 'function') drawSize(block);
-    }
-
-    function hostFold() {
-        const { details, body } = fold(doc, HOST_FOLD, 'Story Suite', SETTINGS_TEXT.hostHint);
-        const values = settings();
-        for (const [key, field] of Object.entries(HOST_SETTINGS_SCHEMA)) {
-            // In the settings window the look settings are the Look section's (`sections.hostKeys(key)` says which stay).
-            if (sections?.hostKeys && !sections.hostKeys(key)) continue;
-            const row = fieldRow(doc, key, field, values[key], next => {
-                settings.set(null, key, next);
-                if (key === 'tailBudget' || key === 'contextShare') refreshSize();
-                // The look (view/theme.js) follows at once, on every Story Suite screen.
-                if (key === 'panelStyle' || key === 'font' || key === 'glassStrength') { try { theme?.apply?.(); } catch { /* the look follows on the next load */ } }
-            }, 'story_suite_host');
-            note('row', key, { label: field.label ?? humanize(key), help: field.help }, 'Story Suite', row);
-            body.appendChild(row);
-        }
-        if (typeof promptParts === 'function') {
-            const block = el(doc, 'div', 'story-suite-subsection story-suite-size');
-            block.setAttribute('aria-live', 'polite');
-            body.appendChild(block);
-            note('panel', 'story-suite::size', { label: SETTINGS_TEXT.size.title, help: '' }, 'Story Suite', block);
-            drawSize(block);
-        }
-        if (tabs && typeof tabs.rows === 'function') body.appendChild(tabsFold());
-        return remember(details);
-    }
-    // Tabs: every tab and screen of every module, in the reader's order, each with Up, Down and Shown;
-    // then Reset to default. A change redraws only this list (and the tabs and the game view, through
-    // `tabs`); the focus stays on the same control of the same row, or its neighbour when that one is
-    // now disabled (Up on the first row). A status line says what changed, for screen readers too.
-    function tabsFold() {
-        const T = TABS_TEXT;
-        const { details, body } = fold(doc, TABS_FOLD, T.title, T.hint, 'story-suite-subfold');
-        details.classList.add('story-suite-tabs-settings');
-        note('panel', TABS_FOLD, { label: T.title, help: T.hint }, 'Story Suite', details);
-        body.appendChild(el(doc, 'p', 'story-suite-muted', T.help));
-        const list = el(doc, 'ol', 'story-suite-taborder');
-        list.setAttribute('aria-label', T.listLabel);
-        const foot = el(doc, 'div', 'story-suite-taborder-actions');
-        const reset = button(doc, 'menu_button story-suite-taborder-reset', T.reset, T.resetTitle);
-        const status = el(doc, 'span', 'story-suite-taborder-status');
-        status.setAttribute('role', 'status');
-        foot.append(reset, status);
-        body.append(list, foot);
-        // A real button clicks itself on Enter; SillyTavern's page-wide Enter handler clicks a `.menu_button`
-        // again (keyboard.js), which would move a tab two places. The Enter stays with the button.
-        body.addEventListener('keydown', event => {
-            if (event.key === 'Enter' && String(event.target?.tagName ?? '').toLowerCase() === 'button') event.stopPropagation?.();
-        });
-        const say = (text, name = '') => { status.textContent = fill(text, { name }); };
-        const after = (id, control) => {
-            draw();
-            const row = [...list.querySelectorAll('.story-suite-taborder-row')].find(node => node.dataset.tabId === id);
-            const wanted = row?.querySelector(`.story-suite-taborder-${control}`);
-            const other = row?.querySelector(`.story-suite-taborder-${control === 'up' ? 'down' : 'up'}`);
-            (wanted && !wanted.disabled ? wanted : other && !other.disabled ? other : wanted)?.focus?.();
-        };
-        function draw() {
-            list.replaceChildren();
-            const rows = tabs.rows();
-            if (!rows.length) list.appendChild(el(doc, 'li', 'story-suite-muted', T.none));
-            const movable = rows.filter(row => !row.fixed);
-            rows.forEach(row => {
-                const item = el(doc, 'li', `story-suite-taborder-row${row.hidden ? ' story-suite-taborder-hidden' : ''}`);
-                item.dataset.tabId = row.id;
-                const glyph = el(doc, 'i', `fa-solid ${row.icon || 'fa-table-columns'} story-suite-taborder-icon`);
-                glyph.setAttribute('aria-hidden', 'true');
-                const name = el(doc, 'span', 'story-suite-taborder-name');
-                name.appendChild(el(doc, 'b', '', row.title));
-                const where = row.where?.includes('tab') && row.where?.includes('screen') ? T.both : row.where?.includes('tab') ? T.tab : T.screen;
-                name.appendChild(el(doc, 'small', '', row.hidden ? `${where} · ${T.hidden}` : where));
-                const at = movable.indexOf(row);
-                const up = button(doc, 'menu_button story-suite-taborder-up', '', fill(T.upTitle, { name: row.title }));
-                const down = button(doc, 'menu_button story-suite-taborder-down', '', fill(T.downTitle, { name: row.title }));
-                for (const [node, icon, text] of [[up, 'fa-arrow-up', T.up], [down, 'fa-arrow-down', T.down]]) {
-                    const arrow = el(doc, 'i', `fa-solid ${icon}`);
-                    arrow.setAttribute('aria-hidden', 'true');
-                    node.append(arrow, el(doc, 'span', 'story-suite-taborder-word', text));
-                }
-                up.disabled = row.fixed || at <= 0;
-                down.disabled = row.fixed || at < 0 || at >= movable.length - 1;
-                up.addEventListener('click', () => { tabs.move(row.id, -1); say(T.movedUp, row.title); after(row.id, 'up'); });
-                down.addEventListener('click', () => { tabs.move(row.id, 1); say(T.movedDown, row.title); after(row.id, 'down'); });
-                const label = el(doc, 'label', 'checkbox_label story-suite-taborder-shown');
-                const check = el(doc, 'input');
-                check.type = 'checkbox';
-                check.id = `story_suite_tab_shown_${encodeURIComponent(row.id)}`;
-                check.checked = !row.hidden;
-                check.disabled = Boolean(row.fixed);
-                label.title = row.fixed ? T.homeTitle : fill(T.shownTitle, { name: row.title });
-                check.addEventListener('change', () => {
-                    tabs.setHidden(row.id, !check.checked);
-                    say(check.checked ? T.nowShown : T.nowHidden, row.title);
-                    draw();
-                    [...list.querySelectorAll('input')].find(node => node.id === check.id)?.focus?.();
-                });
-                label.append(check, el(doc, 'span', '', T.shown));
-                item.append(glyph, name, up, down, label);
-                list.appendChild(item);
-            });
-            reset.disabled = typeof tabs.isDefault === 'function' ? tabs.isDefault() : false;
-        }
-        reset.addEventListener('click', () => {
-            tabs.reset();
-            say(T.wasReset);
-            draw();
-            reset.focus?.();
-        });
-        draw();
-        return remember(details);
-    }
     // Versions (compat.js): each module, its version, the Story Block it needs, and what is out of step.
     function versionsFold() {
         const report = compatReport({ hostVersion: registry.hostVersion?.() ?? '', modules: registry.modules(), refusals: registry.refusals?.() ?? [] });
@@ -1405,13 +1103,14 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         };
         const shown = [...defs].filter(def => Object.keys(def.schema).length || def.section).sort(byId);
         const modules = shown.filter(def => !inDiagnostics(def)).map(def => ({ def, parts: moduleParts(def, ownOf(def.moduleId)) }));
-        const own = [...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(item => !inDiagnostics(item))).map(node => ({ def, node })));
+        // A module's own fold whose section a body of its own draws (Story Block's Packs: the Tabs & Packs page) is not drawn here.
+        const hasPane = piece => !sections || Boolean(sections.place(sections.route(piece)));
+        const own = [...defs].sort(byId).flatMap(def => (hasPane({ type: 'own-fold', moduleId: def.moduleId }) ? ownFolds(def, def.folds.filter(item => !inDiagnostics(item))) : []).map(node => ({ def, node })));
         const subs = [
             ...[...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(inDiagnostics), 'story-suite-subfold')),
             ...shown.filter(inDiagnostics).map(def => moduleFold(def, ownOf(def.moduleId), 'story-suite-subfold')),
         ];
         const diag = (diagnostics && typeof diagnostics.report === 'function') || subs.length ? [diagnosticsFold(subs)] : [];
-        put({ type: 'host' }, hostFold());
         for (const { def, node } of own) put({ type: 'own-fold', moduleId: def.moduleId }, node);
         // The settings window draws Features itself (the form engine) when its page is not given to this host.
         if (all.length && (!sections || sections.place(sections.route({ type: 'features' })))) put({ type: 'features' }, featuresFold(all));
@@ -1444,7 +1143,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         sections.afterRefresh?.();
     }
     refresh();
-    return { refresh, refreshSize, entries: () => found.slice() };
+    return { refresh, entries: () => found.slice() };
 }
 
 /** The fold keys a module placed in Settings → Diagnostics (`place: 'diagnostics'`): "story-block/events". */

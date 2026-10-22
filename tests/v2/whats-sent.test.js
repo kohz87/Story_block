@@ -13,7 +13,8 @@ import { createHost } from '../../testkit/index.js';
 import { DEFAULT_CONTEXT_SHARE, MIN_TAIL_BUDGET, contextFit, estimateTokens } from '../../src/v2/prompt.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { createSettings } from '../../src/v2/sdk.js';
-import { SENT_FOLD, SETTINGS_TEXT, promptSize, renderSettingsHost, sentText } from '../../src/v2/host-ui.js';
+import { SENT_FOLD, SETTINGS_TEXT, promptSize, sentText } from '../../src/v2/host-ui.js';
+import { createPromptReader, renderPromptCard } from '../../src/v2/view/settings/prompt.js';
 import { installFakeDom } from '../ui-fake-dom.js';
 
 const T = SETTINGS_TEXT.sent;
@@ -150,7 +151,15 @@ test('previewing never sends or stores anything', async t => {
     assert.equal(JSON.stringify(h.head()), head, 'the state is as it was');
 });
 
-// ---- the settings fold ----
+// ---- the Prompt card of the Tabs & Packs page (it replaced the Story Suite fold) ----
+
+// The card over a fake DOM: `host.refresh()` and `host.refreshSize()` read the prompt again, as the window does.
+function drawCard(doc, { registry, settings, promptParts, countTokens = null, openState = new Map() }) {
+    const root = doc.createElement('div');
+    const reader = createPromptReader({ registry, settings, promptParts, countTokens });
+    const card = renderPromptCard(root, { doc, settings, reader, openState });
+    return { root, card, host: { refresh: card.refresh, refreshSize: card.refresh } };
+}
 
 const parts = [
     { module: 'story-suite', label: 'Story Suite: instructions', place: 'static', text: 'HEADER line\nsecond line' },
@@ -189,10 +198,9 @@ function renderFold({ withOwn = true, clipboard = undefined } = {}) {
     const registry = createRegistry();
     const es = {};
     const settings = createSettings({ root: () => es, registry, save: () => {} });
-    const root = doc.createElement('div');
     const openState = new Map();
     let calls = 0;
-    const host = renderSettingsHost(root, { registry, settings, doc, openState, promptParts: () => { calls += 1; return withOwn ? { parts, fit: null, own } : { parts, fit: null }; } });
+    const { root, host } = drawCard(doc, { registry, settings, openState, promptParts: () => { calls += 1; return withOwn ? { parts, fit: null, own } : { parts, fit: null }; } });
     return { doc, root, host, openState, calls: () => calls };
 }
 
@@ -242,8 +250,7 @@ test('Show what\'s sent: no own prompt, no such section; nothing in a place says
     const registry = createRegistry();
     const es = {};
     const settings = createSettings({ root: () => es, registry, save: () => {} });
-    const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc, promptParts: () => ({ parts: [parts[0]], fit: null }) });
+    const { root } = drawCard(doc, { registry, settings, promptParts: () => ({ parts: [parts[0]], fit: null }) });
     openSent(root);
     const sections = root.querySelectorAll('.story-suite-sent-section');
     assert.deepEqual(sections.map(node => node.dataset.place), ['static', 'tail']);
@@ -273,9 +280,8 @@ test('the fold reads the prompt once per drawing and sends nothing', async t => 
     await h.send('I wait.', 'Rain.');
     const log = h.st.promptLog.length;
     const doc = installFakeDom();
-    const root = doc.createElement('div');
     let calls = 0;
-    renderSettingsHost(root, { registry: h.registry, settings: h.settings, doc, promptParts: () => { calls += 1; return h.turn.previewFit(); } });
+    const { root } = drawCard(doc, { registry: h.registry, settings: h.settings, promptParts: () => { calls += 1; return h.turn.previewFit(); } });
     assert.equal(calls, 1);
     const sent = openSent(root);
     assert.equal(calls, 1, 'opening draws what was read');

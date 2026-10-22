@@ -31,6 +31,7 @@
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings {
         display: grid;
         grid-template-columns: 250px minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto;
         max-width: 1120px;
         max-height: 780px;
         padding-top: 0;
@@ -318,13 +319,9 @@
     outline-offset: 2px;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-diagnostics-report,
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-sent-text,
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-taborder-row {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-sent-text {
     border-color: var(--ss-border);
     border-radius: var(--ss-radius-s);
-}
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-taborder-icon {
-    color: var(--ss-accent);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature-link {
     color: var(--ss-accent);
@@ -382,6 +379,95 @@
     outline: 2px solid var(--ss-accent);
     outline-offset: 2px;
 }
+/* ---- the footer bar: "What's sent each reply" (view/settings/footer.js), slim, at the bottom of every page; pressing it opens the
+   Prompt card. A phone: the label above the meter and the numbers. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot {
+    flex: none;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "icon label go" "meter meter value";
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 8px var(--ss-space-4) calc(8px + env(safe-area-inset-bottom, 0px));
+    border: 0;
+    border-top: 1px solid var(--ss-border);
+    border-radius: 0;
+    background: color-mix(in srgb, var(--ss-tile) 70%, transparent);
+    color: var(--ss-text);
+    font-family: var(--ss-font);
+    font-size: 13px;
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot:hover {
+    background: var(--ss-tile);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot:focus-visible {
+    outline: 2px solid var(--ss-accent);
+    outline-offset: -2px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-icon {
+    grid-area: icon;
+    color: var(--ss-muted);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-label {
+    grid-area: label;
+    font-weight: 700;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-meter {
+    grid-area: meter;
+    display: block;
+    height: 6px;
+    min-width: 40px;
+    border-radius: var(--ss-radius-pill);
+    background: var(--ss-track);
+    overflow: hidden;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-fill {
+    display: block;
+    width: calc(var(--ss-fill, 0) * 100%);
+    height: 100%;
+    border-radius: var(--ss-radius-pill);
+    background: var(--ss-accent);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-over .ss-settings-foot-fill {
+    background: var(--ss-warn);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-value {
+    grid-area: value;
+    color: var(--ss-muted);
+    white-space: nowrap;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-all {
+    display: none;
+    color: var(--ss-muted);
+    white-space: nowrap;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-go {
+    grid-area: go;
+    color: var(--ss-muted);
+}
+@media (min-width: 760px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot {
+        grid-column: 1 / -1;
+        grid-template-columns: auto auto minmax(80px, 200px) auto auto 1fr;
+        grid-template-areas: "icon label meter value all go";
+        padding: 10px var(--ss-space-5);
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-all {
+        display: inline;
+        grid-area: all;
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-foot-go {
+        justify-self: end;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-row > input[type="checkbox"],
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-row > input[type="checkbox"]::before {

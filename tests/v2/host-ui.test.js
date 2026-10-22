@@ -47,8 +47,8 @@ test('a fold per module with settings, after the host\'s own; fields render with
     const { registry, settings } = setup(rpg(), { id: 'quiet-mod' }, { id: 'aaa', name: 'AAA', settings: { schema: { on: 'bool' } } });
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(fold => fold.dataset.fold), ['story-suite', 'aaa', 'rpg-battle', 'story-suite-versions'], 'Versions last');
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold > summary b').map(node => node.textContent), ['Story Suite', 'AAA', 'RPG Battle', 'Versions']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(fold => fold.dataset.fold), ['aaa', 'rpg-battle', 'story-suite-versions'], 'Versions last');
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold > summary b').map(node => node.textContent), ['AAA', 'RPG Battle', 'Versions']);
     const hard = row(root, 'rpg-battle', 'hardMode');
     assert.equal(hard.querySelector('b').textContent, 'Hard mode');
     assert.equal(hard.querySelector('small').textContent, 'Foes hit harder.');
@@ -61,7 +61,7 @@ test('a fold per module with settings, after the host\'s own; fields render with
     assert.deepEqual(pace.querySelectorAll('option').map(node => [node.value, node.textContent]), [['slow', 'slow'], ['normal', 'normal'], ['fast', 'Fast!']]);
     assert.equal(pace.value, 'normal');
     assert.equal(row(root, 'rpg-battle', 'title').querySelector('input').value, 'Hero');
-    assert.equal(row(root, 'story-suite', 'tailBudget').querySelector('input').value, '1500');
+    assert.equal(foldAt(root, 'story-suite'), undefined, 'Story Suite\'s own fold is gone: the Tabs & Packs page draws its budgets');
 });
 
 test('changes are stored under extension_settings.storySuite.modules[id], ints kept whole and in range', () => {
@@ -84,12 +84,9 @@ test('changes are stored under extension_settings.storySuite.modules[id], ints k
     const title = row(root, 'rpg-battle', 'title').querySelector('input');
     title.value = 'Wanderer';
     change(title);
-    const budget = row(root, 'story-suite', 'tailBudget').querySelector('input');
-    budget.value = '800.4';
-    change(budget);
     assert.deepEqual(es.storySuite.modules['rpg-battle'], { hardMode: true, level: 30, pace: 'fast', title: 'Wanderer' });
-    assert.deepEqual(es.storySuite.host, { tailBudget: 800 });
-    assert.equal(saves(), 5);
+    assert.deepEqual(es.storySuite.host ?? {}, {}, 'the host\'s own settings are not drawn here');
+    assert.equal(saves(), 4);
 });
 
 test('a list of {…}: a row per item, Add and Remove', () => {
@@ -133,7 +130,7 @@ test('a section given as a title and render(el, api) is drawn right in its modul
     const { registry, settings, es } = setup({ id: 'rb', name: 'RPG Battle', settings: { section: 'Combat', defaults: { speed: 2 }, render(el, api) { el.textContent = `Speed ${api.get('speed')}`; api.set('speed', 3); } } });
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
-    const fold = root.querySelectorAll('details.story-suite-fold')[1];
+    const fold = root.querySelectorAll('details.story-suite-fold')[0];
     assert.deepEqual(fold.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['RPG Battle', 'Combat']);
     assert.equal(fold.querySelectorAll('.story-suite-subfold').length, 0, 'no sub-fold for the panel');
     assert.equal(fold.querySelector('.story-suite-section-title').textContent, 'Combat');
@@ -145,11 +142,11 @@ test('refresh redraws and keeps the open folds open', () => {
     const { registry, settings } = setup(rpg());
     const root = doc.createElement('div');
     const host = renderSettingsHost(root, { registry, settings, doc });
-    root.querySelectorAll('details.story-suite-fold')[1].open = true;
+    root.querySelectorAll('details.story-suite-fold')[0].open = true;
     settings.set('rpg-battle', 'title', 'Changed');
     host.refresh();
     const folds = root.querySelectorAll('details.story-suite-fold');
-    assert.deepEqual(folds.map(fold => fold.open), [false, true, false]);
+    assert.deepEqual(folds.map(fold => fold.open), [true, false]);
     assert.equal(row(root, 'rpg-battle', 'title').querySelector('input').value, 'Changed');
 });
 
@@ -158,7 +155,7 @@ test('the overlay opens on the body, marks it, and closes', () => {
     const overlay = openSettingsOverlay({ registry, settings, doc });
     assert.ok(doc.body.classList.contains(OPEN_CLASS));
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1);
-    assert.equal(overlay.root.querySelectorAll('details.story-suite-fold').length, 3);
+    assert.equal(overlay.root.querySelectorAll('details.story-suite-fold').length, 2, 'the module\'s fold and Versions');
     const again = openSettingsOverlay({ registry, settings, doc });
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1, 'opening again replaces it');
     again.root.querySelector('.story-suite-close').click();
@@ -240,16 +237,16 @@ test('folds: the top folds are the root\'s own children, each a summary and a bo
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
     assert.ok(root.classList.contains('story-suite-folds'));
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['story-suite', 'rpg-battle', 'story-director', 'story-suite-versions']);
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['rpg-battle', 'story-director', 'story-suite-versions']);
     for (const fold of topFolds(root)) {
         assert.equal(fold.tagName, 'DETAILS');
         assert.deepEqual(fold.children.map(node => node.tagName), ['SUMMARY', 'DIV'], 'a summary row, then the body');
         assert.equal(fold.open, false, 'closed until the reader opens one');
     }
     // Opening one changes nothing about the others (the squashed-bars bug was CSS; the DOM stays flat).
-    topFolds(root)[2].open = true;
-    assert.deepEqual(topFolds(root).map(node => node.children.length), [2, 2, 2, 2]);
-    assert.equal(root.querySelectorAll('details.story-suite-fold').length, 4, 'sub-folds are not .story-suite-fold');
+    topFolds(root)[1].open = true;
+    assert.deepEqual(topFolds(root).map(node => node.children.length), [2, 2, 2]);
+    assert.equal(root.querySelectorAll('details.story-suite-fold').length, 3, 'sub-folds are not .story-suite-fold');
     assert.ok(root.querySelectorAll('details.story-suite-subfold').length > 0);
 });
 
@@ -377,13 +374,13 @@ test('a list is compact: one line per item with its fields inline, a small × na
     root.remove();
 });
 
-test('Packs: its own fold second, after Story Suite, titled Packs with "import a pack", even with no pack installed', () => {
+test('Packs: its own fold first, titled Packs with "import a pack", even with no pack installed', () => {
     const ctx = { extensionSettings: {} };
     const core = createCoreModule({ packs: packsFor(ctx) });
     const { registry: reg, settings } = setup(core, director(), rpg());
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry: reg, settings, doc });
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['story-suite', PACKS_FOLD, 'rpg-battle', 'story-block', 'story-director', 'story-suite-diagnostics', 'story-suite-versions']);
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), [PACKS_FOLD, 'rpg-battle', 'story-block', 'story-director', 'story-suite-diagnostics', 'story-suite-versions']);
     const packs = foldAt(root, PACKS_FOLD);
     assert.deepEqual(packs.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['Packs', 'import a pack']);
     assert.equal(packs.querySelector('.ss-packs-import').textContent.trim(), 'Import pack file');
@@ -394,84 +391,22 @@ test('Packs: its own fold second, after Story Suite, titled Packs with "import a
     const alone = setup(director());
     const bare = doc.createElement('div');
     renderSettingsHost(bare, { registry: alone.registry, settings: alone.settings, doc });
-    assert.deepEqual(topFolds(bare).map(node => node.dataset.fold), ['story-suite', 'story-director', 'story-suite-versions']);
+    assert.deepEqual(topFolds(bare).map(node => node.dataset.fold), ['story-director', 'story-suite-versions']);
     // A module's own fold is checked when it registers.
     const bad = createRegistry();
     assert.throws(() => bad.register({ id: 'odd', settings: { folds: [{ id: 'X Y', title: '', render: 'no' }] } }), /settings fold 1 has no usable id/);
 });
 
-test('prompt size: per module and in all, against the tail budget, "about N tokens" at four characters a token', () => {
+test('promptSize: per module and in all, against the budget, counted at four characters a token (the Prompt card paints it: settings-prompt.test.js)', () => {
     const parts = [
         { module: 'story-suite', place: 'static', text: 'x'.repeat(400) },
         { module: 'rpg-battle', place: 'static', text: 'y'.repeat(80) },
         { module: 'story-suite', place: 'tail', text: '[Happened]\nA wolf ran off.' },
         { module: 'rpg-battle', place: 'tail', text: 'z'.repeat(203) },
     ];
-    let calls = 0;
-    const { registry, settings } = setup(rpg());
-    settings.set(null, 'tailBudget', 900);
-    const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc, promptParts: () => { calls += 1; return parts; } });
-    const size = foldAt(root, 'story-suite').querySelector('.story-suite-size');
-    assert.equal(size.dataset.exact, 'false');
-    const sums = () => size.querySelectorAll('.story-suite-size-sum > li').map(li => li.querySelector('b').textContent);
     const stat = estimateTokens(`${'x'.repeat(400)}\n\n${'y'.repeat(80)}`);
     const tail = estimateTokens(`[Happened]\nA wolf ran off.\n${'z'.repeat(203)}`);
-    assert.deepEqual(sums(), [`about ${stat} tokens`, `about ${tail} tokens of 900`, `about ${stat + tail} tokens`]);
-    assert.equal(size.querySelector('meter').max, 900);
-    assert.equal(size.querySelector('meter').value, tail);
-    assert.deepEqual(size.querySelectorAll('tbody tr').map(tr => [tr.querySelector('th').textContent, ...tr.querySelectorAll('td').map(td => td.textContent)]),
-        [['Story Suite', '100', String(estimateTokens('[Happened]\nA wolf ran off.'))], ['RPG Battle', '20', '51']]);
-    assert.match(size.querySelector('.story-suite-size-how').textContent, /four characters a token/);
-    // The budget follows the setting at once.
-    const budget = root.querySelector('.story-suite-row[data-field="tailBudget"] input');
-    budget.value = '1200';
-    change(budget);
-    assert.equal(sums()[1], `about ${tail} tokens of 1,200`);
-    assert.equal(calls, 2, 'built again on demand, nothing kept or sent');
-    // promptSize alone, and no chat (nothing to build): a line instead of numbers.
     assert.deepEqual(promptSize(parts, { budget: 5 }), { modules: [{ id: 'story-suite', name: 'story-suite', static: 100, tail: estimateTokens('[Happened]\nA wolf ran off.') }, { id: 'rpg-battle', name: 'rpg-battle', static: 20, tail: 51 }], static: stat, tail, own: [], total: stat + tail, budget: 5 });
-    const none = doc.createElement('div');
-    renderSettingsHost(none, { registry, settings, doc, promptParts: () => { throw new Error('no chat'); } });
-    assert.equal(none.querySelector('.story-suite-size p').textContent, SETTINGS_TEXT.size.none);
-    const old = doc.createElement('div');
-    renderSettingsHost(old, { registry, settings, doc });
-    assert.equal(old.querySelector('.story-suite-size'), null, 'no prompt source, no block (an older caller)');
-});
-
-test('prompt size: SillyTavern\'s tokenizer when the context has one ("N tokens"); a feature switch counts again', async () => {
-    const loot = { id: 'loot', name: 'Loot', features: [{ id: 'loot.weight', label: 'Weight', default: false }] };
-    const { registry, settings } = setup(loot);
-    const stored = {};
-    const features = {
-        list: () => [{ id: 'loot.weight', moduleId: 'loot', moduleName: 'Loot', label: 'Weight', on: stored['loot.weight'] === true }],
-        set: (id, on) => { stored[id] = on; },
-    };
-    const tail = () => (stored['loot.weight'] ? 'heavy pack weighs 20' : 'light');
-    const counted = [];
-    const countTokens = async text => { counted.push(text); return text.split(/\s+/).filter(Boolean).length; };
-    const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc, features, countTokens, promptParts: () => [{ module: 'story-suite', place: 'static', text: 'one two three' }, { module: 'loot', place: 'tail', text: tail() }] });
-    const size = () => root.querySelector('.story-suite-size');
-    assert.equal(size().dataset.exact, 'false', 'the estimate first');
-    await new Promise(resolve => setTimeout(resolve, 0));
-    assert.equal(size().dataset.exact, 'true');
-    const sums = () => size().querySelectorAll('.story-suite-size-sum > li b').map(node => node.textContent);
-    assert.deepEqual(sums(), ['3 tokens', '1 tokens of 1,500', '4 tokens']);
-    assert.match(size().querySelector('.story-suite-size-how').textContent, /SillyTavern's tokenizer/);
-    // The feature flips: everything is drawn again and counted again.
-    const input = root.querySelectorAll('.story-suite-feature input').find(node => node.id.includes('overview'));
-    input.checked = true;
-    input.dispatch('change');
-    await new Promise(resolve => setTimeout(resolve, 0));
-    assert.deepEqual(sums(), ['3 tokens', '4 tokens of 1,500', '7 tokens']);
-    assert.ok(counted.includes('heavy pack weighs 20'));
-    // A tokenizer that fails leaves the estimate.
-    const broken = doc.createElement('div');
-    renderSettingsHost(broken, { registry, settings, doc, countTokens: async () => { throw new Error('no tokenizer'); }, promptParts: () => [{ module: 'story-suite', place: 'static', text: 'abcdefgh' }] });
-    await new Promise(resolve => setTimeout(resolve, 0));
-    assert.equal(broken.querySelector('.story-suite-size').dataset.exact, 'false');
-    assert.equal(broken.querySelector('.story-suite-size-sum b').textContent, 'about 2 tokens');
 });
 
 test('open folds stay open across a redraw, sub-folds too; a closed default-open one stays closed', () => {
@@ -520,7 +455,7 @@ test('the settings window: a side with the rail and a page; Escape closes it and
     assert.equal(win.getAttribute('aria-modal'), 'true');
     assert.equal(win.getAttribute('aria-labelledby'), 'story_suite_v2_overlay_title');
     assert.equal(overlay.root.querySelector('#story_suite_v2_overlay_title').textContent, 'Story Suite');
-    assert.deepEqual(win.children.map(node => node.className), ['ss-settings-close story-suite-close', 'ss-settings-side', 'ss-settings-content']);
+    assert.deepEqual(win.children.map(node => node.className), ['ss-settings-close story-suite-close', 'ss-settings-side', 'ss-settings-content', 'ss-settings-foot']);
     assert.deepEqual(overlay.root.querySelectorAll('.ss-settings-pane').map(node => node.parentNode.dataset.ssSection), ['look', 'features', 'money', 'assist', 'tabs', 'modules', 'diagnostics']);
     assert.ok(doc.activeElement === overlay.root.querySelector('.ss-tabs-item[aria-current="page"]'), 'the focus starts on the rail');
     // The page behind cannot take the focus while it is open.
@@ -531,13 +466,12 @@ test('the settings window: a side with the rail and a page; Escape closes it and
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 0);
     assert.equal(overlay.isOpen(), false);
     assert.ok(doc.activeElement === opener, 'back where it was');
-    // Opened at the Packs fold (Home's "Import a pack"): its section shown, that fold open, its summary focused.
+    // Opened at the Packs fold (Home's "Import a pack"): its section shown, the Import button focused.
     const atPacks = openSettingsOverlay({ registry, settings, doc, fold: PACKS_FOLD, openState: new Map() });
-    const packs = foldAt(atPacks.root, PACKS_FOLD);
-    assert.equal(packs.open, true);
     assert.equal(atPacks.section(), 'tabs');
+    assert.equal(foldAt(atPacks.root, PACKS_FOLD), undefined, 'the Packs fold is the Packs card now');
     assert.equal(foldAt(atPacks.root, 'rpg-battle').open, false);
-    assert.ok(doc.activeElement === packs.querySelector('summary'));
+    assert.ok(doc.activeElement === atPacks.root.querySelector('.ss-packs-import'), 'the Import button has the focus');
     // Opening again closes the first one (one window, one focus guard).
     const second = openSettingsOverlay({ registry, settings, doc, openState: new Map() });
     assert.equal(atPacks.isOpen(), false);
@@ -769,7 +703,7 @@ test('Events: a sub-fold of Diagnostics, below the report, folded, with its note
     const { registry, settings } = setup(coreFor(), rpg());
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc, diagnostics: report });
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['story-suite', PACKS_FOLD, 'rpg-battle', 'story-block', DIAGNOSTICS_FOLD, 'story-suite-versions'], 'no fold of its own among the modules');
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), [PACKS_FOLD, 'rpg-battle', 'story-block', DIAGNOSTICS_FOLD, 'story-suite-versions'], 'no fold of its own among the modules');
     const diag = foldAt(root, DIAGNOSTICS_FOLD);
     assert.deepEqual(subFolds(diag).map(node => node.dataset.fold), [EVENTS_FOLD]);
     const events = foldAt(root, EVENTS_FOLD);
@@ -839,7 +773,7 @@ test('a module with no `place` is unchanged; `place: \'diagnostics\'` moves its 
     const { registry, settings } = setup(rpg(), debug, odd);
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc, diagnostics: report });
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['story-suite', 'odd', 'rpg-battle', DIAGNOSTICS_FOLD, 'story-suite-versions'], 'rpg-battle and the unknown place keep their folds');
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['odd', 'rpg-battle', DIAGNOSTICS_FOLD, 'story-suite-versions'], 'rpg-battle and the unknown place keep their folds');
     assert.equal(row(root, 'rpg-battle', 'hardMode').querySelector('input').type, 'checkbox', 'its rows as before');
     const probe = foldAt(root, 'probe');
     assert.ok(probe.classList.contains('story-suite-subfold'));

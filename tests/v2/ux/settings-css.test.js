@@ -242,6 +242,38 @@ test('the Assist page: cards of stacked fields, one column and two from 900px, t
     assert.equal(weight(`${ROOT_SELECTOR} .ss-assist-page .ss-field`), 20);
 });
 
+// ---- step 3e
+
+test('the Tabs & Packs page: one column, two from 900px with Prompt across both; buttons, tab rows and the footer bar are styled', () => {
+    const glass = read('view/glass.css');
+    const settings = read('view/settings.css');
+    const rule = (sheet, selector, media = null, after = null) => {
+        const from = after ? sheet.indexOf(after) : 0;
+        const body = media ? sheet.slice(sheet.indexOf(media, from)) : sheet.slice(from);
+        const head = `${ROOT_SELECTOR} ${selector} {`;
+        const at = body.indexOf(head);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return body.slice(at, body.indexOf('}', at));
+    };
+    const page = 'the Tabs & Packs page';
+    assert.match(rule(glass, '.ss-tabspacks', null, page), /display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
+    assert.match(rule(glass, '.ss-tabspacks', '@media (min-width: 900px)', page), /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    assert.match(rule(glass, '.ss-tabspacks > .ss-prompt-card', '@media (min-width: 900px)', page), /grid-column: 1 \/ -1;/);
+    assert.match(rule(glass, '.ss-button'), /border-radius: var\(--ss-radius-pill\);/);
+    assert.match(rule(glass, '.ss-iconbutton'), /width: 40px;\s*height: 40px;/, 'a touch target');
+    assert.match(rule(glass, '.ss-button-danger'), /var\(--ss-bad\)/);
+    assert.match(rule(glass, '.ss-tabrow'), /display: flex;\s*align-items: center;/);
+    assert.match(rule(glass, '.ss-packs-confirm'), /border: 1px solid var\(--ss-bad\);/);
+    // The footer: slim, a child of the window under the pages; a grid of icon, label, meter and numbers; one row on a wide window.
+    assert.match(rule(settings, '.ss-settings-foot'), /grid-template-areas: "icon label go" "meter meter value";/);
+    assert.match(rule(settings, '.ss-settings-foot', '@media (min-width: 760px)', '.ss-settings-foot {'), /grid-column: 1 \/ -1;\s*grid-template-columns: auto auto minmax\(80px, 200px\) auto auto 1fr;/);
+    assert.match(rule(settings, '.ss-settings', '@media (min-width: 760px)'), /grid-template-rows: minmax\(0, 1fr\) auto;/, 'the window\'s grid has a row for the bar');
+    assert.match(rule(settings, '.ss-settings-foot-over .ss-settings-foot-fill'), /var\(--ss-warn\)/);
+    assert.equal(weight(`${ROOT_SELECTOR} .ss-prompt-card .ss-form .ss-section`), 30);
+    // The old Tabs list and its rules are gone.
+    assert.doesNotMatch(read('view/host.css') + settings, /story-suite-taborder/);
+});
+
 test('a select never clips its text: it ends in an ellipsis; the Look choices are short words, their help says what each is', () => {
     const glass = read('view/glass.css');
     const at = glass.indexOf(`${ROOT_SELECTOR} .ss-select {`);

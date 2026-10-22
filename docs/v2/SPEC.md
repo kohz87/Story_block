@@ -1152,7 +1152,7 @@ SillyTavern only) and Font; the building blocks (`.ss-glass`, `.ss-label`, `.ss-
 The `tab` and `screen` mounts share one navigation order: Home first, then the suite's own screens in their
 default order (Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, Scene, Chronicle, Director, and
 NPC State Delta's Dossiers, id `npc-state-delta/cast`, last; MODULES §F119), other screens by their `order` (a number, lower first). Scene starts hidden while Story Director's World is registered (World → Now shows
-the same; MODULES §F119). The reader's own order and hidden tabs (Settings → Story Suite → Tabs,
+the same; MODULES §F119). The reader's own order and hidden tabs (Settings → Tabs & Packs → Tabs,
 `extension_settings.storySuite.tabs = { order, hidden, shown }`; `shown`: default-hidden ones shown again) apply to both; a
 module tab goes by `<module>/<tab id>` there. Form controls inside any mount take SillyTavern's theme colours
 (`controls.css`); a screen's own CSS for its fields still wins.
