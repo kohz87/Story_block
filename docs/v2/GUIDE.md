@@ -531,7 +531,8 @@ The same screens can show in five places:
   Quests…). On a phone the row of tabs scrolls sideways, and the tab you pick is scrolled into view.
 * **Cards** under each reply, folded to one line, for example *Changed this reply: +1 Moonveil Trout,
   −1 Rope · +30 gold · to Bluewatch Village*. Open one to see the details. A card under an older reply
-  shows the story as it was **at that reply**. The *Changed this reply* card (and Story Director's
+  shows the story as it was **at that reply**. A module may add its own lines to *Changed this reply*:
+  RPG Battle lists the checks the reply rolled (the die, the modifiers, the total against the difficulty). The *Changed this reply* card (and Story Director's
   status card) show under every reply by default, folded, on phones too. **Features** → *Cards under
   replies* turns them all off at once.
 * **The HUD** (status strip), a thin strip above the message box, for example your health and status at

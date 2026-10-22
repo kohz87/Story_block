@@ -626,6 +626,8 @@ sdk.registerModule({
   `afterCapture(view, { index, type })` (→ `{ commands }`, system steps run once after a reply's last story
   line as part of that reply, §4.2 step 3; an older Story Block never calls it, so a module keeps a fallback,
   e.g. a beforeGenerate step that finds what is still left to do),
+  `replyCard({ index, state, before, changes })` (→ `[{ text, summary?, flag?, note?, icon? }]`: the module's
+  own lines on that reply's "Changed this reply" card, §13.4, MODULES §F125),
   `ownPrompt` (what the module sends with the reply under its own prompt keys, §5) and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
   lines or `{ lines, data }`, a promise of one answered within 2 s; MODULES §F118). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the

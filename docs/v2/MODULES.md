@@ -758,6 +758,21 @@ These settle questions agents raised; the host changes they need are made at int
     wait). Host setting **`callQueue`** "Run extra calls one at a time per connection" (default on);
     Diagnostics → "Model calls" shows how many wait now and how long calls waited (counts and times only).
 
+### User decision from the beta live test (2026-10-22, F125)
+
+125. **A module's own lines on the "Changed this reply" card** (live test: "there's no way for us to know the
+    rolls?"; RPG Battle's checks were only on its own status card, which is off by default). A module's hook
+    **`replyCard({ index, state, before, changes })`** answers that reply's lines, `[{ text, summary?, flag?,
+    note?, icon? }]` (or plain strings), synchronously: `state` is the reply's state, `changes` the JSON
+    Pointers its ops touched (as a card's `changed()`), so a module lists only what that reply did. Story Block
+    draws them in the card's list (text, then the flag and the note on their own lines, escaped) and tells each
+    by its `summary` (else its `text`) in the folded header after the rest ("+1 Rope · Wessel AGI 10 vs DC 10:
+    success"); a card with module lines does not say "Nothing changed". Cleaned by `replyCardLines`
+    (`src/v2/screens/changes-card.js`): one line each, text ≤ 200, summary ≤ 80, flag and note ≤ 160
+    characters, at most 6 per module, an icon only as a plain `fa-…` name; a hook that throws or answers no
+    list adds nothing. The card's scope has them as `moduleLines`, so a restyled card can draw them too. An
+    older Story Block never calls the hook (the module's own screens still show the same).
+
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
 For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster

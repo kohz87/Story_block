@@ -292,3 +292,49 @@ test('host.css: subtle transitions, and none under prefers-reduced-motion', () =
     assert.match(reduced, /transition: none !important;/);
     assert.match(reduced, /animation: none !important;/);
 });
+
+// ---------------------------------------------------------------------------------------------------
+// §F125: a module's own lines on the changes card (hooks.replyCard)
+
+const ROLL_MODULE = {
+    id: 'roll-test', name: 'Roll test', version: '0.0.1',
+    domains: { rolls: { initial: () => ({ log: {} }), validate: () => [] } },
+    capture: {
+        kinds: { roll: { grammar: '? roll <what> | die: N' } },
+        apply(ctx, line) {
+            const draft = ctx.draft('rolls');
+            const id = `rl_${String(Object.keys(draft.log).length + 1).padStart(8, '0')}`;
+            draft.log[id] = { key: id, what: line.name, die: Number(line.labels?.die ?? 0) };
+            return { summary: 'rolled', narrate: false };
+        },
+    },
+    hooks: {
+        // The reply's own rolls: the log entries its ops touched, read from the reply's state.
+        replyCard({ state, changes }) {
+            const ids = new Set(changes.map(path => /^\/domains\/rolls\/log\/([^/]+)/.exec(path)?.[1]).filter(Boolean));
+            return [...ids].map(id => state.domains.rolls.log[id]).filter(Boolean)
+                .map(entry => ({ text: `${entry.what}: d20 ${entry.die}`, summary: `${entry.what} ${entry.die}`, icon: 'fa-dice-d20' }));
+        },
+    },
+};
+
+test('the changes card shows a module\'s lines for that reply (summary and body); a swipe shows the new swipe\'s', async () => {
+    const { doc, host, ui, draw } = await page({ modules: [ROLL_MODULE] });
+    await host.send('hi', 'You climb.\n<Changes>\n? roll climb | die: 14\n</Changes>');
+    await host.send('more', 'You rest.');
+    draw();
+    const cardAt = index => {
+        ui.mounts.card.refresh(index, { force: true });
+        return doc.querySelector(`.mes[mesid="${index}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+    };
+    assert.equal(cardAt(2).querySelector('.ss-card-summary').textContent, 'climb 14');
+    ui.mounts.card.toggle(2, CHANGES_CARD_SCREEN_ID, true);
+    assert.equal(cardAt(2).querySelector('.extra .txt').textContent, 'climb: d20 14');
+    assert.equal(cardAt(2).querySelector('.none'), null);
+    // The later reply rolled nothing: its card says so, with no module line.
+    assert.equal(cardAt(4).querySelector('.ss-card-summary').textContent, 'No changes');
+    await host.swipe('You rest again.\n<Changes>\n? roll rest | die: 3\n</Changes>');
+    draw();
+    assert.equal(cardAt(4).querySelector('.ss-card-summary').textContent, 'rest 3');
+    assert.equal(cardAt(2).querySelector('.ss-card-summary').textContent, 'climb 14', 'the earlier reply keeps its own');
+});
