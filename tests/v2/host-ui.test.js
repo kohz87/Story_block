@@ -263,7 +263,7 @@ test('folds: host.css gives them a summary row with a chevron, no fixed heights;
     assert.match(css, /\.story-suite-fold > summary, \.story-suite-subfold > summary \{[^}]*min-height: 44px/);
     assert.match(css, /summary::before, \.story-suite-subfold > summary::before \{[^}]*border-right/, 'the chevron');
     assert.match(css, /\[open\] > summary::before[^{]*\{ transform: rotate\(45deg\); \}/);
-    const content = rule(windowCss, ':where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-content');
+    const content = rule(windowCss, ':where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-settings-content');
     assert.match(content, /overflow-y: auto/);
     assert.match(content, /min-height: 0/);
     const layer = rule(css, '.story-suite-overlay');
