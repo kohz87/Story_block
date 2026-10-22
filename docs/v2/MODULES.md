@@ -543,7 +543,8 @@ These settle questions agents raised; the host changes they need are made at int
     points). No command runs for them and nothing is stored: no receipt, no op, no `meta.rev`; they are read
     again from the reply's hidden block (its shown swipe) each time they are drawn, so the live reply, Re-read,
     swipes, deletes and a reload show the same. Lines past the cap and lines that do not read (no text, no
-    name) are Problems on the card; a line of a feature that is off is a quiet `FEATURE_OFF`. Choices show as
+    name) are Problems on the card (the cap counts the whole reply: lines a Continue or the extractor adds
+    count after the ones it already shows); a line of a feature that is off is a quiet `FEATURE_OFF`. Choices show as
     buttons under the **latest** reply only, until the reader answers; a click puts the text in SillyTavern's
     message box after what is typed there and **never sends** (no Shift-click send as in v1): it is not a
     story action (F95, F96). Chatter shows in a folded "Inner chatter (N)" strip under every reply; the name is

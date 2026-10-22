@@ -130,7 +130,11 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   removes the thing holding it (a stack is never kept at 0). A count that is not there at all (the reply
   that made it was deleted) counts from 0: it is added as the op's change alone, and its holder is made for
   it only when holders there are nothing but that count (a wallet `{ coin }`, never a stack). Ops without
-  `was` apply as written.
+  `was` apply as written. A command that **sets** a count to a number rather than moving it (Story
+  Director's `~ time <date>`) calls `ctx.absolute(domain, path)` (`path` inside the domain, like
+  `/time/minutes`) before it returns: that write keeps no `was`, so replay applies it as a set, exact
+  whatever an earlier deleted reply did, and later moves (with `was`) add on top of it. It is written even
+  when the count already holds that number, so a replay that finds another number there sets it too.
 * **Replayed blocks are checked.** After each replayed block the validators of the domains it touches run
   (§2.5); a block that brings a problem the state did not have before it (a stack whose definition a
   deleted reply made, a route to a deleted place) is skipped and reported like one that does not apply.
@@ -143,7 +147,7 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   replay a `remove` inside one of something already gone is passed over, missing objects on the way are
   made, and a `replace` of something not there becomes an `add`. A list inside a scratch field
   is not fitted: an append (`/-`) or a list position in it applies as written, as anywhere else.
-* **Three replay rules that keep such bookkeeping bounded.** (a) On replay (never for a live command), a
+* **Four replay rules that keep such bookkeeping bounded.** (a) On replay (never for a live command), a
   `remove` of an object key that is not there (the reply that added it was deleted) does nothing instead
   of failing its block; a `remove` that carries a counted `was` (a take of a stack) still fails, so a sale
   of a thing that is gone is not paid. A later reply may so prune what earlier replies added: an entry
@@ -156,6 +160,13 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   reply set, so the result is the same (a later `~ hook X | now: …` survives deleting the reply that first
   set `now`). Not for counted ops (`was`), which keep the counter rules above; with no parent object (or
   a list position) the op stays as written and its block fails.
+  (d) A command whose writes inside one thing only make sense while that thing is there (Story Director's
+  `time.settle` closing a thread time ran past) calls `ctx.ifThere(domain, path)` (`path` inside the
+  domain, like `/threads/th_x`): its ops inside that path are stored with `within: <the thing's full
+  path>`. On replay (never for a live command), when the thing is not there (the reply that made it was
+  deleted) and no earlier op of the block put it there, those ops are passed over and the rest of the
+  block applies; an `add` of the thing itself is never passed over. An older Story Block ignores
+  `within` (the block fails as before).
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -254,6 +265,10 @@ commands: {
   transaction (its changes land in the same receipt chain; its summary is not narrated separately).
 * `ctx.rng()` → float in [0, 1) from the receipt's seed (sfc32). `ctx.roll('2d6+1')` helper. No `Math.random`.
 * `ctx.claim(key)` → false if already claimed on this line of history, else claims it.
+* `ctx.absolute(domain, path)`: this command's write of the counter at `path` is a set, not a move (§2.2);
+  `ctx.ifThere(domain, path)`: its writes inside the thing at `path` are passed over on replay when that
+  thing is gone (§2.2 rule d). Both only for a domain the module owns (`NOT_OWNER`), `path` a pointer
+  inside it (`INVALID`).
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.feature(id)` (whether the reader has
   that feature on, §6), `ctx.fail(code, message)` throws.
@@ -529,6 +544,10 @@ sdk.registerModule({
   text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
   options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped), a
   `profile` as a Connection Manager profile's name (a dropdown with "Same as chat", stored `''`; MODULES §G).
+  A field's optional `readOnly` (`true`, or a function of the module's current values, `values => boolean`;
+  one that throws counts as false) draws it disabled with its value and help shown, and the overlay stores
+  nothing from it; a function's rows are drawn again when another field of the module changes (Story
+  Director's calendar fields while Calendar is `pack`). `settings.set` from code is not limited by it.
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
   The overlay is one centred column of folds: Story Suite (the tail budget, the share of the context and
   the prompt size, with the context size and the share used), the
