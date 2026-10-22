@@ -107,8 +107,10 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     // The prompt size is under Story Suite's own fold; its Tabs sub-fold with it.
     assert.deepEqual(texts(page('tabs'), '.story-suite-subsection > h4'), ['Prompt size']);
     assert.ok(page('tabs').querySelector('details[data-fold="story-suite::tabs"]'));
-    // Story Block's money settings are its General group, its Assist settings the Assist panel and the Assist group.
-    assert.deepEqual(texts(page('money'), '.story-suite-subfold > summary > b'), ['General']);
+    // Story Block's money settings (its General group) are the form engine's Money page: three cards, no fold.
+    assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'What the story may pay', 'Money words']);
+    assert.equal(page('money').querySelectorAll('details').length, 0);
+    // Its Assist settings are the Assist panel and the Assist group.
     assert.deepEqual(texts(page('assist'), '.story-suite-subsection > h4'), ['Assist']);
     assert.ok(page('assist').querySelector('.story-suite-section .ss-assist'));
     assert.deepEqual(texts(page('assist'), '.story-suite-subfold > summary > b'), ['Assist']);

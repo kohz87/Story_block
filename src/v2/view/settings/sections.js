@@ -65,7 +65,7 @@ export function routeOf(piece) {
 
 // Folds that start open: a page that is one fold or one group should not open on a closed box. The rest are as
 // the reader left them, or closed.
-const OPEN = new Set([HOST_FOLD, PACKS_FOLD, `${CORE_ID}::group:General`, `${CORE_ID}::group:Assist`]);
+const OPEN = new Set([HOST_FOLD, PACKS_FOLD, `${CORE_ID}::group:Assist`]);
 export const opensByDefault = key => OPEN.has(key);
 
 /** A section by id (the default one for an id that is none). */

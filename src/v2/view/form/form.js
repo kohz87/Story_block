@@ -32,23 +32,35 @@ const h = (doc, tag, className = '', text) => {
 const LABELABLE = new Set(['text', 'number', 'select', 'profile', 'slider', 'switch']);
 // A switch sits beside its text; the rest sit under it on a phone and beside it on a wide box (CSS).
 const INLINE = new Set(['switch']);
+// What a field's own `check(value)` says about a value the store kept (a plain sentence, or nothing): the part of it the
+// module will not use, which the store cannot know ("Two coins are called silver").
+function checkNote(field, value) {
+    if (typeof field.check !== 'function') return '';
+    try {
+        const text = field.check(value);
+        return typeof text === 'string' ? text : '';
+    } catch {
+        return '';
+    }
+}
 
 /**
  * Renders the settings of one module into `parent`. Options: `moduleId` (null: the host's), `schema`, `settings` (the
  * store: `settings(id)` → values, `settings.set(id, key, value)` → stored value or undefined), `doc`, `title`, `hint`,
  * `featureOn(featureId)` (a field with `feature` shows while it says true; default: always), `profiles()` (the
  * Connection Manager answer for profile fields; default: the page's), `search` (a search box on top), `onChange({ moduleId,
- * key, value })` (after a value was stored), `memo` (a Map keeping a list's rows/lines choice across redraws), `disabled`.
+ * key, value })` (after a value was stored), `memo` (a Map keeping a list's rows/lines choice across redraws), `disabled`,
+ * `quiet` (no "N settings shown" or "No settings match" line: a window around it says it), `className` (another class on the form).
  * → { el, filter(text), refresh(), setDisabled(on), field(key), keys(), destroy() }.
  */
 export function renderSettingsForm(parent, options) {
     const {
         moduleId = null, schema = {}, settings, doc = parent?.ownerDocument ?? globalThis.document, title = '', hint = '', featureOn = null, profiles = null, search = false,
-        onChange = null, memo = new Map(),
+        onChange = null, memo = new Map(), quiet = false, className = '',
     } = options ?? {};
     if (typeof settings !== 'function' || typeof settings.set !== 'function') throw new TypeError('The settings form needs the settings store (settings(id) and settings.set(id, key, value)).');
     let disabled = Boolean(options?.disabled);
-    const root = h(doc, 'div', 'ss-form');
+    const root = h(doc, 'div', className ? `ss-form ${className}` : 'ss-form');
     root.setAttribute('data-module', String(moduleId ?? 'story-suite'));
     if (title) root.setAttribute('aria-label', title);
     const rows = new Map();          // key → { row, f, group, handle, setError, kind, volatile }
@@ -127,7 +139,7 @@ export function renderSettingsForm(parent, options) {
             error.hidden = !message;
             describe();
         };
-        const entry = { row, f, group, kind, key, setError, handle: null, volatile: typeof f.readOnly === 'function' || typeof f.shows === 'function' };
+        const entry = { row, f, group, kind, key, setError, handle: null, volatile: typeof f.readOnly === 'function' || typeof f.shows === 'function' || typeof f.format === 'function' };
         // What the store keeps of a value the reader chose: shown, with a note when it is not what was typed.
         const commit = (value, meta) => {
             const stored = settings.set(moduleId, key, value);
@@ -138,7 +150,7 @@ export function renderSettingsForm(parent, options) {
                 return;
             }
             handle.set(stored);
-            setError(changeNote(f, meta?.typed, stored));
+            setError([meta?.note, changeNote(f, meta?.typed, stored), checkNote(f, stored)].filter(Boolean).join(' '));
             refreshDependents(key);
             if (typeof onChange === 'function') {
                 try { onChange({ moduleId, key, value: stored }); } catch { /* the caller's own problem */ }
@@ -192,6 +204,14 @@ export function renderSettingsForm(parent, options) {
         }
         for (const section of sections) section.setHidden(!section.keys.some(key => !rows.get(key).row.hidden));
         const searching = filterText.trim() !== '';
+        // `quiet`: a window around the form says how many matched (all its pages together), so the form does not.
+        if (quiet) {
+            status.hidden = true;
+            status.textContent = '';
+            empty.hidden = true;
+            empty.textContent = '';
+            return shown;
+        }
         status.hidden = !searching;
         status.textContent = searching && shown ? (shown === 1 ? FORM_TEXT.shownOne : fill(FORM_TEXT.shown, { n: shown })) : '';
         empty.hidden = !(searching && shown === 0);

@@ -119,7 +119,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 
 `src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
 the look, and writes through the same settings store the settings window writes through. The settings window (below)
-draws Look and Features with it (step 3b) and still draws today's folds elsewhere; steps 3c–3g move the other sections one by one. The UI sample shows a demo form
+draws Look, Features and Money with it (steps 3b and 3c) and still draws today's folds elsewhere; steps 3d–3g move the other sections one by one. The UI sample shows a demo form
 (`mountDemoForm`, `UI_SAMPLE_FORM`).
 
 ```js
@@ -144,7 +144,8 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 ```
 
 - **Kinds** (`fieldKind(field)`): `bool` → switch; `int` → number, or slider with `form: 'slider'` and whole-number
-  `min` < `max` (a `unit` text is shown after the value); `choice` → select, or chips (one of them) with `form: 'chips'`;
+  `min` < `max` (a `unit` text is shown after the value; a `format(n)` function says the value in words instead, and
+  `sliderMax` < `max` is the range the slider offers, which grows to a larger stored value so it is never shown wrong); `choice` → select, or chips (one of them) with `form: 'chips'`;
   `text` → text box (`multiline`: a text area with a character count when it has a `max`); `profile` → the Connection
   Manager select (`profileChoices`: "Same as chat", the profiles, a gone one kept as "(not found)", the note under the
   label); `list` → rows with Add and Remove, or one line per item for text and whole-number fields (`form: 'lines'`
@@ -157,7 +158,12 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   while typing) and never store anything. The row (`form.js`) writes with `settings.set(moduleId, key, value)`, shows the
   value stored (`set(stored)`), and says under the field what the store did to it (`changeNote`: "Set to 12, the most this
   allows.", "Cut to 8 characters…"; a refused value: "That could not be saved. The setting stays …"; text in a number
-  box: "Enter a whole number. The setting stays 5.").
+  box: "Enter a whole number. The setting stays 5."). In a list, a row's own number box that moved or refused a value is
+  named by row and field ("Row 3, Worth: Set to 1000000, the most this allows."), and rows the store left out are counted
+  ("Only 100 of the 120 rows could be kept."). A field's own `check(value)` adds what only its module knows after the value is
+  stored (the Coins field: "Coin 4 (silver) is named like an earlier coin, so it is not used."), a sentence or nothing. Options
+  `quiet` (no "N settings shown" or "No settings match" line: a window around the form says it) and `className` (another class
+  on the form) are for a form inside such a window. A field with a `format` function follows the other values after any change.
 - **Rows**: `.ss-field` with `.ss-field-label` (a `label` for the controls that can be named by `for`, a `span` plus
   `aria-labelledby` for chips and lists), `.ss-field-help`, `.ss-field-note`, `.ss-field-tag` ("Read only"), the control, and
   `.ss-field-error` (`role="alert"`). The control carries `aria-describedby` (help, note, read-only tag, error) and
@@ -181,6 +187,11 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   name, description, module name and id, leaves out groups with no match, returns the count. → `{ el, filter, refresh, field(id),
   group(moduleId), focusGroup(moduleId), setDisabled, keys, destroy }`. Classes: `ss-features`, `-group`, `-grid`, `ss-feature`
   (+ `-text`, `-name`, `-help`, `-cost`, `-why`, `-unavailable`). `sectionBlock` takes `level` (the heading's, default 3).
+- **Looks that SillyTavern would spoil** (glass.css): every slider rule is `.ss-slider .ss-slider-input…` (a class heavier), because SillyTavern
+  paints every `input[type="range"]` with a bar in its body colour (black on a light theme), a thumb in its tick colour and a hover filter,
+  which beat a one-class rule; the unfilled track is the `--ss-track` token (a faint tint of the text colour in a light scheme). A select
+  ends in an ellipsis instead of clipping (`.ss-select`); the Look choices are short words ("Glass", "Solid", "Follow SillyTavern") whose
+  help says what each is.
 - **Classes** (glass.css): `ss-form`, `ss-section` (+ `-head`, `-title`, `-hint`, `-body`), `ss-field` (+ `-inline`,
   `-text`, `-label`, `-help`, `-note`, `-tag`, `-control`, `-error`, `-count`, `-readonly`, `-disabled`), `ss-input` (+ `ss-text`,
   `ss-number`, `ss-select`), `ss-switch` (+ `-on`, `-knob`), `ss-slider` (+ `-input`, `-value`; the fill is `--ss-fill`),
@@ -193,7 +204,7 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 
 `src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
 `openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
-Look and Features the form engine's** (below). 3c–3g replace the other bodies.
+Look and Features the form engine's, step 3c Money** (below). 3d–3g replace the other bodies.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
@@ -208,7 +219,8 @@ Look and Features the form engine's** (below). 3c–3g replace the other bodies.
   label, Font Awesome icon, title, sub). Look is first in the rail; the window opens on Features (`DEFAULT_SECTION`). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
   command that selects): a `nav` of buttons, `aria-current="page"` on the chosen one, roving tabindex (one Tab stop, arrows, Home,
   End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
-- **Where today's folds go** (`routeOf`): Story Block's **General group → Money**, its **Assist panel and Assist group → Assist**;
+- **Where today's folds go** (`routeOf`): Story Block's **Assist panel and Assist group → Assist** (its General group is the form engine's
+  Money page, below; the route is unused);
   the Story Suite fold (the budgets, Prompt size, its Tabs sub-fold: Panel style, Glass strength and Font moved to Look) and
   Story Block's **Packs** fold → Tabs & Packs; every module's fold (what is left of Story Block's: the line to its features and
   its Inner chatter group) and **Versions** → Modules; Diagnostics (with Events) → Diagnostics. Fold ids did not change:
@@ -230,6 +242,20 @@ Look and Features the form engine's** (below). 3c–3g replace the other bodies.
   null`, so `settings.set(null, key, value)` as the Story Suite fold wrote), and a change calls `theme.apply()` so the look follows at
   once. **Features** (`featuresBody`): `renderFeaturesForm` (view/form/features.js) over the feature store. Both are searched with the
   engine's own `filter`.
+- **Money** (`money.js`, step 3c): Story Block's General group (the world's coins, how much the story may pay, the money words) in the
+  concept's Money page: `moneySchema(schema, values)` takes the registry's General fields and regroups them into cards (`MONEY_CARDS`:
+  **Coins** (the coins list, the coin display), **What the story may pay** (the budget, the money scale), **Money words** (the three
+  currency words); a General field the cards do not name goes in a card of its own at the end), then `renderSettingsForm` draws them
+  (`quiet`, `className: 'ss-money'`; two columns from 900px with the Coins card down the left, one column below; fields stacked in
+  the cards) and writes through `settings.set('story-block', key, value)`, so what the story pays does not change with where the setting
+  is drawn. **Coins** are name and worth rows (`form: 'lines'` is dropped so rows come first) with "+ Add" and "Edit as text" (a bad
+  line is named: `Line 2 ("silver: lots"): …`); `coinProblems(rows)` is its `check` and says what the story will not use (no name, a number
+  in a name, a worth outside 1–1,000,000, a name an earlier coin has, a coin past the eighth). **The budget** (`storyCoinPerReply`, in
+  whole coins, up to a billion in the store) is a slider over 0–1000 that grows to a larger value (`BUDGET_SLIDER_MAX`), its words from
+  `budgetText(n, values)`: "60 pennies", "1 penny", **"Automatic" for 0** (worked out from the installed modules); the unit is
+  `baseUnit(currencyOf(values))`: the coin worth 1, else the money word, the **Currency** setting ("gold" by default; Terms (RPG Battle's
+  level and XP words) has no money word). It follows the coins and the Currency box after any change. The General group's fold key
+  (`MONEY_FOLD`, `story-block::group:General`) opens the Money page with its first field focused (`has`/`open` on the body).
 - **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
   answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
   the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
@@ -268,7 +294,7 @@ Look and Features the form engine's** (below). 3c–3g replace the other bodies.
 - `tests/v2/view/` (`template/`, `mounts/`, `widgets/`, `render-screen.test.js`, `tab-order.test.js`),
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
 - The settings window: `tests/v2/ux/settings-window.test.js` (frame, rail, sections, Look, Features, folds, keyboard, search, bodies),
-  `tests/v2/view/form/features.test.js` (the features form),
+  `tests/v2/view/form/features.test.js` (the features form), `tests/v2/ux/settings-money.test.js` (the Money page: cards, coins, slider words, validation, a story `+ coin` paying after edits),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.

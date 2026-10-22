@@ -36,11 +36,11 @@ export const HOST_SETTINGS_SCHEMA = Object.freeze({
     // Story Suite's look (src/v2/view/theme.js): the panels and the font, for every Story Suite screen.
     panelStyle: Object.freeze({
         type: 'choice', label: 'Panel style', options: Object.freeze([
-            Object.freeze({ value: 'glass', label: 'Glass (see-through panels over your background)' }),
-            Object.freeze({ value: 'solid', label: 'Solid (less transparency, no blur)' }),
-            Object.freeze({ value: 'sillytavern', label: 'Follow SillyTavern only (its own colours and blur)' }),
+            Object.freeze({ value: 'glass', label: 'Glass' }),
+            Object.freeze({ value: 'solid', label: 'Solid' }),
+            Object.freeze({ value: 'sillytavern', label: 'Follow SillyTavern' }),
         ]),
-        help: 'How Story Suite\'s panels look. Light or dark follows your SillyTavern theme either way. Solid suits a busy background or a slow device; your system\'s "reduce transparency" setting also turns Glass into Solid.',
+        help: 'How Story Suite\'s panels look. Glass: see-through panels over your background. Solid: less transparency and no blur. Follow SillyTavern: its own colours and blur only. Light or dark follows your SillyTavern theme either way. Solid suits a busy background or a slow device; your system\'s "reduce transparency" setting also turns Glass into Solid.',
     }),
     glassStrength: Object.freeze({
         type: 'int', min: 30, max: 90, form: 'slider', label: 'Glass strength (%)',

@@ -87,7 +87,7 @@ test('today\'s folds go to the section they belong to', () => {
     assert.equal(routeOf({ type: 'versions' }), 'modules');
     assert.equal(routeOf(null), 'modules');
     assert.equal(opensByDefault(FEATURES_FOLD), false, 'Features is not a fold any more');
-    assert.equal(opensByDefault('story-block::group:General'), true);
+    assert.equal(opensByDefault('story-block::group:Assist'), true);
     assert.equal(opensByDefault('rpg-battle'), false);
 });
 
@@ -176,8 +176,9 @@ test('each section holds what it should: Look and Features are the form engine\'
     assert.ok(foldAt(root, TABS_FOLD) && page(root, 'tabs').contains(foldAt(root, TABS_FOLD)), 'Tabs under Story Suite\'s fold, on the Tabs & Packs page');
     assert.deepEqual(foldsOf(root, 'modules'), ['rpg-battle', 'story-block', VERSIONS_FOLD]);
     assert.deepEqual(foldsOf(root, 'diagnostics'), [DIAGNOSTICS_FOLD]);
-    assert.deepEqual(foldsOf(root, 'money'), [], 'its parts are sub-folds of Story Block\'s, not folds');
-    assert.deepEqual(page(root, 'money').querySelectorAll('details').map(node => node.dataset.fold), ['story-block::group:General']);
+    assert.deepEqual(foldsOf(root, 'money'), [], 'the form engine');
+    assert.equal(page(root, 'money').querySelectorAll('details').length, 0);
+    assert.equal(root.querySelector('details[data-fold="story-block::group:General"]'), null, 'the General group is the Money page now');
     assert.deepEqual(page(root, 'assist').querySelectorAll('details').map(node => node.dataset.fold), ['story-block::group:Assist']);
     assert.ok(page(root, 'assist').querySelector('.story-suite-section .ss-assist'), 'the Assist panel');
     // What is left of Story Block's fold stays in Modules, with the line to its features.
@@ -187,13 +188,12 @@ test('each section holds what it should: Look and Features are the form engine\'
     assert.equal(kept.querySelector('.story-suite-section'), null);
     assert.equal(kept.querySelector('[data-field="currency"]'), null);
     // A group of Story Block's own starts open; the rest as the reader left them.
-    assert.equal(foldAt(root, 'story-block::group:General').open, true);
     assert.equal(foldAt(root, 'rpg-battle').open, false);
     assert.equal(foldAt(root, DIAGNOSTICS_FOLD).open, false);
-    // Every settings row is on exactly one page.
-    const rows = root.querySelectorAll('.story-suite-row[data-field]');
-    assert.ok(rows.length > 10);
-    assert.equal(page(root, 'money').querySelectorAll('.story-suite-row').length > 3, true);
+    // Every settings row is on exactly one page: the money ones are the form engine's fields, not the old rows.
+    assert.ok(root.querySelectorAll('.story-suite-row[data-field]').length > 5);
+    assert.equal(page(root, 'money').querySelectorAll('.story-suite-row').length, 0);
+    assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'storyCoinPerReply', 'economyScale', 'currency', 'currencyPlural', 'currencyShort']);
     host.close();
 });
 
@@ -253,6 +253,13 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
             const group = page(root, 'features').querySelectorAll('.ss-features-group').find(node => node.dataset.fold === (wanted === FEATURES_FOLD ? page(root, 'features').querySelector('.ss-features-group').dataset.fold : wanted));
             assert.ok(group, `${fold} is drawn`);
             assert.ok(doc.activeElement === group.querySelector('.ss-section-title'), `${fold} has the focus`);
+            win.close();
+            host.close();
+            continue;
+        }
+        if (section === 'money') {
+            // The General group is the form engine's Money page: the first field has the focus.
+            assert.ok(doc.activeElement === page(root, 'money').querySelector('.ss-field[data-field="coins"] input, .ss-field[data-field="coins"] button'), `${fold} has the focus`);
             win.close();
             host.close();
             continue;
@@ -367,8 +374,7 @@ test('search: typing filters every section at once, shows only the pages with ma
     assert.deepEqual(shownPages(root), Object.keys(counts).filter(id => counts[id]), 'a page with no match is not shown');
     assert.equal(root.querySelector('.ss-form-empty').hidden, true);
     // On the Money page only the matching rows show.
-    const rows = page(root, 'money').querySelectorAll('.story-suite-row[data-field]');
-    const visible = rows.filter(row => !row.hidden).map(row => row.dataset.field);
+    const visible = page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field);
     assert.ok(visible.includes('coins') && visible.includes('coinDisplay'));
     assert.ok(!visible.includes('currencyShort'), 'its label has no "coin" in it');
     // Clearing shows the chosen page again.
@@ -406,10 +412,10 @@ test('search words: one match says "1 setting shown", none says so with the text
     search(root, 'rpg battle');
     assert.deepEqual(shownPages(root), ['modules']);
     assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row[data-field]').filter(row => !row.hidden).length, 3, 'its three settings');
-    // What it says finds it ("money" → the Money page's "Money one reply may give"), not the section's own name.
+    // What it says finds it ("money" → "Money one reply may give", "Money scale" and the "Money words" card), not the section's own name.
     search(root, 'money');
     assert.ok(shownPages(root).includes('money'));
-    assert.equal(page(root, 'money').querySelectorAll('.story-suite-row[data-field]').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'storyCoinPerReply,economyScale');
+    assert.equal(page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'storyCoinPerReply,economyScale,currency,currencyPlural,currencyShort');
     // Words are all needed, in any order, any case.
     search(root, 'SHOP trade');
     assert.deepEqual(page(root, 'modules').querySelectorAll('.story-suite-row[data-field]').filter(row => !row.hidden).map(row => row.dataset.field), ['title']);
