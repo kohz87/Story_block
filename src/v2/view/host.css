@@ -64,11 +64,19 @@
     backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 8px)));
 }
 .story-suite-sheet[hidden] { display: none; }
+/* The head as Panel.dc.html draws the panel: 12px gutters, the title and Close, no rule; the tab bar (the ss.tabs
+   block) sits under it. Close is a glass tile, on the tokens, so it reads on either look. */
 .story-suite-sheet-head {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 8px 12px; border-bottom: 1px solid var(--story-suite-line);
+    padding: 12px 12px 0;
 }
-.story-suite-sheet-head .menu_button { width: auto; margin: 0; min-height: 32px; padding: 4px 10px; }
+.story-suite-sheet-head > b { min-width: 0; font-size: 1.1em; font-weight: 800; color: var(--ss-text, var(--story-suite-fg)); }
+.story-suite-sheet-head .story-suite-sheet-close {
+    flex: none; width: 40px; height: 40px; min-height: 40px; margin: 0; padding: 0;
+    border: 1px solid var(--ss-border, var(--story-suite-line)); border-radius: var(--ss-radius-m, 8px);
+    background: var(--ss-tile, transparent); color: var(--ss-text, inherit);
+}
+
 .story-suite-sheet-body { overflow: auto; padding: 8px 12px 16px; min-height: 0; }
 @media (min-width: 900px) {
     .story-suite-sheet {
