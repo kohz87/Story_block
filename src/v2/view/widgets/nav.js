@@ -18,6 +18,7 @@ import { cutAt } from '../../../text.js';
 
 export const NAV_MAX_ITEMS = 24;
 const LABEL_MAX = 40;
+const ID_MAX = 64;
 const COUNT_MAX = 4;
 
 const navProps = {
@@ -33,13 +34,13 @@ const short = (value, max) => cutAt(str(value).replace(/\s+/g, ' ').trim(), max)
  * The items as drawn: at most `max` (NAV_MAX_ITEMS), each { id, label, icon, count, disabled }, the first of each id;
  * a label is cut at `labelMax` (LABEL_MAX). A host with its own longer list (the story panel's tabs) passes its limits.
  */
-export function navItems(list, max = NAV_MAX_ITEMS, labelMax = LABEL_MAX) {
+export function navItems(list, max = NAV_MAX_ITEMS, labelMax = LABEL_MAX, idMax = ID_MAX) {
     const out = [];
     const seen = new Set();
     for (const raw of Array.isArray(list) ? list : []) {
         if (!raw || typeof raw !== 'object') continue;
         const label = short(raw.label, labelMax);
-        const id = short(raw.id, 64) || label;
+        const id = short(raw.id, idMax) || label;
         if (!id || seen.has(id)) continue;
         seen.add(id);
         out.push({ id, label: label || id, icon: typeof raw.icon === 'string' ? raw.icon : '', count: short(raw.count, COUNT_MAX), disabled: raw.disabled === true || raw.disabled === 'true' });
@@ -63,10 +64,10 @@ export function revealItem(list, item, smooth = false) {
 
 // One implementation, two blocks: `kind` is the block's name (its classes and its command's payload key).
 // `options` (`max`, `labelMax`) are a host's own limits, for a strip that is longer than the block's default (see renderTabStrip).
-function renderNav(kind, { max = NAV_MAX_ITEMS, labelMax = LABEL_MAX } = {}) {
+function renderNav(kind, { max = NAV_MAX_ITEMS, labelMax = LABEL_MAX, idMax = ID_MAX } = {}) {
     return function render(el, input, api) {
         let p = resolveProps(navProps, input);
-        let items = navItems(p.items, max, labelMax);
+        let items = navItems(p.items, max, labelMax, idMax);
         let shown = p.current;       // what is marked current: the prop, or the reader's choice since
         let lastProp = p.current;
         return shell(el, 'nav', kind, ({ doc, root, listen, cleanup }) => {
@@ -80,6 +81,7 @@ function renderNav(kind, { max = NAV_MAX_ITEMS, labelMax = LABEL_MAX } = {}) {
             const later = fn => (typeof win?.requestAnimationFrame === 'function' ? win.requestAnimationFrame(() => alive && fn()) : fn());
 
             const enabled = () => buttons.filter(button => !button.disabled);
+            const currentId = () => buttons.find(button => button.getAttribute('aria-current') === 'page')?.getAttribute('data-id') ?? null;
             const focusedIndex = () => buttons.findIndex(button => button === doc.activeElement || button.contains?.(doc.activeElement));
             // The one Tab stop: the current item, else the first that can be chosen.
             function setStop(target) {
@@ -169,13 +171,15 @@ function renderNav(kind, { max = NAV_MAX_ITEMS, labelMax = LABEL_MAX } = {}) {
             later(() => revealItem(list, buttons.find(button => button.getAttribute('aria-current') === 'page'), false));
             return {
                 update(next) {
+                    // The item that was current before the redraw: the strip scrolls to the current item only when it moved.
+                    const before = currentId();
                     p = resolveProps(navProps, next);
-                    items = navItems(p.items, max, labelMax);
+                    items = navItems(p.items, max, labelMax, idMax);
                     // A new `current` from the screen wins over the reader's last choice.
                     if (p.current !== lastProp) shown = p.current;
                     lastProp = p.current;
                     redraw();
-                    later(() => revealItem(list, buttons.find(button => button.getAttribute('aria-current') === 'page'), true));
+                    if (currentId() !== before) later(() => revealItem(list, buttons.find(button => button.getAttribute('aria-current') === 'page'), true));
                 },
             };
         });

@@ -77,6 +77,54 @@ test('the story panel\'s strip keeps every tab and a long title in full (the hos
     assert.equal(tabs[30].querySelector('.story-suite-tab-label').textContent, long);
 });
 
+test('a tab whose id is longer than the block\'s default 64 characters (the host allows 160) is kept, and a click chooses it', () => {
+    const doc = installFakeDom();
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    const long = `${'p'.repeat(100)}-${'q'.repeat(7)}`;
+    assert.equal(long.length, 108);
+    const tabs = [
+        { id: 't0', title: 'Alpha', icon: 'fa-star', render(el) { el.textContent = 'Alpha pane'; } },
+        { id: long, title: 'Long one', icon: 'fa-star', render(el) { el.textContent = 'Long pane'; } },
+    ];
+    const panel = createTabHost(root, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc });
+    const buttons = () => root.querySelectorAll('.story-suite-tab');
+    assert.deepEqual(buttons().map(node => node.getAttribute('data-tab-id')), ['t0', long]);
+    buttons()[1].click();
+    assert.equal(panel.active(), long);
+    assert.equal(root.querySelector('.story-suite-pane').textContent, 'Long pane');
+    assert.equal(buttons()[1].getAttribute('aria-current'), 'page');
+});
+
+test('two tabs whose ids share their first 64 characters are two tabs, each chosen by its own click', () => {
+    const doc = installFakeDom();
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    const shared = 'k'.repeat(64);
+    const tabs = [
+        { id: `${shared}one`, title: 'One', icon: 'fa-star', render(el) { el.textContent = 'One pane'; } },
+        { id: `${shared}two`, title: 'Two', icon: 'fa-star', render(el) { el.textContent = 'Two pane'; } },
+    ];
+    const panel = createTabHost(root, { registry: { tabs: () => tabs }, view: () => ({}), api: null, doc });
+    const buttons = () => root.querySelectorAll('.story-suite-tab');
+    assert.equal(buttons().length, 2, 'not collapsed into one');
+    assert.deepEqual(buttons().map(node => node.getAttribute('data-tab-id')), [`${shared}one`, `${shared}two`]);
+    buttons()[1].click();
+    assert.equal(panel.active(), `${shared}two`);
+    assert.equal(root.querySelector('.story-suite-pane').textContent, 'Two pane');
+    buttons()[0].click();
+    assert.equal(root.querySelector('.story-suite-pane').textContent, 'One pane');
+});
+
+test('every tab button carries its full label as its title (a long label is ellipsised on a narrow strip)', () => {
+    const doc = installFakeDom();
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    const title = 'A pack screen with a fairly long title that the strip shows ellipsised';
+    createTabHost(root, { registry: { tabs: () => tabsOf(['Short', title]) }, view: () => ({}), api: null, doc });
+    assert.deepEqual(root.querySelectorAll('.story-suite-tab').map(node => node.getAttribute('title')), ['Short', title]);
+});
+
 // ---- the Choices strip under a reply --------------------------------------------------------------
 
 async function page(t, { settings = { features: { [CHOICES_FEATURE]: true } } } = {}) {

@@ -32,6 +32,7 @@ import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
 import { scrollCue } from './view/scroll-cue.js';
 import { renderTabStrip } from './view/widgets/nav.js';
+import { TAB_ID_MAX } from './view/tab-order.js';
 import { DEFAULT_TAIL_BUDGET, contextNotice, estimateTokens } from './prompt.js';
 import { STRINGS, fill } from './strings.js';
 import { cutAt } from '../text.js';
@@ -1059,13 +1060,14 @@ export function diagnosticsKeys(registry) {
 }
 
 /**
- * The tab bar in `root`: a button per tab `registry.tabs()` gives, in its order (Story Block's panel
- * gives the module tabs and the tab screens in the reader's order, without the hidden ones), and one
- * pane, the chosen tab's, rendered with `tab.render(pane, view, api)`. `options`: { registry,
- * view: () => view, api (the sdk), doc?, active? }. Tabs read the head state's view only, never
- * message text. The bar scrolls sideways when the tabs do not fit (a phone); the chosen tab is
- * scrolled into view when it changes (a click, or the one shown was hidden). Returns
- * { refresh(), select(id), active() }.
+ * The story panel's tab host, drawn into `root`: a tab bar (the `ss.tabs` block, view/widgets/nav.js) with one button
+ * per tab `registry.tabs()` gives, in its order (Story Block's panel gives the module tabs and the tab screens in the
+ * reader's order, without the hidden ones), and one pane under it, the chosen tab's, rendered with
+ * `tab.render(pane, view(), api)`. The block takes the keys (arrows, Home, End; one Tab stop) and scrolls the strip
+ * sideways when the tabs do not fit; it moves the strip only when the chosen tab changes, so a redraw keeps the
+ * reader's scroll. Each button's `title` is its full label. A tab that is gone falls back to the first.
+ * `options`: { registry, view: () => view, api (the sdk), doc?, active? }. Tabs read the head state's view only,
+ * never message text. Returns { refresh(), select(id), active() }.
  */
 export function createTabHost(root, { registry, view, api = null, doc = globalThis.document, active = null }) {
     let current = active;
@@ -1076,7 +1078,7 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
     const pane = el(doc, 'div', 'story-suite-pane');
     root.replaceChildren(bar, pane);
     const choice = Object.freeze({ command: (type, payload) => select(payload?.tabs ?? null) });
-    const renderStrip = renderTabStrip({ max: PANEL_TABS_MAX, labelMax: PANEL_TAB_LABEL_MAX });
+    const renderStrip = renderTabStrip({ max: PANEL_TABS_MAX, labelMax: PANEL_TAB_LABEL_MAX, idMax: TAB_ID_MAX });
     let strip = null;
     // Tabs that do not fit scroll sideways; the edge with more of them fades (scroll-cue.js).
     let cue = null;
@@ -1086,6 +1088,8 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         for (const node of bar.querySelectorAll('.ss-tabs-item')) {
             node.classList.add('story-suite-tab');
             node.setAttribute('data-tab-id', node.getAttribute('data-id') ?? '');
+            // The label is ellipsised on a narrow strip: the full label is the button's title.
+            node.setAttribute('title', node.querySelector('.ss-tabs-label')?.textContent ?? '');
         }
         for (const node of bar.querySelectorAll('.ss-tabs-label')) node.classList.add('story-suite-tab-label');
     }
