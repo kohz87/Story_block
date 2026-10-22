@@ -92,11 +92,12 @@ const TEMPLATE = `
 </div>`;
 
 const CSS = `${BASE_CSS}
-.chg { font-size: 0.95em; display: grid; gap: 10px; }
+/* The row's icon tile and the gap after it: the indent of a row's second line is their sum, so the lines align under the text. */
+.chg { --chg-tile: 34px; --chg-gap: 10px; font-size: 0.95em; display: grid; gap: 10px; }
 .lines { display: grid; gap: 8px; }
-.line { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.line { display: flex; flex-wrap: wrap; gap: 4px var(--chg-gap); align-items: center; }
 /* Each row's icon sits in a tile, as Reply.dc.html's rows (the tokens are the card's own: the look's tile colour). */
-.line > i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+.line > i { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--chg-tile); height: var(--chg-tile);
             border-radius: var(--ss-radius-s, 10px); background: var(--ss-tile, transparent); color: var(--ss-accent, var(--sb-accent)); }
 /* One text after the icon (the wallet, the place, who is here): it wraps beside the icon, never under it. */
 .coin, .place, .present { flex-wrap: nowrap; }
@@ -112,7 +113,7 @@ const CSS = `${BASE_CSS}
 .loot .pick input { width: 1em; height: 1em; min-width: 0; margin: 0; accent-color: var(--sb-accent); }
 .loot .hint, .loot .taken { margin: 0; font-size: 0.9em; }
 .loot .take { justify-self: start; }
-.extra .flag, .extra .note { flex-basis: 100%; padding-left: 44px; font-size: 0.95em; }
+.extra .flag, .extra .note { flex-basis: 100%; padding-left: calc(var(--chg-tile) + var(--chg-gap)); font-size: 0.95em; }
 .extra .flag { color: var(--sb-em); font-weight: 600; }
 .refused { display: grid; gap: 8px; margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--ss-border, var(--sb-border));
            color: var(--ss-muted, var(--sb-em)); font-size: 0.95em; }

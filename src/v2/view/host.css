@@ -46,10 +46,13 @@
     box-shadow: var(--ss-shadow, none);
 }
 .story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible {
-    border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-accent, var(--story-suite-accent));
+    /* The text stays the look's text colour (accent text on a glass fill is unreadable); the accent is the edge and a soft
+       fill. Specific enough to beat SillyTavern's own .menu_button:hover background. */
+    border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-text, inherit);
+    background: var(--ss-accent-soft, var(--ss-glass, var(--story-suite-bg)));
 }
 .story-suite-bar .menu_button[hidden] { display: none; }
-.story-suite-notice {
+.story-suite-bar .story-suite-notice {
     display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0;
     padding: 6px 8px 6px 14px; border-radius: var(--ss-radius-l, 14px);
     border: 1px solid var(--ss-accent, var(--story-suite-accent));
@@ -57,9 +60,10 @@
     -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
     box-shadow: var(--ss-shadow, none);
 }
+/* The notice's class is shared with the other modules' own notices (their Extensions drawers): only the bar's gets the glass. */
 .story-suite-notice[hidden] { display: none; }
 .story-suite-notice-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 0.9em; }
-.story-suite-notice .menu_button { min-height: 28px; padding: 0 10px; }
+.story-suite-bar .story-suite-notice .menu_button { min-height: 28px; padding: 0 10px; }
 
 /* ---- the story panel: a bottom sheet on phones, a side sheet on wide screens ----
    Placed from the top with a height, not with bottom: 0: SillyTavern's mobile layout gives <html> a transform
@@ -325,10 +329,10 @@ body.story-suite-open { overflow: hidden; }
     transition: border-color 0.15s ease, color 0.15s ease;
 }
 .story-suite-reply-note-reread:hover, .story-suite-reply-note-reread:focus-visible {
-    border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-accent, var(--story-suite-accent));
+    border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-text, inherit);
 }
 .story-suite-reply-note-reread[disabled] { cursor: progress; opacity: 0.7; }
-.story-suite-reply-note-error { flex: 1 1 100%; color: var(--ss-accent, var(--story-suite-accent)); }
+.story-suite-reply-note-error { flex: 1 1 100%; color: var(--ss-text, inherit); font-weight: 600; }
 .story-suite-reply-note-error[hidden] { display: none; }
 
 /* ---- Choices under a reply (src/v2/extras-ui.js, MODULES §F115): folded by default; the summary is a glass row, the
@@ -360,7 +364,7 @@ body.story-suite-open { overflow: hidden; }
     box-shadow: var(--ss-shadow, none); color: var(--ss-text, inherit); font: inherit; cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
 }
-.story-suite-choice:hover, .story-suite-choice:focus-visible { border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-accent, var(--story-suite-accent)); }
+.story-suite-choice:hover, .story-suite-choice:focus-visible { border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-text, inherit); }
 
 /* ---- subtle motion (MODULES §F57): cards open, meters move, the views come in ---- */
 @keyframes story-suite-fade-in {

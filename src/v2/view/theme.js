@@ -108,7 +108,8 @@ const mixTint = base => `color-mix(in srgb, ${TINT} ${TINT_SHARE}%, ${base})`;
 // Set for Glass only, so Solid and Follow SillyTavern keep those frames' own shape (the frames read each with a fallback).
 const SHEET_TOKENS = Object.freeze([
     ['--ss-sheet-bg', 'var(--ss-glass-strong)'], ['--ss-sheet-blur', 'var(--ss-blur)'], ['--ss-sheet-layers', 'none'],
-    ['--ss-sheet-radius', 'var(--ss-radius-l)'], ['--ss-sheet-edge', '1px solid var(--ss-border)'], ['--ss-sheet-shadow', 'var(--ss-shadow)'],
+    ['--ss-sheet-radius', 'var(--ss-radius-l)'], ['--ss-sheet-radius-top', 'var(--ss-radius-l) var(--ss-radius-l) 0 0'],
+    ['--ss-sheet-edge', '1px solid var(--ss-border)'], ['--ss-sheet-shadow', 'var(--ss-shadow)'],
 ]);
 const SHEET_RESET = Object.freeze(SHEET_TOKENS.map(([name]) => [name, 'initial']));
 

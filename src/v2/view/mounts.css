@@ -12,7 +12,6 @@
     --ss-shadow: var(--SmartThemeShadowColor, transparent);
     --ss-radius: 10px;
     --ss-gap: 8px;
-    --ss-nav-size: 56px;
     --ss-fade: 40px;
 }
 
@@ -137,7 +136,14 @@
     cursor: pointer;
 }
 
+/* The current screen: the label in the text colour on the soft accent (accent text on glass is hard to read); the icon
+   carries the accent. */
 .ss-gameview-navitem[aria-current="page"] {
+    color: var(--ss-text);
+    background: var(--ss-accent-soft, transparent);
+}
+
+.ss-gameview-navitem[aria-current="page"] > i {
     color: var(--ss-accent);
 }
 
@@ -380,7 +386,7 @@
     backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 10px)));
     -webkit-backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 10px)));
     border: 1px solid var(--ss-border);
-    border-radius: var(--ss-sheet-radius, var(--ss-radius) var(--ss-radius) 0 0);
+    border-radius: var(--ss-sheet-radius-top, var(--ss-radius) var(--ss-radius) 0 0);
     box-shadow: var(--ss-sheet-shadow, none);
     padding-bottom: env(safe-area-inset-bottom);
 }

@@ -21,9 +21,11 @@ function block(css, selector, at = null) {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     let from = at ? body.indexOf(at) : 0;
     if (from < 0) return '';
+    // A rule whose selector is exactly `selector`: the header starts a line or follows a rule's end (not another selector's tail).
+    const head = new RegExp(`(^|[\\n}])[ \\t]*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{`, 'g');
     const out = [];
-    for (let at0 = body.indexOf(`${selector} {`, from); at0 >= 0; at0 = body.indexOf(`${selector} {`, at0 + 1)) {
-        const start = at0 + selector.length + 2;
+    for (const match of body.slice(from).matchAll(head)) {
+        const start = from + match.index + match[0].length;
         out.push(body.slice(start, body.indexOf('}', start)));
     }
     return out.join('\n');
@@ -46,10 +48,29 @@ test('the three chat-side surfaces are theme roots, so the look\'s tokens reach 
 test('the bar and its held-back notice are glass pills on the tokens; the buttons keep the menu_button class', () => {
     const pill = block(host, '.story-suite-bar .menu_button');
     for (const part of ['var(--ss-glass,', 'var(--ss-border,', 'var(--ss-radius-pill, 999px)', 'var(--ss-blur, none)', 'var(--ss-shadow, none)']) assert.ok(pill.includes(part), part);
-    assert.match(block(host, '.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible'), /var\(--ss-accent,/);
-    const notice = block(host, '.story-suite-notice');
+    // Hover and focus: the accent is the edge and a soft fill; the text stays the look's text colour (contrast on glass).
+    const hover = block(host, '.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible');
+    assert.match(hover, /var\(--ss-accent,/);
+    assert.match(hover, /color: var\(--ss-text, inherit\);/);
+    assert.match(hover, /background: var\(--ss-accent-soft,/);
+    const notice = block(host, '.story-suite-bar .story-suite-notice');
+    assert.equal(block(host, '.story-suite-notice'), '', 'the glass is the bar\'s, not every notice of the page (other modules use the class)');
     assert.ok(notice.includes('var(--ss-glass-strong,'), 'the notice is a glass card');
     assert.ok(notice.includes('var(--ss-accent,'), 'the notice keeps its accent hairline');
+});
+
+test('no accent-coloured text on glass: hover, focus and error text use the text colour, the accent is an edge or an icon', () => {
+    for (const selector of [
+        '.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible',
+        '.story-suite-choice:hover, .story-suite-choice:focus-visible',
+        '.story-suite-reply-note-reread:hover, .story-suite-reply-note-reread:focus-visible',
+        '.story-suite-reply-note-error',
+    ]) {
+        const rules = block(host, selector);
+        assert.ok(rules.length > 0, selector);
+        assert.doesNotMatch(rules, /(?<![-\w])color: var\(--ss-accent/, `${selector} sets accent text`);
+    }
+    assert.doesNotMatch(block(mounts, '.ss-gameview-navitem[aria-current="page"]'), /(?<![-\w])color: var\(--ss-accent/);
 });
 
 test('the notes under a reply: one glass row with the icon in a tile, Re-read as a pill, the accent for a missing line', () => {
@@ -83,7 +104,8 @@ test('the changes card: glass card frame, the header line on the right, rows wit
     assert.match(block(mounts, '.ss-card-summary'), /text-align: right;/);
     assert.match(block(mounts, '.ss-card-title'), /font-weight: 700;/);
     const css = changesCardScreen.css;
-    assert.match(css, /\.line > i \{[^}]*width: 34px;[^}]*height: 34px;[^}]*var\(--ss-tile, transparent\)/);
+    assert.match(css, /\.line > i \{[^}]*width: var\(--chg-tile\);[^}]*height: var\(--chg-tile\);[^}]*var\(--ss-tile, transparent\)/);
+    assert.match(css, /\.extra \.note \{[^}]*padding-left: calc\(var\(--chg-tile\) \+ var\(--chg-gap\)\)/, 'the indent is the tile and the gap, not a number');
     assert.doesNotMatch(css, /dashed/, 'the card has no dashed rules');
     assert.doesNotMatch(css, /border-left: 3px/, 'the old left accent bar is gone');
 });
@@ -97,7 +119,7 @@ test('the frames that were opaque: the HUD strip and the dialog mount are glass 
     const dialog = block(mounts, '.ss-dialog');
     assert.ok(dialog.includes('background: var(--ss-sheet-bg, var(--ss-surface));'));
     assert.ok(dialog.includes('var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 10px)))'), 'Solid keeps the old blur');
-    assert.ok(dialog.includes('border-radius: var(--ss-sheet-radius, var(--ss-radius) var(--ss-radius) 0 0);'));
+    assert.ok(dialog.includes('border-radius: var(--ss-sheet-radius-top, var(--ss-radius) var(--ss-radius) 0 0);'), 'a phone sheet rounds its top corners only under Glass');
     assert.match(mounts, /@media \(min-width: 768px\) \{[\s\S]*?\.ss-dialog \{[\s\S]*?border-radius: var\(--ss-sheet-radius, var\(--ss-radius\)\);/);
     // The backdrop keeps its own dim and light blur (the glass sits over the blurred page).
     assert.match(block(mounts, '.ss-dialog-backdrop'), /backdrop-filter: blur\(3px\);/);
@@ -105,17 +127,18 @@ test('the frames that were opaque: the HUD strip and the dialog mount are glass 
 
 test('the Glass-only shape tokens are set under Glass, not under Solid or Follow SillyTavern, and reset under reduced transparency', () => {
     const glassSheet = themeCss({ scheme: 'dark', panel: 'glass' });
-    for (const name of ['--ss-sheet-radius', '--ss-sheet-edge', '--ss-sheet-shadow', '--ss-sheet-bg']) assert.ok(glassSheet.includes(`${name}:`), name);
+    for (const name of ['--ss-sheet-radius', '--ss-sheet-radius-top', '--ss-sheet-edge', '--ss-sheet-shadow', '--ss-sheet-bg']) assert.ok(glassSheet.includes(`${name}:`), name);
     for (const panel of ['solid', 'sillytavern']) assert.ok(!themeCss({ panel }).includes('--ss-sheet-'), panel);
     const reduced = glassSheet.slice(glassSheet.indexOf('@media (prefers-reduced-transparency: reduce)'));
-    for (const name of ['--ss-sheet-radius', '--ss-sheet-edge', '--ss-sheet-shadow']) assert.ok(reduced.includes(`${name}: initial;`), `${name} resets`);
+    for (const name of ['--ss-sheet-radius', '--ss-sheet-radius-top', '--ss-sheet-edge', '--ss-sheet-shadow']) assert.ok(reduced.includes(`${name}: initial;`), `${name} resets`);
 });
 
 test('the game view\'s navigation takes the navbar\'s look: a glass pill on a phone, a glass column on a wide screen', () => {
     const nav = block(mounts, '.ss-gameview-nav');
     assert.ok(nav.includes('var(--ss-glass-strong, transparent)') && nav.includes('border-radius: var(--ss-radius-xxl, 26px);'));
     assert.match(block(mounts, '.ss-gameview-navitem'), /min-height: 64px;/);
-    assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"]'), /color: var\(--ss-accent\);/);
+    assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"]'), /color: var\(--ss-text\);/, 'the label reads in the text colour');
+    assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"] > i'), /color: var\(--ss-accent\);/);
     // Wide: the column keeps its hairline and drops the pill's margin and radius.
     const wide = block(mounts, '.ss-gameview-nav', '@media (min-width: 768px)');
     assert.match(wide, /margin: 0;/);
