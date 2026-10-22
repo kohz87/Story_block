@@ -6,9 +6,10 @@
 // `feature: '<id>'`: a capture kind, a command (`{ handler, feature }`, or a handler function with a
 // `feature` property), a query or a hook (a function with a `feature` property, so an older host that
 // only takes functions there still takes it), the module's context or one of its `context.parts`, a
-// screen, a tab, a widget. Off means fully off (registry.js does the leaving out): no grammar, no
-// context lines, commands refused with FEATURE_OFF, queries answer null, hooks skipped, screens, tabs
-// and widgets hidden. The state is never touched, so turning it back on brings everything back.
+// screen, a tab, a widget, a settings field (`{ type, …, feature }`) or the custom settings panel (a
+// function with a `feature` property). Off means fully off (registry.js does the leaving out): no
+// grammar, no context lines, commands refused with FEATURE_OFF, queries answer null, hooks skipped,
+// screens, tabs, widgets, dialogs and settings fields hidden (their stored values kept). The state is never touched, so turning it back on brings everything back.
 //
 // The choice is the reader's, not the chat's: `extension_settings.storySuite.features[<id>] = true |
 // false`; a feature with no choice stored takes its `default` (on when it gives none). Pure: no DOM,
@@ -69,6 +70,12 @@ export function featureRefs(def) {
     (Array.isArray(def.screens) ? def.screens : []).forEach((screen, index) => add(screen, `the screen "${screen?.id ?? index + 1}"`));
     (Array.isArray(def.tabs) ? def.tabs : []).forEach((tab, index) => add(tab, `the tab "${tab?.id ?? index + 1}"`));
     for (const [name, widget] of Object.entries(isObject(def.widgets) ? def.widgets : {})) add(widget, `the widget "${name}"`);
+    // Settings: a schema field ({ type, …, feature }), and the custom panel (a function with `feature`).
+    if (isObject(def.settings)) {
+        for (const [key, field] of Object.entries(isObject(def.settings.schema) ? def.settings.schema : {})) if (isObject(field)) add(field, `the settings field "${key}"`);
+        if (typeof def.settings.section === 'function') add(def.settings.section, 'the settings section');
+        if (typeof def.settings.render === 'function') add(def.settings.render, 'the settings section');
+    }
     return out;
 }
 

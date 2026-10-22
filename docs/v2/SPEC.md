@@ -441,14 +441,18 @@ sdk.registerModule({
       functions there, still takes it;
     * the context: `context.feature` covers the whole context; `context.parts: [{ feature?, static?,
       tail? }]` adds static text and tail lines of their own to the module's, under its `budget`;
-    * a screen, a tab or a widget: `{ …, feature }`.
+    * a screen, a tab or a widget: `{ …, feature }`;
+    * a settings schema field: `{ type, …, feature }`; the custom settings panel: a `section` or `render`
+      function with a `feature` property.
   * **Off means fully off.** Its kinds leave the static grammar, and a line of one is not used: it gets a
     quiet Problem (`FEATURE_OFF`, "… is turned off (feature off)"), not a refusal on the reply's card.
     Its context (parts) leaves the static and the tail. Its commands are refused with `FEATURE_OFF`, at
     the top or through `ctx.call`; as with `UNKNOWN_COMMAND` nothing ran, so a caller may catch it. Its
     queries answer `null`. Its hooks are not called. Its screens (whoever restyled them: a pack, the
     card, the reader), tabs and widgets are hidden; a template that names an off widget draws nothing
-    there. **Its state is never touched**: turning the feature on again brings everything back as it was.
+    there. A dialog for an off screen does not open (`sdk.dialog.open` gives `null`, as for an id no one
+    has), and one already open closes when its feature is turned off. Its settings fields and custom
+    panel leave the overlay (their stored values are kept) and come back with it. **Its state is never touched**: turning the feature on again brings everything back as it was.
   * `ctx.feature(id)`, `view.feature(id)` and `sdk.feature(id)` say whether a feature is on; an id no
     registered module declares is `false`. `sdk.features()` lists every feature with `on`;
     `sdk.modules()` lists each module's feature ids; `sdk.on('feature', ({ id, on, prompt }) => …)` fires

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { makeMessage } from '../ui-fake-dom.js';
 import { setupDom } from './view/mounts/helpers.js';
-import { FEATURES_FOLD, FEATURE_TEXT, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { FEATURES_FOLD, FEATURE_TEXT, featureInputId, renderSettingsHost } from '../../src/v2/host-ui.js';
 import { CORE_FEATURE, PROMPT_HINT } from '../../src/v2/features.js';
 import { hudOn, mountUi } from '../../src/v2/ui-host.js';
 import { CHANGES_CARD_SCREEN_ID } from '../../src/v2/screens/index.js';
@@ -72,23 +72,23 @@ test('the overlay: one Features overview of every module, then a Features subsec
 
 test('the overlay: a switch stores the reader\'s choice, and both rows of that feature follow it', async () => {
     const { root, host, view } = await overlay();
-    const inOverview = rowsOf(foldOf(root, FEATURES_FOLD)).find(row => row.dataset.feature === 'loot.weight').querySelector('input');
-    const inModule = rowsOf(foldOf(root, 'loot')).find(row => row.dataset.feature === 'loot.weight').querySelector('input');
-    inModule.checked = true;
-    inModule.dispatch('change');
+    // A switch redraws the overlay, so the rows are looked up again after each change.
+    const input = key => rowsOf(foldOf(root, key)).find(row => row.dataset.feature === 'loot.weight').querySelector('input');
+    input('loot').checked = true;
+    input('loot').dispatch('change');
     assert.equal(host.sdk.feature('loot.weight'), true);
     assert.equal(host.ctx.extensionSettings.storySuite.features['loot.weight'], true);
-    assert.equal(inOverview.checked, true);
-    assert.equal(inOverview.getAttribute('aria-checked'), 'true');
-    inOverview.checked = false;
-    inOverview.dispatch('change');
+    assert.equal(input(FEATURES_FOLD).checked, true);
+    assert.equal(input(FEATURES_FOLD).getAttribute('aria-checked'), 'true');
+    input(FEATURES_FOLD).checked = false;
+    input(FEATURES_FOLD).dispatch('change');
     assert.equal(host.sdk.feature('loot.weight'), false);
-    assert.equal(inModule.checked, false);
+    assert.equal(input('loot').checked, false);
     // A redraw shows what is stored, and keeps the open folds open.
     foldOf(root, 'loot').open = true;
     view.refresh();
     assert.equal(foldOf(root, 'loot').open, true);
-    assert.equal(rowsOf(foldOf(root, 'loot'))[1].querySelector('input').checked, false);
+    assert.equal(input('loot').checked, false);
     host.close();
 });
 
@@ -206,5 +206,68 @@ test('the page: the overlay opened from the bar has the Features', async () => {
     doc.querySelector('.story-suite-bar-settings').click();
     const overlayRoot = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlayRoot.querySelectorAll('details.story-suite-fold').some(node => node.dataset.fold === FEATURES_FOLD));
+    host.close();
+});
+
+test('the overlay: each switch has an id of its own (place + the whole feature id), and its row labels it', async () => {
+    const { root, host } = await overlay();
+    const rows = root.querySelectorAll('.story-suite-feature');
+    const ids = rows.map(row => row.querySelector('input').id);
+    assert.equal(new Set(ids).size, ids.length);
+    for (const row of rows) assert.equal(row.getAttribute('for'), row.querySelector('input').id);
+    assert.equal(featureInputId('overview', 'a.b_c') === featureInputId('overview', 'a.b.c'), false);
+    assert.ok(ids.includes(featureInputId('module', 'loot.weight')) && ids.includes(featureInputId('overview', 'loot.weight')));
+    host.close();
+});
+
+test('the page: a dialog for a screen whose feature is off does not open, and an open one closes when it goes off', async () => {
+    const wizard = { ...loot(), screens: [{ id: 'loot/pick', title: 'Pick', mounts: ['dialog'], template: '<p class="pick">pick</p>', feature: 'loot.picker' }] };
+    const { doc, host, ui } = await page({ modules: [wizard] });
+    // sdk.dialog.open goes to this mount (ui-host's setDialog).
+    const open = id => ui.mounts.dialog.open(id);
+    const handle = open('loot/pick');
+    assert.ok(handle && doc.querySelector('.ss-dialog .pick'));
+    host.features.set('loot.picker', false);
+    assert.equal(doc.querySelector('.ss-dialog'), null, 'closed with its feature');
+    assert.equal(handle.isOpen(), false);
+    assert.equal(open('loot/pick'), null, 'nothing opens');
+    assert.equal(doc.querySelector('.ss-dialog'), null);
+    assert.equal(open('nobody/has-this'), null, 'nor for an id no one has');
+    host.features.set('loot.picker', true);
+    assert.ok(open('loot/pick'));
+    host.close();
+});
+
+test('the overlay: a settings field or panel of a feature that is off is not drawn, its value kept; a switch redraws at once', async () => {
+    const doc = setupDom();
+    const panel = Object.assign(el => { el.textContent = 'Digest panel'; }, { feature: 'dig.digest' });
+    const dig = {
+        id: 'dig', name: 'Dig',
+        features: [{ id: 'dig.digest', label: 'Digest' }],
+        settings: {
+            defaults: { keep: 3, colour: 'red' },
+            schema: { keep: { type: 'int', label: 'Digest: days kept', min: 1, max: 9, feature: 'dig.digest' }, colour: { type: 'text', label: 'Colour' } },
+            section: panel,
+        },
+    };
+    const host = await createHost({ modules: [dig] });
+    host.settings.set('dig', 'keep', 5);
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    renderSettingsHost(root, { registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk });
+    assert.ok(root.textContent.includes('Digest: days kept') && root.textContent.includes('Digest panel'));
+    foldOf(root, 'dig').open = true;
+    const input = rowsOf(foldOf(root, 'dig'))[0].querySelector('input');
+    input.checked = false;
+    input.dispatch('change');
+    assert.ok(!root.textContent.includes('Digest: days kept') && !root.textContent.includes('Digest panel'), 'gone at once');
+    assert.ok(root.textContent.includes('Colour'));
+    assert.equal(foldOf(root, 'dig').open, true, 'the fold stays open');
+    assert.equal(host.settings('dig').keep, 5, 'the value is kept');
+    rowsOf(foldOf(root, 'dig'))[0].querySelector('input').checked = true;
+    rowsOf(foldOf(root, 'dig'))[0].querySelector('input').dispatch('change');
+    assert.ok(root.textContent.includes('Digest: days kept'));
+    // A field naming a feature the module does not have is refused like any other `feature`.
+    assert.throws(() => host.registry.register({ id: 'odd', settings: { schema: { x: { type: 'bool', feature: 'odd.nope' } } } }), /the settings field "x" names the feature "odd\.nope"/);
     host.close();
 });
