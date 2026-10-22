@@ -106,8 +106,11 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   that rewrites a big list on every reply cannot bring a checkpoint every few replies). The checkpoint is
   the state *before* that carrier's own ops. A checkpoint is read wherever it is (chats written before
   this rule have one every 20 carriers / 32 KB).
-* **Old receipts.** A receipt 200 or more carriers before the head drops its `data` (every other field
-  stays: `summary`, `narrate`, `seed`, Re-read's `line`). Nothing reads `data` after its reply is shown.
+* **Old receipts (a contract for modules).** Receipt `data` older than 200 carriers may be dropped;
+  modules must not rely on it. Story Block drops it from receipts 200 or more carriers before the head;
+  every other field stays (`id`, `type`, `module`, `cause`, `seed`, `summary`, `narrate`, Re-read's `line`,
+  `rev`). What a module needs from its own past receipts later (a clock, a day's facts, a history) it
+  keeps in its own state.
 * **State at carrier N** = the latest checkpoint at or before N that still holds, then every carrier's `ops`
   from there through N. A checkpoint holds when its `covers` matches the records the chat has now since the
   checkpoint before it; one made over a reply since deleted (or another swipe) is passed over. A checkpoint
@@ -178,7 +181,7 @@ Receipt = {
   seed: 123456789,                  // uint32; the handler's only source of randomness
   summary: 'Ren drinks a Minor Healing Draught: +20 HP (now 77/82).', // code-written, for narration
   narrate: true,                    // tell the next reply?
-  data: { /* small, command-specific: what the UI shows */ },
+  data: { /* small, command-specific: what the UI shows; may be dropped 200 carriers on (§2.2) */ },
   rev: 41,                          // meta.rev after this receipt
 }
 ```

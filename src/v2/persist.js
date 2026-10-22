@@ -36,9 +36,11 @@
 // dropped on the others. When a deletion makes an earlier carrier the last one, the store copies its
 // record into its shown swipe again (`restoreCopy`, on rebuild). Other swipes' copies, SillyTavern's own
 // (each holding that swipe's own record), are never touched.
-// * Receipts more than RECEIPT_KEEP carriers back lose their `data` (`trimReceipts`): nothing reads it
-//   after the reply it was shown on (claims live in meta.claims, Re-read uses `line` and `seed`, narration
-//   `summary` and `narrate`). Every other field stays.
+// * Receipts RECEIPT_KEEP or more carriers back lose their `data` (`trimReceipts`). That is a contract
+//   (SPEC §2.2): receipt data older than 200 carriers may be dropped, and modules must not rely on it;
+//   what a module needs later it keeps in its own state. Story Block itself never reads it then (claims
+//   live in meta.claims, Re-read uses `line` and `seed`, narration `summary` and `narrate`). Every other
+//   field stays.
 
 import { randomId } from '../id.js';
 

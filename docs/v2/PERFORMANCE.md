@@ -63,7 +63,11 @@ copied into `swipe_info[swipe_id].extra`, every receipt kept whole. "After" is t
 | Checkpoints | 51 | 11 | 151 | 31 |
 | Story Suite bytes written per reply (1.25 saves) | 13.8 MB | 6.4 MB | 41.1 MB | 18.9 MB |
 | + SillyTavern's own save + one backup copy | 35.8 MB | 16.7 MB | 106.9 MB | 49.1 MB |
-TIMING_ROWS
+| Rebuild at load, longest replay, swipe rebuild | see the timing table below | | | |
+
+### Time
+
+(The interleaved timing run is being measured; its table goes here before merge.)
 
 Timings: the median of 15 alternating before/after rounds on the same machine (each round 3 tries), so
 both sides met the same load. "Rebuild at load" depends on where the last checkpoint falls: exactly at
@@ -111,12 +115,15 @@ The first rebuild of an older chat (opening it) drops the copies it no longer ke
 
 ### Old receipts' `data`
 
-Nothing reads a stored receipt's `data` after its reply: claims live in `meta.claims`; Re-read matches
-a line by the receipt's `line` and `seed`; narration uses `summary` and `narrate`; story-vouched payouts
-and the per-reply budgets are kept in state (`perReply`, `director.turn.vouched`); RPG Battle's checks
-log and Story Director's quest history are in their domains; no module's query uses `tools.receipts()`.
-So `data` goes, everything else stays (`id`, `type`, `module`, `cause`, `seed`, `summary`, `narrate`,
-`line`, `rev`). Summaries stay because they feed quest history and a later day digest.
+The contract (SPEC §2.2): **receipt `data` older than 200 carriers may be dropped; modules must not rely
+on it.** What a module needs from its past receipts later it keeps in its own state. Story Block itself
+never reads it then: claims live in `meta.claims`; Re-read matches a line by the receipt's `line` and
+`seed`; narration uses `summary` and `narrate`; story-vouched payouts and the per-reply budgets are kept
+in state (`perReply`, `director.turn.vouched`). On v2 at e44039b no module's query read `tools.receipts()`;
+Story Director's day digest (in progress on its own branch) read old receipts' `data` for the clock and
+the day's facts, and keeps them in its own state instead (RX-TL-3). So `data` goes, everything else stays
+(`id`, `type`, `module`, `cause`, `seed`, `summary`, `narrate`, `line`, `rev`). Summaries stay because
+they feed quest history.
 
 ### What was left out
 
