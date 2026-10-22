@@ -417,6 +417,21 @@ One hidden block at the end of the reply:
   it hidden with `open` after the comment's marker; a Continue that goes on with that block (a close tag
   before any open one, or a change line first) has its lines read and hidden too, and story text that
   goes on is left as it is.
+* **Change lines written in the story** (fix-encounter). A model now and then writes a line in the story,
+  on its own line just before the block (or with no block at all): `! encounter 8 Weir Rat — cellar pack |
+  tier: weak`. Such a line is read as one of the reply's changes and hidden like the block, but only when
+  it is a whole line that starts exactly as a kind's grammar line does (its head: the op, one space, the
+  kind in lower case, as the kind's `grammar` writes it, so `! encounter`, `+ present`, `- present`; bold
+  and backticks around it are decoration), parses, and sits near the end: in the last 3 story paragraphs
+  before the first block (a paragraph made only of change lines is not counted), or after it. A `-` line
+  (a Markdown bullet too) is taken only from a paragraph made only of change lines. A line close to one
+  that is not taken (another op, a capital, no space or a colon after the op or kind, too far up, part of
+  a story paragraph, the last line of a reply the reader stopped) is a Problem (`STRAY`, with the line)
+  and stays in the story; a mention in a sentence is neither. The lines taken are read after the
+  blocks and kept after them in the hidden comment (before them when the last block was left open), so
+  the live capture, Re-read, swipes, Continue (its own text only) and the rebuild read the same. Re-read
+  of a reply saved before this takes such a line too and hides it. Kinds of a feature that is off have
+  no head. Reasoning is never read.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).
