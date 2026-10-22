@@ -280,11 +280,18 @@ commands: {
   planned from the story state it ran on (RPG Battle's story-time heal). Its receipt keeps `replan: {
   payload }`, and a Re-read of the reply it is kept on runs it again on the new story changes, at its place
   and with its seed, instead of applying its old ops; a step that is then refused leaves its block out.
+* An **afterCapture step** (§4.2 step 3, MODULES §F121) is a system step a module's `afterCapture` hook asks
+  for once a reply's story lines have run. Its receipt is marked `afterCapture: true` and keeps `replan: {
+  payload }` like a replan step; a Re-read does not apply or re-plan it in place but asks the hook again
+  after the new story lines (the old steps go, the new ones take the seeds of the old ones of their type,
+  in order), so a reply that needed no step before can get one and one that no longer needs it loses it.
 * `ctx.call(type, payload, { as: 'event:<id>' })`: the events part's steps run with that `ctx.caller`.
 * Every committed receipt bumps `meta.rev`. A preview goes `STALE` if `meta.rev`, the head index or the head
   state changed, or a feature was turned on or off; its command's feature is checked again (`FEATURE_OFF`). ID rule (check.js): `<prefix>_<8 base36>` or a namespaced slug (`story/moonveil-trout`).
-* `bus.run(type, payload, { cause, seed, state, capture })` (used by capture) runs a handler without
-  appending; `state` chains the lines of one reply; `capture` passes `registry.capture(kind)` as is.
+* `bus.run(type, payload, { cause, seed, state, capture, reply })` (used by capture) runs a handler without
+  appending; `state` chains the lines of one reply; `capture` passes `registry.capture(kind)` as is;
+  `reply` (`{ index, sid }`, system steps only) is `ctx.reply` for a step a Re-read runs on a reply that is
+  not the head (its afterCapture and replan steps).
 * Handlers are synchronous and pure apart from `ctx`: no network, no model calls, no DOM, no awaits.
 * Commit: run the handler on drafts → diff drafts into ops → validate (§2.5) → bump `meta.rev` → append ops
   and receipt to the head carrier → save (§3.3) → emit `committed`. Any throw rejects the whole command.
@@ -380,8 +387,20 @@ Quiet and impersonate generations get nothing (both slots emptied) and capture n
    order. The module's `capture(ctx, line)` runs **as a command** with cause `story` (same rules as §3.2):
    it resolves names to IDs, sets numbers by code, and rejects what it cannot accept (logged in the
    module's Problems list, never thrown at the reader).
-3. Record `narrated` = the untold receipt IDs given to this reply.
-4. One save.
+3. **afterCapture** (MODULES §F121): when the capture kept at least one story line, each module's
+   `afterCapture(view, { index, type })` hook runs once, after the reply's last story line, on the state the
+   lines left (`view` as in §6; `type` the generation's, `late` for the extractor's lines, `reread`). It may
+   return `{ commands: [{ type, payload }] }`: each runs at once as a `system` step on the head carrier,
+   chained, stored right after the reply's story receipts and before the reader's clicks, as part of that
+   reply (a swipe or delete of the reply takes it back; replay applies its stored ops, §2.2). It is not run
+   for an empty capture (no block, or no line kept), for a click (`ui`) or for a system step (beforeGenerate
+   cues, its own steps). A Continue's lines run it again after them (a step must do nothing when nothing is
+   left to do, so a Continue pays nothing twice). A hook that throws or takes longer than 2.5 s, or a step
+   that is refused, is a Problem; the reply's lines are kept. A Re-read runs it again after the new lines
+   (§3.2 "afterCapture step"). Use it for what must be checked where the reply ends up, not where a line
+   is read: Story Director's story turn-in, whose line often comes before the reply's `~ place` line.
+4. Record `narrated` = the untold receipt IDs given to this reply.
+5. One save (the lines and the afterCapture steps in one write).
 
 A capture runs with `ctx.carrier = { index, swipe, sid, key }` (frozen; `String(ctx.carrier)` is `key`,
 `"<index>:<swipe>"`) and `ctx.chat = { lastUser, reply }`. `sid` is the reply's record ID (its shown swipe's;
@@ -398,7 +417,8 @@ per-reply bookkeeping can be kept and read for a click after the reply as well (
 A swipe of that reply is a new carrier swipe: it gets its own capture; the receipts it told are told again
 because the new swipe's `narrated` starts empty. Editing a reply's text does not re-capture; a **Re-read**
 action in Story Block (`sdk.reread`, §3.1) replaces that carrier's `story` receipts with a fresh capture
-(its `ui` and `system` receipts stay after them; a system step marked `replan`, §3, runs again on them).
+(its `ui` and `system` receipts stay after them; a system step marked `replan`, §3, runs again on them;
+the afterCapture steps are asked for again right after the new story lines, step 3).
 
 ### 4.3 What the model is told
 
@@ -603,6 +623,9 @@ sdk.registerModule({
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
   start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
   labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`, `ranks.reader()` (→ `{ lines, perRank }`: the reader's rank ladder lines and levels per rank, which `packs.content({ kind: 'ranks' })` answers with; MODULES §F105),
+  `afterCapture(view, { index, type })` (→ `{ commands }`, system steps run once after a reply's last story
+  line as part of that reply, §4.2 step 3; an older Story Block never calls it, so a module keeps a fallback,
+  e.g. a beforeGenerate step that finds what is still left to do),
   `ownPrompt` (what the module sends with the reply under its own prompt keys, §5) and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
   lines or `{ lines, data }`, a promise of one answered within 2 s; MODULES §F118). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the
@@ -1009,7 +1032,8 @@ createStore({ chat: () => Message[], save: async (target, { keepalive }) => void
   ensureInitial(initialState) → string[], // the first carrier's checkpoint when the chat has none (notes: damaged records set up again)
   carrierSid(index) → string | null,   // the record ID of carrier `index` (ctx.carrier.sid)
   append({ ops, receipt }) → void,     // onto the head carrier; bumps nothing (ops already carry meta.rev)
-  replaceStory(index, { ops, receipts }) → void   // Re-read: swap a carrier's cause:'story' receipts
+  replaceStory(index, { ops, receipts, rerun?, settled? }) → void   // Re-read: swap a carrier's cause:'story' receipts;
+                                       // settled: [{ ops, receipt }] the afterCapture steps run again, in place of the old ones
   setNarrated(index, ids) → void,
   untold() → Receipt[],                // §4.1 step 2
   rebuild() → void,                    // after chat change, delete, swipe
