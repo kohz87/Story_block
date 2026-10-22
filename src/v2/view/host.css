@@ -30,24 +30,36 @@
 
 .story-suite-muted { opacity: 0.75; font-size: 0.9em; margin: 4px 0; }
 
-/* ---- the bar above the message box ---- */
+/* ---- the bar above the message box: glass pills, as Main.dc.html's bottom area (the bar is a theme root, so the
+   tokens reach it under Glass, Solid and Follow SillyTavern). The buttons keep SillyTavern's menu_button class. ---- */
 .story-suite-bar {
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    padding: 4px 8px; box-sizing: border-box; width: 100%;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 6px 8px; box-sizing: border-box; width: 100%;
+    color: var(--ss-text, inherit); font-family: var(--ss-font, inherit);
 }
 .story-suite-bar .menu_button {
-    display: inline-flex; align-items: center; gap: 6px; width: auto; margin: 0;
-    padding: 4px 10px; min-height: 32px; white-space: nowrap; font-size: 0.9em;
+    display: inline-flex; align-items: center; gap: 8px; width: auto; margin: 0;
+    min-height: 36px; padding: 0 14px; white-space: nowrap; font-family: inherit; font-size: 0.9em; font-weight: 600;
+    border: 1px solid var(--ss-border, var(--story-suite-line)); border-radius: var(--ss-radius-pill, 999px);
+    background: var(--ss-glass, var(--story-suite-bg)); color: var(--ss-text, inherit);
+    -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none);
+}
+.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible {
+    border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-accent, var(--story-suite-accent));
 }
 .story-suite-bar .menu_button[hidden] { display: none; }
 .story-suite-notice {
-    display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0;
-    padding: 4px 8px; border-radius: 8px; border: 1px solid var(--story-suite-accent);
-    background: color-mix(in srgb, var(--story-suite-accent) 14%, transparent);
+    display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0;
+    padding: 6px 8px 6px 14px; border-radius: var(--ss-radius-l, 14px);
+    border: 1px solid var(--ss-accent, var(--story-suite-accent));
+    background: var(--ss-glass-strong, var(--story-suite-bg));
+    -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
+    box-shadow: var(--ss-shadow, none);
 }
 .story-suite-notice[hidden] { display: none; }
 .story-suite-notice-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 0.9em; }
-.story-suite-notice .menu_button { min-height: 28px; padding: 2px 8px; }
+.story-suite-notice .menu_button { min-height: 28px; padding: 0 10px; }
 
 /* ---- the story panel: a bottom sheet on phones, a side sheet on wide screens ----
    Placed from the top with a height, not with bottom: 0: SillyTavern's mobile layout gives <html> a transform
@@ -76,7 +88,6 @@
     border: 1px solid var(--ss-border, var(--story-suite-line)); border-radius: var(--ss-radius-m, 8px);
     background: var(--ss-tile, transparent); color: var(--ss-text, inherit);
 }
-
 .story-suite-sheet-body { overflow: auto; padding: 8px 12px 16px; min-height: 0; }
 @media (min-width: 900px) {
     .story-suite-sheet {
