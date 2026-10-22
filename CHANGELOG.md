@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.0-beta.1 (`v2` branch)
+
+Story Suite v2, first beta. What's new, known issues and every module's version: [docs/v2/RELEASES.md](docs/v2/RELEASES.md). The player guide: [docs/v2/GUIDE.md](docs/v2/GUIDE.md).
+
+- The version is 2.0.0-beta.1. It sorts after every 2.0.0 alpha and before 2.0.0, so a module that asks for `storyBlock: '>=2.0.0-beta.1'` refuses an alpha host and accepts this one and later ones.
+- In this beta, from Story Block: Features switches (F100); Inventory with Equip on…, loot to pick and encumbered; key items and one story-money budget per reply; coins (copper, silver, gold) and prices by place; Choices and Inner chatter; change lines read when written in the story itself; a settings screen that keeps its folds, with Prompt size, Share of the context and Diagnostics; `sdk.callModel` and the `profile` field for modules (Story Director's arc planning needs them); save points, the state inspector and Versions; smaller chat files and safer saving (late-save guard, save on hide). Each with its details below.
+
 ## 2.0.0-alpha.1 (in progress, `v2` branch)
 
 Story Suite v2: a fresh start. State is JSON stored in each reply, every action is a command with a receipt, modules register through an SDK, screens are templates/layouts with widgets. Built so far: the state store, command bus, registry and turn pipeline, core scene and inventory (one currency), packs, events, layouts, mounts, widgets and the fishing example. Status: [docs/v2/STATUS.md](docs/v2/STATUS.md).
