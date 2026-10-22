@@ -4,8 +4,8 @@
 //   with settings, Versions. Inside a module's fold: one line saying how many of its
 //   features are on (it opens the Features fold there), its custom `section` right there (no sub-fold of
 //   its own), then a sub-fold per settings group (a field's `group`, else its label's "Group: …" prefix,
-//   else General). Diagnostics (a report to copy or save, diagnostics.js, then the folds a module placed
-//   there with `settings.place: 'diagnostics'`, folded: Story Block's Events) is last before Versions. Fields are rows (bool, int,
+//   else General). Versions is last. (Diagnostics, the report and what a module places there with `settings.place: 'diagnostics'`, is the
+//   settings window's page now: view/settings/diagnostics-page.js.) Fields are rows (bool, int,
 //   choice, text, list of {…}; a list one compact line per item, or, when its fields are text and whole
 //   numbers, a textarea with one item per line: `form: 'lines'` starts there); values are read and
 //   written through createSettings() (extension_settings.storySuite.modules[id]). Open folds stay open
@@ -152,7 +152,7 @@ export const TABS_TEXT = Object.freeze({
     alwaysShown: 'Always shown',
     lastOne: 'At least one tab has to stay shown, so {name} stays.',
 });
-// The Diagnostics fold (diagnostics.js builds the report).
+// The Diagnostics page (diagnostics.js builds the report; view/settings/diagnostics-page.js draws it).
 export const DIAGNOSTICS_TEXT = Object.freeze({
     title: 'Diagnostics',
     hint: 'a report for a bug report',
@@ -731,18 +731,16 @@ const FOLD_SELECTOR = 'details.story-suite-fold, details.story-suite-subfold';
 /**
  * Renders the settings into `root` (emptied first), as one centred column of folds: the modules' own folds (Story Block's
  * Packs), Features (a sub-fold per module), one fold per module with settings (a line to its features, its custom panel, then a
- * sub-fold per settings group), Diagnostics (the report with `diagnostics`, then as folded sub-folds the
- * folds and module folds placed there with `place: 'diagnostics'`; drawn when either is there) and Versions. Story Suite's own
+ * sub-fold per settings group) and Versions. Story Suite's own
  * fold (the budgets, the prompt size, Tabs) is gone: the settings window's Tabs & Packs page draws them (view/settings/).
  *
  * `options`: { registry, settings (createSettings), doc?, sdk?, features? (createFeatureStore; without
  * it no Features are shown), openState? (a Map of fold key → open, kept across redraws; a new one by default),
- * diagnostics? ({ report() → text or a promise of it, fileName?() }: the Diagnostics fold, built when it opens; without it none),
- * sections? (the settings window's placing, above) }.
+ *  * sections? (the settings window's placing, above) }.
  * A module's `section(el, api)` gets api = { get(key), set(key, value), values(), sdk } (a section
  * given as a title plus render(el, api) is the same panel). Returns { refresh(), entries() }.
  */
-export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, openState = new Map(), diagnostics = null, sections = null }) {
+export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, openState = new Map(), sections = null }) {
     // What a search can find: every settings row, feature and panel drawn, `{ kind, key, field: { label, help }, group,
     // node }` (`node` is where it is now: a row drawn again replaces it). Rebuilt with each draw; `entries()` gives it.
     let found = [];
@@ -984,104 +982,6 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         renderCompat(body, report, { doc });
         return remember(details);
     }
-    // Diagnostics: the report (built when the fold opens, and again on Refresh, Copy and Save) shown as
-    // it will be shared, then Copy (the clipboard; else the text is selected for copying by hand) and Save
-    // (a .txt download).
-    // `subs`: the sub-folds placed in Diagnostics (`place: 'diagnostics'`), below the report; without a
-    // report (no `diagnostics`) the fold holds only them.
-    function diagnosticsFold(subs = []) {
-        const T = DIAGNOSTICS_TEXT;
-        const hasReport = Boolean(diagnostics && typeof diagnostics.report === 'function');
-        const { details, body } = fold(doc, DIAGNOSTICS_FOLD, T.title, hasReport ? T.hint : T.checksHint);
-        note('panel', DIAGNOSTICS_FOLD, { label: T.title, help: hasReport ? T.hint : T.checksHint }, 'Diagnostics', details);
-        if (!hasReport) {
-            body.append(...subs);
-            return remember(details);
-        }
-        body.appendChild(el(doc, 'p', 'story-suite-muted', T.help));
-        const report = el(doc, 'pre', 'story-suite-diagnostics-report');
-        report.tabIndex = 0;
-        report.setAttribute('aria-label', T.reportLabel);
-        const status = el(doc, 'span', 'story-suite-diagnostics-status');
-        status.setAttribute('role', 'status');
-        const actions = el(doc, 'div', 'story-suite-diagnostics-actions');
-        const action = (className, icon, label) => {
-            const node = button(doc, `menu_button ${className}`, '');
-            const glyph = el(doc, 'i', `fa-solid ${icon}`);
-            glyph.setAttribute('aria-hidden', 'true');
-            node.append(glyph, el(doc, 'span', '', label));
-            actions.appendChild(node);
-            return node;
-        };
-        const copy = action('story-suite-diagnostics-copy', 'fa-copy', T.copy);
-        const save = action('story-suite-diagnostics-save', 'fa-download', T.save);
-        const again = action('story-suite-diagnostics-refresh', 'fa-rotate', T.refresh);
-        // The UI sample (screens/ui-sample.js): every building block of Story Suite's look, light and dark.
-        if (typeof diagnostics.sample === 'function') {
-            const sample = action('story-suite-diagnostics-sample', 'fa-swatchbook', T.sample);
-            sample.title = T.sampleTitle;
-            sample.addEventListener('click', () => { try { diagnostics.sample(); } catch (error) { status.textContent = fill(T.sampleFailed, { why: error?.message ?? error }); } });
-        }
-        actions.appendChild(status);
-        body.append(report, actions, ...subs);
-        let run = 0;
-        const build = async () => {
-            const mine = ++run;
-            report.textContent = T.building;
-            let text;
-            try { text = String(await diagnostics.report()); } catch (error) {
-                text = fill(T.failed, { why: error?.message ?? error });
-            }
-            if (mine === run) report.textContent = text;
-            return text;
-        };
-        const selectReport = () => {
-            const win = doc.defaultView ?? globalThis;
-            const range = doc.createRange?.();
-            const selection = win.getSelection?.();
-            if (!range || !selection) return;
-            range.selectNodeContents(report);
-            selection.removeAllRanges();
-            selection.addRange(range);
-        };
-        copy.addEventListener('click', async () => {
-            const text = await build();
-            const clipboard = (doc.defaultView ?? globalThis).navigator?.clipboard;
-            try {
-                if (typeof clipboard?.writeText !== 'function') throw new Error('no clipboard');
-                await clipboard.writeText(text);
-                status.textContent = T.copied;
-            } catch {
-                selectReport();
-                status.textContent = T.copyFailed;
-            }
-        });
-        save.addEventListener('click', async () => {
-            const text = await build();
-            const name = typeof diagnostics.fileName === 'function' ? diagnostics.fileName() : 'story-suite-diagnostics.txt';
-            try {
-                const win = doc.defaultView ?? globalThis;
-                const blob = new win.Blob([text], { type: 'text/plain;charset=utf-8' });
-                const url = win.URL.createObjectURL(blob);
-                const link = el(doc, 'a');
-                link.href = url;
-                link.download = name;
-                link.hidden = true;
-                doc.body.appendChild(link);
-                link.click();
-                link.remove();
-                setTimeout(() => win.URL.revokeObjectURL(url), 1000);
-                status.textContent = fill(T.saved, { name });
-            } catch (error) {
-                status.textContent = fill(T.saveFailed, { why: error?.message ?? error });
-            }
-        });
-        again.addEventListener('click', () => { status.textContent = ''; build(); });
-        details.addEventListener('toggle', () => { if (details.open) build(); });
-        remember(details);
-        if (details.open) build();
-        return details;
-    }
     function refresh() {
         for (const node of root.querySelectorAll(FOLD_SELECTOR)) if (!node.dataset.filtered) openState.set(node.dataset.fold, node.open === true);
         found = [];
@@ -1090,8 +990,8 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         // A module with features and no settings has no fold of its own: its features are in the Features fold.
         const defs = registry.settingsDefs().map(def => ({ ...def, folds: Array.isArray(def.folds) ? def.folds : [] }));
         const byId = (a, b) => (a.moduleId < b.moduleId ? -1 : a.moduleId > b.moduleId ? 1 : 0);
-        // A module fold or own fold placed in Diagnostics (`place: 'diagnostics'`, debug information like
-        // Story Block's Events) is a sub-fold there, folded until the reader opens it, not a fold of its own.
+        // A module fold or own fold placed in Diagnostics (`place: 'diagnostics'`, debug information like Story Block's Events)
+        // is not drawn here: the settings window's Diagnostics page draws it (view/settings/diagnostics-page.js).
         const inDiagnostics = item => item.place === 'diagnostics';
         // Where each piece goes: one column of folds (the default), or the settings window's sections
         // (`sections.route(piece)` → a section id; the nodes of each are put in `sections.place(id)`).
@@ -1108,11 +1008,6 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const shown = [...defs].filter(def => Object.keys(def.schema).length || def.section).sort(byId);
         const modules = shown.filter(def => !inDiagnostics(def) && wantsModule(def)).map(def => ({ def, parts: moduleParts(def, ownOf(def.moduleId)) }));
         const own = [...defs].sort(byId).flatMap(def => (hasPane({ type: 'own-fold', moduleId: def.moduleId }) ? ownFolds(def, def.folds.filter(item => !inDiagnostics(item))) : []).map(node => ({ def, node })));
-        const subs = [
-            ...[...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(inDiagnostics), 'story-suite-subfold')),
-            ...shown.filter(inDiagnostics).map(def => moduleFold(def, ownOf(def.moduleId), 'story-suite-subfold')),
-        ];
-        const diag = (diagnostics && typeof diagnostics.report === 'function') || subs.length ? [diagnosticsFold(subs)] : [];
         for (const { def, node } of own) put({ type: 'own-fold', moduleId: def.moduleId }, node);
         // The settings window draws Features itself (the form engine) when its page is not given to this host.
         if (all.length && (!sections || sections.place(sections.route({ type: 'features' })))) put({ type: 'features' }, featuresFold(all));
@@ -1134,7 +1029,6 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             }
             if (kept.link || kept.panel || kept.subs.length) put({ type: 'module', moduleId: def.moduleId }, moduleFold(def, ownOf(def.moduleId), 'story-suite-fold', kept));
         }
-        for (const node of diag) put({ type: 'diagnostics' }, node);
         if (hasPane({ type: 'versions' })) put({ type: 'versions' }, versionsFold());
         if (!sections) {
             root.replaceChildren(...(placed.get('') ?? []));

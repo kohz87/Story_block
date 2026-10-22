@@ -119,7 +119,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 
 `src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
 the look, and writes through the same settings store the settings window writes through. The settings window (below)
-draws Look, Features, Money, Assist, Tabs & Packs and Modules with it (steps 3b to 3f) and still draws today's folds in Diagnostics; step 3g moves that one. The UI sample shows a demo form
+draws every section with it (steps 3b to 3g). The UI sample shows a demo form
 (`mountDemoForm`, `UI_SAMPLE_FORM`).
 
 ```js
@@ -204,11 +204,11 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 - The helpers shared with the settings window's folds (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are
   imported from `host-ui.js` through `view/form/schema.js`: they move there when the last section leaves the folds.
 
-## The settings window (UI stage, steps 3a to 3f)
+## The settings window (UI stage, steps 3a to 3g)
 
 `src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
 `openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
-Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs, step 3f Modules** (below). 3g replaces the last body (Diagnostics).
+Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs, step 3f Modules, step 3g Diagnostics** (below): every section has a body, and the legacy fold host (`renderSettingsHost`) is only used by tests.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
@@ -310,8 +310,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   * **Fold ids**: `story-suite` (the old Story Suite fold) and `story-suite::tabs` focus the Tabs card, `story-block/packs` (Home's "Import a pack")
     the Import button, `story-suite::size` the first budget and `story-suite::sent` open "Show what's sent" (the first budget with no chat).
   `bodies.js`'s `tabs` entry is `tabsPacksBody`; bodies may also answer `refreshSize()`.
-- **Modules** (`modules.js`, step 3f): one card per installed module (`registry.modules()`, by id; `ss-modules`: one column, two from 900px with
-  Versions across both) in place of the module folds and the Versions fold. A card (`ss-module-card`, `data-module`, `data-fold = <module id>`) is: the
+- **Modules** (`modules.js`, step 3f): one card per installed module (`registry.modules()`, by id; `ss-modules`: **one column of full-width cards on every width**; inside a wide card the fields run in two columns from 900px, a `data-wide` row (a list, text area, group) spans both) in place of the module folds and the Versions fold. A card (`ss-module-card`, `data-module`, `data-fold = <module id>`) is: the
   module's name and `v<version>` (the section hint), a line on what it does (its `description`; Story Suite's own three get one from
   `KNOWN_DESCRIPTIONS` when they say nothing), **"Features: N of M on — change"** (a button; `ctx.open(featuresFoldOf(id))` goes to that module's
   group on the Features page; hidden with no features), its **custom panel** (`settings.section`/`render`, drawn by the module into a `story-suite-section`
@@ -320,13 +319,23 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   group each, as sub-sections without a card of their own). `moduleSchema` leaves out the groups other pages draw (`routeOf`: Story Block's General →
   Money, Assist → Assist; its panel → Assist, its Packs fold → Tabs & Packs); a module whose settings are placed in Diagnostics has its card
   without them. **A module with more than `FOLD_ABOVE` (6) settings and more than one group folds its groups** (the form's `fold: { prefix, state,
-  openFirst }`: each group a `details`, `ss-section-fold`, keyed `<module id>::group:<name>`, the first open, the state in the window's `openState`, so
+  openFirst }`: each group a `details`, `ss-section-fold` (its chevron is the window's one, `ss-section-fold-open` turns it), keyed `<module id>::group:<name>`, the first open, the state in the window's `openState`, so
   the reader's choice is kept across redraws; a search opens the groups with a match and gives the reader's choice back; `form.openGroup(name)`,
-  `form.groups()`). **Versions** is a small card at the end (`ss-versions-card`, `story-suite-versions`): Story Block and each module with what is
-  out of step (compat.js `compatReport`/`renderCompat`, as before), its hint "all in step" or "N out of step". Fold keys that still work: `<module id>`
+  `form.groups()`). **Versions** is a small card at the end (`ss-versions-card`, `story-suite-versions`): Story Block and each module, one row each: name, version, **"needs ≥X" once** ("needs: not said" when the module names no requirement) and the state; a note and a fix only for a state other than in step (compat.js `compatReport`/`renderCompat`), its hint "all in step" or "N out of step". Fold keys that still work: `<module id>`
   (the card's heading focused), `<module id>::group:<name>` (that group opened, its summary or heading focused), `<module id>/<fold id>`, the Versions
   fold. A module's name in a search shows all its settings; a setting shows only itself. Names, versions and descriptions are cut (60, 40, 300
   characters).
+- **Diagnostics** (`diagnostics-page.js`, step 3g): the **Report card** (`story-suite-diagnostics`): the plain-text report in a `pre`, built when the page is
+  first shown (not while the window opens) and again on Refresh, Copy and Save; **Copy report** (the clipboard, else the text is selected for copying by
+  hand), **Save report** (a `.txt` download), Refresh, and **Show the UI sample** when the page offers one. `diagnostics.js` `buildReport` scrubs it:
+  no key, token, address or chat text (`tests/v2/diagnostics-scrub.test.js` and the page's own test). Below it, what modules place here with
+  `settings.place: 'diagnostics'`: their own folds (Story Block's **Events**, a collapsible card, folded because it can spoil the story, `ss-diagnostics-fold`)
+  and a module whose settings are placed here (`createModuleCard` from modules.js with `placed: 'diagnostics'`, collapsible; its card is then not on
+  the Modules page). Fold keys: `story-suite-diagnostics` (the Report card), `<module id>/<fold id>` (opened), `<module id>` (the card). The window calls a
+  body's `show()` when its page is shown. Built with DOM calls and `textContent` only.
+- **The Close corner** (3g): from 760px the page's heading is a sticky strip (`.ss-settings-page-head`, `top: -20px` to reach the scroller's edge past its padding,
+  a dense layered tint, Close in its right end), so a page scrolled under it never shows content under Close; on a phone Close sits in the title row above the
+  scroller. Checked at 1440 and 390 on every page, at the top and scrolled.
 - **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
   answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
   the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
@@ -353,7 +362,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
   `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/form/` (`fields.js`, `form.js`, `schema.js`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
   (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`), `view/settings/` (`window.js`, `sections.js`,
-  `bodies.js`, `search.js`, `money.js`, `assist.js`, `tabs-packs.js`, `tabs-list.js`, `prompt.js`, `footer.js`, `modules.js`) and `view/settings.css`.
+  `bodies.js`, `search.js`, `money.js`, `assist.js`, `tabs-packs.js`, `tabs-list.js`, `prompt.js`, `footer.js`, `modules.js`, `diagnostics-page.js`) and `view/settings.css`.
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
@@ -368,9 +377,10 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   `tests/v2/view/form/features.test.js` (the features form), `tests/v2/ux/settings-money.test.js` (the Money page: cards, coins, slider words, validation, a story `+ coin` paying after edits),
   `tests/v2/ux/settings-modules.test.js` (the Modules page: cards, the Features line, groups and folds, panels and own folds, Story Block's share, Versions),
   `tests/v2/ux/settings-tabs-packs.test.js` (the Tabs & Packs page: the Tabs rows and their refusals, the Packs card, the budgets, the size and tokenizer, the footer bar, the fold ids), `tests/v2/ux/tabs-ui.test.js` (the tab order through the real UI), `tests/v2/packs/panel.test.js`, `tests/v2/whats-sent.test.js` ("Show what's sent" in the Prompt card),
+  `tests/v2/ux/settings-diagnostics.test.js` (the Diagnostics page: the report card built on first show, Copy, Save, the sample button, Events, placed modules, search, the scrub),
   `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
-- The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
+- The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, 
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.
 - Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`, `form-security`, `settings-window-security`.
 - Break findings: `rx-ui-*`, `b5b-deep-screens`, `b5b-form-names`, `b5b-r2-props-depth`, `c3-features-*`.

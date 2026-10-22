@@ -26,6 +26,7 @@ import { HOST_SETTINGS_SCHEMA } from '../../sdk.js';
 import { renderFeaturesForm } from '../form/features.js';
 import { renderSettingsForm } from '../form/form.js';
 import { assistBody } from './assist.js';
+import { diagnosticsBody } from './diagnostics-page.js';
 import { modulesBody } from './modules.js';
 import { moneyBody } from './money.js';
 import { tabsPacksBody } from './tabs-packs.js';
@@ -108,4 +109,5 @@ export const SECTION_BODIES = Object.freeze({
     assist: assistBody,
     tabs: tabsPacksBody,
     modules: modulesBody,
+    diagnostics: diagnosticsBody,
 });

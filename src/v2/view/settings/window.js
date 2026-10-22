@@ -152,6 +152,8 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
         const searching = searchText.trim() !== '';
         for (const entry of pages.values()) entry.page.hidden = searching ? !entry.count : entry.section.id !== chosen;
         railBlock.update(railProps());
+        // A page that is shown tells its body (Diagnostics builds its report the first time).
+        for (const entry of pages.values()) if (!entry.page.hidden) entry.body?.show?.();
     }
     function select(id) {
         chosen = SECTION_IDS.includes(id) ? id : DEFAULT_SECTION;

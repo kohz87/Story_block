@@ -55,7 +55,7 @@ const countOn = (host, moduleId) => {
 test('the overlay: Features has a sub-fold per module ("N of M on"); a module\'s fold has one line going there, no switches', async () => {
     const { root, host } = await overlay();
     const folds = root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(folds, [PACKS_FOLD, FEATURES_FOLD, 'plain', 'story-block', 'story-suite-diagnostics', 'story-suite-versions'], 'Packs, Features, then the modules with settings by id (Loot has only features: no fold of its own), then Diagnostics (Story Block\'s Events) and Versions');
+    assert.deepEqual(folds, [PACKS_FOLD, FEATURES_FOLD, 'plain', 'story-block', 'story-suite-versions'], 'Packs, Features, then the modules with settings by id (Loot has only features: no fold of its own), then Versions');
     const overview = foldOf(root, FEATURES_FOLD);
     assert.equal(overview.querySelector('summary b').textContent, FEATURE_TEXT.title);
     assert.deepEqual(subsOf(overview).map(node => node.dataset.fold), [featuresFoldOf('loot'), featuresFoldOf('story-block')]);
@@ -191,7 +191,7 @@ test('the overlay without a feature store shows no Features (an older caller)', 
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry: host.registry, settings: host.settings, doc });
     assert.equal(root.querySelector('.story-suite-feature'), null);
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), [PACKS_FOLD, 'plain', 'story-block', 'story-suite-diagnostics', 'story-suite-versions']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), [PACKS_FOLD, 'plain', 'story-block', 'story-suite-versions']);
     host.close();
 });
 

@@ -113,8 +113,12 @@ test('a phone: the window fills the screen, the rail is a row that scrolls sidew
     assert.match(block('.ss-settings-close'), /position: absolute;\s*top: calc\(env\(safe-area-inset-top, 0px\) \+ var\(--ss-space-3\)\);\s*right: var\(--ss-space-4\);/);
     assert.match(block('.ss-settings'), /position: relative;/);
     assert.match(block('.ss-settings-close', ['@media (min-width: 760px)']), /top: var\(--ss-space-4\);\s*right: var\(--ss-space-4\);/);
-    // Room for it beside the first heading, wide only (on a phone it is over the title row).
-    assert.ok(all.some(rule => rule.at[0] === '@media (min-width: 760px)' && rule.selectors.includes(`${ROOT_SELECTOR} .ss-settings-page-head`) && /padding-right: 52px;/.test(rule.block)));
+    // Room for it, wide only (on a phone it is over the title row): the page's heading is a strip that stays at the top with Close in its
+    // right end, so nothing the page holds ever scrolls under Close.
+    assert.ok(all.some(rule => rule.at[0] === '@media (min-width: 760px)' && rule.selectors.includes(`${ROOT_SELECTOR} .ss-settings-page-head`) && /position: sticky;\s*top: -20px;[\s\S]*padding: 20px 76px 12px 24px;/.test(rule.block)), 'the sticky heading strip');
+    assert.ok(all.some(rule => rule.at[0] === '@media (min-width: 760px)' && rule.selectors.includes(`${ROOT_SELECTOR} .ss-settings-status`) && /padding-right: 52px;/.test(rule.block)));
+    // 76 = Close's 40px box + its 16px inset + 20px of air.
+    assert.match(block('.ss-settings-close', ['@media (min-width: 760px)']), /width|top: var\(--ss-space-4\)/);
     assert.match(block('.ss-settings-rail .ss-tabs-item', ['@media (min-width: 760px)']), /min-height: 44px;/);
 });
 
@@ -276,7 +280,7 @@ test('the Tabs & Packs page: one column, two from 900px with Prompt across both;
 
 // ---- step 3f
 
-test('the Modules page: one column, two from 900px with Versions across both; a module\'s groups are sub-sections, a fold has a caret that turns', () => {
+test('the Modules page: one column of full-width cards; a module\'s fields in two columns from 900px; groups are sub-sections, a fold has a chevron that turns', () => {
     const glass = read('view/glass.css');
     const rule = (selector, media = null, after = 'the Modules page') => {
         const from = glass.indexOf(after);
@@ -286,12 +290,15 @@ test('the Modules page: one column, two from 900px with Versions across both; a 
         assert.ok(at >= 0, `${selector} has a rule`);
         return body.slice(at, body.indexOf('}', at));
     };
-    assert.match(rule('.ss-modules'), /display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
-    assert.match(rule('.ss-modules', '@media (min-width: 900px)'), /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-    assert.match(rule('.ss-modules > .ss-versions-card', '@media (min-width: 900px)'), /grid-column: 1 \/ -1;/);
+    assert.match(rule('.ss-diagnostics'), /display: flex;\s*flex-direction: column;/, 'one column of full-width cards (Modules and Diagnostics)');
+    assert.doesNotMatch(glass.slice(glass.indexOf('the Modules page')), /\.ss-modules \{\s*grid-template-columns: repeat/, 'no two-column grid of cards');
+    assert.match(rule('.ss-module-form .ss-section-body', '@media (min-width: 900px)'), /display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    assert.match(rule('.ss-module-form .ss-field[data-wide]', '@media (min-width: 900px)'), /grid-column: 1 \/ -1;/);
+    assert.match(rule('.ss-section-fold > .ss-section-head::before'), /border-right: 2px solid currentColor;\s*border-bottom: 2px solid currentColor;/, 'the chevron the old folds draw, not a text triangle');
+    assert.doesNotMatch(rule('.ss-section-fold > .ss-section-head::before'), /content: "\\25B8"/);
     assert.match(rule('.ss-button[hidden]'), /display: none;/, 'a hidden button is hidden whatever its display');
     assert.match(rule('.ss-module-card .ss-module-own'), /border: 0;\s*border-top: 1px solid/, 'a group is a sub-section, not a card in a card');
-    assert.match(rule('.ss-section-fold-open > .ss-section-head::before'), /transform: rotate\(90deg\);/);
+    assert.match(rule('.ss-section-fold-open > .ss-section-head::before'), /transform: rotate\(45deg\);/);
     assert.equal(weight(`${ROOT_SELECTOR} .ss-section-fold-open > .ss-section-head::before`) <= 30, true);
     // The end of a page clears the footer bar: the page scrolls inside a box that ends where the bar begins (the bar is in the flow, not over
     // the page), and keeps a bottom padding of its own.

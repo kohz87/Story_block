@@ -79,7 +79,13 @@ test('renderCompat: plain text only, one row per module, the fix under what is o
     assert.deepEqual(rows.map(row => row.dataset.state), ['ok', 'ok', 'refused']);
     assert.equal(rows[1].querySelector('b').textContent, '<img src=x onerror=alert(1)>', 'a name stays text');
     assert.equal(el.querySelectorAll('img').length, 0);
-    assert.equal(rows[2].querySelector('.story-suite-compat-requires').textContent, 'needs Story Block >=2.1.0');
+    assert.equal(rows[2].querySelector('.story-suite-compat-requires').textContent, 'needs ≥2.1.0', 'said once, with ≥');
+    // One line a module: its name, version, what it needs and where it stands; a module that fits says nothing under it.
+    assert.deepEqual(rows[1].querySelectorAll('.story-suite-compat-head > *').map(node => node.className.replace('story-suite-muted ', '')), ['story-suite-compat-name', 'story-suite-compat-version', 'story-suite-compat-requires', 'story-suite-compat-state']);
+    assert.equal(rows[1].querySelector('.story-suite-compat-note'), null, 'no "Needs Story Block …: this one fits." again');
+    assert.equal(rows[1].querySelector('.story-suite-compat-fix'), null);
+    assert.equal(rows[0].querySelector('.story-suite-compat-note'), null, 'nor "This Story Block is …"');
+    assert.equal(rows[1].textContent.match(/needs/gi).length, 1, 'the need is said once');
     assert.equal(rows[2].querySelector('.story-suite-compat-state').textContent, 'Not loaded');
     assert.match(rows[2].querySelector('.story-suite-compat-fix').textContent, /^Update Story Block to use RPG Battle/);
     assert.equal(rows[0].querySelector('.story-suite-compat-requires'), null, 'Story Block needs no Story Block');

@@ -70,47 +70,67 @@ export function moduleSchema(moduleId, schema) {
     return { schema: out, count, groups };
 }
 
-/** The Modules body: `(pane, ctx) → { filter, refresh, destroy, has, open }` (bodies.js). */
-export function modulesBody(pane, ctx) {
-    const { doc } = ctx;
-    const { registry, settings, features = null, sdk = null } = ctx.options;
-    const root = h(doc, 'div', 'ss-modules');
-    pane.appendChild(root);
+const focusNode = node => {
+    node?.scrollIntoView?.({ block: 'start' });
+    node?.focus?.();
+    return Boolean(node);
+};
+const parseGroup = key => {
+    const at = typeof key === 'string' ? key.indexOf(`${SUB_FOLD}group:`) : -1;
+    return at > 0 ? { id: key.slice(0, at), group: key.slice(at + `${SUB_FOLD}group:`.length) } : null;
+};
+
+/**
+ * One module's card (the Modules page's, and the Diagnostics page's for a module whose settings are placed there). `env` is
+ * { doc, registry, settings, sdk, features, openState, changed(), open(key) } (what the page was given); `sdef` the module's registry
+ * settings entry or null; `placed`: 'diagnostics' draws a module whose settings are placed in Diagnostics (a Modules card leaves those
+ * out); `collapsible` makes the card a fold (closed until opened; its state in `openState` under the module's id).
+ * → { id, el, card, form, filter(text) → count, refresh(), destroy(), has(key), open(key), groups, folds }.
+ */
+export function createModuleCard(env, mod, sdef = null, { placed = null, collapsible = false } = {}) {
+    const { doc, registry, settings, sdk = null, features = null, openState = null } = env;
     const featureList = () => { try { return typeof features?.list === 'function' ? features.list() : []; } catch { return []; } };
     const hiddenByFeature = item => {
         const id = featureOf(item);
         return id !== null && typeof registry.featureOn === 'function' && !registry.featureOn(id);
     };
-    const settingsOf = new Map((typeof registry.settingsDefs === 'function' ? registry.settingsDefs() : []).map(def => [def.moduleId, def]));
-    const cards = [];
-
-    function buildCard(mod) {
-        const sdef = settingsOf.get(mod.id) ?? null;
-        const here = sdef && sdef.place !== 'diagnostics';
-        const card = sectionBlock(doc, { title: clip(mod.name, CUT.name) || clip(mod.id, CUT.name), hint: clip(mod.version, CUT.version) ? `v${clip(mod.version, CUT.version)}` : '', id: newId(`module-${mod.id}`) });
-        card.el.classList.add('ss-module-card');
-        card.el.dataset.fold = mod.id;
-        card.el.dataset.module = mod.id;
-        card.title.tabIndex = -1;
-        const entry = { id: mod.id, mod, panelTitle: '', card, form: null, panel: null, panelBox: null, link: null, folds: [], groups: [], description: clip(mod.description || KNOWN_DESCRIPTIONS[mod.id], CUT.description), keys: new Set() };
-        if (entry.description) card.body.appendChild(h(doc, 'p', 'ss-card-help ss-module-description', entry.description));
-        // The line to this module's features (their switches are on the Features page).
-        entry.link = h(doc, 'button', 'ss-button ss-button-quiet ss-module-features');
-        entry.link.type = 'button';
-        entry.link.addEventListener('click', () => ctx.open?.(featuresFoldOf(mod.id)));
-        card.body.appendChild(entry.link);
-        const own = () => featureList().filter(feature => feature.moduleId === mod.id);
-        entry.paintLink = () => {
-            const list = own();
-            entry.link.hidden = !list.length;
-            if (!list.length) return;
-            const on = list.filter(feature => feature.on === true && feature.available !== false).length;
-            entry.link.textContent = fill(FEATURE_TEXT.link, { on, n: list.length });
-            entry.link.title = fill(FEATURE_TEXT.linkTitle, { name: mod.name ?? mod.id, on, n: list.length });
-            entry.link.setAttribute('aria-label', entry.link.title);
-        };
-        entry.paintLink();
-        if (!here) return entry;
+    const here = Boolean(sdef) && (placed === 'diagnostics' ? sdef.place === 'diagnostics' : sdef.place !== 'diagnostics');
+    const title = clip(mod.name, CUT.name) || clip(mod.id, CUT.name);
+    const hint = clip(mod.version, CUT.version) ? `v${clip(mod.version, CUT.version)}` : '';
+    const wasOpen = collapsible && openState instanceof Map ? openState.get(mod.id) === true : false;
+    const card = sectionBlock(doc, { title, hint, id: newId(`module-${mod.id}`), collapsible, open: wasOpen });
+    card.el.classList.add('ss-module-card');
+    card.el.dataset.fold = mod.id;
+    card.el.dataset.module = mod.id;
+    // A fold's heading is its summary; a card's is its title.
+    const heading = collapsible ? card.el.querySelector('summary') : card.title;
+    if (!collapsible) card.title.tabIndex = -1;
+    if (collapsible) {
+        card.el.classList.add('ss-section-fold');
+        card.el.classList.toggle('ss-section-fold-open', wasOpen);
+        card.el.addEventListener('toggle', () => {
+            card.el.classList.toggle('ss-section-fold-open', card.el.open === true);
+            if (openState instanceof Map) openState.set(mod.id, card.el.open === true);
+        });
+    }
+    const entry = { id: mod.id, mod, panelTitle: '', card, form: null, panel: null, panelBox: null, link: null, folds: [], groups: [], description: clip(mod.description || KNOWN_DESCRIPTIONS[mod.id], CUT.description) };
+    if (entry.description) card.body.appendChild(h(doc, 'p', 'ss-card-help ss-module-description', entry.description));
+    // The line to this module's features (their switches are on the Features page).
+    entry.link = h(doc, 'button', 'ss-button ss-button-quiet ss-module-features');
+    entry.link.type = 'button';
+    entry.link.addEventListener('click', () => env.open?.(featuresFoldOf(mod.id)));
+    card.body.appendChild(entry.link);
+    entry.paintLink = () => {
+        const list = featureList().filter(feature => feature.moduleId === mod.id);
+        entry.link.hidden = !list.length;
+        if (!list.length) return;
+        const on = list.filter(feature => feature.on === true && feature.available !== false).length;
+        entry.link.textContent = fill(FEATURE_TEXT.link, { on, n: list.length });
+        entry.link.title = fill(FEATURE_TEXT.linkTitle, { name: mod.name ?? mod.id, on, n: list.length });
+        entry.link.setAttribute('aria-label', entry.link.title);
+    };
+    entry.paintLink();
+    if (here) {
         // Its custom panel (not a schema field: the module draws it), embedded as it was drawn in the fold, with its title as a heading.
         const panelApi = Object.freeze({
             get: key => settings(mod.id)[key],
@@ -118,12 +138,12 @@ export function modulesBody(pane, ctx) {
             values: () => settings(mod.id),
             sdk,
         });
-        if (sdef.section && routeOf({ type: 'panel', moduleId: mod.id }) === 'modules') {
+        if (sdef.section && (placed === 'diagnostics' || routeOf({ type: 'panel', moduleId: mod.id }) === 'modules')) {
             const box = h(doc, 'div', 'ss-module-panel');
-            const title = sdef.title !== (mod.name ?? mod.id) ? h(doc, 'h4', 'story-suite-section-title', sdef.title) : null;
+            const heading4 = sdef.title !== (mod.name ?? mod.id) ? h(doc, 'h4', 'story-suite-section-title', sdef.title) : null;
             const section = h(doc, 'div', 'story-suite-section');
             section.dataset.module = mod.id;
-            box.append(...[title, section].filter(Boolean));
+            box.append(...[heading4, section].filter(Boolean));
             entry.panelBox = box;
             entry.panelTitle = sdef.title;
             entry.panel = () => {
@@ -138,7 +158,7 @@ export function modulesBody(pane, ctx) {
             card.body.appendChild(box);
         }
         // Its own folds (Story Block's Packs and Events are other pages'), each a sub-card with its title.
-        if (routeOf({ type: 'own-fold', moduleId: mod.id }) === 'modules') {
+        if (placed === 'diagnostics' || routeOf({ type: 'own-fold', moduleId: mod.id }) === 'modules') {
             for (const item of sdef.folds ?? []) {
                 if (item.place === 'diagnostics') continue;
                 const sub = sectionBlock(doc, { title: item.title, hint: item.hint, id: newId(`own-${mod.id}-${item.id}`), level: 4 });
@@ -156,20 +176,89 @@ export function modulesBody(pane, ctx) {
         const { schema, count, groups } = moduleSchema(mod.id, sdef.schema);
         entry.groups = groups;
         if (count) {
-            const fold = groups.length > 1 && count > FOLD_ABOVE ? { prefix: `${mod.id}::group:`, state: ctx.openState, openFirst: true } : null;
+            const fold = groups.length > 1 && count > FOLD_ABOVE ? { prefix: `${mod.id}::group:`, state: openState, openFirst: true } : null;
             entry.form = renderModuleForm(card.body, { ...sdef, schema, title: '' }, {
                 settings, doc, quiet: true, className: 'ss-module-form', fold, featureOn: id => (typeof registry.featureOn === 'function' ? registry.featureOn(id) : true),
-                onChange: () => ctx.changed?.(),
+                onChange: () => env.changed?.(),
             });
         }
-        return entry;
     }
+    const nameHit = text => matchesSearch(`module.${mod.id}`, { label: `${clean(mod.name)} ${mod.id}`, help: entry.description }, '', text);
+    Object.assign(entry, {
+        el: card.el,
+        /** Shows what matches `text` (the module's own name shows everything of it); returns how many matches it shows, 0 hides the card. */
+        filter(text) {
+            const query = String(text ?? '').trim();
+            if (!query) {
+                entry.form?.filter('');
+                card.setHidden(false);
+                for (const own of entry.folds) own.sub.setHidden(false);
+                return 0;
+            }
+            const byName = nameHit(text);
+            const rows = entry.form ? entry.form.filter(byName ? '' : text) : 0;
+            const folds = entry.folds.filter(own => matchesSearch(own.key, { label: own.title, help: own.hint }, mod.name ?? mod.id, text));
+            for (const own of entry.folds) own.sub.setHidden(!byName && !folds.includes(own));
+            const panel = Boolean(entry.panelBox) && !entry.panelBox.hidden && matchesSearch(`${mod.id}${SUB_FOLD}panel`, { label: entry.panelTitle, help: '' }, mod.name ?? mod.id, text);
+            const hit = byName || rows > 0 || folds.length > 0 || panel;
+            card.setHidden(!hit);
+            // A match opens a card that is a fold; the reader's own choice comes back with an empty search.
+            if (collapsible && hit) card.el.open = true;
+            return hit ? (byName ? Math.max(rows, 1) : rows) + folds.length + (panel ? 1 : 0) : 0;
+        },
+        refresh() {
+            entry.paintLink();
+            entry.panel?.();
+            entry.form?.refresh();
+        },
+        destroy() {
+            entry.form?.destroy();
+        },
+        has(key) {
+            if (key === mod.id) return true;
+            const group = parseGroup(key);
+            if (group) return group.id === mod.id && entry.groups.includes(group.group);
+            return entry.folds.some(own => own.key === key);
+        },
+        open(key) {
+            const group = parseGroup(key);
+            if (collapsible) {
+                card.el.open = true;
+                card.el.classList.add('ss-section-fold-open');
+                if (openState instanceof Map) openState.set(mod.id, true);
+            }
+            if (group) {
+                const el = entry.form?.openGroup(group.group) ?? null;
+                if (!el) return false;
+                return focusNode(el.querySelector('summary') ?? el.querySelector('.ss-section-title, input, select, textarea, button'));
+            }
+            const own = entry.folds.find(item => item.key === key);
+            if (own) return focusNode(own.sub.title);
+            return key === mod.id ? focusNode(heading) : false;
+        },
+    });
+    if (collapsible) {
+        // Closing the search gives the card back as the reader left it.
+        const restore = () => { card.el.open = openState instanceof Map ? openState.get(mod.id) === true : false; card.el.classList.toggle('ss-section-fold-open', card.el.open === true); };
+        entry.restore = restore;
+    }
+    return entry;
+}
 
+/** The Modules body: `(pane, ctx) → { filter, refresh, destroy, has, open }` (bodies.js). */
+export function modulesBody(pane, ctx) {
+    const { doc } = ctx;
+    const { registry } = ctx.options;
+    const root = h(doc, 'div', 'ss-modules');
+    pane.appendChild(root);
+    const settingsOf = new Map((typeof registry.settingsDefs === 'function' ? registry.settingsDefs() : []).map(def => [def.moduleId, def]));
+    const env = { ...ctx.options, doc, openState: ctx.openState, changed: () => ctx.changed?.(), open: key => ctx.open?.(key) };
+    const cards = [];
     const mods = typeof registry.modules === 'function' ? registry.modules() : [];
     for (const mod of mods) {
-        const entry = buildCard(mod);
+        const entry = createModuleCard(env, mod, settingsOf.get(mod.id) ?? null);
         cards.push(entry);
-        root.appendChild(entry.card.el);
+        root.appendChild(entry.el);
     }
 
     // Versions: a small card at the end.
@@ -193,73 +282,35 @@ export function modulesBody(pane, ctx) {
     paintVersions();
     root.appendChild(versions.el);
 
-    const moduleHit = (entry, text) => matchesSearch(`module.${entry.id}`, { label: `${clean(entry.mod.name)} ${entry.id}`, help: entry.description }, '', text);
-    const focusNode = node => {
-        node?.scrollIntoView?.({ block: 'start' });
-        node?.focus?.();
-        return Boolean(node);
-    };
-    const parseGroup = key => {
-        const at = typeof key === 'string' ? key.indexOf(`${SUB_FOLD}group:`) : -1;
-        return at > 0 ? { id: key.slice(0, at), group: key.slice(at + `${SUB_FOLD}group:`.length) } : null;
-    };
+    // A module whose settings are placed in Diagnostics is that page's: its card here says nothing of them and is not a fold target.
+    const mine = key => !settingsOf.get(key)?.place || settingsOf.get(key).place !== 'diagnostics';
     return {
         filter(text) {
             const query = String(text ?? '').trim();
             let shown = 0;
-            for (const entry of cards) {
-                if (!query) {
-                    entry.form?.filter('');
-                    entry.card.setHidden(false);
-                    for (const own of entry.folds) own.sub.setHidden(false);
-                    continue;
-                }
-                // The module's own name shows all of its settings; else the rows that match.
-                const byName = moduleHit(entry, text);
-                const rows = entry.form ? entry.form.filter(byName ? '' : text) : 0;
-                const folds = entry.folds.filter(own => matchesSearch(own.key, { label: own.title, help: own.hint }, entry.mod.name ?? entry.id, text));
-                for (const own of entry.folds) own.sub.setHidden(!byName && !folds.includes(own));
-                const panel = entry.panelBox && !entry.panelBox.hidden && matchesSearch(`${entry.id}${SUB_FOLD}panel`, { label: entry.panelTitle, help: '' }, entry.mod.name ?? entry.id, text);
-                const hit = byName || rows > 0 || folds.length > 0 || panel;
-                entry.card.setHidden(!hit);
-                if (hit) shown += (byName ? Math.max(rows, 1) : rows) + folds.length + (panel ? 1 : 0);
-            }
+            for (const entry of cards) shown += entry.filter(text);
             const versionsHit = matchesSearch('versions', { label: MODULES_TEXT.versionsTitle, help: '' }, 'Modules', text);
             versions.setHidden(Boolean(query) && !versionsHit);
             return shown + (query && versionsHit ? 1 : 0);
         },
         refresh() {
-            for (const entry of cards) {
-                entry.paintLink();
-                entry.panel?.();
-                entry.form?.refresh();
-            }
+            for (const entry of cards) entry.refresh();
             paintVersions();
         },
         destroy() {
-            for (const entry of cards) entry.form?.destroy();
+            for (const entry of cards) entry.destroy();
             root.remove();
         },
         has(key) {
             if (key === VERSIONS_FOLD) return true;
-            if (cards.some(entry => entry.id === key)) return true;
             const group = parseGroup(key);
-            if (group) return cards.some(entry => entry.id === group.id && entry.groups.includes(group.group));
-            return cards.some(entry => entry.folds.some(own => own.key === key));
+            const id = group ? group.id : cards.find(entry => entry.id === key || entry.has(key))?.id;
+            return Boolean(id) && cards.some(entry => entry.id === id && mine(id) && entry.has(key));
         },
         open(key) {
             if (key === VERSIONS_FOLD) return focusNode(versions.title);
-            const group = parseGroup(key);
-            if (group) {
-                const entry = cards.find(item => item.id === group.id);
-                const el = entry?.form?.openGroup(group.group) ?? null;
-                if (!el) return false;
-                return focusNode(el.querySelector('summary') ?? el.querySelector('.ss-section-title, input, select, textarea, button'));
-            }
-            const own = cards.flatMap(entry => entry.folds).find(item => item.key === key);
-            if (own) return focusNode(own.sub.title);
-            const entry = cards.find(item => item.id === key);
-            return entry ? focusNode(entry.card.title) : false;
+            const entry = cards.find(item => item.has(key));
+            return entry ? entry.open(key) : false;
         },
     };
 }

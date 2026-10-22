@@ -5,7 +5,7 @@ import { installFakeDom } from '../ui-fake-dom.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { createSettings } from '../../src/v2/sdk.js';
 import { readFileSync } from 'node:fs';
-import { DIAGNOSTICS_FOLD, DIAGNOSTICS_TEXT, EVENTS_FOLD, FEATURES_FOLD, OPEN_CLASS, PACKS_FOLD, SETTINGS_TEXT, SUB_FOLD, createTabHost, emptyValue, featuresFoldOf, groupFields, linesToList, listTextFields, listToLines, promptSize, readInt, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { FEATURES_FOLD, OPEN_CLASS, PACKS_FOLD, SETTINGS_TEXT, SUB_FOLD, createTabHost, emptyValue, featuresFoldOf, groupFields, linesToList, listTextFields, listToLines, promptSize, readInt, renderSettingsHost } from '../../src/v2/host-ui.js';
 import { openSettingsWindow as openSettingsOverlay } from '../../src/v2/view/settings/window.js';
 import { createCoreModule } from '../../src/v2/domains/index.js';
 import { EVENTS_NOTE } from '../../src/v2/events/index.js';
@@ -381,7 +381,7 @@ test('Packs: its own fold first, titled Packs with "import a pack", even with no
     const { registry: reg, settings } = setup(core, director(), rpg());
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry: reg, settings, doc });
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), [PACKS_FOLD, 'rpg-battle', 'story-block', 'story-director', 'story-suite-diagnostics', 'story-suite-versions']);
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), [PACKS_FOLD, 'rpg-battle', 'story-block', 'story-director', 'story-suite-versions']);
     const packs = foldAt(root, PACKS_FOLD);
     assert.deepEqual(packs.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['Packs', 'import a pack']);
     assert.equal(packs.querySelector('.ss-packs-import').textContent.trim(), 'Import pack file');
@@ -699,87 +699,3 @@ test('text form: every list of text and whole numbers has the toggle; others and
 const coreFor = () => createCoreModule({ packs: packsFor({ extensionSettings: {} }) });
 const report = { report: () => 'REPORT' };
 
-test('Events: a sub-fold of Diagnostics, below the report, folded, with its note; not in Story Block\'s fold', () => {
-    const { registry, settings } = setup(coreFor(), rpg());
-    const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc, diagnostics: report });
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), [PACKS_FOLD, 'rpg-battle', 'story-block', DIAGNOSTICS_FOLD, 'story-suite-versions'], 'no fold of its own among the modules');
-    const diag = foldAt(root, DIAGNOSTICS_FOLD);
-    assert.deepEqual(subFolds(diag).map(node => node.dataset.fold), [EVENTS_FOLD]);
-    const events = foldAt(root, EVENTS_FOLD);
-    assert.ok(events.classList.contains('story-suite-subfold'));
-    assert.equal(events.open, false, 'folded by default');
-    assert.deepEqual(events.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['Events', 'every pack event']);
-    const note = events.querySelector('.ss-events-note');
-    assert.equal(note.textContent, EVENTS_NOTE);
-    assert.equal(note.textContent, 'For checking packs. It shows upcoming events and their conditions, so it can spoil the story.');
-    assert.ok(note.classList.contains('story-suite-muted'));
-    assert.ok(events.querySelector('.ss-events-summary'), 'the events panel itself');
-    // After the report and its buttons.
-    const kids = diag.querySelector('.story-suite-fold-body').children;
-    assert.ok(kids.indexOf(events) > kids.indexOf(diag.querySelector('.story-suite-diagnostics-actions')));
-    const core = foldAt(root, 'story-block');
-    assert.equal(core.querySelector('.ss-events'), null, 'not in Story Block\'s fold');
-    assert.deepEqual(core.querySelectorAll('.story-suite-subsection > h4').map(node => node.textContent), ['Assist'], 'Events gone, Assist stays');
-    assert.ok(core.querySelector('.ss-assist'), 'Assist stays');
-    assert.equal(registry.settingsDefs().find(def => def.moduleId === 'story-block').folds.find(item => item.id === 'events').place, 'diagnostics');
-});
-
-test('Events: its open state is remembered across redraws and renders, as other folds are; Diagnostics too', () => {
-    const { registry, settings } = setup(coreFor());
-    const state = new Map();
-    const root = doc.createElement('div');
-    const host = renderSettingsHost(root, { registry, settings, doc, diagnostics: report, openState: state });
-    foldAt(root, DIAGNOSTICS_FOLD).open = true;
-    foldAt(root, EVENTS_FOLD).open = true;
-    host.refresh();
-    assert.deepEqual([DIAGNOSTICS_FOLD, EVENTS_FOLD].map(key => foldAt(root, key).open), [true, true], 'a redraw keeps it open');
-    const events = foldAt(root, EVENTS_FOLD);
-    events.open = false;
-    events.dispatch('toggle');
-    assert.equal(state.get(EVENTS_FOLD), false, 'a toggle is remembered');
-    events.open = true;
-    events.dispatch('toggle');
-    const again = doc.createElement('div');
-    renderSettingsHost(again, { registry, settings, doc, diagnostics: report, openState: state });
-    assert.equal(foldAt(again, EVENTS_FOLD).open, true, 'another render with the same state');
-    // The overlay opened at it opens Diagnostics too.
-    const overlay = openSettingsOverlay({ registry, settings, doc, diagnostics: report, fold: EVENTS_FOLD, openState: new Map() });
-    assert.deepEqual([DIAGNOSTICS_FOLD, EVENTS_FOLD].map(key => foldAt(overlay.root, key).open), [true, true]);
-    overlay.close();
-});
-
-test('without a report there is still a Diagnostics fold, holding only the placed sub-folds; with neither, none', () => {
-    const { registry, settings } = setup(coreFor());
-    const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc });
-    const diag = foldAt(root, DIAGNOSTICS_FOLD);
-    assert.ok(diag, 'a Diagnostics fold');
-    assert.deepEqual(topFolds(root).slice(-2).map(node => node.dataset.fold), [DIAGNOSTICS_FOLD, 'story-suite-versions']);
-    assert.deepEqual(diag.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['Diagnostics', DIAGNOSTICS_TEXT.checksHint]);
-    assert.equal(diag.querySelector('.story-suite-diagnostics-report'), null, 'no report to build');
-    assert.deepEqual(subFolds(diag).map(node => node.dataset.fold), [EVENTS_FOLD]);
-    assert.equal(diag.open, false);
-    assert.equal(foldAt(root, EVENTS_FOLD).open, false);
-    const bare = setup(rpg());
-    const plain = doc.createElement('div');
-    renderSettingsHost(plain, { registry: bare.registry, settings: bare.settings, doc });
-    assert.equal(foldAt(plain, DIAGNOSTICS_FOLD), undefined, 'nothing placed and no report: no Diagnostics fold, as before');
-});
-
-test('a module with no `place` is unchanged; `place: \'diagnostics\'` moves its whole fold; an unknown place stays and warns', () => {
-    const debug = { id: 'probe', name: 'Probe', settings: { place: 'diagnostics', section: 'Probe log', defaults: { n: 1 }, schema: { n: { type: 'int', label: 'Lines' } }, render(el) { el.textContent = 'raw'; } } };
-    const odd = { id: 'odd', name: 'Odd', settings: { place: 'sidebar', schema: { on: 'bool' } } };
-    const { registry, settings } = setup(rpg(), debug, odd);
-    const root = doc.createElement('div');
-    renderSettingsHost(root, { registry, settings, doc, diagnostics: report });
-    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['odd', 'rpg-battle', DIAGNOSTICS_FOLD, 'story-suite-versions'], 'rpg-battle and the unknown place keep their folds');
-    assert.equal(row(root, 'rpg-battle', 'hardMode').querySelector('input').type, 'checkbox', 'its rows as before');
-    const probe = foldAt(root, 'probe');
-    assert.ok(probe.classList.contains('story-suite-subfold'));
-    assert.equal(probe.parentNode, foldAt(root, DIAGNOSTICS_FOLD).querySelector('.story-suite-fold-body'));
-    assert.equal(probe.open, false, 'folded by default');
-    assert.equal(probe.querySelector('.story-suite-section').textContent, 'raw');
-    assert.ok(probe.querySelector('.story-suite-row[data-field="n"]'), 'its fields come with it');
-    assert.deepEqual(registry.settingsDefs().map(def => [def.moduleId, def.place]), [['odd', null], ['probe', 'diagnostics'], ['rpg-battle', null]]);
-});

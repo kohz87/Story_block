@@ -119,8 +119,9 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     // Its card stays in Modules with the line to its features (its features are on the Features page).
     assert.match(page('modules').querySelector('.ss-module-card[data-module="story-block"] .ss-module-features').textContent, /^Features: \d+ of \d+ on — change$/);
     // Events, debug information that can spoil the story, is a folded sub-fold of Diagnostics; Versions is with the modules.
-    assert.deepEqual(foldsOf('diagnostics'), ['story-suite-diagnostics']);
-    assert.ok(page('diagnostics').querySelector('details[data-fold="story-suite-diagnostics"] details.story-suite-subfold[data-fold="story-block/events"] .ss-events'));
+    assert.deepEqual(foldsOf('diagnostics'), [], 'the Diagnostics page is the form engine\'s: the report card, then Events as a fold card');
+    assert.ok(page('diagnostics').querySelector('.ss-diagnostics-card[data-fold="story-suite-diagnostics"] .story-suite-diagnostics-report'));
+    assert.ok(page('diagnostics').querySelector('.ss-diagnostics-fold[data-fold="story-block/events"] .ss-events'));
     assert.deepEqual(foldsOf('modules'), [], 'the Modules page is the form engine\'s: a card per module, then Versions');
     assert.equal(page('modules').querySelectorAll('.ss-section').filter(node => node.dataset.fold).at(-1).dataset.fold, 'story-suite-versions', 'Versions last');
     overlay.querySelector('.story-suite-close').click();
