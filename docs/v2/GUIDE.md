@@ -411,10 +411,25 @@ ready-made character.
 Open the settings with **Settings** on the Story Suite bar above the message box, **Story Suite** in the
 wand menu, or **Extensions → Story Block → Settings**. They open over the whole window in one column that
 scrolls; **Close** or Esc closes them. Each part is a fold you open and close: **Story Suite**, **Packs**,
-**Features**, one fold per extension, **Versions**. Inside an extension's fold, its **Features** come
-first (open), then one smaller fold per group of settings (Story Director's **Calendar**, for one), and
-**General** for the rest. Folds stay as you left them while the page is open. A list (the months of a
-calendar) shows one line per entry, `[January] [31] ×`: × removes that line, **Add** adds one.
+**Features**, one fold per extension with settings, **Versions**. Inside an extension's fold, one line
+says how many of its features are on (*Features: 3 of 4 on — change*, which takes you to them), then one
+smaller fold per group of settings (Story Director's **Calendar**, for one), and **General** for the
+rest. Folds stay as you left them while the page is open. A list (the months of a calendar) shows one
+line per entry, `[January] [31] ×`: × removes that line, **Add** adds one.
+
+A list of names and numbers can also be typed as text: **Edit as text** turns it into a box with one
+entry per line, the parts split by a colon. Story Director's **Months** opens that way, so a calendar
+of 13 months (or 10, or 5) is just typed:
+
+```
+Frostmoon: 30
+Thawing: 28
+Day of Ash: 1
+```
+
+It's read when you leave the box. A line that can't be used (a month with 0, negative or no days, a
+missing colon) is named under the box, *Line 3 ("Day of Ash: 0"): Days must be at least 1.*, and nothing
+changes until every line reads. **Edit as rows** goes back to one line per entry.
 
 * **Prompt size** (in the **Story Suite** fold): what Story Suite adds to the prompt of the next reply in
   the open chat, counted now and never sent. The instructions (the same every reply, so the prompt cache
@@ -458,8 +473,10 @@ calendar) shows one line per entry, `[January] [31] ×`: × removes that line, *
 ### Features
 
 Each extension's optional mechanics (wear and breakage, weather, a loot picker…) can be switched on or
-off: in the **Features** list at the top of that extension's section, or all together on the
-**Features** page of the Story Suite settings. Story Block's own are the **Status strip**, the **Cards
+off in the **Features** fold of the Story Suite settings: one smaller fold per extension, A to Z, its
+title saying how many are on ("3 of 4 on"), and a **Find a feature** box at the top that keeps only the
+features whose name or description has what you type, across every extension. An extension's own fold
+links to its features with one line. Story Block's own are the **Status strip**, the **Cards
 under replies**, **Save points** (on), the **State inspector** (off), and two helpers that each make one
 small extra model call, off until you turn them on: *Roll checks before the reply* and *Read changes
 from replies that forgot them*. A feature that needs another extension (the pre-roll needs one that
