@@ -99,6 +99,10 @@ export const TINT_SHARE = 30;
 const TINT = 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))';
 const mixTint = base => `color-mix(in srgb, ${TINT} ${TINT_SHARE}%, ${base})`;
 
+// What the legacy surfaces paint under Glass: the dense glass, its blur and no extra layers (the game view's opaque fallback).
+const SHEET_TOKENS = Object.freeze([['--ss-sheet-bg', 'var(--ss-glass-strong)'], ['--ss-sheet-blur', 'var(--ss-blur)'], ['--ss-sheet-layers', 'none']]);
+const SHEET_RESET = Object.freeze(SHEET_TOKENS.map(([name]) => [name, 'initial']));
+
 /** The reader's Glass strength (host setting `glassStrength`, a percentage): its range and default. */
 export const GLASS_MIN = 30;
 export const GLASS_MAX = 90;
@@ -263,6 +267,10 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
         ['--ss-good', p.good],
         ['--ss-chatter', p.chatter],
         ['--ss-blur', solid ? 'none' : 'blur(16px) saturate(1.2)'],
+        // The legacy surfaces (`.story-suite-sheet`, `.ss-gameview`: host.css, mounts.css) paint these when they are set,
+        // which they are for Glass only: the page shows through them. Solid and Follow SillyTavern leave them unset, so
+        // those surfaces keep SillyTavern's tint exactly as before.
+        ...(solid ? [] : SHEET_TOKENS),
     ];
 }
 
@@ -300,14 +308,15 @@ export function themeCss({ scheme = 'dark', panel = DEFAULT_PANEL, font = DEFAUL
         ];
         out.push(`@supports (color: rgb(from red r g b)) {\n${tinted.join('\n')}\n}`);
     }
-    const solidBlocks = (indent, opaque) => [
-        block(ROOT_SELECTOR, schemeTokens(choice.scheme, 'solid', { opaque }).filter(([name]) => /glass|overlay|blur/.test(name)), indent),
+    // `reset`: the legacy surfaces go back to SillyTavern's tint (Glass under "reduce transparency" is Solid).
+    const solidBlocks = (indent, opaque, reset = []) => [
+        block(ROOT_SELECTOR, [...schemeTokens(choice.scheme, 'solid', { opaque }).filter(([name]) => /glass|overlay|blur/.test(name)), ...reset], indent),
         ...SCHEMES.map(s => block(forced(s), schemeTokens(s, 'solid', { opaque }).filter(([name]) => /glass|overlay|blur/.test(name)), indent)),
     ];
     if (choice.panel === 'solid') out.push(`@supports (color: rgb(from red r g b)) {\n${solidBlocks('    ', true).join('\n')}\n}`);
     if (choice.panel === 'glass') {
-        out.push(`@media (prefers-reduced-transparency: reduce) {\n${solidBlocks('    ', false).join('\n')}\n}`);
-        out.push(`@media (prefers-reduced-transparency: reduce) {\n    @supports (color: rgb(from red r g b)) {\n${solidBlocks('        ', true).join('\n')}\n    }\n}`);
+        out.push(`@media (prefers-reduced-transparency: reduce) {\n${solidBlocks('    ', false, SHEET_RESET).join('\n')}\n}`);
+        out.push(`@media (prefers-reduced-transparency: reduce) {\n    @supports (color: rgb(from red r g b)) {\n${solidBlocks('        ', true, SHEET_RESET).join('\n')}\n    }\n}`);
     }
     out.push(`@media (prefers-reduced-motion: reduce) {\n${block(ROOT_SELECTOR, [['--ss-motion', '0s']], '    ')}\n}`);
     return `${out.join('\n')}\n`;

@@ -1,7 +1,7 @@
 # Story Block: notes for coding agents
 
 Story Block is the **host** of Story Suite v2 for SillyTavern 1.19: state store, persistence, command bus,
-`<Changes>` capture, prompt assembly, module registry, settings overlay, tabs and screens, packs. Its core
+`<Changes>` capture, prompt assembly, module registry, settings window, tabs and screens, packs. Its core
 domains are `scene` and `inventory` (one currency). The other three repos are **modules** that register
 through Story Block's sdk (`globalThis.StoryBlock.sdk.registerModule`):
 
@@ -32,7 +32,7 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `src/v2/events/`, `src/v2/assist/`: pack events and conditions; optional classifier and extractor.
 - `src/v2/view/`: screens registry, template renderer + sanitiser, CSS scoper, binding, mounts, widgets, tab order.
 - `src/v2/screens/`: the host's own screens (home, inventory, scene, changes card, inspector, save points).
-- `src/v2/ui-host.js`, `src/v2/host-ui.js`: page furniture (bar, panel, drawer) and the settings overlay.
+- `src/v2/ui-host.js`, `src/v2/host-ui.js`: page furniture (bar, panel, drawer) and the settings folds; `src/v2/view/settings/`: the settings window (shell, sections, search).
 - `src/v2/extras.js`, `extras-ui.js`: display kinds `? choice` and `~ chatter`.
 - `src/v2/rewind.js`, `reply-notes.js`, `diagnostics.js`: rewinds and save points, per-reply notes, Diagnostics fold.
 - `testkit/`: fake SillyTavern (`createFakeContext`) and a whole host on it (`createHost`); vendored by modules.

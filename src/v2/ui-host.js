@@ -38,7 +38,8 @@
 // in src/v2/strings.js.
 
 import { formatAmount } from './domains/money.js';
-import { PACKS_FOLD, createTabHost, openSettingsOverlay } from './host-ui.js';
+import { PACKS_FOLD, createTabHost } from './host-ui.js';
+import { openSettingsWindow } from './view/settings/window.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
 import { createScreenRenderer } from './view/render-screen.js';
@@ -487,7 +488,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     });
     function openSettings(options = null) {
         const fold = typeof options?.fold === 'string' ? options.fold : null;
-        overlay = openSettingsOverlay({
+        overlay = openSettingsWindow({
             registry, settings, doc, sdk, features: runtime.features ?? null, fold, diagnostics,
             promptParts, tabs: tabsControl, theme,
             countTokens: countTokens(),

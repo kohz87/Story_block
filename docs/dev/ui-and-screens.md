@@ -61,9 +61,13 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   colours and blur); **Font** `font` = `nunito` (default) | `theme` (`--mainFontFamily`). Nunito ships with the extension
   (`assets/fonts/nunito/`, woff2 latin and latin-ext in 400/600/700/800, SIL OFL in `OFL.txt`, `@font-face` in
   `view/fonts.css`), so it is the same offline and with "Forbid external media" on; nothing is fetched. Fallback
-  `system-ui`. A parent that sets its own background or a filter hides the page from the glass inside it: the
-  legacy panels (`.story-suite-sheet`, `.story-suite-overlay`, the game view's surface) still have theirs until
-  their screens move to the look (steps 2 and 3). `prefers-reduced-transparency` turns Glass into Solid; `prefers-reduced-motion`
+  `system-ui`. A parent that sets its own background or a filter hides the page from the glass inside it, so the
+  legacy surfaces (the side sheet `.story-suite-sheet`, the game view `.ss-gameview`) are glass themselves under Glass:
+  the theme sets `--ss-sheet-bg` (the dense glass, so Glass strength reaches it), `--ss-sheet-blur` and
+  `--ss-sheet-layers: none`, and host.css / mounts.css paint `var(--ss-sheet-bg, <the old tint>)`. Solid and Follow
+  SillyTavern leave the three unset (and `prefers-reduced-transparency` resets them to `initial`), so those surfaces
+  keep SillyTavern's tint exactly as before. The settings window's layer (`.story-suite-overlay`) is only a scrim now.
+  Still opaque, for steps 2 and later: the HUD strip and the dialog mount (`.ss-hud`, `.ss-dialog`). `prefers-reduced-transparency` turns Glass into Solid; `prefers-reduced-motion`
   sets `--ss-motion: 0s`. SillyTavern's own "No blur effect" (`body.no-blur`) still removes every blur. The
   class `ss-scheme-light` / `ss-scheme-dark` inside a root forces a scheme there (`data-ss-*` attributes are
   reserved by the sanitiser, so it is a class). Nothing is set on SillyTavern's elements.
@@ -114,8 +118,9 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 ## The form engine (UI stage, step 1b PR B)
 
 `src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
-the look, and writes through the same settings store the overlay writes through. **The real settings window is not
-replaced yet** (step 3); the UI sample shows a demo form (`mountDemoForm`, `UI_SAMPLE_FORM`).
+the look, and writes through the same settings store the settings window writes through. The window (below, step 3a)
+still draws today's folds; steps 3b–3g move its sections to this engine one by one. The UI sample shows a demo form
+(`mountDemoForm`, `UI_SAMPLE_FORM`).
 
 ```js
 import { renderSettingsForm, renderModuleForm } from './src/v2/view/form/index.js';
@@ -171,8 +176,53 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   `ss-number`, `ss-select`), `ss-switch` (+ `-on`, `-knob`), `ss-slider` (+ `-input`, `-value`; the fill is `--ss-fill`),
   `ss-chips`, `ss-chip` (+ `-on`), `ss-lines` (+ `-row`, `-cell`, `-remove`, `-add`, `-toggle`, `-text`, `-error`),
   `ss-search`. New tokens `--ss-off` (the switch's off track) and `--ss-knob`.
-- The helpers shared with the overlay (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are imported from
-  `host-ui.js` through `view/form/schema.js`: step 3 moves them there when the overlay goes.
+- The helpers shared with the settings window's folds (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are
+  imported from `host-ui.js` through `view/form/schema.js`: they move there when the last section leaves the folds.
+
+## The settings window (UI stage, step 3a)
+
+`src/v2/view/settings/` is the settings window's shell; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`.
+It replaced `openSettingsOverlay` (host-ui.js). The shell only: **every section still draws today's folds and rows**, so
+nothing regressed; 3b–3g replace the bodies.
+
+- **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
+  `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
+  the window's glass) holds the window `.ss-settings` (`role="dialog"`, `aria-modal`, labelled by its title): a header
+  (`h2` "Story Suite", the search box, Close `.ss-settings-close.story-suite-close`), then the rail and the page. From 760px it is a
+  centred 1120 × 780 window, 26px radius, rail 250px; on a phone it is full screen, the rail a row that scrolls sideways above
+  the page (no horizontal overflow at 390px: checked live). Page: a heading (`h3`, 22/26px, 800) and a line under it, then
+  the body's pane.
+- **Sections** (`sections.js`): `SETTINGS_SECTIONS`, in the concept's order: Features, Money, Assist, Tabs & Packs, Modules,
+  Diagnostics (id, label, Font Awesome icon, title, sub). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
+  command that selects): a `nav` of buttons, `aria-current="page"` on the chosen one, roving tabindex (one Tab stop, arrows, Home,
+  End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
+- **Where today's folds go** (`routeOf`): Features fold → Features; Story Block's **General group → Money**, its **Assist panel and
+  Assist group → Assist**; the Story Suite fold (Panel style, Glass strength, Font, the budgets, Prompt size, its Tabs sub-fold) and
+  Story Block's **Packs** fold → Tabs & Packs; every module's fold (what is left of Story Block's: the line to its features and
+  its Inner chatter group) and **Versions** → Modules; Diagnostics (with Events) → Diagnostics. Fold ids did not change:
+  `openSettings({ fold: PACKS_FOLD })` shows the section that holds the fold (found in the DOM, not in a table), opens it
+  and focuses its summary; `"<id>::features"` still means that module's sub-fold of Features. `renderSettingsHost(root, { sections })`
+  does the placing (`sections: { ids, place(id), route(piece), defaultOpen(key), show(id), afterRefresh() }`); without `sections`
+  it draws the one column of folds as before (the tests of the folds use that).
+- **Bodies** (`bodies.js`): `SECTION_BODIES`, a map **section id → `(pane, ctx) → { filter(text) → number, refresh?(), destroy?() }`**.
+  Steps 3b–3g replace one entry each, e.g. `SECTION_BODIES.features = (pane, ctx) => { const form = renderSettingsForm(pane, { … });
+  return { filter: text => form.filter(text), refresh: () => form.refresh(), destroy: () => form.destroy() }; }`; a section with its
+  own body never gets drawn by the shared legacy host (it gets no pane), and `openSettingsWindow({ bodies })` takes another map (tests).
+  `createLegacySettings` is the shared host behind the default entries.
+- **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
+  answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
+  the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
+  `shownOne`, `none` "No settings match …"). The folds' rows, features and panels are search entries (`renderSettingsHost(...).entries()`:
+  label, help, group and key, the same `matchesSearch`); a fold with no match is hidden, one with a match opens for the search and goes
+  back as the reader left it when it ends. A panel that matches (Packs, Tabs, Diagnostics) shows whole and counts once. Escape in
+  the box empties it first; choosing a section ends the search. The old Features filter inside the Features fold is hidden (this covers it).
+- **Keyboard and focus**: the window opens with the focus on the rail's current item (or on the summary of the fold asked for);
+  Tab and Shift+Tab stay inside it (the reachable controls: not hidden, not in a closed fold, not `tabindex=-1`), a focus that lands on the
+  page behind comes back, Escape closes it, and the focus returns to what had it (the bar's Suite button). A click on the dimmed
+  page beside the window closes it, a text selection dragged out of it does not. `<body>` carries `story-suite-open` while it is open.
+- **The folds in the look** (settings.css, `.ss-settings …`, a class heavier than host.css): folds and sub-folds as tile cards, rows with
+  token borders, fields and buttons on the tokens, the browser's checkbox drawn as the switch, each feature a tile (two to a row where
+  there is room). This is temporary: it goes with the folds.
 
 ## Key files and functions
 
@@ -183,20 +233,23 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 - `src/v2/view/mounts/` (`tab`, `screen`, `card`, `hud`, `dialog`), `view/widgets/`, `view/tab-order.js`.
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
   `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/form/` (`fields.js`, `form.js`, `schema.js`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
-  (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`).
+  (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`), `view/settings/` (`window.js`, `sections.js`,
+  `bodies.js`, `search.js`) and `view/settings.css`.
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
-- `src/v2/ui-host.js` (`mountUi`: bar, panel, drawer, mounts), `src/v2/host-ui.js` (settings overlay, folds).
+- `src/v2/ui-host.js` (`mountUi`: bar, panel, drawer, mounts), `src/v2/host-ui.js` (`renderSettingsHost`: the settings folds, drawn into the settings window's sections), `src/v2/view/settings/window.js` (the window).
 - `testkit/purify.js`: `stPurify`, stands in for SillyTavern's DOMPurify (drops controls' `type` as the real one does).
 
 ## Tests that guard it
 
 - `tests/v2/view/` (`template/`, `mounts/`, `widgets/`, `render-screen.test.js`, `tab-order.test.js`),
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
+- The settings window: `tests/v2/ux/settings-window.test.js` (frame, rail, sections, folds, keyboard, search, bodies),
+  `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.
-- Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`, `form-security`.
+- Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`, `form-security`, `settings-window-security`.
 - Break findings: `rx-ui-*`, `b5b-deep-screens`, `b5b-form-names`, `b5b-r2-props-depth`, `c3-features-*`.
 
 ## When you change it
