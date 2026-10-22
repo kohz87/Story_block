@@ -89,7 +89,7 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     doc.querySelector('.story-suite-sheet-close').click();
 });
 
-test('the settings overlay opens from the bar with the Packs fold second and the Story Block fold\'s Events and Assist panels', () => {
+test('the settings overlay opens from the bar with the Packs fold second and the Story Block fold\'s Events and Assist panels in its fold, Diagnostics last before Versions', () => {
     doc.querySelector('.story-suite-bar-settings').click();
     const overlay = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlay);
@@ -97,7 +97,10 @@ test('the settings overlay opens from the bar with the Packs fold second and the
     assert.ok(overlay.querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
     // The prompt size, then the Story Block fold's panels; its features are in the Features fold, with a line to them.
     assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Prompt size', 'Events', 'Assist']);
-    assert.deepEqual(texts(overlay, 'details[data-fold="story-block"] .story-suite-subfold > summary > b'), ['General', 'More']);
+    // Its panels sit in its fold itself (no "More" sub-fold), its groups below them; Diagnostics before Versions.
+    assert.deepEqual(texts(overlay, 'details[data-fold="story-block"] .story-suite-subfold > summary > b'), ['General', 'Assist']);
+    assert.ok(overlay.querySelector('details[data-fold="story-block"] > .story-suite-fold-body > .story-suite-section .ss-assist'));
+    assert.deepEqual(overlay.querySelectorAll('details.story-suite-fold').slice(-2).map(node => node.dataset.fold), ['story-suite-diagnostics', 'story-suite-versions']);
     assert.match(overlay.querySelector('details[data-fold="story-block"] .story-suite-feature-link').textContent, /^Features: \d+ of \d+ on — change$/);
     assert.ok(overlay.querySelector('details[data-fold="story-suite-features::story-block"]'), 'Story Block\'s sub-fold in Features');
     overlay.querySelector('.story-suite-close').click();

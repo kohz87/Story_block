@@ -15,6 +15,7 @@
 import { createRuntime, VERSION } from './src/v2/runtime.js';
 import { INTERCEPTOR_NAME } from './src/v2/turn.js';
 import { mountUi } from './src/v2/ui-host.js';
+import { noteSaveError } from './src/v2/diagnostics.js';
 import { packs as livePacks, part as livePacksPart, refreshLore, resolveItem, startState } from './src/v2/packs/index.js';
 
 const LOG = '[Story Block v2]';
@@ -30,7 +31,10 @@ function boot() {
         ctx,
         packs: { part: livePacksPart, packs: livePacks, resolveItem, startState },
         onBlocked: (reason, moduleId) => ui?.blocked(reason, moduleId),
-        onSaveError: error => globalThis.toastr?.error?.(`The story could not be saved: ${error?.message ?? error}`, 'Story Block'),
+        onSaveError: error => {
+            noteSaveError(error);
+            globalThis.toastr?.error?.(`The story could not be saved: ${error?.message ?? error}`, 'Story Block');
+        },
         onRegister: () => ui?.syncScreens(),
     });
     const { sdk, turn, markReady } = runtime;

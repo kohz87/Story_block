@@ -127,13 +127,14 @@ test('a module\'s custom section gets its element and a settings api; one that t
     assert.deepEqual(api.sdk, { marker: true });
 });
 
-test('a section given as a title and render(el, api) is drawn the same way, under that title', () => {
+test('a section given as a title and render(el, api) is drawn right in its module fold, under that title as a heading', () => {
     const { registry, settings, es } = setup({ id: 'rb', name: 'RPG Battle', settings: { section: 'Combat', defaults: { speed: 2 }, render(el, api) { el.textContent = `Speed ${api.get('speed')}`; api.set('speed', 3); } } });
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
     const fold = root.querySelectorAll('details.story-suite-fold')[1];
     assert.deepEqual(fold.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['RPG Battle', 'Combat']);
-    assert.deepEqual(fold.querySelectorAll('.story-suite-subfold > summary b').map(node => node.textContent), ['Combat'], 'the panel in a sub-fold under that title');
+    assert.equal(fold.querySelectorAll('.story-suite-subfold').length, 0, 'no sub-fold for the panel');
+    assert.equal(fold.querySelector('.story-suite-section-title').textContent, 'Combat');
     assert.equal(fold.querySelector('.story-suite-section').textContent, 'Speed 2');
     assert.equal(es.storySuite.modules.rb.speed, 3);
 });
