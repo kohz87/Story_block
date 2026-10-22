@@ -26,13 +26,21 @@ const qty = (host, name) => host.sdk.query('inventory.items').filter(item => ite
 function replyLines(r, step) {
     const out = { lines: [], coin: 0, torches: 0, own: [] };
     for (let n = r.int(1, 4); n > 0; n -= 1) {
-        switch (r.int(0, 6)) {
+        switch (r.int(0, 7)) {
             case 0: { const k = r.int(1, 30); out.lines.push(`+ coin ${k}`); out.coin += k; break; }
             case 1: { const k = r.int(1, 5); out.lines.push(`- coin ${k} | to: the ferryman`); out.coin -= k; break; }
             case 2: { const k = r.int(1, 3); out.lines.push(`+ item Torch | qty: ${k}`); out.torches += k; break; }
             case 3: { out.lines.push('- item Torch'); out.torches -= 1; break; }
             case 4: { const name = `Charm ${step}-${out.own.length + 1}`; out.lines.push(`+ item ${name}`); out.own.push(name); break; }
             case 5: { const name = `Walker ${step}-${out.lines.length}`; out.lines.push(`+ present ${name}`); out.people = [...(out.people ?? []), name]; break; }
+            // Loot laid out by this reply (its own things); taken at once below, so the take is on this reply too.
+            case 6: {
+                if (out.loot) break;
+                const names = [`Relic ${step}-a`, `Relic ${step}-b`];
+                out.lines.push(`? loot ${names[0]}, ${names[1]} x2 — under the floor`);
+                out.loot = names;
+                break;
+            }
             default: out.lines.push(`~ place ${r.pick(PLACES)} | kind: ${r.pick(['settlement', 'wild', ''])}`);
         }
     }
@@ -66,12 +74,22 @@ for (const seed of SEEDS) {
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);
+            if (made.loot && r.chance(0.7)) {
+                // The reader takes the first thing, or both (claim loot:<sid>; the receipt lands on this reply).
+                const both = r.chance(0.5);
+                const taken = await host.sdk.command('inventory.lootTake', { sid: host.store.carrierSid(index), pick: both ? [0, 1] : [0] });
+                assert.equal(taken.ok, true, `seed ${seed} step ${step}: loot taken (${taken.message})`);
+                made.own.push(made.loot[0]);
+                if (both) made.relics = made.loot[1];
+                assert.equal((await host.sdk.command('inventory.lootTake', { sid: host.store.carrierSid(index), pick: [1] })).ok, false, 'once per reply');
+            }
             if (step < 3 || !r.chance(0.35)) continue;
             // Delete a reply in the middle (after the set-up, not the last) and the reader's message before it.
             const replies = host.ctx.chat.map((message, at) => (!message.is_user && at > setup && at < index ? at : -1)).filter(at => at >= 0);
             if (!replies.length) continue;
             const gone = r.pick(replies);
-            done.delete(host.store.carrierSid(gone));
+            const goneSid = host.store.carrierSid(gone);
+            done.delete(goneSid);
             await host.st.deleteMessage(gone);
             await host.st.deleteMessage(gone - 1);
             const label = `seed ${seed} step ${step} (deleted ${gone})`;
@@ -82,6 +100,8 @@ for (const seed of SEEDS) {
             assert.equal(coin(host), base.coin + kept.reduce((sum, made) => sum + made.coin, 0), `${label}: coin`);
             assert.equal(qty(host, 'Torch'), base.torches + kept.reduce((sum, made) => sum + made.torches, 0), `${label}: torches`);
             for (const name of kept.flatMap(made => made.own)) assert.equal(qty(host, name), 1, `${label}: ${name}`);
+            for (const made of kept) if (made.relics) assert.equal(qty(host, made.relics), 2, `${label}: ${made.relics}`);
+            assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, goneSid), false, `${label}: the deleted reply's loot went with it`);
         }
     });
 }

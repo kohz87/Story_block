@@ -45,6 +45,8 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const module = core();
     const state = stocked(module);
     state.domains.inventory.stacks.it_dagg0001.equipped = 'belt';
+    // No party members: the plain Equip (the pickers come with members, below).
+    delete state.domains.party;
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, calls, results } = show(inventoryScreen, {

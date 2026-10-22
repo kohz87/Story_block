@@ -86,6 +86,19 @@ extractor reads such replies instead and the note doesn't show.
 Lines the extensions couldn't use are listed faintly at the bottom of that reply's card, with the
 reason: *not applied: − item Lantern | qty: 1 — There is no Lantern in the inventory.*
 
+**Loot to pick from.** When the story lays things out rather than handing them over (a shelf, a chest,
+a fallen foe's belt), the model writes `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar shelf`.
+Nothing is given yet: the reply's card shows the things as chips. Tick the ones you want and press
+**Take selected**; they go into the party's bag. Each reply's loot is taken once, things you already
+carry are left out, and what one reply may lay out is held to the same limits as what it may give. A
+take you cannot carry is refused, and the loot stays there. Turn it off with **Pick what you take** in
+the Features.
+
+**Encumbered.** When the story gives the party more than it can carry, nothing is lost: the things are
+kept, and the party is *encumbered* (AGI and DEX checks −2, and the model is told) until something is put
+down. Your own takes, buys and hand-overs past the limit are still refused. Turn it off with
+**Encumbered** in the Features; then a story line past the limit is refused instead.
+
 ## The story leads, buttons manage your things
 
 Story actions happen in the story. You take a quest or drink a potion by saying so in your
@@ -226,7 +239,12 @@ Everything follows your SillyTavern theme's colours. Cards, meters and screens m
 open or change; if your system asks for reduced motion, they don't move at all.
 
 The **Inventory** has a **Filter…** box: type part of a name to see only matching things, together with
-the kind, rarity and *Equipped only* filters next to it.
+the kind, rarity and *Equipped only* filters next to it. It is the one place for the party's things: an
+**Equipped** section lists what each character wears, with **Take off** (the piece stays in their pack).
+**Equip on…** under a piece lists only the members who can wear it; picking one hands it over and puts it
+on in one step, and whatever was in that slot goes back into their pack (for rings and other accessories,
+the oldest one once all are worn: 2 by default, up to 3 by RPG Battle's rules). **Give…** hands a thing to
+someone else in the party, or back to the party's bag.
 
 ## Packs
 

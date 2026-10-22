@@ -24,7 +24,8 @@ export const carriers = chat => chat.map((message, index) => (isCarrier(message)
 const unescape = segment => segment.replace(/~1/g, '/').replace(/~0/g, '~');
 
 /** Strict JSON Patch on a deep copy; throws when a path does not fit. Counts with `was` move (above). */
-const SCRATCH = '/domains/inventory/perReply';
+// The inventory's per-reply scratch fields (its domain's `scratch`): the tally and the loot on offer.
+const SCRATCH = ['/domains/inventory/perReply', '/domains/inventory/loot'];
 const at = (root, keys) => keys.reduce((node, key) => (node !== null && typeof node === 'object' && Object.hasOwn(node, key) ? node[key] : undefined), root);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -38,7 +39,7 @@ export function strictApply(state, ops) {
         if (typeof op?.path === 'string' && op.path.startsWith('/domains/inventory/')) touched = true;
         // The inventory's per-reply tally (scratch): a drop of something already gone is passed over;
         // anything else is put in place, making the objects on the way.
-        if (typeof op?.path === 'string' && op.path.startsWith(`${SCRATCH}/`)) {
+        if (typeof op?.path === 'string' && SCRATCH.some(root => op.path.startsWith(`${root}/`))) {
             const keys = op.path.slice(1).split('/').map(unescape);
             if (op.op === 'remove') {
                 if (at(root, keys) === undefined) continue;
@@ -211,7 +212,7 @@ export function checkInvariants(host, label) {
         // With the validators the host passes (runtime.js): a replay that moves counts, or any replayed block, is checked by them.
         const validate = (state, names) => (names.includes('inventory') ? validateInventory(state.domains.inventory) : []);
         // And the inventory's per-reply tally as the scratch it is declared to be (ops.js).
-        const scratch = name => (name === 'inventory' ? ['perReply'] : []);
+        const scratch = name => (name === 'inventory' ? ['perReply', 'loot'] : []);
         const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate, scratch });
         assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
     }

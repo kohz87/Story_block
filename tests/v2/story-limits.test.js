@@ -48,7 +48,7 @@ test('~ item | qty: lowering a count is free, even after the reply gave all it m
     assert.deepEqual(problems(host), []);
 });
 
-test('~ item | qty: a raise past the carry limit is refused with the module\'s reason; nothing changes', async t => {
+test('~ item | qty: a raise past the carry limit is kept and the party is encumbered (story-block.encumbrance, on by default)', async t => {
     const asked = [];
     const carry = {
         id: 'zz-carry', name: 'Carry',
@@ -56,9 +56,12 @@ test('~ item | qty: a raise past the carry limit is refused with the module\'s r
     };
     const host = await fresh(t, { modules: [carry] });
     await host.send('More.', reply('Torches.', ['~ item Torch | qty: 9']));
-    assert.equal(qty(host, 'Torch'), 1);
-    assert.deepEqual(problems(host), ['REFUSED: "~ item Torch | qty: 9" was not used: Too heavy to carry.']);
-    assert.deepEqual(asked.at(-1), { owner: 'party', add: [{ defId: 'story/torch', qty: 8 }] });
+    assert.equal(qty(host, 'Torch'), 9, 'nothing the story gave is lost');
+    assert.deepEqual(problems(host), []);
+    const { receipt } = host.sdk.receipts().at(-1);
+    assert.match(receipt.summary, /encumbered until something is put down/);
+    assert.equal(receipt.data.encumbered, true);
+    assert.deepEqual(asked.filter(args => Array.isArray(args?.add)).at(-1), { owner: 'party', add: [{ defId: 'story/torch', qty: 8 }] });
     await host.send('Two more.', reply('Torches.', ['~ item Torch | qty: 3']));
     assert.equal(qty(host, 'Torch'), 3);
 });
