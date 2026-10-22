@@ -16,7 +16,7 @@ const REQUIRED = [
     '--ss-accent', '--ss-accent-soft', '--ss-pill', '--ss-pill-text', '--ss-badge', '--ss-badge-text', '--ss-blur',
     '--ss-radius-s', '--ss-radius-m', '--ss-radius-l', '--ss-radius-xl', '--ss-radius-xxl', '--ss-radius-pill',
     '--ss-space-1', '--ss-space-2', '--ss-space-3', '--ss-space-4', '--ss-space-5', '--ss-font', '--ss-motion',
-    '--ss-hp', '--ss-mp', '--ss-sp', '--ss-exp', '--ss-tick', '--ss-scrim',
+    '--ss-hp', '--ss-mp', '--ss-sp', '--ss-exp', '--ss-tick', '--ss-scrim', '--ss-off', '--ss-knob',
 ];
 
 // Every rule of a stylesheet, at-rules opened up: [{ selectors, block, at: ['@media …', …] }].
