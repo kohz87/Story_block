@@ -142,7 +142,7 @@ updated.
 - HP and MP come back with story time (Story Director's clock); 6 hours or more is a full rest. Feature, on.
 - Story XP awards: `+ xp minor|major|milestone — why`; code sets the amount, at most one big and two small a reply.
 - **Choices** (next moves as buttons that only fill your message box) and **Inner chatter** (unspoken thoughts in a folded strip), both off.
-- NPC State Delta's Cast in the game view.
+- NPC State Delta's Cast in the game view; while hosted it shows Story Director's story date and counts its own prompt in Story Block's prompt size (NPC State Delta #197).
 
 **Making your character, settings and diagnostics** (RPG Battle #99, #103; Story Block #114, #116, #117, #124; NPC State Delta #196)
 - *Before you start* on Home and **Create your character** on the Party screen, the status strip and the reply card. Race and talent cards are buttons you can take back; the last step shows a summary, and a toast says the character is ready. The last fight shows in parts.
@@ -183,7 +183,9 @@ updated.
 - Fixed at the candidate: a `~ time <date>` set no longer shifts after an earlier middle delete, and time
   passing still closes what it closed (Story Block #133, Story Director #104); Story Director's calendar
   fields are read-only while Calendar is "pack" (#133, #104); a choice past the cap after a Continue is a
-  LIMITED Problem on the card, as in the original reply (#133).
+  LIMITED Problem on the card, as in the original reply (#133). NPC State Delta (#197): a new chat no
+  longer logs a 404, an empty scan is one quiet warning, and the Cast tab shows the meters the story set for
+  people in the scene who have no dossier yet.
 - Fixed in the final soak: a small context (SillyTavern's default 4,095 tokens for chat completion) no
   longer loses the conversation; a save that timed out and still reached the server late no longer
   overwrites a newer one (read back after a timeout, saved again).
@@ -221,8 +223,6 @@ Still open in beta.1:
   - Switching chats while a reply streams in: SillyTavern throws its own TypeError (not ours).
   - If a reply is cut off by the length limit and its half-written last line still makes sense, that line
     is read.
-  - NPC State Delta: the Cast tab shows only NPCs that have a dossier (a meter the story sets for someone
-    without one shows after a scan or a manual add), and a new chat logs a harmless 404 once per page load.
 
 ### Module versions
 
