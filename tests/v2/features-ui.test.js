@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { makeMessage } from '../ui-fake-dom.js';
 import { setupDom } from './view/mounts/helpers.js';
-import { FEATURES_FOLD, FEATURE_TEXT, PACKS_FOLD, VERSIONS_FOLD, featureInputId, featuresFoldOf, openSettingsOverlay, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { FEATURES_FOLD, FEATURE_TEXT, PACKS_FOLD, VERSIONS_FOLD, featureInputId, featuresFoldOf, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { openSettingsWindow as openSettingsOverlay } from '../../src/v2/view/settings/window.js';
 import { CORE_FEATURE, PROMPT_HINT } from '../../src/v2/features.js';
 import { hudOn, mountUi } from '../../src/v2/ui-host.js';
 import { CHANGES_CARD_SCREEN_ID } from '../../src/v2/screens/index.js';
@@ -54,7 +55,7 @@ const countOn = (host, moduleId) => {
 test('the overlay: Features has a sub-fold per module ("N of M on"); a module\'s fold has one line going there, no switches', async () => {
     const { root, host } = await overlay();
     const folds = root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(folds, ['story-suite', PACKS_FOLD, FEATURES_FOLD, 'plain', 'story-block', 'story-suite-diagnostics', 'story-suite-versions'], 'host, Packs, Features, then the modules with settings by id (Loot has only features: no fold of its own), then Diagnostics (Story Block\'s Events) and Versions');
+    assert.deepEqual(folds, [PACKS_FOLD, FEATURES_FOLD, 'plain', 'story-block', 'story-suite-versions'], 'Packs, Features, then the modules with settings by id (Loot has only features: no fold of its own), then Versions');
     const overview = foldOf(root, FEATURES_FOLD);
     assert.equal(overview.querySelector('summary b').textContent, FEATURE_TEXT.title);
     assert.deepEqual(subsOf(overview).map(node => node.dataset.fold), [featuresFoldOf('loot'), featuresFoldOf('story-block')]);
@@ -172,14 +173,14 @@ test('the overlay: the filter finds features by name or description across modul
     host.close();
 });
 
-test('the overlay opened at a module\'s old "<id>::features" opens its sub-fold of Features', async () => {
+test('the settings window opened at a module\'s old "<id>::features" shows the Features page with that module\'s group focused', async () => {
     const doc = setupDom();
     const host = await createHost({ modules: [loot(), plain()] });
     const overlayApi = openSettingsOverlay({ registry: host.registry, settings: host.settings, features: host.features, doc, openState: new Map(), fold: 'loot::features' });
-    const sub = subOf(overlayApi.root, 'loot');
-    assert.equal(sub.open, true);
-    assert.equal(foldOf(overlayApi.root, FEATURES_FOLD).open, true);
-    assert.ok(doc.activeElement === sub.querySelector('summary'));
+    assert.equal(overlayApi.section(), 'features');
+    const group = overlayApi.root.querySelectorAll('.ss-features-group').find(node => node.dataset.fold === featuresFoldOf('loot'));
+    assert.ok(group, 'Loot\'s group of tiles');
+    assert.ok(doc.activeElement === group.querySelector('.ss-section-title'));
     overlayApi.close();
     host.close();
 });
@@ -190,7 +191,7 @@ test('the overlay without a feature store shows no Features (an older caller)', 
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry: host.registry, settings: host.settings, doc });
     assert.equal(root.querySelector('.story-suite-feature'), null);
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), ['story-suite', PACKS_FOLD, 'plain', 'story-block', 'story-suite-diagnostics', 'story-suite-versions']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), [PACKS_FOLD, 'plain', 'story-block', 'story-suite-versions']);
     host.close();
 });
 
@@ -293,11 +294,12 @@ test('the page: with the cards feature off no card is drawn under a reply; on ag
     host.close();
 });
 
-test('the page: the overlay opened from the bar has the Features', async () => {
+test('the page: the settings window opened from the bar has the Features, as switch tiles', async () => {
     const { doc, host } = await page();
     doc.querySelector('.story-suite-bar-settings').click();
     const overlayRoot = doc.querySelector('#story_suite_v2_overlay');
-    assert.ok(overlayRoot.querySelectorAll('details.story-suite-fold').some(node => node.dataset.fold === FEATURES_FOLD));
+    assert.ok(overlayRoot.querySelectorAll('.ss-features-group').some(node => node.dataset.fold === featuresFoldOf('loot')));
+    assert.equal(overlayRoot.querySelector('details[data-fold="story-suite-features"]'), null, 'no Features fold any more');
     host.close();
 });
 

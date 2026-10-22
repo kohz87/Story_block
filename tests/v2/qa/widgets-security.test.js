@@ -33,6 +33,20 @@ function hostileProps(name, url) {
         case 'ss.stepper': return { name: EVIL, value: 1, max: 5, budget: 3, label: EVIL, budgetLabel: EVIL, tone: EVIL };
         case 'ss.radar': return { axes: [{ label: EVIL, value: 3, max: 5 }, { label: EVIL, value: 1 }, { label: 'c', value: 2 }], label: EVIL, tone: EVIL };
         case 'ss.meter': return { value: 3, max: 9, label: EVIL, tone: EVIL, icon: url, text: EVIL };
+        case 'ss.tile': return { label: EVIL, icon: url, count: EVIL, countStyle: EVIL, state: EVIL, tone: EVIL, hint: EVIL, id: EVIL, kind: EVIL, selected: true, onSelect: 'qa.do' };
+        case 'ss.bar': return { label: EVIL, kind: EVIL, value: 3, max: 9, text: EVIL };
+        case 'ss.status': return { label: EVIL, icon: url, left: 3, unit: EVIL, tone: EVIL, id: EVIL, kind: EVIL };
+        case 'ss.pill': return { text: EVIL, icon: url, style: EVIL };
+        case 'ss.hero': return {
+            name: EVIL, portrait: url, portraitQuery: EVIL, portraitArgs: { name: EVIL }, line: EVIL, className: EVIL, level: EVIL, title: EVIL, place: EVIL, time: EVIL, weather: EVIL, compact: true,
+            bars: [{ kind: EVIL, label: EVIL, value: 3, max: 9, text: EVIL }, { kind: 'exp', label: EVIL, value: EVIL, max: EVIL }],
+            statuses: [{ id: EVIL, label: EVIL, icon: url, left: 3, unit: EVIL, tone: EVIL, kind: EVIL }],
+        };
+        case 'ss.tiers': return { tiers: [{ title: EVIL, tiles: [{ id: EVIL, label: EVIL, icon: url, count: EVIL, state: EVIL, tone: EVIL, hint: EVIL, kind: EVIL }, { id: 'b', label: 'b', state: 'locked' }] }, { title: EVIL, tiles: [] }], selected: EVIL, columns: EVIL, onSelect: 'qa.do', label: EVIL };
+        case 'ss.listcard': return { rows: [{ id: EVIL, title: EVIL, sub: EVIL, value: EVIL, tag: EVIL, tone: EVIL, icon: url }, { id: 'b', title: 'b', tone: 'bad', icon: EVIL }], title: EVIL, selected: EVIL, empty: EVIL, onSelect: 'qa.do', label: EVIL };
+        case 'ss.tabs':
+        case 'ss.navbar': return { items: [{ id: EVIL, label: EVIL, icon: url, count: EVIL, disabled: false }, { id: 'b', label: 'b', icon: EVIL }], current: EVIL, onSelect: 'qa.do', label: EVIL };
+        case 'ss.dialog': return { open: true, title: EVIL, text: `${EVIL}\n\n${EVIL}`, actions: [{ id: EVIL, label: EVIL, kind: EVIL, icon: url }], closable: true, alert: true, onSelect: 'qa.do', label: EVIL };
         default: throw new Error(name);
     }
 }
@@ -46,15 +60,15 @@ function assertInert(root, attrs, label) {
             assert.match(value, /^(?:https:\/\/[^/@\s]+\/|data:image\/(?:png|jpe?g|gif|webp|avif);base64,|\/(?![/\\]))/i, `${label}: image src ${value}`);
             assert.doesNotMatch(value, /^(?:javascript|data:image\/svg|http:)/i);
         }
-        if (name === 'class') for (const token of value.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
+        if (name === 'class') for (const token of value.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
     }
     const walk = node => [node, ...(node.children ?? []).flatMap(walk)];
     for (const node of walk(root)) {
         assert.ok(!['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'FOREIGNOBJECT', 'A', 'STYLE', 'LINK'].includes(String(node.tagName).toUpperCase()), `${label}: no <${node.tagName}>`);
         const classes = typeof node.className === 'string' ? node.className : '';
-        for (const token of classes.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
+        for (const token of classes.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
         for (const [key, value] of Object.entries(node.styleProps ?? {})) {
-            assert.match(key, /^--ss-w-[a-z0-9-]+$|^(?:left|top|width|height|transform|display)$/, `${label}: style property ${key}`);
+            assert.match(key, /^--ss-w-[a-z0-9-]+$|^--ss-fill$|^--ss-cols$|^(?:left|top|width|height|transform|display)$/, `${label}: style property ${key}`);
             assert.doesNotMatch(String(value), /url\(|expression|javascript|;|[{}<>]/i, `${label}: style value ${value}`);
         }
     }

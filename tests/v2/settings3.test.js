@@ -292,54 +292,6 @@ test('console capture keeps Story Suite\'s errors only, made safe; save errors a
     resetCaught();
 });
 
-test('the Diagnostics fold: last before Versions; built on open; Copy uses the clipboard, else selects the text; Save downloads a .txt', async () => {
-    const { registry, settings } = setup({ id: 'aaa', name: 'AAA', settings: { schema: { on: 'bool' } } });
-    const copied = [];
-    const links = [];
-    const selected = [];
-    doc.defaultView = {
-        navigator: { clipboard: { writeText: async text => { copied.push(text); } } },
-        Blob: class { constructor(parts, options) { this.parts = parts; this.type = options.type; } },
-        URL: { createObjectURL: blob => { links.push(blob); return 'blob:1'; }, revokeObjectURL: () => {} },
-        getSelection: () => ({ removeAllRanges: () => {}, addRange: range => selected.push(range) }),
-    };
-    doc.createRange = () => ({ selectNodeContents: node => { selected.push(node); } });
-    try {
-        let builds = 0;
-        const root = doc.createElement('div');
-        renderSettingsHost(root, { registry, settings, doc, diagnostics: { report: async () => { builds += 1; return `REPORT ${builds}`; }, fileName: () => 'story-suite-diagnostics-x.txt' } });
-        assert.deepEqual(root.children.map(node => node.dataset.fold), ['story-suite', 'aaa', DIAGNOSTICS_FOLD, 'story-suite-versions']);
-        const fold = foldOf(root, DIAGNOSTICS_FOLD);
-        assert.deepEqual(fold.querySelectorAll(':scope > summary > *').map(node => node.textContent), [DIAGNOSTICS_TEXT.title, DIAGNOSTICS_TEXT.hint]);
-        assert.equal(builds, 0, 'nothing built while it is closed');
-        fold.open = true;
-        fold.dispatch('toggle');
-        await new Promise(resolve => setTimeout(resolve, 0));
-        assert.equal(fold.querySelector('.story-suite-diagnostics-report').textContent, 'REPORT 1');
-        fold.querySelector('.story-suite-diagnostics-copy').click();
-        await new Promise(resolve => setTimeout(resolve, 0));
-        assert.deepEqual(copied, ['REPORT 2']);
-        assert.equal(fold.querySelector('.story-suite-diagnostics-status').textContent, DIAGNOSTICS_TEXT.copied);
-        fold.querySelector('.story-suite-diagnostics-save').click();
-        await new Promise(resolve => setTimeout(resolve, 0));
-        assert.deepEqual(links.map(blob => [blob.parts[0], blob.type]), [['REPORT 3', 'text/plain;charset=utf-8']]);
-        assert.equal(fold.querySelector('.story-suite-diagnostics-status').textContent, 'Saved the report as story-suite-diagnostics-x.txt.');
-        // No clipboard here: the report is selected for copying by hand.
-        doc.defaultView.navigator = {};
-        fold.querySelector('.story-suite-diagnostics-copy').click();
-        await new Promise(resolve => setTimeout(resolve, 0));
-        assert.equal(fold.querySelector('.story-suite-diagnostics-status').textContent, DIAGNOSTICS_TEXT.copyFailed);
-        assert.equal(selected[0], fold.querySelector('.story-suite-diagnostics-report'));
-    } finally {
-        delete doc.defaultView;
-        delete doc.createRange;
-    }
-    // Without a diagnostics source there is no fold.
-    const plain = doc.createElement('div');
-    renderSettingsHost(plain, { registry, settings, doc });
-    assert.equal(foldOf(plain, DIAGNOSTICS_FOLD), undefined);
-});
-
 test('a module\'s hooks.diagnostics registers quietly (no warning) and is offered to the report', () => {
     const { registry } = setup({ id: 'npc-state-delta', name: 'NPC State Delta', hooks: { diagnostics: () => 'Scanner: idle' } });
     assert.deepEqual(registry.hookEntries('diagnostics').map(entry => entry.moduleId), ['npc-state-delta']);

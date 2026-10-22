@@ -27,10 +27,20 @@ export const SAMPLES = {
     'ss.badge': { icon: 'fa-skull-crossbones', label: 'Poisoned', counter: 3, unit: 'turns left', tone: 'bad' },
     'ss.timeline': { events: [{ time: 'Day 1', title: 'Arrived', text: 'At Bluewatch.' }, { time: 'Day 2', title: 'The weir' }], current: 1 },
     'ss.stepper': { name: 'STR', value: 5, min: 1, max: 10, budget: 3, label: 'Strength' },
+    'ss.tile': { label: 'Moonlight Slash', icon: 'fa-wand-sparkles', count: '3', state: 'ready', tone: 'info' },
+    'ss.bar': { label: 'HP', kind: 'hp', value: 50, max: 82 },
+    'ss.status': { label: 'Bleeding', icon: 'fa-droplet', left: 40, unit: 'minutes', tone: 'bad' },
+    'ss.pill': { text: 'Soul Class II · Lv 12', style: 'solid' },
+    'ss.hero': { name: 'Astra', className: 'Soul Class II', level: '12', place: 'North Cut', bars: [{ kind: 'hp', label: 'HP', value: 50, max: 82 }], statuses: [{ label: 'Bleeding', icon: 'fa-droplet', left: 40, unit: 'minutes', tone: 'bad' }] },
+    'ss.tiers': { tiers: [{ title: 'Basic', tiles: [{ id: 'moon', label: 'Moonlight Slash', icon: 'fa-wand-sparkles', count: '3' }] }, { title: 'Advanced', tiles: [{ id: 'death', label: 'Death Soul', state: 'locked' }] }], onSelect: 'party.pick' },
+    'ss.listcard': { title: 'Ready to turn in', rows: [{ id: 'wolf', title: 'The North Cut Wolf', sub: 'to Elula', value: '4 silver', tag: 'new', tone: 'good' }], onSelect: 'quests.open' },
+    'ss.tabs': { items: [{ id: 'world', label: 'World' }, { id: 'quests', label: 'Quests' }], current: 'world', onSelect: 'ui.go' },
+    'ss.navbar': { items: [{ id: 'party', label: 'Party', icon: 'fa-users' }, { id: 'bag', label: 'Bag', icon: 'fa-bag-shopping', count: '2' }], current: 'party', onSelect: 'ui.go' },
+    'ss.dialog': { title: 'Rest?', text: 'Eight hours.', actions: [{ id: 'rest', label: 'Rest', kind: 'primary' }], onSelect: 'ui.dialog' },
 };
 
-test('standardWidgets: the eight namespaced widgets, each { props, render, validate }', () => {
-    assert.deepEqual(Object.keys(standardWidgets), ['ss.meter', 'ss.radar', 'ss.map', 'ss.skill-tree', 'ss.portrait', 'ss.badge', 'ss.timeline', 'ss.stepper']);
+test('standardWidgets: the eighteen namespaced widgets, each { props, render, validate }', () => {
+    assert.deepEqual(Object.keys(standardWidgets), ['ss.meter', 'ss.radar', 'ss.map', 'ss.skill-tree', 'ss.portrait', 'ss.badge', 'ss.timeline', 'ss.stepper', 'ss.tile', 'ss.bar', 'ss.status', 'ss.pill', 'ss.hero', 'ss.tiers', 'ss.listcard', 'ss.tabs', 'ss.navbar', 'ss.dialog']);
     for (const [name, widget] of Object.entries(standardWidgets)) {
         assert.equal(typeof widget.render, 'function', name);
         assert.equal(typeof widget.validate, 'function', name);

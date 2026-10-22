@@ -1,8 +1,10 @@
 # Story Suite v2: the standard widgets
 
-Story Block ships eight widgets (SPEC §13.5) under the `ss.` namespace (MODULES §F9):
+Story Block ships eighteen widgets (SPEC §13.5) under the `ss.` namespace (MODULES §F9):
 `ss.meter`, `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`, `ss.badge`, `ss.timeline`,
-`ss.stepper`. They live in `src/v2/view/widgets/`; `index.js` exports them as `standardWidgets`
+`ss.stepper`, and the building blocks of Story Suite's look (the UI stage, `view/widgets/glass.js`):
+`ss.tile`, `ss.bar`, `ss.status`, `ss.pill`, and the blocks built from them: `ss.hero`, `ss.tiers`, `ss.listcard`,
+`ss.tabs`, `ss.navbar`, `ss.dialog`. They live in `src/v2/view/widgets/`; `index.js` exports them as `standardWidgets`
 (name → widget).
 
 ## The widget contract
@@ -283,3 +285,187 @@ moved) start the count again from them.
 <!-- or one pool shared by every stat's stepper (TEMPLATES.md, Example 3) -->
 <ss-widget name="ss.stepper" data-props='{"name":"points.DEX","label":"Dexterity","value":"{{ draft.points.DEX }}","pool":"{{ q.rules.points }}","spent":"{{ sum(draft.points) }}"}'></ss-widget>
 ```
+
+---
+
+## The look's building blocks: `ss.tile`, `ss.bar`, `ss.status`, `ss.pill`
+
+These draw the classes of `view/glass.css` (docs/dev/ui-and-screens.md "The look"), not `ss-w-*` ones:
+they take the theme tokens (`--ss-glass`, `--ss-accent`, …), so they follow the reader's Panel style and
+light or dark. Every root also has `ss-w ss-w-<name>`. Ring colours (`tone`) come from a fixed list:
+`neutral`, `accent`, `good`, `warn`, `bad`, `info` and the rarities `uncommon`, `rare`, `epic`,
+`legendary` (class `ss-tone-<tone>`; anything else: no ring class, or the default named below).
+
+### `ss.tile`
+
+An icon in a rounded square, a label under it, a number badge, a tick or a lock. With `onSelect` it is a
+button (`aria-pressed` = `selected`) running `api.command(onSelect, { tile: id || label })`: choosing a
+skill to read or an item to manage, never a story action (F95/F96). A locked tile is never a button.
+Spoken: "Moonlight Slash, Lv 3, ready".
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `label` | string | `''` | required |
+| `icon` | string | `''` | none: the label's first letter |
+| `count` | string | `''` | the badge ("3", "–"); `''`: none |
+| `countStyle` | string | `badge` | `badge` (under the icon) or `corner` (a bag's count) |
+| `state` | string | `none` | `none`, `ready` (a tick), `locked` (a lock, dimmed) |
+| `tone` | string | `''` | the ring; `''`: the hairline |
+| `selected` | boolean | `false` | ring in the accent |
+| `showLabel` | boolean | `true` | |
+| `hint` | string | `''` | spoken after the label instead of the count ("Lv 3") |
+| `id`, `kind` | string | `''` | |
+| `onSelect` | string | `''` | |
+
+```html
+<ss-widget data-each="q.skills as k" name="ss.tile" data-props='{"label":"{{ k.name }}","icon":"{{ k.icon }}","count":"{{ k.level }}","state":"{{ k.state }}","id":"{{ k.id }}"}'></ss-widget>
+```
+
+### `ss.bar`
+
+A labelled bar: label left, "50 / 82" right, a 7 px track. `kind` `hp`, `mp`, `sp` or `exp` picks the
+suite's bar colour (else the accent). ARIA `meter`. Sets `--ss-fill` (0–1) on `.ss-bar-track`.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `value` | number | `0` | required |
+| `max` | number | `100` | |
+| `label` | string | `''` | |
+| `kind` | string | `''` | `hp`, `mp`, `sp`, `exp` |
+| `text` | string | `''` | the value as shown (default "value / max") |
+| `showValue` | boolean | `true` | |
+
+```html
+<ss-widget name="ss.bar" data-props='{"label":"HP","kind":"hp","value":{{ q.pc.hp.cur }},"max":{{ q.pc.hp.max }}}'></ss-widget>
+```
+
+### `ss.status`
+
+A status effect: its icon in a square tinted with its tone, the time left in the corner. `unit` `turns`
+("2t"), `rounds` ("2r") or `minutes` (story minutes: "40m", whole hours "3h" from an hour, whole days
+"2d" from 48 hours); `left` `null` or empty: "∞". More than 99: "99+". Spoken in words: "Bleeding: 40
+story minutes left", "Blessed: no set end". `tone` defaults to `accent`.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `label` | string | `''` | required |
+| `icon` | string | `''` | none: the label's first letter |
+| `left` | number | `null` | |
+| `unit` | string | `turns` | `turns`, `rounds`, `minutes` |
+| `tone` | string | `accent` | |
+| `id`, `kind` | string | `''` | |
+
+```html
+<ss-widget data-each="q.pc.conditions as c" name="ss.status" data-props='{"label":"{{ c.label }}","icon":"{{ c.icon }}","left":"{{ c.left }}","unit":"minutes","tone":"bad"}'></ss-widget>
+```
+
+### `ss.pill`
+
+Short text in a pill, with an optional icon; `style` `solid` (default), `soft` (the accent, soft) or
+`outline`.
+
+```html
+<ss-widget name="ss.pill" data-props='{"text":"{{ q.pc.class }} · Lv {{ q.pc.level }}"}'></ss-widget>
+```
+
+---
+
+## The blocks built from them: `ss.hero`, `ss.tiers`, `ss.listcard`, `ss.tabs`, `ss.navbar`, `ss.dialog`
+
+Also the look's classes (`view/glass.css`), also `ss w ss-w-<name>` roots, tones from the same fixed list. Each works
+at 390 px and at desktop width. None runs a story action: the commands they run (`onSelect`) are choices about what
+the screen shows (read a skill, open a row, change section, answer a dialog), always `{ <block>: id }`, and a screen
+that redraws with another `selected` / `current` wins over the choice the widget showed at once.
+
+### `ss.hero`
+
+The hero card: portrait, name, level/class pill, bars, a place/time/weather corner, status badges. Read-only (no
+command). On a phone the portrait, the name and the corner share a row with the bars and badges under it; in a
+box 600 px or wider (a container query, so a side panel gets the narrow one) the portrait grows, the corner moves above
+the name and the bars go to a column on the right (the concept's character card). `compact` is the one-row strip for
+under a reply (36 px portrait, the name and pill, three small bars, small badges; no corner, no experience bar).
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `name` | string | `''` | required; the portrait's initial and "Character: Astra" |
+| `portrait` | string | `''` | the persona avatar or the card's image: an `https:` or base64 raster URL or a same-origin path (see Images) |
+| `portraitQuery`, `portraitArgs` | string, object | `''`, `null` | a query asked through `api.query` first (Delta's `npc.portrait` with `{ name }`); its answer (a URL or `{ url }`) is checked like any URL; a name that does not look like a query is never asked |
+| `line` | string | `''` | the pill's whole text; else built from `className`, `level` ("Lv 12" when it is a number) and `title` (the epithet) |
+| `bars` | list | `[]` | `[{ kind, label, value, max, text }]`, at most 6; `kind` `hp`, `mp`, `sp` go in a row (a column on a wide card), `exp` is the experience bar under them, labelled with the Terms' own word |
+| `place`, `time`, `weather` | string | `''` | the corner, each with its icon; empty ones are left out |
+| `statuses` | list | `[]` | `[{ id, label, icon, left, unit, tone }]`, at most 12: `ss.status` badges |
+| `compact` | boolean | `false` | |
+
+No picture, a refused URL, a failed load: the name's initial. The bars are `ss.bar` and the badges `ss.status`.
+
+```html
+<ss-widget name="ss.hero" data-props='{"bind":"q.hero"}'></ss-widget>
+<ss-widget name="ss.hero" data-props='{"bind":"q.hero","compact":true}'></ss-widget>
+```
+
+### `ss.tiers`
+
+The tiered grid: tiers top to bottom, each a label over a glass card of `ss.tile` tiles, a connector (a dot and a
+line) between one tier and the next. A tile is `{ id, label, icon, count, state, tone, hint, kind }` as `ss.tile`
+takes them; a `locked` tile is never a button. With `onSelect` an unlocked tile is a button running `{ tiers: <tile id> }`.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `tiers` | list | `[]` | required; `[{ title, tiles }]`, at most 12 tiers of 24 tiles |
+| `selected` | string | `''` | the chosen tile's id (`aria-pressed`) |
+| `columns` | number | `3` | tiles per row, 1–6 |
+| `onSelect` | string | `''` | |
+| `label` | string | `Tiers` | accessible name |
+
+### `ss.listcard`
+
+A glass card of rows: a title, a quieter line under it, and on the right a value ("4 silver") or a tag ("new",
+"urgent") in a tone, optionally led by an icon or a picture. With `onSelect` each row is a button running
+`{ listcard: <row id> }`; the chosen row is `aria-current="true"`.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `rows` | list | `[]` | required; `[{ id, title, sub, value, tag, tone, icon }]`, at most 100; a row with no text is left out |
+| `title` | string | `''` | the card's heading (a section label); also its accessible name |
+| `selected` | string | `''` | |
+| `empty` | string | `''` | said when there are no rows |
+| `onSelect` | string | `''` | |
+| `label` | string | `''` | accessible name when there is no title |
+
+### `ss.tabs` and `ss.navbar`
+
+`ss.tabs`: a row of tabs (text, with an icon when the item has one), for a panel's or screen's sections. The story panel's own tab bar is this block too, drawn with `renderTabStrip` (view/widgets/nav.js) at the host's limits (100 tabs, labels in full): the widget's 24-item cap is for module widgets.
+`ss.navbar`: the game view's bottom bar, an icon over a label in a dense glass pill. Both are a `<nav>` of
+buttons: the current item is `aria-current="page"`; one Tab stop (the current item), and the arrow keys, Home and
+End move the focus along the row (they do not choose; Enter or Space does, as any button; disabled items are
+skipped, the ends wrap). A choice runs `{ tabs: <id> }` / `{ navbar: <id> }` and shows at once. A row wider than its
+box (seven navbar items on a phone) scrolls sideways, and the focused or chosen item is scrolled into view (not the
+page; no smooth scrolling for reduced motion). Place a navbar at the bottom of its screen yourself.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `items` | list | `[]` | required; `[{ id, label, icon, count, disabled }]`, at most 24 (first of each id); `count` is a small chip (spoken: "Bag, 2") |
+| `current` | string | `''` | an item's id |
+| `onSelect` | string | `''` | |
+| `label` | string | `Sections` | accessible name |
+
+### `ss.dialog`
+
+The glass dialog: a modal over the page, a sheet from the bottom on a phone and centred from 600 px. `role="dialog"`
+(`alert` makes it `alertdialog`), `aria-modal`, named by its title, described by its text. The focus goes in when it
+opens (the `primary` action, else the first control); Tab and Shift+Tab stay inside; Escape, the × and a click on the
+dimmed page close it (not with `closable: false`); focus returns to where it was on close or when the widget is removed.
+An action runs `{ dialog: <action id> }` and closes; a close runs `{ dialog: 'close' }`. Only the topmost of several
+open dialogs takes the keys. The classes are `ss-modal*`, not `ss-dialog*` (those are the dialog mount's, until its
+screens move to this look). The panel is `position: fixed`: do not put the widget inside a `.ss-glass` or any element with a
+backdrop filter or transform, or it sits in that element's box.
+
+| Prop | Type | Default | |
+|---|---|---|---|
+| `open` | boolean | `true` | a dialog the reader closed stays closed until `open` changes (false, then true) |
+| `title` | string | `''` | required |
+| `text` | string | `''` | paragraphs, split on blank lines (at most 8) |
+| `actions` | list | `[]` | `[{ id, label, kind: primary, plain or danger, icon }]`, at most 4 |
+| `closable`, `alert` | boolean | `true`, `false` | |
+| `onSelect` | string | `''` | |
+| `label` | string | `Dialog` | accessible name when there is no title |

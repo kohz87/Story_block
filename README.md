@@ -43,7 +43,7 @@ is off is gone from the story; nothing it made is lost.
 - **Pick what you take** (loot chips on the card under a reply; `story-block.loot`, on) and **Encumbered**
   (over the carry limit; `story-block.encumbrance`, on).
 - **Scene** (tab): place, kind, region, the weather and who is here (with **Inner chatter** on, each person's thought). It starts **hidden** when
-  Story Director's World screen is installed (World shows the same); show it again in Settings → Story Suite → Tabs.
+  Story Director's World screen is installed (World shows the same); show it again in Settings → Tabs & Packs.
 - **Weather** (Scene, Home's scene panel, the status card; `story-block.weather`, on): the story notes it with a
   `~ weather` line when it changes. A module can also set it by rule: the `scene.weather` command, and a pack may
   carry a weather table by season and region. Story Director's calendar weather uses it. Descriptive only.
@@ -51,7 +51,7 @@ is off is gone from the story; nothing it made is lost.
   Modules add their own lines, such as RPG Battle's checks with the die and its bonuses.
 - **Status strip** above the message box (`story-block.hud`, on) and **Save points** on Home
   (`story-block.savepoints`, on). The read-only **State inspector** is off (`story-block.inspector`).
-- **Choices** (`story-block.choices`, off): two to four next moves as buttons under the latest reply.
+- **Choices** (`story-block.choices`, off): two to four next moves under the latest reply, in a folded row (open it to see the buttons).
   **Inner chatter** (`story-block.chatter`, off): unspoken thoughts, shown on World, or on Scene without Story Director.
 - **Assist safety net** (*Safety net: read changes the reply forgot*, `story-block.extractor`, **off**): one cheap
   call after each reply keeps time, place, who came or went, weather, quest progress or a hand-over the story
@@ -64,8 +64,8 @@ is off is gone from the story; nothing it made is lost.
   scan, the arc planner and Assist take turns on the same connection profile.
 - **Tabs, in this order:** Home (game view), Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, Scene,
   Chronicle, other extensions' tabs, Director, and **Dossiers last**. Only installed extensions show. Move, hide or
-  show them in Settings → Story Suite → **Tabs**.
-- **Packs** (Settings → Packs): import a world pack (items, races, places, shops, recipes, events, ranks, calendar, weather…).
+  show them in Settings → **Tabs & Packs**.
+- **Packs** (Settings → Tabs & Packs): import a world pack (items, races, places, shops, recipes, events, ranks, calendar, weather…).
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.

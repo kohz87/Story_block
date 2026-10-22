@@ -124,7 +124,7 @@ test('the game view\'s navigation and the tab bar carry the cue; mounts.css fade
     assert.ok(nav.getAttribute('data-ss-more'), 'the cue is set on the navigation');
     view.close();
     const css = read('view/mounts.css');
-    assert.match(css, /:is\(\.ss-gameview-nav, \.story-suite-tabs\)\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
+    assert.match(css, /:is\(\.ss-gameview-nav, \.ss-tabs-list\)\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
     assert.match(css, /\[data-ss-axis="y"\]\[data-ss-more="both"\][^}]*mask-image/);
 });
 
@@ -249,10 +249,11 @@ test('Home shows Story Director\'s own status line for each quest (an offer says
     assert.deepEqual(homeScreen.data.board, { query: 'quest.board' });
 });
 
-test('CSS: hud items cannot collapse, the game view is opaque, the side sheet docks beside the chat', () => {
+test('CSS: hud items cannot collapse, the game view is opaque unless Glass, the side sheet docks beside the chat', () => {
     const mounts = read('view/mounts.css');
     assert.match(mounts, /\.ss-hud > \.ss-hud-item \{\s*container-type: normal;\s*min-width: min-content;/);
-    assert.match(mounts, /@supports \(color: rgb\(from red r g b\)\) \{\s*\.ss-gameview \{\s*background-color: rgb\(from var\(--ss-surface\) r g b \/ 1\);/);
+    // Opaque unless the theme sets the glass tokens (Panel style Glass): then the page shows through.
+    assert.match(mounts, /@supports \(color: rgb\(from red r g b\)\) \{\s*\.ss-gameview \{\s*background-color: var\(--ss-sheet-bg, rgb\(from var\(--ss-surface\) r g b \/ 1\)\);/);
     const host = read('view/host.css');
     assert.match(host, /@media \(min-width: 1000px\) \{\s*body\.story-suite-sheet-open #sheld:not\(\[style\*="left"\]\) \{\s*right: var\(--story-suite-sheet-width\);/);
     assert.match(host, /width: var\(--story-suite-sheet-width\);/);
