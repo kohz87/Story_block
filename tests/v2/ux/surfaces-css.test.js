@@ -22,7 +22,8 @@ function block(css, selector, at = null) {
     let from = at ? body.indexOf(at) : 0;
     if (from < 0) return '';
     // A rule whose selector is exactly `selector`: the header starts a line or follows a rule's end (not another selector's tail).
-    const head = new RegExp(`(^|[\\n}])[ \\t]*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{`, 'g');
+    // A rule whose selector list starts with `selector` (the header starts a line or follows a rule's end, and may go on after a comma).
+    const head = new RegExp(`(^|[\\n}])[ \\t]*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:,[^{}]*)? \\{`, 'g');
     const out = [];
     for (const match of body.slice(from).matchAll(head)) {
         const start = from + match.index + match[0].length;
@@ -49,10 +50,11 @@ test('the bar and its held-back notice are glass pills on the tokens; the button
     const pill = block(host, '.story-suite-bar .menu_button');
     for (const part of ['var(--ss-glass,', 'var(--ss-border,', 'var(--ss-radius-pill, 999px)', 'var(--ss-blur, none)', 'var(--ss-shadow, none)']) assert.ok(pill.includes(part), part);
     // Hover and focus: the accent is the edge and a soft fill; the text stays the look's text colour (contrast on glass).
-    const hover = block(host, '.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible');
+    const hover = block(host, '.story-suite-bar .menu_button:not(.disabled):not([disabled]):hover');
+    assert.ok(hover.length > 0, 'the hover rule is written against SillyTavern\'s own hover rule (same selector shape, later)');
     assert.match(hover, /var\(--ss-accent,/);
     assert.match(hover, /color: var\(--ss-text, inherit\);/);
-    assert.match(hover, /background: var\(--ss-accent-soft,/);
+    assert.match(hover, /linear-gradient\(var\(--ss-accent-soft, transparent\), var\(--ss-accent-soft, transparent\)\), var\(--ss-glass-strong,/, 'the accent over the dense glass');
     const notice = block(host, '.story-suite-bar .story-suite-notice');
     assert.equal(block(host, '.story-suite-notice'), '', 'the glass is the bar\'s, not every notice of the page (other modules use the class)');
     assert.ok(notice.includes('var(--ss-glass-strong,'), 'the notice is a glass card');
@@ -61,7 +63,7 @@ test('the bar and its held-back notice are glass pills on the tokens; the button
 
 test('no accent-coloured text on glass: hover, focus and error text use the text colour, the accent is an edge or an icon', () => {
     for (const selector of [
-        '.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible',
+        '.story-suite-bar .menu_button:not(.disabled):not([disabled]):hover',
         '.story-suite-choice:hover, .story-suite-choice:focus-visible',
         '.story-suite-reply-note-reread:hover, .story-suite-reply-note-reread:focus-visible',
         '.story-suite-reply-note-error',
@@ -95,6 +97,10 @@ test('the Choices strip: folded by default (no open attribute in its markup), a 
     // Its own colours only from the tokens; the old pill rule is gone.
     assert.ok(!host.includes('.story-suite-choice {\n    flex: 0 1 auto'), 'no inline-flow pill any more');
     assert.match(read('extras-ui.js'), /el\('details', 'story-suite-choices-fold'\)/, 'the strip is a details element');
+});
+
+test('the last message\'s cards keep clear of SillyTavern\'s swipe row (the arrows and the counter sit under them)', () => {
+    assert.match(block(mounts, '.last_mes .ss-cards'), /margin-bottom: 52px;/);
 });
 
 test('the changes card: glass card frame, the header line on the right, rows with icons in tiles', () => {

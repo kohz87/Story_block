@@ -45,11 +45,12 @@
     -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none);
     box-shadow: var(--ss-shadow, none);
 }
-.story-suite-bar .menu_button:hover, .story-suite-bar .menu_button:focus-visible {
-    /* The text stays the look's text colour (accent text on a glass fill is unreadable); the accent is the edge and a soft
-       fill. Specific enough to beat SillyTavern's own .menu_button:hover background. */
+/* Hover and focus: the text stays the look's text colour (accent text on glass is unreadable); the accent is the edge and
+   a soft fill laid over the dense glass, so the label keeps its contrast on a busy background. The selector matches
+   SillyTavern's own .menu_button:not(.disabled):not([disabled]):hover (its white fill would otherwise win). */
+.story-suite-bar .menu_button:not(.disabled):not([disabled]):hover, .story-suite-bar .menu_button:not(.disabled):not([disabled]):focus-visible {
     border-color: var(--ss-accent, var(--story-suite-accent)); color: var(--ss-text, inherit);
-    background: var(--ss-accent-soft, var(--ss-glass, var(--story-suite-bg)));
+    background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--story-suite-bg));
 }
 .story-suite-bar .menu_button[hidden] { display: none; }
 .story-suite-bar .story-suite-notice {

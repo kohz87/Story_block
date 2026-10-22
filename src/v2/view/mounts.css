@@ -228,6 +228,12 @@
     margin-top: 6px;
 }
 
+/* SillyTavern's swipe row (the arrows and the 1/1 counter) sits at the bottom right of the last message, over its cards:
+   the last message's cards keep clear of it (the row is SillyTavern's; it shows on .last_mes only). */
+.last_mes .ss-cards {
+    margin-bottom: 52px;
+}
+
 .ss-card {
     border: 1px solid var(--ss-border);
     border-radius: var(--ss-radius);
