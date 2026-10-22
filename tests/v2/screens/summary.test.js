@@ -87,3 +87,13 @@ test('a digest can be passed in, and many people are counted', () => {
     const digest = { gained: [], lost: [], held: [], coin: null, coinNow: null, place: null, arrived: ['A', 'B', 'C', 'D'], left: [], presentNow: null, other: false };
     assert.equal(changesSummary({ digest }), 'A, B and 2 more arrived');
 });
+
+test('the safety net\'s lines are counted in the folded header (one, many), after the rest and before "not applied"', () => {
+    const { state, before, changes } = reply([['scene.present', { add: ['Kael'] }]]);
+    assert.equal(changesSummary({ state, before, changes, assisted: 1 }), 'Kael arrived · 1 line from the safety net (assist)');
+    assert.equal(changesSummary({ state, before, changes, assisted: 3, refused: 1 }), 'Kael arrived · 3 lines from the safety net (assist) · 1 line not applied');
+    // Nothing else changed: the mark is the whole header, never "No changes" over a line the net applied.
+    assert.equal(changesSummary({ state, before, changes: [], assisted: 1 }), '1 line from the safety net (assist)');
+    assert.equal(changesSummary({ state, before, changes, assisted: 0 }), 'Kael arrived');
+    assert.equal(changesSummary({ state, before, changes, assisted: -2 }), 'Kael arrived', 'junk counts as none');
+});
