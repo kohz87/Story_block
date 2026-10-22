@@ -4,6 +4,10 @@
 
 Story Suite v2: a fresh start. State is JSON stored in each reply, every action is a command with a receipt, modules register through an SDK, screens are templates/layouts with widgets. Built so far: the state store, command bus, registry and turn pipeline, core scene and inventory (one currency), packs, events, layouts, mounts, widgets and the fishing example. Status: [docs/v2/STATUS.md](docs/v2/STATUS.md).
 
+- **Settings screen, after the first live test.** The folds keep their size (a closed fold no longer turns into a thin bar when another opens) and the whole screen scrolls, on a phone too; Esc closes it and the focus stays in it. One centred column: Story Suite, Packs, Features, one fold per module, Versions. Inside a module, its Features, then a sub-fold per group of settings (a field's `group`, else its "Calendar: …" label prefix, else General). Lists are one line per entry (`[January] [31] ×`, Add at the end). Labels left and controls right on wide screens, stacked on phones.
+- **Prompt size** in the Story Suite fold: what Story Suite adds to the next reply's prompt (instructions and this reply's part, per module and in all) against the tail budget, with SillyTavern's tokenizer when there is one, else about four characters a token. Read-only.
+- **Packs are easy to find:** the Packs fold is second, shown with no pack installed, and Home offers **Import a pack** while none is.
+
 ## 0.9.31
 
 - **Recover the saved reply even when earlier replies have acquired IDs.** A journal beginning at reply #6 could stay disconnected because an unrecorded reply #4 was mistaken for its boundary. Automatic recovery now targets the saved position and includes earlier replies that have no structured journal effects. Reopening resumes queued Take on choices without another generation or reconnect click.

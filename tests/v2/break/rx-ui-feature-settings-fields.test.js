@@ -32,13 +32,13 @@ async function overlay() {
 
 test('a settings field of a feature that is off is not shown (no dead control); on again it is back', async () => {
     const { host, root, view } = await overlay();
-    assert.ok(root.textContent.includes('Digest: days kept'), 'shown while on');
+    assert.ok(root.textContent.includes('days kept'), 'shown while on');
     host.features.set('probe.digest', false);
     view.refresh();
     assert.ok(root.textContent.includes('Colour'), 'the module\'s other fields stay');
-    assert.ok(!root.textContent.includes('Digest: days kept'), 'the off feature\'s field is still in the overlay');
+    assert.ok(!root.textContent.includes('days kept'), 'the off feature\'s field is still in the overlay');
     host.features.set('probe.digest', true);
     view.refresh();
-    assert.ok(root.textContent.includes('Digest: days kept'));
+    assert.ok(root.textContent.includes('days kept'));
     host.close();
 });

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { makeMessage } from '../ui-fake-dom.js';
 import { setupDom } from './view/mounts/helpers.js';
-import { FEATURES_FOLD, FEATURE_TEXT, VERSIONS_FOLD, featureInputId, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { FEATURES_FOLD, FEATURE_TEXT, PACKS_FOLD, VERSIONS_FOLD, featureInputId, renderSettingsHost } from '../../src/v2/host-ui.js';
 import { CORE_FEATURE, PROMPT_HINT } from '../../src/v2/features.js';
 import { hudOn, mountUi } from '../../src/v2/ui-host.js';
 import { CHANGES_CARD_SCREEN_ID } from '../../src/v2/screens/index.js';
@@ -47,14 +47,15 @@ const rowsOf = node => node.querySelectorAll('.story-suite-feature');
 test('the overlay: one Features overview of every module, then a Features subsection in each module\'s fold', async () => {
     const { root, host } = await overlay();
     const folds = root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(folds, ['story-suite', FEATURES_FOLD, 'loot', 'plain', 'story-block', 'story-suite-versions'], 'host, overview, then modules by id, then Versions');
+    assert.deepEqual(folds, ['story-suite', PACKS_FOLD, FEATURES_FOLD, 'loot', 'plain', 'story-block', 'story-suite-versions'], 'host, Packs, overview, then modules by id, then Versions');
     const overview = foldOf(root, FEATURES_FOLD);
     assert.equal(overview.querySelector('summary b').textContent, FEATURE_TEXT.title);
     assert.deepEqual(texts(overview, '.story-suite-feature-group > h4'), ['Loot', 'Story Block']);
     assert.deepEqual(rowsOf(overview).map(row => row.dataset.feature), ['loot.picker', 'loot.weight', ...host.registry.features().filter(f => f.moduleId === 'story-block').map(f => f.id)]);
     // Loot has no settings of its own, yet gets a fold for its features.
     const lootFold = foldOf(root, 'loot');
-    assert.deepEqual(texts(lootFold, '.story-suite-features > h4'), [FEATURE_TEXT.title]);
+    assert.deepEqual(texts(lootFold, '.story-suite-subfold > summary > b'), [FEATURE_TEXT.title], 'its Features sub-fold');
+    assert.equal(lootFold.querySelector('.story-suite-subfold').open, true, 'open by default, it has switches');
     const [picker, weight] = rowsOf(lootFold);
     assert.equal(picker.querySelector('b').textContent, 'Loot picker');
     assert.deepEqual(texts(picker, 'small'), ['Pick what to keep after a fight.']);
@@ -98,7 +99,7 @@ test('the overlay without a feature store shows no Features (an older caller)', 
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry: host.registry, settings: host.settings, doc });
     assert.equal(root.querySelector('.story-suite-feature'), null);
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), ['story-suite', 'plain', 'story-block', 'story-suite-versions']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), ['story-suite', PACKS_FOLD, 'plain', 'story-block', 'story-suite-versions']);
     host.close();
 });
 
@@ -255,18 +256,18 @@ test('the overlay: a settings field or panel of a feature that is off is not dra
     const root = doc.createElement('div');
     doc.body.appendChild(root);
     renderSettingsHost(root, { registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk });
-    assert.ok(root.textContent.includes('Digest: days kept') && root.textContent.includes('Digest panel'));
+    assert.ok(root.textContent.includes('days kept') && root.textContent.includes('Digest panel'));
     foldOf(root, 'dig').open = true;
     const input = rowsOf(foldOf(root, 'dig'))[0].querySelector('input');
     input.checked = false;
     input.dispatch('change');
-    assert.ok(!root.textContent.includes('Digest: days kept') && !root.textContent.includes('Digest panel'), 'gone at once');
+    assert.ok(!root.textContent.includes('days kept') && !root.textContent.includes('Digest panel'), 'gone at once');
     assert.ok(root.textContent.includes('Colour'));
     assert.equal(foldOf(root, 'dig').open, true, 'the fold stays open');
     assert.equal(host.settings('dig').keep, 5, 'the value is kept');
     rowsOf(foldOf(root, 'dig'))[0].querySelector('input').checked = true;
     rowsOf(foldOf(root, 'dig'))[0].querySelector('input').dispatch('change');
-    assert.ok(root.textContent.includes('Digest: days kept'));
+    assert.ok(root.textContent.includes('days kept'));
     // A field naming a feature the module does not have is refused like any other `feature`.
     assert.throws(() => host.registry.register({ id: 'odd', settings: { schema: { x: { type: 'bool', feature: 'odd.nope' } } } }), /the settings field "x" names the feature "odd\.nope"/);
     host.close();

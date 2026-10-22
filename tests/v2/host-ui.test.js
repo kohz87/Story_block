@@ -4,7 +4,13 @@ import assert from 'node:assert/strict';
 import { installFakeDom } from '../ui-fake-dom.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { createSettings } from '../../src/v2/sdk.js';
-import { OPEN_CLASS, createTabHost, emptyValue, openSettingsOverlay, readInt, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { readFileSync } from 'node:fs';
+import { OPEN_CLASS, PACKS_FOLD, SETTINGS_TEXT, SUB_FOLD, createTabHost, emptyValue, groupFields, openSettingsOverlay, promptSize, readInt, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { createCoreModule } from '../../src/v2/domains/index.js';
+import { packsFor } from '../../src/v2/runtime.js';
+import { estimateTokens } from '../../src/v2/prompt.js';
+import { createPacksHintWidget } from '../../src/v2/screens/packs-hint.js';
+import { STRINGS } from '../../src/v2/strings.js';
 
 const doc = installFakeDom();
 
@@ -40,7 +46,7 @@ test('a fold per module with settings, after the host\'s own; fields render with
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
     assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(fold => fold.dataset.fold), ['story-suite', 'aaa', 'rpg-battle', 'story-suite-versions'], 'Versions last');
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold summary b').map(node => node.textContent), ['Story Suite', 'AAA', 'RPG Battle', 'Versions']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold > summary b').map(node => node.textContent), ['Story Suite', 'AAA', 'RPG Battle', 'Versions']);
     const hard = row(root, 'rpg-battle', 'hardMode');
     assert.equal(hard.querySelector('b').textContent, 'Hard mode');
     assert.equal(hard.querySelector('small').textContent, 'Foes hit harder.');
@@ -126,7 +132,8 @@ test('a section given as a title and render(el, api) is drawn the same way, unde
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
     const fold = root.querySelectorAll('details.story-suite-fold')[1];
-    assert.deepEqual(fold.querySelectorAll('summary > *').map(node => node.textContent), ['RPG Battle', 'Combat']);
+    assert.deepEqual(fold.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['RPG Battle', 'Combat']);
+    assert.deepEqual(fold.querySelectorAll('.story-suite-subfold > summary b').map(node => node.textContent), ['Combat'], 'the panel in a sub-fold under that title');
     assert.equal(fold.querySelector('.story-suite-section').textContent, 'Speed 2');
     assert.equal(es.storySuite.modules.rb.speed, 3);
 });
@@ -200,4 +207,357 @@ test('field helpers', () => {
     assert.equal(readInt('-4', { min: 0 }), 0);
     assert.equal(readInt('', {}), null);
     assert.equal(readInt('x', {}), null);
+});
+
+// ---- the settings layout after the first live test (folds, groups, lists, Packs, prompt size) ----------
+
+const topFolds = root => root.children.filter(node => node.classList.contains('story-suite-fold'));
+const subFolds = fold => fold.querySelector('.story-suite-fold-body').children.filter(node => node.classList.contains('story-suite-subfold'));
+const foldAt = (root, key) => root.querySelectorAll('details.story-suite-fold, details.story-suite-subfold').find(node => node.dataset.fold === key);
+
+// Story Director's settings as its module.js flattens them (labels "Calendar: …"), plus a `group` field.
+const director = () => ({
+    id: 'story-director',
+    name: 'Story Director',
+    settings: {
+        defaults: { 'tracker.calendar.months': [{ name: 'January', days: 31 }, { name: 'February', days: 28 }] },
+        schema: {
+            'tracker.calendar.preset': { type: 'choice', label: 'Calendar: Calendar', options: ['pack', 'gregorian'] },
+            'tracker.calendar.era': { type: 'text', label: 'Calendar: Era (written before the year)' },
+            'tracker.calendar.months': { type: 'list', label: 'Calendar: Months', of: { name: { type: 'text', label: 'Name' }, days: { type: 'int', label: 'Days', min: 1, max: 400 } } },
+            'tracker.dormantReplies': { type: 'int', label: 'Quiet after replies', min: 1, max: 500 },
+            'quests.offerCooldown': { type: 'int', label: 'Replies between offers', group: 'Quests' },
+            'money.scale': { type: 'text', label: 'Money scale (0: the pack\'s)' },
+        },
+    },
+});
+
+test('folds: the top folds are the root\'s own children, each a summary and a body; sub-folds are another class', () => {
+    const { registry, settings } = setup(rpg(), director());
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc });
+    assert.ok(root.classList.contains('story-suite-folds'));
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['story-suite', 'rpg-battle', 'story-director', 'story-suite-versions']);
+    for (const fold of topFolds(root)) {
+        assert.equal(fold.tagName, 'DETAILS');
+        assert.deepEqual(fold.children.map(node => node.tagName), ['SUMMARY', 'DIV'], 'a summary row, then the body');
+        assert.equal(fold.open, false, 'closed until the reader opens one');
+    }
+    // Opening one changes nothing about the others (the squashed-bars bug was CSS; the DOM stays flat).
+    topFolds(root)[2].open = true;
+    assert.deepEqual(topFolds(root).map(node => node.children.length), [2, 2, 2, 2]);
+    assert.equal(root.querySelectorAll('details.story-suite-fold').length, 4, 'sub-folds are not .story-suite-fold');
+    assert.ok(root.querySelectorAll('details.story-suite-subfold').length > 0);
+});
+
+test('folds: host.css gives them a summary row with a chevron, no fixed heights, and a scrolling overlay', () => {
+    const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
+    const rule = selector => {
+        const at = css.indexOf(`${selector} {`);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return css.slice(at, css.indexOf('}', at));
+    };
+    assert.match(rule('.story-suite-folds > *'), /flex: none/, 'a closed fold never shrinks');
+    assert.match(css, /\.story-suite-fold > summary, \.story-suite-subfold > summary \{[^}]*min-height: 44px/);
+    assert.match(css, /summary::before, \.story-suite-subfold > summary::before \{[^}]*border-right/, 'the chevron');
+    assert.match(css, /\[open\] > summary::before[^{]*\{ transform: rotate\(45deg\); \}/);
+    const scroll = rule('.story-suite-scroll');
+    assert.match(scroll, /overflow-y: auto/);
+    assert.match(scroll, /min-height: 0/);
+    assert.match(rule('.story-suite-overlay .story-suite-panel'), /max-width: 760px/);
+    assert.match(rule('.story-suite-overlay'), /height: 100dvh/);
+    // No fixed heights or negative margins on any settings fold or row.
+    const settingsCss = css.slice(css.indexOf('/* ---- the settings overlay'), css.indexOf('.story-suite-drawer-buttons'));
+    assert.doesNotMatch(settingsCss, /margin[^;]*:\s*-\d/);
+    const heights = [...settingsCss.matchAll(/(?<![-\w])height:\s*(\d+px)/g)].map(match => match[1]);
+    assert.deepEqual([...new Set(heights)].sort(), ['32px', '7px', '8px'], 'fixed heights only on the chevron, the × and the meter; folds and rows have none');
+    // On a phone the rows stack.
+    assert.match(css, /@media \(max-width: 560px\) \{\s*\.story-suite-row \{ grid-template-columns: minmax\(0, 1fr\);/);
+});
+
+test('groups: a field\'s `group`, else its label\'s "X: …" prefix, else General; in the order they first appear', () => {
+    const groups = groupFields(director().settings.schema);
+    assert.deepEqual(groups.map(group => group.name), ['Calendar', SETTINGS_TEXT.general, 'Quests']);
+    assert.deepEqual(groups[0].fields.map(({ field }) => field.label), ['Calendar', 'Era (written before the year)', 'Months'], 'the prefix comes off the label');
+    assert.deepEqual(groups[1].fields.map(({ key }) => key), ['tracker.dormantReplies', 'money.scale'], 'a colon inside brackets is no prefix');
+    assert.equal(groups[1].fields[1].field.label, 'Money scale (0: the pack\'s)');
+    assert.deepEqual(groupFields({ a: { type: 'int', label: 'Pace: Speed', group: 'Pace' }, b: { type: 'bool', label: 'Hard: mode', group: 'Pace' }, c: 'text' }),
+        [{ name: 'Pace', fields: [{ key: 'a', field: { type: 'int', label: 'Speed', group: 'Pace' } }, { key: 'b', field: { type: 'bool', label: 'Hard: mode', group: 'Pace' } }] }, { name: 'General', fields: [{ key: 'c', field: 'text' }] }],
+        'a group\'s own name comes off its labels; another prefix stays');
+
+    const { registry, settings } = setup(director());
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc });
+    const fold = foldAt(root, 'story-director');
+    assert.deepEqual(subFolds(fold).map(node => node.dataset.fold), ['story-director::group:Calendar', 'story-director::group:General', 'story-director::group:Quests']);
+    assert.deepEqual(subFolds(fold).map(node => node.querySelector('summary b').textContent), ['Calendar', 'General', 'Quests']);
+    assert.deepEqual(subFolds(fold).map(node => node.querySelector('summary small').textContent), ['3 settings', '2 settings', '1 setting']);
+    assert.deepEqual(subFolds(fold).map(node => node.open), [false, false, false], 'several groups: all closed');
+    const calendar = subFolds(fold)[0];
+    assert.deepEqual(calendar.querySelectorAll('.story-suite-row > span > b').map(node => node.textContent), ['Calendar', 'Era (written before the year)', 'Months']);
+    // The stored keys are the schema's, whatever the label shows.
+    const era = calendar.querySelector('.story-suite-row[data-field="tracker.calendar.era"] input');
+    era.value = 'AE';
+    change(era);
+    assert.equal(settings('story-director')['tracker.calendar.era'], 'AE');
+    // One group alone (and no features): it opens with its module.
+    const single = setup(rpg());
+    const only = doc.createElement('div');
+    renderSettingsHost(only, { registry: single.registry, settings: single.settings, doc });
+    assert.deepEqual(subFolds(foldAt(only, 'rpg-battle')).map(node => [node.dataset.fold, node.open]), [[`rpg-battle${SUB_FOLD}group:General`, true]]);
+});
+
+test('labels left, controls right: each row is a label tied to its control; a list\'s group is named by its label', () => {
+    const { registry, settings } = setup(director());
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc });
+    for (const row of root.querySelectorAll('.story-suite-row').filter(node => node.dataset.type !== 'list')) {
+        assert.equal(row.tagName, 'LABEL');
+        assert.equal(row.getAttribute('for'), row.querySelector('input, select, textarea').id);
+    }
+    const months = root.querySelector('.story-suite-row[data-field="tracker.calendar.months"]');
+    assert.equal(months.dataset.type, 'list');
+    const list = months.querySelector('.story-suite-list');
+    assert.equal(list.getAttribute('role'), 'group');
+    assert.equal(root.querySelectorAll(`#${list.getAttribute('aria-labelledby')}`)[0].textContent, 'Months');
+});
+
+test('a list is compact: one line per item with its fields inline, a small × named for the item, Add at the end', () => {
+    const { registry, settings } = setup(director());
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    renderSettingsHost(root, { registry, settings, doc });
+    const list = root.querySelector('.story-suite-row[data-field="tracker.calendar.months"] .story-suite-list');
+    const items = () => list.querySelectorAll('.story-suite-list-item');
+    assert.deepEqual(list.children.map(node => node.className.split(' ').at(-1)), ['story-suite-list-head', 'story-suite-list-item', 'story-suite-list-item', 'story-suite-list-add']);
+    assert.deepEqual(list.querySelectorAll('.story-suite-list-head .story-suite-list-cell').map(node => node.textContent), ['Name', 'Days']);
+    assert.equal(list.querySelector('.story-suite-list-head').getAttribute('aria-hidden'), 'true');
+    const [first] = items();
+    // [January ] [31] × — no rows, labels or Remove words inside an item.
+    assert.deepEqual(first.children.map(node => node.className), ['story-suite-list-cell', 'story-suite-list-cell', 'menu_button story-suite-list-remove']);
+    assert.equal(first.querySelector('.story-suite-row'), null);
+    assert.deepEqual(first.querySelectorAll('input').map(input => [input.value, input.type, input.getAttribute('aria-label')]), [['January', 'text', 'Name, item 1'], ['31', 'number', 'Days, item 1']]);
+    const remove = first.querySelector('.story-suite-list-remove');
+    assert.equal(remove.tagName, 'BUTTON');
+    assert.equal(remove.type, 'button');
+    assert.equal(remove.getAttribute('aria-label'), 'Remove January');
+    assert.equal(remove.textContent, '×');
+    const add = list.querySelector('.story-suite-list-add');
+    assert.equal(add.textContent, 'Add');
+    assert.equal(add.getAttribute('aria-label'), 'Add to Months', 'its name starts with what it says');
+    // Add: a new empty line, the focus in its first field.
+    add.click();
+    assert.equal(items().length, 3);
+    assert.deepEqual(settings('story-director')['tracker.calendar.months'], [{ name: 'January', days: 31 }, { name: 'February', days: 28 }, { name: '', days: 1 }]);
+    assert.ok(doc.activeElement === items()[2].querySelector('input'));
+    assert.equal(items()[2].querySelector('.story-suite-list-remove').getAttribute('aria-label'), 'Remove item 3');
+    const name = items()[2].querySelector('[data-field="name"] input');
+    name.value = 'March';
+    change(name);
+    const days = items()[2].querySelector('[data-field="days"] input');
+    days.value = '31';
+    change(days);
+    assert.deepEqual(settings('story-director')['tracker.calendar.months'][2], { name: 'March', days: 31 });
+    // Remove: that line goes, the focus moves to the next ×, then to Add when none is left after it.
+    items()[0].querySelector('.story-suite-list-remove').click();
+    assert.deepEqual(settings('story-director')['tracker.calendar.months'].map(month => month.name), ['February', 'March']);
+    assert.ok(doc.activeElement === items()[0].querySelector('.story-suite-list-remove'));
+    items()[1].querySelector('.story-suite-list-remove').click();
+    items()[0].querySelector('.story-suite-list-remove').click();
+    assert.deepEqual(settings('story-director')['tracker.calendar.months'], []);
+    assert.ok(doc.activeElement === list.querySelector('.story-suite-list-add'));
+    assert.equal(list.querySelector('.story-suite-list-head'), null, 'no heads over an empty list');
+    root.remove();
+});
+
+test('Packs: its own fold second, after Story Suite, titled Packs with "import a pack", even with no pack installed', () => {
+    const ctx = { extensionSettings: {} };
+    const core = createCoreModule({ packs: packsFor(ctx) });
+    const { registry: reg, settings } = setup(core, director(), rpg());
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry: reg, settings, doc });
+    assert.deepEqual(topFolds(root).map(node => node.dataset.fold), ['story-suite', PACKS_FOLD, 'rpg-battle', 'story-block', 'story-director', 'story-suite-versions']);
+    const packs = foldAt(root, PACKS_FOLD);
+    assert.deepEqual(packs.querySelectorAll(':scope > summary > *').map(node => node.textContent), ['Packs', 'import a pack']);
+    assert.equal(packs.querySelector('.ss-packs-import').textContent.trim(), 'Import pack file');
+    assert.equal(packs.querySelector('.ss-packs-empty').textContent, 'No packs installed.');
+    assert.equal(foldAt(root, 'story-block').querySelector('.ss-packs-import'), null, 'not drawn twice: Story Block\'s own fold keeps Events and Assist');
+    assert.ok(foldAt(root, 'story-block').querySelectorAll('.story-suite-subsection > h4').map(node => node.textContent).includes('Events'));
+    // Any subset of modules: without Story Block's core there is no Packs fold, and nothing breaks.
+    const alone = setup(director());
+    const bare = doc.createElement('div');
+    renderSettingsHost(bare, { registry: alone.registry, settings: alone.settings, doc });
+    assert.deepEqual(topFolds(bare).map(node => node.dataset.fold), ['story-suite', 'story-director', 'story-suite-versions']);
+    // A module's own fold is checked when it registers.
+    const bad = createRegistry();
+    assert.throws(() => bad.register({ id: 'odd', settings: { folds: [{ id: 'X Y', title: '', render: 'no' }] } }), /settings fold 1 has no usable id/);
+});
+
+test('prompt size: per module and in all, against the tail budget, "about N tokens" at four characters a token', () => {
+    const parts = [
+        { module: 'story-suite', place: 'static', text: 'x'.repeat(400) },
+        { module: 'rpg-battle', place: 'static', text: 'y'.repeat(80) },
+        { module: 'story-suite', place: 'tail', text: '[Happened]\nA wolf ran off.' },
+        { module: 'rpg-battle', place: 'tail', text: 'z'.repeat(203) },
+    ];
+    let calls = 0;
+    const { registry, settings } = setup(rpg());
+    settings.set(null, 'tailBudget', 900);
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc, promptParts: () => { calls += 1; return parts; } });
+    const size = foldAt(root, 'story-suite').querySelector('.story-suite-size');
+    assert.equal(size.dataset.exact, 'false');
+    const sums = () => size.querySelectorAll('.story-suite-size-sum > li').map(li => li.querySelector('b').textContent);
+    const stat = estimateTokens(`${'x'.repeat(400)}\n\n${'y'.repeat(80)}`);
+    const tail = estimateTokens(`[Happened]\nA wolf ran off.\n${'z'.repeat(203)}`);
+    assert.deepEqual(sums(), [`about ${stat} tokens`, `about ${tail} tokens of 900`, `about ${stat + tail} tokens`]);
+    assert.equal(size.querySelector('meter').max, 900);
+    assert.equal(size.querySelector('meter').value, tail);
+    assert.deepEqual(size.querySelectorAll('tbody tr').map(tr => [tr.querySelector('th').textContent, ...tr.querySelectorAll('td').map(td => td.textContent)]),
+        [['Story Suite', '100', String(estimateTokens('[Happened]\nA wolf ran off.'))], ['RPG Battle', '20', '51']]);
+    assert.match(size.querySelector('.story-suite-size-how').textContent, /four characters a token/);
+    // The budget follows the setting at once.
+    const budget = root.querySelector('.story-suite-row[data-field="tailBudget"] input');
+    budget.value = '1200';
+    change(budget);
+    assert.equal(sums()[1], `about ${tail} tokens of 1,200`);
+    assert.equal(calls, 2, 'built again on demand, nothing kept or sent');
+    // promptSize alone, and no chat (nothing to build): a line instead of numbers.
+    assert.deepEqual(promptSize(parts, { budget: 5 }), { modules: [{ id: 'story-suite', name: 'story-suite', static: 100, tail: estimateTokens('[Happened]\nA wolf ran off.') }, { id: 'rpg-battle', name: 'rpg-battle', static: 20, tail: 51 }], static: stat, tail, total: stat + tail, budget: 5 });
+    const none = doc.createElement('div');
+    renderSettingsHost(none, { registry, settings, doc, promptParts: () => { throw new Error('no chat'); } });
+    assert.equal(none.querySelector('.story-suite-size p').textContent, SETTINGS_TEXT.size.none);
+    const old = doc.createElement('div');
+    renderSettingsHost(old, { registry, settings, doc });
+    assert.equal(old.querySelector('.story-suite-size'), null, 'no prompt source, no block (an older caller)');
+});
+
+test('prompt size: SillyTavern\'s tokenizer when the context has one ("N tokens"); a feature switch counts again', async () => {
+    const loot = { id: 'loot', name: 'Loot', features: [{ id: 'loot.weight', label: 'Weight', default: false }] };
+    const { registry, settings } = setup(loot);
+    const stored = {};
+    const features = {
+        list: () => [{ id: 'loot.weight', moduleId: 'loot', moduleName: 'Loot', label: 'Weight', on: stored['loot.weight'] === true }],
+        set: (id, on) => { stored[id] = on; },
+    };
+    const tail = () => (stored['loot.weight'] ? 'heavy pack weighs 20' : 'light');
+    const counted = [];
+    const countTokens = async text => { counted.push(text); return text.split(/\s+/).filter(Boolean).length; };
+    const root = doc.createElement('div');
+    renderSettingsHost(root, { registry, settings, doc, features, countTokens, promptParts: () => [{ module: 'story-suite', place: 'static', text: 'one two three' }, { module: 'loot', place: 'tail', text: tail() }] });
+    const size = () => root.querySelector('.story-suite-size');
+    assert.equal(size().dataset.exact, 'false', 'the estimate first');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(size().dataset.exact, 'true');
+    const sums = () => size().querySelectorAll('.story-suite-size-sum > li b').map(node => node.textContent);
+    assert.deepEqual(sums(), ['3 tokens', '1 tokens of 1,500', '4 tokens']);
+    assert.match(size().querySelector('.story-suite-size-how').textContent, /SillyTavern's tokenizer/);
+    // The feature flips: everything is drawn again and counted again.
+    const input = root.querySelectorAll('.story-suite-feature input').find(node => node.id.includes('module'));
+    input.checked = true;
+    input.dispatch('change');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(sums(), ['3 tokens', '4 tokens of 1,500', '7 tokens']);
+    assert.ok(counted.includes('heavy pack weighs 20'));
+    // A tokenizer that fails leaves the estimate.
+    const broken = doc.createElement('div');
+    renderSettingsHost(broken, { registry, settings, doc, countTokens: async () => { throw new Error('no tokenizer'); }, promptParts: () => [{ module: 'story-suite', place: 'static', text: 'abcdefgh' }] });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(broken.querySelector('.story-suite-size').dataset.exact, 'false');
+    assert.equal(broken.querySelector('.story-suite-size-sum b').textContent, 'about 2 tokens');
+});
+
+test('open folds stay open across a redraw, sub-folds too; a closed default-open one stays closed', () => {
+    const loot = { id: 'loot', name: 'Loot', features: [{ id: 'loot.weight', label: 'Weight' }], settings: { schema: { a: { type: 'int', label: 'Bag: Size' }, b: { type: 'int', label: 'Shop: Mark-up' } } } };
+    const { registry, settings } = setup(loot, director());
+    const features = { list: () => [{ id: 'loot.weight', moduleId: 'loot', moduleName: 'Loot', label: 'Weight', on: true }], set() {} };
+    const root = doc.createElement('div');
+    const host = renderSettingsHost(root, { registry, settings, doc, features });
+    const key = part => `loot${SUB_FOLD}${part}`;
+    assert.equal(foldAt(root, key('features')).open, true, 'Features opens by default when it has switches');
+    assert.equal(foldAt(root, key('group:Bag')).open, false);
+    foldAt(root, 'loot').open = true;
+    foldAt(root, key('features')).open = false;
+    foldAt(root, key('group:Shop')).open = true;
+    foldAt(root, 'story-director::group:Calendar').open = true;
+    host.refresh();
+    assert.deepEqual(['loot', key('features'), key('group:Bag'), key('group:Shop'), 'story-director', 'story-director::group:Calendar'].map(fold => foldAt(root, fold).open), [true, false, false, true, false, true]);
+    // A real browser's toggle event is remembered too (the overlay reopened keeps it).
+    const shop = foldAt(root, key('group:Shop'));
+    shop.open = false;
+    shop.dispatch('toggle');
+    const state = new Map();
+    const again = doc.createElement('div');
+    renderSettingsHost(again, { registry, settings, doc, features, openState: state });
+    foldAt(again, key('group:Bag')).open = true;
+    foldAt(again, key('group:Bag')).dispatch('toggle');
+    assert.equal(state.get(key('group:Bag')), true);
+    const third = doc.createElement('div');
+    renderSettingsHost(third, { registry, settings, doc, features, openState: state });
+    assert.equal(foldAt(third, key('group:Bag')).open, true, 'another render with the same state');
+});
+
+test('the overlay: a header and one scrolling area; Escape closes it and the focus goes back; it can open at a fold', () => {
+    const ctx = { extensionSettings: {} };
+    const { registry, settings } = setup(createCoreModule({ packs: packsFor(ctx) }), rpg());
+    const opener = doc.createElement('button');
+    doc.body.appendChild(opener);
+    opener.focus();
+    // The document's own listeners (the fake one has none): the overlay's focus guard goes there.
+    const listeners = [];
+    doc.addEventListener = (type, fn) => listeners.push({ type, fn });
+    doc.removeEventListener = (type, fn) => { const at = listeners.findIndex(entry => entry.type === type && entry.fn === fn); if (at >= 0) listeners.splice(at, 1); };
+    const overlay = openSettingsOverlay({ registry, settings, doc, openState: new Map() });
+    assert.equal(overlay.root.getAttribute('aria-modal'), 'true');
+    assert.equal(overlay.root.getAttribute('aria-labelledby'), 'story_suite_v2_overlay_title');
+    assert.deepEqual(overlay.root.children.map(node => node.className), ['story-suite-overlay-header', 'story-suite-scroll']);
+    assert.equal(overlay.root.querySelector('.story-suite-scroll > .story-suite-panel').classList.contains('story-suite-folds'), true);
+    assert.ok(doc.activeElement === overlay.root.querySelector('.story-suite-close'), 'the focus starts in the dialog');
+    // The page behind cannot take the focus while it is open.
+    opener.focus();
+    for (const entry of listeners.filter(item => item.type === 'focusin')) entry.fn({ target: opener });
+    assert.ok(doc.activeElement === overlay.root.querySelector('.story-suite-close'));
+    overlay.root.querySelector('.story-suite-panel').dispatch('keydown', { key: 'Escape' });
+    assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 0);
+    assert.equal(overlay.isOpen(), false);
+    assert.ok(doc.activeElement === opener, 'back where it was');
+    // Opened at the Packs fold (Home's "Import a pack"): that fold open, its summary focused.
+    const atPacks = openSettingsOverlay({ registry, settings, doc, fold: PACKS_FOLD, openState: new Map() });
+    const packs = foldAt(atPacks.root, PACKS_FOLD);
+    assert.equal(packs.open, true);
+    assert.equal(foldAt(atPacks.root, 'rpg-battle').open, false);
+    assert.ok(doc.activeElement === packs.querySelector('summary'));
+    // Opening again closes the first one (one overlay, one focus guard).
+    const second = openSettingsOverlay({ registry, settings, doc, openState: new Map() });
+    assert.equal(atPacks.isOpen(), false);
+    assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1);
+    second.close();
+    assert.equal(listeners.length, 0, 'every overlay took its focus guard with it');
+    opener.remove();
+    delete doc.addEventListener;
+    delete doc.removeEventListener;
+});
+
+test('Home\'s "Import a pack": shown while no pack is installed, opens the settings at Packs, gone with a pack', () => {
+    let packs = [];
+    let listener = null;
+    let opened = 0;
+    const widget = createPacksHintWidget({ list: () => packs, subscribe: fn => { listener = fn; return () => { listener = null; }; }, open: () => { opened += 1; } });
+    const host = doc.createElement('div');
+    const handle = widget.render(host, {}, {});
+    const go = host.querySelector('button.sb-packs-import');
+    assert.equal(go.textContent, STRINGS.packsHint.import);
+    assert.equal(go.type, 'button');
+    assert.equal(host.querySelector('.packs-hint').getAttribute('aria-label'), 'Packs');
+    go.click();
+    assert.equal(opened, 1);
+    packs = [{ id: 'ersveil' }];
+    listener();
+    assert.equal(host.children.length, 0, 'a pack installed: nothing');
+    handle.destroy();
+    assert.equal(listener, null, 'its listener goes with it');
+    // A Story Block that cannot tell (no list): nothing either.
+    const unknown = doc.createElement('div');
+    createPacksHintWidget({ list: () => null }).render(unknown, {}, {});
+    assert.equal(unknown.children.length, 0);
 });

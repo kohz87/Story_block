@@ -115,6 +115,7 @@ updated.
 - The after-reply extractor ignores closed reasoning, as capture does (Story Block #101).
 - Feature follow-ups (Story Block #106): a dialog of a switched-off screen doesn't open, settings of a switched-off feature are hidden, and a feature that needs another module shows as unavailable until that module is there.
 - From the beta fuzz run (Story Block #112, #113): a save that hangs counts as failed after 20 s and is retried, a slow Re-read waits instead of giving up, a rewind after a middle delete replays correctly, a Continue whose block was split is read, and Equip on… respects the carry limit.
+- The settings screen after the first live test: folds keep their size and the screen scrolls (phones too); one centred column (Story Suite, Packs, Features, modules, Versions) with sub-folds per settings group; compact one-line list rows (`[January] [31] ×`); a **Prompt size** estimate in the Story Suite fold; the Packs fold second, and **Import a pack** on Home while no pack is installed.
 
 **Player guide**
 - "Checks and modifiers" now tells the same-reply dice (F80). The old Roll button is gone from the guide.

@@ -265,7 +265,7 @@ test('widget: draws nothing while its feature is off, and follows the switch on 
 
 test('Home holds the save points slot; the feature is declared on by default, the inspector\'s off', () => {
     assert.match(homeScreen.template, /<ss-widget name="story-block.savepoints" class="saves-slot"><\/ss-widget>/);
-    assert.match(homeScreen.css, /\.saves-slot:empty \{ display: none; \}/);
+    assert.match(homeScreen.css, /\.saves-slot:empty, \.packs-slot:empty \{ display: none; \}/);
     const ours = CORE_FEATURES.filter(f => ['story-block.inspector', 'story-block.savepoints'].includes(f.id));
     assert.deepEqual(ours.map(f => [f.id, f.default]), [['story-block.inspector', false], ['story-block.savepoints', true]]);
     for (const f of ours) assert.ok(f.label && f.describe, f.id);
