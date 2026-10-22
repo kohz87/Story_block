@@ -610,7 +610,9 @@ sdk.registerModule({
   or `'chat'`, generateRaw). Never posts to the chat or touches its history; never throws (`error` is a code:
   `FEATURE_OFF`, `BUSY`, `TIMEOUT`, `ABORTED`, `BAD_REQUEST`, `NO_PROFILE`, `EMPTY`, `UNAVAILABLE`, `FAILED`,
   with a plain `message`); one call in flight per module (a second is `BUSY`); 60 s limit (`timeoutMs`); the
-  log holds only the module, the profile's name, the time and the outcome.
+  log holds only the module, the profile's name, the time and the outcome. On the chat's connection it waits
+  while a reply is being built or awaited (`turn.replyBusy()`, `turn.whenIdle()`), and its prompt is marked as
+  Story Suite's own so the turn's prompt handlers never take it for the reply's (createTurn's `ownPrompt`).
 * **Versions**: `requires: { storyBlock: '>=2.1.0' }` says which Story Block a module needs, as a version
   range in the packs' form (`^2`, `>=2.0.0 <3`, `>=2.0.0-alpha.2`, alternatives with `||`). Pre-releases
   order the semver way (2.0.0-alpha.1 < 2.0.0-alpha.3 < 2.0.0): a bound written as a release
