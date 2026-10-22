@@ -504,11 +504,12 @@ sdk.registerModule({
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
   start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
   labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`. Money is one currency (MODULES §F1).
-* **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`) render in the
+* **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the
   Story Suite overlay; `section` renders a custom panel for what a schema can't express. Values are stored
   under `extension_settings.storySuite.modules[id]`. `settings.set` stores a value as its field allows it:
   text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
-  options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped).
+  options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped), a
+  `profile` as a Connection Manager profile's name (a dropdown with "Same as chat", stored `''`; MODULES §G).
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
   The overlay is one centred column of folds: Story Suite (the tail budget, the share of the context and
   the prompt size, with the context size and the share used), the
@@ -587,6 +588,13 @@ sdk.registerModule({
 * **Events**: `sdk.on('committed' | 'head' | 'turn' | 'feature', fn)`; `head` fires after any rebuild.
 * `sdk.query(name, args)`, `sdk.modules()`, `sdk.id(prefix)`, `sdk.check`, `sdk.settings(id)`, `sdk.feature(id)`,
   `sdk.features()`.
+* **Model calls** (MODULES §G): `sdk.callModel({ profile, system, prompt, maxTokens, signal, feature })` →
+  `Promise<{ ok, text, error }>`, a module's own call outside the story, on a Connection Manager profile (called
+  directly with its settings, the reader's connection never switched) or the chat's connection (`profile` `''`
+  or `'chat'`, generateRaw). Never posts to the chat or touches its history; never throws (`error` is a code:
+  `FEATURE_OFF`, `BUSY`, `TIMEOUT`, `ABORTED`, `BAD_REQUEST`, `NO_PROFILE`, `EMPTY`, `UNAVAILABLE`, `FAILED`,
+  with a plain `message`); one call in flight per module (a second is `BUSY`); 60 s limit (`timeoutMs`); the
+  log holds only the module, the profile's name, the time and the outcome.
 * **Versions**: `requires: { storyBlock: '>=2.1.0' }` says which Story Block a module needs, as a version
   range in the packs' form (`^2`, `>=2.0.0 <3`, `>=2.0.0-alpha.2`, alternatives with `||`). Pre-releases
   order the semver way (2.0.0-alpha.1 < 2.0.0-alpha.3 < 2.0.0): a bound written as a release

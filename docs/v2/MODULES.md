@@ -512,3 +512,61 @@ These settle questions agents raised; the host changes they need are made at int
     its place (read by Story Block when a chat opens, `packs.markets`). Order for a place: lorebook, pack, the
     scene's place kind, built-in; unknown means factor 1. The money scale (F104) multiplies the built-in prices
     and worths (shop stock, a story-made thing's worth through `item.define`'s new `scale`), never a pack's own.
+
+## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
+
+For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster
+flavour, companion skills, What next?). Story Block makes the call and keeps the rules; the module writes the
+prompt and reads the text (src/v2/model-call.js).
+
+```js
+const result = await sdk.callModel({
+  profile: sdk.settings('story-director').arcProfile,   // a Connection Manager profile's name; '' or 'chat': the chat's connection
+  system: 'You plan story arcs.',                         // optional
+  prompt: 'Plan the next arc for …',
+  maxTokens: 600,                                         // 1–8000, default 300
+  signal: controller.signal,                              // optional AbortSignal
+  feature: 'story-director.arc',                          // the calling module's feature: FEATURE_OFF while it is off
+  // module: 'story-director',                            // optional: the module, when there is no feature
+  // timeoutMs: 90_000,                                   // optional: 1 s – 10 min, default 60 s
+});
+// → { ok: true, text, error: null } | { ok: false, text: '', error: 'TIMEOUT', message: 'The model did not answer within 60 s.' }
+```
+
+- **Never posts to the chat and never touches its history**, the story state or the reader's connection. A
+  profile is called directly with that profile's own settings (SillyTavern 1.19's
+  `ConnectionManagerRequestService.sendRequest(profileId, messages, maxTokens, { signal })`: its API, model,
+  preset and key stay in SillyTavern), so nothing is switched and there is nothing to switch back; the reader's
+  selected profile and API are as they were. The chat's connection is called with `generateRaw` (the prompt
+  as it is: no chat, card, lorebook or extension prompts). A named profile that is missing, or a Connection
+  Manager that is off, is an error (`NO_PROFILE`), never the chat's connection in its place: the reader chose
+  that model on purpose.
+- **Never throws.** `error` is a code; `message` a plain sentence for the reader:
+  `FEATURE_OFF` (the `feature` is off, or no module declares it; nothing was called), `BUSY` (this module
+  already has a call on its way; nothing was called), `TIMEOUT`, `ABORTED` (the `signal` fired, also when it
+  had before the call), `BAD_REQUEST` (no prompt text, or a system that is not text), `NO_PROFILE`, `EMPTY` (the
+  model answered nothing), `UNAVAILABLE` (no SillyTavern, no generateRaw), `FAILED` (anything else; the message
+  holds the first line of SillyTavern's reason, cut at 160, with key-like runs masked).
+- **One call in flight per module**: a second while the first is on its way is refused with `BUSY`, not
+  queued (retry when the first answers). The module is `module`, else the owner of `feature`; callers that
+  name neither share one slot. Modules do not hold each other up.
+- **Time limit**: 60 s unless the call's `timeoutMs` says otherwise (the runtime's `modelTimeoutMs` option
+  sets the default). On a timeout or abort a profile's request is cut off; the chat's connection's cannot be
+  (generateRaw takes no signal), so its late answer is dropped.
+- **Logged**: one console line per call with the module, the profile's name ('the chat's connection'), the
+  time taken and the outcome code. Never the prompt, the answer, an error's words or anything of a profile
+  (address, key, model).
+- **The `profile` settings field** (`{ type: 'profile', label, help?, feature? }`, any module's schema): a
+  dropdown of the Connection Manager's profiles that can make a text call (by name) plus **Same as chat**
+  (stored `''`). It stores the profile's **name** (trimmed, at most 100 characters; `'chat'` is stored as
+  `''`), so the value goes straight to `callModel({ profile })`. A stored name no profile has any more stays
+  in the list as "Name (not found)" with a note, until the reader picks another. With no profiles, or no
+  Connection Manager, or it turned off, the dropdown is Same as chat only and a plain note says why. On a
+  Story Block before this field type, the field is hidden and its value kept (SPEC §6).
+- **Alone**: nothing here needs another module. A module on a host without `sdk.callModel` checks
+  `typeof sdk.callModel === 'function'` and says so plainly (no planner, the library fallback).
+- **Tests**: the testkit's `createFakeModel(script)` is a scripted model for `createHost({ callModel })`
+  (it also stands in for the assist helpers' call). Each call takes the next answer: a string, an `Error`, a
+  function of the call, `{ text, delayMs }`, or `{ hang: true }` (no answer until aborted, for TIMEOUT and
+  ABORTED). `model.calls` → `[{ prompt, maxTokens, profile, system }]`; `model.pending()`, `model.aborted`,
+  `model.push(...answers)`. The host's real rules run around it.
