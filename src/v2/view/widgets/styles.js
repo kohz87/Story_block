@@ -83,36 +83,47 @@ export const widgetCss = `
 :where(.ss-w-radar-label) { fill: var(--ss-w-fg); font-size: calc(var(--ss-w-radar-label, 11) * 1px); }
 :where(.ss-w-radar-value) { fill: var(--ss-w-muted); }
 
-/* map */
+/* map: a glass panel over the page, on the look's tokens (Map.dc.html): the stage, the place pins and their name chips,
+   the layer pills and the zoom buttons as glass controls, the legend and the minimap as glass cards. The widget's own
+   --ss-w-* names fall back to the look's, so an older screen theme still works. Every control has its rest, hover,
+   focus-visible and active states; the map never disables a control (zoom clamps at its limits). */
 :where(.ss-w-map) { display: flex; flex-direction: column; gap: var(--ss-w-gap); }
-:where(.ss-w-map-bar) { display: flex; flex-wrap: wrap; gap: var(--ss-w-gap); justify-content: space-between; }
-:where(.ss-w-map-layers, .ss-w-map-zoom) { display: flex; flex-wrap: wrap; gap: 0.25em; }
-:where(.ss-w-map-btn, .ss-w-map-layer) { min-width: 2em; padding: 0.2em 0.6em; border: 1px solid var(--ss-w-border); border-radius: var(--ss-w-radius); background: var(--ss-w-raised); }
-:where(.ss-w-map-layer.ss-w-active) { border-color: var(--ss-w-accent); background: color-mix(in srgb, var(--ss-w-accent) 25%, transparent); }
+:where(.ss-w-map-bar) { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+:where(.ss-w-map-layers, .ss-w-map-zoom) { display: flex; flex-wrap: wrap; gap: 6px; }
+:where(.ss-w-map-btn, .ss-w-map-layer) { min-width: 40px; min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--ss-border, var(--ss-w-border)); border-radius: var(--ss-radius-pill, 999px); background: var(--ss-tile, var(--ss-w-raised)); color: var(--ss-text, var(--ss-w-fg)); font: inherit; font-weight: 600; line-height: 1; cursor: pointer; transition: border-color var(--ss-motion, 0.2s) ease, background-color var(--ss-motion, 0.2s) ease; }
+:where(.ss-w-map-zoom .ss-w-map-btn) { width: 40px; padding: 0; border-radius: 10px; font-size: 1.2em; }
+:where(.ss-w-map-btn:hover, .ss-w-map-layer:hover, .ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-btn:active, .ss-w-map-layer:active) { border-color: var(--ss-accent, var(--ss-w-accent)); background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--ss-w-bg)); }
+:where(.ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-node:focus-visible, .ss-w-map-stage:focus-visible) { outline: 2px solid var(--ss-accent, var(--ss-w-accent)); outline-offset: 2px; }
+:where(.ss-w-map-layer.ss-w-active) { border-color: var(--ss-accent, var(--ss-w-accent)); background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--ss-w-bg)); }
 :where(.ss-w-map-body) { display: flex; flex-wrap: wrap; gap: var(--ss-w-gap); align-items: flex-start; }
-:where(.ss-w-map-stage) { position: relative; flex: 1 1 18em; min-width: 0; aspect-ratio: var(--ss-w-map-aspect, 4 / 3); overflow: hidden; border: 1px solid var(--ss-w-border); border-radius: var(--ss-w-radius); background: var(--ss-w-map-bg, var(--ss-w-bg)); touch-action: none; user-select: none; cursor: grab; }
+:where(.ss-w-map-stage) { position: relative; flex: 1 1 18em; min-width: 0; aspect-ratio: var(--ss-w-map-aspect, 4 / 3); overflow: hidden; border: 1px solid var(--ss-border, var(--ss-w-border)); border-radius: var(--ss-radius-xl, var(--ss-w-radius)); background: var(--ss-w-map-bg, var(--ss-glass, var(--ss-w-bg))); -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none); box-shadow: var(--ss-shadow, none); touch-action: none; user-select: none; cursor: grab; }
 :where(.ss-w-map-stage.ss-w-dragging) { cursor: grabbing; }
 :where(.ss-w-map-svg) { position: absolute; inset: 0; width: 100%; height: 100%; }
 :where(.ss-w-map-edge) { stroke: var(--ss-w-map-route, var(--ss-w-muted)); stroke-width: 2; }
 :where(.ss-w-map-edge.ss-w-unknown) { stroke-dasharray: 4 4; opacity: 0.6; }
 :where(.ss-w-map-nodes) { position: absolute; inset: 0; pointer-events: none; }
-:where(.ss-w-map-node) { position: absolute; left: calc(var(--ss-w-x, 50) * 1%); top: calc(var(--ss-w-y, 50) * 1%); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0.1em; padding: 0; border: 0; background: none; color: var(--ss-w-fg); pointer-events: auto; font-size: 0.85em; }
-:where(.ss-w-map-node .ss-w-map-dot, .ss-w-map-node .ss-w-map-icon) { display: grid; place-items: center; width: 1.8em; height: 1.8em; border-radius: 50%; border: 2px solid var(--ss-w-border); background: var(--ss-w-bg); }
-:where(.ss-w-map-name) { max-width: 10em; padding: 0 0.3em; border-radius: 4px; background: color-mix(in srgb, var(--ss-w-bg) 80%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-:where(.ss-w-map-node.ss-w-current .ss-w-map-dot, .ss-w-map-node.ss-w-current .ss-w-map-icon) { border-color: var(--ss-w-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ss-w-accent) 40%, transparent); }
-:where(.ss-w-map-node.ss-w-unknown) { color: var(--ss-w-muted); }
+:where(.ss-w-map-node) { position: absolute; left: calc(var(--ss-w-x, 50) * 1%); top: calc(var(--ss-w-y, 50) * 1%); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0.25em; padding: 0; border: 0; background: none; color: var(--ss-text, var(--ss-w-fg)); pointer-events: auto; font-size: 0.85em; }
+:where(.ss-w-map-node .ss-w-map-dot, .ss-w-map-node .ss-w-map-icon) { display: grid; place-items: center; width: 2.1em; height: 2.1em; border-radius: 50%; border: 2px solid var(--ss-border, var(--ss-w-border)); background: var(--ss-glass-strong, var(--ss-w-bg)); color: var(--ss-text, var(--ss-w-fg)); box-shadow: var(--ss-shadow, none); }
+:where(.ss-w-map-node.ss-w-selectable:hover .ss-w-map-dot, .ss-w-map-node.ss-w-selectable:hover .ss-w-map-icon, .ss-w-map-node.ss-w-selectable:active .ss-w-map-dot, .ss-w-map-node.ss-w-selectable:active .ss-w-map-icon) { border-color: var(--ss-accent, var(--ss-w-accent)); }
+:where(.ss-w-map-node:focus-visible) { outline-offset: 4px; border-radius: 50%; }
+:where(.ss-w-map-name) { max-width: 10em; padding: 2px 8px; border-radius: 6px; background: var(--ss-glass-strong, color-mix(in srgb, var(--ss-w-bg) 80%, transparent)); color: var(--ss-text, var(--ss-w-fg)); font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:where(.ss-w-map-node.ss-w-current .ss-w-map-dot, .ss-w-map-node.ss-w-current .ss-w-map-icon) { border-color: var(--ss-accent, var(--ss-w-accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ss-accent, var(--ss-w-accent)) 40%, transparent); }
+:where(.ss-w-map-node.ss-w-unknown) { color: var(--ss-muted, var(--ss-w-muted)); }
 :where(.ss-w-map-side) { display: flex; flex-direction: column; gap: var(--ss-w-gap); flex: 0 1 11em; min-width: 8em; }
-:where(.ss-w-map-mini) { width: 100%; aspect-ratio: 4 / 3; border: 1px solid var(--ss-w-border); border-radius: var(--ss-w-radius); background: var(--ss-w-bg); cursor: pointer; }
+:where(.ss-w-map-mini) { width: 100%; aspect-ratio: 4 / 3; border: 1px solid var(--ss-border, var(--ss-w-border)); border-radius: var(--ss-radius-l, var(--ss-w-radius)); background: var(--ss-glass, var(--ss-w-bg)); cursor: pointer; }
 :where(.ss-w-map-mini-edge) { stroke: var(--ss-w-muted); stroke-width: 1; }
 :where(.ss-w-map-mini-node) { fill: var(--ss-w-fg); }
-:where(.ss-w-map-mini-node.ss-w-current) { fill: var(--ss-w-accent); }
-:where(.ss-w-map-viewport) { fill: color-mix(in srgb, var(--ss-w-accent) 15%, transparent); stroke: var(--ss-w-accent); stroke-width: 1.5; }
-:where(.ss-w-map-legend-title) { margin: 0 0 0.2em; font-weight: 600; font-size: 0.9em; }
-:where(.ss-w-map-legend-list) { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2em; font-size: 0.85em; }
-:where(.ss-w-map-legend-item) { display: flex; align-items: center; gap: 0.4em; }
-:where(.ss-w-map-legend-sample) { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; }
+:where(.ss-w-map-mini-node.ss-w-current) { fill: var(--ss-accent, var(--ss-w-accent)); }
+:where(.ss-w-map-viewport) { fill: color-mix(in srgb, var(--ss-accent, var(--ss-w-accent)) 15%, transparent); stroke: var(--ss-accent, var(--ss-w-accent)); stroke-width: 1.5; }
+:where(.ss-w-map-legend) { padding: 10px 12px; }
+:where(.ss-w-map-legend-title) { margin: 0 0 4px; }
+:where(.ss-w-map-legend-list) { font-size: 0.9em; }
+:where(.ss-w-map-legend-item) { min-width: 0; }
+:where(.ss-w-map-legend-item .ss-listcard-item) { padding: 6px 6px; min-height: 0; }
+:where(.ss-w-map-legend-text) { min-width: 0; overflow-wrap: anywhere; }
+:where(.ss-w-map-legend-sample) { display: inline-grid; place-items: center; flex: none; width: 1.6em; height: 1.6em; }
 :where(.ss-w-map-edge-sample) { height: 0; border-top: 2px solid var(--ss-w-map-route, var(--ss-w-muted)); }
-:where(.ss-w-map-here-sample) { border-radius: 50%; border: 2px solid var(--ss-w-accent); }
+:where(.ss-w-map-here-sample) { border-radius: 50%; border: 2px solid var(--ss-accent, var(--ss-w-accent)); }
 
 /* skill tree */
 :where(.ss-w-skill-tree) { display: flex; flex-direction: column; }
