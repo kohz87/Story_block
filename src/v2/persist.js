@@ -34,7 +34,7 @@
 // Nothing else reads it (deleting a message, editing, Continue, loading a chat read `extra` itself). So
 // the shown swipe's copy is kept on the last carrier and on any carrier with more than one swipe, and
 // dropped on the others. When a deletion makes an earlier carrier the last one, the store copies its
-// record into its shown swipe again (`mirrorCopy`, on rebuild). Other swipes' copies, SillyTavern's own
+// record into its shown swipe again (`restoreCopy`, on rebuild). Other swipes' copies, SillyTavern's own
 // (each holding that swipe's own record), are never touched.
 // * Receipts more than RECEIPT_KEEP carriers back lose their `data` (`trimReceipts`): nothing reads it
 //   after the reply it was shown on (claims live in meta.claims, Re-read uses `line` and `seed`, narration
@@ -223,6 +223,24 @@ export function mirrorCopy(message) {
     if (!isObject(info.extra)) info.extra = {};
     if (info.extra !== message.extra) info.extra[KEY] = structuredClone(record);
     return true;
+}
+
+/**
+ * The copy a rebuild gives the last carrier back (an earlier one became the last). Only for a message at
+ * rest: its shown swipe's text is the one shown, and that swipe's `swipe_info` holds no other record.
+ * SillyTavern's deleteSwipe tells of a deleted swipe (MESSAGE_SWIPE_DELETED) before it shows the next
+ * one: then `extra` is still the deleted swipe's and the slot under `swipe_id` is the next swipe's own,
+ * which must not be written over. True when it copied.
+ */
+export function restoreCopy(message) {
+    const record = message?.extra?.[KEY];
+    const swipe = swipeOf(message);
+    const info = Array.isArray(message?.swipe_info) ? message.swipe_info[swipe] : null;
+    if (!isObject(record) || !isObject(info) || info.extra === message.extra) return false;
+    if (Array.isArray(message.swipes) && message.swipes[swipe] !== message.mes) return false;
+    const there = isObject(info.extra) ? info.extra[KEY] : undefined;
+    if (there !== undefined && !(isObject(there) && there.sid === record.sid)) return false;
+    return mirrorCopy(message);
 }
 
 /**

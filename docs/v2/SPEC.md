@@ -90,13 +90,24 @@ object `meta` with a whole-number `rev`, object `domains`); a damaged record is 
 Problem. `head()`/`at()` return `null` for a chat with no v2 state.
 
 SillyTavern copies `message.extra` per swipe (`swipe_info[n].extra`), so each swipe has its own changes.
-Story Block writes `message.extra` and keeps `swipe_info[swipe_id].extra` in step (as v1 does) before saving.
+Story Block writes `message.extra`. It keeps the shown swipe's copy, `swipe_info[swipe_id].extra`, in step
+only where SillyTavern can read it back: on the last carrier (the one the reader swipes) and on a carrier
+with more than one swipe (a branch from a swipe picked in the swipe list reads it). On the others it drops
+it, so each record is stored once; when a deletion makes an earlier carrier the last one, it gets the copy
+back on the rebuild. SillyTavern's own copies of the other swipes are left as they are. (SillyTavern 1.19
+reads `extra` back only in `syncSwipeToMes`: a swipe, which first copies the shown swipe itself, and a
+branch from the swipe picker; see persist.js.) Readers accept either shape: replay reads `message.extra`.
 
 * **The greeting** (first carrier) always holds a checkpoint: the initial state (§2.6). When the first
   carrier is deleted, the new first carrier gets the state the deleted ones ended with as its checkpoint and
   keeps its own changes; a record already there is never replaced.
-* A carrier gets a checkpoint when 20 carriers have passed since the last one, or the ops since then
-  exceed 32 KB of JSON. The checkpoint is the state *before* that carrier's own ops.
+* A carrier gets a checkpoint when 100 carriers have passed since the last one, or the ops since then
+  exceed 128 KB of JSON and twice the last checkpoint's own size, at least 10 carriers after it (one domain
+  that rewrites a big list on every reply cannot bring a checkpoint every few replies). The checkpoint is
+  the state *before* that carrier's own ops. A checkpoint is read wherever it is (chats written before
+  this rule have one every 20 carriers / 32 KB).
+* **Old receipts.** A receipt 200 or more carriers before the head drops its `data` (every other field
+  stays: `summary`, `narrate`, `seed`, Re-read's `line`). Nothing reads `data` after its reply is shown.
 * **State at carrier N** = the latest checkpoint at or before N that still holds, then every carrier's `ops`
   from there through N. A checkpoint holds when its `covers` matches the records the chat has now since the
   checkpoint before it; one made over a reply since deleted (or another swipe) is passed over. A checkpoint

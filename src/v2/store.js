@@ -26,12 +26,16 @@
 
 import { apply as applyOps, rebaseOps } from './ops.js';
 import {
-    KEY, RECEIPT_KEEP, carrierIndexes, carryRecord, createSaver, dropCopy, isCarrier, keepsCopy, lastCarrier, mirrorCopy,
-    newRecordId, readRecord, recordFault, restamp, swipeOf, trimReceipts, writeRecord,
+    KEY, RECEIPT_KEEP, carrierIndexes, carryRecord, createSaver, dropCopy, isCarrier, keepsCopy, lastCarrier,
+    newRecordId, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
+// The bytes rule never puts checkpoints closer than this many carriers, and waits for at least twice
+// the last checkpoint's own size of ops: one domain that rewrites a large list whole on every reply
+// cannot make every few replies write the whole state again (b6-soak).
+export const CHECKPOINT_MIN_GAP = 10;
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -77,6 +81,7 @@ export function createStore({
     if (typeof apply !== 'function') throw new TypeError('createStore needs an apply(state, ops) function.');
     void now;
     let frozenCheckpoints = new WeakMap();
+    const checkpointBytesOf = new WeakMap();
     let cache = null;          // { key, state, problems }
     let lastWrite = null;      // { message, swipe, rev } of the last record written, for save verification
     let holding = 0;           // inside batch(): swipe_info copies wait until it ends
@@ -188,7 +193,7 @@ export function createStore({
             // SillyTavern makes for the next new swipe is not taken for the new swipe's own.
             stamped = restamp(message, { mirror: keep }) || stamped;
             if (!readRecord(message)) return;
-            if (last) mirrorCopy(message);
+            if (last) restoreCopy(message);
             else if (!keep) dropCopy(message);
             if (carriers.length - 1 - at >= receiptKeep) trimReceipts(message);
         });
@@ -386,7 +391,8 @@ export function createStore({
     }
 
     // Does a new record on carrier `index` need a checkpoint? Counts the carriers and the op JSON since
-    // the last checkpoint before it.
+    // the last checkpoint before it: due after `checkpointEvery` carriers, or once the ops exceed
+    // `checkpointBytes` and twice the last checkpoint's size, `CHECKPOINT_MIN_GAP` carriers on at least.
     function needsCheckpoint(arr, index) {
         let carriers = 0;
         let bytes = 0;
@@ -395,10 +401,21 @@ export function createStore({
             carriers++;
             const record = readRecord(arr[i]);
             if (record?.ops.length) bytes += jsonBytes(record.ops);
-            if (record?.checkpoint) return carriers >= checkpointEvery || bytes > checkpointBytes;
+            if (record?.checkpoint) {
+                if (carriers >= checkpointEvery) return true;
+                const gap = Math.min(CHECKPOINT_MIN_GAP, checkpointEvery);
+                return carriers >= gap && bytes > Math.max(checkpointBytes, 2 * checkpointSize(record.checkpoint));
+            }
             if (carriers >= checkpointEvery) return true;
         }
         return false;
+    }
+
+    // A checkpoint's JSON size, worked out once per stored checkpoint.
+    function checkpointSize(raw) {
+        let size = checkpointBytesOf.get(raw);
+        if (size === undefined) checkpointBytesOf.set(raw, size = jsonBytes(raw));
+        return size;
     }
 
     // The carrier's record to build on: its own, or a fresh one (with a checkpoint when one is due).
