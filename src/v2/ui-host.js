@@ -141,7 +141,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         problems: index => inspectorProblems(index),
     });
     const hostWidgets = {
-        [INSPECTOR_WIDGET]: createInspectorWidget(inspector),
+        [INSPECTOR_WIDGET]: createInspectorWidget(inspector, { enabled: () => coreOn(CORE_FEATURE.inspector) }),
         [SAVEPOINTS_WIDGET]: createSavePointsWidget({
             points: savePoints,
             enabled: () => coreOn(CORE_FEATURE.savepoints),

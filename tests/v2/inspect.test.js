@@ -277,3 +277,17 @@ test('widget: a chat with no story yet says so; drawTree caps wide objects and c
     assert.equal(box.querySelector('.sb-insp-leaf[data-path="/long"] .sb-insp-str').textContent.length, 303, '300 characters, the quotes and …');
     assert.equal(box.querySelector('details[data-path="/empty"] .sb-insp-leaf').textContent, '{}');
 });
+
+test('widget: while its feature is off it draws nothing, wherever a screen names it (B-rxui-11)', () => {
+    const doc = installDom();
+    const el = widgetHost(doc);
+    let asked = 0;
+    const source = { memory: { index: null, search: '', open: new Set() }, replies: () => { asked += 1; return []; }, reply: () => null, headIndex: () => -1 };
+    const handle = createInspectorWidget(source, { enabled: () => false }).render(el, {}, {});
+    assert.equal(el.children.length, 0);
+    assert.ok(el.hidden);
+    assert.equal(asked, 0, 'not even the reply list is read');
+    handle.update({});
+    handle.destroy();
+    assert.equal(el.children.length, 0);
+});

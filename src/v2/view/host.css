@@ -112,6 +112,7 @@ body.story-suite-open { overflow: hidden; }
 .story-suite-fold-warn > summary small { color: var(--warning, #d9a33a); opacity: 1; }
 /* The Versions fold (compat.js): one row per module, its fix sentence under it when out of step. */
 .story-suite-compat { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.story-suite-compat-row { overflow-wrap: anywhere; min-width: 0; }
 .story-suite-compat-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .story-suite-compat-version { font-variant-numeric: tabular-nums; }
 .story-suite-compat-state { margin-left: auto; font-size: 0.85em; }

@@ -2,6 +2,7 @@
 // Story Block it needs; what is out of step (refused for the version, made for a newer Story Block, a
 // clash, installed twice) with one plain sentence on how to fix it. The registry keeps its refusals.
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../ui-fake-dom.js';
 import { createRegistry } from '../../src/v2/registry.js';
@@ -10,6 +11,7 @@ import { compatReport, renderCompat } from '../../src/v2/compat.js';
 import { VERSIONS_FOLD, renderSettingsHost } from '../../src/v2/host-ui.js';
 
 const doc = installFakeDom();
+const read = path => readFileSync(new URL(`../../src/v2/${path}`, import.meta.url), 'utf8');
 const HOST = '2.0.0-alpha.2';
 
 function registryWith(...defs) {
@@ -101,4 +103,21 @@ test('the overlay\'s Versions fold, last, says in its title how many are out of 
     const again = doc.createElement('div');
     renderSettingsHost(again, { registry: fine, settings: createSettings({ root: () => ({}), registry: fine }), doc });
     assert.equal(again.querySelectorAll('details.story-suite-fold').at(-1).querySelector('summary small').textContent, 'all in step');
+});
+
+test('compatReport cuts what other extensions give: name 60, version 40, range 60, notes 400 (B-rxui-12)', () => {
+    const report = compatReport({
+        hostVersion: HOST,
+        modules: [{ id: 'weird', name: 'N'.repeat(3000), version: 'v'.repeat(5000), requires: { storyBlock: `>=2.0.0 ${'<9 '.repeat(100)}` } }],
+        refusals: [{ id: 'gone', name: 'G'.repeat(500), version: '1'.repeat(300), requires: '^9', forVersion: true, message: 'x'.repeat(5000) }],
+    });
+    const [weird, gone] = report.rows;
+    assert.equal(weird.name.length, 60);
+    assert.ok(weird.name.endsWith('…'));
+    assert.equal(weird.version.length, 40);
+    assert.ok(weird.requires.length <= 60);
+    assert.equal(gone.name.length, 60);
+    assert.equal(gone.note.length, 400);
+    assert.ok(gone.fix.length < 300);
+    assert.match(read('view/host.css'), /\.story-suite-compat-row \{ overflow-wrap: anywhere;/);
 });

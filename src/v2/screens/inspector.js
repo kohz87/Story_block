@@ -188,14 +188,21 @@ function opLine(doc, op) {
  * The `story-block.inspector` widget over `source` (inspect.js createInspectorSource): `{ replies(),
  * reply(index), headIndex(), memory: { index, search, open } }`. The reader's choices live in
  * `source.memory`, so a redraw of the screen keeps the reply picked, the search and what is open.
- * It redraws itself on the host's `head`, `committed` and `turn` events (api.on).
+ * It redraws itself on the host's `head`, `committed` and `turn` events (api.on). `enabled()`: the
+ * feature's switch; while it is off the widget draws nothing (B-rxui-11), wherever it is named.
  */
-export function createInspectorWidget(source) {
+export function createInspectorWidget(source, { enabled = () => true } = {}) {
     return Object.freeze({
         props: {},
         primary: null,
         validate: () => [],
         render(host, _props, api = {}) {
+            // Off (the feature `story-block.inspector`), it draws nothing in any screen that names it.
+            if (!enabled()) {
+                host.replaceChildren();
+                host.hidden = true;
+                return { update() {}, destroy() {} };
+            }
             const doc = host.ownerDocument ?? globalThis.document;
             const memory = source.memory;
             const root = el(doc, 'div', 'sb-insp');

@@ -17,11 +17,18 @@
 
 import { definitionWarnings } from './registry.js';
 import { satisfies } from './packs/version.js';
+import { cutAt } from '../text.js';
 
 const STATES = Object.freeze({ ok: 'In step', unstated: 'In step', newer: 'Newer than this Story Block', refused: 'Not loaded', twice: 'Installed twice' });
 const OUT = new Set(['newer', 'refused', 'twice']);
 
 const text = value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '');
+// What other extensions give is shown cut (B-rxui-12): a name, a version, a range, a refusal's words.
+const CUT = Object.freeze({ name: 60, version: 40, range: 60, note: 400 });
+const clip = (value, max) => {
+    const line = text(value);
+    return line.length > max ? `${cutAt(line, max - 1)}…` : line;
+};
 
 /**
  * `modules`: the registered definitions (registry.modules()); `refusals`: registry.refusals();
@@ -35,10 +42,10 @@ export function compatReport({ hostVersion = '', modules = [], refusals = [], wa
     for (const def of modules) {
         if (!def || typeof def.id !== 'string') continue;
         registered.add(def.id);
-        const name = text(def.name) || def.id;
-        const version = text(def.version);
-        const requires = text(def.requires?.storyBlock);
-        const row = { id: def.id, name, version, requires, state: 'ok', note: '', fix: '' };
+        const name = clip(def.name, CUT.name) || clip(def.id, CUT.name);
+        const version = clip(def.version, CUT.version);
+        const requires = clip(def.requires?.storyBlock, CUT.range);
+        const row = { id: clip(def.id, CUT.name), name, version, requires, state: 'ok', note: '', fix: '' };
         if (def.id === 'story-block') {
             row.note = host ? `This Story Block is ${host}.` : '';
             rows.unshift(row);
@@ -48,7 +55,7 @@ export function compatReport({ hostVersion = '', modules = [], refusals = [], wa
         try { unknown = warnings(def) ?? []; } catch { unknown = []; }
         if (unknown.length) {
             row.state = 'newer';
-            row.note = `${unknown.length} ${unknown.length === 1 ? 'part' : 'parts'} of it this Story Block does not know: ${unknown.map(line => text(line).replace(/; it is ignored$/, '')).join('; ')}.`;
+            row.note = clip(`${unknown.length} ${unknown.length === 1 ? 'part' : 'parts'} of it this Story Block does not know: ${unknown.map(line => text(line).replace(/; it is ignored$/, '')).join('; ')}.`, CUT.note);
             row.fix = `${name} was made for a newer Story Block: update Story Block to use all of it (until then those parts are left out).`;
         } else if (!requires) {
             row.state = 'unstated';
@@ -64,8 +71,8 @@ export function compatReport({ hostVersion = '', modules = [], refusals = [], wa
     }
     for (const item of refusals) {
         if (!item || typeof item.id !== 'string') continue;
-        const name = text(item.name) || item.id;
-        const row = { id: item.id, name, version: text(item.version), requires: text(item.requires), state: 'refused', note: text(item.message), fix: '' };
+        const name = clip(item.name, CUT.name) || clip(item.id, CUT.name);
+        const row = { id: clip(item.id, CUT.name), name, version: clip(item.version, CUT.version), requires: clip(item.requires, CUT.range), state: 'refused', note: clip(item.message, CUT.note), fix: '' };
         if (registered.has(item.id)) {
             row.state = 'twice';
             row.fix = `Two copies of ${name} are installed; remove the older one in SillyTavern's Extensions panel and reload.`;
