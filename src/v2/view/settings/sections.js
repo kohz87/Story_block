@@ -3,18 +3,20 @@
 // is a *body* (bodies.js), so a section can move to the form engine (view/form/) one at a time without touching
 // the frame.
 //
-// The order is the approved concept's: Features, Money, Assist, Tabs & Packs, Modules, Diagnostics. Today's
-// settings (host-ui.js `renderSettingsHost`) are one column of folds; `routeOf` sends each fold, and for Story
-// Block's own fold each of its parts, to the section it belongs to. Fold ids do not change (`openSettings({ fold })`
-// finds the section the fold is in), so Home's "Import a pack" (PACKS_FOLD) still lands on its fold.
+// The order is the approved concept's, with Look first (step 3b): Look, Features, Money, Assist, Tabs & Packs, Modules,
+// Diagnostics. Look and Features are drawn by the form engine (bodies.js). The other sections still hold today's
+// settings (host-ui.js `renderSettingsHost`, one column of folds); `routeOf` sends each fold, and for Story Block's
+// own fold each of its parts, to the section it belongs to. Fold ids do not change (`openSettings({ fold })` finds
+// the section the fold is in), so Home's "Import a pack" (PACKS_FOLD) still lands on its fold.
 
-import { FEATURES_FOLD, HOST_FOLD, PACKS_FOLD } from '../../host-ui.js';
+import { HOST_FOLD, PACKS_FOLD } from '../../host-ui.js';
 
 /** Story Block's own module id (src/v2/domains/index.js CORE_MODULE_ID): the one module whose parts are spread over sections. */
 const CORE_ID = 'story-block';
 
 /** The sections, in the order of the rail. `title` and `sub` head the page; `icon` is a Font Awesome class. */
 export const SETTINGS_SECTIONS = Object.freeze([
+    Object.freeze({ id: 'look', label: 'Look', icon: 'fa-palette', title: 'Look', sub: 'How Story Suite\'s panels and text look.' }),
     Object.freeze({ id: 'features', label: 'Features', icon: 'fa-toggle-on', title: 'Features', sub: 'Switch parts of the game on or off.' }),
     Object.freeze({ id: 'money', label: 'Money', icon: 'fa-coins', title: 'Money', sub: 'Your world\'s coins, and how much the story may pay.' }),
     Object.freeze({ id: 'assist', label: 'Assist', icon: 'fa-wand-magic-sparkles', title: 'Assist', sub: 'Optional cheap model calls that help a fast narrator.' }),
@@ -23,7 +25,10 @@ export const SETTINGS_SECTIONS = Object.freeze([
     Object.freeze({ id: 'diagnostics', label: 'Diagnostics', icon: 'fa-stethoscope', title: 'Diagnostics', sub: 'A report to share when something goes wrong, and what packs and modules say about themselves.' }),
 ]);
 export const SECTION_IDS = Object.freeze(SETTINGS_SECTIONS.map(section => section.id));
+// The page the window opens on: Features, the one most readers come for, though Look is first in the rail.
 export const DEFAULT_SECTION = 'features';
+/** The host settings the Look section draws (and the Story Suite fold no longer does): HOST_SETTINGS_SCHEMA's keys. */
+export const LOOK_KEYS = Object.freeze(['panelStyle', 'glassStrength', 'font']);
 
 /** What the window says (plain words). */
 export const WINDOW_TEXT = Object.freeze({
@@ -45,6 +50,7 @@ export const WINDOW_TEXT = Object.freeze({
 export function routeOf(piece) {
     switch (piece?.type) {
         case 'features': return 'features';
+        // The Story Suite fold (budgets, Prompt size, Tabs); its look settings are in Look.
         case 'host': return 'tabs';
         case 'own-fold': return piece.moduleId === CORE_ID ? 'tabs' : 'modules';
         // Story Block's money settings are its General group; its Assist panel and the Assist group are Assist.
@@ -59,7 +65,7 @@ export function routeOf(piece) {
 
 // Folds that start open: a page that is one fold or one group should not open on a closed box. The rest are as
 // the reader left them, or closed.
-const OPEN = new Set([FEATURES_FOLD, HOST_FOLD, PACKS_FOLD, `${CORE_ID}::group:General`, `${CORE_ID}::group:Assist`]);
+const OPEN = new Set([HOST_FOLD, PACKS_FOLD, `${CORE_ID}::group:General`, `${CORE_ID}::group:Assist`]);
 export const opensByDefault = key => OPEN.has(key);
 
 /** A section by id (the default one for an id that is none). */

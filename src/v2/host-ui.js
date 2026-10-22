@@ -13,8 +13,11 @@
 //   numbers, a textarea with one item per line: `form: 'lines'` starts there); values are read and
 //   written through createSettings() (extension_settings.storySuite.modules[id]). Open folds stay open
 //   across redraws. The settings window (view/settings/window.js, UI step 3a) shows it in sections: `renderSettingsHost`
-//   with `sections` draws each fold, and for Story Block's own fold each of its parts (Money, Assist), into the page of the
-//   section it belongs to (view/settings/sections.js), and lists what a search can find (`entries()`).
+//   with `sections` ({ ids, place(id), route(piece), defaultOpen(key), hostKeys(key), show(id), open(foldKey),
+//   afterRefresh() }) draws each fold, and for Story Block's own fold each of its parts (Money, Assist), into the page of
+//   the section it belongs to (view/settings/sections.js), and lists what a search can find (`entries()`). A section
+//   with no pane (one the form engine draws: Look, Features) is not drawn here: `hostKeys` leaves the look settings out of
+//   the Story Suite fold and the Features fold is not built.
 //   Features (MODULES §F100): the Features fold has a filter box and one sub-fold per module (by name,
 //   "N of M on"), a switch per feature with its label and description; a feature that changes the
 //   static prompt part says so (PROMPT_HINT). A settings field (`{ …, feature }`) or custom panel (a
@@ -865,8 +868,6 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
     // A module's fold says how many of its features are on, with a button to the Features fold at its sub-fold.
     function openFeaturesAt(moduleId) {
         const key = featuresFoldOf(moduleId);
-        // In the settings window the Features section may be another page than the one shown.
-        sections?.show?.(sections.route({ type: 'features' }));
         const nodes = [...root.querySelectorAll(FOLD_SELECTOR)];
         const sub = nodes.find(node => node.dataset.fold === key);
         if (!sub) return;
@@ -884,7 +885,8 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const on = own.filter(feature => feature.on === true && feature.available !== false).length;
         const line = el(doc, 'p', 'story-suite-feature-line');
         const go = button(doc, 'story-suite-feature-link', fill(FEATURE_TEXT.link, { on, n: own.length }), fill(FEATURE_TEXT.linkTitle, { name: def.name, on, n: own.length }));
-        go.addEventListener('click', () => openFeaturesAt(def.moduleId));
+        // In the settings window the Features page is the form engine's: the window opens that module's group there.
+        go.addEventListener('click', () => (sections?.open ? sections.open(featuresFoldOf(def.moduleId)) : openFeaturesAt(def.moduleId)));
         line.appendChild(go);
         return line;
     }
@@ -1169,6 +1171,8 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const { details, body } = fold(doc, HOST_FOLD, 'Story Suite', SETTINGS_TEXT.hostHint);
         const values = settings();
         for (const [key, field] of Object.entries(HOST_SETTINGS_SCHEMA)) {
+            // In the settings window the look settings are the Look section's (`sections.hostKeys(key)` says which stay).
+            if (sections?.hostKeys && !sections.hostKeys(key)) continue;
             const row = fieldRow(doc, key, field, values[key], next => {
                 settings.set(null, key, next);
                 if (key === 'tailBudget' || key === 'contextShare') refreshSize();
@@ -1409,7 +1413,8 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const diag = (diagnostics && typeof diagnostics.report === 'function') || subs.length ? [diagnosticsFold(subs)] : [];
         put({ type: 'host' }, hostFold());
         for (const { def, node } of own) put({ type: 'own-fold', moduleId: def.moduleId }, node);
-        if (all.length) put({ type: 'features' }, featuresFold(all));
+        // The settings window draws Features itself (the form engine) when its page is not given to this host.
+        if (all.length && (!sections || sections.place(sections.route({ type: 'features' })))) put({ type: 'features' }, featuresFold(all));
         for (const { def, parts } of modules) {
             if (!sections) {
                 put({ type: 'module', moduleId: def.moduleId }, moduleFold(def, ownOf(def.moduleId), 'story-suite-fold', parts));

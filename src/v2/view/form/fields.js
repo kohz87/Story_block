@@ -619,14 +619,15 @@ export function searchField(doc, { label = FORM_TEXT.searchLabel, placeholder = 
 
 /**
  * A grouped section: a glass card with a heading (a section label, an `h3`) and an optional quiet hint, its fields
- * in `body`. `collapsible` makes it a `details` that opens and closes (`open`). → { el, body, title, setHidden(on) }.
+ * in `body`. `collapsible` makes it a `details` that opens and closes (`open`); `level` is the heading's (3: `h3`).
+ * → { el, body, title, setHidden(on) }.
  */
-export function sectionBlock(doc, { title = '', hint = '', id = newId('section'), collapsible = false, open = true } = {}) {
+export function sectionBlock(doc, { title = '', hint = '', id = newId('section'), collapsible = false, open = true, level = 3 } = {}) {
     const root = h(doc, collapsible ? 'details' : 'section', 'ss-section ss-glass');
     root.id = id;
     if (collapsible) root.open = Boolean(open);
     const head = h(doc, collapsible ? 'summary' : 'div', 'ss-section-head');
-    const name = h(doc, collapsible ? 'span' : 'h3', 'ss-label ss-section-title', title);
+    const name = h(doc, collapsible ? 'span' : `h${Math.min(6, Math.max(2, Number(level) || 3))}`, 'ss-label ss-section-title', title);
     if (!collapsible) name.id = `${id}-title`;
     head.appendChild(name);
     if (hint) head.appendChild(h(doc, 'small', 'ss-section-hint', hint));

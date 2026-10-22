@@ -504,7 +504,7 @@ test('open folds stay open across a redraw, sub-folds too; a closed default-open
     assert.equal(foldAt(third, key('group:Bag')).open, true, 'another render with the same state');
 });
 
-test('the settings window: a header, a rail and a page; Escape closes it and the focus goes back; it can open at a fold', () => {
+test('the settings window: a side with the rail and a page; Escape closes it and the focus goes back; it can open at a fold', () => {
     const ctx = { extensionSettings: {} };
     const { registry, settings } = setup(createCoreModule({ packs: packsFor(ctx) }), rpg());
     const opener = doc.createElement('button');
@@ -520,8 +520,8 @@ test('the settings window: a header, a rail and a page; Escape closes it and the
     assert.equal(win.getAttribute('aria-modal'), 'true');
     assert.equal(win.getAttribute('aria-labelledby'), 'story_suite_v2_overlay_title');
     assert.equal(overlay.root.querySelector('#story_suite_v2_overlay_title').textContent, 'Story Suite');
-    assert.deepEqual(win.children.map(node => node.className), ['ss-settings-head', 'ss-settings-main']);
-    assert.deepEqual(overlay.root.querySelectorAll('.ss-settings-pane').map(node => node.parentNode.dataset.ssSection), ['features', 'money', 'assist', 'tabs', 'modules', 'diagnostics']);
+    assert.deepEqual(win.children.map(node => node.className), ['ss-settings-close story-suite-close', 'ss-settings-side', 'ss-settings-content']);
+    assert.deepEqual(overlay.root.querySelectorAll('.ss-settings-pane').map(node => node.parentNode.dataset.ssSection), ['look', 'features', 'money', 'assist', 'tabs', 'modules', 'diagnostics']);
     assert.ok(doc.activeElement === overlay.root.querySelector('.ss-tabs-item[aria-current="page"]'), 'the focus starts on the rail');
     // The page behind cannot take the focus while it is open.
     opener.focus();

@@ -67,7 +67,7 @@ test('every rule is scoped to Story Suite\'s roots; the window weighs two classe
         if (!selector.slice(ROOT_SELECTOR.length).trim().startsWith('.ss-settings ')) assert.ok(weight(selector) <= 30, `too heavy for a block of its own (${weight(selector)}): ${selector}`);
     }
     // The window and its parts weigh one or two classes, so a screen's own CSS can still restyle them.
-    for (const name of ['.ss-settings', '.ss-settings-head', '.ss-settings-rail', '.ss-settings-content', '.ss-settings-page']) {
+    for (const name of ['.ss-settings', '.ss-settings-close', '.ss-settings-side', '.ss-settings-rail', '.ss-settings-content', '.ss-settings-page']) {
         assert.ok(all.some(rule => rule.selectors.includes(`${ROOT_SELECTOR} ${name}`)), `${name} has a rule`);
         assert.equal(weight(`${ROOT_SELECTOR} ${name}`), 10);
     }
@@ -82,7 +82,10 @@ test('colours, radii, spacing and the font come from the theme tokens; no colour
     const wide = block('.ss-settings', ['@media (min-width: 760px)']);
     for (const part of ['var(--ss-border)', 'var(--ss-radius-xxl)', 'var(--ss-shadow)', 'max-width: 1120px', 'max-height: 780px']) assert.ok(wide.includes(part), part);
     assert.ok(block('.ss-settings-title').includes('font-weight: 800'));
-    assert.ok(block('.ss-settings-search', ['@media (min-width: 760px)']).includes('width: min(100%, 420px)'));
+    // The concept's layout (step 3b): the search is in the side under the title, not in a header.
+    assert.ok(block('.ss-settings-title').includes('font-size: 22px'));
+    assert.match(block('.ss-settings-search'), /margin: 0 var\(--ss-space-4\);/);
+    assert.ok(!all.some(rule => rule.selectors.some(selector => /ss-settings-(head|main)\b/.test(selector))), 'no header and no main wrapper any more');
 });
 
 test('a phone: the window fills the screen, the rail is a row that scrolls sideways above the page, nothing is wider than the screen', () => {
@@ -92,7 +95,7 @@ test('a phone: the window fills the screen, the rail is a row that scrolls sidew
     assert.match(frame, /overflow: hidden;/);
     assert.match(frame, /safe-area-inset-top/);
     assert.doesNotMatch(frame, /border-radius/, 'square on a phone');
-    assert.match(block('.ss-settings-main'), /flex-direction: column;/);
+    assert.match(block('.ss-settings'), /display: flex;\s*flex-direction: column;/, 'the side (title, search, rail) stacked above the page');
     assert.match(block('.ss-settings-content'), /overflow-x: hidden;/);
     assert.match(block('.ss-settings-content'), /overflow-y: auto;/);
     assert.match(block('.ss-settings-content'), /min-width: 0;/);
@@ -101,9 +104,16 @@ test('a phone: the window fills the screen, the rail is a row that scrolls sidew
     assert.doesNotMatch(block('.ss-settings-rail .ss-tabs-list'), /flex-direction|overflow/);
     const wideList = block('.ss-settings-rail .ss-tabs-list', ['@media (min-width: 760px)']);
     assert.match(wideList, /flex-direction: column;/);
-    assert.match(block('.ss-settings-main', ['@media (min-width: 760px)']), /grid-template-columns: 250px minmax\(0, 1fr\);/);
+    assert.match(block('.ss-settings', ['@media (min-width: 760px)']), /display: grid;\s*grid-template-columns: 250px minmax\(0, 1fr\);/);
+    assert.match(block('.ss-settings-side', ['@media (min-width: 760px)']), /border-right: 1px solid var\(--ss-border\);/);
     // Targets of at least 40px: the rail's items, the close button and the search box.
     assert.match(block('.ss-settings-close'), /width: 40px;\s*height: 40px;/);
+    // Close is the window's top right on every width: absolute, on the safe area on a phone.
+    assert.match(block('.ss-settings-close'), /position: absolute;\s*top: calc\(env\(safe-area-inset-top, 0px\) \+ var\(--ss-space-3\)\);\s*right: var\(--ss-space-4\);/);
+    assert.match(block('.ss-settings'), /position: relative;/);
+    assert.match(block('.ss-settings-close', ['@media (min-width: 760px)']), /top: var\(--ss-space-4\);\s*right: var\(--ss-space-4\);/);
+    // Room for it beside the first heading, wide only (on a phone it is over the title row).
+    assert.ok(all.some(rule => rule.at[0] === '@media (min-width: 760px)' && rule.selectors.includes(`${ROOT_SELECTOR} .ss-settings-page-head`) && /padding-right: 52px;/.test(rule.block)));
     assert.match(block('.ss-settings-rail .ss-tabs-item', ['@media (min-width: 760px)']), /min-height: 44px;/);
 });
 
@@ -115,7 +125,7 @@ test('the rail\'s items outweigh the tabs block\'s own only where they must: the
     assert.equal(all.filter(rule => /aria-current/.test(rule.selectors.join()) && !/:not\(\[aria-current/.test(rule.selectors.join())).length, 0);
 });
 
-test('the folds and rows the sections still draw take the look: a tile card, token borders, a switch in place of the checkbox, features as tiles', () => {
+test('the folds and rows the sections still draw take the look: a tile card, token borders, a switch in place of the checkbox; the form engine\'s sections are tiles, not glass on glass', () => {
     const card = block('.ss-settings .ss-settings-pane > .story-suite-fold');
     assert.match(card, /border: 1px solid var\(--ss-border\);/);
     assert.match(card, /background: var\(--ss-tile\);/);
@@ -125,9 +135,12 @@ test('the folds and rows the sections still draw take the look: a tile card, tok
     assert.match(block('.ss-settings .story-suite-row > input[type="checkbox"]:checked'), /var\(--ss-accent\)/);
     assert.match(block('.ss-settings .story-suite-row > input[type="checkbox"]::before'), /var\(--ss-knob\)/);
     assert.match(block('.ss-settings .story-suite-row > input[type="checkbox"]:checked::before'), /translateX\(20px\)/);
-    assert.match(block('.ss-settings .story-suite-feature-group .story-suite-feature'), /background: var\(--ss-tile\);/);
-    // The old Features filter is covered by the window's search.
-    assert.match(block('.ss-settings .story-suite-feature-filter'), /display: none;/);
+    const section = block('.ss-settings .ss-section');
+    assert.match(section, /background: var\(--ss-tile\);/);
+    assert.match(section, /backdrop-filter: none;/);
+    // What only the old Features fold needed is gone (step 3b): its tiles, its grid, its hidden filter box.
+    assert.doesNotMatch(css, /story-suite-feature-group|story-suite-feature-filter|story-suite-feature-hint|story-suite-feature-why|\.story-suite-feature \{/);
+    assert.match(block('.ss-settings .story-suite-feature-link'), /color: var\(--ss-accent\);/, 'the line in a module\'s fold that goes to its features stays');
     // No transitions when the system asks for less motion.
     assert.ok(all.some(rule => rule.at[0] === '@media (prefers-reduced-motion: reduce)' && /transition: none;/.test(rule.block)));
 });
@@ -161,4 +174,29 @@ test('the layer around the window paints a see-through scrim and no filter, so t
     assert.match(layer, /background: color-mix\(in srgb, var\(--ss-scrim, rgba\(0, 0, 0, 0\.55\)\) \d+%, transparent\);/);
     assert.doesNotMatch(layer, /filter|--story-suite-bg|--ss-surface/);
     assert.match(layer, /height: 100dvh;/);
+});
+
+// ---- the features form (glass.css, step 3b)
+
+test('the features form: tiles on the tokens, two columns where there is room and one on a phone, the groups plain headings', () => {
+    const glass = read('view/glass.css');
+    const rule = selector => {
+        const head = `${ROOT_SELECTOR} ${selector} {`;
+        const at = glass.indexOf(head);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return glass.slice(at, glass.indexOf('}', at));
+    };
+    const grid = rule('.ss-features-grid');
+    // auto-fill with a 300px minimum: two columns in the window's 870px page, one in a phone's 358px.
+    assert.match(grid, /grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, 300px\), 1fr\)\);/);
+    const tile = rule('.ss-feature');
+    for (const part of ['var(--ss-border)', 'var(--ss-radius-l)', 'var(--ss-tile)', 'var(--ss-text)', 'var(--ss-font)']) assert.ok(tile.includes(part), part);
+    assert.match(rule('.ss-feature-name'), /font-size: 15px;\s*font-weight: 800;/);
+    assert.match(rule('.ss-feature-help'), /color: var\(--ss-muted\);\s*font-size: 13px;/);
+    assert.match(rule('.ss-feature-why'), /var\(--ss-warn\)/);
+    // The group is a heading over its tiles, no card (the tiles are the cards); one weight heavier than `.ss-section`.
+    const group = rule('.ss-features .ss-features-group.ss-section');
+    assert.match(group, /background: none;/);
+    assert.match(group, /backdrop-filter: none;/);
+    assert.equal(weight(`${ROOT_SELECTOR} .ss-features .ss-features-group.ss-section`), 30);
 });

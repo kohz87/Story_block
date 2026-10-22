@@ -66,7 +66,7 @@ test('settings: the overlay counts the next reply\'s prompt (turn.preview) with 
     assert.equal(JSON.stringify(st.ctx.extensionPrompts ?? null), sent, 'nothing set in the prompt');
     // A feature switched elsewhere: the overlay draws again (and counts again).
     runtime.features.set('story-block.inspector', true);
-    assert.equal(root.querySelectorAll('.story-suite-feature input').find(input => input.id.endsWith('overview_story-block.inspector')).checked, true);
+    assert.equal(root.querySelectorAll('.ss-feature').find(node => node.dataset.feature === 'story-block.inspector').querySelector('.ss-switch').getAttribute('aria-checked'), 'true');
     overlay.close();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });
