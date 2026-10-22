@@ -162,7 +162,10 @@ every quest needs a concrete goal (F82).
 Queries: `quest.progress({ id | key })` → `{ have, need, met, ready, source, noun, label, reason, finish:
 { ok, reason } }`; `quest.details({ id | key })` → everything the details pop-up shows (goal, progress
 note, terms, giver, due, rank, status, history; F84, F85); `quest.ranks` → `[{ id, title, levels, reward }]`,
-lowest first (the first enabled pack's `ranks`, else RPG Battle's `party.ranks`, else F to S; F86).
+lowest first (the first enabled pack's `ranks`, else RPG Battle's `party.ranks`, else F to S with its rewards
+times `inventory.economy`'s `scale`; F86, F104). A rank the story writes (`rank:`, or a `difficulty:`) is
+held to one above the party's own; on a quest turned in on the story's word alone (no goal code can count,
+not a pack's reward) it is held to the party's own, so it can only lower the reward. A pack's rank is kept.
 Screen: **Quests** (status text per quest: Offered / Held back / Not yet / Ready / Ready to turn in here;
 finished quests kept).
 
@@ -387,7 +390,9 @@ These settle questions agents raised; the host changes they need are made at int
 85. A rolling one-line progress note per quest.
 86. **Rank ladder**: F, E, D, C, B, A, S by default; a pack's `ranks` content replaces it; a quest's
     difficulty may name a rank; query `quest.ranks`.
-87. A quest's reward is held inside its rank's range by code; the receipt says when it was clamped.
+87. A quest's reward is held inside its rank's range by code; the receipt says when it was clamped. A
+    written rank reaches at most one above the party's rank, and none above it when only the story vouches
+    for the goal.
 88. Pacing: Director prompt lines (no quest spam, a passerby is a passerby, the world doesn't send
     trouble) and an offer cooldown setting (a held offer is shown later, never refused).
 89. **Chronicle** (Story Director part): `world` and `faction` kinds, times from the clock, up to 3
