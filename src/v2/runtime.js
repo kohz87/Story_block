@@ -27,7 +27,8 @@ import { applyStart, createPacksPart } from './packs/index.js';
 import { createModelCalls, stModelCall } from './model-call.js';
 import { carryRecord } from './persist.js';
 import { createRegistry } from './registry.js';
-import { createEvents, createSdk, createSettings, newId } from './sdk.js';
+import { MAX_CHANGE_LINES, createEvents, createSdk, createSettings, newId } from './sdk.js';
+import { displayLines } from './extras.js';
 import { createRewind } from './rewind.js';
 import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
@@ -321,6 +322,12 @@ export function createRuntime({
     let sdk = null;
     let bus = null;
     let turn = null;
+    // What a reply's display lines (Choices, Inner chatter; extras.js) show, read from its text with the
+    // same cap the capture read it with (the host's maxChangeLines).
+    const display = mes => {
+        const cap = settings()?.maxChangeLines;
+        return displayLines(mes, { entryOf: word => registry.capture(word), max: Number.isInteger(cap) && cap > 0 ? cap : MAX_CHANGE_LINES });
+    };
     if (core) {
         registry.register(createCoreModule({
             hooks: name => registry.hooks(name),
@@ -328,6 +335,8 @@ export function createRuntime({
             // A failing item.define hook goes to the Problems list (the turn is made below).
             problem: entry => turn?.report(entry),
             settings: () => settings(CORE_MODULE_ID),
+            // The chatter the reader may send back to the story (its setting): the replies and how to read one.
+            extras: { chat: () => ctx.chat, display },
             version: VERSION,
             packs: packPart,
             // Due events are the host's own system cues: straight to the bus (the public sdk only runs
@@ -400,5 +409,5 @@ export function createRuntime({
         dialogOpener = typeof fn === 'function' ? fn : null;
         dialogCurrent = typeof current === 'function' ? current : null;
     };
-    return { registry, settings, features, store, bus, events, sdk, turn, markReady: made.markReady, initial, packs: packPart, setDialog };
+    return { registry, settings, features, store, bus, events, sdk, turn, markReady: made.markReady, initial, packs: packPart, setDialog, display };
 }

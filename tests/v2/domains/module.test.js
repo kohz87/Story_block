@@ -20,7 +20,9 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
         'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.list', 'packs.markets', 'packs.start', 'scene.place', 'scene.present']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterReply', 'beforeGenerate', 'item.resolve', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
-    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'loot']);
+    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'loot', 'choice', 'chatter']);
+    // Choices and Inner chatter are display kinds under their features (MODULES §F115): no command runs for them.
+    assert.deepEqual(['choice', 'chatter'].map(kind => [module.capture.kinds[kind].feature, Boolean(module.capture.kinds[kind].display)]), [['story-block.choices', true], ['story-block.chatter', true]]);
     assert.equal(module.capture.kinds.loot.feature, 'story-block.loot');
     assert.equal(module.commands['inventory.lootTake'].feature, 'story-block.loot');
     assert.equal(module.queries['inventory.encumbrance'].feature, 'story-block.encumbrance');
@@ -28,11 +30,11 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
     assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector']);
-    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0', ranks: [], assistClassifier: false, assistExtractor: false, assistProfile: '' });
-    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'storyCoinPerReply', 'economyScale', 'ranks', 'assistProfile']);
+    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0', ranks: [], chatterInPrompt: false, assistClassifier: false, assistExtractor: false, assistProfile: '' });
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'storyCoinPerReply', 'economyScale', 'ranks', 'chatterInPrompt', 'assistProfile']);
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
         ['story-block.hud', true], ['story-block.cards', true], ['story-block.preroll', false], ['story-block.extractor', false],
-        ['story-block.inspector', false], ['story-block.savepoints', true],
+        ['story-block.inspector', false], ['story-block.savepoints', true], ['story-block.choices', false], ['story-block.chatter', false],
         ['story-block.loot', true], ['story-block.encumbrance', true],
     ]);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
@@ -127,7 +129,8 @@ test('a handler can use the core queries through ctx.query, drafts included', ()
 test('createCorePart gives the same pieces in the MODULES.md part shape', () => {
     const part = createCorePart({ hooks: () => [] });
     const module = createCoreModule();
-    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds));
+    // (The display kinds, Choices and Inner chatter, run no command, so the part has no handler for them.)
+    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds).filter(kind => !module.capture.kinds[kind].display));
     for (const [name, kind] of Object.entries(part.kinds)) {
         assert.equal(kind.grammar, CORE_KINDS[name].grammar);
         assert.equal(typeof kind.apply, 'function');

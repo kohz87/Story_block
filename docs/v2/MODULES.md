@@ -513,6 +513,26 @@ These settle questions agents raised; the host changes they need are made at int
     scene's place kind, built-in; unknown means factor 1. The money scale (F104) multiplies the built-in prices
     and worths (shop stock, a story-made thing's worth through `item.define`'s new `scale`), never a pack's own.
 
+### User decision: v1's Choices and Inner chatter come back in a v2 form (2026-10-22, F115)
+
+115. **Choices and Inner chatter** (v1 audit #10, #12; F13 dropped the block engine, so both return as change
+    lines). Story Block's features `story-block.choices` and `story-block.chatter`, both **off** by default
+    (each adds a grammar line to the static part and asks the model for more lines every reply; off is also
+    F100's rule for extras). Two **display kinds** (SPEC §4.4): `? choice Climb the wall` (at most 4 a reply,
+    80 code points each) and `~ chatter Name: thought` (at most 3, a name of 40 and a thought of 140 code
+    points). No command runs for them and nothing is stored: no receipt, no op, no `meta.rev`; they are read
+    again from the reply's hidden block (its shown swipe) each time they are drawn, so the live reply, Re-read,
+    swipes, deletes and a reload show the same. Lines past the cap and lines that do not read (no text, no
+    name) are Problems on the card; a line of a feature that is off is a quiet `FEATURE_OFF`. Choices show as
+    buttons under the **latest** reply only, until the reader answers; a click puts the text in SillyTavern's
+    message box after what is typed there and **never sends** (no Shift-click send as in v1): it is not a
+    story action (F95, F96). Chatter shows in a folded "Inner chatter (N)" strip under every reply; the name is
+    a chip opening NPC State Delta's dossier when `npc.dossier` knows it (and NSD's `openDossier` is there),
+    else plain text (F11, rule: modules stand alone). Chatter never reaches a later prompt (the block is
+    stripped from the history); the setting **Inner chatter: Send the last reply's thoughts back to the story**
+    (`chatterInPrompt`, off) adds the thoughts of the reply the reader's latest message answered as one
+    optional tail line. All text is drawn with textContent, flattened (no invisible or control characters).
+
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
 For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster

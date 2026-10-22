@@ -125,6 +125,10 @@ share of a barge's hold (+200), a spatial ring while it is worn (+100). The pack
 capacity: a "bag of holding" the story invents is a plain bag. When you lose such a thing, your capacity
 drops back; if you then carry too much you are encumbered, and nothing is dropped.
 
+**Choices and thoughts.** With the features on (see [Choices and Inner chatter](#choices-and-inner-chatter)),
+the block may also hold `? choice Climb the wall` (a next move you might make) and `~ chatter Minke: …he'd
+better not die down there` (a thought nobody hears). They are for you alone and change nothing.
+
 ## The story leads, buttons manage your things
 
 Story actions happen in the story. You take a quest or drink a potion by saying so in your
@@ -406,6 +410,26 @@ The same screens can show in five places:
   search, what changed since the reply before (path by path, and the stored ops), its receipts and its
   problems. It changes nothing.
 * **Windows** (dialogs) for things like making your character.
+
+### Choices and Inner chatter
+
+Two extras from Story Block v1, each off until you turn it on in **Features**:
+
+* **Choices**: the story ends its reply with 2 to 4 short next moves, shown as buttons under the latest
+  reply. A click puts the words in your message box (after anything you already typed) and does nothing
+  else: you still send it, change it or write something of your own. Nothing happens in the story until
+  you send. Once you answer, the buttons go; an older reply shows none.
+* **Inner chatter**: short unspoken thoughts of the people in the scene (at most 3 a reply), in a folded
+  **Inner chatter (N)** strip under each reply; press it to read them. They are not part of the story
+  text. With NPC State Delta, a name it knows is a chip that opens their dossier. The story never hears
+  them: they are left out of later prompts, unless you turn on **Settings → Story Block → Inner chatter →
+  Send the last reply's thoughts back to the story** (then the thoughts of the reply you answered go with
+  your next message as one short note).
+
+Both are read from the reply itself, so a swipe shows that swipe's, Re-read and a reload show the same,
+and they never change your things, money or the scene. A reply with more than the limit keeps the first
+ones and lists the rest on its card as not used. Each feature adds one line to the fixed instructions
+(one slower reply when you switch it).
 
 Everything follows your SillyTavern theme's colours. Cards, meters and screens move a little when they
 open or change; if your system asks for reduced motion, they don't move at all.

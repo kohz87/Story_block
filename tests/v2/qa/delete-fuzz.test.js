@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { prng, seedCrypto } from './helpers/seeded.js';
 import { checkInvariants } from './helpers/oracle.js';
+import { displayLines } from '../../../src/v2/extras.js';
 
 const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 11, 19, 29, 101];
 const REPLIES = 20;
@@ -54,6 +55,11 @@ function replyLines(r, step) {
     return out;
 }
 
+// Choices and Inner chatter (MODULES §F115): display lines, by step (no draw, so the seeds draw the same
+// chats). They change nothing; each remaining reply shows its own after every delete.
+const extraLines = step => (step % 3 === 0 ? [`? choice Step ${step} onward`, `~ chatter Walker: step ${step} thought`] : []);
+const shownAt = (host, at) => displayLines(host.ctx.chat[at].mes, { entryOf: word => host.registry.capture(word) });
+
 function validators(host) {
     const state = host.head();
     return Object.keys(state.domains).flatMap(name => {
@@ -66,7 +72,7 @@ for (const seed of SEEDS) {
     test(`delete fuzz seed ${seed}: middle deletes on clean input skip nothing; replay equals rebuild`, async t => {
         t.mock.method(console, 'warn', () => {});
         const restore = seedCrypto(seed);
-        const host = await createHost();
+        const host = await createHost({ settings: { features: { 'story-block.choices': true, 'story-block.chatter': true } } });
         t.after(() => { host.close(); restore(); });
         const r = prng(seed);
         await host.send('Hello.', 'The road.');
@@ -77,7 +83,8 @@ for (const seed of SEEDS) {
         const done = new Map();
         for (let step = 0; step < REPLIES; step += 1) {
             const made = replyLines(r, step);
-            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, made.lines));
+            made.extras = extraLines(step);
+            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.lines, ...made.extras]));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);
@@ -108,6 +115,13 @@ for (const seed of SEEDS) {
             assert.equal(qty(host, 'Torch'), base.torches + kept.reduce((sum, made) => sum + made.torches, 0), `${label}: torches`);
             for (const name of kept.flatMap(made => made.own)) assert.equal(qty(host, name), 1, `${label}: ${name}`);
             for (const made of kept) if (made.relics) assert.equal(qty(host, made.relics), 2, `${label}: ${made.relics}`);
+            for (const [at, message] of host.ctx.chat.entries()) {
+                const made = message.is_user ? null : done.get(host.store.carrierSid(at));
+                if (!made) continue;
+                const shown = shownAt(host, at);
+                assert.deepEqual((shown.choice ?? []).map(item => item.text), made.extras.length ? [made.extras[0].slice('? choice '.length)] : [], `${label}: reply ${at}'s choices`);
+                assert.equal((shown.chatter ?? []).length, made.extras.length ? 1 : 0, `${label}: reply ${at}'s chatter`);
+            }
             assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, goneSid), false, `${label}: the deleted reply's loot went with it`);
         }
     });
