@@ -17,6 +17,10 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   `afterCapture(view, { index, type })` hook may ask for `system` steps, run right after the reply's last
   story line and stored on it (receipt `afterCapture: true`). A Continue runs it again; a Re-read asks the
   hook again after the new lines (`stepSeeds` reuses the old steps' seeds; `store.replaceStory`'s `settled`).
+- **Assist safety net** (MODULES §F123): after a reply, the extractor's lines run as story lines after the
+  reply's own (`captureAssist`, receipt `assist: 'now'`), stored as `<Changes-assist>` in the hidden comment;
+  a send waits ≤ `ASSIST_WAIT_MS`, a later answer is stored as `<Changes-assist-next>` and the next reply
+  applies it after its own lines (`lateLines`, `assist: 'late'`). Re-read runs the stored lines, never the model.
 - Only the head carrier is captured, for its own generation. Quiet and impersonate generations capture nothing.
   A Continue captures only its own new text (`continuation()`); a stopped reply drops an unfinished last line.
 - **Stray lines:** change lines written in the story itself (outside the block) are taken from up to

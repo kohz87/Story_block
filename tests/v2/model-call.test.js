@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../ui-fake-dom.js';
 import { EVENT_TYPES, createHost, createFakeContext, createFakeModel } from '../../testkit/index.js';
-import { MODEL_CALL_TIMEOUT_MS, createModelCalls, createOwnCalls, listProfiles, promptKey, safeReason, stModelCall } from '../../src/v2/model-call.js';
+import { MODEL_CALL_ERRORS, MODEL_CALL_TIMEOUT_MS, createCallQueue, createModelCalls, createOwnCalls, listProfiles, promptKey, safeReason, stModelCall } from '../../src/v2/model-call.js';
+import { callsLine } from '../../src/v2/diagnostics.js';
 import { createRuntime } from '../../src/v2/runtime.js';
 import { PROFILE_TEXT, profileChoices } from '../../src/v2/profile-field.js';
 import { createRegistry, definitionProblems } from '../../src/v2/registry.js';
@@ -497,4 +498,120 @@ test('the reply stops counting as in progress when it is received, ended, stoppe
     const out = await blocker.st.send('Go.', 'never');
     assert.equal(out.aborted, true);
     assert.equal(blocker.rt.turn.replyBusy(), false);
+});
+
+// ---- one queue per connection (createCallQueue) ----------------------------------------------------
+
+// A fake call per prompt: it starts when called and ends when its test says so.
+function heldCalls() {
+    const started = [];
+    const ends = new Map();
+    const call = (prompt, { profile, signal }) => new Promise((resolve, reject) => {
+        started.push(`${profile || 'chat'}:${prompt}`);
+        ends.set(prompt, resolve);
+        signal?.addEventListener?.('abort', () => reject(new Error('aborted')), { once: true });
+    });
+    return { call, started, end: (prompt, text = `answer ${prompt}`) => ends.get(prompt)?.(text) };
+}
+const later = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('queue: calls on the same profile run one at a time, in order; different profiles run side by side', async () => {
+    const fake = heldCalls();
+    const calls = createModelCalls({ call: fake.call, log: () => {} });
+    const a = calls.callModel({ prompt: 'a', profile: 'Local', module: 'm1' });
+    const b = calls.callModel({ prompt: 'b', profile: 'Local', module: 'm2' });
+    const c = calls.callModel({ prompt: 'c', profile: 'Local', module: 'm3' });
+    const d = calls.callModel({ prompt: 'd', profile: 'Cloud', module: 'm4' });
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Cloud:d'], 'b and c wait; the other profile goes at once');
+    assert.equal(calls.queue.stats().waiting, 2);
+    fake.end('a');
+    assert.equal((await a).text, 'answer a');
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Cloud:d', 'Local:b']);
+    fake.end('b');
+    fake.end('d');
+    await b;
+    await later();
+    fake.end('c');
+    assert.equal((await c).ok, true);
+    assert.equal((await d).ok, true);
+    assert.deepEqual(fake.started, ['Local:a', 'Cloud:d', 'Local:b', 'Local:c']);
+    const stats = calls.queue.stats();
+    assert.equal(stats.waiting, 0);
+    assert.equal(stats.waited, 2);
+    assert.ok(stats.longestMs >= 0);
+});
+
+test('queue: a queued call that runs out of time leaves the queue and is never made; the next one still runs', async () => {
+    const fake = heldCalls();
+    const calls = createModelCalls({ call: fake.call, log: () => {} });
+    const a = calls.callModel({ prompt: 'a', profile: 'Local', module: 'm1', timeoutMs: 5000 });
+    const b = calls.callModel({ prompt: 'b', profile: 'Local', module: 'm2', timeoutMs: 1000 });
+    const c = calls.callModel({ prompt: 'c', profile: 'Local', module: 'm3', timeoutMs: 5000 });
+    const late = await b;
+    assert.equal(late.error, MODEL_CALL_ERRORS.TIMEOUT);
+    assert.equal(calls.queue.stats().waiting, 1, 'b left the queue');
+    fake.end('a');
+    await a;
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Local:c'], 'b was never made');
+    fake.end('c');
+    assert.equal((await c).ok, true);
+});
+
+test('queue: a cancelled call (waiting or running) frees its place; the queue setting off runs calls at once', async () => {
+    const fake = heldCalls();
+    const calls = createModelCalls({ call: fake.call, log: () => {} });
+    const stopA = new AbortController();
+    const stopB = new AbortController();
+    const a = calls.callModel({ prompt: 'a', profile: 'Local', module: 'm1', signal: stopA.signal });
+    const b = calls.callModel({ prompt: 'b', profile: 'Local', module: 'm2', signal: stopB.signal });
+    const c = calls.callModel({ prompt: 'c', profile: 'Local', module: 'm3' });
+    await later();
+    stopB.abort();
+    assert.equal((await b).error, MODEL_CALL_ERRORS.ABORTED);
+    stopA.abort();
+    assert.equal((await a).error, MODEL_CALL_ERRORS.ABORTED);
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Local:c'], 'a running call cancelled frees the connection; b never ran');
+    fake.end('c');
+    assert.equal((await c).ok, true);
+
+    let on = false;
+    const free = heldCalls();
+    const loose = createModelCalls({ call: free.call, log: () => {}, queue: createCallQueue({ enabled: () => on }) });
+    loose.callModel({ prompt: 'x', profile: 'Local', module: 'm1' });
+    loose.callModel({ prompt: 'y', profile: 'Local', module: 'm2' });
+    await later();
+    assert.deepEqual(free.started, ['Local:x', 'Local:y'], 'off: side by side');
+    assert.equal(loose.queue.stats().on, false);
+    free.end('x');
+    free.end('y');
+    on = true;
+});
+
+test('queue: the chat\'s connection waits for an idle chat before it takes its place, so a waiting call never holds it', async () => {
+    const fake = heldCalls();
+    let idle;
+    const gate = { whenIdle: () => new Promise(resolve => { idle = resolve; }) };
+    const calls = createModelCalls({ call: fake.call, log: () => {}, gate });
+    const waiting = calls.callModel({ prompt: 'scan', module: 'delta' });
+    // The host's own call (the pre-roll while a reply is prepared) skips the idle wait and is not held up.
+    const own = calls.callModel({ prompt: 'pre', module: 'story-block (pre-roll)' }, { idle: false });
+    await later();
+    assert.deepEqual(fake.started, ['chat:pre']);
+    fake.end('pre');
+    assert.equal((await own).ok, true);
+    idle();
+    await later();
+    assert.deepEqual(fake.started, ['chat:pre', 'chat:scan']);
+    fake.end('scan');
+    assert.equal((await waiting).ok, true);
+});
+
+test('diagnostics: the queue line names counts and waits only', () => {
+    assert.equal(callsLine({ on: true, waiting: 2, running: 1, waited: 3, waitedMs: 2400, longestMs: 1200, lanes: { Local: 2 } }),
+        'One at a time per connection: on. Waiting now: 2 on 1 connection. Running: 1. Calls that waited: 3, 2.4 s in all, longest 1.2 s.');
+    assert.match(callsLine(null), /unknown/);
 });
