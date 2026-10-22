@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { setupDom } from '../view/mounts/helpers.js';
-import { DIAGNOSTICS_FOLD, FEATURES_FOLD, HOST_FOLD, OPEN_CLASS, PACKS_FOLD, SENT_FOLD, SETTINGS_TEXT, TABS_FOLD, VERSIONS_FOLD, featuresFoldOf } from '../../../src/v2/host-ui.js';
+import { FEATURES_FOLD, HOST_FOLD, OPEN_CLASS, PACKS_FOLD, SENT_FOLD, SETTINGS_TEXT, TABS_FOLD, VERSIONS_FOLD, featuresFoldOf } from '../../../src/v2/host-ui.js';
 import { FORM_TEXT } from '../../../src/v2/view/form/schema.js';
 import { SECTION_BODIES, createLegacySettings } from '../../../src/v2/view/settings/bodies.js';
 import { PROMPT_FOLD } from '../../../src/v2/view/settings/prompt.js';
@@ -168,7 +168,7 @@ test('the rail: aria-current on the chosen section, one Tab stop, arrow keys mov
     host.close();
 });
 
-test('each section holds what it should: Look, Features, Money, Assist, Tabs & Packs and Modules (with Versions) are the form engine\'s; Diagnostics holds folds', async () => {
+test('each section holds what it should: every section is the form engine\'s', async () => {
     const { root, host } = await open();
     assert.deepEqual(foldsOf(root, 'look'), [], 'no folds: the form engine');
     assert.deepEqual(foldsOf(root, 'features'), [], 'no folds: the form engine');
@@ -180,7 +180,8 @@ test('each section holds what it should: Look, Features, Money, Assist, Tabs & P
     assert.deepEqual(foldsOf(root, 'modules'), [], 'the form engine: a card per module, then Versions');
     assert.deepEqual(page(root, 'modules').querySelectorAll('.ss-module-card').map(node => node.dataset.module), ['loot', 'rpg-battle', 'story-block']);
     assert.equal(page(root, 'modules').querySelector('.ss-versions-card').dataset.fold, VERSIONS_FOLD);
-    assert.deepEqual(foldsOf(root, 'diagnostics'), [DIAGNOSTICS_FOLD]);
+    assert.deepEqual(foldsOf(root, 'diagnostics'), [], 'the form engine: Events as a fold card (no report without a source)');
+    assert.equal(page(root, 'diagnostics').querySelector('.ss-diagnostics-fold[data-fold="story-block/events"]').open, false, 'folded until opened');
     assert.deepEqual(foldsOf(root, 'money'), [], 'the form engine');
     assert.equal(page(root, 'money').querySelectorAll('details').length, 0);
     assert.equal(root.querySelector('details[data-fold="story-block::group:General"]'), null, 'the General group is the Money page now');
@@ -194,7 +195,6 @@ test('each section holds what it should: Look, Features, Money, Assist, Tabs & P
     assert.ok(kept.querySelector('.ss-module-features'));
     assert.equal(kept.querySelector('.story-suite-section'), null, 'its Assist panel is the Assist page\'s');
     assert.equal(kept.querySelector('[data-field="currency"]'), null, 'its money settings are the Money page\'s');
-    assert.equal(foldAt(root, DIAGNOSTICS_FOLD).open, false);
     // Every settings row is on exactly one page: the money ones are the form engine's fields, not the old rows.
     assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row').length, 0, 'the Modules page draws no old rows');
     assert.deepEqual(cardOf(root, 'rpg-battle').querySelectorAll('.ss-field').map(row => row.dataset.field), ['hardMode', 'level', 'title']);
@@ -309,12 +309,20 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
             host.close();
             continue;
         }
+        if (section === 'diagnostics') {
+            // Events is a fold card on the Diagnostics page: opened, its summary focused.
+            const card = page(root, 'diagnostics').querySelector('.ss-diagnostics-fold[data-fold="story-block/events"]');
+            assert.ok(card, `${fold} is drawn`);
+            assert.equal(card.open, true, `${fold} is open`);
+            assert.ok(doc.activeElement === card.querySelector('summary'), `${fold} has the focus`);
+            win.close();
+            host.close();
+            continue;
+        }
         const node = foldAt(root, wanted);
         assert.ok(node, `${fold} is drawn`);
         assert.equal(node.open, true, `${fold} is open`);
         assert.ok(doc.activeElement === node.querySelector('summary'), `${fold} has the focus`);
-        if (fold === 'story-block/events') assert.equal(foldAt(root, DIAGNOSTICS_FOLD).open, true, 'Diagnostics opens for it');
-        if (fold.includes('::group:')) assert.equal(foldAt(root, fold.split('::')[0])?.open ?? true, true, 'its module\'s fold opens too');
         win.close();
         host.close();
     }

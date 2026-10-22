@@ -164,10 +164,22 @@
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-content {
         padding: 20px 24px 28px;
     }
-    /* Room for Close beside the first heading. */
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-page-head,
+    /* Room for Close beside the status line. */
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-status {
         padding-right: 52px;
+    }
+    /* The page's heading is a strip that stays at the top while the page scrolls under it, and Close sits in its right end: nothing the page
+       holds is ever under Close. It reaches over the page's own top and side padding, so the cards scroll under all of it. */
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-page-head {
+        position: sticky;
+        top: -20px;
+        z-index: 1;
+        margin: -20px -24px 0;
+        padding: 20px 76px 12px 24px;
+        /* The window already blurs what is behind it and a nested blur does not stack, so the strip is made dense by layering the tint:
+           the page's text passing under it stays unreadable. */
+        background-color: var(--ss-glass-strong);
+        background-image: linear-gradient(var(--ss-glass-strong), var(--ss-glass-strong)), linear-gradient(var(--ss-glass-strong), var(--ss-glass-strong)), linear-gradient(var(--ss-glass-strong), var(--ss-glass-strong));
     }
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-status {

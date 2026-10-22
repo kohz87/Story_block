@@ -107,6 +107,8 @@ export function renderSettingsForm(parent, options) {
         const row = h(doc, 'div', `ss-field${INLINE.has(kind) ? ' ss-field-inline' : ''}`);
         row.setAttribute('data-field', key);
         row.setAttribute('data-kind', kind);
+        // A row that wants the whole width of a card laid out in columns (a list, chips, a text area).
+        if (kind === 'lines' || kind === 'chips' || kind === 'chipset' || (kind === 'text' && f.multiline === true)) row.setAttribute('data-wide', 'true');
         row.setAttribute('data-type', f.type);
         const text = h(doc, 'div', 'ss-field-text');
         const labelTag = LABELABLE.has(kind) ? 'label' : 'span';

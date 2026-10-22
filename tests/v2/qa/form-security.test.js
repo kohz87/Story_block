@@ -26,7 +26,7 @@ const SCHEMA = {
 const DEFAULTS = { [EVIL]: true, 'a b"c': EVIL, n: 3, s: 4, c: EVIL, chips: EVIL, many: [EVIL], p: EVIL, l: [{ name: EVIL, n: 2, flag: true, pick: EVIL }], lt: [{ name: EVIL, n: 1 }], f: EVIL };
 const TAGS = new Set(['DIV', 'SECTION', 'DETAILS', 'SUMMARY', 'H2', 'H3', 'SPAN', 'SMALL', 'P', 'LABEL', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON', 'OUTPUT']);
 const CLASS = /^ss-[a-z0-9-]+$/;
-const DATA = new Set(['data-module', 'data-field', 'data-kind', 'data-type', 'data-readonly', 'data-index', 'data-form', 'data-value', 'data-id']);
+const DATA = new Set(['data-wide', 'data-module', 'data-field', 'data-kind', 'data-type', 'data-readonly', 'data-index', 'data-form', 'data-value', 'data-id']);
 
 function walk(node) { return [node, ...node.children.flatMap(walk)]; }
 

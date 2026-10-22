@@ -1797,17 +1797,21 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-button[hidden] {
     display: none;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-diagnostics {
+    display: flex;
+    flex-direction: column;
     gap: var(--ss-space-3);
-    align-items: start;
+    min-width: 0;
 }
+/* A module's settings, in a card as wide as the page: two columns of fields from 900px, a list or a text area across both. */
 @media (min-width: 900px) {
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-form .ss-section-body {
+        display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: var(--ss-space-5);
     }
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-modules > .ss-versions-card {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-form .ss-field[data-wide] {
         grid-column: 1 / -1;
     }
 }
@@ -1842,14 +1846,20 @@
     cursor: pointer;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold > .ss-section-head::before {
-    content: "\25B8";
+    content: "";
     flex: none;
-    width: 1em;
+    width: 7px;
+    height: 7px;
+    margin: 0 4px 0 2px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
     color: var(--ss-muted);
+    transform: rotate(-45deg);
     transition: transform var(--ss-motion, 0.2s) ease;
+    align-self: center;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold-open > .ss-section-head::before {
-    transform: rotate(90deg);
+    transform: rotate(45deg);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-section-fold > .ss-section-head .ss-section-title {
     flex: 1 1 auto;
@@ -1860,6 +1870,38 @@
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-module-card .ss-field {
     grid-template-columns: minmax(0, 1fr);
+}
+/* Versions: a line a module, "name version · needs ≥X · In step" */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-card .story-suite-compat {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-card .story-suite-compat-row {
+    padding: 8px 0;
+    border-top: 1px solid color-mix(in srgb, var(--ss-muted) 28%, transparent);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-card .story-suite-compat-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-card .story-suite-compat-requires::before,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-card .story-suite-compat-state::before {
+    content: "\00B7";
+    margin: 0 0.55em;
+    color: var(--ss-muted);
+    font-weight: 400;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-card .story-suite-compat-version {
+    margin-left: 0.4em;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-warn .story-suite-compat-newer .story-suite-compat-state,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-warn .story-suite-compat-refused .story-suite-compat-state,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-warn .story-suite-compat-twice .story-suite-compat-state {
+    color: var(--ss-warn);
+    font-weight: 700;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-versions-warn .ss-section-hint {
     color: var(--ss-warn);
