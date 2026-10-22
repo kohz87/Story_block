@@ -312,10 +312,25 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     const canonical = new Map();
 
     const sorted = () => [...defs.values()].sort(byId);
+    // Modules refused at registration, by id (the latest refusal), for the overlay's Versions fold:
+    // { id, name, version, requires, version: true when it was the Story Block version, message }.
+    const refusals = new Map();
+    function noteRefusal(def, id, message, { forVersion = false } = {}) {
+        refusals.set(id, {
+            id,
+            name: typeof def?.name === 'string' && def.name ? def.name : id,
+            version: typeof def?.version === 'string' ? def.version : '',
+            requires: typeof def?.requires?.storyBlock === 'string' ? def.requires.storyBlock : '',
+            forVersion,
+            message: message.replace(/^Story Suite: /, ''),
+        });
+    }
 
-    function refuse(id, reasons) {
+    function refuse(id, reasons, def = null) {
         const list = reasons.length === 1 ? reasons[0] : reasons.map(reason => `\n- ${reason}`).join('');
-        throw new Error(`Story Suite: the module "${id}" cannot be registered: ${list}${reasons.length === 1 ? '.' : ''}`);
+        const message = `Story Suite: the module "${id}" cannot be registered: ${list}${reasons.length === 1 ? '.' : ''}`;
+        noteRefusal(def, id, message);
+        throw new Error(message);
     }
 
     // The names this definition claims, by table: [table, name, label].
@@ -338,12 +353,14 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     function register(def) {
         const id = isObject(def) && typeof def.id === 'string' ? def.id : '?';
         const problems = definitionProblems(def);
-        if (problems.length) refuse(id, problems);
+        if (problems.length) refuse(id, problems, def);
         const range = def.requires?.storyBlock;
         if (hostVersion && typeof range === 'string' && !satisfies(hostVersion, range)) {
-            throw new Error(`Story Suite: ${def.name ?? id} needs Story Block ${neededVersion(range, hostVersion)}; this is ${hostVersion}. Update Story Block to use it.`);
+            const message = `Story Suite: ${def.name ?? id} needs Story Block ${neededVersion(range, hostVersion)}; this is ${hostVersion}. Update Story Block to use it.`;
+            noteRefusal(def, id, message, { forVersion: true });
+            throw new Error(message);
         }
-        if (defs.has(id)) refuse(id, ['a module with this id is already registered']);
+        if (defs.has(id)) refuse(id, ['a module with this id is already registered'], def);
         const clashes = [];
         const seen = new Set();
         for (const [table, name, label] of claims(def)) {
@@ -353,13 +370,14 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
             const owner = owners[table].get(name);
             if (owner) clashes.push(`${label} already belongs to "${owner}"`);
         }
-        if (clashes.length) refuse(id, clashes);
+        if (clashes.length) refuse(id, clashes, def);
         for (const [table, name] of claims(def)) owners[table].set(name, id);
         for (const [kind, spec] of Object.entries(def.capture?.kinds ?? {})) {
             canonical.set(kind, kind);
             for (const alias of spec.aliases ?? []) canonical.set(alias, kind);
         }
         defs.set(id, def);
+        refusals.delete(id);
         for (const message of definitionWarnings(def)) warn(`${def.name ?? id}: ${message}.`);
     }
 
@@ -531,6 +549,10 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
 
     return {
         register,
+        /** This Story Block's version as the registry checks `requires` against (null: not checked). */
+        hostVersion: () => hostVersion,
+        /** The modules refused since the page opened and not registered since: [{ id, name, version, requires, forVersion, message }]. */
+        refusals: () => [...refusals.values()].sort(byId).map(item => ({ ...item })),
         has: id => defs.has(id),
         module: id => defs.get(id) ?? null,
         /** Every definition, sorted by id. */

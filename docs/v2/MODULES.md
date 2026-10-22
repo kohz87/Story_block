@@ -404,9 +404,23 @@ These settle questions agents raised; the host changes they need are made at int
 91. RPG Battle: no second rank system: its level tiers are the ladder (uniform, or a named list with
     uneven bands), query `party.ranks`; a foe line takes `rank: D` besides weak/even/strong/deadly;
     companion stats by formula; a "points to spend" badge on the HUD.
-92. Story Block: a read-only state inspector tab (per-reply JSON, diff, receipts) for beta.
+92. Story Block: a read-only state inspector tab (per-reply JSON, diff, receipts) for beta. As built: the
+    screen `story-block/inspector` (screen and tab, feature `story-block.inspector`, off by default) over
+    the host widget `story-block.inspector` (src/v2/screens/inspector.js, data in src/v2/inspect.js): a
+    reply picker (newest first; the newest follows the story), what changed since the reply before
+    (`diffStates` of `store.before(i)` and `store.at(i)`, and the stored ops), receipts, problems (replay
+    blocks skipped, the turn's Problems, refused lines), and the state as a folding tree drawn on opening,
+    with a search over keys and values (the hits and the way to them). Nothing in it writes.
 93. Story Block: reader save points: a button makes a named SillyTavern branch (the rewind machinery),
-    listed with Return to.
+    listed with Return to. As built (src/v2/rewind.js `createSavePoints`, feature `story-block.savepoints`,
+    on): **Save point** on Home makes a branch at the head carrier with SillyTavern's `createBranch`
+    (bookmarks.js; the reader stays in the chat), the entry kept in the chat's metadata,
+    `chatMetadata.storySuite.savePoints[sp_…] = { name, index, branch, at, rev }` (name one line, ≤ 60;
+    ≤ 50 per chat); **Return here** opens the branch; **Forget** takes the entry off the list only.
+    Chat metadata, not story state: a save point is about the reader's chat files; in state it would be
+    taken back by the swipe, delete or rewind a reader wants to go back from, cost a receipt and a rev,
+    and be inside the branch it names. Metadata stays through swipes and deletes, and nothing in the story
+    (prompt, replay, rev) changes. A branch carries a copy of the list as it was when it was made.
 94. **Turn-in follows the story**; code referees in the same reply: it pays when the checks pass, and
     refuses and tells the story when they fail (§C2).
 95. **No quest buttons** (Accept, Decline, Take, Finish, Abandon); screens show status text; the commands

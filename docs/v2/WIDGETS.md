@@ -61,7 +61,7 @@ it. Everything is `ss-w-` classes, `data-*` attributes and custom properties:
 | `--ss-w-portrait-size` | `4em` (set by the size classes) | the portrait frame |
 
 Set by the widgets (read them in CSS, don't set them): `--ss-w-ratio` (meter fill, 0–1),
-`--ss-w-segments`, `--ss-w-count` (skills in a tier), `--ss-w-x` / `--ss-w-y` (a map place, percent of
+`--ss-w-ceiling`, `--ss-w-warn-lo`, `--ss-w-warn-hi`, `--ss-w-at` (meter marks, 0–1), `--ss-w-segments`, `--ss-w-count` (skills in a tier), `--ss-w-x` / `--ss-w-y` (a map place, percent of
 the stage), `--ss-w-zoom` (map zoom relative to "fit").
 
 Tones: `neutral`, `accent`, `good`, `warn`, `bad`, `info` (anything else is `neutral`).
@@ -92,12 +92,25 @@ A labelled bar for a value out of a maximum, with an optional icon, or a row of 
 | `icon` | string | `''` | |
 | `text` | string | `''` | the value as shown and spoken (default `77 / 82`) |
 | `showValue` | boolean | `true` | |
+| `ceiling` | number | `null` | a notch where the value can go no higher for now (max HP lowered by a wound); the track above it is shaded |
+| `ticks` | list | `null` | stage marks `[{ at, label }]` (at most 16, labels one line of up to 40 characters); the stage reached, the last tick at or below the value, is named in the head |
+| `delta` | number | `null` | the change since the last reply, shown `▲3` / `▼5` (`ss-w-up` / `ss-w-down`); `0` shows nothing |
+| `warnBelow` | number | `null` | a value below it is critical: the low band is drawn and the meter gets `ss-w-critical`, `data-warn="low"` |
+| `warnAbove` | number | `null` | a value above it is critical: the high band, `ss-w-critical`, `data-warn="high"` |
 
 `role="meter"` with `aria-valuenow/min/max/text`. A bound pool `{ cur, max }` fills `value` and `max`.
+Each mark is left out when it is not given, not a number, or outside `min`–`max` (a ceiling at `max`, a
+band at the very end). The spoken value names the marks in words: "35 / 100, Friendly, down 5 since the
+last reply, can go up to 60 for now, critically low". The marks are placed by custom properties of the
+track (0–1 of the range): `--ss-w-ceiling`, `--ss-w-warn-lo`, `--ss-w-warn-hi`, and `--ss-w-at` on each
+`.ss-w-meter-tick` (the stage reached has `ss-w-on`). The meter does not work out a delta itself; the
+screen passes the number (a query's `before`, `changed()`), so code still sets every number.
 
 ```html
 <ss-widget name="ss.meter" data-props='{"value":"{{ q.pc.hp.cur }}","max":"{{ q.pc.hp.max }}","label":"HP","tone":"good","icon":"fa-heart"}'></ss-widget>
 <ss-widget name="ss.meter" data-props='{"value":"{{ q.clock.filled }}","max":4,"segments":4,"label":"Alarm"}'></ss-widget>
+<ss-widget name="ss.meter" data-props='{"value":"{{ q.pc.hp.cur }}","max":"{{ q.pc.hp.max }}","ceiling":"{{ q.pc.hp.cap }}","warnBelow":"{{ q.pc.hp.low }}","delta":"{{ q.pc.hp.delta }}","label":"HP","tone":"bad"}'></ss-widget>
+<ss-widget name="ss.meter" data-props='{"value":"{{ m.value }}","min":-100,"max":100,"delta":"{{ m.delta }}","ticks":[{"at":-50,"label":"Hostile"},{"at":0,"label":"Wary"},{"at":30,"label":"Friendly"},{"at":70,"label":"Close"}],"label":"{{ m.name }}"}'></ss-widget>
 ```
 
 ## `ss.radar`

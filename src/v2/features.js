@@ -30,6 +30,8 @@ export const CORE_FEATURE = Object.freeze({
     cards: 'story-block.cards',
     preroll: 'story-block.preroll',
     extractor: 'story-block.extractor',
+    inspector: 'story-block.inspector',
+    savepoints: 'story-block.savepoints',
 });
 
 // Where Story Block kept these switches before they were features: a reader who set one keeps that

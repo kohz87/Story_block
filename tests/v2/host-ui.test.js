@@ -39,8 +39,8 @@ test('a fold per module with settings, after the host\'s own; fields render with
     const { registry, settings } = setup(rpg(), { id: 'quiet-mod' }, { id: 'aaa', name: 'AAA', settings: { schema: { on: 'bool' } } });
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry, settings, doc });
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(fold => fold.dataset.fold), ['story-suite', 'aaa', 'rpg-battle']);
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold summary b').map(node => node.textContent), ['Story Suite', 'AAA', 'RPG Battle']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(fold => fold.dataset.fold), ['story-suite', 'aaa', 'rpg-battle', 'story-suite-versions'], 'Versions last');
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold summary b').map(node => node.textContent), ['Story Suite', 'AAA', 'RPG Battle', 'Versions']);
     const hard = row(root, 'rpg-battle', 'hardMode');
     assert.equal(hard.querySelector('b').textContent, 'Hard mode');
     assert.equal(hard.querySelector('small').textContent, 'Foes hit harder.');
@@ -139,7 +139,7 @@ test('refresh redraws and keeps the open folds open', () => {
     settings.set('rpg-battle', 'title', 'Changed');
     host.refresh();
     const folds = root.querySelectorAll('details.story-suite-fold');
-    assert.deepEqual(folds.map(fold => fold.open), [false, true]);
+    assert.deepEqual(folds.map(fold => fold.open), [false, true, false]);
     assert.equal(row(root, 'rpg-battle', 'title').querySelector('input').value, 'Changed');
 });
 
@@ -148,7 +148,7 @@ test('the overlay opens on the body, marks it, and closes', () => {
     const overlay = openSettingsOverlay({ registry, settings, doc });
     assert.ok(doc.body.classList.contains(OPEN_CLASS));
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1);
-    assert.equal(overlay.root.querySelectorAll('details.story-suite-fold').length, 2);
+    assert.equal(overlay.root.querySelectorAll('details.story-suite-fold').length, 3);
     const again = openSettingsOverlay({ registry, settings, doc });
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1, 'opening again replaces it');
     again.root.querySelector('.story-suite-close').click();

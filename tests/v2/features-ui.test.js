@@ -47,7 +47,7 @@ const rowsOf = node => node.querySelectorAll('.story-suite-feature');
 test('the overlay: one Features overview of every module, then a Features subsection in each module\'s fold', async () => {
     const { root, host } = await overlay();
     const folds = root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(folds, ['story-suite', FEATURES_FOLD, 'loot', 'plain', 'story-block'], 'host, overview, then modules by id');
+    assert.deepEqual(folds, ['story-suite', FEATURES_FOLD, 'loot', 'plain', 'story-block', 'story-suite-versions'], 'host, overview, then modules by id, then Versions');
     const overview = foldOf(root, FEATURES_FOLD);
     assert.equal(overview.querySelector('summary b').textContent, FEATURE_TEXT.title);
     assert.deepEqual(texts(overview, '.story-suite-feature-group > h4'), ['Loot', 'Story Block']);
@@ -66,7 +66,7 @@ test('the overlay: one Features overview of every module, then a Features subsec
     assert.equal(weight.querySelector('input').checked, false);
     // No features, no subsection.
     assert.equal(foldOf(root, 'plain').querySelector('.story-suite-features'), null);
-    assert.deepEqual(texts(foldOf(root, 'story-block'), '.story-suite-features .story-suite-feature b'), ['Status strip', 'Cards under replies', 'Roll checks before the reply', 'Read changes from replies that forgot them', 'Pick what you take', 'Encumbered']);
+    assert.deepEqual(texts(foldOf(root, 'story-block'), '.story-suite-features .story-suite-feature b'), ['Status strip', 'Cards under replies', 'Roll checks before the reply', 'Read changes from replies that forgot them', 'State inspector', 'Save points', 'Pick what you take', 'Encumbered']);
     host.close();
 });
 
@@ -98,7 +98,7 @@ test('the overlay without a feature store shows no Features (an older caller)', 
     const root = doc.createElement('div');
     renderSettingsHost(root, { registry: host.registry, settings: host.settings, doc });
     assert.equal(root.querySelector('.story-suite-feature'), null);
-    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), ['story-suite', 'plain', 'story-block']);
+    assert.deepEqual(root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), ['story-suite', 'plain', 'story-block', 'story-suite-versions']);
     host.close();
 });
 

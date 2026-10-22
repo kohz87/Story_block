@@ -143,6 +143,17 @@ fight started, with your character alive, as a new branch. The old timeline is k
 branches; the fight that killed you is not on the new one. The next reply knows you're back at that
 moment.
 
+### Save points
+
+On **Home** (the game view), **Save point** keeps this moment: give it a name (or leave it blank for
+*Save point 1*, *2*…) and press Enter. Story Block makes a SillyTavern branch of the chat at the latest
+reply and lists it under **Save points** with its name, its message and the date. **Return here** opens
+that branch, with the story exactly as it was then; you can come back to the chat you left from
+SillyTavern's chat list (or *Back to parent chat*). **Forget** only takes a save point off the list; the
+branch stays in SillyTavern. A chat keeps up to 50. Save points are kept with the chat file, not in the
+story, so a swipe, a deleted reply or a Return never takes one away. Turn them off in **Features** →
+*Save points*.
+
 ## Quests
 
 Quests follow the story. Take a job on in your own words ("I'll do it"), and the **Quests** screen shows
@@ -232,7 +243,14 @@ The same screens can show in five places:
 * **The full-screen game view**, with its own menu of screens: the **Game view** button in the Story
   Suite bar, or **Alt+G** (press it again, or Escape, to close). It opens on **Home**: your character and
   party, a fight under way, where you are and when, who is here, your purse and what you wear, and your
-  quests. Each part shows only when the extension behind it is installed.
+  quests (each with Story Director's own status line: *Ready to turn in*, *Not yet: 2/3 wolves*,
+  *Offered — say you take it*), and your save points. Each part shows only when the extension behind it
+  is installed. On a phone, the status strip scrolls sideways when it holds more than fits; the edge
+  with more to see fades.
+* **Inspector** (for testers and pack authors; off until you turn on **Features** → *State inspector*):
+  a read-only screen and tab. Pick a reply to see its story state as a tree you can fold open and
+  search, what changed since the reply before (path by path, and the stored ops), its receipts and its
+  problems. It changes nothing.
 * **Windows** (dialogs) for things like making your character.
 
 Everything follows your SillyTavern theme's colours. Cards, meters and screens move a little when they
@@ -285,14 +303,18 @@ Open **Extensions → Story Block**, or the Story Suite overlay when two or more
 * Each module has its own section (combat, the story clock and calendar, NPCs).
 * **Problems**: lines the model wrote that couldn't be used, and why. Useful when something you expected
   didn't happen.
+* **Versions** (last): every Story Suite extension installed, its version and the Story Block it says
+  it needs. One that is out of step (it needs a newer Story Block, was made for a newer one, clashes
+  with another, or is installed twice) says so with one sentence on how to fix it.
 
 ### Features
 
 Each extension's optional mechanics (wear and breakage, weather, a loot picker…) can be switched on or
 off: in the **Features** list at the top of that extension's section, or all together on the
 **Features** page of the Story Suite settings. Story Block's own are the **Status strip**, the **Cards
-under replies**, and two helpers that each make one small extra model call, off until you turn them on:
-*Roll checks before the reply* and *Read changes from replies that forgot them*.
+under replies**, **Save points** (on), the **State inspector** (off), and two helpers that each make one
+small extra model call, off until you turn them on: *Roll checks before the reply* and *Read changes
+from replies that forgot them*.
 
 * A feature that's off is gone from the story: the model isn't told about it, its lines are not used
   (Problems lists them quietly), its buttons, screens and tabs are hidden.

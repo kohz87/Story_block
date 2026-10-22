@@ -47,13 +47,17 @@ export const CORE_KINDS = Object.freeze({
 });
 
 // Story Block's own optional pieces as features (MODULES §F100): the status strip and the cards under
-// replies (on), the two assist helpers (off; each makes an extra model call). None of them changes the
+// replies (on), the two assist helpers (off; each makes an extra model call), the state inspector (off)
+// and save points (on). None of them changes the
 // static prompt part. The host reads them where the piece is drawn or run (ui-host.js, runtime.js).
 export const CORE_FEATURES = Object.freeze([
     Object.freeze({ id: CORE_FEATURE.hud, label: STRINGS.features.hud, describe: STRINGS.features.hudDescribe, default: true }),
     Object.freeze({ id: CORE_FEATURE.cards, label: STRINGS.features.cards, describe: STRINGS.features.cardsDescribe, default: true }),
     Object.freeze({ id: CORE_FEATURE.preroll, label: FEATURE_TEXT.classifier.label, describe: FEATURE_TEXT.classifier.describe, default: false }),
     Object.freeze({ id: CORE_FEATURE.extractor, label: FEATURE_TEXT.extractor.label, describe: FEATURE_TEXT.extractor.describe, default: false }),
+    // The state inspector is for testers and pack authors (off); save points are for every reader (on).
+    Object.freeze({ id: CORE_FEATURE.inspector, label: STRINGS.features.inspector, describe: STRINGS.features.inspectorDescribe, default: false }),
+    Object.freeze({ id: CORE_FEATURE.savepoints, label: STRINGS.features.savepoints, describe: STRINGS.features.savepointsDescribe, default: true }),
 ]);
 
 // The chat's one currency (MODULES.md F1): its name (singular) and plural, renamable by the reader,

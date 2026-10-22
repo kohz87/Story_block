@@ -5,17 +5,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createScreens, resolveData, validateScreen, CSS_LIMIT } from '../../../src/v2/view/screens.js';
 import {
-    screens, inventoryScreen, sceneScreen, changesCardScreen, homeScreen,
-    INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID,
+    screens, inventoryScreen, sceneScreen, changesCardScreen, homeScreen, inspectorScreen,
+    INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, INSPECTOR_SCREEN_ID,
 } from '../../../src/v2/screens/index.js';
 import { core, css, cssSkip, queries, sceneState } from './helpers.js';
 
 // Queries of other modules the screens may read (MODULES.md §B–D, §F11).
-const MODULE_QUERIES = new Set(['party.pc', 'combat.session', 'combat.offers', 'director.threads', 'quest.progress', 'npc.known']);
+const MODULE_QUERIES = new Set(['party.pc', 'combat.session', 'combat.offers', 'quest.board', 'npc.known']);
 
-test('four default screens with the agreed ids and mounts', () => {
-    assert.deepEqual(screens.map(screen => screen.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID]);
-    assert.deepEqual(screens, [homeScreen, inventoryScreen, sceneScreen, changesCardScreen]);
+test('five default screens with the agreed ids and mounts', () => {
+    assert.deepEqual(screens.map(screen => screen.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, INSPECTOR_SCREEN_ID]);
+    assert.deepEqual(screens, [homeScreen, inventoryScreen, sceneScreen, changesCardScreen, inspectorScreen]);
+    assert.deepEqual(inspectorScreen.mounts, ['screen', 'tab']);
+    assert.equal(inspectorScreen.feature, 'story-block.inspector');
     assert.deepEqual(inventoryScreen.mounts, ['tab', 'screen']);
     assert.deepEqual(sceneScreen.mounts, ['tab', 'screen']);
     assert.deepEqual(changesCardScreen.mounts, ['card']);
@@ -40,8 +42,9 @@ test('the registry takes them as the core module\'s defaults', () => {
     registry.addModule('story-block', screens);
     assert.deepEqual(registry.problems(), []);
     // Navigation order: Home first, then Scene before Inventory (screens.js DEFAULT_ORDER).
-    assert.deepEqual(registry.list('screen').map(entry => entry.id), [HOME_SCREEN_ID, SCENE_SCREEN_ID, INVENTORY_SCREEN_ID]);
-    assert.deepEqual(registry.list('tab').map(entry => entry.id), [SCENE_SCREEN_ID, INVENTORY_SCREEN_ID]);
+    // The Inspector goes last (order 900); the host leaves it out while its feature is off (ui-host.js).
+    assert.deepEqual(registry.list('screen').map(entry => entry.id), [HOME_SCREEN_ID, SCENE_SCREEN_ID, INVENTORY_SCREEN_ID, INSPECTOR_SCREEN_ID]);
+    assert.deepEqual(registry.list('tab').map(entry => entry.id), [SCENE_SCREEN_ID, INVENTORY_SCREEN_ID, INSPECTOR_SCREEN_ID]);
     assert.deepEqual(registry.list('card').map(entry => entry.id), [CHANGES_CARD_SCREEN_ID]);
     assert.deepEqual(registry.list('hud'), []);
     // A pack can override one by id; the reader can reset it to this default.
@@ -72,18 +75,14 @@ test('with Story Block alone, its queries answer and the modules\' come out null
     assert.deepEqual(home.q.wallet, { coin: 125 });
     assert.deepEqual(home.q.currency, { name: 'gold', plural: 'gold', short: 'g' });
     assert.equal(home.q.items.length, 6);
-    for (const alias of ['pc', 'fight', 'offers', 'quests', 'progress']) assert.equal(home.q[alias], null, alias);
-    assert.equal(home.problems.length, 5);
+    for (const alias of ['pc', 'fight', 'offers', 'board']) assert.equal(home.q[alias], null, alias);
+    assert.equal(home.problems.length, 4);
     const scene = resolveData(sceneScreen.data, query);
     assert.equal(scene.q.cast, null);
-    // Quest progress follows the first quest's id ($quests.0.id).
-    const asked = [];
-    const withDirector = queries(module, state, {
-        'director.threads': () => [{ id: 'th_aaaaaaaa', key: 'Granary Rats' }],
-        'quest.progress': (s, args) => { asked.push(args); return { have: 1, need: 3, met: false }; },
-    });
-    assert.deepEqual(resolveData(homeScreen.data, withDirector).q.progress, { have: 1, need: 3, met: false });
-    assert.deepEqual(asked, [{ id: 'th_aaaaaaaa' }]);
+    // The quests are Story Director's board as it is: Home asks nothing else about them.
+    const board = { active: [{ id: 'th_aaaaaaaa', key: 'Granary Rats', status: { state: 'notyet', text: 'Not yet: 1/3 rats' } }], offers: [] };
+    const withDirector = queries(module, state, { 'quest.board': () => board });
+    assert.deepEqual(resolveData(homeScreen.data, withDirector).q.board, board);
 });
 
 test('css is under 64 KB, follows SillyTavern\'s theme and has nothing the scoper drops', () => {
