@@ -11,6 +11,8 @@ import { makeMessage } from '../ui-fake-dom.js';
 import { setupDom } from './view/mounts/helpers.js';
 import { mountUi } from '../../src/v2/ui-host.js';
 import { fillInput } from '../../src/v2/extras-ui.js';
+import { sceneScreen } from '../../src/v2/screens/scene.js';
+import { renderSkip, show } from './screens/helpers.js';
 import {
     CHATTER_CHARS, CHATTER_FEATURE, CHOICE_CHARS, CHOICES_FEATURE, cutPoints, displayLines, readChatter, readChoice,
 } from '../../src/v2/extras.js';
@@ -336,30 +338,7 @@ test('the latest reply\'s choices are buttons; a click fills the message box and
     assert.equal(fillInput('x', { document: { querySelector: () => null } }), 'unavailable');
 });
 
-test('inner chatter is a folded strip under each reply; plain names without NPC State Delta', async t => {
-    const { host, draw, at } = await page(t);
-    await host.send('Hello.', REPLY);
-    await host.send('Next.', block('Later.', ['~ chatter Minke: <b>still</b> here']));
-    draw();
-    for (const index of [2, 4]) assert.ok(at(index, '.story-suite-chatter'), `reply ${index} has its strip`);
-    const head = at(4, '.story-suite-chatter-head');
-    const list = at(4, '.story-suite-chatter-list');
-    assert.equal(head.textContent, 'Inner chatter(1)');
-    assert.equal(list.hidden, true, 'starts folded');
-    head.click();
-    assert.equal(list.hidden, false);
-    assert.equal(head.getAttribute('aria-expanded'), 'true');
-    assert.equal(at(4, 'b'), null, 'markup is text');
-    assert.equal(at(4, '.story-suite-chatter-text').textContent, '<b>still</b> here');
-    assert.equal(at(4, '.story-suite-chatter-dossier'), null, 'no NSD: no chip that links');
-    assert.equal(at(4, '.story-suite-chatter-name').textContent, 'Minke');
-    // The strip stays open through a redraw, and is not part of the story text.
-    draw();
-    assert.equal(at(4, '.story-suite-chatter-list').hidden, false);
-    assert.doesNotMatch(at(4, '.mes_text').textContent, /still/);
-});
-
-test('with NPC State Delta knowing the name, the name is a chip that opens the dossier', async t => {
+test('no Inner chatter strip is drawn under replies; the choices stay', async t => {
     const opened = [];
     const nsd = {
         id: 'npc-state-delta', name: 'NPC State Delta', version: '0.0.1',
@@ -370,21 +349,70 @@ test('with NPC State Delta knowing the name, the name is a chip that opens the d
     t.after(() => { globalThis.NPCStateDelta = previous; });
     const { host, draw, at, doc } = await page(t, { modules: [nsd] });
     await host.send('Hello.', REPLY);
+    await host.send('Next.', block('Later.', ['? choice Wait', '~ chatter Minke: <b>still</b> here']));
     draw();
-    const chips = doc.querySelectorAll('.mes[mesid="2"] .story-suite-chatter-name');
-    assert.deepEqual(chips.map(node => [node.textContent, node.tagName.toLowerCase()]), [['Minke', 'button'], ['Arn', 'span']]);
-    at(2, '.story-suite-chatter-dossier').click();
-    assert.deepEqual(opened, ['Minke']);
+    for (const index of [2, 4]) assert.equal(at(index, '.story-suite-chatter'), null, `reply ${index} has no chatter strip`);
+    for (const part of ['.story-suite-chatter', '.story-suite-chatter-head', '.story-suite-chatter-name', '.story-suite-chatter-dossier']) {
+        assert.equal(doc.querySelectorAll(part).length, 0, `no ${part} anywhere`);
+    }
+    assert.deepEqual([...at(4, '.story-suite-choices').querySelectorAll('.story-suite-choice')].map(node => node.textContent), ['Wait']);
+    assert.doesNotMatch(at(4, '.story-suite-extras').textContent, /still|Minke/);
+    // The chatter is still read and kept for the World screen (chatter.head) and the setting's tail line.
+    assert.deepEqual(host.sdk.query('chatter.head'), [{ name: 'Minke', text: '<b>still</b> here' }]);
+    assert.deepEqual(opened, []);
 });
 
-test('turning a feature off takes its part away at once; the other stays', async t => {
+test('turning Choices off takes the buttons away at once; Inner chatter draws nothing under replies either way', async t => {
     const { host, draw, at } = await page(t);
     await host.send('Hello.', REPLY);
     draw();
     assert.ok(at(2, '.story-suite-choices'));
     host.features.set(CHOICES_FEATURE, false);
-    assert.equal(at(2, '.story-suite-choices'), null);
-    assert.ok(at(2, '.story-suite-chatter'));
-    host.features.set(CHATTER_FEATURE, false);
     assert.equal(at(2, '.story-suite-extras'), null);
+    host.features.set(CHATTER_FEATURE, false);
+    host.features.set(CHOICES_FEATURE, true);
+    assert.ok(at(2, '.story-suite-choices'));
+    assert.equal(at(2, '.story-suite-chatter'), null);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// The Scene screen shows each present person's thought while Story Director's World is not there (#142)
+
+const WORLD = {
+    id: 'story-director', name: 'Story Director', version: '0.0.1',
+    features: [{ id: 'story-director.world', label: 'World view', describe: 'The World screen.', default: true }],
+    screens: [{ id: 'story-director/world', title: 'World', mounts: ['tab', 'screen'], template: '<p>world</p>', feature: 'story-director.world' }],
+};
+
+test('Scene without Story Director: under each person present, their thought (the name, then the thought)', { skip: renderSkip }, async t => {
+    const host = await fresh(t);
+    await host.send('We go in.', block('Minke and Arn wait by the gate.', [
+        '+ present Minke', '+ present Arn', '~ chatter minke: …he\'d better not die', '~ chatter Stranger: who are they', '~ chatter Minke: hurry',
+    ]));
+    // One thought each, the last line a thinker wrote, matched to the scene's name ignoring case; a thinker
+    // who is not present is left out.
+    assert.deepEqual(host.sdk.query('scene.chatter'), [{ name: 'Minke', text: 'hurry' }]);
+    const { el, view } = show(sceneScreen, { state: host.head(), query: (name, args) => host.sdk.query(name, args) });
+    assert.deepEqual(view.warnings, []);
+    assert.deepEqual(el.querySelectorAll('.who').map(node => [node.querySelector('.name').textContent, node.querySelectorAll('.thought').map(item => item.textContent)]), [['Minke', ['hurry']], ['Arn', []]]);
+    assert.equal(el.querySelectorAll('b').length, 0);
+    // A swipe without chatter: nothing under anyone.
+    await host.swipe(block('They wait.', ['+ present Minke', '+ present Arn']));
+    assert.deepEqual(host.sdk.query('scene.chatter'), []);
+    // Off: null, and the screen draws no thought.
+    await host.st.swipeTo(lastIndex(host), 0);
+    assert.equal(host.sdk.query('scene.chatter').length, 1);
+    host.features.set(CHATTER_FEATURE, false);
+    assert.equal(host.sdk.query('scene.chatter'), null);
+    assert.equal(show(sceneScreen, { state: host.head(), query: (name, args) => host.sdk.query(name, args) }).el.querySelectorAll('.thought').length, 0);
+});
+
+test('Scene with Story Director\'s World registered: no thoughts there (World → Now shows them); World off: back on Scene', { skip: renderSkip }, async t => {
+    const host = await fresh(t, BOTH, [WORLD]);
+    await host.send('We go in.', block('Minke waits.', ['+ present Minke', '~ chatter Minke: hurry']));
+    assert.deepEqual(host.sdk.query('chatter.head'), [{ name: 'Minke', text: 'hurry' }], 'World reads chatter.head');
+    assert.deepEqual(host.sdk.query('scene.chatter'), []);
+    assert.equal(show(sceneScreen, { state: host.head(), query: (name, args) => host.sdk.query(name, args) }).el.querySelectorAll('.thought').length, 0);
+    host.features.set('story-director.world', false);
+    assert.deepEqual(host.sdk.query('scene.chatter'), [{ name: 'Minke', text: 'hurry' }], 'World off: chatter has nowhere else to show');
 });

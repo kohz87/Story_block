@@ -303,7 +303,8 @@ test('notes and extras: a redraw after a new message or a rebuild looks at the l
     assert.ok(shown <= EXTRAS_RECENT, `extras read ${shown} replies`);
     shown = 0;
     extras.refreshAll();
-    assert.equal(shown, 100, 'a full pass (a chat opened) still reads every drawn reply');
+    // Only the latest reply has anything under it now (its Choices; chatter is not drawn under replies).
+    assert.equal(shown, 1, 'a full pass (a chat opened) reads the latest reply alone');
 });
 
 // ---- replay == live, and the file == live, with the turn's save ----------------------------------------

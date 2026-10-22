@@ -305,8 +305,8 @@ test('the static part is byte-identical reply after reply, and a toggle changes 
     await host.send('On.', 'On again.');
     assert.equal(statics(host).at(-1), first[0]);
     // The overlay's hint is shown for this feature only.
-    // (and Story Block's loot, whose capture kind is a grammar line)
-    assert.deepEqual(host.features.list().filter(feature => feature.prompt).map(feature => feature.id), ['gear.wear', 'story-block.choices', 'story-block.chatter', 'story-block.loot']);
+    // (and Story Block's loot and weather, whose capture kinds are grammar lines)
+    assert.deepEqual(host.features.list().filter(feature => feature.prompt).map(feature => feature.id), ['gear.wear', 'story-block.choices', 'story-block.chatter', 'story-block.weather', 'story-block.loot']);
     host.close();
 });
 
@@ -391,7 +391,7 @@ test('Story Block\'s own features: the status strip, the cards, the two assist h
     assert.deepEqual(host.sdk.features().map(feature => [feature.id, feature.on, feature.prompt, feature.available]), [
         [CORE_FEATURE.hud, true, false, true], [CORE_FEATURE.cards, true, false, true], [CORE_FEATURE.preroll, false, false, false], [CORE_FEATURE.extractor, false, false, true],
         [CORE_FEATURE.inspector, false, false, true], [CORE_FEATURE.savepoints, true, false, true],
-        [CORE_FEATURE.choices, false, true, true], [CORE_FEATURE.chatter, false, true, true],
+        [CORE_FEATURE.choices, false, true, true], [CORE_FEATURE.chatter, false, true, true], [CORE_FEATURE.weather, true, true, true],
         ['story-block.loot', true, true, true], ['story-block.encumbrance', true, false, true],
     ]);
     host.close();

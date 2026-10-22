@@ -39,7 +39,8 @@ The first beta. In short, what changed for you (the full list is in
   Director tab until you press **Reveal**. See [Arc planning](#arc-planning-and-what-stays-behind-the-scenes).
 * **Back from v1**: HP and MP come back with story time; the story can award experience (`+ xp major`);
   **Choices** (next moves as buttons that fill your message box) and **Inner chatter** (the people's
-  unspoken thoughts), both off until you turn them on.
+  unspoken thoughts, next to each person on the World screen), both off until you turn them on; the
+  **weather** in a few words on Scene, Home and the reply's Status card (on).
 * **Things and money**: gear wears and can be repaired and refined; crafting; one bag for the whole
   party with **Equip on…**; items like a backpack add carry capacity; prices depend on the place (a
   port, a mining town); a key item the story gives can't be sold.
@@ -175,6 +176,13 @@ drops back; if you then carry too much you are encumbered, and nothing is droppe
 the block may also hold `? choice Climb the wall` (a next move you might make) and `~ chatter Minke: …he'd
 better not die down there` (a thought nobody hears). They are for you alone and change nothing.
 
+**Weather.** When the weather changes the story writes `~ weather cold drizzle, low fog` (a few words, at
+most 60 characters). Story Block keeps the latest with the scene and shows it on **Scene**, Home's scene
+panel and Story Director's Status card under the reply; the story is reminded of it with the place. It is
+only a description: nothing in the rules reads it. A swipe, Re-read, a delete and a reload keep what the
+remaining replies wrote. Turn it off in **Features → Story Block → Weather** (the fixed instructions then
+lose its line: one slower reply).
+
 ## The story leads, buttons manage your things
 
 Story actions happen in the story. You take a quest or drink a potion by saying so in your
@@ -292,7 +300,7 @@ story time is at the top) and who is here. With NPC State Delta on, the people h
 ones its Cast tab used to show (portrait, mood, condition and outfit, meters); tap one to open the dossier.
 Someone the scene lists but Delta has no dossier for yet is a name below the cards. Without NPC State Delta,
 each person is a name. With **Inner chatter** on, each person's unspoken thought from the latest reply sits
-in their card or under their name (the strip under the reply stays too). It all follows the story as it
+in their card or under their name (nothing is drawn under the reply). It all follows the story as it
 goes: a new reply, a swipe, a delete, or NPC State Delta finishing a scan, with no need to switch tabs.
 Then the news, events and factions you have learned of, newest
 first, and what you know is coming in the next 30 story days: your quests' due dates, dated events and
@@ -536,7 +544,8 @@ The tabs and the game view's screens come in one order: **Home** (game view), **
 (when it is on), then any other extension's screens, **Director** (the game master's view, with
 what your character has not been told), and NPC State Delta's **Dossiers** last (the people present are on
 the World screen). An order you saved before keeps Dossiers where you put Cast. With Story Director
-installed, **Scene** starts hidden: World → Now shows the same place, time and people. It is still listed in
+installed, **Scene** starts hidden: World → Now shows the same place, time and people. Without it, Scene
+shows the place, the weather and the people here, each with their Inner chatter thought. It is still listed in
 Settings → Story Suite → Tabs to show again (and an order you saved before with Scene in it keeps it). Only the installed extensions' tabs show.
 
 Change it in **Settings → Story Suite → Tabs**: every tab and screen of every installed extension, one row
@@ -556,9 +565,10 @@ Two extras from Story Block v1, each off until you turn it on in **Features**:
   reply. A click puts the words in your message box (after anything you already typed) and does nothing
   else: you still send it, change it or write something of your own. Nothing happens in the story until
   you send. Once you answer, the buttons go; an older reply shows none.
-* **Inner chatter**: short unspoken thoughts of the people in the scene (at most 3 a reply), in a folded
-  **Inner chatter (N)** strip under each reply; press it to read them. They are not part of the story
-  text. With NPC State Delta, a name it knows is a chip that opens their dossier. The story never hears
+* **Inner chatter**: short unspoken thoughts of the people in the scene (at most 3 a reply), shown next
+  to each person: on Story Director's **World → Now**, or, without Story Director, on Story Block's
+  **Scene** under each person here (the name, then the thought). Nothing is drawn under the reply, and
+  they are not part of the story text. The story never hears
   them: they are left out of later prompts, unless you turn on **Settings → Story Block → Inner chatter →
   Send the last reply's thoughts back to the story** (then the thoughts of the reply you answered go with
   your next message as one short note).
