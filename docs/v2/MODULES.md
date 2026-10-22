@@ -69,7 +69,7 @@ Tab: **Party** (actors with HP/MP/SP meters, stats, skills; spend points; set as
 
 ### B2. items (part **items**, agent RB-items)
 No domain of its own: items live in Story Block's `inventory`; their actors in `party`.
-Hooks: `item.define(def, { note, owner })` → sets `kind`, `rarity`, `value` (smallest unit), `slot`,
+Hooks: `item.define(def, { note, owner, scale })` (`scale`: the money scale, F104) → sets `kind`, `rarity`, `value` (smallest unit), `slot`,
 `stats`, `effect` (`{ heal, mp, cure: [] }`), `tags` (elements) using v1 describeRow / gear enrichment /
 effectByName / materialAffinity / capItem rules; `currency()` → `{ tiers: [{ name, rate }], single }` from
 the rules (v1 `rules.currency`).
@@ -484,3 +484,31 @@ These settle questions agents raised; the host changes they need are made at int
     the built-in defaults land in marks about right; its own ranks, values and prices stay as written.
     Crafting data in packs (F102): recipes' `craft`, `dc`, `station`, `stat`, `known`, `teaches`, the `crafts`
     kind and query `packs.crafts`; NPC meter presets: the `meterPresets` kind (PACKS.md).
+
+### User decisions from the live test (2026-10-22, F105–F107)
+
+105. **The reader names the world's words again** (v1 had them; v2 lost the settings). RPG Battle's settings,
+    group Terms: **XP word** (`party.xpName`) and **Level word** (`party.levelName`), over a pack's `terms`,
+    over XP and Level. Story Block's settings, group Terms: **Rank ladder** (`ranks`, a `form: 'lines'` list of
+    `{ rank }`, lowest first, a line optionally "Name: first level"). It is read where every module reads ranks:
+    `packs.content({ kind: 'ranks' })` answers with the reader's ladder when it is set (records `{ id, title,
+    levels?, reward?, pack: null, reader: true }`, the first pack's levels and rewards kept by place), so Story
+    Director's `quest.ranks`, RPG Battle's `party.ranks` (and its level labels: "Soul Class III (Lv 24)") and
+    Story Block's coin budget follow it with or without each other. Empty: the pack's, then each module's
+    built-in. Static prompt text that names XP, levels or ranks takes the words from the settings: a changed
+    setting may change the static part; otherwise it stays byte-identical reply to reply.
+106. **Items add carry capacity**: a pack item's `carry` (1–1000) adds to its owner's capacity while owned (a
+    member's thing to them, a shared-bag thing to the party), equipment only while worn; the reader may name
+    such items in RPG Battle's settings (`items.carryItems`, "Name: capacity"). RPG Battle's `items.carry` adds
+    it (`people[].bonus`, `bagBonus`, `bonuses: [{ stack, carry, owner }]`) and Story Block's Equip on… and loot
+    checks ask the same query; Inventory shows "+N carry" (`inventory.items` rows' `carry`). Only `pack.` defs
+    keep `carry`: the story never sets or raises it. Losing the item lowers capacity; nothing is dropped.
+107. **Prices by place, in layers** (replaces v1's guess from words in a place's name, now the RPG Battle
+    setting `trade.guessPrices`, off): a place's settlement type (hamlet, village, town, city, capital, outpost,
+    camp: buy and sell factors and stock size) and environment tags (coastal, river, port, mountain, mining,
+    forest, desert, farmland, frontier, swamp: a factor per item category, ±30 % per category in all) set its
+    prices. Built-in in RPG Battle; a pack's `markets` content defines or overrides types and tags and its
+    places' `market` and `tags` name them; a lorebook entry's `market: town; coastal, port` line names them for
+    its place (read by Story Block when a chat opens, `packs.markets`). Order for a place: lorebook, pack, the
+    scene's place kind, built-in; unknown means factor 1. The money scale (F104) multiplies the built-in prices
+    and worths (shop stock, a story-made thing's worth through `item.define`'s new `scale`), never a pack's own.

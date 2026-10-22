@@ -56,8 +56,8 @@ test('the adapter falls back to the embedded character book', async () => {
     try {
         const read = await readCharacterLorebook();
         assert.deepEqual(read.entries, [
-            { book: 'Embedded', uid: 7, title: '[storysuite:pack]', content: '{}' },
-            { book: 'Embedded', uid: 1, title: 'Old style', content: 'y' },
+            { book: 'Embedded', uid: 7, title: '[storysuite:pack]', keys: [], content: '{}' },
+            { book: 'Embedded', uid: 1, title: 'Old style', keys: [], content: 'y' },
         ]);
     } finally {
         st.uninstall();

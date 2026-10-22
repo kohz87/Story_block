@@ -118,6 +118,13 @@ kept, and the party is *encumbered* (AGI and DEX checks −2, and the model is t
 down. Your own takes, buys and hand-overs past the limit are still refused. Turn it off with
 **Encumbered** in the Features; then a story line past the limit is refused instead.
 
+**Things that carry for you.** Some things add carry capacity while you have them: a pack mule (+80), a
+share of a barge's hold (+200), a spatial ring while it is worn (+100). The pack says which (its items'
+`carry`), or you do, in RPG Battle's settings (**Items that add carry capacity**, one per line:
+`Spatial Ring: 100`). The Inventory and the Party screen show "+80 carry". What the story writes never adds
+capacity: a "bag of holding" the story invents is a plain bag. When you lose such a thing, your capacity
+drops back; if you then carry too much you are encumbered, and nothing is dropped.
+
 ## The story leads, buttons manage your things
 
 Story actions happen in the story. You take a quest or drink a potion by saying so in your
@@ -159,6 +166,13 @@ fight.
 
 Your character has a **rank** from their level: F to S by default, or the pack's own ladder (Ersveil's
 runs from F Registered to S Legend). Quests and the money a reply may give follow it.
+
+**Your world's words.** One game says XP and Level, another Soul Growth and Soul Class; one ranks F to
+SSS, another Soul Class I to IX. Set them in the settings, under **Terms**: RPG Battle's **XP word** and
+**Level word**, and Story Block's **Rank ladder**, one rank a line from lowest to highest (add the first
+level of each, `Soul Class II: 11`, to set where they begin). Empty means the pack's words, then the
+built-in ones. Every screen, fight summary, note to the model and quest line uses them; the ladder is the
+one quest ranks, foe ranks and your character's rank all read, with or without the other extensions.
 
 The story can say how strong foes are: weak, even, strong or deadly next to your party, or a rank
 ("three wolves, rank D"). Code picks the foes' levels from that, never the model, and holds a rank far
@@ -248,6 +262,24 @@ Where there's a market (a town, or a trader present), the **Trade** screen lets 
 carry and buy from what's on offer. Prices come from item values and from the place, and money moves
 only when you click. A smith or crafter can make something from your materials for a fee; you come back
 when it's ready and **Collect** it. A key item can't be sold.
+
+**Prices by place.** A place's prices come from what kind of settlement it is and where it lies, never from
+what the story says they are:
+
+* **Settlement type**: a hamlet or village is a little cheaper with little on the shelves, a city or
+  capital dearer with more; an outpost or camp is dear with little. A town is the usual price.
+* **Environment**: tags such as coastal, river, port, mountain, mining, forest, desert, farmland,
+  frontier and swamp move the price of some things: fish is cheaper on the coast or a river, ore and metal
+  in a mining or mountain town, grain on farmland; everything is dearer on the frontier or in a desert.
+  Together they move one kind of thing by at most 30 %.
+* **Where that comes from**: the place's line in the character's lorebook (`market: town; coastal, port`
+  in the entry about the place), else the pack's map (its `market` and `tags`), else the scene's place kind
+  ("village", "city"). Unknown: everything at the usual price. A pack can change the factors or add its
+  own types and tags (PACKS.md "markets").
+
+The Trade screen says why: *Town · coastal: fish −30 %*. Built-in prices follow the money scale; a pack's own
+prices stay as written. Your own word for a place (cheap, fair, dear) still goes on top. **Guess prices
+from place names** (off) brings back v1's guess from words in a place's name ("Harbour", "Royal").
 
 ## Gear: wear, repair and refinement
 
@@ -465,6 +497,9 @@ changes until every line reads. **Edit as rows** goes back to one line per entry
   A reply also gives at most 20 of one item, and goods worth at most twice that money, plus one notable
   item (the potion an old man hands you) worth up to five times the goods. That one is a **key item**
   (tagged "Key" in the Inventory): yours to use, equip or give away, but it can't be sold.
+* **Terms** (Story Block's and RPG Battle's folds): the **Rank ladder** (Story Block), the **XP word** and the
+  **Level word** (RPG Battle); see [Ranks, foes and companions](#ranks-foes-and-companions). A changed word
+  changes the instructions the model gets once; otherwise they stay the same reply after reply.
 * **Change lines per reply** (Story Suite's own section, with **Notes per reply**): the most change lines
   one reply may hold, 150 by default; any after them are not used.
 * **Screens**: turn each card on or off, and pick which version of a screen to use (the default, the

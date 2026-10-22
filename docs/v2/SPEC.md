@@ -749,8 +749,14 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   sulfur (piece)" = "Sulfur Alloy"). A key two defs share is ambiguous. Fetch quests (`inventory.find`),
   `- item` lines and loot use the same lookup.
 Story-introduced items: `+ item Name` resolves an existing def by alias, else creates `story/<slug>` with
-defaults (`goods`, `common`, value 0), then calls the `item.define` hooks so RPG Battle can set its rules'
-numbers. A later rename changes `name` and adds an alias; it never changes value, rarity or effects.
+defaults (`goods`, `common`, value 0), then calls the `item.define` hooks (`(def, { note, owner, scale })`,
+`scale` the money scale of `inventory.economy`) so RPG Battle can set its rules' numbers. A later rename
+changes `name` and adds an alias; it never changes value, rarity or effects.
+* **Carry capacity** (MODULES §F106). A def may hold `carry` (whole, 1–1000): the capacity it adds while
+  owned (equipment: while worn), which the carry module (`items.carry`) adds and the Inventory shows as
+  "+N carry" (`inventory.items` rows' `carry`, the carry module's `bonuses` when it answers). Only a `pack.`
+  def keeps `carry` (from its pack's item); a story-made def never has one, whatever a hook or the story
+  writes, and the validator holds it to 1–1000.
 
 ## 8. Module domains (phase 2, outline)
 

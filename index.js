@@ -15,7 +15,7 @@
 import { createRuntime, VERSION } from './src/v2/runtime.js';
 import { INTERCEPTOR_NAME } from './src/v2/turn.js';
 import { mountUi } from './src/v2/ui-host.js';
-import { packs as livePacks, part as livePacksPart, resolveItem, startState } from './src/v2/packs/index.js';
+import { packs as livePacks, part as livePacksPart, refreshLore, resolveItem, startState } from './src/v2/packs/index.js';
 
 const LOG = '[Story Block v2]';
 
@@ -47,7 +47,10 @@ function boot() {
     livePacks.subscribe?.(() => ui?.syncScreens());
     const types = ctx.eventTypes ?? ctx.event_types ?? {};
     if (types.APP_READY) ctx.eventSource?.on?.(types.APP_READY, () => ui?.refresh());
-    if (types.CHAT_CHANGED) ctx.eventSource?.on?.(types.CHAT_CHANGED, () => { ui?.clearBlocked(); ui?.refresh(); });
+    // The open character's lorebook `market:` lines (PACKS.md "Markets"), read for each chat.
+    const readLore = () => refreshLore().catch(error => console.warn(`${LOG} the lorebook's market lines could not be read`, error));
+    if (types.CHAT_CHANGED) ctx.eventSource?.on?.(types.CHAT_CHANGED, () => { ui?.clearBlocked(); ui?.refresh(); readLore(); });
+    readLore();
     markReady();
     console.info(`${LOG} ${VERSION} ready`);
 }

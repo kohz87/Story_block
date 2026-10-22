@@ -76,6 +76,7 @@ test('places, routes and the calendar come out of the packs queries', async () =
     assert.deepEqual({ ...bluewatch, note: undefined }, {
         name: 'Bluewatch Village', aliases: [], region: 'River Confederacy: core cities', kind: 'settlement', layer: '',
         x: 64, y: 110, note: undefined, id: `pack.${PACK}/bluewatch-village`, slug: 'bluewatch-village', pack: PACK,
+        market: 'village', tags: ['river', 'frontier'],
     });
     assert.equal(places.find(place => place.name === 'Auvoth Depths').layer, 'underground');
     for (const city of ['Auvoth', 'Shorn', 'Ledgerford', 'Glassdock', 'Coinwater', 'Thousand Sails', 'Highmark Capital', 'Guild Office', 'East Bluff', 'North Culvert', 'Watch Granary']) {
@@ -281,5 +282,5 @@ test('Wessel (kit) pre-fills the Human race, two talents, his stat points and hi
 test('nothing in the pack runs as code: it installs through the safety checks and round-trips as data', async () => {
     const { settings, packs } = await installedPart();
     assert.deepEqual(settings.root.packs[0].pack, raw(), 'kept as given');
-    assert.deepEqual(packs.list()[0].counts, { items: 41, creatures: 6, shops: 4, recipes: 7, events: 6, quests: 3, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7, crafts: 2, meterPresets: 2 });
+    assert.deepEqual(packs.list()[0].counts, { items: 43, creatures: 6, shops: 4, recipes: 7, events: 6, quests: 3, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7, crafts: 2, meterPresets: 2, markets: 2 });
 });

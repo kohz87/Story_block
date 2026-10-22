@@ -33,7 +33,7 @@ const LORE = {
 // Priced on the play scale instead: the lore asks 1–60 gold for these, five to forty F jobs for one.
 const PLAY_SCALE = ['Healing Salve', 'Common Antidote', 'Minor Healing Draught', 'Mana Draught'];
 // No lore price: the pack's own numbers (ERSVEIL.md §9).
-const OWN = ['Cane-Blade', 'Whetstone', 'Leech-salt Pouch', 'Burlap Sack', 'Coarse Salt', 'Crag Wolf Fang', 'Rat Tail', 'Live Leech', 'Bluecap Moss', 'Iron Filings'];
+const OWN = ['Cane-Blade', 'Pack Mule', 'Barge Hold Share', 'Whetstone', 'Leech-salt Pouch', 'Burlap Sack', 'Coarse Salt', 'Crag Wolf Fang', 'Rat Tail', 'Live Leech', 'Bluecap Moss', 'Iron Filings'];
 
 test('a minor healing draught is a fraction of an F-rank job', () => {
     const draught = byName('Minor Healing Draught');
