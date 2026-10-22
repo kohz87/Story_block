@@ -418,9 +418,10 @@ calendar) shows one line per entry, `[January] [31] ×`: × removes that line, *
 
 * **Prompt size** (in the **Story Suite** fold): what Story Suite adds to the prompt of the next reply in
   the open chat, counted now and never sent. The instructions (the same every reply, so the prompt cache
-  keeps them), this reply's part against your tail budget, the total, and each extension's share. It
-  uses SillyTavern's tokenizer when there is one ("312 tokens"), else an estimate at four characters a
-  token ("about 312 tokens"). It counts again when you switch a feature or change the budget.
+  keeps them), this reply's part against **Notes per reply** (the budget above it), the total, and each
+  extension's share. It uses SillyTavern's tokenizer when there is one ("312 tokens"), else an estimate
+  at four characters a token ("about 312 tokens"). It counts again when you switch a feature or change
+  the budget.
 
 * **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
   name with an s) and its short form.

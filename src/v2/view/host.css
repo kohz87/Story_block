@@ -190,7 +190,7 @@ body.story-suite-open { overflow: hidden; }
 .story-suite-list-head, .story-suite-list-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .story-suite-list-item { flex-wrap: wrap; }
 .story-suite-list-head { font-size: 0.8em; opacity: 0.7; padding: 0 2px; }
-.story-suite-list-cell { flex: 1 1 9em; min-width: 0; display: flex; }
+.story-suite-list-cell { flex: 1 1 9em; max-width: 22em; min-width: 0; display: flex; }
 .story-suite-list-cell[data-type="int"] { flex: 0 0 6.5em; }
 .story-suite-list-cell[data-type="bool"] { flex: 0 0 auto; }
 .story-suite-list-cell > .text_pole, .story-suite-list-cell > select { width: 100%; min-width: 0; margin: 0; }

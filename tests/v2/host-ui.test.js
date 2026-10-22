@@ -561,3 +561,38 @@ test('Home\'s "Import a pack": shown while no pack is installed, opens the setti
     createPacksHintWidget({ list: () => null }).render(unknown, {}, {});
     assert.equal(unknown.children.length, 0);
 });
+
+test('a real browser\'s querySelectorAll gives a NodeList (no find, no at): the switch, Add and opening at a fold still work', () => {
+    const proto = Object.getPrototypeOf(doc.createElement('div'));
+    const plain = proto.querySelectorAll;
+    // A NodeList: indexable and iterable, with forEach and item, but none of an Array's other methods.
+    proto.querySelectorAll = function (selector) {
+        const found = plain.call(this, selector);
+        const list = { length: found.length, item: at => found[at] ?? null, forEach: fn => found.forEach(fn), [Symbol.iterator]: () => found[Symbol.iterator]() };
+        found.forEach((node, at) => { list[at] = node; });
+        return list;
+    };
+    const find = (root, selector, test) => [...root.querySelectorAll(selector)].find(test);
+    try {
+        const loot = { id: 'loot', name: 'Loot', features: [{ id: 'loot.weight', label: 'Weight' }] };
+        const { registry, settings } = setup(loot, director());
+        const stored = {};
+        const features = { list: () => [{ id: 'loot.weight', moduleId: 'loot', moduleName: 'Loot', label: 'Weight', on: stored['loot.weight'] !== false }], set: (id, on) => { stored[id] = on; } };
+        const root = doc.createElement('div');
+        doc.body.appendChild(root);
+        renderSettingsHost(root, { registry, settings, doc, features });
+        const input = find(root, '.story-suite-feature input', node => node.id.includes('module'));
+        input.checked = false;
+        input.dispatch('change');
+        assert.equal(stored['loot.weight'], false);
+        assert.ok(doc.activeElement === find(root, '.story-suite-feature input', node => node.id === input.id), 'the switch keeps the focus');
+        find(root, '.story-suite-list-add', () => true).click();
+        assert.equal(settings('story-director')['tracker.calendar.months'].length, 3);
+        root.remove();
+        const overlay = openSettingsOverlay({ registry, settings, doc, features, fold: 'story-director', openState: new Map() });
+        assert.ok(doc.activeElement === find(overlay.root, 'details.story-suite-fold', node => node.dataset.fold === 'story-director').querySelector('summary'));
+        overlay.close();
+    } finally {
+        proto.querySelectorAll = plain;
+    }
+});

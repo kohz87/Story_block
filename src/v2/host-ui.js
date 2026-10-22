@@ -62,8 +62,8 @@ export const SETTINGS_TEXT = Object.freeze({
         module: 'Module',
         staticShort: 'Instructions',
         tailShort: 'This reply',
-        howAbout: 'Estimated at four characters a token. The budget is the tail budget above.',
-        howExact: 'Counted with SillyTavern\'s tokenizer. The budget is the tail budget above.',
+        howAbout: 'Estimated at four characters a token. The budget is Notes per reply, above.',
+        howExact: 'Counted with SillyTavern\'s tokenizer. The budget is Notes per reply, above.',
     }),
 });
 export const FEATURE_TEXT = Object.freeze({
@@ -239,7 +239,7 @@ function listControl(doc, field, items, onChange, id) {
             list = [...list, Object.fromEntries(subs.map(([key, sub]) => [key, emptyValue(sub)]))];
             onChange(structuredClone(list));
             draw();
-            root.querySelectorAll('.story-suite-list-item').at(-1)?.querySelector('input, select, textarea')?.focus?.();
+            [...root.querySelectorAll('.story-suite-list-item')].at(-1)?.querySelector('input, select, textarea')?.focus?.();
         });
         root.appendChild(add);
         if (focusAt !== null) (removes[focusAt] ?? add).focus?.();
@@ -417,7 +417,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
     function setFeature(id, on, inputId) {
         features.set(id, on);
         refresh();
-        const again = root.querySelectorAll('.story-suite-feature input').find(input => input.id === inputId);
+        const again = [...root.querySelectorAll('.story-suite-feature input')].find(input => input.id === inputId);
         again?.focus?.();
     }
     function featureBlock(list, help) {
@@ -711,7 +711,7 @@ export function openSettingsOverlay({ registry, settings, doc = globalThis.docum
     };
     close.addEventListener('click', () => api.close());
     currentOverlay = api;
-    const wanted = target ? body.querySelectorAll(FOLD_SELECTOR).find(node => node.dataset.fold === target) : null;
+    const wanted = target ? [...body.querySelectorAll(FOLD_SELECTOR)].find(node => node.dataset.fold === target) : null;
     if (wanted) {
         wanted.scrollIntoView?.({ block: 'start' });
         wanted.querySelector('summary')?.focus?.();
