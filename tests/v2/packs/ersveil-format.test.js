@@ -208,3 +208,48 @@ test('a refused pack saves nothing', async () => {
     assert.equal(settings.saves, 0);
     assert.deepEqual(settings.root.packs ?? [], []);
 });
+
+test('calendar holidays: named yearly days, month by name or number kept as the name, names flattened and cut', async () => {
+    const holidays = [
+        { name: '  Lantern\n Night ', month: 'goldwane', day: 2 },
+        { name: 'First​ Light', month: 1, day: 1 },
+        { name: 'x'.repeat(80), month: 'Rainmoot', day: 30 },
+    ];
+    const out = ok(pack({ calendar: { ...CALENDAR, holidays } })).calendar;
+    assert.deepEqual(out.holidays, [
+        { name: 'Lantern Night', month: 'Goldwane', day: 2 },
+        { name: 'First Light', month: 'Dawnwane', day: 1 },
+        { name: 'x'.repeat(60), month: 'Rainmoot', day: 30 },
+    ]);
+    assert.deepEqual(out.start, CALENDAR.start);
+    // None given, or an empty list: no holidays key (a calendar reads as before).
+    assert.equal(Object.hasOwn(ok(pack({ calendar: CALENDAR })).calendar, 'holidays'), false);
+    assert.equal(Object.hasOwn(ok(pack({ calendar: { ...CALENDAR, holidays: [] } })).calendar, 'holidays'), false);
+    // 60 is the most.
+    const sixty = Array.from({ length: 60 }, (_, i) => ({ name: `Day ${i}`, month: 1 + (i % 3), day: 1 + (i % 30) }));
+    assert.equal(ok(pack({ calendar: { ...CALENDAR, holidays: sixty } })).calendar.holidays.length, 60);
+    // packs.calendar gives them.
+    const { part, packs } = createPacksPart({ settings: fakeSettings() });
+    await packs.install(pack({ id: 'ersveil', calendar: { ...CALENDAR, holidays } }));
+    assert.deepEqual(part.queries['packs.calendar']().holidays.map(day => [day.name, day.month, day.day]), [['Lantern Night', 'Goldwane', 2], ['First Light', 'Dawnwane', 1], ['x'.repeat(60), 'Rainmoot', 30]]);
+});
+
+test('calendar holiday rejections', () => {
+    const calendar = holidays => pack({ calendar: { ...CALENDAR, holidays } });
+    const one = extra => calendar([{ name: 'Lantern Night', month: 'Goldwane', day: 2, ...extra }]);
+    refused(calendar({}), 'BAD_CALENDAR', 'calendar.holidays');
+    refused(calendar(Array.from({ length: 61 }, (_, i) => ({ name: `Day ${i}`, month: 1, day: 1 }))), 'BAD_CALENDAR', 'calendar.holidays');
+    refused(calendar(['Lantern Night']), 'BAD_CALENDAR', 'calendar.holidays[0]');
+    refused(one({ year: 611 }), 'BAD_CALENDAR', 'calendar.holidays[0]');
+    refused(one({ name: '' }), 'BAD_CALENDAR', 'calendar.holidays[0].name');
+    refused(one({ name: ' ​ ' }), 'BAD_CALENDAR', 'calendar.holidays[0].name');
+    refused(one({ name: 7 }), 'BAD_CALENDAR', 'calendar.holidays[0].name');
+    refused(one({ month: 'Highsun' }), 'BAD_CALENDAR', 'calendar.holidays[0].month');
+    refused(one({ month: 4 }), 'BAD_CALENDAR', 'calendar.holidays[0].month');
+    refused(one({ month: 0 }), 'BAD_CALENDAR', 'calendar.holidays[0].month');
+    refused(one({ day: 31 }), 'BAD_CALENDAR', 'calendar.holidays[0].day');
+    refused(one({ day: 0 }), 'BAD_CALENDAR', 'calendar.holidays[0].day');
+    refused(one({ day: 2.5 }), 'BAD_CALENDAR', 'calendar.holidays[0].day');
+    // A bad holiday does not hide a bad start.
+    refused(pack({ calendar: { ...CALENDAR, start: { ...CALENDAR.start, day: 31 }, holidays: [{ name: 'X', month: 1, day: 0 }] } }), 'BAD_CALENDAR', 'calendar.start.day');
+});

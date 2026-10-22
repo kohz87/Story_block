@@ -483,17 +483,24 @@ rules, and are a model for a pack's own checks.
 "calendar": {
   "era": "CY",
   "months": [{ "name": "Dawnwane", "days": 30 }, { "name": "Goldwane", "days": 30 }],
-  "start": { "year": 611, "month": "Goldwane", "day": 12, "hour": 6, "minute": 40 }
+  "start": { "year": 611, "month": "Goldwane", "day": 12, "hour": 6, "minute": 40 },
+  "holidays": [{ "name": "Lantern Night", "month": "Goldwane", "day": 2 }]
 }
 ```
 
-`{ era?, months: [{ name, days }], start?: { year, month, day, hour?, minute? } }`:
+`{ era?, months: [{ name, days }], start?: { year, month, day, hour?, minute? }, holidays?: [{ name, month, day }] }`:
 
 * `era`: text of at most 24 characters (`CY`).
 * `months`: 1 to 60 months in order, each `{ "name", "days" }` with a name of at most 40 characters (no
   two the same) and 1 to 400 days.
 * `start`: when a new story begins. `start.month` is a month's name or its number (1 = the first month)
   and is kept as the name; `day` fits that month; `hour` 0–23 and `minute` 0–59 default to 0.
+* `holidays`: at most 60 named days that come back every year, each `{ "name", "month", "day" }` and nothing
+  else. `month` is a month's name (any case) or its number and is kept as the name; `day` fits that month.
+  The name is kept on one line, invisible and control characters taken out, cut to 60 characters; a name
+  that leaves nothing is refused. A calendar without holidays (or with an empty list) has no `holidays`.
+  Story Director's World screen lists those coming within its Upcoming range while the chat runs on this
+  pack's calendar. (The Ersveil pack names none: its lore gives seasons and festivals but no dated holidays.)
 
 Any problem here is reported as `BAD_CALENDAR` and the pack is refused. Story Director reads the first
 enabled pack's calendar (query `packs.calendar`) for its clock.
@@ -609,7 +616,7 @@ The packs part (`src/v2/packs/index.js`) offers these through Story Block's core
 * query `packs.crafts` → the craft table: `[{ craft, title, stats, stations, note?, pack }]`, the default
   crafts (`pack: null`) with the enabled packs' crafts laid over them, then the packs' new crafts in pack
   order (also `craftsOf(packs)` and `DEFAULT_CRAFTS`, `STATIONS` from `src/v2/packs/index.js`);
-* query `packs.calendar` → `{ pack, era, months, start }` from the first enabled pack with a calendar,
+* query `packs.calendar` → `{ pack, era, months, start, holidays? }` from the first enabled pack with a calendar,
   or `null`;
 * query `packs.economy` → `{ pack, scale, note }` from the first enabled pack with an `economy`, or `null`.
   Read the settled scale through Story Block's `inventory.economy` (it applies the reader's override);
