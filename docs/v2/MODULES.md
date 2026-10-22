@@ -179,12 +179,24 @@ and one reply pays at most the party rank's top in such rewards, clicks after th
 turn-in past that waits, open and unpaid, for the next reply (RX-E-1). The budget is Story Block's one
 per-reply tally (`inventory.storyBudget`, which honours the reader's `storyCoinPerReply` and counts the
 reply's own `+ coin` lines too), and Story Director's own tally only on a Story Block without that query
-(RX-E-2). One story-vouched turn-in a reply.
+(RX-E-2). One story-vouched turn-in a reply by default; Story Director's Quests setting **Story's-word
+turn-ins per reply** (`quests.wordTurnIns`, 1 to 5) allows more. Quests code counts are not limited by it.
+The story's own coin in the reply of a story or system turn-in (its `+ coin` lines: `inventory.storyBudget`
+paid less vouched), when it is the reward's amount or the giver is present, counts as the reward and is
+never paid on top of it (claim `storycoin:<sid>`); a `+ coin` written after the turn-in had paid is taken
+back by the afterCapture step (`wallet.pay`). A click's turn-in is not affected.
 A story turn-in refused only by the place waits until the end of the reply (`director.turn.now.pending`); a
 later Director line of the same reply, else the `quest.settle` step of the tracker's `afterCapture` hook
 (§F121: right after the reply's last line, in that reply), pays or refuses it on the scene after all the
 reply's lines. On a Story Block without that hook the same step runs before the next reply (beforeGenerate,
-replan; Story Director #112).
+replan; Story Director #112). A Continue is the same reply: a turn-in the place refused at the end of the
+first part stays retriable (`turn.now.refused`) and the Continue's afterCapture step pays it once the party
+reaches the giver, taking the refusal's Problem back (paid once; a later reply never pays it).
+**Safeguard** (Story Director #114): the afterCapture step also turns a ready quest in from where things
+stand (goal met by code or `met: yes`, never on the turn-in's word; the place rule holds at the reply's end)
+when the reply shows it was turned in: a `~`/`!` quest line in turn-in words that does not close it, or, with
+the giver present, the story's coin equal to the reward or the reward item given (`quest.autoTurnIns`).
+While a quest is ready, the tail names it, its giver and where ("Ready to turn in: …", at most two).
 Screen: **Quests** (status text per quest: Not yet / Ready / Ready to turn in here; finished quests kept).
 
 ## D. NPC State Delta (agent NSD-hosted)
