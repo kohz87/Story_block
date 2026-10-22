@@ -1,15 +1,17 @@
-// The settings window (UI stage, step 3a): Story Suite's settings in a glass window. A header (the title, a search
-// box over every section, Close), a rail of sections (the `ss.tabs` block: icon and label, one Tab stop, the arrow
-// keys move along it, the current one is `aria-current="page"`; on a phone it is a row that scrolls sideways above
-// the page) and the page of the chosen section. What a page holds is its body (bodies.js): today the folds and rows
-// the old overlay drew, each in the section it belongs to; the form engine takes the pages over one by one.
+// The settings window (UI stage, steps 3a and 3b): Story Suite's settings in a glass window. A side column (the title, a
+// search box over every section under it, and a rail of sections: the `ss.tabs` block with icon and label, one Tab stop,
+// arrow keys along it, the current one `aria-current="page"`), Close at the window's top right, and the page of the chosen
+// section. On a phone the side is stacked above the page and the rail is a row that scrolls sideways. What a page holds is
+// its body (bodies.js): Look and Features are the form engine's; the others are still the folds and rows the old overlay
+// drew, each in the section it belongs to, until the form engine takes them over one by one.
 //
 //   const win = openSettingsWindow({ registry, settings, doc, sdk, features, promptParts, countTokens, diagnostics,
 //                                     tabs, theme, fold: PACKS_FOLD, onClose });
 //   win.select('money');  win.refresh();  win.refreshSize();  win.close();  win.isOpen();  win.root;
 //
 // `fold` opens the window on the section that holds that fold, the fold open and its summary focused (Home's "Import a
-// pack" asks for PACKS_FOLD). `bodies` replaces the section → body map (tests, and a section moved to the form
+// pack" asks for PACKS_FOLD); a module's group of features (`story-suite-features::<id>`, or the old `<id>::features`) is
+// on the Features page, its heading focused. `bodies` replaces the section → body map (tests, and a section moved to the form
 // engine). The window is a modal dialog: `<body>` carries `story-suite-open`, Tab stays inside it, a click or the
 // focus going to the page behind brings the focus back, Escape closes it (while the search box holds text, Escape
 // empties it first), and the focus goes back to where it was. Search: typing filters every section at once, a page
@@ -66,11 +68,7 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
     win.setAttribute('aria-labelledby', TITLE_ID);
-    const head = h(doc, 'header', 'ss-settings-head');
-    const title = h(doc, 'h2', 'ss-settings-title', WINDOW_TEXT.title);
-    title.id = TITLE_ID;
-    const searchBox = searchField(doc, { label: WINDOW_TEXT.searchLabel, placeholder: WINDOW_TEXT.searchPlaceholder, onInput: text => applySearch(text) });
-    searchBox.el.classList.add('ss-settings-search');
+    // Close sits at the window's top right on every width; the side column holds the title, the search and the rail.
     const close = h(doc, 'button', 'ss-settings-close story-suite-close');
     close.type = 'button';
     close.setAttribute('aria-label', WINDOW_TEXT.close);
@@ -78,9 +76,13 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
     const times = h(doc, 'span', '', '×');
     times.setAttribute('aria-hidden', 'true');
     close.appendChild(times);
-    head.append(title, searchBox.el, close);
-    const main = h(doc, 'div', 'ss-settings-main');
+    const side = h(doc, 'div', 'ss-settings-side');
+    const title = h(doc, 'h2', 'ss-settings-title', WINDOW_TEXT.title);
+    title.id = TITLE_ID;
+    const searchBox = searchField(doc, { label: WINDOW_TEXT.searchLabel, placeholder: WINDOW_TEXT.searchPlaceholder, onInput: text => applySearch(text) });
+    searchBox.el.classList.add('ss-settings-search');
     const rail = h(doc, 'div', 'ss-settings-rail');
+    side.append(title, searchBox.el, rail);
     const content = h(doc, 'div', 'ss-settings-content');
     const status = h(doc, 'p', 'ss-form-status ss-settings-status');
     status.setAttribute('role', 'status');
@@ -89,8 +91,7 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
     const empty = h(doc, 'p', 'ss-form-empty');
     empty.hidden = true;
     content.append(status, empty);
-    main.append(rail, content);
-    win.append(head, main);
+    win.append(close, side, content);
     layer.appendChild(win);
     doc.body.appendChild(layer);
     doc.body.classList.add(OPEN_CLASS);
@@ -127,7 +128,12 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
         const entry = pages.get(id);
         const make = bodies[id];
         if (typeof make !== 'function') continue;
-        entry.body = make(entry.pane, { doc, openState, label: entry.section.label, legacy, options });
+        // `changed()`: a setting this page drew changed and other pages draw what depends on it, so they are drawn again.
+        const changed = () => {
+            legacy.refresh();
+            for (const other of pages.values()) if (other !== entry) other.body?.refresh?.();
+        };
+        entry.body = make(entry.pane, { doc, openState, label: entry.section.label, legacy, options, changed });
     }
 
     // ---- showing a page
@@ -232,20 +238,29 @@ export function openSettingsWindow({ registry, settings, doc = globalThis.docume
         if (wanted.includes(SUB_FOLD)) openState.set(wanted.split(SUB_FOLD)[0], true);
         if (diagnosticsKeys(registry).includes(wanted)) openState.set(DIAGNOSTICS_FOLD, true);
     }
+    // Shows the page that holds a fold (a body's own group, or one of today's folds) and takes the focus to it. False when
+    // no page has it, or the page could not take the focus.
+    const legacyFold = key => [...content.querySelectorAll('details.story-suite-fold, details.story-suite-subfold')].find(node => node.dataset.fold === key) ?? null;
+    function openFold(key) {
+        const own = [...pages.values()].find(entry => entry.body?.has?.(key));
+        if (own) {
+            select(own.section.id);
+            return own.body.open?.(key) === true;
+        }
+        const node = legacyFold(key);
+        const owner = node ? [...pages.values()].find(entry => entry.pane.contains(node)) : null;
+        if (!node || !owner) return false;
+        select(owner.section.id);
+        node.scrollIntoView?.({ block: 'start' });
+        node.querySelector('summary')?.focus?.();
+        return true;
+    }
     legacy.start(content, {
         show: id => { if (open) select(id); },
+        open: key => { if (open) openFold(key); },
         afterRefresh: () => { if (searchText !== '') applySearch(searchText); },
     });
-    const folds = () => [...content.querySelectorAll('details.story-suite-fold, details.story-suite-subfold')];
-    const found = wanted ? folds().find(node => node.dataset.fold === wanted) : null;
-    const owner = found ? [...pages.values()].find(entry => entry.pane.contains(found)) : null;
-    select(owner?.section.id ?? DEFAULT_SECTION);
-    if (found) {
-        found.scrollIntoView?.({ block: 'start' });
-        found.querySelector('summary')?.focus?.();
-    } else {
-        const stop = rail.querySelector('[aria-current="page"]') ?? focusablesIn(win)[0];
-        stop?.focus?.();
-    }
+    select(DEFAULT_SECTION);
+    if (!(wanted && openFold(wanted))) (rail.querySelector('[aria-current="page"]') ?? focusablesIn(win)[0])?.focus?.();
     return api;
 }

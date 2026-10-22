@@ -95,8 +95,13 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.ok(overlay);
     const page = id => overlay.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === id);
     const foldsOf = id => page(id).querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Features', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
-    assert.deepEqual(foldsOf('features'), ['story-suite-features']);
+    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    // Look and Features are the form engine's: no folds. The Story Suite fold has the budgets, not the look.
+    assert.deepEqual(foldsOf('look'), []);
+    assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font']);
+    assert.deepEqual(foldsOf('features'), []);
+    assert.ok(page('features').querySelector('.ss-features-group[data-fold="story-suite-features::story-block"]'), 'Story Block\'s group of tiles');
+    assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
     assert.deepEqual(foldsOf('tabs'), ['story-suite', 'story-block/packs']);
     assert.ok(page('tabs').querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
     // The prompt size is under Story Suite's own fold; its Tabs sub-fold with it.
@@ -109,7 +114,6 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.deepEqual(texts(page('assist'), '.story-suite-subfold > summary > b'), ['Assist']);
     // Its fold stays in Modules with the line to its features (its features are in the Features fold).
     assert.match(page('modules').querySelector('details[data-fold="story-block"] .story-suite-feature-link').textContent, /^Features: \d+ of \d+ on — change$/);
-    assert.ok(overlay.querySelector('details[data-fold="story-suite-features::story-block"]'), 'Story Block\'s sub-fold in Features');
     // Events, debug information that can spoil the story, is a folded sub-fold of Diagnostics; Versions is with the modules.
     assert.deepEqual(foldsOf('diagnostics'), ['story-suite-diagnostics']);
     assert.ok(page('diagnostics').querySelector('details[data-fold="story-suite-diagnostics"] details.story-suite-subfold[data-fold="story-block/events"] .ss-events'));

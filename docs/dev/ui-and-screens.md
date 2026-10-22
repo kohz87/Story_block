@@ -118,8 +118,8 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 ## The form engine (UI stage, step 1b PR B)
 
 `src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
-the look, and writes through the same settings store the settings window writes through. The window (below, step 3a)
-still draws today's folds; steps 3b–3g move its sections to this engine one by one. The UI sample shows a demo form
+the look, and writes through the same settings store the settings window writes through. The settings window (below)
+draws Look and Features with it (step 3b) and still draws today's folds elsewhere; steps 3c–3g move the other sections one by one. The UI sample shows a demo form
 (`mountDemoForm`, `UI_SAMPLE_FORM`).
 
 ```js
@@ -171,6 +171,16 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   range with `aria-valuetext`; the list's Remove names the item ("Remove Frostmoon"), the focus goes to the next
   Remove or to Add after a removal and to the new row's first field after an Add; the search box is `role="search"` with a
   hidden label, Escape clears it, and the count of rows shown is a polite live region.
+- **The features form** (`features.js`, step 3b): `renderFeaturesForm(parent, { features, doc, onChange })`, Features (MODULES §F100) as
+  switch tiles through the feature store (`list()`, `set(id, on)`; the settings store is not involved): one group per module by name
+  (a labelled `section`, an `h4` and "N of M on" beside it, `data-fold="story-suite-features::<module id>"`, the heading
+  `tabindex=-1` for `focusGroup(moduleId)`), a grid of tiles in it (`ss-features-grid`: two columns where there is room, one on a
+  phone). A tile (`ss-feature`) is the name (a `label` for the switch), the description, a note when the feature changes the fixed prompt
+  (`PROMPT_HINT`) and, for a feature whose `needs` no module meets, its reason with the switch off and disabled; the switch is the engine's
+  `switchField`. `refresh()` updates in place (the focus stays on the switch) unless the set of features changed; `filter(text)` searches
+  name, description, module name and id, leaves out groups with no match, returns the count. → `{ el, filter, refresh, field(id),
+  group(moduleId), focusGroup(moduleId), setDisabled, keys, destroy }`. Classes: `ss-features`, `-group`, `-grid`, `ss-feature`
+  (+ `-text`, `-name`, `-help`, `-cost`, `-why`, `-unavailable`). `sectionBlock` takes `level` (the heading's, default 3).
 - **Classes** (glass.css): `ss-form`, `ss-section` (+ `-head`, `-title`, `-hint`, `-body`), `ss-field` (+ `-inline`,
   `-text`, `-label`, `-help`, `-note`, `-tag`, `-control`, `-error`, `-count`, `-readonly`, `-disabled`), `ss-input` (+ `ss-text`,
   `ss-number`, `ss-select`), `ss-switch` (+ `-on`, `-knob`), `ss-slider` (+ `-input`, `-value`; the fill is `--ss-fill`),
@@ -179,50 +189,62 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 - The helpers shared with the settings window's folds (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are
   imported from `host-ui.js` through `view/form/schema.js`: they move there when the last section leaves the folds.
 
-## The settings window (UI stage, step 3a)
+## The settings window (UI stage, steps 3a and 3b)
 
-`src/v2/view/settings/` is the settings window's shell; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`.
-It replaced `openSettingsOverlay` (host-ui.js). The shell only: **every section still draws today's folds and rows**, so
-nothing regressed; 3b–3g replace the bodies.
+`src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
+`openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
+Look and Features the form engine's** (below). 3c–3g replace the other bodies.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
-  the window's glass) holds the window `.ss-settings` (`role="dialog"`, `aria-modal`, labelled by its title): a header
-  (`h2` "Story Suite", the search box, Close `.ss-settings-close.story-suite-close`), then the rail and the page. From 760px it is a
-  centred 1120 × 780 window, 26px radius, rail 250px; on a phone it is full screen, the rail a row that scrolls sideways above
-  the page (no horizontal overflow at 390px: checked live). Page: a heading (`h3`, 22/26px, 800) and a line under it, then
-  the body's pane.
-- **Sections** (`sections.js`): `SETTINGS_SECTIONS`, in the concept's order: Features, Money, Assist, Tabs & Packs, Modules,
-  Diagnostics (id, label, Font Awesome icon, title, sub). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
+  the window's glass) holds the window `.ss-settings` (`role="dialog"`, `aria-modal`, labelled by its title). Its children, in
+  tab order: Close (`.ss-settings-close.story-suite-close`, **absolute at the window's top right on every width**), the side
+  (`.ss-settings-side`: the `h2` "Story Suite", **the search box under it**, the rail) and the page (`.ss-settings-content`). From 760px
+  a centred 1120 × 780 window, 26px radius, a grid of the 250px side and the page, a hairline between; on a phone full screen, the
+  side stacked above the page (title row with Close, the search, then the rail as a row that scrolls sideways; no horizontal
+  overflow at 390px: checked live). A page: a heading (`h3`, 22/26px, 800) and a line under it, then the body's pane; from 760px the
+  heading row leaves room for Close.
+- **Sections** (`sections.js`): `SETTINGS_SECTIONS`: **Look**, Features, Money, Assist, Tabs & Packs, Modules, Diagnostics (id,
+  label, Font Awesome icon, title, sub). Look is first in the rail; the window opens on Features (`DEFAULT_SECTION`). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
   command that selects): a `nav` of buttons, `aria-current="page"` on the chosen one, roving tabindex (one Tab stop, arrows, Home,
   End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
-- **Where today's folds go** (`routeOf`): Features fold → Features; Story Block's **General group → Money**, its **Assist panel and
-  Assist group → Assist**; the Story Suite fold (Panel style, Glass strength, Font, the budgets, Prompt size, its Tabs sub-fold) and
+- **Where today's folds go** (`routeOf`): Story Block's **General group → Money**, its **Assist panel and Assist group → Assist**;
+  the Story Suite fold (the budgets, Prompt size, its Tabs sub-fold: Panel style, Glass strength and Font moved to Look) and
   Story Block's **Packs** fold → Tabs & Packs; every module's fold (what is left of Story Block's: the line to its features and
   its Inner chatter group) and **Versions** → Modules; Diagnostics (with Events) → Diagnostics. Fold ids did not change:
   `openSettings({ fold: PACKS_FOLD })` shows the section that holds the fold (found in the DOM, not in a table), opens it
-  and focuses its summary; `"<id>::features"` still means that module's sub-fold of Features. `renderSettingsHost(root, { sections })`
-  does the placing (`sections: { ids, place(id), route(piece), defaultOpen(key), show(id), afterRefresh() }`); without `sections`
-  it draws the one column of folds as before (the tests of the folds use that).
-- **Bodies** (`bodies.js`): `SECTION_BODIES`, a map **section id → `(pane, ctx) → { filter(text) → number, refresh?(), destroy?() }`**.
-  Steps 3b–3g replace one entry each, e.g. `SECTION_BODIES.features = (pane, ctx) => { const form = renderSettingsForm(pane, { … });
-  return { filter: text => form.filter(text), refresh: () => form.refresh(), destroy: () => form.destroy() }; }`; a section with its
-  own body never gets drawn by the shared legacy host (it gets no pane), and `openSettingsWindow({ bodies })` takes another map (tests).
-  `createLegacySettings` is the shared host behind the default entries.
+  and focuses its summary; a module's features are a **group** on the Features page (key `story-suite-features::<module id>`, the
+  old `"<id>::features"` too, the bare `story-suite-features` the page): the page shows and the group's heading takes the focus.
+  Bodies answer `has(key)` / `open(key)` for such keys (`openFold` in window.js asks them first, then the folds). `renderSettingsHost(root,
+  { sections })` does the placing (`sections: { ids, place(id), route(piece), defaultOpen(key), hostKeys(key), show(id), open(key),
+  afterRefresh() }`); a section with no pane (Look, Features) is not drawn by it (`hostKeys` leaves the look settings out of the Story
+  Suite fold, the Features fold is not built); without `sections` it draws the one column of folds as before (the tests of the folds
+  use that).
+- **Bodies** (`bodies.js`): `SECTION_BODIES`, a map **section id → `(pane, ctx) → { filter(text) → number, refresh?(), destroy?(),
+  has?(key), open?(key) }`**; `ctx` is `{ doc, openState, label, legacy, options, changed() }` (`changed()`: a setting this page drew changed
+  and other pages draw what depends on it: they are drawn again). Steps 3c–3g replace one entry each, e.g. `SECTION_BODIES.money =
+  (pane, ctx) => { const form = renderSettingsForm(pane, { … }); return { filter: t => form.filter(t), refresh: () => form.refresh(),
+  destroy: () => form.destroy() }; }`; a section with its own body never gets drawn by the shared legacy host (it gets no pane), and
+  `openSettingsWindow({ bodies })` takes another map (tests). `createLegacySettings` is the shared host behind the default entries.
+- **Look** (`lookBody`): `renderSettingsForm` over the host schema's `panelStyle`, `glassStrength` and `font` (`LOOK_KEYS`; `moduleId:
+  null`, so `settings.set(null, key, value)` as the Story Suite fold wrote), and a change calls `theme.apply()` so the look follows at
+  once. **Features** (`featuresBody`): `renderFeaturesForm` (view/form/features.js) over the feature store. Both are searched with the
+  engine's own `filter`.
 - **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
   answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
   the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
   `shownOne`, `none` "No settings match …"). The folds' rows, features and panels are search entries (`renderSettingsHost(...).entries()`:
   label, help, group and key, the same `matchesSearch`); a fold with no match is hidden, one with a match opens for the search and goes
   back as the reader left it when it ends. A panel that matches (Packs, Tabs, Diagnostics) shows whole and counts once. Escape in
-  the box empties it first; choosing a section ends the search. The old Features filter inside the Features fold is hidden (this covers it).
+  the box empties it first; choosing a section ends the search. (The old Features filter box went with the Features fold.)
 - **Keyboard and focus**: the window opens with the focus on the rail's current item (or on the summary of the fold asked for);
   Tab and Shift+Tab stay inside it (the reachable controls: not hidden, not in a closed fold, not `tabindex=-1`), a focus that lands on the
   page behind comes back, Escape closes it, and the focus returns to what had it (the bar's Suite button). A click on the dimmed
   page beside the window closes it, a text selection dragged out of it does not. `<body>` carries `story-suite-open` while it is open.
 - **The folds in the look** (settings.css, `.ss-settings …`, a class heavier than host.css): folds and sub-folds as tile cards, rows with
-  token borders, fields and buttons on the tokens, the browser's checkbox drawn as the switch, each feature a tile (two to a row where
-  there is room). This is temporary: it goes with the folds.
+  token borders, fields and buttons on the tokens, the browser's checkbox drawn as the switch. This is temporary: it goes with the
+  folds (step 3b removed what only the old Features fold needed). The form engine's sections inside the window are tiles, not glass on
+  glass.
 
 ## Key files and functions
 
@@ -245,7 +267,8 @@ nothing regressed; 3b–3g replace the bodies.
 
 - `tests/v2/view/` (`template/`, `mounts/`, `widgets/`, `render-screen.test.js`, `tab-order.test.js`),
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
-- The settings window: `tests/v2/ux/settings-window.test.js` (frame, rail, sections, folds, keyboard, search, bodies),
+- The settings window: `tests/v2/ux/settings-window.test.js` (frame, rail, sections, Look, Features, folds, keyboard, search, bodies),
+  `tests/v2/view/form/features.test.js` (the features form),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
   `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.

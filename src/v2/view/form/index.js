@@ -2,3 +2,4 @@
 export { FIELD_KINDS, FORM_TEXT, changeNote, fieldKind, labelOf, matchesSearch, optionsOf } from './schema.js';
 export { RENDERERS, chipsField, linesField, newId, numberField, profileField, searchField, sectionBlock, selectField, sliderField, switchField, textField } from './fields.js';
 export { renderModuleForm, renderSettingsForm } from './form.js';
+export { featureGroups, renderFeaturesForm } from './features.js';

@@ -1407,6 +1407,81 @@
     outline: 2px solid var(--ss-accent);
 }
 
+/* ---- the features form (view/form/features.js; UI stage step 3b): a group per module, a tile per feature ---- */
+/* The groups are plain headings over their tiles (no card of their own): the tiles are the cards. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-features {
+    gap: var(--ss-space-4);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-features .ss-features-group.ss-section {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    gap: var(--ss-space-2);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-features .ss-section-head {
+    padding: 0 var(--ss-space-1) 0;
+}
+/* Two columns where there is room (the window is 870px wide at most), one on a phone. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: var(--ss-space-3);
+    min-width: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ss-space-3);
+    min-width: 0;
+    padding: var(--ss-space-3) 14px;
+    border: 1px solid var(--ss-border);
+    border-radius: var(--ss-radius-l);
+    background: var(--ss-tile);
+    color: var(--ss-text);
+    font-family: var(--ss-font);
+    box-sizing: border-box;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature-text {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature-name {
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature-help {
+    color: var(--ss-muted);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature-cost {
+    margin-top: 2px;
+    color: var(--ss-muted);
+    font-size: 12px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature-why {
+    margin-top: 2px;
+    color: var(--ss-warn);
+    font-size: 12px;
+    font-weight: 600;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature-unavailable {
+    opacity: 0.75;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-feature .ss-switch {
+    margin-top: 2px;
+}
+
 /* helpers of the UI sample's demo form */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-sample-form {
     display: flex;

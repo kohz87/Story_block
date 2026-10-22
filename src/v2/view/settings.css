@@ -10,6 +10,7 @@
 
 /* ---- the window */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings {
+    position: relative;
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -28,6 +29,8 @@
 }
 @media (min-width: 760px) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
         max-width: 1120px;
         max-height: 780px;
         padding-top: 0;
@@ -37,28 +40,12 @@
     }
 }
 
-/* ---- the header: title and Close; the search under them on a phone, between them from 760px */
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-head {
-    flex: none;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--ss-space-2) var(--ss-space-3);
-    padding: var(--ss-space-3) var(--ss-space-4) var(--ss-space-2);
-    border-bottom: 1px solid var(--ss-border);
-}
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-title {
-    grid-column: 1;
-    grid-row: 1;
-    margin: 0;
-    font-family: var(--ss-font);
-    font-size: 22px;
-    font-weight: 800;
-    line-height: 1.2;
-}
+/* Close: the window's top right, on every width (over the title row on a phone, over the page's heading row from 760px). */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-close {
-    grid-column: 2;
-    grid-row: 1;
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + var(--ss-space-3));
+    right: var(--ss-space-4);
+    z-index: 2;
     width: 40px;
     height: 40px;
     margin: 0;
@@ -76,9 +63,34 @@
     outline: 2px solid var(--ss-accent);
     outline-offset: 2px;
 }
+@media (min-width: 760px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-close {
+        top: var(--ss-space-4);
+        right: var(--ss-space-4);
+    }
+}
+
+/* ---- the side: the title, the search and the rail. A phone: the three stacked above the page (the rail a row that
+   scrolls sideways); from 760px a column of its own down the window's left. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-side {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ss-space-2);
+    min-width: 0;
+    padding: var(--ss-space-3) 0 0;
+    border-bottom: 1px solid var(--ss-border);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-title {
+    margin: 0;
+    padding: 0 calc(var(--ss-space-4) + 48px) 0 var(--ss-space-4);
+    font-family: var(--ss-font);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 40px;
+}
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-search {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    margin: 0 var(--ss-space-4);
     min-width: 0;
 }
 /* The box has its own clear button (searchField); the browser's second one is hidden. */
@@ -87,58 +99,27 @@
     appearance: none;
     display: none;
 }
-@media (min-width: 760px) {
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-head {
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        padding: var(--ss-space-4) 20px;
-    }
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-search {
-        grid-column: 2;
-        grid-row: 1;
-        justify-self: end;
-        width: min(100%, 420px);
-    }
-}
-
-/* ---- the rail and the page */
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-main {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-rail {
-    flex: none;
     min-width: 0;
-    border-bottom: 1px solid var(--ss-border);
 }
 /* A phone: the sections in a row that scrolls sideways (the tabs block's own list). */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-rail .ss-tabs-list {
-    padding: var(--ss-space-2) var(--ss-space-4);
-}
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-content {
-    flex: 1 1 auto;
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    padding: var(--ss-space-4) var(--ss-space-4) calc(var(--ss-space-5) + env(safe-area-inset-bottom, 0px));
+    padding: var(--ss-space-1) var(--ss-space-4) var(--ss-space-2);
 }
 @media (min-width: 760px) {
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-main {
-        display: grid;
-        grid-template-columns: 250px minmax(0, 1fr);
-    }
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-rail {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-side {
+        min-height: 0;
         overflow-y: auto;
-        padding: var(--ss-space-3);
+        padding: var(--ss-space-4) var(--ss-space-3);
         border-bottom: 0;
         border-right: 1px solid var(--ss-border);
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-title {
+        padding: 0 10px 10px;
+        line-height: 1.2;
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-search {
+        margin: 0 0 var(--ss-space-2);
     }
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-rail .ss-tabs-list {
         flex-direction: column;
@@ -162,8 +143,30 @@
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-rail .ss-tabs-count {
         margin-left: auto;
     }
+}
+
+/* ---- the page */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--ss-space-4) var(--ss-space-4) calc(var(--ss-space-5) + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 760px) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-content {
         padding: 20px 24px 28px;
+    }
+    /* Room for Close beside the first heading. */
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-page-head,
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-status {
+        padding-right: 52px;
     }
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-status {
@@ -200,6 +203,15 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-pane {
     min-width: 0;
     gap: 12px;
+}
+
+/* ---- the form engine's sections inside the window: a tile each, not glass on glass */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .ss-section {
+    border-radius: var(--ss-radius-l);
+    background: var(--ss-tile);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
 }
 
 /* ---- what the sections still draw: the old folds and rows, in the look */
@@ -317,9 +329,6 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature-link {
     color: var(--ss-accent);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature-filter {
-    display: none;
-}
 /* A switch in place of the browser's checkbox. */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-row > input[type="checkbox"] {
     -webkit-appearance: none;
@@ -373,27 +382,6 @@
     outline: 2px solid var(--ss-accent);
     outline-offset: 2px;
 }
-/* The features: a tile each, two to a row where there is room. */
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature-group > .story-suite-subfold-body {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-    gap: var(--ss-space-3);
-    padding-top: var(--ss-space-1);
-    padding-bottom: var(--ss-space-3);
-}
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature-group .story-suite-feature {
-    align-items: start;
-    padding: var(--ss-space-3);
-    border: 1px solid var(--ss-border);
-    border-radius: var(--ss-radius-l);
-    background: var(--ss-tile);
-}
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature .story-suite-feature-hint,
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-feature .story-suite-feature-why {
-    color: var(--ss-warn);
-    opacity: 1;
-}
-
 @media (prefers-reduced-motion: reduce) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-row > input[type="checkbox"],
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings .story-suite-row > input[type="checkbox"]::before {
