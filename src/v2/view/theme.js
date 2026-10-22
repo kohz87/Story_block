@@ -8,15 +8,16 @@
 //   (glass card, tile, bar, status badge, pill, section label) from them; a screen's own `theme` (SPEC
 //   §13.3) still sets any of them on its root, and wins.
 // * light or dark: worked out from SillyTavern's own theme: the body text against the blur tint (light
-//   text on a darker tint is a dark theme). The glass takes a share of the tint, so a theme's hue shows
-//   through. SillyTavern sets its theme variables on <html>'s style; a change there is read again.
+//   text on a darker tint is a dark theme). The glass takes a share of the tint's colour, so a theme's hue
+//   shows through, but never its opacity: the glass's alpha is the reader's Glass strength (30–90%, 50% is the
+//   concept's: about half see-through), so the page behind always shows. SillyTavern sets its theme variables on <html>'s style; a change there is read again.
 // * the reader's "Panel style" (Settings → Story Suite): Glass (the default), Solid (no blur, an opaque
 //   tint: for slow devices or a busy background) or SillyTavern (SillyTavern's own colours and blur, as
 //   before the UI stage). A system asking for less transparency gets Solid instead of Glass; one asking
 //   for less motion gets no transitions.
-// * the reader's "Font": Nunito (the default) or the theme's own font. Nunito is fetched from Google
-//   Fonts only while SillyTavern allows external media (User Settings → "Forbid external media" off);
-//   otherwise a Nunito installed on the device is used, else the system's own UI font.
+// * the reader's "Font": Nunito (the default) or the theme's own font. Nunito ships with the extension
+//   (assets/fonts/nunito, SIL OFL; view/fonts.css), so it is the same offline and while SillyTavern's "Forbid
+//   external media" is on; nothing is fetched. If it cannot load, the system's own UI font.
 //
 // Everything is written into one <style data-ss-theme> in the page's head, every rule under
 // :where(<Story Suite roots>) (the same roots as controls.css), so SillyTavern's own UI is never touched:
@@ -34,8 +35,6 @@ export const SCHEMES = Object.freeze(['dark', 'light']);
 export const DEFAULT_PANEL = 'glass';
 export const DEFAULT_FONT = 'nunito';
 
-/** Google Fonts' Nunito (400–800), loaded only while SillyTavern allows external media. */
-export const NUNITO_URL = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap';
 export const FONT_STACKS = Object.freeze({
     nunito: '\'Nunito\', system-ui, -apple-system, \'Segoe UI\', Roboto, sans-serif',
     theme: 'var(--mainFontFamily, inherit)',
@@ -71,11 +70,12 @@ const SHARED = Object.freeze({
     '--ss-motion': '0.2s',
 });
 
-// The concept's two palettes (uiconcept Main/Settings: the `t` token blocks). `glass` and `glassStrong`
-// are the bases the theme's tint is mixed into; `solid` is the opaque base for the Solid panel style.
+// The concept's two palettes (uiconcept Main/Settings: the `t` token blocks). `base` is the colour of the
+// glass (its alpha comes from the reader's Glass strength, glassAlphas); `solid` is the opaque base for the
+// Solid panel style.
 export const PALETTES = Object.freeze({
     dark: Object.freeze({
-        glass: 'rgba(30, 33, 50, 0.52)', glassStrong: 'rgba(30, 33, 50, 0.66)', solid: '#1e2132',
+        base: [30, 33, 50], solid: '#1e2132',
         tile: 'rgba(255, 255, 255, 0.09)', border: 'rgba(255, 255, 255, 0.16)', shadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
         text: '#f1f2f8', muted: '#b6bacb', track: 'rgba(255, 255, 255, 0.14)',
         pill: 'rgba(255, 255, 255, 0.14)', pillText: '#f1f2f8', badge: '#f1f2f8', badgeText: '#141720',
@@ -83,7 +83,7 @@ export const PALETTES = Object.freeze({
         good: '#72dea4', chatter: '#d2cbff',
     }),
     light: Object.freeze({
-        glass: 'rgba(255, 255, 255, 0.56)', glassStrong: 'rgba(255, 255, 255, 0.7)', solid: '#f6f5fb',
+        base: [255, 255, 255], solid: '#f6f5fb',
         tile: 'rgba(255, 255, 255, 0.72)', border: 'rgba(255, 255, 255, 0.9)', shadow: '0 10px 30px rgba(70, 60, 130, 0.14)',
         text: '#23253a', muted: '#5b5e74', track: 'rgba(35, 37, 58, 0.1)',
         pill: '#2c2f46', pillText: '#ffffff', badge: '#2c2f46', badgeText: '#ffffff',
@@ -92,10 +92,31 @@ export const PALETTES = Object.freeze({
     }),
 });
 
-// How much of SillyTavern's blur tint goes into the glass (the rest is the concept's own base).
+// How much of SillyTavern's blur tint goes into the glass's COLOUR (the rest is the concept's own base). Only
+// the tint's colour is used: the glass keeps its own alpha (Glass strength), whatever the tint's opacity is.
 export const TINT_SHARE = 30;
 const TINT = 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))';
 const mixTint = base => `color-mix(in srgb, ${TINT} ${TINT_SHARE}%, ${base})`;
+
+/** The reader's Glass strength (host setting `glassStrength`, a percentage): its range and default. */
+export const GLASS_MIN = 30;
+export const GLASS_MAX = 90;
+export const DEFAULT_GLASS = 50;
+const clampStrength = value => {
+    const n = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+    if (value === '' || value === null || value === undefined || !Number.isFinite(n)) return DEFAULT_GLASS;
+    return Math.min(GLASS_MAX, Math.max(GLASS_MIN, Math.round(n)));
+};
+/**
+ * The glass's alpha for a Glass strength (30–90%): the concept's own at 50%: dark 0.50 / strong 0.66, light
+ * 0.55 / 0.72; a higher strength is denser (at most 0.98), a lower one clearer.
+ */
+export function glassAlphas(scheme, strength = DEFAULT_GLASS) {
+    const s = clampStrength(strength) / 100;
+    const light = scheme === 'light';
+    const round = n => Math.round(Math.min(0.98, n) * 100) / 100;
+    return { glass: round(s + (light ? 0.05 : 0)), strong: round(s + (light ? 0.22 : 0.16)) };
+}
 
 // ---- colours ---------------------------------------------------------------------------------------
 
@@ -173,7 +194,7 @@ export function decideScheme({ body = '', tint = '' } = {}) {
 export function themeChoice(settings = {}) {
     const panel = PANEL_STYLES.includes(settings?.panelStyle) ? settings.panelStyle : DEFAULT_PANEL;
     const font = FONTS.includes(settings?.font) ? settings.font : DEFAULT_FONT;
-    return { panel, font };
+    return { panel, font, strength: clampStrength(settings?.glassStrength) };
 }
 
 // ---- tokens ----------------------------------------------------------------------------------------
@@ -183,7 +204,7 @@ export function themeChoice(settings = {}) {
  * where relative colours work) makes the glass fully opaque; without them Solid's glass is the opaque
  * base with a share of the tint, which is opaque whenever the tint is.
  */
-export function schemeTokens(scheme, panel, { opaque = false } = {}) {
+export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT_GLASS, tinted = false } = {}) {
     if (panel === 'sillytavern') {
         // SillyTavern's own colours and blur, light or dark as the theme is.
         return [
@@ -211,9 +232,15 @@ export function schemeTokens(scheme, panel, { opaque = false } = {}) {
     const p = PALETTES[scheme] ?? PALETTES.dark;
     const solid = panel === 'solid';
     const opaqueOf = color => (opaque ? `rgb(from ${color} r g b / 1)` : color);
+    const alpha = glassAlphas(scheme, strength);
+    const [r, g, b] = p.base;
+    // Glass: the concept's colour at the reader's alpha. With `tinted` (where relative colours work) SillyTavern's
+    // tint colour is mixed in, its own alpha dropped: the alpha is always the Glass strength's.
+    const tintColour = `rgb(from ${TINT} r g b / 1)`;
+    const glassOf = a => (tinted ? `rgb(from color-mix(in srgb, ${tintColour} ${TINT_SHARE}%, rgb(${r} ${g} ${b})) r g b / ${a})` : `rgba(${r}, ${g}, ${b}, ${a})`);
     return [
-        ['--ss-glass', solid ? opaqueOf(mixTint(p.solid)) : mixTint(p.glass)],
-        ['--ss-glass-strong', solid ? opaqueOf(mixTint(p.solid)) : mixTint(p.glassStrong)],
+        ['--ss-glass', solid ? opaqueOf(mixTint(p.solid)) : glassOf(alpha.glass)],
+        ['--ss-glass-strong', solid ? opaqueOf(mixTint(p.solid)) : glassOf(alpha.strong)],
         ['--ss-tile', p.tile],
         ['--ss-border', p.border],
         ['--ss-shadow', p.shadow],
@@ -235,10 +262,10 @@ export function schemeTokens(scheme, panel, { opaque = false } = {}) {
 }
 
 /** Every token for a choice: the scheme's colours, then the shared sizes, colours and the font. */
-export function themeTokens({ scheme = 'dark', panel = DEFAULT_PANEL, font = DEFAULT_FONT } = {}) {
+export function themeTokens({ scheme = 'dark', panel = DEFAULT_PANEL, font = DEFAULT_FONT, strength = DEFAULT_GLASS } = {}) {
     return [
         ['--ss-scheme', panel === 'sillytavern' ? 'sillytavern' : scheme],
-        ...schemeTokens(scheme, panel),
+        ...schemeTokens(scheme, panel, { strength }),
         ...Object.entries(SHARED),
         ['--ss-font', FONT_STACKS[font] ?? FONT_STACKS.nunito],
     ];
@@ -252,12 +279,21 @@ const forced = scheme => `${ROOT_SELECTOR}:where(.ss-scheme-${scheme}), ${ROOT_S
  * schemes (classes `ss-scheme-light`, `ss-scheme-dark`), Solid's opaque glass where relative colours work, Solid in place of Glass
  * for a system that asks for less transparency, and no transitions for one that asks for less motion.
  */
-export function themeCss({ scheme = 'dark', panel = DEFAULT_PANEL, font = DEFAULT_FONT } = {}) {
-    const choice = { scheme: SCHEMES.includes(scheme) ? scheme : 'dark', ...themeChoice({ panelStyle: panel, font }) };
-    const out = [`/* Story Suite theme (src/v2/view/theme.js): ${choice.panel}, ${choice.panel === 'sillytavern' ? 'as SillyTavern' : choice.scheme}, ${choice.font}. */`];
+export function themeCss({ scheme = 'dark', panel = DEFAULT_PANEL, font = DEFAULT_FONT, strength = DEFAULT_GLASS } = {}) {
+    const choice = { scheme: SCHEMES.includes(scheme) ? scheme : 'dark', ...themeChoice({ panelStyle: panel, font, glassStrength: strength }) };
+    const out = [`/* Story Suite theme (src/v2/view/theme.js): ${choice.panel}, ${choice.panel === 'sillytavern' ? 'as SillyTavern' : choice.scheme}, ${choice.font}${choice.panel === 'glass' ? `, glass ${choice.strength}%` : ''}. */`];
     out.push(block(ROOT_SELECTOR, themeTokens(choice)));
     if (choice.panel !== 'sillytavern') {
-        for (const s of SCHEMES) out.push(block(forced(s), [['--ss-scheme', s], ...schemeTokens(s, choice.panel)]));
+        for (const s of SCHEMES) out.push(block(forced(s), [['--ss-scheme', s], ...schemeTokens(s, choice.panel, choice)]));
+    }
+    // Glass takes SillyTavern's tint into its colour (never its alpha) where relative colours work.
+    const glassOnly = tokens => tokens.filter(([name]) => /^--ss-glass/.test(name));
+    if (choice.panel === 'glass') {
+        const tinted = [
+            block(ROOT_SELECTOR, glassOnly(schemeTokens(choice.scheme, 'glass', { strength: choice.strength, tinted: true })), '    '),
+            ...SCHEMES.map(s => block(forced(s), glassOnly(schemeTokens(s, 'glass', { strength: choice.strength, tinted: true })), '    ')),
+        ];
+        out.push(`@supports (color: rgb(from red r g b)) {\n${tinted.join('\n')}\n}`);
     }
     const solidBlocks = (indent, opaque) => [
         block(ROOT_SELECTOR, schemeTokens(choice.scheme, 'solid', { opaque }).filter(([name]) => /glass|overlay|blur/.test(name)), indent),
@@ -275,22 +311,12 @@ export function themeCss({ scheme = 'dark', panel = DEFAULT_PANEL, font = DEFAUL
 // ---- the bridge in the page ------------------------------------------------------------------------
 
 /**
- * Whether SillyTavern lets the page load outside media (fonts included): its User Settings → "Forbid
- * external media" off. Unknown → not allowed.
+ * createThemeBridge({ doc, settings, readVar }) → { apply(), current(), destroy() }.
+ * `settings()` → the host settings ({ panelStyle, glassStrength, font }); `readVar(name)` → a theme
+ * variable's value (default: computed on <html>). apply() writes the theme sheet (only when it changed); a
+ * change to <html>'s style (SillyTavern applying a theme) applies again.
  */
-export function externalMediaAllowed(context = globalThis.SillyTavern?.getContext?.()) {
-    const power = context?.powerUserSettings;
-    return Boolean(power && typeof power === 'object' && power.forbid_external_media === false);
-}
-
-/**
- * createThemeBridge({ doc, settings, externalMedia, readVar }) → { apply(), current(), destroy() }.
- * `settings()` → the host settings ({ panelStyle, font }); `externalMedia()` → whether Nunito may be
- * fetched; `readVar(name)` → a theme variable's value (default: computed on <html>). apply() writes the
- * theme sheet (only when it changed) and adds or removes the Nunito stylesheet; a change to <html>'s
- * style (SillyTavern applying a theme) applies again.
- */
-export function createThemeBridge({ doc = globalThis.document, settings = () => ({}), externalMedia = () => externalMediaAllowed(), readVar = null } = {}) {
+export function createThemeBridge({ doc = globalThis.document, settings = () => ({}), readVar = null } = {}) {
     const win = doc?.defaultView ?? globalThis;
     const read = readVar ?? (name => {
         try { return String(win.getComputedStyle?.(doc.documentElement)?.getPropertyValue?.(name) ?? '').trim(); } catch { return ''; }
@@ -307,28 +333,15 @@ export function createThemeBridge({ doc = globalThis.document, settings = () => 
         }
         return style;
     }
-    function fontLink(on) {
-        const there = doc.head?.querySelector?.('link[data-ss-font]') ?? null;
-        if (on && !there) {
-            const link = doc.createElement('link');
-            link.setAttribute('data-ss-font', 'nunito');
-            link.setAttribute('rel', 'stylesheet');
-            link.setAttribute('href', NUNITO_URL);
-            doc.head?.appendChild(link);
-        } else if (!on && there) there.remove();
-    }
     function apply() {
         let values = {};
         try { values = settings() ?? {}; } catch { values = {}; }
-        const { panel, font } = themeChoice(values);
+        const { panel, font, strength } = themeChoice(values);
         const scheme = decideScheme({ body: read('--SmartThemeBodyColor'), tint: read('--SmartThemeBlurTintColor') });
-        let allowed = false;
-        try { allowed = Boolean(externalMedia()); } catch { allowed = false; }
-        last = { scheme, panel, font, fontLoaded: font === 'nunito' && allowed };
+        last = { scheme, panel, font, strength };
         const text = themeCss(last);
         const node = sheet();
         if (node.textContent !== text) node.textContent = text;
-        fontLink(last.fontLoaded);
         return last;
     }
     let observer = null;

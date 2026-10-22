@@ -2,6 +2,8 @@
 
 ## Unreleased (v2-ui)
 
+- **Glass fix** (feedback on 1a: "almost no transparency", "font and bar feel different"): the glass keeps the concept's alpha (dark 0.50 / strong 0.66, light 0.55 / 0.72) and takes only the colour of SillyTavern's blur tint, not its opacity; new host setting **Glass strength** (slider 30–90%, default 50) under Panel style, Solid ignores it. **Nunito is bundled** (`assets/fonts/nunito`, woff2 latin and latin-ext 400/600/700/800, OFL licence, `view/fonts.css`): the Google Fonts fetch and `externalMediaAllowed` are gone, so it renders the same offline. Type scale, bars (7px, flat), pills and badges set to the concept's sizes. The UI sample's panes have no background of their own; they sit over see-through colour blobs and stripes.
+
 The UI stage on the `v2-ui` branch: one look for every Story Suite screen (glass panels over SillyTavern's
 background, light and dark, the font Nunito). Step 1a: tokens, the theme bridge, the first building blocks.
 

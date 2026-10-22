@@ -51,12 +51,19 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 - **Theme bridge** (`createThemeBridge`, started by `ui-host.js` `mountUi`): one `<style data-ss-theme>` in the
   head (`themeCss({ scheme, panel, font })`). Light or dark from SillyTavern's `--SmartThemeBodyColor` against
   `--SmartThemeBlurTintColor` (`decideScheme`: lighter text than tint is dark; a tint under 35% alpha leaves it
-  to the text; nothing readable: dark); a share (30%) of the tint is mixed into the glass. Re-read when
+  to the text; nothing readable: dark); a share (30%) of the tint's COLOUR is mixed into the glass, never its
+  opacity: the glass's alpha is the reader's **Glass strength** (`glassStrength`, a slider 30–90%, default 50; at
+  50% the concept's: dark 0.50 / strong 0.66, light 0.55 / 0.72, `glassAlphas`), so the page behind always shows
+  (the mix uses relative colours, `@supports`; without them the plain concept colour). Solid and Follow
+  SillyTavern ignore it. Blur is `blur(16px) saturate(1.2)`. Re-read when
   SillyTavern changes `<html>`'s style (a MutationObserver). Host settings (Settings → Story Suite):
   **Panel style** `panelStyle` = `glass` (default) | `solid` (no blur, opaque glass) | `sillytavern` (its own
-  colours and blur); **Font** `font` = `nunito` (default) | `theme` (`--mainFontFamily`). Nunito is fetched from
-  Google Fonts (`<link data-ss-font>`) only while SillyTavern's "Forbid external media" is off; else a local
-  Nunito, else `system-ui`. `prefers-reduced-transparency` turns Glass into Solid; `prefers-reduced-motion`
+  colours and blur); **Font** `font` = `nunito` (default) | `theme` (`--mainFontFamily`). Nunito ships with the extension
+  (`assets/fonts/nunito/`, woff2 latin and latin-ext in 400/600/700/800, SIL OFL in `OFL.txt`, `@font-face` in
+  `view/fonts.css`), so it is the same offline and with "Forbid external media" on; nothing is fetched. Fallback
+  `system-ui`. A parent that sets its own background or a filter hides the page from the glass inside it: the
+  legacy panels (`.story-suite-sheet`, `.story-suite-overlay`, the game view's surface) still have theirs until
+  their screens move to the look (steps 2 and 3). `prefers-reduced-transparency` turns Glass into Solid; `prefers-reduced-motion`
   sets `--ss-motion: 0s`. SillyTavern's own "No blur effect" (`body.no-blur`) still removes every blur. The
   class `ss-scheme-light` / `ss-scheme-dark` inside a root forces a scheme there (`data-ss-*` attributes are
   reserved by the sanitiser, so it is a class). Nothing is set on SillyTavern's elements.
@@ -79,8 +86,12 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
     <div class="ss-bar ss-bar-mp"><div class="ss-bar-track" data-bind-var="--ss-fill: ratio(q.pc.mp.cur, q.pc.mp.max)"><div class="ss-bar-fill"></div></div></div>
   </section>
   ```
+- **Type scale** (the concept's): section label 15px / 600 / 1.4px spacing / uppercase / muted; bar head 13px /
+  600 / 0.8px / uppercase, label muted and value 700 in the text colour; names 800; body 14px / 400–600; pill
+  3px 10px, 14px / 600; status badge 44px with a 12px / 700 counter chip; bar track 7px, fully round, flat fill.
 - **The UI sample** (`src/v2/screens/ui-sample.js`, developers): Settings → Diagnostics → **Show the UI
-  sample** draws every block in a light and a dark pane over SillyTavern's background, through DOMPurify and
+  sample** draws every block in a light and a dark pane (no background of their own, over see-through colour
+  blobs and stripes on SillyTavern's background), through DOMPurify and
   the allow-list like any screen. Not a tab or a game-view screen. For checking a theme and for screenshots.
 - Conventions for the next blocks: class names `ss-<block>` and `ss-<block>-<part>`, states as
   `ss-<block>-<state>` classes or ARIA attributes, colours and sizes only from the tokens, every rule under

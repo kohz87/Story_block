@@ -5,6 +5,7 @@
 @import url('./mounts.css');
 @import url('./controls.css');
 @import url('./glass.css');
+@import url('./fonts.css');
 
 :root {
     --story-suite-line: var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35));
@@ -203,6 +204,9 @@ body.story-suite-open { overflow: hidden; }
 .story-suite-row[data-type="bool"] > input { justify-self: end; margin: 0; }
 .story-suite-row[data-type="list"] { grid-template-columns: minmax(0, 1fr); }
 /* A read-only field (`readOnly`): its value and help shown, its controls disabled. */
+.story-suite-slider { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.story-suite-slider > input { flex: 1 1 auto; min-width: 0; margin: 0; }
+.story-suite-slider-value { min-width: 2.5em; text-align: right; font-variant-numeric: tabular-nums; }
 .story-suite-row-readonly :disabled { opacity: 0.75; cursor: not-allowed; }
 .story-suite-subsection { margin-top: 12px; }
 .story-suite-subsection > h4 { margin: 8px 0 4px; }

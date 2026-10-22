@@ -47,7 +47,7 @@ function pane(scheme) {
     const name = scheme === 'light' ? 'Light' : 'Dark';
     return `
 <section class="ss-sample-pane ss-scheme-${scheme}" aria-label="${name}">
-  <p class="ss-label">${name} · glass card, pills, bars, status badges</p>
+  <p class="ss-label ss-glass-strong ss-sample-tag">${name} · glass card, pills, bars, status badges</p>
   <div class="ss-glass">
     <div class="ss-sample-row" style="align-items: center">
       <h3 class="ss-sample-title">{{ q.pc.name }}</h3>
@@ -71,11 +71,11 @@ function pane(scheme) {
       <ss-widget data-each="q.statuses as s" name="ss.status" data-props='{"label":"{{ s.label }}","icon":"{{ s.icon }}","left":"{{ s.left }}","unit":"{{ s.unit }}","tone":"{{ s.tone }}","id":"{{ s.id }}"}'></ss-widget>
     </div>
   </div>
-  <p class="ss-label">Tiles · level badge, tick, lock, chosen</p>
+  <p class="ss-label ss-glass-strong ss-sample-tag">Tiles · level badge, tick, lock, chosen</p>
   <div class="ss-glass ss-sample-grid3">
     <ss-widget data-each="q.skills as k" name="ss.tile" data-props='{"label":"{{ k.label }}","icon":"{{ k.icon }}","count":"{{ k.count }}","state":"{{ k.state }}","selected":"{{ k.selected }}","tone":"{{ k.tone }}","hint":"{{ k.hint }}","id":"{{ k.id }}"}'></ss-widget>
   </div>
-  <p class="ss-label">Bag tiles · count in the corner, rarity rings</p>
+  <p class="ss-label ss-glass-strong ss-sample-tag">Bag tiles · count in the corner, rarity rings</p>
   <div class="ss-glass ss-sample-row">
     <ss-widget data-each="q.bag as b" name="ss.tile" data-props='{"label":"{{ b.label }}","icon":"{{ b.icon }}","count":"{{ b.count }}","countStyle":"corner","tone":"{{ b.tone }}","showLabel":false,"id":"{{ b.id }}"}'></ss-widget>
   </div>
