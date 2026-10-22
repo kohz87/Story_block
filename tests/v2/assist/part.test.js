@@ -25,7 +25,8 @@ test('the part: one command, one query, two hooks, an Assist settings section, n
 test('settings: both helpers off by default, fields the overlay knows, the module registers', () => {
     assert.deepEqual(part.settings.defaults, { assistClassifier: false, assistExtractor: false, assistProfile: '' });
     assert.deepEqual(DEFAULTS, part.settings.defaults);
-    assert.deepEqual(Object.fromEntries(Object.entries(SCHEMA).map(([key, field]) => [key, field.type])), { assistClassifier: 'bool', assistExtractor: 'bool', assistProfile: 'text' });
+    // The two switches are Story Block's features now (MODULES §F100); only the profile is a settings field.
+    assert.deepEqual(Object.fromEntries(Object.entries(SCHEMA).map(([key, field]) => [key, field.type])), { assistProfile: 'text' });
     for (const field of Object.values(SCHEMA)) assert.ok(field.label && field.help);
     const def = { id: 'story-block', commands: part.commands, queries: part.queries, hooks: part.hooks, settings: part.settings };
     assert.deepEqual(definitionProblems(def), []);

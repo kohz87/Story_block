@@ -70,13 +70,13 @@ test('requires.storyBlock: met, refused with "needs Story Block ≥ x", or a ran
     assert.doesNotThrow(() => createRegistry().register({ id: 'any', requires: { storyBlock: '>=99' } }));
 });
 
-test('unknown definition fields (features, a new requires key) are logged once each and ignored', () => {
+test('unknown definition fields (a new top-level field, a new requires key) are logged once each and ignored', () => {
     const messages = [];
     const registry = createRegistry({ hostVersion: '2.0.0', warn: message => messages.push(message) });
-    registry.register({ id: 'future', name: 'Future', features: [{ id: 'wear' }], requires: { storyBlock: '^2', rpgBattle: '^2' }, queries: { 'future.ping': () => 'pong' } });
+    registry.register({ id: 'future', name: 'Future', achievements: [{ id: 'wear' }], requires: { storyBlock: '^2', rpgBattle: '^2' }, queries: { 'future.ping': () => 'pong' } });
     assert.equal(registry.query('future.ping')(), 'pong');
     assert.deepEqual(messages, [
-        'Future: "features" is not a module field this Story Block knows; it is ignored.',
+        'Future: "achievements" is not a module field this Story Block knows; it is ignored.',
         'Future: "requires.rpgBattle" is not a requires field this Story Block knows; it is ignored.',
     ]);
 });

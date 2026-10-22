@@ -416,7 +416,11 @@ These settle questions agents raised; the host changes they need are made at int
     3 (later, SB-equip).
 100. **Features**: optional mechanics are toggles in a Features subsection, declared by
     `registerModule({ features: [{ id, label, describe, default, prompt? }] })`; an off feature contributes
-    no capture kind, context, command (`FEATURE_OFF`), screen or widget (after the freeze).
+    no capture kind, context, command (`FEATURE_OFF`), screen or widget (after the freeze). Built as SPEC §6
+    "Features": `feature: '<id>'` on kinds, commands, queries, hooks, the context or `context.parts`,
+    screens, tabs and widgets; `ctx.feature` / `view.feature` / `sdk.feature`; the reader's choice in
+    `extension_settings.storySuite.features`; Story Block's own `story-block.hud`, `.cards`, `.preroll`,
+    `.extractor`.
 101. All TRS ideas 1–24 are accepted: 1–12 before beta, 13–24 after it.
 102. **Crafting with stats** (after the freeze): companions craft too; story-driven `! craft X | with: …`
     rolled with the reply's own d20 (F80) and a code-built modifier table; known recipes recorded per

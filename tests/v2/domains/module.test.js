@@ -26,7 +26,10 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
     assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card']);
     assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, assistClassifier: false, assistExtractor: false, assistProfile: '' });
-    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'storyCoinPerReply', 'assistClassifier', 'assistExtractor', 'assistProfile']);
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'storyCoinPerReply', 'assistProfile']);
+    assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
+        ['story-block.hud', true], ['story-block.cards', true], ['story-block.preroll', false], ['story-block.extractor', false],
+    ]);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));
 });
