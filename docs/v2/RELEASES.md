@@ -149,8 +149,10 @@ updated.
 - Settings: folds keep their size and scroll, groups as sub-folds, lists typed as text, Features sub-folds with **Find a feature**, a module's own panel never three folds deep, the assist's connection profile as a dropdown, **Prompt size** and **Share of the context**.
 - **Settings → Diagnostics**: a plain report to copy or save for a bug report (no keys, no chat text).
 
-**For module authors** (Story Block #125, #129)
+**For module authors** (Story Block #125, #129, #133)
 - `sdk.callModel` for a module's own model call (on a connection profile, never switching yours), and the `profile` settings field. A call on the chat's connection waits until the reply is in.
+- Two new replay rules (SPEC §2.2, Story Block #133): `ctx.absolute(domain, path)` makes a command's write of a counter a set, not a move, so it is exact on replay and later moves add on top (Story Director's `~ time <date>`); rule (d), `ctx.ifThere(domain, path)`, passes over a command's writes inside a thing on replay when that thing is gone, and the rest of the block applies (Story Director's `time.settle`). Both only for a domain the module owns.
+- A settings field may be `readOnly` (true, or a function of the module's values): drawn disabled with its value and help.
 
 **More fixes**
 - Radios and checkboxes in templates work in SillyTavern (its DOMPurify dropped their type; Story Block #120).
@@ -178,6 +180,10 @@ updated.
   - a reply deleted in the middle of a day that already has its digest now changes the digest too
     (Story Director #96);
   - the guide's old Roll button.
+- Fixed at the candidate: a `~ time <date>` set no longer shifts after an earlier middle delete, and time
+  passing still closes what it closed (Story Block #133, Story Director #104); Story Director's calendar
+  fields are read-only while Calendar is "pack" (#133, #104); a choice past the cap after a Continue is a
+  LIMITED Problem on the card, as in the original reply (#133).
 - Fixed in the final soak: a small context (SillyTavern's default 4,095 tokens for chat completion) no
   longer loses the conversation; a save that timed out and still reached the server late no longer
   overwrites a newer one (read back after a timeout, saved again).
@@ -199,13 +205,8 @@ Still open in beta.1:
 - **Balance.** Even and strong fights land on their target in about 30–36 % of the test cells: how each
   build meets each creature (build × monster matchups) still swings the odds more than the tier does. The
   fighter is the weakest ready-made build in even fights from level 5. Tuning per build comes after beta.
-- **Story time.** A `~ time <date>` set (the scene's time written as a date) shifts when an earlier reply
-  in the middle of the chat is deleted.
 - **Older chats.** In a chat saved before this update, a quest click (a Finish) made there can still be
   paid twice on Re-read of that reply.
-- **Choices.** A Continue past the choices cap hides the extra choices without a Problem saying so.
-- **Calendar settings.** Story Director's calendar fields stay editable while Calendar is set to "pack";
-  the pack's calendar is the one used, and what you type there only counts once you switch to Custom.
 - **Saving.**
   - A timed-out save that reaches the server more than about five minutes later is not caught by the
     read-back. After a reload of the page, a file found older can no longer be put back (the copy was on
