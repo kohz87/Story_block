@@ -457,9 +457,17 @@ sdk.registerModule({
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
   The overlay is one centred column of folds: Story Suite (the tail budget and the prompt size), the
   modules' own folds (`settings.folds: [{ id, title, hint?, render(el, api) }]`; Story Block's Packs),
-  Features, a fold per module, Versions. Inside a module's fold its Features come first, then a sub-fold
+  Features (a filter box, then a sub-fold per module by name, "N of M on"), a fold per module with
+  settings, Versions. A module with features but no settings has no fold of its own. Inside a module's
+  fold one line says how many of its features are on and opens Features at that module; then a sub-fold
   per settings group: a field's optional `group` (text), else its label's prefix ("Calendar: Era" → group
   Calendar, label Era), else General; then its `section`. A `list` field draws one compact line per item.
+  A list whose fields are all `text` and `int` also has a text form, a textarea with one item per line
+  and the fields in order split by ":" (`Frostmoon: 30`), with an **Edit as text** / **Edit as rows**
+  switch; the field's optional `form: 'lines'` starts it there (any other `form` is ignored). The text is
+  read when it changes: a line that does not read (missing a field, not a whole number, outside
+  `min`/`max`, past 100 lines) is named under it and nothing is stored until every line reads. With one
+  `text` field, extra colons belong to it (`Day: of Ash: 30`).
 * **Features** (MODULES §F100): the optional mechanics a reader switches on and off.
   * `features: [{ id, label, describe?, default?, prompt?, needs? }]`. `id` is `<module-id>.<name>` (lowercase
     letters, digits, `_`, `-` after the dot); `label` is text of at most 60 characters, `describe` at most
