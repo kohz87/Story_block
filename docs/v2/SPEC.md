@@ -432,6 +432,16 @@ One hidden block at the end of the reply:
   the live capture, Re-read, swipes, Continue (its own text only) and the rebuild read the same. Re-read
   of a reply saved before this takes such a line too and hides it. Kinds of a feature that is off have
   no head. Reasoning is never read.
+* **Display kinds** (MODULES §F115). A kind may be `display: true | { perReply?, noun?, read?(line) → { value } |
+  { error } }`: its lines are for the reader alone. No command runs for them and nothing is stored (no receipt,
+  no op, no `meta.rev`); they stay in the reply's hidden comment, and what is shown is read from there each time
+  it is drawn (`extras.js displayLines`, the same rule as at capture: `readDisplayLine`), so the live reply,
+  Re-read, swipes, deletes and a rebuild agree. At capture a line `read` refuses is a Problem (`INVALID`), one
+  past `perReply` too (`LIMITED`, the first ones kept); a line of a feature that is off is a quiet
+  `FEATURE_OFF`. Story Block's two: `? choice Text` (4 a reply, 80 code points; buttons under the latest reply
+  that only fill the message box) and `~ chatter Name: thought` (3 a reply, 40 + 140 code points; a folded
+  strip under each reply, never sent back unless the reader's `chatterInPrompt` setting adds the answered
+  reply's thoughts as one optional tail line).
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).
@@ -578,7 +588,8 @@ sdk.registerModule({
     static part says "Changes the fixed prompt once (one slower reply)."
   * Story Block's own: `story-block.hud` (the status strip, on), `story-block.cards` (the cards under
     replies, on; each card screen keeps its own switch), `story-block.preroll` (needs the `check` kind)
-    and `story-block.extractor` (the assist helpers, off). The older switches (`storySuite.hud`, the
+    and `story-block.extractor` (the assist helpers, off), `story-block.choices` and `story-block.chatter`
+    (the display kinds `choice` and `chatter`, off; §4.4, MODULES §F115). The older switches (`storySuite.hud`, the
     `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
   * A module without `features` behaves as before. On a host older than features, `features` and the
     `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:
