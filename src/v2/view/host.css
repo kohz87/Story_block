@@ -5,6 +5,7 @@
 @import url('./mounts.css');
 @import url('./controls.css');
 @import url('./glass.css');
+@import url('./settings.css');
 @import url('./fonts.css');
 
 :root {
@@ -54,9 +55,13 @@
 .story-suite-sheet {
     position: fixed; left: 0; right: 0; top: 22dvh; bottom: auto; z-index: 3001;
     height: 78dvh; display: flex; flex-direction: column;
-    background: var(--story-suite-bg); color: var(--story-suite-fg);
+    /* Under Glass the theme (view/theme.js) sets --ss-sheet-bg and --ss-sheet-blur: the dense glass, so the page
+       shows through and the glass cards inside blur it. Solid and Follow SillyTavern leave them unset: the tint, as ever. */
+    background: var(--ss-sheet-bg, var(--story-suite-bg)); color: var(--story-suite-fg);
     border-top: 1px solid var(--story-suite-line); border-radius: 14px 14px 0 0;
-    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35); backdrop-filter: blur(var(--SmartThemeBlurStrength, 8px));
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35);
+    -webkit-backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 8px)));
+    backdrop-filter: var(--ss-sheet-blur, blur(var(--SmartThemeBlurStrength, 8px)));
 }
 .story-suite-sheet[hidden] { display: none; }
 .story-suite-sheet-head {
@@ -94,32 +99,21 @@
 .story-suite-tab.active { border-color: var(--story-suite-line); background: rgba(128, 128, 128, 0.14); color: var(--story-suite-accent); }
 .story-suite-pane { padding-top: 8px; min-width: 0; }
 
-/* ---- the settings overlay ----
-   A header with Close, then one scrolling area (the whole width, so the scroll bar sits at the window's
-   edge) holding a centred column of folds. The folds never shrink: a closed one keeps its full summary
-   row however long an open one is, and the area scrolls instead (no fixed heights, no negative margins). */
+/* ---- the settings window ----
+   `.story-suite-overlay` is the layer over the page (the window is `.ss-settings`, settings.css): a dimmed page beside
+   the window on a wide screen, the window itself on a phone. The layer paints a see-through scrim and has no blur or
+   filter of its own: one on a parent would hide the page from the window's glass. The folds the sections still hold
+   (the old overlay's) never shrink: a closed one keeps its full summary row however long an open one is, and the
+   page scrolls instead (no fixed heights, no negative margins). */
 body.story-suite-open { overflow: hidden; }
 .story-suite-overlay {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 3100;
-    display: flex; flex-direction: column; box-sizing: border-box;
-    background: var(--story-suite-bg); color: var(--story-suite-fg);
-    backdrop-filter: blur(var(--SmartThemeBlurStrength, 8px));
-    padding-top: env(safe-area-inset-top, 0px);
+    display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+    background: color-mix(in srgb, var(--ss-scrim, rgba(0, 0, 0, 0.55)) 60%, transparent);
 }
 .story-suite-overlay *, .story-suite-overlay *::before, .story-suite-overlay *::after { box-sizing: border-box; }
-.story-suite-overlay-header {
-    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 8px 16px; border-bottom: 1px solid var(--story-suite-line);
-}
-.story-suite-overlay-title { font-size: 1.1em; }
-.story-suite-overlay-header .menu_button { width: auto; margin: 0; min-height: 36px; padding: 4px 14px; }
-.story-suite-scroll {
-    flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto;
-    overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable;
-}
-.story-suite-overlay .story-suite-panel {
-    width: 100%; max-width: 760px; margin: 0 auto;
-    padding: 12px 16px calc(32px + env(safe-area-inset-bottom, 0px));
+@media (min-width: 760px) {
+    .story-suite-overlay { padding: 24px; }
 }
 .story-suite-folds { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .story-suite-folds > * { flex: none; min-width: 0; }

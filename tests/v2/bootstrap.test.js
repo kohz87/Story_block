@@ -89,22 +89,31 @@ test('a module\'s layout screen with a standard widget shows as a tab and in the
     doc.querySelector('.story-suite-sheet-close').click();
 });
 
-test('the settings overlay opens from the bar with the Packs fold second and the Story Block fold\'s Assist panel in its fold, Diagnostics (with Events) last before Versions', () => {
+test('the settings window opens from the bar: Packs and the prompt size under Tabs & Packs, Story Block\'s money and Assist settings on their own pages, Diagnostics (with Events) in its own', () => {
     doc.querySelector('.story-suite-bar-settings').click();
     const overlay = doc.querySelector('#story_suite_v2_overlay');
     assert.ok(overlay);
-    assert.deepEqual(overlay.querySelectorAll('details.story-suite-fold').slice(0, 3).map(node => node.dataset.fold), ['story-suite', 'story-block/packs', 'story-suite-features']);
-    assert.ok(overlay.querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
-    // The prompt size, then the Story Block fold's panels; its features are in the Features fold, with a line to them.
-    assert.deepEqual(texts(overlay, '.story-suite-subsection > h4'), ['Prompt size', 'Assist']);
-    // Events, debug information that can spoil the story, is a folded sub-fold of Diagnostics.
-    assert.ok(overlay.querySelector('details[data-fold="story-suite-diagnostics"] details.story-suite-subfold[data-fold="story-block/events"] .ss-events'));
-    // Its panels sit in its fold itself (no "More" sub-fold), its groups below them; Diagnostics before Versions.
-    assert.deepEqual(texts(overlay, 'details[data-fold="story-block"] .story-suite-subfold > summary > b'), ['General', 'Assist']);
-    assert.ok(overlay.querySelector('details[data-fold="story-block"] > .story-suite-fold-body > .story-suite-section .ss-assist'));
-    assert.deepEqual(overlay.querySelectorAll('details.story-suite-fold').slice(-2).map(node => node.dataset.fold), ['story-suite-diagnostics', 'story-suite-versions']);
-    assert.match(overlay.querySelector('details[data-fold="story-block"] .story-suite-feature-link').textContent, /^Features: \d+ of \d+ on — change$/);
+    const page = id => overlay.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === id);
+    const foldsOf = id => page(id).querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
+    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Features', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    assert.deepEqual(foldsOf('features'), ['story-suite-features']);
+    assert.deepEqual(foldsOf('tabs'), ['story-suite', 'story-block/packs']);
+    assert.ok(page('tabs').querySelector('details.story-suite-fold-packs .ss-packs-import'), 'Import pack file in the Packs fold');
+    // The prompt size is under Story Suite's own fold; its Tabs sub-fold with it.
+    assert.deepEqual(texts(page('tabs'), '.story-suite-subsection > h4'), ['Prompt size']);
+    assert.ok(page('tabs').querySelector('details[data-fold="story-suite::tabs"]'));
+    // Story Block's money settings are its General group, its Assist settings the Assist panel and the Assist group.
+    assert.deepEqual(texts(page('money'), '.story-suite-subfold > summary > b'), ['General']);
+    assert.deepEqual(texts(page('assist'), '.story-suite-subsection > h4'), ['Assist']);
+    assert.ok(page('assist').querySelector('.story-suite-section .ss-assist'));
+    assert.deepEqual(texts(page('assist'), '.story-suite-subfold > summary > b'), ['Assist']);
+    // Its fold stays in Modules with the line to its features (its features are in the Features fold).
+    assert.match(page('modules').querySelector('details[data-fold="story-block"] .story-suite-feature-link').textContent, /^Features: \d+ of \d+ on — change$/);
     assert.ok(overlay.querySelector('details[data-fold="story-suite-features::story-block"]'), 'Story Block\'s sub-fold in Features');
+    // Events, debug information that can spoil the story, is a folded sub-fold of Diagnostics; Versions is with the modules.
+    assert.deepEqual(foldsOf('diagnostics'), ['story-suite-diagnostics']);
+    assert.ok(page('diagnostics').querySelector('details[data-fold="story-suite-diagnostics"] details.story-suite-subfold[data-fold="story-block/events"] .ss-events'));
+    assert.equal(foldsOf('modules').at(-1), 'story-suite-versions');
     overlay.querySelector('.story-suite-close').click();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });

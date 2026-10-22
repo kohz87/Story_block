@@ -5,7 +5,8 @@ import { installFakeDom } from '../ui-fake-dom.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { createSettings } from '../../src/v2/sdk.js';
 import { readFileSync } from 'node:fs';
-import { DIAGNOSTICS_FOLD, DIAGNOSTICS_TEXT, EVENTS_FOLD, FEATURES_FOLD, OPEN_CLASS, PACKS_FOLD, SETTINGS_TEXT, SUB_FOLD, createTabHost, emptyValue, featuresFoldOf, groupFields, linesToList, listTextFields, listToLines, openSettingsOverlay, promptSize, readInt, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { DIAGNOSTICS_FOLD, DIAGNOSTICS_TEXT, EVENTS_FOLD, FEATURES_FOLD, OPEN_CLASS, PACKS_FOLD, SETTINGS_TEXT, SUB_FOLD, createTabHost, emptyValue, featuresFoldOf, groupFields, linesToList, listTextFields, listToLines, promptSize, readInt, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { openSettingsWindow as openSettingsOverlay } from '../../src/v2/view/settings/window.js';
 import { createCoreModule } from '../../src/v2/domains/index.js';
 import { EVENTS_NOTE } from '../../src/v2/events/index.js';
 import { packsFor } from '../../src/v2/runtime.js';
@@ -252,24 +253,27 @@ test('folds: the top folds are the root\'s own children, each a summary and a bo
     assert.ok(root.querySelectorAll('details.story-suite-subfold').length > 0);
 });
 
-test('folds: host.css gives them a summary row with a chevron, no fixed heights, and a scrolling overlay', () => {
+test('folds: host.css gives them a summary row with a chevron, no fixed heights; the window scrolls its page', () => {
     const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
-    const rule = selector => {
-        const at = css.indexOf(`${selector} {`);
+    const windowCss = readFileSync(new URL('../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    const rule = (source, selector) => {
+        const at = source.indexOf(`${selector} {`);
         assert.ok(at >= 0, `${selector} has a rule`);
-        return css.slice(at, css.indexOf('}', at));
+        return source.slice(at, source.indexOf('}', at));
     };
-    assert.match(rule('.story-suite-folds > *'), /flex: none/, 'a closed fold never shrinks');
+    assert.match(rule(css, '.story-suite-folds > *'), /flex: none/, 'a closed fold never shrinks');
     assert.match(css, /\.story-suite-fold > summary, \.story-suite-subfold > summary \{[^}]*min-height: 44px/);
     assert.match(css, /summary::before, \.story-suite-subfold > summary::before \{[^}]*border-right/, 'the chevron');
     assert.match(css, /\[open\] > summary::before[^{]*\{ transform: rotate\(45deg\); \}/);
-    const scroll = rule('.story-suite-scroll');
-    assert.match(scroll, /overflow-y: auto/);
-    assert.match(scroll, /min-height: 0/);
-    assert.match(rule('.story-suite-overlay .story-suite-panel'), /max-width: 760px/);
-    assert.match(rule('.story-suite-overlay'), /height: 100dvh/);
+    const content = rule(windowCss, ':where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen]) .ss-settings-content');
+    assert.match(content, /overflow-y: auto/);
+    assert.match(content, /min-height: 0/);
+    const layer = rule(css, '.story-suite-overlay');
+    assert.match(layer, /height: 100dvh/);
+    assert.doesNotMatch(layer, /backdrop-filter|filter:/, 'a filter on the layer would hide the page from the window\'s glass');
+    assert.doesNotMatch(layer, /background:\s*var\(--story-suite-bg\)/, 'the layer is no opaque surface any more');
     // No fixed heights or negative margins on any settings fold or row.
-    const settingsCss = css.slice(css.indexOf('/* ---- the settings overlay'), css.indexOf('.story-suite-drawer-buttons'));
+    const settingsCss = css.slice(css.indexOf('/* ---- the settings window'), css.indexOf('.story-suite-drawer-buttons'));
     assert.doesNotMatch(settingsCss, /margin[^;]*:\s*-\d/);
     const heights = [...settingsCss.matchAll(/(?<![-\w])height:\s*(\d+px)/g)].map(match => match[1]);
     assert.deepEqual([...new Set(heights)].sort(), ['32px', '7px', '8px'], 'fixed heights only on the chevron, the × and the meter; folds and rows have none');
@@ -500,42 +504,46 @@ test('open folds stay open across a redraw, sub-folds too; a closed default-open
     assert.equal(foldAt(third, key('group:Bag')).open, true, 'another render with the same state');
 });
 
-test('the overlay: a header and one scrolling area; Escape closes it and the focus goes back; it can open at a fold', () => {
+test('the settings window: a header, a rail and a page; Escape closes it and the focus goes back; it can open at a fold', () => {
     const ctx = { extensionSettings: {} };
     const { registry, settings } = setup(createCoreModule({ packs: packsFor(ctx) }), rpg());
     const opener = doc.createElement('button');
     doc.body.appendChild(opener);
     opener.focus();
-    // The document's own listeners (the fake one has none): the overlay's focus guard goes there.
+    // The document's own listeners (the fake one has none): the window's focus guard goes there.
     const listeners = [];
     doc.addEventListener = (type, fn) => listeners.push({ type, fn });
     doc.removeEventListener = (type, fn) => { const at = listeners.findIndex(entry => entry.type === type && entry.fn === fn); if (at >= 0) listeners.splice(at, 1); };
     const overlay = openSettingsOverlay({ registry, settings, doc, openState: new Map() });
-    assert.equal(overlay.root.getAttribute('aria-modal'), 'true');
-    assert.equal(overlay.root.getAttribute('aria-labelledby'), 'story_suite_v2_overlay_title');
-    assert.deepEqual(overlay.root.children.map(node => node.className), ['story-suite-overlay-header', 'story-suite-scroll']);
-    assert.equal(overlay.root.querySelector('.story-suite-scroll > .story-suite-panel').classList.contains('story-suite-folds'), true);
-    assert.ok(doc.activeElement === overlay.root.querySelector('.story-suite-close'), 'the focus starts in the dialog');
+    const win = overlay.root.querySelector('.ss-settings');
+    assert.equal(win.getAttribute('role'), 'dialog');
+    assert.equal(win.getAttribute('aria-modal'), 'true');
+    assert.equal(win.getAttribute('aria-labelledby'), 'story_suite_v2_overlay_title');
+    assert.equal(overlay.root.querySelector('#story_suite_v2_overlay_title').textContent, 'Story Suite');
+    assert.deepEqual(win.children.map(node => node.className), ['ss-settings-head', 'ss-settings-main']);
+    assert.deepEqual(overlay.root.querySelectorAll('.ss-settings-pane').map(node => node.parentNode.dataset.ssSection), ['features', 'money', 'assist', 'tabs', 'modules', 'diagnostics']);
+    assert.ok(doc.activeElement === overlay.root.querySelector('.ss-tabs-item[aria-current="page"]'), 'the focus starts on the rail');
     // The page behind cannot take the focus while it is open.
     opener.focus();
     for (const entry of listeners.filter(item => item.type === 'focusin')) entry.fn({ target: opener });
-    assert.ok(doc.activeElement === overlay.root.querySelector('.story-suite-close'));
-    overlay.root.querySelector('.story-suite-panel').dispatch('keydown', { key: 'Escape' });
+    assert.ok(win.contains(doc.activeElement));
+    overlay.root.querySelector('.ss-settings-content').dispatch('keydown', { key: 'Escape' });
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 0);
     assert.equal(overlay.isOpen(), false);
     assert.ok(doc.activeElement === opener, 'back where it was');
-    // Opened at the Packs fold (Home's "Import a pack"): that fold open, its summary focused.
+    // Opened at the Packs fold (Home's "Import a pack"): its section shown, that fold open, its summary focused.
     const atPacks = openSettingsOverlay({ registry, settings, doc, fold: PACKS_FOLD, openState: new Map() });
     const packs = foldAt(atPacks.root, PACKS_FOLD);
     assert.equal(packs.open, true);
+    assert.equal(atPacks.section(), 'tabs');
     assert.equal(foldAt(atPacks.root, 'rpg-battle').open, false);
     assert.ok(doc.activeElement === packs.querySelector('summary'));
-    // Opening again closes the first one (one overlay, one focus guard).
+    // Opening again closes the first one (one window, one focus guard).
     const second = openSettingsOverlay({ registry, settings, doc, openState: new Map() });
     assert.equal(atPacks.isOpen(), false);
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 1);
     second.close();
-    assert.equal(listeners.length, 0, 'every overlay took its focus guard with it');
+    assert.equal(listeners.length, 0, 'every window took its focus guard with it');
     opener.remove();
     delete doc.addEventListener;
     delete doc.removeEventListener;

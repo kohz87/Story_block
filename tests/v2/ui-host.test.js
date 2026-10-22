@@ -53,8 +53,9 @@ test('settings: the overlay counts the next reply\'s prompt (turn.preview) with 
     const sent = JSON.stringify(st.ctx.extensionPrompts ?? null);
     const overlay = ui.openSettings();
     const root = doc.querySelector('#story_suite_v2_overlay');
-    const folds = root.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(folds.slice(0, 2), ['story-suite', 'story-block/packs'], 'Packs second, from the live core module');
+    const tabsPage = root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === 'tabs');
+    const folds = tabsPage.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
+    assert.deepEqual(folds, ['story-suite', 'story-block/packs'], 'Packs after Story Suite\'s own, on the Tabs & Packs page, from the live core module');
     assert.equal(runtime.registry.settingsDefs().find(def => def.moduleId === 'story-block').folds[0].id, 'packs');
     const size = root.querySelector('.story-suite-size');
     assert.equal(size.dataset.exact, 'false');

@@ -12,7 +12,9 @@
 //   choice, text, list of {…}; a list one compact line per item, or, when its fields are text and whole
 //   numbers, a textarea with one item per line: `form: 'lines'` starts there); values are read and
 //   written through createSettings() (extension_settings.storySuite.modules[id]). Open folds stay open
-//   across redraws. `openSettingsOverlay` puts it in a full-screen dialog that scrolls.
+//   across redraws. The settings window (view/settings/window.js, UI step 3a) shows it in sections: `renderSettingsHost`
+//   with `sections` draws each fold, and for Story Block's own fold each of its parts (Money, Assist), into the page of the
+//   section it belongs to (view/settings/sections.js), and lists what a search can find (`entries()`).
 //   Features (MODULES §F100): the Features fold has a filter box and one sub-fold per module (by name,
 //   "N of M on"), a switch per feature with its label and description; a feature that changes the
 //   static prompt part says so (PROMPT_HINT). A settings field (`{ …, feature }`) or custom panel (a
@@ -740,7 +742,15 @@ const FOLD_SELECTOR = 'details.story-suite-fold, details.story-suite-subfold';
  * A module's `section(el, api)` gets api = { get(key), set(key, value), values(), sdk } (a section
  * given as a title plus render(el, api) is the same panel). Returns { refresh(), refreshSize() }.
  */
-export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, openState = new Map(), diagnostics = null, tabs = null, theme = null }) {
+export function renderSettingsHost(root, { registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, openState = new Map(), diagnostics = null, tabs = null, theme = null, sections = null }) {
+    // What a search can find: every settings row, feature and panel drawn, `{ kind, key, field: { label, help }, group,
+    // node }` (`node` is where it is now: a row drawn again replaces it). Rebuilt with each draw; `entries()` gives it.
+    let found = [];
+    const note = (kind, key, field, group, node) => {
+        const entry = { kind, key, field, group, node };
+        found.push(entry);
+        return entry;
+    };
     const featureList = () => (features && typeof features.list === 'function' ? features.list() : []);
     // A settings field or panel under a feature that is off is not drawn (its stored value is kept).
     const hiddenByFeature = item => {
@@ -750,7 +760,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
     // A fold opens as the reader left it (this redraw or an earlier one), else as `open` says.
     function remember(details, open = false) {
         const key = details.dataset.fold;
-        details.open = openState.has(key) ? openState.get(key) === true : open;
+        details.open = openState.has(key) ? openState.get(key) === true : open || sections?.defaultOpen?.(key) === true;
         details.addEventListener('toggle', () => { if (!details.dataset.filtered) openState.set(key, details.open === true); });
         return details;
     }
@@ -805,7 +815,11 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             const inner = fold(doc, featuresFoldOf(moduleId), name, fill(SETTINGS_TEXT.featuresOn, { on, n: own.length }), 'story-suite-subfold');
             inner.details.dataset.module = moduleId;
             inner.details.classList.add('story-suite-feature-group');
-            for (const feature of own) inner.body.appendChild(featureRow(doc, feature, next => setFeature(feature.id, next, featureInputId('overview', feature.id)), 'overview'));
+            for (const feature of own) {
+                const row = featureRow(doc, feature, next => setFeature(feature.id, next, featureInputId('overview', feature.id)), 'overview');
+                note('feature', feature.id, { label: feature.label, help: feature.describe }, `${name} Features`, row);
+                inner.body.appendChild(row);
+            }
             body.appendChild(remember(inner.details, groups.length === 1));
             return { details: inner.details, rows: [...inner.body.querySelectorAll('.story-suite-feature')], own };
         });
@@ -851,6 +865,8 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
     // A module's fold says how many of its features are on, with a button to the Features fold at its sub-fold.
     function openFeaturesAt(moduleId) {
         const key = featuresFoldOf(moduleId);
+        // In the settings window the Features section may be another page than the one shown.
+        sections?.show?.(sections.route({ type: 'features' }));
         const nodes = [...root.querySelectorAll(FOLD_SELECTOR)];
         const sub = nodes.find(node => node.dataset.fold === key);
         if (!sub) return;
@@ -873,8 +889,10 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         return line;
     }
     const settingsCount = n => fill(n === 1 ? SETTINGS_TEXT.oneSetting : SETTINGS_TEXT.settings, { n });
-    function moduleFold(def, own = [], className = 'story-suite-fold') {
-        const { details, body } = fold(doc, def.moduleId, def.name, def.title !== def.name ? def.title : def.moduleId, className);
+    // A module's settings drawn in parts, not yet placed: its features line, its custom panel and one sub-fold
+    // per settings group. `moduleFold` puts them in a fold of the module's own; the settings window (`sections`) may
+    // send a part to another section (Story Block's money and Assist settings) and keep the rest in the fold.
+    function moduleParts(def, own = []) {
         const values = settings(def.moduleId);
         const subs = [];
         // The rows whose `readOnly` is a function of the values: drawn again (value, help, disabled) after
@@ -893,12 +911,13 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             }
         }, `story_suite_${def.moduleId}`, openState, fieldReadOnly(field, now));
         // Its features are switched in the Features fold; here one line says how many are on and goes there.
-        if (own.length) body.appendChild(featureLink(def, own));
+        const link = own.length ? featureLink(def, own) : null;
         const shown = Object.fromEntries(Object.entries(def.schema).filter(([, field]) => !hiddenByFeature(field)));
         for (const group of groupFields(shown)) {
             const visible = group.fields.filter(({ field }) => FIELD_TYPES.includes(normalizeField(field)?.type));
             if (!visible.length) continue;
             subs.push({
+                group: group.name,
                 key: `group:${group.name}`,
                 title: group.name,
                 hint: settingsCount(visible.length),
@@ -906,6 +925,11 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
                     for (const { key, field } of group.fields) {
                         const item = { key, field, row: rowOf(key, field, values) };
                         if (typeof normalizeField(field)?.readOnly === 'function' || typeof normalizeField(field)?.shows === 'function') follows.push(item);
+                        const f = normalizeField(field);
+                        if (FIELD_TYPES.includes(f?.type)) {
+                            const entry = note('row', key, { label: f.label ?? humanize(key), help: f.help }, `${def.name} ${group.name}`, item.row);
+                            Object.defineProperty(entry, 'node', { get: () => item.row, enumerable: true });
+                        }
                         into.appendChild(item.row);
                     }
                 },
@@ -914,21 +938,29 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         // Its custom panel sits in the module's fold itself, right under the features line (never in a
         // sub-fold: a module's own panel may have folds of its own, and three levels is too deep). A
         // titled section ("Assist") gets its title as a heading.
+        let panel = null;
         if (def.section && !hiddenByFeature(def.section)) {
             const section = el(doc, 'div', 'story-suite-section');
             section.dataset.module = def.moduleId;
-            if (def.title !== def.name) body.appendChild(el(doc, 'h4', 'story-suite-section-title', def.title));
-            body.appendChild(section);
+            panel = [...(def.title !== def.name ? [el(doc, 'h4', 'story-suite-section-title', def.title)] : []), section];
             try { def.section(section, panelApi(def.moduleId)); } catch (error) {
                 section.replaceChildren(el(doc, 'p', 'story-suite-muted', `This part of ${def.name}'s settings could not be shown: ${error?.message ?? error}`));
             }
+            note('panel', `${def.moduleId}${SUB_FOLD}panel`, { label: def.title, help: '' }, def.name, section);
         }
         // The schema's groups below it, each in a sub-fold of its own; one alone opens with its module.
-        for (const sub of subs) {
+        const lone = subs.length === 1 && !panel;
+        const details = subs.map(sub => {
             const inner = fold(doc, `${def.moduleId}${SUB_FOLD}${sub.key}`, sub.title, sub.hint, 'story-suite-subfold');
             sub.draw(inner.body);
-            body.appendChild(remember(inner.details, subs.length === 1 && !(def.section && !hiddenByFeature(def.section))));
-        }
+            return remember(inner.details, lone);
+        });
+        return { link, panel, subs: subs.map((sub, at) => ({ group: sub.group, details: details[at] })) };
+    }
+    // The module's fold: the parts given (all of them by default) under its title.
+    function moduleFold(def, own = [], className = 'story-suite-fold', parts = moduleParts(def, own)) {
+        const { details, body } = fold(doc, def.moduleId, def.name, def.title !== def.name ? def.title : def.moduleId, className);
+        body.append(...[parts.link, ...(parts.panel ?? []), ...parts.subs.map(sub => sub.details)].filter(Boolean));
         return remember(details);
     }
     // A module's own top-level folds (`settings.folds`: Story Block's Packs), drawn even with nothing in them.
@@ -939,6 +971,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
             try { item.render(body, panelApi(def.moduleId)); } catch (error) {
                 body.replaceChildren(el(doc, 'p', 'story-suite-muted', `This part of ${def.name}'s settings could not be shown: ${error?.message ?? error}`));
             }
+            note('panel', `${def.moduleId}/${item.id}`, { label: item.title, help: item.hint }, def.name, details);
             return remember(details);
         });
     }
@@ -957,6 +990,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const T = SETTINGS_TEXT.sent;
         const { details, body } = fold(doc, SENT_FOLD, T.title, T.hint, 'story-suite-subfold');
         details.classList.add('story-suite-sent');
+        note('panel', SENT_FOLD, { label: T.title, help: T.hint }, 'Story Suite', details);
         const draw = () => {
             if (!details.open || body.children.length) return;
             drawSent(body, sentText(parts, own, { names: moduleName }), tokensOf, exact);
@@ -1135,17 +1169,20 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const { details, body } = fold(doc, HOST_FOLD, 'Story Suite', SETTINGS_TEXT.hostHint);
         const values = settings();
         for (const [key, field] of Object.entries(HOST_SETTINGS_SCHEMA)) {
-            body.appendChild(fieldRow(doc, key, field, values[key], next => {
+            const row = fieldRow(doc, key, field, values[key], next => {
                 settings.set(null, key, next);
                 if (key === 'tailBudget' || key === 'contextShare') refreshSize();
                 // The look (view/theme.js) follows at once, on every Story Suite screen.
                 if (key === 'panelStyle' || key === 'font' || key === 'glassStrength') { try { theme?.apply?.(); } catch { /* the look follows on the next load */ } }
-            }, 'story_suite_host'));
+            }, 'story_suite_host');
+            note('row', key, { label: field.label ?? humanize(key), help: field.help }, 'Story Suite', row);
+            body.appendChild(row);
         }
         if (typeof promptParts === 'function') {
             const block = el(doc, 'div', 'story-suite-subsection story-suite-size');
             block.setAttribute('aria-live', 'polite');
             body.appendChild(block);
+            note('panel', 'story-suite::size', { label: SETTINGS_TEXT.size.title, help: '' }, 'Story Suite', block);
             drawSize(block);
         }
         if (tabs && typeof tabs.rows === 'function') body.appendChild(tabsFold());
@@ -1159,6 +1196,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const T = TABS_TEXT;
         const { details, body } = fold(doc, TABS_FOLD, T.title, T.hint, 'story-suite-subfold');
         details.classList.add('story-suite-tabs-settings');
+        note('panel', TABS_FOLD, { label: T.title, help: T.hint }, 'Story Suite', details);
         body.appendChild(el(doc, 'p', 'story-suite-muted', T.help));
         const list = el(doc, 'ol', 'story-suite-taborder');
         list.setAttribute('aria-label', T.listLabel);
@@ -1240,6 +1278,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const report = compatReport({ hostVersion: registry.hostVersion?.() ?? '', modules: registry.modules(), refusals: registry.refusals?.() ?? [] });
         const { details, body } = fold(doc, VERSIONS_FOLD, 'Versions', report.outOfStep ? `${report.outOfStep} out of step` : 'all in step');
         if (report.outOfStep) details.classList.add('story-suite-fold-warn');
+        note('panel', VERSIONS_FOLD, { label: 'Versions', help: report.outOfStep ? `${report.outOfStep} out of step` : 'all in step' }, 'Modules', details);
         renderCompat(body, report, { doc });
         return remember(details);
     }
@@ -1252,6 +1291,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         const T = DIAGNOSTICS_TEXT;
         const hasReport = Boolean(diagnostics && typeof diagnostics.report === 'function');
         const { details, body } = fold(doc, DIAGNOSTICS_FOLD, T.title, hasReport ? T.hint : T.checksHint);
+        note('panel', DIAGNOSTICS_FOLD, { label: T.title, help: hasReport ? T.hint : T.checksHint }, 'Diagnostics', details);
         if (!hasReport) {
             body.append(...subs);
             return remember(details);
@@ -1342,8 +1382,7 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
     }
     function refresh() {
         for (const node of root.querySelectorAll(FOLD_SELECTOR)) if (!node.dataset.filtered) openState.set(node.dataset.fold, node.open === true);
-        root.replaceChildren();
-        root.classList.add('story-suite-folds');
+        found = [];
         const all = featureList();
         const ownOf = moduleId => all.filter(feature => feature.moduleId === moduleId);
         // A module with features and no settings has no fold of its own: its features are in the Features fold.
@@ -1352,18 +1391,55 @@ export function renderSettingsHost(root, { registry, settings, doc = globalThis.
         // A module fold or own fold placed in Diagnostics (`place: 'diagnostics'`, debug information like
         // Story Block's Events) is a sub-fold there, folded until the reader opens it, not a fold of its own.
         const inDiagnostics = item => item.place === 'diagnostics';
+        // Where each piece goes: one column of folds (the default), or the settings window's sections
+        // (`sections.route(piece)` → a section id; the nodes of each are put in `sections.place(id)`).
+        const placed = new Map();
+        const put = (piece, ...nodes) => {
+            const id = sections ? sections.route(piece) : '';
+            if (!placed.has(id)) placed.set(id, []);
+            placed.get(id).push(...nodes.filter(Boolean));
+        };
         const shown = [...defs].filter(def => Object.keys(def.schema).length || def.section).sort(byId);
-        const modules = shown.filter(def => !inDiagnostics(def)).map(def => moduleFold(def, ownOf(def.moduleId)));
-        const own = [...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(item => !inDiagnostics(item))));
+        const modules = shown.filter(def => !inDiagnostics(def)).map(def => ({ def, parts: moduleParts(def, ownOf(def.moduleId)) }));
+        const own = [...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(item => !inDiagnostics(item))).map(node => ({ def, node })));
         const subs = [
             ...[...defs].sort(byId).flatMap(def => ownFolds(def, def.folds.filter(inDiagnostics), 'story-suite-subfold')),
             ...shown.filter(inDiagnostics).map(def => moduleFold(def, ownOf(def.moduleId), 'story-suite-subfold')),
         ];
         const diag = (diagnostics && typeof diagnostics.report === 'function') || subs.length ? [diagnosticsFold(subs)] : [];
-        for (const node of [hostFold(), ...own, ...(all.length ? [featuresFold(all)] : []), ...modules, ...diag, versionsFold()]) root.appendChild(node);
+        put({ type: 'host' }, hostFold());
+        for (const { def, node } of own) put({ type: 'own-fold', moduleId: def.moduleId }, node);
+        if (all.length) put({ type: 'features' }, featuresFold(all));
+        for (const { def, parts } of modules) {
+            if (!sections) {
+                put({ type: 'module', moduleId: def.moduleId }, moduleFold(def, ownOf(def.moduleId), 'story-suite-fold', parts));
+                continue;
+            }
+            // A module's custom panel or settings group may belong to a section of its own (Story Block's
+            // Money and Assist); what stays goes in the module's fold in its home section.
+            const home = sections.route({ type: 'module', moduleId: def.moduleId });
+            const panelAt = parts.panel ? sections.route({ type: 'panel', moduleId: def.moduleId }) : home;
+            const kept = { link: parts.link, panel: panelAt === home ? parts.panel : null, subs: [] };
+            if (panelAt !== home) put({ type: 'panel', moduleId: def.moduleId }, ...parts.panel);
+            for (const sub of parts.subs) {
+                const at = sections.route({ type: 'group', moduleId: def.moduleId, group: sub.group });
+                if (at === home) kept.subs.push(sub);
+                else put({ type: 'group', moduleId: def.moduleId, group: sub.group }, sub.details);
+            }
+            if (kept.link || kept.panel || kept.subs.length) put({ type: 'module', moduleId: def.moduleId }, moduleFold(def, ownOf(def.moduleId), 'story-suite-fold', kept));
+        }
+        for (const node of diag) put({ type: 'diagnostics' }, node);
+        put({ type: 'versions' }, versionsFold());
+        if (!sections) {
+            root.replaceChildren(...(placed.get('') ?? []));
+            root.classList.add('story-suite-folds');
+            return;
+        }
+        for (const id of sections.ids) sections.place(id)?.replaceChildren(...(placed.get(id) ?? []));
+        sections.afterRefresh?.();
     }
     refresh();
-    return { refresh, refreshSize };
+    return { refresh, refreshSize, entries: () => found.slice() };
 }
 
 /** The fold keys a module placed in Settings → Diagnostics (`place: 'diagnostics'`): "story-block/events". */
@@ -1373,87 +1449,6 @@ export function diagnosticsKeys(registry) {
         ...(def.place === 'diagnostics' ? [def.moduleId] : []),
         ...(Array.isArray(def.folds) ? def.folds : []).filter(item => item.place === 'diagnostics').map(item => `${def.moduleId}/${item.id}`),
     ]);
-}
-
-// One overlay's folds stay as the reader left them when it is opened again (this page load).
-const overlayOpenState = new Map();
-let currentOverlay = null;
-
-/**
- * Opens the settings in a full-screen dialog on `doc.body`: a header with Close, and below it one
- * scrolling area with the settings in a centred column. `<body>` carries `story-suite-open` while it is
- * open; Escape and Close close it and the focus goes back where it was. `fold`: a fold key to open and
- * bring into view (PACKS_FOLD for Home's "Import a pack"). The other options are renderSettingsHost's.
- * Returns { root, close(), refresh(), refreshSize(), isOpen() }.
- */
-export function openSettingsOverlay({ registry, settings, doc = globalThis.document, sdk = null, features = null, promptParts = null, countTokens = null, diagnostics = null, tabs = null, theme = null, fold: target = null, openState = overlayOpenState, onClose = null }) {
-    // One overlay at a time: opening it again closes the one there (its listeners with it).
-    if (currentOverlay?.root?.ownerDocument === doc) currentOverlay.close();
-    doc.querySelector?.('#story_suite_v2_overlay')?.remove();
-    const before = doc.activeElement ?? null;
-    const overlay = el(doc, 'div', 'story-suite-overlay');
-    overlay.id = 'story_suite_v2_overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-labelledby', 'story_suite_v2_overlay_title');
-    const header = el(doc, 'div', 'story-suite-overlay-header');
-    const title = el(doc, 'b', 'story-suite-overlay-title', 'Story Suite');
-    title.id = 'story_suite_v2_overlay_title';
-    header.appendChild(title);
-    const close = button(doc, 'menu_button story-suite-close', 'Close', 'Close Story Suite');
-    header.appendChild(close);
-    const scroller = el(doc, 'div', 'story-suite-scroll');
-    const body = el(doc, 'div', 'story-suite-panel');
-    scroller.appendChild(body);
-    overlay.append(header, scroller);
-    doc.body.appendChild(overlay);
-    doc.body.classList.add(OPEN_CLASS);
-    // A module's old "<id>::features" sub-fold is its sub-fold of the Features fold now.
-    if (typeof target === 'string' && target.endsWith(`${SUB_FOLD}features`)) target = featuresFoldOf(target.slice(0, -`${SUB_FOLD}features`.length));
-    if (typeof target === 'string' && target) {
-        openState.set(target, true);
-        // A sub-fold opens its module's fold too, and one placed in Diagnostics opens Diagnostics.
-        if (target.includes(SUB_FOLD)) openState.set(target.split(SUB_FOLD)[0], true);
-        if (diagnosticsKeys(registry).includes(target)) openState.set(DIAGNOSTICS_FOLD, true);
-    }
-    const host = renderSettingsHost(body, { registry, settings, doc, sdk, features, promptParts, countTokens, openState, diagnostics, tabs, theme });
-    let open = true;
-    // The focus stays in the dialog: a Tab that would leave it, or a click on the page behind, comes back.
-    const onFocus = event => {
-        if (open && event?.target && !overlay.contains(event.target)) close.focus?.();
-    };
-    const onKey = event => {
-        if (event?.key !== 'Escape') return;
-        event.preventDefault?.();
-        event.stopPropagation?.();
-        api.close();
-    };
-    overlay.addEventListener('keydown', onKey);
-    doc.addEventListener?.('focusin', onFocus, true);
-    const api = {
-        root: overlay,
-        refresh: host.refresh,
-        refreshSize: host.refreshSize,
-        isOpen: () => open,
-        close() {
-            if (!open) return;
-            open = false;
-            if (currentOverlay === api) currentOverlay = null;
-            doc.removeEventListener?.('focusin', onFocus, true);
-            overlay.remove();
-            doc.body.classList.remove(OPEN_CLASS);
-            try { onClose?.(); } catch { /* the overlay is closed either way */ }
-            if (before && before !== doc.body && before.isConnected !== false) before.focus?.();
-        },
-    };
-    close.addEventListener('click', () => api.close());
-    currentOverlay = api;
-    const wanted = target ? [...body.querySelectorAll(FOLD_SELECTOR)].find(node => node.dataset.fold === target) : null;
-    if (wanted) {
-        wanted.scrollIntoView?.({ block: 'start' });
-        wanted.querySelector('summary')?.focus?.();
-    } else close.focus?.();
-    return api;
 }
 
 /**

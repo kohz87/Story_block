@@ -262,3 +262,24 @@ test('Glass strength: 30–90%, the concept\'s alphas at 50%; the tint gives the
     assert.deepEqual([field.type, field.min, field.max, field.form], ['int', 30, 90, 'slider']);
     assert.deepEqual(Object.keys(HOST_SETTINGS_SCHEMA).slice(-3), ['panelStyle', 'glassStrength', 'font'], 'under Panel style');
 });
+
+test('the legacy surfaces (the side sheet, the game view) get glass tokens under Glass only; Solid and Follow SillyTavern leave them unset', () => {
+    const SHEET = ['--ss-sheet-bg', '--ss-sheet-blur', '--ss-sheet-layers'];
+    for (const scheme of ['dark', 'light']) {
+        const glass = themeTokens({ scheme, panel: 'glass' });
+        assert.equal(valueOf(glass, '--ss-sheet-bg'), 'var(--ss-glass-strong)', 'the dense glass, so Glass strength reaches it');
+        assert.equal(valueOf(glass, '--ss-sheet-blur'), 'var(--ss-blur)');
+        assert.equal(valueOf(glass, '--ss-sheet-layers'), 'none', 'no opaque layers under it');
+        for (const panel of ['solid', 'sillytavern']) {
+            const tokens = names(themeTokens({ scheme, panel }));
+            for (const name of SHEET) assert.ok(!tokens.includes(name), `${panel}: ${name} stays unset, so the surface keeps SillyTavern's tint`);
+        }
+    }
+    // A system that asks for less transparency turns Glass into Solid, so the surfaces go back too.
+    const reduced = rules(themeCss({ panel: 'glass' })).filter(rule => rule.at[0] === '@media (prefers-reduced-transparency: reduce)' && rule.selectors.includes(ROOT_SELECTOR));
+    assert.ok(reduced.length >= 2);
+    for (const rule of reduced) for (const name of ['--ss-sheet-bg', '--ss-sheet-blur', '--ss-sheet-layers']) assert.match(rule.block, new RegExp(`${name}: initial;`));
+    for (const panel of ['solid', 'sillytavern']) assert.doesNotMatch(themeCss({ panel }), /--ss-sheet-/);
+    // Glass strength moves the sheet's alpha through the glass it points at.
+    assert.notEqual(valueOf(themeTokens({ panel: 'glass', strength: 30 }), '--ss-glass-strong'), valueOf(themeTokens({ panel: 'glass', strength: 90 }), '--ss-glass-strong'));
+});
