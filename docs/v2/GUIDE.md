@@ -280,16 +280,28 @@ trust), the story says when it is met, and the quest shows Ready. **Details** on
 goal, progress, reward, who gave it, when it is due and what has happened so far. A finished quest
 stays in the list under Finished. New jobs come at a calm pace; a passer-by stays a passer-by.
 
-### The days behind you
+### The World screen and your journal
 
-When a story day ends, Story Director writes a short digest of it from what code recorded: where you
-went, quests taken and finished, fights, money in and out, which people's feelings reached a new
-stage, and world news. The model writes none of it.
+The **World** tab (also in the full-screen view) shows only what your character knows, in two views.
+**Now**: where you are and who is here (with NPC State Delta, each person is a chip with how they stand
+toward you; tap it to open their dossier), the news, events and factions you have learned of, newest
+first, and what you know is coming in the next 30 story days: your quests' due dates, dated events and
+leads the story told you, and your pack's holidays. **Journal**: one entry per story day, newest first:
+where you went, who you met, the news, quests taken on and finished, fights, money, and which people's
+feelings reached a new stage, with a search box; the day under way shows as *today so far*.
 
-The **Days** screen lists the days, newest first. Open one to see its digest, or search them all. After
-a time skip, the next reply gets one line about the last day, so the story remembers it. Story
-Director's settings choose how many days are kept and can turn that reminder off. Turn the digest off
-with **Day digest** in the Features.
+What is behind the scenes (agendas, planned beats, clocks, secrets, the arc the planner made) never
+shows on the World screen, revealed or not: that stays on the **Director** tab, behind **Reveal**.
+
+When a story day ends, Story Director writes its journal entry from what code recorded; the model
+writes none of it. After a time skip, the next reply gets one line about the last day, so the story
+remembers it. Story Director's settings choose how many days are kept, how far ahead Upcoming looks,
+and can turn that reminder off. Turn the journal off with **Day digest** in the Features, and the World
+screen with **World view**.
+
+With **Accept planned arcs automatically** on (Story Director → Arc planning, off by default), a planned
+arc is used without review; the Director tab says quietly that an arc began, without naming it while
+behind the scenes is hidden.
 
 ### Arc planning and what stays behind the scenes
 
