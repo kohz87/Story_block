@@ -27,4 +27,3 @@ export {
 
 /** The default screens, in the order the game view should offer them (home first). */
 export const screens = Object.freeze([homeScreen, inventoryScreen, sceneScreen, changesCardScreen, inspectorScreen]);
-
