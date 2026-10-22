@@ -272,6 +272,9 @@ commands: {
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.feature(id)` (whether the reader has
   that feature on, §6), `ctx.fail(code, message)` throws.
+* `ctx.gather(name, args)` asks every other module's hook `name` (`hooks[name]({ state, query }, args)`,
+  synchronous, on the transaction's current state) → `[{ module, answer }]`, frozen copies; an answer that is
+  null, a promise or a throw is left out (MODULES §F126; RPG Battle's `checkModifiers`).
 * A failed `ctx.call` fails the whole command even if the caller catches it, except `UNKNOWN_COMMAND`
   and `FEATURE_OFF` (nothing ran), which a handler may catch to treat another module's command as optional.
 * A handler may add `problem: 'sentence'` to its result: done, but not all of what was asked (a clamp).
@@ -626,6 +629,10 @@ sdk.registerModule({
   `afterCapture(view, { index, type })` (→ `{ commands }`, system steps run once after a reply's last story
   line as part of that reply, §4.2 step 3; an older Story Block never calls it, so a module keeps a fallback,
   e.g. a beforeGenerate step that finds what is still left to do),
+  `checkModifiers({ state, query }, { actor, skill, stat, target, dc })` (→ `[{ mod, text }]`: a module's
+  adjustments to an RPG Battle check, asked through `ctx.gather`, MODULES §F126),
+  `replyCard({ index, state, before, changes })` (→ `[{ text, summary?, flag?, note?, icon? }]`: the module's
+  own lines on that reply's "Changed this reply" card, §13.4, MODULES §F125),
   `ownPrompt` (what the module sends with the reply under its own prompt keys, §5) and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
   lines or `{ lines, data }`, a promise of one answered within 2 s; MODULES §F118). Money is one currency (MODULES §F1), counted in its smallest coin when it has coins (§F108).
 * **Settings**: `schema` fields (`bool`, `int{min,max}`, `choice[]`, `text`, `list of {…}`, `profile`) render in the

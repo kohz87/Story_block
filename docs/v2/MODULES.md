@@ -758,6 +758,21 @@ These settle questions agents raised; the host changes they need are made at int
     wait). Host setting **`callQueue`** "Run extra calls one at a time per connection" (default on);
     Diagnostics → "Model calls" shows how many wait now and how long calls waited (counts and times only).
 
+### User decision from the beta live test (2026-10-22, F125)
+
+125. **A module's own lines on the "Changed this reply" card** (live test: "there's no way for us to know the
+    rolls?"; RPG Battle's checks were only on its own status card, which is off by default). A module's hook
+    **`replyCard({ index, state, before, changes })`** answers that reply's lines, `[{ text, summary?, flag?,
+    note?, icon? }]` (or plain strings), synchronously: `state` is the reply's state, `changes` the JSON
+    Pointers its ops touched (as a card's `changed()`), so a module lists only what that reply did. Story Block
+    draws them in the card's list (text, then the flag and the note on their own lines, escaped) and tells each
+    by its `summary` (else its `text`) in the folded header after the rest ("+1 Rope · Wessel AGI 10 vs DC 10:
+    success"); a card with module lines does not say "Nothing changed". Cleaned by `replyCardLines`
+    (`src/v2/screens/changes-card.js`): one line each, text ≤ 200, summary ≤ 80, flag and note ≤ 160
+    characters, at most 6 per module, an icon only as a plain `fa-…` name; a hook that throws or answers no
+    list adds nothing. The card's scope has them as `moduleLines`, so a restyled card can draw them too. An
+    older Story Block never calls the hook (the module's own screens still show the same).
+
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
 For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster
@@ -824,3 +839,20 @@ const result = await sdk.callModel({
   function of the call, `{ text, delayMs }`, or `{ hang: true }` (no answer until aborted, for TIMEOUT and
   ABORTED). `model.calls` → `[{ prompt, maxTokens, profile, system }]`; `model.pending()`, `model.aborted`,
   `model.push(...answers)`. The host's real rules run around it.
+
+### Lead decision after the beta live test (2026-10-22, F126)
+
+126. **Other modules adjust RPG Battle's checks** (`ctx.gather` + hook `checkModifiers`). A command may ask
+    every other module's hook of a name with **`ctx.gather(name, args)`** → `[{ module, answer }]` (SPEC §3.2):
+    synchronous, on the state the command sees (a capture: the reply's, so a Re-read or a swipe asks the same
+    state), frozen copies, and null-safe (no answer, a promise or a throw is left out). RPG Battle asks
+    **`checkModifiers({ state, query }, { actor: { id, name }, skill, stat, target, dc })`** → `[{ mod, text }]`
+    (or one `{ mod, text }`) before a check is resolved; `target` is the person the check is against (its
+    `vs:` or `target:` label, else someone here whose name the line's text has). Each `mod` is held to −5…5,
+    the sum to ±5 (RPG Battle's setting *Other modules' check modifiers, at most*), at most 4 entries; they
+    show on the check's line with their module ("−2 Elula is wary (Delta)"). RPG Battle also asks NPC State
+    Delta's query `npc.socialModifier({ name, skill })` → `{ mod, name, skill, reasons: [{ text, value }] } | null`
+    (NSD #207; `mod` whole, ±5 by default, the reasons add up to it; null for a skill that is not social, an
+    unknown person, its feature `npc-state-delta.social` off or Delta off) for a social skill (persuade,
+    charm or seduce, intimidate, deceive, or a generic social one) against someone, on the check's reply
+    state; each reason is one entry on the line ("−2 Elula is wary (Delta)"), so Delta needs no hook of its own.

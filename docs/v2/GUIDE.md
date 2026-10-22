@@ -212,16 +212,24 @@ narrates it. A thing done once is told once.
 When you try something whose outcome isn't certain (sneaking past a guard, climbing a wet wall), the
 dice decide. You don't roll them yourself, and you don't wait.
 
-* Before each reply, code rolls two d20s. The story gets them with a short table of your party's
-  bonuses for each kind of check. Code builds that table from your stats, skills and gear.
-* The story sets how hard the attempt is (easy 10, normal 15, hard 20, very hard 25), takes the first
-  roll, adds the bonus and tells the outcome in the same reply. A second attempt in the same reply
-  takes the second roll.
+* **The check table (the default).** Before each reply (and each swipe), code rolls two d20s for each
+  member of your party and works the results out in advance, with your bonuses from stats, skills, gear
+  and effects: for each stat and skill, the hardest difficulty that roll reaches (easy 10, normal 15,
+  hard 20, very hard 25). The story gets that short table, not the raw dice, for example
+  *Checks — Wessel (you) 1st: STR AGI N~H · DEX E · INT ✗ | 2nd: …* (N~H: normal succeeds, hard succeeds
+  at a cost). With NPC State Delta, a social row shows how someone here feels about you (*vs Elula*).
+* The story picks the row and the difficulty and reads the result off: the first attempt in a reply
+  reads the 1st column, a second attempt the 2nd. It tells the outcome in the same reply.
 * A natural 20 always succeeds and a natural 1 always fails. Falling 1 or 2 short succeeds at a cost.
-* Code works the result out again from the same dice and records it. The card under the reply shows
-  each check with its roll and bonus. If the story told a different outcome than the dice give, the
-  card says so.
+* Code works the result out again from the same dice and records it. The *Changed this reply* card
+  shows each check with its die and bonuses. Other modules may move a check a little (at most ±5 in
+  all), and the card names them. If the story told a different outcome than the dice give, the card
+  says so, and the next reply is told what really happened.
 * A reply holds at most two checks. A swipe brings fresh dice.
+* **Strict mode (optional): the pre-roll.** With **Features** → the Assist pre-roll on, one cheap model
+  call reads your message before the reply, and code fixes the check's stat and difficulty and rolls it
+  then. The story is told the fixed result and narrates it, so it never picks the row or the difficulty
+  for that action. It costs one extra call per message that tries something uncertain.
 
 There is no Roll button, and nobody adds or changes a bonus by hand.
 
@@ -531,7 +539,8 @@ The same screens can show in five places:
   Quests…). On a phone the row of tabs scrolls sideways, and the tab you pick is scrolled into view.
 * **Cards** under each reply, folded to one line, for example *Changed this reply: +1 Moonveil Trout,
   −1 Rope · +30 gold · to Bluewatch Village*. Open one to see the details. A card under an older reply
-  shows the story as it was **at that reply**. The *Changed this reply* card (and Story Director's
+  shows the story as it was **at that reply**. A module may add its own lines to *Changed this reply*:
+  RPG Battle lists the checks the reply rolled (the die, the modifiers, the total against the difficulty). The *Changed this reply* card (and Story Director's
   status card) show under every reply by default, folded, on phones too. **Features** → *Cards under
   replies* turns them all off at once.
 * **The HUD** (status strip), a thin strip above the message box, for example your health and status at
