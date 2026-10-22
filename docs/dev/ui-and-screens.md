@@ -111,6 +111,69 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   `:where(<roots>)` at one class; a widget for a block with structure or ARIA (`ss.<block>` in
   `view/widgets/glass.js` style: `shell()`, the block's class on the root, tones from a fixed list, spoken text).
 
+## The form engine (UI stage, step 1b PR B)
+
+`src/v2/view/form/` draws a module's settings from the schema the registry holds (`registry.settingsDefs()`; SPEC §6) in
+the look, and writes through the same settings store the overlay writes through. **The real settings window is not
+replaced yet** (step 3); the UI sample shows a demo form (`mountDemoForm`, `UI_SAMPLE_FORM`).
+
+```js
+import { renderSettingsForm, renderModuleForm } from './src/v2/view/form/index.js';
+
+const form = renderSettingsForm(parent, {
+    moduleId: 'rpg-battle',          // null: the host's own schema (HOST_SETTINGS_SCHEMA)
+    schema,                          // { key: field } as registered
+    settings,                        // createSettings(): settings(id) → values, settings.set(id, key, value) → stored or undefined
+    doc, title, hint,
+    featureOn: id => registry.featureOn(id),   // a field with `feature` shows while this says true
+    profiles: () => listProfiles(),            // the Connection Manager answer for `profile` fields (default: the page's)
+    search: true,                              // a search box on top
+    onChange: ({ moduleId, key, value }) => {}, // after a value was stored (apply the look, redraw a size)
+    memo: new Map(), disabled: false,
+});
+form.filter('coin');     // → how many rows are shown; label, help, group and key are searched
+form.refresh();          // read every value and feature again
+form.setDisabled(true);  form.field('days');  // { row, handle, kind, f, setError }
+form.destroy();
+renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() entry
+```
+
+- **Kinds** (`fieldKind(field)`): `bool` → switch; `int` → number, or slider with `form: 'slider'` and whole-number
+  `min` < `max` (a `unit` text is shown after the value); `choice` → select, or chips (one of them) with `form: 'chips'`;
+  `text` → text box (`multiline`: a text area with a character count when it has a `max`); `profile` → the Connection
+  Manager select (`profileChoices`: "Same as chat", the profiles, a gone one kept as "(not found)", the note under the
+  label); `list` → rows with Add and Remove, or one line per item for text and whole-number fields (`form: 'lines'`
+  starts there; "Edit as text" / "Edit as rows"; `linesToList` / `listToLines`, the overlay's reader, so "Day: of Ash: 30"
+  reads the same and a bad line is named). Several-of chips (`multiple: true`, a list of values) are a renderer of their own
+  (`chipsField`); the store has no multi-valued type yet, so the form does not map a schema field to them. A type the
+  engine does not know is not drawn and its value is kept.
+- **Renderers** (`fields.js`): each `(ctx) → { el, input, get, set, setDisabled, setReadOnly, destroy }`; they report
+  a choice through `ctx.onChange(value, { typed })` (a click, a change on blur or Enter, the end of a slider drag; never
+  while typing) and never store anything. The row (`form.js`) writes with `settings.set(moduleId, key, value)`, shows the
+  value stored (`set(stored)`), and says under the field what the store did to it (`changeNote`: "Set to 12, the most this
+  allows.", "Cut to 8 characters…"; a refused value: "That could not be saved. The setting stays …"; text in a number
+  box: "Enter a whole number. The setting stays 5.").
+- **Rows**: `.ss-field` with `.ss-field-label` (a `label` for the controls that can be named by `for`, a `span` plus
+  `aria-labelledby` for chips and lists), `.ss-field-help`, `.ss-field-note`, `.ss-field-tag` ("Read only"), the control, and
+  `.ss-field-error` (`role="alert"`). The control carries `aria-describedby` (help, note, read-only tag, error) and
+  `aria-invalid` while there is an error. Groups are the overlay's (`groupFields`: a field's `group`, else the label's
+  "Group: " prefix, else General): a `.ss-section` glass card each, no heading when there is only one.
+- **States**: `readOnly` (true, or a function of the module's values) locks the control (text and numbers `readonly`
+  + `aria-readonly`, the rest `disabled`) and shows "Read only"; `shows(values)` is what a read-only row displays, the
+  stored value kept; rows that depend on the values follow after any change; `disabled` on the whole form.
+- **Keyboard and screen readers**: a switch is a `button` with `role="switch"` and `aria-checked`; one-of chips a radio
+  group with arrow keys, Home and End (one Tab stop); several-of chips toggle buttons with `aria-pressed`; a slider a native
+  range with `aria-valuetext`; the list's Remove names the item ("Remove Frostmoon"), the focus goes to the next
+  Remove or to Add after a removal and to the new row's first field after an Add; the search box is `role="search"` with a
+  hidden label, Escape clears it, and the count of rows shown is a polite live region.
+- **Classes** (glass.css): `ss-form`, `ss-section` (+ `-head`, `-title`, `-hint`, `-body`), `ss-field` (+ `-inline`,
+  `-text`, `-label`, `-help`, `-note`, `-tag`, `-control`, `-error`, `-count`, `-readonly`, `-disabled`), `ss-input` (+ `ss-text`,
+  `ss-number`, `ss-select`), `ss-switch` (+ `-on`, `-knob`), `ss-slider` (+ `-input`, `-value`; the fill is `--ss-fill`),
+  `ss-chips`, `ss-chip` (+ `-on`), `ss-lines` (+ `-row`, `-cell`, `-remove`, `-add`, `-toggle`, `-text`, `-error`),
+  `ss-search`. New tokens `--ss-off` (the switch's off track) and `--ss-knob`.
+- The helpers shared with the overlay (`groupFields`, `fieldReadOnly`, `rowValue`, `linesToList`, …) are imported from
+  `host-ui.js` through `view/form/schema.js`: step 3 moves them there when the overlay goes.
+
 ## Key files and functions
 
 - `src/v2/view/screens.js`: `validateScreen`, `resolveData`, `screenOrder`, `byNavOrder`, `DEFAULT_ORDER`,
@@ -119,7 +182,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   `view/css.js` (`scopeCss`, `filterDeclarations`, `isSafeCssUrl`, `themeVars`), `view/render-screen.js`.
 - `src/v2/view/mounts/` (`tab`, `screen`, `card`, `hud`, `dialog`), `view/widgets/`, `view/tab-order.js`.
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
-  `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
+  `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/form/` (`fields.js`, `form.js`, `schema.js`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
   (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`).
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
@@ -132,8 +195,8 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
 - `tests/v2/view/` (`template/`, `mounts/`, `widgets/`, `render-screen.test.js`, `tab-order.test.js`),
   `tests/v2/screens/`, `tests/v2/ux/`, `tests/v2/layout/`, `ui-host.test.js`, `host-ui.test.js`, `features-ui.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`, `tests/v2/ux/look-settings.test.js`,
-  `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/screens/ui-sample.test.js`.
-- Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`.
+  `tests/v2/view/widgets/glass.test.js`, `tests/v2/view/widgets/blocks.test.js`, `tests/v2/view/form/fields.test.js`, `tests/v2/view/form/form.test.js`, `tests/v2/screens/ui-sample.test.js`.
+- Security: `tests/v2/qa/template-security.test.js`, `layout-security`, `mounts-security`, `widgets-security`, `form-security`.
 - Break findings: `rx-ui-*`, `b5b-deep-screens`, `b5b-form-names`, `b5b-r2-props-depth`, `c3-features-*`.
 
 ## When you change it
