@@ -300,9 +300,13 @@ each ("Soul Class II: 11"). When it is set, `packs.content({ kind: 'ranks' })` a
 packs' ladders, so Story Director's quest ranks, RPG Battle's party and foe ranks and Story Block's coin
 budget all use it, with or without each other. Its records are `{ id, title, levels?, reward?, pack: null,
 reader: true }`: the title as typed, the id the short word the story writes (the line itself when it is one
-short word, else its last word, "IX"; else R1, R2 …). A rank keeps the first enabled pack's numbers at its
-place (levels, unless every line gives its first level; the reward range always), so renaming a ladder
-never changes what quests pay; past the pack's ranks, modules give rewards by place, times the money scale.
+short word, else its last word, "IX"; else R1, R2 …). A rank keeps the first enabled pack's levels at its
+place (unless every line gives its first level), and pays the reward range of the pack's rank at its first
+level (the last pack rank that starts at or below it), so renaming a ladder never changes what quests pay
+and a longer ladder of narrower ranks never pays more at a level (a ladder renames and re-bands; it never
+raises money). Past the pack's ranks, modules pay by level too (RPG Battle on the built-in F to S, times
+the money scale). RPG Battle's Rank ladder hands each line with the first level it bands it at, so every
+module reads the same bands.
 Empty: the pack's ladder, then each module's built-in F to S. `packs.content({ kind: 'ranks', pack })` is
 always that pack's own.
 
