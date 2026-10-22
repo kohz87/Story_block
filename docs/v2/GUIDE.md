@@ -421,7 +421,15 @@ calendar) shows one line per entry, `[January] [31] ×`: × removes that line, *
   keeps them), this reply's part against **Notes per reply** (the budget above it), the total, and each
   extension's share. It uses SillyTavern's tokenizer when there is one ("312 tokens"), else an estimate
   at four characters a token ("about 312 tokens"). It counts again when you switch a feature or change
-  the budget.
+  the budget. After a reply it also shows your **context size** and **Story Suite's share** of it.
+
+* **Share of the context** (Story Suite's own section, 40 % by default): the most of your context size
+  (less the reply's length) that Story Suite's instructions and notes take together. SillyTavern fits
+  extension prompts before the conversation, so a small context could otherwise leave no room for the chat
+  itself. The notes for each reply are cut to fit; the instructions are never cut. If the instructions
+  alone are too big for the share, you are told once per chat ("Your context size (4,095 tokens) is too
+  small for Story Suite's instructions …"): raise the context size in SillyTavern's API settings (8K or more
+  with all four extensions), or turn features off.
 
 * **Currency**: the name of the money in your chats, one coin ("mark"), its plural ("marks"; blank: the
   name with an s) and its short form.

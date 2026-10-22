@@ -292,6 +292,14 @@ saveChat sends) instead of `ctx.saveChat`, which waits at least 100 ms before re
 errors and timeouts. A refused save throws: the state stays marked unsaved, the reader is told once, and it
 is tried again (1, 2, 4, 8, 15 s). A save (or a rescue) the server does not answer within 20 s counts as
 refused (the request is given up), so it never holds later saves, the reader's command or the next reply.
+A request given up that way may still be written: its body can already be at the server, which writes it
+when it gets to it, after the retry that carried a newer change (both carry the same integrity token). So
+after a timeout the saver is *suspect* for that chat: each later save carries a rising number in
+`chat_metadata.storySuiteSave`, and once one is answered the file is read back (`/api/chats/get`) after 10,
+20, 40, 80 and 160 s (about five minutes, past which a server drops a request whose body has not arrived);
+a file holding a lower number (or none) is saved again at once. Without a timeout nothing is stamped or
+read, and the read-backs never hold a save, a command or the next reply (each is given up after 20 s too).
+A late write that lands after the chat was closed, or more than five minutes later, is not found.
 A chat being opened is waited for however long it takes (every 200 ms for 10 s, then every 15 s); the
 change is never dropped for it. It verifies the head carrier's `extra.storySuite.rev` after each save (as
 v1's coordinated writes did), finding the record by its `sid` when a deleted swipe moved it. A save that
@@ -415,6 +423,17 @@ Story Block is the only v2 code that calls `setExtensionPrompt` for the host and
 
 * `context.tail` returns `{ lines: string[], optional: string[] }`; each module has a `budget` (tokens,
   estimated chars/4); optional lines drop first. The host's total tail budget is a setting (default 1,500).
+* **The context size.** SillyTavern fits the extension prompts first and drops the conversation when the
+  rest no longer fits, so the static part and the tail together are held to a share of the room the prompt
+  has: the interceptor's context size (SillyTavern 1.19 hands it less the reply's length; a size that still
+  holds it, as the API settings tell, has the reply taken off) times `contextShare` (a host setting, 10–90 %,
+  default 40). Only the tail is cut for it (optional lines first, then from the last module back, as for
+  the tail budget), never below 200 tokens, and never past the tail budget. The static part is never
+  trimmed: when it alone is over the share, the reader is told once per chat (a toast and the Problems list,
+  `CONTEXT_SMALL`: "Your context size (N tokens) is too small for Story Suite's instructions (about M
+  tokens). Raise the context size or turn features off.") and the reply still goes out with it. The
+  settings' prompt size shows the context size, the share and that notice. No context size known: the
+  tail budget alone.
 * NSD keeps its own keys (`story_suite_tail_4_npc_state_delta…`) and sorts after `story_suite_tail_1`.
 * If the preset leaves out the Main Prompt (SillyTavern then drops IN_PROMPT text), the static part is put
   back at the start of the tail for the story's own prompt only (v1 rule).
@@ -455,7 +474,8 @@ sdk.registerModule({
   text cut at its `max` (200 when it sets none), whole numbers inside `min`/`max`, a choice among its
   options, a list as at most 100 rows of records, each sub-field held the same way (other keys dropped).
   No module has its own drawer panel in v2 (NSD keeps its standalone one and hides it when hosted).
-  The overlay is one centred column of folds: Story Suite (the tail budget and the prompt size), the
+  The overlay is one centred column of folds: Story Suite (the tail budget, the share of the context and
+  the prompt size, with the context size and the share used), the
   modules' own folds (`settings.folds: [{ id, title, hint?, render(el, api) }]`; Story Block's Packs),
   Features, a fold per module, Versions. Inside a module's fold its Features come first, then a sub-fold
   per settings group: a field's optional `group` (text), else its label's prefix ("Calendar: Era" → group

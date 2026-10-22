@@ -134,6 +134,14 @@ updated.
   - `+ item` past the carry limit, which now makes the party encumbered (#104).
 - The rest of alpha.2's list still holds: see "Known issues" under 2.0.0-alpha.2 below.
 - The story's `rank:` on a foe is read, but the fight instructions don't mention it yet.
+- Fixed in the final soak: a small context (SillyTavern's default 4,095 tokens for chat completion) no
+  longer loses the conversation: Story Suite takes at most 40 % of it (a setting) and says so when its
+  instructions alone are too big; a save that timed out and still reached the server late no longer
+  overwrites a newer one (read back after a timeout, saved again).
+- With all four extensions the instructions are about 2,200 tokens: at a 4K context they are over the share
+  (you are told once per chat); 8K or more is recommended.
+- A timed-out save that reaches the server more than about five minutes later, or after you opened another
+  chat, is not found by the read-back.
 - Deleting a reply in the middle of a day that already has its digest leaves that digest as it was written.
 
 ### Module versions
