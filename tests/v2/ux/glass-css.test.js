@@ -163,3 +163,33 @@ test('the 1b blocks are in glass.css: hero with container queries, tiers, listca
     for (const name of ['ss-tabs-item', 'ss-modal-action']) assert.match(all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .${name}`)).map(rule => rule.block).join('\n'), /min-height: 4[4-9]px|min-height: [5-9]\d px/, name);
     assert.match(all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-navbar-item`)).map(rule => rule.block).join('\n'), /min-height: 64px/);
 });
+
+test('the form engine\'s rules are in glass.css: rows, switch, inputs, slider, chips, lines, search, section; tokens only, 44 px targets where it presses', () => {
+    const selectors = all.flatMap(rule => rule.selectors);
+    for (const name of ['ss-form', 'ss-section', 'ss-section-head', 'ss-field', 'ss-field-inline', 'ss-field-label', 'ss-field-help', 'ss-field-error', 'ss-field-tag', 'ss-input', 'ss-switch', 'ss-switch-on', 'ss-switch-knob', 'ss-slider', 'ss-slider-input', 'ss-slider-value', 'ss-chips', 'ss-chip', 'ss-chip-on', 'ss-lines', 'ss-lines-row', 'ss-lines-remove', 'ss-lines-add', 'ss-search', 'ss-search-input', 'ss-visually-hidden']) {
+        assert.ok(selectors.some(s => s.includes(`.${name}`)), `.${name} has a rule`);
+    }
+    const block = selector => all.filter(rule => rule.selectors.includes(`${ROOT_SELECTOR} ${selector}`)).map(rule => rule.block).join('\n');
+    assert.ok(block('.ss-switch').includes('width: 48px') && block('.ss-switch').includes('height: 28px') && block('.ss-switch').includes('var(--ss-off)'));
+    assert.ok(block('.ss-switch-on').includes('var(--ss-accent)'));
+    assert.ok(block('.ss-switch-knob').includes('var(--ss-knob)'));
+    assert.ok(block('.ss-input').includes('var(--ss-field)') && block('.ss-input').includes('var(--ss-border)') && /min-height: 40px/.test(block('.ss-input')));
+    assert.ok(block('.ss-field-label').includes('font-weight: 800'));
+    assert.ok(block('.ss-field-help').includes('var(--ss-muted)'));
+    assert.ok(block('.ss-input[aria-invalid="true"]').includes('var(--ss-bad)'));
+    // The slider's track and thumb, for both engines (separate rules: one unknown pseudo-element would drop a shared rule).
+    for (const part of ['::-webkit-slider-runnable-track', '::-moz-range-track', '::-webkit-slider-thumb', '::-moz-range-thumb']) assert.ok(selectors.some(s => s.endsWith(part)), part);
+    assert.ok(all.filter(rule => rule.selectors.some(s => /::-webkit-slider-runnable-track$/.test(s))).every(rule => rule.selectors.length === 1));
+    assert.match(block('.ss-slider-input::-webkit-slider-runnable-track'), /var\(--ss-fill, 0\)/);
+    assert.ok(/min-height: 40px/.test(block('.ss-lines-add')) && /width: 40px/.test(block('.ss-lines-remove')));
+    assert.ok(block('.ss-chip-on').includes('var(--ss-accent-soft)'));
+    // The switch\'s hit area reaches past its 28 px.
+    assert.ok(all.some(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-switch::after`) && /inset: -8px/.test(rule.block)));
+    // Every focusable control has a visible focus.
+    for (const name of ['ss-input', 'ss-switch', 'ss-chip', 'ss-lines-add', 'ss-lines-remove', 'ss-lines-toggle', 'ss-search-clear', 'ss-slider-input']) {
+        assert.ok(all.some(rule => rule.selectors.some(s => s.includes(`.${name}:focus-visible`)) && /outline: 2px solid var\(--ss-accent\)/.test(rule.block)), `${name} focus ring`);
+    }
+    // No literal colour anywhere in the form rules.
+    const form = css.slice(css.indexOf('The form engine'), css.indexOf('the UI sample'));
+    assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(form.replace(/\/\*[\s\S]*?\*\//g, '')), 'colours come from the tokens');
+});
