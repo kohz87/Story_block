@@ -79,7 +79,7 @@ export const PALETTES = Object.freeze({
         tile: 'rgba(255, 255, 255, 0.09)', border: 'rgba(255, 255, 255, 0.16)', shadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
         text: '#f1f2f8', muted: '#b6bacb', track: 'rgba(255, 255, 255, 0.14)',
         pill: 'rgba(255, 255, 255, 0.14)', pillText: '#f1f2f8', badge: '#f1f2f8', badgeText: '#141720',
-        field: 'rgba(0, 0, 0, 0.22)', overlay: 'rgba(24, 27, 42, 0.72)', accentSoft: 'rgba(123, 108, 240, 0.24)',
+        field: 'rgba(0, 0, 0, 0.22)', overlay: 'rgba(24, 27, 42, 0.72)', scrim: 'rgba(8, 10, 20, 0.6)', accentSoft: 'rgba(123, 108, 240, 0.24)',
         good: '#72dea4', chatter: '#d2cbff',
     }),
     light: Object.freeze({
@@ -87,7 +87,7 @@ export const PALETTES = Object.freeze({
         tile: 'rgba(255, 255, 255, 0.72)', border: 'rgba(255, 255, 255, 0.9)', shadow: '0 10px 30px rgba(70, 60, 130, 0.14)',
         text: '#23253a', muted: '#5b5e74', track: 'rgba(35, 37, 58, 0.1)',
         pill: '#2c2f46', pillText: '#ffffff', badge: '#2c2f46', badgeText: '#ffffff',
-        field: 'rgba(255, 255, 255, 0.85)', overlay: 'rgba(255, 255, 255, 0.78)', accentSoft: 'rgba(123, 108, 240, 0.16)',
+        field: 'rgba(255, 255, 255, 0.85)', overlay: 'rgba(255, 255, 255, 0.78)', scrim: 'rgba(35, 37, 58, 0.38)', accentSoft: 'rgba(123, 108, 240, 0.16)',
         good: '#1d7c4a', chatter: '#5544c4',
     }),
 });
@@ -222,6 +222,7 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
             ['--ss-badge-text', 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))'],
             ['--ss-field', 'color-mix(in srgb, var(--SmartThemeBodyColor, #dcdcd2) 8%, var(--SmartThemeBlurTintColor, #171717))'],
             ['--ss-overlay', 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))'],
+            ['--ss-scrim', 'rgba(0, 0, 0, 0.55)'],
             ['--ss-accent', 'var(--SmartThemeQuoteColor, #e18a24)'],
             ['--ss-accent-soft', 'color-mix(in srgb, var(--SmartThemeQuoteColor, #e18a24) 20%, transparent)'],
             ['--ss-good', '#4caf6e'],
@@ -253,6 +254,7 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
         ['--ss-badge-text', p.badgeText],
         ['--ss-field', p.field],
         ['--ss-overlay', solid ? opaqueOf(p.overlay) : p.overlay],
+        ['--ss-scrim', p.scrim],
         ['--ss-accent', ACCENT],
         ['--ss-accent-soft', p.accentSoft],
         ['--ss-good', p.good],

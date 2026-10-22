@@ -198,6 +198,7 @@ export class Element extends Node {
         const rect = this.rect ?? { left: 0, top: 0, width: 0, height: 0 };
         return { ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height, x: rect.left, y: rect.top };
     }
+    scrollBy(options) { this.scrolled = [...(this.scrolled ?? []), options]; }
     setPointerCapture(id) { this.captured.add(id); }
     releasePointerCapture(id) { this.captured.delete(id); }
 
@@ -221,6 +222,23 @@ export function installDom({ resizeObserver = false } = {}) {
         createElementNS: (ns, tag) => new Element(doc, tag, ns),
         createTextNode: text => new Text(doc, text),
         defaultView: {},
+        // Document-level listeners (a modal's keys and focus guard): `fire(type, init)` runs them like a capturing
+        // listener on the document would, before the target's own.
+        docListeners: [],
+        addEventListener(type, fn, options) { doc.docListeners.push({ type, fn, capture: options === true || Boolean(options?.capture) }); },
+        removeEventListener(type, fn, options) {
+            const capture = options === true || Boolean(options?.capture);
+            doc.docListeners = doc.docListeners.filter(entry => entry.type !== type || entry.fn !== fn || entry.capture !== capture);
+        },
+        fire(type, init = {}, target = null) {
+            const event = {
+                type, target: target ?? doc.activeElement ?? doc.body, defaultPrevented: false, stopped: false,
+                preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...init,
+            };
+            for (const entry of [...doc.docListeners]) if (entry.type === type && entry.capture) entry.fn.call(doc, event);
+            if (!event.stopped) event.target.dispatch?.(type, init);
+            return event;
+        },
     };
     doc.head = new Element(doc, 'head');
     doc.body = new Element(doc, 'body');
