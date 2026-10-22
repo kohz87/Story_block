@@ -13,6 +13,9 @@
 // * the reader's features (MODULES §F100, features.js) under extension_settings.storySuite.features: the
 //   registry leaves out what is off, a change is the sdk's `feature` event, and the assist helpers get
 //   their two switches from Story Block's preroll and extractor features.
+// * sdk.callModel (MODULES §G, model-call.js) over the `callModel` option (the one the assist helpers
+//   use), else SillyTavern's own (stModelCall): one call per module at a time, a time limit
+//   (`modelTimeoutMs`), FEATURE_OFF while the calling module's feature is off.
 
 import { createChatFile } from './chat-file.js';
 import { createCommandBus as realBus } from './commands.js';
@@ -21,6 +24,7 @@ import { WALLET_KEY } from './domains/money.js';
 import { SETTING as ASSIST_SETTING, createAssistPart } from './assist/index.js';
 import { CORE_FEATURE, createFeatureStore } from './features.js';
 import { applyStart, createPacksPart } from './packs/index.js';
+import { createModelCalls, stModelCall } from './model-call.js';
 import { carryRecord } from './persist.js';
 import { createRegistry } from './registry.js';
 import { createEvents, createSdk, createSettings, newId } from './sdk.js';
@@ -290,7 +294,8 @@ export function saveOnUnload(store, page) {
 
 /**
  * createRuntime({ ctx, packs?, core = true, modules = [], createStore?, createCommandBus?, notify?,
- * onBlocked?, onSaveError?, onRegister?(def), branch?(index) (src/v2/rewind.js stBranch), callModel? (assist),
+ * onBlocked?, onSaveError?, onRegister?(def), branch?(index) (src/v2/rewind.js stBranch), callModel?(prompt, { maxTokens,
+ * profile, system, signal }) → text (the assist helpers' and sdk.callModel's model call), modelTimeoutMs? (sdk.callModel's default limit),
  * live?() (SillyTavern's live getContext(); default: globalThis.SillyTavern's, else ctx), fetch?, page? (for
  * beforeunload; default: globalThis.window) }) → { registry, settings, features, store, bus, events, sdk, turn,
  * markReady, initial, packs, setDialog }. `features` is createFeatureStore() (the reader's choices). `ctx` is SillyTavern's context (or the testkit's fake); `packs` a
@@ -298,7 +303,7 @@ export function saveOnUnload(store, page) {
  */
 export function createRuntime({
     ctx, packs = null, core = true, modules = [], createStore = realStore, createCommandBus = realBus,
-    notify, onBlocked = null, onSaveError = null, onRegister = null, branch = null, callModel = null,
+    notify, onBlocked = null, onSaveError = null, onRegister = null, branch = null, callModel = null, modelTimeoutMs = undefined,
     live = () => globalThis.SillyTavern?.getContext?.() ?? ctx, fetch = null, page = globalThis.window ?? null,
 } = {}) {
     let features = null;
@@ -378,9 +383,15 @@ export function createRuntime({
     const rewind = createRewind({ ctx, store, events, ...(branch ? { branch } : {}) });
     let dialogOpener = null;
     let dialogCurrent = null;
+    const modelCalls = createModelCalls({
+        call: callModel ?? stModelCall,
+        featureOn: id => registry.featureOn(id),
+        featureModule: id => (registry.features?.() ?? []).find(feature => feature?.id === id)?.moduleId ?? null,
+        ...(modelTimeoutMs !== undefined ? { timeoutMs: modelTimeoutMs } : {}),
+    });
     const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
         substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null,
-        dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index) });
+        dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel });
     sdk = made.sdk;
     const initial = () => initialWithStart(registry);
     turn = createTurn({ ctx, live, store, bus, registry, settings, events, onBlocked, initial, ...(notify ? { notify } : {}) });
