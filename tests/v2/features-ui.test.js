@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { makeMessage } from '../ui-fake-dom.js';
 import { setupDom } from './view/mounts/helpers.js';
-import { FEATURES_FOLD, FEATURE_TEXT, featureInputId, renderSettingsHost } from '../../src/v2/host-ui.js';
+import { FEATURES_FOLD, FEATURE_TEXT, VERSIONS_FOLD, featureInputId, renderSettingsHost } from '../../src/v2/host-ui.js';
 import { CORE_FEATURE, PROMPT_HINT } from '../../src/v2/features.js';
 import { hudOn, mountUi } from '../../src/v2/ui-host.js';
 import { CHANGES_CARD_SCREEN_ID } from '../../src/v2/screens/index.js';
@@ -282,5 +282,18 @@ test('the overlay: a feature whose needs are not met is drawn off and disabled, 
         assert.equal(input.checked, false);
         assert.ok(texts(row, 'small').includes('Needs a module that keeps checks, like RPG Battle.'));
     }
+    host.close();
+});
+
+test('the overlay: a feature switch redraws everything, the Versions fold included', async () => {
+    const { root, host } = await overlay();
+    assert.ok(foldOf(root, VERSIONS_FOLD), 'drawn');
+    foldOf(root, VERSIONS_FOLD).open = true;
+    const input = rowsOf(foldOf(root, 'loot'))[1].querySelector('input');
+    input.checked = true;
+    input.dispatch('change');
+    assert.ok(foldOf(root, VERSIONS_FOLD), 'still there after the redraw');
+    assert.equal(foldOf(root, VERSIONS_FOLD).open, true, 'and still open');
+    assert.equal(root.querySelectorAll('details.story-suite-fold').at(-1).dataset.fold, VERSIONS_FOLD, 'last, where #105 put it');
     host.close();
 });
