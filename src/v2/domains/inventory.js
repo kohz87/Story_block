@@ -616,12 +616,22 @@ function storyCoinBudget(ctx) {
         const pc = ctx.query('party.pc');
         if (Number.isSafeInteger(pc?.level) && pc.level > 0) level = pc.level;
     } catch { /* no party module: level 1 */ }
-    try {
-        const ranks = ctx.query('quest.ranks');
+    const topFor = ranks => {
         const rank = Array.isArray(ranks) ? ranks.find(r => Array.isArray(r?.levels) && level >= r.levels[0] && level <= r.levels[1]) : null;
         const top = rank?.reward?.[1];
-        if (Number.isSafeInteger(top) && top > 0) return top;
-    } catch { /* no quest module: by level */ }
+        return Number.isSafeInteger(top) && top > 0 ? top : null;
+    };
+    try {
+        const top = topFor(ctx.query('quest.ranks'));
+        if (top) return top;
+    } catch { /* no quest module: the pack's own ladder, else by level */ }
+    // Without a quest module, the first enabled pack's own rank ladder (as written, never scaled).
+    try {
+        const records = ctx.query('packs.content', { kind: 'ranks' });
+        const first = Array.isArray(records) && records.length ? records[0]?.pack : null;
+        const top = topFor(Array.isArray(records) ? records.filter(record => record?.pack === first) : null);
+        if (top) return top;
+    } catch { /* no packs part: by level */ }
     // The built-in fallback is gold-scale: the money scale brings it to the chat's coin.
     let scale = 1;
     try { scale = ctx.query('inventory.economy')?.scale ?? 1; } catch { /* no economy query: as written */ }

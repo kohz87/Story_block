@@ -142,11 +142,11 @@ test('with Ersveil, inventory.economy is { scale: 8, source: pack }; its rank se
     const before = coin(host);
     await host.send('Chest.', reply('Marks.', ['+ coin 5000']));
     assert.equal(coin(host) - before, 400, 'the top F reward as written, not 400 × 8');
-    // Without the ranks, the gold-scale fallback is what the scale multiplies: 1000 × level 3 × 8.
+    // Without a quest module, the pack's own ladder still sets the budget (as written, never scaled).
     const bare = await createHost();
     t.after(() => bare.close());
     await bare.packs.packs.install(ERSVEIL, { origin: 'pack.json' });
     const start = coin(bare);
     await bare.send('Chest.', reply('Marks.', ['+ coin 99999']));
-    assert.equal(coin(bare) - start, STORY_COIN_PER_LEVEL * 1 * 8, 'no party module: level 1');
+    assert.equal(coin(bare) - start, 400, 'no quest module: the pack\'s F top at level 1, not 1000 × 8');
 });
