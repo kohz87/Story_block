@@ -345,6 +345,9 @@ A capture runs with `ctx.carrier = { index, swipe, sid, key }` (frozen; `String(
 `"<index>:<swipe>"`) and `ctx.chat = { lastUser, reply }`. `sid` is the reply's record ID (its shown swipe's;
 handed out before the record is first written): unlike `index`, it stays with the reply when an earlier
 message is deleted, so a claim a module keys on a reply should use `sid`. `null` when unknown.
+During a Re-read the capture runs on the state before the reply, and `ctx.standing` is the reply's state
+as it stood before the Re-read (frozen; `null` otherwise), so per-reply bookkeeping that the reply's kept
+blocks (its clicks) wrote can still be counted.
 Every command also has `ctx.reply = { index, sid }` (frozen, or `null` with no reply yet): the reply its
 changes are stored on, the capture's carrier during a capture, else the head carrier (a click's ops go
 to the last reply, §2.2). A query gets the same as `tools.reply` (for `sdk.query`, the head carrier), so
@@ -651,8 +654,11 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   is never refused for it: over the budget what is left is paid, which may be 0; the receipt data's
   `amount` is what was paid, and the result's `problem` says why (a `LIMITED` note when the module passes
   it on). Called outside a capture (a quest Finish click after the reply), it counts against the reply the
-  click is stored on (`ctx.reply`, the head carrier) in the same tally, so one reply's `+ coin` lines and
-  the clicks after it (a Continue's lines too) give at most one budget (RX-E-2). Without the flag, or with
+  click is stored on (`ctx.reply`, the head carrier) in the same budget, so one reply's `+ coin` lines and
+  the clicks after it (a Continue's lines too) give at most one budget (RX-E-2). A click keeps what it paid
+  as its own key, `storyClicks[<sid>][<receipt id>]` (scratch, add-only), and never writes the reply's
+  tally; a Re-read counts the kept clicks from `ctx.standing`, so its lines are paid only what the clicks
+  left, live, on replay and on a cold rebuild alike (a2-3). Without the flag, or with
   no module caller, a payout is not counted. `story` that is not true or false is `INVALID`.
 * **`inventory.storyBudget`** → `{ budget, paid, left, vouched }`: the story money the current reply
   (`tools.reply`: the asking command's reply, else the head carrier) may give, has given (`+ coin` lines and

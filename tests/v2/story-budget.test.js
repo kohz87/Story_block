@@ -78,7 +78,11 @@ test('the next reply has a budget of its own; a click without story: true is not
     assert.deepEqual(budget(host), { budget: BUDGET, paid: 0, left: BUDGET }, 'a reply that paid nothing has its whole budget');
     await click(host, 400);
     assert.equal(coin(host) - before, 450);
-    assert.deepEqual(Object.keys(host.head().domains.inventory.perReply), [host.store.carrierSid(host.store.headIndex())]);
+    // a2-3: a click keeps its payout under the reply in `storyClicks` (its own key), not in the reply's
+    // `perReply` entry; either way only this reply's bookkeeping is left.
+    const sid = host.store.carrierSid(host.store.headIndex());
+    assert.deepEqual(Object.keys(host.head().domains.inventory.perReply), []);
+    assert.deepEqual(Object.keys(host.head().domains.inventory.storyClicks), [sid]);
 });
 
 test('the reader\'s storyCoinPerReply sets the budget the query and a click hold to', async t => {
