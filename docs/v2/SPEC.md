@@ -513,9 +513,13 @@ One hidden block at the end of the reply:
   count after the ones it already shows); a line of a feature that is off is a quiet `FEATURE_OFF`, and its
   hidden comment marks that kind `off:`, so turning the feature on later does not show what the reader was
   told was not used; a Re-read reads it again and marks every comment of the reply as it found them. Story Block's two: `? choice Text` (4 a reply, 80 code points; buttons under the latest reply
-  that only fill the message box) and `~ chatter Name: thought` (3 a reply, 40 + 140 code points; a folded
-  strip under each reply, never sent back unless the reader's `chatterInPrompt` setting adds the answered
-  reply's thoughts as one optional tail line).
+  that only fill the message box) and `~ chatter Name: thought` (3 a reply, 40 + 140 code points; not drawn
+  under replies: next to each person on Story Director's World → Now, `chatter.head`, or on Story Block's
+  Scene screen without it, `scene.chatter`; never sent back unless the reader's `chatterInPrompt` setting
+  adds the answered reply's thoughts as one optional tail line).
+* **`~ weather cold drizzle, low fog`** (Story Block's `story-block.weather`, on; MODULES §F120): the weather
+  now, a few words kept in the scene (§7), descriptive only. Its grammar line asks for it only when the weather
+  changes, not every reply.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).
@@ -693,7 +697,9 @@ sdk.registerModule({
     replies, on; each card screen keeps its own switch), `story-block.preroll` (needs the `check` kind)
     and `story-block.extractor` (the assist helpers, off), `story-block.choices` and `story-block.chatter`
     (the display kinds `choice` and `chatter`, off; §4.4, MODULES §F115; the read-only query `chatter.head`
-    gives the newest reply's chatter, `[{ name, text }]`, `null` while it is off, §F119). The older switches (`storySuite.hud`, the
+    gives the newest reply's chatter, `[{ name, text }]`, `null` while it is off, §F119; `scene.chatter` the
+    same under each present person for the Scene screen), `story-block.weather` (the capture kind `weather`
+    and the query `scene.weather`, on; §7, MODULES §F120). The older switches (`storySuite.hud`, the
     `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
   * A module without `features` behaves as before. On a host older than features, `features` and the
     `feature` keys are warned about and ignored (everything is on), and `context.parts` is ignored too:
@@ -732,7 +738,8 @@ sdk.registerModule({
 
 ### scene
 ```js
-{ place: { name: '', kind: '' /* settlement|wild|dungeon|… */, region: '' }, present: [ /* names */ ] }
+{ place: { name: '', kind: '' /* settlement|wild|dungeon|… */, region: '' }, present: [ /* names */ ],
+  weather: { text: 'cold drizzle, low fog', rev: 12 } /* absent until a reply writes one */ }
 ```
 Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `present`
 (`+ present Fenna`, `- present Fenna`). Without `kind:`, the same place (same name, any case) keeps its
@@ -741,6 +748,13 @@ stored kind, and a move to another place takes the kind a pack gives a place of 
 gives one. Only an explicit empty value (`kind:` with nothing after it) clears one. After a move only those
 named in `with:` are present. Queries `scene.place`, `scene.present` and `scene.moved` (true while the head
 reply's receipts moved the place; MODULES §F119).
+Capture kind `weather` (`~ weather cold drizzle, low fog`, feature `story-block.weather`, on; MODULES §F120):
+the text flattened, without markup, cut at 60 code points; `rev` the `meta.rev` of the receipt that wrote it;
+the same text again changes nothing. Descriptive only: no mechanic reads it. `weather` is a `scratch` field
+(§2.2). Query `scene.weather` → `{ text } | null` (null while the feature is off). The tail's Place line ends
+with it (cut to 26 code points) while the feature is on. Query `scene.chatter` → the newest reply's Inner
+chatter under each present person, for the Scene screen while Story Director's World is not there (MODULES
+§F115).
 
 ### inventory
 ```js

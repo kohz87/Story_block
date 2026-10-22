@@ -58,6 +58,8 @@ function replyLines(r, step) {
 // Choices and Inner chatter (MODULES §F115): display lines, by step (no draw, so the seeds draw the same
 // chats). They change nothing; each remaining reply shows its own after every delete.
 const extraLines = step => (step % 3 === 0 ? [`? choice Step ${step} onward`, `~ chatter Walker: step ${step} thought`] : []);
+// The weather (MODULES §F120), by step too: the latest remaining reply that wrote one is the weather.
+const weatherLines = step => (step % 5 === 2 ? [`~ weather step ${step} rain`] : []);
 const shownAt = (host, at) => displayLines(host.ctx.chat[at].mes, { entryOf: word => host.registry.capture(word) });
 
 function validators(host) {
@@ -84,7 +86,8 @@ for (const seed of SEEDS) {
         for (let step = 0; step < REPLIES; step += 1) {
             const made = replyLines(r, step);
             made.extras = extraLines(step);
-            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.lines, ...made.extras]));
+            made.weather = weatherLines(step);
+            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.weather, ...made.lines, ...made.extras]));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);
@@ -123,6 +126,8 @@ for (const seed of SEEDS) {
                 assert.equal((shown.chatter ?? []).length, made.extras.length ? 1 : 0, `${label}: reply ${at}'s chatter`);
             }
             assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, goneSid), false, `${label}: the deleted reply's loot went with it`);
+            const sky = host.ctx.chat.map((message, at) => (message.is_user ? null : done.get(host.store.carrierSid(at)))).filter(made => made?.weather.length).at(-1);
+            assert.deepEqual(host.sdk.query('scene.weather'), sky ? { text: sky.weather[0].slice('~ weather '.length) } : null, `${label}: the weather`);
         }
     });
 }

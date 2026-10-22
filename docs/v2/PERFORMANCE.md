@@ -183,9 +183,10 @@ What changed:
 2. **Cards, notes and extras look only where a change can land.** A `committed` event redraws the head
    carrier's cards alone (no earlier reply's state changes then); `head` goes over the last 30 carriers and
    those on screen; a chat opened, more messages loaded or a delete go over every drawn message once, found
-   with one query. With no card screen on nothing is looked up. The notes under replies and the Choices and
-   Inner chatter strips redraw the last 30 drawn messages after a new message, a turn or a rebuild (full
-   passes stay for a chat opened, a delete, more messages loaded, a feature switched). The card observer is
+   with one query. With no card screen on nothing is looked up. The notes under replies and the Choices
+   buttons redraw the last 30 drawn messages after a new message, a turn or a rebuild (full passes stay for
+   a chat opened, a delete, more messages loaded, a feature switched); only the latest reply's text is read
+   for Choices (Inner chatter is no longer drawn under replies). The card observer is
    disconnected on a delete and a chat change, as before; nodes dropped by SillyTavern take their listeners
    with them, and the card cache stays capped at 200.
 3. **The store keeps what a reply reads over the whole chat.** `receipts()` copies each record's receipts

@@ -180,6 +180,9 @@ turn-in past that waits, open and unpaid, for the next reply (RX-E-1). The budge
 per-reply tally (`inventory.storyBudget`, which honours the reader's `storyCoinPerReply` and counts the
 reply's own `+ coin` lines too), and Story Director's own tally only on a Story Block without that query
 (RX-E-2). One story-vouched turn-in a reply.
+A story turn-in refused only by the place waits until the end of the reply (`director.turn.now.pending`); a
+later Director line of the same reply, or the `quest.settle` system step before the next reply (replan),
+pays or refuses it on the scene after all the reply's lines (Story Director #112).
 Screen: **Quests** (status text per quest: Not yet / Ready / Ready to turn in here; finished quests kept).
 
 ## D. NPC State Delta (agent NSD-hosted)
@@ -572,15 +575,20 @@ These settle questions agents raised; the host changes they need are made at int
     when the feature is turned on later, until a Re-read reads it again (SPEC §4.4, the comment's `off:`). Choices show as
     buttons under the **latest** reply only, until the reader answers; a click puts the text in SillyTavern's
     message box after what is typed there and **never sends** (no Shift-click send as in v1): it is not a
-    story action (F95, F96). Chatter shows in a folded "Inner chatter (N)" strip under every reply; the name is
-    a chip opening NPC State Delta's dossier when `npc.dossier` knows it (and NSD's `openDossier` is there),
-    else plain text (F11, rule: modules stand alone). Chatter never reaches a later prompt (the block is
+    story action (F95, F96). Chatter is **not drawn under replies** (beta-candidate live test, 2026-10-22:
+    "inline inner chatter should be removed"; it was a folded "Inner chatter (N)" strip): each thought shows
+    next to the person who had it, on Story Director's World → Now (`chatter.head`, F119), or, while
+    `story-director/world` is not registered (no Story Director, or its World view off), on Story Block's Scene
+    screen under each person present, the name then the thought (read-only query **`scene.chatter`** →
+    `[{ name, text }]` in the scene's order, `name` as `scene.present` lists the person, one thought each (the
+    thinker's last line), matched to a present name ignoring case; a thinker not present is left out; `[]` while
+    World is there, `null` while `story-block.chatter` is off). Chatter never reaches a later prompt (the block is
     stripped from the history); the setting **Inner chatter: Send the last reply's thoughts back to the story**
     (`chatterInPrompt`, off) adds the thoughts of the reply the reader's latest message answered as one
     optional tail line. All text is drawn with textContent, flattened (no invisible or control characters).
     Read-only query **`chatter.head`** → the newest reply's chatter as `[{ name, text }]` (the last message
     that is not the reader's or a system one, after the reader's first; its shown swipe), read the same way
-    the strip reads it (extras.js displayLines); `[]` when it has none, `null` while `story-block.chatter` is
+    every reply's display lines are read (extras.js displayLines); `[]` when it has none, `null` while `story-block.chatter` is
     off. Story Director's World screen puts each thought under the person who had it (F119).
 
 ### User decisions from live test #4 (2026-10-22, F116–F118)
@@ -627,7 +635,7 @@ These settle questions agents raised; the host changes they need are made at int
     with search, each opening its dossier view); their id stays `npc-state-delta/cast`, so a reader's saved
     tab order still finds it. Its default place is **last**, after the Director (`screens.js` DEFAULT_ORDER
     `cast: 210`); a saved order keeps the place it gives. Without Story Director, Dossiers keeps the present
-    cast's cards at the top, so nothing is lost. The chatter strip under each reply stays as it is.
+    cast's cards at the top, so nothing is lost. (The chatter strip under each reply has since gone, F115.)
     **Scene is hidden by default while World is there** ("is Scene doing the same thing as World?": it is):
     Story Block's `story-block/scene` (place, kind, region, story time, the people with portraits) leaves the
     tab strip and the game view's navigation while `story-director/world` is registered (`screens.js`
@@ -635,8 +643,27 @@ These settle questions agents raised; the host changes they need are made at int
     reply" (new read-only query `scene.moved` → true while the head reply's receipts moved the place), the story time while Story Director keeps a clock, the people (portraits on NSD's cards, else names
     with their thought). Settings → Tabs still lists Scene, hidden, to show again; the reader's choice wins:
     `storySuite.tabs.shown` keeps one they showed, `hidden` one they hid, and an order saved before `shown`
-    existed that names Scene counts as showing it. Without Story Director, Scene shows as before. Home's scene
-    panel is unchanged.
+    existed that names Scene counts as showing it. Without Story Director, Scene shows as before, now with each
+    person's thought (`scene.chatter`, F115). Home's scene panel is unchanged.
+
+### User decision from the beta-candidate live test (2026-10-22, F120)
+
+120. **Weather is a scene line** ("weather on the reply Status card"; v1 kept it in a block the model wrote,
+    which v2 dropped). Feature `story-block.weather` (label "Weather", **on** by default; F100): its grammar line
+    `~ weather cold drizzle, low fog (only when the weather changes, not every reply; a few words, at most 60
+    characters)` is in the static part only while it is on, so the static part changes once when it is turned
+    on or off, as Choices and Inner chatter. A `~ weather` (or `+ weather`) line keeps **`scene.weather = {
+    text, rev }`** in the scene domain (`rev`: the `meta.rev` of the receipt that wrote it); the text is the
+    line's words with markdown, tags and anything inside `<…>` taken out, flattened to one line and cut at 60
+    code points (never markup, never half a character). The same text again changes nothing; another op or a
+    line with no words is refused (`INVALID`, nothing saved); a line while the feature is off is a quiet
+    `FEATURE_OFF`. It is **descriptive only**: no mechanic reads it. Read-only query **`scene.weather`** → `{ text
+    }`, or `null` when no reply wrote one and while the feature is off; Story Director's Status card reads it.
+    `weather` is one of the scene's `scratch` fields (SPEC §2.2), so a later reply's weather replays whole after
+    the reply that first wrote one is deleted; swipes, Re-read and a reload give what a rebuild gives, like the
+    other scene fields. Shown on Scene (with the place) and Home's scene panel. The tail's Place line ends with
+    it while the feature is on, cut to 26 code points (`Place: Vell Harbour (settlement); cold drizzle, low
+    fog`, at most 28 characters more: about 8 tokens), and only when there is a place.
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 

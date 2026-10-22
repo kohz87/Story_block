@@ -17,16 +17,21 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
         'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'scene.place', 'scene.present', 'wallet.pay', 'wallet.receive',
     ]);
     assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'events.status', 'inventory.condition', 'inventory.currency', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
-        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.list', 'packs.markets', 'packs.start', 'scene.moved', 'scene.place', 'scene.present']);
+        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.list', 'packs.markets', 'packs.start', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterReply', 'beforeGenerate', 'item.resolve', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
-    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'loot', 'choice', 'chatter']);
+    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'loot', 'choice', 'chatter']);
     // Choices and Inner chatter are display kinds under their features (MODULES §F115): no command runs for them.
     assert.deepEqual(['choice', 'chatter'].map(kind => [module.capture.kinds[kind].feature, Boolean(module.capture.kinds[kind].display)]), [['story-block.choices', true], ['story-block.chatter', true]]);
     assert.equal(module.capture.kinds.loot.feature, 'story-block.loot');
     assert.equal(module.commands['inventory.lootTake'].feature, 'story-block.loot');
     assert.equal(module.queries['inventory.encumbrance'].feature, 'story-block.encumbrance');
     assert.equal(module.queries['chatter.head'].feature, 'story-block.chatter', 'Inner chatter\'s query, null while it is off');
+    assert.equal(module.queries['scene.chatter'].feature, 'story-block.chatter', 'the Scene screen\'s chatter, null while it is off');
+    // The weather (MODULES §F120): a kind and a query under its feature, on by default.
+    assert.equal(module.capture.kinds.weather.feature, 'story-block.weather');
+    assert.equal(module.queries['scene.weather'].feature, 'story-block.weather');
+    assert.deepEqual(module.domains.scene.scratch, ['weather']);
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
@@ -36,7 +41,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
         ['story-block.hud', true], ['story-block.cards', true], ['story-block.preroll', false], ['story-block.extractor', false],
         ['story-block.inspector', false], ['story-block.savepoints', true], ['story-block.choices', false], ['story-block.chatter', false],
-        ['story-block.loot', true], ['story-block.encumbrance', true],
+        ['story-block.weather', true], ['story-block.loot', true], ['story-block.encumbrance', true],
     ]);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));
@@ -137,7 +142,7 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
         assert.equal(typeof kind.apply, 'function');
     }
     assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands).filter(name => !/^(events|assist)\./.test(name)));
-    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist|chatter)\./.test(name) && name !== 'scene.moved'));
+    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist|chatter)\./.test(name) && name !== 'scene.moved' && name !== 'scene.chatter'));
     assert.equal(part.context.budget, CORE_BUDGET);
 });
 

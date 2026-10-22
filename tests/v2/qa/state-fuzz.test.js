@@ -62,6 +62,8 @@ function replyText(r, step) {
     const story = `Reply of step ${step}: the story goes on.`;
     if (r.chance(0.2)) return story;
     const lines = Array.from({ length: r.int(1, 5) }, () => changeLine(r));
+    // The weather (MODULES §F120), by step so the seeds draw the same chats.
+    if (step % 6 === 4) lines.push(`~ weather ${WORDS[step % WORDS.length]} and rain`);
     if (r.chance(0.1)) return `${story}\n<Changes>\n${lines[0]}\n</Changes>\nMore story.\n<Changes>\n${lines.slice(1).join('\n')}\n</Changes>`;
     return `${story}\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 }
