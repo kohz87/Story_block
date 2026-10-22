@@ -197,6 +197,13 @@ test('settings.section: the panel itself, or a title with render(el, api)', () =
     assert.match(definitionProblems({ id: 'x', settings: { section: 3 } }).join(), /settings.section is not a function/);
     assert.deepEqual(definitionProblems({ id: 'x', settings: { panel: () => {} } }), [], 'a newer settings part is not a refusal (R2-b7-2)');
     assert.match(definitionWarnings({ id: 'x', settings: { panel: () => {} } }).join(), /"settings.panel" is not a settings field this Story Block knows; it is ignored/);
+    // `place`: 'diagnostics' is known; another value warns (the fold stays where it was), never refuses.
+    assert.deepEqual(definitionWarnings({ id: 'x', settings: { place: 'diagnostics', folds: [{ id: 'a', title: 'A', render() {}, place: 'diagnostics' }] } }), []);
+    assert.deepEqual(definitionWarnings({ id: 'x', settings: { place: 'sidebar', folds: [{ id: 'a', title: 'A', render() {}, place: 3 }] } }), [
+        '"settings.place" is "sidebar", a place this Story Block does not know; the fold stays where it was',
+        'settings fold 1\'s place is 3, a place this Story Block does not know; the fold stays where it was',
+    ]);
+    assert.deepEqual(definitionProblems({ id: 'x', settings: { place: 'sidebar' } }), []);
 });
 
 test('internal commands: capture.*, module.init.* and commands marked internal (object form or flagged handler)', () => {
