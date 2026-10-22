@@ -11,7 +11,7 @@ import { UI_SAMPLE_DATA, UI_SAMPLE_ID, openUiSample, uiSampleScreen } from '../.
 import { installFakeDom } from '../../ui-fake-dom.js';
 
 const CLASSES = ['ss-glass', 'ss-glass-strong', 'ss-label', 'ss-pill', 'ss-pill-soft', 'ss-pill-outline', 'ss-bar', 'ss-bar-exp', 'ss-bar-head', 'ss-bar-label', 'ss-bar-value', 'ss-bar-track', 'ss-bar-fill'];
-const WIDGETS = ['ss.tile', 'ss.bar', 'ss.status', 'ss.pill', 'ss.hero', 'ss.tiers', 'ss.listcard', 'ss.tabs', 'ss.navbar'];
+const WIDGETS = ['ss.tile', 'ss.bar', 'ss.status', 'ss.pill', 'ss.hero', 'ss.tiers', 'ss.listcard', 'ss.tabs', 'ss.navbar', 'ss.map'];
 
 function elements(nodes, out = []) {
     for (const node of nodes ?? []) {
@@ -65,7 +65,13 @@ test('the UI sample draws every block in a light and a dark pane, and closes on 
         assert.equal(pane.querySelectorAll('.ss-hero-compact').length, 1);
         assert.ok(pane.querySelector('.ss-hero-img').getAttribute('src').startsWith('data:image/png;base64,'));
         assert.equal(pane.querySelectorAll('.ss-tiers-tier').length, 3);
-        assert.equal(pane.querySelectorAll('.ss-listcard').length, 3);
+        // three list cards, and the map's legend (a list card too)
+        assert.equal(pane.querySelectorAll('.ss-listcard').length, 4);
+        // the map: one stage, a button-less place per node (the sample has no command), the reader's place marked, the fog drawn
+        assert.equal(pane.querySelectorAll('.ss-w-map-stage').length, 1);
+        assert.equal(pane.querySelectorAll('.ss-w-map-node').length, UI_SAMPLE_DATA.map.nodes.length);
+        assert.equal(pane.querySelector('.ss-w-map-node[aria-current="location"]').getAttribute('aria-label').startsWith('Hollow Tree'), true);
+        assert.equal(pane.querySelectorAll('.ss-w-map-node.ss-w-unknown').length, 1, 'the place not yet found, drawn muted');
         assert.equal(pane.querySelectorAll('.ss-tabs-item').length, UI_SAMPLE_DATA.tabs.items.length);
         assert.equal(pane.querySelector('.ss-tabs-item[aria-current="page"]').textContent, 'World');
         assert.equal(pane.querySelectorAll('.ss-navbar-item').length, UI_SAMPLE_DATA.nav.items.length);

@@ -192,7 +192,11 @@ test('styles: added once per document, every rule without specificity', () => {
     assert.equal(styles.length, 1);
     assert.equal(styles[0].textContent, widgetCss);
     const selectors = widgetCss.replace(/\/\*[^]*?\*\//g, '').match(/[^{}]+(?=\{)/g).map(text => text.trim()).filter(Boolean);
-    for (const selector of selectors) assert.match(selector, /^:where\(/, selector);
+    // Every rule is under :where() (no specificity), except the map's three type rules: they must beat SillyTavern's own
+    // "button { font-family; font-size; color }" (0,0,1), and they are the only ones listed here.
+    const CLASS_LEVEL = ['.ss-w-map-btn, .ss-w-map-layer', '.ss-w-map-zoom .ss-w-map-btn', 'button.ss-w-map-node'];
+    const unwrapped = selectors.filter(selector => !selector.startsWith(':where('));
+    assert.deepEqual(unwrapped, CLASS_LEVEL, 'only the documented class-level rules are outside :where()');
     assert.doesNotMatch(widgetCss, /position:\s*fixed|@import|url\(/);
 });
 

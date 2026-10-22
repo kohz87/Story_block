@@ -26,8 +26,8 @@ function mapped(props = {}) {
 test('the map: the legend is a glass list card with label and rows; each row holds its sample and its text', () => {
     const m = mapped();
     const legend = m.q('.ss-w-map-legend');
-    assert.ok(legend.classList.contains('ss-glass') && legend.classList.contains('ss-listcard'), 'a glass list card');
-    assert.equal(m.q('.ss-w-map-legend-title').className, 'ss-label ss-w-map-legend-title');
+    assert.ok(legend.classList.contains('ss-glass-strong') && legend.classList.contains('ss-listcard'), 'a strong-glass list card');
+    assert.equal(m.q('.ss-w-map-legend-title').className, 'ss-w-map-legend-title');
     const rows = m.all('.ss-w-map-legend-list li');
     assert.ok(rows.length >= 2, 'the kinds on show, the routes, you are here');
     for (const row of rows) {

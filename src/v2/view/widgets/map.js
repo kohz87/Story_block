@@ -165,9 +165,9 @@ function render(el, input, api) {
         const miniNodes = s(doc, 'g', { class: 'ss-w-map-mini-nodes' });
         const viewport = s(doc, 'rect', { class: 'ss-w-map-viewport', 'vector-effect': 'non-scaling-stroke' });
         mini.append(miniEdges, miniNodes, viewport);
-        // The legend is a glass list card (the look's ss.listcard classes): a label, then one row per kind on show.
-        const legend = h(doc, 'div', 'ss-w-map-legend ss-glass ss-listcard');
-        const legendTitle = h(doc, 'p', 'ss-label ss-w-map-legend-title', 'Legend');
+        // The legend is a strong-glass list card (cards over busy art use the strong glass; the ss.listcard classes): a label, then one row per kind on show.
+        const legend = h(doc, 'div', 'ss-w-map-legend ss-glass-strong ss-listcard');
+        const legendTitle = h(doc, 'p', 'ss-w-map-legend-title', 'Legend');
         const legendList = h(doc, 'ul', 'ss-listcard-rows ss-w-map-legend-list');
         legend.append(legendTitle, legendList);
         side.append(mini, legend);

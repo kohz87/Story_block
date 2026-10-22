@@ -50,10 +50,36 @@ test('the map: the place pins and name chips read the glass; the current place k
     assert.match(blocks(map, '.ss-w-map-node.ss-w-unknown'), /color: var\(--ss-muted, var\(--ss-w-muted\)\)/);
 });
 
-test('the map: every rule is under :where() (no specificity), so a screen\'s own CSS still wins', () => {
-    for (const match of map.matchAll(/^([^{}\n/*]+)\{/gm)) {
-        const head = match[1].trim();
-        if (!head.includes('ss-w-map')) continue;
-        assert.ok(head.startsWith(':where('), `not under :where(): ${head}`);
+// The map's rules are under :where() (no specificity), so a screen's own CSS still wins, except the three type rules that
+// must beat SillyTavern's own "button { font-family; font-size; color }" (specificity 0,0,1): listed here, and no others.
+const CLASS_LEVEL = ['.ss-w-map-btn, .ss-w-map-layer', '.ss-w-map-zoom .ss-w-map-btn', 'button.ss-w-map-node'];
+const headsOf = css => [...css.matchAll(/^([^{}\n/*]+)\{/gm)].map(match => match[1].trim()).filter(head => head.includes('ss-w-map'));
+
+test('the map: every rule is under :where() (no specificity), except the three class-level type rules', () => {
+    const heads = headsOf(map);
+    const classLevel = heads.filter(head => !head.startsWith(':where('));
+    assert.deepEqual(classLevel, CLASS_LEVEL, 'the class-level rules are exactly the documented three');
+});
+
+// The specificity of one selector (a class or attribute or pseudo-class is 0,1,0; an element 0,0,1; :where() adds nothing).
+const specificityOf = selector => {
+    const bare = selector.replace(/:where\(([^()]*)\)/g, '');
+    const ids = (bare.match(/#[\w-]+/g) ?? []).length;
+    const classes = (bare.match(/\.[\w-]+|\[[^\]]+\]|:(?!where)[\w-]+/g) ?? []).length;
+    const elements = (bare.match(/(^|[\s>+~])[a-z][\w-]*/g) ?? []).length;
+    return [ids, classes, elements];
+};
+const beats = (a, b) => a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2];
+
+test('the map: the colour of a control beats SillyTavern\'s button rule (0,0,1), and the controls keep the look\'s text colour', () => {
+    const body = map.replace(/\/\*[\s\S]*?\*\//g, '');
+    const colourRules = [...body.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(match => /(^|;|\s)color:/.test(match[2]) && match[1].includes('ss-w-map-btn'));
+    assert.ok(colourRules.length >= 1, 'the controls have a colour rule');
+    for (const match of colourRules) {
+        for (const selector of match[1].split(',').map(part => part.trim()).filter(part => part.includes('ss-w-map-btn'))) {
+            assert.ok(beats(specificityOf(selector), [0, 0, 1]), `${selector} must beat the button rule`);
+            assert.match(match[2], /color: var\(--ss-text, var\(--ss-w-fg\)\)/, 'the look\'s text colour');
+        }
     }
+    assert.match(blocks(map, '.ss-w-map-btn'), /font-weight: 600/);
 });

@@ -90,8 +90,13 @@ export const widgetCss = `
 :where(.ss-w-map) { display: flex; flex-direction: column; gap: var(--ss-w-gap); }
 :where(.ss-w-map-bar) { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
 :where(.ss-w-map-layers, .ss-w-map-zoom) { display: flex; flex-wrap: wrap; gap: 6px; }
-:where(.ss-w-map-btn, .ss-w-map-layer) { min-width: 40px; min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--ss-border, var(--ss-w-border)); border-radius: var(--ss-radius-pill, 999px); background: var(--ss-tile, var(--ss-w-raised)); color: var(--ss-text, var(--ss-w-fg)); font: inherit; font-weight: 600; line-height: 1; cursor: pointer; transition: border-color var(--ss-motion, 0.2s) ease, background-color var(--ss-motion, 0.2s) ease; }
-:where(.ss-w-map-zoom .ss-w-map-btn) { width: 40px; padding: 0; border-radius: 10px; font-size: 1.2em; }
+:where(.ss-w-map-btn, .ss-w-map-layer) { min-width: 40px; min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--ss-border, var(--ss-w-border)); border-radius: var(--ss-radius-pill, 999px); background: var(--ss-glass-strong, var(--ss-tile, var(--ss-w-raised))); cursor: pointer; transition: border-color var(--ss-motion, 0.2s) ease, background-color var(--ss-motion, 0.2s) ease; }
+/* SillyTavern's own "button { font-family; font-size; color }" rule (specificity 0,0,1) would beat the :where() rules, so the type of
+   a control and of a selectable place (a button) is set at class level: the look's text colour, whatever SillyTavern's button colour is. */
+.ss-w-map-btn, .ss-w-map-layer { font: inherit; font-weight: 600; line-height: 1; color: var(--ss-text, var(--ss-w-fg)); }
+:where(.ss-w-map-zoom .ss-w-map-btn) { width: 40px; padding: 0; border-radius: 10px; }
+.ss-w-map-zoom .ss-w-map-btn { font-size: 1.2em; }
+button.ss-w-map-node { font: inherit; font-size: 0.85em; color: var(--ss-text, var(--ss-w-fg)); }
 :where(.ss-w-map-btn:hover, .ss-w-map-layer:hover, .ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-btn:active, .ss-w-map-layer:active) { border-color: var(--ss-accent, var(--ss-w-accent)); background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--ss-w-bg)); }
 :where(.ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-node:focus-visible, .ss-w-map-stage:focus-visible) { outline: 2px solid var(--ss-accent, var(--ss-w-accent)); outline-offset: 2px; }
 :where(.ss-w-map-layer.ss-w-active) { border-color: var(--ss-accent, var(--ss-w-accent)); background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--ss-w-bg)); }
@@ -102,11 +107,11 @@ export const widgetCss = `
 :where(.ss-w-map-edge) { stroke: var(--ss-w-map-route, var(--ss-w-muted)); stroke-width: 2; }
 :where(.ss-w-map-edge.ss-w-unknown) { stroke-dasharray: 4 4; opacity: 0.6; }
 :where(.ss-w-map-nodes) { position: absolute; inset: 0; pointer-events: none; }
-:where(.ss-w-map-node) { position: absolute; left: calc(var(--ss-w-x, 50) * 1%); top: calc(var(--ss-w-y, 50) * 1%); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0.25em; padding: 0; border: 0; background: none; color: var(--ss-text, var(--ss-w-fg)); pointer-events: auto; font-size: 0.85em; }
+:where(.ss-w-map-node) { position: absolute; left: calc(var(--ss-w-x, 50) * 1%); top: calc(var(--ss-w-y, 50) * 1%); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 0.5em; padding: 0; border: 0; background: none; color: var(--ss-text, var(--ss-w-fg)); pointer-events: auto; font-size: 0.85em; }
 :where(.ss-w-map-node .ss-w-map-dot, .ss-w-map-node .ss-w-map-icon) { display: grid; place-items: center; width: 2.1em; height: 2.1em; border-radius: 50%; border: 2px solid var(--ss-border, var(--ss-w-border)); background: var(--ss-glass-strong, var(--ss-w-bg)); color: var(--ss-text, var(--ss-w-fg)); box-shadow: var(--ss-shadow, none); }
 :where(.ss-w-map-node.ss-w-selectable:hover .ss-w-map-dot, .ss-w-map-node.ss-w-selectable:hover .ss-w-map-icon, .ss-w-map-node.ss-w-selectable:active .ss-w-map-dot, .ss-w-map-node.ss-w-selectable:active .ss-w-map-icon) { border-color: var(--ss-accent, var(--ss-w-accent)); }
 :where(.ss-w-map-node:focus-visible) { outline-offset: 4px; border-radius: 50%; }
-:where(.ss-w-map-name) { max-width: 10em; padding: 2px 8px; border-radius: 6px; background: var(--ss-glass-strong, color-mix(in srgb, var(--ss-w-bg) 80%, transparent)); color: var(--ss-text, var(--ss-w-fg)); font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:where(.ss-w-map-name) { max-width: 10em; padding: 2px 8px; border-radius: 6px; background: var(--ss-glass-strong, color-mix(in srgb, var(--ss-w-bg) 80%, transparent)); background: rgb(from var(--ss-glass-strong, var(--ss-w-bg)) r g b / 1); -webkit-backdrop-filter: var(--ss-blur, none); backdrop-filter: var(--ss-blur, none); color: var(--ss-text, var(--ss-w-fg)); font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 :where(.ss-w-map-node.ss-w-current .ss-w-map-dot, .ss-w-map-node.ss-w-current .ss-w-map-icon) { border-color: var(--ss-accent, var(--ss-w-accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ss-accent, var(--ss-w-accent)) 40%, transparent); }
 :where(.ss-w-map-node.ss-w-unknown) { color: var(--ss-muted, var(--ss-w-muted)); }
 :where(.ss-w-map-side) { display: flex; flex-direction: column; gap: var(--ss-w-gap); flex: 0 1 11em; min-width: 8em; }
@@ -116,7 +121,7 @@ export const widgetCss = `
 :where(.ss-w-map-mini-node.ss-w-current) { fill: var(--ss-accent, var(--ss-w-accent)); }
 :where(.ss-w-map-viewport) { fill: color-mix(in srgb, var(--ss-accent, var(--ss-w-accent)) 15%, transparent); stroke: var(--ss-accent, var(--ss-w-accent)); stroke-width: 1.5; }
 :where(.ss-w-map-legend) { padding: 10px 12px; }
-:where(.ss-w-map-legend-title) { margin: 0 0 4px; }
+:where(.ss-w-map-legend-title) { margin: 0 0 4px; color: var(--ss-text, var(--ss-w-fg)); font-size: 0.8em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 :where(.ss-w-map-legend-list) { font-size: 0.9em; }
 :where(.ss-w-map-legend-item) { min-width: 0; }
 :where(.ss-w-map-legend-item .ss-listcard-item) { padding: 6px 6px; min-height: 0; }
