@@ -18,7 +18,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { createStore } from '../../../src/v2/store.js';
-import { readRecord } from '../../../src/v2/persist.js';
+import { IDLE_MS, readRecord } from '../../../src/v2/persist.js';
 import { serveChats } from '../helpers/st-server.js';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -49,6 +49,9 @@ async function twoChats(t, { server = false } = {}) {
     if (!srv) h.ctx.saveChat = async () => { files[h.ctx.chatId] = structuredClone(h.ctx.chat); };
     const read = id => (srv ? srv.messages(id) : structuredClone(files[id] ?? null));
     await h.send('In A.', 'Chat A.\n<Changes>\n~ place Bluewatch\n</Changes>');
+    // The reply's own save (with a chat file it waits for the turn's idle window; SillyTavern has saved
+    // the chat itself by then): chat A's file is there.
+    if (srv) await h.store.flush();
     const b = [structuredClone(h.ctx.chat[0]), { name: 'You', is_user: true, mes: 'B1', extra: {} }, structuredClone(h.ctx.chat[2]),
         { name: 'You', is_user: true, mes: 'B2', extra: {} }, structuredClone(h.ctx.chat[2])];
     if (srv) srv.files['chat-B'] = [{ chat_metadata: {} }, ...b];
@@ -68,6 +71,25 @@ test('B-b2-timeline-1: a UI command, then another chat opened within 400 ms: cha
     await settled();
     assert.equal(read('chat-B').length, bLength, `chat B's file still holds its ${bLength} messages (actual: ${read('chat-B').length})`);
     assert.deepEqual(present(headOf(read('chat-1'))), ['Guard Seven'], 'chat A on disk holds the command made in it');
+});
+
+test('B-b2-timeline-1 with a chat file: a reader\'s action waits for the turn\'s save; another chat opened before it gets nothing of it, and chat A\'s file gets it', async t => {
+    const { h, srv, read, bLength } = await twoChats(t, { server: true });
+    const saves = srv.requests.length;
+    assert.equal((await h.sdk.command('scene.present', { add: 'Guard Seven' })).ok, true);
+    assert.equal(srv.requests.length, saves, 'the action answers before any write (the turn\'s save)');
+    const arrive = stSwitch(h, read, 'chat-B');     // the reader opens chat B within the window
+    t.mock.timers.tick(400);
+    await settled();
+    await arrive();
+    t.mock.timers.tick(IDLE_MS);
+    await settled(8);
+    t.mock.timers.tick(1000);
+    await settled(8);
+    assert.equal(read('chat-B').length, bLength, 'chat B\'s file holds its own messages');
+    assert.ok(srv.requests.every(request => request.url !== '/api/chats/save' || request.body.file_name !== 'chat-B'), 'nothing was saved to chat B');
+    assert.deepEqual(present(headOf(read('chat-1'))), ['Guard Seven'], 'chat A\'s file holds the action made in it');
+    assert.equal(h.store.dirty(), false);
 });
 
 test('B-b2-timeline-1: a save that comes due while another chat is being opened writes nothing of it, and puts the change into its own chat', async t => {
@@ -129,9 +151,13 @@ test('B-b2-timeline-2: a save the server refuses leaves the state marked unsaved
     t.after(() => h.close());
     const srv = serveChats(t, h);
     await h.send('One.', 'Fine.\n<Changes>\n~ place Bluewatch\n</Changes>');
+    t.mock.timers.tick(IDLE_MS);                    // the turn's save
+    await settled();
     assert.equal(h.store.dirty(), false);
     srv.failing = true;
     assert.equal((await h.sdk.command('scene.present', { add: 'Ser Nine' })).ok, true, 'the action stands');
+    t.mock.timers.tick(IDLE_MS);                    // its save, with the turn's
+    await settled();
     assert.deepEqual(present(headOf(srv.messages('chat-1'))), [], 'precondition: the file does not hold the command');
     assert.equal(h.store.dirty(), true, 'the store knows the command was not saved');
     assert.equal(h.store.failing(), true);

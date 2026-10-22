@@ -37,7 +37,8 @@ test('beforeunload with a save on its way: the newest state goes out with keepal
     const { h, page, server } = await paged(t);
     await h.store.flush();
     server.hold = true;
-    h.sdk.command('scene.present', { add: 'Ann' });   // saved at once; it hangs
+    await h.sdk.command('scene.present', { add: 'Ann' });
+    h.store.saveSoon();                                // its save goes out (the turn's save); it hangs
     await settle();
     server.hold = false;
     const before = server.saves.length;
@@ -84,7 +85,8 @@ test('hidden (tab switch, phone) and pagehide save at once; a save on its way wi
     const { h, page, server } = await paged(t);
     await h.store.flush();
     server.hold = true;
-    h.sdk.command('scene.present', { add: 'Ann' });   // in flight, carrying the newest change
+    await h.sdk.command('scene.present', { add: 'Ann' });
+    h.store.saveSoon();                                // in flight, carrying the newest change
     await settle();
     server.hold = false;
     const before = server.saves.length;
@@ -92,7 +94,7 @@ test('hidden (tab switch, phone) and pagehide save at once; a save on its way wi
     page.document.dispatchEvent(new Event('visibilitychange'));
     await settle();
     assert.equal(server.saves.length, before, 'hidden: the save on its way already carries it');
-    h.sdk.command('scene.present', { add: 'Bo' });    // waits behind the hung one
+    h.sdk.command('scene.present', { add: 'Bo' });    // waits for the turn's save, behind the hung one
     await settle();
     page.document.dispatchEvent(new Event('visibilitychange'));
     await settle();

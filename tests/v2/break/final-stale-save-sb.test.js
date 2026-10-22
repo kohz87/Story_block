@@ -94,8 +94,8 @@ test('a read-back that hangs holds neither a command nor its save', async t => {
     const saves = server.saves;
     const done = await h.sdk.command('scene.present', { add: 'Bo' });
     assert.equal(done.ok, true);
-    await seconds(t, 1);
-    assert.equal(server.saves, saves + 1, 'saved at once');
+    await seconds(t, 2);                        // the turn's idle save (IDLE_MS)
+    assert.equal(server.saves, saves + 1, 'saved, past the hanging read-back');
     assert.equal(h.store.dirty(), false);
 });
 

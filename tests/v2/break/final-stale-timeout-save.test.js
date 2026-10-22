@@ -41,7 +41,10 @@ test('final: a timed-out save that lands late does not overwrite a newer save (s
 
     slow = true;
     const first = h.sdk.command('scene.present', { add: 'Ann' });   // its save hangs on the server
-    for (let i = 0; i < 10; i++) await settle();
+    for (let s = 0; s < 2; s++) {                                   // the turn's idle save goes out (IDLE_MS)
+        t.mock.timers.tick(1000);
+        for (let i = 0; i < 10; i++) await settle();
+    }
     assert.equal(late.length, 1, 'the first save is on the server');
     const second = h.sdk.command('scene.present', { add: 'Bo' });   // a newer change while it hangs
     for (let s = 0; s < 40; s++) {                                  // 40 s: the first save times out, the retry carries both

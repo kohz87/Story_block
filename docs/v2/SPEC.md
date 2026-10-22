@@ -291,12 +291,19 @@ commands: {
 
 ### 3.3 Saving
 
-A reader's action (`sdk.command`, `sdk.commit`) is saved at once, before its result comes back; Story Block's
-own steps (events, a module set up) save 400 ms after the last one; a generation starting flushes the
-pending save first; the after-reply capture (§4.2) saves once at its end. Cues committed before a reply
-(§4.1 step 3) are saved with that reply's save, not on their own (each save writes the whole chat file); a
-generation that ends without the reply (GENERATION_ENDED / GENERATION_STOPPED), or a chat opened meanwhile,
-saves them then.
+Each save writes the whole chat file, so a turn is written once (docs/v2/PERFORMANCE.md, "Long chats"). Where
+Story Block writes the chat file itself (below), the after-reply capture (§4.2) and the reader's actions
+after it (`sdk.command`, `sdk.commit`) share **the turn's save**: it goes out 1.5 s after the last of them
+(`IDLE_MS`), and never later than 8 s after the first change not yet saved (`IDLE_MAX_MS`); an action's
+result comes back without waiting for it. A generation starting leaves the waiting save for the reply's
+save (it does not write in the request's way; the 8 s limit still holds). Story Block's own steps (events,
+a module set up) save 400 ms after the last one, or with the turn's save inside its window. Where there is
+no such file (the testkit, a temporary chat), a reader's action is saved at once, before its result comes
+back, a generation starting flushes the pending save first and the capture saves once at its end. Cues
+committed before a reply (§4.1 step 3) are saved with that reply's save, not on their own; a generation
+that ends without the reply (GENERATION_ENDED / GENERATION_STOPPED), or a chat opened meanwhile, saves
+them then. A chat opened before the turn's save is never written with it: the change goes into its own
+chat's file (below), and a page hidden or closed sends it at once.
 
 Each change remembers the chat it was made in (the chat ID and the head carrier). Right before a save starts
 writing, in the same tick, the store checks that this chat is still the one open: SillyTavern opens another
@@ -351,7 +358,8 @@ save).
 
 ### 4.1 Before the reply (generation interceptor; normal, swipe, regenerate, continue only)
 
-1. Flush pending saves.
+1. Pending saves: flushed where there is no chat file of Story Block's own; otherwise the waiting turn's
+   save goes with the reply's own save (§3.3), so nothing is written in the request's way.
 2. Collect **untold receipts**: receipts with `narrate: true` on carriers after the last reply that told
    them (`narrated`), i.e. what happened since the last narration, oldest first.
 3. Each module's `beforeGenerate(view, { type, dryRun, commit })` may return cues (due events, met
@@ -975,6 +983,8 @@ createStore({ chat: () => Message[], save: async (target, { keepalive }) => void
   untold() → Receipt[],                // §4.1 step 2
   rebuild() → void,                    // after chat change, delete, swipe
   scheduleSave(ms = 400) → void, saveSoon() → Promise<boolean>, flush() → Promise<void>, dirty() → boolean,
+  saveIdle() → boolean,                // the turn's save (§3.3); false where it saves at once instead
+  work() → { replays, recordsRead, lineScans },   // replay work done so far (tests count it)
   failing() → boolean, truncate(index, beforeRev, { dryRun?, chat? }) → { dropped, rev },
                                        // truncate replays the kept blocks by the replay rules (§2.2)
 }

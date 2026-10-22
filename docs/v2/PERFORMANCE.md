@@ -12,6 +12,7 @@ size of one change.
 ## How to run it
 
 ```sh
+node scripts/bench-long.mjs                 # the long-chat benchmark (saves, upload, build, capture, work)
 node scripts/bench-v2.mjs                   # 100, 1,000 and 3,000 replies (about 2 minutes)
 node scripts/bench-v2.mjs --replies 500     # one length
 node scripts/bench-v2.mjs --json out.json   # the raw numbers too
@@ -145,6 +146,142 @@ they feed quest history.
   Since #91 a reply costs Story Block one write of its own (the capture's; cues ride on it), plus one per
   burst of the reader's clicks; with the file halved each write is half the size.
 
+## Long chats
+
+The final beta soak (1,500 replies, all four modules, the Ersveil pack; inventory-block branch
+`claude/beta-soak-results`, `final/REPORT.md`) found three costs that kept growing with the chat or with the
+session, on top of the file size itself:
+
+* **Saves.** 3.9 whole-file saves per send at every length, so the upload grew with the file: 3.9 MB per
+  send at 1–250 replies, 44 MB at 1,251–1,500. Two of them are SillyTavern's own (the reader's message, the
+  reply); the others were Story Block's: one at the end of the capture, awaited inside `MESSAGE_RECEIVED`,
+  and one for **each** reader action after the reply, awaited before `sdk.command` answered.
+* **Capture and prompt build**, 2.5–4 s each from about reply 800. A CPU profile of four live replies on a
+  1,500-reply chat (Story Block at `6cd899b`) put 26 of 71 sampled seconds in `querySelector`: the card mount
+  redrew the cards under **every** carrier on each `committed` and `head` event, looking each message up
+  with its own document query (`.mes[mesid="n"]`), even with every card screen turned off. A capture of ten
+  lines is ten `committed` events, and a `beforeGenerate` cue one more. Another 9 s went to replaying
+  earlier replies' states for cards on screen (`store.at`, with every domain's validator), and the capture's
+  awaited save added the upload of the whole file.
+* **The per-session cost.** SillyTavern keeps every message drawn in a session on the page (the DOM grew
+  from ~20k to ~39k nodes over 200 replies), and the card, note and extras passes went over all of them,
+  one document query each: that is why a reload halved capture and build in the soak.
+
+What changed:
+
+1. **The turn's save** (persist.js `idle()`, store.js `saveIdle()`, SPEC §3.3). Where Story Block writes the
+   chat file itself, the capture and the reader's actions after it are written once, 1.5 s after the last
+   of them (`IDLE_MS`) and never later than 8 s after the first unsaved change (`IDLE_MAX_MS`). Nothing is
+   awaited in `MESSAGE_RECEIVED`, `sdk.command` answers at once, and a generation starting leaves a waiting
+   save for the reply's own (nothing is written in the request's way). The safety rules stay as they were:
+   a failed save stays unsaved, is told once and tried again; every save is checked against the chat it was
+   made in, in the tick it starts, so a chat opened before the turn's save gets nothing of it and the change
+   goes into its own chat's file (the rescue, B-b2-timeline-1); the stamps and read-backs after a timed-out
+   save (#115, #122), and the save on hidden, `pagehide` and `beforeunload` (#128) are untouched (a page
+   hidden inside the window sends the change at once). Where there is no such file (the testkit, a temporary
+   chat) a reader's action is still saved at once, since a change left behind there could not be rescued.
+2. **Cards, notes and extras look only where a change can land.** A `committed` event redraws the head
+   carrier's cards alone (no earlier reply's state changes then); `head` goes over the last 30 carriers and
+   those on screen; a chat opened, more messages loaded or a delete go over every drawn message once, found
+   with one query. With no card screen on nothing is looked up. The notes under replies and the Choices and
+   Inner chatter strips redraw the last 30 drawn messages after a new message, a turn or a rebuild (full
+   passes stay for a chat opened, a delete, more messages loaded, a feature switched). The card observer is
+   disconnected on a delete and a chat change, as before; nodes dropped by SillyTavern take their listeners
+   with them, and the card cache stays capped at 200.
+3. **The store keeps what a reply reads over the whole chat.** `receipts()` copies each record's receipts
+   once (records are replaced, never changed in place) and keeps the list until the next write, rebuild or
+   change of the chat's last carrier; `untold()` likewise. `at(index)` for an earlier reply keeps its state
+   while the messages it was replayed from are the same objects with the same record, swipe and text (a
+   rebuild forgets them all). `store.work()` counts replays, records replayed and whole-chat passes, so tests
+   count work instead of time.
+
+Tests: `tests/v2/long-chat.test.js` (the turn's save: one write for a reply and three actions, the 8 s
+limit, a failed save kept and retried, nothing written in the build, the at-once fallback; a chat opened
+inside the window in `tests/v2/break/b2-timeline-save.test.js`; the memos equal a fresh replay before and
+after a new reply, an edit and a middle delete; a reply's work is the same at 60 replies as at 10; the
+card, note and extras passes; a seeded fuzz of sends, actions, swipes and middle deletes in which every
+state replays as live and the file read back rebuilds as live). The fuzz-delete and state fuzz tests run
+unchanged.
+
+### Before and after
+
+**Story Block's own benchmark** (`node scripts/bench-long.mjs`: the storage benchmark's load, saved through a
+chat file, a reader acting 300 ms apart after a reply and reading 3 s before the next; 3 actions every 4
+replies). Story Block's saves only: SillyTavern's two per reply come on top.
+
+| Replies | Chat file MB | Saves / reply | MB uploaded / reply | Build ms | Capture ms | Replays / reply (after) | Whole-chat passes / reply (after) |
+|---|---|---|---|---|---|---|---|
+| 250 | 1.39 | 1.74 → **1.00** | 1.27 → **0.73** | 3.3 → **3.1** | 9.9 → **4.3** | 0.00 | 1.00 |
+| 500 | 2.76 | 1.76 → **1.00** | 3.60 → **2.05** | 4.0 → **4.3** | 16.7 → **4.5** | 0.00 | 1.00 |
+| 750 | 4.01 | 1.74 → **1.00** | 5.86 → **3.36** | 5.1 → **4.5** | 25.0 → **4.0** | 0.00 | 1.00 |
+| 1000 | 5.37 | 1.76 → **1.00** | 8.19 → **4.66** | 7.1 → **5.6** | 39.0 → **4.3** | 0.00 | 1.00 |
+| 1250 | 6.62 | 1.74 → **1.00** | 10.41 → **5.97** | 6.5 → **6.5** | 37.1 → **4.2** | 0.00 | 1.00 |
+| 1500 | 7.98 | 1.76 → **1.00** | 12.77 → **7.27** | 7.5 → **7.2** | 43.7 → **4.3** | 0.00 | 1.00 |
+
+**The suite** (testkit, all four modules at their `v2` heads, the soak's own generator `gen.mjs` with seed
+23, reader actions after each send as in the soak: fights, party offers, equipping; chat file and clock as
+above). Medians per 250-reply window; Story Block's saves only.
+
+| Replies | Chat file MB | Saves / send | MB uploaded / send | Prompt build ms | Capture ms |
+|---|---|---|---|---|---|
+| 1–250 | 2.18 | 1.55 → **1.00** | 1.65 → **1.06** | 56.7 → **32.7** | 27.8 → **9** |
+| 251–500 | 4.36 | 1.16 → **1.00** | 3.73 → **3.29** | 65.1 → **50** | 41.6 → **10.4** |
+| 501–750 | 6.41 | 1.14 → **1.00** | 6.08 → **5.36** | 79.8 → **67.5** | 54.9 → **12.2** |
+| 751–1000 | 8.78 | 1.14 → **1.00** | 8.63 → **7.57** | 98.1 → **77.9** | 74.9 → **11.8** |
+| 1001–1250 | 10.78 | 1.04 → **1.00** | 10.21 → **9.78** | 92.9 → **67.9** | 103.5 → **10.7** |
+| 1251–1500 | 13.2 | 1.15 → **1.00** | 13.8 → **11.95** | 112 → **71.9** | 136.4 → **12.5** |
+
+**Live** (SillyTavern 1.19, Chromium, mock model, all four modules and the pack; the 1,500-reply suite chat
+above opened, then 300 more replies played in **one session**, no reload, by the soak driver with its swipes,
+edits, deletes, cuts, rewinds and reader actions). Saves and MB are over send steps and count every
+`/api/chats/save` request, SillyTavern's own two per send included. Times are medians.
+
+| Replies 1–100 of the session | Before (`6cd899b`) | After |
+|---|---|---|
+| Saves per send (SillyTavern's two included) | 4.41 | **2.94** |
+| MB uploaded per send | 60.3 | **39.9** |
+| Send → request ms | 4,196 | **1,330** |
+| Capture ms | 3,224 | **49** |
+| Prompt build (interceptor) ms | 2,150 | **88** |
+| DOM nodes (start → end of the window; max) | 16,709 → 18,826; 25,335 | 16,681 → 20,534; 25,228 |
+| DOM nodes per message SillyTavern adds (median) | 77 | 76 |
+| Heap after GC, MB (last sample) | 146 | 165 |
+| Console errors / warnings | 17 / 132 | 16 / 139 |
+| SillyTavern's "Timeout waiting for chat to save" (whole run) | 11 | 0 |
+| Rebuild == live (store, and the real runtime over the file) | yes | yes |
+
+The "before" run was stopped at 227 of the planned 300 replies (time box); the "after" run played 100. The
+same window (1–100) is compared, from the same chat file and the same driver seed. Before, capture and build
+kept rising through the session (101–200: 4.8 s and 4.1 s; 201–227: 6.3 s and 5.4 s). The DOM still grows
+with the session after the change: those are SillyTavern's own message elements (about 76 nodes per message
+it draws, dropping back when it redraws the chat after a cut or a rewind); Story Block no longer goes over
+them, so they no longer cost a reply time. The console errors are NPC State Delta's dossier scan failing on
+the mock model's empty answer to its own call (harness-made, one per few replies); none is Story Block's.
+SillyTavern's own warning "Timeout waiting for chat to save" (its after-reply save waiting behind one of
+ours) is gone. The harness's naive op replay (all ops from the first checkpoint, no replay rules) differs
+from live in both runs after the session's middle deletes (e.g. `/domains/atlas/places/<id>/kind`: "ruin"
+vs live "cave", with 23 and 88 records it could not apply); the store and the real runtime replaying the
+file equal live, as in the final soak report.
+
+**Saves per send.** SillyTavern writes the whole chat itself twice per send (the reader's message before the
+generation, the reply after it); Story Block cannot fold its own write into those, since SillyTavern 1.19's
+`saveChat` swallows errors and Story Block could not tell that the change reached the file (see "What was left
+out"). So the floor with Story Block's one write per turn is three per send, and Story Block's own share went
+from 1.7–2.4 per send (one per reader action) to 1.0. The upload per send falls by a third, not 3–4 times.
+
+### Rewind branches (not changed)
+
+Each rewind is SillyTavern's own branch: a new chat file with every message up to the branch point, their
+`extra` included, so a branch of a 1,500-reply chat carries about 8.6 MB of Story Suite records (the soak's 9
+branches made 69 MB on disk). Story Block cannot leave its records out of the branch without changing what
+a branch is: a branch is a chat of its own (opened, swiped, deleted, rewound and Re-read on its own, and it
+outlives the chat it came from, which can be renamed or deleted), and its state, its cards and its Re-read
+are rebuilt from its own records. A reference to the parent's file would break as soon as the parent
+changes. The only thinning that is safe without that is the one already in place (receipt `data` dropped
+200 carriers back). Possible later, without changing SillyTavern: after a branch is made, rewrite the
+branch's records before its last checkpoint without their ops (the checkpoint holds the state), giving up
+cards and Re-read for those replies on the branch; that is a product choice, not done here.
+
 ## Checkpoint rule (on the 3,000-reply chat, each record once)
 
 | Rule (every / ops bytes) | Checkpoints | Checkpoint bytes per reply | Chat file | Same head |
@@ -165,6 +302,8 @@ Past 100 the file barely shrinks (−0.5 MB for 200) while the longest replay do
 
 These are Story Suite's own saves (§3.3: one per UI burst, one at the end of the after-reply capture;
 cues before a reply are saved with it). SillyTavern also saves the chat itself after each reply.
+This table is the storage benchmark's (no chat file of Story Block's own, so a reader's action is saved at
+once). In SillyTavern, a reply and the reader's actions after it are one write: see "Long chats".
 
 ### SillyTavern's `backups.chat.throttleInterval`
 
