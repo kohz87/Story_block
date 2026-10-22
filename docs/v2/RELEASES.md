@@ -117,7 +117,50 @@ updated.
 - From the beta fuzz run (Story Block #112, #113): a save that hangs counts as failed after 20 s and is retried, a slow Re-read waits instead of giving up, a rewind after a middle delete replays correctly, a Continue whose block was split is read, and Equip on… respects the carry limit.
 - The settings screen after the first live test: folds keep their size and the screen scrolls (phones too); one centred column (Story Suite, Packs, Features, modules, Versions) with sub-folds per settings group; compact one-line list rows (`[January] [31] ×`); a **Prompt size** estimate in the Story Suite fold; the Packs fold second, and **Import a pack** on Home while no pack is installed.
 
+**Quests start when you take them on** (Story Director #99)
+- The story's `+ quest` is the acceptance: the quest is under way from that reply. There is no Offered list, no accept step and no offer cooldown.
+- A job someone only mentions stays in the story. An older chat's offers load hidden and become the quest when the story writes `+ quest` for one.
+
+**Arc planning and behind the scenes** (Story Director #102; Story Block #125)
+- **Plan arc** on the Director tab asks a planner model, on its own connection profile, for the next arc. You review it (Accept, Accept without reading, Plan again, Discard); accepted, it becomes the Director's beats, agendas, hooks, clocks and secrets. **End arc**, and planning by itself when there is no arc, it played out or the story stalls.
+- Code reads the plan strictly: labelled lines only, caps per kind, dates on your calendar, no rewards, XP, ranks or amounts. Swipe or delete the reply it was accepted on and it goes. Feature *Arc planning*, on; it needs Story Block 2.0.0-beta.1.
+- Agendas, planned beats, clocks and secrets are hidden on the Director tab until you press **Reveal** (per chat, remembered in the browser). The story is told all of it.
+
+**Your world's words, coins, carry and prices** (Story Block #121, #126; RPG Battle #104, #106, #108; Story Director #100, #101)
+- RPG Battle's **Terms**: XP word, Level word, **Rank ladder** and **Levels per rank**, with a preview. Quest ranks, foe ranks, your character's rank and the coin budget all use the one ladder. The fight card names it: "Weir Rat ×8 · Soul Class I · weak".
+- **Coins** (Story Block setting, or the pack's): copper, silver, gold. `+ coin 3 silver` is converted before the reply's limit, amounts show in mixed coins, and quest rewards may be written in coins. Ersveil 1.4.0 counts in copper, silver and gold.
+- Items that add carry capacity (a pack's, or named in RPG Battle's settings); the story's words never set it.
+- Prices by place: settlement type and environment tags, from the lorebook's `market:` line, the pack or the built-in table. The Trade screen says why a price is what it is. Story-made goods never sell for more than the money a reply may give.
+
+**Fights** (RPG Battle #102, #107, #110; Story Block #123)
+- Every foe the story writes is fought: at most 4 per member on the field (9 in all, settings), the rest in waves; a boss comes first in its wave and is never held back.
+- Spells aim like blows (INT against AGI); an area attack rolls for each target.
+- A fight against a quest's foes brings enough of them for real progress, and the quest item drops from each; a count the story wrote is kept.
+- A change line the model writes in the story itself (`! encounter 8 Weir Rat …` just before the block, or with no block) is read and hidden like the block's; a near miss is a Problem saying why.
+
+**Back from v1** (RPG Battle #109; Story Block #127; NPC State Delta #195)
+- HP and MP come back with story time (Story Director's clock); 6 hours or more is a full rest. Feature, on.
+- Story XP awards: `+ xp minor|major|milestone — why`; code sets the amount, at most one big and two small a reply.
+- **Choices** (next moves as buttons that only fill your message box) and **Inner chatter** (unspoken thoughts in a folded strip), both off.
+- NPC State Delta's Cast in the game view; while hosted it shows Story Director's story date and counts its own prompt in Story Block's prompt size (NPC State Delta #197).
+
+**Making your character, settings and diagnostics** (RPG Battle #99, #103; Story Block #114, #116, #117, #124; NPC State Delta #196)
+- *Before you start* on Home and **Create your character** on the Party screen, the status strip and the reply card. Race and talent cards are buttons you can take back; the last step shows a summary, and a toast says the character is ready. The last fight shows in parts.
+- Settings: folds keep their size and scroll, groups as sub-folds, lists typed as text, Features sub-folds with **Find a feature**, a module's own panel never three folds deep, the assist's connection profile as a dropdown, **Prompt size** and **Share of the context**.
+- **Settings → Diagnostics**: a plain report to copy or save for a bug report (no keys, no chat text).
+
+**For module authors** (Story Block #125, #129, #133)
+- `sdk.callModel` for a module's own model call (on a connection profile, never switching yours), and the `profile` settings field. A call on the chat's connection waits until the reply is in.
+- Two new replay rules (SPEC §2.2, Story Block #133): `ctx.absolute(domain, path)` makes a command's write of a counter a set, not a move, so it is exact on replay and later moves add on top (Story Director's `~ time <date>`); rule (d), `ctx.ifThere(domain, path)`, passes over a command's writes inside a thing on replay when that thing is gone, and the rest of the block applies (Story Director's `time.settle`). Both only for a domain the module owns.
+- A settings field may be `readOnly` (true, or a function of the module's values): drawn disabled with its value and help.
+
+**More fixes**
+- Radios and checkboxes in templates work in SillyTavern (its DOMPurify dropped their type; Story Block #120).
+- A middle delete never skips a later reply's rest (RPG Battle #100); a fight's actions stay with their fight, and conditions it left keep their rounds (#101); two flaky tests root-caused (#105).
+- Story time is kept as a count, with a most-per-reply jump; the digest can be turned off and on (Story Director #98); calendar months typed as text (#97); the Calendar settings show the pack's calendar (#101).
+
 **Player guide**
+- New: "What's new in beta.1", arc planning and behind the scenes, waves and quest-sized fights, HP and MP over story time, story XP awards. Quests have no offers any more.
 - "Checks and modifiers" now tells the same-reply dice (F80). The old Roll button is gone from the guide.
 - New sections: "Using things in the story" (F96) and "Economy and currency".
 - Quests are described as story-led, with no quest buttons (F94, F95).
@@ -130,33 +173,56 @@ updated.
 - Fixed since alpha.2's list:
   - high written quest ranks (Story Director #89, #91);
   - save cost, now halved by storage tuning (#108);
-  - balance (RPG Battle #96);
-  - `+ item` past the carry limit, which now makes the party encumbered (#104).
-- The rest of alpha.2's list still holds: see "Known issues" under 2.0.0-alpha.2 below.
-- The story's `rank:` on a foe is read, but the fight instructions don't mention it yet.
+  - balance wave C (RPG Battle #96, #102, #110), lone foes included;
+  - a big fight cut down: every foe the story writes is fought now, the rest in waves (RPG Battle #102);
+  - `+ item` past the carry limit, which now makes the party encumbered (#104);
+  - a foe's written `rank:` is now in the fight instructions (RPG Battle #98);
+  - a reply deleted in the middle of a day that already has its digest now changes the digest too
+    (Story Director #96);
+  - the guide's old Roll button.
+- Fixed at the candidate: a `~ time <date>` set no longer shifts after an earlier middle delete, and time
+  passing still closes what it closed (Story Block #133, Story Director #104); Story Director's calendar
+  fields are read-only while Calendar is "pack" (#133, #104); a choice past the cap after a Continue is a
+  LIMITED Problem on the card, as in the original reply (#133). NPC State Delta (#197): a new chat no
+  longer logs a 404, an empty scan is one quiet warning, and the Cast tab shows the meters the story set for
+  people in the scene who have no dossier yet.
 - Fixed in the final soak: a small context (SillyTavern's default 4,095 tokens for chat completion) no
-  longer loses the conversation: Story Suite takes at most 40 % of it (a setting) and says so when its
-  instructions alone are too big; a save that timed out and still reached the server late no longer
+  longer loses the conversation; a save that timed out and still reached the server late no longer
   overwrites a newer one (read back after a timeout, saved again).
-- With all four extensions the instructions are about 2,200 tokens: at a 4K context they are over the share
-  (you are told once per chat); 8K or more is recommended.
 - Fixed in the final break cell: the late-save guard now also covers another chat opened meanwhile, a reload
   of the chat or the page, a rename, and a rescue write into another chat's file; closing the page while a
-  save is still on its way sends the newest state at once and asks first.
-- Closing the page: Story Suite now saves as soon as the tab is hidden, and when the unsaved story is
-  too big to send while the page closes (over 64 KiB, most chats) the browser asks before leaving. A phone
-  that closes a backgrounded browser without warning keeps what was saved when it was hidden.
-- A timed-out save that reaches the server more than about five minutes later is not found by the
-  read-back. After a reload of the page, a file found older can no longer be put back (the copy was on the
-  old page): you are told.
-- Deleting a reply in the middle of a day that already has its digest leaves that digest as it was written.
+  save is still on its way sends the newest state at once and asks first. Story Suite also saves as soon as
+  the tab is hidden, and when the unsaved story is too big to send while the page closes (over 64 KiB, most
+  chats) the browser asks before leaving. A phone that closes a backgrounded browser without warning keeps
+  what was saved when it was hidden.
 - Fixed after the beta fuzz and matrix cells (Story Block): draft lines inside an unclosed `<think>`, reasoning
   erased by hiding a block, a mid-line `<Changes>` hiding the story, a spoofed hidden marker on Re-read,
   Re-read and preview/commit while a feature is off, `onBlocked` while its feature is off, the whole-context
-  feature prompt flag, other minus signs and fractions in `+ coin`, and the missing note when the extractor
-  fails. Gear wear after a middle delete was already fixed (#110). A Re-read after a quest Finish no longer
-  pays the reply's coin budget twice (a click made before this fix, in an older chat, still can).
-- Renaming a chat while it saves can leave a copy under the old name (needs a SillyTavern server change).
+  feature prompt flag, other minus signs and fractions in `+ coin`, the missing note when the extractor
+  fails, and a Re-read after a quest Finish paying the reply's coin budget twice. Gear wear after a middle
+  delete was already fixed (#110).
+
+Still open in beta.1:
+
+- **Balance.** Even and strong fights land on their target in about 30–36 % of the test cells: how each
+  build meets each creature (build × monster matchups) still swings the odds more than the tier does. The
+  fighter is the weakest ready-made build in even fights from level 5. Tuning per build comes after beta.
+- **Older chats.** In a chat saved before this update, a quest click (a Finish) made there can still be
+  paid twice on Re-read of that reply.
+- **Saving.**
+  - A timed-out save that reaches the server more than about five minutes later is not caught by the
+    read-back. After a reload of the page, a file found older can no longer be put back (the copy was on
+    the old page): you are told.
+  - Two browser tabs on one chat: the tab that saves last wins.
+- **Context size.** 8K tokens of context or more is recommended. Story Suite caps itself at 40 % of the
+  context (**Share of the context**); with all four extensions its instructions are about 2,200 tokens, so
+  at a 4K context they are over the share (you are told once per chat).
+- **Renaming a chat while it saves** could leave a copy under the old name. Not seen on SillyTavern 1.19 in
+  the live soak; possible on other versions (a fix needs a SillyTavern server change).
+- Still from alpha.2's list:
+  - Switching chats while a reply streams in: SillyTavern throws its own TypeError (not ours).
+  - If a reply is cut off by the length limit and its half-written last line still makes sense, that line
+    is read.
 
 ### Module versions
 
@@ -165,7 +231,7 @@ updated.
 | Story Block | (at the beta candidate) | 2.0.0-beta.1 | — |
 | RPG Battle | (at the beta candidate) | 2.0.0-beta.1 | `storyBlock >=2.0.0-beta.1` |
 | Story Director | (at the beta candidate) | 2.0.0-beta.1 | `storyBlock >=2.0.0-beta.1` |
-| NPC State Delta | (at the beta candidate) | (see its bump PR) | `storyBlock >=2.0.0-beta.1` |
+| NPC State Delta | (at the beta candidate) | 1.2.20 | `storyBlock >=2.0.0-beta.1` |
 
 ## 2.0.0-alpha.2 (2026-10-22, baseline)
 

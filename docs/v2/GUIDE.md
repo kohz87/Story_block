@@ -16,6 +16,46 @@ Each one is optional except Story Block. Install only what you want.
 v2 is a test version. It is a fresh start: it does not read chats or blocks from v1, and v1 and v2
 should not be installed side by side.
 
+## What's new in beta.1
+
+The first beta. In short, what changed for you (the full list is in
+[RELEASES.md](RELEASES.md)):
+
+* **Update Story Block first**, then the other three. A module newer than your Story Block says so in red
+  and waits.
+* **Switch mechanics on and off** in **Features**: one switch per mechanic, with a line on what it does.
+  A switched-off mechanic is gone from the story, and nothing it made is lost.
+* **Quests start when you take them on.** No more offers to accept: say you take the job, and the story
+  writes it down as a quest that is under way at once. See [Quests](#quests).
+* **Your world's words.** Name the XP word, the Level word and the rank ladder (Soul Class I to IX, F to
+  SSS…) in RPG Battle's **Terms**, and your coins (copper, silver, gold) in Story Block's **Coins**. Every
+  screen and note uses them. See [Ranks, foes and companions](#ranks-foes-and-companions) and
+  [Economy and currency](#economy-and-currency).
+* **Fights**: every foe the story writes is fought, in waves when there are many; quest fights bring
+  enough foes for real progress; the fight card names the foes' rank and how dangerous the fight is. A
+  fight line the model writes in the story itself, outside the `<Changes>` block, now starts the fight too.
+* **Arc planning is back** (Story Director): **Plan arc** asks a planner model for the story's next arc,
+  and you review it before it is used. People's plans, planned beats, clocks and secrets stay hidden on the
+  Director tab until you press **Reveal**. See [Arc planning](#arc-planning-and-what-stays-behind-the-scenes).
+* **Back from v1**: HP and MP come back with story time; the story can award experience (`+ xp major`);
+  **Choices** (next moves as buttons that fill your message box) and **Inner chatter** (the people's
+  unspoken thoughts), both off until you turn them on.
+* **Things and money**: gear wears and can be repaired and refined; crafting; one bag for the whole
+  party with **Equip on…**; items like a backpack add carry capacity; prices depend on the place (a
+  port, a mining town); a key item the story gives can't be sold.
+* **Making your character** is easier to find: *Before you start* on Home and **Create your character**
+  on the Party screen. Race and talent cards are buttons you can click again to take back.
+* **Settings** are easier to find your way in: folds that keep their size, groups, lists you can type as
+  text, a **Find a feature** box, the assist's connection as a dropdown, and **Diagnostics** with a report
+  to paste into a bug report (no keys, no chat text).
+* **Small contexts keep the conversation**: Story Suite takes at most 40 % of the context for itself. 8K
+  tokens of context or more is recommended.
+* **Saving is safer**: a late save never undoes a newer one, and closing the page saves what you have
+  (or asks first when it can't).
+* **NPC State Delta**: the Cast is in the game view too, and its settings are no longer three folds deep.
+
+What is still not right: see "Known issues" under 2.0.0-beta.1 in [RELEASES.md](RELEASES.md).
+
 ## Installing
 
 You need SillyTavern 1.19 or newer.
@@ -168,6 +208,19 @@ the others act in turn. Rolls are fair and repeatable: the same fight played the
 way. When it ends, loot, experience and the result are added for you, and the next reply narrates the
 fight.
 
+Every foe the story writes is fought. At most 4 foes per party member stand on the field at once, 9 in
+all (RPG Battle's settings *Fights: foes on the field per party member* and *… at most*); the rest come
+in waves, each when the one before is down, and a boss takes the first place of its wave. A fight against
+the foes a quest of yours is about brings enough of them for real progress (a third of the goal or more,
+never more than is still missing), and the quest's item drops from each of them. A number the story
+writes ("three cellar rats") is kept as written.
+
+Between fights, HP and MP come back as story time passes (with Story Director's clock): a little every
+story hour, and 6 hours or more at once is a full rest. The story can also award experience in words,
+`+ xp minor`, `+ xp major` or `+ xp milestone` with the reason; code sets the amount from your level, at
+most one big award and two small ones a reply. Turn recovery off with **Features** → *HP and MP come
+back with story time*.
+
 ### Ranks, foes and companions
 
 Your character has a **rank** from their level: F to S by default, or the pack's own ladder (Ersveil's
@@ -212,9 +265,11 @@ story, so a swipe, a deleted reply or a Return never takes one away. Turn them o
 
 ## Quests
 
-Quests follow the story. Take a job on in your own words ("I'll do it"), and the **Quests** screen shows
-it with its progress (wolves beaten, pelts carried) and a line that says where it stands: Offered, Not
-yet, Ready, or Ready to turn in here. When the goal is met, go back to a town or the person who gave the
+Quests follow the story. Take a job on in your own words ("I'll do it"): the story writes it down as a
+quest, and it is under way at once. There are no offers to accept and no Offered list; a job someone
+only mentions stays in the story until you take it on. The **Quests** screen shows each quest with its
+progress (wolves beaten, pelts carried) and a line that says where it stands: Not yet, Ready, or Ready
+to turn in here. When the goal is met, go back to a town or the person who gave the
 job and turn it in in the story: code checks the goal and the place in the same reply, pays the reward
 once and hands over any items the job asked for, or the story is told why not yet. There are no quest
 buttons. One fight counts for one hunting quest; items you carry can count for an item quest at the
@@ -235,6 +290,27 @@ The **Days** screen lists the days, newest first. Open one to see its digest, or
 a time skip, the next reply gets one line about the last day, so the story remembers it. Story
 Director's settings choose how many days are kept and can turn that reminder off. Turn the digest off
 with **Day digest** in the Features.
+
+### Arc planning and what stays behind the scenes
+
+Story Director can plan the story's next arc for you, as v1 did. On the **Director** tab's Arc panel,
+**Plan arc** asks a planner model (on its own connection profile, Story Director's setting *Arc planning:
+Planner connection*, or the chat's) for a few planned beats, people with their own plans, leads, clocks
+and secrets. Nothing goes into the chat while it plans. The plan waits for you: read it, change its text if
+you like, then **Accept**, **Plan again** or **Discard**. Accepted, it becomes the Director's own list of
+what is coming, and the story is steered by it. **End arc** closes it. With *When to plan: By itself*, a
+new plan is asked for when there is none, when the last one played out, or when the story stalls.
+
+Code reads the plan strictly: only its labelled lines, a handful of each kind, no rewards, XP, ranks or
+amounts, and dates worked out on your calendar. Swiping or deleting the reply you accepted it on takes it
+back. Without RPG Battle the planner is asked for no fights. Arc planning needs Story Block 2.0.0-beta.1 or
+newer; turn it off with **Features** → *Arc planning*.
+
+So the plan doesn't spoil the story, the Director tab keeps people's plans, planned beats, clocks and
+secrets **behind the scenes**: you see how many there are, and **Reveal** shows them (**Hide** hides them
+again). The choice is per chat and remembered in this browser, and the card under each reply then names
+none of them as *Next*. The story is told all of it either way. Story Director's setting *Behind the
+scenes* turns the hiding off.
 
 ## Using things in the story
 
@@ -421,8 +497,8 @@ The same screens can show in five places:
 * **The full-screen game view**, with its own menu of screens: the **Game view** button in the Story
   Suite bar, or **Alt+G** (press it again, or Escape, to close). It opens on **Home**: your character and
   party, a fight under way, where you are and when, who is here, your purse and what you wear, and your
-  quests (each with Story Director's own status line: *Ready to turn in*, *Not yet: 2/3 wolves*,
-  *Offered — say you take it*), and your save points. Each part shows only when the extension behind it
+  quests (each with Story Director's own status line: *Ready to turn in*, *Not yet: 2/3 wolves*), and
+  your save points. Each part shows only when the extension behind it
   is installed. On a phone, the status strip scrolls sideways when it holds more than fits; the edge
   with more to see fades.
 * **Inspector** (for testers and pack authors; off until you turn on **Features** → *State inspector*):

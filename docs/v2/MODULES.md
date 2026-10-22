@@ -42,7 +42,7 @@ party = {
   actors: { [id]: {
     id, name, kind: 'pc' | 'companion', control: 'player' | 'auto', role: '',
     level: 1, xp: 0, points: 0,
-    hp: { cur, max }, mp: { cur, max }, sp: { cur, max },
+    hp: { cur, max, lost? }, mp: { cur, max, lost? }, sp: { cur, max, lost? },  // lost: see below (RB #100)
     stats: { STR, VIT, AGI, DEX, INT, LUK, CHA },     // base stats (ints); gear bonuses are derived, never stored
     skills: [{ name, level, uses, active: true }],   // names from the skill library or party.custom
     conditions: [{ kind: 'poisoned' | 'bleed' | …, stacks: 1 }],
@@ -51,6 +51,11 @@ party = {
   custom: { [skillName]: skillDef },                 // story-taught skills, built by v1 skillFromTemplate
 }
 ```
+A pool may hold `lost` (RPG Battle #100): how far it is below `max`, a count (Story Block's `counters`, SPEC
+§2.2), so a wound, heal, fight or level-up adds its own step on replay and a middle delete takes back only its
+reply's change. `cur` stays as written for readers of the raw state; the pool's number now is `max − lost`
+held to 0…max (no `lost`: `cur` held to its max, a full pool keeps none). Read pools through `party.actors` /
+`party.actor` (fitted), not the raw `cur`. Level, XP, points and stats are counts too (`PARTY_COUNTERS`).
 Commands: `party.create` (ui; v1 newSheet rules), `party.addCompanion` (from a `join` line or the join
 offer's button), `party.edit`, `party.spend`, `party.learnSkill`, `party.setSkillActive`, `party.forgetSkill`,
 `party.rest` ({ kind: 'short' | 'long' }), `party.applyResult` (internal, from combat.end), `party.grantXp`
@@ -145,8 +150,12 @@ rules: due, relevant, checks), budget ~500. Queries: `director.time`, `director.
 `director.thread({ key })`. Tab: **Director** (threads, problems).
 
 ### C2. quests (part **quests**, agents SD-quests, SD-quests2)
-Same `director` domain (the module owns it; this part touches only `taken`, `ended`, `target`, `reward`
-and quest offers).
+Same `director` domain (the module owns it; this part touches only `taken`, `ended`, `target` and `reward`,
+and an older chat's offers).
+**No offers (Story Director #99).** The story's `+ quest` is the acceptance: the quest is active and taken
+on from that reply. There is no Offered list, no Take on / Turn down step and no offer cooldown; a job the
+story only mentions stays in the story (a `+ hook` at most, an open thread). An older chat's offers
+(`offer: true`) still load, are shown nowhere, and become the quest when the story writes `+ quest` for one.
 **The story leads, code referees (F94, F95).** The reader accepts and turns in a quest in their own words;
 the story writes it (`~ quest Granary Rats | met: yes`, a turn-in closing it), and the tracker asks
 `quest.finish({ id | key, by: 'story' })` in the same reply. Code checks the target (foes from
@@ -171,8 +180,7 @@ turn-in past that waits, open and unpaid, for the next reply (RX-E-1). The budge
 per-reply tally (`inventory.storyBudget`, which honours the reader's `storyCoinPerReply` and counts the
 reply's own `+ coin` lines too), and Story Director's own tally only on a Story Block without that query
 (RX-E-2). One story-vouched turn-in a reply.
-Screen: **Quests** (status text per quest: Offered / Held back / Not yet / Ready / Ready to turn in here;
-finished quests kept).
+Screen: **Quests** (status text per quest: Not yet / Ready / Ready to turn in here; finished quests kept).
 
 ## D. NPC State Delta (agent NSD-hosted)
 No domain. When `globalThis.StoryBlock?.sdk` (v2) is present, NSD registers module `npc-state-delta` with
@@ -315,7 +323,9 @@ These settle questions agents raised; the host changes they need are made at int
 **Story and the model**
 40. A reply without `<Changes>` (extractor off): a small warning on the reply with a one-click Re-read.
 41. Change lines the code refused are listed faintly in the reply's changes card ("not applied: …").
-42. Quests the story starts stay offers until the reader accepts (v1 rule).
+42. ~~Quests the story starts stay offers until the reader accepts (v1 rule).~~ Replaced (live test #3,
+    Story Director #99): no offers. The story writes `+ quest` when the reader accepts, and the quest is active
+    at once (§C2).
 43. Off-screen agenda nudges: v1's frequency.
 44. The story writes the clock; no automatic minutes per reply.
 45. While-away recap threshold: 6 h, adjustable.
@@ -405,7 +415,8 @@ These settle questions agents raised; the host changes they need are made at int
     written rank reaches no higher than the party's rank, and one reply pays at most that rank's top in
     rewards the story wrote (pack quests' own rewards aside).
 88. Pacing: Director prompt lines (no quest spam, a passerby is a passerby, the world doesn't send
-    trouble) and an offer cooldown setting (a held offer is shown later, never refused).
+    trouble). ~~And an offer cooldown setting (a held offer is shown later, never refused).~~ The cooldown
+    went with the offers (Story Director #99).
 89. **Chronicle** (Story Director part): `world` and `faction` kinds, times from the clock, up to 3
     ongoing events picked into the tail per reply (seeded, stable on a swipe), a Chronicle screen.
 90. NSD: meter stages (named thresholds, moved by code) and hidden dossier entries unlocked at a threshold.
@@ -485,7 +496,9 @@ These settle questions agents raised; the host changes they need are made at int
     Crafting data in packs (F102): recipes' `craft`, `dc`, `station`, `stat`, `known`, `teaches`, the `crafts`
     kind and query `packs.crafts`; NPC meter presets: the `meterPresets` kind (PACKS.md).
 
-### User decisions from the live test (2026-10-22, F105–F107)
+### User decisions from the live tests (2026-10-22, F105–F108)
+
+(F108 came with live test #4's terms2 work. F109–F114 are not used: the next decision is F115.)
 
 105. **The reader names the world's words again** (v1 had them; v2 lost the settings). RPG Battle's settings,
     group Terms: **XP word** (`party.xpName`) and **Level word** (`party.levelName`), over a pack's `terms`,
