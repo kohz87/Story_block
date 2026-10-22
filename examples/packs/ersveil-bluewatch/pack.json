@@ -1,6 +1,6 @@
 {
   "id": "ersveil-bluewatch",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "Ersveil: Bluewatch Starter",
   "author": "Story Suite examples",
   "description": "Test-play pack for Story Suite v2 in the Ersveil world: Wessel arrives at Bluewatch Village, the northernmost village, with three F-letter jobs on the Guild board. Money is one coin, the mark. Lore stays in the Ersveil lorebooks.",
@@ -15,6 +15,7 @@
     "name": "mark",
     "short": "mk"
   },
+  "economy": {"scale": 8, "note": "marks are small coin: about 8 marks to one coin of the built-in defaults"},
   "calendar": {
     "era": "CY",
     "months": [

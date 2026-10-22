@@ -456,6 +456,7 @@ These settle questions agents raised; the host changes they need are made at int
     the first enabled pack's, else 1. Every built-in default money number is multiplied by `scale`, rounded,
     at least 1: Story Block's 1000 × level story coin budget, Story Director's default ranks, RPG Battle's
     default loot, coin and prices. Modules read it with `tryQuery('inventory.economy')` and a fallback of
-    `{ scale: 1 }`. Ersveil keeps scale 1 (its numbers are written in marks).
+    `{ scale: 1 }`. Ersveil sets scale 8: its F rank tops at 400 marks against the built-in F top of 50, so
+    the built-in defaults land in marks about right; its own ranks, values and prices stay as written.
     Crafting data in packs (F102): recipes' `craft`, `dc`, `station`, `stat`, `known`, `teaches`, the `crafts`
     kind and query `packs.crafts`; NPC meter presets: the `meterPresets` kind (PACKS.md).

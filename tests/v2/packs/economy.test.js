@@ -116,7 +116,37 @@ test('the 1000 × level story coin budget is scaled: by the pack, and by the rea
     assert.equal(coin(host), 60 + 7, 'the reader\'s own budget is never scaled');
 });
 
-test('Ersveil keeps scale 1: its numbers are already written in marks', () => {
-    const ersveil = ok(readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8'));
-    assert.equal(ersveil.economy?.scale ?? 1, 1);
+const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+
+test('Ersveil sets scale 8; its own ranks, values and prices stay as written', () => {
+    const ersveil = ok(ERSVEIL);
+    const raw = JSON.parse(ERSVEIL);
+    assert.deepEqual(ersveil.economy, { scale: 8, note: 'marks are small coin: about 8 marks to one coin of the built-in defaults' });
+    assert.deepEqual(ersveil.content.ranks.map(rank => rank.reward), raw.content.ranks.map(rank => rank.reward));
+    assert.deepEqual(ersveil.content.items.map(item => item.value), raw.content.items.map(item => item.value ?? 0));
+    assert.deepEqual(ersveil.content.shops.flatMap(shop => shop.stock.map(line => line.price ?? null)), raw.content.shops.flatMap(shop => shop.stock.map(line => line.price ?? null)));
+});
+
+test('with Ersveil, inventory.economy is { scale: 8, source: pack }; its rank sets the coin budget, unscaled', async t => {
+    t.mock.method(console, 'warn', () => {});
+    // The rank ladder as Story Director reads it (the first enabled pack's ranks) and a level-3 character.
+    const director = {
+        id: 'ranks-probe', name: 'Ranks', version: '0.0.0',
+        queries: { 'party.pc': () => ({ level: 3 }), 'quest.ranks': (_state, _args, tools) => tools.query('packs.content', { kind: 'ranks' }) },
+    };
+    const host = await createHost({ modules: [director] });
+    t.after(() => host.close());
+    const installed = await host.packs.packs.install(ERSVEIL, { origin: 'pack.json' });
+    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
+    assert.deepEqual(host.sdk.query('inventory.economy'), { scale: 8, source: 'pack' });
+    const before = coin(host);
+    await host.send('Chest.', reply('Marks.', ['+ coin 5000']));
+    assert.equal(coin(host) - before, 400, 'the top F reward as written, not 400 × 8');
+    // Without the ranks, the gold-scale fallback is what the scale multiplies: 1000 × level 3 × 8.
+    const bare = await createHost();
+    t.after(() => bare.close());
+    await bare.packs.packs.install(ERSVEIL, { origin: 'pack.json' });
+    const start = coin(bare);
+    await bare.send('Chest.', reply('Marks.', ['+ coin 99999']));
+    assert.equal(coin(bare) - start, STORY_COIN_PER_LEVEL * 1 * 8, 'no party module: level 1');
 });

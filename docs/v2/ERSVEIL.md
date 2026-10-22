@@ -226,9 +226,13 @@ If you want the lore's rare, costly healing in the story, leave the potion line 
 is: the narration keeps the price talk, and the code uses the play scale. PACKS.md's
 [value guide](PACKS.md#value-guide) gives the rules for pack makers.
 
-The pack sets no `economy`, so the money scale stays 1 (MODULES §F104): every number code uses here is
-written in the pack, and a scale would only multiply the built-in defaults of other modules. Change it in
-Story Block's settings (**Money scale**) if those defaults feel too rich or too poor in marks.
+The pack sets the money scale to **8** (`economy: { scale: 8 }`, MODULES §F104): marks are small coin, about
+8 marks to a gold of the built-in defaults. Its F jobs top out at 400 marks where the built-in F rank tops
+out at 50. The scale multiplies only the built-in defaults: RPG Battle's default loot coin, Story Director's
+default rewards, and Story Block's fallback coin budget of 1000 × level. The pack's own ranks, item values and
+shop prices stay exactly as written. With these ranks the story coin budget per reply still comes from the
+player character's rank (400 marks at F). Change the scale in Story Block's settings (**Money scale**) if
+the built-in defaults feel too rich or too poor in marks.
 
 About 35 other World lore entries still give prices in the old coins (the Prices and Wages entries,
 the Guild, mana stones and cores, slavery, the mercenary companies…). The third line of the

@@ -348,7 +348,8 @@ scale says how many of its coins one of those defaults' coins is worth:
 The first enabled pack that has an `economy` sets it; scales aren't mixed. The reader can override it in
 Story Block's settings (**Money scale**, 0 or blank: the pack's). Modules read the result with the query
 `inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }`. Lorebooks carry flavour for the
-model only, never numbers code uses. Ersveil keeps scale 1, since it writes all its own numbers.
+model only, never numbers code uses. Ersveil sets `scale: 8`: its marks are small coin, and its F jobs top out
+at 400 marks where the built-in F rank tops out at 50.
 
 ### Rules for a pack's own numbers
 
