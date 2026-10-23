@@ -71,3 +71,29 @@ test('destroying the UI closes every open dialog and disposes the open tab pane'
     assert.equal(doc.body.querySelectorAll('.ss-dialog-backdrop').length, 0, 'no backdrop left');
     assert.equal(disposed, 1, 'the open tab pane was disposed');
 });
+
+test('a chat change closes the Story panel\'s More sheet too (the sheet belongs to the chat it was opened in)', async () => {
+    const { doc, ui, runtime } = await setup();
+    await runtime.sdk.registerModule({
+        id: 'qa-teardown',
+        name: 'Teardown',
+        version: '2.0.0-alpha.1',
+        screens: [{ id: 'qa-teardown/ask', title: 'Ask', mounts: ['dialog'], template: '<p>Ask</p>' }],
+        tabs: [
+            { id: 'bag', title: 'Bag', icon: 'fa-bag-shopping', render: () => {} },
+            { id: 'map', title: 'Map', icon: 'fa-map', render: () => {} },
+            { id: 'log', title: 'Log', icon: 'fa-scroll', render: () => {} },
+            { id: 'people', title: 'People', icon: 'fa-users', render: () => {} },
+            { id: 'notes', title: 'Notes', icon: 'fa-note-sticky', render: () => {} },
+        ],
+    });
+    ui.refresh();
+    ui.openPanel();
+    const more = doc.querySelector('.story-suite-sheet .ss-screenbar-more');
+    assert.ok(more, 'the panel bar has a More button');
+    more.click();
+    assert.equal(more.getAttribute('aria-expanded'), 'true', 'the panel\'s More sheet is open');
+    await runtime.turn.onChatChanged();
+    assert.equal(more.getAttribute('aria-expanded'), 'false', 'the sheet closed with the chat');
+    assert.equal(doc.querySelector('.story-suite-sheet-bar .ss-screenbar-sheet')?.hidden ?? true, true, 'its sheet is hidden');
+});
