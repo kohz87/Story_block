@@ -100,7 +100,7 @@ narration, as long as both sides agree on a name and a shape.
 
 | Socket | In the module's `def` | What it is for |
 |---|---|---|
-| **Queries** | `queries` | Read another module's data by name (`party.pc`, `director.time`, `npc.portrait`). Read-only. A query nobody answers gives nothing, so a module that isn't installed is skipped, not an error. |
+| **Queries** | `queries` | Read another module's data by name (`party.pc`, `director.time`, `npc.portrait`). Read-only. A query no installed module answers throws, so a module asks inside a guard (as the game view's header does) and simply skips what isn't there. |
 | **Commands** | `commands` | Ask a module to change something (spend points, use an item on someone). The owning module checks and applies it, and the change is recorded with that message, so a swipe, a delete or a rollback undoes it. |
 | **State** | `domains` | Each module owns its part of the saved state. Nobody writes into another module's part directly; they send it a command. |
 | **What the narrator reads** | `context` (`static`, `tail`, `budget`, `parts`) | Each module adds its part of what is sent with each reply. Story Block orders the parts and keeps them inside one token budget (the "What's sent each reply" bar). |
