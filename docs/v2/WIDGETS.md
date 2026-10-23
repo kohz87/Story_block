@@ -461,10 +461,38 @@ A glass card of rows: a title, a quieter line under it, and on the right a value
 | `onSelect` | string | `''` | |
 | `label` | string | `''` | accessible name when there is no title |
 
+### The screen bar (the game view and the Story panel)
+
+`view/screen-bar.js` (`createScreenBar(doc, host, { label, onSelect, className?, decorate? })`) is the navigation between screens for
+the phone game view and the Story panel. It is not a widget (no `ss.` name, no props): the host draws it, and it is listed here
+because a module's screen can rely on how it behaves.
+
+- **Five slots on a phone:** the first four screens in the reader's order (Settings → Tabs), then **More**. The bar is a floating
+  glass pill at the foot of the window (72px, 26px radius), a `<nav>` of real `<button>`s (44px tap targets). Each slot is an icon
+  (24px) over a label (11px, weight 700, one line, ellipsised). The current one is `aria-current="page"`: the accent icon and
+  label (`--ss-accent-text`), a soft glow on the icon, a 4px dot under it, and no pill or background. The others are muted.
+- **More** opens a glass sheet over the bar: the "More" label and a hairline, the hint "Pin your 4 in Settings → Tabs", and a
+  four-column grid of tiles for the rest (an accent ring and the soft accent on the current one). A tap on the scrim, Escape, or a
+  tile closes it; a tile opens its screen and closes the sheet. More has `aria-expanded` and `aria-controls`; the focus goes into
+  the sheet when it opens (the current tile first), Tab stays inside it, and the focus goes back to More when it closes. While a
+  screen under More is current, More shows that screen's icon and label (its name is "More, <screen>") and is current itself.
+  Escape closes More before it closes the game view.
+- **The wide row** (`row: true`, the game view from 760px): every screen in one row, spread evenly, each an icon with its label
+  under it; no More, no sheet. The host switches between the two with the 760px breakpoint.
+- **The Story panel** uses the same bar at the foot of the panel, at every width, with its tabs (`registry.tabs()`) in the same
+  order; each slot and tile carries `story-suite-tab` and `data-tab-id`.
+- **Icons:** a `ph-*` id from the Phosphor set (`iconFor` in view/icons gives it: the suite's own, the screen's, or the default for
+  its id). The current item draws the solid weight (`ph-x:fill`); More is `ph-dots-three-outline`. A Font Awesome class still draws.
+- **Placement** is the host's: `.ss-gameview-nav` (mounts.css) for the game view, `.story-suite-sheet-bar` (host.css) for the panel.
+  The look is in glass.css (`.ss-screenbar*`), on the tokens only.
+
+Props of the bar (`createScreenBar`'s `update`): `items` (`[{ id, label, icon }]`, the reader's order), `current` (the id on
+screen), `row` (every item in one row, no More). A long label is cut by CSS; the full name is the slot's `title`.
+
 ### `ss.tabs` and `ss.navbar`
 
-`ss.tabs`: a row of tabs (text, with an icon when the item has one), for a panel's or screen's sections. The story panel's own tab bar is this block too, drawn with `renderTabStrip` (view/widgets/nav.js) at the host's limits (100 tabs, labels in full): the widget's 24-item cap is for module widgets.
-`ss.navbar`: the game view's bottom bar, an icon over a label in a dense glass pill. Both are a `<nav>` of
+`ss.tabs`: a row of tabs (text, with an icon when the item has one), for a panel's or screen's sections. The story panel's tabs are no longer this block: they are the screen bar (below). The widget's 24-item cap is for module widgets; `renderTabStrip` (view/widgets/nav.js) is kept for a host that wants the row.
+`ss.navbar`: an icon over a label in a dense glass pill (the game view's own bar is the screen bar below, which has More). Both are a `<nav>` of
 buttons: the current item is `aria-current="page"`; one Tab stop (the current item), and the arrow keys, Home and
 End move the focus along the row (they do not choose; Enter or Space does, as any button; disabled items are
 skipped, the ends wrap). A choice runs `{ tabs: <id> }` / `{ navbar: <id> }` and shows at once. A row wider than its

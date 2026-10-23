@@ -101,7 +101,7 @@ test('screen: a full-screen view with navigation between screen screens; Esc clo
     const root = doc.body.querySelector('.ss-gameview');
     assert.ok(root);
     assert.equal(root.getAttribute('aria-modal'), 'true');
-    const items = root.querySelectorAll('.ss-gameview-navitem');
+    const items = root.querySelectorAll('.ss-screenbar-item[data-ss-target]');
     assert.deepEqual(items.map(item => item.getAttribute('data-ss-target')), ['m/party', 'm/map'], 'party before map');
     assert.equal(items[1].getAttribute('aria-current'), 'page');
     assert.equal(root.querySelector('.ss-gameview-title').textContent, 'Map');
@@ -128,7 +128,10 @@ test('screen: a full-screen view with navigation between screen screens; Esc clo
     assert.equal(view.isOpen(), false);
     assert.equal(doc.body.querySelector('.ss-gameview'), null);
     assert.equal(doc.activeElement, opener);
-    assert.equal(doc.listeners.length, 0);
+    // the view's own listeners are gone; the mount keeps only its input tracker (pointer and key, for where the focus goes on open)
+    assert.equal(doc.listeners.filter(l => !['pointerdown', 'keydown'].includes(l.type)).length, 0);
+    assert.equal(doc.listeners.filter(l => l.type === 'keydown').length, 1);
+    assert.equal(doc.listeners.filter(l => l.type === 'pointerdown').length, 1);
     assert.equal(listeners.head.length, 0);
     doc.key('Escape');   // nothing open: nothing happens
 
@@ -196,4 +199,39 @@ test('enabled(mount, id) lets the reader turn screens off; createMounts builds a
     assert.deepEqual(Object.keys(all), ['tab', 'screen', 'card', 'hud', 'dialog']);
     assert.ok(Object.values(all).every(controller => typeof controller.mount === 'function'));
     assert.equal(createMounts(deps).card, null);
+});
+
+test('screen: opened by a pointer, the window takes the focus (no ring on the close button); opened by a key, the close button (one task later)', async () => {
+    const { doc, deps } = world([screen('m/party', ['tab', 'screen']), screen('m/map', ['screen'], { title: 'Map' })]);
+    const view = createScreenMount(deps);
+    const press = type => doc.listeners.filter(l => l.type === type).forEach(l => l.fn({ type, key: 'Enter' }));
+    press('pointerdown');
+    view.open('m/map');
+    const root = doc.body.querySelector('.ss-gameview');
+    assert.equal(doc.activeElement, root, 'a pointer opens the window, focused as a whole');
+    view.close();
+    press('keydown');
+    view.open('m/map');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(doc.activeElement, doc.body.querySelector('.ss-gameview-close'), 'a key opens it on the close button');
+    view.destroy();
+    assert.equal(doc.listeners.filter(l => l.type === 'pointerdown' || l.type === 'keydown').length, 0, 'destroy leaves no input tracker');
+});
+
+test('screen: a screen opened by name while More is open closes More (scrim, sheet, keys) and the focus goes back to More', () => {
+    const { doc, deps } = world([1, 2, 3, 4, 5, 6].map(i => screen(`m/s${i}`, ['screen'], { title: `Screen ${i}` })));
+    const view = createScreenMount(deps);
+    view.open('m/s1');
+    const root = doc.body.querySelector('.ss-gameview');
+    const more = root.querySelector('.ss-screenbar-more');
+    more.click();
+    assert.equal(root.querySelector('.ss-screenbar-sheet').hidden, false);
+    assert.equal(view.open('m/s6'), true);
+    assert.equal(view.current(), 'm/s6');
+    assert.equal(root.querySelector('.ss-screenbar-sheet').hidden, true, 'the sheet is gone');
+    assert.equal(root.querySelector('.ss-screenbar-scrim').hidden, true, 'the scrim is gone');
+    // the keys: the mount's own tracker and the view's Escape, not More's trap (which would make three)
+    assert.equal(doc.listeners.filter(l => l.type === 'keydown').length, 2, 'More released its keys');
+    assert.equal(doc.activeElement, more, 'the focus is back on More');
+    view.destroy();
 });

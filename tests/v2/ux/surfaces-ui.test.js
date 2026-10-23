@@ -22,34 +22,25 @@ function tabsOf(titles) {
     return titles.map((title, i) => ({ id: `t${i}`, title, icon: 'fa-star', render(el) { el.textContent = `${title} pane`; } }));
 }
 
-test('the story panel\'s tab bar is the ss.tabs block: aria-current on the chosen tab, one Tab stop, the arrows move the focus, a click chooses', () => {
+test('the story panel\'s tabs are the screen bar: aria-current on the chosen tab, each a button in Tab order, a click chooses and keeps the focus', () => {
     const doc = installFakeDom();
     const root = doc.createElement('div');
     doc.body.appendChild(root);
     const registry = { tabs: () => tabsOf(['Alpha', 'Beta', 'Gamma']) };
     const panel = createTabHost(root, { registry, view: () => ({}), api: null, doc });
-    const nav = root.querySelector('.ss-tabs');
+    const nav = root.querySelector('.ss-screenbar');
     assert.equal(nav.tagName.toLowerCase(), 'nav');
     assert.equal(nav.getAttribute('aria-label'), 'Story panel tabs');
     const tabs = () => root.querySelectorAll('.story-suite-tab');
     assert.deepEqual(tabs().map(node => node.getAttribute('data-tab-id')), ['t0', 't1', 't2']);
     assert.deepEqual(tabs().map(node => node.getAttribute('aria-current')), ['page', null, null]);
-    assert.deepEqual(tabs().map(node => node.getAttribute('tabindex')), ['0', '-1', '-1'], 'one Tab stop: the chosen tab');
-    assert.deepEqual(tabs().map(node => node.querySelector('.story-suite-tab-label').textContent), ['Alpha', 'Beta', 'Gamma']);
+    assert.deepEqual(tabs().map(node => node.getAttribute('tabindex')), [null, null, null], 'each tab is a Tab stop of its own (no roving row)');
+    assert.deepEqual(tabs().map(node => node.querySelector('.ss-screenbar-label').textContent), ['Alpha', 'Beta', 'Gamma']);
     assert.equal(root.querySelector('.story-suite-pane').textContent, 'Alpha pane');
-
-    // The arrow keys move the focus along the row; they do not choose.
-    key(tabs()[0], 'ArrowRight');
-    assert.equal(doc.activeElement, tabs()[1]);
-    assert.equal(panel.active(), 't0', 'the arrow did not choose');
-    assert.equal(tabs()[1].getAttribute('tabindex'), '0', 'the focused tab is the Tab stop');
-    key(tabs()[1], 'End');
-    assert.equal(doc.activeElement, tabs()[2]);
-    key(tabs()[2], 'Home');
-    assert.equal(doc.activeElement, tabs()[0]);
+    assert.equal(root.querySelector('.ss-screenbar-more').getAttribute('aria-expanded'), 'false', 'More is after them, closed');
 
     // A click chooses: the pane shows the tab, aria-current moves, and the focus stays on that tab after the redraw.
-    key(tabs()[0], 'ArrowRight');
+    tabs()[1].focus();
     tabs()[1].click();
     assert.equal(panel.active(), 't1');
     assert.equal(root.querySelector('.story-suite-pane').textContent, 'Beta pane');
@@ -73,8 +64,8 @@ test('the story panel\'s strip keeps every tab and a long title in full (the hos
     titles.push(long);
     createTabHost(root, { registry: { tabs: () => tabsOf(titles) }, view: () => ({}), api: null, doc });
     const tabs = root.querySelectorAll('.story-suite-tab');
-    assert.equal(tabs.length, 31);
-    assert.equal(tabs[30].querySelector('.story-suite-tab-label').textContent, long);
+    assert.equal(tabs.length, 31, 'four slots and the rest as tiles under More');
+    assert.equal(tabs[30].querySelector('.ss-screenbar-label').textContent, long, 'the tile under More holds the whole title');
 });
 
 test('a tab whose id is longer than the block\'s default 64 characters (the host allows 160) is kept, and a click chooses it', () => {

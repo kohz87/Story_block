@@ -221,7 +221,7 @@ test('the page: a feature\'s screens, tabs and widgets go when it is turned off 
     const { doc, host, ui } = await page();
     ui.openPanel();
     const panel = doc.querySelector('#story_suite_v2_panel');
-    const labels = () => texts(panel, '.story-suite-tab-label');
+    const labels = () => texts(panel, '.story-suite-tab .ss-screenbar-label');
     assert.ok(labels().includes('Picker') && labels().includes('Loot code') && labels().includes('Bag'), labels().join(', '));
     assert.ok(doc.querySelector('.ss-hud .picker'), 'the picker in the status strip');
     assert.ok(ui.screens.resolve('loot/picker'));

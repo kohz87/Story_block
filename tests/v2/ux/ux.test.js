@@ -241,7 +241,8 @@ test('Alt+G opens and closes the game view; the bar button stays and names the k
     ui.mounts.screen.close();
     const before = doc.listeners.filter(entry => entry.type === 'keydown').length;
     ui.destroy();
-    assert.equal(doc.listeners.filter(entry => entry.type === 'keydown').length, before - 1, 'Alt+G is unhooked');
+    // Alt+G, and the game view's own key tracker (the mount is destroyed with the page now)
+    assert.equal(doc.listeners.filter(entry => entry.type === 'keydown').length, before - 2, 'Alt+G and the mount\'s tracker are unhooked');
     press();
     assert.equal(ui.mounts.screen.isOpen(), false);
 });

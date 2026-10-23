@@ -401,10 +401,14 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   options are one per row, each a full-width glass button (`.story-suite-choice`); a click still only fills the message box, never
   sends. A new reply's strip starts folded; a refresh of the same reply keeps the reader's choice. The Chatter strip the brief names
   is not drawn under replies in this checkout (inner chatter reads on World and on the Scene screen), so nothing changed for it.
-- **The game view's navigation** (`mounts.css` `.ss-gameview-nav`, `mounts/screen.js`). The navbar's look (Main.dc.html's bottom bar):
-  a glass pill floating above the foot on a phone, 64px items, the muted colour and the accent for the current screen; a glass column
-  on a wide screen. The mount keeps its own buttons (`data-ss-target`, Tab stops, the scroll cue): the `ss.navbar` block's roving
-  tabindex would change the game view's keyboard path, so the block's look is taken, not its markup.
+- **The game view's navigation and the Story panel's tabs: the screen bar** (`view/screen-bar.js`, `mounts.css` `.ss-gameview-nav`,
+  `host.css` `.story-suite-sheet-bar`, `glass.css` `.ss-screenbar*`). One component: a phone (under 760px) gets a floating glass pill
+  at the foot with five slots (the first four screens in the reader's order, then More); More opens a glass sheet over the bar (a
+  scrim, the hint, a four-column grid of the rest). From 760px the game view draws every screen in one row (`row: true`, no More).
+  The Story panel's tabs use the same bar at its foot, at every width. The current item is the accent icon and label with a dot;
+  icons are `iconFor` from `view/icons` (the solid weight for the current one). Keys: each slot is a button in Tab order; Tab stays
+  in the open sheet, Escape closes it first (the game view's own Escape waits while More is open), and the focus goes back to More.
+  The panel's names (`story-suite-tab`, `data-tab-id`) and the game view's `data-ss-target` are kept on each slot and tile.
 - **The HUD strip and the dialog mount** (`mounts.css` `.ss-hud`, `.ss-dialog`, `mounts/dialog.js`). Glass under Glass only (the
   `--ss-sheet-*` tokens; the shape tokens are set under Glass too). The dialog's backdrop keeps its dim and light blur, so the page
   behind the translucent panel is already blurred. The dialog's own buttons (Back, Random, Next, Done, Accept) keep their classes
@@ -477,10 +481,9 @@ their states, the plates, the class-level exceptions and their specificity), `te
   picture is remembered for the widget, so a redraw does not ask for it again. Every read is a query, every failed read is an empty part. The mount calls `deps.heroOf(state)`
   (ui-host.js) on open, on a screen change, on each redraw and when the 760px breakpoint changes (`compact` on a phone).
 - **The layout** (`mounts.css`): the bar, the header and the body are the game view's own flex items (`.ss-gameview-main` is
-  `display: contents`). A phone (under 760px): title bar, header (compact), screen, the floating bottom bar. Wide: title bar,
-  header (wide, the hero's 600px container query), **the tab row** (the same `.ss-gameview-navitem` buttons, a row with the
-  current one underlined), then the body. The nav keeps its own keys and Tab stops. A screen that asks for a side column gets
-  the body's room; no screen asks for one yet.
+  `display: contents`). A phone (under 760px): title bar, header (compact), screen (room at its foot for the bar), the floating bar.
+  From 760px: title bar, header (wide, the hero's 600px container query), the one row of screens, then the body. A screen that asks
+  for a side column gets the body's room; no screen asks for one yet.
 - **The screens** (`screens/style.js`, `home.js`, `inventory.js`, `scene.js`, `savepoints.js`, `ready-hint.js`, `show-more.js`):
   the base CSS reads the glass tokens (`--sb-surface` = `--ss-glass-strong`, `--sb-raised` = `--ss-tile`, `--sb-border` =
   `--ss-border`), a panel is a glass card, every heading is `ss-section-label`, and actions are `ss-button` (`ss-button-primary`,
