@@ -434,6 +434,11 @@ Two screens and one widget, on the look's tokens; each keeps its markup, its key
   four places, a route, the reader's place and one place not yet found (the fog, drawn muted). The sample has no command, so its
   places are not buttons.
 
+The buttons (`.ss-button`, `.ss-button-primary`, `view/glass.css`) have their states written in the look: hover and pressed are
+(0,5,1) with SillyTavern's own `:not()` chain, so they beat `.menu_button` on the same element; the label stays `--ss-text`.
+The HUD strip on a phone under Glass takes the tint layered over itself (`--ss-sheet-hud-layers`); Solid and Follow SillyTavern
+do not.
+
 The type of a control: the widget's rules are under `:where()` (no specificity), but SillyTavern's own `button { font-family;
 font-size; color }` rule (0,0,1) would beat them. The map's controls, and its selectable places (buttons), therefore set their type
 at class level: `.ss-w-map-btn, .ss-w-map-layer`, `.ss-w-map-zoom .ss-w-map-btn` and `button.ss-w-map-node`. These are the only
