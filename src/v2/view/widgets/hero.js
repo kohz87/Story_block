@@ -47,12 +47,17 @@ export function heroLine(p) {
     return [short(p.className, 40), short(p.title, 40)].filter(Boolean).join(' · ');
 }
 
-/** The level badge: { number, label } ("Lv 12" → 12, "Lv 12"; "12" → 12, "Lv 12"); the number is the whole text when it has no digits. */
+/**
+ * The level badge: { number, label }. The label is the whole level for screen readers ("Lv 12"; a bare "12" → "Lv 12"),
+ * the number the badge's short text: the level's last run of digits ("Level of the Ancients 73" → 73), else the level,
+ * cut to 8. The level is taken whole (up to 60) before either is made, so a long one keeps its number.
+ */
 export function heroLevel(p) {
-    const level = short(p.level, 12);
+    const level = short(p.level, 60);
     if (!level) return { number: '', label: '' };
-    const digits = level.match(/(\d+)\s*$/);
-    return /^\d/.test(level) ? { number: level, label: `Lv ${level}` } : { number: digits ? digits[1] : level, label: level };
+    const digits = level.match(/(\d+)\D*$/);
+    const label = /^\d+$/.test(level) ? `Lv ${level}` : level;
+    return { number: short(digits ? digits[1] : level, 8), label };
 }
 
 /** The bars as drawn: at most BAR_MAX, each { kind, label, value, max, text }; a bar with no max or no label is kept as given. */
@@ -138,7 +143,10 @@ function renderHero(el, input, api) {
         const statuses = h(doc, 'div', 'ss-hero-statuses');
         main.append(who, corner, statuses);
         const vitals = h(doc, 'div', 'ss-hero-vitals');
-        body.append(portrait, badge, main, vitals);
+        // the portrait and its badge in one cell: the badge hangs on the portrait's lower edge, inside the room the cell keeps
+        const face = h(doc, 'div', 'ss-hero-face');
+        face.append(portrait, badge);
+        body.append(face, main, vitals);
         root.appendChild(body);
         // The pictures that failed to load (kept for this widget: a redraw does not ask for them again), the candidates for the
         // current props, and the picture on screen: an error moves on to the next candidate, the initial past the last.

@@ -41,6 +41,8 @@ test('hero: name, the class · title line, the level badge, HP/MP/SP bars and th
     assert.equal(m.el.querySelector('.ss-hero-pill').textContent, 'Soul Class II · Wayfarer');
     assert.ok(!classes(m.el.querySelector('.ss-hero-pill')).includes('ss-pill'), 'the line is plain text, not a pill');
     const badge = m.el.querySelector('.ss-hero-level');
+    assert.ok(classes(badge.parentNode).includes('ss-hero-face'), 'the badge lives in the portrait\'s cell');
+    assert.ok(classes(m.el.querySelector('.ss-hero-portrait').parentNode).includes('ss-hero-face'));
     assert.equal(badge.hidden, false);
     assert.equal(badge.querySelector('.ss-hero-level-number').textContent, '12');
     assert.equal(badge.querySelector('.ss-hero-level-number').getAttribute('aria-hidden'), 'true');
@@ -79,6 +81,11 @@ test('heroLine, heroLevel and heroBars: the line under the name, the badge, at m
     assert.deepEqual(heroLevel({ level: 'Rank 12' }), { number: '12', label: 'Rank 12' });
     assert.deepEqual(heroLevel({ level: 'Elder' }), { number: 'Elder', label: 'Elder' });
     assert.deepEqual(heroLevel({}), { number: '', label: '' });
+    const ancients = heroLevel({ level: 'Level of the Ancients 73' });
+    assert.deepEqual(ancients, { number: '73', label: 'Level of the Ancients 73' }, 'a long level keeps its number and its whole label');
+    const nines = heroLevel({ level: '9'.repeat(70) });
+    assert.ok(nines.number.length <= 8, 'the badge text is short');
+    assert.ok(nines.label.length > 40 && nines.label.startsWith('Lv 999'), 'the label keeps the level, not a 12-character cut');
     assert.equal(heroLine({ title: 'Wayfarer' }), 'Wayfarer');
     assert.equal(heroLine({}), '');
     assert.equal(heroBars(Array.from({ length: 9 }, () => ({ kind: 'hp', label: 'x' }))).length, 6);
