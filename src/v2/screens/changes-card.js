@@ -118,7 +118,7 @@ const CSS = `${BASE_CSS}
 .refused { display: grid; gap: 8px; margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--ss-border, var(--sb-border));
            color: var(--ss-muted, var(--sb-em)); font-size: 0.95em; }
 .refused .line { flex-wrap: nowrap; }
-.refused .line > i { color: var(--ss-bad, var(--sb-em)); }
+.refused .line > i { color: var(--ss-bad-text, var(--ss-bad, var(--sb-em))); }
 .refused .line > span { flex: 1 1 0; min-width: 0; }
 .assisted { display: grid; gap: 8px; margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--ss-border, var(--sb-border)); }
 .assisted .line { flex-wrap: nowrap; }

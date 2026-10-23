@@ -346,8 +346,12 @@ test('Escape closes the window when the focus has fallen to the page (a control 
     const win = openSettingsWindow({ registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk, openState: new Map(), onClose: () => closed.push(true) });
     const key = listeners.filter(entry => entry.type === 'keydown');
     assert.equal(key.length, 1, 'one listener on the page');
-    // A key from inside the window is the window\'s own business (its layer handles it): the page-level listener leaves it.
-    key[0].fn({ key: 'Escape', target: win.root.querySelector('.ss-search-input'), preventDefault() {} });
+    // A key from inside the window: the search box holds text, so its own Escape empties it and the window stays open (the field stops
+    // the key before the window's layer sees it).
+    const search = win.root.querySelector('.ss-search-input');
+    search.value = 'pack';
+    search.dispatch('keydown', { key: 'Escape' });
+    assert.equal(search.value, '', 'the search box emptied itself');
     assert.equal(win.isOpen(), true);
     key[0].fn({ key: 'Enter', target: doc.body, preventDefault() {} });
     assert.equal(win.isOpen(), true, 'only Escape');

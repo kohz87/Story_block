@@ -462,7 +462,9 @@ test('the settings window: a side with the rail and a page; Escape closes it and
     opener.focus();
     for (const entry of listeners.filter(item => item.type === 'focusin')) entry.fn({ target: opener });
     assert.ok(win.contains(doc.activeElement));
-    overlay.root.querySelector('.ss-settings-content').dispatch('keydown', { key: 'Escape' });
+    // Escape from inside the window (a key on its content): the window's layer on the page takes it.
+    const escape = { type: 'keydown', key: 'Escape', target: overlay.root.querySelector('.ss-settings-content'), defaultPrevented: false, stopped: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
+    for (const entry of listeners.filter(item => item.type === 'keydown')) entry.fn(escape);
     assert.equal(doc.querySelectorAll('#story_suite_v2_overlay').length, 0);
     assert.equal(overlay.isOpen(), false);
     assert.ok(doc.activeElement === opener, 'back where it was');
@@ -673,3 +675,10 @@ test('text form: every list of text and whole numbers has the toggle; others and
 
 const coreFor = () => createCoreModule({ packs: packsFor({ extensionSettings: {} }) });
 const report = { report: () => 'REPORT' };
+
+test('the legacy story-suite-slider is gone: no code or rule draws it (the form engine has the slider)', () => {
+    const hostUi = readFileSync(new URL('../../src/v2/host-ui.js', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
+    assert.doesNotMatch(hostUi, /story-suite-slider|sliderControl/);
+    assert.doesNotMatch(css, /story-suite-slider/);
+});

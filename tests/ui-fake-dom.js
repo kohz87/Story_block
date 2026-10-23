@@ -267,6 +267,9 @@ export class FakeElement extends FakeNode {
             run(node, false);
             if (event.stopped) break;
         }
+        // then the document's bubbling listeners, as on a page (a shared stack's keys), unless something stopped the event
+        const page = this.ownerDocument;
+        if (!event.stopped) for (const entry of [...(page?.listeners ?? [])]) if (entry.type === type && !entry.capture) entry.fn.call(page, event);
         return event;
     }
     click() { return this.dispatch('click'); }

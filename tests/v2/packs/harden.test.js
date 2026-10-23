@@ -107,3 +107,25 @@ test('finding 11: an event runs only module commands, never the ones Story Block
         assert.equal(result.ok, true, `${command}: ${JSON.stringify(result.errors)}`);
     }
 });
+
+test('a screen\'s selector may not reach past its own root: a pack with one is refused, the screen\'s own rules are not', () => {
+    for (const css of [
+        ':root ~ * { display: none !important }',
+        '.hud, :root + .hud { display: none }',
+        'body .hud { display: none }',
+        '~ .hud { display: none }',
+        '.a:has(~ .hud) { color: red }',
+    ]) {
+        assert.notEqual(unsafeCss(css), '', css);
+        assert.equal(ok(withScreen({ css })), false, css);
+    }
+    assert.equal(unsafeCss('@media (max-width: 600px) { :root ~ * { display: none } }'), unsafeCss(':root ~ * { display: none }'), 'inside an @-rule too');
+    for (const css of [
+        ':root { --gap: 4px }',
+        '.card > .title, h2 { margin: 0 }',
+        '.a ~ .b { color: red } .a:has(> .b) { color: blue }',
+    ]) {
+        assert.equal(unsafeCss(css), '', css);
+        assert.equal(ok(withScreen({ css })), true, css);
+    }
+});

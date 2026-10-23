@@ -42,7 +42,7 @@ import { PACKS_FOLD, createTabHost } from './host-ui.js';
 import { openSettingsWindow } from './view/settings/window.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
-import { createScreenRenderer } from './view/render-screen.js';
+import { TEMPLATES, applyScreenCss, createScreenRenderer } from './view/render-screen.js';
 import { formatStoryTime, storyCalendar } from './view/clock.js';
 import { gameHeroProps, readHeroContext } from './view/game-header.js';
 import { HOME_ID, createScreens } from './view/screens.js';
@@ -215,6 +215,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const navPresent = id => Boolean(screens.resolve(id));
 
     // ---- screens from the modules and the packs ----------------------------------------------
+    // The screen ids each pack gave at the last sync, by pack: a pack that is disabled, removed or no longer has a screen takes
+    // those screens and their stylesheets away, and a replaced pack's new stylesheets replace the old ones.
+    const packScreenIds = new Map();
     function syncScreens() {
         const byModule = new Map();
         // Every module with screens, even one whose screens are all off just now (its list is then empty).
@@ -236,8 +239,21 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
             if (!byPack.has(pack)) byPack.set(pack, []);
             byPack.get(pack).push(def);
         }
+        for (const [pack, ids] of packScreenIds) {
+            if (byPack.has(pack)) continue;
+            screens.removePack(pack);
+            for (const id of ids) applyScreenCss(doc, { id, css: '' });
+            packScreenIds.delete(pack);
+        }
         for (const [pack, list] of byPack) {
-            try { screens.setPack(pack, list); } catch (error) { console.warn('[Story Suite]', error?.message ?? error); }
+            const before = packScreenIds.get(pack) ?? [];
+            const now = list.map(def => def.id);
+            for (const id of before) if (!now.includes(id)) applyScreenCss(doc, { id, css: '' });
+            try {
+                screens.setPack(pack, list);
+                packScreenIds.set(pack, now);
+                for (const def of list) applyScreenCss(doc, def, TEMPLATES.scopeCss);
+            } catch (error) { console.warn('[Story Suite]', error?.message ?? error); }
         }
     }
 
@@ -311,9 +327,17 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card'
         ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes) } : {}) }
         : scope);
+    // The story head a dialog was opened on (mounts/dialog.js): the head's index and record. Which swipe is shown is not part of
+    // it: a swipe that keeps the head record is not a move (the chat's id is checked on its own).
+    const branchNow = () => {
+        const index = store.headIndex();
+        if (!Number.isInteger(index) || index < 0) return `${index}`;
+        return `${index}|${readRecord(ctx.chat?.[index])?.sid ?? ''}`;
+    };
     const mounts = createMounts({
         screens,
         render: renderer.render,
+        chatScope: () => ({ chat: String(ctx.getCurrentChatId?.() ?? ctx.chatId ?? ''), branch: branchNow() }),
         // A chat with no carrier has head index -1 (and a stale index can point past the end): no
         // state there, so the mounts show nothing instead of failing on store.at's RangeError.
         stateAt: index => (Number.isInteger(index) && index >= 0 && index < (ctx.chat?.length ?? 0) ? store.at(index) : null),
@@ -429,8 +453,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         else tabHost.refresh();
     }
     function closePanel() {
-        // More's sheet, if it is open, goes with the panel: its scrim and its keys (the focus does not go to a hidden tile)
+        // More's sheet, if it is open, goes with the panel: its scrim and its keys (the focus does not go to a hidden tile). The
+        // dialogs the panel opened go too (their opener is in the panel, and it is about to be hidden).
         tabHost?.bar?.closeMore({ focus: false });
+        mounts.dialog?.closeOpenedIn?.(panel);
         panel.hidden = true;
         doc.body.classList.remove('story-suite-sheet-open');
     }
@@ -646,6 +672,25 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     for (const name of ['head', 'committed']) offs.push(events.on(name, () => { if (!panel.hidden) tabHost?.refresh(); }));
     // A feature turned on or off: its screens, tabs, widgets and cards come and go; nothing else changes.
     for (const name of ['head', 'committed', 'turn']) offs.push(events.on(name, () => overlay?.refreshSize?.()));
+    // A chat change closes the dialogs (their drafts were for the chat they were opened in), the game view's More sheet and the
+    // Story panel's More sheet.
+    const chatTypes = ctx.eventTypes ?? ctx.event_types ?? {};
+    const onChatChanged = () => {
+        mounts.dialog?.closeAll();
+        mounts.screen?.closeMore?.();
+        tabHost?.bar?.closeMore?.({ focus: false });
+    };
+    if (typeof ctx.eventSource?.on === 'function' && chatTypes.CHAT_CHANGED) {
+        ctx.eventSource.on(chatTypes.CHAT_CHANGED, onChatChanged);
+        offs.push(() => (ctx.eventSource.removeListener ?? ctx.eventSource.off)?.call(ctx.eventSource, chatTypes.CHAT_CHANGED, onChatChanged));
+    }
+    // A pack turned on or off, installed or removed: the screens it gives come and go with it (the installed store says so).
+    offs.push(runtime.packs?.packs?.subscribe?.(() => {
+        syncScreens();
+        mounts.dialog?.closeWhere?.(screenId => !screens.resolve(screenId));
+        refresh();
+        mounts.card?.refreshAll?.({ force: true });
+    }) ?? (() => {}));
     offs.push(events.on('feature', () => {
         // The overlay draws the switch and the fields of that feature again, and the prompt size.
         overlay?.refresh?.();
@@ -696,6 +741,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         theme,
         destroy() {
             overlay?.close?.();
+            mounts.dialog?.closeAll?.();
+            tabHost?.destroy?.();
             tabHost?.bar?.destroy();
             mounts.screen?.destroy?.();
             theme.destroy();
