@@ -26,7 +26,8 @@
 //   drawn still opens, with the reason in its body.
 // The mount also has closeWhere(test): closes each open dialog whose screen id passes `test`.
 
-import { button, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
+import { button, dispose, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
+import { focusNode } from '../scroll.js';
 
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 const MOVED_ON = 'This window was opened in another chat or before the story moved on, so nothing was sent. Close it and open it again.';
@@ -34,6 +35,36 @@ const MOVED_ON = 'This window was opened in another chat or before the story mov
 /** The controls in `root` Tab can reach, in document order (hidden and disabled ones left out). */
 export function focusablesIn(root) {
     return Array.from(root?.querySelectorAll?.(FOCUSABLE) ?? []).filter(node => !node.disabled && !node.hidden && !node.closest?.('[hidden]'));
+}
+
+const within = (node, root) => {
+    for (let at = node; at; at = at.parentNode) if (at === root) return true;
+    return false;
+};
+
+/**
+ * Runs `draw` (which may build the body's controls again) and puts the focus back where it was: on the same field, found by its
+ * draft key, with its caret and the body's scroll. A field that is still in the body is left alone.
+ */
+function keepFocus(body, draw) {
+    const doc = body.ownerDocument ?? globalThis.document;
+    const active = doc.activeElement;
+    const was = active && within(active, body) ? active : null;
+    const key = was?.getAttribute?.('data-draft') ?? null;
+    const at = was ? focusablesIn(body).indexOf(was) : -1;
+    const caret = was && typeof was.selectionStart === 'number' ? [was.selectionStart, was.selectionEnd ?? was.selectionStart] : null;
+    const top = body.scrollTop ?? 0;
+    const out = draw();
+    if (!was || within(was, body)) return out;
+    const same = key === null ? null : Array.from(body.querySelectorAll('[data-draft]')).find(node => node.getAttribute('data-draft') === key);
+    const target = same ?? focusablesIn(body)[at] ?? null;
+    if (!target) return out;
+    focusNode(target);
+    if (caret && typeof target.setSelectionRange === 'function') {
+        try { target.setSelectionRange(caret[0], caret[1]); } catch { /* a control with no caret */ }
+    }
+    body.scrollTop = top;
+    return out;
 }
 
 export function createDialogMount(deps) {
@@ -62,14 +93,14 @@ export function createDialogMount(deps) {
         const next = event.shiftKey ? (at <= 0 ? nodes.at(-1) : null) : (at === -1 || at === nodes.length - 1 ? nodes[0] : null);
         if (next) {
             event.preventDefault?.();
-            next.focus?.();
+            focusNode(next);
         }
     };
     // Focus that lands outside the topmost dialog (a click on the page behind, a script) goes back in.
     const onFocus = event => {
         const top = open[open.length - 1];
         if (!top || !event.target || top.root.contains?.(event.target)) return;
-        (focusablesIn(top.root)[0] ?? top.root).focus?.();
+        focusNode(focusablesIn(top.root)[0] ?? top.root);
     };
 
     function mount(el, screenId, opts = {}) {
@@ -83,6 +114,7 @@ export function createDialogMount(deps) {
         let busy = null;
         let token = null;
         let closed = false;
+        let drawnAt = -1;         // the step the body was last drawn for (a redraw of that step keeps its controls)
         let resolveClosed;
         const closedPromise = new Promise(resolve => { resolveClosed = resolve; });
 
@@ -164,7 +196,10 @@ export function createDialogMount(deps) {
                 const { steps: _steps, template: _template, layout: _layout, ...rest } = screen;
                 override = { ...rest, title: step.title ?? screen.title, ...(step.template !== undefined ? { template: step.template } : { layout: step.layout }) };
             }
-            drawScreen(body, screenId, 'dialog', { deps: stepDeps, state: headState(deps), draft, index: headIndexOf(deps), screen: override });
+            // A redraw of the same step updates its view in place; a field that is built again gets the focus, the caret and the
+            // scroll back (keepFocus), so typing in a field never drops it.
+            keepFocus(body, () => drawScreen(body, screenId, 'dialog', { deps: stepDeps, state: headState(deps), draft, index: headIndexOf(deps), screen: override, keep: drawnAt === at }));
+            drawnAt = at;
             backButton.hidden = at === 0;
             nextButton.hidden = isLast();
             // The last step's own [data-submit] button sends the draft; the footer button only stands in
@@ -314,7 +349,7 @@ export function createDialogMount(deps) {
         }
         root.setAttribute('aria-label', screen?.title ?? screenId);
         drawStep();
-        closer.focus?.();
+        focusNode(root);
         return handle;
     }
 
