@@ -42,7 +42,7 @@ import { PACKS_FOLD, createTabHost } from './host-ui.js';
 import { openSettingsWindow } from './view/settings/window.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
-import { createScreenRenderer } from './view/render-screen.js';
+import { TEMPLATES, applyScreenCss, createScreenRenderer } from './view/render-screen.js';
 import { formatStoryTime, storyCalendar } from './view/clock.js';
 import { gameHeroProps, readHeroContext } from './view/game-header.js';
 import { HOME_ID, createScreens } from './view/screens.js';
@@ -215,6 +215,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const navPresent = id => Boolean(screens.resolve(id));
 
     // ---- screens from the modules and the packs ----------------------------------------------
+    // The screen ids each pack gave at the last sync, by pack: a pack that is disabled, removed or no longer has a screen takes
+    // those screens and their stylesheets away, and a replaced pack's new stylesheets replace the old ones.
+    const packScreenIds = new Map();
     function syncScreens() {
         const byModule = new Map();
         // Every module with screens, even one whose screens are all off just now (its list is then empty).
@@ -236,8 +239,21 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
             if (!byPack.has(pack)) byPack.set(pack, []);
             byPack.get(pack).push(def);
         }
+        for (const [pack, ids] of packScreenIds) {
+            if (byPack.has(pack)) continue;
+            screens.removePack(pack);
+            for (const id of ids) applyScreenCss(doc, { id, css: '' });
+            packScreenIds.delete(pack);
+        }
         for (const [pack, list] of byPack) {
-            try { screens.setPack(pack, list); } catch (error) { console.warn('[Story Suite]', error?.message ?? error); }
+            const before = packScreenIds.get(pack) ?? [];
+            const now = list.map(def => def.id);
+            for (const id of before) if (!now.includes(id)) applyScreenCss(doc, { id, css: '' });
+            try {
+                screens.setPack(pack, list);
+                packScreenIds.set(pack, now);
+                for (const def of list) applyScreenCss(doc, def, TEMPLATES.scopeCss);
+            } catch (error) { console.warn('[Story Suite]', error?.message ?? error); }
         }
     }
 
@@ -646,6 +662,13 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     for (const name of ['head', 'committed']) offs.push(events.on(name, () => { if (!panel.hidden) tabHost?.refresh(); }));
     // A feature turned on or off: its screens, tabs, widgets and cards come and go; nothing else changes.
     for (const name of ['head', 'committed', 'turn']) offs.push(events.on(name, () => overlay?.refreshSize?.()));
+    // A pack turned on or off, installed or removed: the screens it gives come and go with it (the installed store says so).
+    offs.push(runtime.packs?.packs?.subscribe?.(() => {
+        syncScreens();
+        mounts.dialog?.closeWhere?.(screenId => !screens.resolve(screenId));
+        refresh();
+        mounts.card?.refreshAll?.({ force: true });
+    }) ?? (() => {}));
     offs.push(events.on('feature', () => {
         // The overlay draws the switch and the fields of that feature again, and the prompt size.
         overlay?.refresh?.();

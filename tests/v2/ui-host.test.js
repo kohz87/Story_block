@@ -70,3 +70,49 @@ test('settings: the overlay counts the next reply\'s prompt (turn.preview) with 
     overlay.close();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });
+
+// A pack's screens and stylesheets follow the pack: a pack that is disabled gives up its screens (its Home included), and a
+// replaced pack leaves only its new stylesheet in the head (the old red one is gone, keyed by the pack and its screen).
+const homePack = (version, template) => ({
+    id: 'home-pack', version, name: 'Home pack', requires: { storyBlock: '^2' }, content: {},
+    screens: [{ id: 'story-block/home', title: 'Home', mounts: ['tab'], template }],
+});
+const boardPack = (version, color) => ({
+    id: 'board-pack', version, name: 'Board pack', requires: { storyBlock: '^2' }, content: {},
+    screens: [{ id: 'board-pack-board', title: 'Board', mounts: ['tab'], template: '<p class="b">board</p>', css: `.b { color: ${color} }` }],
+});
+const sheetsOf = (doc, id) => doc.head.querySelectorAll('style').filter(node => node.id === id);
+
+test('a disabled pack is gone with its screens: its Home is no longer the Home, and the host\'s is back', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const { ui, runtime } = setup([]);
+    const home = () => ui.screens.resolve('story-block/home');
+    await runtime.packs.packs.install(JSON.stringify(homePack('1.0.0', '<p class="h">pack home</p>')), { origin: 'pack.json' });
+    ui.syncScreens();
+    assert.equal(home().source, 'pack', 'the pack gives Home');
+    assert.match(home().screen.template, /pack home/);
+    await runtime.packs.packs.setEnabled('home-pack', false);
+    assert.notEqual(home()?.source, 'pack', 'disabled: the pack gives no Home');
+    assert.ok(home(), 'the host\'s own Home is there again');
+    await runtime.packs.packs.setEnabled('home-pack', true);
+    assert.equal(home().source, 'pack', 'enabled again: the pack gives Home again');
+});
+
+test('a replaced pack leaves only its new stylesheet in the head', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const { doc, ui, runtime } = setup([]);
+    doc.head = doc.createElement('head');
+    await runtime.packs.packs.install(JSON.stringify(boardPack('1.0.0', 'red')), { origin: 'pack.json' });
+    ui.syncScreens();
+    assert.equal(sheetsOf(doc, 'ss-css-board-pack-board').length, 1);
+    assert.match(sheetsOf(doc, 'ss-css-board-pack-board')[0].textContent, /color: red/);
+    await runtime.packs.packs.install(JSON.stringify(boardPack('1.1.0', 'green')), { origin: 'pack.json' });
+    ui.syncScreens();
+    const sheets = sheetsOf(doc, 'ss-css-board-pack-board');
+    assert.equal(sheets.length, 1, 'one stylesheet for the screen');
+    assert.match(sheets[0].textContent, /color: green/);
+    assert.doesNotMatch(sheets[0].textContent, /color: red/, 'the old one is gone');
+    // Disabling the pack takes its stylesheet away with its screen.
+    await runtime.packs.packs.setEnabled('board-pack', false);
+    assert.equal(sheetsOf(doc, 'ss-css-board-pack-board').length, 0);
+});
