@@ -3,7 +3,7 @@
 // are there only while a layer is open.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stackOf } from '../../../src/v2/view/modal-stack.js';
+import { focusablesIn, stackOf } from '../../../src/v2/view/modal-stack.js';
 import { createDialogMount } from '../../../src/v2/view/mounts/dialog.js';
 import { createScreenMount } from '../../../src/v2/view/mounts/screen.js';
 import { fakeApi, fakeChat, fakeQuery, fakeRenderer, screensWith, setupDom } from '../../v2/view/mounts/helpers.js';
@@ -159,4 +159,51 @@ test('Tab inside the game view stays in it, and the More sheet takes the keys wh
     assert.equal(view.isMoreOpen(), false, 'Escape closes More first');
     assert.equal(view.isOpen(), true, 'the view is still open');
     view.close();
+});
+
+test('a layer whose element has left the page is dropped: it takes no key, and the layers under it still do (fix 8a review, blocking 1)', () => {
+    const doc = setupDom();
+    const stack = stackOf(doc);
+    const low = layerIn(doc, ['a']);
+    const high = layerIn(doc, ['b']);
+    const calls = [];
+    const lower = { name: 'low', root: low.root, onEscape: () => { calls.push('low'); return true; } };
+    const upper = { name: 'high', root: high.root, onEscape: () => { calls.push('high'); return true; } };
+    stack.push(lower);
+    stack.push(upper);
+    high.root.remove();
+    dispatch(doc, 'keydown', { key: 'Escape' });
+    assert.deepEqual(calls, ['low'], 'the detached top takes no key');
+    assert.deepEqual(stack.layers(), [lower], 'and is gone from the stack (the one under it stays)');
+    stack.pop(lower);
+});
+
+test('a layer pushed later is above the ones under it: its z-index is higher, so the keys and the paint agree', () => {
+    const doc = setupDom();
+    const stack = stackOf(doc);
+    const first = { name: 'settings', root: layerIn(doc, []).root, onEscape: () => true };
+    const second = { name: 'game view', root: layerIn(doc, []).root, onEscape: () => true };
+    stack.push(first);
+    stack.push(second);
+    assert.ok(Number(second.root.style.zIndex) > Number(first.root.style.zIndex), `${second.root.style.zIndex} above ${first.root.style.zIndex}`);
+    stack.pop(second);
+    stack.pop(first);
+});
+
+test('a fold\'s summary is a Tab stop, and a control inside a closed <details> is not', () => {
+    const doc = setupDom();
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    const close = doc.createElement('button');
+    const summary = doc.createElement('summary');
+    const closed = doc.createElement('details');
+    const hidden = doc.createElement('input');
+    closed.appendChild(hidden);
+    closed.appendChild(summary);
+    const last = doc.createElement('button');
+    root.append(close, summary, closed, last);
+    const stops = focusablesIn(root);
+    assert.ok(stops.includes(summary), 'the summary can take the focus');
+    assert.equal(stops.includes(hidden), false, 'a control inside a closed details is skipped');
+    assert.deepEqual(stops.map(node => node.tagName), ['BUTTON', 'SUMMARY', 'BUTTON']);
 });
