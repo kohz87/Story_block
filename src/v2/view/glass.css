@@ -55,6 +55,13 @@
     color: var(--ss-muted);
 }
 
+/* The reader's font for all the text of every Story Suite root: the Font setting (Nunito by default, or the theme's own font),
+   whatever the panel style (theme.js: Follow SillyTavern keeps the reader's font too). Without this, plain text inherited
+   SillyTavern's font. A rule that sets its own font-family still wins (this one is :where(), so it has no specificity). */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) {
+    font-family: var(--ss-font);
+}
+
 /* ---- the section label (UI stage 5a, Panel.dc.html "option A"): the label, then a 1px hairline in --ss-border that fills the
    rest of the row. Any template or module uses it: <h4 class="ss-section-label">Where</h4>. The icon before the text keeps its size. ---- */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-section-label {
@@ -366,14 +373,24 @@
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-body {
     display: grid;
-    grid-template-columns: 64px minmax(0, 1fr) auto;
-    grid-template-areas: "portrait who corner" "vitals vitals vitals" "status status status";
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-areas: "portrait text" "vitals vitals";
     gap: var(--ss-space-3);
     align-items: center;
     min-width: 0;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-main {
     display: contents;
+}
+/* the text block of the header: one column (name, the class line, the place and weather, the statuses), centred against the
+   portrait in its row (align-items: center on .ss-hero-body) */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-text {
+    grid-area: text;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-portrait {
     grid-area: portrait;
@@ -540,7 +557,7 @@
 @container (min-width: 600px) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-body {
         grid-template-columns: 96px minmax(0, 1fr) minmax(240px, 320px);
-        grid-template-areas: "portrait corner vitals" "portrait who vitals" "portrait status vitals";
+        grid-template-areas: "portrait text vitals";
         column-gap: 18px;
         row-gap: var(--ss-space-2);
     }
@@ -571,8 +588,8 @@
     border-radius: var(--ss-radius-l);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-compact .ss-hero-body {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    grid-template-areas: "portrait who status" "portrait corner corner" "vitals vitals vitals";
+    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-areas: "portrait text" "vitals vitals";
     column-gap: 10px;
     row-gap: 6px;
 }
@@ -655,8 +672,8 @@
 }
 @container (min-width: 560px) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-compact .ss-hero-body {
-        grid-template-columns: 36px auto minmax(0, 1fr) auto;
-        grid-template-areas: "portrait who vitals status";
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        grid-template-areas: "portrait text vitals";
         column-gap: 14px;
     }
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-compact .ss-hero-portrait {

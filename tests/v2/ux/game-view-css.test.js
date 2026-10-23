@@ -83,7 +83,7 @@ test('the phone header shows the scene as one ellipsised line under the name (th
     assert.doesNotMatch(glass, /\.ss-hero-compact \.ss-hero-corner,/, 'the corner is no longer hidden on the compact hero');
     assert.match(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*display: flex;[^}]*overflow: hidden;/);
     assert.match(glass, /\.ss-hero-compact \.ss-hero-corner-text \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
-    assert.match(glass, /"portrait who status" "portrait corner corner" "vitals vitals vitals"/);
+    assert.match(glass, /"portrait text" "vitals vitals"/, "the header: the portrait and one text block (name, class line, place, statuses)");
 });
 
 test('the hero pill never passes its card: it wraps an unbroken word (min-width 0, max-width 100%, overflow-wrap anywhere)', () => {
