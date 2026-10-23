@@ -3,7 +3,7 @@
 // classes), how it updates, what it says to a screen reader, its keys, and the one command each may run.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hero, heroBars, heroLine, heroPicture } from '../../../../src/v2/view/widgets/hero.js';
+import { hero, heroBars, heroLevel, heroLine, heroPicture } from '../../../../src/v2/view/widgets/hero.js';
 import { tiers, tierList } from '../../../../src/v2/view/widgets/tiers.js';
 import { listcard, listRows } from '../../../../src/v2/view/widgets/listcard.js';
 import { navItems, navbar, revealItem, tabs } from '../../../../src/v2/view/widgets/nav.js';
@@ -33,13 +33,20 @@ const HERO = {
     statuses: [{ id: 'bleed', label: 'Bleeding', icon: 'fa-droplet', left: 40, unit: 'minutes', tone: 'bad' }, { label: 'Blessed', left: null }],
 };
 
-test('hero: name, pill from class, level and title, HP/MP/SP bars and the experience word, corner, badges', () => {
+test('hero: name, the class · title line, the level badge, HP/MP/SP bars and the experience word, corner, badges', () => {
     const m = mount(hero, HERO);
     assert.ok(classes(m.root).includes('ss-hero') && classes(m.root).includes('ss-glass'));
     assert.equal(m.root.getAttribute('aria-label'), 'Character: Astra');
     assert.equal(m.el.querySelector('.ss-hero-name').textContent, 'Astra');
-    assert.equal(m.el.querySelector('.ss-hero-pill').textContent, 'Soul Class II · Lv 12 · Wayfarer');
-    assert.ok(classes(m.el.querySelector('.ss-hero-pill')).includes('ss-pill'));
+    assert.equal(m.el.querySelector('.ss-hero-pill').textContent, 'Soul Class II · Wayfarer');
+    assert.ok(!classes(m.el.querySelector('.ss-hero-pill')).includes('ss-pill'), 'the line is plain text, not a pill');
+    const badge = m.el.querySelector('.ss-hero-level');
+    assert.equal(badge.hidden, false);
+    assert.equal(badge.querySelector('.ss-hero-level-number').textContent, '12');
+    assert.equal(badge.querySelector('.ss-hero-level-number').getAttribute('aria-hidden'), 'true');
+    assert.equal(badge.querySelector('.ss-visually-hidden').textContent, 'Lv 12');
+    assert.equal(badge.querySelector('svg').getAttribute('data-icon'), 'ph-star');
+    assert.equal(badge.querySelector('svg').getAttribute('data-weight'), 'fill');
     const pools = m.el.querySelector('.ss-hero-pools');
     assert.deepEqual(pools.querySelectorAll('.ss-bar').map(node => classes(node).find(c => /^ss-bar-/.test(c))), ['ss-bar-hp', 'ss-bar-mp', 'ss-bar-sp']);
     const exp = m.el.querySelector('.ss-hero-exp');
@@ -63,10 +70,15 @@ test('hero: name, pill from class, level and title, HP/MP/SP bars and the experi
     assert.equal(m.el.querySelectorAll('.ss-bar').length, 0);
 });
 
-test('heroLine and heroBars: the pill\'s text, whole or from its parts; at most six bars', () => {
+test('heroLine, heroLevel and heroBars: the line under the name, the badge, at most six bars', () => {
     assert.equal(heroLine({ line: 'Wayfarer of the Lowmere' }), 'Wayfarer of the Lowmere');
-    assert.equal(heroLine({ className: 'Mage', level: '3' }), 'Mage · Lv 3');
-    assert.equal(heroLine({ level: 'Lv 7' }), 'Lv 7', 'a level that already says so is kept');
+    assert.equal(heroLine({ className: 'Mage', level: '3' }), 'Mage', 'the level is the badge, not the line');
+    assert.equal(heroLine({ className: 'Mage', title: 'Wayfarer' }), 'Mage · Wayfarer');
+    assert.deepEqual(heroLevel({ level: 'Lv 7' }), { number: '7', label: 'Lv 7' });
+    assert.deepEqual(heroLevel({ level: '3' }), { number: '3', label: 'Lv 3' });
+    assert.deepEqual(heroLevel({ level: 'Rank 12' }), { number: '12', label: 'Rank 12' });
+    assert.deepEqual(heroLevel({ level: 'Elder' }), { number: 'Elder', label: 'Elder' });
+    assert.deepEqual(heroLevel({}), { number: '', label: '' });
     assert.equal(heroLine({ title: 'Wayfarer' }), 'Wayfarer');
     assert.equal(heroLine({}), '');
     assert.equal(heroBars(Array.from({ length: 9 }, () => ({ kind: 'hp', label: 'x' }))).length, 6);

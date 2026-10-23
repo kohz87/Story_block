@@ -87,7 +87,8 @@ test('More holds a current screen: its icon and label, the current mark, and a n
 test('More shows its own icon and the word More when nothing under it is current', () => {
     const { more } = setup({ current: 'story-block/home' });
     assert.equal(text(more().querySelector('.ss-screenbar-label')), 'More');
-    assert.ok(more().querySelector('.ss-screenbar-icon').classList.contains('fa-ellipsis'));
+    assert.equal(more().querySelector('.ss-screenbar-icon').getAttribute('data-icon'), 'ph-dots-three-outline', 'the More icon');
+    assert.equal(more().querySelector('.ss-screenbar-icon').getAttribute('data-weight'), 'regular', 'the line weight when not current');
     assert.equal(more().getAttribute('aria-label'), null);
 });
 
@@ -239,4 +240,18 @@ test('an update keeps the slot buttons (a focused slot keeps its focus across a 
     assert.equal(slots()[1], before, 'the same element');
     assert.equal(doc.activeElement, before);
     assert.equal(before.getAttribute('aria-current'), 'page');
+});
+
+test('the icons: the current slot draws the solid weight of its Phosphor icon, the others the line weight', () => {
+    const items = [{ id: 'story-block/home', label: 'Home', icon: 'ph-house' }, { id: 'story-block/party', label: 'Party', icon: 'ph-users-three' }];
+    const { slots } = setup({ items, current: 'story-block/party' });
+    const [home, party] = slots().map(node => node.querySelector('.ss-screenbar-icon'));
+    assert.equal(home.getAttribute('data-icon'), 'ph-house');
+    assert.equal(home.getAttribute('data-weight'), 'regular');
+    assert.equal(party.getAttribute('data-weight'), 'fill', 'solid for the current one');
+});
+
+test('a held screen under More: More draws its icon in the solid weight', () => {
+    const { more } = setup({ current: 'rpg-battle/craft' });
+    assert.ok(more().querySelector('.ss-screenbar-icon').classList.contains('fa-hammer'), 'a Font Awesome icon from a module draws as before');
 });

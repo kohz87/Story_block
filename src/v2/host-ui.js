@@ -31,6 +31,7 @@ import { SETTING_LIST_ROWS } from './sdk.js';
 import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
 import { createScreenBar } from './view/screen-bar.js';
+import { iconFor } from './view/icons/index.js';
 import { DEFAULT_TAIL_BUDGET, contextNotice, estimateTokens } from './prompt.js';
 import { STRINGS, fill } from './strings.js';
 import { cutAt } from '../text.js';
@@ -174,6 +175,7 @@ export const DIAGNOSTICS_TEXT = Object.freeze({
     sample: 'Show the UI sample',
     sampleTitle: 'Every building block of Story Suite\'s look, in light and dark, for checking a theme and for screenshots',
     sampleFailed: 'The UI sample could not be shown: {why}',
+    credits: 'Icons: Phosphor Icons (phosphoricons.com), MIT License.',
 });
 export const FEATURE_TEXT = Object.freeze({
     title: 'Features',
@@ -1082,7 +1084,7 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
     function draw() {
         const tabs = registry.tabs();
         if (!tabs.some(tab => tab.id === current)) current = tabs[0]?.id ?? null;
-        bar.update({ items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: tab.icon || '' })), current: current ?? '' });
+        bar.update({ items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon) })), current: current ?? '' });
         pane.replaceChildren();
         const tab = tabs.find(item => item.id === current);
         pane.dataset.tabId = tab?.id ?? '';

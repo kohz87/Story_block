@@ -21,6 +21,7 @@
 import { button, documentOf, headState, icon, make, mountHead, onHead, screensFor } from './common.js';
 import { hero } from '../widgets/hero.js';
 import { focusNode } from '../scroll.js';
+import { iconFor } from '../icons/index.js';
 import { barItems, createScreenBar } from '../screen-bar.js';
 import { STRINGS } from '../../strings.js';
 
@@ -50,7 +51,7 @@ export function createScreenMount(deps) {
         const listed = typeof deps.inNav === 'function' ? entries.filter(entry => deps.inNav(entry.id)) : entries;
         view.root.classList.toggle('ss-gameview-single', listed.length < 2);
         view.bar.update({
-            items: barItems(listed.map(entry => ({ id: entry.id, label: entry.screen.title ?? entry.id, icon: entry.screen.icon }))),
+            items: barItems(listed.map(entry => ({ id: entry.id, label: entry.screen.title ?? entry.id, icon: iconFor(entry.id, entry.screen.icon) }))),
             current: view.screenId,
             row: view.phone?.matches === false,
         });

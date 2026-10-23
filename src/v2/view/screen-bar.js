@@ -15,21 +15,22 @@
 //   → { el, update({ items, current, row }), isMoreOpen(), openMore(), closeMore(), destroy() }
 // items: [{ id, label, icon }] in the reader's order; current: the id on screen; row: every item in one row, no More.
 //
-// Icons: the screen's own icon (a Font Awesome class) when it has one, else DEFAULT_ICON. The glyph() function below is the one
-// seam for the icon set: when the Phosphor set (view/icons) lands in v2, it draws `ph-*` ids and More's `ph-dots-three-outline`
-// there, and this fallback goes.
+// Icons: the item's icon is a `ph-*` id from the Phosphor set (view/icons: iconFor gives it, the screen's own icon or the
+// default for the id); the current one draws the solid weight (`ph-x:fill`), the others the line weight. A Font Awesome class
+// (a module's own icon) still draws as it did. More is `ph-dots-three-outline`.
 //
 // Keys: each slot is a button in the page's Tab order. While the sheet is open Tab stays inside it, Escape closes it.
 // Built with createElement and textContent only, like every standard widget (dom.js). Focus moves with focusNode (scroll.js).
 
 import { h, iconNode, str } from './widgets/dom.js';
 import { focusNode } from './scroll.js';
+import { hasIcon } from './icons/index.js';
 import { STRINGS, fill } from '../strings.js';
 
 const S = STRINGS.bar;
 export const PINNED = 4;
-export const MORE_ICON = 'fa-ellipsis';
-export const DEFAULT_ICON = 'fa-table-columns';
+export const MORE_ICON = 'ph-dots-three-outline';
+export const DEFAULT_ICON = 'ph-list';
 const LABEL_MAX = 200;
 let serial = 0;
 
@@ -59,9 +60,13 @@ export function moreHolds(items, current, pinned = PINNED) {
     return splitItems(items, pinned).more.find(item => item.id === current) ?? null;
 }
 
-// The one seam for the icon set (see the header): a screen's own icon, else the default; never empty.
-function glyph(doc, value, className) {
-    return iconNode(doc, value, className) ?? iconNode(doc, DEFAULT_ICON, className);
+// The one seam for the icon set (see the header): the icon's weight is the solid one when `solid` (the current item).
+// Never empty: an icon that does not draw gives the default.
+function glyph(doc, value, className, solid = false) {
+    const id = typeof value === 'string' ? value.trim() : '';
+    const base = id.split(':')[0];
+    const named = hasIcon(base) ? `${base}${solid ? ':fill' : ''}` : id;
+    return iconNode(doc, named, className) ?? iconNode(doc, DEFAULT_ICON, className);
 }
 
 function labelNode(doc, text) {
@@ -119,7 +124,7 @@ export function createScreenBar(doc, host, options = {}) {
 
     // The slot's content: the icon, the label, the dot (the dot is what marks the current one, besides the colour).
     function paint(node, item, isCurrent) {
-        node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-icon'), labelNode(doc, item.label), dotNode(doc));
+        node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-icon', isCurrent), labelNode(doc, item.label), dotNode(doc));
         node.setAttribute('data-id', item.id);
         node.setAttribute('title', item.label);
         if (isCurrent) {
@@ -181,7 +186,7 @@ export function createScreenBar(doc, host, options = {}) {
         // More: its own icon and label, unless a screen under it is current.
         const held = row ? null : moreHolds(items, current, pinnedCount);
         more.replaceChildren(
-            glyph(doc, held ? held.icon : MORE_ICON, 'ss-screenbar-icon'),
+            glyph(doc, held ? held.icon : MORE_ICON, 'ss-screenbar-icon', Boolean(held)),
             labelNode(doc, held ? held.label : S.more),
             dotNode(doc),
         );
@@ -202,7 +207,7 @@ export function createScreenBar(doc, host, options = {}) {
         rest.forEach((item, at) => {
             const node = tileFor(item);
             const isCurrent = item.id === current;
-            node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-tile-icon'), labelNode(doc, item.label));
+            node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-tile-icon', isCurrent), labelNode(doc, item.label));
             node.setAttribute('data-id', item.id);
             node.setAttribute('title', item.label);
             if (isCurrent) node.setAttribute('aria-current', 'page');

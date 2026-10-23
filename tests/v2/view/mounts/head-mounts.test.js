@@ -101,7 +101,7 @@ test('screen: a full-screen view with navigation between screen screens; Esc clo
     const root = doc.body.querySelector('.ss-gameview');
     assert.ok(root);
     assert.equal(root.getAttribute('aria-modal'), 'true');
-    const items = root.querySelectorAll('.ss-gameview-navitem');
+    const items = root.querySelectorAll('.ss-screenbar-item[data-ss-target]');
     assert.deepEqual(items.map(item => item.getAttribute('data-ss-target')), ['m/party', 'm/map'], 'party before map');
     assert.equal(items[1].getAttribute('aria-current'), 'page');
     assert.equal(root.querySelector('.ss-gameview-title').textContent, 'Map');
