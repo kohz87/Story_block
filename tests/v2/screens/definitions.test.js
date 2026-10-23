@@ -75,8 +75,10 @@ test('with Story Block alone, its queries answer and the modules\' come out null
     assert.deepEqual(home.q.wallet, { coin: 125 });
     assert.deepEqual(home.q.currency, { name: 'gold', plural: 'gold', short: 'g' });
     assert.equal(home.q.items.length, 6);
-    for (const alias of ['pc', 'fight', 'offers', 'board']) assert.equal(home.q[alias], null, alias);
-    assert.equal(home.problems.length, 4);
+    // The lead is the game view's header now, so Home asks no `party.pc` (view/game-header.js).
+    assert.equal(home.q.pc, undefined, 'Home has no lead query');
+    for (const alias of ['fight', 'offers', 'board']) assert.equal(home.q[alias], null, alias);
+    assert.equal(home.problems.length, 3);
     const scene = resolveData(sceneScreen.data, query);
     assert.equal(scene.q.cast, null);
     // The quests are Story Director's board as it is: Home asks nothing else about them.
