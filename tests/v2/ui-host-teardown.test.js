@@ -15,7 +15,7 @@ async function setup() {
     ui = mountUi({ runtime, ctx: st.ctx, doc });
     runtime.markReady();
     await runtime.turn.onChatChanged();
-    return { doc, ui, runtime };
+    return { doc, ui, runtime, st };
 }
 
 test('hiding the Story panel closes a dialog the panel opened, and leaves one opened from the page alone', async () => {
@@ -73,7 +73,7 @@ test('destroying the UI closes every open dialog and disposes the open tab pane'
 });
 
 test('a chat change closes the Story panel\'s More sheet too (the sheet belongs to the chat it was opened in)', async () => {
-    const { doc, ui, runtime } = await setup();
+    const { doc, ui, runtime, st } = await setup();
     await runtime.sdk.registerModule({
         id: 'qa-teardown',
         name: 'Teardown',
@@ -93,7 +93,7 @@ test('a chat change closes the Story panel\'s More sheet too (the sheet belongs 
     assert.ok(more, 'the panel bar has a More button');
     more.click();
     assert.equal(more.getAttribute('aria-expanded'), 'true', 'the panel\'s More sheet is open');
-    await runtime.turn.onChatChanged();
+    await st.loadChat([], 'chat-b');
     assert.equal(more.getAttribute('aria-expanded'), 'false', 'the sheet closed with the chat');
     assert.equal(doc.querySelector('.story-suite-sheet-bar .ss-screenbar-sheet')?.hidden ?? true, true, 'its sheet is hidden');
 });
