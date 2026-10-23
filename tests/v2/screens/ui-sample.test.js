@@ -76,7 +76,7 @@ test('the UI sample draws every block in a light and a dark pane, and closes on 
         assert.equal(pane.querySelector('.ss-tabs-item[aria-current="page"]').textContent, 'World');
         assert.equal(pane.querySelectorAll('.ss-navbar-item').length, UI_SAMPLE_DATA.nav.items.length);
         assert.ok(pane.querySelector('.ss-sample-open-dialog'));
-        assert.ok(pane.querySelectorAll('.ss-pill').length >= 6);
+        assert.ok(pane.querySelectorAll('.ss-pill').length >= 4, 'the pills (the heroes\' class lines are plain text now)');
         assert.ok(pane.querySelectorAll('.ss-glass').length >= 3 && pane.querySelector('.ss-glass-strong'));
         assert.equal(pane.querySelectorAll('.ss-widget-missing').length, 0);
         assert.ok(pane.querySelector('.ss-tile-ready') && pane.querySelector('.ss-tile-locked'));

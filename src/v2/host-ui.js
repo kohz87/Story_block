@@ -32,6 +32,7 @@ import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
 import { scrollCue } from './view/scroll-cue.js';
 import { renderTabStrip } from './view/widgets/nav.js';
+import { iconFor } from './view/icons/index.js';
 import { TAB_ID_MAX } from './view/tab-order.js';
 import { DEFAULT_TAIL_BUDGET, contextNotice, estimateTokens } from './prompt.js';
 import { STRINGS, fill } from './strings.js';
@@ -180,6 +181,7 @@ export const DIAGNOSTICS_TEXT = Object.freeze({
     sample: 'Show the UI sample',
     sampleTitle: 'Every building block of Story Suite\'s look, in light and dark, for checking a theme and for screenshots',
     sampleFailed: 'The UI sample could not be shown: {why}',
+    credits: 'Icons: Phosphor Icons (phosphoricons.com), MIT License.',
 });
 export const FEATURE_TEXT = Object.freeze({
     title: 'Features',
@@ -1099,7 +1101,7 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         const tabs = registry.tabs();
         if (!tabs.some(tab => tab.id === current)) current = tabs[0]?.id ?? null;
         const props = {
-            items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: tab.icon || '' })),
+            items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon) })),
             current: current ?? '',
             onSelect: TAB_COMMAND,
             label: S.panel.tabs,

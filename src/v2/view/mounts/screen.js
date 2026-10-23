@@ -19,6 +19,7 @@
 // → { mount(el, screenId, opts) → handle, open(screenId?) → bool, close(), isOpen(), current(), update(), destroy() }
 
 import { button, documentOf, headState, icon, make, mountHead, onHead, screensFor } from './common.js';
+import { iconFor } from '../icons/index.js';
 import { bringIntoView, scrollCue } from '../scroll-cue.js';
 import { hero } from '../widgets/hero.js';
 import { focusNode } from '../scroll.js';
@@ -52,7 +53,7 @@ export function createScreenMount(deps) {
         for (const entry of listed) {
             const item = button(doc, 'ss-gameview-navitem');
             item.setAttribute('data-ss-target', entry.id);
-            item.append(icon(doc, entry.screen.icon), make(doc, 'span', 'ss-gameview-navlabel', entry.screen.title ?? entry.id));
+            item.append(icon(doc, iconFor(entry.id, entry.screen.icon)), make(doc, 'span', 'ss-gameview-navlabel', entry.screen.title ?? entry.id));
             if (entry.id === view.screenId) {
                 item.setAttribute('aria-current', 'page');
                 current = item;
