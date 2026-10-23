@@ -37,6 +37,7 @@ import { STRINGS, fill } from './strings.js';
 import { cutAt } from '../text.js';
 import { profileNote, profileSelect } from './profile-field.js';
 import { focusNode, revealIn } from './view/scroll.js';
+import { dispose } from './view/mounts/common.js';
 
 const S = STRINGS;
 
@@ -1046,6 +1047,7 @@ export function diagnosticsKeys(registry) {
  */
 export function createTabHost(root, { registry, view, api = null, doc = globalThis.document, active = null, barHost = null }) {
     let current = active;
+    let release = null;       // what the last drawing of the pane left behind (a dispose function or { destroy }), taken down on the next draw
     const pane = el(doc, 'div', 'story-suite-pane');
     root.replaceChildren(pane);
     // The panel's own names on each tab's button and its More tile: `story-suite-tab` and `data-tab-id` (the tests and the
@@ -1064,6 +1066,10 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         const tabs = registry.tabs();
         if (!tabs.some(tab => tab.id === current)) current = tabs[0]?.id ?? null;
         bar.update({ items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon) })), current: current ?? '' });
+        // The pane's widgets go before the pane is drawn again (a redraw of the same tab too): their listeners and observers.
+        dispose(pane);
+        if (typeof release === 'function') { try { release(); } catch { /* a tab's cleanup failing must not block the redraw */ } }
+        release = null;
         pane.replaceChildren();
         const tab = tabs.find(item => item.id === current);
         pane.dataset.tabId = tab?.id ?? '';
@@ -1071,7 +1077,11 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
             pane.appendChild(el(doc, 'p', 'story-suite-muted', 'No module has a tab yet.'));
             return;
         }
-        try { tab.render(pane, view(), api); } catch (error) {
+        try {
+            const out = tab.render(pane, view(), api);
+            if (typeof out === 'function') release = out;
+            else if (out && typeof out.destroy === 'function') release = () => out.destroy();
+        } catch (error) {
             pane.replaceChildren(el(doc, 'p', 'story-suite-muted', `${tab.title} could not be shown: ${error?.message ?? error}`));
         }
     }
@@ -1080,5 +1090,16 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         draw();
     }
     draw();
-    return { refresh: draw, select, active: () => current, bar };
+    return {
+        refresh: draw,
+        select,
+        active: () => current,
+        bar,
+        /** Takes the open tab's widgets down (its pane disposed, and what its render returned). */
+        destroy() {
+            dispose(pane);
+            if (typeof release === 'function') { try { release(); } catch { /* a tab's cleanup failing must not block teardown */ } }
+            release = null;
+        },
+    };
 }

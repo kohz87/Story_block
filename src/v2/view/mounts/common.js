@@ -103,10 +103,12 @@ function problem(el, doc, message) {
 
 /**
  * Draws screen `screenId` into `el` for `mount`.
- * ctx: { deps, state, changes = [], draft = null, index = null, screen = <override, e.g. a wizard step> }
+ * ctx: { deps, state, changes = [], draft = null, index = null, screen = <override, e.g. a wizard step>, keep = false }
+ * `keep`: the element's own view is updated in place where the renderer can do that (a template's view keeps its
+ * controls, so the focus in them stays); a layout, or a screen with no keep, is drawn again from nothing.
  * → { ok: true, screen, scope, problems } | { ok: false, message }
  */
-export function drawScreen(el, screenId, mount, { deps, state, changes = [], draft = null, index = null, screen: override = null, extra = null }) {
+export function drawScreen(el, screenId, mount, { deps, state, changes = [], draft = null, index = null, screen: override = null, extra = null, keep = false }) {
     const doc = documentOf(deps);
     const resolved = deps.screens.resolve(screenId);
     if (!resolved?.screen) {
@@ -143,9 +145,10 @@ export function drawScreen(el, screenId, mount, { deps, state, changes = [], dra
         query: (name, args) => deps.query(name, args, state),
         ...(extra ?? {}),
     };
-    dispose(el);
+    const drawn = override ?? screen;
+    if (!(keep && typeof drawn.template === 'string' && !drawn.layout)) dispose(el);
     try {
-        const out = deps.render(el, override ?? screen, scope);
+        const out = deps.render(el, drawn, scope);
         if (typeof out === 'function') disposers.set(el, out);
         else if (out && typeof out.destroy === 'function') disposers.set(el, () => out.destroy());
     } catch (error) {

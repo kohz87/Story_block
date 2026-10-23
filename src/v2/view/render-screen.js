@@ -97,7 +97,8 @@ export function createScreenRenderer({ queryAt, widgets = () => ({}), headIndex 
                 preview: api.preview, commit: api.commit, on: api.on, onDraft: api.onDraft,
             });
             if (result?.problems?.length) console.warn(`[Story Suite] ${screen.id}:`, result.problems.join(' '));
-            return undefined;
+            // The mount takes the layout's widgets down when it draws the element again or closes it.
+            return result?.dispose ? () => result.dispose() : undefined;
         }
         if (typeof screen.template === 'string') {
             if (!tpl?.renderTemplate || !tpl?.compileTemplate) {

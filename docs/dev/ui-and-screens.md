@@ -502,6 +502,24 @@ their states, the plates, the class-level exceptions and their specificity), `te
   `tests/v2/view/mounts/game-header.test.js` (the slot on open, a head change, a screen change, no state, a throwing `heroOf`),
   `tests/v2/screens/home-layout.test.js`, `tests/v2/screens/render.test.js`, `tests/v2/screens/show-more.test.js` (the toggle, the stretch, no Packs card).
 
+## Layers, the modal stack and the game view window (fix 8a)
+
+- `view/modal-stack.js` is the one stack of modal layers per document: the game view (`mounts/screen.js`), the dialogs
+  (`mounts/dialog.js`, `widgets/dialog.js`), the More sheet (`screen-bar.js`) and the settings window (`settings/window.js`).
+  A layer is `{ name, root, onEscape(event) → boolean, reveal?(node) }`. Only the topmost takes Escape (bubble phase: a field
+  that clears its own text stops the key first) and holds Tab; a closed layer hands the focus back to its `opener`. New
+  modals push a layer; they do not add their own document listeners.
+- A dialog is closed on a chat change (ui-host.js listens to CHAT_CHANGED); a submit, roll or accept after the chat or the story
+  head changed is refused (`chatScope` in the mount's deps). A typed field keeps its focus: a template's view is updated in
+  place (`drawScreen`'s `keep`), and a rebuilt field gets the focus back by its `data-draft` (`keepFocus` in dialog.js).
+- From 760px the game view is a window: the layer (`.ss-gameview`) is the scrim, `.ss-gameview-main` the window (24px radius,
+  the glass or solid surface). From 1024px it is `min(1200px, 92vw)` by `min(900px, 90vh)`; 760 to 1023px keeps 16px around it.
+  A click on the scrim (a press that began there too) closes it, and `body.ss-gameview-open` locks the page behind. A phone is
+  full screen, as before.
+- A dialog or a tab pane disposes its widgets when it closes or is drawn again (`dispose` in mounts/common.js; the tab host
+  calls what its tab's render returned). Tests: `tests/v2/view/modal-stack.test.js`, `mounts/dialog-chat.test.js`,
+  `mounts/dialog-focus.test.js`, `mounts/dispose.test.js`, `mounts/window.test.js`.
+
 ## Key files and functions
 
 - `src/v2/view/screens.js`: `validateScreen`, `resolveData`, `screenOrder`, `byNavOrder`, `DEFAULT_ORDER`,
