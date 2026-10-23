@@ -7,12 +7,17 @@ import { mountUi } from '../../src/v2/ui-host.js';
 import { createFakeContext } from '../../testkit/fake-st.js';
 import { setupDom } from './view/mounts/helpers.js';
 
-// A reply that carries the story's record (its sid), with two swipes that hold the same text.
-const headReply = (sid = 'sw_head01') => ({
-    name: 'Narrator', is_user: false, mes: 'You see a lake.', swipe_id: 0,
-    swipes: ['You see a lake.', 'You see a lake.'], swipe_info: [{ extra: {} }, { extra: {} }],
-    extra: { storySuite: { v: 2, sid, ops: [], receipts: [], narrated: [], spans: [] } },
-});
+// A reply that carries the story's record (its sid). SillyTavern's new swipe copies the record into the swipe, so the second
+// swipe holds the same text and the same record (the state is identical).
+const headReply = (sid = 'sw_head01') => {
+    const record = { v: 2, sid, ops: [], receipts: [], narrated: [], spans: [], checkpoint: { v: 2, meta: { rev: 0, claims: {} }, domains: { inventory: { stacks: {} }, scene: { place: '' } } } };
+    return {
+        name: 'Narrator', is_user: false, mes: 'You see a lake.', swipe_id: 0,
+        swipes: ['You see a lake.', 'You see a lake.'],
+        swipe_info: [{ extra: { storySuite: structuredClone(record) } }, { extra: { storySuite: structuredClone(record) } }],
+        extra: { storySuite: structuredClone(record) },
+    };
+};
 
 async function world() {
     const doc = setupDom();
@@ -40,9 +45,12 @@ test('a same-chat swipe with the same head record does not refuse a submit opene
     const handle = ui.mounts.dialog.open('qa-swipe/new', { submit: 'qa-swipe.create', draft: { name: 'Ren' } });
     assert.ok(handle, 'the dialog opened on the head');
     // The reader swipes the head to its other swipe: same chat, same head record, same text.
-    st.ctx.chat[0].swipe_id = 1;
+    // SillyTavern shows swipe 1: its text and its extra (the record) come with it.
+    const head = st.ctx.chat[0];
+    head.swipe_id = 1;
+    head.extra = structuredClone(head.swipe_info[1].extra);
     const result = await handle.submit();
-    assert.equal(result.ok, true, `not refused: ${result.code ?? ''}`);
+    assert.equal(result.ok, true, `not refused: ${result.code ?? ''} ${result.message ?? ''}`);
     assert.deepEqual(created, [{ name: 'Ren' }]);
 });
 
