@@ -145,9 +145,9 @@ test('the game view\'s navigation takes the navbar\'s look: a glass pill on a ph
     assert.match(block(mounts, '.ss-gameview-navitem'), /min-height: 64px;/);
     assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"]'), /color: var\(--ss-text\);/, 'the label reads in the text colour');
     assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"] > i'), /color: var\(--ss-accent\);/);
-    // Wide: the column keeps its hairline and drops the pill's margin and radius.
+    // Wide: the row keeps its hairline, drops the pill's radius, and sits 12px under the header card (the tab row's air).
     const wide = block(mounts, '.ss-gameview-nav', '@media (min-width: 768px)');
-    assert.match(wide, /margin: 0;/);
+    assert.match(wide, /margin: var\(--ss-space-3, 12px\) 0 0;/);
     assert.match(wide, /border-radius: 0;/);
 });
 

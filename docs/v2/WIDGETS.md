@@ -391,6 +391,8 @@ class; it has no props and no command:
 <h4 class="ss-section-label"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Where</h4>
 ```
 
+The hairline is `var(--ss-rule, var(--ss-border))`: the rule token (the concept's colour per scheme, at least 1.5:1 against
+the card in every look) so modules take the same line with `var(--ss-rule, var(--ss-border))` in their own rules.
 The icon, if any, keeps its size; the hairline is decorative (`::after`), so the label is the text alone for a reader or a
 screen reader. The label wraps (overflow-wrap: anywhere) before it pushes the row wider.
 

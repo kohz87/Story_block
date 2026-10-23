@@ -10,15 +10,19 @@ import { STRINGS } from '../strings.js';
 export const SHOW_MORE_WIDGET = 'story-block.show-more';
 export const CAP_CLASS = 'sb-cap';
 
-/** A list that is capped, and the button that opens and shuts it. → { button, refresh(), destroy() }. */
-export function capToggle(doc, target, { more = STRINGS.showMore.more, less = STRINGS.showMore.less } = {}) {
+// Which cards are open, by key (`story-block/home:quests`): kept for the page, so a redraw (a new head, a commit) does not fold a
+// card the reader opened. A key is given by the card that draws the toggle; without one the state is the toggle's own.
+const OPEN = new Map();
+
+/** A list that is capped, and the button that opens and shuts it (`key`: the card's name, kept across redraws). → { button, refresh(), destroy() }. */
+export function capToggle(doc, target, { key = '', more = STRINGS.showMore.more, less = STRINGS.showMore.less } = {}) {
     const button = doc.createElement('button');
     button.type = 'button';
     button.className = 'ss-button sb-show-more';
     button.setAttribute('aria-expanded', 'false');
     button.hidden = true;
     target.classList.add(CAP_CLASS);
-    let expanded = false;
+    let expanded = key ? OPEN.get(key) === true : false;
     const paint = () => {
         target.setAttribute('data-capped', expanded ? 'false' : 'true');
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
@@ -31,6 +35,7 @@ export function capToggle(doc, target, { more = STRINGS.showMore.more, less = ST
     };
     button.addEventListener('click', () => {
         expanded = !expanded;
+        if (key) OPEN.set(key, expanded);
         paint();
         refresh();
     });
@@ -38,7 +43,7 @@ export function capToggle(doc, target, { more = STRINGS.showMore.more, less = ST
     return { button, refresh, destroy: () => button.remove() };
 }
 
-/** `story-block.show-more`: { target } (a selector inside the card that holds the widget; default `.sb-cap`), { more, less }. */
+/** `story-block.show-more`: { target } (a selector inside the card that holds the widget; default `.sb-cap`), { key }, { more, less }. */
 export function createShowMoreWidget() {
     return Object.freeze({
         props: {},
@@ -51,6 +56,7 @@ export function createShowMoreWidget() {
             const target = card?.querySelector?.(selector) ?? null;
             if (!target) return { update() {}, destroy() { host.replaceChildren(); } };
             const toggle = capToggle(doc, target, {
+                key: typeof props.key === 'string' ? props.key : '',
                 more: typeof props.more === 'string' && props.more ? props.more : STRINGS.showMore.more,
                 less: typeof props.less === 'string' && props.less ? props.less : STRINGS.showMore.less,
             });

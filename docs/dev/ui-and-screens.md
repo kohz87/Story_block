@@ -39,7 +39,7 @@ Nunito (the approved concept; accent `#7b6cf0`). Three parts:
   (`THEME_ROOTS`, the same list as controls.css: `.story-suite-overlay`, `.story-suite-sheet`, `.ss-gameview`,
   `.ss-dialog`, `.ss-cards`, `.ss-card`, `.ss-hud`, `[data-ss-screen]`, and since step 4a `.story-suite-bar`,
   `.story-suite-extras`, `.story-suite-reply-note`: the bar, the Choices strip and the notes, which sit in the chat), always under `:where()`.
-  Colours: `--ss-glass`, `--ss-glass-strong`, `--ss-tile`, `--ss-border` (the hairline), `--ss-shadow` (a whole
+  Colours: `--ss-glass`, `--ss-glass-strong`, `--ss-tile`, `--ss-border` (the edge of a control and a card), `--ss-rule` (the rule of a section label: the concept's colour per scheme, `rgba(255,255,255,.22)` dark and `rgba(35,37,58,.22)` light, from SillyTavern's text colour in Follow SillyTavern; at least 1.5:1 against the card in all six looks, measured), `--ss-shadow` (a whole
   box-shadow), `--ss-text`, `--ss-muted`, `--ss-track`, `--ss-accent`, `--ss-accent-soft`, `--ss-pill`,
   `--ss-pill-text`, `--ss-badge`, `--ss-badge-text`, `--ss-field`, `--ss-overlay`, `--ss-good`, `--ss-chatter`,
   `--ss-blur` (a backdrop-filter value). Bars `--ss-hp`, `--ss-mp`, `--ss-sp`, `--ss-exp`; `--ss-tick`, `--ss-bad`,
@@ -490,7 +490,7 @@ their states, the plates, the class-level exceptions and their specificity), `te
   and a "Show all" / "Show less" button (`capToggle` in `screens/show-more.js`, the widget `story-block.show-more` for a template's
   card, and the same helper on Save points' list) opens it. The button is there only while the list is taller than the cap, and
   shows `aria-expanded`. The open state is in the toggle, so a redraw of the screen starts folded again.
-- **The section label** (`glass.css`, `.ss-section-label`): documented in WIDGETS.md. Use it for any heading of a part of a screen.
+- **The section label** (`glass.css`, `.ss-section-label`): documented in WIDGETS.md. Use it for any heading of a part of a screen. Its line is `var(--ss-rule, var(--ss-border))`; a module that draws its own rule uses the same.
 - Tests: `tests/v2/view/game-header.test.js` (the lead, the scene, the fallbacks, the portrait order, the avatar paths),
   `tests/v2/view/mounts/game-header.test.js` (the slot on open, a head change, a screen change, no state, a throwing `heroOf`),
   `tests/v2/screens/home-layout.test.js`, `tests/v2/screens/render.test.js`, `tests/v2/screens/show-more.test.js` (the toggle, the stretch, no Packs card).

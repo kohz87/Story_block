@@ -73,3 +73,23 @@ test('Home: one height per row (stretch), the capped list does not scroll, and n
     assert.doesNotMatch(homeScreen.template, /packs/i, 'the Packs card is gone from Home');
     assert.doesNotMatch(css, /packs/i);
 });
+
+test('the open state is kept per card: a new toggle for the same card starts open, another card starts folded', () => {
+    const doc = installFakeDom();
+    const first = capToggle(doc, doc.createElement('ul'), { key: 'story-block/home:quests-test' });
+    first.button.click();
+    assert.equal(first.button.getAttribute('aria-expanded'), 'true');
+    // a redraw builds the toggle again (new nodes): the card stays open
+    const again = capToggle(doc, doc.createElement('ul'), { key: 'story-block/home:quests-test' });
+    assert.equal(again.button.getAttribute('aria-expanded'), 'true', 'a redraw does not fold it back');
+    assert.equal(again.button.textContent, STRINGS.showMore.less);
+    again.button.click();
+    const other = capToggle(doc, doc.createElement('ul'), { key: 'story-block/home:saves-test' });
+    assert.equal(other.button.getAttribute('aria-expanded'), 'false', 'another card is its own');
+    const shut = capToggle(doc, doc.createElement('ul'), { key: 'story-block/home:quests-test' });
+    assert.equal(shut.button.getAttribute('aria-expanded'), 'false', 'shut again stays shut');
+});
+
+test('Home passes its card key, so the quests toggle keeps its state', () => {
+    assert.match(homeScreen.template, /"key":"story-block\/home:quests"/);
+});

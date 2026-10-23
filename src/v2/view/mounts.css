@@ -59,7 +59,15 @@
    SillyTavern are opaque or untouched already). */
 @media (max-width: 759.98px) {
     .ss-gameview {
+        /* An opaque floor (Glass: the tint with no alpha) under the layers, so blur off hides the story behind the cards too. */
+        background-color: var(--ss-sheet-floor, var(--ss-sheet-bg, var(--ss-surface)));
         background-image: linear-gradient(var(--ss-sheet-bg, var(--ss-surface)), var(--ss-sheet-bg, var(--ss-surface))), linear-gradient(var(--ss-sheet-bg, var(--ss-surface)), var(--ss-sheet-bg, var(--ss-surface))), linear-gradient(var(--ss-sheet-bg, var(--ss-surface)), var(--ss-sheet-bg, var(--ss-surface)));
+    }
+
+    /* the phone title bar: slimmer, so the header and the screen have the room (the header is about 150 to 170 px) */
+    .ss-gameview-bar {
+        padding-top: max(6px, env(safe-area-inset-top));
+        padding-bottom: 6px;
     }
 }
 
@@ -226,7 +234,8 @@
         height: auto;
         overflow-x: auto;
         overflow-y: hidden;
-        margin: 0;
+        /* air between the header card and the tab row (the row's own padding stays) */
+        margin: var(--ss-space-3, 12px) 0 0;
         padding: 0 24px;
         border: 0;
         border-bottom: 1px solid var(--ss-border);
@@ -244,6 +253,8 @@
         gap: var(--ss-gap);
         min-height: 44px;
         padding: 8px 14px;
+        /* the labels in the text colour (the muted one missed 4.5:1 on busy glass); the current tab is told by its fill and underline */
+        color: var(--ss-text, inherit);
         border-radius: var(--ss-radius-m, 14px) var(--ss-radius-m, 14px) 0 0;
         font-size: 1em;
     }
@@ -255,7 +266,8 @@
 
     .ss-gameview-body {
         order: 3;
-        padding: 16px 24px;
+        /* air between the tab row's underline and the first row of cards */
+        padding: var(--ss-space-4, 16px) 24px 16px;
     }
 }
 

@@ -40,18 +40,32 @@ test('the phone keeps the bottom bar: the nav is the last item, a floating pill'
     assert.match(phoneNav, /border-radius: var\(--ss-radius-xxl, 26px\)/);
 });
 
-test('the section label: a label, a hairline in the border token, one class of weight under :where()', () => {
+test('the section label: a label, a hairline in the rule token, one class of weight under :where()', () => {
     const label = rules(glass, ') .ss-section-label {')[0];
     assert.match(label, /text-transform: uppercase;/);
     assert.match(label, /letter-spacing: 1\.4px;/);
     assert.match(label, /color: var\(--ss-muted\);/);
     const line = rules(glass, ') .ss-section-label::after {')[0];
     assert.match(line, /height: 1px;/);
-    assert.match(line, /background: var\(--ss-border\);/);
+    assert.match(line, /background: var\(--ss-rule, var\(--ss-border\)\);/, 'the rule token, the border as fallback');
     assert.match(line, /flex: 1 1 auto;/, 'the hairline fills the rest of the row');
     for (const selector of ['.ss-section-label {', '.ss-section-label::after']) {
         const at = glass.indexOf(selector);
         const head = glass.slice(glass.lastIndexOf('\n', at - 1) + 1, at);
         assert.match(head, /^:where\(/, `${selector} is under :where() (no specificity beyond one class)`);
     }
+});
+
+test('the phone game view has an opaque floor under the tint, so blur off hides the story behind the cards', () => {
+    const phone = mounts.slice(mounts.indexOf('@media (max-width: 759.98px) {', mounts.indexOf('.ss-gameview {')));
+    assert.match(phone, /\.ss-gameview \{[^}]*background-color: var\(--ss-sheet-floor, var\(--ss-sheet-bg, var\(--ss-surface\)\)\);/);
+    const theme = read('theme.js');
+    assert.match(theme, /\['--ss-sheet-floor', 'rgb\(from var\(--ss-glass-strong\) r g b \/ 1\)'\]/, 'the floor is the Glass colour with no alpha');
+});
+
+test('the phone header shows the scene as one ellipsised line under the name (the corner), not hidden', () => {
+    assert.doesNotMatch(glass, /\.ss-hero-compact \.ss-hero-corner,/, 'the corner is no longer hidden on the compact hero');
+    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*display: flex;[^}]*overflow: hidden;/);
+    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner-text \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+    assert.match(glass, /"portrait who status" "portrait corner corner" "vitals vitals vitals"/);
 });

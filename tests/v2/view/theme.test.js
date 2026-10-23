@@ -283,3 +283,13 @@ test('the legacy surfaces (the side sheet, the game view) get glass tokens under
     // Glass strength moves the sheet's alpha through the glass it points at.
     assert.notEqual(valueOf(themeTokens({ panel: 'glass', strength: 30 }), '--ss-glass-strong'), valueOf(themeTokens({ panel: 'glass', strength: 90 }), '--ss-glass-strong'));
 });
+
+test('the rule token (the section-label hairline): the concept\'s colour per scheme, derived from SillyTavern\'s text in Follow SillyTavern', () => {
+    const value = (tokens, name) => tokens.find(([n]) => n === name)?.[1];
+    assert.equal(value(schemeTokens('dark', 'glass'), '--ss-rule'), 'rgba(255, 255, 255, 0.22)');
+    assert.equal(value(schemeTokens('light', 'glass'), '--ss-rule'), 'rgba(35, 37, 58, 0.22)');
+    assert.equal(value(schemeTokens('light', 'solid', { opaque: true }), '--ss-rule'), 'rgba(35, 37, 58, 0.22)');
+    const st = value(schemeTokens('light', 'sillytavern'), '--ss-rule');
+    assert.match(st, /--SmartThemeBodyColor/, 'from SillyTavern\'s text colour');
+    assert.match(st, /--SmartThemeBlurTintColor/, 'mixed into SillyTavern\'s tint');
+});

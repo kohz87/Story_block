@@ -183,7 +183,7 @@ export function createSavePointsWidget({ points, enabled = () => true, notify = 
                     }
                     root.appendChild(rows);
                     // A long list is capped with "Show all" (no scrollbar), like the other long cards on Home.
-                    const more = capToggle(doc, rows);
+                    const more = capToggle(doc, rows, { key: 'story-block/home:saves' });
                     root.appendChild(more.button);
                     doc.defaultView?.requestAnimationFrame?.(() => more.refresh());
                     more.refresh();

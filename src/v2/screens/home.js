@@ -92,7 +92,7 @@ const TEMPLATE = `
         </li>
       </ul>
     </div>
-    <ss-widget name="${SHOW_MORE_WIDGET}" class="more-slot" data-props='{"target":".sb-cap","more":"${jsonText(STRINGS.showMore.more)}","less":"${jsonText(STRINGS.showMore.less)}"}'></ss-widget>
+    <ss-widget name="${SHOW_MORE_WIDGET}" class="more-slot" data-props='{"target":".sb-cap","key":"story-block/home:quests","more":"${jsonText(STRINGS.showMore.more)}","less":"${jsonText(STRINGS.showMore.less)}"}'></ss-widget>
   </section>
 
   <ss-widget name="${SAVEPOINTS_WIDGET}" class="saves-slot"></ss-widget>

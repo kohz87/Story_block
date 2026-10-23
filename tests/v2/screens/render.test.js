@@ -275,7 +275,7 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     assert.equal(el.querySelectorAll('.quest .progress').length, 1, 'only the first open quest with a target gets a bar');
     assert.equal(el.querySelector('.more'), null, 'no "and more" line: the toggle does that');
     assert.equal(el.querySelectorAll('.sb-cap').length, 1, 'the quests list is the capped part');
-    assert.deepEqual(drawn['story-block.show-more'], [{ target: '.sb-cap', more: 'Show all', less: 'Show less' }], 'the quests card has its toggle');
+    assert.deepEqual(drawn['story-block.show-more'], [{ target: '.sb-cap', key: 'story-block/home:quests', more: 'Show all', less: 'Show less' }], 'the quests card has its toggle');
 });
 
 test('home and scene: the story time through the host\'s fmt.time (the calendar), not "Day N"', { skip }, async () => {
