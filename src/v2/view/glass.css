@@ -2036,13 +2036,14 @@
     gap: var(--ss-space-3);
     min-width: 0;
 }
-/* The Diagnostics page's tools (diagnostics-page.js): the buttons and the status line under the report fold, then the icon credit,
-   with a hairline above it and room from the buttons. Their [hidden] (a search that does not match) wins over the layout. */
+/* The Diagnostics page's tools (diagnostics-page.js): a glass card under the report fold with the buttons and the status line, then the
+   icon credit with a hairline above it. Its [hidden] (a search that does not match) wins over the layout. */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-diagnostics .ss-diagnostics-tools {
     display: flex;
     flex-direction: column;
     gap: var(--ss-space-2);
-    margin-top: var(--ss-space-1);
+    min-width: 0;
+    padding: var(--ss-space-2) var(--ss-space-4) var(--ss-space-3);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-diagnostics .ss-diagnostics-credits {
     margin: var(--ss-space-3) 0 0;

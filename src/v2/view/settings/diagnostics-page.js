@@ -73,9 +73,11 @@ export function diagnosticsBody(pane, ctx) {
             sample.title = T.sampleTitle;
             sample.addEventListener('click', () => { try { diagnostics.sample(); } catch (error) { status.textContent = fill(T.sampleFailed, { why: error?.message ?? error }); } });
         }
-        // The tools under the fold: the buttons, the status line, then the icon credit, with a hairline above it.
-        const tools = h(doc, 'div', 'ss-diagnostics-tools');
-        tools.append(actions, status);
+        // The tools below the fold, in a glass card of their own (the credit needs a surface behind it, as the cards have): the
+        // buttons, the status line, then the icon credit with a hairline above it.
+        const tools = h(doc, 'div', 'ss-diagnostics-tools ss-glass');
+        const credits = h(doc, 'p', 'ss-card-help ss-diagnostics-credits', T.credits);
+        tools.append(actions, status, credits);
         card.body.append(h(doc, 'p', 'ss-card-help', T.help), text);
         card.el.addEventListener('toggle', () => {
             card.el.classList.toggle('ss-section-fold-open', card.el.open === true);
@@ -136,9 +138,8 @@ export function diagnosticsBody(pane, ctx) {
             }
         });
         again.addEventListener('click', () => { status.textContent = ''; build(); });
-        const credits = h(doc, 'p', 'ss-card-help ss-diagnostics-credits', T.credits);
-        root.append(card.el, tools, credits);
-        report = { card, tools, credits, build, built: () => built, text };
+        root.append(card.el, tools);
+        report = { card, tools, build, built: () => built, text };
     }
 
     // ---- what modules place here: their own folds, and a module whose settings are placed here
@@ -183,7 +184,6 @@ export function diagnosticsBody(pane, ctx) {
                 const hit = !query || reportHit(text);
                 report.card.setHidden(!hit);
                 report.tools.hidden = !hit;
-                report.credits.hidden = !hit;
                 if (query && hit) shown += 1;
             }
             for (const fold of placedFolds) {
