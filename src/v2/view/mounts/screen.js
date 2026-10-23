@@ -124,7 +124,7 @@ export function createScreenMount(deps) {
         main.append(bar, heroSlot, body);
         root.append(main);
         // The bar comes last in the window (after the body): created here, it appends its own bar, scrim and sheet to the window.
-        const screenBar = createScreenBar(doc, root, {
+        const screenBar = createScreenBar(doc, main, {
             label: STRINGS.bar.screens,
             className: 'ss-gameview-nav',
             onSelect: id => show(id),
@@ -132,6 +132,11 @@ export function createScreenMount(deps) {
             decorate: (node, item) => node.setAttribute('data-ss-target', item.id),
         });
         (deps.container?.() ?? doc.body).appendChild(root);
+        // On a wide screen the layer is the scrim: a click on it (a press that began there too) closes the window; the window is `main`.
+        let pressedScrim = false;
+        root.addEventListener('pointerdown', event => { pressedScrim = event.target === root; });
+        root.addEventListener('click', event => { if (event.target === root && pressedScrim) close(); });
+        doc.body?.classList?.add('ss-gameview-open');
 
         // A layer of the shared stack (modal-stack.js): Escape closes the view when no layer above it (the More sheet, a dialog) is open,
         // Tab stays in it, and closing it hands the focus back to what opened it.
@@ -151,6 +156,7 @@ export function createScreenMount(deps) {
         const { root, handle, layer, off, bar, hero: header, phone, onWidth } = view;
         view = null;
         off();
+        doc.body?.classList?.remove('ss-gameview-open');
         phone?.removeEventListener?.('change', onWidth);
         bar.destroy();
         handle?.unmount();
