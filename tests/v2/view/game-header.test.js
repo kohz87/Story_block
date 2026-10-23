@@ -32,7 +32,7 @@ test('the lead: name, level under the Terms word, the pools that have a maximum,
     assert.deepEqual(props.bars.map(bar => [bar.kind, bar.label, bar.value, bar.max, bar.text]), [
         ['hp', 'HP', 20, 82, '20 / 82'], ['mp', 'MP', 3, 10, '3 / 10'],
     ], 'SP has no maximum, so no bar');
-    assert.deepEqual(props.statuses.map(entry => [entry.id, entry.label, entry.tone]), [['poisoned', 'poisoned', 'bad']]);
+    assert.deepEqual(props.statuses.map(entry => [entry.id, entry.label, entry.tone]), [['poisoned', 'Poisoned', 'bad']]);
 });
 
 test('the scene: place, time through the host formatter, weather', () => {
@@ -188,4 +188,27 @@ test('the portrait with the persona from the list: the persona\'s picture, else 
     block.querySelector('.avatar-container.selected').className = 'avatar-container';
     const bare = readHeroContext({ name1: 'Mira', characterId: 0, characters: [{ name: 'Ren', avatar: 'ren.png' }] }, doc);
     assert.equal(portraitOf(bare), '/thumbnail?type=avatar&file=ren.png', 'no persona: the card');
+});
+
+// Conditions as the header's status badges: an icon for the kind (never a letter), the time left in its own unit when the entry has one,
+// and a name a screen reader says ("Bleeding, 10 minutes left").
+test('a condition badge has its kind\'s icon, its label, and the time left in the unit the entry gives', async () => {
+    const { ICON_SET } = await import('../../../src/v2/view/icons/set.js');
+    const { conditionIcon, gameHeroProps: props } = await import('../../../src/v2/view/game-header.js');
+    assert.equal(conditionIcon('bleeding'), 'ph-drop');
+    assert.equal(conditionIcon('poison'), 'ph-skull');
+    assert.equal(conditionIcon('poisoned'), 'ph-skull');
+    assert.equal(conditionIcon('stunned'), 'ph-lightning');
+    assert.equal(conditionIcon('dazed'), 'ph-lightning');
+    assert.equal(conditionIcon('slowed'), 'ph-clock');
+    assert.equal(conditionIcon('burning'), 'ph-warning', 'no flame in the set: a warning');
+    assert.equal(conditionIcon('something new'), 'ph-warning');
+    for (const kind of ['bleeding', 'poison', 'stunned', 'slowed', 'burning']) assert.ok(ICON_SET[conditionIcon(kind)], `${kind} has an icon in the set`);
+    const conditions = [{ kind: 'bleeding', minutes: 10 }, { kind: 'stunned', rounds: 2 }, { kind: 'slowed', until: 130 }, { name: 'dazed' }];
+    const out = props({ state: STATE, query: answers({ 'party.pc': { name: 'Ren', conditions }, 'director.time': { minutes: 120 } }), formatTime: null, context: {} });
+    const [bleed, stun, slow, daze] = out.statuses;
+    assert.deepEqual([bleed.label, bleed.icon, bleed.left, bleed.unit], ['Bleeding', 'ph-drop', 10, 'minutes']);
+    assert.deepEqual([stun.label, stun.icon, stun.left, stun.unit], ['Stunned', 'ph-lightning', 2, 'rounds']);
+    assert.deepEqual([slow.left, slow.unit], [10, 'minutes'], 'an until on the story clock is the minutes left');
+    assert.deepEqual([daze.label, daze.icon, daze.left], ['Dazed', 'ph-lightning', null], 'a name instead of a kind; no time left, so none shown');
 });

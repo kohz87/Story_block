@@ -198,7 +198,7 @@ test('the features form: tiles on the tokens, two columns where there is room an
     for (const part of ['var(--ss-border)', 'var(--ss-radius-l)', 'var(--ss-tile)', 'var(--ss-text)', 'var(--ss-font)']) assert.ok(tile.includes(part), part);
     assert.match(rule('.ss-feature-name'), /font-size: 15px;\s*font-weight: 800;/);
     assert.match(rule('.ss-feature-help'), /color: var\(--ss-muted\);\s*font-size: 13px;/);
-    assert.match(rule('.ss-feature-why'), /var\(--ss-warn\)/);
+    assert.match(rule('.ss-feature-why'), /var\(--ss-warn-text\)/);
     // The group is a heading over its tiles, no card (the tiles are the cards); one weight heavier than `.ss-section`.
     const group = rule('.ss-features .ss-features-group.ss-section');
     assert.match(group, /background: none;/);

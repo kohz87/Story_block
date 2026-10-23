@@ -179,3 +179,9 @@ test('the bar\'s buttons are at least 40px tall on a phone (44 preferred); deskt
     assert.ok(height >= 40, `min-height ${height}px on a phone`);
     assert.match(host, /\.story-suite-bar \.menu_button \{[^}]*min-height: 36px/, 'desktop unchanged');
 });
+
+test('the HUD strip keeps 8px of air above SillyTavern\'s message box (#send_form) at every width', () => {
+    const mounts = read('view/mounts.css');
+    const rule = /\.ss-hud \{([^}]*)\}/.exec(mounts)?.[1] ?? '';
+    assert.match(rule, /margin: 0 0 8px;/, 'a bottom margin of 8px on the strip');
+});
