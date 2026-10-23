@@ -37,8 +37,8 @@ test('the desktop row has no raised pill: the current screen is the accent icon 
     const current = rules(glass, '.ss-screenbar-item[aria-current="page"] {')[0];
     assert.doesNotMatch(current, /border|background|box-shadow/, 'no pill, no border, no fill on the current slot');
     assert.match(rules(glass, '.ss-screenbar-item[aria-current="page"] {')[0], /color: var\(--ss-accent-text\);/, 'the accent label');
-    assert.match(glass, /\.ss-screenbar-item\[aria-current="page"\] > \.ss-screenbar-icon \{[^}]*drop-shadow\(0 0 6px color-mix\(in srgb, var\(--ss-accent\) 55%, transparent\)\)/, 'the soft glow at 55%');
-    assert.match(glass, /\.ss-screenbar-item\[aria-current="page"\] \.ss-screenbar-dot \{\s*opacity: 1;/, 'the dot');
+    assert.match(glass, /\.ss-screenbar-item:where\(\[aria-current="page"\]\) > \.ss-screenbar-icon \{[^}]*drop-shadow\(0 0 6px color-mix\(in srgb, var\(--ss-accent\) 55%, transparent\)\)/, 'the soft glow at 55%');
+    assert.match(glass, /\.ss-screenbar-item:where\(\[aria-current="page"\]\) \.ss-screenbar-dot \{\s*opacity: 1;/, 'the dot');
     assert.doesNotMatch(mounts, /inset 0 -2px 0/, 'no underline on the tabs');
 });
 

@@ -89,6 +89,8 @@ export function createScreenMount(deps) {
 
     function show(screenId) {
         if (!view) return false;
+        // Every navigation closes More's sheet first (its scrim and its keys with it); the focus goes back to More, as a tile's does.
+        if (view.bar.isMoreOpen()) view.bar.closeMore({ focus: true });
         view.screenId = screenId;
         const entries = drawBar();
         const entry = entries.find(item => item.id === screenId);

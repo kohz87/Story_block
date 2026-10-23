@@ -429,6 +429,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         else tabHost.refresh();
     }
     function closePanel() {
+        // More's sheet, if it is open, goes with the panel: its scrim and its keys (the focus does not go to a hidden tile)
+        tabHost?.bar?.closeMore({ focus: false });
         panel.hidden = true;
         doc.body.classList.remove('story-suite-sheet-open');
     }
@@ -694,6 +696,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         theme,
         destroy() {
             overlay?.close?.();
+            tabHost?.bar?.destroy();
+            mounts.screen?.destroy?.();
             theme.destroy();
             doc.removeEventListener?.('keydown', onKey);
             offs.splice(0).forEach(off => off?.());

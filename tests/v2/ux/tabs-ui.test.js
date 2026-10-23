@@ -275,3 +275,17 @@ test('Enter on Up or Down stays with the button (SillyTavern\'s page-wide Enter 
     row(doc, 'rpg-battle/fight').querySelector('.ss-tabrow-name').dispatch('keydown', { key: 'Enter' });
     assert.deepEqual(seen, ['ArrowDown', 'Enter'], 'only a button\'s Enter is kept back; other keys and other controls pass');
 });
+
+test('closing the story panel with More open releases More\'s keys: a Tab outside the panel is not intercepted', async () => {
+    const { doc, ui } = await setup();
+    ui.openPanel();
+    const keys = () => doc.listeners.filter(l => l.type === 'keydown').length;
+    const before = keys();
+    doc.body.querySelector('.story-suite-sheet-bar .ss-screenbar-more').click();
+    assert.equal(keys(), before + 1, 'More listens for the keys while its sheet is open');
+    doc.body.querySelector('.story-suite-sheet-close').click();
+    assert.equal(keys(), before, 'closing the panel released them');
+    assert.equal(doc.key('Tab').defaultPrevented, false, 'a Tab outside the panel is not taken by More');
+    ui.destroy();
+    assert.equal(doc.listeners.filter(l => l.type === 'pointerdown').length, 0, 'teardown leaves no bar listener behind');
+});

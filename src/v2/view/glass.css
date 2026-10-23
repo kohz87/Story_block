@@ -925,7 +925,7 @@
     font-size: 22px;
     line-height: 24px;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-item[aria-current="page"] > .ss-screenbar-icon {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-item:where([aria-current="page"]) > .ss-screenbar-icon {
     filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ss-accent) 55%, transparent));
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-label {
@@ -951,7 +951,7 @@
     background: var(--ss-accent-text);
     opacity: 0;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-item[aria-current="page"] .ss-screenbar-dot {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-item:where([aria-current="page"]) .ss-screenbar-dot {
     opacity: 1;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-scrim {
@@ -1057,7 +1057,7 @@
     line-height: 26px;
     color: var(--ss-muted);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-tile[aria-current="page"] .ss-screenbar-tile-icon {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-tile:where([aria-current="page"]) .ss-screenbar-tile-icon {
     color: var(--ss-accent-text);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-screenbar-tile .ss-screenbar-label {

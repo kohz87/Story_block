@@ -205,12 +205,59 @@ test('the wide row: every screen in one row, no More, the sheet never opens', ()
     assert.equal(slots().filter(node => node.getAttribute('aria-current') === 'page').length, 1);
 });
 
-test('switching from the pill to the row closes an open sheet (the focus stays on More)', () => {
-    const { bar, more, sheet } = setup();
+test('switching from the pill to the row closes an open sheet, and the focus moves to the matching row button', () => {
+    const { bar, more, sheet, slots, doc } = setup({ current: 'story-block/home' });
     more().click();
-    bar.update({ items: ITEMS, current: null, row: true });
+    // the focus on a tile (under More): the same screen in the row
+    doc.activeElement = doc.body.querySelector('.ss-screenbar-tile[data-id="rpg-battle/craft"]');
+    bar.update({ items: ITEMS, current: 'story-block/home', row: true });
     assert.equal(sheet().hidden, true);
     assert.equal(bar.isMoreOpen(), false);
+    assert.equal(doc.activeElement, slots().find(node => node.getAttribute('data-id') === 'rpg-battle/craft'), 'the same screen, in the row');
+});
+
+test('the focus through the mode switches: a slot stays on its screen; More takes a screen that goes under it; a row slot moves to More in the pill', () => {
+    const { bar, more, slots, doc } = setup({ current: 'story-block/home' });
+    // a pinned slot (Party) focused: the row keeps it
+    slots()[1].focus();
+    bar.update({ items: ITEMS, current: 'story-block/home', row: true });
+    assert.equal(doc.activeElement.getAttribute('data-id'), 'story-block/party');
+    // in the row, the focus on the last screen (Crafting, under More in the pill); back to the pill: More takes it
+    doc.activeElement = slots().find(node => node.getAttribute('data-id') === 'rpg-battle/craft');
+    bar.update({ items: ITEMS, current: 'story-block/home', row: false });
+    assert.equal(doc.activeElement, more(), 'a slot that moved under More gives the focus to More');
+    // More focused while a screen under it is current, then the row: that screen's slot takes the focus
+    bar.update({ items: ITEMS, current: 'rpg-battle/craft', row: false });
+    doc.activeElement = more();
+    bar.update({ items: ITEMS, current: 'rpg-battle/craft', row: true });
+    assert.equal(doc.activeElement.getAttribute('data-id'), 'rpg-battle/craft', 'More\'s held screen takes the focus in the row');
+});
+
+test('a redraw with the sheet open keeps the focus on the same tile; if that tile is gone, on the first tile', () => {
+    const { bar, more, tiles, doc } = setup({ current: 'story-block/home' });
+    more().click();
+    doc.activeElement = tiles().find(node => node.getAttribute('data-id') === 'story-director/quests');
+    bar.update({ items: ITEMS, current: 'story-block/home' });
+    assert.equal(doc.activeElement.getAttribute('data-id'), 'story-director/quests', 'the same tile after a redraw');
+    // the tile goes (the screen was removed): the first tile takes it
+    bar.update({ items: ITEMS.filter(item => item.id !== 'story-director/quests'), current: 'story-block/home' });
+    assert.equal(doc.activeElement.getAttribute('data-id'), 'story-director/world', 'the first tile when the focused one is gone');
+});
+
+test('a focused tile that sits outside the sheet\'s visible area is brought into view (the sheet scrolls, not the page)', () => {
+    const { doc, more, tiles, sheet } = setup();
+    more().click();
+    const sheetNode = sheet();
+    // a visible window of 100px in the sheet; the last tile is far below it
+    sheetNode.getBoundingClientRect = () => ({ top: 0, bottom: 100, left: 0, right: 300, height: 100, width: 300 });
+    sheetNode.scrollTop = 0;
+    const last = tiles().at(-1);
+    last.getBoundingClientRect = () => ({ top: 400, bottom: 460, left: 0, right: 80, height: 60, width: 80 });
+    doc.activeElement = tiles()[0];
+    // Tab from the first tile to the next, then to the last: each move reveals the tile it lands on
+    doc.fire('keydown', { key: 'Tab', shiftKey: true });
+    doc.fire('keydown', { key: 'Tab', shiftKey: false });
+    assert.ok(sheetNode.scrollTop > 0 || sheetNode.scrolled?.length > 0, 'the sheet scrolled toward a tile out of view');
 });
 
 test('the decorate hook marks each slot and each tile (the Story panel\'s names)', () => {

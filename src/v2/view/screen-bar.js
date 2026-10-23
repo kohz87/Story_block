@@ -23,7 +23,7 @@
 // Built with createElement and textContent only, like every standard widget (dom.js). Focus moves with focusNode (scroll.js).
 
 import { h, iconNode, str } from './widgets/dom.js';
-import { focusNode } from './scroll.js';
+import { focusNode, revealIn } from './scroll.js';
 import { hasIcon } from './icons/index.js';
 import { STRINGS, fill } from '../strings.js';
 
@@ -164,7 +164,41 @@ export function createScreenBar(doc, host, options = {}) {
         onSelect(itemId);
     }
 
+    // Where the focus is in the bar, as a key the redraw can find again: More, a slot (by id), a tile (by id), the sheet.
+    function focusedKey() {
+        const a = doc.activeElement;
+        if (!a) return null;
+        if (a === more) return { more: true };
+        const id = a.getAttribute?.('data-id');
+        if (nav.contains?.(a)) return id ? { slot: id } : null;
+        if (sheet.contains?.(a)) return id ? { tile: id } : { sheet: true };
+        return null;
+    }
+
+    // After a redraw: the focus goes where it was, or to its nearest equivalent: a slot that moved under More gives More; in the
+    // row More's held screen (else the current one, else the first) takes the focus; a tile that is gone gives the first tile.
+    function restoreFocus(before) {
+        if (!before) return;
+        const firstSlot = [...slots.values()][0] ?? null;
+        const firstTile = [...tiles.values()][0] ?? null;
+        let target = null;
+        if (before.more) {
+            const held = row ? moreHolds(items, current, pinnedCount) : null;
+            target = row ? (slots.get(held?.id ?? current) ?? firstSlot) : more;
+        } else if (before.slot) {
+            target = slots.get(before.slot) ?? more;
+        } else if (before.tile) {
+            target = row ? (slots.get(before.tile) ?? more) : (open ? (tiles.get(before.tile) ?? firstTile ?? sheet) : more);
+        } else if (before.sheet) {
+            target = open ? sheet : more;
+        }
+        if (!target || doc.activeElement === target) return;
+        focusNode(target);
+        if (target !== more && target !== sheet) revealIn(sheet, target, 'nearest');
+    }
+
     function draw() {
+        const focusBefore = focusedKey();
         const { pinned, more: rest } = row ? { pinned: items, more: [] } : splitItems(items, pinnedCount);
         nav.classList.toggle('ss-screenbar-row', row);
         more.hidden = row;
@@ -216,6 +250,7 @@ export function createScreenBar(doc, host, options = {}) {
             if (grid.children[at] !== node) grid.insertBefore(node, grid.children[at] ?? null);
         });
         empty.hidden = rest.length > 0;
+        restoreFocus(focusBefore);
     }
 
     function tileNodes() {
@@ -245,6 +280,7 @@ export function createScreenBar(doc, host, options = {}) {
         if (next) {
             event.preventDefault?.();
             focusNode(next);
+            revealIn(sheet, next, 'nearest');
         }
     }
 
@@ -257,6 +293,7 @@ export function createScreenBar(doc, host, options = {}) {
         doc.addEventListener?.('keydown', onKey, true);
         const target = tileNodes().find(node => node.getAttribute('aria-current') === 'page') ?? tileNodes()[0] ?? sheet;
         focusNode(target);
+        if (target !== sheet) revealIn(sheet, target, 'nearest');
         return true;
     }
 
