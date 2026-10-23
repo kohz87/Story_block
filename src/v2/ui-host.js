@@ -311,12 +311,12 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card'
         ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes) } : {}) }
         : scope);
-    // The chat and the story head a dialog was opened on (mounts/dialog.js): the chat's id, and the head reply's record and swipe.
+    // The story head a dialog was opened on (mounts/dialog.js): the head's index and record. Which swipe is shown is not part of
+    // it: a swipe that keeps the head record is not a move (the chat's id is checked on its own).
     const branchNow = () => {
         const index = store.headIndex();
         if (!Number.isInteger(index) || index < 0) return `${index}`;
-        const message = ctx.chat?.[index];
-        return `${index}|${readRecord(message)?.sid ?? ''}|${message?.swipe_id ?? 0}`;
+        return `${index}|${readRecord(ctx.chat?.[index])?.sid ?? ''}`;
     };
     const mounts = createMounts({
         screens,
