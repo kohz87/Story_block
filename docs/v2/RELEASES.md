@@ -30,7 +30,7 @@ updated.
 - Pieces can carry a condition, for RPG Battle's wear rules.
 
 **Tools for testers** (F92, F93, Story Block #105)
-- **State inspector** (feature, off): a read-only screen with any reply's story state, what changed, its receipts and its problems.
+- **State inspector** (feature, off): a read-only screen with any reply's story state, what changed, its receipts and its problems. On the glass look (step 4b): glass cards, list rows, monospace only for the raw values.
 - **Save points** (feature, on): **Save point** on Home keeps the moment as a named SillyTavern branch, listed with **Return here**.
 - **Versions**: the last fold in Story Suite settings lists each extension, its version and the Story Block it needs. One that is out of step says how to fix it.
 - Meters can show stage marks, a ceiling and the last change. Home shows each quest with Story Director's own status line.
