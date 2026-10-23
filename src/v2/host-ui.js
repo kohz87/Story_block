@@ -30,7 +30,7 @@ import { FIELD_TYPES, normalizeField } from './registry.js';
 import { SETTING_LIST_ROWS } from './sdk.js';
 import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
-import { createScreenBar } from './view/screen-bar.js';
+import { createScreenBar, pinAlerts } from './view/screen-bar.js';
 import { iconFor } from './view/icons/index.js';
 import { DEFAULT_TAIL_BUDGET, contextNotice, estimateTokens } from './prompt.js';
 import { STRINGS, fill } from './strings.js';
@@ -143,6 +143,7 @@ export const TABS_TEXT = Object.freeze({
     shownTitle: 'Show {name} in the tabs and the game view',
     homeTitle: 'Home is always first and always shown',
     hidden: 'hidden',
+    activeNote: 'Shown only while it is active (during a battle, for example).',
     both: 'Story panel and game view',
     tab: 'Story panel',
     screen: 'game view',
@@ -1065,7 +1066,8 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
     function draw() {
         const tabs = registry.tabs();
         if (!tabs.some(tab => tab.id === current)) current = tabs[0]?.id ?? null;
-        bar.update({ items: tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon) })), current: current ?? '' });
+        // An active tab's alert (a red dot) takes the last pinned slot while it has something to show (screen-bar.js pinAlerts).
+        bar.update({ items: pinAlerts(tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon), alert: tab.alert === true }))), current: current ?? '' });
         // The pane's widgets go before the pane is drawn again (a redraw of the same tab too): their listeners and observers.
         dispose(pane);
         if (typeof release === 'function') { try { release(); } catch { /* a tab's cleanup failing must not block the redraw */ } }

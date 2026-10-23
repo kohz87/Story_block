@@ -331,7 +331,7 @@ test('the changes card shows a module\'s lines for that reply (summary and body)
     };
     assert.equal(cardAt(2).querySelector('.ss-card-summary').textContent, 'climb 14');
     ui.mounts.card.toggle(2, CHANGES_CARD_SCREEN_ID, true);
-    assert.equal(cardAt(2).querySelector('.extra .txt').textContent, 'climb: d20 14');
+    assert.equal(cardAt(2).querySelector('.extra .main').textContent, 'climb: d20 14');
     assert.equal(cardAt(2).querySelector('.none'), null);
     // The later reply rolled nothing: its card says so, with no module line.
     assert.equal(cardAt(4).querySelector('.ss-card-summary').textContent, 'No changes');

@@ -38,7 +38,7 @@
 // in src/v2/strings.js.
 
 import { formatAmount } from './domains/money.js';
-import { PACKS_FOLD, createTabHost } from './host-ui.js';
+import { PACKS_FOLD, TABS_TEXT, createTabHost } from './host-ui.js';
 import { openSettingsWindow } from './view/settings/window.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
@@ -53,6 +53,8 @@ import { createReplyExtras } from './extras-ui.js';
 import { displayLines } from './extras.js';
 import { STRINGS, fill } from './strings.js';
 import { readRecord } from './persist.js';
+import { laterStore, scanReplyCards } from './reply-cards.js';
+import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE } from './features.js';
 import { createInspectorSource } from './inspect.js';
 import { createSavePoints } from './rewind.js';
@@ -62,6 +64,7 @@ import { createReadyHintWidget, READY_HINT_WIDGET } from './screens/ready-hint.j
 import { createShowMoreWidget, SHOW_MORE_WIDGET } from './screens/show-more.js';
 import { buildReport, captureConsole, caughtSoFar, reportFileName } from './diagnostics.js';
 import { createThemeBridge } from './view/theme.js';
+import { activeNow } from './view/mounts/common.js';
 import { openUiSample } from './screens/ui-sample.js';
 
 const IDS = Object.freeze({ bar: 'story_suite_v2_bar', panel: 'story_suite_v2_panel', drawer: 'story_suite_v2_drawer', menu: 'story_suite_v2_menu' });
@@ -266,6 +269,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         rewind: options => sdk.rewind(options),
         substitute: text => sdk.substitute(text),
         dialog: Object.freeze({ open: (screenId, opts) => sdk.dialog.open(screenId, opts), current: () => sdk.dialog.current?.() ?? null }),
+        // A reply card's "open" action: the screen in the game view (window on desktop, full screen on a phone).
+        openScreen: id => mounts?.screen?.open?.(id) ?? false,
     });
     const carriers = () => (ctx.chat ?? []).map((message, index) => (message && !message.is_user ? index : -1)).filter(index => index >= 0);
     // Cards go under replies with a story record of their own; never under the greeting (every message
@@ -334,9 +339,54 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         if (!Number.isInteger(index) || index < 0) return `${index}`;
         return `${index}|${readRecord(ctx.chat?.[index])?.sid ?? ''}`;
     };
+    // ---- cards under replies (reply-cards.js): the module's cards, scanned once per story state and dropped when it changes ----
+    const replyLater = laterStore();
+    let replyScan = null;
+    const dropReplyScan = () => { replyScan = null; };
+    const replyOffs = ['head', 'committed', 'turn', 'feature'].map(name => events.on(name, dropReplyScan));
+    const replyChatTypes = ctx.eventTypes ?? ctx.event_types ?? {};
+    if (typeof ctx.eventSource?.on === 'function' && replyChatTypes.CHAT_CHANGED) {
+        ctx.eventSource.on(replyChatTypes.CHAT_CHANGED, dropReplyScan);
+        replyOffs.push(() => (ctx.eventSource.removeListener ?? ctx.eventSource.off)?.call(ctx.eventSource, replyChatTypes.CHAT_CHANGED, dropReplyScan));
+    }
+    const chatKeyNow = () => String(ctx.getCurrentChatId?.() ?? ctx.chatId ?? '');
+    const replyCardsAt = index => {
+        if (!replyScan) {
+            const entries = registry.cardEntries?.() ?? [];
+            replyScan = entries.length ? scanReplyCards(entries, {
+                carriers: carriers(),
+                messageAt: i => ctx.chat?.[i] ?? null,
+                stateAt: i => (Number.isInteger(i) && i >= 0 && i < (ctx.chat?.length ?? 0) ? store.at(i) : null),
+                query: (name, args, state) => queryAt(name, args, state),
+                chatId: chatKeyNow(),
+            }) : new Map();
+        }
+        const items = replyScan.get(index) ?? [];
+        if (!items.length) return [];
+        const head = index === store.headIndex();
+        const chat = chatKeyNow();
+        return items.map(item => {
+            const key = `${chat}|${index}|${item.key}`;
+            return drawReplyCard(doc, item, {
+                head,
+                folded: replyLater.has(key),
+                onFold: on => { replyLater.set(key, on); mounts?.card?.refresh?.(index, { force: false }); },
+                onAct: action => runReplyAction(action),
+            });
+        });
+    };
+    // A reply card's action: "open" shows the screen; "command" sends the command (sdk.command, recorded with the reply).
+    function runReplyAction(action) {
+        if (action.open) { api.openScreen(action.open); return; }
+        if (action.command) {
+            try { Promise.resolve(api.command(action.command, JSON.parse(JSON.stringify(action.payload ?? {})), { cause: 'ui' })).catch(() => {}); } catch { /* the host reports its own failures */ }
+        }
+    }
     const mounts = createMounts({
         screens,
         render: renderer.render,
+        replyCards: index => replyCardsAt(index),
+        hasReplyCards: () => (registry.cardEntries?.().length ?? 0) > 0,
         chatScope: () => ({ chat: String(ctx.getCurrentChatId?.() ?? ctx.chatId ?? ''), branch: branchNow() }),
         // A chat with no carrier has head index -1 (and a stale index can point past the end): no
         // state there, so the mounts show nothing instead of failing on store.at's RangeError.
@@ -388,15 +438,23 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     // default: screens.js screenOrder), without the ones the reader hid. A module tab goes by
     // "<module>/<id>" there, so NPC State Delta's Cast tab and its Cast screen are one entry.
     const panelTabs = () => [...registry.tabs(), ...extraTabs.map(tab => ({ ...tab, moduleId: 'screens' }))];
-    const tabSource = { tabs: () => visibleNav(panelTabs(), tabOrder.choice(), navKey, tab => tab.order, navPresent) };
+    // A module's tab that is active only sometimes is listed while its `active` says so (its alert is read at each draw).
+    const headStateNow = () => { const index = store.headIndex(); return Number.isInteger(index) && index >= 0 ? store.at(index) : null; };
+    const activeTabs = () => panelTabs()
+        .filter(tab => typeof tab.active !== 'function' || activeNow(tab, headStateNow(), queryAt).on)
+        .map(tab => (typeof tab.active === 'function' ? { ...tab, alert: activeNow(tab, headStateNow(), queryAt).alert } : tab));
+    const tabSource = { tabs: () => visibleNav(activeTabs(), tabOrder.choice(), navKey, tab => tab.order, navPresent) };
 
     // Settings → Tabs & Packs → Tabs: every tab and screen once (by id), where it shows, in the reader's order.
     function tabRows() {
         const rows = new Map();
-        const add = (id, { title, icon, order }, where) => {
+        const add = (id, screen, where) => {
             if (!id) return;
+            const { title, icon, order } = screen ?? {};
             const row = rows.get(id) ?? { id, title: String(title || id), icon: icon || '', order, where: [] };
             if (!row.where.includes(where)) row.where.push(where);
+            // A tab or screen that is shown only while active: Settings says so instead of a switch (its own note, if it gave one).
+            if (typeof screen?.active === 'function') row.activeNote = typeof screen.activeNote === 'string' && screen.activeNote ? screen.activeNote : TABS_TEXT.activeNote;
             rows.set(id, row);
         };
         for (const mount of ['screen', 'tab']) for (const entry of screens.list(mount)) add(entry.id, entry.screen, mount);
@@ -666,10 +724,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         refresh();
         return Boolean(on);
     }
-    const offs = [];
+    const offs = [...replyOffs];
     // Story Suite's console errors, kept for Diagnostics (once per page; the console still prints them).
     offs.push(captureConsole());
-    for (const name of ['head', 'committed']) offs.push(events.on(name, () => { if (!panel.hidden) tabHost?.refresh(); }));
+    for (const name of ['head', 'committed']) offs.push(events.on(name, () => { mounts.tab.register(); if (!panel.hidden) tabHost?.refresh(); }));
     // A feature turned on or off: its screens, tabs, widgets and cards come and go; nothing else changes.
     for (const name of ['head', 'committed', 'turn']) offs.push(events.on(name, () => overlay?.refreshSize?.()));
     // A chat change closes the dialogs (their drafts were for the chat they were opened in), the game view's More sheet and the

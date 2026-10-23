@@ -45,9 +45,23 @@ export function barItems(list) {
         if (!id || seen.has(id)) continue;
         seen.add(id);
         const label = str(raw.label).replace(/\s+/g, ' ').trim().slice(0, LABEL_MAX) || id;
-        out.push({ id, label, icon: typeof raw.icon === 'string' ? raw.icon : '' });
+        // `alert`: the tab is active with something to show (a red dot); see pinAlerts.
+        out.push({ id, label, icon: typeof raw.icon === 'string' ? raw.icon : '', alert: raw.alert === true });
     }
     return out;
+}
+
+/**
+ * An active tab with an alert takes the last pinned slot while it has something to show, and the item that held that slot goes to
+ * More (the rest keep their order). The first alert only. Items without one are returned as they are.
+ */
+export function pinAlerts(items, pinned = PINNED) {
+    const list = Array.isArray(items) ? items : [];
+    const at = list.findIndex(item => item.alert === true);
+    if (at < 0 || at < pinned - 1) return list;
+    const alert = list[at];
+    const rest = list.filter((_, i) => i !== at);
+    return [...rest.slice(0, pinned - 1), alert, ...rest.slice(pinned - 1)];
 }
 
 /** The reader's order split into the slots (the first `pinned`) and what More holds (the rest). */
@@ -127,6 +141,12 @@ export function createScreenBar(doc, host, options = {}) {
     // The slot's content: the icon, the label, the dot (the dot is what marks the current one, besides the colour).
     function paint(node, item, isCurrent) {
         node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-icon', isCurrent), labelNode(doc, item.label), dotNode(doc));
+        if (item.alert) {
+            // The alert: a small red dot at the icon's top-right (Cards.dc.html), the tab's label says it too.
+            const alert = h(doc, 'span', 'ss-screenbar-alert');
+            alert.setAttribute('aria-hidden', 'true');
+            node.appendChild(alert);
+        }
         node.setAttribute('data-id', item.id);
         node.setAttribute('title', item.label);
         if (isCurrent) {

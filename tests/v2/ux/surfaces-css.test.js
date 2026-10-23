@@ -118,8 +118,9 @@ test('the changes card: glass card frame, the header line on the right, rows wit
     assert.match(block(mounts, '.ss-card-summary'), /text-align: right;/);
     assert.match(block(mounts, '.ss-card-title'), /font-weight: 700;/);
     const css = changesCardScreen.css;
-    assert.match(css, /\.line > i \{[^}]*width: var\(--chg-tile\);[^}]*height: var\(--chg-tile\);[^}]*var\(--ss-tile, transparent\)/);
-    assert.match(css, /\.extra \.note \{[^}]*padding-left: calc\(var\(--chg-tile\) \+ var\(--chg-gap\)\)/, 'the indent is the tile and the gap, not a number');
+    assert.match(css, /\.tile \.ico \{[^}]*width: 34px;[^}]*height: 34px;[^}]*var\(--ss-tile\)/, 'the icon sits in a 34px tile');
+    assert.match(css, /@container \(min-width: 560px\) \{ \.tiles \{ grid-template-columns: repeat\(3/, 'three columns from 560px');
+    assert.match(css, /@container \(min-width: 900px\) \{ \.tiles \{ grid-template-columns: repeat\(4/, 'four columns from 900px');
     assert.doesNotMatch(css, /dashed/, 'the card has no dashed rules');
     assert.doesNotMatch(css, /border-left: 3px/, 'the old left accent bar is gone');
 });

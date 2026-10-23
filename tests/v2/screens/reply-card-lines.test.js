@@ -42,7 +42,7 @@ test('changes card: module lines drawn as text with their flag and note; no "Not
     assert.deepEqual(view.warnings, []);
     const line = el.querySelector('.extra');
     assert.ok(line, 'the module line is drawn');
-    assert.equal(text(line.querySelector('.txt')), 'Wessel, AGI (pursuing the wolf): d20 8 + AGI +2 = 10 vs DC 10 → success');
+    assert.equal(text(line.querySelector('.main')), 'Wessel, AGI (pursuing the wolf): d20 8 + AGI +2 = 10 vs DC 10 → success');
     assert.equal(text(line.querySelector('.flag')), 'Story said fail; dice said success');
     assert.equal(text(line.querySelector('.note')), '<b>not bold</b>', 'module text is printed, never parsed');
     assert.equal(line.querySelector('b'), null);
