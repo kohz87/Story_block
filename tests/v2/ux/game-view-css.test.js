@@ -83,3 +83,12 @@ test('the hero pill never passes its card: it wraps an unbroken word (min-width 
     assert.match(body, /max-width: 100%;/);
     assert.match(body, /overflow-wrap: anywhere;/);
 });
+
+test('the HUD strip\'s item takes its content\'s width but never more than the strip (a long unbroken place is cut, not scrolled)', () => {
+    const at = mounts.indexOf('.ss-hud-item {');
+    assert.ok(at > 0);
+    const body = mounts.slice(at, mounts.indexOf('}', at));
+    assert.match(body, /width: max-content;/);
+    assert.match(body, /max-width: 100%;/);
+    assert.doesNotMatch(mounts, /min-width: min-content;/, 'no min-content: it kept the item as wide as its longest unbroken text');
+});

@@ -421,18 +421,24 @@
 }
 
 .ss-hud-item {
-    flex: 0 0 auto;
+    /* shrinks when the strip is full (a long place takes the room, not the strip's edge) */
+    flex: 0 1 auto;
+    /* the item takes its content's width, but never more than the strip: a long place is cut inside the item (its own ellipsis),
+       not pushed past the strip's edge (min-width: min-content did that: an unbroken 80-character place scrolled the strip) */
+    width: max-content;
+    max-width: 100%;
     max-height: 48px;
     overflow: hidden;
 }
 
-/* An item sizes to its content. A screen's css can make its root (this item) a size container
-   (`:root { container: x / inline-size }`), and a size container gets no width from its content, so
-   the item would shrink to nothing: the strip keeps its items plain boxes. Containers further in still work. */
+/* A screen's css can make its root (this item) a size container (`:root { container: x / inline-size }`), and a size container
+   gets no width from its content: the strip keeps its items plain boxes (container-type normal), and the width above comes from
+   the content. Containers further in still work. */
 .ss-hud > .ss-hud-item {
     container-type: normal;
-    min-width: min-content;
+    min-width: 0;
 }
+/* the items keep their content on a wide strip; a full strip shrinks them, and each cuts its own text (overflow hidden) */
 
 /* The HUD strip on a phone, under Glass: the tint layered over itself, so the story behind does not read through the name and
    the level (the full-screen window's rule, for the strip). Solid and Follow SillyTavern leave the token unset: no layers. */
