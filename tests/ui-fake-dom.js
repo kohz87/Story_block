@@ -293,6 +293,8 @@ export function installFakeDom() {
     const doc = {
         activeElement: null,
         createElement: tag => new FakeElement(doc, tag),
+        // SVG (the map draws its routes in one): the same element, with its namespace kept.
+        createElementNS: (namespace, tag) => Object.assign(new FakeElement(doc, tag), { namespaceURI: namespace }),
         createTextNode: text => new FakeText(doc, text),
         querySelectorAll: selector => doc.body.querySelectorAll(selector),
         querySelector: selector => doc.body.querySelector(selector),

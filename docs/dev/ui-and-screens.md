@@ -414,6 +414,56 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
 Solid draws each of these with the palette's opaque glass (the same tokens with no blur); Follow SillyTavern draws them with
 SillyTavern's own colours. The dialog's buttons take the action pills under every panel style; the dialog panel and the HUD strip keep their old look under Solid and Follow SillyTavern (the glass is Glass only).
 
+## The inspector and the map on the glass (UI stage, step 4b)
+
+Two screens and one widget, on the look's tokens; each keeps its markup, its keys, its commands and its data.
+
+- **The State inspector** (`src/v2/screens/inspector.js`). Each card is a glass card (`ss-glass`, the card title is `ss-label`);
+  the reply picker is a `ss-select`, the search an `ss-text` input, and the heading carries a soft pill ("starts a checkpoint") when the reply starts one. The diff, operations, receipts
+  and problems rows are the list-card rows (`ss-listcard-row`, `ss-listcard-item`, the tile, title and sub line). The tree keeps its
+  folding and its search (a node on the way to a hit opens; a hit stays shut until opened). Its buttons (`sb-insp-btn`) are glass
+  pills with 40px targets: rest, hover and focus-visible take the accent over the glass, the active state the same fill, disabled is
+  45% opacity and no pointer. Monospace is kept for the raw values only (`sb-insp-str`, `-num`, `-bool`, `-null`). There is no tab
+  switch on the screen, so `ss.tabs` is not used. Nothing on the screen scrolls the page (see below).
+- **The map** (`src/v2/view/widgets/map.js`, `styles.js`). `ss.map` is the shared map widget; packs and other modules use it. It is
+  restyled: the stage on the glass tokens (`--ss-glass`, `--ss-blur`), the zoom and layer controls as glass pills, the legend as a
+  strong-glass list card (`ss-glass-strong ss-listcard`, the title in the text colour), the pins and name plates on the glass.
+  **Story Director's own atlas map is a separate widget (`story-director.map`, `sd-map-*`); this step does not change it.** It moves
+  to step 4c, which restyles the module screens in their own repositories.
+- **The UI sample** (`screens/ui-sample.js`, Settings → Diagnostics → Show the UI sample) draws one `ss.map` with sample data:
+  four places, a route, the reader's place and one place not yet found (the fog, drawn muted). The sample has no command, so its
+  places are not buttons.
+
+The buttons (`.ss-button`, `.ss-button-primary`, `view/glass.css`) have their states written in the look: hover and pressed are
+(0,5,1) with SillyTavern's own `:not()` chain, so they beat `.menu_button` on the same element; the label stays `--ss-text`.
+The HUD strip on a phone under Glass takes the tint layered over itself (`--ss-sheet-hud-layers`); Solid and Follow SillyTavern
+do not.
+
+The type of a control: the widget's rules are under `:where()` (no specificity), but SillyTavern's own `button { font-family;
+font-size; color }` rule (0,0,1) would beat them. The map's controls, and its selectable places (buttons), therefore set their type
+at class level: `.ss-w-map-btn, .ss-w-map-layer`, `.ss-w-map-zoom .ss-w-map-btn` and `button.ss-w-map-node`. These are the only
+rules of the widget outside `:where()`, and the widget invariant (`tests/v2/view/widgets/common.test.js`) names them. Any other
+button in a widget needs the same care.
+
+**Phones.** A `scrollIntoView`, or a plain `focus()`, scrolls the page behind a fixed window; on a phone that pushes the window
+off-screen. The inspector, the map, the list card and the dialog never call `scrollIntoView`, and their focus goes through
+`focusNode` (`view/scroll.js`, `preventScroll`). The guard for this is `tests/v2/ux/inspector-map-scroll.test.js`: a source scan
+that catches a new bare call in those four files. It is a guard, not proof. The behaviour was checked on a phone profile in the
+live instance: after older, latest and search, the page's scroll and the visual viewport's offset did not move. Long unbroken names
+wrap (`overflow-wrap: anywhere`) in the heading, the branch summaries, the leaves and the map's layer pills, and the inspector's
+body is one column that may shrink (`minmax(0, 1fr)`); `tests/v2/ux/inspector-glass-css.test.js` pins those rules.
+
+**Contrast.** A label on translucent glass is measured on the pixels behind it: the label is hidden, and the fill inside the border
+is sampled, inset 3px so a 1px border on a round control is not counted. A plate with an opaque fill is read from its computed
+colours (WCAG ratio). The inspector's labels and buttons were measured this way in Glass, Solid and Follow SillyTavern, dark and
+light; the map's controls and plates were measured the same way and read from computed colours where the fill is opaque.
+
+Tests: `tests/v2/ux/inspector-glass-ui.test.js` (the rows, the search, the tree's folding and the buttons' keys),
+`tests/v2/ux/inspector-glass-css.test.js` (the tokens, the states, the monospace rules), `tests/v2/ux/inspector-map-scroll.test.js`
+(no `scrollIntoView`, every `focus()` with `preventScroll`), `tests/v2/ux/map-glass-ui.test.js` (the legend's structure, the
+current place, zoom in, out and reset, no control disabled), `tests/v2/ux/map-glass-css.test.js` (the stage, the controls and
+their states, the plates, the class-level exceptions and their specificity), `tests/v2/screens/ui-sample.test.js` (the sample's map).
+
 ## Key files and functions
 
 - `src/v2/view/screens.js`: `validateScreen`, `resolveData`, `screenOrder`, `byNavOrder`, `DEFAULT_ORDER`,
@@ -444,6 +494,7 @@ SillyTavern's own colours. The dialog's buttons take the action pills under ever
   `tests/v2/ux/settings-diagnostics.test.js` (the Diagnostics page: the report card built on first show, Copy, Save, the sample button, Events, placed modules, search, the scrub),
   `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
+- The inspector and the map of step 4b: `tests/v2/ux/inspector-glass-ui.test.js`, `inspector-glass-css.test.js`, `inspector-map-scroll.test.js`, `map-glass-ui.test.js`, `map-glass-css.test.js` (see the section above).
 - The surfaces of step 4a: `tests/v2/ux/surfaces-css.test.js` (the bar, notes, Choices, card, HUD, dialog, game view nav, the Glass-only shape tokens),
   `tests/v2/ux/surfaces-ui.test.js` (the story panel's tab bar keys and focus, the Choices fold), `tests/v2/qa/surfaces-security.test.js`.
 - The look: `tests/v2/view/theme.test.js`, `tests/v2/ux/glass-css.test.js`,

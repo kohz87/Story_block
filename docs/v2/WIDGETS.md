@@ -150,6 +150,17 @@ Places and routes in an SVG, with:
 * **selection**: with `onSelect`, each known place is a button; a click (not a drag) runs
   `api.command(onSelect, { node: <place id> })`.
 
+**On the glass (step 4b).** The legend is a strong-glass list card (the `ss.listcard` rows, its title in the text colour).
+The zoom and layer controls are glass pills of 40px (rest on the strong glass, an accent fill on hover, focus-visible and the
+active layer). A selectable place is a button in the text colour. Name plates are opaque where the look's relative colours work
+(a translucent fallback otherwise). The controls set their type at class level, so SillyTavern's own `button` colour does not
+win over them; every other map rule is under `:where()`. Every control has its rest, hover, focus-visible and active states.
+The map reads a screen's own `--ss-w-*` names first (`--ss-w-accent`, `--ss-w-fg`, `--ss-w-bg`, `--ss-w-border`, `--ss-w-muted`,
+`--ss-w-raised`, and `--ss-w-map-bg` for the stage and the minimap), and the look's tokens are only the defaults; an override set on the map wins.
+The map has **no disabled state**: zoom clamps at its limits, and the layer pills stay enabled. Focus never scrolls the page.
+This is the shared `ss.map` widget. Story Director's own map (`story-director.map`, `sd-map-*`) is a separate widget and is
+not changed by it.
+
 Places without `x`/`y` are laid out deterministically: on a grid beside the placed ones, then — if routes
 reach them — a fixed number of force-directed steps with the placed nodes pinned. The same data always
 gives the same map. A state update keeps the reader's pan and zoom; changing the `layer` prop refits.
