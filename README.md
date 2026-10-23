@@ -122,6 +122,10 @@ Open **Settings** on the Story Suite bar above the message box, **Story Suite** 
 
 The full list, with the modules' own issues, is in [RELEASES](docs/v2/RELEASES.md).
 
+## Credits
+
+Icons from game-icons.net by their authors, CC BY 3.0. See [ICONS-CREDITS.md](ICONS-CREDITS.md).
+
 ## Links
 
 - [Player guide](docs/v2/GUIDE.md), [Changelog](CHANGELOG.md), [Releases and known issues](docs/v2/RELEASES.md)

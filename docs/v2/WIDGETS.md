@@ -498,3 +498,14 @@ backdrop filter or transform, or it sits in that element's box.
 | `closable`, `alert` | boolean | `true`, `false` | |
 | `onSelect` | string | `''` | |
 | `label` | string | `Dialog` | accessible name when there is no title |
+
+---
+
+## Game icons (`gi-*`)
+
+Widgets (`iconNode` in `src/v2/view/widgets/dom.js`) and mounts (`icon` in `src/v2/view/mounts/common.js`) include an inline SVG icon set from [game-icons.net](https://game-icons.net) (CC BY 3.0) alongside Font Awesome:
+
+- **How to name a `gi-` icon**: pass a short kebab-case id prefixed with `gi-` (for example `gi-home`, `gi-party`, `gi-inventory`, `gi-quests`, `gi-weapon`, `gi-health`, `gi-level-up`, `gi-dice`) anywhere an `icon` prop or screen `icon` is accepted. Known `gi-*` ids draw an inline `<svg class="ss-icon-svg" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true" focusable="false" width="1em" height="1em">` with a single `<path>` built via `createElementNS`.
+- **Fallback**: Font Awesome class names (`fa-bolt`, `fa-regular fa-compass`), `https:`/`data:image/*` URLs and short text glyphs behave exactly as before. An unknown `gi-*` id falls back to the default Font Awesome icon (`fa-table-columns`). When a game view screen or tab gives no `icon`, `TAB_ICONS` (`src/v2/view/icons/index.js`) supplies the default `gi-*` icon for its tab id.
+- **How to add one**: pick the glyph from the official [`game-icons/icons`](https://github.com/game-icons/icons) repository (`svg/1x1/<author>/<name>.svg`, `viewBox="0 0 512 512"`), strip the full-square background `<path>` at the start of the file (e.g. `M0 0h512v512H0z`), join the foreground `<path>` `d` strings with a space into one `path`, add the frozen `{ path, author, source }` entry under `gi-<slug>` in `src/v2/view/icons/set.js`, and list the icon, its game-icons name, author and CC BY 3.0 link in `ICONS-CREDITS.md`.
+

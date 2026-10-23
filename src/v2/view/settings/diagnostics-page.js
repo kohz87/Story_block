@@ -70,7 +70,7 @@ export function diagnosticsBody(pane, ctx) {
             sample.addEventListener('click', () => { try { diagnostics.sample(); } catch (error) { status.textContent = fill(T.sampleFailed, { why: error?.message ?? error }); } });
         }
         actions.appendChild(status);
-        card.body.append(h(doc, 'p', 'ss-card-help', T.help), text, actions);
+        card.body.append(h(doc, 'p', 'ss-card-help', T.help), text, actions, h(doc, 'p', 'ss-card-help ss-diagnostics-credits', T.credits));
         let run = 0;
         let built = false;
         const build = async () => {

@@ -84,6 +84,14 @@
     background: var(--ss-rule, var(--ss-border));
 }
 
+/* ---- inline game-icons SVG (view/icons/) ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-icon-svg {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    flex: none;
+}
+
 /* ---- pill ---- */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-pill {
     display: inline-flex;

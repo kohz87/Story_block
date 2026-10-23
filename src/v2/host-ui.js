@@ -180,6 +180,7 @@ export const DIAGNOSTICS_TEXT = Object.freeze({
     sample: 'Show the UI sample',
     sampleTitle: 'Every building block of Story Suite\'s look, in light and dark, for checking a theme and for screenshots',
     sampleFailed: 'The UI sample could not be shown: {why}',
+    credits: 'Icons from game-icons.net by their authors, CC BY 3.0.',
 });
 export const FEATURE_TEXT = Object.freeze({
     title: 'Features',
