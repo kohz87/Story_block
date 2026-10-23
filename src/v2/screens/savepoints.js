@@ -10,6 +10,7 @@
 
 import { STRINGS, fill } from '../strings.js';
 import { SAVEPOINT_LIMITS } from '../rewind.js';
+import { capToggle } from './show-more.js';
 
 const S = STRINGS.savepoints;
 
@@ -181,6 +182,11 @@ export function createSavePointsWidget({ points, enabled = () => true, notify = 
                         rows.appendChild(row);
                     }
                     root.appendChild(rows);
+                    // A long list is capped with "Show all" (no scrollbar), like the other long cards on Home.
+                    const more = capToggle(doc, rows);
+                    root.appendChild(more.button);
+                    doc.defaultView?.requestAnimationFrame?.(() => more.refresh());
+                    more.refresh();
                 }
                 host.replaceChildren(root);
             }

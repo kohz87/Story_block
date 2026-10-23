@@ -70,4 +70,3 @@ test('settings: the overlay counts the next reply\'s prompt (turn.preview) with 
     overlay.close();
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });
-

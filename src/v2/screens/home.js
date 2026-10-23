@@ -130,12 +130,14 @@ const CSS = `${BASE_CSS}
 .sb-ready-item { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
 .sb-ready-reason { flex: 1 1 14em; min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .sb-ready-go { border-color: var(--sb-accent); font-weight: 600; }
-.saves { display: grid; gap: 6px; }
+.saves { display: grid; gap: 6px; align-content: start; }
 .saves > h4 { margin: 0; }
 .saves > .ss-button { justify-self: start; }
 .sb-save-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sb-save-name { flex: 1 1 10em; min-width: 0; }
-.sb-save-list { display: grid; gap: 4px; max-height: 16em; overflow-y: auto; }
+.sb-save-list { display: grid; gap: 4px; }
+.sb-save-list.sb-cap[data-capped="true"] { max-height: 15em; overflow: hidden; }
+.saves > .sb-show-more { justify-self: start; }
 .sb-save-point { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; justify-content: space-between; }
 .sb-save-info { display: grid; min-width: 0; }
 .sb-save-label { overflow-wrap: anywhere; }

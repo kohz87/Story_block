@@ -310,7 +310,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
     this page with the first budget focused. It is read when the window opens, after a setting changes (`win.refresh()`, and any page's `changed()`) and when
     the story moves (`win.refreshSize()`, which `ui-host.js` calls on a new head, a commit and a turn), never per keystroke in the search box:
     reading assembles the prompt. With no chat open it says "Open a chat to see it".
-  * **Fold ids**: `story-suite` (the old Story Suite fold) and `story-suite::tabs` focus the Tabs card, `story-block/packs` (Home's "Import a pack")
+  * **Fold ids**: `story-suite` (the old Story Suite fold) and `story-suite::tabs` focus the Tabs card, `story-block/packs`
     the Import button, `story-suite::size` the first budget and `story-suite::sent` open "Show what's sent" (the first budget with no chat).
   `bodies.js`'s `tabs` entry is `tabsPacksBody`; bodies may also answer `refreshSize()`.
 - **Modules** (`modules.js`, step 3f): one card per installed module (`registry.modules()`, by id; `ss-modules`: **one column of full-width cards on every width**; inside a wide card the fields run in two columns from 900px, a `data-wide` row (a list, text area, group) spans both) in place of the module folds and the Versions fold. A card (`ss-module-card`, `data-module`, `data-fold = <module id>`) is: the
@@ -479,15 +479,21 @@ their states, the plates, the class-level exceptions and their specificity), `te
   header (wide, the hero's 600px container query), **the tab row** (the same `.ss-gameview-navitem` buttons, a row with the
   current one underlined), then the body. The nav keeps its own keys and Tab stops. A screen that asks for a side column gets
   the body's room; no screen asks for one yet.
-- **The screens** (`screens/style.js`, `home.js`, `inventory.js`, `scene.js`, `savepoints.js`, `packs-hint.js`, `ready-hint.js`):
+- **The screens** (`screens/style.js`, `home.js`, `inventory.js`, `scene.js`, `savepoints.js`, `ready-hint.js`, `show-more.js`):
   the base CSS reads the glass tokens (`--sb-surface` = `--ss-glass-strong`, `--sb-raised` = `--ss-tile`, `--sb-border` =
   `--ss-border`), a panel is a glass card, every heading is `ss-section-label`, and actions are `ss-button` (`ss-button-primary`,
-  `ss-button-danger`) so they take the look's states. Home has no hero card: the header draws the lead, and Home keeps the
-  Where, Purse and pack, Quests, Save points and Packs cards (and Party and Fight when their modules are there).
+  `ss-button-danger`) so they take the look's states. Home has no hero card (the header draws the lead) and no Packs card (the
+  import is Settings → Tabs & Packs). Home keeps the Where, Purse and pack, Quests and Save points cards (and Party and Fight when
+  their modules are there).
+- **Home's cards** (`home.js` CSS): the grid stretches, so every card in a row has the row's height and its content is
+  top-aligned. A long list is capped: `.sb-cap[data-capped="true"]` is at most 15em (about two normal cards) with no scrollbar,
+  and a "Show all" / "Show less" button (`capToggle` in `screens/show-more.js`, the widget `story-block.show-more` for a template's
+  card, and the same helper on Save points' list) opens it. The button is there only while the list is taller than the cap, and
+  shows `aria-expanded`. The open state is in the toggle, so a redraw of the screen starts folded again.
 - **The section label** (`glass.css`, `.ss-section-label`): documented in WIDGETS.md. Use it for any heading of a part of a screen.
 - Tests: `tests/v2/view/game-header.test.js` (the lead, the scene, the fallbacks, the portrait order, the avatar paths),
   `tests/v2/view/mounts/game-header.test.js` (the slot on open, a head change, a screen change, no state, a throwing `heroOf`),
-  `tests/v2/screens/home-layout.test.js`, `tests/v2/screens/render.test.js`.
+  `tests/v2/screens/home-layout.test.js`, `tests/v2/screens/render.test.js`, `tests/v2/screens/show-more.test.js` (the toggle, the stretch, no Packs card).
 
 ## Key files and functions
 
