@@ -178,7 +178,10 @@ A screen shares the page with SillyTavern and with other screens, so a few thing
 A screen's `css` is scoped to its root, `[data-ss-screen="<id>"]`:
 
 * every selector gets the root in front, inside `@media`, `@supports`, `@container` and `@layer` too;
-  `:root`, `html`, `body`, `:host` and `:scope` mean the root itself (`:root { --gap: 4px }`);
+  a bare `:root`, `html`, `body`, `:host` or `:scope` means the root itself (`:root { --gap: 4px }`);
+* a selector must stay inside the root: `:root ~ *`, `body .hud`, `~ .hud` and `:has(+ x)` are refused
+  (a pack with one is not loaded; the rest of a list is dropped with a warning). Write `.hud` for the screen's
+  own parts: a selector styles the root's descendants;
 * `@keyframes pulse` becomes `@keyframes ss-<id>-pulse`, and `animation` / `animation-name` in the same
   sheet are renamed with it;
 * dropped: `@import`, `@charset`, `@namespace`, `@page`, other at-rules, `position: fixed`, `behavior`,

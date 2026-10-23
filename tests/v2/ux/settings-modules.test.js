@@ -307,3 +307,55 @@ test('opening the window at a module\'s fold id opens that card (and only it)', 
     assert.equal(cardOf(page, 'small').open, true);
     assert.equal(cardOf(page, 'big').open, false);
 });
+
+// A panel mounted the way NPC State Delta mounts its own (npc_state_delta src/storysuite-v2.js mountSection): the module keeps its node,
+// moves it into the section it is given, and returns the unmount that moves the node back home. With no node in the page it says it is loading.
+function hostedPanel(state) {
+    return {
+        id: 'hosted', name: 'Hosted', version: '1.0.0',
+        settings: {
+            defaults: {}, schema: {},
+            section(el) {
+                const doc = el.ownerDocument;
+                if (!state.node) {
+                    state.home = doc.createElement('div');
+                    doc.body.appendChild(state.home);
+                    state.node = doc.createElement('div');
+                    state.node.textContent = 'Hosted panel';
+                    state.home.appendChild(state.node);
+                }
+                if (!state.node.isConnected) { el.textContent = 'Hosted\'s settings are still loading.'; return () => {}; }
+                state.mounts += 1;
+                el.appendChild(state.node);
+                return () => { if (el.contains(state.node)) state.home.appendChild(state.node); };
+            },
+        },
+    };
+}
+
+test('a module\'s mounted panel survives a Look change: the same node with its state, in the page, not left detached', async () => {
+    const state = { node: null, home: null, mounts: 0 };
+    const { page, win, host } = await open([hostedPanel(state)]);
+    const node = state.node;
+    node.clicks = 3;
+    const section = () => cardOf(page, 'hosted').querySelector('.story-suite-section');
+    assert.equal(section().textContent, 'Hosted panel');
+    // A Look change on the Look page redraws the Modules page as well.
+    win.select('look');
+    const font = win.root.querySelector('.ss-field[data-field="font"] select');
+    assert.ok(font, 'the Font choice is on the Look page');
+    font.value = 'theme';
+    font.dispatch('change');
+    assert.equal(host.settings().font, 'theme');
+    // The window draws its pages again (what a Look change leads to): the Modules page is drawn with its module's panel.
+    win.refresh();
+    assert.equal(section().textContent, 'Hosted panel', 'not "still loading"');
+    assert.equal(section().contains(node), true, 'the same node is back in the panel');
+    assert.equal(node.isConnected, true, 'and in the page');
+    assert.equal(node.clicks, 3, 'with its state');
+    assert.equal(state.mounts, 2, 'mounted again after the redraw');
+    // Closing the window hands the node back to its module, which is not left inside a section that is gone.
+    win.close();
+    assert.equal(node.isConnected, true, 'back home once the window closes');
+    host.close();
+});
