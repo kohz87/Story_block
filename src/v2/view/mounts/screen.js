@@ -21,6 +21,7 @@
 import { button, documentOf, headState, icon, make, mountHead, onHead, screensFor } from './common.js';
 import { hero } from '../widgets/hero.js';
 import { focusNode } from '../scroll.js';
+import { stackOf } from '../modal-stack.js';
 import { iconFor } from '../icons/index.js';
 import { barItems, createScreenBar } from '../screen-bar.js';
 import { STRINGS } from '../../strings.js';
@@ -30,7 +31,7 @@ const PHONE_QUERY = '(max-width: 759.98px)';
 export function createScreenMount(deps) {
     if (typeof deps?.render !== 'function') throw new TypeError('The screen mount needs a render(el, screen, scope) function.');
     const doc = documentOf(deps);
-    let view = null;          // { root, bar, title, body, handle, screenId, before, heroSlot, hero, phone }
+    let view = null;          // { root, bar, title, body, handle, screenId, layer, heroSlot, hero, phone }
 
     function mount(el, screenId, opts = {}) {
         return mountHead(deps, 'screen', el, screenId, opts);
@@ -43,15 +44,6 @@ export function createScreenMount(deps) {
     const onInput = () => { lastPointer = false; };
     doc.addEventListener?.('pointerdown', onPointer, true);
     doc.addEventListener?.('keydown', onInput, true);
-
-    // Escape closes the view, unless the bar's More sheet is open: that one takes the key (its own listener, after this one).
-    const onKey = event => {
-        if (view && event.key === 'Escape' && !view.bar.isMoreOpen()) {
-            event.preventDefault?.();
-            event.stopPropagation?.();
-            close();
-        }
-    };
 
     // The bar: the listed screens, and whether the window is wide (every screen in one row, no More).
     function drawBar() {
@@ -141,8 +133,10 @@ export function createScreenMount(deps) {
         });
         (deps.container?.() ?? doc.body).appendChild(root);
 
-        view = { root, bar: screenBar, title, body, handle: null, screenId: target, before: doc.activeElement ?? null, off: onHead(deps, update), heroSlot, hero: null, phone, onWidth };
-        doc.addEventListener?.('keydown', onKey, true);
+        // A layer of the shared stack (modal-stack.js): Escape closes the view when no layer above it (the More sheet, a dialog) is open,
+        // Tab stays in it, and closing it hands the focus back to what opened it.
+        const layer = stackOf(doc).push({ name: 'game view', root, onEscape: () => { close(); return true; } });
+        view = { root, bar: screenBar, title, body, handle: null, screenId: target, layer, off: onHead(deps, update), heroSlot, hero: null, phone, onWidth };
         show(target);
         // by pointer: the window takes the focus (no ring); by key: the close button (its ring is the keyboard's), one task later:
         // the key that opened the view is still being handled, and its own activation (Enter, Space) would click whatever has the
@@ -154,16 +148,15 @@ export function createScreenMount(deps) {
 
     function close() {
         if (!view) return;
-        const { root, handle, before, off, bar, hero: header, phone, onWidth } = view;
+        const { root, handle, layer, off, bar, hero: header, phone, onWidth } = view;
         view = null;
         off();
         phone?.removeEventListener?.('change', onWidth);
-        doc.removeEventListener?.('keydown', onKey, true);
         bar.destroy();
         handle?.unmount();
         header?.destroy?.();
         root.remove();
-        focusNode(before);
+        stackOf(doc).pop(layer);
     }
 
     /** Redraws the open screen (and its navigation, in case the screens changed). */

@@ -26,16 +26,13 @@
 //   drawn still opens, with the reason in its body.
 // The mount also has closeWhere(test): closes each open dialog whose screen id passes `test`.
 
-import { button, dispose, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
+import { button, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
 import { focusNode } from '../scroll.js';
+import { focusablesIn, stackOf } from '../modal-stack.js';
 
-const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+export { focusablesIn };
+
 const MOVED_ON = 'This window was opened in another chat or before the story moved on, so nothing was sent. Close it and open it again.';
-
-/** The controls in `root` Tab can reach, in document order (hidden and disabled ones left out). */
-export function focusablesIn(root) {
-    return Array.from(root?.querySelectorAll?.(FOCUSABLE) ?? []).filter(node => !node.disabled && !node.hidden && !node.closest?.('[hidden]'));
-}
 
 const within = (node, root) => {
     for (let at = node; at; at = at.parentNode) if (at === root) return true;
@@ -76,33 +73,6 @@ export function createDialogMount(deps) {
         try { return deps.chatScope?.() ?? null; } catch { return null; }
     };
 
-    const onKey = event => {
-        if (!open.length) return;
-        const top = open[open.length - 1];
-        if (event.key === 'Escape') {
-            event.preventDefault?.();
-            event.stopPropagation?.();
-            top.close();
-            return;
-        }
-        if (event.key !== 'Tab') return;
-        // Tab stays inside the topmost dialog: past its last control to its first, and back.
-        const nodes = focusablesIn(top.root);
-        if (!nodes.length) return;
-        const at = nodes.indexOf(doc.activeElement);
-        const next = event.shiftKey ? (at <= 0 ? nodes.at(-1) : null) : (at === -1 || at === nodes.length - 1 ? nodes[0] : null);
-        if (next) {
-            event.preventDefault?.();
-            focusNode(next);
-        }
-    };
-    // Focus that lands outside the topmost dialog (a click on the page behind, a script) goes back in.
-    const onFocus = event => {
-        const top = open[open.length - 1];
-        if (!top || !event.target || top.root.contains?.(event.target)) return;
-        focusNode(focusablesIn(top.root)[0] ?? top.root);
-    };
-
     function mount(el, screenId, opts = {}) {
         const resolved = deps.screens.resolve(screenId);
         if (!resolved) return null;
@@ -114,6 +84,7 @@ export function createDialogMount(deps) {
         let busy = null;
         let token = null;
         let closed = false;
+        let layer = null;         // the shared stack's entry for this window
         let drawnAt = -1;         // the step the body was last drawn for (a redraw of that step keeps its controls)
         let resolveClosed;
         const closedPromise = new Promise(resolve => { resolveClosed = resolve; });
@@ -220,10 +191,7 @@ export function createDialogMount(deps) {
             closed = true;
             const i = open.indexOf(handle);
             if (i >= 0) open.splice(i, 1);
-            if (!open.length) {
-                doc.removeEventListener?.('keydown', onKey, true);
-                doc.removeEventListener?.('focusin', onFocus, true);
-            }
+            stackOf(doc).pop(layer);
             backdrop.remove();
             opts.onClose?.(result);
             resolveClosed(result);
@@ -343,10 +311,10 @@ export function createDialogMount(deps) {
 
         (el ?? doc.body).appendChild(backdrop);
         open.push(handle);
-        if (open.length === 1) {
-            doc.addEventListener?.('keydown', onKey, true);
-            doc.addEventListener?.('focusin', onFocus, true);
-        }
+        // The dialog is a layer of the shared stack: Escape closes it (only while it is the topmost), Tab stays in it, and closing
+        // it hands the focus back to what opened it.
+        layer = { name: `dialog ${screenId}`, root, onEscape: () => { close(); return true; }, handle };
+        stackOf(doc).push(layer);
         root.setAttribute('aria-label', screen?.title ?? screenId);
         drawStep();
         focusNode(root);

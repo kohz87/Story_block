@@ -105,8 +105,8 @@ test('an Enter on a page button that SillyTavern clicks is cancelled once by the
     const plain = doc.createElement('button');
     top.root.append(menu, plain);
     stack.push({ name: 'top', root: top.root, onEscape: () => true });
-    assert.equal(dispatch(doc, 'keypress', { key: 'Enter', target: menu }).defaultPrevented, true);
-    assert.equal(dispatch(doc, 'keypress', { key: 'Enter', target: plain }).defaultPrevented, false, 'a button SillyTavern does not click keeps its own Enter');
+    assert.equal(dispatch(doc, 'keydown', { key: 'Enter', target: menu }).defaultPrevented, true);
+    assert.equal(dispatch(doc, 'keydown', { key: 'Enter', target: plain }).defaultPrevented, false, 'a button SillyTavern does not click keeps its own Enter');
     stack.pop(stack.top());
 });
 

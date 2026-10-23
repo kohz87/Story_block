@@ -24,6 +24,7 @@
 
 import { h, iconNode, str } from './widgets/dom.js';
 import { focusNode, revealIn } from './scroll.js';
+import { stackOf } from './modal-stack.js';
 import { hasIcon } from './icons/index.js';
 import { STRINGS, fill } from '../strings.js';
 
@@ -119,6 +120,7 @@ export function createScreenBar(doc, host, options = {}) {
     let current = null;
     let row = false;
     let open = false;
+    let layer = null;         // the sheet's entry in the shared stack (modal-stack.js) while it is open
     const slots = new Map();   // id → the slot button (kept across draws, so a focused slot keeps its focus)
     const tiles = new Map();   // id → the sheet's tile
 
@@ -257,40 +259,14 @@ export function createScreenBar(doc, host, options = {}) {
         return [...grid.children].filter(node => node.getAttribute?.('data-id') && !node.hidden);
     }
 
-    function onKey(event) {
-        if (!open) return;
-        if (event.key === 'Escape') {
-            event.preventDefault?.();
-            event.stopPropagation?.();
-            closeMore({ focus: true });
-            return;
-        }
-        if (event.key !== 'Tab') return;
-        const nodes = tileNodes();
-        if (!nodes.length) {
-            event.preventDefault?.();
-            focusNode(sheet);
-            return;
-        }
-        // Tab stays inside the sheet: it wraps from the last tile to the first and back.
-        const at = nodes.indexOf(doc.activeElement);
-        let next = null;
-        if (event.shiftKey) next = at <= 0 ? nodes.at(-1) : null;
-        else next = at === -1 || at === nodes.length - 1 ? nodes[0] : null;
-        if (next) {
-            event.preventDefault?.();
-            focusNode(next);
-            revealIn(sheet, next, 'nearest');
-        }
-    }
-
     function openMore() {
         if (open || row) return false;
         open = true;
         more.setAttribute('aria-expanded', 'true');
         scrim.hidden = false;
         sheet.hidden = false;
-        doc.addEventListener?.('keydown', onKey, true);
+        // A layer of the shared stack: Escape closes the sheet first, Tab stays in it (modal-stack.js).
+        layer = stackOf(doc).push({ name: 'more', root: sheet, onEscape: () => { closeMore({ focus: true }); return true; }, reveal: node => revealIn(sheet, node, 'nearest') });
         const target = tileNodes().find(node => node.getAttribute('aria-current') === 'page') ?? tileNodes()[0] ?? sheet;
         focusNode(target);
         if (target !== sheet) revealIn(sheet, target, 'nearest');
@@ -303,7 +279,8 @@ export function createScreenBar(doc, host, options = {}) {
         more.setAttribute('aria-expanded', 'false');
         scrim.hidden = true;
         sheet.hidden = true;
-        doc.removeEventListener?.('keydown', onKey, true);
+        stackOf(doc).pop(layer, { focus: false });
+        layer = null;
         if (focus) focusNode(more);
         return true;
     }

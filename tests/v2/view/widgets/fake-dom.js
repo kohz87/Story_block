@@ -222,8 +222,8 @@ export function installDom({ resizeObserver = false } = {}) {
         createElementNS: (ns, tag) => new Element(doc, tag, ns),
         createTextNode: text => new Text(doc, text),
         defaultView: {},
-        // Document-level listeners (a modal's keys and focus guard): `fire(type, init)` runs them like a capturing
-        // listener on the document would, before the target's own.
+        // Document-level listeners (a modal's keys and focus guard): `fire(type, init)` runs the capturing ones before the
+        // target's own, and the bubbling ones after it, like a page does.
         docListeners: [],
         addEventListener(type, fn, options) { doc.docListeners.push({ type, fn, capture: options === true || Boolean(options?.capture) }); },
         removeEventListener(type, fn, options) {
@@ -237,6 +237,8 @@ export function installDom({ resizeObserver = false } = {}) {
             };
             for (const entry of [...doc.docListeners]) if (entry.type === type && entry.capture) entry.fn.call(doc, event);
             if (!event.stopped) event.target.dispatch?.(type, init);
+            // then the bubbling document listeners (a shared stack's Escape), as on a page, unless something stopped the event
+            if (!event.stopped) for (const entry of [...doc.docListeners]) if (entry.type === type && !entry.capture) entry.fn.call(doc, event);
             return event;
         },
     };
