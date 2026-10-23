@@ -1,12 +1,11 @@
 // "Use on…" on the Inventory screen (beta.1 live test: "use item is missing"): a consumable's row offers
 // the members a module says a dose would help now (`items.useOn`, RPG Battle's rule; none while a fight
-// has the party), and each runs `item.use { stack, target }`. Bag management (rule 6), like Equip on… and
-// Give…. Without a module answering `items.useOn` (Story Block alone) there is no picker.
+// has the party), and each runs `item.use { stack, target }`. Bag management (rule 6), like Equip on…. Without a module answering `items.useOn` (Story Block alone) there is no picker.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { equipmentView } from '../../../src/v2/domains/inventory.js';
 import { inventoryScreen } from '../../../src/v2/screens/index.js';
-import { core, queries, renderSkip, settle, show, stocked, text } from './helpers.js';
+import { core, foldOf, openFold, queries, renderSkip, settle, show, stocked, text } from './helpers.js';
 
 const REN = 'ac_ren00001';
 const MIRA = 'ac_mira0001';
@@ -41,17 +40,22 @@ test('inventory: a consumable row has Use on… with the members it would help; 
     const { el, view, calls } = show(inventoryScreen, {
         state,
         query: queries(module, state, { 'items.useOn': () => ({ it_pota0001: [{ id: MIRA }], it_potb0001: [{ id: REN }, { id: MIRA }] }) }),
+        draft: {},
         command: async () => ({ ok: true, receipt: { summary: 'done' } }),
     });
     assert.deepEqual(view.warnings, []);
     const rows = el.querySelectorAll('.item').filter(item => item.querySelector('.name').textContent === 'Minor Healing Draught');
     assert.equal(rows.length, 2);
-    const choices = row => row.querySelectorAll('.use-on .choices button').map(button => text(button));
-    assert.deepEqual(rows.map(choices), [['Mira'], ['Ren', 'Mira']]);
-    assert.equal(text(rows[0].querySelector('.use-on summary')), 'Use on…');
+    // Use on… is an action in the row; its members are a fold row under the actions, open once Use on… is chosen.
+    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    assert.deepEqual(['it_pota0001', 'it_potb0001'].map(folded), [[], []], 'closed');
+    openFold(el, 'it_pota0001', 'use');
+    openFold(el, 'it_potb0001', 'use');
+    assert.deepEqual(['it_pota0001', 'it_potb0001'].map(folded), [['Mira'], ['Ren', 'Mira']]);
+    assert.equal(text(rows[0].querySelector('.act')), 'Use on…');
     const rope = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Rope');
-    assert.equal(rope.querySelectorAll('.use-on').length, 0, 'not a consumable');
-    rows[1].querySelectorAll('.use-on .choices button')[1].click();
+    assert.equal(rope.querySelector('input[value="use"]'), null, 'not a consumable');
+    foldOf(el, 'it_potb0001').querySelectorAll('button')[1].click();
     await settle();
     assert.deepEqual(calls.map(([type, payload]) => [type, payload]), [['item.use', { stack: 'it_potb0001', target: MIRA }]]);
 });

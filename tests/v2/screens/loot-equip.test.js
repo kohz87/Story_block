@@ -1,12 +1,12 @@
 // The changes card's loot chips with "Take selected", and the Inventory screen's Equipped section,
-// "Equip on…" and "Give…" pickers (MODULES §F99), drawn by the real template renderer; their payloads
+// "Equip on…" picker (MODULES §F99), drawn by the real template renderer; their payloads
 // go through the real command bus.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCommandBus } from '../../../src/v2/commands.js';
 import { changesCardScreen, changesSummary, inventoryScreen } from '../../../src/v2/screens/index.js';
 import { counterIds, fakeRegistry, fakeStore } from '../helpers/bus-fakes.js';
-import { core, queries, renderSkip, settle, show, stocked, text } from './helpers.js';
+import { core, foldOf, openFold, queries, renderSkip, settle, show, stocked, text } from './helpers.js';
 
 const skip = renderSkip;
 const SID = 'sw_loot00000001';
@@ -77,7 +77,7 @@ test('inventory: with RPG Battle and members, Equip on… / Give… pickers and 
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, view, calls, results } = show(inventoryScreen, {
-        state, query: queries(module, state, RPG_BATTLE), widgets: DETAIL_WIDGET, command: (type, payload, options) => bus.command(type, payload, options),
+        state, query: queries(module, state, RPG_BATTLE), widgets: DETAIL_WIDGET, draft: {}, command: (type, payload, options) => bus.command(type, payload, options),
     });
     assert.deepEqual(view.warnings, []);
     assert.equal(el.querySelector('.worn'), null, 'the Equipped section is gone: a worn piece is a bag row now');
@@ -86,31 +86,53 @@ test('inventory: with RPG Battle and members, Equip on… / Give… pickers and 
     assert.equal(text(worn.querySelector('.worn-by')), 'Worn by Mira', 'the tag names the wearer');
     assert.equal(text(worn.querySelector('.cond')), '40/100', 'the condition stays on the row');
     assert.equal(row('Rope').querySelector('.worn-by'), null, 'a piece not worn has no tag');
-    const choices = (item, cls) => item.querySelectorAll(`.${cls} .choices button`).map(button => text(button));
-    assert.deepEqual(choices(row('Iron Sword'), 'equip-on'), ['Ren', 'Mira']);
-    assert.deepEqual(choices(row('Dagger'), 'equip-on'), ['Ren'], 'not its wearer');
-    assert.equal(row('Rope').querySelectorAll('.equip-on').length, 0, 'not equipment');
-    assert.deepEqual(choices(row('Rope'), 'give'), ['Ren', 'Mira']);
-    assert.deepEqual(choices(row('Dagger'), 'give'), ['the party\'s bag', 'Ren']);
+    // Equip on… is a fold row under the actions: its members show once it is chosen (not before).
+    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    assert.deepEqual(folded('it_sword001'), [], 'closed');
+    openFold(el, 'it_sword001', 'equipOn');
+    assert.deepEqual(folded('it_sword001'), ['Ren', 'Mira']);
+    assert.equal(row('Dagger').querySelector('input[value="equipOn"]'), null, 'worn: no Equip on…, only Unequip and Drop');
+    assert.equal(row('Rope').querySelector('input[value="equipOn"]'), null, 'not equipment');
+    assert.equal(row('Rope').querySelector('.give'), null, 'Give is gone: the party shares one bag');
+    assert.equal(row('Dagger').querySelector('.give'), null, 'Give is gone: the party shares one bag');
     assert.equal(row('Iron Sword').querySelectorAll('[data-command="inventory.equip"]').length, 0, 'the picker replaces the plain Equip');
     assert.equal(el.querySelectorAll('ss-widget').length, el.querySelectorAll('.item').length, 'one item detail per row, RPG Battle\'s');
 
-    row('Iron Sword').querySelectorAll('.equip-on .choices button')[0].click();
+    foldOf(el, 'it_sword001').querySelectorAll('button')[0].click();
     await settle();
     worn.querySelector('[data-command="inventory.unequip"]').click();
     await settle();
-    row('Rope').querySelectorAll('.give .choices button')[0].click();
-    await settle();
+    // Equip on… for an unworn piece is RPG Battle's item.equip { stack, to } (not refused here: this bus has no RPG Battle).
     assert.deepEqual(calls.map(([type, payload]) => [type, payload]), [
-        ['inventory.equipOn', { stack: 'it_sword001', actor: 'ac_ren00001' }],
+        ['item.equip', { stack: 'it_sword001', to: 'ac_ren00001' }],
         ['inventory.unequip', { stack: 'it_dagg0001' }],
-        ['inventory.transfer', { stack: 'it_rope0001', to: 'ac_ren00001' }],
     ]);
-    assert.deepEqual(results.map(result => result.ok), [true, true, true]);
+    assert.equal(results[1].ok, true);
     const stacks = store.head().domains.inventory.stacks;
-    assert.deepEqual([stacks.it_sword001.owner, stacks.it_sword001.equipped], ['ac_ren00001', 'hand']);
     assert.deepEqual([stacks.it_dagg0001.owner, stacks.it_dagg0001.equipped], ['ac_mira0001', null], 'taken off, still in Mira\'s pack');
-    assert.equal(stacks.it_rope0001.owner, 'ac_ren00001');
+    assert.equal(stacks.it_rope0001.owner, 'party', 'Give is gone: the Rope stays in the bag');
+});
+
+test('inventory: Equip on… for an unworn piece lists only the members who can wear it (items.canWear per member), and sends item.equip { stack, to }', { skip }, async () => {
+    const module = core();
+    const state = stocked(module);
+    state.domains.party = { pc: null, order: ['ac_ren00001', 'ac_mira0001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' }, ac_mira0001: { id: 'ac_mira0001', name: 'Mira' } } };
+    const asked = [];
+    const query = queries(module, state, {
+        ...RPG_BATTLE,
+        // Mira cannot wear this piece (say, too heavy for her); Ren can.
+        'items.canWear': (s, args) => { asked.push(args.actor); return args.actor === 'ac_mira0001' ? { ok: false, why: 'too heavy for Mira' } : { ok: true }; },
+    });
+    const { el, view, calls } = show(inventoryScreen, { state, query, widgets: DETAIL_WIDGET, draft: {}, command: async () => ({ ok: true }) });
+    assert.deepEqual(view.warnings, []);
+    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    openFold(el, 'it_sword001', 'equipOn');
+    assert.deepEqual(folded('it_sword001'), ['Ren'], 'only who can wear it');
+    assert.ok(asked.includes('ac_ren00001') && asked.includes('ac_mira0001'), 'each member is asked');
+    assert.equal(el.querySelector('[id="' + foldOf(el, 'it_sword001').getAttribute('id') + '"] .fold-q') !== null, true);
+    foldOf(el, 'it_sword001').querySelector('button').click();
+    await settle();
+    assert.deepEqual(calls.map(([type, payload]) => [type, payload]), [['item.equip', { stack: 'it_sword001', to: 'ac_ren00001' }]]);
 });
 
 test('inventory without RPG Battle: the bag and purse only, no equipment controls, tags, condition or filter', { skip }, () => {
@@ -125,12 +147,13 @@ test('inventory without RPG Battle: the bag and purse only, no equipment control
     const dagger = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Dagger');
     assert.equal(dagger.querySelector('.worn-by'), null, 'no "Worn by" tag');
     assert.equal(dagger.querySelector('.cond'), null, 'no condition');
-    assert.equal(dagger.querySelector('.equip-on'), null, 'no Equip on…');
+    assert.equal(dagger.querySelector('input[value="equipOn"]'), null, 'no Equip on…');
     assert.equal(dagger.querySelector('[data-command="inventory.unequip"]'), null, 'no Unequip');
     assert.equal(dagger.classList.contains('equipped'), false);
     assert.equal(el.querySelector('.filter .check'), null, 'no equipped-only filter');
     assert.equal(el.querySelector('option[value="equipment"]'), null, 'no equipment kind in the filter');
-    assert.deepEqual(dagger.querySelectorAll('.give .choices button').map(button => text(button)), ["the party's bag"], 'Give stays: it is bag management (not back to its own wearer)');
+    assert.equal(dagger.querySelector('.give'), null, 'no Give: the party shares one bag');
+    assert.ok(dagger.querySelector('input[value="drop"]'), 'Drop stays: it is bag management');
     assert.equal(text(dagger.querySelector('.owner')), 'Ren', 'who carries it is still said');
 });
 

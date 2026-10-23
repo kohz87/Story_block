@@ -7,11 +7,12 @@
 //
 // Equipment belongs to RPG Battle (its party screen shows who wears what). So the equipment controls are drawn
 // only when RPG Battle answers (`q.gear.detail`, the same probe as its item detail): an "Equip on…" picker
-// (`inventory.equipOn`, MODULES §F99), the plain Equip, Unequip, the condition, and a "Worn by" tag on a worn
-// piece. Without RPG Battle the inventory is the bag and the purse only. Give and Drop are bag management and
-// always there. Its texts are in src/v2/strings.js. Nothing here writes state; the buttons run the core commands
+// (`item.equip { stack, to }` for an unworn piece, MODULES §F99), the plain Equip, Unequip, the condition, and a "Worn by" tag on a worn
+// piece. Without RPG Battle the inventory is the bag and the purse only. Drop is bag management and always there. Its texts are in src/v2/strings.js. Nothing here writes state; the buttons run the core commands
 // with the payloads of MODULES §F5 (`inventory.equip { stack }`, `inventory.unequip { stack }`,
-// `inventory.drop { stack, qty }`), and Drop asks first (a folded "Drop" that opens to the choices).
+// `inventory.drop { stack, qty }`). Equip on…, Use on… and Drop open a fold row BELOW the action row (one open per card); Drop
+// asks first there ("Drop …?" and the confirm). The party shares one bag, so there is no Give here (`inventory.transfer` stays
+// a core command).
 
 import { KIND_ORDER, RARITIES } from '../domains/inventory.js';
 import { STRINGS, html } from '../strings.js';
@@ -46,6 +47,18 @@ const ITEM_FILTER = "(draft.rarity == null || draft.rarity == '' || draft.rarity
 const rarityClasses = name => RARITIES.filter(rarity => rarity !== 'common').map(rarity => `r-${rarity}: ${name}.rarity == '${rarity}'`).join('; ');
 const RARITY_CLASSES = rarityClasses('it');
 
+// The actions that open a fold (Equip on…, Use on…, Drop). Each is a radio styled as a button in the card's action row:
+// it sets the card's `fold[stack]` in the view's draft, and that one value is the one open fold of the card (the radios of
+// a stack share one group). The fold opens in a row BELOW the action row, so the row does not move. Tapping the open action
+// again does nothing (a radio stays checked); Cancel, the group's empty value, closes it.
+const foldAction = (kind, when, icon, label, title) => `
+          <label class="ss-button act"${when ? ` data-if="${when}"` : ''} title="${title}"><input type="radio" name="fold_{{ it.stack }}" value="${kind}" data-draft="fold[it.stack]" aria-expanded="{{ draft.fold[it.stack] == '${kind}' }}" aria-controls="fold-{{ it.stack }}"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${label}</label>`;
+const foldPanel = (kind, cls, when, question, body) => `
+          <div class="fold ${cls}" id="fold-{{ it.stack }}" data-if="draft.fold[it.stack] == '${kind}'${when ? ` && ${when}` : ''}">
+            <span class="fold-q">${question}</span>${body}
+            <label class="ss-button fold-cancel"><input type="radio" name="fold_{{ it.stack }}" value="" data-draft="fold[it.stack]"> ${html(S.cancel)}</label>
+          </div>`;
+
 function group(kind) {
     return `
   <section class="group" data-kind="${kind}" data-if="${anyKind(kind)}">
@@ -71,39 +84,23 @@ function group(kind) {
         <div class="actions">
           <button class="ss-button" data-if="${RPG} && it.kind == 'equipment' && it.equipped == null && len(q.gear.members) == 0" data-command="inventory.equip"
                   data-payload='{"stack":"{{ it.stack }}"}' title="${html(S.equipTitle, { name: '{{ it.name }}' })}"><i class="fa-solid fa-hand-fist" aria-hidden="true"></i> ${html(S.equip)}</button>
-          <details class="pick equip-on" data-if="${RPG} && it.kind == 'equipment' && len(q.gear.wearers[it.stack]) > 0">
-            <summary class="ss-button" title="${html(S.equipOnTitle, { name: '{{ it.name }}' })}"><i class="fa-solid fa-hand-fist" aria-hidden="true"></i> ${html(S.equipOn)}</summary>
-            <span class="choices">
-              <button class="ss-button" data-each="q.gear.wearers[it.stack] as who" data-command="inventory.equipOn"
-                      data-payload='{"stack":"{{ it.stack }}","actor":"{{ who.id }}"}' title="${html(S.equipOnWho, { name: '{{ it.name }}' })}">{{ who.name }}</button>
-            </span>
-          </details>
-          <details class="pick use-on" data-if="it.kind == 'consumable' && len(q.gear.users[it.stack]) > 0">
-            <summary class="ss-button" title="${html(S.useOnTitle, { name: '{{ it.name }}' })}"><i class="fa-solid fa-flask" aria-hidden="true"></i> ${html(S.useOn)}</summary>
-            <span class="choices">
-              <button class="ss-button" data-each="q.gear.users[it.stack] as who" data-command="item.use"
-                      data-payload='{"stack":"{{ it.stack }}","target":"{{ who.id }}"}' title="${html(S.useOnWho, { name: '{{ it.name }}' })}">{{ who.name }}</button>
-            </span>
-          </details>
+          ${foldAction('equipOn', `${RPG} && it.kind == 'equipment' && it.equipped == null && len(q.gear.wearers[it.stack]) > 0`, 'fa-hand-fist', html(S.equipOn), html(S.equipOnTitle, { name: '{{ it.name }}' }))}
+          ${foldAction('use', "it.kind == 'consumable' && len(q.gear.users[it.stack]) > 0", 'fa-flask', html(S.useOn), html(S.useOnTitle, { name: '{{ it.name }}' }))}
           <button class="ss-button" data-if="${RPG} && it.equipped != null" data-command="inventory.unequip"
                   data-payload='{"stack":"{{ it.stack }}"}' title="${html(S.unequipTitle, { name: '{{ it.name }}' })}">${html(S.unequip)}</button>
-          <details class="pick give" data-if="len(q.gear.members) > 0 && len(q.gear.givers[it.stack]) > 0">
-            <summary class="ss-button" title="${html(S.giveTitle, { name: '{{ it.name }}' })}"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> ${html(S.give)}</summary>
-            <span class="choices">
-              <button class="ss-button" data-each="q.gear.givers[it.stack] as to" data-command="inventory.transfer"
-                      data-payload='{"stack":"{{ it.stack }}","to":"{{ to.id }}"}' title="${html(S.giveTo, { name: '{{ to.name }}' })}">{{ to.name }}</button>
-            </span>
-          </details>
-          <details class="drop">
-            <summary class="ss-button ss-button-danger" title="${html(S.dropTitle, { name: '{{ it.name }}' })}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> ${html(S.drop)}</summary>
-            <span class="confirm">
-              <button class="ss-button ss-button-danger" data-if="it.qty != 1" data-command="inventory.drop"
-                      data-payload='{"stack":"{{ it.stack }}","qty":1}'>${html(S.dropOne)}</button>
-              <button class="ss-button ss-button-danger" data-command="inventory.drop"
-                      data-payload='{"stack":"{{ it.stack }}","qty":{{ it.qty }}}'><span data-if="it.qty != 1">${html(S.dropAll, { qty: '{{ it.qty }}' })}</span><span data-if="it.qty == 1">${html(S.dropIt)}</span></button>
-            </span>
-          </details>
+          ${foldAction('drop', '', 'fa-trash-can', html(S.drop), html(S.dropTitle, { name: '{{ it.name }}' }))}
         </div>
+          ${foldPanel('equipOn', 'equip-on', `${RPG} && it.kind == 'equipment' && it.equipped == null && len(q.gear.wearers[it.stack]) > 0`, html(S.equipOn), `
+            <button class="ss-button pick-member" data-each="q.gear.wearers[it.stack] as who" data-command="item.equip"
+                    data-payload='{"stack":"{{ it.stack }}","to":"{{ who.id }}"}' title="${html(S.equipOnWho, { name: '{{ it.name }}' })}">{{ who.name }}</button>`)}
+          ${foldPanel('use', 'use-on', "it.kind == 'consumable' && len(q.gear.users[it.stack]) > 0", html(S.useOn), `
+            <button class="ss-button" data-each="q.gear.users[it.stack] as who" data-command="item.use"
+                    data-payload='{"stack":"{{ it.stack }}","target":"{{ who.id }}"}' title="${html(S.useOnWho, { name: '{{ it.name }}' })}">{{ who.name }}</button>`)}
+          ${foldPanel('drop', 'drop', '', html(S.dropAsk, { name: '{{ it.name }}' }), `
+            <button class="ss-button ss-button-danger" data-if="it.qty != 1" data-command="inventory.drop"
+                    data-payload='{"stack":"{{ it.stack }}","qty":1}'>${html(S.dropOne)}</button>
+            <button class="ss-button ss-button-danger" data-command="inventory.drop"
+                    data-payload='{"stack":"{{ it.stack }}","qty":{{ it.qty }}}'><span data-if="it.qty != 1">${html(S.dropAll, { qty: '{{ it.qty }}' })}</span><span data-if="it.qty == 1">${html(S.drop)}</span></button>`)}
         </div>
       </li>
     </ul>
@@ -188,17 +185,23 @@ const CSS = `${BASE_CSS}
 .qty { font-variant-numeric: tabular-nums; }
 .rarity { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--rarity); opacity: 0.85; }
 .eq { color: var(--sb-accent); }
+/* The "Worn by" tag is text: the foreground colour (the accent is too faint for small text on glass); its tick keeps the accent. */
+.item .worn-by { color: var(--sb-fg); }
+.worn-by > i { color: var(--sb-accent); }
 .owner { font-size: 0.85em; }
 .note { margin: 2px 0 0; font-size: 0.85em; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.drop { display: inline-flex; gap: 6px; align-items: center; }
-.drop > summary { list-style: none; }
-.drop > summary::-webkit-details-marker { display: none; }
-.drop .confirm { display: inline-flex; gap: 6px; margin-left: 6px; }
-.pick { display: inline-flex; gap: 6px; align-items: center; }
-.pick > summary { list-style: none; }
-.pick > summary::-webkit-details-marker { display: none; }
-.pick .choices { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 6px; }
+.act { position: relative; cursor: pointer; }
+.act > input, .fold-cancel > input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.act:has(> input:checked) { border-color: var(--sb-accent); }
+.act:focus-within, .fold-cancel:focus-within { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+/* The fold row: a hairline above it, the question muted, the members as accent-soft buttons, Cancel plain (the design's Equip on… row). */
+.fold { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 0 0; border-top: 1px solid var(--sb-border); }
+.fold .fold-q { flex-basis: 100%; color: var(--sb-em); font-weight: 400; }
+.fold .pick-member { background: color-mix(in srgb, var(--sb-accent) 24%, transparent); border-color: var(--sb-accent); }
+.fold .ss-button { min-height: 44px; }
+/* The danger tone is the confirm's text and ring, never a filled background (the Drop action itself is a plain button). */
+.fold .ss-button-danger { background: transparent; color: var(--sb-bad); border-color: var(--sb-bad); }
 .loot { display: grid; gap: 6px; }
 .loot .offer { display: grid; gap: 4px; padding: 6px 8px; border-radius: 6px; background: var(--sb-raised); }
 .loot .loot-head, .loot .hint { margin: 0; }
@@ -211,6 +214,8 @@ const CSS = `${BASE_CSS}
 .loot .take { justify-self: start; }
 .cond { font-size: 0.8em; font-variant-numeric: tabular-nums; }
 @media (max-width: 480px) { .filter { width: 100%; } }
+/* Every action is a 44px target (Equip on…, Use on…, Unequip, Drop, and the fold rows' buttons). */
+.actions .ss-button { min-height: 44px; }
 `;
 
 export const inventoryScreen = Object.freeze({

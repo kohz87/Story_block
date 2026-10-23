@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createCommandBus } from '../../../src/v2/commands.js';
 import { homeScreen, inventoryScreen, sceneScreen, changesCardScreen } from '../../../src/v2/screens/index.js';
 import { counterIds, fakeRegistry, fakeStore } from '../helpers/bus-fakes.js';
-import { core, queries, recordingWidgets, renderSkip, sceneState, settle, show, stocked, text } from './helpers.js';
+import { core, foldOf, openFold, queries, recordingWidgets, renderSkip, sceneState, settle, show, stocked, text } from './helpers.js';
 
 const skip = renderSkip;
 
@@ -55,23 +55,29 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, calls, results } = show(inventoryScreen, {
-        state, query: queries(module, state, RPG.query), widgets: RPG.widgets, command: (type, payload, options) => bus.command(type, payload, options),
+        state, query: queries(module, state, RPG.query), widgets: RPG.widgets, draft: {},
+        command: (type, payload, options) => bus.command(type, payload, options),
     });
     const item = name => el.querySelectorAll('.item').find(row => row.querySelector('.name').textContent === name);
     const buttons = row => row.querySelectorAll('button').map(button => text(button));
+    const foldButtons = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
 
-    assert.deepEqual(buttons(item('Dagger')), ['Unequip', 'Yes, drop it']);
-    assert.deepEqual(buttons(item('Iron Sword')), ['Equip', 'Yes, drop it']);
-    assert.deepEqual(buttons(item('Rope')), ['Drop 1', 'Drop all 3']);
-    assert.deepEqual(buttons(item('Lantern')), ['Yes, drop it']);
+    // The action row holds the plain actions; Drop's choices are a fold row under it, shown only once Drop is chosen.
+    assert.deepEqual(buttons(item('Dagger')), ['Unequip']);
+    assert.deepEqual(buttons(item('Iron Sword')), ['Equip']);
+    assert.deepEqual(foldButtons('it_rope0001'), [], 'closed until Drop is chosen');
+    openFold(el, 'it_rope0001', 'drop');
+    assert.deepEqual(foldButtons('it_rope0001'), ['Drop 1', 'Drop all 3']);
+    openFold(el, 'it_lant0001', 'drop');
+    assert.deepEqual(foldButtons('it_lant0001'), ['Drop'], 'one of a kind: a plain Drop');
 
     item('Iron Sword').querySelector('[data-command="inventory.equip"]').click();
     await settle();
     item('Dagger').querySelector('[data-command="inventory.unequip"]').click();
     await settle();
-    item('Rope').querySelectorAll('[data-command="inventory.drop"]')[0].click();
+    foldOf(el, 'it_rope0001').querySelectorAll('[data-command="inventory.drop"]')[0].click();
     await settle();
-    item('Rope').querySelectorAll('[data-command="inventory.drop"]')[1].click();
+    foldOf(el, 'it_rope0001').querySelectorAll('[data-command="inventory.drop"]')[1].click();
     await settle();
     assert.deepEqual(calls.map(([type, payload, options]) => [type, payload, options.cause]), [
         ['inventory.equip', { stack: 'it_sword001' }, 'ui'],
@@ -87,6 +93,48 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     assert.equal(inv.stacks.it_sword001.equipped, 'hand');   // the def's slot
     assert.equal(inv.stacks.it_dagg0001.equipped, null);
     assert.equal(inv.stacks.it_rope0001.qty, 2);
+});
+
+test('inventory: an action opens its fold below the action row; one fold per card; Cancel closes it; the Drop confirm is the only danger tone', { skip: renderSkip }, () => {
+    const module = core();
+    const state = stocked(module);
+    state.domains.party = { pc: null, order: ['ac_ren00001', 'ac_mira0001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' }, ac_mira0001: { id: 'ac_mira0001', name: 'Mira' } } };
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG.query), widgets: RPG.widgets, draft: {} });
+    assert.deepEqual(view.warnings, []);
+    const dagger = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Iron Sword');
+    const actionsText = () => dagger.querySelector('.actions').querySelectorAll('button, label').map(node => text(node));
+    const before = actionsText();
+    assert.deepEqual(before, ['Equip on…', 'Drop'], 'the action row, with Drop a plain action');
+    assert.equal(dagger.querySelector('.actions').querySelector('.fold'), null, 'no fold inside the action row');
+    assert.equal(dagger.querySelector('.actions label.ss-button.ss-button-danger'), null, 'no danger tone on the action');
+    const radio = kind => dagger.querySelector(`input[value="${kind}"]`);
+    assert.equal(radio('drop').getAttribute('aria-expanded'), 'false');
+    assert.equal(foldOf(el, 'it_sword001'), null, 'closed to begin with');
+
+    openFold(el, 'it_sword001', 'equipOn');
+    assert.equal(foldOf(el, 'it_sword001').querySelectorAll('button').map(b => text(b)).join('|'), 'Ren|Mira', 'the members, in the fold');
+    assert.equal(radio('equipOn').getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(actionsText(), before, 'the action row did not move');
+
+    // A second action on the same card replaces the open fold: one fold per card.
+    openFold(el, 'it_sword001', 'drop');
+    assert.equal(text(foldOf(el, 'it_sword001').querySelector('.fold-q')), 'Drop Iron Sword?');
+    assert.equal(radio('equipOn').getAttribute('aria-expanded'), 'false', 'the other fold closed');
+    assert.equal(radio('drop').getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(actionsText(), before, 'the action row did not move');
+    const confirm = foldOf(el, 'it_sword001').querySelectorAll('button')[0];
+    assert.equal(text(confirm), 'Drop', 'a single item: the confirm is Drop');
+    assert.ok(confirm.className.includes('ss-button-danger'), 'the confirm carries the danger tone');
+    assert.ok(!dagger.querySelector('.actions').querySelectorAll('.ss-button-danger').length, 'the action itself does not');
+
+    // Cancel (the group's empty value) closes the fold.
+    assert.equal(text(foldOf(el, 'it_sword001').querySelector('.fold-cancel')), 'Cancel', 'the Cancel is labelled');
+    const cancel = foldOf(el, 'it_sword001').querySelector('.fold-cancel input');
+    cancel.checked = true;
+    cancel.dispatch('change');
+    assert.equal(foldOf(el, 'it_sword001'), null, 'Cancel closes it');
+    assert.equal(radio('drop').getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(actionsText(), before, 'the action row did not move');
 });
 
 test('inventory: the filter box fills the draft and narrows the list', { skip }, () => {
