@@ -15,7 +15,9 @@ test('containers draw their children with ss-l- classes', () => {
             { type: 'grid', cols: 3, children: [{ type: 'text', value: 'd' }] },
         ],
     }));
-    assert.deepEqual(result, { ok: true, errors: [], problems: [] });
+    const { dispose, ...report } = result;
+    assert.equal(typeof dispose, 'function', 'the drawing can be taken down');
+    assert.deepEqual(report, { ok: true, errors: [], problems: [] });
     const root = one(host, '.ss-l-root');
     assert.equal(root.dataset.layout, 'test');
     assert.equal(one(root, '.ss-l-box-title').textContent, 'Party');
