@@ -90,7 +90,8 @@ test('the Features line says how many are on and goes to that module\'s group on
     link.click();
     assert.equal(win.section(), 'features');
     const group = root.querySelectorAll('.ss-features-group').find(node => node.dataset.fold === featuresFoldOf('big'));
-    assert.ok(group && doc.activeElement === group.querySelector('.ss-section-title'));
+    assert.ok(group && doc.activeElement === group.querySelector('summary'));
+    assert.equal(group.open, true, 'the group is opened');
     // A switch there changes the count here.
     host.features.set('big.two', true);
     win.refresh();
@@ -256,4 +257,53 @@ test('a module whose settings are placed in Diagnostics has its card here withou
     assert.equal(card.querySelector('.ss-module-panel'), null);
     void root;
     host.close();
+});
+
+// ---- the cards fold (phone hotfix)
+test('each card is a fold with a chevron, folded by default; a toggle is kept in the window\'s state, a fold id opens the card', async () => {
+    const state = new Map();
+    const { page, win } = await open(undefined, { window: { openState: state } });
+    const cards = page.querySelectorAll('.ss-module-card');
+    assert.ok(cards.length >= 4);
+    for (const card of cards) {
+        assert.equal(card.tagName, 'DETAILS', card.dataset.module);
+        assert.equal(card.open, false, `${card.dataset.module} is folded`);
+        assert.ok(card.classList.contains('ss-section-fold'));
+        assert.ok(card.querySelector('summary'));
+    }
+    const big = cardOf(page, 'big');
+    big.open = true;
+    big.dispatch('toggle');
+    assert.equal(state.get('big'), true);
+    assert.ok(big.classList.contains('ss-section-fold-open'));
+    win.select('features');
+    win.select('modules');
+    assert.equal(cardOf(page, 'big').open, true, 'kept across leaving the page');
+    big.open = false;
+    big.dispatch('toggle');
+    assert.equal(state.get('big'), false);
+});
+
+test('cards: a search opens the cards with a match without remembering it, and the reader\'s choice comes back when it ends', async () => {
+    const state = new Map([['big', true]]);
+    const { page, root } = await open(undefined, { window: { openState: state } });
+    assert.equal(cardOf(page, 'big').open, true);
+    assert.equal(cardOf(page, 'small').open, false);
+    search(root, 'shiny');
+    assert.equal(cardOf(page, 'small').hidden, false);
+    assert.equal(cardOf(page, 'small').open, true, 'opened by the match');
+    // The browser's toggle for that opening comes later and is not the reader's choice.
+    cardOf(page, 'small').dispatch('toggle');
+    assert.equal(state.has('small'), false);
+    search(root, '');
+    assert.equal(cardOf(page, 'small').open, false, 'the reader\'s choice is back');
+    assert.equal(cardOf(page, 'big').open, true, 'and the one they opened stays');
+    cardOf(page, 'small').dispatch('toggle');
+    assert.equal(state.get('small'), false);
+});
+
+test('opening the window at a module\'s fold id opens that card (and only it)', async () => {
+    const { page } = await open(undefined, { window: { fold: 'small' } });
+    assert.equal(cardOf(page, 'small').open, true);
+    assert.equal(cardOf(page, 'big').open, false);
 });

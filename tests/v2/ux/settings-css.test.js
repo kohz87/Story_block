@@ -337,3 +337,37 @@ test('a light scheme\'s slider track is a light token: the unfilled part is a fa
     assert.ok(weight(`${ROOT_SELECTOR} .ss-slider .ss-slider-input::-webkit-slider-thumb`) > weight('input[type="range"]::-webkit-slider-thumb'));
     assert.ok(weight(`${ROOT_SELECTOR} .ss-slider .ss-slider-input`) > weight('input[type="range"]'));
 });
+
+// ---- the phone hotfix: nothing scrolls around the window; the story behind does not read through; folds a finger can hit
+test('the layer and the window clip (a script cannot scroll them) and do not chain scrolling to the page', () => {
+    const host = read('view/host.css');
+    const layer = host.slice(host.indexOf('.story-suite-overlay {'), host.indexOf('}', host.indexOf('.story-suite-overlay {')));
+    assert.match(layer, /overflow: hidden;\s*overflow: clip;\s*overscroll-behavior: none;/);
+    const at = css.indexOf(`${ROOT_SELECTOR} .ss-settings {`);
+    assert.match(css.slice(at, css.indexOf('}', at)), /overflow: hidden;\s*overflow: clip;/);
+    const content = css.indexOf(`${ROOT_SELECTOR} .ss-settings-content {`);
+    assert.match(css.slice(content, css.indexOf('}', content)), /overscroll-behavior: contain;/);
+});
+
+test('a full-screen phone window is dense: the tint is layered over itself below 760px (the story behind cannot be read), the floating window keeps the reader\'s strength', () => {
+    const phone = rules(css).find(rule => rule.at[0] === '@media (max-width: 759.98px)' && rule.selectors.includes(`${ROOT_SELECTOR} .ss-settings`));
+    assert.ok(phone, 'a rule for the phone window');
+    const layers = phone.block.match(/linear-gradient\(var\(--ss-glass-strong\), var\(--ss-glass-strong\)\)/g) ?? [];
+    assert.ok(layers.length >= 4, 'four layers of the strong tint over the window\'s own');
+    assert.doesNotMatch(phone.block, /backdrop-filter/);
+    assert.equal(weight(`${ROOT_SELECTOR} .ss-settings`) <= 40, true);
+    // The game view is full screen on a phone too.
+    const mounts = read('view/mounts.css');
+    const at = mounts.indexOf('@media (max-width: 759.98px)');
+    assert.ok(at > 0);
+    assert.match(mounts.slice(at, mounts.indexOf('}\n}', at)), /\.ss-gameview \{\s*background-image: (linear-gradient\(var\(--ss-sheet-bg, var\(--ss-surface\)\), var\(--ss-sheet-bg, var\(--ss-surface\)\)\),? ?){3}/);
+});
+
+test('folds on the Features and Modules pages are whole rows (44px), a fold of module features has the chevron', () => {
+    const glass = read('view/glass.css');
+    const at = glass.indexOf('Folds a finger can hit');
+    assert.ok(at > 0);
+    const block = glass.slice(at, glass.indexOf('/* helpers of the UI sample', at));
+    assert.match(block, /\.ss-features \.ss-section-fold > \.ss-section-head,[\s\S]*?\.ss-module-card\.ss-section-fold > \.ss-section-head \{\s*align-items: center;\s*min-height: 44px;/);
+    for (const selector of ['.ss-features .ss-section-fold > .ss-section-head', '.ss-module-card.ss-section-fold > .ss-section-head', '.ss-features .ss-section-fold-open > .ss-section-head']) assert.ok(weight(`${ROOT_SELECTOR} ${selector}`) <= 30, selector);
+});

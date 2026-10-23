@@ -6,6 +6,7 @@ import { installFakeDom } from '../../../ui-fake-dom.js';
 import { featureGroups, renderFeaturesForm } from '../../../../src/v2/view/form/features.js';
 import { FORM_TEXT } from '../../../../src/v2/view/form/schema.js';
 import { PROMPT_HINT } from '../../../../src/v2/features.js';
+import { featuresFoldOf } from '../../../../src/v2/host-ui.js';
 
 const doc = installFakeDom();
 
@@ -180,4 +181,68 @@ test('destroy removes it from its parent', () => {
     assert.equal(parent.children.length, 1);
     form.destroy();
     assert.equal(parent.children.length, 0);
+});
+
+// ---- the fold option (phone hotfix): each module's group is a fold, closed until opened, its state in the window's map
+test('fold: each group is a details with a chevron class, the name and "N of M on" in its summary, closed by default', () => {
+    const state = new Map();
+    const form = renderFeaturesForm(null, { features: store(FEATURES()), doc, fold: { state } });
+    const groups = form.el.querySelectorAll('.ss-features-group');
+    assert.equal(groups.length, 3);
+    for (const group of groups) {
+        assert.equal(group.tagName, 'DETAILS');
+        assert.equal(group.open, false);
+        assert.ok(group.classList.contains('ss-section-fold'));
+        assert.ok(!group.classList.contains('ss-section-fold-open'));
+    }
+    assert.deepEqual(groups.map(group => group.querySelector('summary').querySelector('.ss-section-title').textContent), ['NPC State Delta', 'RPG Battle', 'Story Director']);
+    assert.deepEqual(groups.map(group => group.querySelector('summary').querySelector('.ss-section-hint').textContent), ['0 of 1 on', '1 of 2 on', '1 of 1 on']);
+    // The tiles are still there to be found, only not shown.
+    assert.ok(form.field('rb.wear'));
+});
+
+test('fold: a toggle is kept in the state under the group\'s fold key and drawn again from it; a group the state opens starts open', () => {
+    const state = new Map([[featuresFoldOf('sd'), true]]);
+    let form = renderFeaturesForm(null, { features: store(FEATURES()), doc, fold: { state } });
+    assert.equal(form.group('sd').open, true);
+    assert.ok(form.group('sd').classList.contains('ss-section-fold-open'));
+    assert.equal(form.group('rb').open, false);
+    form.group('rb').open = true;
+    form.group('rb').dispatch('toggle');
+    assert.equal(state.get(featuresFoldOf('rb')), true);
+    assert.ok(form.group('rb').classList.contains('ss-section-fold-open'));
+    form.group('sd').open = false;
+    form.group('sd').dispatch('toggle');
+    assert.equal(state.get(featuresFoldOf('sd')), false);
+    form.destroy();
+    form = renderFeaturesForm(null, { features: store(FEATURES()), doc, fold: { state } });
+    assert.deepEqual(['nsd', 'rb', 'sd'].map(id => form.group(id).open), [false, true, false]);
+});
+
+test('fold: a search opens the groups with a match and gives the reader\'s choice back; a toggle during a search is not the reader\'s choice', () => {
+    const state = new Map([[featuresFoldOf('sd'), true]]);
+    const form = renderFeaturesForm(null, { features: store(FEATURES()), doc, fold: { state } });
+    form.filter('gear');
+    assert.equal(form.group('rb').hidden, false);
+    assert.equal(form.group('rb').open, true, 'opened by the match');
+    assert.ok(form.group('rb').classList.contains('ss-section-fold-open'));
+    form.group('rb').dispatch('toggle');
+    assert.equal(state.has(featuresFoldOf('rb')), false, 'the match\'s opening is not remembered');
+    form.filter('');
+    assert.equal(form.group('rb').open, false, 'the reader\'s choice (closed) is back');
+    assert.equal(form.group('sd').open, true, 'and the one they opened stays');
+});
+
+test('fold: focusGroup opens the group, remembers it and puts the focus on its summary, never scrolling the page for it', () => {
+    const state = new Map();
+    const form = renderFeaturesForm(null, { features: store(FEATURES()), doc, fold: { state } });
+    const seen = [];
+    const summary = form.group('sd').querySelector('summary');
+    const was = summary.focus.bind(summary);
+    summary.focus = options => { seen.push(options); was(); };
+    assert.equal(form.focusGroup('sd'), true);
+    assert.equal(form.group('sd').open, true);
+    assert.equal(state.get(featuresFoldOf('sd')), true);
+    assert.ok(doc.activeElement === summary);
+    assert.deepEqual(seen, [{ preventScroll: true }]);
 });

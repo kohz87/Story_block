@@ -535,7 +535,7 @@ test('a real browser\'s querySelectorAll gives a NodeList (no find, no at): the 
         assert.equal(settings('story-director')['tracker.calendar.months'].length, 3);
         root.remove();
         const overlay = openSettingsOverlay({ registry, settings, doc, features, fold: 'story-director', openState: new Map() });
-        assert.ok(doc.activeElement === find(overlay.root, '.ss-module-card', node => node.dataset.module === 'story-director').querySelector('.ss-section-title'), 'the module\'s card has the focus');
+        assert.ok(doc.activeElement === find(overlay.root, '.ss-module-card', node => node.dataset.module === 'story-director').querySelector('summary'), 'the module\'s card has the focus');
         overlay.close();
     } finally {
         proto.querySelectorAll = plain;
