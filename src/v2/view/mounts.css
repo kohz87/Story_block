@@ -386,6 +386,8 @@
     border-radius: var(--ss-sheet-radius, 0);
     box-shadow: var(--ss-sheet-shadow, none);
     font-size: 0.85em;
+    /* 8px of clear space between the strip and SillyTavern's message box (#send_form, the strip sits right above it) */
+    margin: 0 0 8px;
 }
 
 .ss-hud::-webkit-scrollbar {

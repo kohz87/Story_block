@@ -4,6 +4,7 @@
 // Suite's roots is touched (no rule outside them, no attribute or style on SillyTavern's elements).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     ACCENT, DEFAULT_GLASS, FONT_STACKS, GLASS_MAX, GLASS_MIN, PANEL_STYLES, ROOT_SELECTOR, THEME_ROOTS, createThemeBridge, decideScheme, glassAlphas,
     luminance, parseColor, schemeTokens, themeChoice, themeCss, themeTokens,
@@ -292,4 +293,48 @@ test('the rule token (the section-label hairline): the concept\'s colour per sch
     const st = value(schemeTokens('light', 'sillytavern'), '--ss-rule');
     assert.match(st, /--SmartThemeBodyColor/, 'from SillyTavern\'s text colour');
     assert.match(st, /--SmartThemeBlurTintColor/, 'mixed into SillyTavern\'s tint');
+});
+
+// Warning and error TEXT (the tones as text, not as fills) reads on each scheme's surface: at least 4.5:1 on the solid
+// surface, and on the light tint (#f6f5fb, Solid light) the base tones were 2.56:1 (bad) and 1.80:1 (warn).
+const luminanceOf = hex => {
+    const h = hex.replace('#', '');
+    const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratioOf = (a, b) => {
+    const [hi, lo] = [luminanceOf(a), luminanceOf(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+};
+
+test('warning and error text tokens are readable on each scheme (>= 4.5:1), defined for dark, light, Glass, Solid and Follow SillyTavern', async () => {
+    const { PALETTES, themeTokens } = await import('../../../src/v2/view/theme.js');
+    for (const scheme of ['dark', 'light']) {
+        const p = PALETTES[scheme];
+        assert.ok(ratioOf(p.badText, p.solid) >= 4.5, `${scheme} bad text ${p.badText} on ${p.solid}: ${ratioOf(p.badText, p.solid).toFixed(2)}`);
+        assert.ok(ratioOf(p.warnText, p.solid) >= 4.5, `${scheme} warn text ${p.warnText} on ${p.solid}: ${ratioOf(p.warnText, p.solid).toFixed(2)}`);
+    }
+    assert.ok(ratioOf(PALETTES.light.badText, '#f6f5fb') >= 4.5);
+    assert.ok(ratioOf(PALETTES.light.warnText, '#f6f5fb') >= 4.5);
+    for (const panel of ['glass', 'solid', 'sillytavern']) {
+        for (const scheme of ['dark', 'light']) {
+            const tokens = Object.fromEntries(themeTokens({ scheme, panel }));
+            assert.ok(tokens['--ss-bad-text'], `${panel} ${scheme} --ss-bad-text`);
+            assert.ok(tokens['--ss-warn-text'], `${panel} ${scheme} --ss-warn-text`);
+        }
+    }
+});
+
+// The settings window's help lines (the field, card and feature help, the Diagnostics credit) have a tone of their own that reads
+// over a busy background: at least 4.5:1 against the scheme's solid surface and the light tint, and the rule for them is scoped to the window.
+test('the settings window\'s help tone reads (>= 4.5:1) on each scheme\'s surface, and the rule for it is scoped to the window', async () => {
+    const { PALETTES, themeTokens } = await import('../../../src/v2/view/theme.js');
+    assert.ok(ratioOf(PALETTES.dark.help, PALETTES.dark.solid) >= 4.5, 'dark help');
+    assert.ok(ratioOf(PALETTES.light.help, PALETTES.light.solid) >= 4.5, 'light help');
+    assert.ok(ratioOf(PALETTES.light.help, '#eceaf6') >= 4.5, 'light help on a darker tint');
+    for (const panel of ['glass', 'solid', 'sillytavern']) {
+        for (const scheme of ['dark', 'light']) assert.ok(Object.fromEntries(themeTokens({ scheme, panel }))['--ss-help'], `${panel} ${scheme} --ss-help`);
+    }
+    const sheet = readFileSync(new URL('../../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    assert.match(sheet, /\.ss-settings :is\(\.ss-card-help, \.ss-field-help, \.ss-feature-help\) \{ color: var\(--ss-help, var\(--ss-muted\)\); opacity: 1; \}/);
 });

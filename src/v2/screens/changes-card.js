@@ -146,7 +146,7 @@ const CSS = `${BASE_CSS}
 .refused .line, .assisted .line { display: flex; gap: 8px; align-items: flex-start; }
 .refused .line > i, .assisted .line > i { flex: none; width: 16px; text-align: center; padding-top: 2px; }
 .refused .line > span, .assisted .line > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
-.refused .line > i { color: var(--ss-bad, var(--sb-em)); }
+.refused .line > i { color: var(--ss-bad-text, var(--ss-bad, var(--sb-em))); }
 .assisted .raw, .refused .raw { font-family: var(--monoFontFamily, monospace); font-size: 0.95em; overflow-wrap: anywhere; }
 `;
 

@@ -80,7 +80,7 @@ test('the UI sample draws every block in a light and a dark pane, and closes on 
         assert.ok(pane.querySelectorAll('.ss-glass').length >= 3 && pane.querySelector('.ss-glass-strong'));
         assert.equal(pane.querySelectorAll('.ss-widget-missing').length, 0);
         assert.ok(pane.querySelector('.ss-tile-ready') && pane.querySelector('.ss-tile-locked'));
-        assert.equal(pane.querySelector('.ss-status').getAttribute('aria-label'), 'Bleeding: 40 story minutes left');
+        assert.equal(pane.querySelector('.ss-status').getAttribute('aria-label'), 'Bleeding, 40 minutes left');
         const last = pane.querySelectorAll('.ss-status')[UI_SAMPLE_DATA.statuses.length - 1];
         assert.equal(last.querySelector('.ss-status-left').hidden, true, 'no count: no counter badge (5b)');
     }
