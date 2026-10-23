@@ -52,6 +52,7 @@ const SHARED = Object.freeze({
     '--ss-radius-l': '18px',
     '--ss-radius-xl': '22px',
     '--ss-radius-xxl': '26px',
+    '--ss-radius-button': '12px',
     '--ss-radius-pill': '999px',
     '--ss-space-1': '4px',
     '--ss-space-2': '8px',
