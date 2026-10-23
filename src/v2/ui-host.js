@@ -656,11 +656,13 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     for (const name of ['head', 'committed']) offs.push(events.on(name, () => { if (!panel.hidden) tabHost?.refresh(); }));
     // A feature turned on or off: its screens, tabs, widgets and cards come and go; nothing else changes.
     for (const name of ['head', 'committed', 'turn']) offs.push(events.on(name, () => overlay?.refreshSize?.()));
-    // A chat change closes the dialogs (their drafts were for the chat they were opened in) and the game view's More sheet.
+    // A chat change closes the dialogs (their drafts were for the chat they were opened in), the game view's More sheet and the
+    // Story panel's More sheet.
     const chatTypes = ctx.eventTypes ?? ctx.event_types ?? {};
     const onChatChanged = () => {
         mounts.dialog?.closeAll();
         mounts.screen?.closeMore?.();
+        tabHost?.bar?.closeMore?.({ focus: false });
     };
     if (typeof ctx.eventSource?.on === 'function' && chatTypes.CHAT_CHANGED) {
         ctx.eventSource.on(chatTypes.CHAT_CHANGED, onChatChanged);
