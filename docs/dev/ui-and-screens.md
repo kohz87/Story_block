@@ -339,6 +339,21 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
 - **The Close corner** (3g): from 760px the page's heading is a sticky strip (`.ss-settings-page-head`, `top: -20px` to reach the scroller's edge past its padding,
   a dense layered tint, Close in its right end), so a page scrolled under it never shows content under Close; on a phone Close sits in the title row above the
   scroller. Checked at 1440 and 390 on every page, at the top and scrolled.
+- **A phone is never scrolled around the window** (`view/scroll.js`, the phone hotfix). `scrollIntoView()` and a plain `focus()` scroll every scrollable
+  ancestor, including the fixed layer, the window (`overflow: hidden` does not stop a script), the document and the browser's visual viewport: on a real
+  phone the window's header, search and rail were pushed off the top with an empty band below the footer. So inside the window: **`revealIn(scroller,
+  node, block)`** sets the page scroller's `scrollTop` and nothing else (it leaves room for the sticky heading strip; `scroller` null finds
+  `.ss-settings-content`), **`focusNode`** is `focus({ preventScroll: true })`, **`showAndFocus`** is both (every `open(key)` of a body uses it), `holdPage(doc)`
+  keeps the document where it was and sets `overscroll-behavior: none` on `<html>` while the window is open, and on a phone `followViewport(doc, layer)`
+  keeps the layer over the visual viewport (the keyboard shrinks it, a pan moves it). The layer and the window are `overflow: clip` (a script cannot
+  scroll them) and a scroll that happens anyway is undone (`window.js`). **Never call `scrollIntoView` or a bare `focus()` in `view/settings/` or
+  `view/form/`** (a source test checks). The nav widget's `revealItem` only moves its own row sideways.
+- **Folds** (hotfix): on the **Features** page each module's group is a fold (`renderFeaturesForm(..., { fold: { state } })`: a `details`, chevron, the name and "N of M on"
+  in its summary), on the **Modules** page each module card is one (`createModuleCard(..., { collapsible: true })`); both closed by default, the state kept in
+  the window's `openState` (key `story-suite-features::<module id>`, the module id), a fold id or "Features: N of M on — change" opens the one it names, and a search
+  opens the ones with a match and gives the reader's choice back (a toggle during a search is not remembered).
+- **Dense on a phone** (hotfix): below 760px the window (and the game view) is full screen, so its tint is layered over itself (`settings.css`, `mounts.css`): the story
+  behind cannot be read through it at any Glass strength, and with the browser's blur switched off. From 760px it floats and keeps the reader's strength.
 - **Search** (`search.js`, the header's box = the form engine's `searchField`): typing filters **every section at once**. Each body
   answers `filter(text)` with how many matches it shows; a page with none is left out, the others show with their heading, the rail shows
   the counts, and the total is said in a polite live region in the form engine's words (`FORM_TEXT.shown` "N settings shown",
@@ -409,7 +424,7 @@ SillyTavern's own colours. The dialog's buttons take the action pills under ever
 - `src/v2/view/theme.js` (`themeTokens`, `themeCss`, `decideScheme`, `createThemeBridge`), `view/glass.css`,
   `view/widgets/glass.js` (`tile`, `bar`, `status`, `pill`), `view/form/` (`fields.js`, `form.js`, `schema.js`), `view/widgets/hero.js`, `tiers.js`, `listcard.js`, `nav.js`
   (`tabs`, `navbar`), `dialog.js`, `src/v2/screens/ui-sample.js` (`openUiSample`), `view/settings/` (`window.js`, `sections.js`,
-  `bodies.js`, `search.js`, `money.js`, `assist.js`, `tabs-packs.js`, `tabs-list.js`, `prompt.js`, `footer.js`, `modules.js`, `diagnostics-page.js`) and `view/settings.css`.
+  `bodies.js`, `search.js`, `money.js`, `assist.js`, `tabs-packs.js`, `tabs-list.js`, `prompt.js`, `footer.js`, `modules.js`, `diagnostics-page.js`), `view/scroll.js` (`revealIn`, `focusNode`, `showAndFocus`, `holdPage`, `followViewport`) and `view/settings.css`.
 - `src/v2/layout/`: JSON layouts (Studio's format) and their checks.
 - `src/v2/screens/`: host screens (home, inventory, scene, changes card, inspector, save points, hints).
   The changes card also draws modules' own lines for its reply (`hooks.replyCard`, `replyCardLines`, MODULES §F125).
@@ -425,6 +440,7 @@ SillyTavern's own colours. The dialog's buttons take the action pills under ever
   `tests/v2/view/form/features.test.js` (the features form), `tests/v2/ux/settings-money.test.js` (the Money page: cards, coins, slider words, validation, a story `+ coin` paying after edits),
   `tests/v2/ux/settings-modules.test.js` (the Modules page: cards, the Features line, groups and folds, panels and own folds, Story Block's share, Versions),
   `tests/v2/ux/settings-tabs-packs.test.js` (the Tabs & Packs page: the Tabs rows and their refusals, the Packs card, the budgets, the size and tokenizer, the footer bar, the fold ids), `tests/v2/ux/tabs-ui.test.js` (the tab order through the real UI), `tests/v2/packs/panel.test.js`, `tests/v2/whats-sent.test.js` ("Show what's sent" in the Prompt card),
+  `tests/v2/view/scroll.test.js` (the scroll and focus helpers), `tests/v2/screens/home-layout.test.js` (Home's hero row, tags that wrap),
   `tests/v2/ux/settings-diagnostics.test.js` (the Diagnostics page: the report card built on first show, Copy, Save, the sample button, Events, placed modules, search, the scrub),
   `tests/v2/ux/settings-assist.test.js` (the Assist page: cards, the switches in the feature store, locked rows with reasons, kind chips and the value wall, profile selects, the call queue),
   `tests/v2/ux/settings-css.test.js` (settings.css, the legacy surfaces' glass), `tests/v2/qa/settings-window-security.test.js`.
