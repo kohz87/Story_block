@@ -273,7 +273,8 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     assert.equal(text(el.querySelector('.time')), 'Day 1, 00:00');
     // No count limit now: every quest is in the card, and the card's list is capped with a "Show all" toggle (screens/show-more.js).
     assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3', 'Quest 4', 'Lost Ring']);
-    assert.equal(text(el.querySelector('.quest')), 'Quest 1 Not yet: 2/3 rats — clear the cellar ss.meter:Progress');
+    assert.equal(text(el.querySelector('.quest-head')), 'Quest 1 Not yet: 2/3 rats', 'the title and its pill share the head');
+    assert.equal(text(el.querySelector('.quest-goal')), 'clear the cellar', 'the goal is its own line, with no dash');
     assert.deepEqual(el.querySelectorAll('.quest .status').map(chip => [chip.getAttribute('data-state'), chip.textContent]), [
         ['notyet', 'Not yet: 2/3 rats'], ['here', 'Ready to turn in'], ['notyet', 'Not yet'], ['notyet', 'Not yet'], ['offered', 'Offered — say you take it'],
     ]);
