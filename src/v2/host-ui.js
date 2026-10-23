@@ -1113,5 +1113,16 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         draw();
     }
     draw();
-    return { refresh: draw, select, active: () => current, bar };
+    return {
+        refresh: draw,
+        select,
+        active: () => current,
+        bar,
+        /** Takes the open tab's widgets down (its pane disposed, and what its render returned). */
+        destroy() {
+            dispose(pane);
+            if (typeof release === 'function') { try { release(); } catch { /* a tab's cleanup failing must not block teardown */ } }
+            release = null;
+        },
+    };
 }
