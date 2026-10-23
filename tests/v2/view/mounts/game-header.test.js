@@ -51,7 +51,9 @@ test('the header is drawn on open with the lead and the scene, and the screen is
     assert.equal(slot.hidden, false);
     assert.equal(env.doc.querySelector('.ss-gameview').classList.contains('ss-gameview-has-hero'), true);
     assert.equal(env.doc.querySelector('.ss-gameview-hero .ss-hero-name').textContent, 'Ren');
-    assert.equal(env.doc.querySelector('.ss-gameview-hero .ss-hero-pill').textContent, 'Lv 4 · ranger');
+    assert.equal(env.doc.querySelector('.ss-gameview-hero .ss-hero-pill').textContent, 'ranger');
+    assert.equal(env.doc.querySelector('.ss-gameview-hero .ss-hero-level-number').textContent, '4');
+    assert.equal(env.doc.querySelector('.ss-gameview-hero .ss-hero-level .ss-visually-hidden').textContent, 'Lv 4');
     assert.deepEqual(calls, [3], 'read from the head state');
     assert.equal(env.doc.querySelector('.ss-gameview-body').querySelector('.drawn')?.textContent, 'test/one rev 3');
     env.close();

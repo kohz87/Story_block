@@ -498,3 +498,14 @@ backdrop filter or transform, or it sits in that element's box.
 | `closable`, `alert` | boolean | `true`, `false` | |
 | `onSelect` | string | `''` | |
 | `label` | string | `Dialog` | accessible name when there is no title |
+
+---
+
+## Icons (`ph-*`)
+
+The extension's own navigation and interface icons are Phosphor Icons (MIT), inlined in `src/v2/view/icons/set.js` (see `ICONS-CREDITS.md`). Skill and item pictures are not here: they come from the packs.
+
+- **Naming**: `ph-<name>` draws the line weight, `ph-<name>:fill` the solid one (the current tab). Any `icon` prop takes them, through `iconNode` (`widgets/dom.js`) and `icon` (`mounts/common.js`).
+- **Fallback**: Font Awesome names (`fa-map`, `fa-regular fa-compass`), `https:`/`data:image/*` pictures and short glyphs behave as before. An unknown `ph-*` id draws the default Font Awesome icon.
+- **Screens and tabs**: `iconFor(id, own)` (`view/icons/index.js`) gives the suite's own screens their icon (`TAB_ICONS`, by full id), else the icon the screen gives, else the default for the id's last part (`tabIcon`).
+- **Adding one**: take `assets/regular/<name>.svg` and `assets/fill/<name>-fill.svg` from `@phosphor-icons/core` 2.1.1, put their `<path d>` (joined with a space) in `set.js` as `'ph-<name>': icon(regular, fill)`, and add the id to `ICONS-CREDITS.md`. Don't add the package as a dependency.

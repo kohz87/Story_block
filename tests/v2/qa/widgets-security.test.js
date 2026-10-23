@@ -60,13 +60,13 @@ function assertInert(root, attrs, label) {
             assert.match(value, /^(?:https:\/\/[^/@\s]+\/|data:image\/(?:png|jpe?g|gif|webp|avif);base64,|\/(?![/\\]))/i, `${label}: image src ${value}`);
             assert.doesNotMatch(value, /^(?:javascript|data:image\/svg|http:)/i);
         }
-        if (name === 'class') for (const token of value.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
+        if (name === 'class') for (const token of value.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|ss-icon-svg|ss-visually-hidden|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
     }
     const walk = node => [node, ...(node.children ?? []).flatMap(walk)];
     for (const node of walk(root)) {
         assert.ok(!['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'FOREIGNOBJECT', 'A', 'STYLE', 'LINK'].includes(String(node.tagName).toUpperCase()), `${label}: no <${node.tagName}>`);
         const classes = typeof node.className === 'string' ? node.className : '';
-        for (const token of classes.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
+        for (const token of classes.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|ss-icon-svg|ss-visually-hidden|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
         for (const [key, value] of Object.entries(node.styleProps ?? {})) {
             assert.match(key, /^--ss-w-[a-z0-9-]+$|^--ss-fill$|^--ss-cols$|^(?:left|top|width|height|transform|display)$/, `${label}: style property ${key}`);
             assert.doesNotMatch(String(value), /url\(|expression|javascript|;|[{}<>]/i, `${label}: style value ${value}`);
