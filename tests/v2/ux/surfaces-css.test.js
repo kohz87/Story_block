@@ -169,3 +169,13 @@ test('the story panel: the tabs are the screen bar at its foot (no strip left), 
     assert.match(host, /@media \(min-width: 760px\) \{\s*\.story-suite-sheet \{[^}]*height: calc\(100dvh - var\(--topBarBlockSize, 40px\)\);/, 'a side sheet to the window height');
     assert.match(mounts, /\.ss-tabs-list\[data-ss-axis="x"\]\[data-ss-more="end"\]/, 'the sub-tab lists keep their fade');
 });
+
+test('the bar\'s buttons are at least 40px tall on a phone (44 preferred); desktop keeps its 36px pills', () => {
+    const host = readFileSync(new URL('../../../src/v2/view/host.css', import.meta.url), 'utf8');
+    const phone = host.slice(host.indexOf('@media (max-width: 560px)'));
+    const at = phone.indexOf('.story-suite-bar .menu_button');
+    assert.ok(at > 0, 'a phone rule for the bar buttons');
+    const height = Number(/min-height:\s*(\d+)px/.exec(phone.slice(at, phone.indexOf('}', at)))?.[1]);
+    assert.ok(height >= 40, `min-height ${height}px on a phone`);
+    assert.match(host, /\.story-suite-bar \.menu_button \{[^}]*min-height: 36px/, 'desktop unchanged');
+});

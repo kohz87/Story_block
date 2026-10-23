@@ -233,6 +233,8 @@ body.story-suite-open { overflow: hidden; }
 .story-suite-subsection { margin-top: 12px; }
 .story-suite-subsection > h4 { margin: 8px 0 4px; }
 @media (max-width: 560px) {
+    /* A finger's target: the bar's buttons are 44px tall on a phone (the 36px pill stays on desktop). */
+    .story-suite-bar .menu_button { min-height: 44px; }
     .story-suite-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
     .story-suite-fold-body { padding: 8px 10px 12px; }
     .story-suite-subfold-body { padding-left: 4px; }
