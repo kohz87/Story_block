@@ -93,7 +93,7 @@ test('the blocks read the theme tokens: glass, blur, hairline, shadow, radii, fo
     // Every token the blocks use is one the theme sets (or one a block sets itself).
     const used = new Set([...css.matchAll(/var\((--ss-[a-z0-9-]+)/g)].map(m => m[1]));
     const set = new Set(themeTokens().map(([name]) => name));
-    for (const name of used) assert.ok(set.has(name) || ['--ss-fill', '--ss-ring', '--ss-bar-color', '--ss-tile-size', '--ss-cols'].includes(name), `token ${name} is set by the theme`);
+    for (const name of used) assert.ok(set.has(name) || ['--ss-fill', '--ss-ring', '--ss-bar-color', '--ss-tile-size', '--ss-cols', '--ss-thumb-ring'].includes(name), `token ${name} is set by the theme`);
     // Transitions follow the motion token (0s when the system asks for less motion).
     for (const rule of all) if (/transition:/.test(rule.block)) assert.match(rule.block, /var\(--ss-motion/, rule.selectors[0]);
 });
@@ -192,9 +192,11 @@ test('the form engine\'s rules are in glass.css: rows, switch, inputs, slider, c
     // The switch\'s hit area reaches past its 28 px.
     assert.ok(all.some(rule => rule.selectors.includes(`${ROOT_SELECTOR} .ss-switch::after`) && /inset: -8px/.test(rule.block)));
     // Every focusable control has a visible focus.
-    for (const name of ['ss-input', 'ss-switch', 'ss-chip', 'ss-lines-add', 'ss-lines-remove', 'ss-lines-toggle', 'ss-search-clear', 'ss-slider .ss-slider-input']) {
+    for (const name of ['ss-input', 'ss-switch', 'ss-chip', 'ss-lines-add', 'ss-lines-remove', 'ss-lines-toggle', 'ss-search-clear']) {
         assert.ok(all.some(rule => rule.selectors.some(s => s.includes(`.${name}:focus-visible`)) && /outline: 2px solid var\(--ss-accent\)/.test(rule.block)), `${name} focus ring`);
     }
+    // A slider's focus is a ring round its thumb (the input's box is not outlined: that box was the blue frame on a range).
+    assert.ok(all.some(rule => rule.selectors.some(s => s.endsWith('.ss-slider .ss-slider-input:focus-visible')) && /--ss-thumb-ring: 0 0 0 2px var\(--ss-knob\), 0 0 0 4px var\(--ss-accent\)/.test(rule.block)), 'ss-slider focus ring on the thumb');
     // No literal colour anywhere in the form rules.
     const form = css.slice(css.indexOf('The form engine'), css.indexOf('the UI sample'));
     assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(form.replace(/\/\*[\s\S]*?\*\//g, '')), 'colours come from the tokens');
