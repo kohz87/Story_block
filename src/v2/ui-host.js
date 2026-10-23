@@ -512,6 +512,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const noticeClose = iconButton(doc, 'story-suite-notice-close', 'fa-xmark', '', S.bar.dismiss);
     notice.append(noticeText, noticeClose);
     bar.append(storyButton, gameButton, settingsButton, notice);
+    // SillyTavern's keyboard handler clicks a focused menu_button on Enter, and the browser's own Enter activation clicks it again:
+    // one press, two clicks (the Story toggle opened and closed). The browser's activation is cancelled for the bar's buttons;
+    // the handler's click is the one that counts (Space is one click already: it activates on the key's release).
+    for (const node of [storyButton, gameButton, settingsButton]) node.addEventListener('keypress', event => { if (event.key === 'Enter') event.preventDefault(); });
     storyButton.addEventListener('click', () => (panel.hidden ? openPanel() : closePanel()));
     gameButton.addEventListener('click', () => mounts.screen.open(HOME_SCREEN_ID));
     settingsButton.addEventListener('click', () => openSettings());

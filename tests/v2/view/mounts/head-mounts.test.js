@@ -201,7 +201,7 @@ test('enabled(mount, id) lets the reader turn screens off; createMounts builds a
     assert.equal(createMounts(deps).card, null);
 });
 
-test('screen: opened by a pointer, the window takes the focus (no ring on the close button); opened by a key, the close button', () => {
+test('screen: opened by a pointer, the window takes the focus (no ring on the close button); opened by a key, the close button (one task later)', async () => {
     const { doc, deps } = world([screen('m/party', ['tab', 'screen']), screen('m/map', ['screen'], { title: 'Map' })]);
     const view = createScreenMount(deps);
     const press = type => doc.listeners.filter(l => l.type === type).forEach(l => l.fn({ type, key: 'Enter' }));
@@ -212,6 +212,7 @@ test('screen: opened by a pointer, the window takes the focus (no ring on the cl
     view.close();
     press('keydown');
     view.open('m/map');
+    await new Promise(resolve => setTimeout(resolve, 0));
     assert.equal(doc.activeElement, doc.body.querySelector('.ss-gameview-close'), 'a key opens it on the close button');
     view.destroy();
     assert.equal(doc.listeners.filter(l => l.type === 'pointerdown' || l.type === 'keydown').length, 0, 'destroy leaves no input tracker');

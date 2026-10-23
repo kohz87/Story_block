@@ -142,8 +142,11 @@ export function createScreenMount(deps) {
         view = { root, bar: screenBar, title, body, handle: null, screenId: target, before: doc.activeElement ?? null, off: onHead(deps, update), heroSlot, hero: null, phone, onWidth };
         doc.addEventListener?.('keydown', onKey, true);
         show(target);
-        // by pointer: the window takes the focus (no ring); by key: the close button (its ring is the keyboard's)
-        focusNode(lastPointer ? root : closer);
+        // by pointer: the window takes the focus (no ring); by key: the close button (its ring is the keyboard's), one task later:
+        // the key that opened the view is still being handled, and its own activation (Enter, Space) would click whatever has the
+        // focus at that moment, which is the Game view button, not the close button (focusing it at once closed the view again)
+        if (lastPointer) focusNode(root);
+        else setTimeout(() => { if (view?.root === root) focusNode(closer); }, 0);
         return true;
     }
 
