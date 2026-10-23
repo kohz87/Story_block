@@ -29,13 +29,13 @@ test('inventory: grouped by kind, with qty, rarity, equipped marker and the wall
     assert.deepEqual(groups.filter(([, n]) => n > 0), [['equipment', 2], ['consumable', 2], ['goods', 2]]);
     assert.deepEqual(visibleItems(el), ['Dagger', 'Iron Sword', 'Minor Healing Draught', 'Minor Healing Draught', 'Lantern', 'Rope']);
     const sword = el.querySelectorAll('.item')[1];
-    assert.equal(sword.className, 'item r-uncommon equipped');
+    assert.equal(sword.className, 'item ss-glass r-uncommon equipped');
     assert.equal(text(sword.querySelector('.eq')), 'hand');
     assert.equal(sword.querySelector('.rarity').textContent, 'uncommon');
     assert.equal(sword.querySelectorAll('.qty').length, 0);
     const rope = el.querySelectorAll('.item')[5];
-    assert.equal(rope.className, 'item');
-    assert.equal(rope.querySelector('.qty').textContent, '×3');
+    assert.equal(rope.className, 'item ss-glass');
+    assert.equal(rope.querySelector('.ss-tile-count').textContent, '3', 'the count is on the tile (5b)');
     const cloudy = el.querySelectorAll('.item')[3];
     assert.equal(cloudy.querySelector('.note').textContent, 'cloudy');
     assert.equal(el.querySelectorAll('.empty').length, 0);

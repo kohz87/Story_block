@@ -30,7 +30,9 @@ test('wide screens: the tab row under the header, the body below, and no side co
     assert.match(wide, /\.ss-gameview-nav \{[^}]*order: 2;/);
     assert.match(wide, /\.ss-gameview-body \{\s*order: 3;/);
     assert.match(wide, /\.ss-gameview-hero \{\s*order: 1;/);
-    assert.match(wide, /\.ss-gameview-navitem\[aria-current="page"\] \{[^}]*box-shadow: inset 0 -2px 0 var\(--ss-accent\);/);
+    // option A: the current tab is a raised pill (accent border, the shadow), not an underline
+    assert.match(wide, /\.ss-gameview-navitem\[aria-current="page"\] \{[^}]*border-color: var\(--ss-accent\);[^}]*box-shadow: var\(--ss-shadow/);
+    assert.doesNotMatch(mounts, /inset 0 -2px 0/, 'no underline on the tabs');
     assert.doesNotMatch(mounts, /\.ss-gameview \{\s*flex-direction: row;/, 'the game view is a column at every width');
 });
 
