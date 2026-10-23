@@ -459,7 +459,8 @@
     flex-direction: column;
     align-items: center;
     min-width: 0;
-    padding-bottom: 9px;
+    /* equal room above and below the portrait: the portrait is centred on its cell (and so on the text beside it) */
+    padding: 9px 0;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-level {
     /* the level: a badge over the portrait's lower edge, a star and the number, no wider than the cell */
@@ -477,8 +478,10 @@
     padding: 1px 8px 1px 6px;
     border: 1px solid var(--ss-accent);
     border-radius: 999px;
-    background: linear-gradient(var(--ss-accent-soft), var(--ss-accent-soft)), var(--ss-sheet-floor, var(--ss-glass-strong));
-    color: var(--ss-text);
+    /* a solid accent fill with the dark ring text (the mock's badge): no translucent fill, so the portrait's edge or the scene
+       never lies under the number (its contrast is measured: tests/v2/ux/section-label.test.js pins the choice) */
+    background: var(--ss-accent);
+    color: var(--ss-on-ring);
     font-size: 13px;
     font-weight: 800;
     line-height: 16px;
@@ -498,7 +501,7 @@
     font-size: 12px;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-compact .ss-hero-face {
-    padding-bottom: 7px;
+    padding: 7px 0;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-compact .ss-hero-level {
     padding: 0 5px 0 4px;
