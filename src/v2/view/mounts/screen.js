@@ -187,6 +187,10 @@ export function createScreenMount(deps) {
         update,
         isOpen: () => !!view,
         current: () => view?.screenId ?? null,
+        /** The bar's More sheet: opened, closed (focus back to More) and asked. */
+        openMore: () => !!view && view.bar.openMore(),
+        closeMore: () => { if (view) view.bar.closeMore({ focus: true }); },
+        isMoreOpen: () => !!view && view.bar.isMoreOpen(),
         destroy() {
             close();
             doc.removeEventListener?.('pointerdown', onPointer, true);

@@ -10,6 +10,10 @@
 // deps (see common.js); `api` must have command(type, payload, { cause }), preview(type, payload) and
 // commit(token) (plain results or promises).
 //
+// deps.chatScope() → { chat, branch } (optional, ui-host.js): the chat the reader is in and the story's head. A window
+// opened in one chat, or before the story moved on, sends nothing after either changed: a submit, a roll or an accept is
+// refused with the reason, and the chat change itself closes the window (ui-host.js).
+//
 // mount(el, screenId, opts) adds the modal to `el` (open() uses document.body). opts:
 //   draft      the starting draft (copied)
 //   submit     the command the last step sends (default: the step's `[data-submit]` attribute)
@@ -25,6 +29,7 @@
 import { button, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
 
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const MOVED_ON = 'This window was opened in another chat or before the story moved on, so nothing was sent. Close it and open it again.';
 
 /** The controls in `root` Tab can reach, in document order (hidden and disabled ones left out). */
 export function focusablesIn(root) {
@@ -35,6 +40,10 @@ export function createDialogMount(deps) {
     if (typeof deps?.render !== 'function') throw new TypeError('The dialog mount needs a render(el, screen, scope) function.');
     const doc = documentOf(deps);
     const open = [];          // handles, the topmost last
+    // The chat and the head now (deps.chatScope); null when the wiring gives none.
+    const scopeNow = () => {
+        try { return deps.chatScope?.() ?? null; } catch { return null; }
+    };
 
     const onKey = event => {
         if (!open.length) return;
@@ -112,6 +121,16 @@ export function createDialogMount(deps) {
         const showError = message => {
             error.textContent = message ?? '';
             error.hidden = !message;
+        };
+        // The chat and the head the window was opened on; a change to either refuses what it would send.
+        const openedOn = scopeNow();
+        const movedOn = () => {
+            const now = scopeNow();
+            return !!(openedOn && now && (now.chat !== openedOn.chat || now.branch !== openedOn.branch));
+        };
+        const refuseMoved = () => {
+            showError(MOVED_ON);
+            return { ok: false, code: 'CHAT_CHANGED', message: MOVED_ON };
         };
         const isLast = () => at === steps.length - 1;
         const submitType = () => opts.submit ?? body.querySelector('[data-submit]')?.getAttribute('data-submit') ?? null;
@@ -201,6 +220,7 @@ export function createDialogMount(deps) {
 
         function submit() {
             if (closed) return Promise.resolve({ ok: false, code: 'CLOSED', message: 'This window is closed.' });
+            if (movedOn()) return Promise.resolve(refuseMoved());
             return once(async () => {
                 const type = submitType();
                 if (!type) {
@@ -218,6 +238,7 @@ export function createDialogMount(deps) {
 
         function random() {
             if (closed || !randomSpec) return Promise.resolve({ ok: false, code: 'NO_COMMAND', message: 'There is nothing to roll here.' });
+            if (movedOn()) return Promise.resolve(refuseMoved());
             return once(async () => {
                 showError('');
                 const result = await deps.api.preview(randomSpec.type, plainCopy(randomSpec.payload ?? draft));
@@ -236,6 +257,7 @@ export function createDialogMount(deps) {
 
         function accept() {
             if (closed || !token) return Promise.resolve({ ok: false, code: 'NO_PREVIEW', message: 'Roll first, then accept.' });
+            if (movedOn()) return Promise.resolve(refuseMoved());
             return once(async () => {
                 const kept = token;
                 token = null;

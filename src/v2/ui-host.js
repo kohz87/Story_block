@@ -311,9 +311,17 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card'
         ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes) } : {}) }
         : scope);
+    // The chat and the story head a dialog was opened on (mounts/dialog.js): the chat's id, and the head reply's record and swipe.
+    const branchNow = () => {
+        const index = store.headIndex();
+        if (!Number.isInteger(index) || index < 0) return `${index}`;
+        const message = ctx.chat?.[index];
+        return `${index}|${readRecord(message)?.sid ?? ''}|${message?.swipe_id ?? 0}`;
+    };
     const mounts = createMounts({
         screens,
         render: renderer.render,
+        chatScope: () => ({ chat: String(ctx.getCurrentChatId?.() ?? ctx.chatId ?? ''), branch: branchNow() }),
         // A chat with no carrier has head index -1 (and a stale index can point past the end): no
         // state there, so the mounts show nothing instead of failing on store.at's RangeError.
         stateAt: index => (Number.isInteger(index) && index >= 0 && index < (ctx.chat?.length ?? 0) ? store.at(index) : null),
@@ -646,6 +654,16 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     for (const name of ['head', 'committed']) offs.push(events.on(name, () => { if (!panel.hidden) tabHost?.refresh(); }));
     // A feature turned on or off: its screens, tabs, widgets and cards come and go; nothing else changes.
     for (const name of ['head', 'committed', 'turn']) offs.push(events.on(name, () => overlay?.refreshSize?.()));
+    // A chat change closes the dialogs (their drafts were for the chat they were opened in) and the game view's More sheet.
+    const chatTypes = ctx.eventTypes ?? ctx.event_types ?? {};
+    const onChatChanged = () => {
+        mounts.dialog?.closeAll();
+        mounts.screen?.closeMore?.();
+    };
+    if (typeof ctx.eventSource?.on === 'function' && chatTypes.CHAT_CHANGED) {
+        ctx.eventSource.on(chatTypes.CHAT_CHANGED, onChatChanged);
+        offs.push(() => (ctx.eventSource.removeListener ?? ctx.eventSource.off)?.call(ctx.eventSource, chatTypes.CHAT_CHANGED, onChatChanged));
+    }
     offs.push(events.on('feature', () => {
         // The overlay draws the switch and the fields of that feature again, and the prompt size.
         overlay?.refresh?.();
