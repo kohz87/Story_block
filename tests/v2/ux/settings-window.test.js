@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { setupDom } from '../view/mounts/helpers.js';
-import { FEATURES_FOLD, HOST_FOLD, OPEN_CLASS, PACKS_FOLD, SENT_FOLD, SETTINGS_TEXT, TABS_FOLD, VERSIONS_FOLD, featuresFoldOf } from '../../../src/v2/host-ui.js';
+import { FEATURES_FOLD, HOST_FOLD, OPEN_CLASS, PACKS_FOLD, SENT_FOLD, SETTINGS_TEXT, TABS_FOLD, VERSIONS_FOLD, SUB_FOLD, featuresFoldOf } from '../../../src/v2/host-ui.js';
 import { FORM_TEXT } from '../../../src/v2/view/form/schema.js';
 import { SECTION_BODIES, createLegacySettings } from '../../../src/v2/view/settings/bodies.js';
 import { PROMPT_FOLD } from '../../../src/v2/view/settings/prompt.js';
@@ -212,7 +212,7 @@ test('the Features line in a module\'s fold goes to that module\'s group on the 
     assert.deepEqual(shownPages(root), ['features']);
     const group = page(root, 'features').querySelectorAll('.ss-features-group').find(node => node.dataset.fold === featuresFoldOf('story-block'));
     assert.ok(group);
-    assert.ok(doc.activeElement === group.querySelector('.ss-section-title'), 'the focus on that module\'s heading');
+    assert.ok(doc.activeElement === group.querySelector('summary'), 'the focus on that module\'s heading');
     host.close();
 });
 
@@ -258,10 +258,11 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
         assert.equal(win.section(), section, fold);
         assert.deepEqual(shownPages(root), [section], fold);
         if (section === 'features') {
-            // A module's features are a group of tiles, not a fold: its heading has the focus (the whole page: the first group's).
+            // A module's features are a fold of tiles: it is open and its summary has the focus (the whole page: the first group's).
             const group = page(root, 'features').querySelectorAll('.ss-features-group').find(node => node.dataset.fold === (wanted === FEATURES_FOLD ? page(root, 'features').querySelector('.ss-features-group').dataset.fold : wanted));
             assert.ok(group, `${fold} is drawn`);
-            assert.ok(doc.activeElement === group.querySelector('.ss-section-title'), `${fold} has the focus`);
+            assert.ok(doc.activeElement === group.querySelector('summary'), `${fold} has the focus`);
+            assert.equal(group.open, true, `${fold} is open`);
             win.close();
             host.close();
             continue;
@@ -302,9 +303,11 @@ test('opened at a fold: that fold\'s page shows, the fold is open and its summar
             const id = fold.split('::')[0];
             const wantedNode = fold === VERSIONS_FOLD ? at.querySelector('.ss-versions-card .ss-section-title')
                 : fold.includes('::group:') ? [...cardOf(root, id).querySelectorAll('.ss-section-title')].find(node => node.textContent === fold.split('::group:')[1])
-                    : cardOf(root, id).querySelector('.ss-section-title');
+                    : cardOf(root, id).querySelector('summary');
             assert.ok(wantedNode, `${fold} is drawn`);
-            assert.ok(doc.activeElement === wantedNode, `${fold} has the focus`);
+            if (fold.includes('::group:')) assert.ok(doc.activeElement === wantedNode || doc.activeElement === wantedNode.closest?.('summary') || doc.activeElement?.contains?.(wantedNode), `${fold} has the focus`);
+            else assert.ok(doc.activeElement === wantedNode, `${fold} has the focus`);
+            if (fold !== VERSIONS_FOLD) assert.equal(cardOf(root, id).open, true, `${fold}: the module's card is open`);
             win.close();
             host.close();
             continue;
@@ -693,4 +696,89 @@ test('Features: searched with the rest; a feature found by its description or it
     search(root, 'story block');
     assert.deepEqual(page(root, 'features').querySelectorAll('.ss-feature').filter(node => !node.hidden).map(node => node.dataset.feature), host.features.list().filter(feature => feature.moduleId === 'story-block').map(feature => feature.id), 'by the module\'s name');
     host.close();
+});
+
+// ---- a phone must not be scrolled around the window (hotfix): only the page scroller moves, nothing else is asked to
+test('jumping to a fold scrolls nothing but the page: no scrollIntoView anywhere, every programmatic focus is preventScroll', async () => {
+    const { FakeElement } = await import('../../ui-fake-dom.js');
+    const scrolled = [];
+    const focused = [];
+    const proto = FakeElement.prototype;
+    const hadScroll = Object.getOwnPropertyDescriptor(proto, 'scrollIntoView');
+    const focus = proto.focus;
+    proto.scrollIntoView = function scrollIntoView(options) { scrolled.push(options); };
+    proto.focus = function recordedFocus(options) { focused.push(options); focus.call(this); };
+    try {
+        const { root, win, host } = await open({ window: { fold: featuresFoldOf('loot') } });
+        // the Modules page's line to a module's Features, the footer, the other fold ids
+        win.select('modules');
+        const link = root.querySelectorAll('.ss-module-features').find(node => !node.hidden);
+        link?.click();
+        for (const key of [PACKS_FOLD, PROMPT_FOLD, SENT_FOLD, TABS_FOLD, FEATURES_FOLD, VERSIONS_FOLD, featuresFoldOf('rpg-battle'), 'rpg-battle', `rpg-battle${SUB_FOLD}group:Trade`]) {
+            const again = await open({ window: { fold: key } });
+            again.win.close();
+            again.host.close();
+        }
+        root.querySelector('.ss-footer-open, .ss-settings-foot button')?.click();
+        assert.deepEqual(scrolled, [], 'scrollIntoView is never used inside the window');
+        assert.ok(focused.length > 0, 'some focus moved');
+        assert.ok(focused.every(options => options && options.preventScroll === true), `every focus is preventScroll: ${JSON.stringify(focused)}`);
+        win.close();
+        host.close();
+    } finally {
+        proto.focus = focus;
+        if (hadScroll) Object.defineProperty(proto, 'scrollIntoView', hadScroll); else delete proto.scrollIntoView;
+    }
+});
+
+test('the window\'s layer and window never stay scrolled; the document is held while it is open and let go on close', async () => {
+    const doc = setupDom();
+    const style = { overscrollBehavior: 'auto' };
+    doc.documentElement = { style };
+    doc.scrollingElement = { scrollTop: 25, scrollLeft: 0 };
+    const docListeners = [];
+    const add = doc.addEventListener;
+    doc.addEventListener = (type, fn, options) => { docListeners.push([type, fn]); add(type, fn, options); };
+    const remove = doc.removeEventListener;
+    doc.removeEventListener = (type, fn) => { const at = docListeners.findIndex(item => item[0] === type && item[1] === fn); if (at >= 0) docListeners.splice(at, 1); remove(type, fn); };
+    const host = await createHost({ modules: [loot(), rpg()] });
+    const win = openSettingsWindow({ registry: host.registry, settings: host.settings, features: host.features, doc, sdk: host.sdk, tabs: tabsControl(), openState: new Map() });
+    assert.equal(style.overscrollBehavior, 'none', 'no scroll chaining into the page behind');
+    // a browser scrolling the layer or the window to show a focused box is undone
+    win.root.scrollTop = 140;
+    win.root.dispatch('scroll');
+    assert.equal(win.root.scrollTop, 0);
+    const frame = win.root.querySelector('.ss-settings');
+    frame.scrollTop = 90;
+    frame.scrollLeft = 12;
+    frame.dispatch('scroll');
+    assert.deepEqual([frame.scrollTop, frame.scrollLeft], [0, 0]);
+    // and so is the document
+    doc.scrollingElement.scrollTop = 300;
+    for (const [type, fn] of docListeners) if (type === 'scroll') fn();
+    assert.equal(doc.scrollingElement.scrollTop, 25);
+    win.close();
+    assert.equal(style.overscrollBehavior, 'auto', 'let go on close');
+    doc.scrollingElement.scrollTop = 99;
+    for (const [type, fn] of docListeners) if (type === 'scroll') fn();
+    assert.equal(doc.scrollingElement.scrollTop, 99, 'no longer held');
+    host.close();
+});
+
+test('source: nothing in the settings window or the form engine calls scrollIntoView or a bare focus()', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const dirs = ['src/v2/view/settings', 'src/v2/view/form'];
+    const offenders = [];
+    for (const dir of dirs) {
+        for (const name of readdirSync(new URL(`../../../${dir}/`, import.meta.url))) {
+            if (!name.endsWith('.js')) continue;
+            const text = readFileSync(new URL(`../../../${dir}/${name}`, import.meta.url), 'utf8').split('\n');
+            text.forEach((line, index) => {
+                const code = line.replace(/\/\/.*$/, '');
+                if (/scrollIntoView\s*[(?]/.test(code)) offenders.push(`${dir}/${name}:${index + 1} scrollIntoView`);
+                if (/\.focus\??\.?\(\s*\)/.test(code) && !/prompt\.focus\(|tabsCard\.focus\(/.test(code) && !/^\s*focus\(\)\s*\{/.test(code)) offenders.push(`${dir}/${name}:${index + 1} focus()`);
+            });
+        }
+    }
+    assert.deepEqual(offenders, []);
 });

@@ -180,7 +180,8 @@ test('the settings window opened at a module\'s old "<id>::features" shows the F
     assert.equal(overlayApi.section(), 'features');
     const group = overlayApi.root.querySelectorAll('.ss-features-group').find(node => node.dataset.fold === featuresFoldOf('loot'));
     assert.ok(group, 'Loot\'s group of tiles');
-    assert.ok(doc.activeElement === group.querySelector('.ss-section-title'));
+    assert.ok(doc.activeElement === group.querySelector('summary'), 'the group\'s summary has the focus');
+    assert.equal(group.open, true, 'the group the fold names is open');
     overlayApi.close();
     host.close();
 });
