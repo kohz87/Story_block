@@ -1,7 +1,7 @@
 // Screen CSS: scoped to the screen root, keyframes prefixed, nothing loaded from outside, 64 KB.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_CSS_BYTES, cssVarValue, filterDeclarations, keyframePrefix, scopeCss, screenSelector, themeVars } from '../../../../src/v2/view/css.js';
+import { MAX_CSS_BYTES, cssVarValue, filterDeclarations, keyframePrefix, scopeCss, screenSelector, selectorEscape, themeVars } from '../../../../src/v2/view/css.js';
 
 const S = '[data-ss-screen="rpg-battle/party"]';
 const scope = css => scopeCss(css, 'rpg-battle/party');
@@ -11,7 +11,7 @@ test('every selector is scoped, lists and combinators included; root aliases bec
         .sheet { color: red }
         h2, .card > .title , a:hover::after { margin: 0 }
         :root { --ss-accent: #7c5cff }
-        body .x, html { padding: 1px }
+        html { padding: 1px }
         > .direct { gap: 2px }
         :scope.wide { width: 100% }
     `);
@@ -20,7 +20,7 @@ test('every selector is scoped, lists and combinators included; root aliases bec
         `${S} .sheet { color: red }`,
         `${S} h2, ${S} .card > .title, ${S} a:hover::after { margin: 0 }`,
         `${S} { --ss-accent: #7c5cff }`,
-        `${S} .x, ${S} { padding: 1px }`,
+        `${S} { padding: 1px }`,
         `${S} > .direct { gap: 2px }`,
         `${S}.wide { width: 100% }`,
     ].join('\n'));
@@ -117,4 +117,40 @@ test('style attributes, theme and bound CSS variables use the same checks', () =
     assert.equal(cssVarValue('red; background: url(x)'), '');
     assert.equal(cssVarValue('</style>'), '');
     assert.equal(cssVarValue({}), '');
+});
+
+// A screen's selectors reach only the screen's own root and what is inside it. The hostile ones are refused (dropped from the
+// sheet, and a pack that has one is refused by packs/validate.js unsafeCss); the ones a screen needs keep working.
+const HOSTILE = [
+    ':root ~ * ',
+    ':root~*',
+    ':root\n  + div',
+    'html ~ *',
+    'BODY > .hud',
+    'body .hud',
+    ':root .x',
+    ':host ~ .x',
+    ':scope + .x',
+    ':root:has(+ .hud)',
+    'html:has(~ *)',
+    '.a:has(~ .hud)',
+    '*:has(+ *)',
+    '~ *',
+    '+ .hud',
+];
+const GOOD = [
+    ':root', ':root.dark', 'html[data-x]', ':scope.wide', '> .direct', '.card > .title', 'h2', 'a:hover::after',
+    '.a ~ .b', '.a + .b', '.a:has(> .b)', '.a:has(.b)', '.list:has(.item) .x', '[data-x="a ~ b"]', '#hud .x', '*',
+];
+
+test('a selector that reaches beyond the screen root is refused: the page beside it, siblings of the root, :has() on siblings', () => {
+    for (const selector of HOSTILE) assert.notEqual(selectorEscape(selector), '', JSON.stringify(selector));
+    for (const selector of GOOD) assert.equal(selectorEscape(selector), '', JSON.stringify(selector));
+});
+
+test('scopeCss drops a hostile selector with a plain warning and keeps the rest of its list', () => {
+    const { css, warnings } = scope(':root ~ * { display: none !important } .hud, :root ~ .hud { color: red }');
+    assert.equal(css, `${S} .hud { color: red }`, 'the hostile selectors are gone, the good one stays');
+    assert.equal(warnings.length, 2);
+    assert.ok(warnings.every(w => /sibling|starts at/.test(w)), warnings.join(' | '));
 });
