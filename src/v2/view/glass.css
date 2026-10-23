@@ -1207,7 +1207,8 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 8px 16px;
     align-items: start;
-    padding: 12px 0;
+    /* rows 16px apart (8px above and below each); a field's help is 6px under its label, its control 8px under the text */
+    padding: 8px 0;
     border-bottom: 1px solid color-mix(in srgb, var(--ss-muted) 28%, transparent);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-field:last-child {
@@ -1220,7 +1221,7 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-field-text {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
     min-width: 0;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-field-label {
@@ -1913,6 +1914,10 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-tabrow-where {
     color: var(--ss-muted);
     font-size: 12px;
+}
+/* A tab row's lock tag ("Always shown") sits 6px under its place, like a field's note under its help. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-tabrow-where + .ss-field-tag {
+    margin-top: 6px;
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-tabrow-hidden .ss-tabrow-title {
     color: var(--ss-muted);
