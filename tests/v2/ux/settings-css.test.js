@@ -198,7 +198,7 @@ test('the features form: tiles on the tokens, two columns where there is room an
     for (const part of ['var(--ss-border)', 'var(--ss-radius-l)', 'var(--ss-tile)', 'var(--ss-text)', 'var(--ss-font)']) assert.ok(tile.includes(part), part);
     assert.match(rule('.ss-feature-name'), /font-size: 15px;\s*font-weight: 800;/);
     assert.match(rule('.ss-feature-help'), /color: var\(--ss-muted\);\s*font-size: 13px;/);
-    assert.match(rule('.ss-feature-why'), /var\(--ss-warn\)/);
+    assert.match(rule('.ss-feature-why'), /var\(--ss-warn-text\)/);
     // The group is a heading over its tiles, no card (the tiles are the cards); one weight heavier than `.ss-section`.
     const group = rule('.ss-features .ss-features-group.ss-section');
     assert.match(group, /background: none;/);
@@ -371,4 +371,9 @@ test('folds on the Features and Modules pages are whole rows (44px), a fold of m
     const block = glass.slice(at, glass.indexOf('/* helpers of the UI sample', at));
     assert.match(block, /\.ss-features \.ss-section-fold > \.ss-section-head,[\s\S]*?\.ss-module-card\.ss-section-fold > \.ss-section-head \{\s*align-items: center;\s*min-height: 44px;/);
     for (const selector of ['.ss-features .ss-section-fold > .ss-section-head', '.ss-module-card.ss-section-fold > .ss-section-head', '.ss-features .ss-section-fold-open > .ss-section-head']) assert.ok(weight(`${ROOT_SELECTOR} ${selector}`) <= 30, selector);
+});
+
+test('the desktop settings window puts Glass over an opaque floor (the phone\'s floor), so the busy page behind does not reach its text', () => {
+    const css = readFileSync(new URL('../../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    assert.match(css, /@media \(min-width: 760px\) \{\s*:where\([^)]*\) \.ss-settings \{\s*background-color: var\(--ss-sheet-floor, transparent\);\s*background-image: linear-gradient\(var\(--ss-glass\), var\(--ss-glass\)\);/);
 });

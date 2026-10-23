@@ -28,6 +28,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Icons (48)
+## Icons (49)
 
-`ph-house`, `ph-users-three`, `ph-backpack`, `ph-scroll`, `ph-globe-hemisphere-west`, `ph-map-trifold`, `ph-sword`, `ph-hammer`, `ph-scales`, `ph-book-open`, `ph-film-slate`, `ph-identification-card`, `ph-map-pin`, `ph-gear-six`, `ph-bookmark-simple`, `ph-x`, `ph-caret-left`, `ph-caret-right`, `ph-dots-three-outline`, `ph-magnifying-glass`, `ph-clock`, `ph-cloud-sun`, `ph-heart`, `ph-drop`, `ph-lightning`, `ph-caret-double-up`, `ph-coins`, `ph-dice-five`, `ph-lock-simple`, `ph-check-circle`, `ph-x-circle`, `ph-warning`, `ph-info`, `ph-package`, `ph-download-simple`, `ph-arrow-counter-clockwise`, `ph-star`, `ph-sparkle`, `ph-list`, `ph-plus`, `ph-minus`, `ph-trash`, `ph-pencil-simple`, `ph-eye`, `ph-eye-slash`, `ph-chat-circle-dots`, `ph-user`, `ph-crown`
+`ph-skull`, `ph-house`, `ph-users-three`, `ph-backpack`, `ph-scroll`, `ph-globe-hemisphere-west`, `ph-map-trifold`, `ph-sword`, `ph-hammer`, `ph-scales`, `ph-book-open`, `ph-film-slate`, `ph-identification-card`, `ph-map-pin`, `ph-gear-six`, `ph-bookmark-simple`, `ph-x`, `ph-caret-left`, `ph-caret-right`, `ph-dots-three-outline`, `ph-magnifying-glass`, `ph-clock`, `ph-cloud-sun`, `ph-heart`, `ph-drop`, `ph-lightning`, `ph-caret-double-up`, `ph-coins`, `ph-dice-five`, `ph-lock-simple`, `ph-check-circle`, `ph-x-circle`, `ph-warning`, `ph-info`, `ph-package`, `ph-download-simple`, `ph-arrow-counter-clockwise`, `ph-star`, `ph-sparkle`, `ph-list`, `ph-plus`, `ph-minus`, `ph-trash`, `ph-pencil-simple`, `ph-eye`, `ph-eye-slash`, `ph-chat-circle-dots`, `ph-user`, `ph-crown`

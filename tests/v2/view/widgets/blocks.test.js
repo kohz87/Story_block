@@ -58,7 +58,7 @@ test('hero: name, the class · title line, the level badge, HP/MP/SP bars and th
     assert.deepEqual(m.el.querySelectorAll('.ss-hero-corner-item').map(node => node.getAttribute('data-kind')), ['time', 'place', 'weather']);
     assert.deepEqual(m.el.querySelectorAll('.ss-hero-corner-text').map(node => node.textContent), ['07:20', 'North Cut', 'Drizzle']);
     assert.equal(m.el.querySelectorAll('.ss-status').length, 2);
-    assert.equal(m.el.querySelector('.ss-status').getAttribute('aria-label'), 'Bleeding: 40 story minutes left');
+    assert.equal(m.el.querySelector('.ss-status').getAttribute('aria-label'), 'Bleeding, 40 minutes left');
     assert.ok(!classes(m.root).includes('ss-hero-compact'));
     // Compact: the same card in a one-row variant; no api command is ever run (read-only).
     m.handle.update({ ...HERO, compact: true });

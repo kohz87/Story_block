@@ -673,3 +673,10 @@ test('text form: every list of text and whole numbers has the toggle; others and
 
 const coreFor = () => createCoreModule({ packs: packsFor({ extensionSettings: {} }) });
 const report = { report: () => 'REPORT' };
+
+test('the legacy story-suite-slider is gone: no code or rule draws it (the form engine has the slider)', () => {
+    const hostUi = readFileSync(new URL('../../src/v2/host-ui.js', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8');
+    assert.doesNotMatch(hostUi, /story-suite-slider|sliderControl/);
+    assert.doesNotMatch(css, /story-suite-slider/);
+});

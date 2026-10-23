@@ -156,3 +156,17 @@ test('a card screen with defaultOn shows until the reader turns it off', async (
     screens.addModule('x', [{ id: 'x/bad', mounts: ['card'], template: '<p></p>', defaultOn: 'yes' }]);
     assert.equal(screens.resolve('x/bad').screen, null);
 });
+
+test('a screen whose css changed gets its new sheet on the next draw: one sheet, the new css; no css left, no sheet', () => {
+    const { doc, el, renderer } = setup();
+    const sheets = () => doc.head.querySelectorAll('style').filter(node => node.id === 'ss-css-test_swap');
+    const screen = { id: 'test/swap', mounts: ['tab'], template: '<b class="x">x</b>', css: '.x { color: red; }' };
+    renderer.render(el, screen, { state, api: {}, mount: 'tab' });
+    assert.match(sheets()[0].textContent, /color: red/);
+    renderer.render(el, { ...screen, css: '.x { color: green; }' }, { state, api: {}, mount: 'tab' });
+    assert.equal(sheets().length, 1);
+    assert.match(sheets()[0].textContent, /color: green/);
+    assert.doesNotMatch(sheets()[0].textContent, /color: red/);
+    renderer.render(el, { ...screen, css: '' }, { state, api: {}, mount: 'tab' });
+    assert.equal(sheets().length, 0, 'a screen with no css has no sheet');
+});
