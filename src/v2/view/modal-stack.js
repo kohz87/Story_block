@@ -13,12 +13,24 @@
 
 import { focusNode } from './scroll.js';
 
-const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]';
+const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex], summary';
 
 /** The controls in `root` Tab can reach, in document order (hidden and disabled ones left out). */
 export function focusablesIn(root) {
-    return Array.from(root?.querySelectorAll?.(FOCUSABLE) ?? []).filter(node => !node.disabled && !node.hidden && !node.closest?.('[hidden]') && node.getAttribute?.('tabindex') !== '-1');
+    return Array.from(root?.querySelectorAll?.(FOCUSABLE) ?? []).filter(node => !node.disabled && !node.hidden && !node.closest?.('[hidden]') && node.getAttribute?.('tabindex') !== '-1'
+        // a closed fold shows its summary only: what is inside it is not reachable
+        && (node.tagName === 'SUMMARY' || !closedFold(node)));
 }
+
+/** Whether `node` sits in a <details> that is closed (its summary, the one line it shows, is the exception). */
+const closedFold = node => {
+    const fold = node.closest?.('details');
+    return Boolean(fold) && !fold.open;
+};
+
+// The z-index of the first layer; each layer pushed after it is one above the last, so the keys and the paint agree (the game view
+// over Settings, Settings over the game view, a dialog over both).
+const Z_BASE = 3020;
 
 /** Whether `node` is `root` or inside it (no `contains` needed: a test's fake DOM has none). */
 const within = (node, root) => {
@@ -45,10 +57,21 @@ export function stackOf(doc) {
 function createStack(doc) {
     const list = [];
     let attached = false;
+    let z = Z_BASE;
     const top = () => list[list.length - 1] ?? null;
+    // A layer whose element has left the page is dropped (its owner forgot to close it): it takes no key and holds no focus.
+    const stageOf = layer => layer.el ?? layer.root;
+    const prune = () => {
+        for (let at = list.length - 1; at >= 0; at -= 1) if (stageOf(list[at])?.isConnected === false) list.splice(at, 1);
+        if (!list.length) {
+            detach();
+            z = Z_BASE;
+        }
+    };
 
     // One keydown listener (bubble phase): Escape goes to the topmost layer; Tab goes round it, past its last control to its first, and back.
     const onKeyDown = event => {
+        prune();
         const layer = top();
         if (!layer) return;
         // An Enter on a SillyTavern-clickable button: its keydown is cancelled, so the browser's own activation (the keypress that
@@ -101,14 +124,20 @@ function createStack(doc) {
     return {
         push(layer) {
             if (!layer?.root) throw new TypeError('A modal layer needs a root element.');
+            prune();
             if (list.includes(layer)) return layer;
             const active = doc.activeElement;
             layer.opener = active && active !== doc.body && !within(active, layer.root) ? active : null;
             list.push(layer);
+            // one above the layer under it: the top of the stack is the one painted on top
+            z += 1;
+            const stage = stageOf(layer);
+            if (stage?.style) stage.style.zIndex = String(z);
             attach();
             return layer;
         },
         pop(layer, { focus = true } = {}) {
+            prune();
             const at = list.indexOf(layer);
             if (at < 0) return false;
             const wasTop = at === list.length - 1;

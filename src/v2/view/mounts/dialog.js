@@ -310,6 +310,8 @@ export function createDialogMount(deps) {
             close,
             closed: closedPromise,
             isOpen: () => !closed,
+            /** The element that had the focus when the window opened (the one it gives the focus back to), or null. */
+            opener: () => layer?.opener ?? null,
         };
 
         (el ?? doc.body).appendChild(backdrop);
@@ -331,5 +333,9 @@ export function createDialogMount(deps) {
         closeAll() { [...open].reverse().forEach(handle => handle.close()); },
         /** Closes each open dialog whose screen id passes `test(screenId)` (topmost first). */
         closeWhere(test) { [...open].reverse().filter(handle => test(handle.screenId)).forEach(handle => handle.close()); },
+        /** Closes each open dialog that was opened from inside `node` (its opener is in `node`), topmost first. */
+        closeOpenedIn(node) {
+            [...open].reverse().filter(handle => { const at = handle.opener(); for (let n = at; n; n = n.parentNode) if (n === node) return true; return false; }).forEach(handle => handle.close());
+        },
     };
 }
