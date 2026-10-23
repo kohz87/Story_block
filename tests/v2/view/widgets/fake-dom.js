@@ -164,32 +164,7 @@ export class Element extends Node {
     }
     /** Dispatches a fake event (capture down, target, bubble up); returns it. */
     dispatch(type, init = {}) {
-        const event = {
-            type, target: this, currentTarget: null, defaultPrevented: false, stopped: false,
-            preventDefault() { this.defaultPrevented = true; },
-            stopPropagation() { this.stopped = true; },
-            ...init,
-        };
-        const path = [];
-        for (let node = this; node; node = node.parentNode) path.push(node);
-        const run = (node, phase) => {
-            event.currentTarget = node;
-            for (const entry of [...node.listeners]) {
-                if (entry.type !== type) continue;
-                if (phase === 'target' || entry.capture === (phase === 'capture')) entry.fn.call(node, event);
-            }
-        };
-        for (const node of path.slice(1).reverse()) {
-            run(node, 'capture');
-            if (event.stopped) return event;
-        }
-        run(this, 'target');
-        if (event.stopped) return event;
-        for (const node of path.slice(1)) {
-            run(node, 'bubble');
-            if (event.stopped) break;
-        }
-        return event;
+        return runPath(eventFor(type, init, this));
     }
     click() { return this.dispatch('click', { button: 0 }); }
     focus() { this.ownerDocument.activeElement = this; }
@@ -213,6 +188,55 @@ export class Element extends Node {
     allListeners() { return [this, ...this.descendants()].flatMap(node => node.listeners); }
 }
 
+/** One event object for the whole way it travels: a stop (stopPropagation or stopImmediatePropagation) sets state on it. */
+function eventFor(type, init, target) {
+    return {
+        type, target, currentTarget: null, defaultPrevented: false, stopped: false, immediate: false,
+        preventDefault() { this.defaultPrevented = true; },
+        stopPropagation() { this.stopped = true; },
+        stopImmediatePropagation() { this.stopped = true; this.immediate = true; },
+        ...init,
+    };
+}
+
+/** The listeners of one node for one phase; stopImmediatePropagation skips the rest of this node's listeners. */
+function runListeners(node, event, phase) {
+    event.currentTarget = node;
+    for (const entry of [...node.listeners]) {
+        if (entry.type !== event.type) continue;
+        if (phase !== 'target' && entry.capture !== (phase === 'capture')) continue;
+        entry.fn.call(node, event);
+        if (event.immediate) return;
+    }
+}
+
+/** Capture down from the root to the target, the target, then bubble up; stops as soon as the event is stopped. */
+function runPath(event) {
+    const path = [];
+    for (let node = event.target; node; node = node.parentNode) path.push(node);
+    for (const node of path.slice(1).reverse()) {
+        runListeners(node, event, 'capture');
+        if (event.stopped) return event;
+    }
+    runListeners(event.target, event, 'target');
+    if (event.stopped) return event;
+    for (const node of path.slice(1)) {
+        runListeners(node, event, 'bubble');
+        if (event.stopped) break;
+    }
+    return event;
+}
+
+/** The document's own listeners for one phase (capture: true for the capturing ones). */
+function runDocument(doc, event, capture) {
+    event.currentTarget = doc;
+    for (const entry of [...doc.docListeners]) {
+        if (entry.type !== event.type || entry.capture !== capture) continue;
+        entry.fn.call(doc, event);
+        if (event.immediate) return;
+    }
+}
+
 /** A fresh document installed on globalThis.document (with head, body, and an optional ResizeObserver). */
 export function installDom({ resizeObserver = false } = {}) {
     const observers = [];
@@ -231,14 +255,12 @@ export function installDom({ resizeObserver = false } = {}) {
             doc.docListeners = doc.docListeners.filter(entry => entry.type !== type || entry.fn !== fn || entry.capture !== capture);
         },
         fire(type, init = {}, target = null) {
-            const event = {
-                type, target: target ?? doc.activeElement ?? doc.body, defaultPrevented: false, stopped: false,
-                preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...init,
-            };
-            for (const entry of [...doc.docListeners]) if (entry.type === type && entry.capture) entry.fn.call(doc, event);
-            if (!event.stopped) event.target.dispatch?.(type, init);
-            // then the bubbling document listeners (a shared stack's Escape), as on a page, unless something stopped the event
-            if (!event.stopped) for (const entry of [...doc.docListeners]) if (entry.type === type && !entry.capture) entry.fn.call(doc, event);
+            // One event for the whole way: the document's capturing listeners, the target's path, then the bubbling document
+            // listeners (a shared stack's Escape), as on a page. A stop anywhere is kept on this same object.
+            const event = eventFor(type, init, target ?? doc.activeElement ?? doc.body);
+            runDocument(doc, event, true);
+            if (!event.stopped) runPath(event);
+            if (!event.stopped) runDocument(doc, event, false);
             return event;
         },
     };
