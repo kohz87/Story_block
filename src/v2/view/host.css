@@ -283,13 +283,13 @@ body.story-suite-open { overflow: hidden; }
 .ss-packs-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .ss-packs-actions .menu_button { display: inline-flex; align-items: center; gap: 6px; width: auto; margin: 0; min-height: 36px; }
 .ss-packs-message:empty, .ss-packs-errors:empty { display: none; }
-.ss-packs-errors { margin: 4px 0; padding-left: 18px; color: var(--warning, #d9a33a); }
+.ss-packs-errors { margin: 4px 0; padding-left: 18px; color: var(--ss-bad-text, var(--warning, #d9a33a)); }
 .ss-packs-list { display: grid; gap: 8px; }
 .ss-packs-row { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--story-suite-line); min-width: 0; overflow-wrap: anywhere; }
 .ss-packs-row .menu_button { justify-self: start; width: auto; margin: 4px 0 0; display: inline-flex; align-items: center; gap: 6px; }
 .ss-packs-label { display: flex; align-items: center; gap: 6px; font-weight: bold; }
 .ss-packs-facts, .ss-packs-description, .ss-packs-empty { opacity: 0.75; }
-.ss-packs-problem { color: var(--warning, #d9a33a); }
+.ss-packs-problem { color: var(--ss-bad-text, var(--warning, #d9a33a)); }
 
 /* The prompt size in Story Suite's fold. */
 .story-suite-size-sum { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }

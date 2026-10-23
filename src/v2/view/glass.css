@@ -2422,6 +2422,8 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-versions-warn .ss-section-hint {
     color: var(--ss-warn-text);
     font-weight: 700;
+    /* SillyTavern fades every <small> (style.css: small { opacity: 0.7 }): the warning keeps its full tone */
+    opacity: 1;
 }
 
 /* Folds a finger can hit (phone hotfix): the Features page's module groups and the Modules page's cards fold, so their summary is a whole row */

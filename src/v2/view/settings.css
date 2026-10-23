@@ -500,3 +500,13 @@
         transition: none;
     }
 }
+
+/* The desktop window (a centred glass window, 760px and up): Glass lays its translucent glass over an opaque floor (--ss-sheet-floor,
+   set for Glass only, as the phone's full-screen window has), so the busy page behind does not reach the text. Solid and Follow
+   SillyTavern leave the token unset: the floor is transparent and the window stays as it was. */
+@media (min-width: 760px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-settings {
+        background-color: var(--ss-sheet-floor, transparent);
+        background-image: linear-gradient(var(--ss-glass), var(--ss-glass));
+    }
+}

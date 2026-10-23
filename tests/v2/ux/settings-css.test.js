@@ -372,3 +372,8 @@ test('folds on the Features and Modules pages are whole rows (44px), a fold of m
     assert.match(block, /\.ss-features \.ss-section-fold > \.ss-section-head,[\s\S]*?\.ss-module-card\.ss-section-fold > \.ss-section-head \{\s*align-items: center;\s*min-height: 44px;/);
     for (const selector of ['.ss-features .ss-section-fold > .ss-section-head', '.ss-module-card.ss-section-fold > .ss-section-head', '.ss-features .ss-section-fold-open > .ss-section-head']) assert.ok(weight(`${ROOT_SELECTOR} ${selector}`) <= 30, selector);
 });
+
+test('the desktop settings window puts Glass over an opaque floor (the phone\'s floor), so the busy page behind does not reach its text', () => {
+    const css = readFileSync(new URL('../../../src/v2/view/settings.css', import.meta.url), 'utf8');
+    assert.match(css, /@media \(min-width: 760px\) \{\s*:where\([^)]*\) \.ss-settings \{\s*background-color: var\(--ss-sheet-floor, transparent\);\s*background-image: linear-gradient\(var\(--ss-glass\), var\(--ss-glass\)\);/);
+});

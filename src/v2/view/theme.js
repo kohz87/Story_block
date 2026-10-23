@@ -105,7 +105,7 @@ export const PALETTES = Object.freeze({
         accentText: '#5a48d6',
         // warning and error TEXT on the light glass: >= 4.5:1 (the base tones are 2.56:1 and 1.80:1 on #f6f5fb)
         badText: '#a4262c', warnText: '#8a4b00',
-        help: '#3a3d55',
+        help: '#23253a',
     }),
 });
 
