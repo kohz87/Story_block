@@ -273,7 +273,7 @@
 
     /* the current tab: a raised pill (accent border, accent-soft fill, the shadow), its label in the text colour; no underline */
     .ss-gameview-navitem[aria-current="page"] {
-        border-color: var(--ss-accent);
+        border-color: var(--ss-tab-edge, var(--ss-accent));
         background: var(--ss-accent-soft, transparent);
         box-shadow: var(--ss-shadow, none);
         color: var(--ss-text, inherit);
