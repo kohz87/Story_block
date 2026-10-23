@@ -8,8 +8,9 @@
 // card's avatar (`/thumbnail?type=avatar&file=…`), a picture a module answers for the lead (`npc.portrait`, Delta's
 // query, asked with `{ name }`), else '' (the hero draws the initial). Nothing here runs a command.
 //
-// The reader's SillyTavern is read through `readHeroContext()` (getContext(): name1, user_avatar, characters and
-// characterId, the same fields RPG Battle's persona reader uses); tests pass their own context.
+// The reader's SillyTavern is read through `readHeroContext()` (getContext(): name1, characters and characterId; the
+// current persona's file from the context when it has one, else from the page: personaFileOnPage). Tests pass their own
+// context and document.
 
 const TEXT_MAX = 120;
 
@@ -27,18 +28,48 @@ export function cardAvatarUrl(file) {
     return name ? `/thumbnail?type=avatar&file=${encodeURIComponent(name)}` : '';
 }
 
-/** What the reader's SillyTavern says about the persona and the open character: names and avatar files, '' for none. */
-export function readHeroContext(context = globalThis.SillyTavern?.getContext?.() ?? null) {
+// The persona thumbnail a user message or the persona list shows: `/thumbnail?type=persona&file=…` (SillyTavern's getThumbnailUrl).
+const personaFileOfSrc = src => {
+    try {
+        const url = new URL(textOf(src), 'http://local.invalid');
+        return url.pathname === '/thumbnail' && url.searchParams.get('type') === 'persona' ? textOf(url.searchParams.get('file')) : '';
+    } catch { return ''; }
+};
+
+/**
+ * The current persona's avatar file from the page, '' when none is found. SillyTavern 1.19's getContext() does not carry it
+ * (`user_avatar` is personas.js's own state): the persona list marks the current persona's row `selected` (its
+ * `data-avatar-id` is the file), and the newest user message shows the persona's picture unless it was given another one.
+ */
+export function personaFileOnPage(doc = globalThis.document) {
+    try {
+        const row = doc?.querySelector?.('#user_avatar_block .avatar-container.selected');
+        const listed = textOf(row?.getAttribute?.('data-avatar-id') ?? row?.getAttribute?.('imgfile') ?? '');
+        if (listed) return listed;
+        const pictures = [...(doc?.querySelectorAll?.('.mes[is_user="true"] .avatar img') ?? [])];
+        for (let i = pictures.length - 1; i >= 0; i -= 1) {
+            const file = personaFileOfSrc(pictures[i]?.getAttribute?.('src') ?? '');
+            if (file) return file;
+        }
+    } catch { /* no page here (a test, or SillyTavern not drawn yet): none */ }
+    return '';
+}
+
+/**
+ * What the reader's SillyTavern says about the persona and the open character: names and avatar files, '' for none.
+ * The persona's file is the first of: the context's `user_avatar` (or SillyTavern's global, as RPG Battle's persona reader reads it),
+ * the current persona on the page (personaFileOnPage), and the settings' default persona (power user's `default_persona`).
+ */
+export function readHeroContext(context = globalThis.SillyTavern?.getContext?.() ?? null, doc = globalThis.document) {
     let card = null;
     try {
         const id = context?.characterId;
         card = id != null && Array.isArray(context?.characters) ? context.characters[id] ?? null : null;
     } catch { card = null; }
+    const fromContext = textOf(context?.user_avatar ?? context?.userAvatar ?? globalThis.user_avatar);
     return {
         personaName: textOf(context?.name1),
-        // the persona's avatar file: the context's, else SillyTavern's global (as RPG Battle's persona reader reads it), else the
-        // default persona of the settings (power user's `default_persona`: the file a new chat uses)
-        personaFile: textOf(context?.user_avatar ?? context?.userAvatar ?? globalThis.user_avatar ?? context?.powerUserSettings?.default_persona),
+        personaFile: fromContext || personaFileOnPage(doc) || textOf(context?.powerUserSettings?.default_persona),
         cardName: textOf(card?.name),
         cardFile: textOf(card?.avatar),
     };
