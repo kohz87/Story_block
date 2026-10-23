@@ -81,7 +81,11 @@ export function createSavePointsWidget({ points, enabled = () => true, notify = 
                 }
             }
 
+            // The list's toggle (capToggle): its ResizeObserver is disconnected on each redraw and on destroy.
+            let capOff = null;
             function draw() {
+                capOff?.();
+                capOff = null;
                 if (!enabled()) {
                     root = null;
                     host.replaceChildren();
@@ -184,6 +188,7 @@ export function createSavePointsWidget({ points, enabled = () => true, notify = 
                     root.appendChild(rows);
                     // A long list is capped with "Show all" (no scrollbar), like the other long cards on Home.
                     const more = capToggle(doc, rows, { key: 'story-block/home:saves' });
+                    capOff = more.destroy;
                     root.appendChild(more.button);
                     doc.defaultView?.requestAnimationFrame?.(() => more.refresh());
                     more.refresh();
@@ -208,6 +213,8 @@ export function createSavePointsWidget({ points, enabled = () => true, notify = 
             return {
                 update: () => draw(),
                 destroy() {
+                    capOff?.();
+                    capOff = null;
                     for (const off of offs.splice(0)) off();
                     host.replaceChildren();
                 },

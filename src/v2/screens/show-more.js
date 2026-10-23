@@ -40,7 +40,18 @@ export function capToggle(doc, target, { key = '', more = STRINGS.showMore.more,
         refresh();
     });
     paint();
-    return { button, refresh, destroy: () => button.remove() };
+    // A resize of the card (a window, the story panel, a phone turned) can make the list taller or shorter than the cap: check again.
+    // Guarded: a host without ResizeObserver keeps the check at each draw and each resize of the window (the widget's listener).
+    const RO = doc.defaultView?.ResizeObserver ?? globalThis.ResizeObserver;
+    let observer = null;
+    if (typeof RO === 'function') {
+        try { observer = new RO(() => refresh()); observer.observe(target); } catch { observer = null; }
+    }
+    return {
+        button,
+        refresh,
+        destroy: () => { observer?.disconnect?.(); observer = null; button.remove(); },
+    };
 }
 
 /** `story-block.show-more`: { target } (a selector inside the card that holds the widget; default `.sb-cap`), { key }, { more, less }. */

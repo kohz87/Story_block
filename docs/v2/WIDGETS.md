@@ -422,7 +422,10 @@ under a reply (36 px portrait, the name and pill, three small bars, small badges
 | `statuses` | list | `[]` | `[{ id, label, icon, left, unit, tone }]`, at most 12: `ss.status` badges |
 | `compact` | boolean | `false` | |
 
-No picture, a refused URL, a failed load: the name's initial. The bars are `ss.bar` and the badges `ss.status`.
+The pictures are tried in order: the query's answer (`portraitQuery`, a string or `{ url }` / `{ src }`), then `portraits`, then
+`portrait`. A picture that is refused (not a safe URL) is left out, and one that fails to load (an `error` on the image) is skipped
+for the next. With no picture left, the name's initial. The bars are `ss.bar` and the badges `ss.status`. A status with no count
+(no set end) shows no counter badge.
 
 ```html
 <ss-widget name="ss.hero" data-props='{"bind":"q.hero"}'></ss-widget>

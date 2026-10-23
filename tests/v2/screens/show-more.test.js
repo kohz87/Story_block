@@ -93,3 +93,31 @@ test('the open state is kept per card: a new toggle for the same card starts ope
 test('Home passes its card key, so the quests toggle keeps its state', () => {
     assert.match(homeScreen.template, /"key":"story-block\/home:quests"/);
 });
+
+test('a resize of the card re-checks the toggle (ResizeObserver, guarded); destroy disconnects it; no observer, no error', () => {
+    const doc = installFakeDom();
+    const saved = globalThis.ResizeObserver;
+    const made = [];
+    globalThis.ResizeObserver = class {
+        constructor(fn) { this.fn = fn; this.targets = []; this.disconnected = false; made.push(this); }
+        observe(el) { this.targets.push(el); }
+        disconnect() { this.disconnected = true; }
+    };
+    try {
+        const list = doc.createElement('ul');
+        const toggle = capToggle(doc, list, { key: 'story-block/home:resize-test' });
+        assert.equal(made.length, 1, 'one observer for the list');
+        assert.equal(made[0].targets[0], list, 'it watches the capped list');
+        list.scrollHeight = 500; list.clientHeight = 200;
+        made[0].fn();
+        assert.equal(toggle.button.hidden, false, 'taller after the resize: the button shows');
+        toggle.destroy();
+        assert.equal(made[0].disconnected, true, 'destroy disconnects');
+    } finally {
+        globalThis.ResizeObserver = saved;
+    }
+    delete globalThis.ResizeObserver;
+    const plain = capToggle(doc, doc.createElement('ul'), { key: 'story-block/home:no-observer-test' });
+    assert.equal(plain.button.hidden, true);
+    plain.destroy();
+});

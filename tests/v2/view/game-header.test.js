@@ -96,3 +96,27 @@ test('the avatar paths are SillyTavern\'s own, and the context is read without t
     assert.deepEqual(readHeroContext(null), { personaName: '', personaFile: '', cardName: '', cardFile: '' });
     assert.deepEqual(readHeroContext({ characterId: 5, characters: [] }).cardFile, '');
 });
+
+test('a module\'s picture answer is a string or an object (`{ url }` / `{ src }`), and the lead\'s pictures are an ordered list', async () => {
+    const { pictureOf, portraitCandidates } = await import('../../../src/v2/view/game-header.js');
+    assert.equal(pictureOf('https://x.example/a.png'), 'https://x.example/a.png');
+    assert.equal(pictureOf({ url: 'https://x.example/b.png' }), 'https://x.example/b.png');
+    assert.equal(pictureOf({ src: 'https://x.example/c.png' }), 'https://x.example/c.png');
+    assert.equal(pictureOf(null), '');
+    assert.deepEqual(portraitCandidates({ personaFile: 'me.png', cardFile: 'ren.png', npcPicture: 'https://x.example/n.png' }), [
+        '/thumbnail?type=persona&file=me.png', '/thumbnail?type=avatar&file=ren.png', 'https://x.example/n.png',
+    ]);
+    assert.deepEqual(portraitCandidates({ personaFile: '', cardFile: '', npcPicture: '' }), []);
+    const props = gameHeroProps({ state: STATE, query: answers({ 'npc.portrait': { url: 'https://cdn.example/ren.png' } }), formatTime: fmt, context: { cardFile: 'ren.png' } });
+    assert.deepEqual(props.portraits, ['/thumbnail?type=avatar&file=ren.png', 'https://cdn.example/ren.png'], 'the object answer is used, after the card');
+    assert.equal(props.portrait, '/thumbnail?type=avatar&file=ren.png');
+});
+
+test('a 70+ character class and role are cut to the header\'s limits (40 each), and the pill line stays bounded', async () => {
+    const { heroLine } = await import('../../../src/v2/view/widgets/hero.js');
+    const long = 'Soul Class of the Long Wakeful Watchers of the Northern Reaches and Beyond'; // 74 characters
+    const props = gameHeroProps({ state: STATE, query: answers({ 'party.pc': { ...ren, role: long, className: long } }), formatTime: fmt, context: {} });
+    assert.equal(props.title.length, 40);
+    assert.equal(props.className.length, 40);
+    assert.ok(heroLine(props).length <= 40 + 40 + 12 + 6, 'the pill line is bounded (class, level, role, separators)');
+});

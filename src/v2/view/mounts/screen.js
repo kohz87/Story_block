@@ -21,6 +21,7 @@
 import { button, documentOf, headState, icon, make, mountHead, onHead, screensFor } from './common.js';
 import { bringIntoView, scrollCue } from '../scroll-cue.js';
 import { hero } from '../widgets/hero.js';
+import { focusNode } from '../scroll.js';
 
 const PHONE_QUERY = '(max-width: 759.98px)';
 
@@ -131,7 +132,7 @@ export function createScreenMount(deps) {
         view.cue = scrollCue(nav, { win: doc.defaultView ?? globalThis });
         doc.addEventListener?.('keydown', onKey, true);
         show(target);
-        closer.focus?.();
+        focusNode(closer);
         return true;
     }
 
@@ -146,7 +147,7 @@ export function createScreenMount(deps) {
         handle?.unmount();
         header?.destroy?.();
         root.remove();
-        before?.focus?.();
+        focusNode(before);
     }
 
     /** Redraws the open screen (and its navigation, in case the screens changed). */

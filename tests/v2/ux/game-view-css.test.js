@@ -58,9 +58,12 @@ test('the section label: a label, a hairline in the rule token, one class of wei
 
 test('the phone game view has an opaque floor under the tint, so blur off hides the story behind the cards', () => {
     const phone = mounts.slice(mounts.indexOf('@media (max-width: 759.98px) {', mounts.indexOf('.ss-gameview {')));
-    assert.match(phone, /\.ss-gameview \{[^}]*background-color: var\(--ss-sheet-floor, var\(--ss-sheet-bg, var\(--ss-surface\)\)\);/);
+    // Glass only: the phone's floor and layers are tokens the theme sets for Glass; Solid and Follow SillyTavern have none
+    assert.match(phone, /\.ss-gameview \{\s*background-image: var\(--ss-gameview-phone-layers, var\(--ss-sheet-layers, none\)\);/);
+    assert.match(phone, /--ss-gameview-phone-floor, var\(--ss-sheet-bg, rgb\(from var\(--ss-surface\) r g b \/ 1\)\)/);
     const theme = read('theme.js');
     assert.match(theme, /\['--ss-sheet-floor', 'rgb\(from var\(--ss-glass-strong\) r g b \/ 1\)'\]/, 'the floor is the Glass colour with no alpha');
+    assert.match(theme, /\['--ss-gameview-phone-layers'/);
 });
 
 test('the phone header shows the scene as one ellipsised line under the name (the corner), not hidden', () => {
@@ -68,4 +71,13 @@ test('the phone header shows the scene as one ellipsised line under the name (th
     assert.match(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*display: flex;[^}]*overflow: hidden;/);
     assert.match(glass, /\.ss-hero-compact \.ss-hero-corner-text \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
     assert.match(glass, /"portrait who status" "portrait corner corner" "vitals vitals vitals"/);
+});
+
+test('the hero pill never passes its card: it wraps an unbroken word (min-width 0, max-width 100%, overflow-wrap anywhere)', () => {
+    const at = glass.indexOf('.ss-hero-pill {');
+    assert.ok(at > 0);
+    const body = glass.slice(at, glass.indexOf('}', at));
+    assert.match(body, /min-width: 0;/);
+    assert.match(body, /max-width: 100%;/);
+    assert.match(body, /overflow-wrap: anywhere;/);
 });

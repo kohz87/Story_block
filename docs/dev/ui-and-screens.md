@@ -472,7 +472,9 @@ their states, the plates, the class-level exceptions and their specificity), `te
   `conditions`), `party.terms` (the level's word), `scene.place`, `scene.weather`, `director.time` (formatted by the host's
   `fmt.time`). The lead's name falls back to the persona's. The portrait is `portraitOf`: the persona avatar
   (`/thumbnail?type=persona&file=…`), else the card's (`/thumbnail?type=avatar&file=…`), else `npc.portrait` asked with
-  `{ name }`, else the initial. Every read is a query, every failed read is an empty part. The mount calls `deps.heroOf(state)`
+  `{ name }` (a string, or an answer `{ url }` / `{ src }`), else the initial. The hero keeps the pictures in order (`portraits`,
+  then `portrait`): an image that fails to load is skipped and the next one tried, and the initial shows past the last. A failed
+  picture is remembered for the widget, so a redraw does not ask for it again. Every read is a query, every failed read is an empty part. The mount calls `deps.heroOf(state)`
   (ui-host.js) on open, on a screen change, on each redraw and when the 760px breakpoint changes (`compact` on a phone).
 - **The layout** (`mounts.css`): the bar, the header and the body are the game view's own flex items (`.ss-gameview-main` is
   `display: contents`). A phone (under 760px): title bar, header (compact), screen, the floating bottom bar. Wide: title bar,
@@ -489,7 +491,9 @@ their states, the plates, the class-level exceptions and their specificity), `te
   top-aligned. A long list is capped: `.sb-cap[data-capped="true"]` is at most 15em (about two normal cards) with no scrollbar,
   and a "Show all" / "Show less" button (`capToggle` in `screens/show-more.js`, the widget `story-block.show-more` for a template's
   card, and the same helper on Save points' list) opens it. The button is there only while the list is taller than the cap, and
-  shows `aria-expanded`. The open state is in the toggle, so a redraw of the screen starts folded again.
+  shows `aria-expanded`. The open state is kept per card (a page-level map keyed by card, e.g. `story-block/home:quests`), so a
+  redraw or a new head or commit does not fold it back. The button's list watches its own size (a ResizeObserver, guarded), and
+  the Save points list disconnects its observer on each redraw and on destroy.
 - **The section label** (`glass.css`, `.ss-section-label`): documented in WIDGETS.md. Use it for any heading of a part of a screen. Its line is `var(--ss-rule, var(--ss-border))`; a module that draws its own rule uses the same.
 - Tests: `tests/v2/view/game-header.test.js` (the lead, the scene, the fallbacks, the portrait order, the avatar paths),
   `tests/v2/view/mounts/game-header.test.js` (the slot on open, a head change, a screen change, no state, a throwing `heroOf`),

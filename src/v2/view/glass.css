@@ -404,7 +404,12 @@
     color: var(--ss-text);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-pill {
+    /* a long class or role wraps inside the card, even as one unbroken word: never past the card's edge (a 360 px phone) */
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
     white-space: normal;
+    overflow-wrap: anywhere;
     text-overflow: clip;
     overflow: visible;
     line-height: 1.25;

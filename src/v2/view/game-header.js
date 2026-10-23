@@ -42,12 +42,24 @@ export function readHeroContext(context = globalThis.SillyTavern?.getContext?.()
     };
 }
 
+/** A module's picture answer: a string, or `{ url }` / `{ src }` (what a query may answer); '' for none. */
+export function pictureOf(answer) {
+    if (typeof answer === 'string') return textOf(answer);
+    if (answer && typeof answer === 'object') return textOf(answer.url ?? answer.src ?? '');
+    return '';
+}
+
 /**
- * The first picture that is there: persona avatar, card avatar, the module's picture for the lead (`npcPicture`, a string
- * or ''), else ''. Only the first is taken, so an avatar that is missing falls through to the next.
+ * The pictures for the lead in the order to try them: the persona avatar, the card avatar, the module's picture (`npcPicture`,
+ * already a string: see pictureOf). Empty ones are left out; the hero tries them in turn and draws the initial past the last.
  */
-export function portraitOf({ personaFile = '', cardFile = '', npcPicture = '' } = {}) {
-    return personaAvatarUrl(personaFile) || cardAvatarUrl(cardFile) || textOf(npcPicture);
+export function portraitCandidates({ personaFile = '', cardFile = '', npcPicture = '' } = {}) {
+    return [personaAvatarUrl(personaFile), cardAvatarUrl(cardFile), textOf(npcPicture)].filter(Boolean);
+}
+
+/** The first of portraitCandidates: '' when there is none. */
+export function portraitOf(args = {}) {
+    return portraitCandidates(args)[0] ?? '';
 }
 
 function safeQuery(query, name, args) {
@@ -71,7 +83,7 @@ export function gameHeroProps({ state = null, query = null, context = {}, format
     const levelWord = textOf(terms?.levelName) || 'Lv';
     const level = lead ? count(lead.level) : null;
     const name = textOf(lead?.name) || textOf(context.personaName) || textOf(context.cardName);
-    const npc = name ? safeQuery(query, 'npc.portrait', { name }) : null;
+    const npc = name ? pictureOf(safeQuery(query, 'npc.portrait', { name })) : '';
     const place = safeQuery(query, 'scene.place', {});
     const weather = safeQuery(query, 'scene.weather', {});
     const time = safeQuery(query, 'director.time', {});
@@ -90,7 +102,8 @@ export function gameHeroProps({ state = null, query = null, context = {}, format
     const when = minutes != null && typeof formatTime === 'function' ? textOf(formatTime(minutes)) : '';
     return {
         name: name.slice(0, 60),
-        portrait: portraitOf({ personaFile: context.personaFile, cardFile: context.cardFile, npcPicture: typeof npc === 'string' ? npc : '' }),
+        portrait: portraitOf({ personaFile: context.personaFile, cardFile: context.cardFile, npcPicture: npc }),
+        portraits: portraitCandidates({ personaFile: context.personaFile, cardFile: context.cardFile, npcPicture: npc }),
         className: textOf(lead?.className ?? lead?.class).slice(0, 40),
         level: level != null ? `${levelWord} ${level}`.slice(0, TEXT_MAX) : '',
         title: textOf(lead?.role).slice(0, 40),
