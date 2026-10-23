@@ -92,6 +92,36 @@ is off is gone from the story; nothing it made is lost.
 Details: [GUIDE](docs/v2/GUIDE.md) (the `<Changes>` block, Checks, Screens) and [SPEC](docs/v2/SPEC.md)
 (§4 the turn, §2.2 storage and replay, §5 the prompt).
 
+## How modules connect
+
+Story Block is the hub. Modules never import each other: each one registers with Story Block
+(`sdk.registerModule(def)`) and plugs into the same few sockets, so any module can feed another module or the
+narration, as long as both sides agree on a name and a shape.
+
+| Socket | In the module's `def` | What it is for |
+|---|---|---|
+| **Queries** | `queries` | Read another module's data by name (`party.pc`, `director.time`, `npc.portrait`). Read-only. A query nobody answers gives nothing, so a module that isn't installed is skipped, not an error. |
+| **Commands** | `commands` | Ask a module to change something (spend points, use an item on someone). The owning module checks and applies it, and the change is recorded with that message, so a swipe, a delete or a rollback undoes it. |
+| **State** | `domains` | Each module owns its part of the saved state. Nobody writes into another module's part directly; they send it a command. |
+| **What the narrator reads** | `context` (`static`, `tail`, `budget`, `parts`) | Each module adds its part of what is sent with each reply. Story Block orders the parts and keeps them inside one token budget (the "What's sent each reply" bar). |
+| **What the narrator writes** | `capture` | The record lines in a reply's hidden list. Story Block hands each line to the module that owns it, which checks it before anything changes. |
+| **Reacting** | `hooks`, `sdk.on(event, fn)` | Run when something happens, such as after a reply is read (settle a fight, pay a quest). |
+| **On screen** | `screens`, `tabs`, `widgets`, `settings` | A module's screens appear in the bottom bar, the Story panel and the game view with the shared look; its settings appear in Story Suite's settings window. |
+| **Switches** | `features` | Parts a reader can turn on and off; other modules can ask whether one is on (`sdk.feature(id)`). |
+
+Three rules keep this safe:
+
+1. **Ownership.** A module changes only its own state. Everything else goes through the owner's commands, which
+   keeps swipes and rollbacks correct.
+2. **One budget.** Everything sent to the narrator shares one token budget, so a module that says too much gets
+   trimmed, not the story.
+3. **Names are contracts.** A query's or a command's name and shape are an agreement between modules. RPG Battle,
+   Story Director and NPC State Delta each answer the ones the others use; a different module can take one's place
+   by answering the same names in the same shapes.
+
+Details: [MODULES](docs/v2/MODULES.md) (what each module provides), [SPEC](docs/v2/SPEC.md) (the turn, storage and
+the prompt) and [WIDGETS](docs/v2/WIDGETS.md) (the shared building blocks).
+
 ## Settings
 
 Open **Settings** on the Story Suite bar above the message box, **Story Suite** in the wand menu, or
