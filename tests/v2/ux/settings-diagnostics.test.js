@@ -55,29 +55,29 @@ test('the report card: built when the page is first shown (not before), shown as
         const page = win.root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === 'diagnostics');
         const card = page.querySelector('.ss-diagnostics-card');
         assert.equal(card.dataset.fold, DIAGNOSTICS_FOLD);
-        assert.deepEqual([...card.querySelectorAll('.ss-section-title, .ss-section-hint')].map(node => node.textContent), [DIAGNOSTICS_TEXT.title, DIAGNOSTICS_TEXT.hint]);
+        assert.deepEqual([...card.querySelectorAll('.ss-section-title, .ss-section-hint')].map(node => node.textContent), [DIAGNOSTICS_TEXT.reportTitle, DIAGNOSTICS_TEXT.reportHint]);
         assert.equal(builds, 1, 'built the first time the page is shown');
         assert.equal(card.querySelector('.story-suite-diagnostics-report').textContent, 'REPORT 1');
         assert.equal(card.querySelector('.story-suite-diagnostics-report').getAttribute('aria-label'), DIAGNOSTICS_TEXT.reportLabel);
         win.select('look');
         win.select('diagnostics');
         assert.equal(builds, 1, 'not again when shown again');
-        card.querySelector('.story-suite-diagnostics-refresh').click();
+        page.querySelector('.story-suite-diagnostics-refresh').click();
         await tick();
         assert.equal(card.querySelector('.story-suite-diagnostics-report').textContent, 'REPORT 2');
-        card.querySelector('.story-suite-diagnostics-copy').click();
+        page.querySelector('.story-suite-diagnostics-copy').click();
         await tick();
         assert.deepEqual(copied, ['REPORT 3']);
-        assert.equal(card.querySelector('.story-suite-diagnostics-status').textContent, DIAGNOSTICS_TEXT.copied);
-        card.querySelector('.story-suite-diagnostics-save').click();
+        assert.equal(page.querySelector('.story-suite-diagnostics-status').textContent, DIAGNOSTICS_TEXT.copied);
+        page.querySelector('.story-suite-diagnostics-save').click();
         await tick();
         assert.deepEqual(links.map(blob => [blob.parts[0], blob.type]), [['REPORT 4', 'text/plain;charset=utf-8']]);
-        assert.equal(card.querySelector('.story-suite-diagnostics-status').textContent, 'Saved the report as story-suite-diagnostics-x.txt.');
+        assert.equal(page.querySelector('.story-suite-diagnostics-status').textContent, 'Saved the report as story-suite-diagnostics-x.txt.');
         // No clipboard here: the report is selected for copying by hand.
         doc.defaultView.navigator = {};
-        card.querySelector('.story-suite-diagnostics-copy').click();
+        page.querySelector('.story-suite-diagnostics-copy').click();
         await tick();
-        assert.equal(card.querySelector('.story-suite-diagnostics-status').textContent, DIAGNOSTICS_TEXT.copyFailed);
+        assert.equal(page.querySelector('.story-suite-diagnostics-status').textContent, DIAGNOSTICS_TEXT.copyFailed);
         assert.equal(selected[0], card.querySelector('.story-suite-diagnostics-report'));
         // A failing report is said in its place.
         const broken = await open({ report: async () => { throw new Error('no report'); } }, { doc });
@@ -89,6 +89,40 @@ test('the report card: built when the page is first shown (not before), shown as
         delete doc.defaultView;
         delete doc.createRange;
     }
+});
+
+test('the report is a fold: closed by default, its state kept in the window\'s state like the other folds; Copy, Save, Refresh and the status line sit outside it, so they work while it is folded', async () => {
+    const state = new Map();
+    let builds = 0;
+    const { page, doc, host } = await open({ report: async () => { builds += 1; return `REPORT ${builds}`; }, sample: () => {} }, { openState: state });
+    await tick();
+    const card = page.querySelector('.ss-diagnostics-card');
+    assert.equal(card.tagName, 'DETAILS', 'the same fold control as the other folds');
+    assert.equal(card.open, false, 'closed by default');
+    assert.deepEqual([...card.querySelectorAll('.ss-section-title, .ss-section-hint')].map(node => node.textContent), [DIAGNOSTICS_TEXT.reportTitle, DIAGNOSTICS_TEXT.reportHint], 'its summary line');
+    for (const name of ['copy', 'save', 'refresh', 'sample', 'status']) assert.equal(card.querySelector(`.story-suite-diagnostics-${name}`), null, `${name} is not in the fold`);
+    assert.ok(page.querySelector('.ss-diagnostics-tools .story-suite-diagnostics-copy'), 'the buttons are under it');
+    assert.equal(page.querySelector('.ss-diagnostics-credits').textContent, DIAGNOSTICS_TEXT.credits);
+    // Refresh works while the report is folded.
+    page.querySelector('.story-suite-diagnostics-refresh').click();
+    await tick();
+    assert.equal(builds, 2);
+    assert.equal(card.querySelector('.story-suite-diagnostics-report').textContent, 'REPORT 2', 'the text is kept, folded');
+    // Opening it is remembered for this window state, and another window with the same state opens it.
+    card.open = true;
+    card.dispatch('toggle');
+    assert.equal(state.get(DIAGNOSTICS_FOLD), true);
+    assert.ok(card.classList.contains('ss-section-fold-open'));
+    host.close();
+    const again = await open({ report: async () => 'REPORT' }, { openState: state, doc });
+    assert.equal(again.page.querySelector('.ss-diagnostics-card').open, true, 'open in another window with the same state');
+    again.host.close();
+    // The fold id opens the page, the fold and its summary (focused, with nothing scrolled).
+    const atReport = await open({ report: async () => 'REPORT' }, { window: { fold: DIAGNOSTICS_FOLD } });
+    assert.equal(atReport.win.section(), 'diagnostics');
+    assert.equal(atReport.page.querySelector('.ss-diagnostics-card').open, true);
+    assert.ok(atReport.doc.activeElement === atReport.page.querySelector('.ss-diagnostics-card summary'));
+    atReport.host.close();
 });
 
 test('"Show the UI sample" only when the page offers it; a failure is said in the status line', async () => {
@@ -148,7 +182,7 @@ test('Events: its open state is remembered in the window\'s state; the fold id o
     atEvents.host.close();
     const atReport = await open({ report: async () => 'REPORT' }, { window: { fold: DIAGNOSTICS_FOLD } });
     assert.equal(atReport.win.section(), 'diagnostics');
-    assert.ok(atReport.doc.activeElement === atReport.page.querySelector('.ss-diagnostics-card .ss-section-title'));
+    assert.ok(atReport.doc.activeElement === atReport.page.querySelector('.ss-diagnostics-card summary'));
     atReport.host.close();
     const bare = await open(null);
     assert.equal(bare.page.querySelector('.ss-diagnostics-card'), null, 'no report to build');

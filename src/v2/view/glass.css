@@ -2014,6 +2014,26 @@
     gap: var(--ss-space-3);
     min-width: 0;
 }
+/* The Diagnostics page's tools (diagnostics-page.js): the buttons and the status line under the report fold, then the icon credit,
+   with a hairline above it and room from the buttons. Their [hidden] (a search that does not match) wins over the layout. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-diagnostics .ss-diagnostics-tools {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ss-space-2);
+    margin-top: var(--ss-space-1);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-diagnostics .ss-diagnostics-credits {
+    margin: var(--ss-space-3) 0 0;
+    padding-top: var(--ss-space-2);
+    border-top: 1px solid var(--ss-rule);
+    color: var(--ss-muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-diagnostics .ss-diagnostics-tools[hidden],
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-diagnostics .ss-diagnostics-credits[hidden] {
+    display: none;
+}
 /* A module's settings, in a card as wide as the page: two columns of fields from 900px, a list or a text area across both. */
 @media (min-width: 900px) {
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-module-form .ss-section-body {
