@@ -263,7 +263,7 @@ test('the Tabs & Packs page: one column, two from 900px with Prompt across both;
     assert.match(rule(glass, '.ss-tabspacks', null, page), /display: grid;\s*grid-template-columns: minmax\(0, 1fr\);/);
     assert.match(rule(glass, '.ss-tabspacks', '@media (min-width: 900px)', page), /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
     assert.match(rule(glass, '.ss-tabspacks > .ss-prompt-card', '@media (min-width: 900px)', page), /grid-column: 1 \/ -1;/);
-    assert.match(rule(glass, 'button.ss-button'), /border-radius: var\(--ss-radius-pill\);/);
+    assert.match(rule(glass, 'button.ss-button'), /border-radius: var\(--ss-radius-button\);/, 'a squarer button than a chip (the button radius, not the pill)');
     assert.match(rule(glass, '.ss-iconbutton'), /width: 40px;\s*height: 40px;/, 'a touch target');
     assert.match(rule(glass, '.ss-button-danger'), /var\(--ss-bad\)/);
     assert.match(rule(glass, '.ss-tabrow'), /display: flex;\s*align-items: center;/);

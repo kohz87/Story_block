@@ -141,7 +141,11 @@ function renderHero(el, input, api) {
         badge.append(...(star ? [star] : []), levelNumber, levelSaid);
         const corner = h(doc, 'ul', 'ss-hero-corner');
         const statuses = h(doc, 'div', 'ss-hero-statuses');
-        main.append(who, corner, statuses);
+        // the text block: the name, the class line, the place and weather, the statuses: one stacked group, which the portrait is
+        // centred against (grid areas "portrait text", glass.css)
+        const text = h(doc, 'div', 'ss-hero-text');
+        text.append(who, corner, statuses);
+        main.append(text);
         const vitals = h(doc, 'div', 'ss-hero-vitals');
         // the portrait and its badge in one cell: the badge hangs on the portrait's lower edge, inside the room the cell keeps
         const face = h(doc, 'div', 'ss-hero-face');
