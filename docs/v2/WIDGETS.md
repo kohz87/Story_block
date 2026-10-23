@@ -537,3 +537,53 @@ The extension's own navigation and interface icons are Phosphor Icons (MIT), inl
 - **Fallback**: Font Awesome names (`fa-map`, `fa-regular fa-compass`), `https:`/`data:image/*` pictures and short glyphs behave as before. An unknown `ph-*` id draws the default Font Awesome icon.
 - **Screens and tabs**: `iconFor(id, own)` (`view/icons/index.js`) gives the suite's own screens their icon (`TAB_ICONS`, by full id), else the icon the screen gives, else the default for the id's last part (`tabIcon`).
 - **Adding one**: take `assets/regular/<name>.svg` and `assets/fill/<name>-fill.svg` from `@phosphor-icons/core` 2.1.1, put their `<path d>` (joined with a space) in `set.js` as `'ph-<name>': icon(regular, fill)`, and add the id to `ICONS-CREDITS.md`. Don't add the package as a dependency.
+
+## Cards under replies (`cards`) and tabs shown while active (`active`)
+
+A module puts a card under an assistant reply with the `cards` socket of its definition (the README's "How modules
+connect", "Cards under replies"):
+
+```js
+cards: {
+    start: { for: (state, message, ctx) => (characterMade(state) ? null : startCard) },
+    battle: { for: (state, message, ctx) => (fighting(state) ? battleCard(state) : null) },
+}
+```
+
+`for(state, message, ctx)` is asked about each assistant message (the greeting too), oldest first, with that message's own
+state, its SillyTavern message object and `ctx` ({ index, chatId, query(name, args) } at that state). The first message whose
+answer is a card gets it, so a card id shows once per chat; a card the module stops returning goes on the next draw (a character
+made, a fight ended). A swipe or a delete moves or removes it with its message. The card is one object:
+
+| Field | Meaning |
+|---|---|
+| `tone` | `accent`, `bad`, `good` or `info` (anything else is `info`): the 1px ring, the icon tile. |
+| `icon` | `ph-…` (Phosphor, `view/icons`) or `fa-…`; anything else is replaced. |
+| `title` | Required (at most 60 characters); a card with no title is no card. |
+| `text` | Optional, muted, at most 200 characters. |
+| `rows` | At most four: `{ icon?, text, tag?, tagTone? }`. |
+| `actions` | At most three: `{ id, label, icon?, primary?, command?, payload?, open? }`. `primary` is the accent. An action needs `command` or `open`. |
+| `later` | `true` adds a Later button: the card folds into one line, "<title> · <first row> · Open". The fold is the viewer's (kept per chat and message in the browser), never game state. |
+
+- **`command`** is sent through `sdk.command` with its `payload` (cause `ui`), so it is recorded with the reply and a swipe or
+  delete undoes it. Only the newest reply's card can act; the others show their buttons disabled, with the reason.
+- **`open`** opens that screen in the game view (a window on desktop, full screen on a phone). A screen opened this way need
+  not be on the bar.
+- Text is plain: the host prints it (never markup). Commands are `module.action` names.
+
+Drawing: under the message, after the changes card, in the same strip. `normalizeCard` and `scanReplyCards` are in
+`src/v2/reply-cards.js`; the view is `src/v2/view/reply-cards-ui.js` (`drawReplyCard`).
+
+### Tabs shown while active
+
+A screen (in its `screens` entry) or a tab (in `tabs`) may declare `active(state, ctx) → { on, badge? }`:
+
+- Off (`on` false, or the function throws), it is not on the game view's bar, the More sheet or the desktop row, nor on
+  the Story panel's tab bar. It still opens by id (`mounts.screen.open(id)`).
+- On, it shows. With a `badge` ("alert", or a count) it takes the last pinned slot of a phone's bar (or the panel's) for
+  as long as the badge is set; the item that held that slot goes to More. A red dot sits at the icon's top-right.
+- `activeNote` (text) is what Settings → Tabs & Packs → Tabs shows for it in place of the switch ("Shown only while it is
+  active (during a battle, for example)." by default).
+
+Code: `activeNow` and `screensFor` (view/mounts/common.js), `pinAlerts` and the dot (view/screen-bar.js), the rows
+(ui-host.js `tabRows`, view/settings/tabs-list.js).

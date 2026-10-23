@@ -18,12 +18,12 @@
 //
 // → { mount(el, screenId, opts) → handle, open(screenId?) → bool, close(), isOpen(), current(), update(), destroy() }
 
-import { button, documentOf, headState, icon, make, mountHead, onHead, screensFor } from './common.js';
+import { activeNow, button, documentOf, headState, headStateSafe, icon, isEnabled, make, mountHead, onHead, screensFor } from './common.js';
 import { hero } from '../widgets/hero.js';
 import { focusNode } from '../scroll.js';
 import { stackOf } from '../modal-stack.js';
 import { iconFor } from '../icons/index.js';
-import { barItems, createScreenBar } from '../screen-bar.js';
+import { barItems, createScreenBar, pinAlerts } from '../screen-bar.js';
 import { STRINGS } from '../../strings.js';
 
 const PHONE_QUERY = '(max-width: 759.98px)';
@@ -50,11 +50,11 @@ export function createScreenMount(deps) {
         const entries = screensFor(deps, 'screen');
         const listed = typeof deps.inNav === 'function' ? entries.filter(entry => deps.inNav(entry.id)) : entries;
         view.root.classList.toggle('ss-gameview-single', listed.length < 2);
-        view.bar.update({
-            items: barItems(listed.map(entry => ({ id: entry.id, label: entry.screen.title ?? entry.id, icon: iconFor(entry.id, entry.screen.icon) }))),
-            current: view.screenId,
-            row: view.phone?.matches === false,
-        });
+        const state = headStateSafe(deps);
+        const row = view.phone?.matches === false;
+        const items = listed.map(entry => ({ id: entry.id, label: entry.screen.title ?? entry.id, icon: iconFor(entry.id, entry.screen.icon), alert: activeNow(entry.screen, state, deps.query).alert }));
+        // On a phone an active tab with an alert takes the last pinned slot (the one it displaces goes to More); the wide row keeps the order.
+        view.bar.update({ items: row ? items : pinAlerts(items), current: view.screenId, row });
         return entries;
     }
 
@@ -96,7 +96,9 @@ export function createScreenMount(deps) {
     /** Opens the game view on `screenId` (default: the first screen it offers). False when there is none. */
     function open(screenId = null) {
         const entries = screensFor(deps, 'screen');
-        const target = entries.find(entry => entry.id === screenId)?.id ?? entries[0]?.id ?? null;
+        // A screen named by id opens even when it is not on the bar now (an active screen that is off, or one the reader hid).
+        const named = screenId && deps.screens.resolve(screenId)?.screen?.mounts?.includes('screen') && isEnabled(deps, 'screen', screenId) ? screenId : null;
+        const target = named ?? entries.find(entry => entry.id === screenId)?.id ?? entries[0]?.id ?? null;
         if (!target) return false;
         if (view) return show(target);
 

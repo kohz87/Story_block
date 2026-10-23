@@ -123,6 +123,12 @@ export const STRINGS = deepFreeze({
         fail: 'fail',
         storyDice: 'story said {story} / dice said {dice}',
     },
+    replyCards: {
+        later: 'Later',
+        open: 'Open',
+        headOnly: 'The story moved on: only the newest reply can act here.',
+        label: 'Card',
+    },
     summary: {
         none: 'No changes',
         otherOnly: 'No item, coin or place changes',
