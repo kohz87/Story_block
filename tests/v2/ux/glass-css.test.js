@@ -65,8 +65,8 @@ test('every rule is scoped to Story Suite\'s roots and weighs at most two classe
     for (const rule of all) for (const selector of rule.selectors) {
         assert.ok(selector.startsWith(ROOT_SELECTOR), `not scoped: ${selector}`);
         // The button's hover and pressed rules carry SillyTavern's own :not() chain so they beat `.menu_button` (0,4,0) on the same
-        // element; they are the only heavy rules allowed (glass.css, "the buttons").
-        const menuButtonBeat = /button\.ss-button:not\(:disabled\):not\(\.disabled\):not\(\[disabled\]\):(hover|active)$/.test(selector.trim());
+        // element; they are the only heavy rules allowed (glass.css, "the buttons"), and the primary's own states use the same chain.
+        const menuButtonBeat = /button\.ss-button(?:\.ss-button-primary)?:not\(:disabled\):not\(\.disabled\):not\(\[disabled\]\):(hover|active)$/.test(selector.trim());
         assert.ok(weight(selector) <= 30 || menuButtonBeat, `too heavy (${weight(selector)}): ${selector}`);
     }
     // The building blocks themselves weigh one class, so [data-ss-screen="id"] .x (two) wins.

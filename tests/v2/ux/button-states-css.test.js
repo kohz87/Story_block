@@ -67,3 +67,14 @@ test('the button: the focus ring is the accent, and the primary keeps its on-gla
     assert.ok(primary, 'the primary rule exists');
     assert.match(primary.body, /var\(--ss-glass-strong\)/);
 });
+
+test('the primary button has its own hover and press: not the accent soft fill of its rest (a module need not write a rule)', () => {
+    const hover = rulesWith('.ss-button-primary:not(:disabled):not(.disabled):not([disabled]):hover')[0];
+    const pressed = rulesWith('.ss-button-primary:not(:disabled):not(.disabled):not([disabled]):active')[0];
+    assert.ok(hover && pressed, 'both states exist');
+    assert.match(hover.body, /color-mix\(in srgb, var\(--ss-accent\) 34%, transparent\)/, 'hover takes a stronger share of the accent');
+    assert.match(pressed.body, /color-mix\(in srgb, var\(--ss-accent\) 46%, transparent\)/, 'press takes more again');
+    assert.match(pressed.body, /box-shadow: 0 0 0 2px/, 'press has a ring');
+    assert.doesNotMatch(hover.body, /var\(--ss-accent-soft\)/, 'not the rest fill');
+    assert.ok(hover.selector.startsWith(':where(.story-suite-overlay'), 'scoped to the roots');
+});

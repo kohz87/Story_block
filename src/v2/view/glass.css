@@ -1628,6 +1628,19 @@
     background: var(--ss-glass-strong);
     color: var(--ss-text);
 }
+
+/* The primary button's own hover and press (a module need not write its own rule): its rest is the accent soft fill, so hover
+   takes a stronger share of the accent and press a stronger one with a ring. The text stays the text colour (over the strong glass:
+   measured in the PR body). One class heavier than the general states above, so it wins over them. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) button.ss-button.ss-button-primary:not(:disabled):not(.disabled):not([disabled]):hover {
+    border-color: var(--ss-accent);
+    background: linear-gradient(color-mix(in srgb, var(--ss-accent) 34%, transparent), color-mix(in srgb, var(--ss-accent) 34%, transparent)), var(--ss-glass-strong);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) button.ss-button.ss-button-primary:not(:disabled):not(.disabled):not([disabled]):active {
+    border-color: var(--ss-accent);
+    background: linear-gradient(color-mix(in srgb, var(--ss-accent) 46%, transparent), color-mix(in srgb, var(--ss-accent) 46%, transparent)), var(--ss-glass-strong);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ss-accent) 55%, transparent);
+}
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-iconbutton {
     flex: none;
     display: inline-flex;
