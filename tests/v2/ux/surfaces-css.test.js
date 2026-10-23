@@ -147,8 +147,8 @@ test('the game view\'s navigation takes the navbar\'s look: a glass pill on a ph
     assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"] > i'), /color: var\(--ss-accent\);/);
     // Wide: the row keeps its hairline, drops the pill's radius, and sits 12px under the header card (the tab row's air).
     const wide = block(mounts, '.ss-gameview-nav', '@media (min-width: 768px)');
-    assert.match(wide, /margin: var\(--ss-space-3, 12px\) 0 0;/);
-    assert.match(wide, /border-radius: 0;/);
+    assert.match(wide, /margin: var\(--ss-space-3, 12px\) 24px 0;/);
+    assert.match(wide, /border-radius: 16px;/, "the track: a 16px radius (option A)");
 });
 
 test('the story panel: the tab bar is the ss.tabs block (no tablist rules left), its head as Panel.dc.html, the scroll fade on the block\'s list', () => {

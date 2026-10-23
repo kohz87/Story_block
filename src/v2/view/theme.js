@@ -235,6 +235,8 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
             ['--ss-glass-strong', 'var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1))'],
             ['--ss-tile', 'color-mix(in srgb, var(--SmartThemeBodyColor, #dcdcd2) 8%, transparent)'],
             ['--ss-border', 'var(--SmartThemeBorderColor, rgba(0, 0, 0, 0.5))'],
+            // the current tab's edge (UI 5b): SillyTavern's text colour, since its quote colour can be faint on a light track
+            ['--ss-tab-edge', 'var(--SmartThemeBodyColor, #dcdcd2)'],
             // the section-label hairline: SillyTavern's text colour at 40% over its tint, so it reads against the card (>= 1.5:1)
             ['--ss-rule', 'color-mix(in srgb, var(--SmartThemeBodyColor, #dcdcd2) 40%, var(--SmartThemeBlurTintColor, rgba(23, 23, 23, 1)))'],
             ['--ss-shadow', '0 2px 8px var(--SmartThemeShadowColor, rgba(0, 0, 0, 0.5))'],
@@ -284,6 +286,7 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
         ['--ss-scrim', p.scrim],
         ['--ss-off', p.off],
         ['--ss-accent', ACCENT],
+        ['--ss-tab-edge', 'var(--ss-accent)'],
         ['--ss-accent-soft', p.accentSoft],
         ['--ss-good', p.good],
         ['--ss-chatter', p.chatter],

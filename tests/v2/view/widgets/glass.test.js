@@ -106,7 +106,8 @@ test('status: the time left in the corner, short, and in full words for a screen
     assert.equal(m.el.querySelector('.ss-status-left').textContent, '40m');
     assert.ok(m.el.querySelector('i.fa-droplet'));
     m.handle.update({ label: 'Blessed', left: '', tone: 'oops', unit: 'weeks' });
-    assert.equal(m.el.querySelector('.ss-status-left').textContent, '∞');
+    assert.equal(m.el.querySelector('.ss-status-left').hidden, true, 'no count: no counter badge');
+    assert.equal(m.el.querySelector('.ss-status-left').textContent, '', 'no "∞" in the corner');
     assert.equal(m.root.getAttribute('aria-label'), 'Blessed: no set end');
     assert.ok(classes(m.root).includes('ss-tone-accent'), 'an unknown tone: the accent');
     assert.equal(m.el.querySelector('.ss-status-icon').textContent, 'B', 'no icon: the first letter');

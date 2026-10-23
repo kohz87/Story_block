@@ -800,6 +800,35 @@
     /* the soft accent over the tile, so it reads on any backdrop */
     background: linear-gradient(var(--ss-accent-soft), var(--ss-accent-soft)), var(--ss-tile);
 }
+/* UI 5b, option A: the horizontal tabs of the Story panel (the strip; the settings rail is vertical and keeps its own look): one
+   glass track, the current tab a raised pill (accent border, accent-soft fill, shadow), no underline; the others transparent with
+   muted text. Tokens only. The track's blur is the Glass-only sheet blur, so Solid and Follow SillyTavern have none. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note).story-suite-sheet .ss-tabs-list {
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid var(--ss-border);
+    border-radius: 16px;
+    background: var(--ss-glass);
+    -webkit-backdrop-filter: var(--ss-sheet-blur, none);
+    backdrop-filter: var(--ss-sheet-blur, none);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note).story-suite-sheet .ss-tabs-item {
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--ss-muted);
+    font-weight: 600;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note).story-suite-sheet .ss-tabs-item:hover {
+    background: var(--ss-tile);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note).story-suite-sheet .ss-tabs-item[aria-current="page"] {
+    border-color: var(--ss-tab-edge, var(--ss-accent));
+    background: linear-gradient(var(--ss-accent-soft), var(--ss-accent-soft)), var(--ss-glass-strong);
+    box-shadow: var(--ss-shadow);
+    color: var(--ss-text);
+    font-weight: 700;
+}
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-tabs-item:disabled,
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-navbar-item:disabled {
     opacity: 0.45;
@@ -1688,6 +1717,19 @@
     border-color: var(--ss-border);
     background: var(--ss-glass-strong);
     color: var(--ss-text);
+}
+
+/* The primary button's own hover and press (a module need not write its own rule): its rest is the accent soft fill, so hover
+   takes a stronger share of the accent and press a stronger one with a ring. The text stays the text colour (over the strong glass:
+   measured in the PR body). One class heavier than the general states above, so it wins over them. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) button.ss-button.ss-button-primary:not(:disabled):not(.disabled):not([disabled]):hover {
+    border-color: var(--ss-accent);
+    background: linear-gradient(color-mix(in srgb, var(--ss-accent) 34%, transparent), color-mix(in srgb, var(--ss-accent) 34%, transparent)), var(--ss-glass-strong);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) button.ss-button.ss-button-primary:not(:disabled):not(.disabled):not([disabled]):active {
+    border-color: var(--ss-accent);
+    background: linear-gradient(color-mix(in srgb, var(--ss-accent) 46%, transparent), color-mix(in srgb, var(--ss-accent) 46%, transparent)), var(--ss-glass-strong);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ss-accent) 55%, transparent);
 }
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-iconbutton {
     flex: none;

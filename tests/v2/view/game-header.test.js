@@ -120,3 +120,14 @@ test('a 70+ character class and role are cut to the header\'s limits (40 each), 
     assert.equal(props.className.length, 40);
     assert.ok(heroLine(props).length <= 40 + 40 + 12 + 6, 'the pill line is bounded (class, level, role, separators)');
 });
+
+test('the persona\'s avatar file comes from the context, else SillyTavern\'s global user_avatar', () => {
+    const saved = globalThis.user_avatar;
+    try {
+        globalThis.user_avatar = 'global-persona.png';
+        assert.equal(readHeroContext({ name1: 'Mira' }).personaFile, 'global-persona.png', 'the global when the context has none');
+        assert.equal(readHeroContext({ name1: 'Mira', user_avatar: 'ctx.png' }).personaFile, 'ctx.png', 'the context wins');
+    } finally {
+        if (saved === undefined) delete globalThis.user_avatar; else globalThis.user_avatar = saved;
+    }
+});

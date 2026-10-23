@@ -244,15 +244,15 @@
         height: auto;
         overflow-x: auto;
         overflow-y: hidden;
-        /* air between the header card and the tab row (the row's own padding stays) */
-        margin: var(--ss-space-3, 12px) 0 0;
-        padding: 0 24px;
-        border: 0;
-        border-bottom: 1px solid var(--ss-border);
-        border-radius: 0;
-        background: transparent;
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
+        /* option A (UI 5b): one glass track for the row, 12px under the header card and level with its edges */
+        margin: var(--ss-space-3, 12px) 24px 0;
+        padding: 5px;
+        gap: 4px;
+        border: 1px solid var(--ss-border);
+        border-radius: 16px;
+        background: var(--ss-glass, transparent);
+        -webkit-backdrop-filter: var(--ss-sheet-blur, none);
+        backdrop-filter: var(--ss-sheet-blur, none);
         box-shadow: none;
     }
 
@@ -263,15 +263,24 @@
         gap: var(--ss-gap);
         min-height: 44px;
         padding: 8px 14px;
-        /* the labels in the text colour (the muted one missed 4.5:1 on busy glass); the current tab is told by its fill and underline */
-        color: var(--ss-text, inherit);
-        border-radius: var(--ss-radius-m, 14px) var(--ss-radius-m, 14px) 0 0;
+        /* option A: no border or fill until it is the current tab (or hovered); muted labels */
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ss-muted, inherit);
+        border-radius: 12px;
         font-size: 1em;
     }
 
+    /* the current tab: a raised pill (accent border, accent-soft fill, the shadow), its label in the text colour; no underline */
     .ss-gameview-navitem[aria-current="page"] {
+        border-color: var(--ss-tab-edge, var(--ss-accent));
         background: var(--ss-accent-soft, transparent);
-        box-shadow: inset 0 -2px 0 var(--ss-accent);
+        box-shadow: var(--ss-shadow, none);
+        color: var(--ss-text, inherit);
+        font-weight: 700;
+    }
+    .ss-gameview-navitem:hover {
+        background: var(--ss-tile, transparent);
     }
 
     .ss-gameview-body {
@@ -412,18 +421,24 @@
 }
 
 .ss-hud-item {
-    flex: 0 0 auto;
+    /* shrinks when the strip is full (a long place takes the room, not the strip's edge) */
+    flex: 0 1 auto;
+    /* the item takes its content's width, but never more than the strip: a long place is cut inside the item (its own ellipsis),
+       not pushed past the strip's edge (min-width: min-content did that: an unbroken 80-character place scrolled the strip) */
+    width: max-content;
+    max-width: 100%;
     max-height: 48px;
     overflow: hidden;
 }
 
-/* An item sizes to its content. A screen's css can make its root (this item) a size container
-   (`:root { container: x / inline-size }`), and a size container gets no width from its content, so
-   the item would shrink to nothing: the strip keeps its items plain boxes. Containers further in still work. */
+/* A screen's css can make its root (this item) a size container (`:root { container: x / inline-size }`), and a size container
+   gets no width from its content: the strip keeps its items plain boxes (container-type normal), and the width above comes from
+   the content. Containers further in still work. */
 .ss-hud > .ss-hud-item {
     container-type: normal;
-    min-width: min-content;
+    min-width: 0;
 }
+/* the items keep their content on a wide strip; a full strip shrinks them, and each cuts its own text (overflow hidden) */
 
 /* The HUD strip on a phone, under Glass: the tint layered over itself, so the story behind does not read through the name and
    the level (the full-screen window's rule, for the strip). Solid and Follow SillyTavern leave the token unset: no layers. */
