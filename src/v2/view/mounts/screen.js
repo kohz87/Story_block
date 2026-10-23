@@ -36,6 +36,14 @@ export function createScreenMount(deps) {
         return mountHead(deps, 'screen', el, screenId, opts);
     }
 
+    // The last input: a pointer or a touch opens the view with its focus on the window, not on the close button (a ring that a tap
+    // should not show); a key opens it on the close button, where the ring is wanted. Tracked on the document, from the mount's start.
+    let lastPointer = false;
+    const onPointer = () => { lastPointer = true; };
+    const onInput = () => { lastPointer = false; };
+    doc.addEventListener?.('pointerdown', onPointer, true);
+    doc.addEventListener?.('keydown', onInput, true);
+
     // Escape closes the view, unless the bar's More sheet is open: that one takes the key (its own listener, after this one).
     const onKey = event => {
         if (view && event.key === 'Escape' && !view.bar.isMoreOpen()) {
@@ -102,6 +110,7 @@ export function createScreenMount(deps) {
         root.setAttribute('role', 'dialog');
         root.setAttribute('aria-modal', 'true');
         root.setAttribute('aria-label', 'Game view');
+        root.setAttribute('tabindex', '-1');
         const main = make(doc, 'div', 'ss-gameview-main');
         const bar = make(doc, 'header', 'ss-gameview-bar');
         const title = make(doc, 'h2', 'ss-gameview-title');
@@ -133,7 +142,8 @@ export function createScreenMount(deps) {
         view = { root, bar: screenBar, title, body, handle: null, screenId: target, before: doc.activeElement ?? null, off: onHead(deps, update), heroSlot, hero: null, phone, onWidth };
         doc.addEventListener?.('keydown', onKey, true);
         show(target);
-        focusNode(closer);
+        // by pointer: the window takes the focus (no ring); by key: the close button (its ring is the keyboard's)
+        focusNode(lastPointer ? root : closer);
         return true;
     }
 
@@ -172,6 +182,10 @@ export function createScreenMount(deps) {
         update,
         isOpen: () => !!view,
         current: () => view?.screenId ?? null,
-        destroy: close,
+        destroy() {
+            close();
+            doc.removeEventListener?.('pointerdown', onPointer, true);
+            doc.removeEventListener?.('keydown', onInput, true);
+        },
     };
 }

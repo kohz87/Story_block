@@ -128,7 +128,10 @@ test('screen: a full-screen view with navigation between screen screens; Esc clo
     assert.equal(view.isOpen(), false);
     assert.equal(doc.body.querySelector('.ss-gameview'), null);
     assert.equal(doc.activeElement, opener);
-    assert.equal(doc.listeners.length, 0);
+    // the view's own listeners are gone; the mount keeps only its input tracker (pointer and key, for where the focus goes on open)
+    assert.equal(doc.listeners.filter(l => !['pointerdown', 'keydown'].includes(l.type)).length, 0);
+    assert.equal(doc.listeners.filter(l => l.type === 'keydown').length, 1);
+    assert.equal(doc.listeners.filter(l => l.type === 'pointerdown').length, 1);
     assert.equal(listeners.head.length, 0);
     doc.key('Escape');   // nothing open: nothing happens
 
@@ -196,4 +199,20 @@ test('enabled(mount, id) lets the reader turn screens off; createMounts builds a
     assert.deepEqual(Object.keys(all), ['tab', 'screen', 'card', 'hud', 'dialog']);
     assert.ok(Object.values(all).every(controller => typeof controller.mount === 'function'));
     assert.equal(createMounts(deps).card, null);
+});
+
+test('screen: opened by a pointer, the window takes the focus (no ring on the close button); opened by a key, the close button', () => {
+    const { doc, deps } = world([screen('m/party', ['tab', 'screen']), screen('m/map', ['screen'], { title: 'Map' })]);
+    const view = createScreenMount(deps);
+    const press = type => doc.listeners.filter(l => l.type === type).forEach(l => l.fn({ type, key: 'Enter' }));
+    press('pointerdown');
+    view.open('m/map');
+    const root = doc.body.querySelector('.ss-gameview');
+    assert.equal(doc.activeElement, root, 'a pointer opens the window, focused as a whole');
+    view.close();
+    press('keydown');
+    view.open('m/map');
+    assert.equal(doc.activeElement, doc.body.querySelector('.ss-gameview-close'), 'a key opens it on the close button');
+    view.destroy();
+    assert.equal(doc.listeners.filter(l => l.type === 'pointerdown' || l.type === 'keydown').length, 0, 'destroy leaves no input tracker');
 });

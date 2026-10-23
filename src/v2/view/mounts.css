@@ -130,6 +130,15 @@
     background: transparent;
     cursor: pointer;
 }
+/* the close button's keyboard focus: the bar's outline (the text colour), never the host's own ring */
+.ss-gameview-close:focus-visible,
+.ss-dialog-close:focus-visible {
+    outline: 2px solid var(--ss-text);
+    outline-offset: 2px;
+}
+.ss-gameview:focus {
+    outline: none;
+}
 
 .ss-gameview-body {
     flex: 1;
