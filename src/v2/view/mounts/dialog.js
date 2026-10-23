@@ -26,7 +26,7 @@
 //   drawn still opens, with the reason in its body.
 // The mount also has closeWhere(test): closes each open dialog whose screen id passes `test`.
 
-import { button, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
+import { button, dispose, documentOf, drawScreen, headIndexOf, headState, icon, make, plainCopy } from './common.js';
 import { focusNode } from '../scroll.js';
 import { focusablesIn, stackOf } from '../modal-stack.js';
 
@@ -192,6 +192,9 @@ export function createDialogMount(deps) {
             const i = open.indexOf(handle);
             if (i >= 0) open.splice(i, 1);
             stackOf(doc).pop(layer);
+            // The body's widgets go with the window (their listeners, their observers): a closed window keeps nothing alive.
+            dispose(body);
+            body.replaceChildren();
             backdrop.remove();
             opts.onClose?.(result);
             resolveClosed(result);
