@@ -34,7 +34,8 @@ const TEMPLATE = `
 
 const CSS = `${BASE_CSS}
 .inspector { display: grid; gap: var(--ss-space-3, 12px); }
-.sb-insp { display: grid; gap: var(--ss-space-3, 12px); min-width: 0; color: var(--ss-text, inherit); font-family: var(--ss-font, inherit); }
+.sb-insp { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ss-space-3, 12px); min-width: 0; color: var(--ss-text, inherit); font-family: var(--ss-font, inherit); }
+.sb-insp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ss-space-3, 12px); min-width: 0; }
 .sb-insp-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sb-insp-bar .sb-insp-pick { flex: 1 1 14em; min-width: 0; max-width: 100%; }
 .sb-insp-bar .sb-insp-search { flex: 1 1 12em; min-width: 0; }
@@ -45,7 +46,7 @@ const CSS = `${BASE_CSS}
 .sb-insp-btn:focus-visible { outline: 2px solid var(--ss-accent, currentColor); outline-offset: 2px; }
 .sb-insp-btn:active:not(:disabled) { border-color: var(--ss-accent, currentColor); background: linear-gradient(var(--ss-accent-soft, transparent), var(--ss-accent-soft, transparent)), var(--ss-glass-strong, var(--ss-tile, transparent)); }
 .sb-insp-btn:disabled { opacity: 0.45; cursor: default; }
-.sb-insp-head { margin: 0; font-size: 1.1em; font-weight: 700; }
+.sb-insp-head { margin: 0; font-size: 1.1em; font-weight: 700; overflow-wrap: anywhere; }
 .sb-insp-card { margin: 0; }
 .sb-insp-card-title { margin: 0; }
 .sb-insp-count { font-size: 0.85em; }
@@ -66,7 +67,7 @@ const CSS = `${BASE_CSS}
 .sb-insp-tree { font-size: 0.9em; overflow-x: auto; }
 .sb-insp-tree details > .sb-insp-kids { padding-left: 1.1em; border-left: 1px dashed var(--ss-border, currentColor); margin-left: 0.3em; }
 .sb-insp-tree summary, .sb-insp-tree .sb-insp-leaf { border-radius: var(--ss-radius-s, 10px); }
-.sb-insp-tree summary { cursor: pointer; padding: 2px 4px; }
+.sb-insp-tree summary { cursor: pointer; padding: 2px 4px; overflow-wrap: anywhere; }
 .sb-insp-tree summary:hover { background: var(--ss-tile, transparent); }
 .sb-insp-tree summary:focus-visible { outline: 2px solid var(--ss-accent, currentColor); outline-offset: 1px; }
 .sb-insp-leaf { padding: 2px 4px 2px 1.1em; overflow-wrap: anywhere; }
@@ -75,6 +76,7 @@ const CSS = `${BASE_CSS}
 .sb-insp-num, .sb-insp-bool, .sb-insp-null { color: var(--ss-muted, inherit); }
 .sb-insp-hit > summary, .sb-insp-leaf.sb-insp-hit { background: color-mix(in srgb, var(--ss-accent, currentColor) 22%, transparent); border-radius: 6px; }
 .sb-insp-empty { font-style: italic; }
+.sb-insp .muted { color: var(--ss-muted, var(--sb-em, inherit)); }  /* the look's muted text on the glass, not SillyTavern's emphasis colour */
 `;
 
 export const inspectorScreen = Object.freeze({

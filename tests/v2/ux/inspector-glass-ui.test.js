@@ -34,7 +34,8 @@ function inspector(memory = { index: null, search: '', open: new Set() }) {
     const el = host(doc);
     const handle = widget.render(el, {}, fakeApi());
     const root = el.children[0];
-    return { doc, el, root, memory, handle, q: sel => root.querySelector(sel), all: sel => root.querySelectorAll(sel) };
+    // the host, not the first child: a redraw (a search, a jump) may replace the widget's own root
+    return { doc, el, root, memory, handle, q: sel => el.querySelector(sel), all: sel => el.querySelectorAll(sel) };
 }
 
 test('the inspector: its sections are glass cards with label headings; the rows are the list card\'s, the mark in a tile', () => {
@@ -61,14 +62,23 @@ test('the inspector: its sections are glass cards with label headings; the rows 
 });
 
 test('the inspector: the picker and search are the form engine\'s controls; the search keeps its text and filters the tree', () => {
-    const m = inspector();
+    // the branches on the way are open (a closed branch draws none of its children)
+    const m = inspector({ index: null, search: '', open: new Set(['/domains', '/domains/inventory', '/domains/inventory/stacks', '/domains/scene', '/domains/scene/place', '/meta']) });
     const picker = m.q('.sb-insp-pick');
     assert.ok(picker.className.includes('ss-select') && picker.className.includes('ss-input'), 'a glass select');
     const search = m.q('.sb-insp-search');
     assert.ok(search.className.includes('ss-input') && search.className.includes('ss-text'), 'a glass text box');
+    // the tree's own nodes only (the diff and operation rows carry data-path too)
+    const paths = () => m.all('.sb-insp-tree [data-path]').map(node => node.getAttribute('data-path'));
+    assert.ok(paths().includes('/domains/inventory/stacks/s2') && paths().includes('/meta/rev'), 'the unfiltered tree shows the inventory and meta leaves');
     search.value = 'harrow';
     search.dispatch('input', {});
     assert.equal(m.memory.search, 'harrow', 'the search is kept in the widget\'s memory');
+    // the tree itself is filtered: the way to the one hit stays, the unrelated branch goes
+    assert.ok(paths().includes('/domains/scene/place/name'), 'the hit is drawn');
+    assert.ok(!paths().includes('/domains/inventory/stacks/s2'), 'the unrelated inventory leaf is gone from the tree');
+    assert.ok(!paths().includes('/meta/rev'), 'an unrelated leaf is gone from the tree');
+    assert.ok(m.all('.sb-insp-hit').length >= 1, 'the hit is marked');
 });
 
 test('the inspector: older, newer and latest move through the replies; the ends are disabled, the middle is not', () => {

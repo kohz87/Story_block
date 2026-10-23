@@ -63,3 +63,16 @@ test('the inspector: a text box and a select are the form engine\'s controls, no
     assert.match(source, /'ss-input ss-text sb-insp-search'/);
     assert.doesNotMatch(source, /text_pole/);
 });
+
+test('the inspector: the cards are a grid with a gap (the heading to the first card too); long unbroken names wrap instead of widening the page', () => {
+    const css = inspectorScreen.css;
+    assert.match(blocks(css, '.sb-insp-body'), /gap: var\(--ss-space-3, 12px\)/, 'the body\'s grid gap');
+    assert.match(blocks(css, '.sb-insp-body'), /grid-template-columns: minmax\(0, 1fr\)/, 'one column that may shrink');
+    assert.match(blocks(css, '.sb-insp'), /grid-template-columns: minmax\(0, 1fr\)/, 'the screen\'s own column may shrink');
+    assert.match(blocks(css, '.sb-insp-head'), /overflow-wrap: anywhere/, 'a long reply name in the heading');
+    assert.match(blocks(css, '.sb-insp-tree summary'), /overflow-wrap: anywhere/, 'a long key in a branch');
+});
+
+test('the inspector: the muted text is the look\'s, on the glass (not SillyTavern\'s emphasis colour)', () => {
+    assert.match(blocks(inspectorScreen.css, '.sb-insp .muted'), /color: var\(--ss-muted, var\(--sb-em, inherit\)\)/);
+});

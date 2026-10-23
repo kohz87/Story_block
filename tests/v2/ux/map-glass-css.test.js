@@ -26,7 +26,7 @@ const map = widgetCss;
 
 test('the map: the stage is a glass panel on the look\'s tokens, with the widget\'s own names as fallbacks', () => {
     const stage = blocks(map, '.ss-w-map-stage');
-    assert.match(stage, /background: var\(--ss-w-map-bg, var\(--ss-glass, var\(--ss-w-bg\)\)\)/);
+    assert.match(stage, /background: var\(--ss-w-map-bg\)/);
     assert.match(stage, /border-radius: var\(--ss-radius-xl, var\(--ss-w-radius\)\)/);
     assert.match(stage, /backdrop-filter: var\(--ss-blur, none\)/);
 });
@@ -34,20 +34,20 @@ test('the map: the stage is a glass panel on the look\'s tokens, with the widget
 test('the map: the zoom and layer controls are glass pills; hover, focus and the active layer take the accent fill over the glass', () => {
     const rest = blocks(map, '.ss-w-map-btn') + blocks(map, '.ss-w-map-layer');
     assert.match(rest, /border-radius: var\(--ss-radius-pill, 999px\)/);
-    assert.match(rest, /color: var\(--ss-text, var\(--ss-w-fg\)\)/);
+    assert.match(rest, /background: var\(--ss-w-bg\)/, 'the controls rest on the strong glass');
     const hover = blocks(map, '.ss-w-map-btn:hover, .ss-w-map-layer:hover, .ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-btn:active, .ss-w-map-layer:active');
-    assert.match(hover, /linear-gradient\(var\(--ss-accent-soft/);
-    assert.match(hover, /var\(--ss-glass-strong/);
-    assert.doesNotMatch(hover, /(?<![-\w])color: var\(--ss-accent/, 'no accent text on hover');
-    assert.match(blocks(map, '.ss-w-map-layer.ss-w-active'), /linear-gradient\(var\(--ss-accent-soft/);
-    assert.match(blocks(map, '.ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-node:focus-visible, .ss-w-map-stage:focus-visible'), /outline: 2px solid var\(--ss-accent/);
+    assert.match(hover, /linear-gradient\(color-mix\(in srgb, var\(--ss-w-accent\)/);
+    assert.match(hover, /var\(--ss-w-bg\)/);
+    assert.doesNotMatch(hover, /(?<![-\w])color: var\(--ss-w-accent/, 'no accent text on hover');
+    assert.match(blocks(map, '.ss-w-map-layer.ss-w-active'), /linear-gradient\(color-mix\(in srgb, var\(--ss-w-accent\)/);
+    assert.match(blocks(map, '.ss-w-map-btn:focus-visible, .ss-w-map-layer:focus-visible, .ss-w-map-node:focus-visible, .ss-w-map-stage:focus-visible'), /outline: 2px solid var\(--ss-w-accent\)/);
 });
 
 test('the map: the place pins and name chips read the glass; the current place keeps its accent ring; unknown places read muted', () => {
-    assert.match(blocks(map, '.ss-w-map-node .ss-w-map-dot, .ss-w-map-node .ss-w-map-icon'), /background: var\(--ss-glass-strong, var\(--ss-w-bg\)\)/);
-    assert.match(blocks(map, '.ss-w-map-name'), /color: var\(--ss-text, var\(--ss-w-fg\)\)/);
-    assert.match(blocks(map, '.ss-w-map-node.ss-w-current .ss-w-map-dot, .ss-w-map-node.ss-w-current .ss-w-map-icon'), /border-color: var\(--ss-accent/);
-    assert.match(blocks(map, '.ss-w-map-node.ss-w-unknown'), /color: var\(--ss-muted, var\(--ss-w-muted\)\)/);
+    assert.match(blocks(map, '.ss-w-map-node .ss-w-map-dot, .ss-w-map-node .ss-w-map-icon'), /background: var\(--ss-w-bg\)/);
+    assert.match(blocks(map, '.ss-w-map-name'), /color: var\(--ss-w-fg\)/);
+    assert.match(blocks(map, '.ss-w-map-node.ss-w-current .ss-w-map-dot, .ss-w-map-node.ss-w-current .ss-w-map-icon'), /border-color: var\(--ss-w-accent\)/);
+    assert.match(blocks(map, '.ss-w-map-node.ss-w-unknown'), /color: var\(--ss-w-muted\)/);
 });
 
 // The map's rules are under :where() (no specificity), so a screen's own CSS still wins, except the three type rules that
@@ -78,8 +78,25 @@ test('the map: the colour of a control beats SillyTavern\'s button rule (0,0,1),
     for (const match of colourRules) {
         for (const selector of match[1].split(',').map(part => part.trim()).filter(part => part.includes('ss-w-map-btn'))) {
             assert.ok(beats(specificityOf(selector), [0, 0, 1]), `${selector} must beat the button rule`);
-            assert.match(match[2], /color: var\(--ss-text, var\(--ss-w-fg\)\)/, 'the look\'s text colour');
+            assert.match(match[2], /color: var\(--ss-w-fg\)/, 'the text colour (a widget override or the look\'s)');
         }
     }
     assert.match(blocks(map, '.ss-w-map-btn'), /font-weight: 600/);
+});
+
+// The widget's own names first: a screen's --ss-w-* override must win. A look token ahead of an override would silently
+// ignore it (the defaults for the look's tokens are set once, on :where(.ss-w), in styles.js).
+test('the map: every colour reads the widget name first; no look token is read ahead of an override', () => {
+    const LOOK = /var\(--ss-(accent|text|glass-strong|glass|tile|border|muted)[,)]/;
+    for (const match of map.matchAll(/^([^{}\n/*]+)\{([^{}]*)\}/gm)) {
+        if (!match[1].includes('ss-w-map')) continue;
+        const uses = match[2].replace(/--ss-w-[\w-]+:[^;]*;/g, '');  // a widget name's own default may read the look
+        assert.doesNotMatch(uses, LOOK, `a look token in: ${match[1].trim()}`);
+    }
+});
+
+test('the map: a layer pill with a long name wraps inside the pill (no overflow at a phone width)', () => {
+    const pill = blocks(map, '.ss-w-map-layer') + blocks(map, '.ss-w-map-btn');
+    assert.match(pill, /max-width: 100%/);
+    assert.match(pill, /overflow-wrap: anywhere/);
 });
