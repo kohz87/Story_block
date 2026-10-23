@@ -258,7 +258,9 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
             ['--ss-off', 'color-mix(in srgb, var(--SmartThemeBodyColor, #dcdcd2) 22%, transparent)'],
             ['--ss-accent', 'var(--SmartThemeQuoteColor, #e18a24)'],
             ['--ss-accent-soft', 'color-mix(in srgb, var(--SmartThemeQuoteColor, #e18a24) 20%, transparent)'],
-            ['--ss-accent-text', 'var(--SmartThemeQuoteColor, #e18a24)'],
+            // the accent as text, following SillyTavern's own colours: its quote colour mixed with its text colour, so it reads
+            // on a light theme too (the quote colour alone is ~2:1 there); on a dark theme it stays light
+            ['--ss-accent-text', 'color-mix(in srgb, var(--SmartThemeQuoteColor, #e18a24) 60%, var(--SmartThemeBodyColor, #dcdcd2))'],
             ['--ss-good', '#4caf6e'],
             ['--ss-chatter', 'var(--SmartThemeEmColor, #919191)'],
             ['--ss-blur', 'blur(var(--SmartThemeBlurStrength, 0px))'],
