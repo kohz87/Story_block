@@ -198,7 +198,7 @@ test('changes card: only what this reply touched', { skip }, () => {
     assert.deepEqual(view.warnings, []);
     const lines = el.querySelectorAll('.line').map(line => text(line));
     // Stacks come in the state's key order.
-    assert.deepEqual(lines, ['Rope now ×3', 'Iron Sword now ×1 equipped: hand', 'Wallet: now 125 gold', 'Here now: Fenna, Old Tam']);
+    assert.deepEqual(lines, ['Rope now ×3', 'Iron Sword now ×1 equipped: hand', 'Wallet: now 125 gold', 'Fenna, Old Tam here now']);
     assert.equal(el.querySelectorAll('.none').length, 0);
     assert.equal(el.querySelectorAll('.place').length, 0);
 });
@@ -208,7 +208,7 @@ test('changes card: a move, and a reply that changed nothing here', { skip }, ()
     const state = sceneState(module);
     const moved = show(changesCardScreen, { state, query: queries(module, state), changes: ['/domains/scene/place'] });
     assert.deepEqual(moved.view.warnings, []);
-    assert.deepEqual(moved.el.querySelectorAll('.line').map(line => text(line)), ['Now at Bluewatch Village']);
+    assert.deepEqual(moved.el.querySelectorAll('.line').map(line => text(line)), ['Moved to Bluewatch Village']);
     const quiet = show(changesCardScreen, { state, query: queries(module, state), changes: ['/domains/director/time/minutes', '/meta/rev'] });
     assert.deepEqual(quiet.view.warnings, []);
     assert.equal(quiet.el.querySelectorAll('.line').length, 0);
