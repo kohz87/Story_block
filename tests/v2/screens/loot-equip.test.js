@@ -62,7 +62,12 @@ test('changes card: an offer already taken says so, with no chips; the summary c
     assert.equal(changesSummary({ state, before: stocked(module), changes: ['/domains/inventory/loot'] }), '4 things to pick up');
 });
 
-test('inventory: with members, an Equipped section with Take off, and Equip onâ€¦ / Giveâ€¦ pickers', { skip }, async () => {
+// RPG Battle's item detail answers, which is how the screen knows RPG Battle is installed (equipment is its).
+const RPG_BATTLE = { 'rpg-battle.itemDetail': () => null };
+// The item detail widget RPG Battle draws in each row (its query answers, so the row asks for the widget).
+const DETAIL_WIDGET = { 'rpg-battle.item-detail': { render: () => ({ update() {}, destroy() {} }) } };
+
+test('inventory: with RPG Battle and members, Equip onâ€¦ / Giveâ€¦ pickers and a "Worn by" tag; no Equipped section', { skip }, async () => {
     const module = core();
     const state = stocked(module);
     state.domains.party = { pc: null, order: ['ac_ren00001', 'ac_mira0001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' }, ac_mira0001: { id: 'ac_mira0001', name: 'Mira' } } };
@@ -72,13 +77,15 @@ test('inventory: with members, an Equipped section with Take off, and Equip onâ€
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, view, calls, results } = show(inventoryScreen, {
-        state, query: queries(module, state), command: (type, payload, options) => bus.command(type, payload, options),
+        state, query: queries(module, state, RPG_BATTLE), widgets: DETAIL_WIDGET, command: (type, payload, options) => bus.command(type, payload, options),
     });
     assert.deepEqual(view.warnings, []);
-    const worn = el.querySelector('.worn');
-    assert.deepEqual(worn.querySelectorAll('h5').map(head => text(head)), ['Mira']);
-    assert.equal(text(worn.querySelector('.piece')), 'hand Dagger 40/100 Take off');
+    assert.equal(el.querySelector('.worn'), null, 'the Equipped section is gone: a worn piece is a bag row now');
     const row = name => el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === name);
+    const worn = row('Dagger');
+    assert.equal(text(worn.querySelector('.worn-by')), 'Worn by Mira', 'the tag names the wearer');
+    assert.equal(text(worn.querySelector('.cond')), '40/100', 'the condition stays on the row');
+    assert.equal(row('Rope').querySelector('.worn-by'), null, 'a piece not worn has no tag');
     const choices = (item, cls) => item.querySelectorAll(`.${cls} .choices button`).map(button => text(button));
     assert.deepEqual(choices(row('Iron Sword'), 'equip-on'), ['Ren', 'Mira']);
     assert.deepEqual(choices(row('Dagger'), 'equip-on'), ['Ren'], 'not its wearer');
@@ -86,7 +93,7 @@ test('inventory: with members, an Equipped section with Take off, and Equip onâ€
     assert.deepEqual(choices(row('Rope'), 'give'), ['Ren', 'Mira']);
     assert.deepEqual(choices(row('Dagger'), 'give'), ['the party\'s bag', 'Ren']);
     assert.equal(row('Iron Sword').querySelectorAll('[data-command="inventory.equip"]').length, 0, 'the picker replaces the plain Equip');
-    assert.equal(el.querySelectorAll('ss-widget').length, 0, 'no item detail widget without RPG Battle');
+    assert.equal(el.querySelectorAll('ss-widget').length, el.querySelectorAll('.item').length, 'one item detail per row, RPG Battle\'s');
 
     row('Iron Sword').querySelectorAll('.equip-on .choices button')[0].click();
     await settle();
@@ -104,6 +111,42 @@ test('inventory: with members, an Equipped section with Take off, and Equip onâ€
     assert.deepEqual([stacks.it_sword001.owner, stacks.it_sword001.equipped], ['ac_ren00001', 'hand']);
     assert.deepEqual([stacks.it_dagg0001.owner, stacks.it_dagg0001.equipped], ['ac_mira0001', null], 'taken off, still in Mira\'s pack');
     assert.equal(stacks.it_rope0001.owner, 'ac_ren00001');
+});
+
+test('inventory without RPG Battle: the bag and purse only, no equipment controls, tags, condition or filter', { skip }, () => {
+    const module = core();
+    const state = stocked(module);
+    state.domains.party = { pc: null, order: ['ac_ren00001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' } } };
+    state.domains.inventory.stacks.it_dagg0001.owner = 'ac_ren00001';
+    state.domains.inventory.stacks.it_dagg0001.equipped = 'hand';
+    state.domains.inventory.stacks.it_dagg0001.cond = 40;
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state) });
+    assert.deepEqual(view.warnings, []);
+    const dagger = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Dagger');
+    assert.equal(dagger.querySelector('.worn-by'), null, 'no "Worn by" tag');
+    assert.equal(dagger.querySelector('.cond'), null, 'no condition');
+    assert.equal(dagger.querySelector('.equip-on'), null, 'no Equip onâ€¦');
+    assert.equal(dagger.querySelector('[data-command="inventory.unequip"]'), null, 'no Unequip');
+    assert.equal(dagger.classList.contains('equipped'), false);
+    assert.equal(el.querySelector('.filter .check'), null, 'no equipped-only filter');
+    assert.equal(el.querySelector('option[value="equipment"]'), null, 'no equipment kind in the filter');
+    assert.deepEqual(dagger.querySelectorAll('.give .choices button').map(button => text(button)), ["the party's bag"], 'Give stays: it is bag management (not back to its own wearer)');
+    assert.equal(text(dagger.querySelector('.owner')), 'Ren', 'who carries it is still said');
+});
+
+test('inventory: a piece the shared bag wears is "Worn by" the main character, or by "the party" with none', { skip }, () => {
+    const module = core();
+    const state = stocked(module);
+    state.domains.party = { pc: 'ac_ren00001', order: ['ac_ren00001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' } } };
+    state.domains.inventory.stacks.it_dagg0001.equipped = 'hand';
+    const tagOf = () => {
+        const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG_BATTLE), widgets: DETAIL_WIDGET });
+        assert.deepEqual(view.warnings, []);
+        return text(el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Dagger').querySelector('.worn-by'));
+    };
+    assert.equal(tagOf(), 'Worn by Ren');
+    state.domains.party.pc = null;
+    assert.equal(tagOf(), 'Worn by the party');
 });
 
 test('inventory: RPG Battle\'s item detail widget sits in each row when its query is there', { skip }, () => {

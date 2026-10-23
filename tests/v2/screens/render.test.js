@@ -10,10 +10,15 @@ import { core, queries, recordingWidgets, renderSkip, sceneState, settle, show, 
 
 const skip = renderSkip;
 
-function inventoryView(state = null, options = {}) {
+// RPG Battle installed: its item detail answers (the screen's probe for equipment) and draws the detail widget per row.
+const RPG = { query: { 'rpg-battle.itemDetail': () => null }, widgets: { 'rpg-battle.item-detail': { render: () => ({ update() {}, destroy() {} }) } } };
+
+// `rpg: true` draws it with RPG Battle installed (its item detail answers, equipment controls show).
+function inventoryView(state = null, { rpg = false, ...options } = {}) {
     const module = core();
     const s = state ?? stocked(module);
-    return { module, state: s, ...show(inventoryScreen, { state: s, query: queries(module, s), ...options }) };
+    const extra = rpg ? RPG.query : {};
+    return { module, state: s, ...show(inventoryScreen, { state: s, query: queries(module, s, extra), widgets: rpg ? RPG.widgets : {}, ...options }) };
 }
 
 const visibleItems = el => el.querySelectorAll('.item').map(item => item.querySelector('.name').textContent);
@@ -22,7 +27,7 @@ test('inventory: grouped by kind, with qty, rarity, equipped marker and the wall
     const module = core();
     const state = stocked(module);
     state.domains.inventory.stacks.it_sword001.equipped = 'hand';
-    const { el, view } = show(inventoryScreen, { state, query: queries(module, state) });
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG.query), widgets: RPG.widgets });
     assert.deepEqual(view.warnings, []);
     assert.equal(text(el.querySelector('.wallet')), '125 gold');
     const groups = el.querySelectorAll('.group').map(group => [group.getAttribute('data-kind'), group.querySelectorAll('.item').length]);
@@ -30,7 +35,7 @@ test('inventory: grouped by kind, with qty, rarity, equipped marker and the wall
     assert.deepEqual(visibleItems(el), ['Dagger', 'Iron Sword', 'Minor Healing Draught', 'Minor Healing Draught', 'Lantern', 'Rope']);
     const sword = el.querySelectorAll('.item')[1];
     assert.equal(sword.className, 'item ss-glass r-uncommon equipped');
-    assert.equal(text(sword.querySelector('.eq')), 'hand');
+    assert.equal(text(sword.querySelector('.worn-by')), 'Worn by the party', 'the bag wears it, with no main character');
     assert.equal(sword.querySelector('.rarity').textContent, 'uncommon');
     assert.equal(sword.querySelectorAll('.qty').length, 0);
     const rope = el.querySelectorAll('.item')[5];
@@ -50,7 +55,7 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, calls, results } = show(inventoryScreen, {
-        state, query: queries(module, state), command: (type, payload, options) => bus.command(type, payload, options),
+        state, query: queries(module, state, RPG.query), widgets: RPG.widgets, command: (type, payload, options) => bus.command(type, payload, options),
     });
     const item = name => el.querySelectorAll('.item').find(row => row.querySelector('.name').textContent === name);
     const buttons = row => row.querySelectorAll('button').map(button => text(button));
@@ -86,7 +91,7 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
 
 test('inventory: the filter box fills the draft and narrows the list', { skip }, () => {
     const draft = {};
-    const { el, view, state, calls } = inventoryView(null, { draft });
+    const { el, view, state, calls } = inventoryView(null, { draft, rpg: true });
     const filter = el.querySelector('.filter');
     const [kind, rarity] = filter.querySelectorAll('select');
     kind.value = 'equipment';
