@@ -15,6 +15,7 @@ import { TABS_FOLD, TABS_TEXT } from '../../host-ui.js';
 import { fill } from '../../strings.js';
 import { newId, sectionBlock, switchField } from '../form/fields.js';
 import { revealIn, showAndFocus } from '../scroll.js';
+import { iconNode } from '../widgets/dom.js';
 
 const h = (doc, tag, className = '', text = '') => {
     const node = doc.createElement(tag);
@@ -96,8 +97,8 @@ export function renderTabsCard(parent, { doc, tabs, onChange = null }) {
         rows.forEach(row => {
             const item = h(doc, 'li', `ss-tabrow${row.hidden ? ' ss-tabrow-hidden' : ''}`);
             item.dataset.tabId = row.id;
-            const glyph = h(doc, 'i', `fa-solid ${row.icon || 'fa-table-columns'} ss-tabrow-icon`);
-            glyph.setAttribute('aria-hidden', 'true');
+            // a gi-* game icon, a Font Awesome name or a short glyph (as the tab strip draws it); the default icon otherwise
+            const glyph = iconNode(doc, row.icon, 'ss-tabrow-icon') ?? iconNode(doc, 'fa-table-columns', 'ss-tabrow-icon');
             const name = h(doc, 'span', 'ss-tabrow-name');
             const nameId = newId('tab');
             const title = h(doc, 'b', 'ss-tabrow-title', row.title);
