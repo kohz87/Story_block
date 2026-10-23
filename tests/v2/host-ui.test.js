@@ -11,7 +11,6 @@ import { createCoreModule } from '../../src/v2/domains/index.js';
 import { EVENTS_NOTE } from '../../src/v2/events/index.js';
 import { packsFor } from '../../src/v2/runtime.js';
 import { estimateTokens } from '../../src/v2/prompt.js';
-import { createPacksHintWidget } from '../../src/v2/screens/packs-hint.js';
 import { STRINGS } from '../../src/v2/strings.js';
 
 const doc = installFakeDom();
@@ -481,30 +480,6 @@ test('the settings window: a side with the rail and a page; Escape closes it and
     opener.remove();
     delete doc.addEventListener;
     delete doc.removeEventListener;
-});
-
-test('Home\'s "Import a pack": shown while no pack is installed, opens the settings at Packs, gone with a pack', () => {
-    let packs = [];
-    let listener = null;
-    let opened = 0;
-    const widget = createPacksHintWidget({ list: () => packs, subscribe: fn => { listener = fn; return () => { listener = null; }; }, open: () => { opened += 1; } });
-    const host = doc.createElement('div');
-    const handle = widget.render(host, {}, {});
-    const go = host.querySelector('button.sb-packs-import');
-    assert.equal(go.textContent, STRINGS.packsHint.import);
-    assert.equal(go.type, 'button');
-    assert.equal(host.querySelector('.packs-hint').getAttribute('aria-label'), 'Packs');
-    go.click();
-    assert.equal(opened, 1);
-    packs = [{ id: 'ersveil' }];
-    listener();
-    assert.equal(host.children.length, 0, 'a pack installed: nothing');
-    handle.destroy();
-    assert.equal(listener, null, 'its listener goes with it');
-    // A Story Block that cannot tell (no list): nothing either.
-    const unknown = doc.createElement('div');
-    createPacksHintWidget({ list: () => null }).render(unknown, {}, {});
-    assert.equal(unknown.children.length, 0);
 });
 
 test('a real browser\'s querySelectorAll gives a NodeList (no find, no at): the switch, Add and opening at a fold still work', () => {

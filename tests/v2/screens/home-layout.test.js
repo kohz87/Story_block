@@ -1,5 +1,5 @@
-// Home's hero card on a phone (hotfix): the portrait left, the name, level and bars right filling the card at every width, and a status tag
-// that wraps instead of leaving its card. The CSS is the screen's own (src/v2/screens/home.js).
+// Home's layout (the CSS is the screen's own, src/v2/screens/home.js). The lead's hero card is the game view's header now
+// (UI stage 5a, view/game-header.js), so Home has no hero rule. A quest's status tag wraps and never leaves its card.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { homeScreen } from '../../../src/v2/screens/home.js';
@@ -11,14 +11,15 @@ const rule = selector => {
     return css.slice(at, css.indexOf('}', at));
 };
 
-test('the hero is a row at every width: no narrow-screen rule turns it into a centred column', () => {
-    assert.match(rule('.hero'), /display: flex;\s*flex-direction: row;/);
-    assert.match(rule('.hero'), /text-align: start;/);
-    assert.doesNotMatch(css, /@media[^{]*max-width[^{]*\{\s*\.hero\b/, 'no media rule for the hero');
-    assert.doesNotMatch(css, /flex-direction: column; text-align: center/);
-    assert.match(rule('.hero .face'), /flex: none;/, 'the portrait keeps its size');
-    assert.match(rule('.who'), /flex: 1 1 0;\s*min-width: 0;/, 'the name and bars take the rest of the card');
-    assert.match(rule('.pools'), /min-width: 0;/);
+test('Home has no hero card: the game view header draws the lead on every screen', () => {
+    assert.doesNotMatch(homeScreen.template, /class="panel hero"/);
+    assert.doesNotMatch(homeScreen.template, /ss\.portrait/);
+    assert.doesNotMatch(css, /\.hero\b/);
+});
+
+test('the section headings are the section label (a label and a hairline)', () => {
+    assert.match(homeScreen.template, /<h4 class="ss-section-label">/);
+    assert.equal((homeScreen.template.match(/<h4>/g) ?? []).length, 0, 'no plain heading left');
 });
 
 test('a quest\'s status tag wraps and never overflows its card', () => {

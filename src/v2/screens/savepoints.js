@@ -23,7 +23,7 @@ function el(doc, tag, className = '', text) {
 }
 
 function button(doc, className, icon, text, title = '') {
-    const node = el(doc, 'button', `btn ${className}`);
+    const node = el(doc, 'button', `ss-button ${className}`);
     node.type = 'button';
     node.setAttribute('type', 'button');
     if (icon) {
@@ -90,7 +90,7 @@ export function createSavePointsWidget({ points, enabled = () => true, notify = 
                 const here = points.chatId?.();
                 root = el(doc, 'section', 'panel saves');
                 root.setAttribute('aria-label', S.title);
-                const head = el(doc, 'h4');
+                const head = el(doc, 'h4', 'ss-section-label');
                 const glyph = el(doc, 'i', 'fa-solid fa-flag');
                 glyph.setAttribute('aria-hidden', 'true');
                 head.append(glyph, doc.createTextNode(` ${S.title}`));

@@ -71,19 +71,3 @@ test('settings: the overlay counts the next reply\'s prompt (turn.preview) with 
     assert.equal(doc.querySelector('#story_suite_v2_overlay'), null);
 });
 
-test('Home: "Import a pack" while no pack is installed opens the settings at the Packs card, the Import button focused', async t => {
-    t.mock.method(console, 'warn', () => {});
-    const { doc, ui, runtime } = setup(undefined);
-    await runtime.turn.onChatChanged();
-    assert.equal(runtime.packs.packs.list().length, 0, 'no pack installed in the fake context');
-    ui.mounts.screen.open('story-block/home');
-    const button = doc.querySelectorAll('.sb-packs-import')[0];
-    assert.ok(button, 'the button on Home');
-    button.click();
-    assert.equal(ui.mounts.screen.isOpen(), false, 'the game view steps aside');
-    const overlay = doc.querySelector('#story_suite_v2_overlay');
-    const importButton = overlay.querySelector('.ss-packs-card .ss-packs-import');
-    assert.ok(importButton);
-    assert.ok(doc.activeElement === importButton, 'the Import button has the focus');
-    doc.querySelector('#story_suite_v2_overlay .story-suite-close').click();
-});

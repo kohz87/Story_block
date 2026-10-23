@@ -55,7 +55,7 @@ export function recordingWidgets() {
             return { update(next) { (drawn[name] ??= []).push(next); }, destroy() {} };
         },
     });
-    const names = ['ss.meter', 'ss.portrait', 'ss.badge', 'story-block.savepoints', 'story-block.packs-hint', 'story-block.ready-hint'];
+    const names = ['ss.meter', 'ss.portrait', 'ss.badge', 'story-block.savepoints', 'story-block.ready-hint', 'story-block.show-more'];
     return { drawn, widgets: Object.fromEntries(names.map(name => [name, widget(name)])) };
 }
 

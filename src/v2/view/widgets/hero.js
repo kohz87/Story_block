@@ -92,7 +92,6 @@ function renderHero(el, input, api) {
         const portrait = h(doc, 'div', 'ss-hero-portrait');
         portrait.setAttribute('role', 'img');
         const img = h(doc, 'img', 'ss-hero-img');
-        img.setAttribute('alt', '');
         img.setAttribute('draggable', 'false');
         img.setAttribute('loading', 'lazy');
         img.setAttribute('decoding', 'async');
@@ -133,6 +132,7 @@ function renderHero(el, input, api) {
             name.textContent = label;
             letter.textContent = initials(label);
             portrait.setAttribute('aria-label', label ? `Portrait of ${label}` : 'Portrait');
+            img.setAttribute('alt', label ? `Portrait of ${label}` : '');
             const url = heroPicture(p, api);
             if (url && url !== failed) {
                 if (img.getAttribute('src') !== url) img.setAttribute('src', url);

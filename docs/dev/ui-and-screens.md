@@ -464,6 +464,31 @@ Tests: `tests/v2/ux/inspector-glass-ui.test.js` (the rows, the search, the tree'
 current place, zoom in, out and reset, no control disabled), `tests/v2/ux/map-glass-css.test.js` (the stage, the controls and
 their states, the plates, the class-level exceptions and their specificity), `tests/v2/screens/ui-sample.test.js` (the sample's map).
 
+## The game view and the screens (UI stage 5a)
+
+- **The header** (`view/game-header.js`, `mounts/screen.js`): above every screen of the game view, the `ss.hero` block
+  (`.ss-gameview-hero`, shown only when the head state gives one; no chat, no header). `gameHeroProps({ state, query, context,
+  formatTime })` is the one place that reads the lead and the scene: `party.pc` (HP, MP, SP with a maximum, `level`, `role`,
+  `conditions`), `party.terms` (the level's word), `scene.place`, `scene.weather`, `director.time` (formatted by the host's
+  `fmt.time`). The lead's name falls back to the persona's. The portrait is `portraitOf`: the persona avatar
+  (`/thumbnail?type=persona&file=…`), else the card's (`/thumbnail?type=avatar&file=…`), else `npc.portrait` asked with
+  `{ name }`, else the initial. Every read is a query, every failed read is an empty part. The mount calls `deps.heroOf(state)`
+  (ui-host.js) on open, on a screen change, on each redraw and when the 760px breakpoint changes (`compact` on a phone).
+- **The layout** (`mounts.css`): the bar, the header and the body are the game view's own flex items (`.ss-gameview-main` is
+  `display: contents`). A phone (under 760px): title bar, header (compact), screen, the floating bottom bar. Wide: title bar,
+  header (wide, the hero's 600px container query), **the tab row** (the same `.ss-gameview-navitem` buttons, a row with the
+  current one underlined), then the body. The nav keeps its own keys and Tab stops. A screen that asks for a side column gets
+  the body's room; no screen asks for one yet.
+- **The screens** (`screens/style.js`, `home.js`, `inventory.js`, `scene.js`, `savepoints.js`, `packs-hint.js`, `ready-hint.js`):
+  the base CSS reads the glass tokens (`--sb-surface` = `--ss-glass-strong`, `--sb-raised` = `--ss-tile`, `--sb-border` =
+  `--ss-border`), a panel is a glass card, every heading is `ss-section-label`, and actions are `ss-button` (`ss-button-primary`,
+  `ss-button-danger`) so they take the look's states. Home has no hero card: the header draws the lead, and Home keeps the
+  Where, Purse and pack, Quests, Save points and Packs cards (and Party and Fight when their modules are there).
+- **The section label** (`glass.css`, `.ss-section-label`): documented in WIDGETS.md. Use it for any heading of a part of a screen.
+- Tests: `tests/v2/view/game-header.test.js` (the lead, the scene, the fallbacks, the portrait order, the avatar paths),
+  `tests/v2/view/mounts/game-header.test.js` (the slot on open, a head change, a screen change, no state, a throwing `heroOf`),
+  `tests/v2/screens/home-layout.test.js`, `tests/v2/screens/render.test.js`.
+
 ## Key files and functions
 
 - `src/v2/view/screens.js`: `validateScreen`, `resolveData`, `screenOrder`, `byNavOrder`, `DEFAULT_ORDER`,

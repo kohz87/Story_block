@@ -222,13 +222,13 @@ test('home: Story Block alone shows the place and the purse, and nothing else', 
     const { drawn, widgets } = recordingWidgets();
     const { el, view, problems } = show(homeScreen, { state, query: queries(module, state), widgets });
     assert.deepEqual(view.warnings, []);
-    assert.equal(problems.length, 4, 'the missing modules\' queries are reported to the mount, not drawn');
+    assert.equal(problems.length, 3, 'the missing modules\' queries are reported to the mount, not drawn (the fight, the offers, the board)');
     assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel scene', 'panel purse']);
     assert.equal(text(el.querySelector('.place')), 'Bluewatch Village · Lakeshore');
     assert.equal(text(el.querySelector('.here')), 'Here: Fenna, Old Tam');
     assert.equal(text(el.querySelector('.wallet')), '125 gold · 6 things carried');
     assert.deepEqual(el.querySelectorAll('.worn li').map(li => text(li)), ['Iron Sword']);
-    assert.deepEqual(drawn, { 'story-block.ready-hint': [{}], 'story-block.savepoints': [{}], 'story-block.packs-hint': [{}] }, 'only the "before you start", save points and packs slots (the host widgets draw or hide them)');
+    assert.deepEqual(drawn, { 'story-block.ready-hint': [{}], 'story-block.savepoints': [{}] }, 'only the "before you start" and save points slots (the host widgets draw or hide them)');
 });
 
 test('home: with RPG Battle and Story Director, their panels appear', { skip }, () => {
@@ -254,25 +254,28 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     const { el, view, problems } = show(homeScreen, { state, query, widgets });
     assert.deepEqual(view.warnings, []);
     assert.deepEqual(problems, []);
-    assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel hero', 'panel party', 'panel fight', 'panel scene', 'panel purse', 'panel quests']);
-    assert.equal(el.querySelector('.hero h3').textContent, 'Ren');
-    assert.equal(text(el.querySelector('.hero .sub')), 'Level 4 · ranger');
+    // The lead's card is the game view's header now (view/game-header.js): Home does not repeat it.
+    assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel party', 'panel fight', 'panel scene', 'panel purse', 'panel quests']);
+    assert.equal(el.querySelector('.hero'), null, 'no hero card on Home');
     assert.deepEqual(drawn['ss.meter'].map(props => [props.label, props.value]), [
-        ['HP', { cur: 20, max: 82 }], ['MP', { cur: 3, max: 10 }], ['Lyra', { cur: 30, max: 30 }], ['Progress', '2'],
+        ['Lyra', { cur: 30, max: 30 }], ['Progress', '2'],
     ]);
-    assert.deepEqual(drawn['ss.meter'][3], { value: '2', max: '3', label: 'Progress', tone: 'accent' });
-    assert.deepEqual(drawn['ss.badge'].map(props => props.label), ['poisoned']);
-    assert.deepEqual(drawn['ss.portrait'].map(props => props.name), ['Ren']);
+    assert.deepEqual(drawn['ss.meter'][1], { value: '2', max: '3', label: 'Progress', tone: 'accent' });
+    assert.equal(drawn['ss.badge'], undefined, 'the conditions are on the header, not on Home');
+    assert.equal(drawn['ss.portrait'], undefined, 'the portrait is on the header, not on Home');
     assert.equal(text(el.querySelector('.offer')), 'Ahead: 6 Cellar Rat, 1 Rat King to the death');
     assert.equal(el.querySelectorAll('.fight .on').length, 0);
     assert.equal(text(el.querySelector('.time')), 'Day 1, 00:00');
-    assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3', 'Lost Ring']);
+    // No count limit now: every quest is in the card, and the card's list is capped with a "Show all" toggle (screens/show-more.js).
+    assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3', 'Quest 4', 'Lost Ring']);
     assert.equal(text(el.querySelector('.quest')), 'Quest 1 Not yet: 2/3 rats — clear the cellar ss.meter:Progress');
     assert.deepEqual(el.querySelectorAll('.quest .status').map(chip => [chip.getAttribute('data-state'), chip.textContent]), [
-        ['notyet', 'Not yet: 2/3 rats'], ['here', 'Ready to turn in'], ['notyet', 'Not yet'], ['offered', 'Offered — say you take it'],
+        ['notyet', 'Not yet: 2/3 rats'], ['here', 'Ready to turn in'], ['notyet', 'Not yet'], ['notyet', 'Not yet'], ['offered', 'Offered — say you take it'],
     ]);
     assert.equal(el.querySelectorAll('.quest .progress').length, 1, 'only the first open quest with a target gets a bar');
-    assert.equal(text(el.querySelector('.more')), 'and more on the Quests screen');
+    assert.equal(el.querySelector('.more'), null, 'no "and more" line: the toggle does that');
+    assert.equal(el.querySelectorAll('.sb-cap').length, 1, 'the quests list is the capped part');
+    assert.deepEqual(drawn['story-block.show-more'], [{ target: '.sb-cap', more: 'Show all', less: 'Show less' }], 'the quests card has its toggle');
 });
 
 test('home and scene: the story time through the host\'s fmt.time (the calendar), not "Day N"', { skip }, async () => {
