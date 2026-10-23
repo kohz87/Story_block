@@ -159,7 +159,9 @@ export const TABS_TEXT = Object.freeze({
 // The Diagnostics page (diagnostics.js builds the report; view/settings/diagnostics-page.js draws it).
 export const DIAGNOSTICS_TEXT = Object.freeze({
     title: 'Diagnostics',
-    hint: 'a report for a bug report',
+    // The report's fold: its summary line says what the report holds (the fold is closed until it is opened).
+    reportTitle: 'Report',
+    reportHint: 'versions, modules, settings',
     checksHint: 'checks for packs and modules',
     help: 'A plain report of what Story Suite sees: versions, features, settings, the prompt size, the last problems, saving and the size of this chat, and what each module adds. It holds no API keys, passwords or addresses and no chat text. Read it before you share it.',
     copy: 'Copy report',

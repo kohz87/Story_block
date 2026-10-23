@@ -323,10 +323,12 @@
 
 .ss-hud {
     display: flex;
-    gap: var(--ss-gap);
+    /* Items 10px apart; 8px of air above and below, so a bar, a badge's tag or a pill that reaches past its item is not cut
+       by the strip's own edge (`overflow-x: auto` also clips vertically). */
+    gap: 10px;
     overflow-x: auto;
     scrollbar-width: none;
-    padding: 2px 4px;
+    padding: 8px 10px;
     color: var(--ss-text);
     /* Under Glass the theme sets --ss-sheet-*: the glass strip with its edge, radius, blur and shadow. Solid and
        Follow SillyTavern leave them unset: the opaque strip with a hairline on top, as before. */
@@ -365,13 +367,18 @@
 }
 
 .ss-hud-item {
-    /* shrinks when the strip is full (a long place takes the room, not the strip's edge) */
-    flex: 0 1 auto;
+    /* keeps its own width (its content's, max-content): a full strip scrolls sideways (the phone's strip does) rather than
+       squeezing an item so its bars and badges run past its edge, where the overflow cut them (a long place is cut in its pill) */
+    flex: 0 0 auto;
     /* the item takes its content's width, but never more than the strip: a long place is cut inside the item (its own ellipsis),
        not pushed past the strip's edge (min-width: min-content did that: an unbroken 80-character place scrolled the strip) */
     width: max-content;
     max-width: 100%;
-    max-height: 48px;
+    /* a full screen of content (a portrait, two bars, a badge and its tag) is about 44px; the cap is for a runaway item, not a
+       normal one, so it sits above that rather than clipping a bar at the bottom */
+    max-height: 64px;
+    /* room for what a badge hangs out of its own square (its time tag: 5px past the right and the bottom), inside the cut */
+    padding: 0 5px 5px 0;
     overflow: hidden;
 }
 
