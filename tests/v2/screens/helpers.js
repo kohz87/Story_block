@@ -93,3 +93,25 @@ export const text = node => node.textContent.replace(/\s+/g, ' ').trim();
 
 /** Let the click's command promise settle. */
 export const settle = () => new Promise(resolve => setImmediate(resolve));
+
+/** Whether a radio is the action group of `stack` (the template adds `ss-t-` and, for a copy drawn again, `--c<n>`). */
+const foldName = (input, stack) => new RegExp(`fold_${stack}(--c\\d+)?$`).test(input.getAttribute('name') ?? '');
+
+/**
+ * Opens a stack's fold on a rendered Inventory screen as a tap does: the action's radio is chosen (a change to the
+ * draft, which the screen draws from). `kind` is the action: equipOn, use or drop. Its buttons are then
+ * `[id="fold-<stack>"] button`.
+ */
+export function openFold(el, stack, kind) {
+    const radio = el.querySelectorAll('input[type="radio"]').find(input => foldName(input, stack) && input.getAttribute('value') === kind);
+    if (!radio) throw new Error(`no ${kind} action on ${stack}`);
+    radio.checked = true;
+    radio.dispatch('change');
+}
+
+/** The fold row of a stack on a rendered Inventory screen (null while it is closed): the id its action names in aria-controls. */
+export function foldOf(el, stack) {
+    const radio = el.querySelectorAll('input[type="radio"]').find(input => foldName(input, stack));
+    const id = radio?.getAttribute('aria-controls');
+    return id ? el.querySelector(`[id="${id}"]`) : null;
+}
