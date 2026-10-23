@@ -419,7 +419,7 @@ SillyTavern's own colours. The dialog's buttons take the action pills under ever
 Two screens and one widget, on the look's tokens; each keeps its markup, its keys, its commands and its data.
 
 - **The State inspector** (`src/v2/screens/inspector.js`). Each card is a glass card (`ss-glass`, the card title is `ss-label`);
-  the reply picker is a `ss-select`, the search an `ss-text` input, the heading's count a soft pill. The diff, operations, receipts
+  the reply picker is a `ss-select`, the search an `ss-text` input, and the heading carries a soft pill ("starts a checkpoint") when the reply starts one. The diff, operations, receipts
   and problems rows are the list-card rows (`ss-listcard-row`, `ss-listcard-item`, the tile, title and sub line). The tree keeps its
   folding and its search (a node on the way to a hit opens; a hit stays shut until opened). Its buttons (`sb-insp-btn`) are glass
   pills with 40px targets: rest, hover and focus-visible take the accent over the glass, the active state the same fill, disabled is
@@ -441,14 +441,17 @@ rules of the widget outside `:where()`, and the widget invariant (`tests/v2/view
 button in a widget needs the same care.
 
 **Phones.** A `scrollIntoView`, or a plain `focus()`, scrolls the page behind a fixed window; on a phone that pushes the window
-off-screen. The inspector and the map never call `scrollIntoView`, and every `focus()` passes `{ preventScroll: true }` (a test
-scans both sources). Their jumps (older, newer, latest), the search and the zoom and layer controls leave the page's scroll and the
-visual viewport's offset unchanged. Long labels, tags and values wrap or are cut (`overflow-wrap: anywhere`); no card child is
-wider than its card.
+off-screen. The inspector, the map, the list card and the dialog never call `scrollIntoView`, and their focus goes through
+`focusNode` (`view/scroll.js`, `preventScroll`). The guard for this is `tests/v2/ux/inspector-map-scroll.test.js`: a source scan
+that catches a new bare call in those four files. It is a guard, not proof. The behaviour was checked on a phone profile in the
+live instance: after older, latest and search, the page's scroll and the visual viewport's offset did not move. Long unbroken names
+wrap (`overflow-wrap: anywhere`) in the heading, the branch summaries, the leaves and the map's layer pills, and the inspector's
+body is one column that may shrink (`minmax(0, 1fr)`); `tests/v2/ux/inspector-glass-css.test.js` pins those rules.
 
-**Contrast.** A label on translucent glass is measured on the pixels behind it (the label hidden, the fill inside the border,
-inset 3px so a 1px border on a round control is not counted). For an opaque plate the contrast is read from the computed colours.
-The measured limits and the results are in the PR for this step.
+**Contrast.** A label on translucent glass is measured on the pixels behind it: the label is hidden, and the fill inside the border
+is sampled, inset 3px so a 1px border on a round control is not counted. A plate with an opaque fill is read from its computed
+colours (WCAG ratio). The inspector's labels and buttons were measured this way in Glass, Solid and Follow SillyTavern, dark and
+light; the map's controls and plates were measured the same way and read from computed colours where the fill is opaque.
 
 Tests: `tests/v2/ux/inspector-glass-ui.test.js` (the rows, the search, the tree's folding and the buttons' keys),
 `tests/v2/ux/inspector-glass-css.test.js` (the tokens, the states, the monospace rules), `tests/v2/ux/inspector-map-scroll.test.js`
