@@ -40,3 +40,12 @@ test('a validated pack gets the same tag (its declared modules and its content)'
     assert.equal(checked.ok, true, JSON.stringify(checked.errors));
     assert.equal(packTag(checked.pack), 'World pack · Story Director');
 });
+
+test('a validated pack that holds nothing and declares nothing is "Pack" (its empty theme and nulls do not count as content)', () => {
+    const checked = validatePack({ id: 'nothing-x', version: '1.0.0', requires: { storyBlock: '^2' }, content: {} });
+    assert.equal(checked.ok, true, JSON.stringify(checked.errors));
+    assert.equal(packTag(checked.pack), 'Pack');
+    const themed = validatePack({ id: 'theme-x', version: '1.0.0', requires: { storyBlock: '^2' }, content: {}, theme: { '--ss-accent': '#3f7f8f' } });
+    assert.equal(themed.ok, true, JSON.stringify(themed.errors));
+    assert.equal(packTag(themed.pack), 'Story Block pack', 'a theme is what the pack holds');
+});

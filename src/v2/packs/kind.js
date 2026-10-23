@@ -41,6 +41,7 @@ export function packTag(pack) {
     if (world && rules) return LABEL.unknown;
     if (world) return LABEL.world;
     if (rules) return LABEL.rules;
-    const core = Object.entries(content).some(([kind, list]) => !SHARED.includes(kind) && Array.isArray(list) && list.length > 0) || Boolean(pack.start || pack.currency || pack.economy || pack.theme);
+    const core = Object.entries(content).some(([kind, list]) => !SHARED.includes(kind) && Array.isArray(list) && list.length > 0) || Boolean(pack.start || pack.currency || pack.economy || Object.keys(pack.theme ?? {}).length > 0);
+    // (a validated pack has `theme: {}` and nulls for what it does not hold: only what is there counts)
     return core ? LABEL.core : LABEL.unknown;
 }
