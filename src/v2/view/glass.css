@@ -799,6 +799,23 @@
     color: var(--ss-muted);
     overflow-wrap: anywhere;
 }
+/* A pack row's tag: which module the pack is for ("World pack · Story Director"), a small labelled pill under the name. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-packs-tag {
+    align-self: flex-start;
+    margin: 2px 0 2px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--ss-accent) 45%, transparent);
+    border-radius: var(--ss-radius-pill);
+    color: var(--ss-text);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-listcard-value {
     flex: none;
     font-weight: 600;

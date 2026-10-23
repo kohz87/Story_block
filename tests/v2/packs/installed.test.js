@@ -24,6 +24,7 @@ test('installing keeps the pack as given, under its id, switched on', async () =
         id: 'riverside-starter', version: '1.0.0', name: 'Riverside Starter', author: 'Story Suite examples',
         description: sample().description, enabled: true, source: 'file', origin: 'riverside.json',
         counts: { items: 4, creatures: 1, shops: 1, recipes: 1, events: 2, quests: 0, races: 1, talents: 1 }, hasStart: true, extras: ['a money word', 'a theme'], missing: [], problem: '',
+        tag: 'Story Block pack',
     }]);
     assert.equal(installed.packs()[0].content.items.length, 4);
 });
