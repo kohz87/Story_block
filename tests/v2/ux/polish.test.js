@@ -111,7 +111,7 @@ test('scrollCue marks the hidden side, follows scrolling, and lets go on destroy
     assert.equal(observed.length, 0);
 });
 
-test('the game view\'s navigation and the tab bar carry the cue; mounts.css fades the edge', () => {
+test('the game view\'s navigation is the screen bar: the screens in order, the open one current, no sideways cue; the sub-tab lists keep their fade', () => {
     const doc = setupDom();
     const deps = {
         screens: screensWith([screen('story-block/home', ['screen']), screen('rpg-battle/party', ['screen']), screen('x/fight', ['screen'])]),
@@ -120,12 +120,13 @@ test('the game view\'s navigation and the tab bar carry the cue; mounts.css fade
     const view = createScreenMount(deps);
     view.open('x/fight');
     const nav = doc.body.querySelector('.ss-gameview-nav');
-    assert.deepEqual(nav.querySelectorAll('.ss-gameview-navitem').map(item => item.getAttribute('data-ss-target')), ['story-block/home', 'rpg-battle/party', 'x/fight']);
-    assert.ok(nav.getAttribute('data-ss-more'), 'the cue is set on the navigation');
+    assert.deepEqual(nav.querySelectorAll('.ss-screenbar-item[data-id]').map(item => item.getAttribute('data-id')), ['story-block/home', 'rpg-battle/party', 'x/fight']);
+    assert.equal(nav.querySelector('.ss-screenbar-item[aria-current="page"]').getAttribute('data-id'), 'x/fight');
+    assert.equal(nav.getAttribute('data-ss-more'), null, 'five slots do not scroll, so no cue');
     view.close();
     const css = read('view/mounts.css');
-    assert.match(css, /:is\(\.ss-gameview-nav, \.ss-tabs-list\)\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
-    assert.match(css, /\[data-ss-axis="y"\]\[data-ss-more="both"\][^}]*mask-image/);
+    assert.match(css, /\.ss-tabs-list\[data-ss-axis="x"\]\[data-ss-more="end"\][^}]*mask-image/);
+    assert.match(css, /\.ss-tabs-list\[data-ss-axis="y"\]\[data-ss-more="both"\][^}]*mask-image/);
 });
 
 // ---- the story clock -------------------------------------------------------------------------------

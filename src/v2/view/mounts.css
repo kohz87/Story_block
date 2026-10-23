@@ -141,91 +141,62 @@
     scroll-padding-top: 8px;
 }
 
+/* The screen bar (view/screen-bar.js, glass.css) in the game view: on a phone a floating pill at the foot of the window, over
+   the screen (the body keeps room for it, below); from 760px one row under the header (the wide block below). With one screen
+   or none the bar is not drawn. */
 .ss-gameview-nav {
-    display: flex;
-    overflow-x: auto;
-    /* The navbar's glass pill (Main.dc.html's bottom bar), floating above the screen's foot on a phone. */
-    margin: 8px 12px calc(12px + env(safe-area-inset-bottom, 0px));
-    padding: 4px;
-    box-sizing: border-box;
-    border: 1px solid var(--ss-border);
-    border-radius: var(--ss-radius-xxl, 26px);
-    background: var(--ss-glass-strong, transparent);
-    -webkit-backdrop-filter: var(--ss-blur, none);
-    backdrop-filter: var(--ss-blur, none);
-    box-shadow: var(--ss-shadow, none);
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    height: 72px;
+    z-index: 3;
 }
 
 .ss-gameview-single .ss-gameview-nav {
     display: none;
 }
 
-.ss-gameview-navitem {
-    flex: 1 0 64px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    min-height: 64px;
-    padding: 4px;
-    border: 0;
-    border-radius: var(--ss-radius-xl, 22px);
-    color: var(--ss-muted, inherit);
-    background: transparent;
-    font-size: 0.8em;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-/* The current screen: the label in the text colour on the soft accent (accent text on glass is hard to read); the icon
-   carries the accent. */
-.ss-gameview-navitem[aria-current="page"] {
-    color: var(--ss-text);
-    background: var(--ss-accent-soft, transparent);
-}
-
-.ss-gameview-navitem[aria-current="page"] > i {
-    color: var(--ss-accent);
+/* Screens scroll under the bar: the body ends with room for it (a phone; the wide row is above the body, no room needed). */
+@media (max-width: 759.98px) {
+    .ss-gameview-body::after {
+        content: '';
+        display: block;
+        height: calc(72px + 14px + 12px + env(safe-area-inset-bottom, 0px));
+    }
 }
 
 /* More items than fit (a phone's bottom bar, the tab bar): the edge with more fades (scroll-cue.js). */
-:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="x"][data-ss-more="end"] {
+.ss-tabs-list[data-ss-axis="x"][data-ss-more="end"] {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="x"][data-ss-more="start"] {
+.ss-tabs-list[data-ss-axis="x"][data-ss-more="start"] {
     -webkit-mask-image: linear-gradient(to left, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to left, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="x"][data-ss-more="both"] {
+.ss-tabs-list[data-ss-axis="x"][data-ss-more="both"] {
     -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to right, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="y"][data-ss-more="end"] {
+.ss-tabs-list[data-ss-axis="y"][data-ss-more="end"] {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="y"][data-ss-more="start"] {
+.ss-tabs-list[data-ss-axis="y"][data-ss-more="start"] {
     -webkit-mask-image: linear-gradient(to top, #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to top, #000 calc(100% - var(--ss-fade)), transparent);
 }
-:is(.ss-gameview-nav, .ss-tabs-list)[data-ss-axis="y"][data-ss-more="both"] {
+.ss-tabs-list[data-ss-axis="y"][data-ss-more="both"] {
     -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
     mask-image: linear-gradient(to bottom, transparent, #000 var(--ss-fade), #000 calc(100% - var(--ss-fade)), transparent);
 }
 
-.ss-gameview-navlabel {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* Wide screens (desktop): the wide header across the top, the screens' tab row under it (ss.tabs: the same buttons, the
-   same keys, a row instead of the phone's bottom bar), then the body. A screen that asks for a side column gets the room
-   (the body's grid), and the body takes the rest. */
-@media (min-width: 768px) {
+/* Wide screens (desktop and tablet, from 760px: the line the bar switches at): the wide header across the top, then one row
+   of every screen (the screen bar: all screens spread evenly, no More; each an icon with its label under it, the current one
+   in the accent with a dot, no pill), then the body. A screen that asks for a side column gets the room (the body's grid), and
+   the body takes the rest. */
+@media (min-width: 760px) {
     .ss-gameview-bar {
         order: 0;
         padding: 12px 24px;
@@ -238,54 +209,18 @@
 
     .ss-gameview-nav {
         order: 2;
-        flex-direction: row;
-        justify-content: flex-start;
-        width: auto;
-        height: auto;
-        overflow-x: auto;
-        overflow-y: hidden;
-        /* option A (UI 5b): one glass track for the row, 12px under the header card and level with its edges */
+        position: static;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        z-index: auto;
+        height: 68px;
         margin: var(--ss-space-3, 12px) 24px 0;
-        padding: 5px;
-        gap: 4px;
-        border: 1px solid var(--ss-border);
-        border-radius: 16px;
-        background: var(--ss-glass, transparent);
-        -webkit-backdrop-filter: var(--ss-sheet-blur, none);
-        backdrop-filter: var(--ss-sheet-blur, none);
-        box-shadow: none;
-    }
-
-    .ss-gameview-navitem {
-        flex: 0 0 auto;
-        flex-direction: row;
-        justify-content: flex-start;
-        gap: var(--ss-gap);
-        min-height: 44px;
-        padding: 8px 14px;
-        /* option A: no border or fill until it is the current tab (or hovered); muted labels */
-        border: 1px solid transparent;
-        background: transparent;
-        color: var(--ss-muted, inherit);
-        border-radius: 12px;
-        font-size: 1em;
-    }
-
-    /* the current tab: a raised pill (accent border, accent-soft fill, the shadow), its label in the text colour; no underline */
-    .ss-gameview-navitem[aria-current="page"] {
-        border-color: var(--ss-tab-edge, var(--ss-accent));
-        background: var(--ss-accent-soft, transparent);
-        box-shadow: var(--ss-shadow, none);
-        color: var(--ss-text, inherit);
-        font-weight: 700;
-    }
-    .ss-gameview-navitem:hover {
-        background: var(--ss-tile, transparent);
     }
 
     .ss-gameview-body {
         order: 3;
-        /* air between the tab row's underline and the first row of cards */
+        /* air between the tab row and the first row of cards */
         padding: var(--ss-space-4, 16px) 24px 16px;
     }
 }

@@ -86,6 +86,8 @@ export const PALETTES = Object.freeze({
         pill: 'rgba(255, 255, 255, 0.14)', pillText: '#f1f2f8', badge: '#f1f2f8', badgeText: '#141720',
         field: 'rgba(0, 0, 0, 0.22)', overlay: 'rgba(24, 27, 42, 0.72)', scrim: 'rgba(8, 10, 20, 0.6)', off: 'rgba(255, 255, 255, 0.22)', accentSoft: 'rgba(123, 108, 240, 0.24)',
         good: '#72dea4', chatter: '#d2cbff',
+        // the accent as TEXT on the glass (the bar's current label, a tile's icon): >= 4.5:1 on the dark glass (the accent itself is ~4:1)
+        accentText: '#a99dff',
     }),
     light: Object.freeze({
         base: [255, 255, 255], solid: '#f6f5fb',
@@ -94,6 +96,8 @@ export const PALETTES = Object.freeze({
         pill: '#2c2f46', pillText: '#ffffff', badge: '#2c2f46', badgeText: '#ffffff',
         field: 'rgba(255, 255, 255, 0.85)', overlay: 'rgba(255, 255, 255, 0.78)', scrim: 'rgba(35, 37, 58, 0.38)', off: 'rgba(35, 37, 58, 0.22)', accentSoft: 'rgba(123, 108, 240, 0.16)',
         good: '#1d7c4a', chatter: '#5544c4',
+        // the accent as text on the light glass: >= 4.5:1
+        accentText: '#5a48d6',
     }),
 });
 
@@ -253,6 +257,7 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
             ['--ss-off', 'color-mix(in srgb, var(--SmartThemeBodyColor, #dcdcd2) 22%, transparent)'],
             ['--ss-accent', 'var(--SmartThemeQuoteColor, #e18a24)'],
             ['--ss-accent-soft', 'color-mix(in srgb, var(--SmartThemeQuoteColor, #e18a24) 20%, transparent)'],
+            ['--ss-accent-text', 'var(--SmartThemeQuoteColor, #e18a24)'],
             ['--ss-good', '#4caf6e'],
             ['--ss-chatter', 'var(--SmartThemeEmColor, #919191)'],
             ['--ss-blur', 'blur(var(--SmartThemeBlurStrength, 0px))'],
@@ -286,6 +291,7 @@ export function schemeTokens(scheme, panel, { opaque = false, strength = DEFAULT
         ['--ss-scrim', p.scrim],
         ['--ss-off', p.off],
         ['--ss-accent', ACCENT],
+        ['--ss-accent-text', p.accentText],
         ['--ss-tab-edge', 'var(--ss-accent)'],
         ['--ss-accent-soft', p.accentSoft],
         ['--ss-good', p.good],

@@ -1,12 +1,12 @@
-// Story Suite v2: the `screen` mount (SPEC §13.4), a full-screen game view over the chat. It has its own
-// navigation between the usable screens that allow 'screen' (a bottom bar on narrow widths, a side bar on
-// wide ones; mounts.css does the switch), in navigation order (Home first, see screens.js screenOrder),
-// with a fade on the edge where more items are scrolled out of sight (scroll-cue.js), a close button, and
-// Escape closes it. It shows the head state and redraws when the head changes while it is open.
+// Story Suite v2: the `screen` mount (SPEC §13.4), a full-screen game view over the chat. Its navigation is the screen bar
+// (view/screen-bar.js): on a phone a floating glass pill with four screens and More (the sheet of the rest), on a wide
+// screen one row of every screen at the top (mounts.css does the switch). The navigation is in Home-first order
+// (screens.js screenOrder). A close button, and Escape closes it (Escape first closes More, if it is open). It shows the
+// head state and redraws when the head changes while it is open.
 //
 // The reader's order and hidden screens (Settings → Tabs & Packs → Tabs, view/tab-order.js) come in through
 // `deps.screens.list` (the order) and `deps.inNav` (hidden ones leave the navigation, but a screen opened by
-// name, a fight starting, still opens). The current item is scrolled into view when the bar overflows.
+// name, a fight starting, still opens).
 //
 // The header (UI stage 5a): above the screen, the character and the scene as the `ss.hero` block, from `heroOf(state)`
 // (view/game-header.js); null draws no header. It is drawn on open, on a screen change and on every redraw.
@@ -19,49 +19,41 @@
 // → { mount(el, screenId, opts) → handle, open(screenId?) → bool, close(), isOpen(), current(), update(), destroy() }
 
 import { button, documentOf, headState, icon, make, mountHead, onHead, screensFor } from './common.js';
-import { bringIntoView, scrollCue } from '../scroll-cue.js';
 import { hero } from '../widgets/hero.js';
 import { focusNode } from '../scroll.js';
+import { barItems, createScreenBar } from '../screen-bar.js';
+import { STRINGS } from '../../strings.js';
 
 const PHONE_QUERY = '(max-width: 759.98px)';
 
 export function createScreenMount(deps) {
     if (typeof deps?.render !== 'function') throw new TypeError('The screen mount needs a render(el, screen, scope) function.');
     const doc = documentOf(deps);
-    let view = null;          // { root, nav, cue, title, body, handle, screenId, before, heroSlot, hero }
+    let view = null;          // { root, bar, title, body, handle, screenId, before, heroSlot, hero, phone }
 
     function mount(el, screenId, opts = {}) {
         return mountHead(deps, 'screen', el, screenId, opts);
     }
 
+    // Escape closes the view, unless the bar's More sheet is open: that one takes the key (its own listener, after this one).
     const onKey = event => {
-        if (view && event.key === 'Escape') {
+        if (view && event.key === 'Escape' && !view.bar.isMoreOpen()) {
             event.preventDefault?.();
             event.stopPropagation?.();
             close();
         }
     };
 
-    // `reveal`: scroll the current item into view (on a screen change; a redraw on a new reply leaves the bar be).
-    function drawNav(reveal = false) {
+    // The bar: the listed screens, and whether the window is wide (every screen in one row, no More).
+    function drawBar() {
         const entries = screensFor(deps, 'screen');
         const listed = typeof deps.inNav === 'function' ? entries.filter(entry => deps.inNav(entry.id)) : entries;
-        view.nav.replaceChildren();
         view.root.classList.toggle('ss-gameview-single', listed.length < 2);
-        let current = null;
-        for (const entry of listed) {
-            const item = button(doc, 'ss-gameview-navitem');
-            item.setAttribute('data-ss-target', entry.id);
-            item.append(icon(doc, entry.screen.icon), make(doc, 'span', 'ss-gameview-navlabel', entry.screen.title ?? entry.id));
-            if (entry.id === view.screenId) {
-                item.setAttribute('aria-current', 'page');
-                current = item;
-            }
-            item.addEventListener('click', () => show(entry.id));
-            view.nav.appendChild(item);
-        }
-        view.cue?.update();
-        if (current && reveal) bringIntoView(view.nav, current);
+        view.bar.update({
+            items: barItems(listed.map(entry => ({ id: entry.id, label: entry.screen.title ?? entry.id, icon: entry.screen.icon }))),
+            current: view.screenId,
+            row: view.phone?.matches === false,
+        });
         return entries;
     }
 
@@ -89,7 +81,7 @@ export function createScreenMount(deps) {
     function show(screenId) {
         if (!view) return false;
         view.screenId = screenId;
-        const entries = drawNav(true);
+        const entries = drawBar();
         const entry = entries.find(item => item.id === screenId);
         view.title.textContent = entry?.screen.title ?? screenId;
         view.handle?.unmount();
@@ -109,8 +101,6 @@ export function createScreenMount(deps) {
         root.setAttribute('role', 'dialog');
         root.setAttribute('aria-modal', 'true');
         root.setAttribute('aria-label', 'Game view');
-        const nav = make(doc, 'nav', 'ss-gameview-nav');
-        nav.setAttribute('aria-label', 'Screens');
         const main = make(doc, 'div', 'ss-gameview-main');
         const bar = make(doc, 'header', 'ss-gameview-bar');
         const title = make(doc, 'h2', 'ss-gameview-title');
@@ -121,15 +111,25 @@ export function createScreenMount(deps) {
         const heroSlot = make(doc, 'div', 'ss-gameview-hero');
         heroSlot.hidden = true;
         const phone = doc.defaultView?.matchMedia?.(PHONE_QUERY) ?? null;
-        const onWidth = () => drawHero();
+        const onWidth = () => {
+            drawBar();
+            drawHero();
+        };
         phone?.addEventListener?.('change', onWidth);
         const body = make(doc, 'div', 'ss-gameview-body');
         main.append(bar, heroSlot, body);
-        root.append(main, nav);
+        root.append(main);
+        // The bar comes last in the window (after the body): created here, it appends its own bar, scrim and sheet to the window.
+        const screenBar = createScreenBar(doc, root, {
+            label: STRINGS.bar.screens,
+            className: 'ss-gameview-nav',
+            onSelect: id => show(id),
+            // a slot or a tile names its screen, as the game view's buttons always did (the tests and the modules use it)
+            decorate: (node, item) => node.setAttribute('data-ss-target', item.id),
+        });
         (deps.container?.() ?? doc.body).appendChild(root);
 
-        view = { root, nav, cue: null, title, body, handle: null, screenId: target, before: doc.activeElement ?? null, off: onHead(deps, update), heroSlot, hero: null, phone, onWidth };
-        view.cue = scrollCue(nav, { win: doc.defaultView ?? globalThis });
+        view = { root, bar: screenBar, title, body, handle: null, screenId: target, before: doc.activeElement ?? null, off: onHead(deps, update), heroSlot, hero: null, phone, onWidth };
         doc.addEventListener?.('keydown', onKey, true);
         show(target);
         focusNode(closer);
@@ -138,12 +138,12 @@ export function createScreenMount(deps) {
 
     function close() {
         if (!view) return;
-        const { root, handle, before, off, cue, hero: header, phone, onWidth } = view;
+        const { root, handle, before, off, bar, hero: header, phone, onWidth } = view;
         view = null;
         off();
         phone?.removeEventListener?.('change', onWidth);
-        cue?.destroy();
         doc.removeEventListener?.('keydown', onKey, true);
+        bar.destroy();
         handle?.unmount();
         header?.destroy?.();
         root.remove();
@@ -159,7 +159,7 @@ export function createScreenMount(deps) {
             else close();
             return;
         }
-        drawNav();
+        drawBar();
         view.handle?.update();
         drawHero();
     }

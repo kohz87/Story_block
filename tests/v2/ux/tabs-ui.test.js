@@ -44,7 +44,13 @@ async function setup(modules = ALL_MODULES, extensionSettings = {}) {
 }
 
 const stripIds = doc => doc.querySelectorAll('.story-suite-tab').map(node => node.textContent);
-const navIds = doc => doc.querySelectorAll('.ss-gameview-navitem').map(node => node.getAttribute('data-ss-target'));
+// The game view's order: the bar's slots (the first four, then More), then the tiles under More (the rest), in that order.
+// (scoped to the game view: the Story panel's bar is in the same document.)
+const navIds = doc => {
+    const view = doc.querySelector('.ss-gameview');
+    if (!view) return [];
+    return [...view.querySelectorAll('.ss-screenbar-item[data-id]'), ...view.querySelectorAll('.ss-screenbar-tile[data-id]')].map(node => node.getAttribute('data-id'));
+};
 const rows = doc => doc.querySelectorAll('.ss-tabrow');
 const rowIds = doc => rows(doc).map(node => node.dataset.tabId);
 const row = (doc, id) => rows(doc).find(node => node.dataset.tabId === id);

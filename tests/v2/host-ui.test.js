@@ -177,7 +177,7 @@ test('the tab host: a button per module tab in module-id order, the chosen one r
     const buttons = () => root.querySelectorAll('.story-suite-tab');
     assert.deepEqual(buttons().map(node => node.dataset.tabId), ['a1', 'a2', 'b1', 'z1']);
     assert.deepEqual(buttons().map(node => node.textContent), ['Alpha One', 'Alpha <b>Two</b>', 'Broken', 'Zeta']);
-    assert.equal(buttons()[0].querySelector('i').className, 'ss-tabs-icon fa-solid fa-a');
+    assert.equal(buttons()[0].querySelector('i').className, 'ss-screenbar-icon fa-solid fa-a');
     assert.equal(host.active(), 'a1');
     assert.equal(root.querySelector('.story-suite-pane').textContent, 'Alpha One: 1');
     assert.deepEqual(buttons().map(node => node.getAttribute('aria-current')), ['page', null, null, null]);

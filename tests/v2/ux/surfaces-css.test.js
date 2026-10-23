@@ -17,6 +17,14 @@ const glass = read('view/glass.css');
 
 // The declarations of every rule whose selector is exactly `selector` (outside at-rules; `at` starts the search at an
 // at-rule, e.g. a media query), joined: a later rule that adds to an earlier one counts.
+// The declarations of the first rule whose selector is exactly `selector` (e.g. '.x {'): the text between its braces.
+function declared(css, selector) {
+    const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const at = body.indexOf(selector);
+    if (at < 0) return '';
+    return body.slice(at + selector.length, body.indexOf('}', at));
+}
+
 function block(css, selector, at = null) {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     let from = at ? body.indexOf(at) : 0;
@@ -72,7 +80,7 @@ test('no accent-coloured text on glass: hover, focus and error text use the text
         assert.ok(rules.length > 0, selector);
         assert.doesNotMatch(rules, /(?<![-\w])color: var\(--ss-accent/, `${selector} sets accent text`);
     }
-    assert.doesNotMatch(block(mounts, '.ss-gameview-navitem[aria-current="page"]'), /(?<![-\w])color: var\(--ss-accent/);
+    assert.doesNotMatch(declared(glass, '.ss-screenbar-item[aria-current="page"] {'), /(?<![-\w])color: var\(--ss-accent[,)]/, 'the current slot takes the accent text token, not the accent');
 });
 
 test('the notes under a reply: one glass row with the icon in a tile, Re-read as a pill, the accent for a missing line', () => {
@@ -139,21 +147,24 @@ test('the Glass-only shape tokens are set under Glass, not under Solid or Follow
     for (const name of ['--ss-sheet-radius', '--ss-sheet-radius-top', '--ss-sheet-edge', '--ss-sheet-shadow']) assert.ok(reduced.includes(`${name}: initial;`), `${name} resets`);
 });
 
-test('the game view\'s navigation takes the navbar\'s look: a glass pill on a phone, a glass column on a wide screen', () => {
-    const nav = block(mounts, '.ss-gameview-nav');
-    assert.ok(nav.includes('var(--ss-glass-strong, transparent)') && nav.includes('border-radius: var(--ss-radius-xxl, 26px);'));
-    assert.match(block(mounts, '.ss-gameview-navitem'), /min-height: 64px;/);
-    assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"]'), /color: var\(--ss-text\);/, 'the label reads in the text colour');
-    assert.match(block(mounts, '.ss-gameview-navitem[aria-current="page"] > i'), /color: var\(--ss-accent\);/);
-    // Wide: the row keeps its hairline, drops the pill's radius, and sits 12px under the header card (the tab row's air).
-    const wide = block(mounts, '.ss-gameview-nav', '@media (min-width: 768px)');
-    assert.match(wide, /margin: var\(--ss-space-3, 12px\) 24px 0;/);
-    assert.match(wide, /border-radius: 16px;/, "the track: a 16px radius (option A)");
+test('the screen bar takes the navbar\'s look: a glass pill on a phone, a glass row on a wide screen, the tokens only', () => {
+    const pill = declared(glass, '.ss-screenbar {');
+    assert.ok(pill.includes('var(--ss-glass-strong)') && pill.includes('border-radius: var(--ss-radius-xxl);'));
+    assert.match(declared(glass, '.ss-screenbar-item {'), /min-height: 44px;/, 'a tap target of 44px');
+    assert.match(declared(glass, '.ss-screenbar-label {'), /font-size: 11px;[^}]*font-weight: 700;[^}]*text-overflow: ellipsis;/, 'the label: 11px, 700, one line, ellipsis');
+    assert.match(declared(glass, '.ss-screenbar-item[aria-current="page"] {'), /color: var\(--ss-accent-text\);/, 'the label reads in the accent text token');
+    assert.match(declared(glass, '.ss-screenbar-tile[aria-current="page"] {'), /border-color: var\(--ss-accent\);[^}]*background: var\(--ss-accent-soft\);/, 'the current tile: accent ring, accent-soft fill');
+    // Wide: the row is 68px, under the header card (the tab row's air), its pill-less slots spread evenly (the glass rule above).
+    const wide = mounts.slice(mounts.indexOf('@media (min-width: 760px) {', mounts.indexOf('.ss-gameview-body {')));
+    assert.match(wide, /\.ss-gameview-nav \{[^}]*margin: var\(--ss-space-3, 12px\) 24px 0;/);
 });
 
-test('the story panel: the tab bar is the ss.tabs block (no tablist rules left), its head as Panel.dc.html, the scroll fade on the block\'s list', () => {
+test('the story panel: the tabs are the screen bar at its foot (no strip left), its head as Panel.dc.html, the sheet full height from 760px', () => {
     assert.doesNotMatch(host, /\.story-suite-tab\.active|\.story-suite-tabs \{ display: flex/);
     assert.match(block(host, '.story-suite-sheet-head'), /padding: 12px 12px 0;/);
     assert.match(block(host, '.story-suite-sheet-head .story-suite-sheet-close'), /width: 40px;/);
-    assert.match(mounts, /:is\(\.ss-gameview-nav, \.ss-tabs-list\)\[data-ss-axis="x"\]\[data-ss-more="end"\]/);
+    assert.match(declared(host, '.story-suite-sheet-bar {'), /position: absolute;[^}]*bottom: calc\(14px/, 'the bar floats at the foot');
+    assert.match(declared(host, '.story-suite-sheet-body::after {'), /height: calc\(72px \+ 14px \+ 12px/, 'the body ends with room for the bar');
+    assert.match(host, /@media \(min-width: 760px\) \{\s*\.story-suite-sheet \{[^}]*height: calc\(100dvh - var\(--topBarBlockSize, 40px\)\);/, 'a side sheet to the window height');
+    assert.match(mounts, /\.ss-tabs-list\[data-ss-axis="x"\]\[data-ss-more="end"\]/, 'the sub-tab lists keep their fade');
 });

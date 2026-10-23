@@ -425,7 +425,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     function openPanel() {
         panel.hidden = false;
         doc.body.classList.add('story-suite-sheet-open');
-        if (!tabHost) tabHost = createTabHost(panelBody, { registry: tabSource, view: () => sdk.view(), api: sdk, doc });
+        if (!tabHost) tabHost = createTabHost(panelBody, { registry: tabSource, view: () => sdk.view(), api: sdk, doc, barHost: panel });
         else tabHost.refresh();
     }
     function closePanel() {

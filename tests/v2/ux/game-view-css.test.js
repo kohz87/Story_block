@@ -23,23 +23,34 @@ test('the header sits between the title bar and the body (its slot is in the mou
     assert.match(mounts, /\.ss-gameview-hero\[hidden\] \{\s*display: none;/);
 });
 
-test('wide screens: the tab row under the header, the body below, and no side column', () => {
-    const wide = mounts.slice(mounts.indexOf('@media (min-width: 768px) {', mounts.indexOf('.ss-gameview-body {')));
-    assert.match(wide, /\.ss-gameview-nav \{[^}]*flex-direction: row;[^}]*overflow-x: auto;/);
-    assert.doesNotMatch(wide.slice(0, wide.indexOf('.ss-gameview-navitem {')), /width: 200px/);
-    assert.match(wide, /\.ss-gameview-nav \{[^}]*order: 2;/);
+test('wide screens (from 760px, the line the bar switches at): one row of every screen under the header, the body below, and no side column', () => {
+    const wide = mounts.slice(mounts.indexOf('@media (min-width: 760px) {', mounts.indexOf('.ss-gameview-body {')));
+    assert.match(wide, /\.ss-gameview-nav \{[^}]*order: 2;[^}]*position: static;/);
+    assert.match(wide, /\.ss-gameview-nav \{[^}]*height: 68px;/);
     assert.match(wide, /\.ss-gameview-body \{\s*order: 3;/);
     assert.match(wide, /\.ss-gameview-hero \{\s*order: 1;/);
-    // option A: the current tab is a raised pill (accent border, the shadow), not an underline
-    assert.match(wide, /\.ss-gameview-navitem\[aria-current="page"\] \{[^}]*border-color: var\(--ss-tab-edge, var\(--ss-accent\)\);[^}]*box-shadow: var\(--ss-shadow/);
-    assert.doesNotMatch(mounts, /inset 0 -2px 0/, 'no underline on the tabs');
     assert.doesNotMatch(mounts, /\.ss-gameview \{\s*flex-direction: row;/, 'the game view is a column at every width');
+    assert.doesNotMatch(mounts, /min-width: 768px\) \{\s*\.ss-gameview-bar/, 'one breakpoint for the game view: 760px');
 });
 
-test('the phone keeps the bottom bar: the nav is the last item, a floating pill', () => {
+test('the desktop row has no raised pill: the current screen is the accent icon and label with a dot, nothing around it', () => {
+    const current = rules(glass, '.ss-screenbar-item[aria-current="page"] {')[0];
+    assert.doesNotMatch(current, /border|background|box-shadow/, 'no pill, no border, no fill on the current slot');
+    assert.match(rules(glass, '.ss-screenbar-item[aria-current="page"] {')[0], /color: var\(--ss-accent-text\);/, 'the accent label');
+    assert.match(glass, /\.ss-screenbar-item\[aria-current="page"\] > \.ss-screenbar-icon \{[^}]*drop-shadow\(0 0 6px color-mix\(in srgb, var\(--ss-accent\) 55%, transparent\)\)/, 'the soft glow at 55%');
+    assert.match(glass, /\.ss-screenbar-item\[aria-current="page"\] \.ss-screenbar-dot \{\s*opacity: 1;/, 'the dot');
+    assert.doesNotMatch(mounts, /inset 0 -2px 0/, 'no underline on the tabs');
+});
+
+test('the phone keeps the bottom bar: a floating pill of 72px at the foot, the body keeps room for it', () => {
     const phoneNav = rules(mounts, '.ss-gameview-nav {')[0];
-    assert.match(phoneNav, /margin: 8px 12px/);
-    assert.match(phoneNav, /border-radius: var\(--ss-radius-xxl, 26px\)/);
+    assert.match(phoneNav, /position: absolute;/);
+    assert.match(phoneNav, /bottom: calc\(14px \+ env\(safe-area-inset-bottom/);
+    assert.match(phoneNav, /height: 72px;/);
+    const pill = rules(glass, '.ss-screenbar {')[0];
+    assert.match(pill, /border-radius: var\(--ss-radius-xxl\);/, 'radius 26px');
+    assert.match(pill, /backdrop-filter: var\(--ss-blur\);/, 'the glass blur');
+    assert.match(mounts, /\.ss-gameview-body::after \{/, 'the body ends with room for the bar');
 });
 
 test('the section label: a label, a hairline in the rule token, one class of weight under :where()', () => {
