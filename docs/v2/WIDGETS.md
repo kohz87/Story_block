@@ -381,6 +381,21 @@ Short text in a pill, with an optional icon; `style` `solid` (default), `soft` (
 
 ---
 
+## The section label: `ss-section-label` (a class, not a widget)
+
+A heading for a part of a screen: the label in small capitals (14px, 600, 1.4px spacing, the muted colour) and a 1px
+hairline in `--ss-border` that fills the rest of the row (the concept's "option A"). A template or module writes it as a
+class; it has no props and no command:
+
+```html
+<h4 class="ss-section-label"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Where</h4>
+```
+
+The hairline is `var(--ss-rule, var(--ss-border))`: the rule token (the concept's colour per scheme, at least 1.5:1 against
+the card in every look) so modules take the same line with `var(--ss-rule, var(--ss-border))` in their own rules.
+The icon, if any, keeps its size; the hairline is decorative (`::after`), so the label is the text alone for a reader or a
+screen reader. The label wraps (overflow-wrap: anywhere) before it pushes the row wider.
+
 ## The blocks built from them: `ss.hero`, `ss.tiers`, `ss.listcard`, `ss.tabs`, `ss.navbar`, `ss.dialog`
 
 Also the look's classes (`view/glass.css`), also `ss w ss-w-<name>` roots, tones from the same fixed list. Each works
@@ -407,7 +422,10 @@ under a reply (36 px portrait, the name and pill, three small bars, small badges
 | `statuses` | list | `[]` | `[{ id, label, icon, left, unit, tone }]`, at most 12: `ss.status` badges |
 | `compact` | boolean | `false` | |
 
-No picture, a refused URL, a failed load: the name's initial. The bars are `ss.bar` and the badges `ss.status`.
+The pictures are tried in order: the query's answer (`portraitQuery`, a string or `{ url }` / `{ src }`), then `portraits`, then
+`portrait`. A picture that is refused (not a safe URL) is left out, and one that fails to load (an `error` on the image) is skipped
+for the next. With no picture left, the name's initial. The bars are `ss.bar` and the badges `ss.status`. A status with no count
+(no set end) shows no counter badge.
 
 ```html
 <ss-widget name="ss.hero" data-props='{"bind":"q.hero"}'></ss-widget>

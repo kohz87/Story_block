@@ -360,7 +360,8 @@ test('a full-screen phone window is dense: the tint is layered over itself below
     const mounts = read('view/mounts.css');
     const at = mounts.indexOf('@media (max-width: 759.98px)');
     assert.ok(at > 0);
-    assert.match(mounts.slice(at, mounts.indexOf('}\n}', at)), /\.ss-gameview \{\s*background-image: (linear-gradient\(var\(--ss-sheet-bg, var\(--ss-surface\)\), var\(--ss-sheet-bg, var\(--ss-surface\)\)\),? ?){3}/);
+    // the phone's layers are Glass only (a token the theme sets for Glass); the window's own layers are unchanged
+    assert.match(mounts, /\.ss-gameview \{\s*background-image: var\(--ss-gameview-phone-layers/);
 });
 
 test('folds on the Features and Modules pages are whole rows (44px), a fold of module features has the chevron', () => {
