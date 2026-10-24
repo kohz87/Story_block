@@ -1,6 +1,6 @@
-# Story Block 2.0.0-beta.1
+# Story Block 2.0.0-beta.2
 
-> This is the **`v2` branch**: Story Suite v2, first beta. It is for test play, not for your real campaigns yet.
+> This is the **`v2` branch**: Story Suite v2, second beta. It is for test play, not for your real campaigns yet.
 > Story Block 1 (the block-based extension) is on the [`main` branch](https://github.com/kohz87/Story_block/tree/main).
 
 ## What it is
@@ -26,7 +26,7 @@ alone: you get the inventory, the purse and the scene.
    `https://github.com/kohz87/npc_state_delta`.
 
 Story Block needs no other extension (`requires` is empty). RPG Battle, Story Director and NPC State Delta
-each ask for Story Block 2.0.0-beta.1 or later (`requires: storyBlock >=2.0.0-beta.1`). When you update, update
+each ask for Story Block 2.0.0-beta.2 or later (`requires: storyBlock >=2.0.0-beta.2`). When you update, update
 Story Block first; an older Story Block shows a red notice and waits. Step-by-step help, including the branch
 box, is in the [guide](docs/v2/GUIDE.md#installing).
 
