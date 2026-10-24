@@ -12,7 +12,7 @@ through Story Block's sdk (`globalThis.StoryBlock.sdk.registerModule`):
 | kohz87/Story_director | `story-director` | story clock, quests, threads, map, chronicle, World, arc |
 | kohz87/npc_state_delta | `npc-state-delta` | standalone NPC engine; registers queries, Cast/Dossiers, `npc` meters when hosted |
 
-Work happens on the `v2` branch (`main` is still v1). Every module must also work with any other module
+Work happens on `main`, the development branch (v1 is on branch `v1`). Every module must also work with any other module
 absent (no hard dependency: read another module only through a query guarded with a fallback, the
 modules' `tryQuery` helpers, or an optional command; degrade to a sensible default and say so).
 
@@ -53,7 +53,7 @@ npm run check                              # syntax check of index.js, src/, tes
 node --test --test-reporter=dot tests/v2/capture.test.js            # one file
 node --test --test-name-pattern="Re-read" tests/v2/stray-reread.test.js  # tests whose name matches
 npm run sync-testkit -- ../rpg_battle      # copy testkit + src/v2 into a module's tests/vendor/story-block/
-git diff --check origin/v2                 # CI fails on trailing whitespace in what the PR adds
+git diff --check origin/main               # CI fails on trailing whitespace in what the PR adds
 ```
 
 Full suite: about 2,100 tests, 1.5–3 minutes. Skills in `.claude/skills/`: `run-tests`, `suite-check`
@@ -80,8 +80,8 @@ Full suite: about 2,100 tests, 1.5–3 minutes. Skills in `.claude/skills/`: `ru
 ## Conventions
 
 - No model names anywhere in the repo. Commit trailers and PR attribution: the lines the session gives.
-- Branch off `v2`, PR into `v2`. Agents never merge their own PR; the coordinator reviews and merges.
-- Rebase on `origin/v2` before pushing; on conflicts keep both sides, never edit another agent's files.
+- Branch off `main`, PR into `main`. Agents never merge their own PR; the coordinator reviews and merges.
+- Rebase on `origin/main` before pushing; on conflicts keep both sides, never edit another agent's files.
 - Module repos vendor this repo's testkit in `tests/vendor/story-block/` (VERSION names the commit). After a
   change to `testkit/` or `src/v2/`, modules re-sync with `scripts/sync-testkit.mjs` and re-run their tests.
 - Each file opens with a comment that says what it does and why; keep that style and plain-words messages.

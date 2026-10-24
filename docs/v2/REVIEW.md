@@ -7,7 +7,7 @@ carry the most risk and why, and what is already known to be open. It does not r
 
 ## What v2 is
 
-Four SillyTavern extensions on their `v2` branches: **Story Block** (the host; this repository), **RPG
+Four SillyTavern extensions on their `main` branches: **Story Block** (the host; this repository), **RPG
 Battle**, **Story Director** and **NPC State Delta**. v1 kept the game state in blocks the model wrote and
 the extensions repaired; v2 turns that around:
 
