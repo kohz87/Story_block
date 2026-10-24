@@ -98,3 +98,29 @@ test('on without an alert: it shows in its own place, with no dot', () => {
     assert.equal(doc.body.querySelector('.ss-gameview').querySelector('[data-id="game/fight"]').querySelector('.ss-screenbar-alert'), null);
     view.close();
 });
+
+// A screen opened by name while its `active` is off (a card's open, or code) was titled with its raw id and sent Home by the next update (fix 8k).
+test('off but opened by name: titled from its definition, kept through updates, and dropped only after the reader leaves it', () => {
+    const battle = { on: false };
+    const { doc, view, screens } = world(battle);
+    assert.equal(view.open('game/fight'), true);
+    const title = () => doc.body.querySelector('.ss-gameview-title').textContent;
+    assert.equal(title(), 'Fight', 'the screen\'s title, not its id');
+    view.update();
+    view.update();
+    assert.equal(view.current(), 'game/fight', 'the next update does not send it Home');
+    assert.equal(title(), 'Fight');
+    // The reader goes to Home; then the fight screen is gone from view and a later update does not bring it back.
+    doc.body.querySelector('.ss-gameview').querySelector('[data-ss-target="game/home"]').click();
+    assert.equal(view.current(), 'game/home');
+    view.update();
+    assert.equal(view.current(), 'game/home');
+    // Opened by name again, then the screen stops being openable (its module goes): the view falls back to the first screen.
+    view.open('game/fight');
+    assert.equal(view.current(), 'game/fight');
+    screens.removeModule('test');
+    screens.addModule('test', [screen('game/home', ['screen'], { title: 'Home', icon: 'fa-house' })]);
+    view.update();
+    assert.equal(view.current(), 'game/home', 'a screen that can no longer be shown is dropped');
+    view.close();
+});

@@ -585,7 +585,8 @@ Drawing: under the message, after the changes card, in the same strip. `normaliz
 A screen (in its `screens` entry) or a tab (in `tabs`) may declare `active(state, ctx) → { on, badge? }`:
 
 - Off (`on` false, or the function throws), it is not on the game view's bar, the More sheet or the desktop row, nor on
-  the Story panel's tab bar. It still opens by id (`mounts.screen.open(id)`).
+  the Story panel's tab bar. It still opens by id (`mounts.screen.open(id)`, or a card's `open`): the game view is titled
+  from the screen's definition and keeps it open, redraw after redraw, until the reader goes to another screen.
 - On, it shows. With a `badge` ("alert", or a count) it takes the last pinned slot of a phone's bar (or the panel's) for
   as long as the badge is set; the item that held that slot goes to More. A red dot sits at the icon's top-right.
 - `activeNote` (text) is what Settings → Tabs & Packs → Tabs shows for it in place of the switch ("Shown only while it is
