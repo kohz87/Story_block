@@ -140,7 +140,8 @@ test('a guarded block keeps writing its own pins, as a whole record or one by on
 test('what is shown follows the state replay applied: a proof whose block is off stays off however its span reads', () => {
     const { h, second } = chatWith((record, { mode }) => { mode.value = 'deny'; }, { guard: true });
     assert.deepEqual(h.ask({ ids: [second.id] }), [], 'the guard turned the block off: its stored proof is not shown');
-    assert.equal(h.store.proofs().some(entry => entry.proof.id === second.id), true, 'it is stored and listed, and not active');
+    assert.equal(h.store.proofs({ all: true }).some(entry => entry.proof.id === second.id), true, 'it is stored, and could apply');
+    assert.equal(h.store.proofs().some(entry => entry.proof.id === second.id), false, 'but it did not apply, so the projection does not list it');
     assert.equal(h.store.head().meta.proofs[second.id], undefined);
 });
 

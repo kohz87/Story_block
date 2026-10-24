@@ -79,8 +79,9 @@ test('a skipped parent block hides its child, and a skipped block publishes noth
     assert.equal(h.problems().length, 1, 'only the guarded block is skipped');
     assert.deepEqual(Object.keys(h.store.head().meta.proofs), [child], 'the skipped block pinned nothing');
     assert.deepEqual(h.store.head().domains.sdt.accepted, {}, 'and did nothing');
-    // The block is stored still, with its proof, and is asked again.
-    assert.equal(h.store.proofs().length, 2);
+    // The block is stored still, with its proof, and is asked again; it did not apply, so the projection lists only the other.
+    assert.equal(h.store.proofs({ all: true }).length, 2);
+    assert.equal(h.store.proofs().length, 1);
     mode.value = 'normal';
     h.store.rebuild();
     assert.deepEqual(ids(h.ask()), [parent, child]);
