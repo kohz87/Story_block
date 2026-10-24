@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Licence: AGPL-3.0 (was GPL-3.0). Releases already published keep the licence they shipped with.
+
 ## 2.0.0-beta.2 (`v2` branch)
 
 Story Suite v2, second beta: the new look (glass panels, one font, the extension's own icons), the new navigation, cards under replies, the game view as a window, and the RPG rules contract docs. What's new for players, known issues and every module's version: [docs/v2/RELEASES.md](docs/v2/RELEASES.md). The player guide: [docs/v2/GUIDE.md](docs/v2/GUIDE.md).
