@@ -1,0 +1,781 @@
+{
+  "content": {
+    "creatures": [],
+    "items": [],
+    "places": [
+      {
+        "name": "Haven",
+        "slug": "haven",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "name": "Mill",
+        "slug": "mill",
+        "x": 1,
+        "y": 0
+      }
+    ],
+    "quests": [],
+    "recipes": [],
+    "rules": [
+      {
+        "branches": [
+          {
+            "choice": "a",
+            "fromForm": "s30-base",
+            "name": "s30-base-a",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-a",
+            "step": 1,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "fire"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s30-base",
+            "name": "s30-base-b",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-b",
+            "step": 1,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "ice"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s30-base-g",
+            "name": "s30-base-g-a",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-g-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s30-base-g",
+            "name": "s30-base-g-b",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-g-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s30-base-a",
+            "name": "s30-base-a-a",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-a-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s30-base-a",
+            "name": "s30-base-a-b",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-a-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s30-base-b",
+            "name": "s30-base-b-a",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-b-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s30-base-b",
+            "name": "s30-base-b-b",
+            "note": "",
+            "skill": "s30",
+            "slug": "s30-base-b-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s31-base",
+            "name": "s31-base-a",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-a",
+            "step": 1,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "fire"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s31-base",
+            "name": "s31-base-b",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-b",
+            "step": 1,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "ice"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s31-base-g",
+            "name": "s31-base-g-a",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-g-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s31-base-g",
+            "name": "s31-base-g-b",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-g-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s31-base-a",
+            "name": "s31-base-a-a",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-a-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s31-base-a",
+            "name": "s31-base-a-b",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-a-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s31-base-b",
+            "name": "s31-base-b-a",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-b-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s31-base-b",
+            "name": "s31-base-b-b",
+            "note": "",
+            "skill": "s31",
+            "slug": "s31-base-b-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s32-base",
+            "name": "s32-base-a",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-a",
+            "step": 1,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "fire"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s32-base",
+            "name": "s32-base-b",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-b",
+            "step": 1,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "ice"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s32-base-g",
+            "name": "s32-base-g-a",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-g-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s32-base-g",
+            "name": "s32-base-g-b",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-g-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s32-base-a",
+            "name": "s32-base-a-a",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-a-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s32-base-a",
+            "name": "s32-base-a-b",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-a-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "choice": "a",
+            "fromForm": "s32-base-b",
+            "name": "s32-base-b-a",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-b-a",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-target",
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "choice": "b",
+            "fromForm": "s32-base-b",
+            "name": "s32-base-b-b",
+            "note": "",
+            "skill": "s32",
+            "slug": "s32-base-b-b",
+            "step": 2,
+            "transforms": [
+              {
+                "at": 0,
+                "op": "set-element",
+                "value": "lightning"
+              }
+            ]
+          }
+        ],
+        "classes": [
+          {
+            "name": "Class 0",
+            "note": "",
+            "parent": null,
+            "skills": [
+              "s00",
+              "s01",
+              "s02"
+            ],
+            "slug": "c0",
+            "tier": 0
+          },
+          {
+            "name": "Class 1",
+            "note": "",
+            "parent": "c0",
+            "skills": [
+              "s10",
+              "s11",
+              "s12"
+            ],
+            "slug": "c1",
+            "tier": 1
+          },
+          {
+            "name": "Class 2",
+            "note": "",
+            "parent": "c1",
+            "skills": [
+              "s20",
+              "s21",
+              "s22"
+            ],
+            "slug": "c2",
+            "tier": 2
+          },
+          {
+            "name": "Class 3",
+            "note": "",
+            "parent": "c2",
+            "skills": [
+              "s30",
+              "s31",
+              "s32"
+            ],
+            "slug": "c3",
+            "tier": 3
+          }
+        ],
+        "itemRules": [],
+        "memory": "deja-vu",
+        "name": "Fixture rules",
+        "schema": 2,
+        "skills": [
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 20,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s00",
+            "note": "",
+            "replaces": null,
+            "slug": "s00"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 20,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s01",
+            "note": "",
+            "replaces": null,
+            "slug": "s01"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 20,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s02",
+            "note": "",
+            "replaces": null,
+            "slug": "s02"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 40,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s10",
+            "note": "",
+            "replaces": null,
+            "slug": "s10"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 40,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s11",
+            "note": "",
+            "replaces": null,
+            "slug": "s11"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 40,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s12",
+            "note": "",
+            "replaces": null,
+            "slug": "s12"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 60,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s20",
+            "note": "",
+            "replaces": null,
+            "slug": "s20"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 60,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s21",
+            "note": "",
+            "replaces": null,
+            "slug": "s21"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 60,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s22",
+            "note": "",
+            "replaces": null,
+            "slug": "s22"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 80,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s30",
+            "note": "",
+            "replaces": null,
+            "slug": "s30"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 80,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s31",
+            "note": "",
+            "replaces": null,
+            "slug": "s31"
+          },
+          {
+            "base": {
+              "cost": {
+                "cooldown": 0,
+                "mp": 0,
+                "sp": 1
+              },
+              "effects": [
+                {
+                  "damageType": "physical",
+                  "element": "none",
+                  "op": "damage",
+                  "power": 80,
+                  "target": "one"
+                }
+              ],
+              "stat": "STR",
+              "type": "physical",
+              "unit": null
+            },
+            "name": "s32",
+            "note": "",
+            "replaces": null,
+            "slug": "s32"
+          }
+        ],
+        "slug": "rules",
+        "statLabels": {},
+        "trainers": []
+      }
+    ],
+    "shops": []
+  },
+  "id": "fixture",
+  "name": "Fixture",
+  "requires": {
+    "capabilities": [
+      "rb-rules-v2"
+    ],
+    "storyBlock": "^2"
+  },
+  "version": "2.0.0"
+}
