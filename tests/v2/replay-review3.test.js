@@ -247,4 +247,3 @@ test('E: deleting a swipe that is not shown is one change and one head, as ever'
     assert.deepEqual(seen, [1], 'one head; the shown clock (90) is the same');
     assert.equal(host.ctx.chat[first].swipes.length, 2);
 });
-
