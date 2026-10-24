@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { crash } from '../../src/v2/timeline/index.js';
-import { NATIVE, NPC, clone, nativeModule, reload, rulesModule, track } from './helpers/timeline.js';
+import { BATCH, NATIVE, NPC, batchFor, clone, nativeModule, reload, rulesModule, seal, track } from './helpers/timeline.js';
 
 const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>` : text);
 
@@ -281,8 +281,9 @@ test('the prefix map records a restore: after it, the participant\'s selected ch
     const { host, native } = await started(t);
     const saved = (await host.sdk.timeline.make({ kind: 'manual', name: 'Save' })).snapshot;
     native.native.edit(state => { state.dossiers.tavi.trust = 50; });
+    await seal(host, batchFor('br_batch003'));
     const head = await host.sdk.timeline.head();
-    const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: ['ev_death003'], batchResult: { id: 'br_batch003', hash: 'a'.repeat(64) }, expectedHead: head.headHash });
+    const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: ['ev_death003'], batchResult: batchFor('br_batch003'), expectedHead: head.headHash });
     assert.equal((await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash })).status, 'complete');
     const now = await host.sdk.timeline.head();
     const mapping = host.timeline.host.prefix(NATIVE, now.cursor, now.prefixHash);

@@ -1,13 +1,14 @@
 // The host archive (contract §8; docs/v2/TIMELINE.md): everything the timeline keeps outside the replayed domains, in
 // the chat's own metadata (`chatMetadata.storySuite.timeline`, saved with the chat file by the store's save):
 //
-// * `payloads`: the immutable bytes of every snapshot, by their hash (a payload, and the proof pins the story held
-//   then). They are never embedded in a replayed domain, so a snapshot does not hold the snapshots before it twice.
+// * `payloads`: the immutable bytes of every snapshot, by their hash: `{ payload, proofs }`, the payload and the proof pins the
+//   story held then. The hash (the descriptor's `payloadHash`) covers both, so bytes that lost or changed their pins are not the
+//   bytes. They are never embedded in a replayed domain, so a snapshot does not hold the snapshots before it twice.
 // * `snapshots`: each descriptor as it was made (a restore overlays the target's from here: the payload was captured
 //   before its own descriptor existed).
 // * `journal`: the durable record of every make, restore and native mutation, one entry per attempt, with its phase.
-// * `pins`: the batch results a restore was prepared for, pinned with the prepared manifest and the story as it was
-//   just before the restore, so what a restore replaced stays retrievable.
+// * `pins`: the batch results a restore was prepared for: the sealed result's own bytes (resolved and verified against their
+//   hash), the prepared manifest and the story as it was just before the restore, so what a restore replaced stays retrievable.
 // * `prefix`: the participants' prefix map (chat lineage, canonical sid, swipe key, block, op, prefix hash) -> the
 //   checkpoints before and after and which one is selected.
 // * `events`: the native events (confirmed deaths) delivered, by id.
@@ -73,10 +74,10 @@ export function createArchive({ metadata, touch = () => {} }) {
             const root = find();
             if (!root || typeof hash !== 'string' || !Object.hasOwn(root.payloads, hash)) return null;
             const entry = root.payloads[hash];
-            if (!isObject(entry) || !isObject(entry.payload)) return null;
+            if (!isObject(entry) || !isObject(entry.payload) || !isObject(entry.proofs)) return null;
             if (fresh || verified.get(entry) !== hash) {
                 let actual = null;
-                try { actual = hashJson(entry.payload); } catch { actual = null; }
+                try { actual = hashJson({ payload: entry.payload, proofs: entry.proofs }); } catch { actual = null; }
                 if (actual !== hash) return null;
                 verified.set(entry, hash);
             }

@@ -14,7 +14,7 @@ import { createHost } from '../../testkit/index.js';
 import { HOST_DOMAIN } from '../../src/v2/timeline/index.js';
 import { prng, seedCrypto } from './qa/helpers/seeded.js';
 import { director, T1, T2 } from './helpers/evidence.js';
-import { NATIVE, clone, nativeModule, reload, rulesModule } from './helpers/timeline.js';
+import { NATIVE, batchFor, clone, nativeModule, reload, rulesModule, seal } from './helpers/timeline.js';
 
 const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)]
     : process.env.QA_FUZZ_SEEDS ? Array.from({ length: Number(process.env.QA_FUZZ_SEEDS) }, (_, i) => i + 1) : [1, 2, 3, 4, 5, 6, 7, 8];
@@ -78,9 +78,10 @@ async function run(t, seed, steps) {
         const id = `br_fz${String(batch).padStart(6, '0')}`;
         log.push(`restore to ${point.id} (${point.kind})`);
         if (r.chance(0.2)) native.native.edit(state => { state.dossiers.tavi.trust += 7; });
+        await seal(host, batchFor(id));
         const head = await host.sdk.timeline.head();
         assert.equal(head.ok, true, fail(`head: ${head.message}`));
-        const prepared = await host.timeline.host.prepare({ snapshot: point.id, deathEvents: [`ev_fz${String(batch).padStart(6, '0')}`], batchResult: { id, hash: 'b'.repeat(64) }, expectedHead: head.headHash });
+        const prepared = await host.timeline.host.prepare({ snapshot: point.id, deathEvents: [`ev_fz${String(batch).padStart(6, '0')}`], batchResult: batchFor(id), expectedHead: head.headHash });
         assert.equal(prepared.ok, true, fail(`prepare ${point.id}: ${prepared.message}`));
         const done = await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash });
         assert.equal(done.status, 'complete', fail(`activate: ${done.message ?? done.status}`));

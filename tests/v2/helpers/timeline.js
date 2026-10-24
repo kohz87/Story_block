@@ -7,16 +7,30 @@
 //   tl.xp { amount }         adds XP (a count).                 tl.equip { slot, item } / tl.unequip { slot }   gear.
 //   tl.fight { id, round }   a fight is on; tl.endfight   it is over.     tl.train { session, paid }   a paid training session runs.
 //   tl.meter { npc, value }  adds to an NPC meter (a count).    tl.claim { key }   takes a claim.
+//   tl.seal { id, result }   seals a batch result in the `death` domain (the host's resolver, `batchResults.resolve`, finds it there).
 //   tl.guarded { epoch, rulesHash? }   a command with a guard of the given epoch and rules hash that always holds.
 //   tl.rules { hash }        freezes the ruleset (sets the rules slice's marker).
 // `tl-native` (domain `nat`, participant): a dossier store with checkpoints of its own, kept in `native.store`; `native.fail`
 // makes a callback fail, `native.missing` forgets a checkpoint's bytes.
 import { hashJson } from '../../../src/v2/replay.js';
 
+/** The sealed result a test batch id stands for, and its reference { id, hash }. */
+export const resultFor = id => ({ batch: id, dice: [14, 3], outcome: 'dead' });
+export const batchFor = id => ({ id, hash: hashJson(resultFor(id)) });
+
 export const RULES = 'tl-rules';
 export const NATIVE = 'tl-native';
 export const NPC = 'np_tavi0001';
 const HASH64 = 'a'.repeat(64);
+
+/** Only the owner of sealed results (`death` domain, tl.seal, batchResults.resolve), for tests whose modules are not rulesModule. */
+export function sealerModule() {
+    const def = rulesModule();
+    return {
+        id: 'tl-sealer', name: 'Test sealer', version: '0.0.1', domains: { death: def.domains.death },
+        commands: { 'tl.seal': def.commands['tl.seal'] }, batchResults: def.batchResults,
+    };
+}
 
 export function rulesModule({ asked = [] } = {}) {
     return {
@@ -33,6 +47,14 @@ export function rulesModule({ asked = [] } = {}) {
             training: { initial: () => ({ session: null, paid: 0 }), counters: ['paid'] },
             npc: { initial: () => ({ meters: {} }), counters: ['meters/*'] },
             rules: { initial: () => ({ rulesVersion: 2, rulesHash: HASH64 }) },
+            death: { initial: () => ({ batches: {} }) },
+        },
+        // The owner of the sealed results: the host asks it for the bytes of a batch result and checks them against their hash.
+        batchResults: {
+            resolve: ({ id, state }) => {
+                const result = state.domains.death?.batches?.[id];
+                return result === undefined ? null : { id, hash: hashJson(result), bytes: result };
+            },
         },
         commands: {
             'tl.time'(ctx, { minutes }) {
@@ -82,6 +104,10 @@ export function rulesModule({ asked = [] } = {}) {
             'tl.claim'(ctx, { key }) {
                 if (!ctx.claim(key)) ctx.fail('CLAIMED', 'Taken already.');
                 return { summary: `Claimed ${key}.`, narrate: false };
+            },
+            'tl.seal'(ctx, { id, result }) {
+                ctx.draft('death').batches[id] = result ?? resultFor(id);
+                return { summary: `Sealed ${id}.`, narrate: false };
             },
             'tl.rules'(ctx, { hash }) {
                 ctx.draft('rules').rulesHash = hash;
@@ -179,7 +205,7 @@ export function nativeModule({ id = NATIVE } = {}) {
 // ---- a host, what a save wrote, and a start again from it -------------------------------------------------
 
 export const clone = value => JSON.parse(JSON.stringify(value));
-export const BATCH = { id: 'br_batch001', hash: 'b'.repeat(64) };
+export const BATCH = batchFor('br_batch001');
 export const DEATH = ['ev_death001'];
 
 /** Follows the chat file: `disk.image` is the chat and its metadata as the last save wrote them. */
@@ -204,6 +230,7 @@ export async function reload(createHost, image, modules, options = {}) {
 
 /** Prepares and activates a restore to `snapshot` at the head: → { prepared, activated }. */
 export async function restore(host, snapshot, { batch = BATCH, events = DEATH } = {}) {
+    await seal(host, batch);
     const head = await host.sdk.timeline.head();
     const prepared = await host.timeline.host.prepare({ snapshot, deathEvents: events, batchResult: batch, expectedHead: head.headHash });
     if (!prepared.ok) return { prepared };
@@ -216,4 +243,13 @@ export function slice(state) {
     const { savepoints, ...rest } = state.domains;
     void savepoints;
     return clone({ domains: rest, claims: state.meta.claims ?? {} });
+}
+
+/** Seals the test result a batch id stands for in the story (once), so the host can resolve it. */
+export async function seal(host, batch = BATCH) {
+    if (host.head().domains.death?.batches?.[batch.id] === undefined) {
+        const done = await host.sdk.command('tl.seal', { id: batch.id });
+        if (!done.ok) throw new Error(`could not seal ${batch.id}: ${done.message}`);
+    }
+    return batch;
 }

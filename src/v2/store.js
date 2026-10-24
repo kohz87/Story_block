@@ -43,7 +43,9 @@ import {
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
 import { evidenceDigest, evidenceProblem, merged, pinOps, recordEntries, touchesProof } from './evidence.js';
-import { gateProblem } from './timeline/gate.js';
+import { HOST_DOMAIN, gateProblem } from './timeline/gate.js';
+
+const HOST_PATH = `/domains/${HOST_DOMAIN}`;
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -53,6 +55,10 @@ export const CHECKPOINT_BYTES = 128 * 1024;
 export const CHECKPOINT_MIN_GAP = 10;
 /** The code an owner's replan answers with when the step is no longer done (REPLAY.md): only this removes a block. */
 export const NO_LONGER_DONE = 'NO_LONGER_DONE';
+
+// The host's savepoints domain (timeline/gate.js): written only by the host's own blocks (module story-block, operation savepoint.*).
+const touchesHostDomain = op => [op?.path, op?.from].some(path => typeof path === 'string' && (path === HOST_PATH || path.startsWith(`${HOST_PATH}/`)));
+const hostBlock = (module, type) => module === 'story-block' && typeof type === 'string' && type.startsWith('savepoint.');
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -549,6 +555,7 @@ export function createStore({
     // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
     // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
     function replayLegacy(state, ops) {
+        if (ops.some(touchesHostDomain)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         if (ops.some(touchesProof)) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
         return step(state, ops, { replayed: true });
     }
@@ -571,6 +578,7 @@ export function createStore({
         if (claims.length !== span.claims.length || !claims.every(key => span.claims.includes(key))) {
             throw prerequisite('the claims it saved are not the claims its changes make');
         }
+        if (ops.some(touchesHostDomain) && !hostBlock(span.module, span.operation?.type)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         const proof = evidenceProblem(span, ops);
         if (proof) throw prerequisite(`the proof it saved is not the proof its changes pin: ${proof}`);
         // A claim someone else holds already (a retried settlement, a block that woke up after its twin was stored)
@@ -1604,6 +1612,7 @@ export function createStore({
             if (receipt !== null && !isObject(receipt)) throw new TypeError('A receipt must be an object.');
             if (block !== null && !isObject(block)) throw new TypeError('A block must be an object.');
             if (!added.length && !receipt) return;
+            if (added.some(touchesHostDomain) && !hostBlock(block?.module, block?.operation?.type)) throw new Error('The savepoints are the host\'s own; only its blocks write them.');
             if (block?.guard) {
                 // A guard that replay would turn away (another epoch, other rules) is not stored: live and replay agree.
                 const gate = gateProblem(base, block.guard);

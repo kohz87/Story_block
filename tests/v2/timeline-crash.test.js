@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { crash } from '../../src/v2/timeline/index.js';
-import { BATCH, DEATH, clone, nativeModule, reload, rulesModule, slice, track } from './helpers/timeline.js';
+import { BATCH, DEATH, clone, nativeModule, reload, rulesModule, seal, slice, track } from './helpers/timeline.js';
 
 const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>` : text);
 const cmd = async (host, type, payload = {}) => assert.equal((await host.sdk.command(type, payload)).ok, true, type);
@@ -80,8 +80,10 @@ for (const phase of RESTORE_PHASES) {
         await cmd(host, 'tl.xp', { amount: 100 });
         await cmd(host, 'tl.hurt', { amount: 15 });
         native.native.edit(s => { s.dossiers.tavi.trust = 99; });
+        await seal(host);
         const dead = slice(host.head());
         hook.at = async at => { if (at === phase) { state.crashed = true; state.image = clone(state.disk.image); throw crash(); } };
+        await seal(host);
         const head = await host.sdk.timeline.head();
         await assert.rejects(async () => {
             const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
@@ -135,7 +137,8 @@ test('a restore whose participants were pending when the process died is finishe
     state.disk = track(host);
     await cmd(host, 'tl.xp', { amount: 100 });
     native.native.edit(s => { s.dossiers.tavi.trust = 99; });
-    const head = await host.sdk.timeline.head();
+    await seal(host);
+        const head = await host.sdk.timeline.head();
     const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
     native.native.fail.add('activate');
     const pending = await host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash });
@@ -158,7 +161,8 @@ test('the barrier is up from the moment a restore is committed until every part 
     const saved = (await host.sdk.timeline.make({ kind: 'manual', name: 'Before the cave' })).snapshot;
     state.disk = track(host);
     await cmd(host, 'tl.xp', { amount: 100 });
-    const head = await host.sdk.timeline.head();
+    await seal(host);
+        const head = await host.sdk.timeline.head();
     const seen = [];
     host.sdk.on('modules', ({ changes }) => seen.push(changes.map(change => change.status)));
     const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });

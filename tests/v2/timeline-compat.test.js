@@ -93,3 +93,15 @@ test('a module with no participant and no timeline calls is untouched: its domai
     assert.deepEqual(host.timeline.host.participants(), []);
     assert.deepEqual(host.store.problems(), []);
 });
+
+test('a guarded chat that never uses the timeline keeps its checkpoint metadata: the host\'s own replay hook is no owner in guardEnv', async t => {
+    const host = await createHost({ modules: [rulesModule()] });
+    t.after(() => host.close());
+    await host.send('Go.', reply('A.'));
+    assert.equal((await host.sdk.command('tl.guarded', { epoch: 'ep_00000001' })).ok, true);
+    for (let n = 0; n < 105; n += 1) await host.send('Go.', reply(`Reply ${n}.`, ['+ coin 1']));
+    const marks = host.ctx.chat.map(message => message.extra?.storySuite).filter(record => record?.checkpoint).map(record => record.guardEnv).filter(mark => mark !== undefined);
+    assert.equal(marks.length >= 1, true, 'the chat has a checkpoint over a guarded block');
+    assert.deepEqual([...new Set(marks)], ['tl-rules@0.0.1'], 'only the module that guards is an owner');
+    assert.deepEqual(host.store.problems(), []);
+});

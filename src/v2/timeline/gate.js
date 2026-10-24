@@ -33,7 +33,8 @@ export function rulesHashOf(state) {
 export function gateProblem(state, guard) {
     if (!isObject(guard)) return '';
     const domain = state?.domains?.[HOST_DOMAIN];
-    if (isObject(domain) && typeof domain.epoch === 'string' && domain.epoch && guard.epoch !== domain.epoch) {
+    // (only what the guard names is compared: a guard without an epoch, or without rules, has nothing to meet there)
+    if (isObject(domain) && typeof domain.epoch === 'string' && domain.epoch && guard.epoch !== undefined && guard.epoch !== null && guard.epoch !== domain.epoch) {
         return `it was recorded in epoch ${guard.epoch}, and this timeline is in epoch ${domain.epoch}`;
     }
     const rules = rulesHashOf(state);

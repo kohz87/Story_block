@@ -88,7 +88,7 @@ export function savepointsProblems(domain) {
     const out = [];
     if (domain.schema !== SCHEMA) out.push('The savepoints are not schema 2.');
     if (typeof domain.epoch !== 'string' || !domain.epoch) out.push('The savepoints name no epoch.');
-    for (const key of ['points', 'dayStarts', 'returns']) if (!isObject(domain[key])) out.push(`The savepoints' ${key} are not a record.`);
+    for (const key of ['points', 'dayStarts', 'returns', 'ruleSettings']) if (!isObject(domain[key])) out.push(`The savepoints' ${key} are not a record.`);
     if (domain.previousDay !== null && typeof domain.previousDay !== 'string') out.push('The savepoints\' previousDay is not an id or null.');
     for (const [id, point] of Object.entries(isObject(domain.points) ? domain.points : {})) {
         if (!isObject(point) || point.id !== id || !isHash(point.payloadHash)) out.push(`The save point ${id} is not whole.`);
@@ -97,7 +97,15 @@ export function savepointsProblems(domain) {
 }
 
 /** A fresh savepoints domain: schema 2, the given epoch, no points, no returns. */
-export const initialSavepoints = (epoch = GENESIS_EPOCH) => ({ schema: SCHEMA, epoch, points: {}, dayStarts: {}, previousDay: null, returns: {} });
+export const initialSavepoints = (epoch = GENESIS_EPOCH) => ({ schema: SCHEMA, epoch, points: {}, dayStarts: {}, previousDay: null, returns: {}, ruleSettings: {} });
+
+/** The start of the day before the newest day that has one (contract §8 step 1), else null. `dayStarts` is day -> snapshot id. */
+export function previousDayOf(dayStarts) {
+    const days = Object.keys(isObject(dayStarts) ? dayStarts : {}).map(Number).filter(Number.isSafeInteger);
+    if (!days.length) return null;
+    const before = dayStarts[String(Math.max(...days) - 1)];
+    return typeof before === 'string' ? before : null;
+}
 
 /**
  * Plans a restore: the ops that install the payload of `entry` on `state` absolutely, and the manifest that says where each
@@ -120,11 +128,14 @@ export function planRestore({ registry, state, entry, descriptor, returnRecord, 
     const payload = entry?.payload;
     const bad = payloadProblem(payload);
     if (bad) return fail('SNAPSHOT_UNAVAILABLE', `The save point's bytes cannot be used: ${bad}.`);
-    const pins = isObject(entry.proofs) ? entry.proofs : {};
+    // The proof pins the story held are part of what the save is (its payloadHash covers them): bytes without them are not bytes.
+    if (!isObject(entry.proofs)) return fail('SNAPSHOT_UNAVAILABLE', 'The save point\'s proof pins are missing from its bytes.');
+    const pins = entry.proofs;
     const ops = [];
     const listing = {};
     const have = isObject(state?.domains) ? state.domains : {};
-    const names = [...new Set([...Object.keys(payload.domains), ...Object.keys(have)])].filter(name => name !== HOST_DOMAIN).sort();
+    // Every domain there is: the registry's (whether or not the state holds it), the state's and the save's.
+    const names = [...new Set([...registered(registry).map(item => item.name), ...Object.keys(payload.domains), ...Object.keys(have)])].filter(name => name !== HOST_DOMAIN).sort();
     for (const name of names) {
         const path = `/domains/${escapeKey(name)}`;
         const def = domainDef(registry, name);
@@ -146,7 +157,7 @@ export function planRestore({ registry, state, entry, descriptor, returnRecord, 
             } else if (!def) from = Number.isInteger(from) ? from : 1;
             ops.push({ op: 'add', path, value: structuredClone(slice) });
             listing[name] = { version: def ? now : from, source, hash: hashJson(slice) };
-        } else if (here) {
+        } else if (def || here) {
             if (def) {
                 if (typeof def.absent !== 'function') return fail('SNAPSHOT_UNAVAILABLE', `The domain ${name} came after this save and says nothing of how to restore without it (no absent() on its definition).`);
                 let slice;
@@ -164,12 +175,16 @@ export function planRestore({ registry, state, entry, descriptor, returnRecord, 
     // The savepoints domain: the saved one, in the new epoch, with the selected point and the return.
     const base = isObject(payload.domains[HOST_DOMAIN]) ? structuredClone(payload.domains[HOST_DOMAIN]) : initialSavepoints();
     const earlier = isObject(have[HOST_DOMAIN]?.returns) ? have[HOST_DOMAIN].returns : {};
+    const points = { ...(isObject(base.points) ? base.points : {}), [descriptor.id]: structuredClone(descriptor) };
+    // The save was captured before its own descriptor existed, so the anchor index lacks its entry: it is overlaid, and the
+    // start of the previous day is worked out again from the index (an entry whose point is not there goes).
+    const dayStarts = Object.fromEntries(Object.entries(isObject(base.dayStarts) ? base.dayStarts : {}).filter(([, id]) => Object.hasOwn(points, id)));
+    if (descriptor.kind === 'day-start' && Number.isSafeInteger(descriptor.day)) dayStarts[String(descriptor.day)] = descriptor.id;
     const host = {
-        schema: SCHEMA, epoch: newEpoch,
-        points: { ...(isObject(base.points) ? base.points : {}), [descriptor.id]: structuredClone(descriptor) },
-        dayStarts: isObject(base.dayStarts) ? base.dayStarts : {},
-        previousDay: typeof base.previousDay === 'string' ? base.previousDay : null,
+        schema: SCHEMA, epoch: newEpoch, points, dayStarts, previousDay: previousDayOf(dayStarts),
         returns: { ...structuredClone(earlier), [returnRecord.id]: structuredClone(returnRecord) },
+        // The rule settings the save was made under become the chat's (the overlay modules read in preference to the global ones).
+        ruleSettings: structuredClone(payload.effectiveSettings),
     };
     ops.push({ op: 'add', path: `/domains/${escapeKey(HOST_DOMAIN)}`, value: host });
     listing[HOST_DOMAIN] = { version: 1, source: 'host', hash: hashJson(host) };

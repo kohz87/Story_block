@@ -70,7 +70,7 @@ test('make: a manual save point is a descriptor in the story and its bytes are i
     assert.equal(native.native.calls.filter(call => call.name === 'checkpoint').length, 1);
     assert.equal(native.native.calls[0].input.headHash.length, 64);
     // In the story: a savepoints domain nobody registered (the host's own), made by this first save.
-    assert.deepEqual(Object.keys(host.head().domains.savepoints).sort(), ['dayStarts', 'epoch', 'points', 'previousDay', 'returns', 'schema']);
+    assert.deepEqual(Object.keys(host.head().domains.savepoints).sort(), ['dayStarts', 'epoch', 'points', 'previousDay', 'returns', 'ruleSettings', 'schema']);
     assert.deepEqual(host.head().domains.savepoints.points[point.id], point);
     assert.equal(host.registry.domainOwner('savepoints'), null, 'no module owns it, so no module can draft it');
     // In the archive: the payload, by its hash, with every domain of the story as it was.

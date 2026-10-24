@@ -35,7 +35,7 @@ import { displayLines } from './extras.js';
 import { DEFAULT_HIDDEN } from './view/screens.js';
 import { SCENE_SCREEN_ID } from './screens/scene.js';
 import { createRewind } from './rewind.js';
-import { createTimeline } from './timeline/index.js';
+import { createTimeline, withRuleOverlay } from './timeline/index.js';
 import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 
@@ -368,7 +368,10 @@ export function createRuntime({
     });
     const packPart = packs ?? packsFor(ctx);
     const base = createSettings({ root: () => ctx.extensionSettings, registry, save: () => ctx.saveSettingsDebounced?.() });
-    const settings = withPackCurrency(base, () => packPart.startState().currency);
+    // The chat's rule settings (a restore sets them, docs/v2/TIMELINE.md) are read in preference to the global ones.
+    const settings = withRuleOverlay(withPackCurrency(base, () => packPart.startState().currency), {
+        registry, state: () => { try { return store.head(); } catch { return null; } },
+    });
     let sdk = null;
     let bus = null;
     let timeline = null;

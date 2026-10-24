@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { hashJson } from '../../src/v2/replay.js';
 import { director, T1, T2 } from './helpers/evidence.js';
-import { BATCH, DEATH, NATIVE, clone, nativeModule, restore, rulesModule, slice } from './helpers/timeline.js';
+import { BATCH, DEATH, NATIVE, batchFor, clone, nativeModule, restore, rulesModule, seal, slice } from './helpers/timeline.js';
 
 const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>` : text);
 const cmd = (host, type, payload = {}) => host.sdk.command(type, payload).then(result => {
@@ -44,6 +44,7 @@ async function story(t, { extra = [], options = {} } = {}) {
     await cmd(host, 'tl.claim', { key: 'late' });
     await cmd(host, 'sd.accept', { thread: T2, selection: 'Later' });
     native.native.edit(state => { state.dossiers.tavi.trust = 99; state.dossiers.orrin = { trust: 1 }; });
+    await seal(host);   // the lethal batch is sealed on the dead timeline (the owner of the death domain holds the result)
     return { host, native, saved, atSave, proofsAtSave };
 }
 
@@ -117,7 +118,7 @@ test('the restore installs the savepoints in a new epoch: earlier points stay, l
     assert.equal(carrier.receipts.at(-1).type, 'savepoint.complete');
     // A second death can use the same save: it is still eligible, in the new epoch.
     await cmd(host, 'tl.xp', { amount: 7 });
-    const again = await restore(host, saved.id, { batch: { id: 'br_batch002', hash: 'c'.repeat(64) }, events: ['ev_death002'] });
+    const again = await restore(host, saved.id, { batch: batchFor('br_batch002'), events: ['ev_death002'] });
     assert.equal(again.activated.status, 'complete', again.prepared.message);
     const twice = host.head().domains.savepoints;
     assert.equal(Object.keys(twice.returns).length, 2, 'both returns are kept: the audit');
@@ -169,9 +170,11 @@ test('an unauthorized or forged token is refused: no capability, a copy of it, a
             assert.equal(result.ok, false, `${method} with ${JSON.stringify(forged)}`);
             assert.equal(result.code, 'REFUSED', `${method} with ${JSON.stringify(forged)}`);
         }
-        assert.equal((await host.sdk.timeline.recover(forged)).code, 'REFUSED');
+        assert.equal((await host.sdk.timeline.recover({}, forged)).code, 'REFUSED');
     }
     assert.equal((await host.sdk.timeline.nativeMutation({})).code, 'REFUSED', 'only the participant\'s own handle makes a native mutation');
+    assert.equal((await host.timeline.host.recover.call(null)).ok, true);
+    assert.equal((await host.sdk.timeline.recover({ surprise: 1 }, host.timeline.capability)).code, 'INVALID', 'recover takes {}');
     // The public methods that need no authority do not carry any: a make of another kind is refused.
     assert.equal((await host.sdk.timeline.make({ kind: 'initial' }, { capability: {} })).code, 'REFUSED');
     // savepoint.restore is no command: not from the page (internal), not from any cause, not from a module.
@@ -392,7 +395,7 @@ test('participants that cannot switch leave the restore committed and the barrie
     assert.deepEqual(await host.sdk.timeline.status(), { ok: true, state: 'pending', return: prepared.return, participants: [] });
     assert.equal((await host.sdk.command('tl.xp', { amount: 1 })).code, 'RESTORE_PENDING');
     assert.equal((await host.sdk.timeline.make({ kind: 'manual' })).code, 'RESTORE_PENDING');
-    assert.equal((await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: ['ev_other0001'], batchResult: { id: 'br_batch009', hash: 'e'.repeat(64) }, expectedHead: head.headHash })).code, 'RESTORE_PENDING');
+    assert.equal((await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: ['ev_other0001'], batchResult: batchFor('br_batch009'), expectedHead: head.headHash })).code, 'RESTORE_PENDING');
     assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.at(-1).type, 'savepoint.restore', 'not complete yet');
     assert.equal(host.timeline.host.journal().find(each => each.id === prepared.prepared).phase, 'participants-pending');
     // The participant is back: a retry finishes it, once.
@@ -437,6 +440,7 @@ test('modules with guarded blocks in the story: the barrier turns them off while
     await host.send('Go.', reply('B.', ['+ coin 5']));
     await cmd(host, 'tl.guarded', { epoch: 'ep_00000000' });
     assert.equal(host.head().domains.progress.xp, 2);
+    await seal(host);
     const head = await host.sdk.timeline.head();
     const prepared = await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
     assert.equal(prepared.ok, true, prepared.message);

@@ -22,10 +22,12 @@ export function createTimelinePart({ timeline = () => null } = {}) {
             'savepoint.list': state => current()?.points(state) ?? Object.values(state?.domains?.savepoints?.points ?? {}),
         },
         hooks: {
-            replayGuard: (view, info) => {
+            // `hostOwned`: it answers from the story alone, so it is not one of the owners whose readiness the store's checkpoints
+            // are made under (commands.js guardMark); a chat that never uses the timeline keeps the checkpoint metadata it had.
+            replayGuard: Object.assign((view, info) => {
                 const line = current();
                 return line ? line.guard(view, info) : { ok: false, reason: 'the timeline is not running, so the host\'s save points cannot be checked' };
-            },
+            }, { hostOwned: true }),
         },
     };
 }

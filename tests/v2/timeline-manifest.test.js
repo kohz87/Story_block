@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { capture, planRestore, registered } from '../../src/v2/timeline/index.js';
-import { RULES, clone, nativeModule, reload, restore, rulesModule } from './helpers/timeline.js';
+import { RULES, clone, nativeModule, reload, restore, rulesModule, sealerModule } from './helpers/timeline.js';
 
 const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>` : text);
 const image = host => ({ chat: clone(host.ctx.chat), metadata: clone(host.ctx.chatMetadata) });
@@ -81,7 +81,7 @@ test('capture: a module that names its rule settings has them saved with the pay
 
 test('restore: a domain saved by an older version is migrated, one with no migration is not restored, a newer one cannot be read', async t => {
     const v1 = { id: 'tl-versioned', name: 'Versioned', version: '1.0.0', domains: { vv: { initial: () => ({ n: 1 }) } }, commands: { 'vv.bump'(ctx) { ctx.draft('vv').n += 1; return { summary: 'bumped', narrate: false }; } } };
-    const host = await createHost({ modules: [v1] });
+    const host = await createHost({ modules: [v1, sealerModule()] });
     t.after(() => host.close());
     await host.send('Hello.', reply('x'));
     await host.sdk.command('vv.bump');
@@ -90,14 +90,14 @@ test('restore: a domain saved by an older version is migrated, one with no migra
     const stored = image(host);
     const v2 = (extra = {}) => ({ ...v1, version: '2.0.0', domains: { vv: { version: 2, initial: () => ({ n: 1, label: 'new' }), ...extra } } });
     // No migration: the save cannot be brought forward.
-    const without = await reload(createHost, stored, [v2()]);
+    const without = await reload(createHost, stored, [v2(), sealerModule()]);
     t.after(() => without.close());
     const refused = await restore(without, saved.id);
     assert.equal(refused.prepared.code, 'SNAPSHOT_UNAVAILABLE');
     assert.match(refused.prepared.message, /version 1, this is 2.*migrate/);
     assert.equal(without.head().domains.vv.n, 3, 'nothing was restored');
     // With one: the saved slice goes through it, and the manifest says so.
-    const withMigrate = await reload(createHost, stored, [v2({ migrate: (slice, { from, to }) => ({ ...slice, label: `from ${from} to ${to}` }) })]);
+    const withMigrate = await reload(createHost, stored, [v2({ migrate: (slice, { from, to }) => ({ ...slice, label: `from ${from} to ${to}` }) }), sealerModule()]);
     t.after(() => withMigrate.close());
     const done = await restore(withMigrate, saved.id);
     assert.equal(done.activated.status, 'complete', done.prepared.message);
@@ -106,20 +106,20 @@ test('restore: a domain saved by an older version is migrated, one with no migra
     assert.equal(manifest.domains.vv.source, 'migrated');
     assert.equal(manifest.domains.vv.version, 2);
     // A migration that throws, or answers nothing, is a save that cannot be used.
-    const broken = await reload(createHost, stored, [v2({ migrate: () => { throw new Error('no way'); } })]);
+    const broken = await reload(createHost, stored, [v2({ migrate: () => { throw new Error('no way'); } }), sealerModule()]);
     t.after(() => broken.close());
     assert.match((await restore(broken, saved.id)).prepared.message, /no way/);
-    const empty = await reload(createHost, stored, [v2({ migrate: () => 7 })]);
+    const empty = await reload(createHost, stored, [v2({ migrate: () => 7 }), sealerModule()]);
     t.after(() => empty.close());
     assert.equal((await restore(empty, saved.id)).prepared.code, 'SNAPSHOT_UNAVAILABLE');
     // A save made by version 3 cannot be read by version 2.
     const v3 = { ...v1, version: '3.0.0', domains: { vv: { version: 3, initial: () => ({ n: 1 }) } } };
-    const newest = await createHost({ modules: [v3] });
+    const newest = await createHost({ modules: [v3, sealerModule()] });
     t.after(() => newest.close());
     await newest.send('Hello.', reply('x'));
     const later = (await newest.sdk.timeline.make({ kind: 'manual', name: 'v3' })).snapshot;
     await newest.sdk.command('vv.bump');
-    const older = await reload(createHost, image(newest), [v2({ migrate: slice => slice })]);
+    const older = await reload(createHost, image(newest), [v2({ migrate: slice => slice }), sealerModule()]);
     t.after(() => older.close());
     const unread = await restore(older, later.id);
     assert.equal(unread.prepared.code, 'SNAPSHOT_UNAVAILABLE', unread.prepared.message);

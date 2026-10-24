@@ -15,12 +15,12 @@
 // registerParticipant, a make of another kind) needs the host capability, an object only createTimeline's caller holds,
 // or, for nativeMutation, the handle the host gave the participant when it registered it.
 
-import { deriveId, hashJson, isHash, isRecordId, sourceProblem } from '../replay.js';
+import { deriveId, hashJson, isHash, isPlainJson, isRecordId, sourceProblem } from '../replay.js';
 import { cutAt } from '../../text.js';
 import { createArchive } from './archive.js';
 import { GENESIS_EPOCH, HOST_DOMAIN, epochOf } from './gate.js';
 import { appendHostBlock, stateHash } from './host-block.js';
-import { capture, initialSavepoints, planRestore } from './manifest.js';
+import { capture, initialSavepoints, planRestore, previousDayOf } from './manifest.js';
 import { createParticipants } from './participants.js';
 import { crashing, fail, isObject, makeId } from './util.js';
 
@@ -56,6 +56,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const participants = createParticipants();
     const capability = Object.freeze({ timeline: 'story-block' });
     const handles = new Map();
+    const broken = new Map();   // module -> why its participant declaration was not registered
     // (this run's id, made when first needed: a chat that never uses the timeline draws nothing from the random source)
     let sessionId = null;
     const session = () => (sessionId ??= makeId('ss'));
@@ -94,6 +95,12 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         ?? archive.entries().find(entry => ['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared')
         ?? null;
     const pendingNow = () => registry.restore?.().state === 'pending' || pendingEntry() !== null;
+    // A module that declared a participant the host could not register holds the timeline: a save or a restore without it would
+    // leave its native state out of step with the story (fail closed).
+    const brokenProblem = () => {
+        const [module, why] = [...broken.entries()][0] ?? [];
+        return module ? `the participant ${module} could not be registered (${why}), so its native state cannot be saved or restored` : '';
+    };
     const pointsOf = state => (isObject(state?.domains?.[HOST_DOMAIN]?.points) ? state.domains[HOST_DOMAIN].points : {});
 
     // The clock, the scene and the journal day a descriptor shows.
@@ -223,6 +230,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const bad = makeInput(input, host);
         if (!bad.ok) return bad;
         if (pendingNow()) return fail('RESTORE_PENDING', 'A restore is in progress; a save point cannot be made until every part agrees.');
+        const unregistered = brokenProblem();
+        if (unregistered) return fail('SNAPSHOT_UNAVAILABLE', `A save point cannot be made: ${unregistered}.`);
         const first = headNow();
         if (!first) return fail('NOT_FOUND', 'There is no story state to save yet.');
         const holder = archive.holder();
@@ -262,11 +271,15 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 archive.patch(journal, { phase: 'aborted', why: answer.message });
                 return fail(answer.code === 'FAILED' ? 'SNAPSHOT_UNAVAILABLE' : answer.code, `The participant ${module} could not save its state: ${answer.message}`);
             }
+            if (answer.schema !== participants.get(module).schema) {
+                archive.patch(journal, { phase: 'aborted', why: 'a participant saved another schema than it registered' });
+                return fail('SNAPSHOT_UNAVAILABLE', `The participant ${module} saved checkpoint schema ${answer.schema}, and registered ${participants.get(module).schema}.`);
+            }
             checkpoints.push({ module, checkpoint: answer.checkpoint, hash: answer.hash, schema: answer.schema });
             await point(`make.checkpoint:${module}`);
         }
         taken.payload.participants = checkpoints.map(item => ({ ...item }));
-        const payloadHash = hashJson(taken.payload);
+        const payloadHash = hashJson({ payload: taken.payload, proofs: taken.proofs });
         archive.patch(journal, { phase: 'checkpointed', participants: checkpoints, payloadHash });
         await point('make.checkpointed');
 
@@ -298,14 +311,14 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (!domain) {
             const fresh = initialSavepoints(GENESIS_EPOCH);
             fresh.points[id] = descriptor;
-            if (dayKey !== null) { fresh.dayStarts[dayKey] = id; }
+            if (dayKey !== null) { fresh.dayStarts[dayKey] = id; fresh.previousDay = previousDayOf(fresh.dayStarts); }
             ops.push({ op: 'add', path: `/domains/${HOST_DOMAIN}`, value: fresh });
         } else {
             ops.push({ op: 'add', path: `/domains/${HOST_DOMAIN}/points/${id}`, value: descriptor });
             if (dayKey !== null) {
                 ops.push({ op: 'add', path: `/domains/${HOST_DOMAIN}/dayStarts/${dayKey}`, value: id });
-                const before = domain.dayStarts?.[String(input.day - 1)];
-                if (typeof before === 'string' && domain.previousDay !== before) ops.push({ op: 'replace', path: `/domains/${HOST_DOMAIN}/previousDay`, value: before });
+                const before = previousDayOf({ ...domain.dayStarts, [dayKey]: id });
+                if (domain.previousDay !== before) ops.push({ op: 'replace', path: `/domains/${HOST_DOMAIN}/previousDay`, value: before });
             }
         }
         const stored = appendHostBlock({
@@ -319,8 +332,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (!stored.ok) { archive.patch(journal, { phase: 'discarded', why: stored.message }); return stored; }
         archive.patch(journal, { phase: 'committed' });
         await point('make.committed');
+        // Made only once the chat file has it: a failed save is the caller's failure (the save point stands in memory and the store tries again).
         const after = await durable();
-        return { ok: true, snapshot: structuredClone(descriptor), receipt: stored.receipt, ...(after ? { warning: after.message } : {}) };
+        if (after) return fail('FAILED', `The save point was made, but the chat could not be saved yet: ${after.message}`);
+        return { ok: true, snapshot: structuredClone(descriptor), receipt: stored.receipt };
     }
 
     // ---- forget ------------------------------------------------------------------------------------------------
@@ -344,7 +359,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 predicate: { kind: 'forget', snapshot: found.id }, payload: { snapshot: found.id }, recorded: null, result: { forgotten: found.id } },
         });
         if (!stored.ok) return stored;
-        await durable();
+        const kept = await durable();
+        if (kept) return fail('FAILED', `The save point was forgotten, but the chat could not be saved yet: ${kept.message}`);
         return { ok: true, forgotten: found.id };
     }
 
@@ -377,6 +393,31 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         return '';
     }
 
+    // The sealed result a restore is prepared for: the module that owns it resolves it (`batchResults.resolve({ id, state })` on its
+    // definition, synchronous, pure: → null when the result is not its, else { id, hash, bytes }); the host checks the bytes against
+    // the hash it was given and against the hash the owner gives, and pins the bytes. No resolver, no result, or bytes that do
+    // not hash to it: the restore is not prepared.
+    function resolveBatch(batch, state) {
+        const owners = (registry.modules?.() ?? []).filter(def => isObject(def.batchResults) && typeof def.batchResults.resolve === 'function' && registry.held?.(def.id) !== true);
+        if (!owners.length) return fail('DEPENDENCY_UNAVAILABLE', 'No module resolves sealed batch results, so the one this restore is for cannot be checked.');
+        const found = [];
+        for (const def of owners) {
+            let answer = null;
+            try { answer = def.batchResults.resolve({ id: batch.id, state }); } catch { answer = null; }
+            if (answer && typeof answer.then === 'function') { answer.then(null, () => {}); answer = null; }
+            if (answer !== null && answer !== undefined) found.push({ module: def.id, answer });
+        }
+        if (!found.length) return fail('NOT_FOUND', 'No module holds a sealed batch result with that id.');
+        if (found.length > 1) return fail('CONFLICT', 'More than one module claims that sealed batch result.');
+        const { module, answer } = found[0];
+        if (!isObject(answer) || answer.id !== batch.id || !isHash(answer.hash) || answer.bytes === undefined || !isPlainJson(answer.bytes)) {
+            return fail('CONFLICT', `${module} answered the sealed batch result with something that is not { id, hash, bytes }.`);
+        }
+        if (answer.hash !== batch.hash) return fail('CONFLICT', `The sealed batch result held by ${module} has another hash than the one given.`);
+        if (hashJson(answer.bytes) !== answer.hash) return fail('CONFLICT', `The sealed batch result held by ${module} does not hash to its hash.`);
+        return { ok: true, module, bytes: structuredClone(answer.bytes) };
+    }
+
     async function abortParticipants(entry) {
         for (const [module, item] of Object.entries(entry.participants ?? {})) {
             if (!item.prepared || item.ack) continue;
@@ -397,6 +438,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const bad = prepareInput(input);
         if (!bad.ok) return bad;
         if (pendingNow()) return fail('RESTORE_PENDING', 'A restore is in progress.');
+        const unregistered = brokenProblem();
+        if (unregistered) return fail('SNAPSHOT_UNAVAILABLE', `A restore cannot be prepared: ${unregistered}.`);
         // An identical retry returns the original; the same batch with another meaning is a CONFLICT.
         const known = archive.entries().filter(entry => entry.kind === 'restore' && entry.batchResult?.id === input.batchResult.id && entry.phase !== 'aborted');
         const pinned = archive.pin(input.batchResult.id);
@@ -418,6 +461,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (hashJson(stored.descriptor) !== hashJson(found)) return fail('CONFLICT', 'The save point in the story is not the one that was archived.');
         const lacking = participantProblem(found);
         if (lacking) return fail('SNAPSHOT_UNAVAILABLE', `That save point cannot be restored: ${lacking}.`);
+        const sealed = resolveBatch(input.batchResult, now.state);
+        if (!sealed.ok) return sealed;
 
         const preparedId = makeId('pp');
         const returnId = makeId('rt');
@@ -434,7 +479,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
 
         // The story as it is now (the dead timeline) is pinned beside the batch result: what the restore replaces stays retrievable.
         const pre = capture({ registry, state: now.state, settings });
-        const preHash = hashJson(pre.payload);
+        const preHash = hashJson({ payload: pre.payload, proofs: pre.proofs });
         archive.putPayload(preHash, { payload: pre.payload, proofs: pre.proofs });
         const slots = {};
         for (const item of found.participants) slots[item.module] = { checkpoint: item.checkpoint, hash: item.hash, schema: item.schema, prepared: null, preparedHash: null, ack: null };
@@ -443,7 +488,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             batchResult: { ...input.batchResult }, expectedHead: now.headHash, newEpoch, block: blockId, cue: record.cue, payloadHash: found.payloadHash,
             manifest: plan.manifest, manifestHash: plan.manifestHash, participants: slots, pre: preHash,
         });
-        archive.putPin(input.batchResult.id, { id: input.batchResult.id, hash: input.batchResult.hash, return: returnId, prepared: preparedId, deathEvents: [...input.deathEvents], manifestHash: plan.manifestHash, preRestore: preHash, aborted: false });
+        archive.putPin(input.batchResult.id, { id: input.batchResult.id, hash: input.batchResult.hash, bytes: sealed.bytes, resolvedBy: sealed.module, return: returnId, prepared: preparedId, deathEvents: [...input.deathEvents], manifestHash: plan.manifestHash, preRestore: preHash, aborted: false });
         const saved = await durable();
         if (saved) { await abortEntry(archive.get(preparedId), saved.message); return saved; }
         await point('prepare.journaled');
@@ -478,49 +523,51 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         return { ok: true, prepared: preparedId, return: returnId, manifestHash: plan.manifestHash };
     }
 
-    // The participants of a committed restore switch, one at a time, each acknowledged in the journal as it answers. A failure
-    // leaves the barrier up and the restore waiting on its participants (`participants-pending`); a retry or a restart carries on.
+    // The participants of a committed restore switch, one at a time, each acknowledged in the journal as it answers. Nothing is
+    // switched before the commit is in the chat file (a participant that switched while the story could still be lost would be
+    // split from it for good). A failure leaves the barrier up and the restore waiting on its participants (`participants-pending`);
+    // a retry or a restart carries on. A save that fails is the caller's failure, never a success.
     async function finish(entry) {
         const fresh = () => archive.get(entry.id);
+        const hold = (why) => {
+            archive.patch(entry.id, { phase: 'participants-pending', why });
+            return durable().then(() => ({ ok: true, return: entry.return, status: 'participants-pending' }));
+        };
+        const first = await durable();
+        if (first) return first;
         for (const module of Object.keys(fresh().participants).sort()) {
             let slot = fresh().participants[module];
             if (slot.ack) continue;
+            const registered = participants.get(module);
+            if (!registered || registered.schema !== slot.schema) return hold(`the participant ${module} is not registered at the schema the save holds (${slot.schema})`);
             await point(`activate.participant:${module}:before`);
             // After a crash it may have switched already: its own status says so.
             let answer = null;
             const asked = await participants.call(module, 'status', { return: entry.return });
             if (asked.ok && asked.status === 'active' && asked.hash === slot.hash && asked.checkpoint === slot.checkpoint) answer = asked;
-            else if (asked.ok && asked.status === 'aborted') {
-                archive.patch(entry.id, { phase: 'participants-pending', why: `the participant ${module} reports the restore aborted` });
-                return { ok: true, return: entry.return, status: 'participants-pending' };
-            }
+            else if (asked.ok && asked.status === 'aborted') return hold(`the participant ${module} reports the restore aborted`);
             if (!answer) {
                 const done = await participants.call(module, 'activate', { return: entry.return, prepared: slot.prepared });
-                if (!done.ok) {
-                    archive.patch(entry.id, { phase: 'participants-pending', why: done.message });
-                    await durable();
-                    return { ok: true, return: entry.return, status: 'participants-pending' };
-                }
+                if (!done.ok) return hold(done.message);
                 answer = done;
             }
-            if (answer.hash !== slot.hash) {
-                archive.patch(entry.id, { phase: 'participants-pending', why: `the participant ${module} answered other bytes than the save holds` });
-                await durable();
-                return { ok: true, return: entry.return, status: 'participants-pending' };
-            }
+            // Exactly the checkpoint that was saved and prepared, by its id and by its hash.
+            if (answer.checkpoint !== slot.checkpoint || answer.hash !== slot.hash) return hold(`the participant ${module} switched to another checkpoint than the save holds`);
             slot = { ...slot, ack: { checkpoint: answer.checkpoint, hash: answer.hash } };
             archive.patch(entry.id, { participants: { ...fresh().participants, [module]: slot }, phase: 'committed' });
-            await durable();
+            const kept = await durable();
+            if (kept) return kept;
             await point(`activate.participant:${module}:acked`);
         }
         archive.patch(entry.id, { phase: 'acked' });
-        await durable();
+        const kept = await durable();
+        if (kept) return kept;
         await point('activate.acked');
         return complete(entry);
     }
 
     // Every part agreed: the barrier drops, then the return is marked complete in the story (with the barrier down, so
-    // every module's blocks are asked again and the block sees the story whole).
+    // every module's blocks are asked again and the block sees the story whole). Complete is told only once the chat file has it.
     async function complete(entry) {
         barrier('idle', '');
         const now = headNow();
@@ -541,7 +588,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
         publishRestore(entry);
         archive.patch(entry.id, { phase: 'complete' });
-        await durable();
+        const kept = await durable();
+        if (kept) return kept;
         await point('activate.completed');
         return { ok: true, return: entry.return, status: 'complete' };
     }
@@ -552,13 +600,18 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
         const entry = archive.get(input.prepared);
         if (!entry || entry.kind !== 'restore') return fail('NOT_FOUND', 'There is no prepared restore with that token.');
-        // Once: a restore that is committed or complete answers what it did; it is never run twice.
-        if (entry.phase === 'complete') return { ok: true, return: entry.return, status: 'complete' };
+        // Once: a restore that is committed or complete answers what it did; it is never run twice. It is told complete only
+        // when the chat file has it.
+        if (entry.phase === 'complete') {
+            const kept = await durable();
+            return kept ?? { ok: true, return: entry.return, status: 'complete' };
+        }
         if (['committed', 'participants-pending', 'acked'].includes(entry.phase)) {
             barrier('pending', 'A restore is finishing; every part must agree before the story goes on.');
             return finish(entry);
         }
         if (entry.phase !== 'prepared') return fail('REFUSED', 'That restore was aborted.');
+        const holder = archive.holder();
         const now = headNow();
         if (input.expectedHead !== entry.expectedHead || !now || now.headHash !== entry.expectedHead) {
             await abortEntry(entry, 'the story moved before the restore was activated');
@@ -585,9 +638,16 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             return fail('CONFLICT', 'What would be installed is not what was prepared; the restore was aborted.');
         }
         await point('activate.checked');
-        // The one synchronous section: the block that installs the save, and the journal's word that it did.
+        // Anything may have happened while that waited (the reader acts, a chat is opened). The head, its source and the chat are
+        // looked at again, and the commit follows with nothing awaited between: one synchronous section.
+        const last = headNow();
+        if (archive.holder() !== holder) return fail('STALE', 'Another chat was opened while the restore was activated; nothing was restored.');
+        if (!last || last.headHash !== entry.expectedHead) {
+            await abortEntry(entry, 'the story moved while the restore was activated');
+            return fail('STALE', 'The story moved while the restore was activated; it was aborted.');
+        }
         const stored2 = appendHostBlock({
-            store, announce, head: now, ops: plan.ops,
+            store, announce, head: last, ops: plan.ops,
             spec: {
                 type: 'savepoint.restore', cause: 'system', summary: `Restored to "${stored.descriptor.name}".`, key: `restore:${entry.return}`, blockId: entry.block,
                 predicate: { kind: 'restore', return: entry.return, snapshot: entry.snapshot, payloadHash: entry.payloadHash, manifestHash: entry.manifestHash },
@@ -598,9 +658,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (!stored2.ok) { await abortEntry(entry, stored2.message); return stored2; }
         archive.patch(entry.id, { phase: 'committed' });
         barrier('pending', 'A restore is finishing; every part must agree before the story goes on.');
+        // Nothing is switched before the commit is in the chat file: a failed save is the caller's failure, and the barrier stays up.
         const saved = await durable();
         await point('activate.committed');
-        if (saved) return { ok: true, return: entry.return, status: 'participants-pending' };
+        if (saved) return saved;
         return finish(archive.get(entry.id));
     }
 
@@ -645,17 +706,20 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                     }
                     barrier('pending', 'A restore is finishing; every part must agree before the story goes on.');
                     const done = await finish(archive.get(entry.id));
+                    if (done.ok === false) return done;
                     ret = entry.return;
                     if (done.status === 'complete') ret = null;
                 }
             } else if (entry.kind === 'native-mutation' || entry.kind === 'native-event') {
                 if (entry.phase === 'prepared') {
                     barrier('pending', 'A native change is finishing; every part must agree before the story goes on.');
-                    await finishNative(archive.get(entry.id));
+                    const done = await finishNative(archive.get(entry.id));
+                    if (done.ok === false && done.code !== 'CONFLICT') return done;
                 }
             }
         }
-        await durable();
+        const kept = await durable();
+        if (kept) return kept;
         const left = pendingEntry();
         return { ok: true, state: left ? 'pending' : 'idle', return: left?.kind === 'restore' ? left.return : ret };
     }
@@ -787,13 +851,20 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (!first) return fail('NOT_FOUND', 'There is no story state.');
         if (first.headHash !== input.expectedHead) return fail('STALE', 'The head moved since it was read; the event was not delivered.');
         // The native identity: an np_ id is resolved by the participant's own query; one it does not know holds the death.
+        // The query must be the participant's own: another module's answer to "who is this npc" is not the participant's word.
+        if (registry.queryOwner?.('npc.identity') !== input.participant) return fail('REFUSED', `The participant ${input.participant} does not own npc.identity, so it cannot take a death by an npc id.`);
         const identity = ask('npc.identity', { id: input.npc }, first.state);
         if (!isObject(identity) || identity.id !== input.npc || typeof identity.nativeKey !== 'string' || !identity.nativeKey) {
             return fail('REFUSED', 'The native target of that death is unknown, so the death is held rather than guessed.');
         }
         // The participant gives back the checkpoint before and after, durable on its side.
+        const holder = archive.holder();
         const before = await participants.call(input.participant, 'checkpoint', { cursor: first.cursor, headHash: first.headHash });
         if (!before.ok) return before;
+        // The head, its source and the chat are looked at again after the wait; the journal follows with nothing awaited between.
+        const again = headNow();
+        if (archive.holder() !== holder || !again || again.headHash !== first.headHash) return fail('STALE', 'The head moved while the participant made its checkpoint; the event was not delivered.');
+        if (before.schema !== participants.get(input.participant).schema) return fail('SNAPSHOT_UNAVAILABLE', `The participant ${input.participant} saved another checkpoint schema than it registered.`);
         const tx = makeId('nm');
         archive.putEvent(input.event, { participant: input.participant, npc: input.npc, kind: input.kind, nativeKey: identity.nativeKey, tx });
         archive.add({ id: tx, kind: 'native-event', phase: 'prepared', session: session(), participant: input.participant, event: input.event, eventKind: input.kind, nativeKey: identity.nativeKey, npc: input.npc,
@@ -817,9 +888,16 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // { schema, checkpoint, prepare, activate, abort, status, applyEvent?, attach? }. `attach(handle)` is given the
     // module's own handle (`head()` and `nativeMutation(input)`), the only way a module reaches nativeMutation.
     function attach(def) {
-        if (!isObject(def?.participant) || handles.has(def.id)) return null;
-        const done = register({ module: def.id, ...def.participant });
-        if (!done.ok) return done;
+        if (def?.participant === undefined || handles.has(def.id) || broken.has(def.id)) return null;
+        // The identity is the registering module's, whatever the declaration says: a declaration that names another module is refused.
+        let done;
+        if (!isObject(def.participant)) done = fail('INVALID', `The participant of ${def.id} is not a record.`);
+        else if (def.participant.module !== undefined && def.participant.module !== def.id) done = fail('INVALID', `The participant of ${def.id} names another module (${String(def.participant.module)}).`);
+        else done = register({ ...def.participant, module: def.id });
+        if (!done.ok) {
+            broken.set(def.id, done.message);
+            return done;
+        }
         const handle = Object.freeze({
             head: () => head(),
             nativeMutation: input => exclusive(() => guarded(() => nativeMutation(input, def.id))),
@@ -882,7 +960,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         prepare: async (input, auth) => needsHost(auth, 'prepare') ?? exclusive(() => guarded(() => prepare(input))),
         activate: async (input, auth) => needsHost(auth, 'activate') ?? exclusive(() => guarded(() => activate(input))),
         abort: async (input, auth) => needsHost(auth, 'abort') ?? exclusive(() => guarded(() => abort(input))),
-        recover: async auth => needsHost(auth, 'recover') ?? exclusive(() => guarded(() => recover())),
+        recover: async (input, auth) => needsHost(auth, 'recover')
+            ?? (isObject(input) && Object.keys(input).length === 0 ? exclusive(() => guarded(() => recover())) : fail('INVALID', 'recover takes {}.')),
         nativeEvent: async (input, auth) => needsHost(auth, 'nativeEvent') ?? exclusive(() => guarded(() => nativeEvent(input))),
         nativeMutation: async () => fail('REFUSED', 'Only the registered participant makes native mutations, through the handle the host gave it when it registered.'),
     };
@@ -893,9 +972,9 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         prepare: input => api.prepare(input, capability),
         activate: input => api.activate(input, capability),
         abort: input => api.abort(input, capability),
-        recover: () => api.recover(capability),
+        recover: () => api.recover({}, capability),
         nativeEvent: input => api.nativeEvent(input, capability),
-        /** The batch result pinned with a restore, → { id, hash, return, prepared, deathEvents, manifestHash, preRestore: { payload, proofs } | null, aborted } | null. */
+        /** The batch result pinned with a restore, → { id, hash, bytes (the sealed result as its owner gave it), resolvedBy, return, prepared, deathEvents, manifestHash, preRestore: { payload, proofs } | null, aborted } | null. */
         pin(id) {
             const pin = archive.pin(id);
             if (!pin) return null;
