@@ -66,7 +66,7 @@ function mk(ch, ck = Number(ckArg) || 5, mode = null) {
   return { registry, store, bus };
 }
 const setting = { value: 's0' };      // an outside fact the guarded blocks record when they are planned
-function guardedMod(mode) { const g = guarded({ ...(mode ? { mode } : {}), setting }); g.commands['gt.tick'] = mod.commands['gt.tick']; return g; }
+function guardedMod(mode) { const g = guarded({ ...(mode ? { mode } : {}), setting, strict: true }); g.commands['gt.tick'] = mod.commands['gt.tick']; return g; }
 let H = mk(chat);
 const fails = [];
 const fail = (msg, extra) => { fails.push({ msg, extra }); if (process.env.DUMP && fails.length === 1) { fs.writeFileSync(process.env.DUMP, JSON.stringify(chat)); } };
@@ -138,13 +138,14 @@ const ids5 = [Q1, Q2, Q5, Q9];
 for (let k = 0; k < steps && fails.length < 3; k++) {
   const roll = rnd(); const li = last(); const id = ids5[pick(4)];
   if (rnd() < 0.1) {
-    const kind = pick(process.env.NO_NEW ? 10 : 16);
+    const kind = pick(process.env.NO_NEW ? 10 : 18);
     if (kind < 5) run('showAny', () => { const idxs = chat.map((x, i) => i).filter(i => !chat[i].is_user && (chat[i].swipes?.length ?? 1) > 1); if (!idxs.length) return; const m = chat[idxs[pick(idxs.length)]]; showSwipe(m, pick(m.swipes.length)); afterTimeline(); });
     else if (kind < 9) run('legacy', () => { const idxs = chat.map((x, i) => i).filter(i => !chat[i].is_user && chat[i].extra?.storySuite?.checkpoint); if (idxs.length < 2) return; const m = chat[idxs[1 + pick(idxs.length - 1)]]; const r = structuredClone(m.extra.storySuite); delete r.prefix; delete r.covers; delete r.coverHash; m.extra.storySuite = r; H.store.rebuild(); });
     else if (kind < 10) run('orphan', () => { const idxs = chat.map((x, i) => i).filter(i => !chat[i].is_user && chat[i].extra?.storySuite?.receipts?.some(rc => rc.guarded === true)); if (!idxs.length) return; const m = chat[idxs[pick(idxs.length)]]; const r = structuredClone(m.extra.storySuite); r.receipts.find(rc => rc.guarded === true).rev = 99; m.extra.storySuite = r; H.store.rebuild(); });
     else if (kind < 12) run('guardEdit', () => { const idxs = chat.map((x, i) => i).filter(i => !chat[i].is_user && chat[i].extra?.storySuite?.receipts?.some(rc => rc.data?.v2?.guard)); if (!idxs.length) return; const m = chat[idxs[pick(idxs.length)]]; const r = structuredClone(m.extra.storySuite); const rc = r.receipts.find(x => x.data?.v2?.guard); rc.data.v2.guard.epoch = `ep_0000000${2 + pick(8)}`; m.extra.storySuite = r; H.store.rebuild(); });
     else if (kind < 14) run('sourceEdit', () => { const idxs = chat.map((x, i) => i).filter(i => !chat[i].is_user && chat[i].extra?.storySuite?.source); if (!idxs.length) return; const m = chat[idxs[pick(idxs.length)]]; const r = structuredClone(m.extra.storySuite); const tail = `${pick(10)}${pick(10)}${pick(10)}${pick(10)}`; if (pick(2)) r.source.logical = `sr_zzzz${tail}`; else r.source.evidence = `ev_zzzz${tail}`; m.extra.storySuite = r; H.store.rebuild(); });
-    else run('setting', () => { setting.value = `s${pick(1000)}`; H.store.rebuild(); });
+    else if (kind < 16) run('setting', () => { setting.value = `s${pick(1000)}`; H.store.rebuild(); });
+    else run('editReread', () => { const idxs = chat.map((x, i) => i).filter(i => !chat[i].is_user && chat[i].extra?.storySuite && !chat[i].extra.storySuite.spans?.some(sp => isMetaSpan(sp) && sp.story)); if (!idxs.length) return; const at = idxs[pick(idxs.length)]; const m = chat[at]; m.mes += ' edited'; m.swipes[m.swipe_id ?? 0] = m.mes; H.store.rebuild(); const story = m.extra.storySuite.receipts.filter(rc => rc.cause === 'story'); if (story.length) return; return H.store.replaceStory(at, { ops: [], receipts: [], rerun }); });
     continue;
   }
   if (roll < 0.2) run('send', () => { chat.push(user(`u${++t}`), reply(`r${t}`)); H.store.ensureInitial(H.registry.initialState()); });
