@@ -145,6 +145,16 @@ Windows with no guarded block carry nothing new, and checkpoints of older chats 
   owner that must recompute after a swipe, delete or rollback. The host does not call it by itself.
 * Revs after a planned-again block on the same reply are numbered on from its rev. Later replies keep theirs.
 
+## Preserved records
+
+Opening a chat never writes over a record the store does not own. If the chat's first record is from a newer
+version (`v` above 2) or is a damaged v2 record, `ensureInitial` leaves it exactly as it is: no write, no repair.
+Until it can be read the head is an empty state (the one `ensureInitial` was given), **read-only**: `store.readOnly()`
+says `{ index, kind: 'future' | 'damaged', why }`, every writer (`append`, `setNarrated`, `replaceStory`, `reconcile`,
+`truncate`) throws a message that says so, and `ensureInitial` returns one note for the Problems list (`DAMAGED`).
+A future-version record on any other reply is never written over either. Records of version 1 and a first record
+that is merely missing are handled as before (a chat with only v1 extras starts a v2 record).
+
 ## Resets
 
 A number an owner sets rather than moves goes through `ctx.absolute(domain, path)`: its op carries no `was` and

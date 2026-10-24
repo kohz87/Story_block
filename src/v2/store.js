@@ -121,10 +121,18 @@ export function createStore({
     let guardMark = null;
     let guardSeen = false;     // a guarded block was replayed or written: the mark is looked at on each read
     let lastMark = '';
+    // A first record that is a future version's or damaged is never written over (REPLAY.md "Preserved
+    // records"): while the chat has no other state, the head is this empty state, read-only.
+    let fallback = null;       // the initial state ensureInitial was given, frozen
+    let noted = null;          // the preserved record the reader was last told about
 
     // Every record goes through here, so a save can be checked against the last one written, and a change
     // left in a chat that is no longer open can be found again (rescue).
     function write(message, record) {
+        const there = message.extra?.[KEY];
+        if (isObject(there) && Number.isFinite(there.v) && there.v > 2) {
+            throw new Error(`The story record on this reply is from a newer version (v${there.v}); it is kept as it is and not written over.`);
+        }
         epoch++;
         if (holding) held.add(message);
         const keep = keeps(message);
@@ -219,6 +227,29 @@ export function createStore({
         const arr = chat();
         return Array.isArray(arr) ? arr : [];
     };
+
+    // ---- records that are kept as they are -------------------------------------------------------------
+
+    // The chat's first record when it is a future version's (`v` above 2) or a v2 record that is damaged: it is
+    // neither read nor repaired nor written over (the store does not know what it holds). → { index, kind,
+    // why } or null.
+    function preservedAt(arr) {
+        const first = carrierIndexes(arr)[0];
+        if (first === undefined) return null;
+        const raw = arr[first].extra?.[KEY];
+        if (!isObject(raw)) return null;
+        if (Number.isFinite(raw.v) && raw.v > 2) return { index: first, kind: 'future', why: `is from a newer version (v${raw.v})`, raw };
+        const fault = recordFault(arr[first]);
+        return fault ? { index: first, kind: 'damaged', why: `is damaged (${fault})`, raw } : null;
+    }
+
+    const readOnlyMessage = kept => `The story record on message ${kept.index} ${kept.why}; Story Block keeps it as it is and works read-only on an empty story until it can be read.`;
+
+    // Every writer starts here: while the head is the read-only fallback, nothing is written.
+    function writable() {
+        const kept = current().readOnly;
+        if (kept) throw new Error(readOnlyMessage(kept));
+    }
 
     // ---- the carrier source map (contract §4) ------------------------------------------------------
 
@@ -796,7 +827,8 @@ export function createStore({
         }
         if (!cache || !sameKey(cache.key, key)) {
             const { state, problems } = key.index < 0 ? { state: null, problems: [] } : replay(arr, key.index);
-            cache = { key, state, problems };
+            const kept = !state && fallback ? preservedAt(arr) : null;
+            cache = { key, state: kept ? fallback : state, problems, ...(kept ? { readOnly: kept } : {}) };
             if (state) known = carrierIndexes(arr).map(i => arr[i]);
         }
         return cache;
@@ -1024,29 +1056,41 @@ export function createStore({
             return current().problems.map(problem => ({ ...problem, receipts: [...(problem.receipts ?? [])] }));
         },
 
+        // Why the head is only the empty read-only state (the first record is a future version's or damaged and
+        // is kept as it is): { index, kind: 'future' | 'damaged', why }, else null. Nothing is written meanwhile.
+        readOnly() {
+            const kept = current().readOnly;
+            return kept ? { index: kept.index, kind: kept.kind, why: kept.why } : null;
+        },
+
         // A chat with no state yet gets one on its first carrier. A record already there is never
         // replaced: it gets the starting point it lacks (the state the deleted carriers before it ended
         // with, else `initialState`) and keeps its own changes. Returns notes for the Problems list
         // (a damaged record that was set up again).
         ensureInitial(initialState) {
             if (!isObject(initialState)) throw new TypeError('The initial state must be an object.');
-            if (current().state) return [];
+            const head = current();
+            if (head.state && !head.readOnly) return [];
             const arr = list();
             const first = carrierIndexes(arr)[0];
             if (first === undefined) return [];
+            // A first record from a newer version, or damaged, is left exactly as it is: no write, no repair.
+            // The head is an empty read-only state until it can be read (REPLAY.md "Preserved records").
+            const kept = preservedAt(arr);
+            if (kept) {
+                if (!fallback) {
+                    fallback = deepFreeze(structuredClone(initialState));
+                    cache = null;
+                    forgetMemos();
+                }
+                if (noted === kept.raw) return [];
+                noted = kept.raw;
+                return [readOnlyMessage(kept)];
+            }
             const message = arr[first];
             const carried = carriedTo(message);
             const checkpoint = carried ?? structuredClone(initialState);
-            const raw = message.extra?.[KEY];
-            const fault = recordFault(message);
-            const lists = isObject(raw) && Array.isArray(raw.ops) && Array.isArray(raw.receipts) && Array.isArray(raw.narrated);
-            const own = readRecord(message) ?? (fault && lists ? raw : null);
-            const notes = [];
-            if (fault) {
-                notes.push(own
-                    ? `The story record on message ${first} was damaged (${fault}); it starts again from ${carried ? 'the state before it' : 'the story\'s start'} and keeps its own changes.`
-                    : `The story record on message ${first} was damaged (${fault}); the story starts again from there.`);
-            }
+            const own = readRecord(message);
             const record = own
                 ? { ...own, sid: typeof own.sid === 'string' ? own.sid : sidFor(message), checkpoint,
                     rev: Number.isInteger(own.rev) ? own.rev : revOf(checkpoint) }
@@ -1055,7 +1099,7 @@ export function createStore({
             saver.touch();
             cache = null;
             forgetMemos();
-            return notes;
+            return [];
         },
 
         /**
@@ -1114,6 +1158,7 @@ export function createStore({
             const arr = list();
             const index = lastCarrier(arr);
             if (index < 0) throw new Error('There is no reply in this chat to hold the change yet.');
+            writable();
             const base = current().state;
             if (!base) throw new Error('This chat has no story state yet.');
             const added = asOps(ops);
@@ -1171,6 +1216,7 @@ export function createStore({
         // that carry a `replan` are planned again with `rerun`, REPLAY.md "Reconciling"); if any later change
         // no longer applies, nothing is written and this throws.
         replaceStory(index, { ops, receipts = [], rerun = null, settled = null, blocks: lines = null } = {}) {
+            writable();
             const arr = list();
             const message = carrierAt(arr, index);
             if (!Array.isArray(receipts) || receipts.some(receipt => !isObject(receipt) || receipt.cause !== 'story')) {
@@ -1361,6 +1407,7 @@ export function createStore({
         // removed as the new ones are put in, or the block goes when it is not done any more; a later change
         // that no longer applies throws and nothing is written. → { changed: boolean }.
         reconcile(index, { rerun = null } = {}) {
+            writable();
             const arr = list();
             const message = carrierAt(arr, index);
             if (typeof rerun !== 'function') return { changed: false };
@@ -1380,6 +1427,7 @@ export function createStore({
             if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) {
                 throw new TypeError('Narrated receipts must be a list of receipt IDs.');
             }
+            writable();
             const arr = list();
             const head = current();
             const atHead = index === head.key.index;
@@ -1416,6 +1464,7 @@ export function createStore({
         // `{ dryRun: true, chat? }` works it all out and writes nothing, on `chat` (messages, default the
         // chat) if given: rewind asks it on the messages its branch will hold before it branches.
         truncate(index, beforeRev, { dryRun = false, chat: messages = null } = {}) {
+            if (!dryRun) writable();
             const arr = dryRun && Array.isArray(messages) ? messages : list();
             if (index !== lastCarrier(arr)) throw new RangeError(`Message ${index} is not the last reply that keeps the story, so its changes cannot be taken back alone.`);
             if (!Number.isInteger(beforeRev) || beforeRev < 1) throw new TypeError('beforeRev must be a whole number of 1 or more.');

@@ -22,6 +22,8 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
 - **Guarded blocks** (`ctx.replayGuard`, REPLAY.md): the span carries the block's id, source, guard, claims and more;
   replay applies the ops and claims together only while the owner's `hooks.replayGuard` holds, else the block stays
   stored and inactive (`REPLAY_PREREQUISITE`). Spans without an `id` are legacy blocks and replay as ever.
+- **Records Story Block does not own are kept:** a first record that is a future version's or damaged is never written
+  or repaired; the head is an empty read-only state (`store.readOnly()`) and writers throw (REPLAY.md "Preserved records").
 - **Checkpoints stop at a gap:** the first `covers`/`coverHash` window that fails ends trust (a checkpoint without
   `covers` after it is not trusted, and there is no fallback to the latest one); `head()` is `null` until
   `ensureInitial` starts the chat again.
