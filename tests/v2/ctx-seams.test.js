@@ -316,3 +316,25 @@ test('a command that reads its cursor makes a guarded block, or fails: no id is 
 function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
+
+test('during a Re-read an afterCapture step reads the op its own stamped boundary has, as a story line does', async t => {
+    const host = await started(t);
+    steps.n = 2;
+    t.after(() => { steps.n = 0; });
+    await host.send('Go.', reply('A.', ['! mark line']));
+    await click(host, 'kept');
+    await click(host, 'kept2');
+    const at = host.ctx.chat.length - 1;
+    for (let n = 0; n < 2; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        const stepBlocks = blocks(host).map(each => each.span).filter(span => span.operation.type === 'cs.step');
+        assert.equal(stepBlocks.length, 2);
+        for (const span of stepBlocks) {
+            const read = host.head().domains.cs.steps[span.id];
+            assert.deepEqual(read, span.boundaries[0].cursor, `Re-read ${n + 1}: what the step read is where its block starts`);
+        }
+        assert.notEqual(stepBlocks[0].boundaries[0].cursor.op, stepBlocks[1].boundaries[0].cursor.op);
+    }
+    const line = blocks(host).map(each => each.span).find(span => span.operation.payload.raw?.includes('line') || span.operation.payload.name === 'line');
+    assert.deepEqual(host.head().domains.cs.marks.line.cursor, line.boundaries[0].cursor);
+});
