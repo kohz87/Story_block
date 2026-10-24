@@ -128,7 +128,7 @@ test('a damaged first record is started over only when the reader says so, and t
     const done = await host.turn.repair('start-over', { confirmed: true });
     assert.equal(done.ok, true, done.message);
     assert.equal(host.store.readOnly(), null);
-    assert.deepEqual(host.ctx.chat[0].extra.storySuiteAside, damaged, 'kept beside the new record');
+    assert.deepEqual(host.ctx.chat[0].extra.storySuiteAside, [{ kind: 'damaged', record: damaged }], 'kept beside the new record');
     assert.equal(host.ctx.chat[0].extra.storySuite.v, 2);
     assert.equal(host.head().domains.gt.minutes, 5, 'the reply after it replays on top');
     assert.equal((await host.bus.command('gt.hit', { actor: 'ac_00000001', amount: 1 }, { cause: 'ui' })).ok, true);

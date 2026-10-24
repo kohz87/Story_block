@@ -96,7 +96,9 @@ A guarded block whose metadata was lost or cut down is **damaged, not legacy**. 
 its span has an `id` and its receipt carries `guarded: true` (a module cannot set it; a module's own `data.v2` never makes
 a block guarded). One classifier serves replay, Re-read, reconcile and rewind: a block that is marked guarded but has no
 whole span, or whose receipt kept another guard than the span's, is inactive (`REPLAY_PREREQUISITE`) and is never healed
-into a legacy block by a Re-read.
+into a legacy block by a Re-read. When the spans are gone or do not add up, the record's ops are one block that stands for
+every receipt of the record: if any of those receipts is marked guarded, the whole block is inactive (and says so), not
+classified from the last receipt alone.
 
 Otherwise **neither the ops nor the claims** are applied. The block stays stored and inactive, and is reported
 by `store.problems()` with `code: 'REPLAY_PREREQUISITE'`; it is asked again on the next replay, so a block turned
@@ -191,8 +193,13 @@ Windows with no guarded block carry nothing new, and checkpoints of older chats 
   planned again or taken back is a quiet Problem (`REPLANNED`).
 * Revs after a planned-again block are numbered on from its rev, on the same reply and on every reply after it, so no
   two receipts share one and the order never goes back. The boundaries (`prefixHash`) of steps planned again follow
-  what the reconcile has staged, not the chat as it stands (`store.boundaryProblems()` lists any that do not match).
-  Delete and swipe publish one head, after the steps that follow were planned again.
+  what the reconcile has staged, not the chat as it stands (`store.boundaryProblems()` lists any that do not match),
+  and that holds also for a step planned again to the same result: its ops, receipt and result stay, its boundaries are
+  stored as they now are. A Re-read or a reconcile also numbers the revs after the replies it rewrote on from the rev
+  they ended on, so receipt revs are strictly increasing along the chat and the head's rev is the last.
+  Delete and swipe publish one head, after the steps that follow were planned again. Deleting the swipe that is shown
+  is one change: SillyTavern tells of the deletion before it shows the next swipe, and the head is read and told of
+  when that swipe is loaded, not on the half-way state.
 
 ## Preserved records
 
@@ -209,7 +216,8 @@ Problems list (`DAMAGED`) that carries the reader's actions. A newer version sho
 The others offer **"Start this chat's story state over"** (and, for an unresolved start, "Keep the story state from the
 earliest saved point"), **only on the reader's say**: Settings → Diagnostics shows them with a two-step confirmation;
 `turn.repair(id, { confirmed: true })` (`store.startOver`, `store.keepEarliest`). Starting over sets an older or damaged
-record aside, on every reply that has one, beside where it was (`extra.storySuiteAside`; nothing is deleted) and starts
+record aside, on every reply that has one, beside where it was (`extra.storySuiteAside`, a list of `{ kind, record }`
+that only grows: a later repair adds to it and no entry is ever replaced or dropped) and starts
 the story's numbers from their beginning, the replies after it replaying on top. Nothing does this automatically.
 
 ## The archive of deleted ids
@@ -218,7 +226,10 @@ When a rebuild finds that the canonical sid, swipe key or evidence id of a reply
 chat, it archives them in the chat's metadata (`chatMetadata.storySuite.sourceArchive.deleted`, saved with the chat file by
 SillyTavern's own save after the delete; not a change to save on its own). The index of ids is rebuilt from the chat plus
 the archive after a reload, an archived id is never handed out again, and it confers no eligibility
-(`store.archived(id)`, `store.archiveList()`). A delete made while the page was closed is not seen.
+(`store.archived(id)`, `store.archiveList()`). The index of the ids a chat holds is built when the store first rebuilds over
+it (and on every rebuild after), so a reply deleted before anything was written is archived too; it belongs to one chat
+(its id): opening another chat in the same message array starts a new index and never puts the first chat's ids in the
+second's archive. A delete made while the page was closed is not seen; the archive rides the next save.
 
 ## Resets
 

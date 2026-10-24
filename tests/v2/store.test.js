@@ -86,10 +86,10 @@ test('a chat with v1 extras is kept as it is: read-only on an empty story until 
     store.startOver({ confirmed: true });
     assert.equal(store.readOnly(), null);
     assert.deepEqual(store.head(), initial());
-    assert.deepEqual(ctx.chat[0].extra.storySuiteAside, v1.storySuite);
+    assert.deepEqual(ctx.chat[0].extra.storySuiteAside, [{ kind: 'legacy', record: v1.storySuite }]);
     assert.deepEqual(ctx.chat[0].extra.storySuite.checkpoint, initial());
     assert.equal(ctx.chat[0].extra.storyBlockIdentity.id, 'old', 'v1 extras of other extensions are left alone');
-    assert.deepEqual(ctx.chat[2].extra.storySuiteAside, v1.storySuite, 'and so is the v1 record of a later reply, set aside');
+    assert.deepEqual(ctx.chat[2].extra.storySuiteAside, [{ kind: 'legacy', record: v1.storySuite }], 'and so is the v1 record of a later reply, set aside');
 });
 
 test('actions go onto the head carrier, even while the user message after it waits for a reply', () => {

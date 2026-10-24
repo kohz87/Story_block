@@ -1259,6 +1259,22 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         events?.emit('head', { index: store.headIndex() });   // one head, after the steps that follow the change are planned again
     }
 
+    /**
+     * A deleted swipe. SillyTavern tells of the deletion of the swipe being shown before it shows the next one (its
+     * `extra` is still the deleted swipe's; MESSAGE_SWIPED follows): that load is the change to read, so the head is
+     * not reconciled or told of on this half-way state, only the store is rebuilt. Any other swipe deletion is a
+     * change on its own.
+     */
+    function onSwipeDeleted(detail) {
+        const live = ctx?.chat ?? [];
+        const at = Number.isInteger(detail) ? detail : detail?.messageId;
+        const message = live[Number.isInteger(at) ? at : live.length - 1];
+        const loading = isCarrier(message) && Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)
+            && message.swipes[message.swipe_id] !== message.mes;
+        if (!loading) return onTimelineChanged();
+        rebuild({ publish: false });
+    }
+
     /** GENERATION_STOPPED: the reader stopped the reply being written (its last line may be unfinished). */
     function onGenerationStopped() {
         if (session) session.stopped = true;
@@ -1300,7 +1316,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         on(names.CHAT_RENAMED, onChatRenamed);
         // MESSAGE_EDITED too: a record's swipe mark follows an edit (persist.js restamp), so a Continue
         // after it still finds the record.
-        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.MESSAGE_SWIPE_DELETED, names.CHARACTER_FIRST_MESSAGE_SELECTED, names.MESSAGE_EDITED]) on(event, onTimelineChanged);
+        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.CHARACTER_FIRST_MESSAGE_SELECTED, names.MESSAGE_EDITED]) on(event, onTimelineChanged);
+        on(names.MESSAGE_SWIPE_DELETED, onSwipeDeleted);
         return api;
     }
 
