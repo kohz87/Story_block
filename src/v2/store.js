@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { allocator, evidenceDigest, evidenceProblem, merged, nextOccurrence, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, spanOperationKey, takenAfter, touchesProof } from './evidence.js';
+import { allocator, evidenceDigest, evidenceProblem, merged, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, spanOperationKey, takenAfter, touchesProof } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -683,7 +683,7 @@ export function createStore({
             let key = '';
             try { key = operationKey(block.operation?.type, block.operation?.payload); } catch { key = ''; }
             // (a block handed over with no number, by a caller that did not allocate one: the reply's next unused, from the same record the allocator reads)
-            occurrence ??= Math.max(nextOccurrence(record, key), earlier.filter(part => isMetaSpan(part.span) && spanOperationKey(part.span) === key).length);
+            occurrence ??= allocator(record, other => earlier.reduce((most, part) => (occurrenceOf(part.span) !== null && spanOperationKey(part.span) === other ? Math.max(most, occurrenceOf(part.span) + 1) : most), 0)).take(key);
             id = blockIdOf({ sid: entry.logical, swipeKey: entry.swipeKey, key, rank: occurrence });
         }
         const revOp = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value));
@@ -1146,12 +1146,17 @@ export function createStore({
         return { state, fields: { ops, receipts, spans, source: advanced(record.source, spans), planned: out.planned, removed: out.removed }, running: out.running };
     }
 
-    // The occurrence a block planned again gives its proof: the one it was stamped with, else (a block that gave no proof until now) the next one
-    // nobody has used in its reply, from the plan's one allocator (evidence.js allocator).
-    function occurrenceFor(span, alloc) {
+    // The occurrence a block planned again gives its proof: the one it was stamped with, else (a block that gave no proof until now, guarded
+    // or not) the next one nobody has used in its reply, from the plan's one allocator (evidence.js allocator). The operation is the one the
+    // block is run again as: its replan's, else its own.
+    function occurrenceFor(span, receipt, alloc) {
         const stored = occurrenceOf(span);
         if (stored !== null) return stored;
-        const key = spanOperationKey(span);
+        let key = null;
+        try {
+            const again = isObject(span?.replan) ? span.replan : isObject(receipt?.replan) ? { type: receipt.type, payload: receipt.replan.payload ?? {} } : null;
+            key = again ? operationKey(again.type, again.payload) : spanOperationKey(span);
+        } catch { key = null; }
         return key ? alloc.take(key) : undefined;
     }
 
@@ -1166,7 +1171,7 @@ export function createStore({
         let planned = null;
         let failure = '';
         try {
-            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, occurrence: occurrenceFor(span, (out.alloc ??= allocator(record))) });
+            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, occurrence: occurrenceFor(span, receipt, (out.alloc ??= allocator(record))) });
         } catch (error) {
             failure = `it threw (${error?.message ?? error})`;
         }
@@ -1754,11 +1759,11 @@ export function createStore({
             return sourceOf(index, options);
         },
 
-        /** The next occurrence nobody has used in carrier `index`'s record for the operation `key` (operationKey): a new block of that takes it. */
-        nextOccurrence(index, key) {
+        /** A new block's occurrence for the operation `key` (operationKey) on carrier `index`: the next one nobody has used in its reply (evidence.js allocator). */
+        allocateOccurrence(index, key) {
             const arr = list();
             const record = isCarrier(arr[index]) ? readRecord(arr[index]) : null;
-            return record ? nextOccurrence(record, key) : 0;
+            return allocator(record ?? {}).take(key);
         },
 
         /**
@@ -2043,7 +2048,7 @@ export function createStore({
                 const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
-                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, occurrence: isMetaSpan(was) ? occurrenceFor(was, keptAlloc) : undefined }); } catch { out = null; }
+                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, occurrence: occurrenceFor(was, receipt, keptAlloc) }); } catch { out = null; }
                     // A guarded step goes only when its owner says it is no longer done; when it cannot be asked it stays.
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)

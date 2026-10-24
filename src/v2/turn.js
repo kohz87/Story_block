@@ -1022,14 +1022,17 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const reply = store.carrierSid?.(index) ? { index, sid: store.carrierSid(index) } : null;
         try {
             let after;
-            const seeds = storySeeds(readRecord(message));
-            // A first plan; when an operation has more or fewer blocks than it replaces, it is planned again with none of that operation's old
-            // occurrences given again (evidence.js reusePlan), so a line that stays cannot take the identity of one that went.
+            // The Re-read is planned; when an operation has more or fewer blocks than it replaces it is planned again with none of that
+            // operation's old occurrences given back (evidence.js reusePlan), and again while a plan finds another operation changed (the
+            // retired set only grows). Every pass starts from the same inputs but that set: seeds, steps' seeds, plan and outputs are made anew.
             let retire = new Set();
-            for (let pass = 0; pass < 2; pass += 1) {
+            const bound = 32;     // (each pass retires at least one more operation, so a reply ends well before; a plan that does not is not stored)
+            let settled = false;
+            for (let pass = 0; pass <= bound; pass += 1) {
                 receipts.length = 0;
                 problems.length = problemsFrom;
                 steps = [];
+                const seeds = storySeeds(readRecord(message));
                 plan = { blocks: [], pending: 0, replacing: replacedProofs(readRecord(message)), reuse: reusePlan(readRecord(message), retire) };
                 ({ ops, off, state: after } = await captureEach(index, lines, receipts, problems, base, seeds, new Map(), null, plan));
                 for (const mark of [LATE, NOW]) {
@@ -1043,9 +1046,11 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 // The reply's afterCapture steps, run again after its new story lines (none when none was kept).
                 if (receipts.length) steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan });
                 const unsure = plan.reuse.ambiguous([...plan.blocks, ...steps]);
-                if (!unsure.length) break;
+                if (!unsure.length) { settled = true; break; }
                 retire = new Set([...retire, ...unsure]);
             }
+            // A plan that still reports a changed operation is never stored.
+            if (!settled) return refusal('CONFLICT', 'The reply could not be read again without taking blocks for ones that went; nothing was changed.');
             // B-b2-timeline-r2: the lines ran while the reader could act (a capture handler may wait). A
             // message deleted, another chat opened, the reply swiped or edited, or a reply begun in that
             // time: what was read is no longer this reply's, so nothing is stored (not even on the

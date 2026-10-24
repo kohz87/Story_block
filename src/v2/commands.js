@@ -248,10 +248,12 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     function originOf(tx) {
         if (tx.origin === null) {
             try { tx.operation = operationKey(tx.call.type, tx.call.payload); } catch { tx.operation = null; }
+            // (never invented here: the caller that plans a block gives it, else the store's allocator does; with neither the proof is refused)
             let rank = tx.occurrence;
             if (rank === null) {
-                try { rank = Number.isInteger(tx.reply?.index) && tx.operation ? store.nextOccurrence?.(tx.reply.index, tx.operation) ?? 0 : 0; } catch { rank = 0; }
+                try { rank = Number.isInteger(tx.reply?.index) && tx.operation ? store.allocateOccurrence?.(tx.reply.index, tx.operation) : null; } catch { rank = null; }
             }
+            if (!Number.isInteger(rank) || rank < 0) throw new Error('No occurrence could be given to this proof.');
             tx.rank = rank;
             tx.origin = `${tx.operation}:${rank}`;
         }
