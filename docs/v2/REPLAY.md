@@ -313,7 +313,8 @@ Two facts about the block a command makes, for an owner that records them (an ac
   its operation (`record.source.taken` keeps the numbers of blocks that have gone, so an earlier block that goes does not hand its number to a
   later one), and every caller that plans a block that exists already (a step planned again, a reconcile, a rebuild, afterCapture's) passes
   the one it has. A Re-read gives the blocks it reads again the numbers of the blocks they replace **only while an operation has as many
-  blocks as before**; when the count changes, none of that operation's old numbers is given again (EVIDENCE.md, the occurrence rules).
+  blocks as before**; when the count changes, none of that operation's old numbers is given again (EVIDENCE.md, the occurrence rules, which here apply to every
+  guarded block, not only to those that give proof).
   Nothing else goes into the id: no counter, no receipt, no id the chat or the process happened to hold. What that keeps: the same block has
   the same id live, when run again by a Re-read of unchanged text, when planned again, after a reload, and when an earlier identical block goes
   (it keeps its own number). **What it does not keep:** a line (or step) that is removed and then added again is a new block with the next
