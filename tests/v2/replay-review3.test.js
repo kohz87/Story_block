@@ -374,3 +374,33 @@ test('E: a swipe that is not shown, and a message with no swipe left, are one ch
     await host.st.eventSource.emit('message_swipe_deleted', { messageId: at, swipeId: 0, newSwipeId: -1 });
     assert.doesNotThrow(() => host.head());
 });
+
+test('a checkpoint a Re-read rewrites is given the window it has now, so a later delete cannot make it trusted over a record it includes', () => {
+    const SMALL = { checkpointEvery: 3, checkpointBytes: 1 << 30 };
+    const h = harness([guarded()], SMALL);
+    const at = [];
+    for (let n = 1; n <= 8; n++) {
+        at.push(h.send(`u${n}`, `r${n}`));
+        h.command('gt.hit', { actor: 'ac_00000001', amount: n });
+    }
+    const cps = at.filter(i => h.chat[i].extra.storySuite.checkpoint);
+    const cp = cps.at(-1);
+    const record = h.chat[cp].extra.storySuite;
+    const inside = at.filter(i => i > cps.at(-2) && i < cp)[0];
+    // The window as an older write made it: without the record at `inside`.
+    record.covers = record.covers.filter(sid => sid !== h.chat[inside].extra.storySuite.sid);
+    h.store.rebuild();
+    h.store.replaceStory(at[0], { ops: [], receipts: [] });
+    const now = h.chat[cp].extra.storySuite;
+    assert.ok(now.covers.includes(h.chat[inside].extra.storySuite.sid), 'the window names the record that is in it');
+    // The reply inside it is deleted: a state that includes it must not be trusted.
+    h.chat.splice(inside - 1, 2);
+    h.store.rebuild();
+    const live = JSON.stringify(h.store.head());
+    const fresh = harness([guarded()], { checkpointEvery: 100000, checkpointBytes: 1 << 30 });
+    const copy = clone(h.chat);
+    copy.forEach((message, i) => { if (i && message.extra?.storySuite) { delete message.extra.storySuite.checkpoint; delete message.extra.storySuite.covers; delete message.extra.storySuite.coverHash; } });
+    fresh.chat.splice(0, fresh.chat.length, ...copy);
+    fresh.store.rebuild();
+    assert.equal(live, JSON.stringify(fresh.store.head()));
+});

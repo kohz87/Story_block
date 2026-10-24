@@ -664,17 +664,20 @@ export function createStore({
         } finally {
             staged = null;
         }
-        // A rewritten checkpoint's window may hold other records now (REPLAY.md "Checkpoints and covers").
+        // A rewritten checkpoint's state is the chat as it stands now, so its window is too (REPLAY.md "Checkpoints and covers"):
+        // the records from the checkpoint before it (itself included) up to the carrier before this one. A window left as it
+        // was could line up again after a later delete and make a state that includes a record trusted without it.
         for (const [target, next] of writes) {
             if (!next.checkpoint || !Array.isArray(next.covers)) continue;
             const at = arr.indexOf(target);
             const members = [];
-            for (let i = at - 1; i >= 0 && members.length < next.covers.length; i--) {
-                const record = overlay.get(i) ?? readRecord(arr[i]);
-                if (isCarrier(arr[i]) && record) members.unshift(i);
+            for (let i = at - 1; i >= 0; i--) {
+                const record = isCarrier(arr[i]) ? overlay.get(i) ?? readRecord(arr[i]) : null;
+                if (!record) continue;
+                members.unshift(i);
+                if (record.checkpoint) break;
             }
-            const sids = members.map(i => (overlay.get(i) ?? readRecord(arr[i])).sid);
-            if (sids.length !== next.covers.length || !sids.every((sid, n) => sid === next.covers[n])) continue;
+            next.covers = members.map(i => (overlay.get(i) ?? readRecord(arr[i])).sid);
             const hash = windowHash(arr, members, i => overlay.get(i) ?? readRecord(arr[i]));
             if (hash === undefined) delete next.coverHash;
             else next.coverHash = hash;

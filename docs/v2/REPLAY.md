@@ -167,6 +167,9 @@ then does the turn publish a head. When a covered record has guarded blocks the 
 keys, every block's complete metadata (guard, recorded inputs, evidence, claims, boundaries, result), op digests and text.
 A reply edited since, or a block changed, fails the window the same way.
 Windows with no guarded block carry nothing new, and checkpoints of older chats are read as before.
+A Re-read or reconcile that rewrites a checkpoint gives it the window it has now (the records from the checkpoint before it
+up to the carrier before it), not the one it had, so a later delete cannot line the old window up again over a state that
+includes a record the window no longer names.
 
 ## Re-read and reconciling
 
