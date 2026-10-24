@@ -17,6 +17,10 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
   `afterCapture(view, { index, type })` hook may ask for `system` steps, run right after the reply's last
   story line and stored on it (receipt `afterCapture: true`). A Continue runs it again; a Re-read asks the
   hook again after the new lines (`stepSeeds` reuses the old steps' seeds; `store.replaceStory`'s `settled`).
+- **Guarded blocks in a Re-read** (docs/v2/REPLAY.md): a story line or step that called `ctx.replayGuard` hands the
+  store a `block`; `replaceStory`'s `blocks` keeps each as a block of its own, kept guarded blocks are asked
+  again on the new story (inactive, not refused, when their guard fails), and guarded system steps with a
+  `replan` on this and later replies are planned again (`rerun(state, receipt, { index, span })`).
 - **Assist safety net** (MODULES §F123): after a reply, the extractor's lines run as story lines after the
   reply's own (`captureAssist`, receipt `assist: 'now'`), stored as `<Changes-assist>` in the hidden comment;
   a send waits ≤ `ASSIST_WAIT_MS`, a later answer is stored as `<Changes-assist-next>` and the next reply

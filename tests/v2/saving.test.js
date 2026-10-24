@@ -326,7 +326,7 @@ test('B-b2-timeline-6 (live shape): an edit followed by a Continue keeps the rep
 
 // ---- damaged checkpoints (B-b2-timeline-7) ----------------------------------------------------------
 
-test('a checkpoint that is not a whole state is skipped, set up again, and listed as a Problem', async t => {
+test('a damaged first record is kept as it is (read-only, empty story, listed as a Problem); a damaged later one is skipped and listed', async t => {
     t.mock.method(console, 'warn', () => {});
     const h = await createHost();
     t.after(() => h.close());
@@ -335,18 +335,25 @@ test('a checkpoint that is not a whole state is skipped, set up again, and liste
     const chat = structuredClone(h.ctx.chat);
     // (the greeting keeps no swipe_info copy once a reply follows it: each record is kept once)
     for (const extra of [chat[0].extra, chat[0].swipe_info[0].extra]) if (extra.storySuite) extra.storySuite.checkpoint = { v: 2 };
+    const before = JSON.stringify(chat);
     await h.st.loadChat(chat);
-    assert.ok(h.head().domains?.inventory, 'the head is a whole state');
-    assert.deepEqual(items(h), ['Rope'], 'the reply after it still applies');
+    assert.equal(JSON.stringify(h.ctx.chat), before, 'nothing in the chat was rewritten');
+    assert.deepEqual(items(h), [], 'an empty story, not the damaged one and not the reply after it');
+    assert.equal(h.store.readOnly().kind, 'damaged');
     const damaged = h.turn.problems().filter(problem => problem.code === 'DAMAGED');
     assert.equal(damaged.length, 1);
-    assert.match(damaged[0].message, /message 0 was damaged \(its saved starting point \(checkpoint\) is damaged\)/);
-    // A damaged record after the checkpoint is skipped and listed by the store.
-    const later = structuredClone(h.ctx.chat);
+    assert.match(damaged[0].message, /message 0 is damaged \(its saved starting point \(checkpoint\) is damaged\)/);
+    assert.equal(h.store.dirty(), false);
+    // A damaged record after a good start is skipped and listed by the store.
+    const fresh = await createHost();
+    t.after(() => fresh.close());
+    await fresh.send('a', 'A rope.\n<Changes>\n+ item Rope\n</Changes>');
+    await fresh.store.flush();
+    const later = structuredClone(fresh.ctx.chat);
     later[2].extra.storySuite.ops = 'x';
     later[2].swipe_info[0].extra.storySuite.ops = 'x';
-    await h.st.loadChat(later);
-    assert.ok(h.store.problems().some(problem => problem.code === 'DAMAGED' && problem.index === 2));
+    await fresh.st.loadChat(later);
+    assert.ok(fresh.store.problems().some(problem => problem.code === 'DAMAGED' && problem.index === 2));
 });
 
 // ---- rewind (B-b2-timeline-8) -----------------------------------------------------------------------
