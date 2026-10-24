@@ -531,6 +531,12 @@ export function createStore({
         return { ok: false, reason: 'its guard gave an answer that is neither { ok: true } nor { ok: false, reason }' };
     }
 
+    // The blocks before a guarded block, as its boundary's prefix hash has them: each one's id and changes, and the proof it
+    // gave (ids, kinds, owners, payload hashes, parents). One function, so the hash stamped and the hash checked agree.
+    function blocksBefore(earlier) {
+        return earlier.map(part => [isMetaSpan(part.span) ? part.span.id : null, hashJson(part.ops), ...(isMetaSpan(part.span) && evidenceDigest(part.span.evidence) ? [evidenceDigest(part.span.evidence)] : [])]);
+    }
+
     // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
     // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
     function replayLegacy(state, ops) {
@@ -604,7 +610,7 @@ export function createStore({
             guard: block.guard ?? null, claims: claimKeys(ops), evidence: structuredClone(block.evidence ?? []),
             boundaries: [{
                 cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: id, op: offset, rev: Math.max(0, (revOp ? revOp.value : 1) - 1) },
-                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: earlier.map(part => [isMetaSpan(part.span) ? part.span.id : null, hashJson(part.ops), ...(isMetaSpan(part.span) && evidenceDigest(part.span.evidence) ? [evidenceDigest(part.span.evidence)] : [])]) }),
+                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: blocksBefore(earlier) }),
                 payloadHash: payloadHashOf(message),
             }],
             operation: structuredClone(block.operation), recorded: structuredClone(block.recorded ?? null), result: structuredClone(block.result ?? null),
@@ -1483,7 +1489,7 @@ export function createStore({
                 const earlier = [];
                 for (const part of blockParts(record)) {
                     if (isMetaSpan(part.span) && part.span.boundaries?.[0]) {
-                        const expected = hashJson({ p: before, k: record.source?.swipeKey, t: payloadHashOf(arr[i]), b: earlier.map(each => [isMetaSpan(each.span) ? each.span.id : null, hashJson(each.ops)]) });
+                        const expected = hashJson({ p: before, k: record.source?.swipeKey, t: payloadHashOf(arr[i]), b: blocksBefore(earlier) });
                         if (expected !== part.span.boundaries[0].prefixHash) out.push({ index: i, block: part.span.id });
                     }
                     earlier.push(part);

@@ -82,6 +82,7 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     assert.deepEqual(now.map(proof => proof.kind), ['acceptance'], 'and the kill built on it is hidden, though its own changes stay');
     assert.deepEqual(host.head().domains.rpgt.log, [1]);
     assert.deepEqual(Object.keys(host.head().meta.proofs).length, 2, 'the new acceptance and the hidden kill; the old acceptance\'s pin left with its block');
+    assert.deepEqual(host.store.boundaryProblems(), [], 'every block\'s recorded boundary is what the chat gives, proof included');
     // A Re-read that finds the same words gives the same proof again.
     const again = await host.turn.reread(at);
     assert.equal(again.ok, true, again.message);
@@ -186,6 +187,7 @@ test('a guarded click built on a proof survives a Re-read of text that did not c
     assert.deepEqual(shown(), [`acceptance:${T1}`, `acceptance:${T2}`], 'and what was built on it');
     assert.deepEqual(Object.values(host.head().domains.sdt.accepted).map(entry => entry.thread), [T1, T2]);
     assert.deepEqual(host.store.problems(), []);
+    assert.deepEqual(host.store.boundaryProblems(), [], 'a Re-read of an unchanged line');
     // The line now quotes something else: the proof has other bytes, so what was built on the old ones is hidden.
     host.ctx.chat[at].mes = text('Nods.', [`! accept ${T1} | words: Thanks a lot`]);
     host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
@@ -221,4 +223,9 @@ test('a step planned again after a Re-read sees the proof the Re-read gave, not 
     assert.ok(steps().every(step => step.parents[0] === event().id));
     assert.deepEqual(host.store.problems().filter(problem => problem.code !== 'REPLAY_PREREQUISITE'), []);
     assert.deepEqual(host.store.problems(), []);
+    // A step planned again keeps a boundary that matches the chat, proof included. (The story line kept on the second reply is a
+    // guarded block that is not planned again, and its recorded prefix goes stale when an earlier reply is read again: that is
+    // the replay core's, with or without proof, and is not looked at here.)
+    const stale = host.store.boundaryProblems().filter(each => host.ctx.chat[each.index].extra.storySuite.spans.find(span => span.id === each.block).replan);
+    assert.deepEqual(stale, []);
 });

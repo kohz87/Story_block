@@ -224,15 +224,20 @@ test('a hand-edited record cannot publish a proof: pins written by a block with 
         return h;
     };
     // The pin is written by a legacy block (no metadata), the proof sits on a span of no changes that replay never applies.
-    const split = record => {
+    const split = (record, claimGuarded) => {
         const span = record.spans.find(each => each.evidence?.length);
         record.spans = [{ n: record.ops.length, story: false }, { ...span, n: 0 }];
-        record.receipts = record.receipts.map(receipt => ({ ...receipt, data: {} }));
+        record.receipts = record.receipts.map(({ guarded, ...receipt }) => ({ ...receipt, ...(claimGuarded ? { guarded } : {}), data: {} }));
     };
-    const legacy = forge(split);
+    const legacy = forge(record => split(record, false));
     assert.deepEqual(legacy.ask(), [], 'nothing is published');
     assert.equal(legacy.store.head().meta.proofs, undefined, 'the pin was not written');
     assert.match(legacy.problems()[0].why, /writes proof pins/);
+    // The same, with the receipt still saying the block was guarded: the classifier takes it for a guarded block that lost its metadata.
+    const stripped = forge(record => split(record, true));
+    assert.deepEqual(stripped.ask(), []);
+    assert.equal(stripped.store.head().meta.proofs, undefined);
+    assert.match(stripped.problems()[0].why, /damaged/);
     // The block is whole and applied, but its proof moved to a span of no changes beside it.
     const moved = forge(record => {
         const span = record.spans.find(each => each.evidence?.length);
