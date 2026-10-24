@@ -25,7 +25,7 @@ function showSwipe(message, swipe) {
 const SMALL = { checkpointEvery: 3, checkpointBytes: 1 << 30 };
 const clone = value => JSON.parse(JSON.stringify(value));
 
-test('a chat whose first reply holds a checkpoint with covers still has its story after a reload (the replies before it are gone)', () => {
+test('a story whose first replies are gone and unseen is not adopted or reset by itself: read-only, and the reader chooses', () => {
     const h = harness([guarded()], SMALL);
     for (let i = 1; i <= 8; i++) {
         h.send(`u${i}`, `r${i}`);
@@ -35,26 +35,44 @@ test('a chat whose first reply holds a checkpoint with covers still has its stor
     assert.ok(cps.length >= 1);
     h.chat.splice(0, cps[0]);                 // everything before the first such reply is deleted
     const saved = clone(h.chat);
-    // The same session: it saw the replies, so the story goes on from what they ended with.
+    const hits = saved.reduce((sum, message) => sum + (message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type === 'gt.hit').length, 0);
+    // The same session saw the replies, so the story goes on from what they ended with.
     h.store.rebuild();
     h.store.ensureInitial(h.registry.initialState());
     assert.equal(Object.keys(h.gt().lost).length, 8);
-    // A new session: it never saw them. The earliest checkpoint that is left holds the story up to there.
-    const b = harness([guarded()], SMALL);
-    b.chat.splice(0, b.chat.length, ...saved);
-    b.store.rebuild();
+    // A new session never saw them: the earliest checkpoint left cannot be checked, so nothing is adopted and nothing reset.
+    const open = () => {
+        const b = harness([guarded()], SMALL);
+        b.chat.splice(0, b.chat.length, ...clone(saved));
+        b.store.rebuild();
+        return b;
+    };
+    const b = open();
+    const before = JSON.stringify(b.chat);
     const notes = b.store.ensureInitial(b.registry.initialState());
     assert.equal(notes.length, 1);
-    assert.match(notes[0], /goes on from the state saved at message 0/);
-    assert.equal(Object.keys(b.gt().lost).length, 8, 'nothing is reset to the start');
+    assert.match(notes[0], /the saved history as it is/);
+    assert.equal(b.store.readOnly().kind, 'unresolved');
+    assert.deepEqual(b.store.head(), b.registry.initialState(), 'an empty working story');
     assert.deepEqual(b.store.ensureInitial(b.registry.initialState()), [], 'told once');
+    assert.equal(JSON.stringify(b.chat), before, 'nothing was written');
+    assert.equal(b.command('gt.hit', { actor: 'ac_00000099', amount: 1 }).ok, false, 'a click is refused');
+    assert.throws(() => b.store.keepEarliest({ confirmed: false }), /confirmation/);
+    assert.throws(() => b.store.startOver({ confirmed: false }), /confirmation/);
+    assert.equal(JSON.stringify(b.chat), before);
+    // Keep the earliest saved point: it is trusted as the start of the story, with what the deleted replies left in it.
+    b.store.keepEarliest({ confirmed: true });
+    assert.equal(b.store.readOnly(), null);
+    assert.equal(Object.keys(b.gt().lost).length, 8, 'the story state from the earliest saved point');
     assert.equal(b.chat[0].extra.storySuite.covers, undefined);
     assert.equal(b.command('gt.hit', { actor: 'ac_00000099', amount: 1 }).ok, true);
-    assert.equal(Object.keys(b.gt().lost).length, 9);
-    const again = harness([guarded()], SMALL);
-    again.chat.splice(0, again.chat.length, ...clone(b.chat));
-    again.store.rebuild();
-    assert.equal(Object.keys(again.gt().lost).length, 9, 'and it reloads the same');
+    // Or start over: the story's numbers begin again and what is left of the replies replays on top.
+    const c = open();
+    c.store.ensureInitial(c.registry.initialState());
+    c.store.startOver({ confirmed: true });
+    assert.equal(c.store.readOnly(), null);
+    assert.equal(Object.keys(c.gt().lost).length, hits, 'only what the replies that are left did');
+    assert.deepEqual(c.problems(), []);
 });
 
 test('read-only stays read-only: replies, clicks and reloads write nothing next to a record kept aside', async t => {
@@ -96,24 +114,25 @@ test('a damaged first record is started over only when the reader says so, and t
     await host.st.loadChat(chat);
     assert.equal(host.store.readOnly().kind, 'damaged');
     const problem = host.turn.problems().find(item => item.code === 'DAMAGED');
-    assert.equal(problem.action.id, 'start-over');
-    assert.match(problem.action.label, /Start this chat's story state over/);
-    assert.match(problem.action.confirm, /Start over\?$/);
-    assert.deepEqual(host.turn.repairOffer(), problem.action);
+    assert.deepEqual(problem.actions.map(item => item.id), ['start-over']);
+    assert.match(problem.actions[0].label, /Start this chat's story state over/);
+    assert.match(problem.actions[0].confirm, /Start over\?$/);
+    assert.deepEqual(host.turn.repairActions(), problem.actions);
     // Nothing happens by itself, and not without the reader's confirmation.
-    assert.equal((await host.turn.startOver()).ok, false);
-    assert.equal((await host.turn.startOver({ confirmed: false })).ok, false);
+    assert.equal((await host.turn.repair('start-over')).ok, false);
+    assert.equal((await host.turn.repair('start-over', { confirmed: false })).ok, false);
+    assert.equal((await host.turn.repair('nope', { confirmed: true })).ok, false);
     assert.equal(host.store.readOnly().kind, 'damaged');
     assert.deepEqual(host.ctx.chat[0].extra.storySuite, damaged);
     // The reader confirms.
-    const done = await host.turn.startOver({ confirmed: true });
+    const done = await host.turn.repair('start-over', { confirmed: true });
     assert.equal(done.ok, true, done.message);
     assert.equal(host.store.readOnly(), null);
-    assert.deepEqual(host.ctx.chat[0].extra.storySuiteDamaged, damaged, 'kept beside the new record');
+    assert.deepEqual(host.ctx.chat[0].extra.storySuiteAside, damaged, 'kept beside the new record');
     assert.equal(host.ctx.chat[0].extra.storySuite.v, 2);
     assert.equal(host.head().domains.gt.minutes, 5, 'the reply after it replays on top');
     assert.equal((await host.bus.command('gt.hit', { actor: 'ac_00000001', amount: 1 }, { cause: 'ui' })).ok, true);
-    assert.equal(host.turn.repairOffer(), null);
+    assert.deepEqual(host.turn.repairActions(), []);
 });
 
 test('a future-version record offers no repair: it says to update Story Block', async t => {
@@ -124,11 +143,11 @@ test('a future-version record offers no repair: it says to update Story Block', 
     const chat = structuredClone(host.ctx.chat);
     chat[0].extra.storySuite = { v: 3, sid: 'sw_future00001', ops: [], receipts: [], narrated: [] };
     await host.st.loadChat(chat);
-    assert.equal(host.turn.repairOffer(), null);
+    assert.deepEqual(host.turn.repairActions(), []);
     const problem = host.turn.problems().find(item => item.code === 'DAMAGED');
     assert.match(problem.message, /Update Story Block/);
-    assert.equal(problem.action, undefined);
-    const refused = await host.turn.startOver({ confirmed: true });
+    assert.equal(problem.actions, undefined);
+    const refused = await host.turn.repair('start-over', { confirmed: true });
     assert.equal(refused.ok, false);
     assert.match(refused.message, /update Story Block/);
     assert.deepEqual(host.ctx.chat[0].extra.storySuite, { v: 3, sid: 'sw_future00001', ops: [], receipts: [], narrated: [] });

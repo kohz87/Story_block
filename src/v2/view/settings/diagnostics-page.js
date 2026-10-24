@@ -40,34 +40,38 @@ export function diagnosticsBody(pane, ctx) {
     const modules = new Map((typeof registry?.modules === 'function' ? registry.modules() : []).map(def => [def.id, def]));
     const hasReport = Boolean(diagnostics && typeof diagnostics.report === 'function');
 
-    // ---- a damaged story record: the reader's own repair, asked twice (never automatic)
-    const offer = typeof diagnostics?.repairOffer === 'function' ? diagnostics.repairOffer() : null;
-    if (offer) {
-        const card = sectionBlock(doc, { title: T.repairTitle, hint: offer.label, id: newId('diagnostics-repair'), collapsible: false, open: true });
+    // ---- a story Story Block keeps as it is: the reader's own repairs, each asked twice (never automatic)
+    const offers = typeof diagnostics?.repairActions === 'function' ? diagnostics.repairActions() : [];
+    if (offers.length) {
+        const card = sectionBlock(doc, { title: T.repairTitle, hint: offers.map(item => item.label).join(' · '), id: newId('diagnostics-repair'), collapsible: false, open: true });
         card.el.classList.add('ss-diagnostics-card', 'ss-diagnostics-repair');
         const status = h(doc, 'span', 'ss-diagnostics-status');
         status.setAttribute('role', 'status');
-        const row = h(doc, 'div', 'ss-diagnostics-actions');
         const button = (label, primary = false) => {
             const node = h(doc, 'button', `ss-button${primary ? ' ss-button-primary' : ''}`, label);
             node.type = 'button';
             return node;
         };
-        const start = button(offer.label);
-        const sure = h(doc, 'p', 'ss-card-help', offer.confirm);
-        const yes = button(T.repairYes, true);
-        const no = button(T.repairNo);
-        sure.hidden = yes.hidden = no.hidden = true;
-        start.addEventListener('click', () => { start.hidden = true; sure.hidden = yes.hidden = no.hidden = false; });
-        no.addEventListener('click', () => { start.hidden = false; sure.hidden = yes.hidden = no.hidden = true; });
-        yes.addEventListener('click', async () => {
-            let done;
-            try { done = await diagnostics.startOver(); } catch (error) { done = { ok: false, message: error?.message ?? error }; }
-            status.textContent = done?.ok ? T.repairDone : fill(T.repairFailed, { why: done?.message ?? 'unknown' });
-            if (done?.ok) row.hidden = sure.hidden = true;
-        });
-        row.append(start, yes, no);
-        card.body.append(h(doc, 'p', 'ss-card-help', T.repairHelp), sure, row, status);
+        card.body.append(h(doc, 'p', 'ss-card-help', T.repairHelp));
+        for (const offer of offers) {
+            const row = h(doc, 'div', 'ss-diagnostics-actions');
+            const start = button(offer.label);
+            const sure = h(doc, 'p', 'ss-card-help', offer.confirm);
+            const yes = button(T.repairYes, true);
+            const no = button(T.repairNo);
+            sure.hidden = yes.hidden = no.hidden = true;
+            start.addEventListener('click', () => { start.hidden = true; sure.hidden = yes.hidden = no.hidden = false; });
+            no.addEventListener('click', () => { start.hidden = false; sure.hidden = yes.hidden = no.hidden = true; });
+            yes.addEventListener('click', async () => {
+                let done;
+                try { done = await diagnostics.repair(offer.id); } catch (error) { done = { ok: false, message: error?.message ?? error }; }
+                status.textContent = done?.ok ? T.repairDone : fill(T.repairFailed, { why: done?.message ?? 'unknown' });
+                if (done?.ok) card.el.hidden = true;
+            });
+            row.append(start, yes, no);
+            card.body.append(sure, row);
+        }
+        card.body.append(status);
         root.appendChild(card.el);
     }
 

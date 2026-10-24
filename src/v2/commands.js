@@ -187,8 +187,10 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
 
     // Changes when a module with a guard hook registers, goes, or turns ready or dormant: the store looks again at
     // its guarded blocks.
+    // A checkpoint over guarded blocks keeps the mark it was made under (store.js chain): a different owner set, or a new
+    // version of an owner (its guard code may answer otherwise), makes it fail and the prefix replays with the guards asked.
     const guardMark = () => (registry.modules?.() ?? [])
-        .filter(def => typeof def?.hooks?.replayGuard === 'function' && registry.held?.(def.id) !== true).map(def => def.id).join(',');
+        .filter(def => typeof def?.hooks?.replayGuard === 'function' && registry.held?.(def.id) !== true).map(def => `${def.id}@${def.version ?? ''}`).join(',');
     if (typeof store.attachGuard === 'function') store.attachGuard(replayGuardCheck, guardMark);
 
     // The Source this transaction's block will carry: its reply's canonical pair and ordinal (store.sourceAt).
@@ -593,6 +595,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 id: receiptId, type, module: target.moduleId, cause, seed: seedValue, summary, narrate, data, rev,
                 // What to run it again with on a Re-read (resultOf `replan`): its payload.
                 ...(replan && isJson(payload ?? {}) ? { replan: { payload: clone(payload ?? {}) } } : {}),
+                // The host's own mark that this was a guarded block (a module cannot set it; data.v2 is the module's to fill).
+                ...(block ? { guarded: true } : {}),
             });
             return { ok: true, ops: deepFreeze(ops), receipt, state: next, ...(block ? { block: deepFreeze(block) } : {}), ...(problem ? { problem } : {}) };
         } catch (error) {

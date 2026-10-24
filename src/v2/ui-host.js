@@ -628,9 +628,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
             hooks: () => registry.hookEntries?.('diagnostics') ?? [],
         }),
         fileName: () => reportFileName(),
-        // A damaged first story record can be started over, only when the reader says so (turn.startOver).
-        repairOffer: () => runtime.turn?.repairOffer?.() ?? null,
-        startOver: () => runtime.turn?.startOver?.({ confirmed: true }),
+        // A story Story Block keeps as it is (read-only) can be repaired, only when the reader says so (turn.repair).
+        repairActions: () => runtime.turn?.repairActions?.() ?? [],
+        repair: id => runtime.turn?.repair?.(id, { confirmed: true }),
     });
     function openSettings(options = null) {
         const fold = typeof options?.fold === 'string' ? options.fold : null;
