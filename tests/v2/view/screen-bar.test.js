@@ -302,3 +302,30 @@ test('a held screen under More: More draws its icon in the solid weight', () => 
     const { more } = setup({ current: 'rpg-battle/craft' });
     assert.ok(more().querySelector('.ss-screenbar-icon').classList.contains('fa-hammer'), 'a Font Awesome icon from a module draws as before');
 });
+
+// In the wide row More is hidden; a focused active tab that goes away (the battle ended) sent the focus to it (fix 8k).
+test('the row: when the focused slot disappears the focus goes to the current slot, else the first one, never to the hidden More', () => {
+    const fight = { id: 'rpg-battle/fight', label: 'Fight', icon: 'fa-khanda', alert: true };
+    const { bar, more, slots, doc } = setup({ items: [...ITEMS, fight], current: 'rpg-battle/fight', row: true });
+    assert.equal(more().hidden, true, 'More is hidden in the row');
+    doc.activeElement = slots().find(node => node.getAttribute('data-id') === 'rpg-battle/fight');
+    bar.update({ items: ITEMS, current: 'story-block/party', row: true });
+    assert.notEqual(doc.activeElement, more(), 'not the hidden More');
+    assert.equal(doc.activeElement.getAttribute('data-id'), 'story-block/party', 'the current slot');
+    // The current screen is gone too (the view fell back elsewhere): the first slot.
+    bar.update({ items: [...ITEMS, fight], current: 'rpg-battle/fight', row: true });
+    doc.activeElement = slots().find(node => node.getAttribute('data-id') === 'rpg-battle/fight');
+    bar.update({ items: ITEMS, current: 'rpg-battle/fight', row: true });
+    assert.equal(doc.activeElement.getAttribute('data-id'), ITEMS[0].id, 'the first slot when the current one is not drawn');
+    // A tile (under More in the pill) that goes away when the bar becomes the row: the same rule.
+    const pill = setup({ items: [...ITEMS, fight], current: 'story-block/home' });
+    pill.more().click();
+    pill.doc.activeElement = pill.doc.body.querySelector('.ss-screenbar-tile[data-id="rpg-battle/fight"]');
+    pill.bar.update({ items: ITEMS, current: 'story-block/home', row: true });
+    assert.equal(pill.doc.activeElement.getAttribute('data-id'), 'story-block/home', 'the current slot, not the hidden More');
+    // The pill is unchanged: a slot that goes away gives More.
+    const phone = setup({ items: [...ITEMS.slice(0, 3), fight, ...ITEMS.slice(3)], current: 'story-block/home' });
+    phone.doc.activeElement = phone.slots().find(node => node.getAttribute('data-id') === 'rpg-battle/fight');
+    phone.bar.update({ items: ITEMS, current: 'story-block/home', row: false });
+    assert.equal(phone.doc.activeElement, phone.more());
+});

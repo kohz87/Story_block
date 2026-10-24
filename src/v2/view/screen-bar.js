@@ -198,19 +198,23 @@ export function createScreenBar(doc, host, options = {}) {
     }
 
     // After a redraw: the focus goes where it was, or to its nearest equivalent: a slot that moved under More gives More; in the
-    // row More's held screen (else the current one, else the first) takes the focus; a tile that is gone gives the first tile.
+    // row (where More is hidden and takes no focus) More's held screen, else the current slot, else the first one takes it; a tile
+    // that is gone gives the first tile.
     function restoreFocus(before) {
         if (!before) return;
-        const firstSlot = [...slots.values()][0] ?? null;
+        // the first slot as drawn (the map holds them in the order they were made, which is not the bar's)
+        const firstSlot = [...nav.children].find(node => node !== more && node.getAttribute?.('data-id')) ?? null;
         const firstTile = [...tiles.values()][0] ?? null;
         let target = null;
+        // Where a slot that is gone sends the focus: More on the phone's bar; in the row, which hides More, the current slot or the first.
+        const fallback = row ? (slots.get(current) ?? firstSlot) : more;
         if (before.more) {
             const held = row ? moreHolds(items, current, pinnedCount) : null;
             target = row ? (slots.get(held?.id ?? current) ?? firstSlot) : more;
         } else if (before.slot) {
-            target = slots.get(before.slot) ?? more;
+            target = slots.get(before.slot) ?? fallback;
         } else if (before.tile) {
-            target = row ? (slots.get(before.tile) ?? more) : (open ? (tiles.get(before.tile) ?? firstTile ?? sheet) : more);
+            target = row ? (slots.get(before.tile) ?? fallback) : (open ? (tiles.get(before.tile) ?? firstTile ?? sheet) : more);
         } else if (before.sheet) {
             target = open ? sheet : more;
         }
