@@ -1,5 +1,97 @@
 # Story Suite v2 releases
 
+## 2.0.0-beta.2 (draft)
+
+**Not released yet.** Still for test play only. Beta.2 is a look-and-feel release: the story's rules did not change.
+
+**Update Story Block first, then the modules.** Every beta.2 module needs Story Block 2.0.0-beta.2 or later.
+An older Story Block refuses it with a red notice, for example *Story Suite: RPG Battle needs Story Block
+≥ 2.0.0-beta.2; this is 2.0.0-beta.1. Update Story Block to use it.*, and the module's row in **Story
+Suite settings → Modules** says the same. NPC State Delta keeps working on its own until Story Block is
+updated. Then reload the page.
+
+### What's new since beta.1
+
+**A new look**
+- Panels are glass: you see SillyTavern's background through them, in a light or a dark theme. Settings → **Look** has **Panel style** (Glass, Solid, or Follow SillyTavern) and **Glass strength**.
+- One font, Nunito, for every Story Suite screen. It is bundled with the extension; the old mix of fonts is gone.
+- The extension has its own icons, 48 of them, drawn the same way everywhere. Their credits are in Settings → Diagnostics.
+- Text boxes, sliders and buttons share one look. Colours that were hard to read on glass were darkened.
+
+**New navigation**
+- One bar for the phone game view and the Story panel: a floating pill at the foot with four screens and **More**. The labels are shown, and a dot marks a screen that needs you (for example a fight whose move is yours).
+- **More** opens a sheet with the rest of the screens. The order is yours: Settings → Tabs & Packs → Tabs.
+- A tab that only matters at times, such as **Fight**, is shown while it is active and hidden otherwise. On the phone it takes a slot on the bar with a red dot when your move is due; Settings → Tabs says "Shown during battles".
+
+**A header that tells you where you are**
+- The game view has a header above every screen: your portrait with a **level badge**, name, class and title, HP, MP and SP, your conditions, and the place, weather and time of the scene.
+- On a phone the header folds into one compact row.
+
+**The game view as a window**
+- On a desktop or a tablet (a screen 760 pixels wide or more) the game view opens as a centred window over a dimmed chat instead of covering the page. Escape, its close button or a click outside it shuts it; a phone looks as before. Only the top layer takes Escape, and the focus goes back to where you were.
+- Changing the chat closes any open dialog, so a form opened in one chat can no longer write into another.
+
+**Cards under replies**
+- The **start card** now shows under the greeting. **Create** opens the character wizard right there, and **Skip** lets the story go on without a character.
+- While a fight is on, the reply that started it carries a **battle card**: the foes, the round, whose move it is, **Fight**, **Flee** when you can, and **Later**.
+- **Later** folds a card to one line without deciding. It stays folded when a new reply comes, and Story Suite remembers it per chat on your device.
+- Only the newest reply carries a card, so an old start or battle card no longer lingers.
+- **Changed this reply** is now a set of tiles, one per change, each with an icon and a coloured ring that says what kind of change it was (two columns on a phone, up to four on a wide screen).
+
+**Party, Inventory and Status**
+- **Party** is leaner: each member is a compact card that folds open, and the equipment is a tidy grid of slots with each piece's stats and condition. Skills are shown as a tree with the line each skill grows from. Character creation is restyled, with a registration card beside the choices.
+- **Inventory**: **Equip on…**, **Use on…** and **Drop** are real buttons that fold open under the row. Escape closes the fold; Cancel closes it too. The Inventory shows who wears a piece ("Worn by") and the equipment controls only appear with RPG Battle installed.
+- **Status card** (under each reply, Story Director): time, weather, place, coordinates and goal, each shown only when it has a value, and a changed value is readable on any look.
+- Trade and Crafting rows line up, with prices as pills.
+- Home's quests, the Director, World, Chronicle and the map moved to the glass look, with bigger tap areas for the map's places on a phone.
+- NPC State Delta's present people are one compact row each, with their meters as thin bars; the Dossiers list is a list of cards.
+
+**Settings**
+- Settings is a window with a list of sections (Look, Features, Money, Assist, Tabs & Packs, Modules, Diagnostics) and a search box. Sliders look the same everywhere.
+- Fixes: a module's settings panel is cleaned up before its section is drawn again, so changing the Look no longer leaves a double panel; jumping to a section no longer scrolls the page behind the window; screens opened by name open reliably.
+
+**For developers**
+- The RPG rules contract (`docs/v2/contract/`): the frozen plan for rebuilding RPG Battle's rules on Story Block v2. Documentation only; nothing in it is implemented in this release.
+
+### Known issues
+
+Still open from beta.1 (all of them still hold):
+
+- **Balance.** Even and strong fights land on their target in about 30–36 % of the test cells: how each
+  build meets each creature (build × monster matchups) still swings the odds more than the tier does. The
+  fighter is the weakest ready-made build in even fights from level 5. Tuning per build comes after beta.
+- **Older chats.** In a chat saved before beta.1, a quest click (a Finish) made there can still be
+  paid twice on Re-read of that reply.
+- **Saving.**
+  - A timed-out save that reaches the server more than about five minutes later is not caught by the
+    read-back. After a reload of the page, a file found older can no longer be put back (the copy was on
+    the old page): you are told.
+  - Two browser tabs on one chat: the tab that saves last wins.
+- **Context size.** 8K tokens of context or more is recommended. Story Suite caps itself at 40 % of the
+  context (**Share of the context**); with all four extensions its instructions are about 2,200 tokens, so
+  at a 4K context they are over the share (you are told once per chat).
+- **Renaming a chat while it saves** could leave a copy under the old name. Not seen on SillyTavern 1.19 in
+  the live soak; possible on other versions (a fix needs a SillyTavern server change).
+- Still from alpha.2's list:
+  - Switching chats while a reply streams in: SillyTavern throws its own TypeError (not ours).
+  - If a reply is cut off by the length limit and its half-written last line still makes sense, that line
+    is read.
+
+New in beta.2:
+
+- **A widget's own state can reset.** A screen that a module draws from a template is redrawn from scratch
+  on each new reply, so something the widget keeps for itself, such as an open fold, can close again. The
+  fix comes after beta.
+
+### Module versions
+
+| Module | `v2` head | Version | `requires` |
+|---|---|---|---|
+| Story Block | (at the beta candidate) | 2.0.0-beta.2 | — |
+| RPG Battle | (at the beta candidate) | 2.0.0-beta.2 | `storyBlock >=2.0.0-beta.2` |
+| Story Director | (at the beta candidate) | 2.0.0-beta.2 | `storyBlock >=2.0.0-beta.2` |
+| NPC State Delta | (at the beta candidate) | 1.2.21 | `storyBlock >=2.0.0-beta.2` |
+
 ## 2.0.0-beta.1 (draft)
 
 **Not released yet.** These notes grow as each beta wave merges. Still for test play only.

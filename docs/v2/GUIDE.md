@@ -16,6 +16,32 @@ Each one is optional except Story Block. Install only what you want.
 v2 is a test version. It is a fresh start: it does not read chats or blocks from v1, and v1 and v2
 should not be installed side by side.
 
+## What's new in beta.2
+
+The second beta changes how Story Suite looks and where things are, not the story's rules. In short (the full
+list is in [RELEASES.md](RELEASES.md)):
+
+* **Update Story Block first**, then the other three: every module now needs Story Block 2.0.0-beta.2 or
+  later, and says so in red until you update.
+* **A new look**: glass panels over SillyTavern's background, one font, and the extension's own icons.
+  Settings → **Look** sets the panel style (Glass, Solid, or Follow SillyTavern) and how strong the glass is.
+* **A new bar at the foot** with the screens' names and a dot on one that needs you. **More** opens the
+  rest; the order is yours in **Settings → Tabs & Packs → Tabs**. A screen such as **Fight** shows only
+  while it matters.
+* **A header on every screen** with your portrait, a level badge, your bars and conditions, and the scene's
+  place, weather and time.
+* **On a desktop or a tablet the game view is a window** over the chat. Escape or its close button shuts it.
+* **Cards under the newest reply**: the start card (**Create** your character, or **Skip**) and, in a fight,
+  the battle card (**Fight**, **Flee**, **Later**). **Later** folds a card to one line. *Changed this
+  reply* is a set of tiles.
+* **Party** is leaner (each member folds open; equipment is a grid of slots; skills are a tree). The
+  **Inventory**'s Equip on…, Use on… and Drop fold open under the row, and Escape closes them. The **Status
+  card** under a reply lists time, weather, place and goal.
+* **Settings fixes**: sliders look the same everywhere, jumping to a section no longer moves the page
+  behind the window, and a module's settings panel no longer shows twice after a Look change.
+
+What is still not right: see "Known issues" under 2.0.0-beta.2 in [RELEASES.md](RELEASES.md).
+
 ## What's new in beta.1
 
 The first beta. In short, what changed for you (the full list is in
@@ -88,7 +114,7 @@ extension's folder (`git checkout v2`), or ask whoever set up your SillyTavern.
 To update later, use **Extensions → Manage extensions → Update** as usual; the branch stays `v2`.
 **Update Story Block first, then the modules.** Each module says which Story Block it needs, and an
 older Story Block refuses a newer module. When that happens, the page shows a red notice such as
-*Story Suite: RPG Battle needs Story Block ≥ 2.0.0-beta.1; this is 2.0.0-alpha.2. Update Story Block to
+*Story Suite: RPG Battle needs Story Block ≥ 2.0.0-beta.2; this is 2.0.0-beta.1. Update Story Block to
 use it.*, and that module's row in **Story Suite settings → Versions** says the same. Update Story Block
 and reload the page. NPC State Delta is the exception: it keeps working on its own, without its meters,
 Cast tab or Story Suite section, until Story Block is updated.
