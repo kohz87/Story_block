@@ -65,12 +65,17 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const session = () => (sessionId ??= makeId('ss'));
     let busy = Promise.resolve();
     let running = 0;   // operations started and not ended: they own their journal entries
-    let owed = [];     // blocks stored and not yet told: a block is announced once the chat file has it (see `durable`)
+    // In-memory state belongs to one chat. A block stored and not yet told is owed to the listeners once the chat file has it, and
+    // carries the chat and the receipt it was stored with; the barrier this raised carries the chat it was raised for. On a change of
+    // chat what belongs to another is dropped (`settle`), and before anything is told the chat and the receipt are looked at again.
+    let owed = [];     // [{ stored, holder, id }]
+    let barrierOwner = null;   // the chat whose restore or native change raised the barrier (null: not raised by the timeline)
 
     // ---- helpers -----------------------------------------------------------------------------------------
 
     // One thing at a time: a make, a prepare, an activate or a recover starts when the one before it has ended.
     const scoped = async fn => {
+        settle();
         scope = { holder: archive.holder() };
         try { return await fn(); } finally { scope = null; }
     };
@@ -87,8 +92,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             if (isNotDurable(error)) return fail('FAILED', error.message);
             if (isStaleChat(error)) {
                 // The chat this began in is gone: what it owes is not told, and a barrier it raised does not hold the chat that is open.
-                owed = [];
-                if (registry.restore?.().state === 'pending' && !pendingEntry()) barrier('idle', '');
+                settle();
                 return fail('STALE', error.message);
             }
             return fail('FAILED', `The timeline failed: ${error?.message ?? error}`);
@@ -114,13 +118,30 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         here();
         try { await store.flush(); } catch (error) {
             if (crashing(error)) throw error;
+            here();   // (a save that failed because the chat was left is the chat's change, not a failed save)
             throw notDurable(`${context}: ${error?.message ?? error}`);
         }
         here();
+        // Told now, and only what is still this chat's and still in it (a reply deleted meanwhile took its receipt with it).
         const told = owed;
         owed = [];
-        for (const stored of told) stored.tell();
+        if (told.length) {
+            const holder = archive.holder();
+            let ids = null;
+            try { ids = new Set(store.receipts().map(entry => entry.receipt.id)); } catch { ids = new Set(); }
+            for (const each of told) if (each.holder === holder && ids.has(each.id)) each.stored.tell();
+        }
     };
+    // What belongs to a chat that is not the open one is dropped: announcements owed, and a barrier raised for it (its own journal
+    // keeps what it was doing, and its `recover` raises the barrier again when that chat is opened).
+    function settle() {
+        const holder = archive.holder();
+        owed = owed.filter(each => each.holder === holder);
+        if (barrierOwner !== null && barrierOwner !== holder) {
+            barrierOwner = null;
+            barrier('idle', '');
+        }
+    }
     // A clean-up after a failure that is not itself a durable step: the journal word it writes rides with the next save (a
     // restart reads the unsettled entry and does the same), so a save that fails here changes nothing about what is answered.
     const quietly = async fn => {
@@ -129,15 +150,18 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             if (!isNotDurable(error)) throw error;
         }
     };
-    const owe = stored => { owed.push(stored); return stored; };
-    // The host's restore barrier, raised or dropped only for the chat the operation is in.
-    const raise = reason => { here(); barrier('pending', reason); };
-    const lower = () => { here(); barrier('idle', ''); };
+    const owe = stored => { owed.push({ stored, holder: archive.holder(), id: stored.receipt.id }); return stored; };
+    // The host's restore barrier, raised or dropped only for the chat the operation is in, and remembered as that chat's.
+    const raise = reason => { here(); barrierOwner = archive.holder(); barrier('pending', reason); };
+    const lower = () => { here(); barrierOwner = null; barrier('idle', ''); };
     const isHost = auth => auth === capability || auth?.capability === capability;
     const pendingEntry = () => archive.entries().find(entry => entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
         ?? archive.entries().find(entry => ['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared')
         ?? null;
-    const pendingNow = () => registry.restore?.().state === 'pending' || pendingEntry() !== null;
+    const pendingNow = () => {
+        settle();
+        return registry.restore?.().state === 'pending' || pendingEntry() !== null;
+    };
     // A module that declared a participant the host could not register holds the timeline: a save or a restore without it would
     // leave its native state out of step with the story (fail closed).
     const brokenProblem = () => {
@@ -1078,6 +1102,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         guard,
         makeCommand,
         recover: () => exclusive(() => guarded(() => recover())),
+        /** A chat was opened: what belongs to the one before it is dropped (the host calls it before it recovers). */
+        settle,
         available: hash => archive.hasPayload(hash),
         /** Whether the journal holds work no operation owns (a crashed make, a restore left half way): the host recovers it. */
         needsRecovery: () => running === 0 && archive.exists() && archive.entries().some(entry => !settled(entry)),

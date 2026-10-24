@@ -196,12 +196,16 @@ coordinator's helpers rather than at each site:
    is told done only after the final flush; the same event again is not acknowledged until the file has it. The one exception is the
    clean-up after a failure that is already being reported (an abort): its journal word rides with the next save, and a restart
    reads the unsettled entry and does the same.
-2. **An operation is bound to the chat it began in.** The chat identity (its metadata object) is captured when the operation
-   starts, and every archive write, every block it stores and every barrier it raises or drops checks it; after every wait (a
-   participant's answer, a phase boundary, a flush) the operation looks again. If another chat is open the answer is `STALE`, nothing
-   is written or created in the chat that is open now, what is owed is dropped, and a barrier the operation had raised is dropped
-   if the open chat has no restore of its own pending. The chat that was left keeps its unsettled journal entry, and its own
-   `recover` settles it when it is opened again.
+2. **Everything in memory belongs to one chat.** An operation captures the chat it began in (its metadata object), and every archive
+   write, every block it stores and every barrier it raises or drops checks it; after every wait (a participant's answer, a phase
+   boundary, a flush, a flush that was rejected) the operation looks again. If another chat is open the answer is `STALE` (a save
+   that failed because the chat was left is not a failed save), and nothing is written or created in the chat that is open now.
+   The state that outlives an operation is tagged the same way: an announcement owed carries its chat and its receipt, and the
+   barrier the timeline raised carries the chat it was raised for. `settle` (the host calls it when a chat opens, and every
+   operation and every look at the head begins with it) drops what belongs to another chat: the announcements, and the barrier
+   (its own journal keeps what it was doing, and that chat's `recover` raises the barrier again when it is opened). Before an
+   announcement is told, the chat and the receipt are checked once more: a receipt that left the chat (its reply was deleted) is
+   never announced.
 3. **The participants are looked at again in the commit section.** A make checks that the participants it asked are the participants
    there are (none failed to register, none registered, no schema changed) in the same synchronous section as the commit
    (`SNAPSHOT_UNAVAILABLE` otherwise, nothing stored); an activate does the same against the save's participants and the slots that

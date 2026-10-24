@@ -17,7 +17,7 @@ const cmd = async (host, type, payload = {}) => assert.equal((await host.sdk.com
 // A story with a save and a dead timeline on top of it; `disk` is what the last save wrote; `flushes` counts the timeline's flushes
 // and fails the one numbered `failing` (1 based). `told` lists the savepoint receipts announced, each with whether the file had it.
 const mocked = new WeakSet();
-async function world(t, { failing = 0, scenario = null, wrap = null } = {}) {
+async function world(t, { failing = 0, scenario = null, wrap = null, more = false, onFail = null } = {}) {
     if (!mocked.has(t)) {
         mocked.add(t);
         t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -33,6 +33,8 @@ async function world(t, { failing = 0, scenario = null, wrap = null } = {}) {
     await host.send('Go.', reply('A.', ['+ coin 10']));
     await cmd(host, 'tl.xp', { amount: 40 });
     const saved = (await host.sdk.timeline.make({ kind: 'manual', name: 'Save' })).snapshot;
+    // (`more`: the work after the save is on a reply of its own, which a test can delete)
+    if (more) await host.send('More.', reply('B.'));
     const disk = track(host);
     w.disk = disk;
     await cmd(host, 'tl.xp', { amount: 100 });
@@ -42,11 +44,18 @@ async function world(t, { failing = 0, scenario = null, wrap = null } = {}) {
     const flush = host.store.flush.bind(host.store);
     host.store.flush = async (...args) => {
         counter.n += 1;
-        if (counter.n === counter.failing) { counter.failed = true; throw new Error('the disk is full (test)'); }
+        if (counter.n === counter.failing) {
+            counter.failed = true;
+            await onFail?.(host);
+            throw new Error('the disk is full (test)');
+        }
         return flush(...args);
     };
     const told = [];
-    host.events.on('committed', ({ receipt }) => told.push({ type: receipt.type, onDisk: JSON.stringify(disk.image.chat).includes(receipt.id) }));
+    host.events.on('committed', ({ receipt }) => told.push({
+        type: receipt.type, id: receipt.id, onDisk: JSON.stringify(disk.image.chat).includes(receipt.id),
+        present: host.store.receipts().some(each => each.receipt.id === receipt.id),
+    }));
     return Object.assign(w, { host, hook, saved, disk, counter, told, modules: () => [rulesModule(), native.def] });
 }
 const journalOf = disk => Object.values(disk.image.metadata.storySuite?.timeline?.journal ?? {});
@@ -246,6 +255,7 @@ test('a block that is not the host\'s cannot write the savepoints, nor anything 
     const receipt = { id: 'rc_forged001', type: 'x.forge', module: 'rival', cause: 'system', seed: 1, summary: 'x', narrate: false, data: {}, rev };
     const forged = { savepoints: { schema: 2, epoch: 'ep_forged01', points: {}, dayStarts: {}, previousDay: null, returns: { rt_forged01: { id: 'rt_forged01' } }, ruleSettings: {} } };
     const make = (op, path) => ({ op, path, ...(op === 'move' || op === 'copy' ? { from: path } : { value: path === '' ? { domains: forged } : path === '/domains' ? forged : 1 }) });
+    const epoch = host.head().domains.savepoints.epoch;
     const attempts = [];
     for (const path of RESERVED) for (const op of ['add', 'replace', 'remove', 'move', 'copy']) attempts.push(make(op, path));
     // (a move or a copy whose far end is elsewhere and whose near end is reserved, and the other way)
@@ -258,7 +268,7 @@ test('a block that is not the host\'s cannot write the savepoints, nor anything 
         const block = { module: 'rival', source: host.store.sourceAt(host.store.headIndex()), guard: null, operation: { type: 'savepoint.make', payload: {} }, recorded: null, result: {} };
         assert.throws(() => host.store.append({ ops: [op, { op: 'replace', path: '/meta/rev', value: rev }], receipt, block }), /host's own/, JSON.stringify(op));
     }
-    assert.equal(host.head().domains.savepoints?.epoch, host.head().domains.savepoints?.epoch);
+    assert.equal(host.head().domains.savepoints.epoch, epoch, 'the epoch is the one it was');
     assert.equal(Object.keys(host.head().domains.savepoints.returns ?? {}).includes('rt_forged01'), false);
     // An ordinary domain is still an ordinary write.
     assert.doesNotThrow(() => host.store.append({ ops: [{ op: 'add', path: '/domains/elsewhere', value: { x: 1 } }, { op: 'replace', path: '/meta/rev', value: rev }], receipt }));
@@ -369,3 +379,82 @@ test('settings.rules is a settings field this Story Block knows: registering it 
     assert.deepEqual(definitionWarnings({ id: 'x', settings: { rules: ['difficulty'], defaults: {} } }).filter(line => /rules/.test(line)), []);
     assert.match(definitionWarnings({ id: 'x', settings: { panel: () => {} } }).join(), /"settings.panel" is not a settings field/);
 });
+
+// ---- 5. in-memory state belongs to one chat ------------------------------------------------------------------------------------
+
+// Another chat (its own host, its own file), ready to be opened on `host`, and the way back.
+async function otherChat(t) {
+    const b = await createHost({ modules: [rulesModule(), nativeModule().def] });
+    t.after(() => b.close());
+    await b.send('Hi.', reply('Over there.', ['+ coin 1']));
+    return { chat: [...b.ctx.chat], metadata: b.ctx.chatMetadata, snapshot: clone(b.ctx.chatMetadata) };
+}
+async function open(host, to) {
+    const left = { chat: [...host.ctx.chat], metadata: host.ctx.chatMetadata };
+    host.ctx.chat.splice(0, host.ctx.chat.length, ...to.chat);
+    host.ctx.chatMetadata = to.metadata;
+    await host.turn.onChatChanged();
+    return left;
+}
+const announced = w => w.told.map(each => each.id);
+
+for (const [name, scenario] of Object.entries(SCENARIOS)) {
+    test(`${name}: after a save failed at any position, opening another chat announces nothing of the first and leaves it no barrier; the first chat's own recovery settles it`, async t => {
+        const dry = await world(t, { scenario: name, more: true });
+        assert.equal((await scenario.run(dry)).ok, true);
+        const total = dry.counter.n;
+        const there = await otherChat(t);
+        for (let at = 1; at <= total; at++) {
+            const w = await world(t, { failing: at, scenario: name, more: true });
+            await scenario.run(w);
+            assert.equal(w.counter.failed, true);
+            const left = await open(w.host, there);
+            const before = announced(w).length;
+            const made = await w.host.sdk.timeline.make({ kind: 'manual', name: 'In the other chat' });
+            assert.equal(made.ok, true, `flush ${at}: the other chat is not held by the first one's barrier (${made.code} ${made.message})`);
+            assert.equal(w.host.registry.restore().state, 'idle', `flush ${at}`);
+            const inB = new Set(w.host.store.receipts().map(each => each.receipt.id));
+            for (const each of w.told.slice(before)) assert.equal(inB.has(each.id), true, `flush ${at}: ${each.type} is not in the chat that was announced to`);
+            // The way back: the chat that was left finds its own journal and settles it.
+            await open(w.host, left);
+            assert.equal(w.host.registry.restore().state, 'idle', `flush ${at}: back in the first chat`);
+            assert.equal((await w.host.sdk.timeline.status()).state, 'idle', `flush ${at}: back in the first chat`);
+            for (const each of w.told) assert.equal(each.present && each.onDisk, true, `flush ${at}: ${each.type} announced without the file and the chat having it`);
+        }
+    });
+
+    test(`${name}: after a save failed at any position, deleting the reply that holds the work announces nothing the chat no longer has, and recovery leaves no barrier`, async t => {
+        const dry = await world(t, { scenario: name, more: true });
+        assert.equal((await scenario.run(dry)).ok, true);
+        const total = dry.counter.n;
+        for (let at = 1; at <= total; at++) {
+            const w = await world(t, { failing: at, scenario: name, more: true });
+            await scenario.run(w);
+            assert.equal(w.counter.failed, true);
+            const before = announced(w).length;
+            await w.host.st.deleteMessage(w.host.ctx.chat.length - 1);
+            assert.equal((await w.host.timeline.recover()).ok, true, `flush ${at}`);
+            const made = await w.host.sdk.timeline.make({ kind: 'manual', name: 'After the delete' });
+            assert.equal(made.ok, true, `flush ${at}: ${made.code} ${made.message}`);
+            assert.equal(w.host.registry.restore().state, 'idle', `flush ${at}`);
+            for (const each of w.told.slice(before)) assert.equal(each.present && each.onDisk, true, `flush ${at}: ${each.type} was announced though the chat no longer has it`);
+        }
+    });
+
+    test(`${name}: a save that is refused because the chat was left meanwhile is STALE, not a failed save, and drops the barrier`, async t => {
+        const dry = await world(t, { scenario: name, more: true });
+        assert.equal((await scenario.run(dry)).ok, true);
+        const total = dry.counter.n;
+        const there = await otherChat(t);
+        for (let at = 1; at <= total; at++) {
+            const w = await world(t, { failing: at, scenario: name, more: true, onFail: host => open(host, there) });
+            const result = await scenario.run(w);
+            assert.equal(result.ok, false, `flush ${at}`);
+            assert.equal(result.code, 'STALE', `flush ${at}: ${result.code} ${result.message}`);
+            assert.equal(w.host.registry.restore().state, 'idle', `flush ${at}: no barrier on the chat that is open`);
+            assert.deepEqual(w.host.ctx.chatMetadata.storySuite?.timeline, there.snapshot.storySuite?.timeline, `flush ${at}: no timeline written to the chat that is open`);
+            there.metadata = clone(there.snapshot);
+            await open(w.host, { chat: there.chat, metadata: there.metadata });
+        }
+    });
+}

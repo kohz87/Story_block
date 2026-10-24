@@ -292,6 +292,7 @@ export async function ensureModules({ store, bus, registry, events = null }) {
     // A save point or a restore the last run left half way is finished or aborted before anything else (docs/v2/TIMELINE.md); a
     // chat that never used the timeline has nothing to recover and costs one look.
     const line = timelines.get(registry);
+    line?.settle?.();
     if (line?.needsRecovery()) await line.recover();
     // A restore barrier changes nothing until every part agrees (registry.setRestore).
     if (registry.restore?.().state === 'pending') return [];
