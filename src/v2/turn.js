@@ -1015,24 +1015,37 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         let ops;
         let off = [];
         let steps = [];
-        // `replacing`: the proof of the blocks this Re-read replaces (its story lines and its steps). A proof given again keeps the id of the
-        // old one of the same kind and key at the same place among those, so a line that reads as it did keeps its ids and what was built on them.
-        const plan = { blocks: [], pending: 0, replacing: replacedProofs(readRecord(message)), reuse: reusePlan(readRecord(message)) };
+        // `replacing`: the proof of the blocks this Re-read replaces (its story lines and its steps): ids of them may be held again by the blocks that replace
+        // them. `reuse`: the occurrences those blocks have, given again per operation while the number of blocks of the operation is unchanged.
+        let plan = null;
+        const problemsFrom = problems.length;
+        const reply = store.carrierSid?.(index) ? { index, sid: store.carrierSid(index) } : null;
         try {
             let after;
             const seeds = storySeeds(readRecord(message));
-            ({ ops, off, state: after } = await captureEach(index, lines, receipts, problems, base, seeds, new Map(), null, plan));
-            for (const mark of [LATE, NOW]) {
-                const group = extra.filter(item => item.mark === mark).map(item => item.line);
-                if (!group.length) continue;
-                const more = await captureEach(index, group, receipts, problems, after, seeds, new Map(), mark, plan);
-                ops = [...ops, ...more.ops];
-                off = [...new Set([...off, ...more.off])];
-                after = more.state;
+            // A first plan; when an operation has more or fewer blocks than it replaces, it is planned again with none of that operation's old
+            // occurrences given again (evidence.js reusePlan), so a line that stays cannot take the identity of one that went.
+            let retire = new Set();
+            for (let pass = 0; pass < 2; pass += 1) {
+                receipts.length = 0;
+                problems.length = problemsFrom;
+                steps = [];
+                plan = { blocks: [], pending: 0, replacing: replacedProofs(readRecord(message)), reuse: reusePlan(readRecord(message), retire) };
+                ({ ops, off, state: after } = await captureEach(index, lines, receipts, problems, base, seeds, new Map(), null, plan));
+                for (const mark of [LATE, NOW]) {
+                    const group = extra.filter(item => item.mark === mark).map(item => item.line);
+                    if (!group.length) continue;
+                    const more = await captureEach(index, group, receipts, problems, after, seeds, new Map(), mark, plan);
+                    ops = [...ops, ...more.ops];
+                    off = [...new Set([...off, ...more.off])];
+                    after = more.state;
+                }
+                // The reply's afterCapture steps, run again after its new story lines (none when none was kept).
+                if (receipts.length) steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan });
+                const unsure = plan.reuse.ambiguous([...plan.blocks, ...steps]);
+                if (!unsure.length) break;
+                retire = new Set([...retire, ...unsure]);
             }
-            // The reply's afterCapture steps, run again after its new story lines (none when none was kept).
-            const reply = store.carrierSid?.(index) ? { index, sid: store.carrierSid(index) } : null;
-            if (receipts.length) steps = await afterCapture(index, { type: 'reread', problems, state: after, reply, seeds: stepSeeds(readRecord(message)), plan });
             // B-b2-timeline-r2: the lines ran while the reader could act (a capture handler may wait). A
             // message deleted, another chat opened, the reply swiped or edited, or a reply begun in that
             // time: what was read is no longer this reply's, so nothing is stored (not even on the
