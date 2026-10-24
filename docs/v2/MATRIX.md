@@ -45,13 +45,14 @@ registered (its names reserved) but its script does not run.
 * `todo`: the case applies but today's host cannot express it yet.
 * `n/a`: the case does not apply to the row (no SD, so no clock). `skip`: a module is not checked out.
 
-**The negative rows.** RB does not yet refuse without SD: it registers, creates its domains and holds the
-reader's first message back ("Create your character first.") until a party exists, so SB and NSD cannot work
-beside it either. That is the lifecycle package's job (`sdk.preflight`, `requires.peers`, `sdk.modules()`
-`status`). Until then every result of these rows that cannot pass because of it is a `gap` with that reason
-(`--verbose` shows the failure each one would have). The gap closes by itself: once `sdk.modules()` entries
-have a `status`, the `RB dormant` column checks `status === 'dormant'` with a `reason`, that RB's setup command
-is refused, and no step is excused any more. Positive rows then also expect `status === 'ready'`.
+**The negative rows.** With the module lifecycle in the host (`requires.peers`, `sdk.modules()` `status`,
+`docs/v2/LIFECYCLE.md`) a module that names Story Director as a peer is dormant without it, so the `RB dormant`
+column checks `status === 'dormant'` with a `reason`, that RB's setup command is refused, and that SB and NSD
+work beside it; positive rows expect `status === 'ready'`. The `gap` result remains only for a host whose
+`sdk.modules()` entries have no `status` (before the lifecycle). **The real RPG Battle does not declare
+`requires.peers` yet, so on the real checkouts its negative rows (`SB+RB`, `SB+RB+NSD`) fail strictly
+("RB should be dormant without SD") until RB declares its peer. That is expected: it lands with track B, in RB's
+definition (`module.js` is lead-owned), and the rows then pass without a change here.**
 
 ## Cases (columns)
 
@@ -69,7 +70,7 @@ Each case boots its own host(s); none of them uses a stub for the module under t
 | malformed answer | a stand-in for each absent peer (SD, NSD) answers its real query names three ways (throws, null, wrong shape); the modules present carry on, replay holds; with an SD stand-in an RB row also checks dormancy. The stand-ins stand for a peer only; the note says how often the modules asked |
 | feature off | all Features of each module off in turn: a reply still works for the others, replay holds, back on works |
 | unset clock | SD rows: replies without `~ time` leave the clock unset and quests still work; with RB, a timed action (`party.rest`) should be refused `CLOCK_UNSET` (`gap` until RB does) |
-| SD disabled | `todo`: the host cannot disable a registered module (only its Features), so there is no "SD present but off" |
+| SD disabled | `todo`: the host can switch a module off (`registry.setEnabled`, host-internal, no setting yet) but the matrix does not drive it, so "SD present but off" is not run |
 | late registration | the last module registered after a reply: listed once, earlier state unchanged, ends where a boot with all of them does |
 | duplicate name | the same id twice, and a second owner of a name each module owns (`already registered`, `already belongs to "…"`), nothing changed |
 | swipe | a swipe, then back: the state is that of a fresh host that played only the replies left |
@@ -134,8 +135,8 @@ The sibling folders must be named as in `FOLDERS` (`Story_block` or `sb`, `rpg_b
   `CASES`.
 * A module's script, facts and action: `modules.js`. Keep a module's three replies (A, B, C) independent of
   each other, as above.
-* When the lifecycle lands: the negative rows turn strict by themselves (see above); replace `SD disabled`'s
-  `todo` with a real case; add `requires.peers` / `sdk.preflight` cases and raise `MATRIX_VERSION`.
+* The lifecycle has landed (see above): replace `SD disabled`'s `todo` with a real case (drive
+  `registry.setEnabled`); add `requires.peers` / `sdk.preflight` cases and raise `MATRIX_VERSION`.
 * The runner's own tests: `tests/v2/matrix/runner.test.js` (a toy checkout stands in only to test the runner;
   the real modules run through `npm run matrix`, like the suite helpers they need the checkouts side by side
   and CI of this repo alone does not run them).
@@ -154,5 +155,7 @@ The first run, Story Block, RPG Battle, Story Director and NPC State Delta at th
 | SB+SD+RB+NSD | ok | ok | ok | ok | ok | n/a | n/a | n/a | ok | gap | todo | ok | ok | ok | ok | ok |
 | SB+RB | ok | gap | gap | gap | gap | gap | gap | gap | gap | n/a | n/a | gap | gap | gap | gap | gap |
 | SB+RB+NSD | ok | gap | gap | gap | gap | gap | gap | gap | gap | n/a | n/a | gap | gap | gap | gap | gap |
+
+This table is the first run, before the lifecycle: with it, RB's negative rows read `fail` until RB declares `requires.peers` (above).
 
 Heads: Story Block 1843d44, RPG Battle d5b67da, Story Director 0a76324, NPC State Delta 1684b11. The 28 `gap` results are the negative rows (RB holds the first message back) and RB's timed action with the clock unset; the four `todo` are `SD disabled`. Nothing fails.

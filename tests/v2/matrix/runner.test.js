@@ -1,7 +1,7 @@
 // The combination matrix runner (testkit/matrix, scripts/matrix.mjs, docs/v2/MATRIX.md) on its own: the
 // rows are the contract's §2, a row whose module is not checked out is skipped, a module that does not load
-// fails its rows, Story Block's own row passes every case it can, a negative row reports a known gap
-// (and fails with --strict), the wrapper's exit codes, and the vendored copy runs the same rows. The
+// fails its rows, Story Block's own row passes every case it can, a negative row passes with a module that
+// names its peers and fails with one that does not, the wrapper's exit codes, and the vendored copy runs the same rows. The
 // real modules are run by `npm run matrix` next to the other checkouts (the suite helpers' folder rule);
 // here a toy RPG Battle checkout (fixtures/) stands in only to test the runner's own handling.
 import test from 'node:test';
@@ -69,27 +69,30 @@ test('loadModules: a missing folder or entry is missing, an entry that throws is
     }
 });
 
-test('a negative row while RB is not dormant: a known gap that names the cause, not a failure; --strict fails it', async () => {
+test('a negative row with a module that names its peers: it is dormant without SD, the others work, --strict passes too', async () => {
     const modules = await loadModules({ rb: fixture('rpg_battle') });
     assert.deepEqual(Object.keys(modules.loaded), ['rb']);
     const out = await runMatrix({ ...modules, rows: ['SB+RB'] });
     assert.equal(out.ok, true, formatDetails(out.results));
     assert.equal(cell(out, 'SB+RB', 'register').status, 'pass', 'RB is registered once');
-    assert.equal(cell(out, 'SB+RB', 'dormant').status, 'gap');
-    assert.match(cell(out, 'SB+RB', 'dormant').detail, /no status yet.*"Create your character first\."/);
+    assert.equal(cell(out, 'SB+RB', 'dormant').status, 'pass', cell(out, 'SB+RB', 'dormant').detail);
     for (const id of ['reply', 'action', 'prompt', 'swipe', 're-read', 'delete', 'late', 'duplicate', 'feature-off']) {
-        assert.equal(cell(out, 'SB+RB', id).status, 'gap', id);
-        assert.match(cell(out, 'SB+RB', id).detail, /RB is not dormant yet and holds the reader's first message back/);
+        assert.equal(cell(out, 'SB+RB', id).status, 'pass', `${id}: ${cell(out, 'SB+RB', id).detail}`);
     }
-    // Nothing is replayed when nothing was written: replay does not pass for a run that wrote no reply.
-    assert.equal(cell(out, 'SB+RB', 'replay').status, 'gap');
-    assert.match(formatTable(out.results), /\| SB\+RB \| ok \| gap \|/);
+    assert.equal(cell(out, 'SB+RB', 'replay').status, 'pass');
     const strict = await runMatrix({ ...modules, rows: ['SB+RB'], strict: true });
-    assert.equal(strict.ok, false);
-    assert.equal(cell(strict, 'SB+RB', 'dormant').status, 'fail');
-    assert.match(cell(strict, 'SB+RB', 'dormant').detail, /^strict: /);
-    assert.match(summaryLine(strict), /matrix FAILED/);
-    assert.match(summaryLine(out), /^matrix ok: .*gap/);
+    assert.equal(strict.ok, true, formatDetails(strict.results));
+    assert.match(summaryLine(strict), /^matrix ok: /);
+});
+
+test('a negative row with a module that does not name its peers: ready without SD, so the dormant case fails', async () => {
+    const modules = await loadModules({ rb: fixture('rpg_battle_old') });
+    assert.deepEqual(Object.keys(modules.loaded), ['rb']);
+    const out = await runMatrix({ ...modules, rows: ['SB+RB'] });
+    assert.equal(out.ok, false);
+    assert.equal(cell(out, 'SB+RB', 'dormant').status, 'fail');
+    assert.match(cell(out, 'SB+RB', 'dormant').detail, /RB should be dormant without SD/);
+    assert.match(summaryLine(out), /matrix FAILED/);
 });
 
 test('scripts/matrix.mjs: a table and exit 0; --json; unknown option exits 2; --strict exits 1 on a gap', () => {
@@ -109,7 +112,8 @@ test('scripts/matrix.mjs: a table and exit 0; --json; unknown option exits 2; --
         assert.match(bad.stderr, /Unknown option --bogus/);
         const toy = run('--root', empty, '--rb', fixture('rpg_battle'), '--rows', 'SB+RB');
         assert.equal(toy.status, 0, toy.stdout);
-        assert.equal(run('--root', empty, '--rb', fixture('rpg_battle'), '--rows', 'SB+RB', '--strict').status, 1);
+        assert.equal(run('--root', empty, '--rb', fixture('rpg_battle'), '--rows', 'SB+RB', '--strict').status, 0);
+        assert.equal(run('--root', empty, '--rb', fixture('rpg_battle_old'), '--rows', 'SB+RB').status, 1);
         assert.equal(run('--root', empty, '--rows', 'SB', '--cases', 'swipe').status, 0);
     } finally {
         rmSync(empty, { recursive: true, force: true });
