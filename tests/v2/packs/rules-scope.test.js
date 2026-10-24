@@ -357,9 +357,8 @@ test('a rules pack and the shop and recipe checks of the host agree on reference
 
 test('the checker takes the real host version and limits for its envelope pass (and keeps 2.0.0 and the default limits when given none)', () => {
     const wants = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
-    // Packs that ask for an older host than the checker's built-in 2.0.0 (a beta), and one that asks for a newer host. (The checker bans `<` and `>`
-    // in all text, so a range like `<=2.0.0-beta.5` cannot be written in a rules pack at all; see the report.)
-    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['^2.1', '2.1.4']]) {
+    // Packs that ask for an older host than the checker's built-in 2.0.0 (a beta), and one that asks for a newer host.
+    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.1', '2.1.4']]) {
         assert.equal(R.validateRulesPack(wants(range)).ok, false, `${range}: the built-in version is not enough`);
         const given = R.validateRulesPack(wants(range), { hostVersion });
         assert.equal(given.ok, true, `${range} on ${hostVersion}: ${show(given)}`);
@@ -449,4 +448,58 @@ test('unsafe text is UNSAFE_HTML from validatePack whoever found it; the checker
     assert.ok(has(R.validateRulesPack(clone(inRules)), 'unsafe-markup', 'content.rules[0].skills[0].name'));
     // Also with the envelope pass skipped, which is how the host calls it: the checker still says unsafe-markup itself, the host maps it.
     assert.ok(has(R.validateRulesPack(clone(creature), { envelope: false }), 'unsafe-markup'));
+});
+
+test('"<" and ">" are allowed in exactly the two fields where Story Block takes them: a version range and an event condition', () => {
+    const ranged = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
+    for (const range of ['>=2.0.0-beta.2', '<=2.0.0-beta.5', '>2.0.0-alpha.1 <3', '>=2.0.0-beta.1 <2.0.0']) {
+        const standalone = R.validateRulesPack(ranged(range), { hostVersion: '2.0.0-beta.2' });
+        assert.equal(standalone.ok, true, `${range}: ${show(standalone)}`);
+        const host = validatePack(ranged(range), { hostVersion: '2.0.0-beta.2', capabilities: null });
+        assert.equal(host.ok, true, `${range} through the host: ${show(host)}`);
+        assert.equal(host.pack.requires.storyBlock, range);
+    }
+    const withWhen = when => {
+        const pack = smallRulesPack();
+        pack.content.events = [{ id: 'rich', when, cue: 'Coins ring', once: true, then: [] }];
+        return pack;
+    };
+    for (const when of ['gold > 5', 'gold >= 5 && day < 3']) {
+        assert.equal(R.validateRulesPack(withWhen(when)).ok, true, when);
+        const host = validatePack(withWhen(when), { capabilities: null });
+        assert.equal(host.ok, true, `${when}: ${show(host)}`);
+        assert.equal(host.pack.content.events[0].when, when);
+    }
+    // Still scanned: script-like text, event attributes and character references in those same fields.
+    for (const [field, pack, path] of [
+        ['range', ranged('<script>alert(1)</script>'), 'requires.storyBlock'],
+        ['range', ranged('>=2.0.0 <img onerror=alert(1)>'), 'requires.storyBlock'],
+        ['range', ranged('&#60;3'), 'requires.storyBlock'],
+        ['condition', withWhen('<script>alert(1)</script>'), 'content.events[0].when'],
+        ['condition', withWhen('gold > 5 <img onerror=alert(1)>'), 'content.events[0].when'],
+        ['condition', withWhen('gold &#62; 5'), 'content.events[0].when'],
+    ]) {
+        const standalone = R.validateRulesPack(clone(pack));
+        assert.ok(has(standalone, 'unsafe-markup', path), `${field} ${path}: ${show(standalone)}`);
+        const host = validatePack(clone(pack), { capabilities: null });
+        assert.ok(has(host, 'UNSAFE_HTML', path) || has(host, 'BAD_REQUIRES', path), `${field} ${path} through the host: ${show(host)}`);
+        assert.equal(host.ok, false);
+    }
+    // Every other text field still refuses them: the event's own cue, a name, a note, a key, the pack's description.
+    const refuse = (name, path, change) => {
+        const pack = withWhen('gold > 5');
+        change(pack);
+        const standalone = R.validateRulesPack(clone(pack));
+        assert.ok(has(standalone, 'unsafe-markup', path), `${name}: ${show(standalone)}`);
+        assert.deepEqual(codes(validatePack(clone(pack), { capabilities: null })), [['UNSAFE_HTML', path]], name);
+    };
+    refuse('cue', 'content.events[0].cue', pack => { pack.content.events[0].cue = 'a > b'; });
+    refuse('manifest name', 'content.rules[0].name', pack => { pack.content.rules[0].name = 'Rules <3'; });
+    refuse('skill note', 'content.rules[0].skills[0].note', pack => { pack.content.rules[0].skills[0].note = 'hits for > 5'; });
+    refuse('description', 'description', pack => { pack.description = 'a < b'; });
+    refuse('item note', 'content.items[0].note', pack => { pack.content.items = [{ slug: 'rope', name: 'Rope', kind: 'goods', note: 'x > y' }]; pack.content.rules[0].itemRules = [{ def: 'rope', allowedSlots: [], hands: 0, requires: {}, weight: 1, unique: false }]; });
+    // The exemption is for the whole value of exactly those paths, not a field of that name elsewhere.
+    const other = smallRulesPack();
+    other.content.rules[0].skills[0].when = 'gold > 5';
+    assert.equal(R.validateRulesPack(other).ok, false);
 });

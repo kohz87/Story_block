@@ -327,17 +327,25 @@ function decodeMarkupEntities(text) {
 const CONTROL_IN_TEXT = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/;
 const CONTROL_IN_KEY = /[\x00-\x1F\x7F-\x9F]/;
 
+// The two pack fields whose text is not prose and where Story Block itself takes "<" and ">": a version range
+// (`requires.storyBlock`, parsed by version.js parseRange: `>=2.0.0 <3`) and an event's condition (`content.events[n].when`,
+// the condition language: `gold > 5`). They still go through unsafeText and every other check.
+const ANGLE_FIELDS = /^(?:requires\.storyBlock|content\.events\[\d+\]\.when)$/;
+
 /**
  * Why a string (a value or, with `isKey`, an object key) cannot be pack text, or null when fine.
  * Runs Story Block's own safety scan (safety.js unsafeText: script-like tags, on... attributes,
  * javascript: and data: links, with entities and hidden characters removed first) and also bans
- * "<" and ">" outright, written plainly or as a character reference (`&#60;script&#62;`).
+ * "<" and ">" outright, written plainly or as a character reference (`&#60;script&#62;`). With `angle`
+ * (a version range or a condition, see ANGLE_FIELDS) the plain characters are allowed; as a character
+ * reference they are still refused.
  */
-function textProblem(text, isKey = false) {
-    if (text.includes('<') || text.includes('>')) {
+function textProblem(text, isKey = false, angle = false) {
+    if (!angle && (text.includes('<') || text.includes('>'))) {
         return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: isKey ? 'Key cannot contain "<" or ">"' : 'Text cannot contain "<" or ">"' };
     }
-    if (text.includes('&') && /[<>]/.test(decodeMarkupEntities(text))) {
+    const spelled = angle ? text.replace(/[<>]/g, '') : text;
+    if (spelled.includes('&') && /[<>]/.test(decodeMarkupEntities(spelled))) {
         return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: 'Text cannot contain "<" or ">" written as a character reference' };
     }
     const why = unsafeText(text);
@@ -492,7 +500,7 @@ function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text =
                 return undefined;
             }
             if (text) {
-                const problem = textProblem(node);
+                const problem = textProblem(node, false, ANGLE_FIELDS.test(path));
                 if (problem) {
                     add(problem.code, path, problem.message);
                     return undefined;

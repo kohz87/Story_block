@@ -427,8 +427,10 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   limits; the checker then takes the manifest and what it owns, and is not asked to repeat the envelope pass
   (`validateRulesPack(pack, { hostVersion, limits, envelope })`; standalone it does everything). Unsafe text is
   `UNSAFE_HTML` from `validatePack` whoever found it (the checker alone says `unsafe-markup`). In a rules pack's text
-  `<` and `>` are refused everywhere, so a version range such as `>=2.0.0` or an event condition `gold > 5` cannot be
-  written in one; use `^2`, `=2.0.0` or other wording.
+  `<` and `>` are refused, except in the two fields where Story Block takes them: a version range
+  (`requires.storyBlock`, `>=2.0.0 <3`) and an event's `when` condition (`gold > 5`). Those two still get the script,
+  attribute, link and character-reference checks. Every other string, key and name refuses them, including a
+  screen's `template` and `css`.
 * **Reading it.** Query `packs.rules({ pack? })` → `[{ pack, version, id, name, manifest }]` for the enabled packs that
   have one (rules are never mixed across packs: the reader takes one); `packs.content({ kind: 'rules' })` gives the
   bare manifests; `packs.list` counts them (`counts.rules`) and tags the pack **Rules pack · RPG Battle**, also when
