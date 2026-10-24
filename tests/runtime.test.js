@@ -97,7 +97,7 @@ const ctx = {
 };
 globalThis.SillyTavern = { getContext: () => ctx };
 
-await import('../index.js');
+await import('../index.v1.js');
 const emit = (type, ...args) => ctx.eventSource.emit(eventTypes[type], ...args);
 // (0.9.21) The instructions and this reply's part are two extension prompts; in-chat at depth 0
 // SillyTavern joins them (keys in order) into one system message.

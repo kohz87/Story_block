@@ -1,0 +1,105 @@
+// The game view's layout and the section label (UI stage 5a): the header sits between the bar and the body at every width,
+// the wide layout runs the screens' tabs as a row under the header (not a side column), the phone keeps the bottom bar, and
+// the section label is a label with a hairline in the border token, every rule under :where() at one class.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = path => readFileSync(new URL(`../../../src/v2/view/${path}`, import.meta.url), 'utf8');
+const mounts = read('mounts.css');
+const glass = read('glass.css');
+
+// The declarations of the first rule whose selector is `selector` (the text before its `{`, with the rest of the line).
+const rules = (css, selector) => {
+    const at = css.indexOf(selector);
+    if (at < 0) return [''];
+    const open = css.indexOf('{', at);
+    return [css.slice(open + 1, css.indexOf('}', open))];
+};
+
+test('the header sits between the title bar and the body (its slot is in the mount, the order is in the CSS)', () => {
+    assert.match(mounts, /\.ss-gameview-main \{[^}]*display: contents;/);
+    assert.match(mounts, /\.ss-gameview-hero \{[^}]*flex: none;/);
+    assert.match(mounts, /\.ss-gameview-hero\[hidden\] \{\s*display: none;/);
+});
+
+test('wide screens (from 760px, the line the bar switches at): one row of every screen under the header, the body below, and no side column', () => {
+    const wide = mounts.slice(mounts.indexOf('@media (min-width: 760px) {', mounts.indexOf('.ss-gameview-body {')));
+    assert.match(wide, /\.ss-gameview-nav \{[^}]*order: 2;[^}]*position: static;/);
+    assert.match(wide, /\.ss-gameview-nav \{[^}]*height: 68px;/);
+    assert.match(wide, /\.ss-gameview-body \{\s*order: 3;/);
+    assert.match(wide, /\.ss-gameview-hero \{\s*order: 1;/);
+    assert.doesNotMatch(mounts, /\.ss-gameview \{\s*flex-direction: row;/, 'the game view is a column at every width');
+    assert.doesNotMatch(mounts, /min-width: 768px\) \{\s*\.ss-gameview-bar/, 'one breakpoint for the game view: 760px');
+});
+
+test('the desktop row has no raised pill: the current screen is the accent icon and label with a dot, nothing around it', () => {
+    const current = rules(glass, '.ss-screenbar-item[aria-current="page"] {')[0];
+    assert.doesNotMatch(current, /border|background|box-shadow/, 'no pill, no border, no fill on the current slot');
+    assert.match(rules(glass, '.ss-screenbar-item[aria-current="page"] {')[0], /color: var\(--ss-accent-text\);/, 'the accent label');
+    assert.match(glass, /\.ss-screenbar-item:where\(\[aria-current="page"\]\) > \.ss-screenbar-icon \{[^}]*drop-shadow\(0 0 6px color-mix\(in srgb, var\(--ss-accent\) 55%, transparent\)\)/, 'the soft glow at 55%');
+    assert.match(glass, /\.ss-screenbar-item:where\(\[aria-current="page"\]\) \.ss-screenbar-dot \{\s*opacity: 1;/, 'the dot');
+    assert.doesNotMatch(mounts, /inset 0 -2px 0/, 'no underline on the tabs');
+});
+
+test('the phone keeps the bottom bar: a floating pill of 72px at the foot, the body keeps room for it', () => {
+    const phoneNav = rules(mounts, '.ss-gameview-nav {')[0];
+    assert.match(phoneNav, /position: absolute;/);
+    assert.match(phoneNav, /bottom: calc\(14px \+ env\(safe-area-inset-bottom/);
+    assert.match(phoneNav, /height: 72px;/);
+    const pill = rules(glass, '.ss-screenbar {')[0];
+    assert.match(pill, /border-radius: var\(--ss-radius-xxl\);/, 'radius 26px');
+    assert.match(pill, /backdrop-filter: var\(--ss-blur\);/, 'the glass blur');
+    assert.match(mounts, /\.ss-gameview-body::after \{/, 'the body ends with room for the bar');
+});
+
+test('the section label: a label, a hairline in the rule token, one class of weight under :where()', () => {
+    const label = rules(glass, ') .ss-section-label {')[0];
+    assert.match(label, /text-transform: uppercase;/);
+    assert.match(label, /letter-spacing: 1\.4px;/);
+    assert.match(label, /color: var\(--ss-muted\);/);
+    const line = rules(glass, ') .ss-section-label::after {')[0];
+    assert.match(line, /height: 1px;/);
+    assert.match(line, /background: var\(--ss-rule, var\(--ss-border\)\);/, 'the rule token, the border as fallback');
+    assert.match(line, /flex: 1 1 auto;/, 'the hairline fills the rest of the row');
+    for (const selector of ['.ss-section-label {', '.ss-section-label::after']) {
+        const at = glass.indexOf(selector);
+        const head = glass.slice(glass.lastIndexOf('\n', at - 1) + 1, at);
+        assert.match(head, /^:where\(/, `${selector} is under :where() (no specificity beyond one class)`);
+    }
+});
+
+test('the phone game view has an opaque floor under the tint, so blur off hides the story behind the cards', () => {
+    const phone = mounts.slice(mounts.indexOf('@media (max-width: 759.98px) {', mounts.indexOf('.ss-gameview {')));
+    // Glass only: the phone's floor and layers are tokens the theme sets for Glass; Solid and Follow SillyTavern have none
+    assert.match(phone, /\.ss-gameview \{\s*background-image: var\(--ss-gameview-phone-layers, var\(--ss-sheet-layers, none\)\);/);
+    assert.match(phone, /--ss-gameview-phone-floor, var\(--ss-sheet-bg, rgb\(from var\(--ss-surface\) r g b \/ 1\)\)/);
+    const theme = read('theme.js');
+    assert.match(theme, /\['--ss-sheet-floor', 'rgb\(from var\(--ss-glass-strong\) r g b \/ 1\)'\]/, 'the floor is the Glass colour with no alpha');
+    assert.match(theme, /\['--ss-gameview-phone-layers'/);
+});
+
+test('the phone header shows the scene as one ellipsised line under the name (the corner), not hidden', () => {
+    assert.doesNotMatch(glass, /\.ss-hero-compact \.ss-hero-corner,/, 'the corner is no longer hidden on the compact hero');
+    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*display: flex;[^}]*overflow: hidden;/);
+    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner-text \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+    assert.match(glass, /"portrait text" "vitals vitals"/, "the header: the portrait and one text block (name, class line, place, statuses)");
+});
+
+test('the hero pill never passes its card: it wraps an unbroken word (min-width 0, max-width 100%, overflow-wrap anywhere)', () => {
+    const at = glass.indexOf('.ss-hero-pill {');
+    assert.ok(at > 0);
+    const body = glass.slice(at, glass.indexOf('}', at));
+    assert.match(body, /min-width: 0;/);
+    assert.match(body, /max-width: 100%;/);
+    assert.match(body, /overflow-wrap: anywhere;/);
+});
+
+test('the HUD strip\'s item takes its content\'s width but never more than the strip (a long unbroken place is cut, not scrolled)', () => {
+    const at = mounts.indexOf('.ss-hud-item {');
+    assert.ok(at > 0);
+    const body = mounts.slice(at, mounts.indexOf('}', at));
+    assert.match(body, /width: max-content;/);
+    assert.match(body, /max-width: 100%;/);
+    assert.doesNotMatch(mounts, /min-width: min-content;/, 'no min-content: it kept the item as wide as its longest unbroken text');
+});

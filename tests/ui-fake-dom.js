@@ -109,8 +109,16 @@ class FakeNode {
         while (node.parentNode) node = node.parentNode;
         return node === this.ownerDocument.body;
     }
+    // A browser drops the focus when the focused element, or one inside it, leaves the page (or is moved): the body has it.
+    loseFocusIfInside() {
+        const doc = this.ownerDocument;
+        for (let node = doc?.activeElement; node; node = node.parentNode) {
+            if (node === this) { doc.activeElement = null; return; }
+        }
+    }
     remove() {
         if (!this.parentNode) return;
+        this.loseFocusIfInside();
         const siblings = this.parentNode.childNodes;
         siblings.splice(siblings.indexOf(this), 1);
         this.parentNode = null;
@@ -225,7 +233,7 @@ export class FakeElement extends FakeNode {
     append(...nodes) { nodes.forEach(node => this.appendChild(typeof node === 'string' ? new FakeText(this.ownerDocument, node) : node)); }
     prepend(node) { this.insertBefore(node, this.childNodes[0] ?? null); }
     replaceChildren(...nodes) {
-        this.childNodes.forEach(node => { node.parentNode = null; });
+        this.childNodes.forEach(node => { node.loseFocusIfInside?.(); node.parentNode = null; });
         this.childNodes = [];
         this.html = '';
         this.append(...nodes);
@@ -267,6 +275,9 @@ export class FakeElement extends FakeNode {
             run(node, false);
             if (event.stopped) break;
         }
+        // then the document's bubbling listeners, as on a page (a shared stack's keys), unless something stopped the event
+        const page = this.ownerDocument;
+        if (!event.stopped) for (const entry of [...(page?.listeners ?? [])]) if (entry.type === type && !entry.capture) entry.fn.call(page, event);
         return event;
     }
     click() { return this.dispatch('click'); }
@@ -293,6 +304,8 @@ export function installFakeDom() {
     const doc = {
         activeElement: null,
         createElement: tag => new FakeElement(doc, tag),
+        // SVG (the map draws its routes in one): the same element, with its namespace kept.
+        createElementNS: (namespace, tag) => Object.assign(new FakeElement(doc, tag), { namespaceURI: namespace }),
         createTextNode: text => new FakeText(doc, text),
         querySelectorAll: selector => doc.body.querySelectorAll(selector),
         querySelector: selector => doc.body.querySelector(selector),

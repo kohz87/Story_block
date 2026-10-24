@@ -1,0 +1,352 @@
+// Inventory and wallet commands (§3.2, §7): every success and every rejection; nothing is kept
+// on a rejection.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHarness } from './helpers/fake-ctx.js';
+import { CROWNS, core, stocked } from './fixtures.js';
+
+function setup(hookMap) {
+    const module = core(hookMap);
+    return createHarness([module], { state: stocked(module) });
+}
+
+// A rejection leaves the state exactly as it was.
+function rejects(h, type, payload, code, pattern, opts) {
+    const before = h.state;
+    const result = h.run(type, payload, opts);
+    assert.equal(result.ok, false, `${type} should be rejected`);
+    assert.equal(result.code, code, result.message);
+    if (pattern) assert.match(result.message, pattern);
+    assert.equal(h.state, before, 'nothing kept');
+    return result;
+}
+
+const inv = h => h.state.domains.inventory;
+
+test('grant: from the story onto a matching loose stack', () => {
+    const h = setup();
+    const result = h.run('inventory.grant', { def: 'story/rope', qty: 2 }, { cause: 'story' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(inv(h).stacks.it_rope0001.qty, 5);
+    assert.deepEqual(result.result.data.stacks, ['it_rope0001']);
+    assert.equal(result.result.summary, 'The party gains Rope ×2.');
+    assert.equal(result.result.narrate, false, 'the story already told it');
+    assert.equal(h.state.meta.rev, 1);
+});
+
+test('grant: a different note or owner gets its own stack, with the receipt as origin', () => {
+    const h = setup();
+    const result = h.run('inventory.grant', { def: 'story/rope', note: 'tarred', owner: 'ac_ren00001' }, { cause: 'system' });
+    assert.equal(result.ok, true, result.message);
+    const [id] = result.result.data.stacks;
+    assert.match(id, /^it_[a-z0-9]{8}$/);
+    assert.deepEqual(inv(h).stacks[id], { id, def: 'story/rope', qty: 1, owner: 'ac_ren00001', equipped: null, note: 'tarred', from: result.receiptId });
+});
+
+test('grant: a non-stacking item makes one stack each', () => {
+    const h = setup();
+    const result = h.run('inventory.grant', { def: 'story/lantern', qty: 2 }, { cause: 'story' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.result.data.stacks.length, 2);
+    assert.ok(result.result.data.stacks.every(id => inv(h).stacks[id].qty === 1));
+});
+
+test('grant: by defId; equipment makes one stack per piece', () => {
+    const h = setup();
+    const result = h.run('inventory.grant', { defId: 'pack.fantasy/iron-sword', qty: 2 }, { cause: 'story' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.result.data.stacks.length, 2);
+    assert.ok(!result.result.data.stacks.includes('it_sword001'), 'never joins another piece');
+    assert.ok(result.result.data.stacks.every(id => inv(h).stacks[id].qty === 1));
+});
+
+test('grant: a full def not yet known is added through the hooks, keeping the caller\'s rarity and value', () => {
+    const seen = [];
+    const hooks = { 'item.define': [(definition, about) => { seen.push(about); return { rarity: 'common', value: 1, tags: ['fire'], stats: { ATK: 3 } }; }] };
+    const h = setup(hooks);
+    const piece = { id: 'pack.fantasy/ember-blade', name: 'Ember Blade', kind: 'equipment', slot: 'hand', rarity: 'rare', value: 300, stack: true, junk: 1 };
+    const result = h.run('inventory.grant', { def: piece, qty: 2, owner: 'ac_ren00001', note: 'warm' }, { cause: 'system' });
+    assert.equal(result.ok, true, result.message);
+    const made = inv(h).defs['pack.fantasy/ember-blade'];
+    assert.equal(made.rarity, 'rare');
+    assert.equal(made.value, 300);
+    assert.deepEqual(made.tags, ['fire'], 'other fields are the hooks\' to set');
+    assert.equal(made.stack, false, 'equipment never stacks');
+    assert.equal(made.junk, undefined, 'only def fields are kept');
+    assert.deepEqual(seen, [{ note: 'warm', owner: 'ac_ren00001', scale: 1 }]);
+    assert.equal(result.result.data.stacks.length, 2);
+    assert.equal(inv(h).aliases['ember blade'], 'pack.fantasy/ember-blade');
+    // A def ID already known wins over the fields handed in.
+    const again = h.run('inventory.grant', { def: { ...piece, rarity: 'legendary' } }, { cause: 'system' });
+    assert.equal(again.result.data.created, false);
+    assert.equal(inv(h).defs['pack.fantasy/ember-blade'].rarity, 'rare');
+    // No ID: a story slug.
+    const plain = h.run('inventory.grant', { def: { name: 'Odd Pebble' } }, { cause: 'story' });
+    assert.equal(plain.result.data.def, 'story/odd-pebble');
+    rejects(h, 'inventory.grant', { def: { id: 'Bad ID', name: 'Thing' } }, 'INVALID', /not a well-formed item definition ID/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: { id: 'story/thing' } }, 'INVALID', /needs a name/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: { name: 'Thing', kind: 'food' } }, 'INVALID', /unknown kind/, { cause: 'story' });
+});
+
+test('grant: by name resolves or creates a story def', () => {
+    const h = setup();
+    assert.equal(h.run('inventory.grant', { name: 'ropes' }, { cause: 'story' }).result.data.def, 'story/rope');
+    const made = h.run('inventory.grant', { name: 'Silver Ring' }, { cause: 'story' });
+    assert.equal(made.result.data.def, 'story/silver-ring');
+    assert.equal(made.result.data.created, true);
+});
+
+test('grant: the same ID seeds give the same stack IDs (deterministic)', () => {
+    const a = setup().run('inventory.grant', { def: 'story/rope', note: 'x' }, { cause: 'story', seed: 7 });
+    const b = setup().run('inventory.grant', { def: 'story/rope', note: 'x' }, { cause: 'story', seed: 7 });
+    assert.deepEqual(a.result.data.stacks, b.result.data.stacks);
+});
+
+test('grant: through ctx.call from another module, even from a click', () => {
+    const shop = {
+        id: 'rpg-battle',
+        domains: {},
+        commands: { 'trade.buy': ctx => ctx.call('inventory.grant', { def: 'story/rope' }) },
+    };
+    const module = core();
+    const h = createHarness([module, shop], { state: stocked(module) });
+    const result = h.run('trade.buy', {}, { cause: 'ui' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(inv(h).stacks.it_rope0001.qty, 4);
+});
+
+test('grant rejections', () => {
+    const h = setup();
+    rejects(h, 'inventory.grant', { def: 'story/rope' }, 'REFUSED', /cannot be handed out from a button/, { cause: 'ui' });
+    rejects(h, 'inventory.grant', { def: 'story/nothing' }, 'NOT_FOUND', /no such item/, { cause: 'story' });
+    rejects(h, 'inventory.grant', {}, 'INVALID', /which item/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: 'story/rope', qty: 0 }, 'INVALID', /at least 1/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: 'story/rope', qty: 1.5 }, 'INVALID', /whole number/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: 'story/rope', owner: 'Ren' }, 'INVALID', /party or to one of its people/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: 'story/rope', note: 5 }, 'INVALID', /note must be text/, { cause: 'story' });
+    rejects(h, 'inventory.grant', { def: 'story/lantern', qty: 51 }, 'INVALID', /does not stack/, { cause: 'story' });
+});
+
+test('consume: from a stack; the last one removes the stack', () => {
+    const h = setup();
+    const one = h.run('inventory.consume', { stack: 'it_pota0001' });
+    assert.equal(one.ok, true, one.message);
+    assert.equal(one.result.summary, 'Minor Healing Draught used up (1 left).');
+    assert.equal(inv(h).stacks.it_pota0001.qty, 1);
+    h.run('inventory.consume', { stack: 'it_pota0001' });
+    assert.equal(inv(h).stacks.it_pota0001, undefined, 'a stack at 0 is removed');
+});
+
+test('consume: by def across stacks', () => {
+    const h = setup();
+    const result = h.run('inventory.consume', { def: 'pack.fantasy/potion', qty: 3 });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(inv(h).stacks.it_pota0001, undefined);
+    assert.equal(inv(h).stacks.it_potb0001, undefined);
+});
+
+test('consume rejections', () => {
+    const h = setup();
+    rejects(h, 'inventory.consume', { stack: 'it_pota0001', qty: 3 }, 'NOT_ENOUGH', /only Minor Healing Draught ×2 left/);
+    rejects(h, 'inventory.consume', { def: 'pack.fantasy/potion', qty: 4 }, 'NOT_ENOUGH');
+    rejects(h, 'inventory.consume', { def: 'pack.fantasy/potion', owner: 'ac_ren00001' }, 'NOT_ENOUGH', /no Minor Healing Draught left/);
+    rejects(h, 'inventory.consume', { stack: 'it_gone0001' }, 'NOT_FOUND', /no longer in the inventory/);
+    rejects(h, 'inventory.consume', { def: 'story/nothing' }, 'NOT_FOUND');
+    rejects(h, 'inventory.consume', {}, 'INVALID', /which item/);
+    rejects(h, 'inventory.consume', { stack: 'it_rope0001', qty: -1 }, 'INVALID');
+});
+
+test('transfer: whole stack keeps its ID and is taken off', () => {
+    const h = setup();
+    h.run('inventory.equip', { stack: 'it_sword001' });
+    const result = h.run('inventory.transfer', { stack: 'it_sword001', to: 'ac_ren00001' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(inv(h).stacks.it_sword001.owner, 'ac_ren00001');
+    assert.equal(inv(h).stacks.it_sword001.equipped, null);
+    assert.equal(result.result.summary, 'The party gives Iron Sword to ac_ren00001.');
+});
+
+test('transfer: part of a stack, then onto the matching stack', () => {
+    const module = core();
+    const state = stocked(module);
+    state.domains.party = { actors: { ac_ren00001: { name: 'Ren' } } };
+    const h = createHarness([module, { id: 'rpg-battle', domains: { party: { initial: () => ({}), validate: () => [] } } }], { state });
+    const first = h.run('inventory.transfer', { stack: 'it_rope0001', to: 'ac_ren00001', qty: 1 });
+    assert.equal(first.ok, true, first.message);
+    assert.equal(first.result.summary, 'The party gives Rope to Ren.');
+    const made = first.result.data.stack;
+    assert.notEqual(made, 'it_rope0001');
+    const second = h.run('inventory.transfer', { stack: 'it_rope0001', to: 'ac_ren00001', qty: 2 });
+    assert.equal(second.result.data.stack, made);
+    assert.equal(inv(h).stacks[made].qty, 3);
+    assert.equal(inv(h).stacks.it_rope0001, undefined);
+});
+
+test('transfer rejections', () => {
+    const h = setup();
+    rejects(h, 'inventory.transfer', { stack: 'it_rope0001' }, 'INVALID', /who should get it/);
+    rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'party' }, 'REFUSED', /already with the party/);
+    rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'ac_ren00001', qty: 4 }, 'NOT_ENOUGH');
+    rejects(h, 'inventory.transfer', { stack: 'it_rope0001', to: 'someone' }, 'INVALID');
+    rejects(h, 'inventory.transfer', { stack: 'it_none0001', to: 'ac_ren00001' }, 'NOT_FOUND');
+});
+
+test('drop: all by default, or some', () => {
+    const h = setup();
+    const some = h.run('inventory.drop', { stack: 'it_rope0001', qty: 1 });
+    assert.equal(some.result.summary, 'The party drops Rope.');
+    assert.equal(some.result.narrate, true, 'a click is told in the next reply');
+    assert.equal(inv(h).stacks.it_rope0001.qty, 2);
+    const all = h.run('inventory.drop', { stack: 'it_rope0001' });
+    assert.equal(all.result.summary, 'The party drops Rope ×2.');
+    assert.equal(inv(h).stacks.it_rope0001, undefined);
+});
+
+test('drop rejections', () => {
+    const h = setup();
+    rejects(h, 'inventory.drop', { stack: 'it_rope0001', qty: 9 }, 'NOT_ENOUGH');
+    rejects(h, 'inventory.drop', { stack: 'it_rope0001', qty: 0 }, 'INVALID');
+    rejects(h, 'inventory.drop', {}, 'NOT_FOUND');
+});
+
+test('equip: into its slot, putting away what was there', () => {
+    const h = setup();
+    const first = h.run('inventory.equip', { stack: 'it_sword001' });
+    assert.equal(first.ok, true, first.message);
+    assert.equal(inv(h).stacks.it_sword001.equipped, 'hand');
+    const swap = h.run('inventory.equip', { stack: 'it_dagg0001' });
+    assert.equal(swap.result.summary, 'The party equips Dagger (hand), putting away Iron Sword.');
+    assert.equal(inv(h).stacks.it_sword001.equipped, null);
+    assert.equal(swap.result.data.replaced, 'it_sword001');
+    const other = h.run('inventory.equip', { stack: 'it_sword001', slot: 'off-hand' });
+    assert.equal(other.ok, true, other.message);
+    assert.equal(inv(h).stacks.it_dagg0001.equipped, 'hand');
+});
+
+test('equip: only equipment, and only with a slot', () => {
+    const h = setup();
+    rejects(h, 'inventory.equip', { stack: 'it_rope0001' }, 'REFUSED', /Rope is not equipment/);
+    rejects(h, 'inventory.equip', { stack: 'it_rope0001', slot: 'hand' }, 'REFUSED', /not equipment/);
+    h.run('inventory.equip', { stack: 'it_sword001' });
+    rejects(h, 'inventory.equip', { stack: 'it_sword001' }, 'REFUSED', /already equipped/);
+    rejects(h, 'inventory.equip', { stack: 'it_nope0001' }, 'NOT_FOUND');
+    const slotless = setup();
+    slotless.state = (() => {
+        const state = structuredClone(slotless.state);
+        state.domains.inventory.defs['pack.fantasy/dagger'].slot = null;
+        return state;
+    })();
+    rejects(slotless, 'inventory.equip', { stack: 'it_dagg0001' }, 'REFUSED', /no slot/);
+    rejects(slotless, 'inventory.equip', { stack: 'it_dagg0001', slot: '  ' }, 'REFUSED', /no slot/);
+});
+
+test('unequip', () => {
+    const h = setup();
+    rejects(h, 'inventory.unequip', { stack: 'it_sword001' }, 'REFUSED', /not equipped/);
+    rejects(h, 'inventory.unequip', { stack: 'it_nope0001' }, 'NOT_FOUND');
+    h.run('inventory.equip', { stack: 'it_sword001' });
+    const result = h.run('inventory.unequip', { stack: 'it_sword001' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.result.summary, 'The party takes off Iron Sword.');
+    assert.equal(inv(h).stacks.it_sword001.equipped, null);
+});
+
+test('split', () => {
+    const h = setup();
+    const result = h.run('inventory.split', { stack: 'it_rope0001', qty: 1 });
+    assert.equal(result.ok, true, result.message);
+    const made = result.result.data.made;
+    assert.equal(inv(h).stacks.it_rope0001.qty, 2);
+    assert.equal(inv(h).stacks[made].qty, 1);
+    assert.equal(inv(h).stacks[made].def, 'story/rope');
+    rejects(h, 'inventory.split', { stack: made, qty: 1 }, 'REFUSED', /only one Rope/);
+    rejects(h, 'inventory.split', { stack: 'it_rope0001', qty: 2 }, 'INVALID', /between 1 and 1/);
+    rejects(h, 'inventory.split', { stack: 'it_rope0001' }, 'INVALID');
+    rejects(h, 'inventory.split', { stack: 'it_nope0001', qty: 1 }, 'NOT_FOUND');
+});
+
+test('merge: only alike stacks join', () => {
+    const h = setup();
+    const made = h.run('inventory.split', { stack: 'it_rope0001', qty: 1 }).result.data.made;
+    const result = h.run('inventory.merge', { stack: made, into: 'it_rope0001' });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(inv(h).stacks.it_rope0001.qty, 3);
+    assert.equal(inv(h).stacks[made], undefined);
+
+    rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_rope0001' }, 'INVALID', /itself/);
+    rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_pota0001' }, 'REFUSED', /different items/);
+    rejects(h, 'inventory.merge', { stack: 'it_potb0001', into: 'it_pota0001' }, 'REFUSED', /different notes/);
+    rejects(h, 'inventory.merge', { stack: 'it_rope0001', into: 'it_nope0001' }, 'NOT_FOUND');
+
+    const away = h.run('inventory.split', { stack: 'it_rope0001', qty: 1 }).result.data.made;
+    h.run('inventory.transfer', { stack: away, to: 'ac_ren00001' });
+    rejects(h, 'inventory.merge', { stack: away, into: 'it_rope0001' }, 'REFUSED', /different owners/);
+
+    const lamp = h.run('inventory.grant', { def: 'story/lantern' }, { cause: 'story' }).result.data.stacks[0];
+    rejects(h, 'inventory.merge', { stack: lamp, into: 'it_lant0001' }, 'REFUSED', /does not stack/);
+
+    // Only equipment is worn and equipment never stacks, so a worn/loose pair cannot arise in a valid
+    // state; the rule still holds when a state is handed in that way.
+    const worn = structuredClone(h.state);
+    worn.domains.inventory.stacks.it_rope0001.equipped = 'belt';
+    worn.domains.inventory.stacks.it_ropf0001 = { ...worn.domains.inventory.stacks.it_rope0001, id: 'it_ropf0001', equipped: null };
+    h.state = worn;
+    rejects(h, 'inventory.merge', { stack: 'it_ropf0001', into: 'it_rope0001' }, 'REFUSED', /worn and the other is not/);
+});
+
+// Another module's command (a shop's trade.buy, a reward) asking the wallet through ctx.call.
+const BY_MODULE = { caller: 'rpg-battle' };
+
+test('wallet.pay and wallet.receive: { owner, amount, note? } in the smallest unit', () => {
+    const h = setup();
+    const paid = h.run('wallet.pay', { amount: 25, note: 'the ferry fare' }, BY_MODULE);
+    assert.equal(paid.ok, true, paid.message);
+    assert.equal(paid.result.summary, 'The party pays 25 gold — the ferry fare (100 gold left).');
+    assert.deepEqual(paid.result.data, { owner: 'party', amount: 25, now: 100, note: 'the ferry fare' });
+    assert.equal(h.state.domains.inventory.wallets.party.coin, 100);
+    const got = h.run('wallet.receive', { amount: 5, owner: 'ac_ren00001' }, { cause: 'system' });
+    assert.equal(got.result.summary, 'ac_ren00001 receives 5 gold (now 5 gold).');
+    assert.deepEqual(h.state.domains.inventory.wallets.ac_ren00001, { coin: 5 });
+    // A renamed currency changes the words, not the wallet: still one integer under `coin`.
+    const module = core();
+    const renamed = createHarness([module], { state: stocked(module), settings: { 'story-block': CROWNS } });
+    const result = renamed.run('wallet.receive', { amount: 261 }, { cause: 'story' });
+    assert.equal(result.result.summary, 'The party receives 261 crowns (now 386 crowns).');
+    const marks = createHarness([module], { state: stocked(module), settings: { 'story-block': { currency: 'mark' } } });
+    assert.equal(marks.run('wallet.receive', { amount: 1 }, BY_MODULE).result.summary, 'The party receives 1 mark (now 126 marks).');
+    assert.equal(marks.run('wallet.pay', { amount: 125 }, BY_MODULE).result.summary, 'The party pays 125 marks (1 mark left).');
+    assert.deepEqual(renamed.state.domains.inventory.wallets.party, { coin: 386 });
+});
+
+test('wallet rejections', () => {
+    const h = setup();
+    rejects(h, 'wallet.pay', { amount: 126 }, 'NOT_ENOUGH', /has only 125 gold; 126 gold is needed/, BY_MODULE);
+    rejects(h, 'wallet.pay', { amount: 1, owner: 'ac_ren00001' }, 'NOT_ENOUGH', /only 0 gold/, BY_MODULE);
+    rejects(h, 'wallet.pay', {}, 'INVALID', /amount/, BY_MODULE);
+    rejects(h, 'wallet.pay', { amount: 0 }, 'INVALID', null, BY_MODULE);
+    rejects(h, 'wallet.pay', { amount: 1, note: 7 }, 'INVALID', /note must be text/, BY_MODULE);
+    rejects(h, 'wallet.receive', { amount: 2.5 }, 'INVALID', null, BY_MODULE);
+    rejects(h, 'wallet.receive', { amount: 1, owner: 'nobody' }, 'INVALID', null, BY_MODULE);
+    rejects(h, 'wallet.receive', { amount: Number.MAX_SAFE_INTEGER }, 'INVALID', /more money/, BY_MODULE);
+});
+
+test('wallet.pay and wallet.receive from a button on their own are refused (as inventory.grant is)', () => {
+    const h = setup();
+    rejects(h, 'wallet.receive', { amount: 1000 }, 'REFUSED', /cannot be handed out from a button/);
+    rejects(h, 'wallet.pay', { amount: 5 }, 'REFUSED', /cannot be paid from a button/);
+    for (const opts of [{ cause: 'story' }, { cause: 'system' }, BY_MODULE]) {
+        assert.equal(h.run('wallet.receive', { amount: 1 }, opts).ok, true, JSON.stringify(opts));
+        assert.equal(h.run('wallet.pay', { amount: 1 }, opts).ok, true, JSON.stringify(opts));
+    }
+});
+
+test('handlers draft only their own domains', () => {
+    const intruder = {
+        id: 'intruder',
+        domains: {},
+        commands: { 'x.steal': ctx => { ctx.draft('inventory').wallets.party.coin = 0; } },
+    };
+    const module = core();
+    const h = createHarness([module, intruder], { state: stocked(module) });
+    rejects(h, 'x.steal', {}, 'NOT_OWNER');
+});

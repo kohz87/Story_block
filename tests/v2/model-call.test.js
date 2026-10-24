@@ -1,0 +1,617 @@
+// sdk.callModel and the `profile` settings field (docs/v2/MODULES.md §G): the rules around a module's
+// model call (time limit, abort, one at a time, FEATURE_OFF, errors as results), SillyTavern's two
+// ways to make it (a Connection Manager profile's own request, or generateRaw for the chat's
+// connection) without changing the reader's connection, the dropdown, and the testkit's scripted model.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { installFakeDom } from '../ui-fake-dom.js';
+import { EVENT_TYPES, createHost, createFakeContext, createFakeModel } from '../../testkit/index.js';
+import { MODEL_CALL_ERRORS, MODEL_CALL_TIMEOUT_MS, createCallQueue, createModelCalls, createOwnCalls, listProfiles, promptKey, safeReason, stModelCall } from '../../src/v2/model-call.js';
+import { callsLine } from '../../src/v2/diagnostics.js';
+import { createRuntime } from '../../src/v2/runtime.js';
+import { PROFILE_TEXT, profileChoices } from '../../src/v2/profile-field.js';
+import { createRegistry, definitionProblems } from '../../src/v2/registry.js';
+import { createSettings, settingValue } from '../../src/v2/sdk.js';
+import { renderSettingsHost } from '../../src/v2/host-ui.js';
+
+const doc = installFakeDom();
+
+// A module that plans with its own model call, behind a feature, with a profile setting.
+const planner = (extra = {}) => ({
+    id: 'planner',
+    name: 'Planner',
+    features: [{ id: 'planner.arc', label: 'Arc planning', default: true }],
+    settings: {
+        defaults: { connection: '' },
+        schema: { connection: { type: 'profile', label: 'Planning connection', help: 'Which model plans arcs.' } },
+    },
+    ...extra,
+});
+const other = () => ({ id: 'other', name: 'Other', features: [{ id: 'other.flavour', label: 'Flavour' }] });
+
+// A timer the test fires by hand: { setTimeout, clearTimeout, fire(), last (ms asked), cleared }.
+function handTimer() {
+    const timer = { pending: null, last: null, cleared: 0 };
+    timer.setTimeout = (fn, ms) => { timer.pending = fn; timer.last = ms; return 1; };
+    timer.clearTimeout = () => { timer.cleared += 1; };
+    timer.fire = () => timer.pending?.();
+    return timer;
+}
+
+// A SillyTavern with two Connection Manager profiles (and one it cannot use), recording each request.
+function fakeSt({ cmOff = false, cm = true, profiles = null } = {}) {
+    const requests = [];
+    const raws = [];
+    const ctx = {
+        mainApi: 'openai',
+        chat: [{ is_user: true, mes: 'hello' }],
+        extensionSettings: {
+            disabledExtensions: cmOff ? ['connection-manager'] : [],
+            connectionManager: {
+                selectedProfile: 'p-main',
+                profiles: profiles ?? [
+                    { id: 'p-main', name: 'Main', api: 'openai', 'secret-id': 'sk-secret-main-123456789', 'api-url': 'https://main.example' },
+                    { id: 'p-cheap', name: 'Cheap', api: 'openai', 'secret-id': 'sk-secret-cheap-123456789', 'api-url': 'https://cheap.example' },
+                    { id: 'p-img', name: 'Images only', api: 'sd' },
+                ],
+            },
+        },
+        async generateRaw(options) {
+            raws.push(options);
+            return 'from the chat connection';
+        },
+    };
+    if (cm) {
+        ctx.ConnectionManagerRequestService = {
+            isProfileSupported: profile => profile?.api === 'openai',
+            async sendRequest(id, messages, maxTokens, custom) {
+                requests.push({ id, messages, maxTokens, custom });
+                return { content: `from ${id}` };
+            },
+        };
+    }
+    return { ctx, requests, raws };
+}
+function withSt(st, fn) {
+    const before = globalThis.SillyTavern;
+    globalThis.SillyTavern = { getContext: () => st.ctx };
+    const restore = () => { if (before === undefined) delete globalThis.SillyTavern; else globalThis.SillyTavern = before; };
+    try {
+        const out = fn();
+        if (out && typeof out.then === 'function') return out.finally(restore);
+        restore();
+        return out;
+    } catch (error) {
+        restore();
+        throw error;
+    }
+}
+
+test('success: the module gets the text; the call carries prompt, system, maxTokens and profile; the chat is untouched', async () => {
+    const model = createFakeModel(['Arc: the flooded vault']);
+    const host = await createHost({ callModel: model, modules: [planner()] });
+    const chatBefore = structuredClone(host.ctx.chat);
+    const headBefore = structuredClone(host.head());
+    const result = await host.sdk.callModel({ feature: 'planner.arc', profile: 'Cheap', system: 'You plan arcs.', prompt: 'Plan one.', maxTokens: 500 });
+    assert.deepEqual(result, { ok: true, text: 'Arc: the flooded vault', error: null });
+    assert.deepEqual(model.calls, [{ prompt: 'Plan one.', maxTokens: 500, profile: 'Cheap', system: 'You plan arcs.' }]);
+    assert.deepEqual(host.ctx.chat, chatBefore, 'nothing posted to the chat');
+    assert.deepEqual(host.head(), headBefore, 'nothing stored in the story');
+    // 'chat', empty or left out: the chat's connection (''); maxTokens defaults and is kept in bounds.
+    model.push('a', 'b', 'c');
+    await host.sdk.callModel({ feature: 'planner.arc', profile: 'chat', prompt: 'x' });
+    await host.sdk.callModel({ feature: 'planner.arc', profile: '  CHAT ', prompt: 'x', maxTokens: 1e9 });
+    await host.sdk.callModel({ feature: 'planner.arc', prompt: 'x', maxTokens: -3 });
+    assert.deepEqual(model.calls.slice(1).map(call => [call.profile, call.maxTokens]), [['', 300], ['', 8000], ['', 300]]);
+    host.close();
+});
+
+test('timeout: 60 s by default, configurable per call and per runtime; the call is told to stop', async () => {
+    const timer = handTimer();
+    const model = createFakeModel([{ hang: true }]);
+    const calls = createModelCalls({ call: model, timer, log: () => {} });
+    const pending = calls.callModel({ module: 'planner', prompt: 'Plan.' });
+    await Promise.resolve();
+    assert.equal(timer.last, MODEL_CALL_TIMEOUT_MS);
+    assert.equal(MODEL_CALL_TIMEOUT_MS, 60_000);
+    timer.fire();
+    const result = await pending;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'TIMEOUT');
+    assert.equal(result.text, '');
+    assert.match(result.message, /within 60 s/);
+    assert.equal(model.aborted, 1, 'the request was aborted');
+    assert.equal(calls.busy('planner'), false, 'the slot is free again');
+
+    // Per call (kept inside 1 s – 10 min) and per runtime.
+    model.push({ hang: true }, { hang: true }, { hang: true });
+    const short = calls.callModel({ module: 'planner', prompt: 'Plan.', timeoutMs: 5_000 });
+    await Promise.resolve();
+    assert.equal(timer.last, 5_000);
+    timer.fire();
+    assert.equal((await short).error, 'TIMEOUT');
+    const tiny = calls.callModel({ module: 'planner', prompt: 'Plan.', timeoutMs: 5 });
+    await Promise.resolve();
+    assert.equal(timer.last, 1_000);
+    timer.fire();
+    await tiny;
+    const own = createModelCalls({ call: model, timer, log: () => {}, timeoutMs: 20_000 });
+    const viaRuntime = own.callModel({ module: 'planner', prompt: 'Plan.' });
+    await Promise.resolve();
+    assert.equal(timer.last, 20_000);
+    timer.fire();
+    assert.equal((await viaRuntime).error, 'TIMEOUT');
+
+    // Through the host, with a real (short) limit.
+    const host = await createHost({ callModel: createFakeModel([{ hang: true }]), modules: [planner()] });
+    const late = await host.sdk.callModel({ feature: 'planner.arc', prompt: 'Plan.', timeoutMs: 1_000 });
+    assert.equal(late.error, 'TIMEOUT');
+    host.close();
+});
+
+test('abort through signal: ABORTED at once, the request cut off; an already aborted signal makes no call', async () => {
+    const model = createFakeModel([{ hang: true }]);
+    const host = await createHost({ callModel: model, modules: [planner()] });
+    const controller = new AbortController();
+    const pending = host.sdk.callModel({ feature: 'planner.arc', prompt: 'Plan.', signal: controller.signal });
+    await Promise.resolve();
+    controller.abort();
+    const result = await pending;
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'ABORTED');
+    assert.equal(model.aborted, 1);
+    assert.equal(model.pending(), 0);
+
+    const gone = new AbortController();
+    gone.abort();
+    const before = model.calls.length;
+    assert.equal((await host.sdk.callModel({ feature: 'planner.arc', prompt: 'Plan.', signal: gone.signal })).error, 'ABORTED');
+    assert.equal(model.calls.length, before, 'no call made');
+    // Free again for the next one.
+    model.push('ok');
+    assert.equal((await host.sdk.callModel({ feature: 'planner.arc', prompt: 'Plan.' })).text, 'ok');
+    host.close();
+});
+
+test('one call at a time per module: a second is refused (BUSY); another module is not held up', async () => {
+    const model = createFakeModel([{ text: 'first', delayMs: 30 }, 'flavour', 'third']);
+    const host = await createHost({ callModel: model, modules: [planner(), other()] });
+    const first = host.sdk.callModel({ feature: 'planner.arc', prompt: 'one' });
+    const second = await host.sdk.callModel({ feature: 'planner.arc', prompt: 'two' });
+    assert.equal(second.ok, false);
+    assert.equal(second.error, 'BUSY');
+    assert.match(second.message, /planner already has a model call on its way/);
+    // The same module named directly shares the slot; another module has its own.
+    assert.equal((await host.sdk.callModel({ module: 'planner', prompt: 'two' })).error, 'BUSY');
+    const flavour = await host.sdk.callModel({ feature: 'other.flavour', prompt: 'look' });
+    assert.deepEqual(flavour, { ok: true, text: 'flavour', error: null });
+    assert.equal((await first).text, 'first');
+    assert.equal((await host.sdk.callModel({ feature: 'planner.arc', prompt: 'three' })).text, 'third', 'free after the first answered');
+    assert.deepEqual(model.calls.map(call => call.prompt), ['one', 'look', 'three'], 'the refused calls never reached the model');
+    host.close();
+});
+
+test('FEATURE_OFF while the calling module\'s feature is off (and for an id no module declares); on again, it calls', async () => {
+    const model = createFakeModel(['planned']);
+    const host = await createHost({ callModel: model, modules: [planner()] });
+    host.features.set('planner.arc', false);
+    const off = await host.sdk.callModel({ feature: 'planner.arc', prompt: 'Plan.' });
+    assert.equal(off.ok, false);
+    assert.equal(off.error, 'FEATURE_OFF');
+    assert.match(off.message, /"planner\.arc" is turned off/);
+    assert.equal((await host.sdk.callModel({ feature: 'nobody.thing', prompt: 'Plan.' })).error, 'FEATURE_OFF');
+    assert.equal(model.calls.length, 0);
+    host.features.set('planner.arc', true);
+    assert.equal((await host.sdk.callModel({ feature: 'planner.arc', prompt: 'Plan.' })).text, 'planned');
+    host.close();
+});
+
+test('errors come back as results, never thrown; the log holds module, profile, time and outcome only', async () => {
+    const lines = [];
+    const model = createFakeModel([
+        new Error('API request failed: 401 invalid key sk-proj-abcdefghijklmnopqrstuvwxyz0123\nheaders: …'),
+        () => { throw 'plain string'; },
+        '   ',
+        { text: 'kept' },
+    ]);
+    const calls = createModelCalls({ call: model, log: line => lines.push(line), featureModule: id => id.split('.')[0] });
+    const failed = await calls.callModel({ feature: 'planner.arc', profile: 'Cheap', prompt: 'SECRET PROMPT' });
+    assert.equal(failed.error, 'FAILED');
+    assert.doesNotMatch(failed.message, /sk-proj|abcdefghijklmnop|headers/, 'nothing key-like, one line');
+    assert.equal((await calls.callModel({ feature: 'planner.arc', prompt: 'x' })).error, 'FAILED');
+    assert.equal((await calls.callModel({ feature: 'planner.arc', prompt: 'x' })).error, 'EMPTY');
+    assert.equal((await calls.callModel({ feature: 'planner.arc', prompt: 'x' })).text, 'kept');
+    for (const bad of [undefined, null, 'text', { prompt: '' }, { prompt: '   ' }, { prompt: 42 }, { prompt: 'x', system: 3 }]) {
+        const result = await calls.callModel(bad);
+        assert.equal(result.ok, false);
+        assert.equal(result.error, 'BAD_REQUEST');
+    }
+    const broken = createModelCalls({ call: null, log: () => {} });
+    assert.equal((await broken.callModel({ prompt: 'x' })).error, 'FAILED');
+    assert.equal((await createModelCalls({ call: model, featureOn: () => { throw new Error('x'); }, log: () => {} }).callModel({ feature: 'a.b', prompt: 'x' })).error, 'FEATURE_OFF');
+    assert.equal(lines.length, 11);
+    assert.match(lines[0], /^\[Story Suite\] model call: planner, Cheap, \d+ ms, FAILED$/);
+    assert.match(lines[3], /^\[Story Suite\] model call: planner, the chat's connection, \d+ ms, ok$/);
+    assert.ok(lines.every(line => !/SECRET|sk-|kept|invalid/.test(line)), 'never the prompt, answer or error words');
+    assert.equal(safeReason({ cause: { message: 'Bearer abcdefghijklmnop1234 refused' } }), '… refused');
+    // An sdk with no model call says so.
+    const host = await createHost({ modules: [planner()] });
+    const { createSdk } = await import('../../src/v2/sdk.js');
+    const bare = createSdk({ store: host.store, bus: host.bus, registry: host.registry, settings: host.settings }).sdk;
+    assert.equal((await bare.callModel({ prompt: 'x' })).error, 'UNAVAILABLE');
+    const throwing = createSdk({ store: host.store, bus: host.bus, registry: host.registry, settings: host.settings, callModel: () => { throw new Error('boom'); } }).sdk;
+    assert.equal((await throwing.callModel({ prompt: 'x' })).error, 'FAILED');
+    host.close();
+});
+
+test('SillyTavern: a profile is called directly with its own settings; the reader\'s connection is never switched', async () => {
+    const st = fakeSt();
+    const before = structuredClone({ mainApi: st.ctx.mainApi, cm: st.ctx.extensionSettings.connectionManager });
+    await withSt(st, async () => {
+        const controller = new AbortController();
+        assert.equal(await stModelCall('Plan.', { profile: 'cheap', system: 'You plan.', maxTokens: 400, signal: controller.signal }), 'from p-cheap');
+        assert.equal(await stModelCall('Plan.', { profile: 'p-cheap' }), 'from p-cheap', 'an id works too');
+        assert.deepEqual(st.requests[0].messages, [{ role: 'system', content: 'You plan.' }, { role: 'user', content: 'Plan.' }]);
+        assert.equal(st.requests[0].maxTokens, 400);
+        assert.equal(st.requests[0].custom.signal, controller.signal, 'the signal reaches the request');
+        assert.equal(st.requests[0].custom.stream, false);
+        assert.deepEqual(st.requests[1].messages, [{ role: 'user', content: 'Plan.' }]);
+        // The chat's connection: generateRaw, no chat, the system text and the length.
+        assert.equal(await stModelCall('Plan.', { profile: 'chat', system: 'You plan.', maxTokens: 120 }), 'from the chat connection');
+        assert.equal(await stModelCall('Plan.', {}), 'from the chat connection');
+        assert.deepEqual(st.raws[0], { prompt: 'Plan.', systemPrompt: 'You plan.', responseLength: 120 });
+        // A missing profile is an error, never the chat's connection in its place.
+        await assert.rejects(stModelCall('Plan.', { profile: 'Gone' }), error => error.code === 'NO_PROFILE' && /no connection profile called "Gone"/.test(error.message));
+    });
+    assert.deepEqual({ mainApi: st.ctx.mainApi, cm: st.ctx.extensionSettings.connectionManager }, before, 'selected profile, profiles and API unchanged');
+    assert.equal(st.ctx.chat.length, 1);
+
+    for (const [options, why] of [[{ cmOff: true }, /turned off/], [{ cm: false }, /no Connection Manager/]]) {
+        const off = fakeSt(options);
+        await withSt(off, async () => {
+            await assert.rejects(stModelCall('x', { profile: 'Cheap' }), error => error.code === 'NO_PROFILE' && why.test(error.message));
+            assert.equal(await stModelCall('x', { profile: '' }), 'from the chat connection');
+        });
+    }
+    // Through the runtime (no callModel option): SillyTavern's own call, with the rules around it.
+    const live = fakeSt();
+    await withSt(live, async () => {
+        const host = await createHost({ modules: [planner()] });
+        const result = await host.sdk.callModel({ feature: 'planner.arc', profile: 'Cheap', prompt: 'Plan.' });
+        assert.deepEqual(result, { ok: true, text: 'from p-cheap', error: null });
+        const gone = await host.sdk.callModel({ feature: 'planner.arc', profile: 'Gone', prompt: 'Plan.' });
+        assert.equal(gone.error, 'NO_PROFILE');
+        host.close();
+    });
+});
+
+test('listProfiles: the usable profiles by name, id and name only; a plain reason without a Connection Manager', () => {
+    const list = listProfiles(fakeSt().ctx);
+    assert.deepEqual(list, { usable: true, why: '', profiles: [{ id: 'p-cheap', name: 'Cheap' }, { id: 'p-main', name: 'Main' }] });
+    assert.doesNotMatch(JSON.stringify(list), /secret|example/);
+    assert.equal(listProfiles(fakeSt({ cmOff: true }).ctx).usable, false);
+    assert.match(listProfiles(fakeSt({ cmOff: true }).ctx).why, /turned off/);
+    assert.match(listProfiles(fakeSt({ cm: false }).ctx).why, /no Connection Manager/);
+    assert.equal(listProfiles(null).usable, false);
+});
+
+test('the profile field: a dropdown of the profiles plus "Same as chat", stores the name, a plain note when there are none', () => {
+    const registry = createRegistry();
+    assert.deepEqual(definitionProblems(planner()), []);
+    registry.register(planner());
+    const es = {};
+    const settings = createSettings({ root: () => es, registry });
+    const fieldRow = root => root.querySelectorAll('details.story-suite-fold')
+        .find(fold => fold.dataset.fold === 'planner').querySelector('.story-suite-row[data-field="connection"]');
+    const draw = st => withSt(st, () => {
+        const root = doc.createElement('div');
+        renderSettingsHost(root, { registry, settings, doc });
+        return fieldRow(root);
+    });
+
+    const row = draw(fakeSt());
+    assert.equal(row.dataset.type, 'profile');
+    assert.equal(row.querySelector('b').textContent, 'Planning connection');
+    const select = row.querySelector('select');
+    assert.deepEqual(select.querySelectorAll('option').map(node => [node.value, node.textContent]), [['', 'Same as chat'], ['Cheap', 'Cheap'], ['Main', 'Main']]);
+    assert.equal(select.value, '');
+    assert.equal(row.querySelector('.story-suite-profile-note'), null, 'nothing to say');
+    select.value = 'Cheap';
+    select.dispatch('change');
+    assert.equal(settings('planner').connection, 'Cheap', 'the name is stored');
+    assert.equal(draw(fakeSt()).querySelector('select').value, 'Cheap');
+
+    // Stored values are names: trimmed, cut at 100, 'chat' is the chat's connection.
+    assert.equal(settings.set('planner', 'connection', '  chat '), '');
+    assert.equal(settings.set('planner', 'connection', `  ${'x'.repeat(150)} `).length, 100);
+    assert.equal(settingValue({ type: 'profile' }, 42), '');
+
+    // A stored profile that is gone stays, marked, with a note.
+    settings.set('planner', 'connection', 'Retired');
+    const gone = draw(fakeSt());
+    assert.deepEqual(gone.querySelectorAll('option').map(node => node.textContent), ['Same as chat', 'Cheap', 'Main', 'Retired (not found)']);
+    assert.equal(gone.querySelector('select').value, 'Retired');
+    assert.match(gone.querySelector('.story-suite-profile-note').textContent, /"Retired" is not in the Connection Manager any more/);
+
+    // No profiles; Connection Manager off; none at all.
+    settings.set('planner', 'connection', '');
+    const none = draw(fakeSt({ profiles: [] }));
+    assert.deepEqual(none.querySelectorAll('option').map(node => node.textContent), ['Same as chat']);
+    assert.equal(none.querySelector('.story-suite-profile-note').textContent, PROFILE_TEXT.none);
+    assert.match(draw(fakeSt({ cmOff: true })).querySelector('.story-suite-profile-note').textContent, /Connection Profiles is turned off/);
+    assert.match(draw(fakeSt({ cm: false })).querySelector('.story-suite-profile-note').textContent, /no Connection Manager/);
+    assert.deepEqual(profileChoices('', { usable: false, why: '', profiles: [] }).note, PROFILE_TEXT.none);
+});
+
+test('testkit: createFakeModel scripts answers, errors, computed answers, delays and hangs', async () => {
+    const model = createFakeModel(['one', new Error('down'), call => `echo ${call.prompt}`, { text: 'later', delayMs: 5 }], { fallback: 'none' });
+    assert.equal(await model('a', { maxTokens: 10 }), 'one');
+    await assert.rejects(model('b'), /down/);
+    assert.equal(await model('c'), 'echo c');
+    assert.equal(await model('d'), 'later');
+    assert.equal(await model('e'), 'none', 'the fallback once the script is spent');
+    assert.deepEqual(model.calls.map(call => call.prompt), ['a', 'b', 'c', 'd', 'e']);
+    assert.deepEqual(model.calls[0], { prompt: 'a', maxTokens: 10, profile: '', system: '' });
+    model.push({ hang: true });
+    const controller = new AbortController();
+    const hung = model('f', { signal: controller.signal });
+    assert.equal(model.pending(), 1);
+    controller.abort();
+    await assert.rejects(hung, error => error.name === 'AbortError');
+    assert.equal(model.pending(), 0);
+    assert.equal(model.aborted, 1);
+    // It also stands in for the assist helpers' call (same option), and works with the module alone.
+    const host = await createHost({ callModel: createFakeModel(['solo']), modules: [planner()] });
+    assert.equal((await host.sdk.callModel({ feature: 'planner.arc', prompt: 'p' })).text, 'solo');
+    host.close();
+});
+
+// ---- the chat's connection and the reader's reply (own calls marked; sdk calls wait for the reply) ----
+
+// A runtime on the fake SillyTavern, wired as the testkit's host is, whose model call on the chat's connection
+// behaves as generateRaw does: SillyTavern's prompt-ready event for its own short chat, then the answer.
+async function rawHost({ modules = [], hold = null } = {}) {
+    const st = createFakeContext({});
+    const ctx = st.ctx;
+    const seen = { calls: [], interceptor: 0 };
+    const callModel = async (prompt, { profile = '', system = '' } = {}) => {
+        seen.calls.push({ prompt, profile, at: rt?.turn.replyBusy() });
+        if (!profile) {
+            const chat = [{ role: 'system', content: system }, { role: 'user', content: prompt }];
+            await ctx.eventSource.emit(EVENT_TYPES.CHAT_COMPLETION_PROMPT_READY, { chat, dryRun: false });
+            seen.lastChat = chat;
+        }
+        return `answer to ${prompt}`;
+    };
+    const rt = createRuntime({ ctx, modules, callModel, notify: () => {} });
+    rt.turn.install({ globalName: null });
+    st.interceptor = async (...args) => {
+        seen.interceptor += 1;
+        await rt.turn.interceptor(...args);
+        if (hold) await hold(rt);
+    };
+    await rt.turn.onChatChanged();
+    rt.markReady();
+    return { st, ctx, rt, seen };
+}
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('own calls: a chat-connection call\'s prompt during a reply\'s build is never taken for the reply\'s', async () => {
+    let own = null;
+    const { st, rt, seen } = await rawHost({
+        modules: [planner()],
+        // Between the reply's interceptor and its prompt: our own raw call's prompt-ready comes first.
+        hold: async runtime => {
+            assert.equal(runtime.turn.session().prompted, false);
+            own = await runtime.ownCalls.around('Plan the next arc for the story.', () => ownRawCall());
+            assert.equal(runtime.turn.session().prompted, false, 'the reply\'s session did not take our prompt');
+        },
+    });
+    async function ownRawCall() {
+        const chat = [{ role: 'system', content: 'You plan.' }, { role: 'user', content: 'Plan the next arc for the story.' }];
+        await st.ctx.eventSource.emit(EVENT_TYPES.CHAT_COMPLETION_PROMPT_READY, { chat, dryRun: false });
+        seen.ownChat = chat;
+        return 'arc';
+    }
+    const result = await st.send('Hello.', 'Hi there.');
+    assert.equal(own, 'arc');
+    assert.equal(seen.interceptor, 1, 'only the reply ran the interceptor');
+    assert.equal(seen.ownChat.length, 2, 'nothing of Story Suite\'s added to our call\'s chat');
+    assert.ok(!JSON.stringify(seen.ownChat).includes('Changes'), 'no notes in our prompt');
+    assert.equal(result.index, 2, 'the reply came');
+    assert.equal(rt.turn.session(), null, 'and was received as the reply');
+    assert.equal(rt.turn.replyBusy(), false);
+
+    // The matching itself: by the prompt's macro-free key, once; never a long chat; a short prompt by position.
+    const calls = createOwnCalls();
+    assert.equal(promptKey('{{char}} meets {{user}}\nPlan the next arc, three beats.'), 'Plan the next arc, three beats.');
+    assert.equal(promptKey('Hi {{user}}'), '');
+    await calls.around('Plan the next arc for {{user}}.', async () => {
+        assert.equal(calls.owns({ chat: Array.from({ length: 6 }, () => ({ role: 'user', content: 'Plan the next arc for Ann.' })) }), false, 'a long chat is the reply\'s');
+        assert.equal(calls.owns({ chat: [{ role: 'user', content: 'Plan the next arc for Ann.' }] }), true);
+        assert.equal(calls.owns({ chat: [{ role: 'user', content: 'Plan the next arc for Ann.' }] }), false, 'matched once');
+    });
+    await calls.around('Go', async () => {
+        assert.equal(calls.owns({ prompt: 'Go' }), false, 'a short prompt never takes a text prompt');
+        assert.equal(calls.owns({ chat: [{ role: 'user', content: 'Go' }] }), true);
+    });
+    assert.equal(calls.owns({ chat: [{ role: 'user', content: 'anything' }] }), false, 'none in flight');
+    assert.equal(calls.size(), 0);
+});
+
+test('a chat-connection sdk.callModel waits while a reply is built or awaited, runs after it; a named profile goes at once', async () => {
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    const gated = {
+        id: 'gated', name: 'Gated',
+        features: [{ id: 'gated.plan', label: 'Plan' }],
+        hooks: { beforeGenerate: async () => { await held; } },
+    };
+    const { st, rt, seen } = await rawHost({ modules: [gated] });
+    const reply = st.send('Hello.', 'Hi there.');
+    while (!rt.turn.replyBusy()) await tick();
+    // The reply's build is held in its beforeGenerate hook: a call on the chat's connection waits.
+    const queued = rt.sdk.callModel({ feature: 'gated.plan', prompt: 'Plan the next arc for the story.' });
+    const named = await rt.sdk.callModel({ module: 'other', profile: 'Cheap', prompt: 'Describe a rat, briefly.' });
+    assert.deepEqual(named, { ok: true, text: 'answer to Describe a rat, briefly.', error: null }, 'a named profile is not queued');
+    await tick();
+    assert.deepEqual(seen.calls.map(call => call.prompt), ['Describe a rat, briefly.'], 'the chat-connection call has not run');
+    release();
+    const done = await reply;
+    assert.equal(done.index, 2);
+    const result = await queued;
+    assert.equal(result.text, 'answer to Plan the next arc for the story.');
+    assert.equal(seen.calls[1].at, false, 'it ran once the reply was received');
+    assert.equal(seen.interceptor, 1, 'it never hit the interceptor');
+    assert.equal(seen.lastChat.length, 2, 'and was not taken for the reply');
+    // While the reader is idle it goes at once; a queued call keeps its time limit and abort.
+    assert.equal((await rt.sdk.callModel({ feature: 'gated.plan', prompt: 'Once more, please.' })).ok, true);
+    let again;
+    const second = new Promise(resolve => { again = resolve; });
+    gated.hooks.beforeGenerate = async () => { await second; };
+    const reply2 = st.send('Again.', 'Fine.');
+    while (!rt.turn.replyBusy()) await tick();
+    const controller = new AbortController();
+    const waiting = rt.sdk.callModel({ feature: 'gated.plan', prompt: 'Plan the next arc for the story.', signal: controller.signal });
+    await tick();
+    controller.abort();
+    assert.equal((await waiting).error, 'ABORTED');
+    again();
+    await reply2;
+    assert.equal(seen.calls.length, 3, 'the cancelled call never ran');
+});
+
+test('the reply stops counting as in progress when it is received, ended, stopped, held back or the chat changes', async () => {
+    const { st, rt } = await rawHost({ modules: [planner()] });
+    let resolved = false;
+    rt.turn.whenIdle().then(() => { resolved = true; });
+    await tick();
+    assert.equal(resolved, true, 'idle at once');
+    await st.send('Hello.', 'Hi.');
+    assert.equal(rt.turn.replyBusy(), false);
+    await st.send('Stop it.', 'Hi', { stopped: true });
+    assert.equal(rt.turn.replyBusy(), false);
+    await st.generate('quiet', { reply: 'x' });
+    assert.equal(rt.turn.replyBusy(), false, 'a quiet generation is not the reply');
+    // Held back by a module: idle again.
+    const blocker = await rawHost({ modules: [{ id: 'gate', name: 'Gate', hooks: { canGenerate: () => ({ ok: false, reason: 'Make a character first.' }) } }] });
+    const out = await blocker.st.send('Go.', 'never');
+    assert.equal(out.aborted, true);
+    assert.equal(blocker.rt.turn.replyBusy(), false);
+});
+
+// ---- one queue per connection (createCallQueue) ----------------------------------------------------
+
+// A fake call per prompt: it starts when called and ends when its test says so.
+function heldCalls() {
+    const started = [];
+    const ends = new Map();
+    const call = (prompt, { profile, signal }) => new Promise((resolve, reject) => {
+        started.push(`${profile || 'chat'}:${prompt}`);
+        ends.set(prompt, resolve);
+        signal?.addEventListener?.('abort', () => reject(new Error('aborted')), { once: true });
+    });
+    return { call, started, end: (prompt, text = `answer ${prompt}`) => ends.get(prompt)?.(text) };
+}
+const later = () => new Promise(resolve => setTimeout(resolve, 0));
+
+test('queue: calls on the same profile run one at a time, in order; different profiles run side by side', async () => {
+    const fake = heldCalls();
+    const calls = createModelCalls({ call: fake.call, log: () => {} });
+    const a = calls.callModel({ prompt: 'a', profile: 'Local', module: 'm1' });
+    const b = calls.callModel({ prompt: 'b', profile: 'Local', module: 'm2' });
+    const c = calls.callModel({ prompt: 'c', profile: 'Local', module: 'm3' });
+    const d = calls.callModel({ prompt: 'd', profile: 'Cloud', module: 'm4' });
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Cloud:d'], 'b and c wait; the other profile goes at once');
+    assert.equal(calls.queue.stats().waiting, 2);
+    fake.end('a');
+    assert.equal((await a).text, 'answer a');
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Cloud:d', 'Local:b']);
+    fake.end('b');
+    fake.end('d');
+    await b;
+    await later();
+    fake.end('c');
+    assert.equal((await c).ok, true);
+    assert.equal((await d).ok, true);
+    assert.deepEqual(fake.started, ['Local:a', 'Cloud:d', 'Local:b', 'Local:c']);
+    const stats = calls.queue.stats();
+    assert.equal(stats.waiting, 0);
+    assert.equal(stats.waited, 2);
+    assert.ok(stats.longestMs >= 0);
+});
+
+test('queue: a queued call that runs out of time leaves the queue and is never made; the next one still runs', async () => {
+    const fake = heldCalls();
+    const calls = createModelCalls({ call: fake.call, log: () => {} });
+    const a = calls.callModel({ prompt: 'a', profile: 'Local', module: 'm1', timeoutMs: 5000 });
+    const b = calls.callModel({ prompt: 'b', profile: 'Local', module: 'm2', timeoutMs: 1000 });
+    const c = calls.callModel({ prompt: 'c', profile: 'Local', module: 'm3', timeoutMs: 5000 });
+    const late = await b;
+    assert.equal(late.error, MODEL_CALL_ERRORS.TIMEOUT);
+    assert.equal(calls.queue.stats().waiting, 1, 'b left the queue');
+    fake.end('a');
+    await a;
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Local:c'], 'b was never made');
+    fake.end('c');
+    assert.equal((await c).ok, true);
+});
+
+test('queue: a cancelled call (waiting or running) frees its place; the queue setting off runs calls at once', async () => {
+    const fake = heldCalls();
+    const calls = createModelCalls({ call: fake.call, log: () => {} });
+    const stopA = new AbortController();
+    const stopB = new AbortController();
+    const a = calls.callModel({ prompt: 'a', profile: 'Local', module: 'm1', signal: stopA.signal });
+    const b = calls.callModel({ prompt: 'b', profile: 'Local', module: 'm2', signal: stopB.signal });
+    const c = calls.callModel({ prompt: 'c', profile: 'Local', module: 'm3' });
+    await later();
+    stopB.abort();
+    assert.equal((await b).error, MODEL_CALL_ERRORS.ABORTED);
+    stopA.abort();
+    assert.equal((await a).error, MODEL_CALL_ERRORS.ABORTED);
+    await later();
+    assert.deepEqual(fake.started, ['Local:a', 'Local:c'], 'a running call cancelled frees the connection; b never ran');
+    fake.end('c');
+    assert.equal((await c).ok, true);
+
+    let on = false;
+    const free = heldCalls();
+    const loose = createModelCalls({ call: free.call, log: () => {}, queue: createCallQueue({ enabled: () => on }) });
+    loose.callModel({ prompt: 'x', profile: 'Local', module: 'm1' });
+    loose.callModel({ prompt: 'y', profile: 'Local', module: 'm2' });
+    await later();
+    assert.deepEqual(free.started, ['Local:x', 'Local:y'], 'off: side by side');
+    assert.equal(loose.queue.stats().on, false);
+    free.end('x');
+    free.end('y');
+    on = true;
+});
+
+test('queue: the chat\'s connection waits for an idle chat before it takes its place, so a waiting call never holds it', async () => {
+    const fake = heldCalls();
+    let idle;
+    const gate = { whenIdle: () => new Promise(resolve => { idle = resolve; }) };
+    const calls = createModelCalls({ call: fake.call, log: () => {}, gate });
+    const waiting = calls.callModel({ prompt: 'scan', module: 'delta' });
+    // The host's own call (the pre-roll while a reply is prepared) skips the idle wait and is not held up.
+    const own = calls.callModel({ prompt: 'pre', module: 'story-block (pre-roll)' }, { idle: false });
+    await later();
+    assert.deepEqual(fake.started, ['chat:pre']);
+    fake.end('pre');
+    assert.equal((await own).ok, true);
+    idle();
+    await later();
+    assert.deepEqual(fake.started, ['chat:pre', 'chat:scan']);
+    fake.end('scan');
+    assert.equal((await waiting).ok, true);
+});
+
+test('diagnostics: the queue line names counts and waits only', () => {
+    assert.equal(callsLine({ on: true, waiting: 2, running: 1, waited: 3, waitedMs: 2400, longestMs: 1200, lanes: { Local: 2 } }),
+        'One at a time per connection: on. Waiting now: 2 on 1 connection. Running: 1. Calls that waited: 3, 2.4 s in all, longest 1.2 s.');
+    assert.match(callsLine(null), /unknown/);
+});
