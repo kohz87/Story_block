@@ -164,6 +164,10 @@ reconcile that rewrites a checkpoint stores the prefix it has now. `covers` (the
 before it), `coverHash` (for guarded windows) and `guardEnv` (the owners) are further checks when they are there. When
 no checkpoint holds there is **no state to start from** (`head()` is `null` until `ensureInitial` starts the chat again
 from the state the deleted replies ended with); the latest checkpoint is never taken unchecked.
+A checkpoint also **carries the Problems of the blocks that are off in front of it** (`carried`: the sid of the record, the
+block's position, why and its code), so a reload that starts from it still tells the reader that a block no longer applies;
+the message index is looked up again from the sid, so it follows a deleted user message. A Re-read or reconcile that rewrites
+a checkpoint rewrites what it carries. The Problems after a rebuild are those of a full replay.
 If the replies before the first reply that is left are gone and this session never saw them (a reload) and a checkpoint
 is left, that checkpoint cannot be checked: `ensureInitial` does **not** adopt it or reset the story. The saved history is
 kept as it is, the chat is read-only on an empty story (`store.readOnly().kind === 'unresolved'`) and a Problem offers

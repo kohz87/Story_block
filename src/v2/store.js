@@ -666,9 +666,13 @@ export function createStore({
     // already skipped on the chat as it stands stay skipped (a guarded one is asked again). Guarded system
     // blocks with a `replan` are planned again when `rerun` is given. → { state, writes: [[message, record]],
     // planned } (`writes`: the checkpoints made true again and the records that were planned again).
-    function walkSuffix(arr, state, first, { rerun = null, overlay }) {
-        const broken = new Set(replay(arr, lastCarrier(arr)).problems
+    function walkSuffix(arr, state, first, { rerun = null, overlay, prior = null }) {
+        const known = replay(arr, lastCarrier(arr)).problems;
+        const broken = new Set(known
             .filter(problem => problem.code !== 'REPLAY_PREREQUISITE').map(problem => `${problem.index}:${problem.block}`));
+        // The Problems so far, for the checkpoints rewritten on the way (`carried`): those before the walk, then each record's.
+        const acc = prior ?? known.filter(problem => problem.index < first);
+        const sidAtNow = i => (overlay.get(i) ?? readRecord(arr[i]) ?? arr[i]?.extra?.[KEY])?.sid;
         const writes = [];
         const counted = { planned: 0, removed: 0 };
         let planned = false;
@@ -689,6 +693,10 @@ export function createStore({
                 running = out.running;
                 const refusing = failed.filter(problem => problem.code !== 'REPLAY_PREREQUISITE');
                 if (refusing.length) throw new Error(`A later change (message ${i}) depends on this reply's old story changes: ${refusing[0].why}`);
+                const snapshot = packProblems(acc, sidAtNow);      // (before this record: what a checkpoint here carries)
+                // A block that stays skipped is passed over without a try: its Problem is the one it had.
+                for (const old of known) if (old.index === i && broken.has(`${old.index}:${old.block}`) && !failed.some(problem => problem.block === old.block)) failed.push(old);
+                acc.push(...failed);
                 const { planned: made = 0, removed: gone = 0, ...fields } = out.fields ?? {};
                 if (out.fields) {
                     planned = true;
@@ -700,6 +708,8 @@ export function createStore({
                 if (checkpoint) {
                     if (guardedBefore) next.guardEnv = markNow();
                     else delete next.guardEnv;
+                    if (snapshot.length) next.carried = snapshot;
+                    else delete next.carried;
                 }
                 overlay.set(i, next);
                 writes.push([arr[i], next]);
@@ -868,6 +878,39 @@ export function createStore({
         return { from, since, members, history };
     }
 
+    // The Problems of blocks before a checkpoint ride with it (`carried`), so a replay that starts from the checkpoint still
+    // reports a block that is off in front of it: by the sid of the record it was on (a message index moves when a user
+    // message is deleted), the block's position, why and its code.
+    const problemText = (index, why, code) => (code === 'DAMAGED'
+        ? `The story record on message ${index} is damaged and was skipped: ${why}.`
+        : `Some changes stored on message ${index} no longer apply and were skipped: ${why}`);
+    const rawSidAt = (arr, i) => (readRecord(arr[i]) ?? arr[i]?.extra?.[KEY])?.sid;
+    function packProblems(problems, sidAt) {
+        const out = [];
+        for (const problem of problems) {
+            const sid = sidAt(problem.index);
+            if (typeof sid !== 'string') continue;
+            out.push({ sid, block: problem.block ?? null, receipts: [...(problem.receipts ?? [])], why: String(problem.why), ...(problem.code ? { code: problem.code } : {}) });
+        }
+        return out;
+    }
+    function unpackProblems(arr, before, carried) {
+        if (!Array.isArray(carried) || !carried.length) return [];
+        const at = new Map();
+        for (let i = 0; i < before && i < arr.length; i++) {
+            const sid = rawSidAt(arr, i);
+            if (typeof sid === 'string' && isCarrier(arr[i])) at.set(sid, i);
+        }
+        const out = [];
+        for (const each of carried) {
+            if (!isObject(each) || !at.has(each.sid)) continue;
+            const index = at.get(each.sid);
+            out.push({ index, block: each.block ?? null, receipts: Array.isArray(each.receipts) ? [...each.receipts] : [], why: String(each.why),
+                message: problemText(index, each.why, each.code), ...(each.code ? { code: each.code } : {}) });
+        }
+        return out;
+    }
+
     // State after the last carrier at or before `upTo`, or null when no checkpoint precedes it. A block
     // of ops that no longer applies (a hand-edited chat, a middle reply deleted) is skipped and reported
     // on its own, so a bad change cannot take the rest of its carrier, or anything later, with it.
@@ -875,12 +918,11 @@ export function createStore({
         counts.replays++;
         const { from } = chain(arr, upTo);
         // A damaged record (B-b2-timeline-7) is skipped, and said so.
-        const problems = [];
+        const problems = from >= 0 ? unpackProblems(arr, from, readRecord(arr[from]).carried) : [];
         for (let i = Math.max(from, 0); i <= upTo && i < arr.length; i++) {
             const fault = recordFault(arr[i]);
             if (fault) {
-                problems.push({ index: i, block: null, receipts: [], why: fault, code: 'DAMAGED',
-                    message: `The story record on message ${i} is damaged and was skipped: ${fault}.` });
+                problems.push({ index: i, block: null, receipts: [], why: fault, code: 'DAMAGED', message: problemText(i, fault, 'DAMAGED') });
             }
         }
         if (from < 0) return { state: null, problems };
@@ -1245,6 +1287,9 @@ export function createStore({
                 const { since, members, history } = chain(arr, index - 1);
                 record.checkpoint = structuredClone(base);
                 record.prefix = spineBefore(arr, index);
+                const prior = index === lastCarrier(arr) ? current().problems : replay(arr, index - 1).problems;
+                const carried = packProblems(prior.filter(problem => problem.index < index), i => rawSidAt(arr, i));
+                if (carried.length) record.carried = carried;
                 record.covers = since;
                 if (history) record.guardEnv = markNow();
                 const hash = windowHash(arr, members);
@@ -1403,13 +1448,13 @@ export function createStore({
                 if (i === first) continue;
                 const record = readRecord(arr[i]);
                 if (!record?.checkpoint) continue;
-                const { checkpoint: gone, covers, coverHash, guardEnv, prefix, ...rest } = record;
-                void gone; void covers; void coverHash; void guardEnv; void prefix;
+                const { checkpoint: gone, covers, coverHash, guardEnv, prefix, carried, ...rest } = record;
+                void gone; void covers; void coverHash; void guardEnv; void prefix; void carried;
                 write(arr[i], rest);
             }
             const own = readRecord(message);
-            const { covers, coverHash, guardEnv, prefix, ...rest } = own ?? {};
-            void covers; void coverHash; void guardEnv; void prefix;
+            const { covers, coverHash, guardEnv, prefix, carried, ...rest } = own ?? {};
+            void covers; void coverHash; void guardEnv; void prefix; void carried;
             write(message, own
                 ? { ...rest, checkpoint, rev: revOf(checkpoint) }
                 : { v: 2, sid: sidFor(message), checkpoint, ops: [], receipts: [], narrated: [], spans: [], rev: revOf(checkpoint) });
@@ -1423,8 +1468,8 @@ export function createStore({
             if (kept?.kind !== 'unresolved') throw new Error('There is no unresolved start to keep a saved point of.');
             if (confirmed !== true) throw new Error('Keeping the earliest saved point needs the reader\'s confirmation.');
             const arr = list();
-            const { covers, coverHash, prefix, ...rest } = readRecord(arr[kept.index]);
-            void covers; void coverHash; void prefix;     // (the first record there is: trusted as the start, whatever was in front of it)
+            const { covers, coverHash, prefix, carried, ...rest } = readRecord(arr[kept.index]);
+            void covers; void coverHash; void prefix; void carried;     // (the first record there is: trusted as the start, whatever was in front of it)
             write(arr[kept.index], rest);
             saver.touch();
             cache = null;
@@ -1466,8 +1511,8 @@ export function createStore({
             if (!carried && carrierIndexes(arr).some(i => readRecord(arr[i])?.checkpoint)) return keepAside();
             const checkpoint = carried ?? structuredClone(initialState);
             const own = readRecord(message);
-            const { covers, coverHash, prefix, ...base } = own ?? {};
-            void covers; void coverHash; void prefix;
+            const { covers, coverHash, prefix, carried: droppedProblems, ...base } = own ?? {};
+            void covers; void coverHash; void prefix; void droppedProblems;
             const record = own
                 ? { ...base, sid: typeof own.sid === 'string' ? own.sid : sidFor(message), checkpoint,
                     rev: Number.isInteger(own.rev) ? own.rev : revOf(checkpoint) }
@@ -1721,6 +1766,7 @@ export function createStore({
                 nextParts.push({ ops: fresh, span });
             }
             const keptSpans = [];
+            const keptProblems = [];       // this reply's blocks that stay off (the checkpoints after it carry them)
             const moved = new Map();
             // The afterCapture steps run again, right after the new story ops (their revs follow them).
             for (const ran of resettle ? settled : []) {
@@ -1787,6 +1833,7 @@ export function createStore({
                 } catch (error) {
                     if (!guarded || again) throw fail(error);
                     state = skipped(state, blockOps);
+                    keptProblems.push({ index, block: storySpans.length + keptSpans.length, receipts: receiptsOf({ receipts: keptReceipts }, block), why: String(error?.message ?? error), code: 'REPLAY_PREREQUISITE' });
                 }
                 let span = { n: blockOps.length, story: false };
                 try {
@@ -1820,7 +1867,8 @@ export function createStore({
             const writes = [[message, rewritten]];
             // Later blocks that were already skipped stay skipped (a guarded block that is inactive is asked again);
             // one that applied before must still apply.
-            const walked = walkSuffix(arr, state, index + 1, { rerun, overlay: new Map([[index, rewritten]]) });
+            const prior = [...replay(arr, index - 1).problems.filter(problem => problem.index < index), ...keptProblems];
+            const walked = walkSuffix(arr, state, index + 1, { rerun, overlay: new Map([[index, rewritten]]), prior });
             writes.push(...walked.writes);
             for (const [target, next] of writes) write(target, next);
             saver.touch();

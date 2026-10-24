@@ -548,3 +548,45 @@ test('F: selecting a swipe that was made before a Re-read numbers its revs on, s
     assert.equal(host.head().meta.rev, receipts.at(-1));
     assert.equal(host.head().domains.gt.lost.ac_00000001, 5);
 });
+
+test('P: a block that is off before a checkpoint is still reported after a reload that starts from the checkpoint', () => {
+    const h = harness([guarded()], SMALL3);
+    h.send('u1', 'r1');
+    assert.equal(h.command('gt.quick', { id: Q1 }).ok, true);
+    h.send('u2', 'r2');
+    h.command('gt.hit', { actor: 'ac_00000001', amount: 1 });
+    // Opened where its owner is not there: the quick is off, with a Problem.
+    const g = guarded();
+    const absent = [{ ...g, hooks: {} }];
+    let fresh = 0x2000;
+    const open = chat => {
+        const other = harness(absent, { ...SMALL3, recordId: () => `sw_${(++fresh).toString(16).padStart(12, '0')}` });
+        other.chat.splice(0, other.chat.length, ...clone(chat));
+        other.store.rebuild();
+        return other;
+    };
+    const a = open(h.chat);
+    assert.equal(a.gt().coin, 0);
+    const key = list => list.map(problem => [problem.index, problem.block, problem.code]);
+    const first = key(a.problems());
+    assert.ok(first.some(entry => entry[2] === 'REPLAY_PREREQUISITE'));
+    // The chat goes on until a reply carries a checkpoint of its own.
+    for (let n = 3; n <= 7; n++) {
+        a.send(`u${n}`, `r${n}`);
+        a.command('gt.hit', { actor: 'ac_00000001', amount: 1 });
+    }
+    const newest = a.chat.findLastIndex(message => message.extra?.storySuite?.checkpoint);
+    assert.ok(newest > 3, 'a checkpoint on a later reply');
+    assert.ok(a.record(newest).carried?.length, 'it carries the Problem of the block that is off');
+    const live = key(a.problems());
+    // A reload reads from that checkpoint, and reports the same as a full replay does.
+    const reloaded = open(a.chat);
+    const full = open(clone(a.chat).map((message, i) => {
+        if (i && message.extra?.storySuite) { delete message.extra.storySuite.checkpoint; delete message.extra.storySuite.prefix; delete message.extra.storySuite.covers; delete message.extra.storySuite.carried; }
+        return message;
+    }));
+    assert.deepEqual(key(reloaded.problems()), key(full.problems()));
+    assert.deepEqual(key(reloaded.problems()), live);
+    assert.ok(key(reloaded.problems()).length >= 1);
+    assert.match(reloaded.problems()[0].message, /no longer apply/);
+});
