@@ -46,7 +46,7 @@ a story already told.
   "calendar": { "era": "CY", "months": [{ "name": "Dawnwane", "days": 30 }], "start": { "year": 611, "month": "Dawnwane", "day": 1 } },
   "content": { "items": [], "creatures": [], "shops": [], "recipes": [], "events": [], "quests": [],
                "races": [], "talents": [], "skills": [], "presets": [], "places": [], "routes": [],
-               "terms": [], "ranks": [], "crafts": [], "meterPresets": [], "markets": [] },
+               "terms": [], "ranks": [], "crafts": [], "meterPresets": [], "markets": [], "rules": [] },
   "start": { "scene": { … }, "inventory": { … } },
   "screens": [],
   "layouts": [],
@@ -399,6 +399,33 @@ Code moves stages; the story can't set one.
 
 Only these fields are allowed, and a pack holds at most 4 presets.
 
+### rules (a rules pack)
+
+`content.rules` holds **one** manifest: RPG Battle's rules for the pack (classes, skills with their branch graph,
+item rules, trainers). The format is the rules pack schema 2 of the [contract](contract/RB_CONTRACT.md) §7, checked
+by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader treats it.
+
+* **Declare it.** A pack with `content.rules` must list `rb-rules-v2` in `requires.capabilities`. Story Block 2 has
+  that capability itself (`HOST_CAPABILITIES`), so a pack that needs a host without it is refused with
+  `MISSING_CAPABILITY` once the host knows its capabilities (and checked for form only while it does not). An older
+  Story Block does not know the kind and refuses the pack with `UNKNOWN_KIND`.
+* **Opt-in.** Only a pack with the manifest meets the checker. Without it, `creatures` and `quests` stay free-form
+  records (see above) and nothing about them changes. With it, the checker owns the schema-2 shapes of `creatures`
+  (foes), `quests`, `shops` and `recipes`: closed records (a legacy `moves`, `template`, `difficulty`, `detail` and the
+  like are refused, never dropped), every reference resolved inside the pack (a skill, an item, a place, a foe), and the
+  branch graph (24 written and 12 generated forms per advanced class) complete. Refusals keep the checker's own
+  codes and paths (`bad-ref`, `branch-graph`, `numeric-only-branch`, `envelope-unknown`, `numeric-range` …; the list
+  is `RULES_V2_ERROR_CODES`). Items and the old-format `content.skills` keep their strict old checks; a v2 skill lives
+  inside the manifest. A recipe's `craft` must still be a default craft or one of the pack's `crafts`.
+* **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
+  `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
+  creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's
+  `known` filled in). The raw pack is what stays in settings. `validatePack` also returns `rulesHash` and `packHash`.
+* **Reading it.** Query `packs.rules({ pack? })` → `[{ pack, version, id, name, manifest }]` for the enabled packs that
+  have one (rules are never mixed across packs: the reader takes one); `packs.content({ kind: 'rules' })` gives the
+  bare manifests; `packs.list` counts them (`counts.rules`) and tags the pack **Rules pack · RPG Battle**, also when
+  it names Story Director too (its quests and places). The Packs list shows "1 rules set".
+
 ## Value guide
 
 ### Coins
@@ -626,6 +653,7 @@ The importer lists up to 20 problems per pack, each in plain words with where it
 | `BAD_START`, `BAD_SCREENS`, `BAD_LAYOUTS`, `BAD_THEME` | `start`, `screens`, `layouts`, `theme`. |
 | `BAD_CALENDAR` | `calendar`. |
 | `BAD_ECONOMY` | `economy`. |
+| `bad-ref`, `branch-graph`, `tier-chain`, `numeric-range` … | A pack with `content.rules`: the rules checker's own codes (see rules). |
 
 `content.crafts`, `content.meterPresets` and a recipe's crafting fields use the content codes
 (`BAD_CONTENT`, `BAD_RECORD`, `DUPLICATE`, `UNKNOWN_FIELD`, `UNKNOWN_REF`).
@@ -656,6 +684,8 @@ The packs part (`src/v2/packs/index.js`) offers these through Story Block's core
   `null` (see Weather);
 * query `packs.economy` → `{ pack, scale, note }` from the first enabled pack with an `economy`, or `null`.
   Read the settled scale through Story Block's `inventory.economy` (it applies the reader's override);
+* query `packs.rules({ pack? })` → `[{ pack, version, id, name, manifest }]` for the enabled packs with a rules
+  manifest, in list order (see rules). `kind: 'rules'` of `packs.content` gives the bare manifests;
 * query `packs.item({ name })` and hook `item.resolve(name)` → the pack item def (SPEC §7 fields)
   for a story name, or `null`;
 * query `packs.start` and hook `start()` → the merged start: `{ scene: { place, present },

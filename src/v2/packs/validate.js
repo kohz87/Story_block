@@ -11,6 +11,13 @@
 // Options: `hostVersion` (Story Block's version, checked against requires.storyBlock) and
 // `capabilities` (the capability names this Story Block has, or null when unknown: then
 // requires.capabilities is checked for form only).
+//
+// A pack with a rules manifest (`content.rules`, RB_CONTRACT §7; PACKS.md "Rules packs") goes through the
+// rules checker (rules-v2.js) first, on the raw data and before any record is wrapped. Only then does the
+// normal pass below run, and for such a pack it takes the definitions the manifest owns (creatures, quests,
+// shops, recipes) from the checker's resolved tables, nested slugs written as full IDs. A pack without the
+// manifest never meets the checker: its creatures and quests stay open records, as they always were.
+// The result then also carries `rulesHash` and `packHash` (the checker's two hashes).
 
 import { CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
@@ -21,6 +28,9 @@ import { MAX_LOOP_DEPTH, templateShape } from '../view/template/index.js';
 import { MAX_JSON_DEPTH } from '../view/template/json.js';
 import { MAX_AT_DEPTH, cssDepth, sheetEscape } from '../view/css.js';
 import { MAX_COINS, MAX_COIN_VALUE, coinsOf } from '../domains/money.js';
+// rules-v2.js imports this file back (it checks the rest of a pack with validatePack); both only use the
+// other's exports when called, never while loading, so the cycle is harmless.
+import { validateRulesPack } from './rules-v2.js';
 
 export const HOST_VERSION = '2.0.0';
 
@@ -56,17 +66,25 @@ export function validatePack(input, { hostVersion = HOST_VERSION, capabilities =
     const raw = JSON.parse(JSON.stringify(value));
     if (byteLength(JSON.stringify(raw)) > limits.packBytes) return fail('TOO_LARGE', '', `The pack is larger than ${Math.round(limits.packBytes / 1024)} KB.`);
 
+    // A rules manifest is checked on the raw data, before any wrapping; its errors are the checker's own (code and path).
+    let rules = null;
+    if (isObject(raw.content) && raw.content.rules !== undefined) {
+        rules = validateRulesPack(raw, { capabilities });
+        if (!rules.ok) return { ok: false, errors: rules.errors.slice(0, limits.errors) };
+    }
+
     const errors = [];
     const add = (code, path, message) => { if (errors.length < limits.errors) errors.push({ code, path, message }); };
-    const pack = normalize(raw, { add, hostVersion, capabilities, limits });
-    return errors.length ? { ok: false, errors } : { ok: true, pack, raw };
+    const pack = normalize(raw, { add, hostVersion, capabilities, limits, rules });
+    if (errors.length) return { ok: false, errors };
+    return rules ? { ok: true, pack, raw, rulesHash: rules.rulesHash, packHash: rules.packHash } : { ok: true, pack, raw };
 }
 
 function fail(code, path, message) {
     return { ok: false, errors: [{ code, path, message }] };
 }
 
-function normalize(raw, { add, hostVersion, capabilities, limits }) {
+function normalize(raw, { add, hostVersion, capabilities, limits, rules = null }) {
     for (const key of Object.keys(raw)) if (!PACK_FIELDS.includes(key)) add('UNKNOWN_FIELD', key, `"${key}" is not a pack field (expected ${PACK_FIELDS.join(', ')}).`);
 
     const id = raw.id;
@@ -92,14 +110,16 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
     const items = records(given.items, 'items', { add, packId, check: (record, path, label) => checkItem(record, path, label, add) });
     content.items = items;
     const ref = itemRefs(items, packId);
-    content.creatures = records(given.creatures, 'creatures', { add, packId, check: openRecord });
-    content.shops = records(given.shops, 'shops', { add, packId, check: (record, path) => checkShop(record, path, add, ref) });
+    // With a rules manifest the checker has vetted the definitions it owns; they are stored as it resolved them.
+    const resolved = table => (rules ? ownedBody(rules.resolved, table, packId, add) : null);
+    content.creatures = records(given.creatures, 'creatures', { add, packId, check: resolved('foes') ?? openRecord });
+    content.shops = records(given.shops, 'shops', { add, packId, check: (record, path) => owned(checkShop(record, path, add, ref), record, path, resolved('shops')) });
     // Crafts before recipes: a recipe's `craft` is a default craft or one this pack declares.
     const crafts = given.crafts === undefined ? null : checkCrafts(given.crafts, packId, add);
     const craftIds = new Set([...DEFAULT_CRAFTS.map(craft => craft.craft), ...(crafts ?? []).map(craft => craft.slug)]);
-    content.recipes = records(given.recipes, 'recipes', { add, packId, check: (record, path) => checkRecipe(record, path, add, ref, craftIds) });
+    content.recipes = records(given.recipes, 'recipes', { add, packId, check: (record, path) => owned(checkRecipe(record, path, add, ref, craftIds), record, path, resolved('recipes')) });
     content.events = records(given.events, 'events', { add, packId, check: (record, path) => checkEvent(record, path, add), slugField: 'id' });
-    content.quests = records(given.quests, 'quests', { add, packId, check: openRecord });
+    content.quests = records(given.quests, 'quests', { add, packId, check: resolved('quests') ?? openRecord });
     content.races = records(given.races, 'races', { add, packId, check: (record, path, label) => checkChoice(record, path, label, add), slugField: 'id', named: true });
     content.talents = records(given.talents, 'talents', { add, packId, check: (record, path, label) => checkChoice(record, path, label, add), slugField: 'id', named: true });
     linkEvents(content.events, packId, add);
@@ -121,6 +141,9 @@ function normalize(raw, { add, hostVersion, capabilities, limits }) {
     if (given.ranks !== undefined) content.ranks = checkRanks(given.ranks, packId, add);
     if (given.markets !== undefined) content.markets = checkMarkets(given.markets, packId, add);
     if (crafts !== null) content.crafts = crafts;
+    // The manifest itself: one record, wrapped like any other (name and slug, so `pack.<id>/rules`); the id, slug and
+    // pack are the host's and sit outside what the checker's closed schema allows, which is why they were left off it.
+    if (rules) content.rules = records(rules.pack.content.rules, 'rules', { add, packId, check: manifest => bare(manifest) });
     if (given.meterPresets !== undefined) {
         if (Array.isArray(given.meterPresets) && given.meterPresets.length > METER_LIMITS.presets) add('BAD_CONTENT', 'content.meterPresets', `content.meterPresets holds at most ${METER_LIMITS.presets} presets.`);
         else content.meterPresets = records(given.meterPresets, 'meterPresets', { add, packId, check: (record, path) => checkMeterPreset(record, path, add), slugField: 'id', named: false });
@@ -221,6 +244,29 @@ function records(list, kind, { add, packId, check, slugField = 'slug', named = s
 function openRecord(record) {
     const { slug: _slug, id: _id, pack: _pack, ...rest } = record;
     return { ...rest, name: oneLine(record.name, LIMITS.name) };
+}
+
+// A record without the host's wrapper fields (records() adds them back).
+function bare(record) {
+    const { slug: _slug, id: _id, pack: _pack, ...rest } = record;
+    return rest;
+}
+
+// The body of a definition a rules manifest owns, as the checker resolved it (full IDs, defaults applied): `table` is
+// the resolved table (foes, quests, shops, recipes), found by the record's pack ID. A record the checker did not resolve
+// is an error, never a record that quietly goes missing.
+function ownedBody(resolved, table, packId, add) {
+    return (record, path) => {
+        const found = resolved?.[table]?.[fullId(packId, record.slug)];
+        if (!found) add('BAD_RECORD', path, `${path} was not resolved by the rules checker.`);
+        return found ? bare(found) : null;
+    };
+}
+
+// A shop or recipe: it still has to pass the old check (a stock line's item, a recipe's craft), and with a rules manifest its
+// body is then the checker's.
+function owned(old, record, path, body) {
+    return old && body ? body(record, path) : old;
 }
 
 function checkItem(record, path, label, add) {
