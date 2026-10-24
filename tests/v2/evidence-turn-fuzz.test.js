@@ -19,7 +19,8 @@ const text = (narration, lines) => `${narration}\n\n<Changes>\n${lines.join('\n'
 async function run(t, seed, steps) {
     const r = prng(seed);
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director({ after: true }), fighter()], core: false });
+    let host = null;
+    host = await createHost({ modules: [link.def, director({ after: 'accepted', checks: true, sidAt: index => host.store.carrierSid(index) }), fighter()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     t.mock.method(console, 'warn', () => {});
@@ -28,10 +29,10 @@ async function run(t, seed, steps) {
     const ask = args => host.sdk.query('story.evidence', args);
     const log = [];
     let most = 0;
-    const continued = new Set();   // the logical replies that were Continued: each part had a step after it, a Re-read asks once
-    const lines = () => Array.from({ length: r.int(0, 3) }, () => (r.chance(0.7)
+    // (checks of one id with the same or other numbers: several proofs of one key, with no parents, in one reply)
+    const lines = () => Array.from({ length: r.int(0, 4) }, () => (r.chance(0.5)
         ? `! accept ${r.pick([T1, T2])} | words: ${r.pick(WORDS)}`
-        : `! kill ${r.pick(['Wolf', 'Bear'])} | after: ${r.pick([T1, T2])}`));
+        : r.chance(0.5) ? `! kill ${r.pick(['Wolf', 'Bear'])} | after: ${r.pick([T1, T2])}` : `! check ck_check001 | dc: ${r.pick([10, 11, 12])}`));
     const reply = tag => text(`Reply ${tag}.`, lines());
     const lastReply = () => host.ctx.chat.findLastIndex(message => !message.is_user && message !== host.ctx.chat[0]);
 
@@ -70,23 +71,22 @@ async function run(t, seed, steps) {
             await host.swipe(reply(`swipe ${step}`));
         } else if (kind === 4 && at > 0) {
             log.push(`${step}: continue`);
-            continued.add(host.store.carrierSid(at));
             await host.cont(text(` More ${step}.`, lines()));
         } else if (kind === 5 && at > 0) {
             // Re-read of text that did not change: every proof stays as it was.
             log.push(`${step}: re-read, unchanged`);
             // (A block planned again has an ordinal of its own; the proof, its id, kind, hash and parents, is the same: every id of every
-            // block stays, each step on the id it had, and no proof is lost. A reply that was Continued had a step after each part.)
-            const sid = host.store.carrierSid(at);
-            const plain = () => JSON.stringify(ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]));
+            // block stays, each step on the id it had, and no proof is lost, a Continued reply included.)
+            // (as a set: a Continued reply had its steps between its parts, a Re-read puts them after its lines)
+            const plain = () => JSON.stringify(ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]).sort((x, y) => (x[0] < y[0] ? -1 : 1)));
             const before = plain();
             const result = await host.turn.reread(at);
-            if (result.ok && !continued.has(sid) && plain() !== before) {
+            if (result.ok && plain() !== before) {
                 const was = JSON.parse(before).map(item => item.join('|').slice(0, 40));
                 const now = JSON.parse(plain()).map(item => item.join('|').slice(0, 40));
                 log.push(`  was ${was.filter(x => !now.includes(x)).join(' ; ')}`, `  now ${now.filter(x => !was.includes(x)).join(' ; ')}`);
             }
-            if (result.ok && !continued.has(sid)) assert.equal(plain(), before, `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
+            if (result.ok) assert.equal(plain(), before, `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
         } else if (kind === 6 && at > 0) {
             log.push(`${step}: edit, re-read`);
             const message = host.ctx.chat[at];

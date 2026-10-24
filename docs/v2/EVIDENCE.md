@@ -56,22 +56,28 @@ other contents it is `CONFLICT`. Two identical opaque payloads in one root are *
 payloads can repeat (two kills of the same foe in one reply) must carry a field that tells them apart (a counter, the
 target's id). Note for RPG Battle's payloads (B3/B6).
 
-The `id` is derived from the reply's evidence id (`Source.evidence`) and the key, then salted past an id that another
-block of the chat holds (so the second proof of one key on a reply is its next occurrence). It does not depend on the
-block or its ordinal, so:
+The `id` is derived from **what the block that gives the proof is**, so no id is chosen by looking at other blocks: it is
+the hash of the reply's evidence id (`Source.evidence`), the block's operation, the block's rank among blocks of its reply that
+did the same, and the proof's key. The operation is the root's command and, for a story line, the line as written (the text of
+the line, as the replay core names a line); for a step, its command and payload; for a click, its command and payload. The
+rank is the number of blocks before it in its reply with that very operation (two lines with the same text, two steps with the
+same command and payload), counted in the order the blocks stand in the reply. Two different blocks of a chat differ in one of
+these, so they cannot give one id, and nothing is matched, salted or reserved:
 
 * a new swipe has a new evidence id, so **fresh proof ids**;
-* an edit alone changes no id; a Re-read that finds the same line gives the same id back, so a guarded click that was built
-  on the proof is still built on it. If the line's payload changed, the id is the same and the bytes are not: the pin
-  differs, and what was built on the old bytes is hidden;
-* **an id has one owner, the block that holds it.** A block planned again (a Re-read's line or step, a step a reconcile plans
-  again) may take back only the ids of the proof it replaces, matched by kind and key and by place among those of that key
-  (the k-th proof of a key in the new block takes the k-th old one of that key), never an id because the reply as a whole is
-  being replaced. Every other id any block holds, in the same reply or not, applied or only able to apply, is kept for that
-  block, and a proof with no old one to take back is salted past all of them. So an unchanged Re-read changes no id and loses
-  no proof, also when a step stays at a salted id because the proof before it in its key went away and another step of the
-  key has been added since. A plan that would still end on an id an applied block owns (a hand-edited file) is refused before
-  it applies and before it publishes: the block stays as it was, and being replaced never excuses a collision;
+* an edit alone changes no id. **A Re-read of a line whose text changed reads another line**: its proof has a new id, the old id
+  shows nothing, and what was built on the old id (a click, a later step that recorded it as its parent) is hidden, a guarded
+  block off, until the text is put back, when the old id, and with it everything built on it, is back. A step the hook asks
+  for again on the same reply builds on the new proof; a step recorded on a later reply with the old id as its parent cannot
+  follow (its owner's replan says `NO_LONGER_DONE` or its guard no longer holds). A Re-read of text that did not change gives
+  every proof of every block the id it had, a Continued reply included;
+* a block planned again (a Re-read's line or step, a step a reconcile plans again) works its ids out from the same operation
+  and rank, and so gets its own back. It may hold an id it already holds and no other: an id another block holds (a file edited by
+  hand) is a `CONFLICT` at the call, and a plan that would still end on an id a block that applied already owns is refused before
+  it applies and before it publishes, the block staying as it was;
+* two blocks of one reply with exactly the same operation are told apart by their rank among them. When an earlier one of them
+  goes (a step taken back), the later ones take its rank at the next plan, which is the one thing that can move an id without the
+  text of a line changing;
 * two roots that give the same key are two proofs with two ids (a second click is a second proof).
 
 The Source (and its `ordinal`) of a proof is that of the block that gave it, so a block planned again has a new ordinal
@@ -136,16 +142,17 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   decides nothing about another block's proof. **A proof id belongs to the block that applied with it first**: a later
   block (a hand-edited record, or a block another reply gave) whose proof takes the same id is an ownership collision and is
   not applied (`REPLAY_PREREQUISITE`, "already belongs to a block that applied"). Before the first checkpoint a replay starts
-  from, replay did not look at the blocks, so they are listed if they could apply, and of two that give one id the first
-  listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
+  from, replay did not look at the blocks, so they are listed if they could apply less the blocks the checkpoint carries as off
+  (its `carried` Problems: the account of them replay gave when it made the checkpoint), and of two that are both on and give one id
+  the first listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
   take an id from any of them, since a block that is off may come back.
 * **A guard may ask `story.evidence`** in the context a replay gives it (REPLAY.md "Guards are pure"), whoever owns the guard: the query reads the
   pins in the state before the block and the proof of the blocks that applied before it, which is the prefix and nothing else.
 * **What a guard sees during a Re-read or a reconcile** is exactly the set of blocks that have applied so far, counted once, from
   the walk's own base: the blocks before the walk's first record that replay applied (or, when the walk starts before the
   checkpoint the head replays from, the blocks that could apply before it), then each block the walk applies. A block's proof is
-  published to the guards only after the block applied: one that was refused, collided or is off publishes nothing, so it cannot
-  shadow the owner.
+  published to the guards only after the block applied **and its guard accepted it** (a plan whose guard would not hold on replay is
+  not stored): one that was refused, collided or is off publishes nothing, so it cannot shadow the owner it leaves in place.
 * Every change of every block, legacy or guarded, is checked (below) before any change is rebased or passed over (a change marked as
   inside a holder that is not there is otherwise dropped quietly). A block with a change that is not a change applies nothing.
 * A change that is not a change (not an object, an op that is not add, replace or remove, no path or one that does not read,

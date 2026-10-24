@@ -11,7 +11,10 @@
 //   sd.cyclic { depth? }            a visit proof whose payload contains itself (or is nested `depth` deep).
 //   `! check <id> | dc: n` (capture, with `after: 'check'`) gives a check (event) proof; sd.afterCheck { parent } is the guarded step
 //                                   afterCapture asks for on the first check, planned again by a Re-read or a reconcile.
+//   sd.setting {}                   a replanned step whose guard follows `mode` as read when it is planned (a refused plan leaves the old block).
 //   sd.dependent { parent }         a guarded system step with a replan that says NO_LONGER_DONE when its parent proof is not shown.
+//   `director({ after: 'accepted', sidAt })`  afterCapture asks for one sd.after on each acceptance of the reply that has none yet.
+//   `director({ checks: true })`            the `! check` line without the step.
 //   `director({ after: 'each', wanted })`   afterCapture asks for one sd.dependent on each visit whose place is in `wanted`.
 //   sd.after { parent }             the step afterCapture asks for (`director({ after: true })`): a visit on `parent`, planned again by a Re-read.
 //   sd.many { specs, chain? }       calls ctx.proof once for each spec, as given (`chain`: each later one names
@@ -59,7 +62,7 @@ function many(ctx, { specs, chain = false }) {
     return { summary: `Gave ${out.length} proofs.`, narrate: false, data: { proofs: out } };
 }
 
-export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false, wanted = [] } = {}) {
+export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false, wanted = [], checks = false, sidAt = null } = {}) {
     const accept = (ctx, { thread, selection, words, parents }) => {
         const payload = selection !== undefined ? { thread, selection } : { thread, words };
         const made = ctx.proof({ kind: 'acceptance', payload, ...(parents ? { parents } : {}) });
@@ -112,6 +115,13 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ parent }), predicate: { kind: 'needs', parent } });
                 return { summary: 'Dependent.', narrate: false, replan: true, data: { made } };
             },
+            // A step whose guard follows a setting read when it is planned (`mode`): planned again while the setting is 'deny', its new guard would
+            // not hold on replay, so it is not stored; the old block stays, with the guard it was stored with.
+            'sd.setting'(ctx) {
+                const made = ctx.proof({ kind: 'event', payload: { check: CHECK, actor: 'ac_hero0001', stat: 'STR', dc: mode.value === 'deny' ? 20 : 10 } });
+                ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ value: mode.value }), predicate: { kind: 'setting' } }, { value: mode.value });
+                return { summary: 'Setting.', narrate: false, replan: true, data: { made } };
+            },
             // The step afterCapture asks for: a visit on the acceptance it found (it is planned again by a Re-read).
             'sd.after'(ctx, { parent }) {
                 const made = ctx.proof({ kind: 'visit', payload: { place: 'after' }, parents: [parent] });
@@ -137,7 +147,7 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
         capture: {
             kinds: {
                 accept: { grammar: '! accept Thread | words: what the reader said' },
-                ...(after === 'check' ? { check: { grammar: '! check Id | dc: number' } } : {}),
+                ...(after === 'check' || checks ? { check: { grammar: '! check Id | dc: number' } } : {}),
             },
             apply(ctx, line) {
                 if (line.kind === 'check') {
@@ -162,13 +172,22 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                     const visits = view.query('story.evidence', {}).filter(proof => proof.kind === 'visit' && wanted.includes(proof.payload.place));
                     return { commands: visits.map(proof => ({ type: 'sd.dependent', payload: { parent: proof.id } })) };
                 },
+            } : after === 'accepted' ? {
+                // A step on each acceptance of this reply (`sidAt(index)`) that has none yet: asking again gives the steps it gave.
+                afterCapture(view, { index }) {
+                    const shown = view.query('story.evidence', {});
+                    const sid = sidAt?.(index);
+                    const mine = shown.filter(proof => proof.kind === 'acceptance' && proof.source.sid === sid && !shown.some(other => other.kind === 'visit' && other.parents[0] === proof.id));
+                    return { commands: mine.map(proof => ({ type: 'sd.after', payload: { parent: proof.id } })) };
+                },
             } : after ? {
                 afterCapture(view) {
                     const accepted = view.query('story.evidence', {}).filter(proof => proof.kind === 'acceptance').at(-1);
                     return { commands: accepted ? [{ type: 'sd.after', payload: { parent: accepted.id } }] : [] };
                 },
             } : {}),
-            replayGuard({ query }, { guard }) {
+            replayGuard({ query }, { guard, recorded }) {
+                if (guard.predicate.kind === 'setting') return recorded?.value === 'deny' ? { ok: false, reason: 'its setting is off' } : { ok: true };
                 if (guard.predicate.kind === 'needs') {
                     return query('story.evidence', { ids: [guard.predicate.parent] }).length === 1 ? { ok: true } : { ok: false, reason: 'its parent proof is not shown' };
                 }
