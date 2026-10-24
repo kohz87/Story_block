@@ -288,31 +288,39 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // The chat's state starts on its first carrier; a damaged record set up again goes to the Problems.
     function ensureInitial() {
         const notes = store.ensureInitial(initial());
-        for (const note of Array.isArray(notes) ? notes : []) problem({ code: 'DAMAGED', message: note, ...(repairOffer() ? { action: repairOffer() } : {}) });
+        for (const note of Array.isArray(notes) ? notes : []) problem({ code: 'DAMAGED', message: note, ...(repairActions().length ? { actions: repairActions() } : {}) });
     }
 
-    // A damaged first record can be started over by the reader, only on their say (never automatic): the offer the
-    // Problem carries and Settings → Diagnostics shows; null when nothing is kept aside, or it is from a newer version.
-    function repairOffer() {
-        if (store.readOnly?.()?.kind !== 'damaged') return null;
-        return { id: 'start-over', label: 'Start this chat\'s story state over', confirm: 'The saved story state of this chat is damaged and is kept aside. Starting over begins the story\'s numbers (items, money, places) from their start, and the replies after it add their changes again. Start over?' };
+    // What the reader may do about a story that Story Block keeps as it is (read-only), only on their say, each asked
+    // twice (never automatic): the actions the Problem carries and Settings → Diagnostics shows. A record from a newer
+    // version has none: update Story Block.
+    const START_OVER = Object.freeze({ id: 'start-over', label: 'Start this chat\'s story state over', confirm: 'The saved story state of this chat cannot be used as it is, and it is kept aside. Starting over begins the story\'s numbers (items, money, places) from their start, and the replies after it add their changes again. Start over?' });
+    const KEEP_EARLIEST = Object.freeze({ id: 'keep-earliest', label: 'Keep the story state from the earliest saved point', confirm: 'The replies before the earliest saved point of this story are gone, and this session could not check what they did. Keeping it trusts that saved point as the start of the story, with whatever the deleted replies left in it. Keep it?' });
+    function repairActions() {
+        const kept = store.readOnly?.();
+        if (!kept || kept.kind === 'future') return [];
+        return kept.kind === 'unresolved' ? [KEEP_EARLIEST, START_OVER] : [START_OVER];
     }
-    /** The reader's confirmed repair (store.startOver): → { ok: true } | { ok: false, code, message }. */
-    async function startOver({ confirmed = false } = {}) {
+    /** The reader's confirmed repair (store.startOver / keepEarliest): → { ok: true } | { ok: false, code, message }. */
+    async function repair(id, { confirmed = false } = {}) {
         try {
-            store.startOver?.({ confirmed });
+            if (id === 'keep-earliest') store.keepEarliest?.({ confirmed });
+            else if (id === 'start-over') store.startOver?.({ confirmed });
+            else return refusal('NOT_FOUND', `There is no repair called "${id}".`);
         } catch (error) {
             return refusal('REFUSED', error?.message ?? String(error));
         }
         rebuild();
-        await trySave('after starting the story over');
+        await trySave('after the repair');
         return { ok: true };
     }
+    const startOver = options => repair('start-over', options);
 
-    function rebuild() {
+    // `publish: false`: the caller finishes its own work first (reconciling after a delete) and tells the screens once.
+    function rebuild({ publish = true } = {}) {
         store.rebuild();
         if (hasCarrier()) ensureInitial();
-        events?.emit('head', { index: store.headIndex() });
+        if (publish) events?.emit('head', { index: store.headIndex() });
     }
 
     // A guarded system step with a `replan` planned again (store.replaceStory / store.reconcile's `rerun`): as its
@@ -1264,9 +1272,25 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
 
     /** Deleted messages, swipes, a greeting picked: the state is rebuilt from what is stored. */
     function onTimelineChanged() {
-        rebuild();
+        rebuild({ publish: false });
         reconcileNow();
-        events?.emit('head', { index: store.headIndex() });
+        events?.emit('head', { index: store.headIndex() });   // one head, after the steps that follow the change are planned again
+    }
+
+    /**
+     * A deleted swipe. SillyTavern tells of the deletion of the swipe being shown before it shows the next one (its
+     * `extra` is still the deleted swipe's; MESSAGE_SWIPED follows): that load is the change to read, so the head is
+     * not reconciled or told of on this half-way state, only the store is rebuilt. Any other swipe deletion is a
+     * change on its own.
+     */
+    function onSwipeDeleted(detail) {
+        const live = ctx?.chat ?? [];
+        const at = Number.isInteger(detail) ? detail : detail?.messageId;
+        const message = live[Number.isInteger(at) ? at : live.length - 1];
+        const loading = isCarrier(message) && Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)
+            && message.swipes[message.swipe_id] !== message.mes;
+        if (!loading) return onTimelineChanged();
+        rebuild({ publish: false });
     }
 
     /** GENERATION_STOPPED: the reader stopped the reply being written (its last line may be unfinished). */
@@ -1310,7 +1334,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         on(names.CHAT_RENAMED, onChatRenamed);
         // MESSAGE_EDITED too: a record's swipe mark follows an edit (persist.js restamp), so a Continue
         // after it still finds the record.
-        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.MESSAGE_SWIPE_DELETED, names.CHARACTER_FIRST_MESSAGE_SELECTED, names.MESSAGE_EDITED]) on(event, onTimelineChanged);
+        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.CHARACTER_FIRST_MESSAGE_SELECTED, names.MESSAGE_EDITED]) on(event, onTimelineChanged);
+        on(names.MESSAGE_SWIPE_DELETED, onSwipeDeleted);
         return api;
     }
 
@@ -1326,7 +1351,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     const api = {
-        repairOffer,
+        repairActions,
+        repair,
         startOver,
         interceptor,
         install,

@@ -91,9 +91,16 @@ Blocks replay one by one on the state before them. A guarded block is applied on
    twin was stored, is never paid twice: `claim already held`);
 5. its ops (claims among them) apply and every domain they touch still validates.
 
-A guarded block whose metadata was lost or cut down is **damaged, not legacy**: when the receipt kept
-`data.v2.guard` or `source` (it survives trimming) and the block has no whole span, or the guard on the span is not the
-one the receipt kept, the block is inactive (`REPLAY_PREREQUISITE`).
+Guarded blocks fail closed on validators too: every domain the block touches must pass outright (a legacy block still
+has an error that was already there forgiven; a guarded one does not).
+
+A guarded block whose metadata was lost or cut down is **damaged, not legacy**. The host marks a guarded block itself:
+its span has an `id` and its receipt carries `guarded: true` (a module cannot set it; a module's own `data.v2` never makes
+a block guarded). One classifier serves replay, Re-read, reconcile and rewind: a block that is marked guarded but has no
+whole span, or whose receipt kept another guard than the span's, is inactive (`REPLAY_PREREQUISITE`) and is never healed
+into a legacy block by a Re-read. When the spans are gone or do not add up, the record's ops are one block that stands for
+every receipt of the record: if any of those receipts is marked guarded, the whole block is inactive (and says so), not
+classified from the last receipt alone.
 
 Otherwise **neither the ops nor the claims** are applied. The block stays stored and inactive, and is reported
 by `store.problems()` with `code: 'REPLAY_PREREQUISITE'`; it is asked again on the next replay, so a block turned
@@ -126,7 +133,7 @@ out from the record's stored `sid` and saved with it:
   reply that had some reads as changed once it is hidden. An edit or a Continue changes the hash and not the pair;
   the hash a block recorded in `boundaries[0].payloadHash` then no longer matches (the owner's hook is given both).
   That does not by itself take a block back: Re-read is how an edit reaches the story, and it plans the blocks again.
-* Deleted mappings leave with their records; saves and snapshots (a later package) keep their own copy.
+* Deleted mappings are archived (see "The archive of deleted ids"); saves and snapshots (a later package) keep their own copy too.
 
 The ids a record may not take (another record's swipe key or evidence id, another message's canonical sid, a block
 id) are looked up in an index found once per chat array, so a reply does not read the whole chat. A story line's block
@@ -146,11 +153,21 @@ was deleted, another swipe is shown) is a gap: a checkpoint with no `covers` aft
 trusted either, and when no checkpoint holds there is **no state to start from** (`head()` is `null` until
 `ensureInitial` starts the chat again from the state the deleted replies ended with); the latest checkpoint is no
 longer taken unchecked. A checkpoint made after the gap, over the records as they stand, holds again.
-If the replies before the first reply that is left are gone and this session never saw them (a reload), `ensureInitial`
-adopts the earliest checkpoint that is left (its `covers` name replies that are gone, so they are dropped) with a
-Problem, rather than resetting the story to its start; a session that did see them carries what they ended with.
-When a covered record has guarded blocks the checkpoint also carries `coverHash`: the hash of those records' swipe
-keys, block ids, op digests and text. A reply edited since, or a block changed, fails the window the same way.
+If the replies before the first reply that is left are gone and this session never saw them (a reload) and a checkpoint
+is left, that checkpoint cannot be checked: `ensureInitial` does **not** adopt it or reset the story. The saved history is
+kept as it is, the chat is read-only on an empty story (`store.readOnly().kind === 'unresolved'`) and a Problem offers
+two actions, each asked twice: "Keep the story state from the earliest saved point" (`keepEarliest`: that checkpoint is
+trusted as the start, with whatever the deleted replies left in it) and "Start this chat's story state over"
+(`startOver`: the numbers begin again, the checkpoints after it go, the replies that are left replay on top). A session
+that did see the deleted replies carries what they ended with, as before.
+A checkpoint made after guarded blocks (anywhere before it) also carries `guardEnv`: the owners that were ready, with
+their versions, when it was made. Its state holds what their guards allowed and a replay does not ask them again from
+there, so it is trusted only while `guardEnv` is what the owners are now; a different set (an owner went dormant or
+is absent, a new version of its guard code) fails it and the prefix is replayed with the guards asked. A readiness change
+(`store.lifecycleChanged()`) replays from before such checkpoints, finds the guarded blocks a checkpoint hid, and only
+then does the turn publish a head. When a covered record has guarded blocks the checkpoint also carries `coverHash`: the hash of those records' swipe
+keys, every block's complete metadata (guard, recorded inputs, evidence, claims, boundaries, result), op digests and text.
+A reply edited since, or a block changed, fails the window the same way.
 Windows with no guarded block carry nothing new, and checkpoints of older chats are read as before.
 
 ## Re-read and reconciling
@@ -176,21 +193,45 @@ Windows with no guarded block carry nothing new, and checkpoints of older chats 
   the first carrier that holds such a step, in the same save window, never while the story record is read-only, and only
   when a guarded step with a `replan` has been seen (`store.replansFrom()`, kept while replaying; no scan). What was
   planned again or taken back is a quiet Problem (`REPLANNED`).
-* Revs after a planned-again block on the same reply are numbered on from its rev. Later replies keep theirs.
+* Revs after a planned-again block are numbered on from its rev, on the same reply and on every reply after it, so no
+  two receipts share one and the order never goes back. The boundaries (`prefixHash`) of steps planned again follow
+  what the reconcile has staged, not the chat as it stands (`store.boundaryProblems()` lists any that do not match),
+  and that holds also for a step planned again to the same result: its ops, receipt and result stay, its boundaries are
+  stored as they now are. A Re-read or a reconcile also numbers the revs after the replies it rewrote on from the rev
+  they ended on, so receipt revs are strictly increasing along the chat and the head's rev is the last.
+  Delete and swipe publish one head, after the steps that follow were planned again. Deleting the swipe that is shown
+  is one change: SillyTavern tells of the deletion before it shows the next swipe, and the head is read and told of
+  when that swipe is loaded, not on the half-way state.
 
 ## Preserved records
 
-Opening a chat never writes over a record the store does not own. If the chat's first record is from a newer
-version (`v` above 2) or is a damaged v2 record, `ensureInitial` leaves it exactly as it is: no write, no repair.
-Until it can be read the head is an empty state (the one `ensureInitial` was given), **read-only**: `store.readOnly()`
-says `{ index, kind: 'future' | 'damaged', why }`, every writer (`append`, `setNarrated`, `replaceStory`, `reconcile`,
-`truncate`) throws a message that says so, and `ensureInitial` returns one note for the Problems list (`DAMAGED`).
-A future-version record on any other reply is never written over either. A future-version record shows "Update Story
-Block". A damaged first record can be started over **only on the reader's say**: the Problem carries an action ("Start
-this chat's story state over") and Settings → Diagnostics shows it with a two-step confirmation; `turn.startOver({
-confirmed: true })` (`store.startOver`) keeps the damaged record beside the new one (`extra.storySuiteDamaged`) and starts
-the story's numbers from their beginning, the replies after it replaying on top. Nothing does this automatically. Records of version 1 and a first record
-that is merely missing are handled as before (a chat with only v1 extras starts a v2 record).
+A stored `storySuite` value is **absent**, **ours** (a whole v2 record), or one Story Block never writes over: **newer**
+(`v` above 2), **older** (v1, or no version) or **damaged** (a v2 record that is not whole, or not a record). Opening a
+chat never writes over one, and neither does any command, capture, click or `setNarrated` (`take` and `write` refuse:
+"kept as it is and not written over"), on the first reply or any other.
+
+If the chat's first record is one of those, `ensureInitial` leaves it exactly as it is (no write, no repair). Until it
+can be read the head is an empty state (the one `ensureInitial` was given), **read-only**: `store.readOnly()` says
+`{ index, kind: 'future' | 'legacy' | 'damaged' | 'unresolved', why }`, every writer (`append`, `setNarrated`,
+`replaceStory`, `reconcile`, `truncate`) throws a message that says so, and `ensureInitial` returns one note for the
+Problems list (`DAMAGED`) that carries the reader's actions. A newer version shows "Update Story Block" and has no action.
+The others offer **"Start this chat's story state over"** (and, for an unresolved start, "Keep the story state from the
+earliest saved point"), **only on the reader's say**: Settings → Diagnostics shows them with a two-step confirmation;
+`turn.repair(id, { confirmed: true })` (`store.startOver`, `store.keepEarliest`). Starting over sets an older or damaged
+record aside, on every reply that has one, beside where it was (`extra.storySuiteAside`, a list of `{ kind, record }`
+that only grows: a later repair adds to it and no entry is ever replaced or dropped) and starts
+the story's numbers from their beginning, the replies after it replaying on top. Nothing does this automatically.
+
+## The archive of deleted ids
+
+When a rebuild finds that the canonical sid, swipe key or evidence id of a reply or swipe this session knew has left the
+chat, it archives them in the chat's metadata (`chatMetadata.storySuite.sourceArchive.deleted`, saved with the chat file by
+SillyTavern's own save after the delete; not a change to save on its own). The index of ids is rebuilt from the chat plus
+the archive after a reload, an archived id is never handed out again, and it confers no eligibility
+(`store.archived(id)`, `store.archiveList()`). The index of the ids a chat holds is built when the store first rebuilds over
+it (and on every rebuild after), so a reply deleted before anything was written is archived too; it belongs to one chat
+(its id): opening another chat in the same message array starts a new index and never puts the first chat's ids in the
+second's archive. A delete made while the page was closed is not seen; the archive rides the next save.
 
 ## Resets
 
