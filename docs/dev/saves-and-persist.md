@@ -17,7 +17,14 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
   `ctx.ifThere(domain, path)` stores writes `within` a thing, passed over when it is gone (rule d).
 - Per-reply bookkeeping under `ctx.carrier.sid` with `add`; domains may name `scratch` fields. Never a
   positional append or a `replace` of a field another reply created.
-- Receipt `data` older than `RECEIPT_KEEP` (200) carriers is dropped; keep what you need in your own state.
+- Receipt `data` older than `RECEIPT_KEEP` (200) carriers is dropped, except `data.v2` (a guarded block's guard,
+  source and result); keep what you need in your own state.
+- **Guarded blocks** (`ctx.replayGuard`, REPLAY.md): the span carries the block's id, source, guard, claims and more;
+  replay applies the ops and claims together only while the owner's `hooks.replayGuard` holds, else the block stays
+  stored and inactive (`REPLAY_PREREQUISITE`). Spans without an `id` are legacy blocks and replay as ever.
+- **Checkpoints stop at a gap:** the first `covers`/`coverHash` window that fails ends trust (a checkpoint without
+  `covers` after it is not trusted, and there is no fallback to the latest one); `head()` is `null` until
+  `ensureInitial` starts the chat again.
 - A copied swipe record is ignored (`sid` + `swipe` + `mark`); Story Block mirrors the shown swipe's copy only
   where SillyTavern reads it back (`keepsCopy`, `mirrorCopy`, `dropCopy`).
 - Rebuilding replays stored ops only, never a handler. The head cache is checked against the chat on each read.
@@ -41,11 +48,15 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
 - `src/v2/chat-file.js`: `createChatFile`, `utf8Bytes`, `KEEPALIVE_MAX` (mirrors SillyTavern 1.19's save body).
 - `src/v2/runtime.js`: `storeSaving`, `saveOnUnload`, `markUsed`, `SAVE_SEQ_KEY`, `MEMO_PREFIX`.
 - `src/v2/ops.js`: `diff`, `apply`, `checkOps`. `src/v2/rewind.js`: rewinds and save points (ST branches).
+- `src/v2/replay.js`: `sha256`, `hashJson`, `deriveId`, `spanProblem`, `guardProblem`, `claimKeys` (guarded replay,
+  docs/v2/REPLAY.md); `store.sourceAt`, `payloadHashAt`, `attachGuard`, `reconcile`.
 
 ## Tests that guard it
 
 - `tests/v2/store.test.js`, `persist.test.js`, `saving.test.js`, `storage-once.test.js`, `store-head-cache.test.js`,
   `counters.test.js`, `replay-fit.test.js`, `long-chat.test.js`, `rewind.test.js`, `savepoints.test.js`, `ops.test.js`.
+- `tests/v2/replay-guard.test.js`, `replay-source.test.js`, `replay-chain.test.js` (guarded blocks, source map,
+  checkpoint gaps, Re-read replan; the test-only owner is `tests/v2/helpers/guarded.js`).
 - `tests/v2/qa/state-fuzz.test.js` (replay equals rebuild wherever checkpoints fall), `qa/delete-fuzz.test.js`,
   `qa/state-directed.test.js`.
 - Break findings: `b2-timeline-*`, `b6-record-stored-once`, `b6-saves-per-reply`, `c1-*`, `c4-rename-midsave`,
