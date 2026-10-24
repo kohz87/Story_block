@@ -170,10 +170,20 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const owe = stored => { owed.push({ stored, holder: archive.holder(), id: stored.receipt.id }); return stored; };
     // The host's restore barrier, raised or dropped only for the chat the operation is in, and remembered as that chat's.
     const raise = reason => { here(); barrierOwner = archive.holder(); barrierEarly = false; barrier('pending', reason); };
-    const lower = () => { here(); barrierOwner = null; barrierEarly = false; barrier('idle', ''); };
+    // At most one change is outstanding in a chat, and the barrier stays up until every one has settled: it comes down, and the host is
+    // announced ready, only when the journal holds none besides the one being settled (→ whether it came down).
+    const lower = (settling = null) => {
+        here();
+        if (pendingEntry(settling) !== null) return false;
+        barrierOwner = null;
+        barrierEarly = false;
+        barrier('idle', '');
+        return true;
+    };
     const isHost = auth => auth === capability || auth?.capability === capability;
-    const pendingEntry = () => archive.entries().find(entry => entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
-        ?? archive.entries().find(entry => ['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared')
+    // A change that is outstanding: a restore committed and not complete, a native change prepared and not done (`ignore`: the one being settled).
+    const pendingEntry = (ignore = null) => archive.entries().find(entry => entry.id !== ignore && entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
+        ?? archive.entries().find(entry => entry.id !== ignore && ['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared')
         ?? null;
     const pendingNow = () => {
         settle();
@@ -678,7 +688,11 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // Every part agreed: the barrier drops, then the return is marked complete in the story (with the barrier down, so
     // every module's blocks are asked again and the block sees the story whole). Complete is told only once the chat file has it.
     async function complete(entry) {
-        lower();
+        if (!lower(entry.id)) {
+            // Another change is outstanding in this journal (it cannot be through the API): this restore is not complete until it has settled.
+            archive.patch(entry.id, { phase: 'acked', why: 'another change is outstanding in this chat' });
+            return { ok: true, return: entry.return, status: 'participants-pending' };
+        }
         const now = headNow();
         const returns = now?.state?.domains?.[HOST_DOMAIN]?.returns;
         const found = isObject(returns) ? returns[entry.return] : null;
@@ -720,6 +734,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             return finish(entry);
         }
         if (entry.phase !== 'prepared') return fail('REFUSED', 'That restore was aborted.');
+        // One change at a time: a restore does not start while a native event or change (or another restore) is outstanding, whatever order
+        // they were prepared in. It stays prepared; once the other has settled (retry it, or recover) it can be activated.
+        const other = pendingEntry(entry.id);
+        if (other) return fail('RESTORE_PENDING', `Another change (${other.id}) is still outstanding in this chat; the restore was not activated and stays prepared.`);
         here();
         const now = headNow();
         if (input.expectedHead !== entry.expectedHead || !now || now.headHash !== entry.expectedHead) {
@@ -926,7 +944,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             return fail('CONFLICT', `The participant ${module} answered other bytes than the change prepared.`);
         }
         publish(settled);
-        lower();
+        lower(settled.id);
         // Told done only when the file has it; a failed save is the caller's failure (a retry of the same event answers once it is saved).
         await durable();
         return { ok: true, checkpoint: settled.after.checkpoint, hash: settled.after.hash };

@@ -221,6 +221,25 @@ coordinator's helpers rather than at each site:
    were prepared, and aborts the preparation; a native change checks that its participant is still registered at the schema of its
    checkpoints before the journal is written.
 
+## One change at a time
+
+At most one change is outstanding in a chat (a restore committed and not complete, or a native event or change prepared and not done), and
+the barrier stays up, and the host is not announced ready, until the journal holds none. `prepare`, `make`, `nativeEvent` and
+`nativeMutation` already refuse while one is pending; **`activate` of a restore that is prepared refuses with `RESTORE_PENDING` while any
+other change is outstanding** (a native event left half way, whatever order they were prepared in). The restore stays prepared and nothing
+is committed. Every place that lets the barrier go (the end of a restore, of a native change, of a recovery) asks the journal first and
+does nothing while another change is outstanding.
+
+Two routes settle the outstanding change, both verified:
+
+1. **In this run:** retry the identical `nativeEvent` (it answers from the journal and finishes the change) or `recover()`. The native
+   change is part of the head, so the restore prepared before it is then `STALE` on `activate` (it is aborted); prepare it again on the new
+   head and activate.
+2. **After a restart:** opening the chat raises the barrier at once and `recover` finishes the native change from the journal; a restore that
+   was only prepared is aborted (prepare it again).
+
+A journal that holds two unfinished changes anyway (damaged) is not reachable through the API; recovery refuses it as described above.
+
 ## The epoch and rules gate
 
 REPLAY.md left it to this package: on replay (a rebuild, a Re-read's kept blocks) and when a guarded block is stored,

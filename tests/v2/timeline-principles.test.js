@@ -649,3 +649,79 @@ test('a journal that holds two unfinished changes (damaged: the API refuses a se
     assert.match(result.message, /2 unfinished changes/);
     assert.equal(w.native.native.calls.some(call => call.name === 'applyEvent'), false, 'the participant was not asked to change');
 });
+
+// ---- 8. at most one change is outstanding in a chat, and the barrier holds until every one has settled ---------------------------
+
+const PENDING_EVENT = { event: 'ev_pending001', participant: NATIVE, kind: 'confirmed-death', npc: NPC };
+
+// A restore prepared, and then a native event that is left outstanding (its journal could not be saved, or its participant failed).
+async function interleaved(t, how) {
+    const w = await world(t, { scenario: 'a native event' });
+    const head = await w.host.sdk.timeline.head();
+    const prepared = await w.host.timeline.host.prepare({ snapshot: w.saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+    assert.equal(prepared.ok, true, prepared.message);
+    const input = { ...PENDING_EVENT, expectedHead: head.headHash };
+    if (how === 'journal') {
+        w.counter.n = 0;
+        w.counter.failing = 1;
+    } else {
+        w.native.native.fail.add('applyEvent');
+    }
+    const event = await w.host.timeline.host.nativeEvent(input);
+    assert.equal(event.ok, false, 'the event is left outstanding');
+    w.counter.failing = 0;
+    const heard = [];
+    w.host.events.on('modules', ({ changes }) => { if (changes.some(change => change.status === 'ready')) heard.push(w.host.registry.restore().state); });
+    return { w, head, prepared, input, heard, activate: () => w.host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash }) };
+}
+
+for (const how of ['journal', 'participant']) {
+    test(`a prepared restore is not activated while a native event is outstanding (${how} failed): RESTORE_PENDING, the barrier holds, nothing is announced ready`, async t => {
+        const { w, activate, heard, prepared } = await interleaved(t, how);
+        const refused = await activate();
+        assert.equal(refused.ok, false);
+        assert.equal(refused.code, 'RESTORE_PENDING');
+        assert.equal(w.host.registry.restore().state, 'pending', 'still barred');
+        assert.deepEqual(heard, [], 'never announced ready');
+        assert.equal((await w.host.sdk.timeline.status()).state, 'pending');
+        assert.equal((await w.host.sdk.command('tl.xp', { amount: 7 })).ok, false, 'no command goes through');
+        assert.equal(w.host.head().domains.progress.xp, 140, 'the story is not restored');
+        assert.equal(w.host.timeline.host.journal().find(entry => entry.id === prepared.prepared).phase, 'prepared', 'the restore stays prepared');
+        assert.equal(w.host.timeline.host.journal().filter(entry => (entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase)) || (entry.kind === 'native-event' && entry.phase === 'prepared')).length, 1, 'one outstanding change');
+    });
+
+    test(`recovery route (${how} failed): retrying the identical event settles it; the restore, prepared on the head before it, is then STALE and is prepared again`, async t => {
+        const { w, activate, input, prepared } = await interleaved(t, how);
+        assert.equal((await activate()).code, 'RESTORE_PENDING');
+        w.native.native.fail.delete('applyEvent');
+        const again = await w.host.timeline.host.nativeEvent(input);
+        assert.equal(again.ok, true, again.message);
+        assert.equal(w.host.registry.restore().state, 'idle');
+        assert.equal((await w.host.sdk.timeline.status()).state, 'idle');
+        // The native change is part of the head: the restore prepared before it no longer stands.
+        const stale = await activate();
+        assert.equal(stale.code, 'STALE');
+        assert.equal(w.host.timeline.host.journal().find(entry => entry.id === prepared.prepared).phase, 'aborted');
+        const head = await w.host.sdk.timeline.head();
+        const fresh = await w.host.timeline.host.prepare({ snapshot: w.saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+        assert.equal(fresh.ok, true, fresh.message);
+        const done = await w.host.timeline.host.activate({ prepared: fresh.prepared, expectedHead: head.headHash });
+        assert.equal(done.status, 'complete');
+        assert.equal(w.host.head().domains.progress.xp, 40);
+    });
+}
+
+test('recovery route after a restart: the outstanding event is finished when the chat opens and the prepared restore beside it is aborted', async t => {
+    const { w, activate, prepared } = await interleaved(t, 'participant');
+    assert.equal((await activate()).code, 'RESTORE_PENDING');
+    w.native.native.fail.delete('applyEvent');
+    const again = await reload(createHost, clone(w.disk.image), w.modules());
+    t.after(() => again.close());
+    assert.equal(again.registry.restore().state, 'idle');
+    assert.equal((await again.sdk.timeline.status()).state, 'idle');
+    const entries = again.timeline.host.journal();
+    assert.equal(entries.find(entry => entry.kind === 'native-event').phase, 'done');
+    assert.equal(entries.find(entry => entry.id === prepared.prepared).phase, 'aborted');
+    assert.equal(w.native.native.store.applied.includes(PENDING_EVENT.event), true, 'the participant has the event');
+    assert.equal((await again.sdk.command('tl.xp', { amount: 7 })).ok, true);
+});
