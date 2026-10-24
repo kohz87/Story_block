@@ -52,6 +52,17 @@ export default {
   (they differ after an edit or a Continue; the host does not drop a block for that, the owner may). A throw, a
   promise, no answer, `{ ok: false }` without a reason, or anything else **fails closed**. It is asked whatever
   the module's features say now: replay does not depend on settings.
+* **Guards are pure, per §6.** On replay a guard is asked in a context that depends on the prefix alone: `state` (before the
+  block), `recorded` (what the owner handed to `ctx.replayGuard` when it planned the block), `payload`, `hash`, and `query`
+  limited to the queries the owner lists as `replayQueries: ['name', …]` on its module (they must depend on the state and
+  their arguments only: not on settings, the clock or other messages), and `story.evidence`, the host's own, which any guard may ask (it
+  reads the pins in the state and the proof of the blocks before this one, nothing else; EVIDENCE.md). Any other query, and `receipts()` inside one, throws,
+  which fails the guard closed. What a guard needs from outside (a setting, a currency rule) is read **when the block is
+  planned** and passed as `recorded`; it then comes back from the record, is hashed with the prefix, and cannot change an
+  answer later. The host asks the same guard, in the same context, when the block is first stored (`append`, a Re-read's
+  lines, a step planned again): a block whose guard would not hold on replay is **not stored** (the command fails), so a
+  state built live and one built again by replay cannot disagree about it. A hook that reads closure state of its own
+  (a global) is outside what the host can see; do not.
 * Claims: `ctx.claim(key)` as before. The host reads the keys a block adds from its `/meta/claims/…` ops and
   lists them on the span. The block's ops and claims are applied together or not at all.
 * `receipt.data.v2` is stamped by the host: `schema: 2`, `epoch`/`rulesHash` from the guard, the host's `source`
@@ -103,8 +114,9 @@ every receipt of the record: if any of those receipts is marked guarded, the who
 classified from the last receipt alone.
 
 **Quarantine.** A guarded receipt that names none of its record's changes (an older build renumbered the changes apart from
-it) means what it guarded cannot be told. That is decided once per record, before anything runs, and the record applies
-**nothing**: every block of it, whether its span survived or not, stays stored and inactive (`REPLAY_PREREQUISITE`). It is
+it) means what it guarded cannot be told. That is decided once per record, **on the record as it is stored, before any
+filtering, rebasing or renumbering**, and the record applies **nothing** and is never filtered, renumbered or rewritten by
+a Re-read or reconcile: every block of it, whether its span survived or not, stays stored and inactive (`REPLAY_PREREQUISITE`). It is
 never planned again, nothing is added to it, a Re-read of it is refused and `truncate` (so a rewind) refuses to cut it down
 rather than keep changes it cannot attribute.
 
@@ -155,9 +167,12 @@ replay never depends on a receipt's display data.
 ## Checkpoints
 
 **A checkpoint is trusted only over the exact prefix it was made over.** It stores `prefix`: a hash chained over every
-record in front of it as it is shown now, from the first (each record's swipe key, block contents, span sizes, each
-receipt's id, rev, cause and guarded mark, the text of records that hold guarded blocks, and the first record's own
-starting point). A replay reads the chain as it goes (a lookup per record; a change costs the records from it on) and
+record in front of it as it is shown now, from the first. A link is the hash of `replayInputsOf(record)` (`replay.js`), the
+one function that lists **everything replay reads from a record**: its `ops` and `spans` in full, every receipt but its display
+`data` (and the `data.v2` a trim keeps, with the guard the receipt kept), the source identity (`logical`, `swipeKey`,
+`evidence`) and the `sid`; plus the text of a record that holds guarded blocks and the first record's own starting point.
+A test reads replay through a recording proxy and fails if replay touches a record field that is neither listed there nor
+bookkeeping, so what replay reads and what trust covers cannot drift apart. A replay reads the chain as it goes (a lookup per record; a change costs the records from it on) and
 starts from the latest checkpoint whose stored `prefix` equals the hash in front of it now. So a reply deleted, edited,
 read again or swiped before a checkpoint fails it, and so does the checkpoint of a swipe that is not shown: it needs no
 rewriting, it just no longer matches. **A checkpoint with no `prefix` (older records, hidden swipes') is never trusted**
@@ -185,7 +200,7 @@ is absent, a new version of its guard code) fails it and the prefix is replayed 
 then does the turn publish a head. When a covered record has guarded blocks the checkpoint also carries `coverHash`: the hash of those records' swipe
 keys, every block's complete metadata (guard, recorded inputs, evidence, claims, boundaries, result), op digests and text.
 A reply edited since, or a block changed, fails the window the same way.
-Windows with no guarded block carry nothing new, and checkpoints of older chats are read as before.
+Windows with no guarded block carry nothing new. The checkpoints of an older chat (written before `prefix`) are **not** read as before: none of them is trusted except one that is the first record there is, so the first load of such a chat replays it from its start (about a second for 2,000 replies) and the replay writes nothing; the next checkpoint a new reply makes, or a Re-read or reconcile that rewrites one, carries the prefix and is trusted from then on.
 A Re-read or reconcile that rewrites a checkpoint gives it the window it has now (the records from the checkpoint before it
 up to the carrier before it), not the one it had, so a later delete cannot line the old window up again over a state that
 includes a record the window no longer names.
@@ -210,6 +225,9 @@ includes a record the window no longer names.
   is held back or a feature is off, it threw, any other refusal) the old block is left exactly as it is and replayed as
   it was, so its guard decides: it stays off with `REPLAY_PREREQUISITE` when its guard fails. A step planned again to
   what it was changes no ops, receipt or result; its stored boundaries are rewritten when where it stands has moved.
+  A block that is not intact on its own (its record damaged, the receipt kept another guard than the span's, it was recorded
+  for another reply, its claims are not what its changes make) is not planned again: planning would bring back what replay
+  keeps off.
 * `store.reconcile(index, { rerun })` does the same from carrier `index` to the head without a Re-read and returns
   `{ changed, planned, removed }`. **The turn calls it by itself** after a delete or swipe (not when a chat opens), from
   the first carrier that holds such a step, in the same save window, never while the story record is read-only, and only
@@ -286,3 +304,13 @@ would make negative, and the block is skipped, never applied half.
   the block starts at.
 * `hooks.replayGuard` gets `hash` next to `state` and `query` in its first argument; `ctx.source` and `ctx.hash`
   are additions to ctx.
+
+## Checking it
+
+`node scripts/fuzz-replay.mjs <seed> <steps> [checkpointEvery]` is the property fuzz of this package: random chats of a guarded
+test module (commands, swipes of any reply, deletes, edits, reloads, Re-reads, reconciles, rewinds, and records damaged on
+purpose: stripped spans, legacy checkpoints, an orphaned receipt, an edited receipt guard or source identity, a changed outside
+setting), and after every step the head, the state at sampled replies and the Problems must be what a replay from the first
+record gives, revs strictly increasing, no guarded effect without its guard, no effect from a quarantined record. Example:
+`for s in $(seq 1 300); do node scripts/fuzz-replay.mjs $s 120 $(( (s % 2) * 3 + 4 )); done | grep -v '"fails":\[\]'` prints
+nothing when it holds.

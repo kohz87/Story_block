@@ -28,6 +28,7 @@ async function run(t, seed, steps) {
     const ask = args => host.sdk.query('story.evidence', args);
     const log = [];
     let most = 0;
+    const continued = new Set();   // the logical replies that were Continued: each part had a step after it, a Re-read asks once
     const lines = () => Array.from({ length: r.int(0, 3) }, () => (r.chance(0.7)
         ? `! accept ${r.pick([T1, T2])} | words: ${r.pick(WORDS)}`
         : `! kill ${r.pick(['Wolf', 'Bear'])} | after: ${r.pick([T1, T2])}`));
@@ -59,7 +60,7 @@ async function run(t, seed, steps) {
 
     await host.send(r.pick(SAID), reply('first'));
     for (let step = 0; step < steps; step += 1) {
-        const kind = r.int(0, 9);
+        const kind = r.int(0, 11);
         const at = lastReply();
         if (kind <= 2) {
             log.push(`${step}: send`);
@@ -69,21 +70,23 @@ async function run(t, seed, steps) {
             await host.swipe(reply(`swipe ${step}`));
         } else if (kind === 4 && at > 0) {
             log.push(`${step}: continue`);
+            continued.add(host.store.carrierSid(at));
             await host.cont(text(` More ${step}.`, lines()));
         } else if (kind === 5 && at > 0) {
             // Re-read of text that did not change: every proof stays as it was.
             log.push(`${step}: re-read, unchanged`);
-            // (A block planned again has an ordinal of its own; the proof, its id, kind, hash and parents, is the same.)
-            // The step afterCapture asks for (a visit) is not compared: a reply that was Continued had one after each part, and a Re-read asks once.
-            const plain = () => JSON.stringify(ask({}).filter(proof => proof.kind !== 'visit').map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents.filter(parent => ask({ ids: [parent] })[0]?.kind !== 'visit')]));
+            // (A block planned again has an ordinal of its own; the proof, its id, kind, hash and parents, is the same: every id of every
+            // block stays, each step on the id it had, and no proof is lost. A reply that was Continued had a step after each part.)
+            const sid = host.store.carrierSid(at);
+            const plain = () => JSON.stringify(ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]));
             const before = plain();
             const result = await host.turn.reread(at);
-            if (result.ok && plain() !== before) {
+            if (result.ok && !continued.has(sid) && plain() !== before) {
                 const was = JSON.parse(before).map(item => item.join('|').slice(0, 40));
                 const now = JSON.parse(plain()).map(item => item.join('|').slice(0, 40));
                 log.push(`  was ${was.filter(x => !now.includes(x)).join(' ; ')}`, `  now ${now.filter(x => !was.includes(x)).join(' ; ')}`);
             }
-            if (result.ok) assert.equal(plain(), before, `seed ${seed}, ${step}: an unchanged Re-read changed a proof\n${log.join('\n')}`);
+            if (result.ok && !continued.has(sid)) assert.equal(plain(), before, `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
         } else if (kind === 6 && at > 0) {
             log.push(`${step}: edit, re-read`);
             const message = host.ctx.chat[at];
@@ -103,7 +106,13 @@ async function run(t, seed, steps) {
                 await host.st.deleteMessage(i);
                 await host.st.deleteMessage(i - 1);
             }
-        } else if (kind === 9) {
+        } else if (kind >= 10 && at > 0) {
+            // A step of one key on the head reply (a guarded system step that builds on a proof shown): after a delete takes one back and
+            // leaves another at a salted id, the next one added takes the free id below it.
+            const parent = r.pick(ask({}).filter(proof => proof.kind !== 'visit' || proof.payload.after !== 'dependent'));
+            log.push(`${step}: a step on ${parent?.id ?? 'nothing'}`);
+            if (parent) host.bus.command('sd.dependent', { parent: parent.id }, { cause: 'system' });
+        } else if (kind === 9 || kind >= 10) {
             log.push(`${step}: reload`);
             await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
         }
