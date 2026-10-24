@@ -566,9 +566,12 @@ made, a fight ended). A swipe or a delete moves or removes it with its message. 
 | `later` | `true` adds a Later button: the card folds into one line, "<title> · <first row> · Open". The fold is the viewer's (kept per chat and message in the browser), never game state. |
 
 - **`command`** is sent through `sdk.command` with its `payload` (cause `ui`), so it is recorded with the reply and a swipe or
-  delete undoes it. Only the newest reply's card can act; the others show their buttons disabled, with the reason.
-- **`open`** opens that screen in the game view (a window on desktop, full screen on a phone). A screen opened this way need
-  not be on the bar.
+  delete undoes it. Only the newest reply's card can act; the others show their buttons disabled, with the reason. In a
+  chat that holds only the greeting, the greeting is the newest reply, so its card can act (a start card under the greeting
+  works); once a reply follows it, it is read-only like the rest.
+- **`open`** opens that screen in the game view (a window on desktop, full screen on a phone) when the screen has a `screen`
+  mount; a screen opened this way need not be on the bar. A dialog-only screen (a creation wizard) opens its dialog instead
+  (`sdk.dialog.open`). A screen with neither mount, or none by that id, opens nothing, and the host logs it once.
 - Text is plain: the host prints it (never markup). Commands are `module.action` names.
 
 Drawing: under the message, after the changes card, in the same strip. `normalizeCard` and `scanReplyCards` are in
