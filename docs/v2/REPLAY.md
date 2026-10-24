@@ -299,21 +299,33 @@ would make negative, and the block is skipped, never applied half.
 
 ## Where a block is: `ctx.cursor()` and `ctx.epoch`
 
-Two facts about the place of the block a command makes, for an owner that records them (an acceptance, a claim key) and checks them in its
-guard. Both are pure over the prefix: the chat before the block and the state before it, nothing outside them, so they are the same on a
-rebuild, a reload, a Re-read of an unchanged line and the other swipe's own prefix. Nothing new is stored for them (the block's span already
-holds its boundary), so there is no new replay input: if an owner writes what it read into its changes or `recorded`, those are already inputs.
+Two facts about the block a command makes, for an owner that records them (an acceptance, a claim key) and checks them in its guard.
 
-* `ctx.cursor()` → `{ sid, swipeKey, block, op, rev }`, the contract's `Cursor`: the reply's canonical pair (the source map above), the id the
-  host stamps on the block, the changes before the block on the reply (`op`) and the `meta.rev` before it. It is exactly the block's first
-  `boundaries[0].cursor`. The host worked it out the way it stamps (the id from the same seed: a story line's from the line and how many of it
-  came before, any other from the receipt), hands the id to the block, and the store refuses to store a block somewhere else than the cursor its
-  command read. Known in a click or a command on the head reply, and in the lines of a reply being read again (those planned before it are
-  counted); it throws `UNSUPPORTED` for a step planned for a given reply after a Re-read's kept blocks, and for a block planned again, whose
-  place the Re-read decides.
-* `ctx.epoch` is the epoch of the savepoints domain when the state has one (it is made by the first save point), else the genesis epoch
-  `ep_00000000`, so it works before there is a timeline and follows a restore's new epoch after. It is a property, read from the state the
-  command starts on.
+**`ctx.cursor()`** → `{ sid, swipeKey, block, op, rev }`, the contract's `Cursor`. It has two parts of different kinds.
+
+* **Who the block is: `sid`, `swipeKey`, `block`.** The reply's canonical pair (the source map above) and the block's id, which is the hash of
+  the pair, the block's operation (the command and the line or payload it was made with) and its **rank** among the reply's blocks of that
+  operation (`replay.js` `blockIdOf`). Nothing else goes into it: no counter, no receipt, no id the chat or the process happened to hold. So
+  the same block has the same id whenever it is worked out: live, run again by a Re-read of an unchanged line, planned again as a step of its own
+  reply (the id it has is told, found by its ordinal), after a reload, and after a line is removed and added back. A different reply or swipe
+  is a different block. Two clicks with the same payload in one reply are the first and the second of their kind. The id is the one the host
+  stamps (it is handed to the block), and the store refuses to store a block under another sid, swipe key or id than its command read.
+* **Where it sits: `op`, `rev`.** The changes before the block on the reply and the `meta.rev` before it, as they stand when it is read. These
+  move: a Re-read that puts a line before a kept block shifts its `op`, and a saved cursor keeps what it was. **Anything that compares a saved
+  cursor with a block (an acceptance cursor, a claim anchored at a block) compares `{ sid, swipeKey, block }`, never `op` or `rev`.** The block's
+  first boundary (`boundaries[0].cursor`) is the cursor as it stands now.
+
+A command that reads its cursor makes a guarded block or fails (`ctx.replayGuard`): no id is handed out that is never stored.
+
+**`ctx.epoch`** is the epoch of the savepoints domain when the state has one (it is made by the first save point), else the genesis epoch
+`ep_00000000`, so it works before there is a timeline and follows a restore's new epoch after. It is a property, read from the state the command
+starts on.
+
+*What "pure" means here.* Both are functions of the chat before the block and the state before it, nothing outside them, so a rebuild, a reload
+and the other swipe's prefix give them the same. That holds for the identity (`sid`, `swipeKey`, `block`) and for the epoch. `op` and `rev` are
+pure too, but of the prefix as it is at the moment they are read, which is why a Re-read changes them for a kept block and why they are not an
+identity. Nothing new is stored for any of it (the span already holds the boundary), so there is no new replay input: what an owner writes from
+a cursor into its changes or `recorded` is already an input.
 
 ## Decisions where the contract is silent
 

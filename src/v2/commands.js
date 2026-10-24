@@ -237,18 +237,14 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     function cursorOf(tx) {
         if (tx.cursor === undefined) {
             let found = null;
-            // (a block planned again keeps the id and the place it had, and a step a Re-read runs for a given reply is stored among the kept ones:
-            // neither is told here, where it would only be a guess)
-            if (!tx.again && !tx.givenReply && Number.isInteger(tx.reply?.index) && typeof store.blockCursor === 'function') {
+            if (Number.isInteger(tx.reply?.index) && typeof store.blockCursor === 'function') {
                 try {
-                    found = store.blockCursor(tx.reply.index, {
-                        receiptId: tx.receiptId, cause: tx.cause, operation: tx.operation, planned: tx.planned, pending: tx.pending, ordinal: tx.ordinal, rev: tx.rev - 1,
-                    });
+                    found = store.blockCursor(tx.reply.index, { operation: tx.operation, planned: tx.planned, pending: tx.pending, ordinal: tx.ordinal, rev: tx.rev - 1 });
                 } catch { found = null; }
             }
             tx.cursor = found ? Object.freeze(found) : null;
         }
-        if (!tx.cursor) fail('UNSUPPORTED', 'The cursor of this block is not known here: it is planned after the blocks of a reply that is read again, and is stored with them.');
+        if (!tx.cursor) fail('FAILED', 'There is no reply yet to hold a block, so it has no cursor.');
         return tx.cursor;
     }
 
@@ -593,12 +589,11 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 rev: headRev + 1, carrier: carrierOf(carrier), chat: chatOf(chat), again: again === true && cause === 'story',
                 standing: cause === 'story' && isRecord(standing) ? (isDeepFrozen(standing) ? standing : deepFreeze(clone(standing))) : null,
                 drafts: new Map(), meta: null, failure: null, closed: false, absolute: new Set(), within: new Set(),
-                guard: null, recorded: null, source: undefined, pending: 0, ordinal: undefined, cursor: undefined, operation: null, planned: null, givenReply: false,
+                guard: null, recorded: null, source: undefined, pending: 0, ordinal: undefined, cursor: undefined, operation: null, planned: null,
             };
             // `reply` (run, a system step only): the reply a Re-read's step is kept on, which need not be the head.
             const given = cause === 'system' && isRecord(reply) ? replyOf(reply.index, reply.sid) : null;
             tx.reply = tx.carrier ? replyOf(tx.carrier.index, tx.carrier.sid ?? tx.carrier.key) : given ?? headReply(store);
-            tx.givenReply = !tx.carrier && given !== null;
             // A Re-read plans blocks it has not stored yet: `pending` of them come before this one, or `ordinal`
             // names the block's own (a block planned again keeps it). Only the Source's ordinal, nothing else.
             const place = tx.carrier ? carrier : given ? reply : null;
@@ -617,6 +612,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             // A guarded transaction: the receipt's data.v2 carries the host's Source and the guard (the owner's
             // own fields stay, but never a source or guard of its own making), and the store gets the block.
             let block = null;
+            // A cursor names a block that is stored: a command that read one makes a guarded block or it fails (no id is handed out that is never used).
+            if (tx.cursor && !tx.guard) fail('FAILED', `${type} read its cursor but made no guarded block (ctx.replayGuard), so there is no block for it to name.`);
             if (tx.guard) {
                 const source = sourceOf(tx);
                 if (!source) fail('FAILED', 'There is no reply yet to hold a guarded block.');

@@ -37,7 +37,7 @@ import {
     KEY, RECEIPT_KEEP, carrierIndexes, carryRecord, createSaver, dropCopy, isCarrier, keepsCopy, lastCarrier,
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
-import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
+import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -626,25 +626,22 @@ export function createStore({
     // after the blocks `earlier` ([{ ops, span }]) and `offset` ops: the host stamps the id (kept when the
     // block is planned again), the source, the claims its ops make and the boundary it starts at. `block` is
     // what the bus handed over: { module, source, guard, operation, recorded, result, id? }.
-    function stamp(arr, index, record, block, ops, receipt, earlier, offset, free = null) {
+    function stamp(arr, index, record, block, ops, receipt, earlier, offset) {
         const entry = record.source;
         const planned = block.source;
         if (!isObject(entry) || !isObject(planned) || planned.sid !== entry.logical || planned.swipeKey !== entry.swipeKey || planned.evidence !== entry.evidence) {
             throw new Error('The block was planned for another reply or swipe.');
         }
         const ordinal = planned.ordinal;
-        // A story line's block is named by what the line is (its operation, and which time it is read), so a Re-read of an
-        // unchanged line gives it the same id; any other block by its receipt. `free`: ids of blocks being replaced.
-        let seed = `${entry.swipeKey}:${ordinal}:${receipt?.id ?? ''}`;
-        if (receipt?.cause === 'story' && isObject(block.operation)) {
-            const mine = lineKey(block.operation);
-            const nth = earlier.filter(part => isMetaSpan(part.span) && part.span.operation && lineKey(part.span.operation) === mine).length;
-            seed = `${entry.swipeKey}:line:${mine}:${nth}`;
-        }
+        // A block is named by what it is: the reply, its operation, and which time among the reply's blocks of that operation it is
+        // (replay.js blockIdOf), so a block planned again, a Re-read of an unchanged line and a reload all give it the same id.
         let id = block.id;
         if (typeof id !== 'string') {
-            const known = idsOf(arr).blocks;
-            id = deriveId('bl', seed, { has: other => known.has(other) && !free?.has(other) });
+            const key = lineKey(isObject(block.operation) ? block.operation : { type: '', payload: null });
+            const taken = new Set(earlier.map(part => part.span?.id));
+            let rank = earlier.filter(part => isMetaSpan(part.span) && part.span.operation && lineKey(part.span.operation) === key).length;
+            id = blockIdOf({ sid: entry.logical, swipeKey: entry.swipeKey, key, rank });
+            while (taken.has(id)) id = blockIdOf({ sid: entry.logical, swipeKey: entry.swipeKey, key, rank: ++rank });
         }
         const revOp = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value));
         const message = arr[index];
@@ -662,9 +659,10 @@ export function createStore({
         };
         const bad = spanProblem(span);
         if (bad) throw new Error(`The guarded block cannot be stored: ${bad}.`);
-        // A command that read its cursor (ctx.cursor) was told where its block starts: it is stored there, or it is not stored.
-        if (block.cursor !== undefined && hashJson(block.cursor) !== hashJson(span.boundaries[0].cursor)) {
-            throw new Error('The block is not where the cursor its command read said it would be; it is not stored.');
+        // A command that read its cursor (ctx.cursor) was told which block it is: it is stored as that one, or it is not stored. (Where the block
+        // starts, `op` and `rev`, is where it sits when it is told; a Re-read moves it.)
+        if (block.cursor !== undefined && ['sid', 'swipeKey', 'block'].some(key => block.cursor[key] !== span.boundaries[0].cursor[key])) {
+            throw new Error('The block is not the one the cursor its command read named; it is not stored.');
         }
         if (span.guard) seeGuards();
         if (span.guard && span.replan) replanFrom = Math.min(replanFrom, index);
@@ -1580,43 +1578,47 @@ export function createStore({
         },
 
         /**
-         * The Cursor { sid, swipeKey, block, op, rev } a guarded block planned for carrier `index` will start at (ctx.cursor), worked out the way
-         * stamp works it out: the canonical pair from the source map, the block's id derived from the same seed (a story line's from the line and how
-         * many of it came before, any other from the receipt), `op` the changes before it on the reply, `rev` the one given. `spec`: { receiptId,
-         * cause, operation: { type, payload }, rev, pending?, ordinal?, planned? }. `planned` (a Re-read's, the blocks planned before this one:
-         * [{ n, block? }]) says the reply is being read again: its old story blocks' ids are free to be taken back and its new changes start
-         * from nothing. Otherwise the block goes after what the head reply holds. null where that cannot be told (a step planned after a Re-read's
-         * kept blocks, or a reply that is not the head).
+         * The Cursor { sid, swipeKey, block, op, rev } of the guarded block planned for carrier `index` (ctx.cursor). The block is named by what it
+         * is (replay.js blockIdOf: the reply's pair, its operation, its rank among the reply's blocks of that operation), so it is the same id
+         * whenever it is worked out, and a block planned again, which the reply holds already (`ordinal` names it), is told by the id it has.
+         * `op` and `rev` are where the block sits now (the changes before it on the reply, the rev given): a Re-read moves them, and a saved
+         * cursor is compared by { sid, swipeKey, block }. `spec`: { operation: { type, payload }, rev, pending?, ordinal?, planned? }. `planned` (a
+         * Re-read's: the blocks planned before this one, [{ n, block? }]) says the reply is being read again: its old story blocks are
+         * replaced and its new changes start from nothing. null for a message that is not a carrier.
          */
         blockCursor(index, spec = {}) {
             const arr = list();
             const message = arr[index];
             if (!isCarrier(message)) return null;
             const planned = Array.isArray(spec.planned) ? spec.planned : null;
-            const pending = Number.isInteger(spec.pending) ? spec.pending : 0;
-            if (!planned && (pending > 0 || index !== lastCarrier(arr))) return null;
-            const source = sourceOf(index, { pending, ordinal: spec.ordinal });
+            const source = sourceOf(index, { pending: Number.isInteger(spec.pending) ? spec.pending : 0, ordinal: spec.ordinal });
             if (!source) return null;
             const record = readRecord(message);
+            const spans = record ? spansFor(record) : [];
+            const rev = Math.max(0, spec.rev ?? 0);
+            const at = { sid: source.sid, swipeKey: source.swipeKey };
+            if (Number.isInteger(spec.ordinal)) {
+                let offset = 0;
+                for (const span of spans) {
+                    if (isMetaSpan(span) && span.source?.ordinal === spec.ordinal) return { ...at, block: span.id, op: offset, rev };
+                    offset += Number.isInteger(span?.n) ? span.n : 0;
+                }
+            }
             let offset;
             let before;
-            let free = null;
             if (planned) {
                 offset = planned.reduce((sum, part) => sum + (Number.isInteger(part?.n) ? part.n : 0), 0);
                 before = planned.map(part => part?.block?.operation).filter(Boolean);
-                free = new Set((Array.isArray(record?.spans) ? record.spans : []).filter(span => span.story && isMetaSpan(span)).map(span => span.id));
             } else {
                 offset = record ? record.ops.length : 0;
-                before = record ? blockParts({ ...record, spans: spansFor(record), ops: record.ops }).map(part => part.span).filter(span => isMetaSpan(span) && span.operation).map(span => span.operation) : [];
+                before = record ? blockParts({ ...record, spans, ops: record.ops }).map(part => part.span).filter(span => isMetaSpan(span) && span.operation).map(span => span.operation) : [];
             }
-            let seed = `${source.swipeKey}:${source.ordinal}:${spec.receiptId ?? ''}`;
-            if (spec.cause === 'story' && isObject(spec.operation)) {
-                const mine = lineKey(spec.operation);
-                seed = `${source.swipeKey}:line:${mine}:${before.filter(operation => lineKey(operation) === mine).length}`;
-            }
-            const known = idsOf(arr).blocks;
-            const block = deriveId('bl', seed, { has: other => known.has(other) && !free?.has(other) });
-            return { sid: source.sid, swipeKey: source.swipeKey, block, op: offset, rev: Math.max(0, spec.rev ?? 0) };
+            const key = lineKey(isObject(spec.operation) ? spec.operation : { type: '', payload: null });
+            let rank = before.filter(operation => lineKey(operation) === key).length;
+            const taken = new Set(planned ? [] : spans.filter(isMetaSpan).map(span => span.id));
+            let block = blockIdOf({ ...at, key, rank });
+            while (taken.has(block)) block = blockIdOf({ ...at, key, rank: ++rank });
+            return { ...at, block, op: offset, rev };
         },
 
         /** The first carrier seen holding a guarded step with a `replan`, or blocks numbered at or below the rev before them (the turn reconciles from it), else null. */
@@ -1812,7 +1814,7 @@ export function createStore({
                     if (piece.block) {
                         let span;
                         try {
-                            span = { n: piece.n, story: true, ...stamp(arr, index, record, piece.block, own, piece.receipt, nextParts, offset, replacedIds) };
+                            span = { n: piece.n, story: true, ...stamp(arr, index, record, piece.block, own, piece.receipt, nextParts, offset) };
                             guardHolds(upTo, span, message);
                         } catch (error) {
                             throw fail(error);

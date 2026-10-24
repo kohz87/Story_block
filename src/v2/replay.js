@@ -103,6 +103,14 @@ export function isPlainJson(value) {
 const HASH = /^[0-9a-f]{64}$/;
 export const isHash = value => typeof value === 'string' && HASH.test(value);
 
+/**
+ * The id of a guarded block: the hash of the reply's canonical pair, the block's operation (`key`: the command and the line or payload it
+ * was made with) and its `rank` among the blocks of that reply made with the same operation. Nothing else goes in: no counter, no
+ * receipt, no id the chat or the process happened to hold, so the same block gets the same id whenever and wherever it is worked out
+ * (live, planned again by a Re-read, after a reload).
+ */
+export const blockIdOf = ({ sid, swipeKey, key, rank }) => idFromHash('bl', hashJson({ sid, swipeKey, key, rank }));
+
 /** The epoch of a timeline that has never been restored (the savepoints domain starts in it). */
 export const GENESIS_EPOCH = 'ep_00000000';
 /**
