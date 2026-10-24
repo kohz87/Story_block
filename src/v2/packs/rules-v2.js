@@ -19,7 +19,7 @@
 import { rulesV2SchemaSource } from './rules-v2.schema.js';
 import { byteLength, unsafeText } from './safety.js';
 import { parseRange } from './version.js';
-import { PACK_FIELDS, PACK_ID, SLUG, SEMVER, DEF_ID, CONTENT_KINDS } from './limits.js';
+import { PACK_FIELDS, PACK_ID, SLUG, SEMVER, DEF_ID, CONTENT_KINDS, LIMITS } from './limits.js';
 import { validatePack, HOST_VERSION } from './validate.js';
 
 /** Deeply freezes an object or array and all nested structures. */
@@ -2781,9 +2781,11 @@ function findDuplicateKeys(text) {
  * Validates a rules pack per SPEC §7, §9, §10: the envelope, JSON safety (SB's markup and link scan
  * over every string and key), the rules manifest and the owned content. Accepts an object or JSON
  * text (text with a repeated key is refused). Reuses SB validatePack on a detached legacy projection.
- * Options: `constants`, and `capabilities` (the host's capability names; when given, a missing one
- * is MISSING_CAPABILITY like Story Block's own check). A pack with content.rules must declare the
- * `rb-rules-v2` capability. Returns `{ ok, errors, pack, raw, resolved, rulesHash, packHash, warnings }`.
+ * Options: `constants`; `capabilities` (the host's capability names; when given, a missing one
+ * is MISSING_CAPABILITY like Story Block's own check); `hostVersion` (default HOST_VERSION) and `limits`
+ * (Story Block's pack limits, default LIMITS), used for the envelope pass; `envelope` (default true): false
+ * skips that pass for a caller that has just made it on the same pack (Story Block's validatePack does).
+ * A pack with content.rules must declare the `rb-rules-v2` capability. Returns `{ ok, errors, pack, raw, resolved, rulesHash, packHash, warnings }`.
  * Never throws.
  */
 export function validateRulesPack(pack, rawOptions = {}) {
@@ -2797,7 +2799,18 @@ export function validateRulesPack(pack, rawOptions = {}) {
 function validatePackOf(pack, rawOptions) {
     const optionsRead = readOptions(rawOptions);
     if (!optionsRead.ok) return { ok: false, errors: optionsRead.errors };
-    const { constants = RULES_V2_CONSTANTS, capabilities = null } = optionsRead.options;
+    const { constants = RULES_V2_CONSTANTS, capabilities = null, limits = null } = optionsRead.options;
+    const hostVersion = optionsRead.options.hostVersion ?? HOST_VERSION;
+    const envelope = optionsRead.options.envelope ?? true;
+    if (typeof hostVersion !== 'string' || !SEMVER.test(hostVersion)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'options.hostVersion', 'hostVersion must be a version like 2.0.0');
+    }
+    if (typeof envelope !== 'boolean') {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'options.envelope', 'envelope must be true or false');
+    }
+    if (limits !== null && (!isRecord(limits) || Object.entries(limits).some(([key, n]) => !(key in LIMITS) || !Number.isSafeInteger(n) || n < 1))) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'options.limits', 'limits must name Story Block pack limits (packBytes, depth, keys, array, string, name, errors ...) as whole numbers of 1 or more');
+    }
 
     let value = pack;
     if (typeof pack === 'string') {
@@ -2890,28 +2903,32 @@ function validatePackOf(pack, rawOptions) {
         currencyForSb = rest;
     }
 
-    // Run SB validatePack on detached legacy projection
-    const legacyProj = clonePlain(detachedVal);
-    delete legacyProj.content.rules;
-    if (currencyForSb !== undefined) legacyProj.currency = currencyForSb;
-    legacyProj.content.creatures = [];
-    legacyProj.content.quests = [];
-    legacyProj.content.shops = [];
-    legacyProj.content.recipes = [];
+    // Run SB validatePack on detached legacy projection. A caller that has already done this pass on the same
+    // pack (Story Block's own validatePack) says `envelope: false` and the checker goes straight on to the manifest
+    // and the definitions it owns; its own cheap envelope checks above still run.
+    if (envelope) {
+        const legacyProj = clonePlain(detachedVal);
+        delete legacyProj.content.rules;
+        if (currencyForSb !== undefined) legacyProj.currency = currencyForSb;
+        legacyProj.content.creatures = [];
+        legacyProj.content.quests = [];
+        legacyProj.content.shops = [];
+        legacyProj.content.recipes = [];
 
-    const hostCapabilities = Array.isArray(capabilities) && capabilities.every(name => typeof name === 'string') ? capabilities : null;
-    const sbRes = validatePack(legacyProj, { hostVersion: HOST_VERSION, capabilities: hostCapabilities });
-    if (!sbRes.ok) {
-        const mapped = sbRes.errors.map(err => {
-            if (err.code === 'UNKNOWN_FIELD' && !err.path.includes('.')) {
-                return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
-            }
-            if (err.code === 'UNKNOWN_KIND') {
-                return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
-            }
-            return err;
-        });
-        return { ok: false, errors: mapped };
+        const hostCapabilities = Array.isArray(capabilities) && capabilities.every(name => typeof name === 'string') ? capabilities : null;
+        const sbRes = validatePack(legacyProj, { hostVersion, capabilities: hostCapabilities, ...(limits ? { limits: { ...LIMITS, ...limits } } : {}) });
+        if (!sbRes.ok) {
+            const mapped = sbRes.errors.map(err => {
+                if (err.code === 'UNKNOWN_FIELD' && !err.path.includes('.')) {
+                    return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
+                }
+                if (err.code === 'UNKNOWN_KIND') {
+                    return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
+                }
+                return err;
+            });
+            return { ok: false, errors: mapped };
+        }
     }
 
     const normRes = normalizeRulesV2Of(detachedVal.content.rules[0], { packKey: detachedVal.id, constants: c });

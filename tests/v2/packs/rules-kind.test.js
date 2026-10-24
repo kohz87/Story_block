@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom, texts } from '../../ui-fake-dom.js';
-import { CONTENT_KINDS, HOST_CAPABILITIES, OPTIONAL_KINDS } from '../../../src/v2/packs/limits.js';
+import { CONTENT_KINDS, HOST_CAPABILITIES, LIMITS, OPTIONAL_KINDS } from '../../../src/v2/packs/limits.js';
 import { HOST_VERSION, validatePack } from '../../../src/v2/packs/validate.js';
 import { validatePack as oldValidatePack } from './fixtures/old-host/validate.js';
 import * as R from '../../../src/v2/packs/rules-v2.js';
@@ -163,7 +163,7 @@ test('a malformed nested field fails with the checker\'s own code and path', () 
     // Every error the checker gives stays within the pack's error limit.
     const many = smallRulesPack();
     many.content.rules[0].skills.forEach(skill => { skill.base.effects[0].power = -1; });
-    assert.ok(validatePack(many, { limits: { ...R.RULES_V2_LIMITS, packBytes: 512 * 1024, errors: 3 } }).errors.length <= 3);
+    assert.ok(validatePack(many, { limits: { ...LIMITS, errors: 3 } }).errors.length <= 3);
 });
 
 test('this host\'s own checks still apply to the rest of a rules pack (strict items, old skills, version)', () => {

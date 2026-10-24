@@ -190,19 +190,22 @@ test('schema 2 rejects a numeric branch-only copy, a graph mismatch, and every u
     unknown('content.recipes[0].extra', content => { content.recipes[0].extra = 1; });
 
     // Unknown references.
-    const unresolved = (path, change) => {
+    // The host's own shop and recipe checks run first and say UNKNOWN_REF for an item that is nowhere; the checker's `bad-ref` is for the rest.
+    const unresolved = (path, change, code = 'bad-ref') => {
         const pack = makeEveryKindPack();
         change(pack.content);
         const result = validatePack(pack);
         assert.equal(result.ok, false, path);
-        assert.ok(has(result, 'bad-ref', path), `${path}: ${show(result)}`);
+        assert.ok(has(result, code, path), `${path}: ${show(result)}`);
+        // Standalone, the checker finds every one of them itself.
+        assert.ok(has(R.validateRulesPack(pack), 'bad-ref', path), `${path} (checker alone)`);
     };
     unresolved('content.creatures[0].skills[0]', content => { content.creatures[0].skills[0] = 'nothing'; });
     unresolved('content.creatures[0].loot[0].def', content => { content.creatures[0].loot[0].def = 'nothing'; });
-    unresolved('content.shops[0].stock[0].item', content => { content.shops[0].stock[0].item = 'nothing'; });
+    unresolved('content.shops[0].stock[0].item', content => { content.shops[0].stock[0].item = 'nothing'; }, 'UNKNOWN_REF');
     unresolved('content.shops[0].place', content => { content.shops[0].place = 'pack.fixture/nowhere'; });
-    unresolved('content.recipes[0].makes', content => { content.recipes[0].makes = 'nothing'; });
-    unresolved('content.recipes[0].materials[0].item', content => { content.recipes[0].materials[0].item = 'nothing'; });
+    unresolved('content.recipes[0].makes', content => { content.recipes[0].makes = 'nothing'; }, 'UNKNOWN_REF');
+    unresolved('content.recipes[0].materials[0].item', content => { content.recipes[0].materials[0].item = 'nothing'; }, 'UNKNOWN_REF');
     unresolved('content.quests[0].objectives[0].foe', content => { content.quests[0].objectives[0].foe = 'nothing'; });
     unresolved('content.quests[0].reward.items[0].def', content => { content.quests[0].reward.items[0].def = 'nothing'; });
     unresolved('content.quests[0].chain.next', content => { content.quests[0].chain.next = 'nothing'; });
@@ -232,7 +235,7 @@ test('schema 2 rejects unsafe and oversized content', () => {
         assert.equal(result.ok, false, name);
         assert.deepEqual(codes(result), [[code, path]], `${name}: ${show(result)}`);
     };
-    refused('markup in a creature', 'unsafe-markup', 'content.creatures[0].name', pack => { pack.content.creatures[0].name = '<b>Goblin</b>'; });
+    refused('markup in a creature', 'UNSAFE_HTML', 'content.creatures[0].name', pack => { pack.content.creatures[0].name = '<b>Goblin</b>'; });
     refused('a link in a quest', 'UNSAFE_HTML', 'content.quests[0].name', pack => { pack.content.quests[0].name = 'See [x](javascript:alert(1))'; });
     refused('an image in a label', 'UNSAFE_HTML', 'content.rules[0].statLabels.STR', pack => { pack.content.rules[0].statLabels.STR = '<img src=x onerror=alert(1)>'; });
     refused('a key that reaches the prototype', 'UNSAFE_KEY', 'content.rules[0].statLabels.__proto__', pack => { pack.content.rules[0].statLabels = JSON.parse('{"__proto__": "x"}'); });
@@ -346,4 +349,104 @@ test('a rules pack and the shop and recipe checks of the host agree on reference
     const qualified = rules(content => { content.shops[0].stock[1].item = 'pack.fixture/potion'; });
     assert.equal(qualified.ok, true, show(qualified));
     assert.equal(qualified.pack.content.shops[0].stock[1].item, 'pack.fixture/potion');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Options the host hands the checker, and one code for unsafe text
+// ---------------------------------------------------------------------------------------------
+
+test('the checker takes the real host version and limits for its envelope pass (and keeps 2.0.0 and the default limits when given none)', () => {
+    const wants = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
+    // Packs that ask for an older host than the checker's built-in 2.0.0 (a beta), and one that asks for a newer host. (The checker bans `<` and `>`
+    // in all text, so a range like `<=2.0.0-beta.5` cannot be written in a rules pack at all; see the report.)
+    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['^2.1', '2.1.4']]) {
+        assert.equal(R.validateRulesPack(wants(range)).ok, false, `${range}: the built-in version is not enough`);
+        const given = R.validateRulesPack(wants(range), { hostVersion });
+        assert.equal(given.ok, true, `${range} on ${hostVersion}: ${show(given)}`);
+        const host = validatePack(wants(range), { hostVersion, capabilities: null });
+        assert.equal(host.ok, true, `${range} on ${hostVersion} through the host: ${show(host)}`);
+    }
+    assert.ok(has(validatePack(wants('^2.1'), { hostVersion: '2.0.0-beta.2' }), 'HOST_VERSION', 'requires.storyBlock'), 'a host that is too old still refuses');
+    assert.ok(has(R.validateRulesPack(wants('^2.1'), { hostVersion: '2.0.9' }), 'HOST_VERSION'));
+    assert.equal(R.validateRulesPack(wants('^2')).ok, true);
+    for (const bad of ['', 'two', 2, null]) {
+        const result = R.validateRulesPack(wants('^2'), { hostVersion: bad });
+        if (bad === null) assert.equal(result.ok, true, 'null is "not given"');
+        else assert.ok(has(result, 'bad-schema', 'options.hostVersion'), JSON.stringify(bad));
+    }
+    // Limits: the host's own are used, not the defaults.
+    const pack = smallRulesPack();
+    pack.description = 'd'.repeat(60);
+    const tight = { ...LIMITS, string: 50 };
+    assert.ok(has(R.validateRulesPack(pack, { limits: tight }), 'TOO_LONG', 'description'));
+    assert.ok(has(validatePack(pack, { limits: tight }), 'TOO_LONG', 'description'));
+    assert.equal(R.validateRulesPack(pack).ok, true);
+    assert.equal(R.validateRulesPack(pack, { limits: { string: 50 } }).ok, false, 'a partial table is laid over the defaults');
+    for (const bad of [{ nope: 5 }, { string: 0 }, { string: 'x' }, [], 5]) assert.ok(has(R.validateRulesPack(pack, { limits: bad }), 'bad-schema', 'options.limits'), JSON.stringify(bad));
+});
+
+test('envelope: false skips the checker\'s own pass over the envelope and the records Story Block owns; by default it is on', () => {
+    // Nothing the host owns is wrong in this pack except an item field, which only the envelope pass looks at.
+    const pack = makeValidExtendedPack();
+    pack.content.items[0].oops = 1;
+    pack.content.places = [{ name: 'Nowhere', x: 'far', y: 0 }];
+    assert.equal(R.validateRulesPack(clone(pack)).ok, false, 'standalone: on by default');
+    assert.ok(has(R.validateRulesPack(clone(pack), { envelope: true }), 'UNKNOWN_FIELD', 'content.items[0].oops'));
+    const skipped = R.validateRulesPack(clone(pack), { envelope: false });
+    assert.ok(!has(skipped, 'UNKNOWN_FIELD'), show(skipped));
+    // The manifest and the definitions it owns are still checked, and so is the declaration.
+    const owned = makeValidExtendedPack();
+    owned.content.rules[0].skills[0].base.effects[0].power = -50;
+    assert.ok(has(R.validateRulesPack(owned, { envelope: false }), 'numeric-range', 'content.rules[0].skills[0].base.effects[0].power'));
+    const silent = smallRulesPack({ requires: { storyBlock: '^2', capabilities: [] } });
+    assert.ok(has(R.validateRulesPack(silent, { envelope: false }), 'MISSING_CAPABILITY'));
+    assert.ok(has(R.validateRulesPack(smallRulesPack(), { envelope: 'no' }), 'bad-schema', 'options.envelope'));
+    // The same good pack gives the same answer, hashes included, either way.
+    const good = makeEveryKindPack();
+    const on = R.validateRulesPack(clone(good));
+    const off = R.validateRulesPack(clone(good), { envelope: false });
+    assert.equal(on.ok && off.ok, true);
+    assert.deepEqual([off.rulesHash, off.packHash], [on.rulesHash, on.packHash]);
+    assert.deepEqual(off.pack, on.pack);
+    // The host does its own envelope pass first and hands the checker the rest: a bad item field is the host's code, found once.
+    const hosted = validatePack(clone(pack), { capabilities: null });
+    assert.deepEqual(codes(hosted).filter(([code]) => code === 'UNKNOWN_FIELD'), [['UNKNOWN_FIELD', 'content.items[0].oops']]);
+});
+
+test('a rules pack\'s money: display and an empty coin list are the checker\'s; the host keeps its own reading of the rest', () => {
+    const pack = smallRulesPack();
+    pack.currency = { name: 'mark', plural: 'marks', short: 'm', display: 'base', coins: [] };
+    const result = validatePack(pack, { capabilities: null });
+    assert.equal(result.ok, true, show(result));
+    assert.equal(result.pack.currency.name, 'mark');
+    assert.equal(result.pack.currency.display, 'base');
+    pack.currency = { name: 'mark' };
+    assert.equal(validatePack(pack, { capabilities: null }).pack.currency.display, 'mixed', 'the schema default');
+    pack.currency = { name: 'mark', display: 'weird' };
+    assert.ok(has(validatePack(pack, { capabilities: null }), 'bad-schema', 'currency.display'));
+    pack.currency = { name: 'mark', coins: [{ name: 'penny', value: 1 }, { name: 'silver', value: 10 }], display: 'mixed' };
+    assert.equal(validatePack(pack, { capabilities: null }).pack.currency.coins.length, 2);
+    // Without a manifest the old reading stands: display is not a currency field there.
+    const old = { id: 'plain', version: '1.0.0', requires: { storyBlock: '^2' }, currency: { name: 'mark', display: 'base' }, content: {} };
+    assert.equal(validatePack(old).ok, false);
+    assert.deepEqual(validatePack(old), oldValidatePack(old));
+});
+
+test('unsafe text is UNSAFE_HTML from validatePack whoever found it; the checker alone keeps unsafe-markup', () => {
+    const creature = makeEveryKindPack();
+    creature.content.creatures[0].name = '<b>Goblin</b>';
+    const quest = makeEveryKindPack();
+    quest.content.quests[0].name = 'See [x](javascript:alert(1))';
+    const inRules = makeEveryKindPack();
+    inRules.content.rules[0].skills[0].name = 'Slash <i>hard</i>';
+    for (const [name, pack, path] of [['creature name', creature, 'content.creatures[0].name'], ['quest text', quest, 'content.quests[0].name'], ['manifest text', inRules, 'content.rules[0].skills[0].name']]) {
+        const host = validatePack(clone(pack), { capabilities: null });
+        assert.deepEqual(codes(host), [['UNSAFE_HTML', path]], `${name}: ${show(host)}`);
+        assert.ok(!show(host).includes('unsafe-markup'), name);
+    }
+    // Standalone (Studio): the checker's own code stays.
+    assert.ok(has(R.validateRulesPack(clone(creature)), 'unsafe-markup', 'content.creatures[0].name'));
+    assert.ok(has(R.validateRulesPack(clone(inRules)), 'unsafe-markup', 'content.rules[0].skills[0].name'));
+    // Also with the envelope pass skipped, which is how the host calls it: the checker still says unsafe-markup itself, the host maps it.
+    assert.ok(has(R.validateRulesPack(clone(creature), { envelope: false }), 'unsafe-markup'));
 });

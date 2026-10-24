@@ -421,6 +421,14 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's
   `known` filled in). The raw pack is what stays in settings. `validatePack` also returns `rulesHash` and `packHash`.
+  `currency` may carry `display` (`mixed` or `base`, default `mixed`) and an empty `coins` list in a rules pack; it is
+  stored with `display`.
+* **Order and codes.** Story Block checks the envelope and the records it owns first, with the host's real version and
+  limits; the checker then takes the manifest and what it owns, and is not asked to repeat the envelope pass
+  (`validateRulesPack(pack, { hostVersion, limits, envelope })`; standalone it does everything). Unsafe text is
+  `UNSAFE_HTML` from `validatePack` whoever found it (the checker alone says `unsafe-markup`). In a rules pack's text
+  `<` and `>` are refused everywhere, so a version range such as `>=2.0.0` or an event condition `gold > 5` cannot be
+  written in one; use `^2`, `=2.0.0` or other wording.
 * **Reading it.** Query `packs.rules({ pack? })` → `[{ pack, version, id, name, manifest }]` for the enabled packs that
   have one (rules are never mixed across packs: the reader takes one); `packs.content({ kind: 'rules' })` gives the
   bare manifests; `packs.list` counts them (`counts.rules`) and tags the pack **Rules pack · RPG Battle**, also when
