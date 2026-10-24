@@ -12,7 +12,7 @@ Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `manifes
 `archive.js` the host archive, `participants.js`, `host-block.js` the blocks the host stores itself, `gate.js` the epoch and rules
 check, `part.js` the core module's commands, query and replay guard). Wiring: `runtime.js` makes it, `sdk.js` exposes it
 (`sdk.timeline`, `sdk.command('savepoint.make')`, recovery in `ensureModules`), `store.js` has `boundary()`, `touch()`, the
-gate and the guard on the host's domain, `overlay.js` the rule-settings overlay. Tests: `tests/v2/timeline-make`, `-manifest`, `-restore`, `-crash`, `-replay`, `-native`, `-compat`, `-hardening` and `-fuzz`, with the
+gate and the guard on the host's domain, `overlay.js` the rule-settings overlay. Tests: `tests/v2/timeline-make`, `-manifest`, `-restore`, `-crash`, `-replay`, `-native`, `-compat`, `-hardening`, `-principles` and `-fuzz`, with the
 test-only modules in `tests/v2/helpers/timeline.js`.
 
 ## `sdk.timeline`
@@ -69,8 +69,8 @@ the payload or in the proof pins) is as good as gone: `SNAPSHOT_UNAVAILABLE`. No
 
 `reserved` → `checkpointed` → `archived` → `committed` (or `discarded`: the head moved; `aborted`: a participant could not save).
 **Durable before it is told.** Nothing a make activates is durable before its commit section, and `make` (and `savepoint.make`
-through the bus) answers success only after the final flush of the chat file; a flush that fails propagates as the failure and the
-journal, not the answer, is what a later `recover()` reads. The head is read first (`headHash` covers the story's prefix, the rev, the epoch and the native changes published), the
+through the bus) answers success only after the final flush of the chat file. See "Durability, the chat and the participants
+at the commit" below for the rules every operation keeps. The head is read first (`headHash` covers the story's prefix, the rev, the epoch and the native changes published), the
 participants' checkpoints are asked for (`checkpoint({ cursor, headHash })`; each answer must carry the schema the participant
 registered, the exact prepared checkpoint id and its hash, or the save is `SNAPSHOT_UNAVAILABLE`), the bytes are put in the archive and made
 durable, and only then, **if the head, the source (the chat) and the story are what they were** (re-read in the same
@@ -94,7 +94,7 @@ A domain definition may also have, for restores:
 * `absent()` → a slice: what a domain is brought to when it came **after** the save (the contract's "versioned default"); without
   it, a restore to a save that predates the domain is `SNAPSHOT_UNAVAILABLE`.
 
-A module may name the settings that are rules with `settings.rules` (a list of keys); their values are saved in
+A module may name the settings that are rules with `settings.rules` (a list of keys; the registry knows the field and does not warn of it); their values are saved in
 `effectiveSettings`, and a restore applies them (see "Rule settings").
 
 Restoring a `day-start` point overlays that point's own `dayStarts` entry and recomputes `previousDay` from the days that remain, so
@@ -174,10 +174,39 @@ when the result is not its, else `{ id, hash, bytes }`). `prepare` calls the res
 
 ## Reserved name, and who a participant is
 
-The `savepoints` domain name is reserved in the registry, and `store.append` refuses any operation on it unless the block is one of
-the host's own (the guard on the host's domain in `store.js`). A participant's identity is stamped from the module that registered it
+The `savepoints` domain name is reserved in the registry, and the store refuses any operation on it unless the block is one of the
+host's own, on a live append and on replay. The reserved thing is the **branch**: a write touches it when its `path` or its `from`
+is the domain, anything below it, or anything that holds it (`/domains`, the root), for every op (add, replace, remove, move,
+copy) and for a path that cannot be read. It is the rule E5 applies to `/meta/proofs` and is the same function
+(`reachesBranch` in `evidence.js`). A participant's identity is stamped from the module that registered it
 (`participant.module` cannot be claimed by another module), and a `npc.identity` answer is bound to the participant of the event:
 `nativeEvent` resolves an npc only through the query of the participant it names.
+
+## Durability, the chat and the participants at the commit
+
+Three rules that every operation (make, forget, prepare, activate, abort, recover, nativeMutation, nativeEvent) keeps, once, in the
+coordinator's helpers rather than at each site:
+
+1. **One helper makes things durable (`durable`).** It flushes the chat file and throws when the flush fails: the caller's failure
+   (`FAILED`), and nothing after it runs, is retried as if it had worked or is announced. Every write of the journal or the story
+   that must reach the file goes through it. A block the host stored (`savepoint.make`, `.forget`, `.restore`, `.complete`) is
+   *owed* to the `committed` listeners and told only when a flush has succeeded, so a failed save announces nothing the file lacks;
+   a later flush that works tells it then. The journal of a native change is saved before the participant is asked to change
+   (`finishNative` begins with the flush, so a retry or a `recover` after a failed save does it first), and a delivery or a change
+   is told done only after the final flush; the same event again is not acknowledged until the file has it. The one exception is the
+   clean-up after a failure that is already being reported (an abort): its journal word rides with the next save, and a restart
+   reads the unsettled entry and does the same.
+2. **An operation is bound to the chat it began in.** The chat identity (its metadata object) is captured when the operation
+   starts, and every archive write, every block it stores and every barrier it raises or drops checks it; after every wait (a
+   participant's answer, a phase boundary, a flush) the operation looks again. If another chat is open the answer is `STALE`, nothing
+   is written or created in the chat that is open now, what is owed is dropped, and a barrier the operation had raised is dropped
+   if the open chat has no restore of its own pending. The chat that was left keeps its unsettled journal entry, and its own
+   `recover` settles it when it is opened again.
+3. **The participants are looked at again in the commit section.** A make checks that the participants it asked are the participants
+   there are (none failed to register, none registered, no schema changed) in the same synchronous section as the commit
+   (`SNAPSHOT_UNAVAILABLE` otherwise, nothing stored); an activate does the same against the save's participants and the slots that
+   were prepared, and aborts the preparation; a native change checks that its participant is still registered at the schema of its
+   checkpoints before the journal is written.
 
 ## The epoch and rules gate
 

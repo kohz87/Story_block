@@ -14,14 +14,14 @@
 // * `events`: the native events (confirmed deaths) delivered, by id.
 //
 // A chat that never used the timeline has none of it: nothing is created by reading. Writing marks the chat changed
-// (`touch`), so the store's next save carries it.
+// (`touch`), so the store's next save carries it, and is refused when the chat the running operation began in is no longer open.
 
 import { hashJson } from '../replay.js';
-import { isObject, makeId } from './util.js';
+import { isObject, makeId, staleChat } from './util.js';
 
 const verified = new WeakMap();   // payload entry -> the hash it was verified for
 
-export function createArchive({ metadata, touch = () => {} }) {
+export function createArchive({ metadata, touch = () => {}, bound = () => null }) {
     const meta = () => {
         let value = null;
         try { value = metadata(); } catch { value = null; }
@@ -44,7 +44,11 @@ export function createArchive({ metadata, touch = () => {} }) {
         if (!isObject(root.pins.batchResults)) root.pins.batchResults = {};
         return root;
     }
+    // An operation is bound to the chat it began in (`bound()` → that chat's metadata): a write while another chat is open
+    // is refused before it creates or changes anything there.
     const write = fn => {
+        const chat = bound();
+        if (chat && meta() !== chat) throw staleChat();
         const root = make();
         const out = fn(root);
         touch();

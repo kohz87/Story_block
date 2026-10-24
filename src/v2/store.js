@@ -42,10 +42,9 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, merged, pinOps, recordEntries, touchesProof } from './evidence.js';
+import { evidenceDigest, evidenceProblem, merged, pinOps, reachesBranch, recordEntries, touchesProof } from './evidence.js';
 import { HOST_DOMAIN, gateProblem } from './timeline/gate.js';
 
-const HOST_PATH = `/domains/${HOST_DOMAIN}`;
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -57,7 +56,9 @@ export const CHECKPOINT_MIN_GAP = 10;
 export const NO_LONGER_DONE = 'NO_LONGER_DONE';
 
 // The host's savepoints domain (timeline/gate.js): written only by the host's own blocks (module story-block, operation savepoint.*).
-const touchesHostDomain = op => [op?.path, op?.from].some(path => typeof path === 'string' && (path === HOST_PATH || path.startsWith(`${HOST_PATH}/`)));
+// A write reaches it when its path or `from` is the domain, anything below it, or anything that holds it (/domains, the root): any op.
+const HOST_BRANCH = ['domains', HOST_DOMAIN];
+const touchesHostDomain = op => !op || typeof op !== 'object' || reachesBranch(op.path, HOST_BRANCH) || reachesBranch(op.from, HOST_BRANCH);
 const hostBlock = (module, type) => module === 'story-block' && typeof type === 'string' && type.startsWith('savepoint.');
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -599,8 +600,8 @@ export function createStore({
     // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
     // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
     function replayLegacy(state, ops) {
-        if (ops.some(touchesHostDomain)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         if (ops.some(touchesProof)) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
+        if (ops.some(touchesHostDomain)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         return step(state, ops, { replayed: true });
     }
 

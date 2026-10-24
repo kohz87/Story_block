@@ -49,7 +49,7 @@ export const STANDARD_PREFIX = 'ss.';
 
 // The settings fields this host knows, and the places a module's settings may ask for (`settings.place`,
 // or a fold's `place`): 'diagnostics' draws it as a sub-fold of Settings → Diagnostics (SPEC §6).
-const SETTINGS_KEYS = ['defaults', 'schema', 'section', 'render', 'folds', 'place'];
+const SETTINGS_KEYS = ['defaults', 'schema', 'section', 'render', 'folds', 'place', 'rules'];
 export const SETTINGS_PLACES = Object.freeze(['diagnostics']);
 const placeOf = value => (SETTINGS_PLACES.includes(value) ? value : null);
 const KNOWN_KEYS = ['id', 'name', 'version', 'description', 'requires', 'domains', 'commands', 'queries', 'capture', 'context', 'hooks', 'settings', 'tabs', 'screens', 'widgets', 'features', 'cards', 'participant', 'batchResults'];

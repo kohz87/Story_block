@@ -255,13 +255,26 @@ export function pinOps(state, ops) {
     return out;
 }
 
+/**
+ * True when `path` reaches `branch` (a list of keys): it names the branch, something below it, or something that holds it, any
+ * ancestor up to the document root. A path that cannot be read counts, since nothing can say it does not; no path (`undefined`) does not.
+ * The rule for every record only some blocks may write (the proof pins here, the host's savepoints in the store).
+ */
+export function reachesBranch(path, branch) {
+    if (path === undefined) return false;
+    let keys;
+    try { keys = parsePath(path); } catch { return true; }
+    for (let at = 0; at < Math.min(keys.length, branch.length); at++) if (keys[at] !== branch[at]) return false;
+    return true;
+}
+
+const PROOF_BRANCH = ['meta', 'proofs'];
+
 // The keys of an op's path (or `from`) when it names the state's proof record or something that holds it: the document
 // root, `/meta`, `/meta/proofs` or anything under it. An unreadable path counts, since nothing can say it does not.
 function touchedKeys(path) {
-    if (path === undefined) return null;
-    let keys;
-    try { keys = parsePath(path); } catch { return []; }
-    return keys.length === 0 || (keys[0] === 'meta' && (keys.length === 1 || keys[1] === 'proofs')) ? keys : null;
+    if (!reachesBranch(path, PROOF_BRANCH)) return null;
+    try { return parsePath(path); } catch { return []; }
 }
 
 /** True when `op` changes the record of proof pins, or something that holds it (the root, /meta, /meta/proofs, below it): any op, add, replace, remove, move or copy, whole or empty. */

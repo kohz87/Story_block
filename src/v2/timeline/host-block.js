@@ -22,11 +22,13 @@ export function guardFor(state, predicate) {
 
 /**
  * Stores a host block on the head reply. `head` is the timeline's head (state and boundary); `ops` do not include the rev
- * (it is added). → `{ ok: true, receipt }` or a failure; nothing is stored on a failure. `announce(receipt)` is told of a block stored
- * (the `committed` event, as the command bus tells it).
+ * (it is added). → `{ ok: true, receipt, tell }` or a failure; nothing is stored on a failure. `tell()` announces the block
+ * (the `committed` event, as the command bus tells it): the caller calls it once the chat file has the block, never before.
+ * `here()` is false when the chat the caller began in is not the open one (nothing is stored then: STALE).
  * `spec`: { type, cause, summary, key, predicate, payload, recorded, result, blockId }.
  */
-export function appendHostBlock({ store, head, ops, spec, announce = null }) {
+export function appendHostBlock({ store, head, ops, spec, announce = null, here = () => true }) {
+    if (!here()) return fail('STALE', 'Another chat was opened; nothing was stored in the chat that is open now.');
     const state = head.state;
     const source = store.sourceAt(head.boundary.index);
     if (!source) return fail('FAILED', 'There is no reply to hold the change.');
@@ -50,8 +52,9 @@ export function appendHostBlock({ store, head, ops, spec, announce = null }) {
         return fail('FAILED', `The change could not be stored: ${error?.message ?? error}`);
     }
     store.scheduleSave?.();
-    if (typeof announce === 'function') {
+    const tell = () => {
+        if (typeof announce !== 'function') return;
         try { announce(receipt); } catch (error) { console.warn('[Story Block] A committed listener failed:', error); }
-    }
-    return { ok: true, receipt };
+    };
+    return { ok: true, receipt, tell };
 }
