@@ -367,11 +367,17 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         return Number.isInteger(index) && index >= 0 && index < (ctx.chat?.length ?? 0) ? index : -1;
     };
     const replyScanAt = (head, chat) => {
-        const state = head >= 0 ? store.at(head) : null;
-        const key = `${chat}|${head}|${state?.meta?.rev ?? ''}`;
+        const stored = head >= 0 ? store.at(head) : null;
+        const key = `${chat}|${head}|${stored?.meta?.rev ?? ''}`;
         if (replyScan?.key === key) return replyScan.map;
         const entries = registry.cardEntries?.() ?? [];
-        const map = entries.length ? scanReplyCards(entries, {
+        // A brand-new chat holds only the greeting and no story record yet (nothing has been read or written): the head has no state, so
+        // the cards are asked on the initial one, and a start card shows before the first reply.
+        let state = stored;
+        if (!state && head >= 0 && entries.length) {
+            try { state = runtime.initial?.() ?? null; } catch { state = null; }
+        }
+        const map = entries.length && state ? scanReplyCards(entries, {
             head,
             messageAt: i => ctx.chat?.[i] ?? null,
             stateAt: () => state,

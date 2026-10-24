@@ -141,6 +141,33 @@ test('a chat with only the greeting: the greeting is the head, so its card acts;
     assert.deepEqual(asked.at(-1), [2, true]);
 });
 
+test('a brand-new chat (only the greeting, no record on it yet): each card\'s for() is still asked, with the initial state, so a start card shows', async () => {
+    const doc = setupDom();
+    const st = createFakeContext({ chat: [aiMessage('Welcome to Bluewatch.')] });
+    let ui = null;
+    const runtime = createRuntime({ ctx: st.ctx, onRegister: () => ui?.syncScreens() });
+    ui = mountUi({ runtime, ctx: st.ctx, doc });
+    runtime.markReady();
+    // No onChatChanged: nothing has been read or written yet, the greeting carries no story record.
+    const mes = doc.createElement('div');
+    mes.className = 'mes';
+    mes.setAttribute('mesid', '0');
+    doc.body.appendChild(mes);
+    assert.equal(st.ctx.chat[0].extra?.['story-suite'] ?? st.ctx.chat[0].extra?.storySuite ?? null, null, 'the greeting has no record');
+    const seen = [];
+    await runtime.sdk.registerModule({
+        id: 'qa-cards', name: 'Cards', version: '2.0.0-alpha.1',
+        cards: { start: { for: (state, message, ctx) => { seen.push({ v: state?.v, rev: state?.meta?.rev, index: ctx.index, head: ctx.head }); return { tone: 'accent', title: 'Start your adventure', actions: [{ label: 'Create', command: 'qa-cards.create' }] }; } } },
+    });
+    ui.refresh();
+    redraw(ui, [0]);
+    assert.ok(seen.length >= 1, 'for() was asked');
+    assert.deepEqual(seen.at(-1), { v: 2, rev: seen.at(-1).rev, index: 0, head: true }, 'with a real (initial) state, on the greeting as the head');
+    assert.ok(Number.isInteger(seen.at(-1).rev));
+    assert.equal(cardsOf(doc, 0).length, 1, 'the start card shows in a brand-new chat');
+    assert.ok(!cardsOf(doc, 0)[0].querySelector('button.ss-rc-primary, button.ss-rc-action').disabled);
+});
+
 test('a second fight: the battle card is under the newest reply, not on the first fight\'s; the start card leaves once the character exists', async () => {
     const chat = [aiMessage('Welcome.'), userMessage('go'), aiMessage('A wolf!'), userMessage('hit'), aiMessage('It falls.'), userMessage('walk'), aiMessage('Another wolf!')];
     const { doc, ui, runtime } = await setup(chat);
