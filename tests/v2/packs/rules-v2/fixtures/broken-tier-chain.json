@@ -1,0 +1,193 @@
+{
+  "id": "broken-tier-chain",
+  "version": "2.0.0",
+  "name": "Broken Tier Chain Fixture",
+  "requires": {
+    "storyBlock": "^2",
+    "capabilities": [
+      "rb-rules-v2"
+    ]
+  },
+  "content": {
+    "rules": [
+      {
+        "slug": "rules",
+        "name": "Broken Rules",
+        "schema": 2,
+        "classes": [
+          {
+            "slug": "c0",
+            "name": "Class 0",
+            "tier": 0,
+            "parent": null,
+            "skills": [
+              "s00",
+              "s01",
+              "s02"
+            ]
+          },
+          {
+            "slug": "c2",
+            "name": "Class 2",
+            "tier": 2,
+            "parent": "c0",
+            "skills": [
+              "s20",
+              "s21",
+              "s22"
+            ]
+          }
+        ],
+        "skills": [
+          {
+            "slug": "s00",
+            "name": "s00",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 20,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s01",
+            "name": "s01",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 20,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s02",
+            "name": "s02",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 20,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s20",
+            "name": "s20",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 60,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s21",
+            "name": "s21",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 60,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s22",
+            "name": "s22",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 60,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          }
+        ],
+        "branches": [],
+        "itemRules": [],
+        "trainers": []
+      }
+    ],
+    "items": [],
+    "creatures": [],
+    "shops": [],
+    "recipes": [],
+    "quests": [],
+    "places": []
+  }
+}

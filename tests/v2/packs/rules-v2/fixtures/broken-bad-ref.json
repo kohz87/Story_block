@@ -1,0 +1,113 @@
+{
+  "id": "broken-bad-ref",
+  "version": "2.0.0",
+  "name": "Broken Bad Ref Fixture",
+  "requires": {
+    "storyBlock": "^2",
+    "capabilities": [
+      "rb-rules-v2"
+    ]
+  },
+  "content": {
+    "rules": [
+      {
+        "slug": "rules",
+        "name": "Broken Rules",
+        "schema": 2,
+        "classes": [
+          {
+            "slug": "c0",
+            "name": "Class 0",
+            "tier": 0,
+            "parent": null,
+            "skills": [
+              "s00",
+              "s01",
+              "missing-skill-slug"
+            ]
+          }
+        ],
+        "skills": [
+          {
+            "slug": "s00",
+            "name": "s00",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 20,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s01",
+            "name": "s01",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 20,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          },
+          {
+            "slug": "s02",
+            "name": "s02",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "unit": null,
+              "cost": {
+                "mp": 0,
+                "sp": 1,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 20,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ]
+            }
+          }
+        ],
+        "branches": [],
+        "itemRules": [],
+        "trainers": []
+      }
+    ],
+    "items": [],
+    "creatures": [],
+    "shops": [],
+    "recipes": [],
+    "quests": [],
+    "places": []
+  }
+}
