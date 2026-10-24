@@ -18,7 +18,7 @@ export default {
   id: 'my-rules',
   hooks: {
     // Pure: look at the state before the block, answer. Never write, roll or call a model.
-    replayGuard({ state, query, hash }, { guard, source, block, operation, recorded }) {
+    replayGuard({ state, query, hash }, { guard, source, block, operation, recorded, payload }) {
       const quest = state.domains.mine.quests[guard.predicate.quest];
       if (!quest || quest.state !== 'open') return { ok: false, reason: 'the quest is not open any more' };
       return hash({ ... }) === guard.inputHash ? { ok: true } : { ok: false, reason: 'its inputs changed' };
@@ -45,9 +45,11 @@ export default {
   same one on the block. Never a numeric message or swipe index.
 * `ctx.hash(value)` and, in the hook's first argument, `hash(value)`: the contract's Hash, SHA-256 of normalized
   JSON (sorted keys, array order kept), 64 lowercase hex characters. Plain JSON only; it throws on anything else.
-* `hooks.replayGuard({ state, query, hash }, { guard, source, block, operation, recorded })` →
+* `hooks.replayGuard({ state, query, hash }, { guard, source, block, operation, recorded, payload })` →
   `{ ok: true } | { ok: false, reason: string }`. `state` is the state **before** the block, `query` reads it,
-  `operation` is the root `{ type, payload }`, `recorded` the second argument of `ctx.replayGuard`. A throw, a
+  `operation` is the root `{ type, payload }`, `recorded` the second argument of `ctx.replayGuard`, and
+  `payload` is `{ saved, current }`: the hash of the reply's text when the block was stored and the hash of it now
+  (they differ after an edit or a Continue; the host does not drop a block for that, the owner may). A throw, a
   promise, no answer, `{ ok: false }` without a reason, or anything else **fails closed**. It is asked whatever
   the module's features say now: replay does not depend on settings.
 * Claims: `ctx.claim(key)` as before. The host reads the keys a block adds from its `/meta/claims/…` ops and
@@ -83,7 +85,13 @@ Blocks replay one by one on the state before them. A guarded block is applied on
 1. its span is whole (`replay.js` `spanProblem`) and its `source` is the carrier's own pair;
 2. the claims it lists are the claims its ops add;
 3. its owner's `hooks.replayGuard` says `{ ok: true }` on the state before it;
-4. its ops (claims among them) apply and every domain they touch still validates.
+4. none of the claims it lists is already held on that state (a retried settlement, or a block that woke up after its
+   twin was stored, is never paid twice: `claim already held`);
+5. its ops (claims among them) apply and every domain they touch still validates.
+
+A guarded block whose metadata was lost or cut down is **damaged, not legacy**: when the receipt kept
+`data.v2.guard` or `source` (it survives trimming) and the block has no whole span, or the guard on the span is not the
+one the receipt kept, the block is inactive (`REPLAY_PREREQUISITE`).
 
 Otherwise **neither the ops nor the claims** are applied. The block stays stored and inactive, and is reported
 by `store.problems()` with `code: 'REPLAY_PREREQUISITE'`; it is asked again on the next replay, so a block turned
@@ -111,10 +119,17 @@ out from the record's stored `sid` and saved with it:
   written with, in the same write as the block that carries it. A record stored before this existed gets its
   entry (the same one `store.sourceAt` already showed) with its next write.
 * `store.sourceAt(index)` → the Source of a carrier; `store.payloadHashAt(index)` → the hash of the shown swipe's
-  text before any tag. An edit or a Continue changes the hash and not the pair; the hash a block recorded in
-  `boundaries[0].payloadHash` then no longer matches. That does not by itself take a block back: Re-read is how
-  an edit reaches the story, and it plans the blocks again.
+  text up to its `<Changes>` block (or the hidden comment that holds it once read): markup in the prose, such as a
+  status panel or reasoning tags, is part of it; stray change lines that hiding moves out of the prose are too, so a
+  reply that had some reads as changed once it is hidden. An edit or a Continue changes the hash and not the pair;
+  the hash a block recorded in `boundaries[0].payloadHash` then no longer matches (the owner's hook is given both).
+  That does not by itself take a block back: Re-read is how an edit reaches the story, and it plans the blocks again.
 * Deleted mappings leave with their records; saves and snapshots (a later package) keep their own copy.
+
+The ids a record may not take (another record's swipe key or evidence id, another message's canonical sid, a block
+id) are looked up in an index found once per chat array, so a reply does not read the whole chat. A story line's block
+id is named by the line (its command and text as written) and which time that line is read, so a Re-read of an
+unchanged line keeps its id; other blocks are named by their receipt.
 
 ## What survives trimming
 
@@ -129,6 +144,9 @@ was deleted, another swipe is shown) is a gap: a checkpoint with no `covers` aft
 trusted either, and when no checkpoint holds there is **no state to start from** (`head()` is `null` until
 `ensureInitial` starts the chat again from the state the deleted replies ended with); the latest checkpoint is no
 longer taken unchecked. A checkpoint made after the gap, over the records as they stand, holds again.
+If the replies before the first reply that is left are gone and this session never saw them (a reload), `ensureInitial`
+adopts the earliest checkpoint that is left (its `covers` name replies that are gone, so they are dropped) with a
+Problem, rather than resetting the story to its start; a session that did see them carries what they ended with.
 When a covered record has guarded blocks the checkpoint also carries `coverHash`: the hash of those records' swipe
 keys, block ids, op digests and text. A reply edited since, or a block changed, fails the window the same way.
 Windows with no guarded block carry nothing new, and checkpoints of older chats are read as before.
@@ -145,8 +163,17 @@ Windows with no guarded block carry nothing new, and checkpoints of older chats 
   block id, source ordinal, receipt id and seed (no new roll), and it claims again on the state without the old
   claim, so it claims once. If it is not done any more, the block, its claims and its receipt all go. All or
   nothing: a later legacy change that no longer applies throws and nothing is written.
-* `store.reconcile(index, { rerun })` does the same from carrier `index` to the head without a Re-read, for an
-  owner that must recompute after a swipe, delete or rollback. The host does not call it by itself.
+* The step is asked again with what its **span** saved (`info.replan`: `type`, `payload`, `seed`); the receipt is only
+  what was shown. Only an owner that answers **`NO_LONGER_DONE`** (`ctx.fail('NO_LONGER_DONE', …)`, exported as
+  `NO_LONGER_DONE` from `store.js`) removes the block. When the step cannot be asked (the command is gone, the owner
+  is held back or a feature is off, it threw, any other refusal) the old block is left exactly as it is and replayed as
+  it was, so its guard decides: it stays off with `REPLAY_PREREQUISITE` when its guard fails. A step planned again to
+  what it was changes nothing and writes nothing.
+* `store.reconcile(index, { rerun })` does the same from carrier `index` to the head without a Re-read and returns
+  `{ changed, planned, removed }`. **The turn calls it by itself** after a delete or swipe (not when a chat opens), from
+  the first carrier that holds such a step, in the same save window, never while the story record is read-only, and only
+  when a guarded step with a `replan` has been seen (`store.replansFrom()`, kept while replaying; no scan). What was
+  planned again or taken back is a quiet Problem (`REPLANNED`).
 * Revs after a planned-again block on the same reply are numbered on from its rev. Later replies keep theirs.
 
 ## Preserved records
@@ -156,7 +183,11 @@ version (`v` above 2) or is a damaged v2 record, `ensureInitial` leaves it exact
 Until it can be read the head is an empty state (the one `ensureInitial` was given), **read-only**: `store.readOnly()`
 says `{ index, kind: 'future' | 'damaged', why }`, every writer (`append`, `setNarrated`, `replaceStory`, `reconcile`,
 `truncate`) throws a message that says so, and `ensureInitial` returns one note for the Problems list (`DAMAGED`).
-A future-version record on any other reply is never written over either. Records of version 1 and a first record
+A future-version record on any other reply is never written over either. A future-version record shows "Update Story
+Block". A damaged first record can be started over **only on the reader's say**: the Problem carries an action ("Start
+this chat's story state over") and Settings → Diagnostics shows it with a two-step confirmation; `turn.startOver({
+confirmed: true })` (`store.startOver`) keeps the damaged record beside the new one (`extra.storySuiteDamaged`) and starts
+the story's numbers from their beginning, the replies after it replaying on top. Nothing does this automatically. Records of version 1 and a first record
 that is merely missing are handled as before (a chat with only v1 extras starts a v2 record).
 
 ## Resets
@@ -175,6 +206,8 @@ would make negative, and the block is skipped, never applied half.
 * `epoch` and `rulesHash` of a guard are carried and covered by `inputHash`; the host checks their shape, the owner
   checks their meaning. The host does not compare `epoch` with a state field (the savepoint epoch arrives with the
   timeline package).
+* TODO (E6, timeline and restore): the host's comparison of a guard's `epoch` and `rulesHash` with the active savepoint
+  epoch and frozen rules is a tracked gate of that package; E1 only checks their shape.
 * A stale payload hash is evidence for the owner and for checkpoint identity, not a reason to drop a block.
 * `Source.ordinal` is the next block ordinal of the swipe's record, never reused; `boundaries` holds the boundary
   the block starts at.

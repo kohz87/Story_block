@@ -149,7 +149,7 @@ test('change the clock before a zero-credit attempt: the attempt is planned agai
     assert.equal(JSON.stringify(host.head()), live);
 });
 
-test('a delete of the reply that set the clock leaves the attempt stored and off; reconcile plans it again on the clock as it is', async t => {
+test('a delete of the reply that set the clock plans the attempt again by itself, once, in the same save window', async t => {
     const host = await createHost({ modules: [guarded()], core: false });
     t.after(() => host.close());
     await host.send('Go.', 'Dawn.\n\n<Changes>\n! tick 90\n</Changes>');
@@ -158,24 +158,105 @@ test('a delete of the reply that set the clock leaves the attempt stored and off
     await host.bus.command('gt.attempt', { id: Q1 }, { cause: 'system' });
     const gt = () => host.head().domains.gt;
     assert.deepEqual([gt().attempts[Q1], gt().credits[Q1]], [1, 1]);
+    assert.equal(host.store.replansFrom() !== null, true, 'a guarded step with a replan is known');
     const seed = host.ctx.chat[later].extra.storySuite.receipts[0].seed;
+    await host.store.flush();
     await host.st.deleteMessage(later - 1);
     await host.st.deleteMessage(later - 2);
-    assert.equal(gt().attempts[Q1], undefined, 'its guard says the clock changed: off, and stored');
-    assert.equal(host.store.problems().at(-1).code, 'REPLAY_PREREQUISITE');
+    // The guard would say the clock changed; the step was planned again on the clock as it is: a zero-credit attempt.
+    assert.deepEqual([gt().attempts[Q1], gt().credits[Q1]], [1, 0]);
+    assert.deepEqual(host.store.problems(), []);
     const index = host.ctx.chat.findIndex(message => message.extra?.storySuite?.spans?.some(isMetaSpan));
-    const rerun = (state, receipt, info) => host.bus.run(receipt.type, receipt.replan.payload, {
-        cause: 'system', state, seed: receipt.seed,
+    assert.equal(host.ctx.chat[index].extra.storySuite.receipts[0].seed, seed, 'with the same seed');
+    assert.equal(host.store.dirty(), true, 'written in the same save window');
+    const told = host.turn.problems().find(problem => problem.code === 'REPLANNED');
+    assert.match(told.message, /1 planned again/);
+    // Planned again to what it is: nothing changes and nothing is written.
+    const rerun = (state, receipt, info) => host.bus.run(info.replan.type, info.replan.payload, {
+        cause: 'system', state, seed: info.replan.seed,
         reply: { index: info.index, sid: host.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
     });
-    const done = host.store.reconcile(index, { rerun });
-    assert.deepEqual(done, { changed: true });
-    assert.deepEqual([gt().attempts[Q1], gt().credits[Q1]], [1, 0], 'planned again on a clock at 0: a zero-credit attempt');
-    assert.equal(host.ctx.chat[index].extra.storySuite.receipts[0].seed, seed, 'with the same seed');
-    assert.deepEqual(host.store.problems(), []);
-    assert.deepEqual(host.store.reconcile(index, { rerun }), { changed: true }, 'planning it again changes nothing true, and is safe');
-    assert.deepEqual([gt().attempts[Q1], gt().credits[Q1]], [1, 0]);
-    assert.deepEqual(host.store.reconcile(index, {}), { changed: false });
+    const bytes = JSON.stringify(host.ctx.chat);
+    assert.deepEqual(host.store.reconcile(index, { rerun }), { changed: false, planned: 0, removed: 0 });
+    assert.equal(JSON.stringify(host.ctx.chat), bytes);
+    assert.deepEqual(host.store.reconcile(index, {}), { changed: false, planned: 0, removed: 0 });
+    // Another delete (nothing before the step changed): no new notice and no write.
+    const count = host.turn.problems().filter(problem => problem.code === 'REPLANNED').length;
+    await host.send('Again.', 'Evening.');
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    assert.equal(host.turn.problems().filter(problem => problem.code === 'REPLANNED').length, count);
+});
+
+test('a chat with no guarded step to plan again is not reconciled at all', async t => {
+    const host = await createHost({ modules: [guarded()], core: false });
+    t.after(() => host.close());
+    await host.send('Go.', 'Dawn.\n\n<Changes>\n! tick 90\n</Changes>');
+    await host.bus.command('gt.hit', { actor: 'ann', amount: 1 }, { cause: 'ui' });
+    assert.equal(host.store.replansFrom(), null);
+    const spy = [];
+    const original = host.store.reconcile;
+    host.store.reconcile = (...args) => { spy.push(args); return original(...args); };
+    await host.send('On.', 'Noon.');
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    assert.equal(spy.length, 0);
+});
+
+test('a read-only story record is not reconciled either', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost({ modules: [guarded()], core: false });
+    t.after(() => host.close());
+    await host.send('Go.', 'Dawn.');
+    const chat = structuredClone(host.ctx.chat);
+    chat[0].extra.storySuite = { v: 3, sid: 'sw_future00001', ops: [], receipts: [], narrated: [] };
+    await host.st.loadChat(chat);
+    assert.equal(host.store.readOnly().kind, 'future');
+    assert.equal(host.store.replansFrom(), null);
+});
+
+test('a step that cannot be asked again is kept exactly as it was (its guard decides); only NO_LONGER_DONE takes a block back', () => {
+    const h = harness([guarded()]);
+    const clock = h.send('u', 'clock');
+    h.command('gt.tick', { minutes: 90 });
+    const later = h.send('u', 'later');
+    h.command('gt.collect', { id: Q1 }, 'system');
+    let where = later;
+    const record = () => JSON.stringify(h.record(where));
+    const stored = record();
+    assert.equal(h.gt().coin, 3);
+    const unaskable = {
+        'the command is gone': () => ({ ok: false, code: 'UNKNOWN_COMMAND', message: 'dormant' }),
+        'the owner is held back': () => ({ ok: false, code: 'DEPENDENCY_UNAVAILABLE', message: 'not ready' }),
+        'a refusal': () => ({ ok: false, code: 'REFUSED', message: 'no' }),
+        'a throw': () => { throw new Error('boom'); },
+        'nothing': () => undefined,
+    };
+    // The clock is still where the step was planned: the guard holds, so the block stays as it is, applied.
+    for (const [label, rerun] of Object.entries(unaskable)) {
+        assert.equal(h.store.reconcile(clock, { rerun }).changed, false, label);
+        assert.equal(record(), stored, `${label}: block, claim, draw and receipt untouched`);
+        assert.equal(h.gt().coin, 3, label);
+    }
+    // The reply that set the clock is deleted: the guard fails, so the block is off, and still untouched.
+    h.chat.splice(clock - 1, 2);
+    where = later - 2;
+    h.store.rebuild();
+    const first = h.chat.findIndex(message => message.extra?.storySuite?.ops?.length);
+    assert.equal(h.gt().coin, 0);
+    for (const [label, rerun] of Object.entries(unaskable)) {
+        assert.equal(h.store.reconcile(first, { rerun }).changed, false, label);
+        assert.equal(record(), stored, `${label}: untouched`);
+        assert.equal(h.gt().coin, 0, `${label}: off`);
+        assert.equal(h.store.problems().at(-1).code, 'REPLAY_PREREQUISITE', label);
+    }
+    // The owner says it is no longer done: the block goes with its claim and receipt.
+    const done = h.store.reconcile(first, { rerun: () => ({ ok: false, code: 'NO_LONGER_DONE', message: 'gone' }) });
+    assert.deepEqual(done, { changed: true, planned: 0, removed: 1 });
+    const after = h.record(first);
+    assert.deepEqual([after.ops.length, after.receipts.length, after.spans.filter(isMetaSpan).length], [0, 0, 0]);
+    assert.equal(h.store.head().meta.claims[`gt:${EPOCH}:collect:${Q1}`], undefined);
+    assert.deepEqual(h.problems(), []);
 });
 
 test('a Re-read whose new story leaves a later guarded click without its target keeps it stored and inactive; it wakes when the target is back', async t => {

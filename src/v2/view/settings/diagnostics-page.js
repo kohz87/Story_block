@@ -40,6 +40,37 @@ export function diagnosticsBody(pane, ctx) {
     const modules = new Map((typeof registry?.modules === 'function' ? registry.modules() : []).map(def => [def.id, def]));
     const hasReport = Boolean(diagnostics && typeof diagnostics.report === 'function');
 
+    // ---- a damaged story record: the reader's own repair, asked twice (never automatic)
+    const offer = typeof diagnostics?.repairOffer === 'function' ? diagnostics.repairOffer() : null;
+    if (offer) {
+        const card = sectionBlock(doc, { title: T.repairTitle, hint: offer.label, id: newId('diagnostics-repair'), collapsible: false, open: true });
+        card.el.classList.add('ss-diagnostics-card', 'ss-diagnostics-repair');
+        const status = h(doc, 'span', 'ss-diagnostics-status');
+        status.setAttribute('role', 'status');
+        const row = h(doc, 'div', 'ss-diagnostics-actions');
+        const button = (label, primary = false) => {
+            const node = h(doc, 'button', `ss-button${primary ? ' ss-button-primary' : ''}`, label);
+            node.type = 'button';
+            return node;
+        };
+        const start = button(offer.label);
+        const sure = h(doc, 'p', 'ss-card-help', offer.confirm);
+        const yes = button(T.repairYes, true);
+        const no = button(T.repairNo);
+        sure.hidden = yes.hidden = no.hidden = true;
+        start.addEventListener('click', () => { start.hidden = true; sure.hidden = yes.hidden = no.hidden = false; });
+        no.addEventListener('click', () => { start.hidden = false; sure.hidden = yes.hidden = no.hidden = true; });
+        yes.addEventListener('click', async () => {
+            let done;
+            try { done = await diagnostics.startOver(); } catch (error) { done = { ok: false, message: error?.message ?? error }; }
+            status.textContent = done?.ok ? T.repairDone : fill(T.repairFailed, { why: done?.message ?? 'unknown' });
+            if (done?.ok) row.hidden = sure.hidden = true;
+        });
+        row.append(start, yes, no);
+        card.body.append(h(doc, 'p', 'ss-card-help', T.repairHelp), sure, row, status);
+        root.appendChild(card.el);
+    }
+
     // ---- the report: a fold (closed by default, its state kept as the other folds keep theirs) holding the text; the buttons, the
     // status line and the credits stay outside it, so Copy, Save and Refresh work while the report is folded.
     let report = null;

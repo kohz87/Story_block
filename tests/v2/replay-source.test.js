@@ -218,17 +218,39 @@ test('an edited reply keeps its pair but not its payload hash; a checkpoint over
     assert.ok(made.every(record => !Object.hasOwn(record, 'coverHash')));
 });
 
-test('a Continue that adds text after the opening changes the payload hash too; the hidden change block does not', async t => {
+test('the payload hash is of the reply up to its Changes block: the block and its hidden comment do not move it, markup in the prose does', async t => {
     const host = await createHost({ modules: [guarded()], core: false });
     t.after(() => host.close());
-    await host.send('Go.', 'The road.\n\n<Changes>\n! tick 5\n</Changes>');
+    await host.send('Go.', '<div class="hp">HP 10</div>\nThe road.\n\n<Changes>\n! tick 5\n</Changes>');
     const at = host.ctx.chat.length - 1;
     const hash = host.store.payloadHashAt(at);
-    host.ctx.chat[at].mes = 'The road.\n\n<!-- hidden lines -->';
-    assert.equal(host.store.payloadHashAt(at), hash, 'only what comes before a tag is the evidence text');
-    host.ctx.chat[at].mes = 'The road goes on.\n\n<!-- hidden lines -->';
+    assert.match(host.ctx.chat[at].mes, /STORY_SUITE_V2/, 'the block is hidden now');
+    host.ctx.chat[at].mes = '<div class="hp">HP 10</div>\nThe road.\n\n<!-- STORY_SUITE_V2\n<Changes>\n! tick 6\n</Changes>\n-->';
+    assert.equal(host.store.payloadHashAt(at), hash, 'only what comes before the block is the evidence text');
+    host.ctx.chat[at].mes = '<div class="hp">HP 9</div>\nThe road.\n\n<!-- STORY_SUITE_V2\n<Changes>\n! tick 6\n</Changes>\n-->';
+    assert.notEqual(host.store.payloadHashAt(at), hash, 'a status panel at the start is part of the text');
+    host.ctx.chat[at].mes = '<div class="hp">HP 10</div>\nThe road goes on.';
     assert.notEqual(host.store.payloadHashAt(at), hash);
     assert.equal(host.store.sourceAt(at).sid, host.store.sourceAt(at).sid);
+});
+
+test('the guard hook is given the hash saved with the block and the one of the reply now', async t => {
+    const asked = [];
+    const host = await createHost({ modules: [guarded({ asked })], core: false });
+    t.after(() => host.close());
+    await host.send('Go.', 'The road.');
+    await host.bus.command('gt.quick', { id: Q1 }, { cause: 'ui' });
+    const at = host.ctx.chat.length - 1;
+    const saved = host.store.payloadHashAt(at);
+    asked.length = 0;
+    host.store.rebuild();
+    host.head();
+    assert.deepEqual(asked.at(-1).payload, { saved, current: saved });
+    host.ctx.chat[at].mes = 'The road, but edited.';
+    host.store.rebuild();
+    host.head();
+    assert.deepEqual(asked.at(-1).payload, { saved, current: host.store.payloadHashAt(at) });
+    assert.notEqual(saved, host.store.payloadHashAt(at));
 });
 
 test('user messages and unknown indexes have no Source', () => {

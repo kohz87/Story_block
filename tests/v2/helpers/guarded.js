@@ -109,6 +109,11 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH 
                 return { summary: `${actor} recovers (as a change).`, narrate: false };
             },
             // An absolute reset with no guard (every numeric reset goes through ctx.absolute).
+            // The clock set by a click (what a `! tick` line does).
+            'gt.tick'(ctx, { minutes }) {
+                ctx.draft('gt').minutes = minutes;
+                return { summary: `The clock stands at ${minutes}.`, narrate: false };
+            },
             'gt.reset'(ctx, { actor }) {
                 const gt = ctx.draft('gt');
                 ctx.absolute('gt', `/lost/${actor}`);
@@ -123,7 +128,7 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH 
             // A system collection planned from the clock: needs 10 minutes on it, pays 3 coin, claims once.
             'gt.collect'(ctx, { id }) {
                 const gt = ctx.draft('gt');
-                if (gt.minutes < 10) ctx.fail('REFUSED', 'Too early to collect.');
+                if (gt.minutes < 10) ctx.fail('NO_LONGER_DONE', 'Too early to collect.');
                 ctx.replayGuard(make(ctx, { kind: 'attempt', id, minutes: gt.minutes, credit: 3 }, { minutes: gt.minutes }));
                 if (!ctx.claim(`gt:${EPOCH}:collect:${id}`)) ctx.fail('CLAIMED', 'Already collected.');
                 gt.coin += 3;
@@ -164,8 +169,8 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH 
             'gt.quest': (state, { id }) => state.domains.gt?.quests?.[id] ?? null,
         },
         hooks: {
-            replayGuard({ state, hash }, { guard, source, block, operation, recorded }) {
-                asked.push({ guard, source, block, operation, recorded });
+            replayGuard({ state, hash }, { guard, source, block, operation, recorded, payload }) {
+                asked.push({ guard, source, block, operation, recorded, payload });
                 if (mode.value === 'throw') throw new Error('boom');
                 if (mode.value === 'promise') return Promise.resolve({ ok: true });
                 if (mode.value === 'noreason') return { ok: false };
