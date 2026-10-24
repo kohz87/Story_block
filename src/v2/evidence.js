@@ -15,7 +15,7 @@
 
 import { isId } from './check.js';
 import { escapeKey } from './ops.js';
-import { canonicalJson, deriveId, hashJson, isPlainJson, isRecordId, sha256, sourceProblem } from './replay.js';
+import { canonicalJson, deriveId, hashJson, isRecordId, sha256, sourceProblem, spanProblem } from './replay.js';
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -81,19 +81,28 @@ function opaqueProblem(json, payload) {
     return '';
 }
 
-// True when an array anywhere in `value` has a hole ([1, , 3]): JSON writes a hole as null, so it would not survive a reload.
-function hasHole(value) {
-    const stack = [value];
-    while (stack.length) {
-        const item = stack.pop();
-        if (Array.isArray(item)) {
-            for (let at = 0; at < item.length; at += 1) {
-                if (!(at in item)) return true;
-                stack.push(item[at]);
-            }
-        } else if (isObject(item)) stack.push(...Object.values(item));
+const MAX_DEPTH = 64;
+
+// '' when `value` is a tree that JSON can hold as it is: no list with a hole ([1, , 3] would come back as null), no
+// object that contains itself, nothing nested deeper than MAX_DEPTH; else why not.
+function structureProblem(value, ancestors = new Set(), depth = 0) {
+    if (!value || typeof value !== 'object') return '';
+    if (depth > MAX_DEPTH) return `it is nested more than ${MAX_DEPTH} levels deep`;
+    if (ancestors.has(value)) return 'it contains itself';
+    ancestors.add(value);
+    let found = '';
+    if (Array.isArray(value)) {
+        for (let at = 0; at < value.length && !found; at += 1) {
+            found = !(at in value) ? 'it has a list with a gap in it' : structureProblem(value[at], ancestors, depth + 1);
+        }
+    } else {
+        for (const item of Object.values(value)) {
+            found = structureProblem(item, ancestors, depth + 1);
+            if (found) break;
+        }
     }
-    return false;
+    ancestors.delete(value);
+    return found;
 }
 
 /**
@@ -101,8 +110,11 @@ function hasHole(value) {
  * `intentProblem`), and its normalized JSON (what its hash is taken of) when it is plain JSON.
  */
 function payloadCheck(kind, payload) {
+    if (!isObject(payload)) return { problem: 'its payload is a plain JSON record', json: '' };
+    const shape = structureProblem(payload);
+    if (shape) return { problem: `its payload is plain JSON, and ${shape}`, json: '' };
     let json = '';
-    try { json = isObject(payload) && !hasHole(payload) ? canonicalJson(payload) : ''; } catch { json = ''; }
+    try { json = canonicalJson(payload); } catch { json = ''; }
     if (!json) return { problem: 'its payload is a plain JSON record', json: '' };
     if (kind === 'acceptance') return { problem: acceptanceProblem(payload), json };
     if (kind === 'event' && Object.hasOwn(payload, 'check')) return { problem: checkProblem(payload), json };
@@ -135,7 +147,8 @@ const core = text => fold(text).replace(EDGE, '');
  * A comma does not end one ("Sure, I accept the job" is one sentence).
  */
 export function sentences(text) {
-    return fold(text).split(SENTENCE_END).map(piece => piece.replace(EDGE, '')).filter(Boolean);
+    // Cut first (a line break is a sentence end), then fold each piece: folding first would turn the break into a space.
+    return String(text ?? '').normalize('NFKC').split(SENTENCE_END).map(piece => fold(piece).replace(EDGE, '')).filter(Boolean);
 }
 
 /**
@@ -263,17 +276,31 @@ export function evidenceProblem(span, ops) {
 }
 
 const entries = new WeakMap();
+// Whether a block could be applied, kept per span object (a record written again keeps the spans it had), so listing the
+// proof of a record that grows by one block does not look at every block again.
+const checked = new WeakMap();
 
-/** [{ proof, block }] a stored record holds on its guarded blocks, in block order (kept per record). */
-export function recordEntries(record) {
+/**
+ * [{ proof, block }] a stored record holds on its blocks, in block order (kept per record). `parts` is the record's
+ * blocks as the store replays them ([{ ops, span }], store.js blockParts). Only a block that replay could apply
+ * counts: it has changes (an empty span is never replayed), its metadata is whole and is the record's own, and it holds
+ * exactly the proof its changes pin. A block that is none of these gives none, whatever its span says.
+ */
+export function recordEntries(record, parts) {
     let out = entries.get(record);
     if (out) return out;
     out = [];
-    for (const span of Array.isArray(record?.spans) ? record.spans : []) {
-        if (!isObject(span) || typeof span.id !== 'string' || !Array.isArray(span.evidence) || !isObject(span.source)) continue;
-        for (const proof of span.evidence) {
-            if (isObject(proof) && isObject(proof.source) && hashJson(proof.source) === hashJson(span.source)) out.push(Object.freeze({ proof, block: span.id }));
+    const own = record?.source;
+    for (const { ops, span } of parts) {
+        if (!isObject(span) || typeof span.id !== 'string' || !Array.isArray(span.evidence) || !span.evidence.length) continue;
+        let whole = checked.get(span);
+        if (whole === undefined) {
+            whole = Array.isArray(ops) && ops.length > 0 && !spanProblem(span) && !evidenceProblem(span, ops);
+            checked.set(span, whole);
         }
+        if (!whole) continue;
+        if (!isObject(own) || span.source.sid !== own.logical || span.source.swipeKey !== own.swipeKey || span.source.evidence !== own.evidence) continue;
+        for (const proof of span.evidence) out.push(Object.freeze({ proof, block: span.id }));
     }
     Object.freeze(out);
     entries.set(record, out);
@@ -289,14 +316,12 @@ export function merged(stored, pending) {
     return [...stored.filter(entry => !ids.has(entry.proof.id)), ...pending];
 }
 
-/**
- * The proofs of `list` ([{ proof }], in source order) that are visible on `state`: pinned in its `meta.proofs`
- * with the pin their bytes and parents give, whole, of an owner that owns the kind, given once, and every parent
- * visible too (a cycle is not visible). → Proof[] in the same order. With `only` (a list of ids) just those are
- * looked at, and their parents: the work is theirs, not the whole chat's.
- */
-export function visibleProofs(state, list, only = null) {
-    const pins = pinsOf(state);
+// The proof of a list by id, and the ids given twice, kept for a frozen list (the store's, which is a new one whenever
+// anything is written), so asking for an id does not look at every proof.
+const indexes = new WeakMap();
+function indexOf(list) {
+    const kept = indexes.get(list);
+    if (kept) return kept;
     const byId = new Map();
     const twice = new Set();
     for (const { proof } of list) {
@@ -304,18 +329,75 @@ export function visibleProofs(state, list, only = null) {
         if (byId.has(proof.id)) twice.add(proof.id);
         else byId.set(proof.id, proof);
     }
+    const index = { byId, twice };
+    if (Object.isFrozen(list)) indexes.set(list, index);
+    return index;
+}
+
+/**
+ * The proofs of `list` ([{ proof }], in source order) that are visible on `state`: pinned in its `meta.proofs`
+ * with the pin their bytes and parents give, whole, of an owner that owns the kind, given once, and every parent
+ * visible too (a cycle is not visible). → Proof[] in the same order. With `only` (a list of ids) just those are
+ * looked at, and their parents: the work is theirs, not the whole chat's. `over` ([{ proof }]: this root's, a
+ * Re-read's): laid over the list, a proof of the same id shadows the listed one. The walk through parents is a loop,
+ * not a recursion, so a chain of any length is read.
+ */
+export function visibleProofs(state, list, only = null, over = []) {
+    const pins = pinsOf(state);
+    const base = indexOf(list);
+    const top = new Map();
+    const twiceTop = new Set();
+    for (const { proof } of over) {
+        if (!isObject(proof) || typeof proof.id !== 'string') continue;
+        if (top.has(proof.id)) twiceTop.add(proof.id);
+        else top.set(proof.id, proof);
+    }
+    const find = id => (top.has(id) ? { proof: top.get(id), twice: twiceTop.has(id) } : { proof: base.byId.get(id), twice: base.twice.has(id) });
     const memo = new Map();
-    const visible = id => {
-        if (memo.has(id)) return memo.get(id);
-        memo.set(id, false);
-        const proof = byId.get(id);
-        const ok = !!proof && !twice.has(id) && Object.hasOwn(pins, id) && !proofProblem(proof)
-            && pins[id] === pinOf(proof, pins) && proof.parents.every(visible);
-        memo.set(id, ok);
-        return ok;
+    const visible = start => {
+        if (memo.has(start)) return memo.get(start);
+        const stack = [{ id: start, proof: null, next: -1 }];
+        const onPath = new Set([start]);
+        while (stack.length) {
+            const frame = stack.at(-1);
+            if (frame.next === -1) {
+                const { proof, twice } = find(frame.id);
+                if (!proof || twice || !Object.hasOwn(pins, frame.id) || proofProblem(proof) || pins[frame.id] !== pinOf(proof, pins)) {
+                    memo.set(frame.id, false);
+                    onPath.delete(frame.id);
+                    stack.pop();
+                    continue;
+                }
+                frame.proof = proof;
+                frame.next = 0;
+            }
+            let ok = true;
+            let pushed = false;
+            while (frame.next < frame.proof.parents.length) {
+                const parent = frame.proof.parents[frame.next];
+                if (memo.has(parent)) {
+                    if (!memo.get(parent)) { ok = false; break; }
+                    frame.next += 1;
+                } else if (onPath.has(parent)) {
+                    ok = false;     // a cycle
+                    break;
+                } else {
+                    stack.push({ id: parent, proof: null, next: -1 });
+                    onPath.add(parent);
+                    pushed = true;
+                    break;
+                }
+            }
+            if (pushed) continue;
+            memo.set(frame.id, ok);
+            onPath.delete(frame.id);
+            stack.pop();
+        }
+        return memo.get(start);
     };
-    if (only) return only.filter(id => visible(id)).map(id => byId.get(id));
-    return list.map(entry => entry.proof).filter(proof => isObject(proof) && visible(proof.id));
+    if (only) return only.filter(id => visible(id)).map(id => find(id).proof);
+    const all = over.length ? merged(list, over.map(({ proof }) => ({ proof }))) : list;
+    return all.map(entry => entry.proof).filter(proof => isObject(proof) && visible(proof.id));
 }
 
 /**
@@ -330,14 +412,14 @@ export function createEvidenceQuery({ stored = () => [] } = {}) {
         if (args !== undefined) {
             if (!isObject(args) || Object.keys(args).some(key => key !== 'ids')) return [];
             if (args.ids !== undefined) {
-                if (!Array.isArray(args.ids) || args.ids.length > LIMITS.ids || !args.ids.every(isRecordId)) return [];
+                if (!Array.isArray(args.ids) || args.ids.length > LIMITS.ids) return [];
+                for (let at = 0; at < args.ids.length; at += 1) if (!(at in args.ids) || !isRecordId(args.ids[at])) return [];
                 ids = [...new Set(args.ids)];
             }
         }
         let pending = [];
         try { pending = typeof tools?.pendingProofs === 'function' ? tools.pendingProofs() ?? [] : []; } catch { pending = []; }
-        const all = merged(stored() ?? [], pending);
-        return ids ? visibleProofs(state, all, ids) : visibleProofs(state, all);
+        return visibleProofs(state, stored() ?? [], ids, pending);
     };
 }
 
@@ -348,7 +430,7 @@ export const newRoot = () => ({ byKey: new Map(), list: [] });
 
 /**
  * One `ctx.proof(spec)` (contract §6) for the module `who` in a command whose cause, chat, Source and state are
- * given. The checks, in order: INVALID (the call's shape), REFUSED (owner or kind), INVALID (payload, parents),
+ * given (`state` is a function: the transaction's state as it is now, asked only when there are parents). The checks, in order: INVALID (the call's shape), REFUSED (owner or kind), INVALID (payload, parents),
  * REFUSED (reader intent the host did not see), CONFLICT (same key, other contents), NOT_FOUND (a parent), then
  * the stamped proof. `root` is the transaction's (newRoot), `stored()` the stored entries, `planned` the proofs a Re-read's earlier lines gave, `fail(code, message)`
  * throws the bus's error. `free` (a Set of proof ids): those of blocks the host is about to replace (a Re-read's
@@ -385,21 +467,23 @@ export function submitProof(spec, { who, cause, chat, source, state, stored, pla
 
     const held = stored() ?? [];
     const pending = [...planned, ...root.list].map(proof => ({ proof, block: null }));
+    const now = parents.length ? state() : null;     // the state is only looked at for the parents' pins
     if (parents.length) {
-        const found = new Set(visibleProofs(state, merged(held, pending), parents).map(proof => proof.id));
+        const found = new Set(visibleProofs(now, held, parents, pending).map(proof => proof.id));
         const missing = parents.find(id => !found.has(id));
         if (missing) fail('NOT_FOUND', `There is no visible proof ${missing} to be a parent.`);
     }
     // Derived from the reply's evidence id and the key (so a new swipe has fresh ids, and a line read again has its
     // own back), then salted past an id that another block holds: the second proof with the same key on a reply is
     // the next occurrence. The ids of the blocks being replaced are not held.
-    const taken = new Set(held.map(entry => entry.proof.id).filter(id => !free?.has(id)));
-    for (const entry of pending) taken.add(entry.proof.id);
+    const heldIds = indexOf(held).byId;
+    const pendingIds = new Set(pending.map(entry => entry.proof.id));
+    const taken = { has: id => (heldIds.has(id) && !free?.has(id)) || pendingIds.has(id) };
     const id = deriveId('pf', `${source.evidence}:${key}`, taken);
     const proof = Object.freeze({
         id, source: Object.freeze({ ...source }), owner, kind, payload: structuredClone(payload), payloadHash, parents: Object.freeze([...parents]),
     });
-    const pin = pinOf(proof, pinsOf(state));
+    const pin = pinOf(proof, pinsOf(now));
     root.byKey.set(key, proof);
     root.list.push(proof);
     return { proof, pin, created: true };

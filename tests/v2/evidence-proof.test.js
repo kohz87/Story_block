@@ -148,8 +148,8 @@ test('the shape of the call and of each closed payload is checked: INVALID', () 
     invalid({ kind: 'visit', payload: {} }, /nothing in it/);
     invalid({ kind: 'visit', payload: { blob: 'x'.repeat(LIMITS.opaqueBytes) } }, /more than 4096 bytes/);
     // A hole in a list is not JSON: it would come back as null after a reload.
-    invalid({ kind: 'visit', payload: { list: [1, , 3] } }, /plain JSON record/);
-    invalid({ kind: 'visit', payload: { deep: { list: [[1], , [2]] } } }, /plain JSON record/);
+    invalid({ kind: 'visit', payload: { list: [1, , 3] } }, /gap/);
+    invalid({ kind: 'visit', payload: { deep: { list: [[1], , [2]] } } }, /gap/);
     // Parents: up to 8 different proof ids.
     invalid({ kind: 'visit', payload: { place: 'p' }, parents: 'pf_00000000' }, /parents/);
     invalid({ kind: 'visit', payload: { place: 'p' }, parents: ['pf_00000000', 'pf_00000000'] }, /parents/);
@@ -268,6 +268,21 @@ test('reader intent the host did not see is REFUSED: narration cannot accept for
     assert.equal(h.ask().length, 1);
 });
 
+test('a payload that contains itself, or is nested too deep, is INVALID and does not hang', () => {
+    const h = evidenceHarness();
+    h.send();
+    const cyclic = h.command('sd.cyclic', {});
+    assert.equal(cyclic.ok, false);
+    assert.equal(cyclic.code, 'INVALID', cyclic.message);
+    assert.match(cyclic.message, /contains itself/);
+    const deep = h.command('sd.cyclic', { depth: 80 });
+    assert.equal(deep.code, 'INVALID', deep.message);
+    assert.match(deep.message, /nested more than 64/);
+    assert.deepEqual(h.ask(), []);
+    assert.equal(h.command('sd.cyclic', { depth: 10 }).ok, true, 'ten levels are fine');
+    assert.equal(h.ask().length, 1);
+});
+
 test('a refusal cannot be turned into an acceptance: only a whole sentence of the reader, two words or more, is quoted', () => {
     const h = evidenceHarness();
     const refusal = 'No. I refuse the job, and I will not take it.';
@@ -280,6 +295,10 @@ test('a refusal cannot be turned into an acceptance: only a whole sentence of th
         assert.equal(out.ok, false, words);
         assert.equal(out.code, 'REFUSED', `${words}: ${out.message}`);
     }
+    // A line break ends a sentence before anything is folded: the first line is a sentence of its own.
+    assert.equal(asStory('I accept the job', 'I accept the job\nThanks a lot').ok, true);
+    assert.equal(asStory('Thanks a lot', 'I accept the job\nThanks a lot').ok, true);
+    assert.equal(asStory('I accept the job Thanks a lot', 'I accept the job\nThanks a lot').code, 'REFUSED');
     // One word is never enough, even when it is the whole sentence.
     assert.equal(asStory('Yes', 'Yes.').code, 'REFUSED');
     assert.equal(asStory('Yes!!!', 'Yes!!!').code, 'REFUSED');

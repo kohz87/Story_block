@@ -400,7 +400,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             proof(spec) {
                 open();
                 const made = submitProof(spec, {
-                    who: moduleId, cause: tx.cause, chat: tx.chat, source: sourceOf(tx), state: currentState(tx),
+                    who: moduleId, cause: tx.cause, chat: tx.chat, source: sourceOf(tx), state: () => currentState(tx),
                     stored: () => store.proofs?.() ?? [], planned: tx.planned, root: tx.proofs, fail, free: tx.replacing,
                 });
                 if (made.created) {

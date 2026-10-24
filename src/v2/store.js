@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, pinOps, recordEntries } from './evidence.js';
+import { evidenceDigest, evidenceProblem, merged, pinOps, proofPins, recordEntries } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -127,6 +127,7 @@ export function createStore({
     let guardCheck = null;
     let guardMark = null;
     let guardSeen = false;     // a guarded block was replayed or written: the mark is looked at on each read
+    let walkProofs = null;     // while a Re-read or a reconcile plans blocks: Map id → { proof, block } of what it has planned
     let lastMark = '';
     let replanFrom = Infinity; // the first carrier seen holding a guarded step with a replan (none: nothing to reconcile)
     // A first record that is a future version's or damaged is never written over (REPLAY.md "Preserved
@@ -448,6 +449,13 @@ export function createStore({
         return { ok: false, reason: 'its guard gave an answer that is neither { ok: true } nor { ok: false, reason }' };
     }
 
+    // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
+    // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
+    function replayLegacy(state, ops) {
+        if (proofPins(ops).size) throw prerequisite('it writes proof pins, and a block with no proof of its own cannot');
+        return step(state, ops, { replayed: true });
+    }
+
     // A guarded block on replay (and in a Re-read's kept blocks): its record must be whole, from this
     // carrier, make the claims it lists, and pass its owner's guard on `state`; then its ops (claims among
     // them) are applied together. Throws a REPLAY_PREREQUISITE error otherwise, with nothing applied.
@@ -523,6 +531,7 @@ export function createStore({
         };
         const bad = spanProblem(span) || evidenceProblem(span, ops);
         if (bad) throw new Error(`The guarded block cannot be stored: ${bad}.`);
+        if (walkProofs) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: id }));
         if (span.guard) seeGuards();
         if (span.guard && span.replan) replanFrom = Math.min(replanFrom, index);
         return span;
@@ -814,7 +823,7 @@ export function createStore({
                     const said = record.receipts.find(each => each?.rev === revOfOps(ops))?.data?.v2?.guard;
                     if (said && hashJson(said) !== hashJson(span.guard)) throw prerequisite('the guard its receipt kept is not the one saved with the block');
                 }
-                state = meta ? replayGuarded(state, record, blockOps, span, message) : step(state, blockOps, { replayed: true });
+                state = meta ? replayGuarded(state, record, blockOps, span, message) : replayLegacy(state, blockOps);
                 keep();
             } catch (error) {
                 const why = String(error?.message ?? error);
@@ -1133,7 +1142,7 @@ export function createStore({
         return structuredClone(ops);
     }
 
-    return {
+    const api = {
         head() {
             return current().state;
         },
@@ -1293,14 +1302,16 @@ export function createStore({
         proofs() {
             const arr = list();
             const memo = lineOf(arr);
-            if (memo.proofs) return memo.proofs;
-            const out = [];
-            for (const i of carrierIndexes(arr)) {
-                const record = readRecord(arr[i]);
-                if (record && hasMeta(record)) for (const entry of recordEntries(record)) out.push(Object.freeze({ ...entry, index: i }));
+            if (!memo.proofs) {
+                const out = [];
+                for (const i of carrierIndexes(arr)) {
+                    const record = readRecord(arr[i]);
+                    if (record && hasMeta(record)) for (const entry of recordEntries(record, blockParts(record))) out.push(Object.freeze({ ...entry, index: i }));
+                }
+                memo.proofs = Object.freeze(out);
             }
-            memo.proofs = Object.freeze(out);
-            return memo.proofs;
+            // While blocks are being planned: what they have planned so far shadows the stored proof of the same id.
+            return walkProofs?.size ? Object.freeze(merged(memo.proofs, [...walkProofs.values()])) : memo.proofs;
         },
 
         /** The first carrier seen holding a guarded step with a `replan` (the turn reconciles from it), else null. */
@@ -1549,7 +1560,7 @@ export function createStore({
                 // it stays stored and inactive. A block planned again is applied as a live command is.
                 const meta = isMetaSpan(was);
                 try {
-                    state = again ? step(state, blockOps) : meta ? replayGuarded(state, record, blockOps, was, message) : step(state, blockOps, { replayed: true });
+                    state = again ? step(state, blockOps) : meta ? replayGuarded(state, record, blockOps, was, message) : replayLegacy(state, blockOps);
                 } catch (error) {
                     if (!meta || again) throw fail(error);
                     state = skipped(state, blockOps);
@@ -1844,4 +1855,16 @@ export function createStore({
         /** True while saves are failing (until one works again). */
         failing() { return saver.failing(); },
     };
+    // A Re-read and a reconcile plan blocks that are stored only when they are all planned: for their length the proof
+    // those blocks give is laid over the stored (store.proofs), so a step planned again, and the guards asked on the
+    // way, see the proof of the blocks planned before it and not the old bytes of the blocks they replace.
+    for (const name of ['replaceStory', 'reconcile']) {
+        const inner = api[name];
+        api[name] = (...args) => {
+            const outer = walkProofs;
+            walkProofs = new Map();
+            try { return inner.apply(api, args); } finally { walkProofs = outer; }
+        };
+    }
+    return api;
 }

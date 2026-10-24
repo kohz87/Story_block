@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hashJson, sha256 } from '../../src/v2/replay.js';
-import { LIMITS, merged, pinOf, pinOps, proofPins, visibleProofs } from '../../src/v2/evidence.js';
+import { LIMITS, merged, pinOf, pinOps, proofPins, recordEntries, visibleProofs } from '../../src/v2/evidence.js';
 import { newSwipe, showSwipe } from './helpers/store-chat.js';
 import { SD, T1, T2, evidenceHarness } from './helpers/evidence.js';
 
@@ -209,6 +209,109 @@ test('story.evidence with ids looks only at those proofs and their parents', () 
     assert.deepEqual(ids(visibleProofs(state, entries, [b.id])), [b.id]);
     assert.deepEqual(ids(visibleProofs(state, entries, [a.id, 'pf_nope0001'])), [a.id]);
     assert.throws(() => visibleProofs(state, entries), /looked at/, 'asking for all does look at all');
+});
+
+test('a hand-edited record cannot publish a proof: pins written by a block with no proof of its own, proof on a span replay never applies', () => {
+    const forge = edit => {
+        const h = evidenceHarness();
+        const at = h.send();
+        assert.equal(h.command('sd.many', { specs: [{ kind: 'acceptance', payload: { thread: T1, selection: 'take it' } }] }).ok, true);
+        assert.equal(h.ask().length, 1);
+        const record = structuredClone(h.chat[at].extra.storySuite);
+        edit(record);
+        h.chat[at].extra.storySuite = record;
+        h.store.rebuild();
+        return h;
+    };
+    // The pin is written by a legacy block (no metadata), the proof sits on a span of no changes that replay never applies.
+    const split = record => {
+        const span = record.spans.find(each => each.evidence?.length);
+        record.spans = [{ n: record.ops.length, story: false }, { ...span, n: 0 }];
+        record.receipts = record.receipts.map(receipt => ({ ...receipt, data: {} }));
+    };
+    const legacy = forge(split);
+    assert.deepEqual(legacy.ask(), [], 'nothing is published');
+    assert.equal(legacy.store.head().meta.proofs, undefined, 'the pin was not written');
+    assert.match(legacy.problems()[0].why, /writes proof pins/);
+    // The block is whole and applied, but its proof moved to a span of no changes beside it.
+    const moved = forge(record => {
+        const span = record.spans.find(each => each.evidence?.length);
+        record.spans = [{ ...span, evidence: [] }, { ...span, id: 'bl_forged001', n: 0 }];
+    });
+    assert.deepEqual(moved.ask(), []);
+    assert.equal(moved.problems().length, 1, 'the block that pins proof it does not hold is not applied');
+    // A span of no changes with a proof, beside a block that pins nothing.
+    const bare = forge(record => {
+        const span = record.spans.find(each => each.evidence?.length);
+        record.spans = [...record.spans, { ...span, id: 'bl_forged002', n: 0 }];
+    });
+    assert.deepEqual(ids(bare.ask()), ids(bare.store.proofs().filter(entry => entry.block !== 'bl_forged002').map(entry => entry.proof)), 'only the real block\'s proof');
+    assert.equal(bare.ask().length, 1);
+    assert.equal(bare.store.proofs().every(entry => entry.block !== 'bl_forged002'), true, 'the empty span is not even listed');
+});
+
+test('a record lists the proof of a block only when replay could apply it: it has changes, whole metadata, its own source, and holds what it pins', () => {
+    const h = evidenceHarness();
+    const at = h.send();
+    h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }] });
+    const make = () => structuredClone(h.chat[at].extra.storySuite);
+    const list = (record, parts) => recordEntries(record, parts).length;
+    const parts = record => { let from = 0; return record.spans.map(span => { const out = { ops: record.ops.slice(from, from + span.n), span }; from += span.n; return out; }); };
+    const whole = make();
+    assert.equal(list(whole, parts(whole)), 1);
+    const empty = make();
+    empty.spans[0].n = 0;
+    assert.equal(list(empty, [{ ops: [], span: empty.spans[0] }]), 0, 'no changes: never applied');
+    const pinless = make();
+    assert.equal(list(pinless, [{ ops: pinless.ops.filter(op => !op.path.startsWith('/meta/proofs')), span: pinless.spans[0] }]), 0, 'changes that pin nothing');
+    const other = make();
+    other.source.logical = 'sr_otherrepl';
+    assert.equal(list(other, parts(other)), 0, 'another reply\'s source');
+    const damaged = make();
+    delete damaged.spans[0].boundaries;
+    assert.equal(list(damaged, parts(damaged)), 0, 'damaged metadata');
+});
+
+test('a block that replay skips lists no proof, and a proof of an unvalidated span is not listed', () => {
+    const { h, mode, parent } = threeReplies();
+    assert.equal(h.store.proofs().length, 2);
+    mode.value = 'deny';
+    h.store.rebuild();
+    assert.deepEqual(h.ask(), []);
+    // The skipped block is stored with its proof, but it is not active; it publishes nothing and a pin cannot come from elsewhere.
+    assert.equal(h.store.head().meta.proofs?.[parent], undefined);
+});
+
+test('a chain of ten thousand proofs is read without a stack, by id or all; a cycle is still not shown', () => {
+    const source = { sid: 'sr_00000001', swipeKey: 'sw_00000001', evidence: 'ev_00000001', ordinal: 0 };
+    const proof = (n, parents) => {
+        const payload = { n };
+        return { id: `pf_${n.toString(36).padStart(8, '0')}`, source, owner: SD, kind: 'visit', payload, payloadHash: hashJson(payload), parents };
+    };
+    const chain = [];
+    const pins = {};
+    for (let n = 0; n < 10000; n += 1) {
+        const made = proof(n, n ? [chain[n - 1].id] : []);
+        chain.push(made);
+        pins[made.id] = pinOf(made, pins);
+    }
+    const list = Object.freeze(chain.map(each => ({ proof: each, block: 'bl_00000001' })));
+    const state = { meta: { rev: 1, proofs: pins } };
+    assert.equal(visibleProofs(state, list).length, 10000);
+    assert.deepEqual(ids(visibleProofs(state, list, [chain.at(-1).id])), [chain.at(-1).id]);
+    // Break the first link: all of them hang on it.
+    const broken = { meta: { rev: 1, proofs: { ...pins, [chain[0].id]: 'x' } } };
+    assert.deepEqual(visibleProofs(broken, list, [chain.at(-1).id]), []);
+    assert.equal(visibleProofs(broken, list).length, 0);
+});
+
+test('story.evidence refuses a list with a gap in it', () => {
+    const h = evidenceHarness();
+    h.send();
+    const [made] = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
+    const gap = [made.id, , ];
+    assert.deepEqual(h.ask({ ids: gap }), []);
+    assert.deepEqual(ids(h.ask({ ids: [made.id] })), [made.id]);
 });
 
 test('the pins a block writes are read from its ops; on replay the record is made when it is missing and never written over', () => {

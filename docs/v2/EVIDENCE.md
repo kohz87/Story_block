@@ -78,7 +78,8 @@ and the same proof id.
 | `event` with a `check` key | `{ check: RecordId, actor: Id, stat: 'STR'\|'VIT'\|'AGI'\|'DEX'\|'INT'\|'LUK'\|'CHA', dc: 1..40 }` |
 | every other payload (`visit`, `kill`, `use`, `rescue`, `story`, `event` without `check`) | a plain JSON object, not empty, at most 4096 bytes of normalized JSON |
 
-Text is plain: no space at either end, no control character, counted in code points. The last row is the host's
+A payload is plain JSON: no list with a gap in it, no object that contains itself, nothing nested more than 64 levels
+deep (`INVALID`). Text is plain: no space at either end, no control character, counted in code points. The last row is the host's
 placeholder for payloads the contract leaves to others (B3/B6 for RPG Battle, Story Director's own for visits and
 events): the owner checks what they mean. When their shapes are frozen the table and `payloadProblem` grow; nothing
 else changes.
@@ -91,7 +92,7 @@ else changes.
   story line or a system step.
 * `words` must be **a whole sentence of the reader's message the host gave this reply**: the message right before the
   reply (a system message aside), and only when it is the reader's, so a reply that follows another reply has none.
-  Sentences end at `.` `!` `?` `...` `;` and line breaks (not at commas). The words are compared after folding case,
+  Sentences end at `.` `!` `?` `...` `;` and line breaks (not at commas), cut before anything is folded. The words are compared after folding case,
   spacing and the marks at the ends (quotes, commas, dashes), and must be **at least two words**. A piece of a sentence
   ("take it" out of "I will not take it"), a single word ("No", "I", "Yes"), words that only the narration
   (`ctx.chat.reply`) says, a reply with no message from the reader and a click (it has no `ctx.chat`) are `REFUSED`.
@@ -114,6 +115,10 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
 * The pin is written by the same ops as the block, so it is there exactly when the block applied. A block that was
   skipped on replay (a guard that no longer holds, a reply deleted, a domain validator), a rolled-back root, a swipe that
   is not shown, a deleted reply: no pin, no proof. Checkpoints carry `meta.proofs` like any other state.
+* A pin is written only by a block that holds the proof it pins. A block with no metadata (a legacy block) that writes
+  `meta.proofs` is not applied on replay (`REPLAY_PREREQUISITE`), and a record lists the proof of a block only if replay
+  could apply that block (it has changes, whole metadata that is the record's own, and exactly the proof its changes
+  pin): a hand-edited record cannot publish a proof through a span replay never applies.
 * On replay a block is applied only if its span holds exactly the proofs its ops pin, each whole, closed, of an owner
   that owns its kind and carrying the span's Source (`REPLAY_PREREQUISITE` otherwise, like a damaged claim list).
   A block's ids, kinds, owners, payload hashes and parents are part of the hash that says whether a block (and so a
@@ -129,7 +134,8 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   not) and **code-validated** (whole and closed, its owner owns its kind, `payloadHash` is the hash of its payload, its
   pin matches its bytes and its parents' pins). A proof given twice (by two blocks) is shown by neither.
 * Default: all, in source order (chat order, block order, the order given in the block). With `ids`: those, in the order
-  asked, once each; only those proofs and their parents are looked at, not the whole chat's. Unknown ids are left out. Malformed arguments (not a record, other keys, `ids` not a list of at
+  asked, once each; only those proofs and their parents are looked at, not the whole chat's (the stored index is kept until anything is
+  written), by a loop, so a chain of any length is read and a cycle is not shown. Unknown ids are left out. Malformed arguments (not a record, other keys, `ids` not a list, or with a gap in it, of at
   most 500 record ids) give `[]`.
 * A deleted or skipped parent, or a parent given again with other bytes, hides its children; their blocks and changes
   stay as they are, only the proof is not shown. A skipped block publishes nothing.
@@ -137,7 +143,10 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   `ctx.query('story.evidence', …)` also sees the proof this root has given so far (`tools.pendingProofs`), which is how a
   nested command "resolves its validated pending proofs"; nothing outside the root sees them before the commit, and a
   failed root leaves nothing. A Re-read stores nothing until all its lines and steps are planned, so the lines, the
-  `afterCapture` hooks' views and the steps see the proof planned so far as if it were stored.
+  `afterCapture` hooks' views and the steps see the proof planned so far as if it were stored. The same holds while the
+  store plans blocks again (`replaceStory`, `reconcile`): a step planned again, and the guards asked on the way, see
+  the proof of the blocks planned before it (`store.proofs()` lays them over the stored bytes of the same id) and not the
+  old bytes of the blocks they replace.
 * Guards never read inactive raw text: an owner's `hooks.replayGuard` asks `query('story.evidence', …)` on the state
   before its block, which shows only what that state pins.
 

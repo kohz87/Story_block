@@ -8,6 +8,9 @@
 //                                                       pending proof), rolls a die and gives a check (event) proof.
 //   sd.visit { place, parents? } / sd.event { event, parents? }   proofs nobody has shaped (opaque payloads).
 //   sd.lying { place }              gives a visit proof and returns receipt data that claims evidence and a source.
+//   sd.cyclic { depth? }            a visit proof whose payload contains itself (or is nested `depth` deep).
+//   `! check <id> | dc: n` (capture, with `after: 'check'`) gives a check (event) proof; sd.afterCheck { parent } is the guarded step
+//                                   afterCapture asks for on the first check, planned again by a Re-read or a reconcile.
 //   sd.after { parent }             the step afterCapture asks for (`director({ after: true })`): a visit on `parent`, planned again by a Re-read.
 //   sd.many { specs, chain? }       calls ctx.proof once for each spec, as given (`chain`: each later one names
 //                                   the one before as its parent) → the results; the first refusal fails the root.
@@ -86,6 +89,20 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 return { summary: `Event ${event}.`, narrate: false, data: { proof: made } };
             },
             'sd.many': many,
+            // Gives a visit proof whose payload contains itself (a cycle), or is nested `depth` levels deep.
+            'sd.cyclic'(ctx, { depth = 0 }) {
+                let payload = { place: 'a' };
+                if (depth) for (let n = 0; n < depth; n += 1) payload = { place: 'a', inner: payload };
+                else payload.self = payload;
+                ctx.proof({ kind: 'visit', payload });
+                return { summary: 'unreachable', narrate: false };
+            },
+            // The step afterCapture asks for with `after: 'check'`: a guarded visit on a check, planned again by a Re-read or a reconcile.
+            'sd.afterCheck'(ctx, { parent }) {
+                const made = ctx.proof({ kind: 'visit', payload: { after: 'check' }, parents: [parent] });
+                ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ parent }), predicate: { kind: 'needs', parent } });
+                return { summary: 'After the check.', narrate: false, replan: true, data: { made } };
+            },
             // The step afterCapture asks for: a visit on the acceptance it found (it is planned again by a Re-read).
             'sd.after'(ctx, { parent }) {
                 const made = ctx.proof({ kind: 'visit', payload: { place: 'after' }, parents: [parent] });
@@ -109,15 +126,28 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
             },
         },
         capture: {
-            kinds: { accept: { grammar: '! accept Thread | words: what the reader said' } },
+            kinds: {
+                accept: { grammar: '! accept Thread | words: what the reader said' },
+                ...(after === 'check' ? { check: { grammar: '! check Id | dc: number' } } : {}),
+            },
             apply(ctx, line) {
+                if (line.kind === 'check') {
+                    const done = ctx.call('sd.many', { specs: [{ kind: 'event', payload: { check: line.name, actor: 'ac_hero0001', stat: 'STR', dc: Number(line.labels.dc) } }] });
+                    return { summary: done.summary, narrate: false, data: done.data };
+                }
                 const done = ctx.call('sd.accept', { thread: line.name, words: line.labels.words ?? '' });
                 return { summary: done.summary, narrate: false, data: done.data };
             },
         },
         hooks: {
             // With `after`: once a reply's lines have run, a visit that builds on the reply's last acceptance (a planned step).
-            ...(after ? {
+            ...(after === 'check' ? {
+                // A step that builds on the first check of the story, whichever reply it stands on.
+                afterCapture(view) {
+                    const check = view.query('story.evidence', {}).find(proof => proof.kind === 'event' && proof.payload.check);
+                    return { commands: check ? [{ type: 'sd.afterCheck', payload: { parent: check.id } }] : [] };
+                },
+            } : after ? {
                 afterCapture(view) {
                     const accepted = view.query('story.evidence', {}).filter(proof => proof.kind === 'acceptance').at(-1);
                     return { commands: accepted ? [{ type: 'sd.after', payload: { parent: accepted.id } }] : [] };

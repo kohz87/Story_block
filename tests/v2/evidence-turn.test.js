@@ -195,3 +195,30 @@ test('a guarded click built on a proof survives a Re-read of text that did not c
     assert.equal(ask({})[0].id, accepted.id);
     assert.notEqual(ask({})[0].payloadHash, accepted.payloadHash);
 });
+
+test('a step planned again after a Re-read sees the proof the Re-read gave, not the stored bytes it replaces', async t => {
+    const { host, turns, ask } = await open(t, { after: 'check' });
+    const check = dc => text('The die falls.', [`! check ck_check001 | dc: ${dc}`]);
+    await host.send('Go on then.', check(10));
+    const first = host.ctx.chat.length - 1;
+    await host.send('And again.', text('The die falls again.', ['! check ck_check002 | dc: 5']));
+    const steps = () => ask({}).filter(proof => proof.kind === 'visit');
+    const event = () => ask({}).find(proof => proof.kind === 'event' && proof.payload.check === 'ck_check001');
+    assert.equal(event().payload.dc, 10);
+    assert.equal(steps().length, 2, 'a step on each reply, both on the first check');
+    assert.ok(steps().every(step => step.parents[0] === event().id));
+    const was = event().id;
+    // The first reply is changed and read again: its check has another DC. The step on the second reply is planned again
+    // on top of it.
+    host.ctx.chat[first].mes = check(20);
+    host.ctx.chat[first].swipes[host.ctx.chat[first].swipe_id] = host.ctx.chat[first].mes;
+    const result = await host.turn.reread(first);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(turns.at(-1).problems.filter(problem => problem.code !== 'REPLANNED'), []);
+    assert.equal(event().payload.dc, 20);
+    assert.equal(event().id, was, 'the same line, the same id, other bytes');
+    assert.equal(steps().length, 2, 'the step on the second reply is still there, built on the new bytes');
+    assert.ok(steps().every(step => step.parents[0] === event().id));
+    assert.deepEqual(host.store.problems().filter(problem => problem.code !== 'REPLAY_PREREQUISITE'), []);
+    assert.deepEqual(host.store.problems(), []);
+});
