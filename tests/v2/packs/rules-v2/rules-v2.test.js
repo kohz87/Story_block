@@ -1351,3 +1351,20 @@ test('static broken tier fixture has only the intended tier-chain defect', () =>
     pack.content.rules[0].classes[2].parent = 'c1';
     assert.equal(validateRulesPack(pack).ok, true);
 });
+
+
+test('direct generation reserves SB slug space for the complete two-step graph', () => {
+    const base = validateRulesPack(smallRulesPack()).resolved.forms['pack.fixture/s30-base'];
+    const make = length => {
+        const skill = `pack.fixture/${'s'.repeat(length)}`;
+        return { ...base, skill, id: `${skill}-base` };
+    };
+    const first = generatePowerUp(make(52));
+    assert.equal(first.ok, true);
+    const second = generatePowerUp(first.form);
+    assert.equal(second.ok, true);
+    assert.ok(second.form.id.split('/')[1].length <= 64);
+    const invalid = generatePowerUp(make(53));
+    assert.equal(invalid.ok, false);
+    assert.ok(invalid.errors.some(error => error.code === 'bad-rules' && error.path === 'skill'));
+});

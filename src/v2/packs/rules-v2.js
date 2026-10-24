@@ -656,6 +656,7 @@ function checkParentForm(form, constants) {
         const value = form[key];
         if (typeof value !== 'string' || !DEF_ID.test(value) || value.length > 160 || value.split('/')[1].length > 64) add(key, 'Expected an SB definition ID');
     }
+    if (typeof form.skill === 'string' && form.skill.split('/').at(-1).length > 52) add('skill', 'Base skill slug must leave room for both pathway steps');
     for (const key of ['name', 'note']) {
         for (const error of validateSchemaValue(form[key], rulesV2Schema.$defs[key], rulesV2Schema.$defs, key)) add(error.path, error.message);
     }
