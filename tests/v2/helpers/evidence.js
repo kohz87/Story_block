@@ -8,6 +8,7 @@
 //                                                       pending proof), rolls a die and gives a check (event) proof.
 //   sd.visit { place, parents? } / sd.event { event, parents? }   proofs nobody has shaped (opaque payloads).
 //   sd.lying { place }              gives a visit proof and returns receipt data that claims evidence and a source.
+//   sd.after { parent }             the step afterCapture asks for (`director({ after: true })`): a visit on `parent`, planned again by a Re-read.
 //   sd.many { specs, chain? }       calls ctx.proof once for each spec, as given (`chain`: each later one names
 //                                   the one before as its parent) → the results; the first refusal fails the root.
 //   sd.needs { thread, selection, parent }   an acceptance under a guard that asks story.evidence for `parent`.
@@ -53,7 +54,7 @@ function many(ctx, { specs, chain = false }) {
     return { summary: `Gave ${out.length} proofs.`, narrate: false, data: { proofs: out } };
 }
 
-export function director({ mode = { value: 'normal' }, seen = [], peek = null } = {}) {
+export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false } = {}) {
     const accept = (ctx, { thread, selection, words, parents }) => {
         const payload = selection !== undefined ? { thread, selection } : { thread, words };
         const made = ctx.proof({ kind: 'acceptance', payload, ...(parents ? { parents } : {}) });
@@ -85,6 +86,11 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null } 
                 return { summary: `Event ${event}.`, narrate: false, data: { proof: made } };
             },
             'sd.many': many,
+            // The step afterCapture asks for: a visit on the acceptance it found (it is planned again by a Re-read).
+            'sd.after'(ctx, { parent }) {
+                const made = ctx.proof({ kind: 'visit', payload: { place: 'after' }, parents: [parent] });
+                return { summary: 'After.', narrate: false, replan: true, data: { made } };
+            },
             // Gives a proof and returns a receipt that claims evidence and a source of its own.
             'sd.lying'(ctx, { place }) {
                 const made = ctx.proof({ kind: 'visit', payload: { place } });
@@ -110,6 +116,13 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null } 
             },
         },
         hooks: {
+            // With `after`: once a reply's lines have run, a visit that builds on the reply's last acceptance (a planned step).
+            ...(after ? {
+                afterCapture(view) {
+                    const accepted = view.query('story.evidence', {}).filter(proof => proof.kind === 'acceptance').at(-1);
+                    return { commands: accepted ? [{ type: 'sd.after', payload: { parent: accepted.id } }] : [] };
+                },
+            } : {}),
             replayGuard({ query }, { guard }) {
                 if (guard.predicate.kind === 'needs') {
                     return query('story.evidence', { ids: [guard.predicate.parent] }).length === 1 ? { ok: true } : { ok: false, reason: 'its parent proof is not shown' };

@@ -323,7 +323,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const at = Number.isInteger(info?.index) ? info.index : null;
         const reply = own ?? (at !== null && store.carrierSid?.(at) ? { index: at, sid: store.carrierSid(at) } : null);
         const ordinal = info?.span?.source?.ordinal;
-        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
+        // The proof of the block being planned again may be given again: the step keeps its ids.
+        const replacing = (info?.span?.evidence ?? []).map(proof => proof?.id).filter(Boolean);
+        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
     }
 
     // After a delete or swipe (REPLAY.md "Reconciling"): the guarded steps that carry a `replan` are planned again
@@ -755,8 +757,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const steps = [];
         const live = state === null;
         let now = live ? store.head() : state;
+        // A Re-read has stored nothing yet: the proof its lines and earlier steps planned is what the hooks and steps see.
+        const planned = () => (live || !plan ? [] : [...plan.blocks.flatMap(piece => piece.block?.evidence ?? []), ...steps.flatMap(step => step.block?.evidence ?? [])]);
         for (const { moduleId, fn } of registry.hookEntries('afterCapture')) {
-            const seen = live ? view() : makeView({ store, registry, settings, chat: ctx?.chat, state: now, reply });
+            const seen = live ? view() : makeView({ store, registry, settings, chat: ctx?.chat, state: now, reply, pendingProofs: () => planned().map(proof => ({ proof, block: null })) });
             let out;
             try { out = await within(fn(seen, { index, type }), HOOK_TIMEOUT_MS); } catch (error) {
                 problems.push(problem({ module: moduleId, index, code: 'FAILED', message: `afterCapture failed: ${error?.message ?? error}` }));
@@ -769,7 +773,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             for (const command of Array.isArray(out?.commands) ? out.commands : []) {
                 const payload = command?.payload ?? {};
                 const seed = seeds?.(command?.type);
-                const result = bus.run(command?.type, payload, { cause: 'system', state: live ? store.head() : now, ...(reply ? { reply: plan ? { ...reply, pending: plan.pending } : reply } : {}), ...(seed === undefined ? {} : { seed }) });
+                const result = bus.run(command?.type, payload, { cause: 'system', state: live ? store.head() : now, ...(reply ? { reply: plan ? { ...reply, pending: plan.pending } : reply } : {}), ...(plan ? { planned: planned(), replacing: plan.replacing } : {}), ...(seed === undefined ? {} : { seed }) });
                 if (!result?.ok) {
                     problems.push(problem({ module: moduleId, index, code: result?.code ?? 'FAILED', message: `The step "${command?.type}" after the reply's lines was not run: ${result?.message ?? 'unknown error'}` }));
                     continue;
@@ -819,7 +823,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const message = ctx?.chat?.[index];
         // `sid`: the reply's record ID, which stays with the reply when earlier messages are deleted.
         const carrier = { index, swipe: Number.isInteger(message?.swipe_id) ? message.swipe_id : 0, sid: store.carrierSid?.(index) ?? null };
-        const reader = (ctx?.chat ?? []).slice(0, index).findLast(item => item?.is_user);
+        // The message right before the reply (system messages aside), and only when it is the reader's: a reply that
+        // follows another reply has no message of the reader's to quote (proof, EVIDENCE.md).
+        const before = (ctx?.chat ?? []).slice(0, index).findLast(item => !item?.is_system);
+        const reader = before?.is_user ? before : null;
         const chat = { lastUser: String(reader?.mes ?? ''), reply: stripBlock(String(message?.mes ?? ''), 'Changes', { heads: changeHeads() }) };
         // A Re-read (a2-3): the reply as it stands now, for bookkeeping its kept blocks wrote (ctx.standing).
         let standing = null;
@@ -855,7 +862,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             }
             let result;
             try {
-                const run = opts => bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(plan ? { planned: plan.blocks.flatMap(piece => piece.block?.evidence ?? []) } : {}), ...(seed === undefined ? {} : { seed }), ...opts });
+                const run = opts => bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(plan ? { planned: plan.blocks.flatMap(piece => piece.block?.evidence ?? []), replacing: plan.replacing } : {}), ...(seed === undefined ? {} : { seed }), ...opts });
                 result = entry.off ? await run({ capture: { ...entry, off: false }, again: true }) : await run();
                 // Refused by a feature that is off (a command it called, ctx.feature): run as it ran before.
                 if (again && !entry.off && result?.code === 'FEATURE_OFF') result = await run({ again: true });
@@ -951,6 +958,15 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         return { code: life?.status === 'restore-pending' ? 'RESTORE_PENDING' : 'DEPENDENCY_UNAVAILABLE', name: registry.module?.(id)?.name ?? id, reason: life?.reason ?? 'It is not running.' };
     }
 
+    // The proof ids on the blocks a Re-read replaces: its story lines' and its planned steps' (spans marked `story` or `replan`).
+    function replacedProof(record) {
+        const ids = new Set();
+        for (const span of Array.isArray(record?.spans) ? record.spans : []) {
+            if (span && (span.story === true || span.replan)) for (const proof of Array.isArray(span.evidence) ? span.evidence : []) if (typeof proof?.id === 'string') ids.add(proof.id);
+        }
+        return ids;
+    }
+
     async function reread(index) {
         const chat = ctx?.chat ?? [];
         const message = Number.isInteger(index) ? chat[index] : undefined;
@@ -981,7 +997,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         let ops;
         let off = [];
         let steps = [];
-        const plan = { blocks: [], pending: 0 };
+        // `replacing`: the proof ids of the blocks this Re-read replaces (the story lines and the steps), free to be given
+        // again, so a line that reads as it did keeps its ids and what the reader built on them.
+        const plan = { blocks: [], pending: 0, replacing: replacedProof(readRecord(message)) };
         try {
             let after;
             const seeds = storySeeds(readRecord(message));

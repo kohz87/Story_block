@@ -3,7 +3,7 @@
 // reloads and swipes; and the bytes pinned.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hashJson } from '../../src/v2/replay.js';
+import { hashJson, sha256 } from '../../src/v2/replay.js';
 import { LIMITS, merged, pinOf, pinOps, proofPins, visibleProofs } from '../../src/v2/evidence.js';
 import { newSwipe, showSwipe } from './helpers/store-chat.js';
 import { SD, T1, T2, evidenceHarness } from './helpers/evidence.js';
@@ -159,8 +159,10 @@ test('the pin of a proof covers its parents: a parent given again with other byt
     const child = proof('pf_child001', { place: 'b' }, [parent.id]);
     const pins = { [parent.id]: pinOf(parent, {}) };
     pins[child.id] = pinOf(child, pins);
-    assert.equal(pins[parent.id], parent.payloadHash, 'no parents: the payload hash');
-    assert.notEqual(pins[child.id], child.payloadHash, 'parents: covered too');
+    assert.notEqual(pins[parent.id], parent.payloadHash, 'the pin covers the id, kind and owner as well as the payload');
+    assert.notEqual(pinOf({ ...parent, kind: 'kill', owner: 'rpg-battle' }, {}), pins[parent.id], 'a kind or an owner changed is another pin');
+    assert.notEqual(pinOf({ ...parent, id: 'pf_other001' }, {}), pins[parent.id]);
+    assert.notEqual(pins[child.id], pinOf({ ...child, parents: [] }, {}), 'parents: covered too');
     const entries = [parent, child].map(each => ({ proof: each, block: 'bl_00000001' }));
     const state = value => ({ meta: { rev: 1, claims: {}, proofs: value } });
     assert.deepEqual(ids(visibleProofs(state(pins), entries)), [parent.id, child.id]);
@@ -181,6 +183,32 @@ test('the pin of a proof covers its parents: a parent given again with other byt
     // A pending proof is laid over a stored one of its id.
     assert.deepEqual(merged([entries[0]], [{ proof: newer }]).map(each => each.proof.payload.place), ['changed']);
     assert.equal(merged([entries[0]], []).length, 1);
+});
+
+test('a proof given as another kind of the same owner is not shown: the pin covers the kind, the owner and the id', () => {
+    const { h, first, parent, child } = threeReplies();
+    const record = h.chat[first].extra.storySuite;
+    // An acceptance stored as a different kind of the same owner (the payload is a valid opaque one for it) keeps its payload hash.
+    const proof = record.spans.find(span => span.evidence?.length).evidence[0];
+    proof.kind = 'event';
+    h.store.rebuild();
+    assert.deepEqual(h.ask().map(each => each.id).filter(id => [parent, child].includes(id)), [], 'neither it nor what is built on it');
+});
+
+test('story.evidence with ids looks only at those proofs and their parents', () => {
+    const proof = (id, payload, parents = []) => ({ id, source: { sid: 'sr_00000001', swipeKey: 'sw_00000001', evidence: 'ev_00000001', ordinal: 0 }, owner: SD, kind: 'visit', payload, payloadHash: hashJson(payload), parents });
+    const a = proof('pf_aaaaaaa1', { place: 'a' });
+    const b = proof('pf_bbbbbbb1', { place: 'b' }, [a.id]);
+    // A proof nobody asked for, whose bytes cannot be read at all.
+    const trap = { id: 'pf_trap0001', source: a.source, owner: SD, kind: 'visit', get payload() { throw new Error('looked at'); }, payloadHash: 'x', parents: [] };
+    const pins = { [a.id]: pinOf(a, {}) };
+    pins[b.id] = pinOf(b, pins);
+    pins[trap.id] = 'x';
+    const state = { meta: { rev: 1, proofs: pins } };
+    const entries = [a, trap, b].map(each => ({ proof: each, block: 'bl_00000001' }));
+    assert.deepEqual(ids(visibleProofs(state, entries, [b.id])), [b.id]);
+    assert.deepEqual(ids(visibleProofs(state, entries, [a.id, 'pf_nope0001'])), [a.id]);
+    assert.throws(() => visibleProofs(state, entries), /looked at/, 'asking for all does look at all');
 });
 
 test('the pins a block writes are read from its ops; on replay the record is made when it is missing and never written over', () => {
@@ -248,14 +276,15 @@ test('the bytes of a stored proof are pinned: what a block keeps is exactly this
     // The key order is the one the host writes: id, source, owner, kind, payload, payloadHash, parents. The hashes are
     // SHA-256 of {"place":"pack.x/mill"} and of {"actor":"ac_hero0001","check":"ck_check001","dc":12,"stat":"STR"}.
     const source = '{"sid":"sr_dmfbj6ec","swipeKey":"sw_8jzvvb8q","evidence":"ev_857zrupl","ordinal":0}';
-    assert.equal(JSON.stringify(stored), `[{"id":"pf_8p1nww9g","source":${source},"owner":"story-director","kind":"visit","payload":{"place":"pack.x/mill"},`
+    assert.equal(JSON.stringify(stored), `[{"id":"pf_4ibag2jz","source":${source},"owner":"story-director","kind":"visit","payload":{"place":"pack.x/mill"},`
         + '"payloadHash":"ba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034","parents":[]},'
-        + `{"id":"pf_7jtbmlc5","source":${source},"owner":"story-director","kind":"event","payload":{"check":"ck_check001","actor":"ac_hero0001","stat":"STR","dc":12},`
-        + '"payloadHash":"0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f","parents":["pf_8p1nww9g"]}]');
-    // The pins in the state: the payload hash for a proof with no parents, the hash of it and its parents' pins otherwise.
+        + `{"id":"pf_9aijg720","source":${source},"owner":"story-director","kind":"event","payload":{"check":"ck_check001","actor":"ac_hero0001","stat":"STR","dc":12},`
+        + '"payloadHash":"0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f","parents":["pf_4ibag2jz"]}]');
+    // The pins in the state: SHA-256 of the lines "pin", id, kind, owner, payload hash, then "parent id=parent's pin" for each parent.
+    const first = sha256('pin\npf_4ibag2jz\nvisit\nstory-director\nba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034');
     assert.deepEqual(h.store.head().meta.proofs, {
-        pf_8p1nww9g: 'ba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034',
-        pf_7jtbmlc5: hashJson({ h: '0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f', p: [['pf_8p1nww9g', 'ba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034']] }),
+        pf_4ibag2jz: first,
+        pf_9aijg720: sha256(`pin\npf_9aijg720\nevent\nstory-director\n0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f\npf_4ibag2jz=${first}`),
     });
     // Saved and read back from the chat file, nothing about it changes.
     assert.equal(JSON.stringify(JSON.parse(JSON.stringify(h.record(at))).spans[0].evidence), JSON.stringify(stored));

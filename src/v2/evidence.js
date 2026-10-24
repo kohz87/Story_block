@@ -15,7 +15,7 @@
 
 import { isId } from './check.js';
 import { escapeKey } from './ops.js';
-import { canonicalJson, deriveId, hashJson, isPlainJson, isRecordId, sourceProblem } from './replay.js';
+import { canonicalJson, deriveId, hashJson, isPlainJson, isRecordId, sha256, sourceProblem } from './replay.js';
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -75,19 +75,42 @@ function checkProblem(payload) {
 
 // A payload the contract leaves to a later package (B3/B6, Story Director's own events and visits): any plain
 // JSON object, not empty, within the byte cap. Whether it means anything is its owner's to check.
-function opaqueProblem(payload) {
+function opaqueProblem(json, payload) {
     if (!Object.keys(payload).length) return 'it has nothing in it';
-    if (utf8.encode(canonicalJson(payload)).length > LIMITS.opaqueBytes) return `it is more than ${LIMITS.opaqueBytes} bytes`;
+    if (utf8.encode(json).length > LIMITS.opaqueBytes) return `it is more than ${LIMITS.opaqueBytes} bytes`;
     return '';
 }
 
-/** '' when `payload` is a closed payload for `kind`, else why not. Structure only: intent is `intentProblem`. */
-export function payloadProblem(kind, payload) {
-    if (!isObject(payload) || !isPlainJson(payload)) return 'its payload is a plain JSON record';
-    if (kind === 'acceptance') return acceptanceProblem(payload);
-    if (kind === 'event' && Object.hasOwn(payload, 'check')) return checkProblem(payload);
-    return opaqueProblem(payload);
+// True when an array anywhere in `value` has a hole ([1, , 3]): JSON writes a hole as null, so it would not survive a reload.
+function hasHole(value) {
+    const stack = [value];
+    while (stack.length) {
+        const item = stack.pop();
+        if (Array.isArray(item)) {
+            for (let at = 0; at < item.length; at += 1) {
+                if (!(at in item)) return true;
+                stack.push(item[at]);
+            }
+        } else if (isObject(item)) stack.push(...Object.values(item));
+    }
+    return false;
 }
+
+/**
+ * { problem, json }: '' when `payload` is a closed payload for `kind`, else why not (structure only: intent is
+ * `intentProblem`), and its normalized JSON (what its hash is taken of) when it is plain JSON.
+ */
+function payloadCheck(kind, payload) {
+    let json = '';
+    try { json = isObject(payload) && !hasHole(payload) ? canonicalJson(payload) : ''; } catch { json = ''; }
+    if (!json) return { problem: 'its payload is a plain JSON record', json: '' };
+    if (kind === 'acceptance') return { problem: acceptanceProblem(payload), json };
+    if (kind === 'event' && Object.hasOwn(payload, 'check')) return { problem: checkProblem(payload), json };
+    return { problem: opaqueProblem(json, payload), json };
+}
+
+/** '' when `payload` is a closed payload for `kind`, else why not. */
+export const payloadProblem = (kind, payload) => payloadCheck(kind, payload).problem;
 
 /**
  * What names a proof inside one root (contract §6: the same key with a changed payload is a CONFLICT): an
@@ -100,21 +123,39 @@ export function payloadKey(kind, payload) {
     return `payload:${hashJson(payload)}`;
 }
 
-const said = text => String(text ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+// Folded for comparing: Unicode compatibility form, one space between words, lower case.
+const fold = text => String(text ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+// The end marks of a sentence, and what may stand at a sentence's ends without being part of it (quotes, commas, dashes).
+const SENTENCE_END = /[.!?\u2026\u3002\uff01\uff1f;\n\r]+/u;
+const EDGE = /^[\s"'\u201c\u201d\u2018\u2019\u00ab\u00bb.!?\u2026\u3002\uff01\uff1f,:;\-\u2013\u2014()[\]*_~]+|[\s"'\u201c\u201d\u2018\u2019\u00ab\u00bb.!?\u2026\u3002\uff01\uff1f,:;\-\u2013\u2014()[\]*_~]+$/gu;
+const core = text => fold(text).replace(EDGE, '');
+
+/**
+ * The sentences of the reader's message, folded and without their edges: the text cut at . ! ? … ; and line breaks.
+ * A comma does not end one ("Sure, I accept the job" is one sentence).
+ */
+export function sentences(text) {
+    return fold(text).split(SENTENCE_END).map(piece => piece.replace(EDGE, '')).filter(Boolean);
+}
 
 /**
  * '' when the host saw the reader's intent the proof claims, else why not (REFUSED). An acceptance by
- * `selection` is the reader's own action in a screen (cause `ui`); one by `words` must be said in the reader's
- * message the host gave this reply (`chat.lastUser`), never in the reply's narration (`chat.reply`).
+ * `selection` is the reader's own action in a screen (cause `ui`). One by `words` must be a whole sentence of the
+ * reader's message the host gave this reply (`chat.lastUser`: the message right before the reply), after folding
+ * case, spacing and the marks at its ends, and at least two words: a piece of a sentence ("take it" out of "I will
+ * not take it"), one word ("No") or text only the narration (`chat.reply`) says is REFUSED. The host proves
+ * quoting, not meaning: whether the quoted sentence accepts is the owner's to judge.
  */
 export function intentProblem(kind, payload, { cause, chat }) {
     if (kind !== 'acceptance') return '';
     if (Object.hasOwn(payload, 'selection')) {
         return cause === 'ui' ? '' : 'a selection is the reader\'s own pick in a screen, and this did not come from one';
     }
-    const spoken = said(chat?.lastUser);
-    if (!chat || !spoken) return 'the host saw no message from the reader for this reply, and narration cannot accept for them';
-    return spoken.includes(said(payload.words)) ? '' : 'the reader\'s message the host saw does not say that (narration cannot accept for the reader)';
+    const spoken = sentences(chat?.lastUser);
+    if (!chat || !spoken.length) return 'the host saw no message from the reader for this reply, and narration cannot accept for them';
+    const quoted = core(payload.words);
+    if (quoted.split(' ').length < 2) return 'the reader\'s words are at least two words';
+    return spoken.includes(quoted) ? '' : 'the words are not a whole sentence of the reader\'s message the host saw (narration cannot accept for the reader, and a piece of a sentence is not what they said)';
 }
 
 // ---------- stored proofs ----------
@@ -127,23 +168,32 @@ export function proofProblem(proof) {
     if (source) return source;
     if (typeof proof.kind !== 'string' || !Object.hasOwn(OWNERS, proof.kind)) return `"${proof.kind}" is not a kind of proof`;
     if (proof.owner !== OWNERS[proof.kind]) return `${proof.owner} does not own "${proof.kind}" proof`;
-    const payload = payloadProblem(proof.kind, proof.payload);
-    if (payload) return payload;
-    if (proof.payloadHash !== hashJson(proof.payload)) return 'its payload hash is not its payload\'s';
+    const { problem, json } = payloadCheck(proof.kind, proof.payload);
+    if (problem) return problem;
+    if (proof.payloadHash !== sha256(json)) return 'its payload hash is not its payload\'s';
     if (!Array.isArray(proof.parents) || proof.parents.length > LIMITS.parents || new Set(proof.parents).size !== proof.parents.length
         || !proof.parents.every(id => isRecordId(id) && id !== proof.id)) return 'its parents are a short list of other proof ids';
     return '';
 }
 
 /**
- * The pin of a proof in `meta.proofs`: its payload hash, and with parents the hash of that and each parent's
- * pin as the state holds it, so a parent that is given again with other bytes (an edit, a Re-read) no longer
- * matches the pin its child was committed with, and the child is hidden with it.
+ * The pin of a proof in `meta.proofs`: the SHA-256 of its id, kind, owner and payload hash and each parent's pin as the
+ * state holds it (one line each). A proof whose kind or owner was changed, or a parent given again with other bytes (an edit, a
+ * Re-read), no longer matches the pin it was committed with, and what was built on it is hidden with it.
  */
 export function pinOf(proof, pins) {
-    if (!proof.parents.length) return proof.payloadHash;
-    return hashJson({ h: proof.payloadHash, p: proof.parents.map(id => [id, typeof pins?.[id] === 'string' ? pins[id] : null]) });
+    let text = `pin\n${proof.id}\n${proof.kind}\n${proof.owner}\n${proof.payloadHash}`;
+    for (const id of proof.parents) text += `\n${id}=${typeof pins?.[id] === 'string' ? pins[id] : ''}`;
+    return sha256(text);
 }
+
+/** What a block's proof is, for the hashes that say whether a block is the one it was (ids, kinds, owners, payload hashes, parents). */
+export const evidenceDigest = evidence => (Array.isArray(evidence) && evidence.length
+    ? evidence.map(proof => [proof?.id, proof?.kind, proof?.owner, proof?.payloadHash, proof?.parents ?? null])
+    : null);
+
+/** The receipt's short form of the proof a command gave: its id, kind and payload hash (the span holds the bytes). */
+export const receiptEvidence = proofs => proofs.map(({ id, kind, payloadHash }) => ({ id, kind, payloadHash }));
 
 const pinsOf = state => (isObject(state?.meta?.proofs) ? state.meta.proofs : {});
 
@@ -240,11 +290,12 @@ export function merged(stored, pending) {
 }
 
 /**
- * The proofs of `entries` ([{ proof }], in source order) that are visible on `state`: pinned in its
- * `meta.proofs` with the pin their bytes and parents give, whole, of an owner that owns the kind, given once,
- * and every parent visible too (a cycle is not visible). → Proof[] in the same order.
+ * The proofs of `list` ([{ proof }], in source order) that are visible on `state`: pinned in its `meta.proofs`
+ * with the pin their bytes and parents give, whole, of an owner that owns the kind, given once, and every parent
+ * visible too (a cycle is not visible). → Proof[] in the same order. With `only` (a list of ids) just those are
+ * looked at, and their parents: the work is theirs, not the whole chat's.
  */
-export function visibleProofs(state, list) {
+export function visibleProofs(state, list, only = null) {
     const pins = pinsOf(state);
     const byId = new Map();
     const twice = new Set();
@@ -263,6 +314,7 @@ export function visibleProofs(state, list) {
         memo.set(id, ok);
         return ok;
     };
+    if (only) return only.filter(id => visible(id)).map(id => byId.get(id));
     return list.map(entry => entry.proof).filter(proof => isObject(proof) && visible(proof.id));
 }
 
@@ -284,10 +336,8 @@ export function createEvidenceQuery({ stored = () => [] } = {}) {
         }
         let pending = [];
         try { pending = typeof tools?.pendingProofs === 'function' ? tools.pendingProofs() ?? [] : []; } catch { pending = []; }
-        const seen = visibleProofs(state, merged(stored() ?? [], pending));
-        if (!ids) return seen;
-        const byId = new Map(seen.map(proof => [proof.id, proof]));
-        return ids.filter(id => byId.has(id)).map(id => byId.get(id));
+        const all = merged(stored() ?? [], pending);
+        return ids ? visibleProofs(state, all, ids) : visibleProofs(state, all);
     };
 }
 
@@ -300,11 +350,12 @@ export const newRoot = () => ({ byKey: new Map(), list: [] });
  * One `ctx.proof(spec)` (contract §6) for the module `who` in a command whose cause, chat, Source and state are
  * given. The checks, in order: INVALID (the call's shape), REFUSED (owner or kind), INVALID (payload, parents),
  * REFUSED (reader intent the host did not see), CONFLICT (same key, other contents), NOT_FOUND (a parent), then
- * the stamped proof. `root` is the transaction's (newRoot), `stored()` the stored entries, `fail(code, message)`
- * throws the bus's error.
+ * the stamped proof. `root` is the transaction's (newRoot), `stored()` the stored entries, `planned` the proofs a Re-read's earlier lines gave, `fail(code, message)`
+ * throws the bus's error. `free` (a Set of proof ids): those of blocks the host is about to replace (a Re-read's
+ * story lines and steps, a step planned again), so a line read again gets its own id back.
  * → { proof, pin, created }; `created: false` is an identical retry, which gives back the proof it made.
  */
-export function submitProof(spec, { who, cause, chat, source, state, stored, root, fail }) {
+export function submitProof(spec, { who, cause, chat, source, state, stored, planned = [], root, fail, free = null }) {
     if (!isObject(spec) || Object.keys(spec).some(key => key !== 'kind' && key !== 'payload' && key !== 'parents')) {
         fail('INVALID', 'A proof is { kind, payload, parents? } and nothing else.');
     }
@@ -332,18 +383,19 @@ export function submitProof(spec, { who, cause, chat, source, state, stored, roo
     }
     if (root.list.length >= LIMITS.perRoot) fail('LIMITED', `One command gives at most ${LIMITS.perRoot} proofs.`);
 
-    const all = stored() ?? [];
-    const pending = root.list.map(proof => ({ proof, block: null }));
+    const held = stored() ?? [];
+    const pending = [...planned, ...root.list].map(proof => ({ proof, block: null }));
     if (parents.length) {
-        const found = new Set(visibleProofs(state, merged(all, pending)).map(proof => proof.id));
+        const found = new Set(visibleProofs(state, merged(held, pending), parents).map(proof => proof.id));
         const missing = parents.find(id => !found.has(id));
         if (missing) fail('NOT_FOUND', `There is no visible proof ${missing} to be a parent.`);
     }
-    // Derived from the reply's evidence id, the block's ordinal and the key: the same in a Re-read of the
-    // same block, new for a new swipe. Salted past an id that another block holds.
-    const taken = new Set(all.filter(entry => entry.proof.source?.evidence !== source.evidence || entry.proof.source?.ordinal !== source.ordinal).map(entry => entry.proof.id));
-    for (const proof of root.list) taken.add(proof.id);
-    const id = deriveId('pf', `${source.evidence}:${source.ordinal}:${key}`, taken);
+    // Derived from the reply's evidence id and the key (so a new swipe has fresh ids, and a line read again has its
+    // own back), then salted past an id that another block holds: the second proof with the same key on a reply is
+    // the next occurrence. The ids of the blocks being replaced are not held.
+    const taken = new Set(held.map(entry => entry.proof.id).filter(id => !free?.has(id)));
+    for (const entry of pending) taken.add(entry.proof.id);
+    const id = deriveId('pf', `${source.evidence}:${key}`, taken);
     const proof = Object.freeze({
         id, source: Object.freeze({ ...source }), owner, kind, payload: structuredClone(payload), payloadHash, parents: Object.freeze([...parents]),
     });

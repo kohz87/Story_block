@@ -9,7 +9,7 @@ does not call `ctx.proof` stores and replays exactly as before.
 Code: `src/v2/evidence.js` (everything pure: kinds, payloads, pins, visibility, the query), `commands.js`
 (`ctx.proof`, the block), `store.js` (stamping, replay check, `store.proofs()`), `domains/index.js` (the query is
 registered by the core module). Tests: `tests/v2/evidence-proof.test.js`, `evidence-query.test.js`,
-`evidence-turn.test.js`, `evidence-fuzz.test.js`, with the test-only owners in `tests/v2/helpers/evidence.js`.
+`evidence-turn.test.js`, `evidence-fuzz.test.js`, `evidence-turn-fuzz.test.js`, with the test-only owners in `tests/v2/helpers/evidence.js`.
 
 ## Giving proof
 
@@ -48,17 +48,27 @@ its caller's). The host stamps the **id**, the **Source** (the block's: `{ sid, 
 **payloadHash** (the contract's Hash of the payload). An owner cannot set any of them, nor `data.v2.evidence` of its
 receipt: the host writes that too.
 
-### Identity inside a root
+### Identity
 
 A proof is named by its **key**: an acceptance by its thread, a check by its check id, any other payload by the
 payload itself. In one root, the same kind and key with the same contents (and parents) returns the same `id`; with
-other contents it is `CONFLICT`. The id is derived from the reply's evidence id (`Source.evidence`), the block's
-ordinal and the key (salted past an id another block holds), so:
+other contents it is `CONFLICT`. Two identical opaque payloads in one root are **one proof**, not two: a kind whose
+payloads can repeat (two kills of the same foe in one reply) must carry a field that tells them apart (a counter, the
+target's id). Note for RPG Battle's payloads (B3/B6).
+
+The `id` is derived from the reply's evidence id (`Source.evidence`) and the key, then salted past an id that another
+block of the chat holds (so the second proof of one key on a reply is its next occurrence). It does not depend on the
+block or its ordinal, so:
 
 * a new swipe has a new evidence id, so **fresh proof ids**;
-* an edit alone changes no id; a Re-read plans the block again with a new ordinal, so it gives a new id, and its
-  payload hash is that of the text it now reads;
-* two roots that give the "same" proof are two blocks with two ids (a second click is a second proof).
+* an edit alone changes no id; a Re-read that finds the same line gives the same id back (the ids of the blocks it
+  replaces are free to be given again), so a guarded click that was built on the proof is still built on it. If the
+  line's payload changed, the id is the same and the bytes are not: the pin differs, and what was built on the old
+  bytes is hidden;
+* two roots that give the same key are two proofs with two ids (a second click is a second proof).
+
+The Source (and its `ordinal`) of a proof is that of the block that gave it, so a block planned again has a new ordinal
+and the same proof id.
 
 ### Closed payloads
 
@@ -79,25 +89,35 @@ else changes.
 
 * `selection` is the reader's own pick in a screen: the command must come from the reader (`cause: 'ui'`), not from a
   story line or a system step.
-* `words` must be said in **the reader's message the host gave this reply** (`ctx.chat.lastUser`, a capture's), after
-  folding case and spacing. Words that only the narration (`ctx.chat.reply`) says, a reply with no message from the
-  reader, and a click (it has no `ctx.chat`) are `REFUSED`. Raw narration cannot grant an acceptance.
+* `words` must be **a whole sentence of the reader's message the host gave this reply**: the message right before the
+  reply (a system message aside), and only when it is the reader's, so a reply that follows another reply has none.
+  Sentences end at `.` `!` `?` `...` `;` and line breaks (not at commas). The words are compared after folding case,
+  spacing and the marks at the ends (quotes, commas, dashes), and must be **at least two words**. A piece of a sentence
+  ("take it" out of "I will not take it"), a single word ("No", "I", "Yes"), words that only the narration
+  (`ctx.chat.reply`) says, a reply with no message from the reader and a click (it has no `ctx.chat`) are `REFUSED`.
+
+**The host proves quoting, not meaning.** It guarantees that the words are something the reader wrote in that message;
+it does not know that "No. I refuse the job, and I will not take it." is a refusal. Story Director's acceptance must
+still judge that the quoted sentence accepts (its accept/decline check), and "No" or any refusal sentence must never
+accept. Do not treat an `acceptance` proof with `words` as consent without that check.
 
 ## Where a proof lives, and when it is active
 
 A command that gave proof stores a block even when it attached no guard (`guard: null`). The proof is kept in
-`span.evidence` (the Proof of the contract: `id, source, owner, kind, payload, payloadHash, parents`, in this key order)
-and in `receipt.data.v2.evidence` (which `trimReceipts` keeps with the rest of `data.v2`), and **pinned** in the state:
-the block's ops add `meta.proofs[id] = pin`.
+`span.evidence` (the Proof of the contract: `id, source, owner, kind, payload, payloadHash, parents`, in this key order),
+in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimReceipts` keeps it with the rest of
+`data.v2`; the span holds the bytes), and **pinned** in the state: the block's ops add `meta.proofs[id] = pin`.
 
-* The pin of a proof with no parents is its payload hash; with parents it is the hash of `{ h: payloadHash, p: [[parent
-  id, parent's pin], …] }`, so a parent given again with other bytes no longer matches the pin its child was committed
-  with.
+* The pin is the SHA-256 of the lines `pin`, id, kind, owner, payload hash, then `parent id=parent's pin` for each
+  parent. A proof stored as another kind or owner, or under another id, or with a parent given again with other bytes,
+  no longer matches the pin it was committed with, and what was built on it is hidden with it.
 * The pin is written by the same ops as the block, so it is there exactly when the block applied. A block that was
   skipped on replay (a guard that no longer holds, a reply deleted, a domain validator), a rolled-back root, a swipe that
   is not shown, a deleted reply: no pin, no proof. Checkpoints carry `meta.proofs` like any other state.
 * On replay a block is applied only if its span holds exactly the proofs its ops pin, each whole, closed, of an owner
   that owns its kind and carrying the span's Source (`REPLAY_PREREQUISITE` otherwise, like a damaged claim list).
+  A block's ids, kinds, owners, payload hashes and parents are part of the hash that says whether a block (and so a
+  checkpoint window) is the one that was stored, and of whether a block planned again came out the same.
   The record `meta.proofs` is made when the state has none, and a write of the whole record becomes a write per id, so a
   block that stays never wipes the pins before it (a Re-read puts new lines ahead of the blocks it keeps).
 
@@ -109,14 +129,15 @@ the block's ops add `meta.proofs[id] = pin`.
   not) and **code-validated** (whole and closed, its owner owns its kind, `payloadHash` is the hash of its payload, its
   pin matches its bytes and its parents' pins). A proof given twice (by two blocks) is shown by neither.
 * Default: all, in source order (chat order, block order, the order given in the block). With `ids`: those, in the order
-  asked, once each. Unknown ids are left out. Malformed arguments (not a record, other keys, `ids` not a list of at
+  asked, once each; only those proofs and their parents are looked at, not the whole chat's. Unknown ids are left out. Malformed arguments (not a record, other keys, `ids` not a list of at
   most 500 record ids) give `[]`.
 * A deleted or skipped parent, or a parent given again with other bytes, hides its children; their blocks and changes
   stay as they are, only the proof is not shown. A skipped block publishes nothing.
-* **Committed only, except in the root.** A public query reads the stored blocks and the head's pins. Inside a command,
+* **Committed only, except in the root and in a Re-read.** A public query reads the stored blocks and the head's pins. Inside a command,
   `ctx.query('story.evidence', …)` also sees the proof this root has given so far (`tools.pendingProofs`), which is how a
   nested command "resolves its validated pending proofs"; nothing outside the root sees them before the commit, and a
-  failed root leaves nothing.
+  failed root leaves nothing. A Re-read stores nothing until all its lines and steps are planned, so the lines, the
+  `afterCapture` hooks' views and the steps see the proof planned so far as if it were stored.
 * Guards never read inactive raw text: an owner's `hooks.replayGuard` asks `query('story.evidence', …)` on the state
   before its block, which shows only what that state pins.
 
@@ -142,13 +163,15 @@ the block's ops add `meta.proofs[id] = pin`.
 * **Caps**: 4096 bytes for an opaque payload, 8 parents, 32 proofs per root, 500 ids per query. The contract names
   none.
 * **A proof-only block** (no guard) is a metadata block with `guard: null`; its receipt's `data.v2` has `guard: null`,
-  `rulesHash: null` and no `epoch` unless the owner sets one.
+  `rulesHash: null` and no `epoch` unless the owner sets one. **Such a block is not planned again by a reconcile**
+  (`store.reconcile` plans the blocks that carry a guard and a `replan`): an owner whose proof must follow the story
+  after a delete or swipe gives its step a guard.
 * **Ids** are `pf_` + 8 base36, a RecordId as the contract says.
+* **Identical payloads** of an opaque kind in one root merge into one proof (see Identity).
 * **Edit**: an edit alone changes the text's hash (`store.payloadHashAt`) and, as in REPLAY.md, no block and no proof;
   a Re-read is how it reaches the story.
-* **Checkpoint identity**: a window's hash covers each block's ops, which hold the pins, not the proof bytes. A proof
-  whose bytes were changed by hand fails its pin and hides itself (and its block is not applied when the span no longer
-  matches its ops), instead of costing the chat its checkpoints.
+* **Checkpoint identity**: a window's hash covers each block's ops (which hold the pins) and the ids, kinds, owners,
+  payload hashes and parents of its proof. The payload bytes are checked against their hash and pin when shown.
 * **Rewinds and savepoints** (E6): the host's restore installs captured state; `meta.proofs` is part of `state.meta` like
   `claims`, and the bytes are in the spans a restore keeps. How a restore treats proofs given after the savepoint is E6's.
 

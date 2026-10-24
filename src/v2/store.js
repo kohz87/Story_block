@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
-import { evidenceProblem, pinOps, recordEntries } from './evidence.js';
+import { evidenceDigest, evidenceProblem, pinOps, recordEntries } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -369,7 +369,7 @@ export function createStore({
         if (!digest) {
             bodies.set(record, digest = hashJson({
                 k: record.source?.swipeKey ?? record.sid ?? null,
-                b: blockParts(record).map(({ ops, span }) => [isMetaSpan(span) ? span.id : null, hashJson(ops)]),
+                b: blockParts(record).map(({ ops, span }) => [isMetaSpan(span) ? span.id : null, hashJson(ops), ...(isMetaSpan(span) && evidenceDigest(span.evidence) ? [evidenceDigest(span.evidence)] : [])]),
             }));
         }
         return digest;
@@ -514,7 +514,7 @@ export function createStore({
             guard: block.guard ?? null, claims: claimKeys(ops), evidence: structuredClone(block.evidence ?? []),
             boundaries: [{
                 cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: id, op: offset, rev: Math.max(0, (revOp ? revOp.value : 1) - 1) },
-                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: earlier.map(part => [isMetaSpan(part.span) ? part.span.id : null, hashJson(part.ops)]) }),
+                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: earlier.map(part => [isMetaSpan(part.span) ? part.span.id : null, hashJson(part.ops), ...(isMetaSpan(part.span) && evidenceDigest(part.span.evidence) ? [evidenceDigest(part.span.evidence)] : [])]) }),
                 payloadHash: payloadHashOf(message),
             }],
             operation: structuredClone(block.operation), recorded: structuredClone(block.recorded ?? null), result: structuredClone(block.result ?? null),
@@ -879,7 +879,7 @@ export function createStore({
         }
         // Planned to what it was: the old block stays as it is.
         const sameness = value => hashJson({ ops: value.ops, guard: value.span.guard ?? null, claims: value.span.claims ?? null, recorded: value.span.recorded ?? null,
-            result: value.span.result ?? null, operation: value.span.operation ?? null, replan: value.span.replan ?? null });
+            result: value.span.result ?? null, operation: value.span.operation ?? null, replan: value.span.replan ?? null, evidence: evidenceDigest(value.span.evidence) });
         if (sameness({ ops: blockOps, span }) === sameness({ ops: fresh, span: newSpan })) {
             return { state: next, same: true };
         }

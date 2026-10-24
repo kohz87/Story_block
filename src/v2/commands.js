@@ -46,7 +46,7 @@
 import { apply, checkOps, clone, counterInside, deepFreeze, diff, escapeKey, frozenCopy, isCounterPath, isDeepFrozen, isJson, valueAt } from './ops.js';
 import { isSeed, rng as makeRng, roll as rollDice, seed as freshSeed } from './rng.js';
 import { guardProblem, hashJson, isPlainJson } from './replay.js';
-import { newRoot, submitProof } from './evidence.js';
+import { newRoot, receiptEvidence, submitProof } from './evidence.js';
 
 export const MAX_DEPTH = 8;
 const CAUSES = ['ui', 'story', 'system'];
@@ -401,7 +401,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 open();
                 const made = submitProof(spec, {
                     who: moduleId, cause: tx.cause, chat: tx.chat, source: sourceOf(tx), state: currentState(tx),
-                    stored: () => [...(store.proofs?.() ?? []), ...tx.planned.map(proof => ({ proof, block: null }))], root: tx.proofs, fail,
+                    stored: () => store.proofs?.() ?? [], planned: tx.planned, root: tx.proofs, fail, free: tx.replacing,
                 });
                 if (made.created) {
                     const meta = metaOf(tx);
@@ -541,7 +541,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     }
 
     // Runs one command against `head` and returns { ok, ops, receipt, state } without storing anything.
-    function transact(head, type, payload, { cause, seed: seedValue, receiptId, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null }) {
+    function transact(head, type, payload, { cause, seed: seedValue, receiptId, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null }) {
         let tx = null;
         try {
             if (!CAUSES.includes(cause)) fail('INVALID', `"${cause}" is not a cause (ui, story or system).`);
@@ -565,6 +565,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 guard: null, recorded: null, source: undefined, pending: 0, ordinal: undefined, proofs: newRoot(),
                 // The proof a Re-read's earlier lines gave (planned, not stored yet), for parents and story.evidence.
                 planned: Array.isArray(planned) ? planned : [],
+                // The ids of the proof of blocks being replaced (a Re-read's lines and steps, a step planned again): free to be given again.
+                replacing: replacing instanceof Set ? replacing : new Set(Array.isArray(replacing) ? replacing : []),
             };
             // `reply` (run, a system step only): the reply a Re-read's step is kept on, which need not be the head.
             const given = cause === 'system' && isRecord(reply) ? replyOf(reply.index, reply.sid) : null;
@@ -604,7 +606,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                     ...(proofs.length ? { evidence: clone(proofs) } : {}),
                 };
                 // The receipt shows the proof too (contract Receipt.data.v2.evidence); the span's is what the host reads.
-                if (proofs.length) data = { ...data, v2: { ...data.v2, evidence: clone(proofs) } };
+                if (proofs.length) data = { ...data, v2: { ...data.v2, evidence: receiptEvidence(proofs) } };
             }
 
             const { ops, touched, rev } = opsOf(tx);
@@ -755,10 +757,11 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
          * `carrier` and `reply` may also say `pending` (guarded blocks a Re-read has planned before this one) or
          * `ordinal` (this block's own, when it is planned again): only ctx.source's ordinal follows them. `planned`
          * (the Proofs the lines of a Re-read have given so far): parents and story.evidence see them like stored ones.
+         * `replacing` (proof ids of the blocks being replaced): they may be given again, so a line read again keeps its ids.
          * A guarded transaction's result has a `block` too (REPLAY.md), which store.append or replaceStory keeps.
          */
-        run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null } = {}) {
-            return guarded(() => transact(state ?? store.head(), type, payload, { ...fresh(cause, seedValue), capture, carrier, chat, again: again === true && cause === 'story', standing, reply, planned }));
+        run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null } = {}) {
+            return guarded(() => transact(state ?? store.head(), type, payload, { ...fresh(cause, seedValue), capture, carrier, chat, again: again === true && cause === 'story', standing, reply, planned, replacing }));
         },
     };
 }

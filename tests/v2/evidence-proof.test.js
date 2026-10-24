@@ -38,7 +38,7 @@ test('accept and roll each succeed once in one root; the nested commands see the
     assert.deepEqual(ids(h.ask({ ids: [story.id, accepted.id] })), [story.id, accepted.id]);
     // The receipt shows the proof too; the host stamped id, Source and payloadHash.
     const receipt = h.record(at).receipts.at(-1);
-    assert.deepEqual(receipt.data.v2.evidence, stored);
+    assert.deepEqual(receipt.data.v2.evidence, stored.map(({ id, kind, payloadHash }) => ({ id, kind, payloadHash })), 'the receipt holds ids, kinds and hashes; the span holds the bytes');
     const span = h.spans(at).at(-1);
     for (const proof of stored) {
         assert.deepEqual(proof.source, span.source);
@@ -147,6 +147,9 @@ test('the shape of the call and of each closed payload is checked: INVALID', () 
     // A payload nobody has shaped: a non-empty plain object within the cap.
     invalid({ kind: 'visit', payload: {} }, /nothing in it/);
     invalid({ kind: 'visit', payload: { blob: 'x'.repeat(LIMITS.opaqueBytes) } }, /more than 4096 bytes/);
+    // A hole in a list is not JSON: it would come back as null after a reload.
+    invalid({ kind: 'visit', payload: { list: [1, , 3] } }, /plain JSON record/);
+    invalid({ kind: 'visit', payload: { deep: { list: [[1], , [2]] } } }, /plain JSON record/);
     // Parents: up to 8 different proof ids.
     invalid({ kind: 'visit', payload: { place: 'p' }, parents: 'pf_00000000' }, /parents/);
     invalid({ kind: 'visit', payload: { place: 'p' }, parents: ['pf_00000000', 'pf_00000000'] }, /parents/);
@@ -156,8 +159,8 @@ test('the shape of the call and of each closed payload is checked: INVALID', () 
     // The limits themselves are fine.
     const ok = h.command('sd.many', { specs: [{ kind: 'visit', payload: { blob: 'x'.repeat(LIMITS.opaqueBytes - 20) } }, { kind: 'acceptance', payload: { thread: T1, selection: 'x'.repeat(LIMITS.selection) } }] });
     assert.equal(ok.ok, true, ok.message);
-    const longest = 'x'.repeat(LIMITS.words);
-    const said = h.bus.run('sd.accept', { thread: T2, words: longest }, { cause: 'story', carrier: { index: 2, swipe: 0, sid: h.store.carrierSid(2) }, chat: { lastUser: `${longest} indeed`, reply: '' } });
+    const longest = 'ab '.repeat(80).trim();
+    const said = h.bus.run('sd.accept', { thread: T2, words: longest }, { cause: 'story', carrier: { index: 2, swipe: 0, sid: h.store.carrierSid(2) }, chat: { lastUser: `Well. ${longest}!`, reply: '' } });
     assert.equal(said.ok, true, said.message);
 });
 
@@ -246,17 +249,50 @@ test('reader intent the host did not see is REFUSED: narration cannot accept for
         assert.match(out.message, /reader's own pick in a screen/);
     }
     assert.equal(h.command('sd.accept', { thread: T1, selection: 'take it' }).ok, true, 'the reader\'s own click is');
-    // What the reader said is accepted, case and spacing aside, even when the narration says it too.
-    const said = asStory('  I   ACCEPT the job ', { lastUser, reply });
+    // A whole sentence of the reader's message is quoted, case, spacing and the marks at its ends aside; the narration
+    // saying it too changes nothing.
+    const said = asStory('  Sure, I accept the job ', { lastUser, reply });
     assert.equal(said.ok, false, 'the words are cut at the ends: this one has space at both');
     assert.equal(said.code, 'INVALID');
-    for (const words of ['I accept the job', 'i  accept THE job', 'Sure, I accept', 'accept']) {
+    for (const words of ['Sure, I accept the job', 'sure,  i accept THE job', 'Sure, I accept the job.', '"Sure, I accept the job"']) {
         const out = asStory(words, { lastUser, reply });
         assert.equal(out.ok, true, `${words}: ${out.message}`);
         assert.equal(out.block.evidence[0].payload.words, words);
     }
+    // A piece of a sentence is not what they said: refused, however much of it there is (the sentence starts at "Sure").
+    for (const words of ['I accept the job', 'Sure, I accept', 'accept', 'Sure', 'accept the job']) {
+        const out = asStory(words, { lastUser, reply });
+        assert.equal(out.code, 'REFUSED', words);
+    }
     // Nothing the refused calls did reached the store.
     assert.equal(h.ask().length, 1);
+});
+
+test('a refusal cannot be turned into an acceptance: only a whole sentence of the reader, two words or more, is quoted', () => {
+    const h = evidenceHarness();
+    const refusal = 'No. I refuse the job, and I will not take it.';
+    const at = h.send(refusal, 'The innkeeper sighs.');
+    const sid = h.store.carrierSid(at);
+    const asStory = (words, lastUser = refusal) => h.bus.run('sd.accept', { thread: T1, words }, { cause: 'story', carrier: { index: at, swipe: 0, sid }, chat: { lastUser, reply: 'The innkeeper sighs.' } });
+    // The pieces a model-written line might quote to make a refusal an acceptance.
+    for (const words of ['I', 'No', 'take it', 'the job', 'I will not take', 'refuse the job', 'No. I refuse', 'I refuse the job, and I will not take it. No']) {
+        const out = asStory(words);
+        assert.equal(out.ok, false, words);
+        assert.equal(out.code, 'REFUSED', `${words}: ${out.message}`);
+    }
+    // One word is never enough, even when it is the whole sentence.
+    assert.equal(asStory('Yes', 'Yes.').code, 'REFUSED');
+    assert.equal(asStory('Yes!!!', 'Yes!!!').code, 'REFUSED');
+    assert.equal(asStory('xxxxx', 'xxxxx').code, 'REFUSED');
+    // The host proves quoting, not meaning: the refusal sentence quoted whole is a quote, and judging that it does not
+    // accept is the owner's (EVIDENCE.md).
+    const whole = asStory('I refuse the job, and I will not take it');
+    assert.equal(whole.ok, true, whole.message);
+    // Sentences are cut at . ! ? ... ; and line breaks, not at commas.
+    assert.equal(asStory('Wait', 'Wait... Sure then').code, 'REFUSED');
+    assert.equal(asStory('Sure then', 'Wait... Sure then').ok, true);
+    assert.equal(asStory('Deal', 'Deal;\nDone deal').code, 'REFUSED');
+    assert.equal(asStory('Done deal', 'Deal;\nDone deal').ok, true);
 });
 
 test('the proof ids are the host\'s: derived from the reply\'s Source, the block and the key, never from the owner', () => {

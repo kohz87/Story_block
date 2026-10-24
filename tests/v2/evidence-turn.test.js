@@ -8,9 +8,9 @@ import { director, fighter, hostModule, T1, T2 } from './helpers/evidence.js';
 
 const text = (narration, lines) => `${narration}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 
-async function open(t) {
+async function open(t, options = {}) {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director(), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director(options), fighter()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const turns = [];
@@ -21,10 +21,10 @@ async function open(t) {
 
 test('a story acceptance proves the reader\'s words: said by the reader it is kept, said only by the narration it is refused', async t => {
     const { host, turns, ask } = await open(t);
-    await host.send('Sure, I accept the job.', text('The innkeeper nods.', [`! accept ${T1} | words: I accept the job`]));
+    await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
     const [proof] = ask({});
     assert.equal(proof.kind, 'acceptance');
-    assert.deepEqual(proof.payload, { thread: T1, words: 'I accept the job' });
+    assert.deepEqual(proof.payload, { thread: T1, words: 'Sure, I accept the job' });
     assert.deepEqual(host.head().domains.sdt.accepted, { [proof.id]: { thread: T1 } });
     assert.deepEqual(turns.at(-1).problems, []);
     // The next reply: the reader only says "maybe", the narration says the rest. Refused, as a problem, with nothing kept.
@@ -38,9 +38,9 @@ test('a story acceptance proves the reader\'s words: said by the reader it is ke
 
 test('a new swipe gives fresh evidence ids; the first swipe\'s proof is not the second\'s', async t => {
     const { host, ask } = await open(t);
-    await host.send('Sure, I accept the job.', text('The innkeeper nods.', [`! accept ${T1} | words: I accept the job`]));
+    await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
     const first = ask({})[0];
-    await host.swipe(text('The innkeeper grins.', [`! accept ${T1} | words: I accept the job`]));
+    await host.swipe(text('The innkeeper grins.', [`! accept ${T1} | words: Sure, I accept the job`]));
     const second = ask({});
     assert.equal(second.length, 1, 'only the shown swipe\'s proof');
     assert.notEqual(second[0].id, first.id, 'fresh id');
@@ -52,7 +52,7 @@ test('a new swipe gives fresh evidence ids; the first swipe\'s proof is not the 
 
 test('an edit alone leaves the proof; a Re-read gives it again from the new text, with another payload hash, and what was built on the old one is hidden', async t => {
     const { host, turns, ask } = await open(t);
-    await host.send('Sure, I accept the job, thanks.', text('The innkeeper nods.', [`! accept ${T1} | words: I accept the job`]));
+    await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
     const at = host.ctx.chat.length - 1;
     const [old] = ask({});
     // The reader clicks something that builds on the proof.
@@ -61,7 +61,7 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     assert.deepEqual(ask({}).map(proof => proof.kind), ['acceptance', 'kill']);
     const boundary = host.ctx.chat[at].extra.storySuite.spans.find(span => span.evidence?.length).boundaries[0].payloadHash;
     // The reply is edited: its text, and so its payload hash, change. The proof is still the one given.
-    host.ctx.chat[at].mes = text('The innkeeper nods slowly.', [`! accept ${T1} | words: Sure, I accept`]);
+    host.ctx.chat[at].mes = text('The innkeeper nods slowly.', [`! accept ${T1} | words: Thanks a lot`]);
     host.ctx.chat[at].swipes[0] = host.ctx.chat[at].mes;
     assert.notEqual(host.store.payloadHashAt(at), boundary, 'the evidence text changed');
     assert.deepEqual(ask({}).map(proof => proof.id), [old.id, ask({})[1].id], 'an edit alone changes no proof');
@@ -71,28 +71,29 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     assert.deepEqual(turns.at(-1).problems, []);
     const now = ask({});
     const fresh = now.find(proof => proof.kind === 'acceptance');
-    assert.deepEqual(fresh.payload, { thread: T1, words: 'Sure, I accept' });
+    assert.deepEqual(fresh.payload, { thread: T1, words: 'Thanks a lot' });
     assert.notEqual(fresh.payloadHash, old.payloadHash, 'edit and Re-read change the payload hash');
     assert.equal(fresh.source.sid, old.source.sid, 'the same logical reply');
     assert.equal(fresh.source.swipeKey, old.source.swipeKey, 'the same swipe');
     assert.equal(fresh.source.evidence, old.source.evidence);
-    assert.notEqual(fresh.id, old.id, 'a block planned again has an ordinal of its own');
-    assert.equal(ask({ ids: [old.id] }).length, 0, 'the old proof is gone');
+    assert.equal(fresh.id, old.id, 'the same line, the same id: the proof is named by its reply and its key, not by the block');
+    assert.notEqual(fresh.source.ordinal, old.source.ordinal, 'in a block planned again');
+    assert.equal(ask({ ids: [old.id] })[0].payloadHash, fresh.payloadHash, 'the id now shows the new words');
     assert.deepEqual(now.map(proof => proof.kind), ['acceptance'], 'and the kill built on it is hidden, though its own changes stay');
     assert.deepEqual(host.head().domains.rpgt.log, [1]);
     assert.deepEqual(Object.keys(host.head().meta.proofs).length, 2, 'the new acceptance and the hidden kill; the old acceptance\'s pin left with its block');
-    // A Re-read that finds the same words gives the same payload hash, in a block of its own again.
+    // A Re-read that finds the same words gives the same proof again.
     const again = await host.turn.reread(at);
     assert.equal(again.ok, true, again.message);
     const same = ask({}).find(proof => proof.kind === 'acceptance');
     assert.equal(same.payloadHash, fresh.payloadHash);
-    assert.notEqual(same.id, fresh.id);
+    assert.equal(same.id, fresh.id);
     assert.deepEqual(host.store.problems(), []);
 });
 
 test('a reload shows the same proof, and a chat with proof loads without a problem', async t => {
     const { host, ask } = await open(t);
-    await host.send('Sure, I accept the job.', text('The innkeeper nods.', [`! accept ${T1} | words: I accept the job`]));
+    await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
     const [proof] = ask({});
     await host.bus.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [proof.id] }] }, { cause: 'ui' });
     await host.send('On.', 'Further.');
@@ -106,8 +107,8 @@ test('a reload shows the same proof, and a chat with proof loads without a probl
 
 test('a line may build on the proof an earlier line of the same reply gave, live and in a Re-read', async t => {
     const { host, turns, ask } = await open(t);
-    const lines = [`! accept ${T1} | words: I accept the job`, '! kill Wolf | after: th_thread01'];
-    await host.send('Sure, I accept the job.', text('The innkeeper nods.', lines));
+    const lines = [`! accept ${T1} | words: Sure, I accept the job`, '! kill Wolf | after: th_thread01'];
+    await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', lines));
     const at = host.ctx.chat.length - 1;
     const shown = () => ask({}).map(proof => [proof.kind, proof.parents.length]);
     assert.deepEqual(shown(), [['acceptance', 0], ['kill', 1]]);
@@ -120,10 +121,77 @@ test('a line may build on the proof an earlier line of the same reply gave, live
     assert.deepEqual(turns.at(-1).problems, []);
     assert.deepEqual(shown(), [['acceptance', 0], ['kill', 1]]);
     assert.equal(ask({})[1].parents[0], ask({})[0].id);
-    assert.equal(ask({}).some(proof => old.includes(proof.id)), false, 'fresh blocks, fresh ids');
+    assert.deepEqual(ask({}).map(proof => proof.id), old, 'lines that read as they did keep their ids');
     assert.deepEqual(host.store.problems(), []);
     // The kill without the acceptance before it is refused (nothing to build on).
     await host.send('Hm.', text('A wolf.', ['! kill Bear | after: th_thread02']));
     assert.equal(turns.at(-1).problems.length, 1);
     assert.equal(ask({}).length, 2);
+});
+
+test('a reader\'s refusal is not an acceptance: pieces of it, one word and a short "I" are refused over a real turn, live and on a Continue', async t => {
+    const { host, turns, ask } = await open(t);
+    const refusal = 'No. I refuse the job, and I will not take it.';
+    await host.send(refusal, text('The innkeeper sighs.', [`! accept ${T1} | words: I`, `! accept ${T2} | words: take it`, `! accept ${T1} | words: No`]));
+    assert.deepEqual(ask({}), []);
+    assert.equal(turns.at(-1).problems.length, 3);
+    // A Continue adds a line, and the reader's message is still the one before the reply.
+    await host.send(refusal, text('The innkeeper sighs again.', [`! accept ${T1} | words: ${'I refuse the job, and I will not take it'}`]));
+    assert.equal(ask({}).length, 1, 'the whole sentence is a quote the host lets through; whether it accepts is the owner\'s to judge');
+    await host.cont(text(' More.', [`! accept ${T2} | words: accept the job`]));
+    assert.equal(ask({}).length, 1, 'a Continue\'s partial words are refused too');
+    assert.match(String(turns.at(-1).problems.at(-1).message), /not a whole sentence/);
+});
+
+test('a reply that follows another reply has no message of the reader\'s to quote', async t => {
+    const { host, turns, ask } = await open(t);
+    await host.send('I accept the job.', text('The innkeeper frowns: "What job?"', []));
+    assert.equal(ask({}).length, 0);
+    // A second reply with no new message from the reader between (the chat reads A U A A).
+    await host.st.generate('normal', { reply: text('Later...', [`! accept ${T1} | words: I accept the job`]) });
+    assert.equal(host.ctx.chat.map(message => (message.is_user ? 'U' : 'A')).join(''), 'AUAA');
+    assert.deepEqual(ask({}), []);
+    assert.match(String(turns.at(-1).problems.at(-1).message), /no message from the reader/);
+});
+
+test('afterCapture steps of a Re-read see the proof of the lines it planned: a step may build on the acceptance a line gave', async t => {
+    const { host, turns, ask } = await open(t, { after: true });
+    await host.send('Sure, I accept the job. Thanks a lot!', text('Nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
+    const shown = () => ask({}).map(proof => [proof.kind, proof.parents.length]);
+    assert.deepEqual(shown(), [['acceptance', 0], ['visit', 1]]);
+    assert.deepEqual(turns.at(-1).problems, []);
+    const result = await host.turn.reread(host.ctx.chat.length - 1);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(turns.at(-1).problems, []);
+    assert.deepEqual(shown(), [['acceptance', 0], ['visit', 1]]);
+    assert.equal(ask({})[1].parents[0], ask({})[0].id);
+    assert.deepEqual(host.store.problems(), []);
+});
+
+test('a guarded click built on a proof survives a Re-read of text that did not change, and goes when the line\'s payload changes', async t => {
+    const { host, turns, ask } = await open(t);
+    await host.send('Sure, I accept the job. Thanks a lot!', text('Nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
+    const at = host.ctx.chat.length - 1;
+    const [accepted] = ask({});
+    // The reader's click builds on it, under a guard that needs it shown (a turn-in).
+    const click = host.bus.command('sd.needs', { thread: T2, selection: 'Turn in', parent: accepted.id }, { cause: 'ui' });
+    assert.equal(click.ok, true, click.message);
+    const shown = () => ask({}).map(proof => `${proof.kind}:${proof.payload.thread ?? ''}`);
+    assert.deepEqual(shown(), [`acceptance:${T1}`, `acceptance:${T2}`]);
+    // Nothing changed: the line gives the proof it gave, with the id it had, and the click stays.
+    const again = await host.turn.reread(at);
+    assert.equal(again.ok, true, again.message);
+    assert.deepEqual(turns.at(-1).problems, []);
+    assert.deepEqual(ask({}).map(proof => proof.id).slice(0, 1), [accepted.id], 'the same id after a Re-read');
+    assert.deepEqual(shown(), [`acceptance:${T1}`, `acceptance:${T2}`], 'and what was built on it');
+    assert.deepEqual(Object.values(host.head().domains.sdt.accepted).map(entry => entry.thread), [T1, T2]);
+    assert.deepEqual(host.store.problems(), []);
+    // The line now quotes something else: the proof has other bytes, so what was built on the old ones is hidden.
+    host.ctx.chat[at].mes = text('Nods.', [`! accept ${T1} | words: Thanks a lot`]);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    const changed = await host.turn.reread(at);
+    assert.equal(changed.ok, true, changed.message);
+    assert.deepEqual(shown(), [`acceptance:${T1}`]);
+    assert.equal(ask({})[0].id, accepted.id);
+    assert.notEqual(ask({})[0].payloadHash, accepted.payloadHash);
 });
