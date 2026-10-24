@@ -295,8 +295,12 @@ test('the kind tag: a rules manifest is a Rules pack whatever modules it also na
     assert.equal(packTag(checked.pack), 'Rules pack · RPG Battle');
     // The same declaration without a manifest is two modules: not classified.
     assert.equal(packTag({ requires: { capabilities: ['story-director', 'rpg-battle'] }, content: {} }), 'Pack');
-    // The capability alone names RPG Battle's area; with the manifest or the content only, too.
-    assert.equal(packTag({ requires: { capabilities: ['rb-rules-v2'] }, content: {} }), 'Rules pack · RPG Battle');
+    // The capability alone is the host's, not a module's: it says nothing, and only a manifest makes a Rules pack.
+    assert.equal(packTag({ requires: { capabilities: ['rb-rules-v2'] }, content: {} }), 'Pack');
+    assert.equal(packTag({ requires: { capabilities: ['rb-rules-v2'] }, content: { places: [{ name: 'Harbour' }] } }), 'World pack · Story Director');
+    assert.equal(packTag({ requires: { capabilities: ['rb-rules-v2', 'rpg-battle'] }, content: {} }), 'Rules pack · RPG Battle');
+    assert.equal(packTag({ requires: { capabilities: ['rb-rules-v2'] }, content: { items: [{ name: 'Rope' }] } }), 'Story Block pack');
+    // With the manifest, or with RPG Battle's content, it is a Rules pack.
     assert.equal(packTag({ requires: { capabilities: [] }, content: { rules: [{ slug: 'rules' }] } }), 'Rules pack · RPG Battle');
     assert.equal(packTag({ requires: { capabilities: ['story-director'] }, content: { places: [{ name: 'Harbour' }], rules: [{ slug: 'rules' }] } }), 'Rules pack · RPG Battle');
     assert.equal(packTag({ requires: { capabilities: [] }, content: { rules: [] } }), 'Pack', 'an empty list is not a manifest');

@@ -7,8 +7,8 @@
 //   reads them); races, talents, skills, presets, crafts, terms and meter presets are a Rules pack's (RPG Battle reads them). Creatures,
 //   quests and ranks are read by both modules, so they say nothing here.
 // * A rules manifest (`content.rules`, the rules pack format) makes it a Rules pack whatever else it declares: the manifest is RPG Battle's
-//   alone, and such a pack lists Story Director too only because its quests and places are Story Director's. `rb-rules-v2` alone, the
-//   capability that says the same, counts as an RPG Battle area.
+//   alone, and such a pack lists Story Director too only because its quests and places are Story Director's. The capability
+//   `rb-rules-v2` alone says nothing here (it is the host's, not a module's): only a manifest makes it a Rules pack.
 // * A pack that declares several modules, or holds both World and Rules content, is not classified: "Pack".
 //
 // The tag is plain text; the panel writes it with textContent.
@@ -16,7 +16,7 @@
 const AREA_KIND = Object.freeze({
     'story-block': 'core', inventory: 'core', scene: 'core',
     'story-director': 'world', director: 'world',
-    'rpg-battle': 'rules', party: 'rules', combat: 'rules', 'rb-rules-v2': 'rules',
+    'rpg-battle': 'rules', party: 'rules', combat: 'rules',
 });
 const WORLD_CONTENT = Object.freeze(['places', 'routes', 'markets']);
 const SHARED = Object.freeze(['creatures', 'quests', 'ranks']);

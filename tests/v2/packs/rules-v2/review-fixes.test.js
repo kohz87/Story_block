@@ -436,8 +436,9 @@ test('F5: a control character in a key is refused', () => {
 });
 
 test('F5: keys that collide after normalisation are refused', () => {
+    // In what the checker owns (the manifest and its definitions); Story Block's own fields (an item's effect) are Story Block's to judge.
     const pack = makeEveryKindPack();
-    pack.content.items[0].effect = { 'café': 1, 'café': 2 };
+    pack.content.rules[0].statLabels = Object.fromEntries([['caf\u00e9', 'a'], ['cafe\u0301', 'b']]);
     const res = R.validateRulesPack(pack);
     assert.equal(res.ok, false);
     assert.ok(has(res, CODES.DUP_ID), show(res));

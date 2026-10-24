@@ -197,8 +197,9 @@ test('schema 2 rejects a numeric branch-only copy, a graph mismatch, and every u
         const result = validatePack(pack);
         assert.equal(result.ok, false, path);
         assert.ok(has(result, code, path), `${path}: ${show(result)}`);
-        // Standalone, the checker finds every one of them itself.
-        assert.ok(has(R.validateRulesPack(pack), 'bad-ref', path), `${path} (checker alone)`);
+        // Standalone is refused too (Story Block's record pass is part of it now, so the code is the same where Story Block found it).
+        const alone = R.validateRulesPack(pack);
+        assert.ok(has(alone, code, path) || has(alone, 'bad-ref', path), `${path} (checker alone): ${codes(alone)}`);
     };
     unresolved('content.creatures[0].skills[0]', content => { content.creatures[0].skills[0] = 'nothing'; });
     unresolved('content.creatures[0].loot[0].def', content => { content.creatures[0].loot[0].def = 'nothing'; });

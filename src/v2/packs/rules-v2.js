@@ -20,7 +20,7 @@ import { rulesV2SchemaSource } from './rules-v2.schema.js';
 import { byteLength, unsafeText } from './safety.js';
 import { parseRange } from './version.js';
 import { PACK_FIELDS, PACK_ID, SLUG, SEMVER, DEF_ID, CONTENT_KINDS, LIMITS } from './limits.js';
-import { validatePack, HOST_VERSION } from './validate.js';
+import { validatePack, slugify, HOST_VERSION } from './validate.js';
 
 /** Deeply freezes an object or array and all nested structures. */
 function deepFreeze(object) {
@@ -331,6 +331,7 @@ const CONTROL_IN_KEY = /[\x00-\x1F\x7F-\x9F]/;
 // (creatures, quests, shops, recipes). Everything else in a pack (the envelope, items, places, events, screens, theme,
 // layouts ...) belongs to Story Block's validator, so "<" and ">" are not the checker's business there: a version range
 // (`>=2.0.0`), a condition (`gold > 5`) or a screen template is read as in an ordinary pack.
+const OUTSIDE_NODES = 300000;
 const OWNED_TEXT = /^content\.(?:rules|creatures|quests|shops|recipes)(?:[.[]|$)/;
 // A screen's template or css may be longer (Story Block's `limits.code`), wherever a field of that name sits.
 const CODE_TEXT = /(?:^|\.)(?:template|css)(?:\[\d+\])*$/;
@@ -390,6 +391,7 @@ function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text =
     const active = new Set();
     const child = (path, key) => (path ? `${path}.${key}` : key);
     let nodes = 0;
+    let outsideNodes = 0;
     let stopped = false;
 
     function visitObject(node, path, depth) {
@@ -479,12 +481,15 @@ function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text =
                         continue;
                     }
                 }
-                const normalized = key.normalize('NFC');
-                if (seenKeys.has(normalized)) {
-                    add(RULES_V2_ERROR_CODES.DUP_ID, at, `Key "${normalized}" appears twice once Unicode-normalized`);
-                    continue;
+                // Keys that collide after NFC are refused in what the checker owns (Story Block does not look at its own).
+                if (kindOf(at) === 'owned') {
+                    const normalized = key.normalize('NFC');
+                    if (seenKeys.has(normalized)) {
+                        add(RULES_V2_ERROR_CODES.DUP_ID, at, `Key "${normalized}" appears twice once Unicode-normalized`);
+                        continue;
+                    }
+                    seenKeys.add(normalized);
                 }
-                seenKeys.add(normalized);
                 const desc = Object.getOwnPropertyDescriptor(node, key);
                 if (!desc || !desc.enumerable) {
                     add(RULES_V2_ERROR_CODES.BAD_SCHEMA, at, 'Non-enumerable property is forbidden');
@@ -504,11 +509,22 @@ function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text =
 
     function visit(node, path, depth) {
         if (stopped || errors.length >= limits.errors) return undefined;
-        nodes += 1;
-        if (nodes > limits.nodes) {
-            stopped = true;
-            add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `More than ${limits.nodes} values; a shared reference counts every time it is reached`);
-            return undefined;
+        // The budget of values is for what the checker owns; what Story Block owns only counts against a larger one, which a file of
+        // 512 KiB cannot reach (about 260,000 values at most), so it stops shared references and nothing a pack can honestly hold.
+        if (kindOf(path) === 'owned') {
+            nodes += 1;
+            if (nodes > limits.nodes) {
+                stopped = true;
+                add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `More than ${limits.nodes} values; a shared reference counts every time it is reached`);
+                return undefined;
+            }
+        } else {
+            outsideNodes += 1;
+            if (outsideNodes > OUTSIDE_NODES) {
+                stopped = true;
+                add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `More than ${OUTSIDE_NODES} values outside the rules; a shared reference counts every time it is reached`);
+                return undefined;
+            }
         }
         if (node === null || typeof node === 'boolean') return node;
         if (typeof node === 'string') {
@@ -1259,12 +1275,13 @@ function validateSchemaValue(val, schema, defs, path = '', options = {}) {
 
     // String keywords
     if (typeof val === 'string') {
-        const codePointLen = [...val].length;
-        if (schema.minLength !== undefined && codePointLen < schema.minLength) {
-            errors.push({ code: RULES_V2_ERROR_CODES.NUMERIC_RANGE, path, message: `String length ${codePointLen} below minLength ${schema.minLength}` });
+        // Lengths are counted in UTF-16 units, as Story Block counts every name and text (not in code points).
+        const units = val.length;
+        if (schema.minLength !== undefined && units < schema.minLength) {
+            errors.push({ code: RULES_V2_ERROR_CODES.NUMERIC_RANGE, path, message: `String length ${units} below minLength ${schema.minLength}` });
         }
-        if (schema.maxLength !== undefined && codePointLen > schema.maxLength) {
-            errors.push({ code: RULES_V2_ERROR_CODES.NUMERIC_RANGE, path, message: `String length ${codePointLen} above maxLength ${schema.maxLength}` });
+        if (schema.maxLength !== undefined && units > schema.maxLength) {
+            errors.push({ code: RULES_V2_ERROR_CODES.NUMERIC_RANGE, path, message: `String length ${units} above maxLength ${schema.maxLength}` });
         }
         if (schema.pattern) {
             const regex = new RegExp(schema.pattern);
@@ -1617,6 +1634,22 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
 
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+/**
+ * Items and places are Story Block's: a record without a `slug` gets the one Story Block derives from its name
+ * (validate.js slugify), here as there. Changes the (detached) lists it is given.
+ */
+function deriveSlugs(content) {
+    for (const kind of ['items', 'places']) {
+        if (!Array.isArray(content?.[kind])) continue;
+        for (const record of content[kind]) {
+            if (isRecord(record) && record.slug === undefined && typeof record.name === 'string') {
+                const slug = slugify(record.name);
+                if (slug) record.slug = slug;
+            }
+        }
+    }
+}
+
 function validateRulesV2Of(manifest, content, constants, { host = false } = {}) {
     if (!isRecord(manifest)) {
         return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, MANIFEST_PATH, 'Manifest must be an object');
@@ -1633,6 +1666,7 @@ function validateRulesV2Of(manifest, content, constants, { host = false } = {}) 
     const m = manifestRead.value;
     const cnt = contentRead.value;
     delete cnt._envelope;
+    deriveSlugs(cnt);
 
     const constRes = validateConstants(constants);
     if (!constRes.ok) return constRes;
@@ -1737,7 +1771,7 @@ function validateRulesV2Of(manifest, content, constants, { host = false } = {}) 
     // One slug, one definition: classes, skills, branches and trainers share the pack's id space
     // (pack.<id>/<slug>), so the same slug in two of those lists is refused. Same-list duplicates
     // are reported above.
-    const definitionKinds = new Map();
+    const definitionKinds = new Map([['rules', 'the rules manifest']]);
     for (const kind of ['classes', 'skills', 'branches', 'trainers']) {
         (m[kind] ?? []).forEach((record, i) => {
             const first = definitionKinds.get(record.slug);
@@ -2699,13 +2733,13 @@ function computeRulesHash(resolved, content) {
 }
 
 /** Size checks and the rulesHash for a result of validateRulesV2Of. */
-function finishExpansion(validated) {
+function finishExpansion(validated, hashes = true) {
     const limits = checkResolvedLimits(validated.resolved);
     if (!limits.ok) return limits;
     return {
         ok: true,
         resolved: deepFreeze(sortKeys(validated.resolved)),
-        rulesHash: computeRulesHash(validated.resolved, validated.content),
+        ...(hashes ? { rulesHash: computeRulesHash(validated.resolved, validated.content) } : {}),
     };
 }
 
@@ -2811,7 +2845,9 @@ function findDuplicateKeys(text) {
  * Options: `constants`; `capabilities` (the host's capability names; when given, a missing one
  * is MISSING_CAPABILITY like Story Block's own check); `hostVersion` (default HOST_VERSION) and `limits`
  * (Story Block's pack limits, default LIMITS), used for the envelope pass; `envelope` (default true): false
- * skips that pass for a caller that has just made it on the same pack (Story Block's validatePack does).
+ * skips that pass for a caller that has just made it on the same pack (Story Block's validatePack does);
+ * `hashes` (default true): false leaves out `rulesHash` and `packHash`, which cost about a sixth of the check, for a caller
+ * that may never ask for them.
  * A pack with content.rules must declare the `rb-rules-v2` capability. Returns `{ ok, errors, pack, raw, resolved, rulesHash, packHash, warnings }`.
  * Never throws.
  */
@@ -2823,14 +2859,38 @@ export function validateRulesPack(pack, rawOptions = {}) {
     }
 }
 
+// Content kinds whose records are named `pack.<id>/<slug>` (slug, or id for the kinds that write it so).
+const SLUGGED_KINDS = ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'crafts', 'meterPresets'];
+
+/** An error result when another record of the pack is called `rules` (the manifest's own slug), else null. */
+function reservedRulesSlug(content) {
+    const errors = [];
+    for (const kind of SLUGGED_KINDS) {
+        if (!Array.isArray(content?.[kind])) continue;
+        content[kind].forEach((record, i) => {
+            if (!isRecord(record)) return;
+            const field = record.slug !== undefined ? 'slug' : record.id !== undefined ? 'id' : null;
+            const slug = field ? record[field] : typeof record.name === 'string' ? slugify(record.name) : undefined;
+            if (slug === 'rules') {
+                errors.push({ code: RULES_V2_ERROR_CODES.DUP_ID, path: `content.${kind}[${i}]${field ? `.${field}` : ''}`, message: 'The slug "rules" is the rules manifest\'s own (pack.<id>/rules); name this record something else' });
+            }
+        });
+    }
+    return errors.length ? { ok: false, errors: errors.slice(0, RULES_V2_LIMITS.errors) } : null;
+}
+
 function validatePackOf(pack, rawOptions) {
     const optionsRead = readOptions(rawOptions);
     if (!optionsRead.ok) return { ok: false, errors: optionsRead.errors };
     const { constants = RULES_V2_CONSTANTS, capabilities = null, limits = null } = optionsRead.options;
     const hostVersion = optionsRead.options.hostVersion ?? HOST_VERSION;
     const envelope = optionsRead.options.envelope ?? true;
+    const hashes = optionsRead.options.hashes ?? true;
     if (typeof hostVersion !== 'string' || !SEMVER.test(hostVersion)) {
         return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'options.hostVersion', 'hostVersion must be a version like 2.0.0');
+    }
+    if (typeof hashes !== 'boolean') {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'options.hashes', 'hashes must be true or false');
     }
     if (typeof envelope !== 'boolean') {
         return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'options.envelope', 'envelope must be true or false');
@@ -2867,6 +2927,8 @@ function validatePackOf(pack, rawOptions) {
 
     // Normalize the detached copy before SB/structural/semantic checking (NFC text and keys, trim, CRLF/CR -> LF)
     const detachedVal = normalizeStructure(raw);
+    // (an item or place without a slug has the one Story Block derives, so equivalent spellings are one pack and hash alike)
+    if (isRecord(detachedVal.content)) deriveSlugs(detachedVal.content);
 
     // Check envelope fields against closed PACK_FIELDS
     for (const key of Object.keys(detachedVal)) {
@@ -2912,6 +2974,10 @@ function validatePackOf(pack, rawOptions) {
         return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'content.rules', 'Pack must carry exactly one rules manifest in content.rules[0]');
     }
 
+    // The manifest is `pack.<id>/rules`: no other record of the pack may take that ID.
+    const taken = reservedRulesSlug(detachedVal.content);
+    if (taken) return taken;
+
     // A pack with content.rules must say so: an old Story Block does not know the kind, and the capability
     // is how it learns that it cannot run this pack.
     if (!(detachedVal.requires.capabilities ?? []).includes(RULES_V2_CAPABILITY)) {
@@ -2937,10 +3003,6 @@ function validatePackOf(pack, rawOptions) {
         const legacyProj = clonePlain(detachedVal);
         delete legacyProj.content.rules;
         if (currencyForSb !== undefined) legacyProj.currency = currencyForSb;
-        legacyProj.content.creatures = [];
-        legacyProj.content.quests = [];
-        legacyProj.content.shops = [];
-        legacyProj.content.recipes = [];
 
         const hostCapabilities = Array.isArray(capabilities) && capabilities.every(name => typeof name === 'string') ? capabilities : null;
         const sbRes = validatePack(legacyProj, { hostVersion, capabilities: hostCapabilities, ...(limits ? { limits: { ...LIMITS, ...limits } } : {}) });
@@ -2964,7 +3026,7 @@ function validatePackOf(pack, rawOptions) {
     const valRes = validateRulesV2Of(normRes.manifest, detachedVal.content, c, { host: !envelope });
     if (!valRes.ok) return valRes;
 
-    const expRes = finishExpansion(valRes);
+    const expRes = finishExpansion(valRes, hashes);
     if (!expRes.ok) return expRes;
 
     // Build clean normalized pack with text normalization, money and recipe defaults
@@ -2980,8 +3042,11 @@ function validatePackOf(pack, rawOptions) {
     }
 
     // packHash: the whole canonical pack (envelope included) + schema + constants
-    const canonicalPack = buildCanonicalDocument(normalizedPack, detachedVal.id);
-    const packHash = sha256Text(JSON.stringify(sortKeys({ constants: c, pack: canonicalPack, schema: rulesV2Schema })));
+    let packHash;
+    if (hashes) {
+        const canonicalPack = buildCanonicalDocument(normalizedPack, detachedVal.id);
+        packHash = sha256Text(JSON.stringify(sortKeys({ constants: c, pack: canonicalPack, schema: rulesV2Schema })));
+    }
 
     return {
         ok: true,
@@ -2989,8 +3054,7 @@ function validatePackOf(pack, rawOptions) {
         pack: normalizedPack,
         raw,
         resolved: expRes.resolved,
-        rulesHash: expRes.rulesHash,
-        packHash,
+        ...(hashes ? { rulesHash: expRes.rulesHash, packHash } : {}),
         warnings: valRes.warnings ?? [],
     };
 }

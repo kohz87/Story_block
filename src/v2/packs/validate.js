@@ -69,17 +69,29 @@ export function validatePack(input, { hostVersion = HOST_VERSION, capabilities =
 
     const errors = [];
     const add = (code, path, message) => { if (errors.length < limits.errors) errors.push({ code, path, message }); };
-    const hashes = {};
-    const pack = normalize(raw, { add, failed: () => errors.length > 0, hashes, hostVersion, capabilities, limits });
+    const rules = { checked: false };
+    const pack = normalize(raw, { add, failed: () => errors.length > 0, rules, hostVersion, capabilities, limits });
     if (errors.length) return { ok: false, errors };
-    return hashes.rulesHash ? { ok: true, pack, raw, ...hashes } : { ok: true, pack, raw };
+    const result = { ok: true, pack, raw };
+    if (rules.checked) {
+        // The checker's hashes cost about a sixth of its check and most readers (the installed list on every page load) never
+        // ask for them: they are worked out the first time one is read, from the raw pack, and kept.
+        let again = null;
+        const hash = name => () => {
+            again ??= validateRulesPack(raw, { capabilities, hostVersion, limits, envelope: false });
+            return again.ok ? again[name] : undefined;
+        };
+        Object.defineProperty(result, 'rulesHash', { get: hash('rulesHash'), enumerable: false, configurable: true });
+        Object.defineProperty(result, 'packHash', { get: hash('packHash'), enumerable: false, configurable: true });
+    }
+    return result;
 }
 
 function fail(code, path, message) {
     return { ok: false, errors: [{ code, path, message }] };
 }
 
-function normalize(raw, { add, failed, hashes, hostVersion, capabilities, limits }) {
+function normalize(raw, { add, failed, rules: seen, hostVersion, capabilities, limits }) {
     for (const key of Object.keys(raw)) if (!PACK_FIELDS.includes(key)) add('UNKNOWN_FIELD', key, `"${key}" is not a pack field (expected ${PACK_FIELDS.join(', ')}).`);
 
     const id = raw.id;
@@ -152,7 +164,8 @@ function normalize(raw, { add, failed, hashes, hostVersion, capabilities, limits
     const theme = raw.theme === undefined ? {} : checkTheme(raw.theme, add, 'theme');
 
     // Everything this file owns has been looked at; the rules checker takes the manifest and its definitions from here.
-    if (rules && !failed()) checkRules(raw, { add, hashes, content, currency, packId, hostVersion, capabilities, limits });
+    if (rules) reserveRulesSlug(content, packId, add);
+    if (rules && !failed()) checkRules(raw, { add, seen, content, currency, packId, hostVersion, capabilities, limits });
 
     return {
         id: packId,
@@ -260,8 +273,19 @@ function withoutRulesMoney(currency) {
 // Its errors keep its codes and paths, except that unsafe text is `UNSAFE_HTML` here whoever found it. What it owns (creatures,
 // quests, shops, recipes) replaces the bodies of the records already wrapped (id, slug and pack stay), as it resolved them; the
 // manifest becomes one more record (name and slug, so `pack.<id>/rules`), and the pack's money gets its schema-2 `display`.
-function checkRules(raw, { add, hashes, content, currency, packId, hostVersion, capabilities, limits }) {
-    const checked = validateRulesPack(raw, { capabilities, hostVersion, limits, envelope: false });
+// The manifest is `pack.<id>/rules`; no other record of the pack may take that ID.
+function reserveRulesSlug(content, packId, add) {
+    const taken = fullId(packId, 'rules');
+    for (const [kind, list] of Object.entries(content)) {
+        if (!Array.isArray(list)) continue;
+        list.forEach((record, index) => {
+            if (record?.id === taken) add('DUPLICATE', `content.${kind}[${index}]`, `content.${kind}[${index}] has the slug "rules", which is the rules manifest's own (${taken}); give it another slug.`);
+        });
+    }
+}
+
+function checkRules(raw, { add, seen, content, currency, packId, hostVersion, capabilities, limits }) {
+    const checked = validateRulesPack(raw, { capabilities, hostVersion, limits, envelope: false, hashes: false });
     if (!checked.ok) {
         for (const error of checked.errors) add(error.code === 'unsafe-markup' ? 'UNSAFE_HTML' : error.code, error.path, error.message);
         return;
@@ -277,8 +301,7 @@ function checkRules(raw, { add, hashes, content, currency, packId, hostVersion, 
     // The manifest: the id, slug and pack are the host's and sit outside what the checker's closed schema allows.
     content.rules = records(checked.pack.content.rules, 'rules', { add, packId, check: manifest => bare(manifest) });
     if (currency && isObject(checked.pack.currency)) currency.display = checked.pack.currency.display;
-    hashes.rulesHash = checked.rulesHash;
-    hashes.packHash = checked.packHash;
+    seen.checked = true;
 }
 
 function checkItem(record, path, label, add) {
