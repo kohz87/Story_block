@@ -233,3 +233,39 @@ test('a checkpoint says which blocks were off: the proof before it belongs to th
     assert.equal(shown(), live, 'a replay from the checkpoint shows what the chat as a whole shows');
     assert.ok(h.ask().some(each => each.payload.after === 'dependent'), 'and the step still');
 });
+
+test('a checkpoint rewritten after a reconcile took a step back still names the blocks that applied: a later proof of its record stays shown', () => {
+    const h = evidenceHarness({ options: { checkpointEvery: 3 } });
+    h.send();
+    const parent = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'p' } }] }).receipt.data.proofs[0];
+    const two = h.send();
+    // One reply, four blocks: a step that will be taken back, the owner of an id, a block that takes that id by hand (and does not apply), and a last proof.
+    h.command('sd.dependent', { parent: parent.id }, 'system');
+    const owner = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'o' } }] }).receipt.data.proofs[0];
+    const taker = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'taker' } }] }).receipt.data.proofs[0];
+    const last = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'last' } }] }).receipt.data.proofs[0];
+    const record = structuredClone(h.chat[two].extra.storySuite);
+    const span = record.spans.find(each => each.evidence?.some(proof => proof.id === taker.id));
+    const proof = span.evidence.find(each => each.id === taker.id);
+    proof.id = owner.id;
+    const pin = pinOf(proof, {});
+    record.ops = record.ops.map(op => (op.path === `/meta/proofs/${taker.id}` ? { ...op, path: `/meta/proofs/${owner.id}`, value: pin }
+        : op.path === '/meta/proofs' && op.value?.[taker.id] !== undefined ? { ...op, value: { [owner.id]: pin } } : op));
+    h.chat[two].extra.storySuite = record;
+    h.store.rebuild();
+    for (let n = 0; n < 6; n += 1) {
+        h.send();
+        assert.equal(h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: `wolf ${n}` } }] }).ok, true);
+    }
+    // The first reply goes, and the step on it with it; the checkpoints after are written again.
+    h.chat.splice(1, 2);
+    h.store.rebuild();
+    const done = h.store.reconcile(0, { rerun: rerunOf(h) });
+    assert.equal(done.removed, 1);
+    assert.ok(h.chat.some(message => message.extra?.storySuite?.checkpoint && message.extra.storySuite.owned), 'a checkpoint says which blocks applied');
+    const shown = () => ids(h.ask({ ids: [owner.id, last.id] }));
+    assert.deepEqual(shown(), [owner.id, last.id]);
+    h.store.rebuild();     // a cold head, from the checkpoint
+    assert.deepEqual(shown(), [owner.id, last.id], 'from the checkpoint too');
+    assert.equal(h.ask({ ids: [owner.id] })[0].payload.place, 'o');
+});

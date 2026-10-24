@@ -76,17 +76,22 @@ async function run(t, seed, steps) {
             // Re-read of text that did not change: every proof stays as it was.
             log.push(`${step}: re-read, unchanged`);
             // (A block planned again has an ordinal of its own; the proof, its id, kind, hash and parents, is the same: every id of every
-            // block stays, each step on the id it had, and no proof is lost, a Continued reply included.)
-            // (as a set: a Continued reply had its steps between its parts, a Re-read puts them after its lines)
-            const plain = () => JSON.stringify(ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]).sort((x, y) => (x[0] < y[0] ? -1 : 1)));
+            // block stays, each step on the id it had, and no proof is lost, a Continued reply included. The one thing text that did not
+            // change may add is a kill whose line was refused before, for want of the acceptance it builds on, and that another reply has
+            // given since: a Re-read reads every line again in the story as it is now.)
+            const plain = () => ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]).sort((x, y) => (x[0] < y[0] ? -1 : 1));
             const before = plain();
             const result = await host.turn.reread(at);
-            if (result.ok && plain() !== before) {
-                const was = JSON.parse(before).map(item => item.join('|').slice(0, 40));
-                const now = JSON.parse(plain()).map(item => item.join('|').slice(0, 40));
-                log.push(`  was ${was.filter(x => !now.includes(x)).join(' ; ')}`, `  now ${now.filter(x => !was.includes(x)).join(' ; ')}`);
+            if (result.ok) {
+                const now = plain();
+                const kept = new Set(now.map(item => JSON.stringify(item)));
+                const lost = before.filter(item => !kept.has(JSON.stringify(item)));
+                const was = new Set(before.map(item => item[0]));
+                const added = now.filter(item => !was.has(item[0]));
+                if (lost.length || added.some(item => item[1] !== 'kill')) log.push(`  lost ${lost.map(item => item[0]).join(' ; ')}`, `  added ${added.map(item => `${item[0]}:${item[1]}`).join(' ; ')}`);
+                assert.deepEqual(lost, [], `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
+                assert.deepEqual(added.filter(item => item[1] !== 'kill'), [], `seed ${seed}, ${step}: an unchanged Re-read gave a proof that is not a kill\n${log.join('\n')}`);
             }
-            if (result.ok) assert.equal(plain(), before, `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
         } else if (kind === 6 && at > 0) {
             log.push(`${step}: edit, re-read`);
             const message = host.ctx.chat[at];

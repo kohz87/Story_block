@@ -142,9 +142,10 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   decides nothing about another block's proof. **A proof id belongs to the block that applied with it first**: a later
   block (a hand-edited record, or a block another reply gave) whose proof takes the same id is an ownership collision and is
   not applied (`REPLAY_PREREQUISITE`, "already belongs to a block that applied"). Before the first checkpoint a replay starts
-  from, replay did not look at the blocks, so they are listed if they could apply less the blocks the checkpoint carries as off
-  (its `carried` Problems: the account of them replay gave when it made the checkpoint), and of two that are both on and give one id
-  the first listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
+  from, replay did not look at the blocks, so they are listed if they could apply only the blocks the checkpoint says applied
+  (its `owned` list, [record sid, block id], written with the checkpoint and again whenever a Re-read or a reconcile writes it; a position among
+  a record's blocks is not used, since a reconcile moves them), and, for an older checkpoint that has none, every block that could apply, the
+  first listed keeping an id. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
   take an id from any of them, since a block that is off may come back.
 * **A guard may ask `story.evidence`** in the context a replay gives it (REPLAY.md "Guards are pure"), whoever owns the guard: the query reads the
   pins in the state before the block and the proof of the blocks that applied before it, which is the prefix and nothing else.

@@ -39,15 +39,16 @@ function run(seed, steps) {
             });
         };
         const sorted = model.filter(alive).sort((a, b) => place(a) - place(b) || a.uid - b.uid);
+        const unmet = new Set();     // the steps whose parent was not shown where they stand (a parent that comes after them does not count)
         for (const e of sorted) {
             if (denied && e.guarded) continue;
             if (e.needs) {
                 const owner = owners.get(e.needs);
-                if (!(owner && visibleIn(owner))) continue;
+                if (!(owner && visibleIn(owner))) { unmet.add(e); continue; }
             }
             if (!owners.has(e.id)) owners.set(e.id, e);
         }
-        return { owners, visibleIn, sorted };
+        return { owners, visibleIn, sorted, unmet };
     };
     const expected = denied => {
         const { owners, visibleIn, sorted } = resolve(denied);
@@ -182,9 +183,8 @@ function run(seed, steps) {
             // The model: each step from there on whose parent is not shown where it stands is taken back, one after another.
             let taken = 0;
             for (;;) {
-                const { owners, visibleIn, sorted } = resolve(false);
-                void owners;
-                const gone = sorted.find(e => e.needs && place(e) >= from && !e.removed && !(owners.get(e.needs) && visibleIn(owners.get(e.needs))));
+                const { sorted, unmet } = resolve(false);
+                const gone = sorted.find(e => e.needs && place(e) >= from && !e.removed && unmet.has(e));
                 if (!gone) break;
                 gone.removed = true;
                 taken += 1;
