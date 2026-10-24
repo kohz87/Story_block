@@ -26,7 +26,7 @@ import { notWritten } from './assist/extractor.js';
 import { refusedWhy } from './assist/safety.js';
 import { displayLines, readDisplayLine } from './extras.js';
 import { hash, readRecord } from './persist.js';
-import { CAPTURE_PREFIX } from './registry.js';
+import { CAPTURE_PREFIX, HOST_MODULE } from './registry.js';
 import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt.js';
 import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
@@ -381,8 +381,18 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // A hook that throws, or does not answer within HOOK_TIMEOUT_MS, is logged and does not block
     // (a bug must not lock the reader out). `all` asks every module (Home's "Before you start"): the
     // list of those that hold back, nothing logged (it is asked again on each redraw).
+    // A module that is dormant, or held by a restore barrier, is not asked at all (registry.hookEntries leaves
+    // it out): its veto is suppressed, never answered false, since one refusal stops the whole story.
     async function askCanGenerate({ all = false } = {}) {
         const found = [];
+        // A restore barrier (registry.setRestore) holds the story back for everyone until every part agrees;
+        // the hooks of the modules it holds are not asked (registry.hookEntries leaves them out).
+        const barrier = registry.restore?.();
+        if (barrier?.state === 'pending') {
+            const entry = { moduleId: HOST_MODULE, reason: registry.lifecycle?.(HOST_MODULE)?.reason ?? 'A restore is in progress.' };
+            if (!all) return entry;
+            found.push({ ...entry, name: registry.module(HOST_MODULE)?.name ?? HOST_MODULE, action: false, canOpen: false });
+        }
         for (const { moduleId, fn } of registry.hookEntries('canGenerate')) {
             let answer;
             try { answer = await within(fn(view()), HOOK_TIMEOUT_MS); } catch (error) {
