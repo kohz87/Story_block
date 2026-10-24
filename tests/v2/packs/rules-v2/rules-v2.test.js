@@ -848,11 +848,13 @@ test('object raw byte size limit: objects exceeding 512 KiB are rejected with TO
             places: Array.from({ length: 500 }, (_, i) => ({
                 slug: `place-${i}`,
                 name: 'P'.repeat(70),
+                note: '界'.repeat(500),
                 x: i,
                 y: i,
             })),
         },
     };
+    assert.ok(Buffer.byteLength(JSON.stringify(largeObject), 'utf8') > 512 * 1024);
     const res = validateRulesPack(largeObject);
     assert.equal(res.ok, false);
     assert.ok(res.errors.some(e => e.code === RULES_V2_ERROR_CODES.TOO_LARGE));
@@ -1087,7 +1089,9 @@ test('regression: section 10 D - generated-parent step2 branch expands and stays
 });
 
 test('regression: section 10 D - 12-versus-24 written graph rejects missing step 2 branches with BRANCH_GRAPH', () => {
+    assert.equal(makeValidExtendedPack().content.rules[0].branches.length, 24);
     const { pack } = makeBrokenPack('missing-step2-branch');
+    assert.equal(pack.content.rules[0].branches.length, 12);
     const res = validateRulesPack(pack);
     assert.equal(res.ok, false);
     assert.ok(
@@ -1141,13 +1145,6 @@ test('regression: section 10 D - unknown kind in content rejects with ENVELOPE_U
     const res = validateRulesPack(pack);
     assert.equal(res.ok, false);
     assert.ok(res.errors.some(e => e.code === RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN && e.path.includes('unknownKind')));
-});
-
-test('regression: section 10 D - generated-legendary power-up generation rejects with BAD_RULES', () => {
-    const { form } = makeBrokenPack('generated-legendary');
-    const res = generatePowerUp(form, RULES_V2_CONSTANTS);
-    assert.equal(res.ok, false);
-    assert.equal(res.errors[0].code, RULES_V2_ERROR_CODES.BAD_RULES);
 });
 
 test('regression: section 10 D - defaults application across envelope and owned records', () => {
@@ -1204,52 +1201,153 @@ test('bad inputs never throw and return clean error result across all public API
         Object.create(null),
     ];
 
-    for (const bad of badInputs) {
+    for (const [caseIndex, bad] of badInputs.entries()) {
         assert.doesNotThrow(() => {
             const res = validateRulesPack(bad);
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             assert.ok(Array.isArray(res.errors));
-        }, `validateRulesPack threw on: ${String(bad)}`);
+        }, `validateRulesPack threw on: ${caseIndex}`);
 
         assert.doesNotThrow(() => {
             const res = normalizeRulesV2(bad, { packKey: 'fixture' });
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             assert.ok(Array.isArray(res.errors));
-        }, `normalizeRulesV2 threw on: ${String(bad)}`);
+        }, `normalizeRulesV2 threw on: ${caseIndex}`);
 
         assert.doesNotThrow(() => {
             const res = validateRulesV2(bad, {}, RULES_V2_CONSTANTS);
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             assert.ok(Array.isArray(res.errors));
-        }, `validateRulesV2 threw on: ${String(bad)}`);
+        }, `validateRulesV2 threw on: ${caseIndex}`);
 
         assert.doesNotThrow(() => {
             const res = expandRulesV2(bad, {}, RULES_V2_CONSTANTS);
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             assert.ok(Array.isArray(res.errors));
-        }, `expandRulesV2 threw on: ${String(bad)}`);
+        }, `expandRulesV2 threw on: ${caseIndex}`);
 
         assert.doesNotThrow(() => {
             const res = exportRulesV2(bad);
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             if (!res.ok) assert.ok(Array.isArray(res.errors));
-        }, `exportRulesV2 threw on: ${String(bad)}`);
+        }, `exportRulesV2 threw on: ${caseIndex}`);
 
         assert.doesNotThrow(() => {
             const res = powerScore(bad);
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             if (!res.ok) assert.ok(Array.isArray(res.errors));
-        }, `powerScore threw on: ${String(bad)}`);
+        }, `powerScore threw on: ${caseIndex}`);
 
         assert.doesNotThrow(() => {
             const res = generatePowerUp(bad);
-            assert.equal(typeof res.ok, 'boolean');
+            assert.equal(res.ok, false);
             if (!res.ok) assert.ok(Array.isArray(res.errors));
-        }, `generatePowerUp threw on: ${String(bad)}`);
+        }, `generatePowerUp threw on: ${caseIndex}`);
     }
 });
 
 test.skip('Story Block host import integration with rules pack (track E rules registration pending)', () => {
     // Registered rules pack kind in SB's pack loader is track E work.
     // Studio part 1 checker runs directly without dispatching rules through old loader.
+});
+
+
+test('expansion bytes, IDs, forms and hash are stable twice and across two export round trips', () => {
+    for (const seed of [smallRulesPack(), makeValidExtendedPack()]) {
+        const expand = pack => {
+            const norm = normalizeRulesV2(pack.content.rules[0], { packKey: pack.id });
+            assert.equal(norm.ok, true);
+            const result = expandRulesV2(norm.manifest, pack.content);
+            assert.equal(result.ok, true, JSON.stringify(result.errors));
+            return result;
+        };
+        const first = expand(seed);
+        assert.equal(JSON.stringify(expand(seed)), JSON.stringify(first));
+        let pack = seed;
+        let previousExport;
+        for (let run = 0; run < 2; run++) {
+            const exported = exportRulesV2(pack);
+            assert.equal(exported.ok, true);
+            if (previousExport) assert.deepEqual(exported, previousExport);
+            previousExport = exported;
+            pack = JSON.parse(exported.text);
+            assert.equal(JSON.stringify(expand(pack)), JSON.stringify(first));
+        }
+    }
+});
+
+test('every written branch names the exact preceding parent in its own skill', () => {
+    const cases = [
+        ['step one from written child', 0, 's30-base-a'],
+        ['step one from generated child', 0, 's30-base-g'],
+        ['step one from another skill', 0, 's31-base'],
+        ['missing parent', 0, 'missing'],
+        ['foreign parent', 0, 'pack.other/s30-base'],
+        ['step two from base', 2, 's30-base'],
+        ['step two from grandchild', 2, 's30-base-g-g'],
+        ['step two from another skill', 2, 's31-base-g'],
+        ['step two missing generated parent', 2, 's30-base-missing'],
+    ];
+    for (const [label, index, parent] of cases) {
+        const pack = smallRulesPack();
+        assert.equal(validateRulesPack(pack).ok, true);
+        pack.content.rules[0].branches[index].fromForm = parent;
+        const result = validateRulesPack(pack);
+        assert.equal(result.ok, false, label);
+        assert.ok(result.errors.some(error => error.path === `content.rules[0].branches[${index}].fromForm`), label);
+    }
+    for (const parent of ['g', 'a', 'b']) {
+        const pack = smallRulesPack();
+        pack.content.rules[0].branches = pack.content.rules[0].branches.filter(branch => branch.fromForm !== `s30-base-${parent}`);
+        assert.equal(validateRulesPack(pack).ok, false, `missing step two from ${parent}`);
+    }
+});
+
+test('generation validates the complete parent and its own budget before making a child', () => {
+    const valid = validateRulesPack(smallRulesPack());
+    assert.equal(valid.ok, true);
+    const base = valid.resolved.forms['pack.fixture/s30-base'];
+    assert.equal(generatePowerUp(base).ok, true);
+    const cases = [
+        ['id', 'bad id'], ['skill', 'bad id'], ['type', 'invalid'], ['stat', 'INVALID'],
+        ['cost', { mp: 900, sp: 900, cooldown: 99 }],
+        ['cost', { mp: 1, sp: 1, cooldown: 0 }], ['cost', { mp: 0, sp: 1 }],
+        ['tier', 2.5], ['tier', 2], ['step', 0.5], ['step', 2],
+        ['name', '<bad>'], ['note', 'x'.repeat(241)], ['unit', { kind: 'invalid' }],
+        ['fromForm', 'pack.fixture/s31-base'], ['origin', 'generated'],
+        ['effects', [{ op: 'damage', target: 'one', power: 490, element: 'none', damageType: 'physical' }]],
+        ['powerScore', 0], ['unknown', true],
+    ];
+    for (const [key, value] of cases) {
+        const result = generatePowerUp({ ...base, [key]: value });
+        assert.equal(result.ok, false, key);
+        assert.ok(result.errors.every(error => error.code === 'bad-rules'), key);
+    }
+    const generated = generatePowerUp(base).form;
+    for (const mutation of [
+        { fromForm: 'pack.fixture/s31-base' }, { id: 'pack.fixture/s30-base-a' }, { origin: 'base' },
+    ]) assert.equal(generatePowerUp({ ...generated, ...mutation }).ok, false);
+    assert.equal(generatePowerUp(generated).ok, true);
+    const written = valid.resolved.forms['pack.fixture/s30-base-a'];
+    assert.equal(generatePowerUp(written).ok, true);
+    assert.equal(generatePowerUp({ ...written, id: 'pack.fixture/s30-base-g' }).ok, false);
+});
+
+test('authored legendary items pass; form rarity/provenance cannot be injected at the closed authoring boundary', () => {
+    const pack = makeValidExtendedPack();
+    pack.content.items[0].rarity = 'legendary';
+    assert.equal(validateRulesPack(pack).ok, true);
+    // Runtime generated item registration belongs to B3. Forms have no rarity field.
+    const validForm = validateRulesPack(pack).resolved.forms['pack.fixture/s30-base-g'];
+    assert.equal(generatePowerUp(validForm).ok, true);
+    assert.equal(generatePowerUp({ ...validForm, rarity: 'legendary' }).ok, false);
+    pack.content.items[0].origin = 'generated';
+    assert.equal(validateRulesPack(pack).ok, false);
+});
+
+test('static broken tier fixture has only the intended tier-chain defect', () => {
+    const pack = JSON.parse(readFileSync(new URL('./fixtures/broken-tier-chain.json', import.meta.url), 'utf8'));
+    assert.equal(validateRulesPack(pack).ok, false);
+    pack.content.rules[0].classes[2].parent = 'c1';
+    assert.equal(validateRulesPack(pack).ok, true);
 });

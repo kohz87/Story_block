@@ -350,21 +350,6 @@ export function makeBrokenPack(errorCode) {
             break;
         case RULES_V2_ERROR_CODES.BAD_XP_PER_LEVEL:
             return { pack, constants: { xpPerLevel: 95 } };
-        case 'generated-legendary':
-            return {
-                pack,
-                constants: undefined,
-                form: {
-                    id: 'pack.fixture/s30-base',
-                    skill: 'pack.fixture/s30',
-                    name: 'Step 0 Form',
-                    step: 0,
-                    origin: 'generated',
-                    rarity: 'legendary',
-                    tier: 3,
-                    effects: [{ op: 'damage', target: 'one', power: 20, element: 'none', damageType: 'physical' }],
-                },
-            };
         case RULES_V2_ERROR_CODES.BAD_SCHEMA:
             pack.content.rules[0].schema = 3;
             break;

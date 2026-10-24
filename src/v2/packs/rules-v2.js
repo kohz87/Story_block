@@ -645,6 +645,48 @@ function budgetFor(tier, step, constants = RULES_V2_CONSTANTS) {
     return baseBudget + (step ?? 0) * (constants.pathBudgetIncrement ?? 12);
 }
 
+/** Checks the complete resolved form before generating a descendant. */
+function checkParentForm(form, constants) {
+    const errors = [];
+    const add = (path, message) => errors.push({ code: RULES_V2_ERROR_CODES.BAD_RULES, path, message });
+    const allowed = new Set(['id', 'skill', 'name', 'note', 'step', 'fromForm', 'origin',
+        'type', 'stat', 'cost', 'effects', 'unit', 'tier', 'powerScore']);
+    for (const key of Object.keys(form)) if (!allowed.has(key)) add(key, `Unknown form field "${key}"`);
+    for (const key of ['id', 'skill']) {
+        const value = form[key];
+        if (typeof value !== 'string' || !DEF_ID.test(value) || value.length > 160 || value.split('/')[1].length > 64) add(key, 'Expected an SB definition ID');
+    }
+    for (const key of ['name', 'note']) {
+        for (const error of validateSchemaValue(form[key], rulesV2Schema.$defs[key], rulesV2Schema.$defs, key)) add(error.path, error.message);
+    }
+    if (!Number.isInteger(form.tier) || form.tier !== 3) add('tier', 'Only advanced forms have pathway descendants');
+    if (!Number.isInteger(form.step) || form.step < 0 || form.step > 1) add('step', 'Parent step must be 0 or 1');
+    if (form.step === 0) {
+        if (form.id !== `${form.skill}-base`) add('id', 'Base ID must be skill ID plus -base');
+        if (form.fromForm !== null) add('fromForm', 'Base has no parent');
+        if (form.origin !== 'base') add('origin', 'Base origin must be base');
+    } else if (form.step === 1) {
+        const baseId = `${form.skill}-base`;
+        if (form.fromForm !== baseId) add('fromForm', 'Step 1 must name its exact base parent');
+        if (form.origin === 'generated') {
+            if (form.id !== `${baseId}-g`) add('id', 'Generated ID must append -g to parent');
+        } else if (form.origin === 'written') {
+            if (![`${baseId}-a`, `${baseId}-b`].includes(form.id)) add('id', 'Written ID must append -a or -b to parent');
+        } else add('origin', 'Step 1 origin must be written or generated');
+    }
+    const base = {};
+    for (const key of Object.keys(rulesV2Schema.$defs.base.properties)) if (form[key] !== undefined) base[key] = form[key];
+    for (const error of validateSchemaValue(base, rulesV2Schema.$defs.base, rulesV2Schema.$defs)) add(error.path, error.message);
+    for (const error of validateCostCompatibility(form.type, form.cost)) add(error.path, error.message);
+    const score = powerScore(form);
+    if (!score.ok) for (const error of score.errors) add(error.path, error.message);
+    else {
+        if (score.score > budgetFor(form.tier, form.step, constants)) add('powerScore', 'Parent exceeds its own budget');
+        if (form.powerScore !== undefined && form.powerScore !== score.score) add('powerScore', 'Stored score does not match form');
+    }
+    return errors;
+}
+
 /**
  * Deterministic g power-up generation per SPEC §7 & B3/P06.
  * Clones parent, sets id=parent.id+'-g', step=step+1, origin='generated', fromForm=parent.id.
@@ -664,34 +706,11 @@ export function generatePowerUp(form, constants = RULES_V2_CONSTANTS) {
     if (!cRes.ok) return cRes;
     const c = cRes.constants;
 
-    if (!form.id || typeof form.id !== 'string') {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'id', message: 'Parent form must have a valid string id' }] };
-    }
-    if (form.rarity === 'legendary' && form.origin === 'generated') {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'rarity', message: 'Parent form marked as generated legendary is refused' }] };
-    }
-    const step = form.step ?? 0;
-    if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 0) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'step', message: 'Parent form step must be a non-negative integer' }] };
-    }
-    if (step >= 2) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'step', message: 'Parent form is already at step 2; cannot generate step 3' }] };
-    }
-
+    const parentErrors = checkParentForm(form, c);
+    if (parentErrors.length) return { ok: false, errors: parentErrors };
+    const step = form.step;
     const tier = form.tier;
-    if (typeof tier !== 'number' || tier < 0 || tier > 3) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'tier', message: 'Parent form tier must be an integer between 0 and 3' }] };
-    }
-
-    const effects = form.effects ?? form.base?.effects;
-    if (!Array.isArray(effects) || effects.length === 0 || effects.length > 4) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'effects', message: 'Parent form must have 1 to 4 effects' }] };
-    }
-
-    const pScoreRes = powerScore(form);
-    if (!pScoreRes.ok) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'effects', message: 'Parent form has invalid effects' }] };
-    }
+    const effects = form.effects;
 
     const cloned = clonePlain(form);
     cloned.effects = clonePlain(effects);
@@ -1345,7 +1364,7 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         }
     }
 
-    return { ok: true, manifest: norm };
+    return { ok: true, manifest: canonicalizeJson(norm) };
 }
 
 /** Resolves reference against local pack set or verifies external syntax. */
@@ -1742,6 +1761,12 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
             errors.push({ code: RULES_V2_ERROR_CODES.DUP_ID, path: `content.rules[0].branches[${i}].slug`, message: 'Branch slug cannot end with reserved generated suffix "-g"' });
         }
         const expectedFromForm = br.fromForm.startsWith(`pack.${packKey}/`) ? br.fromForm.slice(`pack.${packKey}/`.length) : br.fromForm;
+        const skillSlug = br.skill.startsWith(`pack.${packKey}/`) ? br.skill.slice(`pack.${packKey}/`.length) : br.skill;
+        const baseSlug = `${skillSlug}-base`;
+        const parents = br.step === 1 ? [baseSlug] : ['g', 'a', 'b'].map(choice => `${baseSlug}-${choice}`);
+        if (!parents.includes(expectedFromForm)) {
+            errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].branches[${i}].fromForm`, message: 'Branch must name its exact parent at the preceding step in its own skill' });
+        }
         const expectedSlug = `${expectedFromForm}-${br.choice}`;
         if (br.slug !== expectedSlug) {
             errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].branches[${i}].slug`, message: `Branch slug "${br.slug}" does not match expected "${expectedSlug}"` });
@@ -1795,7 +1820,7 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
 
         const step1Branches = branches.filter(b => (b.fromForm === baseFormId || b.fromForm === `${skl.slug}-base`) && b.step === 1);
         const step1Choices = new Set(step1Branches.map(b => b.choice));
-        if (step1Choices.size !== 2 || !step1Choices.has('a') || !step1Choices.has('b')) {
+        if (step1Branches.length !== 2 || step1Choices.size !== 2 || !step1Choices.has('a') || !step1Choices.has('b')) {
             errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${skl.slug}].branches`, message: `Skill "${skl.slug}" base form must have written step-1 choices 'a' and 'b'` });
         }
 
@@ -1817,7 +1842,7 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         for (const pId of step1Parents) {
             const step2Branches = branches.filter(b => (b.fromForm === pId || b.fromForm === pId.slice(`pack.${packKey}/`.length)) && b.step === 2);
             const step2Choices = new Set(step2Branches.map(b => b.choice));
-            if (step2Choices.size !== 2 || !step2Choices.has('a') || !step2Choices.has('b')) {
+            if (step2Branches.length !== 2 || step2Choices.size !== 2 || !step2Choices.has('a') || !step2Choices.has('b')) {
                 errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${skl.slug}].branches`, message: `Parent form "${pId}" must have written step-2 choices 'a' and 'b'` });
             }
             const parentForm = formsAtStep1.get(pId);
@@ -2244,13 +2269,13 @@ function buildCanonicalDocument(doc, packId) {
         const r = raw.content.rules[0];
         stripWrappers(r);
 
-        if (r.statLabels === undefined) r.statLabels = {};
-        if (r.memory === undefined) r.memory = 'deja-vu';
+        if (r.statLabels === undefined) r.statLabels = clonePlain(rulesV2Schema.properties.statLabels.default);
+        if (r.memory === undefined) r.memory = rulesV2Schema.properties.memory.default;
 
         if (Array.isArray(r.classes)) {
             for (const c of r.classes) {
                 stripWrappers(c);
-                if (c.note === undefined) c.note = '';
+                if (c.note === undefined) c.note = rulesV2Schema.$defs.note.default;
                 if (c.parent) c.parent = shortenTypedRef(c.parent, packId);
                 if (Array.isArray(c.skills)) c.skills = c.skills.map(s => shortenTypedRef(s, packId));
             }
@@ -2258,8 +2283,8 @@ function buildCanonicalDocument(doc, packId) {
         if (Array.isArray(r.skills)) {
             for (const s of r.skills) {
                 stripWrappers(s);
-                if (s.note === undefined) s.note = '';
-                if (s.replaces === undefined) s.replaces = null;
+                if (s.note === undefined) s.note = rulesV2Schema.$defs.note.default;
+                if (s.replaces === undefined) s.replaces = rulesV2Schema.$defs.skill.properties.replaces.default;
                 if (s.replaces) s.replaces = shortenTypedRef(s.replaces, packId);
                 if (s.base?.unit?.class) s.base.unit.class = shortenTypedRef(s.base.unit.class, packId);
             }
@@ -2267,14 +2292,14 @@ function buildCanonicalDocument(doc, packId) {
         if (Array.isArray(r.branches)) {
             for (const b of r.branches) {
                 stripWrappers(b);
-                if (b.note === undefined) b.note = '';
+                if (b.note === undefined) b.note = rulesV2Schema.$defs.note.default;
                 if (b.skill) b.skill = shortenTypedRef(b.skill, packId);
                 if (b.fromForm) b.fromForm = shortenTypedRef(b.fromForm, packId);
             }
         }
         if (Array.isArray(r.itemRules)) {
             for (const ir of r.itemRules) {
-                if (ir.unique === undefined) ir.unique = false;
+                if (ir.unique === undefined) ir.unique = rulesV2Schema.$defs.itemRule.properties.unique.default;
                 if (ir.def) ir.def = shortenTypedRef(ir.def, packId);
             }
         }
@@ -2389,13 +2414,12 @@ export function expandRulesV2(manifest, content = {}, constants = RULES_V2_CONST
 
     const hashPayload = canonicalizeJson({
         constants: resolved.constants,
-        content: canonicalizeJson(content),
-        manifest: canonicalizeJson(manifest),
+        content: buildCanonicalDocument({ content: { ...content, rules: [resolved.manifest] } }, resolved.manifest.pack).content,
         schema: rulesV2Schema,
     });
     const hash = sha256(JSON.stringify(hashPayload));
 
-    return { ok: true, resolved, hash };
+    return { ok: true, resolved: deepFreeze(canonicalizeJson(resolved)), hash };
 }
 
 /**
