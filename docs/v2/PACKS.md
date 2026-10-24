@@ -426,11 +426,15 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
 * **Order and codes.** Story Block checks the envelope and the records it owns first, with the host's real version and
   limits; the checker then takes the manifest and what it owns, and is not asked to repeat the envelope pass
   (`validateRulesPack(pack, { hostVersion, limits, envelope })`; standalone it does everything). Unsafe text is
-  `UNSAFE_HTML` from `validatePack` whoever found it (the checker alone says `unsafe-markup`). In a rules pack's text
-  `<` and `>` are refused, except in the two fields where Story Block takes them: a version range
-  (`requires.storyBlock`, `>=2.0.0 <3`) and an event's `when` condition (`gold > 5`). Those two still get the script,
-  attribute, link and character-reference checks. Every other string, key and name refuses them, including a
-  screen's `template` and `css`.
+  `UNSAFE_HTML` from `validatePack` whoever found it (the checker alone says `unsafe-markup`).
+* **Whose text rule.** The checker's extra text ban (`<` and `>`, also as a character reference, and control
+  characters) covers only what the checker owns: the manifest and the creatures, quests, shops and recipes it
+  validates. Everything Story Block validates itself (the envelope with `requires.storyBlock` and the description,
+  items, places, events with their `when` conditions, screens with `template` and `css`, theme, layouts) keeps Story
+  Block's own safety rules, exactly as in an ordinary pack: a version range `>=2.0.0 <3`, a condition `gold > 5` or a
+  screen template with tags is fine, a `<script>` or an `onerror=` is not. A pack Story Block accepts as an ordinary pack
+  is accepted with a valid manifest added. The checker alone (Studio) checks everything it reads, a little more
+  strictly outside what it owns: a character reference standing for `<` or `>` and `<` in a field name are refused.
 * **Reading it.** Query `packs.rules({ pack? })` → `[{ pack, version, id, name, manifest }]` for the enabled packs that
   have one (rules are never mixed across packs: the reader takes one); `packs.content({ kind: 'rules' })` gives the
   bare manifests; `packs.list` counts them (`counts.rules`) and tags the pack **Rules pack · RPG Battle**, also when

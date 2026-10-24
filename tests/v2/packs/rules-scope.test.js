@@ -450,13 +450,14 @@ test('unsafe text is UNSAFE_HTML from validatePack whoever found it; the checker
     assert.ok(has(R.validateRulesPack(clone(creature), { envelope: false }), 'unsafe-markup'));
 });
 
-test('"<" and ">" are allowed in exactly the two fields where Story Block takes them: a version range and an event condition', () => {
+test('the "<" and ">" ban is the checker\'s own: it holds for the manifest and what the checker owns, and leaves the rest to Story Block', () => {
     const ranged = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
+    // A version range and an event condition are Story Block\'s, so they read as in an ordinary pack.
     for (const range of ['>=2.0.0-beta.2', '<=2.0.0-beta.5', '>2.0.0-alpha.1 <3', '>=2.0.0-beta.1 <2.0.0']) {
         const standalone = R.validateRulesPack(ranged(range), { hostVersion: '2.0.0-beta.2' });
-        assert.equal(standalone.ok, true, `${range}: ${show(standalone)}`);
+        assert.equal(standalone.ok, true, `${range}: ${codes(standalone)}`);
         const host = validatePack(ranged(range), { hostVersion: '2.0.0-beta.2', capabilities: null });
-        assert.equal(host.ok, true, `${range} through the host: ${show(host)}`);
+        assert.equal(host.ok, true, `${range} through the host: ${codes(host)}`);
         assert.equal(host.pack.requires.storyBlock, range);
     }
     const withWhen = when => {
@@ -467,39 +468,107 @@ test('"<" and ">" are allowed in exactly the two fields where Story Block takes 
     for (const when of ['gold > 5', 'gold >= 5 && day < 3']) {
         assert.equal(R.validateRulesPack(withWhen(when)).ok, true, when);
         const host = validatePack(withWhen(when), { capabilities: null });
-        assert.equal(host.ok, true, `${when}: ${show(host)}`);
+        assert.equal(host.ok, true, `${when}: ${codes(host)}`);
         assert.equal(host.pack.content.events[0].when, when);
     }
-    // Still scanned: script-like text, event attributes and character references in those same fields.
-    for (const [field, pack, path] of [
-        ['range', ranged('<script>alert(1)</script>'), 'requires.storyBlock'],
-        ['range', ranged('>=2.0.0 <img onerror=alert(1)>'), 'requires.storyBlock'],
-        ['range', ranged('&#60;3'), 'requires.storyBlock'],
-        ['condition', withWhen('<script>alert(1)</script>'), 'content.events[0].when'],
-        ['condition', withWhen('gold > 5 <img onerror=alert(1)>'), 'content.events[0].when'],
-        ['condition', withWhen('gold &#62; 5'), 'content.events[0].when'],
+    // Still scanned in those fields, by Story Block\'s safety rules: script-like tags and event attributes.
+    for (const [pack, path] of [
+        [ranged('<script>alert(1)</script>'), 'requires.storyBlock'],
+        [ranged('>=2.0.0 <img onerror=alert(1)>'), 'requires.storyBlock'],
+        [withWhen('<script>alert(1)</script>'), 'content.events[0].when'],
+        [withWhen('gold > 5 <img onerror=alert(1)>'), 'content.events[0].when'],
     ]) {
-        const standalone = R.validateRulesPack(clone(pack));
-        assert.ok(has(standalone, 'unsafe-markup', path), `${field} ${path}: ${show(standalone)}`);
+        assert.ok(has(R.validateRulesPack(clone(pack)), 'unsafe-markup', path), path);
         const host = validatePack(clone(pack), { capabilities: null });
-        assert.ok(has(host, 'UNSAFE_HTML', path) || has(host, 'BAD_REQUIRES', path), `${field} ${path} through the host: ${show(host)}`);
-        assert.equal(host.ok, false);
+        assert.equal(host.ok, false, path);
+        assert.ok(has(host, 'UNSAFE_HTML', path) || has(host, 'BAD_REQUIRES', path), `${path} through the host: ${codes(host)}`);
     }
-    // Every other text field still refuses them: the event's own cue, a name, a note, a key, the pack's description.
+    // Standalone, a character reference that stands for "<" is still refused anywhere.
+    assert.ok(has(R.validateRulesPack(withWhen('gold &#62; 5')), 'unsafe-markup', 'content.events[0].when'));
+    assert.ok(has(R.validateRulesPack(ranged('&#60;3')), 'unsafe-markup', 'requires.storyBlock'));
+});
+
+test('"<" and ">" are still refused in the manifest and in every record the checker owns, through the host and standalone', () => {
     const refuse = (name, path, change) => {
-        const pack = withWhen('gold > 5');
+        const pack = makeEveryKindPack();
         change(pack);
-        const standalone = R.validateRulesPack(clone(pack));
-        assert.ok(has(standalone, 'unsafe-markup', path), `${name}: ${show(standalone)}`);
+        assert.ok(has(R.validateRulesPack(clone(pack)), 'unsafe-markup', path), `${name} (checker alone): ${codes(R.validateRulesPack(clone(pack)))}`);
         assert.deepEqual(codes(validatePack(clone(pack), { capabilities: null })), [['UNSAFE_HTML', path]], name);
     };
-    refuse('cue', 'content.events[0].cue', pack => { pack.content.events[0].cue = 'a > b'; });
     refuse('manifest name', 'content.rules[0].name', pack => { pack.content.rules[0].name = 'Rules <3'; });
     refuse('skill note', 'content.rules[0].skills[0].note', pack => { pack.content.rules[0].skills[0].note = 'hits for > 5'; });
-    refuse('description', 'description', pack => { pack.description = 'a < b'; });
-    refuse('item note', 'content.items[0].note', pack => { pack.content.items = [{ slug: 'rope', name: 'Rope', kind: 'goods', note: 'x > y' }]; pack.content.rules[0].itemRules = [{ def: 'rope', allowedSlots: [], hands: 0, requires: {}, weight: 1, unique: false }]; });
-    // The exemption is for the whole value of exactly those paths, not a field of that name elsewhere.
-    const other = smallRulesPack();
-    other.content.rules[0].skills[0].when = 'gold > 5';
-    assert.equal(R.validateRulesPack(other).ok, false);
+    refuse('class name', 'content.rules[0].classes[1].name', pack => { pack.content.rules[0].classes[1].name = 'A > B'; });
+    refuse('stat label', 'content.rules[0].statLabels.STR', pack => { pack.content.rules[0].statLabels.STR = 'Str > all'; });
+    refuse('trainer name', 'content.rules[0].trainers[0].name', pack => { pack.content.rules[0].trainers[0].name = 'Master <Blade>'; });
+    refuse('creature name', 'content.creatures[0].name', pack => { pack.content.creatures[0].name = 'Goblin > Orc'; });
+    refuse('creature tag', 'content.creatures[0].loreTags[0]', pack => { pack.content.creatures[0].loreTags[0] = 'a<b'; });
+    refuse('quest name', 'content.quests[0].name', pack => { pack.content.quests[0].name = 'Reach level > 3'; });
+    refuse('quest objective text', 'content.quests[1].objectives[2].text', pack => { pack.content.quests[1].objectives[2].text = 'Talk to <the miller>'; });
+    refuse('shop name', 'content.shops[0].name', pack => { pack.content.shops[0].name = 'Armory <&> Co'; });
+    refuse('recipe name', 'content.recipes[0].name', pack => { pack.content.recipes[0].name = 'Brew > Boil'; });
+    refuse('a key under the manifest', 'content.rules[0].statLabels.a<b', pack => { pack.content.rules[0].statLabels = { 'a<b': 'x' }; });
+});
+
+test('what Story Block owns is read as in an ordinary pack: "<" and ">" in the envelope, events, items, places, screens, theme and layouts', () => {
+    const screen = { id: 'camp', title: 'Camp', mounts: ['tab'], template: '<section class="camp"><h2>{{place}}</h2><p>a &amp; b</p></section>'.padEnd(9000, ' <b>x</b>'), css: '.camp > h2 { color: red; }' };
+    const theme = { '--ss-accent': '#3f7f8f' };
+    const layouts = [{ id: 'row', note: 'a < b' }];
+    const ordinary = extra => ({ id: 'plain', version: '1.0.0', requires: { storyBlock: '^2' }, content: {}, ...extra });
+    const withRules = extra => ({ ...smallRulesPack(), ...extra });
+
+    // The screen, the theme and the layouts, which Story Block parses itself (a template or css may be 64 KB, not 4000 characters).
+    const good = validatePack(withRules({ screens: [screen], theme, layouts }), { capabilities: null });
+    assert.equal(good.ok, true, codes(good));
+    assert.equal(validatePack(ordinary({ screens: [screen], theme, layouts })).ok, true, 'the same screen in an ordinary pack');
+    const unwrap = list => list.map(({ pack: _pack, ...rest }) => rest);
+    assert.deepEqual(unwrap(good.pack.screens), unwrap(validatePack(ordinary({ screens: [screen], theme, layouts })).pack.screens), 'and read the same');
+    assert.deepEqual(good.pack.theme, theme);
+    assert.equal(R.validateRulesPack(withRules({ screens: [screen], theme, layouts })).ok, true, 'standalone too');
+    // Where Story Block refuses a screen it refuses it here, with the same code and path.
+    for (const [name, change] of [
+        ['a script in the template', s => { s.template = '<script>x</script>'; }],
+        ['an event attribute', s => { s.template = '<img src=x onerror=a>'; }],
+        ['a link in css', s => { s.css = '.a{background:url(javascript:x)}'; }],
+        ['a template over 64 KB', s => { s.template = 'x'.repeat(64 * 1024 + 1); }],
+    ]) {
+        const bad = { ...screen };
+        change(bad);
+        const there = validatePack(ordinary({ screens: [bad] }));
+        assert.equal(there.ok, false, name);
+        assert.deepEqual(codes(validatePack(withRules({ screens: [bad] }), { capabilities: null })), codes(there), name);
+    }
+
+    // Plain "<" and ">" in prose Story Block owns.
+    const prose = [
+        ['description', pack => { pack.description = 'a < b and c > d'; }],
+        ['author', pack => { pack.author = 'A <B>'; }],
+        ['event cue', pack => { pack.content.events = [{ id: 'e', when: 'day > 1', cue: 'a > b', then: [] }]; }],
+        ['item note', pack => { pack.content.items = [{ slug: 'rope', name: 'Rope', kind: 'goods', note: 'x > y' }]; pack.content.rules[0].itemRules = [{ def: 'rope', allowedSlots: [], hands: 0, requires: {}, weight: 1, unique: false }]; }],
+        ['place name', pack => { pack.content.places[0].name = 'Haven <north>'; }],
+        ['place note', pack => { pack.content.places[0].note = '3 < 4'; }],
+    ];
+    for (const [name, change] of prose) {
+        const pack = smallRulesPack();
+        change(pack);
+        const host = validatePack(clone(pack), { capabilities: null });
+        assert.equal(host.ok, true, `${name} through the host: ${codes(host)}`);
+        // The same text in an ordinary pack is accepted by Story Block (the manifest is the only difference).
+        const plain = clone(pack);
+        delete plain.content.rules;
+        plain.requires = { storyBlock: '^2' };
+        plain.content.creatures = [];
+        plain.content.quests = [];
+        plain.content.shops = [];
+        plain.content.recipes = [];
+        assert.equal(validatePack(plain).ok, true, `${name} in an ordinary pack: ${codes(validatePack(plain))}`);
+        assert.equal(R.validateRulesPack(clone(pack)).ok, true, `${name} standalone`);
+    }
+    // Story Block\'s own rule still holds there: a tag that can run code.
+    const script = smallRulesPack();
+    script.description = '<script>x</script>';
+    assert.deepEqual(codes(validatePack(script, { capabilities: null })), [['UNSAFE_HTML', 'description']]);
+    // A key with "<" is never a range or a condition: standalone it stays refused.
+    const keyed = makeEveryKindPack();
+    keyed.content.items[0].effect = { 'a<b': 1 };
+    assert.ok(has(R.validateRulesPack(keyed), 'unsafe-markup'));
 });

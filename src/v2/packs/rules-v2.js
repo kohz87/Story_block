@@ -327,24 +327,29 @@ function decodeMarkupEntities(text) {
 const CONTROL_IN_TEXT = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/;
 const CONTROL_IN_KEY = /[\x00-\x1F\x7F-\x9F]/;
 
-// The two pack fields whose text is not prose and where Story Block itself takes "<" and ">": a version range
-// (`requires.storyBlock`, parsed by version.js parseRange: `>=2.0.0 <3`) and an event's condition (`content.events[n].when`,
-// the condition language: `gold > 5`). They still go through unsafeText and every other check.
-const ANGLE_FIELDS = /^(?:requires\.storyBlock|content\.events\[\d+\]\.when)$/;
+// What the rules checker owns, and so holds to its stricter text rule: the manifest and the definitions it validates
+// (creatures, quests, shops, recipes). Everything else in a pack (the envelope, items, places, events, screens, theme,
+// layouts ...) belongs to Story Block's validator, so "<" and ">" are not the checker's business there: a version range
+// (`>=2.0.0`), a condition (`gold > 5`) or a screen template is read as in an ordinary pack.
+const OWNED_TEXT = /^content\.(?:rules|creatures|quests|shops|recipes)(?:[.[]|$)/;
+// A screen's template or css may be longer (Story Block's `limits.code`), wherever a field of that name sits.
+const CODE_TEXT = /(?:^|\.)(?:template|css)(?:\[\d+\])*$/;
 
 /**
- * Why a string (a value or, with `isKey`, an object key) cannot be pack text, or null when fine.
- * Runs Story Block's own safety scan (safety.js unsafeText: script-like tags, on... attributes,
- * javascript: and data: links, with entities and hidden characters removed first) and also bans
- * "<" and ">" outright, written plainly or as a character reference (`&#60;script&#62;`). With `angle`
- * (a version range or a condition, see ANGLE_FIELDS) the plain characters are allowed; as a character
- * reference they are still refused.
+ * Why a string (a value or, with `isKey`, an object key) cannot be pack text, or null when fine. `kind`:
+ * * 'owned' (the default): Story Block's own safety scan (safety.js unsafeText: script-like tags, on... attributes,
+ *   javascript: and data: links, with entities and hidden characters removed first), and also "<" and ">" banned
+ *   outright, written plainly or as a character reference (`&#60;script&#62;`), and control characters;
+ * * 'outside' (what Story Block owns, when the checker is also doing the envelope pass): the same, except that
+ *   plain "<" and ">" are allowed;
+ * * 'host' (what Story Block owns, when Story Block has already scanned it): unsafeText and nothing more.
  */
-function textProblem(text, isKey = false, angle = false) {
-    if (!angle && (text.includes('<') || text.includes('>'))) {
+function textProblem(text, isKey = false, kind = 'owned') {
+    if (kind === 'host') return plainProblem(text);
+    if (kind === 'owned' && (text.includes('<') || text.includes('>'))) {
         return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: isKey ? 'Key cannot contain "<" or ">"' : 'Text cannot contain "<" or ">"' };
     }
-    const spelled = angle ? text.replace(/[<>]/g, '') : text;
+    const spelled = kind === 'owned' ? text : text.replace(/[<>]/g, '');
     if (spelled.includes('&') && /[<>]/.test(decodeMarkupEntities(spelled))) {
         return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: 'Text cannot contain "<" or ">" written as a character reference' };
     }
@@ -354,6 +359,12 @@ function textProblem(text, isKey = false, angle = false) {
         return { code: RULES_V2_ERROR_CODES.CONTROL_CHARACTER, message: 'Text cannot contain control characters' };
     }
     return null;
+}
+
+/** Story Block's own text rule, for what the checker does not own: unsafeText and nothing more. */
+function plainProblem(text) {
+    const why = unsafeText(text);
+    return why ? { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: `Text ${why}` } : null;
 }
 
 /**
@@ -369,7 +380,11 @@ function textProblem(text, isKey = false, angle = false) {
  * small graph of repeated references cannot blow up). -0 becomes 0. With `text` (the default) every
  * string and key also goes through textProblem (the markup and link scan).
  */
-function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text = true } = {}) {
+function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text = true, packwide = false, host = false } = {}) {
+    // `packwide`: the data is a whole pack or its content, where only the manifest and the definitions the checker owns get its
+    // strict text rule (OWNED_TEXT) and the rest is Story Block's (`host`: Story Block has scanned it; else the checker's lighter
+    // 'outside' rule). Anything else read here (a form, a manifest alone) is the checker's own and strict.
+    const kindOf = path => (!packwide || OWNED_TEXT.test(path) ? 'owned' : host ? 'host' : 'outside');
     const errors = [];
     const add = (code, path, message) => { if (errors.length < limits.errors) errors.push({ code, path, message }); };
     const active = new Set();
@@ -451,12 +466,14 @@ function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text =
                     add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `Key is longer than ${limits.string} characters`);
                     continue;
                 }
-                if (CONTROL_IN_KEY.test(key)) {
+                // A key keeps the strict rule unless Story Block has scanned it: "<" in a field name is never a version range or a condition.
+                const kind = kindOf(at) === 'host' ? 'host' : 'owned';
+                if (kind !== 'host' && CONTROL_IN_KEY.test(key)) {
                     add(RULES_V2_ERROR_CODES.CONTROL_CHARACTER, at, 'Key cannot contain control characters');
                     continue;
                 }
                 if (text) {
-                    const problem = textProblem(key, true);
+                    const problem = textProblem(key, true, kind);
                     if (problem) {
                         add(problem.code, at, problem.message);
                         continue;
@@ -495,12 +512,14 @@ function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text =
         }
         if (node === null || typeof node === 'boolean') return node;
         if (typeof node === 'string') {
-            if (node.length > limits.string) {
-                add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `String is longer than ${limits.string} characters`);
+            const kind = kindOf(path);
+            const max = kind !== 'owned' && CODE_TEXT.test(path) ? LIMITS.code : limits.string;
+            if (node.length > max) {
+                add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `String is longer than ${max} characters`);
                 return undefined;
             }
             if (text) {
-                const problem = textProblem(node, false, ANGLE_FIELDS.test(path));
+                const problem = textProblem(node, false, kind);
                 if (problem) {
                     add(problem.code, path, problem.message);
                     return undefined;
@@ -1598,7 +1617,7 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
 
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-function validateRulesV2Of(manifest, content, constants) {
+function validateRulesV2Of(manifest, content, constants, { host = false } = {}) {
     if (!isRecord(manifest)) {
         return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, MANIFEST_PATH, 'Manifest must be an object');
     }
@@ -1609,7 +1628,7 @@ function validateRulesV2Of(manifest, content, constants) {
     // One safe read of both inputs: from here on only the detached copies m and cnt are touched.
     const manifestRead = readPlain(manifest, { path: MANIFEST_PATH });
     if (manifestRead.errors.length) return { ok: false, errors: manifestRead.errors };
-    const contentRead = readPlain(content, { path: 'content' });
+    const contentRead = readPlain(content, { path: 'content', packwide: true, host });
     if (contentRead.errors.length) return { ok: false, errors: contentRead.errors };
     const m = manifestRead.value;
     const cnt = contentRead.value;
@@ -2833,7 +2852,7 @@ function validatePackOf(pack, rawOptions) {
         return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, '', 'Pack must be a JSON object');
     }
 
-    const read = readPlain(value);
+    const read = readPlain(value, { packwide: true, host: !envelope });
     if (read.errors.length) return { ok: false, errors: read.errors };
     const raw = read.value;
 
@@ -2942,7 +2961,7 @@ function validatePackOf(pack, rawOptions) {
     const normRes = normalizeRulesV2Of(detachedVal.content.rules[0], { packKey: detachedVal.id, constants: c });
     if (!normRes.ok) return normRes;
 
-    const valRes = validateRulesV2Of(normRes.manifest, detachedVal.content, c);
+    const valRes = validateRulesV2Of(normRes.manifest, detachedVal.content, c, { host: !envelope });
     if (!valRes.ok) return valRes;
 
     const expRes = finishExpansion(valRes);
