@@ -668,6 +668,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             // A guarded transaction: the receipt's data.v2 carries the host's Source and the guard (the owner's
             // own fields stay, but never a source or guard of its own making), and the store gets the block.
             let block = null;
+            // A cursor names a block that is stored: a command that read one makes a guarded block (or one that gives proof) or it fails (no id is handed out that is never used).
+            if (tx.cursor && !tx.guard && !tx.proofs.list.length) fail('FAILED', `${type} read its cursor but made no guarded block (ctx.replayGuard), so there is no block for it to name.`);
             if (tx.guard || tx.proofs.list.length) {
                 const source = sourceOf(tx);
                 if (!source) fail('FAILED', 'There is no reply yet to hold a guarded block.');

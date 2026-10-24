@@ -22,12 +22,25 @@ function seams() {
     };
     return {
         id: OWNER, name: 'Seams', version: '0.0.1',
-        domains: { cs: { initial: () => ({ marks: {} }) } },
-        commands: { 'cs.mark': (ctx, { id }) => mark(ctx, id), 'cs.peek': ctx => { ctx.draft('cs').marks.peek = { cursor: ctx.cursor(), epoch: ctx.epoch }; return { summary: 'Peeked.', narrate: false }; } },
+        domains: { cs: { initial: () => ({ marks: {}, steps: {} }) } },
+        commands: {
+            'cs.mark': (ctx, { id }) => mark(ctx, id),
+            // A planned-again step that keeps the cursor it read, under the block's own id.
+            'cs.step'(ctx) {
+                const cursor = ctx.cursor();
+                ctx.draft('cs').steps[cursor.block] = cursor;
+                ctx.replayGuard({ owner: OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash({ step: 'x' }), predicate: { kind: 'step' } });
+                return { summary: 'Step.', narrate: false, replan: true };
+            }, 'cs.peek': ctx => { ctx.draft('cs').marks.peek = { cursor: ctx.cursor(), epoch: ctx.epoch }; return { summary: 'Peeked.', narrate: false }; } },
         capture: { kinds: { mark: { grammar: '! mark Word' } }, apply: (ctx, line) => mark(ctx, line.name) },
-        hooks: { replayGuard: () => ({ ok: true }) },
+        hooks: {
+            replayGuard: () => ({ ok: true }),
+            // `steps.n` identical steps, asked for after every reply's lines (planned again by a Re-read).
+            afterCapture: () => ({ commands: Array.from({ length: steps.n }, () => ({ type: 'cs.step', payload: {} })) }),
+        },
     };
 }
+const steps = { n: 0 };
 
 async function started(t) {
     t.mock.method(console, 'warn', () => {});
@@ -168,7 +181,7 @@ test('a block is named by what it is: the hash of the reply\'s pair, its operati
     assert.equal(marks(host).one.cursor.block, again.id, 'the mark the second click kept is its own block');
 });
 
-test('the block of a line is the same after it is removed and added again, after a reload and a Re-read', async t => {
+test('the block of a line that stays is the same block after a Re-read, a reload and another Re-read; one removed and added again is a new block', async t => {
     const host = await started(t);
     await host.send('Go.', reply('A.', ['! mark one']));
     const at = host.ctx.chat.length - 1;
@@ -177,20 +190,89 @@ test('the block of a line is the same after it is removed and added again, after
         host.ctx.chat[at].mes = reply('A.', lines);
         host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
     };
-    edit([]);
-    assert.equal((await host.sdk.reread(at)).ok, true);
-    assert.equal(marks(host).one, undefined, 'the line is gone');
-    edit(['! mark one']);
-    assert.equal((await host.sdk.reread(at)).ok, true);
-    assert.equal(marks(host).one.cursor.block, id, 'back, as the same block');
+    for (let n = 0; n < 2; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.equal(marks(host).one.cursor.block, id, `Re-read ${n + 1} of the same text`);
+    }
     const image = { chat: JSON.parse(JSON.stringify(host.ctx.chat)), metadata: JSON.parse(JSON.stringify(host.ctx.chatMetadata)) };
     const again = await createHost({ modules: [seams()], st: { chat: image.chat } });
     t.after(() => again.close());
     again.ctx.chatMetadata = image.metadata;
     await again.turn.onChatChanged();
     assert.equal((await again.sdk.reread(again.ctx.chat.length - 1)).ok, true);
-    assert.equal(marks(again).one.cursor.block, id, 'and after a reload and a Re-read');
+    assert.equal(marks(again).one.cursor.block, id, 'after a reload and a Re-read');
     assert.deepEqual(marks(again).one.cursor, boundaryOf(again, 'one'));
+    // A line that goes and comes back is another block: the reply never hands the first one's occurrence out again.
+    edit([]);
+    assert.equal((await host.sdk.reread(at)).ok, true);
+    assert.equal(marks(host).one, undefined);
+    edit(['! mark one']);
+    assert.equal((await host.sdk.reread(at)).ok, true);
+    assert.notEqual(marks(host).one.cursor.block, id);
+    assert.deepEqual(marks(host).one.cursor, boundaryOf(host, 'one'));
+});
+
+test('an afterCapture step keeps its block through Re-reads and a reload (it neither drifts nor takes another\'s identity)', async t => {
+    const host = await started(t);
+    steps.n = 1;
+    t.after(() => { steps.n = 0; });
+    await host.send('Go.', reply('A.', ['! mark line']));
+    const at = host.ctx.chat.length - 1;
+    const ids = () => Object.keys(host.head().domains.cs.steps).sort();
+    const first = ids();
+    assert.equal(first.length, 1);
+    for (let n = 0; n < 3; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.deepEqual(ids(), first, `Re-read ${n + 1}`);
+    }
+    const image = { chat: JSON.parse(JSON.stringify(host.ctx.chat)), metadata: JSON.parse(JSON.stringify(host.ctx.chatMetadata)) };
+    const again = await createHost({ modules: [seams()], st: { chat: image.chat } });
+    t.after(() => again.close());
+    again.ctx.chatMetadata = image.metadata;
+    await again.turn.onChatChanged();
+    assert.equal((await again.sdk.reread(again.ctx.chat.length - 1)).ok, true);
+    assert.deepEqual(Object.keys(again.head().domains.cs.steps).sort(), first, 'after a reload and a Re-read');
+    assert.equal(again.store.problems().filter(problem => problem.code !== 'REPLANNED').length, 0);
+});
+
+test('two identical afterCapture steps are two blocks, with two ids that stay put through Re-reads and a reload', async t => {
+    const host = await started(t);
+    steps.n = 2;
+    t.after(() => { steps.n = 0; });
+    await host.send('Go.', reply('A.', ['! mark line']));
+    const at = host.ctx.chat.length - 1;
+    const ids = () => Object.keys(host.head().domains.cs.steps).sort();
+    const first = ids();
+    assert.equal(new Set(first).size, 2, 'two blocks, not one');
+    for (let n = 0; n < 3; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.deepEqual(ids(), first, `Re-read ${n + 1}`);
+    }
+    for (const [block, cursor] of Object.entries(host.head().domains.cs.steps)) assert.equal(cursor.block, block);
+    const image = { chat: JSON.parse(JSON.stringify(host.ctx.chat)), metadata: JSON.parse(JSON.stringify(host.ctx.chatMetadata)) };
+    const again = await createHost({ modules: [seams()], st: { chat: image.chat } });
+    t.after(() => again.close());
+    again.ctx.chatMetadata = image.metadata;
+    await again.turn.onChatChanged();
+    assert.equal((await again.sdk.reread(again.ctx.chat.length - 1)).ok, true);
+    assert.deepEqual(Object.keys(again.head().domains.cs.steps).sort(), first);
+    assert.deepEqual(again.store.problems().filter(problem => problem.code !== 'REPLANNED'), []);
+});
+
+test('two identical clicks keep their own ids when a Re-read puts a line before them: an untouched duplicate keeps the occurrence it was stored with', async t => {
+    const host = await started(t);
+    await host.send('Go.', reply('A.', ['! mark line']));
+    await click(host, 'dup');
+    await click(host, 'dup');
+    const spans = () => blocks(host).map(each => each.span).filter(span => span.operation.payload.id === 'dup');
+    const [first, second] = spans().map(span => span.id);
+    assert.notEqual(first, second);
+    const at = host.ctx.chat.length - 1;
+    host.ctx.chat[at].mes = reply('A.', ['! mark before', '! mark line']);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    assert.equal((await host.sdk.reread(at)).ok, true);
+    assert.deepEqual(spans().map(span => span.id), [first, second]);
+    assert.deepEqual(spans().map(span => span.occurrence), [0, 1], 'each keeps the number it was given');
 });
 
 test('a Re-read moves a kept block: a saved cursor still names it by { sid, swipeKey, block }, and op and rev are where it sits now', async t => {

@@ -307,12 +307,18 @@ Two facts about the block a command makes, for an owner that records them (an ac
 **`ctx.cursor()`** → `{ sid, swipeKey, block, op, rev }`, the contract's `Cursor`. It has two parts of different kinds.
 
 * **Who the block is: `sid`, `swipeKey`, `block`.** The reply's canonical pair (the source map above) and the block's id, which is the hash of
-  the pair, the block's operation (the command and the line or payload it was made with) and its **rank** among the reply's blocks of that
-  operation (`replay.js` `blockIdOf`). Nothing else goes into it: no counter, no receipt, no id the chat or the process happened to hold. So
-  the same block has the same id whenever it is worked out: live, run again by a Re-read of an unchanged line, planned again as a step of its own
-  reply (the id it has is told, found by its ordinal), after a reload, and after a line is removed and added back. A different reply or swipe
-  is a different block. Two clicks with the same payload in one reply are the first and the second of their kind. The id is the one the host
-  stamps (it is handed to the block), and the store refuses to store a block under another sid, swipe key or id than its command read.
+  the pair, the block's operation (`evidence.js` `operationKey`: the command and the line or payload it was made with) and its **occurrence**
+  (`replay.js` `blockIdOf`). The occurrence is a whole number given to a block **once, when it is first stamped**, and kept in its span
+  (`span.occurrence`); it is never worked out again, compressed or reused. A new block takes the next number nobody has used in that reply for
+  its operation (`record.source.taken` keeps the numbers of blocks that have gone, so an earlier block that goes does not hand its number to a
+  later one), and every caller that plans a block that exists already (a step planned again, a reconcile, a rebuild, afterCapture's) passes
+  the one it has; a Re-read gives the blocks it reads again the numbers of the blocks they replace (the k-th of an operation takes the k-th).
+  Nothing else goes into the id: no counter, no receipt, no id the chat or the process happened to hold. What that keeps: the same block has
+  the same id live, when run again by a Re-read of unchanged text, when planned again, after a reload, and when an earlier identical block goes
+  (it keeps its own number). **What it does not keep:** a line (or step) that is removed and then added again is a new block with the next
+  number; when a Re-read gives fewer blocks of an operation than before, the ones that remain take the first numbers by the k-th rule; a block
+  stored before occurrences existed keeps the id it was stamped with. Two identical clicks in one reply are two blocks. The id is the one the
+  host stamps (it is handed to the block), and the store refuses to store a block under another sid, swipe key or id than its command read.
 * **Where it sits: `op`, `rev`.** The changes before the block on the reply and the `meta.rev` before it, as they stand when it is read. These
   move: a Re-read that puts a line before a kept block shifts its `op`, and a saved cursor keeps what it was. **Anything that compares a saved
   cursor with a block (an acceptance cursor, a claim anchored at a block) compares `{ sid, swipeKey, block }`, never `op` or `rev`.** The block's
@@ -325,7 +331,8 @@ A command that reads its cursor makes a guarded block or fails (`ctx.replayGuard
 starts on.
 
 *What "pure" means here.* Both are functions of the chat before the block and the state before it, nothing outside them, so a rebuild, a reload
-and the other swipe's prefix give them the same. That holds for the identity (`sid`, `swipeKey`, `block`) and for the epoch. `op` and `rev` are
+and the other swipe's prefix give them the same. That holds for the identity (`sid`, `swipeKey`, `block`, as above: it depends on the occurrences the reply's
+record holds, which are part of what replay reads) and for the epoch. `op` and `rev` are
 pure too, but of the prefix as it is at the moment they are read, which is why a Re-read changes them for a kept block and why they are not an
 identity. Nothing new is stored for any of it (the span already holds the boundary), so there is no new replay input: what an owner writes from
 a cursor into its changes or `recorded` is already an input.

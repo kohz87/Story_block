@@ -173,7 +173,7 @@ test('a delete of the reply that set the clock plans the attempt again by itself
     assert.match(told.message, /1 planned again/);
     // Planned again to what it is: nothing changes and nothing is written.
     const rerun = (state, receipt, info) => host.bus.run(info.replan.type, info.replan.payload, {
-        cause: 'system', state, seed: info.replan.seed,
+        cause: 'system', state, seed: info.replan.seed, occurrence: info.occurrence,
         reply: { index: info.index, sid: host.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
     });
     const bytes = JSON.stringify(host.ctx.chat);
