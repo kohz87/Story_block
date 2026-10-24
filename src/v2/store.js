@@ -1862,21 +1862,28 @@ export function createStore({
                 } catch (error) {
                     if (!guarded || again) throw fail(error);
                     state = skipped(state, blockOps);
-                    keptProblems.push({ index, block: storySpans.length + keptSpans.length, receipts: receiptsOf({ receipts: keptReceipts }, block), why: String(error?.message ?? error), code: 'REPLAY_PREREQUISITE' });
+                    keptProblems.push({ index, block: storySpans.filter(each => each.n).length + keptSpans.filter(each => each.n).length, receipts: receiptsOf({ receipts: keptReceipts }, block), why: String(error?.message ?? error), code: 'REPLAY_PREREQUISITE' });
                 }
                 let span = { n: blockOps.length, story: false };
                 try {
                     if (again?.block) {
                         span = { ...span, ...stamp(arr, index, record, { ...again.block, ...(meta ? { id: was.id, source: { ...again.block.source, ordinal: was.source.ordinal } } : {}) }, blockOps, kept, nextParts, nextOps.length) };
                         guardHolds(heldBy, span, message);
-                    } else if (meta && !again && !spanProblem(was)) {
-                        // Kept as it was; its boundary is where it stands now.
-                        span = { ...span, ...stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, id: was.id }, blockOps, kept, nextParts, nextOps.length) };
+                    } else if (meta && !again) {
+                        if (intactReason(record, block, was, receipt)) {
+                            // Not intact (damaged, another reply's, claims that are not its changes'): it stays exactly as stored, inactive.
+                            span = { ...was, n: blockOps.length };
+                        } else {
+                            // A Re-read moves a kept block's position and nothing else: its cursor and prefix hash follow where it stands now,
+                            // but its payload hash, evidence, claims, guard, source and results are the ones it was stored with.
+                            const placed = stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, id: was.id }, blockOps, kept, nextParts, nextOps.length);
+                            span = { ...was, n: blockOps.length, story: false,
+                                boundaries: was.boundaries.map((boundary, at) => (at === 0 ? { ...boundary, cursor: placed.boundaries[0].cursor, prefixHash: placed.boundaries[0].prefixHash } : boundary)) };
+                        }
                     }
                 } catch (error) {
                     throw fail(error);
                 }
-                if (meta && !again && spanProblem(was)) span = { ...was, n: blockOps.length };   // damaged: kept as it is, inactive
                 nextOps.push(...blockOps);
                 keptSpans.push(span);
                 nextParts.push({ ops: blockOps, span });

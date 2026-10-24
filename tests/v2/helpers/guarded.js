@@ -39,7 +39,8 @@ export const claimKey = (id, instance) => `gt:${EPOCH}:quest:${id}:${instance}:s
 
 // `setting` ({ value }): an outside fact the owner reads when it plans a block and records with it ("currency", a rule setting): the
 // guard answers from the record, never from the setting as it is on replay.
-export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH, setting = null } = {}) {
+// `strict`: the quick guards also require the reply's text to be what it was when the block was stored (payload.saved === payload.current).
+export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH, setting = null, strict = false } = {}) {
     const recording = extra => (setting ? { ...extra, setting: setting.value } : extra);
     const make = (ctx, predicate, inputs) => ({ owner: OWNER, version: 2, epoch, rulesHash: null, inputHash: ctx.hash({ predicate, inputs }), predicate });
     const settle = loose => (ctx, { id, instance, reward }) => {
@@ -79,7 +80,7 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH,
             'gt.quick'(ctx, { id }) {
                 const gt = ctx.draft('gt');
                 gt.quests[id] = { id, instance: 1, state: 'done' };
-                ctx.replayGuard(make(ctx, { kind: 'quick', id }, {}), recording());
+                ctx.replayGuard(make(ctx, { kind: 'quick', id, ...(strict ? { strict: true } : {}) }, {}), recording());
                 if (!ctx.claim(claimKey(id, 1))) ctx.fail('CLAIMED', 'Already settled.');
                 gt.coin += 1;
                 return { summary: `Quick ${id}.`, narrate: false, data: { v2: { result: { id } } } };
@@ -198,7 +199,7 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH,
                     if (gt.minutes !== p.minutes) return { ok: false, reason: 'the clock before it changed' };
                     return { ok: true };
                 }
-                if (p.kind === 'quick') return { ok: true };
+                if (p.kind === 'quick') return p.strict && payload?.saved !== payload?.current ? { ok: false, reason: 'its reply was edited' } : { ok: true };
                 return { ok: false, reason: 'unknown guard' };
             },
         },

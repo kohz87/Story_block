@@ -60,8 +60,12 @@ export default {
   planned** and passed as `recorded`; it then comes back from the record, is hashed with the prefix, and cannot change an
   answer later. The host asks the same guard, in the same context, when the block is first stored (`append`, a Re-read's
   lines, a step planned again): a block whose guard would not hold on replay is **not stored** (the command fails), so a
-  state built live and one built again by replay cannot disagree about it. A hook that reads closure state of its own
-  (a global) is outside what the host can see; do not.
+  state built live and one built again by replay cannot disagree about it. **A `replayQueries` entry is a purity promise by the
+  module, not isolation.** The host cannot see inside a query: one that reads a setting, the clock or any closure state of its
+  own breaks its owner's contract (a settings change then moves the answer behind a trusted checkpoint, and a full replay
+  disagrees with it). Modules are trusted code, so that is the module's bug to avoid, not something the host can stop; the
+  registry checks only that each name is one of the module's own queries. The same goes for a hook that reads a global
+  itself.
 * Claims: `ctx.claim(key)` as before. The host reads the keys a block adds from its `/meta/claims/…` ops and
   lists them on the span. The block's ops and claims are applied together or not at all.
 * `receipt.data.v2` is stamped by the host: `schema: 2`, `epoch`/`rulesHash` from the guard, the host's `source`
@@ -203,6 +207,12 @@ up to the carrier before it), not the one it had, so a later delete cannot line 
 includes a record the window no longer names.
 
 ## Re-read and reconciling
+
+**A Re-read moves a kept block's position and nothing else.** A block it keeps (a click, a step it does not plan again) keeps
+its saved payload hash, evidence, claims, guard, source, recorded inputs and results exactly as stored; only its boundary's
+cursor and prefix hash follow where it stands now. So a reply edited since is still seen as edited by a pure
+`saved === current` guard, and a block whose integrity metadata is damaged (claims that are not its changes' claims, another
+reply's source, a receipt that kept another guard) is **not** healed: it stays exactly as stored and off.
 
 * `store.replaceStory` replays the blocks it keeps as a rebuild does (`step(…, { replayed: true })`). A kept
   guarded block is asked again on the new story, and its boundary is where it stands now.
