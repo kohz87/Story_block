@@ -139,6 +139,8 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   from, replay did not look at the blocks, so they are listed if they could apply, and of two that give one id the first
   listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
   take an id from any of them, since a block that is off may come back.
+* **A guard may ask `story.evidence`** in the context a replay gives it (REPLAY.md "Guards are pure"), whoever owns the guard: the query reads the
+  pins in the state before the block and the proof of the blocks that applied before it, which is the prefix and nothing else.
 * **What a guard sees during a Re-read or a reconcile** is exactly the set of blocks that have applied so far, counted once, from
   the walk's own base: the blocks before the walk's first record that replay applied (or, when the walk starts before the
   checkpoint the head replays from, the blocks that could apply before it), then each block the walk applies. A block's proof is
