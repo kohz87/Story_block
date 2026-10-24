@@ -66,41 +66,84 @@ for (const [label, change] of [
     });
 }
 
-test('the prefix is the hash of one function: replay reads nothing from a record but what replayInputsOf lists', () => {
+// Reads through a recording proxy, nested fields and all. structuredClone cannot take a proxy, so the test hands it the
+// targets (a copy made for persistence is not a replay read).
+function recorder() {
+    const targets = new WeakMap();
+    const seen = new Set();
+    const nativeClone = globalThis.structuredClone;
+    const unwrap = value => {
+        if (!value || typeof value !== 'object') return value;
+        const raw = targets.get(value) ?? value;
+        return Array.isArray(raw) ? raw.map(unwrap) : Object.fromEntries(Object.entries(raw).map(([name, each]) => [name, unwrap(each)]));
+    };
+    const wrap = (value, path) => {
+        if (!value || typeof value !== 'object') return value;
+        const proxy = new Proxy(value, {
+            get(target, name, receiver) {
+                const found = Reflect.get(target, name, receiver);
+                if (typeof name !== 'string') return found;
+                if (Array.isArray(target)) return /^\d+$/.test(name) ? wrap(found, path.concat('*')) : found;
+                seen.add(path.concat(name).join('.'));
+                return wrap(found, path.concat(name));
+            },
+        });
+        targets.set(proxy, value);
+        return proxy;
+    };
+    return {
+        seen,
+        watch: record => wrap(record, []),
+        install() { globalThis.structuredClone = value => nativeClone(unwrap(value)); },
+        restore() { globalThis.structuredClone = nativeClone; },
+    };
+}
+// Is this path (below a record) one replay may read? `listed`: replayInputsOf's fields and the bookkeeping ones.
+function allowed(path, listed) {
+    const [top, ...rest] = path.split('.');
+    if (!listed.has(top)) return false;
+    if (top === 'receipts' && rest[1] === 'data') return rest.length <= 2 || rest[2] === 'v2';
+    if (top === 'source') return rest.length === 0 || ['logical', 'swipeKey', 'evidence', 'next'].includes(rest[0]);
+    return true;
+}
+
+test('the prefix is the hash of one function: replay, Re-read, reconcile and truncate read nothing from a record but what replayInputsOf lists', () => {
     const h = harness([guarded()], SMALL);
-    for (let k = 1; k <= 7; k++) {
+    for (let k = 1; k <= 8; k++) {
         h.send(`u${k}`, `r${k}`);
         if (k === 1) h.command('gt.quick', { id: Q1 });
         else if (k === 2) h.command('gt.attempt', { id: Q1 }, 'system');
         else h.command('gt.hit', { actor: 'ac_00000001', amount: 1 });
     }
     const listed = new Set([...Object.keys(replayInputsOf(h.chat[2].extra.storySuite)), ...REPLAY_BOOKKEEPING]);
-    const seen = new Set();
-    const watch = (value, path) => {
-        if (!value || typeof value !== 'object') return value;
-        return new Proxy(value, {
-            get(target, name, receiver) {
-                if (typeof name === 'string' && !Array.isArray(target) && path.length <= 1) seen.add(path.concat(name).join('.'));
-                const value = Reflect.get(target, name, receiver);
-                return name === 'checkpoint' ? value : watch(value, Array.isArray(target) ? path : path.concat(name));
-            },
-        });
-    };
-    // The same chat read cold (a new store), every record behind a recording proxy.
-    const copy = clone(h.chat);
-    const cold = harness([guarded()], SMALL);
-    const lastAt = copy.findLastIndex(message => message.extra?.storySuite);
-    cold.chat.splice(0, cold.chat.length, ...copy.map((message, i) => {
-        // (the last reply is read as it is: its copy in swipe_info is made with structuredClone, which a proxy cannot take)
-        if (i !== lastAt && message.extra?.storySuite) message.extra = { ...message.extra, storySuite: watch(message.extra.storySuite, ['record']) };
-        return message;
-    }));
-    cold.store.rebuild();
-    cold.store.head();
-    for (const name of [...seen].filter(each => each.startsWith('record.')).map(each => each.split('.')[1])) {
-        assert.ok(listed.has(name), `replay read record.${name}, which is neither a replay input nor bookkeeping`);
+    const rec = recorder();
+    rec.install();
+    try {
+        // The same chat in a new store, every record behind a recording proxy (the last one too, and every swipe copy untouched).
+        const cold = harness([guarded()], SMALL);
+        cold.chat.splice(0, cold.chat.length, ...clone(h.chat).map(message => {
+            if (message.extra?.storySuite) message.extra = { ...message.extra, storySuite: rec.watch(message.extra.storySuite) };
+            return message;
+        }));
+        cold.store.rebuild();
+        cold.store.head();
+        for (let i = 2; i < cold.chat.length; i += 2) cold.store.at(i);
+        // A reconcile (nothing to plan again), a Re-read of a middle reply, taking back the newest change.
+        const rerun = () => ({ ok: false });
+        cold.store.reconcile(2, { rerun });
+        const middle = cold.chat.findIndex((message, i) => i > 4 && message.extra?.storySuite);
+        cold.store.replaceStory(middle, { ops: [], receipts: [], rerun });
+        // (what a rewind asks of the store: a dry run on the messages its branch will hold, then the cut)
+        const newest = cold.chat.length - 1;
+        cold.store.truncate(newest, cold.store.head().meta.rev, { dryRun: true, chat: cold.chat.slice(0, newest + 1) });
+        cold.store.truncate(newest, cold.store.head().meta.rev);
+        cold.store.head();
+    } finally {
+        rec.restore();
     }
-    assert.ok(['record.ops', 'record.spans', 'record.receipts', 'record.source'].every(name => seen.has(name)), 'the probe saw the records');
+    const read = [...rec.seen];
+    assert.ok(['ops', 'spans', 'receipts', 'source', 'receipts.*.guarded', 'receipts.*.rev', 'receipts.*.data'].every(name => read.includes(name)), `the probe saw the records: ${read.length} fields`);
+    for (const path of read) assert.ok(allowed(path, listed), `replay or a rewrite read record.${path}, which is not a replay input or bookkeeping`);
 });
 
 // ---- guards are asked in a context that depends on the prefix alone ----------------------------------------------
@@ -263,4 +306,63 @@ test('P: taking back the newest change of a reply keeps the Problem of its own b
     assert.deepEqual(key(absent.problems()), before);
     absent.store.rebuild();
     assert.deepEqual(key(absent.problems()), before);
+});
+
+// ---- a Re-read moves a kept block's position and nothing else -------------------------------------------------------
+
+test('R: a Re-read keeps a kept block\'s saved payload hash: an edited reply is still seen as edited, and a pure guard keeps the payout off, as a full replay says', () => {
+    const modules = () => [guarded({ strict: true })];
+    const h = harness(modules(), SMALL);
+    const at = [];
+    for (let k = 1; k <= 6; k++) {
+        at.push(h.send(`u${k}`, `r${k}`));
+        if (k === 1) assert.equal(h.command('gt.quick', { id: Q1 }).ok, true);
+        else h.command('gt.hit', { actor: 'ac_00000001', amount: 1 });
+    }
+    assert.equal(h.gt().coin, 1);
+    const saved = clone(h.chat[at[0]].extra.storySuite.spans.find(span => span.id).boundaries[0].payloadHash);
+    // The reader edits the first reply, and it is read again (no lines changed).
+    h.chat[at[0]].mes = 'r1, edited';
+    h.chat[at[0]].swipes[0] = 'r1, edited';
+    h.store.replaceStory(at[0], { ops: [], receipts: [] });
+    const span = h.chat[at[0]].extra.storySuite.spans.find(each => each.id);
+    assert.equal(span.boundaries[0].payloadHash, saved, 'the saved payload hash is what it was stored with');
+    assert.equal(h.gt().coin, 0, 'the guard sees the edit and the payout stays off');
+    assert.ok(h.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE'));
+    assert.equal(h.gt().lost.ac_00000001, 5, 'the plain changes after it are untouched');
+    assert.equal(JSON.stringify(h.store.head()), JSON.stringify(fullReplay(h, modules()).store.head()), 'the head is what a full replay gives');
+    assert.deepEqual(key(h.problems()), key(fullReplay(h, modules()).problems()));
+});
+
+test('R: a Re-read does not heal a kept block whose integrity metadata is damaged: it stays as stored and off', () => {
+    const h = harness([guarded()], SMALL);
+    const at = [];
+    for (let k = 1; k <= 6; k++) {
+        at.push(h.send(`u${k}`, `r${k}`));
+        if (k === 1) assert.equal(h.command('gt.quick', { id: Q1 }).ok, true);
+        else h.command('gt.hit', { actor: 'ac_00000001', amount: 1 });
+    }
+    edit(h, at[0], record => { record.spans.find(span => span.id).claims = []; });
+    h.store.rebuild();
+    assert.equal(h.gt().coin, 0);
+    const stored = clone(h.chat[at[0]].extra.storySuite.spans.find(span => span.id));
+    h.store.replaceStory(at[0], { ops: [], receipts: [] });
+    const after = h.chat[at[0]].extra.storySuite.spans.find(span => span.id);
+    assert.deepEqual(after.claims, [], 'the claims are not regenerated from the ops');
+    assert.deepEqual({ ...after, n: stored.n }, stored, 'nothing else of it changed either');
+    assert.equal(h.gt().coin, 0, 'it stays off');
+    assert.ok(h.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE'));
+    h.store.rebuild();
+    assert.equal(h.gt().coin, 0);
+    assert.equal(JSON.stringify(h.store.head()), JSON.stringify(fullReplay(h).store.head()));
+});
+
+test('replayQueries is a module field the registry knows: a list of the module\'s own query names, checked', async () => {
+    const { definitionProblems, definitionWarnings } = await import('../../src/v2/registry.js');
+    const ok = { id: 'rq-ok', queries: { 'rq.a': () => 1 }, replayQueries: ['rq.a'] };
+    assert.deepEqual(definitionWarnings(ok), [], 'no "not a module field" warning');
+    assert.deepEqual(definitionProblems(ok), []);
+    assert.match(definitionProblems({ ...ok, replayQueries: 'rq.a' }).join(' / '), /replayQueries is not a list/);
+    assert.match(definitionProblems({ ...ok, replayQueries: ['rq.zzz'] }).join(' / '), /"rq.zzz", which is not one of this module's queries/);
+    assert.match(definitionProblems({ ...ok, replayQueries: [5] }).join(' / '), /not a query name/);
 });
