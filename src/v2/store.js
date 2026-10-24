@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, merged, opShapeProblem, pinOps, recordEntries, touchesProof } from './evidence.js';
+import { evidenceDigest, evidenceProblem, merged, opShapeProblem, operationKey, pinOps, recordEntries, touchesProof } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -667,6 +667,23 @@ export function createStore({
         if (walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: span.id }));
     }
 
+    // How many of the blocks `parts` did what `operation` does (its command and line): the rank a new block of that operation has among them.
+    const operationKeys = new WeakMap();     // span → its operation's key (a span is never changed in place)
+    function keyOfSpan(span) {
+        let key = operationKeys.get(span);
+        if (key === undefined) {
+            try { key = operationKey(span.operation.type, span.operation.payload); } catch { key = null; }
+            operationKeys.set(span, key);
+        }
+        return key;
+    }
+    const sameOperation = (part, key) => isMetaSpan(part.span) && isObject(part.span.operation) && keyOfSpan(part.span) === key;
+    const rankIn = (parts, operation) => {
+        let key = null;
+        try { key = operationKey(operation?.type, operation?.payload); } catch { return 0; }
+        return parts.filter(part => sameOperation(part, key)).length;
+    };
+
     function stamp(arr, index, record, block, ops, receipt, earlier, offset, free = null) {
         const entry = record.source;
         const planned = block.source;
@@ -1148,7 +1165,7 @@ export function createStore({
         let planned = null;
         let failure = '';
         try {
-            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan });
+            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, nth: rankIn(out.parts, span.operation) });
         } catch (error) {
             failure = `it threw (${error?.message ?? error})`;
         }
@@ -1179,12 +1196,13 @@ export function createStore({
             const arr = list();
             const holder = withSource(arr[index], record);
             newSpan = { ...newSpan, ...stamp(arr, index, holder, { ...planned.block, id: span.id, source: { ...planned.block.source, ordinal: span.source.ordinal } }, fresh, newReceipt, out.parts, out.parts.reduce((sum, part) => sum + part.ops.length, 0)) };
-            publish(newSpan);     // it applied (step above)
         }
         // A block that would not hold on replay is not stored: the old block stays as it is, its own guard decides.
         if (newSpan.guard) {
             try { guardHolds(state, newSpan, arr0(index)); } catch (error) { return { kept: true, why: error.message }; }
         }
+        // Its proof is the guards' to see only now: it applied and it is stored. A refusal above leaves no trace of it.
+        publish(newSpan);
         // Planned to what it was: the old block stays as it is.
         const sameness = value => hashJson({ ops: value.ops, guard: value.span.guard ?? null, claims: value.span.claims ?? null, recorded: value.span.recorded ?? null,
             result: value.span.result ?? null, operation: value.span.operation ?? null, replan: value.span.replan ?? null, evidence: evidenceDigest(value.span.evidence) });
@@ -1653,6 +1671,13 @@ export function createStore({
             return sourceOf(index, options);
         },
 
+        /** How many blocks of carrier `index`'s record did what `key` is (operationKey): the rank a new block of that has among them. */
+        occurrences(index, key) {
+            const arr = list();
+            const record = isCarrier(arr[index]) ? readRecord(arr[index]) : null;
+            return record && hasMeta(record) ? blockParts(record).filter(part => sameOperation(part, key)).length : 0;
+        },
+
         /**
          * The proof of the chat's blocks, in apply order: [{ proof, block, index }] (frozen). Only the blocks that applied
          * (replay's own account of them: a block that was skipped, is off, collided on a proof id or is damaged gives none;
@@ -1664,18 +1689,25 @@ export function createStore({
         proofs({ all = false } = {}) {
             const arr = list();
             const memo = lineOf(arr);
-            // The proof of the blocks before the one replay starts from: those that could apply (replay did not look at them).
+            // The proof of the blocks before the one replay starts from: those that could apply (replay did not look at them) less the
+            // blocks the checkpoint says were off (its `carried` Problems, the same account of them replay gave when it made the
+            // checkpoint), so the owner of an id is the block that applied with it, not an earlier one that was skipped.
             const before = from => {
                 const kept = memo.proofsBefore?.get(from);
                 if (kept) return kept;
+                const off = new Map();
+                for (const problem of from >= 0 ? unpackProblems(arr, from, readRecord(arr[from])?.carried) : []) {
+                    const record = isCarrier(arr[problem.index]) ? readRecord(arr[problem.index]) : null;
+                    const id = record ? blockParts(record)[problem.block]?.span?.id : undefined;
+                    if (typeof id === 'string') (off.get(problem.index) ?? off.set(problem.index, new Set()).get(problem.index)).add(id);
+                }
                 const out = [];
                 for (const i of carrierIndexes(arr)) {
                     if (i >= from) break;
                     const record = readRecord(arr[i]);
-                    if (record && hasMeta(record)) for (const entry of recordEntries(record, blockParts(record))) out.push(Object.freeze({ ...entry, index: i }));
+                    if (record && hasMeta(record)) for (const entry of recordEntries(record, blockParts(record))) if (!off.get(i)?.has(entry.block)) out.push(Object.freeze({ ...entry, index: i }));
                 }
-                // Replay did not look at these blocks, so it cannot say which of two that give one id applied first: the first listed
-                // keeps it (the pin is the state's, and shows only bytes that match it).
+                // (of two blocks that give one id and are both on, the first listed keeps it)
                 const seen = new Set();
                 const once = out.filter(entry => !seen.has(entry.proof.id) && seen.add(entry.proof.id));
                 (memo.proofsBefore ??= new Map()).set(from, once);
@@ -1959,7 +1991,7 @@ export function createStore({
                 const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
-                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null }); } catch { out = null; }
+                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, nth: isMetaSpan(was) ? rankIn(nextParts, was.operation) : undefined }); } catch { out = null; }
                     // A guarded step goes only when its owner says it is no longer done; when it cannot be asked it stays.
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)

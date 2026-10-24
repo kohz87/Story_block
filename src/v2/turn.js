@@ -25,7 +25,7 @@ import { assistSections, continuation, cutLine, defangMarker, extractBlock, gram
 import { notWritten } from './assist/extractor.js';
 import { refusedWhy } from './assist/safety.js';
 import { displayLines, readDisplayLine } from './extras.js';
-import { replacedProofs } from './evidence.js';
+import { operationKey, replacedProofs } from './evidence.js';
 import { hash, readRecord, swipeLoading } from './persist.js';
 import { CAPTURE_PREFIX, HOST_MODULE } from './registry.js';
 import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt.js';
@@ -334,7 +334,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const ordinal = info?.span?.source?.ordinal;
         // The proof of the block being planned again may be given again: the step keeps its ids.
         const replacing = Array.isArray(info?.span?.evidence) ? info.span.evidence : [];
-        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
+        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, ...(Number.isInteger(info?.nth) ? { occurrence: info.nth } : {}), ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
     }
 
     // After a delete or swipe (REPLAY.md "Reconciling"): the guarded steps that carry a `replan` are planned again
@@ -783,7 +783,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             for (const command of Array.isArray(out?.commands) ? out.commands : []) {
                 const payload = command?.payload ?? {};
                 const seed = seeds?.(command?.type);
-                const result = bus.run(command?.type, payload, { cause: 'system', state: live ? store.head() : now, ...(reply ? { reply: plan ? { ...reply, pending: plan.pending } : reply } : {}), ...(plan ? { planned: planned(), replacing: plan.replacing } : {}), ...(seed === undefined ? {} : { seed }) });
+                const result = bus.run(command?.type, payload, { cause: 'system', state: live ? store.head() : now, ...(reply ? { reply: plan ? { ...reply, pending: plan.pending } : reply } : {}), ...(plan ? { planned: planned(), replacing: plan.replacing, occurrence: rankAmong([...plan.blocks, ...steps], command?.type, payload) } : {}), ...(seed === undefined ? {} : { seed }) });
                 if (!result?.ok) {
                     problems.push(problem({ module: moduleId, index, code: result?.code ?? 'FAILED', message: `The step "${command?.type}" after the reply's lines was not run: ${result?.message ?? 'unknown error'}` }));
                     continue;
@@ -803,6 +803,15 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             }
         }
         return steps;
+    }
+
+    // The rank a block that does `type` with `payload` has among the blocks a Re-read has planned so far (`planned`: [{ block? }]): its proof
+    // ids come from what it is and this rank, so a block read again gets the ids it had.
+    function rankAmong(planned, type, payload) {
+        try {
+            const key = operationKey(type, payload);
+            return planned.filter(piece => piece?.block?.operation && operationKey(piece.block.operation.type, piece.block.operation.payload) === key).length;
+        } catch { return 0; }
     }
 
     // For a Re-read: each afterCapture step run again gets the seed of the old one of its type, in order.
@@ -872,7 +881,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             }
             let result;
             try {
-                const run = opts => bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(plan ? { planned: plan.blocks.flatMap(piece => piece.block?.evidence ?? []), replacing: plan.replacing } : {}), ...(seed === undefined ? {} : { seed }), ...opts });
+                const operation = { type: `${CAPTURE_PREFIX}${entry.kind}`, payload: { ...line, kind: entry.kind, word: line.kind } };
+                const run = opts => bus.run(operation.type, operation.payload, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(plan ? { planned: plan.blocks.flatMap(piece => piece.block?.evidence ?? []), replacing: plan.replacing, occurrence: rankAmong(plan.blocks, operation.type, operation.payload) } : {}), ...(seed === undefined ? {} : { seed }), ...opts });
                 result = entry.off ? await run({ capture: { ...entry, off: false }, again: true }) : await run();
                 // Refused by a feature that is off (a command it called, ctx.feature): run as it ran before.
                 if (again && !entry.off && result?.code === 'FEATURE_OFF') result = await run({ again: true });

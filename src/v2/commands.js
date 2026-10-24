@@ -46,7 +46,7 @@
 import { apply, checkOps, clone, counterInside, deepFreeze, diff, escapeKey, frozenCopy, isCounterPath, isDeepFrozen, isJson, valueAt } from './ops.js';
 import { isSeed, rng as makeRng, roll as rollDice, seed as freshSeed } from './rng.js';
 import { guardProblem, hashJson, isPlainJson } from './replay.js';
-import { newRoot, receiptEvidence, submitProof } from './evidence.js';
+import { newRoot, operationKey, receiptEvidence, submitProof } from './evidence.js';
 
 export const MAX_DEPTH = 8;
 const CAUSES = ['ui', 'story', 'system'];
@@ -242,6 +242,19 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return tx.source;
     }
 
+    // What a block is for the ids of its proof: its command and line, and its rank among the blocks of its reply that did the same
+    // (counted by the caller that plans blocks again, else from the reply's stored blocks). Two blocks of a reply differ in it.
+    function originOf(tx) {
+        if (tx.origin === null) {
+            let rank = tx.occurrence;
+            if (rank === null) {
+                try { rank = Number.isInteger(tx.reply?.index) && tx.operation ? store.occurrences?.(tx.reply.index, tx.operation) ?? 0 : 0; } catch { rank = 0; }
+            }
+            tx.origin = `${tx.operation}:${rank}`;
+        }
+        return tx.origin;
+    }
+
     // ---- one transaction ----------------------------------------------------------------------
 
     function draftOf(tx, domain) {
@@ -432,7 +445,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             proof(spec) {
                 open();
                 const made = submitProof(spec, {
-                    who: moduleId, cause: tx.cause, chat: tx.chat, source: sourceOf(tx), state: () => currentState(tx),
+                    who: moduleId, cause: tx.cause, chat: tx.chat, source: sourceOf(tx), origin: originOf(tx), state: () => currentState(tx),
                     stored: () => store.proofs?.() ?? [], taken: () => store.proofs?.({ all: true }) ?? [], planned: tx.planned, root: tx.proofs, fail, replacing: tx.replacing,
                 });
                 if (made.created) {
@@ -573,7 +586,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     }
 
     // Runs one command against `head` and returns { ok, ops, receipt, state } without storing anything.
-    function transact(head, type, payload, { cause, seed: seedValue, receiptId, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null }) {
+    function transact(head, type, payload, { cause, seed: seedValue, receiptId, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null, occurrence = null }) {
         let tx = null;
         try {
             if (!CAUSES.includes(cause)) fail('INVALID', `"${cause}" is not a cause (ui, story or system).`);
@@ -599,7 +612,10 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 planned: Array.isArray(planned) ? planned : [],
                 // The proof of the blocks being replaced (a Re-read's lines and steps, a step planned again): a proof of the same kind and key, at the same place among those, keeps the id.
                 replacing: Array.isArray(replacing) ? replacing : [],
+                // What this root is (its command and line) and its rank among blocks of the reply that did the same: its proof ids come from it.
+                origin: null, operation: null, occurrence: Number.isInteger(occurrence) && occurrence >= 0 ? occurrence : null,
             };
+            try { tx.operation = operationKey(type, payload); } catch { tx.operation = null; }
             // `reply` (run, a system step only): the reply a Re-read's step is kept on, which need not be the head.
             const given = cause === 'system' && isRecord(reply) ? replyOf(reply.index, reply.sid) : null;
             tx.reply = tx.carrier ? replyOf(tx.carrier.index, tx.carrier.sid ?? tx.carrier.key) : given ?? headReply(store);
@@ -794,8 +810,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
          * `replacing` (the proof of the blocks being replaced): a proof of the same kind and key at the same place among those keeps the id of its old one.
          * A guarded transaction's result has a `block` too (REPLAY.md), which store.append or replaceStory keeps.
          */
-        run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null } = {}) {
-            return guarded(() => transact(state ?? store.head(), type, payload, { ...fresh(cause, seedValue), capture, carrier, chat, again: again === true && cause === 'story', standing, reply, planned, replacing }));
+        run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null, occurrence = null } = {}) {
+            return guarded(() => transact(state ?? store.head(), type, payload, { ...fresh(cause, seedValue), capture, carrier, chat, again: again === true && cause === 'story', standing, reply, planned, replacing, occurrence }));
         },
     };
 }

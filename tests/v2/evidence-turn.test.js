@@ -76,9 +76,9 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     assert.equal(fresh.source.sid, old.source.sid, 'the same logical reply');
     assert.equal(fresh.source.swipeKey, old.source.swipeKey, 'the same swipe');
     assert.equal(fresh.source.evidence, old.source.evidence);
-    assert.equal(fresh.id, old.id, 'the same line, the same id: the proof is named by its reply and its key, not by the block');
+    assert.notEqual(fresh.id, old.id, 'another line (its text changed), another id: the proof is named by what its block is, and a line is its text');
     assert.notEqual(fresh.source.ordinal, old.source.ordinal, 'in a block planned again');
-    assert.equal(ask({ ids: [old.id] })[0].payloadHash, fresh.payloadHash, 'the id now shows the new words');
+    assert.deepEqual(ask({ ids: [old.id] }), [], 'the old id shows nothing');
     assert.deepEqual(now.map(proof => proof.kind), ['acceptance'], 'and the kill built on it is hidden, though its own changes stay');
     assert.deepEqual(host.head().domains.rpgt.log, [1]);
     assert.deepEqual(Object.keys(host.head().meta.proofs).length, 2, 'the new acceptance and the hidden kill; the old acceptance\'s pin left with its block');
@@ -90,6 +90,11 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     assert.equal(same.payloadHash, fresh.payloadHash);
     assert.equal(same.id, fresh.id);
     assert.deepEqual(host.store.problems(), []);
+    // The words are put back and read again: the first line's id is the line's again, and what was built on it shows again.
+    host.ctx.chat[at].mes = text('The innkeeper nods.', [`! accept ${T1} | words: Sure, I accept the job`]);
+    host.ctx.chat[at].swipes[0] = host.ctx.chat[at].mes;
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual(ask({}).map(proof => proof.id), [old.id, built.receipt.data.proofs[0].id]);
 });
 
 test('a reload shows the same proof, and a chat with proof loads without a problem', async t => {
@@ -194,7 +199,7 @@ test('a guarded click built on a proof survives a Re-read of text that did not c
     const changed = await host.turn.reread(at);
     assert.equal(changed.ok, true, changed.message);
     assert.deepEqual(shown(), [`acceptance:${T1}`]);
-    assert.equal(ask({})[0].id, accepted.id);
+    assert.notEqual(ask({})[0].id, accepted.id, 'another line, another id');
     assert.notEqual(ask({})[0].payloadHash, accepted.payloadHash);
 });
 
@@ -210,18 +215,27 @@ test('a step planned again after a Re-read sees the proof the Re-read gave, not 
     assert.equal(steps().length, 2, 'a step on each reply, both on the first check');
     assert.ok(steps().every(step => step.parents[0] === event().id));
     const was = event().id;
-    // The first reply is changed and read again: its check has another DC. The step on the second reply is planned again
-    // on top of it.
+    // The first reply is changed and read again: its check has another DC, which is another line, so another id. The step on the
+    // same reply is asked for again by the hook and builds on the new proof; the step on the second reply was recorded on the old
+    // id, which is gone, so it is off (its guard needs its parent shown) until the line is put back.
     host.ctx.chat[first].mes = check(20);
     host.ctx.chat[first].swipes[host.ctx.chat[first].swipe_id] = host.ctx.chat[first].mes;
     const result = await host.turn.reread(first);
     assert.equal(result.ok, true, result.message);
     assert.deepEqual(turns.at(-1).problems.filter(problem => problem.code !== 'REPLANNED'), []);
     assert.equal(event().payload.dc, 20);
-    assert.equal(event().id, was, 'the same line, the same id, other bytes');
-    assert.equal(steps().length, 2, 'the step on the second reply is still there, built on the new bytes');
-    assert.ok(steps().every(step => step.parents[0] === event().id));
-    assert.deepEqual(host.store.problems().filter(problem => problem.code !== 'REPLAY_PREREQUISITE'), []);
+    assert.notEqual(event().id, was, 'another line, another id');
+    assert.deepEqual(ask({ ids: [was] }), []);
+    assert.equal(steps().length, 1, 'the step on the first reply is asked for again on the new proof');
+    assert.equal(steps()[0].parents[0], event().id);
+    assert.equal(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE' && /guard/.test(problem.why)).length, 1, 'the step on the second reply is off');
+    // The line is put back: it is the first line again, with its id, and the step on the second reply is back.
+    host.ctx.chat[first].mes = check(10);
+    host.ctx.chat[first].swipes[host.ctx.chat[first].swipe_id] = host.ctx.chat[first].mes;
+    assert.equal((await host.turn.reread(first)).ok, true);
+    assert.equal(event().id, was);
+    assert.equal(steps().length, 2);
+    assert.ok(steps().every(step => step.parents[0] === was));
     assert.deepEqual(host.store.problems(), []);
     // A step planned again keeps a boundary that matches the chat, proof included. (The story line kept on the second reply is a
     // guarded block that is not planned again, and its recorded prefix goes stale when an earlier reply is read again: that is

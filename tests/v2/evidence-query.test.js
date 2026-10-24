@@ -385,15 +385,15 @@ test('the bytes of a stored proof are pinned: what a block keeps is exactly this
     // The key order is the one the host writes: id, source, owner, kind, payload, payloadHash, parents. The hashes are
     // SHA-256 of {"place":"pack.x/mill"} and of {"actor":"ac_hero0001","check":"ck_check001","dc":12,"stat":"STR"}.
     const source = '{"sid":"sr_dmfbj6ec","swipeKey":"sw_8jzvvb8q","evidence":"ev_857zrupl","ordinal":0}';
-    assert.equal(JSON.stringify(stored), `[{"id":"pf_4ibag2jz","source":${source},"owner":"story-director","kind":"visit","payload":{"place":"pack.x/mill"},`
+    assert.equal(JSON.stringify(stored), `[{"id":"pf_dw6nv5jz","source":${source},"owner":"story-director","kind":"visit","payload":{"place":"pack.x/mill"},`
         + '"payloadHash":"ba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034","parents":[]},'
-        + `{"id":"pf_9aijg720","source":${source},"owner":"story-director","kind":"event","payload":{"check":"ck_check001","actor":"ac_hero0001","stat":"STR","dc":12},`
-        + '"payloadHash":"0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f","parents":["pf_4ibag2jz"]}]');
+        + `{"id":"pf_7j227crj","source":${source},"owner":"story-director","kind":"event","payload":{"check":"ck_check001","actor":"ac_hero0001","stat":"STR","dc":12},`
+        + '"payloadHash":"0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f","parents":["pf_dw6nv5jz"]}]');
     // The pins in the state: SHA-256 of the lines "pin", id, kind, owner, payload hash, then "parent id=parent's pin" for each parent.
-    const first = sha256('pin\npf_4ibag2jz\nvisit\nstory-director\nba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034');
+    const first = sha256('pin\npf_dw6nv5jz\nvisit\nstory-director\nba4aa08de10908a0f6e5482a8cd4f3c0f0819cad88c5ebead8c310a298f68034');
     assert.deepEqual(h.store.head().meta.proofs, {
-        pf_4ibag2jz: first,
-        pf_9aijg720: sha256(`pin\npf_9aijg720\nevent\nstory-director\n0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f\npf_4ibag2jz=${first}`),
+        pf_dw6nv5jz: first,
+        pf_7j227crj: sha256(`pin\npf_7j227crj\nevent\nstory-director\n0bbeafc3eee44302ed056fc6e8cf714e53986dadc861351a1a43e8d55bab646f\npf_dw6nv5jz=${first}`),
     });
     // Saved and read back from the chat file, nothing about it changes.
     assert.equal(JSON.stringify(JSON.parse(JSON.stringify(h.record(at))).spans[0].evidence), JSON.stringify(stored));

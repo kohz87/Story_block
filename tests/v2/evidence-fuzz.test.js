@@ -176,7 +176,7 @@ function run(seed, steps) {
             log.push(`${step}: reconcile from ${from}`);
             const shownBefore = h.ask().map(proof => proof.id);
             const done = h.store.reconcile(from, { rerun: (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-                cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [],
+                cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.nth,
                 reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
             }) });
             // The model: each step from there on whose parent is not shown where it stands is taken back, one after another.
