@@ -124,6 +124,16 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   replay could apply that block (it has changes, whole metadata that is the record's own, and exactly the proof its
   changes pin). What is shown is read from the state replay applied (`meta.proofs`), never from the spans alone: a
   hand-edited record cannot publish a proof through a span replay never applies, nor erase one that stands.
+* **The projection is made from the blocks that applied, in the order they applied.** Replay records the proof of each
+  guarded block it applies (`store.proofs()`); a block that was skipped, is off, is damaged or collided gives none, and
+  decides nothing about another block's proof. **A proof id belongs to the block that applied with it first**: a later
+  block (a hand-edited record, or a block another reply gave) whose proof takes the same id is an ownership collision and is
+  not applied (`REPLAY_PREREQUISITE`, "already belongs to a block that applied"). Before the first checkpoint a replay starts
+  from, replay did not look at the blocks, so they are listed if they could apply, and of two that give one id the first
+  listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
+  take an id from any of them, since a block that is off may come back.
+* A change that is not a change (not an object, an op that is not add, replace or remove, no path or one that does not read,
+  no value to add) makes a block fail closed: not applied, no proof listed, a Problem, never an error from a query.
 * On replay a block is applied only if its span holds exactly the proofs its ops pin, each whole, closed, of an owner
   that owns its kind and carrying the span's Source (`REPLAY_PREREQUISITE` otherwise, like a damaged claim list).
   A block's ids, kinds, owners, payload hashes and parents are part of the hash that says whether a block (and so a
