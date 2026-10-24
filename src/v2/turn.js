@@ -871,6 +871,28 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
      * Saves once and emits `turn` ({ index, type: 'reread', receipts, problems, told: [] }).
      * → { ok: true, receipts, problems } | { ok: false, code, message }.
      */
+    // The first module held back (registry.heldModules) that the reply carries lines, receipts or ops of, as
+    // { code, name, reason }, else null. `lines`: the change lines about to be read again.
+    function heldInReply(message, lines) {
+        const held = new Set(registry.heldModules?.() ?? []);
+        if (!held.size) return null;
+        const record = readRecord(message);
+        const found = new Set();
+        for (const line of lines) {
+            const owner = registry.captureOwner?.(line?.kind);
+            if (owner) found.add(owner);
+        }
+        for (const receipt of record?.receipts ?? []) if (typeof receipt?.module === 'string') found.add(receipt.module);
+        for (const op of record?.ops ?? []) {
+            const owner = typeof op?.path === 'string' ? registry.domainOwner?.(/^\/domains\/([^/]+)/.exec(op.path)?.[1] ?? '') : null;
+            if (owner) found.add(owner);
+        }
+        const id = [...held].sort().find(item => found.has(item));
+        if (!id) return null;
+        const life = registry.lifecycle?.(id);
+        return { code: life?.status === 'restore-pending' ? 'RESTORE_PENDING' : 'DEPENDENCY_UNAVAILABLE', name: registry.module?.(id)?.name ?? id, reason: life?.reason ?? 'It is not running.' };
+    }
+
     async function reread(index) {
         const chat = ctx?.chat ?? [];
         const message = Number.isInteger(index) ? chat[index] : undefined;
@@ -893,6 +915,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const own = lines.map(line => line.raw);
         const late = lateLines(index, own);
         const extra = assistRoom(index, [...late.map(line => ({ line, mark: LATE })), ...nowLines(mes, [...own, ...late.map(line => line.raw)]).map(line => ({ line, mark: NOW }))], lines.length, problems);
+        // A module held back (dormant, or a restore is pending) cannot read its lines again, and replacing the
+        // reply's story without them would lose what it stored: nothing is replaced while one is involved.
+        const waiting = heldInReply(message, [...lines, ...extra.map(item => item.line)]);
+        if (waiting) return refusal(waiting.code, `Re-read is waiting for ${waiting.name}: ${waiting.reason} Nothing was changed.`);
         const swipe = message.swipe_id;
         let ops;
         let off = [];

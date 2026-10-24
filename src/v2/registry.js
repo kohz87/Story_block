@@ -468,7 +468,9 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         const feature = declared.get(owner)?.find(item => item.id === id);
         if (!feature) return null;
         const { needs } = feature;
-        const available = availableFor(needs);
+        // A feature of a module held back (dormant, restore barrier) is not available, whatever it needs.
+        const heldOwner = held(owner);
+        const available = !heldOwner && availableFor(needs);
         return Object.freeze({
             id: feature.id,
             moduleId: owner,
@@ -479,7 +481,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
             prompt: feature.prompt,
             needs,
             available,
-            why: available ? '' : needs.why,
+            why: available ? '' : heldOwner ? lifecycle(owner).reason : needs.why,
         });
     }
     // `needs` in full: { kinds, commands, queries, why } (lists of names; why: the overlay's reason).
@@ -491,9 +493,11 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     }
     // Available: every kind, command and query it needs is registered (by any module, whatever its
     // features say: a feature never waits on another's switch).
-    const availableFor = needs => needs.kinds.every(kind => canonical.has(kind.toLowerCase()))
-        && needs.commands.every(type => owners.command.has(type))
-        && needs.queries.every(name => owners.query.has(name));
+    // Held back, a module's kinds, commands and queries are not there for another's feature to need.
+    const there = (table, name) => table.has(name) && !held(table.get(name));
+    const availableFor = needs => needs.kinds.every(kind => canonical.has(kind.toLowerCase()) && !held(owners.kind.get(canonical.get(kind.toLowerCase()))))
+        && needs.commands.every(type => there(owners.command, type))
+        && needs.queries.every(name => there(owners.query, name));
     // On: the reader's choice when there is one, else the feature's default; an id no module declares, or
     // a feature whose `needs` no module meets, is off.
     function featureOn(id) {
@@ -796,6 +800,8 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         lifecycle,
         /** Every module's lifecycle: [{ id, status, reason }] in id order. */
         lifecycles: () => sorted().map(def => ({ id: def.id, ...lifecycle(def.id) })),
+        /** The ids of the modules held back now, in id order. */
+        heldModules: () => sorted().map(def => def.id).filter(held),
         /** True when module `id` is held back: dormant, or the restore barrier is up (Story Block's own is never held by it). */
         held,
         /** `{ code, message }` that refuses the reader's action `type` because its module is held back, else null. */

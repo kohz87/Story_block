@@ -61,42 +61,54 @@ test('empty: a chat with no story yet, and a chat with a story that holds none o
     assert.deepEqual(other.domains, []);
 });
 
-test('current: the module\'s slices carry the rules generation asked for', async () => {
-    const out = await read(await chatWith({ party: { ...mark(2), actors: {} }, effects: { ...mark(2), list: {} } }));
+test('current: the rules slice carries the generation asked for; other slices are not asked', async () => {
+    const out = await read(await chatWith({ rules: { ...mark(2), classes: [] }, party: { actors: {} }, effects: { list: {} } }));
     assert.equal(out.classification, 'current');
-    assert.deepEqual([out.domains, out.rulesVersion, out.rulesHash], [['party', 'effects'], 2, 'h-1']);
-    // Asked with no generation (the module has none): its data is current whatever marks it carries.
-    assert.equal((await read(await chatWith({ party: { actors: {} } }), { module: 'rpg-battle' })).classification, 'current');
+    assert.deepEqual([out.domains, out.rulesVersion, out.rulesHash], [['party', 'effects', 'rules'], 2, 'h-1']);
+    // Slices that repeat the mark agree with it.
+    assert.equal((await read(await chatWith({ rules: { ...mark(2) }, party: { ...mark(2) }, combat: { ...mark(2) } }))).classification, 'current');
+    // No generation asked: the rules slice's mark is read the same way.
+    const unasked = await read(await chatWith({ rules: { ...mark(2) }, party: { actors: {} } }), { module: 'rpg-battle' });
+    assert.deepEqual([unasked.classification, unasked.rulesVersion], ['current', 2]);
+    // A module with no rules domain has no mark to look for: its slices are current.
+    const plain = await read(await chatWith({ craft: { n: 1 } }), { module: 'someone-else', domains: ['craft'] });
+    assert.deepEqual([plain.classification, plain.domains, plain.rulesVersion], ['current', ['craft'], null]);
 });
 
-test('legacy: the old party with no rules generation is legacy, not empty; an older generation too', async () => {
+test('legacy: the old party with no marked rules slice is legacy, never current and never empty', async () => {
     const old = await read(await chatWith({ party: { actors: { hero: { hp: 3 } } }, combat: { offers: {} } }));
     assert.equal(old.classification, 'legacy');
     assert.deepEqual([old.domains, old.rulesVersion, old.rulesHash], [['party', 'combat'], null, null]);
-    const older = await read(await chatWith({ party: { ...mark(1), actors: {} } }));
+    // Asking for no generation changes nothing: unmarked slices are legacy.
+    assert.equal((await read(await chatWith({ party: { actors: {} } }), { module: 'rpg-battle' })).classification, 'legacy');
+    // A marked party is not a marked rules slice; a rules slice with no mark is none.
+    assert.equal((await read(await chatWith({ party: { ...mark(2), actors: {} } }))).classification, 'legacy');
+    assert.equal((await read(await chatWith({ rules: { classes: [] }, party: {} }))).classification, 'legacy');
+    // An older generation in the rules slice.
+    const older = await read(await chatWith({ rules: { ...mark(1) }, party: { actors: {} } }));
     assert.deepEqual([older.classification, older.rulesVersion], ['legacy', 1]);
 });
 
-test('mixed: some slices marked and some not, two generations, or two hashes', async () => {
-    const half = await read(await chatWith({ party: { ...mark(2), actors: {} }, effects: { list: {} } }));
-    assert.equal(half.classification, 'mixed');
-    assert.deepEqual(half.domains, ['party', 'effects']);
-    const twoVersions = await read(await chatWith({ party: { ...mark(2), actors: {} }, effects: { ...mark(1), list: {} } }));
-    assert.deepEqual([twoVersions.classification, twoVersions.rulesVersion], ['mixed', null]);
-    const twoHashes = await read(await chatWith({ party: { ...mark(2, 'h-1'), actors: {} }, effects: { ...mark(2, 'h-2'), list: {} } }));
-    assert.deepEqual([twoHashes.classification, twoHashes.rulesVersion, twoHashes.rulesHash], ['mixed', 2, null]);
+test('mixed: another slice carries a mark that disagrees with the rules slice', async () => {
+    const stale = await read(await chatWith({ rules: { ...mark(2) }, party: { ...mark(1) } }));
+    assert.deepEqual([stale.classification, stale.rulesVersion], ['mixed', 2]);
+    const twoHashes = await read(await chatWith({ rules: { ...mark(2, 'h-1') }, effects: { ...mark(2, 'h-2') } }));
+    assert.deepEqual([twoHashes.classification, twoHashes.rulesHash], ['mixed', 'h-1']);
+    const above = await read(await chatWith({ rules: { ...mark(2) }, party: { ...mark(3) } }));
+    assert.equal(above.classification, 'mixed');
+    assert.equal((await read(await chatWith({ rules: { ...mark(1) }, party: { ...mark(2) } }), { module: 'rpg-battle' })).classification, 'mixed', 'also with no generation asked');
 });
 
-test('future: a newer rules generation, and a newer store record', async () => {
-    const rules = await read(await chatWith({ party: { ...mark(3), actors: {} } }));
+test('future: the rules mark above the one asked, and a newer store record', async () => {
+    const rules = await read(await chatWith({ rules: { ...mark(3) }, party: { actors: {} } }));
     assert.deepEqual([rules.classification, rules.rulesVersion], ['future', 3]);
-    const chat = await chatWith({ party: { ...mark(2), actors: {} } });
+    const chat = await chatWith({ rules: { ...mark(2) }, party: { actors: {} } });
     const store = await read(chat, RB, open => damage(open, record => { record.v = 3; }));
     assert.deepEqual([store.classification, store.storeVersion], ['future', 3]);
 });
 
 test('damaged: data that cannot be read is damaged, never empty', async () => {
-    const chat = await chatWith({ party: { ...mark(2), actors: {} } });
+    const chat = await chatWith({ rules: { ...mark(2) }, party: { actors: {} } });
     for (const [name, change] of [
         ['a record that is not an object', () => 'garbage'],
         ['a record with no list of changes', record => { delete record.ops; }],
@@ -108,7 +120,7 @@ test('damaged: data that cannot be read is damaged, never empty', async () => {
         assert.equal(out.classification, 'damaged', name);
     }
     // A slice that is not an object, and a rules mark that is not a mark (in the state the record starts from).
-    const seeded = await chatWith({ party: { actors: {} } });
+    const seeded = await chatWith({ rules: { ...mark(2) }, party: { actors: {} } });
     for (const [name, slice] of [
         ['a slice that is a number', 5],
         ['a slice that is a list', []],
@@ -116,8 +128,9 @@ test('damaged: data that cannot be read is damaged, never empty', async () => {
         ['a generation of zero', { rulesVersion: 0, actors: {} }],
         ['a hash that is a number', { rulesVersion: 2, rulesHash: 7, actors: {} }],
         ['a hash that is empty', { rulesVersion: 2, rulesHash: '', actors: {} }],
+        ['a hash with no generation', { rulesHash: 'h-1' }],
     ]) {
-        const out = await read(structuredClone(seeded), RB, open => damage(open, record => { record.checkpoint.domains.party = slice; }));
+        const out = await read(structuredClone(seeded), RB, open => damage(open, record => { record.checkpoint.domains.rules = slice; }));
         assert.equal(out.classification, 'damaged', name);
     }
 });
@@ -133,10 +146,11 @@ test('damaged: a chat the sdk cannot read at all', () => {
     assert.equal(run(() => [], { head: () => ({ v: 2, domains: 4 }) }), 'damaged');
     assert.equal(run(() => [{ is_user: false, get extra() { throw new Error('locked'); } }]), 'damaged');
     // The state itself, whatever the records say: a slice that is not an object, a mark that is not a mark.
-    for (const party of [5, [], 'x', { rulesVersion: '2' }, { rulesVersion: 0 }, { rulesVersion: 2, rulesHash: 7 }, { rulesVersion: 2, rulesHash: '' }]) {
-        assert.equal(run(() => [], { head: () => ({ v: 2, domains: { party } }) }), 'damaged', JSON.stringify(party));
+    for (const rules of [5, [], 'x', { rulesVersion: '2' }, { rulesVersion: 0 }, { rulesVersion: 2, rulesHash: 7 }, { rulesVersion: 2, rulesHash: '' }, { rulesHash: 'h' }]) {
+        assert.equal(run(() => [], { head: () => ({ v: 2, domains: { rules } }) }), 'damaged', JSON.stringify(rules));
     }
-    assert.equal(run(() => [], { head: () => ({ v: 2, domains: { party: { rulesVersion: 2, rulesHash: 'h' } } }) }), 'current');
+    assert.equal(run(() => [], { head: () => ({ v: 2, domains: { party: 5 } }) }), 'damaged', 'a slice that is not an object');
+    assert.equal(run(() => [], { head: () => ({ v: 2, domains: { rules: { rulesVersion: 2, rulesHash: 'h' } } }) }), 'current');
     // Nothing stored at all is empty.
     assert.equal(run(() => []), 'empty');
     assert.equal(run(() => undefined), 'empty');
@@ -151,18 +165,18 @@ test('damaged: records that exist but do not replay into a state are damaged, no
 });
 
 test('works for a registered module (its own domains) and for a module that names its domains and peers', async () => {
-    const chat = await chatWith({ party: { actors: {} }, craft: { ...mark(2), n: 1 }, unrelated: { n: 1 } });
+    const chat = await chatWith({ rules: { ...mark(2) }, party: { actors: {} }, craft: { n: 1 }, unrelated: { n: 1 } });
     const host = await open(chat);
     // Not registered and not known: no domains, so nothing of it is stored.
     assert.equal(host.sdk.preflight({ module: 'someone-else', rulesVersion: 2 }).classification, 'empty');
     // Named by the caller.
-    const named = host.sdk.preflight({ module: 'someone-else', rulesVersion: 2, domains: ['party', 'craft', 'bad name'], peers: [PEER, 'a-mod'] });
-    assert.deepEqual([named.classification, named.domains], ['mixed', ['party', 'craft']]);
+    const named = host.sdk.preflight({ module: 'someone-else', rulesVersion: 2, domains: ['party', 'craft', 'rules'], peers: [PEER, 'a-mod'] });
+    assert.deepEqual([named.classification, named.domains], ['current', ['party', 'craft', 'rules']]);
     assert.deepEqual(named.peers.map(peer => peer.module), [PEER, 'a-mod']);
     // Registered: its definition's domains, its requires.peers.
-    await host.sdk.registerModule({ id: 'someone-else', version: '1.0.0', requires: { peers: { 'a-mod': '^1' } }, domains: { craft: { initial: () => ({ n: 0 }) } } });
+    await host.sdk.registerModule({ id: 'someone-else', version: '1.0.0', requires: { peers: { 'a-mod': '^1' } }, domains: { craft: { initial: () => ({ n: 0 }) }, rules: { initial: () => ({}) } } });
     const own = host.sdk.preflight({ module: 'someone-else', rulesVersion: 2 });
-    assert.deepEqual([own.classification, own.domains, own.peers], ['current', ['craft'], [{ module: 'a-mod', version: null, enabled: false }]]);
+    assert.deepEqual([own.classification, own.domains, own.peers], ['current', ['craft', 'rules'], [{ module: 'a-mod', version: null, enabled: false }]]);
     host.close();
 });
 
@@ -187,6 +201,11 @@ test('the inputs are checked: a bad call throws, it does not say empty', async (
         assert.throws(() => host.sdk.preflight(bad), TypeError, JSON.stringify(bad));
     }
     for (const rulesVersion of [0, -1, 1.5, '2', NaN]) assert.throws(() => host.sdk.preflight({ module: 'rpg-battle', rulesVersion }), TypeError, String(rulesVersion));
+    // A list that is given is a list of valid names: nothing is dropped quietly, which would read as empty.
+    for (const domains of ['party', {}, 5, ['Party'], ['bad name'], ['party', 7], [null], ['a/b']]) assert.throws(() => host.sdk.preflight({ module: 'zzz', domains }), TypeError, JSON.stringify(domains));
+    for (const peers of ['story-director', {}, 5, ['Story Director'], [3], ['']]) assert.throws(() => host.sdk.preflight({ module: 'zzz', peers }), TypeError, JSON.stringify(peers));
+    assert.doesNotThrow(() => host.sdk.preflight({ module: 'zzz', domains: [], peers: [] }));
+    assert.doesNotThrow(() => host.sdk.preflight({ module: 'zzz', domains: null, peers: undefined }));
     assert.doesNotThrow(() => host.sdk.preflight({ module: 'rpg-battle', rulesVersion: null }));
     assert.doesNotThrow(() => host.sdk.preflight({ module: 'rpg-battle' }));
     host.close();
@@ -202,13 +221,13 @@ test('available before registration, and before the host is marked ready', () =>
 
 test('read-only: for every kind of store nothing is written, set up, repaired or saved', async () => {
     const stores = {
-        current: await chatWith({ party: { ...mark(2), actors: {} } }),
+        current: await chatWith({ rules: { ...mark(2) }, party: { actors: {} } }),
         legacy: await chatWith({ party: { actors: { hero: { hp: 3 } } } }),
-        mixed: await chatWith({ party: { ...mark(2), actors: {} }, effects: {} }),
-        future: await chatWith({ party: { ...mark(3), actors: {} } }),
+        mixed: await chatWith({ rules: { ...mark(2) }, party: { ...mark(1), actors: {} } }),
+        future: await chatWith({ rules: { ...mark(3) }, party: { actors: {} } }),
         empty: await chatWith({ elsewhere: {} }),
     };
-    stores.damaged = await chatWith({ party: { ...mark(2), actors: {} } });
+    stores.damaged = await chatWith({ rules: { ...mark(2) }, party: { actors: {} } });
     // A chat that has replies but no story record yet (set up only on the first turn).
     stores.fresh = [{ name: 'Narrator', is_user: false, mes: 'A new tale.', swipes: ['A new tale.'], swipe_id: 0, swipe_info: [{ extra: {} }], extra: {} }];
 
@@ -246,12 +265,14 @@ test('an old party is untouched before registration, and registering a ready mod
     await host.sdk.registerModule({ id: PEER, name: 'Story Director', version: '2.0.0-beta.2' });
     await host.sdk.registerModule({
         id: 'rpg-battle', name: 'RPG Battle', version: '2.0.0-beta.2', requires: { peers: { [PEER]: '^2' } },
-        domains: { party: { initial: () => ({ ...mark(2), actors: {} }) }, effects: { initial: () => ({ ...mark(2), list: {} }) } },
+        domains: { party: { initial: () => ({ actors: {} }) }, effects: { initial: () => ({ list: {} }) }, rules: { initial: () => ({ ...mark(2), classes: [] }) } },
     });
     assert.deepEqual(host.head().domains.party, before, 'the old party is as it was');
-    assert.ok(host.head().domains.effects, 'the missing slice is added');
+    assert.ok(host.head().domains.effects, 'the missing slices are added');
     const init = host.sdk.receipts().map(entry => entry.receipt).filter(receipt => receipt.type === `${INIT_PREFIX}rpg-battle`);
-    assert.deepEqual(init.map(receipt => receipt.data.domains), [['effects']]);
-    assert.equal(host.sdk.preflight(RB).classification, 'mixed', 'and the chat is told as mixed from now on');
+    assert.deepEqual(init.map(receipt => receipt.data.domains), [['effects', 'rules']]);
+    // The host does not stop it: the module asks first (above) and does not register on a legacy chat. Once its
+    // rules slice is there the chat reads as current.
+    assert.equal(host.sdk.preflight(RB).classification, 'current');
     host.close();
 });

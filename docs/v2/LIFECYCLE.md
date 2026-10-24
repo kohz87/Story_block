@@ -45,7 +45,8 @@ screens, widgets, features) stay reserved: nobody else can take them. Beyond tha
 | hooks | `hooks()` and `hookEntries()` leave it out: no `beforeGenerate`, `afterCapture`, `afterReply`, `ownPrompt`, `onBlocked`; `ctx.gather` skips it |
 | `canGenerate` | suppressed: the hook is not called and not answered `false`, because a refusal stops the whole story (turn.js) |
 | cards under replies | left out |
-| commands | `registry.command(type)` finds nothing, so the bus says `UNKNOWN_COMMAND` (a caller of `ctx.call` can catch that); the reader's action through `sdk.command` / `sdk.preview` gets `DEPENDENCY_UNAVAILABLE` with the reason first |
+| commands | `registry.command(type)` finds nothing, and every entry point refuses with the same code and words (below) |
+| features | off and not available, with the module's reason as the tile's "why"; another module's feature that `needs` its kinds, commands or queries is unmet; no `feature` event for it (see Features) |
 | queries | answer `null`, like a query whose feature is off |
 | tabs, screens, widgets | stay, so a view can show the reason (`sdk.modules()` has it) |
 | replay, validators, counters, scratch | unchanged: a dormant module's saved slices still replay and validate |
@@ -54,14 +55,38 @@ Other modules go on. A module that goes from ready to dormant (its peer disappea
 keeps its state; its hooks, capture and context stop. When it is ready again it is not set up a second
 time: `ensureModules` adds only slices the chat lacks, and a slice the chat has is never reset.
 
+### One refusal at every entry point
+
+`registry.refusal(type)` gives `{ code, message }` for a command of a module that is held back, and the
+command bus consults it first (`resolve` in commands.js): `bus.command`, `ctx.call`, `sdk.command`,
+`sdk.preview` and `sdk.commit(token)` all refuse with `DEPENDENCY_UNAVAILABLE` (dormant) or `RESTORE_PENDING`
+(barrier) and the same sentence, `"<Module> is not running: <reason>"` / `"<Module> is waiting: <reason>"`.
+Nothing has run, so a caller of `ctx.call` may catch it, like `UNKNOWN_COMMAND`.
+
+### Re-read
+
+Re-read replaces a reply's story changes with what its change block says now. If the reply carries lines,
+receipts or ops of a module that is held back, it could not read them again and would lose what they stored, so
+`sdk.reread` refuses (`DEPENDENCY_UNAVAILABLE` or `RESTORE_PENDING`): `Re-read is waiting for <Module>:
+<reason> Nothing was changed.` Replies that hold nothing of such a module are read again as usual, and Re-read
+works on the held reply once the module runs.
+
+### Features
+
+A feature of a module that is held back reports `on: false` and `available: false` (`why` is the module's
+reason), whatever the reader chose, and a feature of another module that `needs` its kinds, commands or queries
+is unmet. Turning such a feature on or off sends no `feature` event (so no "one slower reply" for a static
+part nobody sends). The reader's choice is kept and applies when the module runs.
+
 ### Activation
 
 Late and re-enabled peers activate on the next cycle, and never register twice:
 
 * `sdk.registerModule` registers, then `ensureModules` announces what changed and sets up the modules that
   are ready now (the peer's own registration wakes the module that waited for it).
-* `sdk.command`, `sdk.preview` and `sdk.view` look again first; if a status changed since the last look
-  the module is set up before the action runs.
+* `sdk.command` and `sdk.preview` look again first and, if a module that is ready now still lacks a domain
+  (the chat has no slice for it), set it up before the action runs. `sdk.view` announces a change (the
+  `modules` event) but does not use it up: the action still sets the module up.
 * The turn calls `ensureModules` before each generation and when a chat opens.
 
 Each change is announced once, as the `modules` event: `{ changes: [{ id, status, reason, from }] }` (`from`
@@ -107,8 +132,8 @@ available only while `status === 'ready'`.** Callers that discover each other th
 
 Synchronous, read-only and available before the module registers (and before `markReady`). It reads the
 chat as it is; it sets nothing up, repairs nothing, writes no receipt and saves nothing. It throws
-`TypeError` for a call that is not `{ module: '<id>' }` or a `rulesVersion` that is not a whole number from
-1: a bad call is never answered `empty`.
+`TypeError` for a call that is not `{ module: '<id>' }`, a `rulesVersion` that is not a whole number from 1,
+or a `domains` / `peers` option that is not a list of valid names (a name left out would read as `empty`).
 
 ```js
 { hostApi: 2, hostVersion: '2.0.0-beta.2', storeVersion: 2 | null,
@@ -128,21 +153,25 @@ Which domains and peers are the module's: its definition, when registered; else 
 (`domains`, `peers`); else, for the suite's own modules, the table `SUITE_MODULES` (`rpg-battle`: its
 domains and `story-director`). A module that is none of those has no domains here and reads `empty`.
 
-**The rules marker.** A module marks its rules generation with `rulesVersion` (a whole number from 1) and
-`rulesHash` (non-empty text, or absent or `null`) at the root of any of its domain slices. Story Block only
-reads them.
+**The rules marker.** The authoritative marker is the module's `rules` slice: `rulesVersion` (a whole number
+from 1) and `rulesHash` (non-empty text, or absent or `null`) at its root. Story Block only reads it. Other
+slices are not asked what generation they are; a slice that repeats a marker is read only to see whether it
+disagrees. A module without a `rules` domain (and no `rulesVersion` asked) has no marker to look for: its
+slices are `current`.
 
 | Classification | When |
 |---|---|
-| `damaged` | anything unreadable: the chat is not a list or throws, a record that is not an object, has no list of changes or a bad checkpoint, an old or non-numeric record version, records that do not replay into a state, a state that is not `{ v, domains }`, a slice that is not an object, a marker that is not a marker. Unreadable is never `empty` |
-| `future` | a record or state version above 2, or (with a `rulesVersion` asked) a marker above it |
+| `damaged` | anything unreadable: the chat is not a list or throws, a record that is not an object, has no list of changes or a bad checkpoint, an old or non-numeric record version, records that do not replay into a state, a state that is not `{ v, domains }`, a slice that is not an object, a marker that is not a marker (a hash with no generation, a generation that is not a whole number). Unreadable is never `empty` |
+| `future` | a record or state version above 2, or the rules slice's `rulesVersion` above the one asked |
 | `empty` | nothing stored, or the chat holds none of the module's slices |
-| `current` | the module's slices are there and (no `rulesVersion` asked, or) every one carries the marker `rulesVersion` and one hash |
-| `legacy` | slices without any marker (host v2 with an old party is legacy, not empty), or a marker below the version asked |
-| `mixed` | some slices marked and some not, two generations, or two hashes (`rulesVersion`/`rulesHash` are `null` when they disagree) |
+| `legacy` | the module's slices are there but the rules slice is missing or carries no marker (host v2 with an old party is legacy, never `empty` and never `current`, whether or not a `rulesVersion` is asked), or its marker is below the one asked |
+| `mixed` | the rules slice is marked but another slice of the module carries a marker that disagrees (another generation, or another hash). `rulesVersion` / `rulesHash` still report the rules slice's |
+| `current` | the rules slice is marked with the version asked (any version when none is asked) and nothing disagrees |
 
-The order is damaged, future, then the module's own slices. A slice the chat lacks while others are
-marked is not "mixed": `ensureModules` adds missing slices, and never replaces an old party's data.
+The order is damaged, future (store version), then the module's own slices. Unmarked slices next to a
+marked rules slice are ignored. Registering a module adds the slices the chat lacks and never replaces an old
+party's data; it does not stop itself on a legacy chat, so the module asks first and does not register on
+`legacy`, `mixed`, `future` or `damaged` (once its marked `rules` slice is added the chat reads `current`).
 
 Limit: Story Block starts a chat up when it opens it (a damaged first record is started over, with a
 Problems note), so preflight tells what is there after that.
@@ -150,12 +179,20 @@ Problems note), so preflight tells what is there after that.
 ## Host-internal API (not for modules)
 
 `registry.lifecycle(id)`, `lifecycles()`, `held(id)`, `refusal(type)`, `peers(id)`, `restore()`,
-`setRestore(state, reason)`, `setEnabled(id, on, reason)` (switch a module off to dormant; Story Block's
-own cannot be switched off). `setEnabled` has no screen: it is for the host's settings and for tests.
+`setRestore(state, reason)`, `heldModules()`, `setEnabled(id, on, reason)` (switch a module off to dormant;
+Story Block's own cannot be switched off). `setEnabled` has no screen and its switch is not saved: it lasts
+until the page is reloaded. A future switch (a setting) must persist it and apply it when the module registers.
+
+## Where it shows
+
+Settings → Modules: a module that is not running says so on its card (`Waiting: <reason>`, or `Waiting for a
+restore: <reason>`), and the Versions list (also the overlay's Versions fold) says the same under its line.
+Read-only; there is no switch. A module that waits is not counted as out of step.
 
 ## Tests
 
 `tests/v2/lifecycle.test.js` (peers, missing / late / off / wrong-version peer, chains, cycles, dormant
 discovery, dormant hooks and the veto, late activation announced once, restore barrier, modules without
-peers) and `tests/v2/preflight.test.js` (the shape, each classification, damaged inputs, inputs checked,
+peers, Re-read while held, set-up before the next action, features of a held module, one refusal at every
+entry point), `tests/v2/ux/lifecycle-status.test.js` (the status in Modules and Versions) and `tests/v2/preflight.test.js` (the shape, each classification, damaged inputs, inputs checked,
 before registration, read-only for every kind of store, an old party untouched by registration).

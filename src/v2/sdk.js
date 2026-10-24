@@ -308,6 +308,8 @@ export async function ensureModules({ store, bus, registry, events = null }) {
 export const PREFLIGHT_CLASSES = Object.freeze(['empty', 'current', 'legacy', 'mixed', 'future', 'damaged']);
 // The version of the store records this Story Block reads (record `v`, state `v`).
 const STORE_VERSION = 2;
+// The slice whose root carries a module's rules marker (rulesVersion, rulesHash): RPG Battle's `rules`.
+const RULES_DOMAIN = 'rules';
 // What a module not registered yet is known by: the domains it keeps and the peers it needs, for the
 // suite's own modules, so `preflight({ module: 'rpg-battle' })` can look before it registers. Any
 // other module (or a different list) passes `domains` and `peers` itself.
@@ -341,9 +343,18 @@ export function preflight({ store, registry, chat = () => [], apiVersion = 2 }, 
     const id = options.module;
     const def = registry.module?.(id) ?? null;
     const suite = SUITE_MODULES[id] ?? null;
-    const names = list => (Array.isArray(list) ? list.filter(name => typeof name === 'string') : null);
-    const domainNames = names(options.domains)?.filter(name => DOMAIN_TEXT.test(name)) ?? (def ? Object.keys(def.domains ?? {}) : suite ? [...suite.domains] : []);
-    const peerIds = names(options.peers)?.filter(name => MODULE_ID_TEXT.test(name)) ?? (def ? registry.peers(id).map(peer => peer.module) : suite ? [...suite.peers] : []);
+    // `domains` and `peers`, when given, are lists of valid names; a bad one throws, it is never left out
+    // (a list that lost a name would read `empty`).
+    const listed = (name, pattern) => {
+        const list = options[name];
+        if (list === undefined || list === null) return null;
+        if (!Array.isArray(list) || list.some(item => typeof item !== 'string' || !pattern.test(item))) {
+            throw new TypeError(`Story Suite: preflight ${name} is a list of ${name === 'domains' ? 'domain names (like "party")' : 'module ids (like "story-director")'}.`);
+        }
+        return list;
+    };
+    const domainNames = listed('domains', DOMAIN_TEXT) ?? (def ? Object.keys(def.domains ?? {}) : suite ? [...suite.domains] : []);
+    const peerIds = listed('peers', MODULE_ID_TEXT) ?? (def ? registry.peers(id).map(peer => peer.module) : suite ? [...suite.peers] : []);
 
     const result = {
         hostApi: apiVersion,
@@ -392,28 +403,35 @@ export function preflight({ store, registry, chat = () => [], apiVersion = 2 }, 
     if (version !== null && version > STORE_VERSION) return done('future');
     if (!state) return done('empty');
 
-    // The module's own slices and the rules marker they carry.
-    const present = domainNames.filter(name => Object.hasOwn(state.domains, name) && state.domains[name] !== undefined && state.domains[name] !== null);
+    // The module's own slices, and its rules marker: the `rules` slice's `rulesVersion` and `rulesHash` at its
+    // root. Only that slice says which rules generation the data is; another slice that carries a marker is
+    // read only to see whether it disagrees. A module without a `rules` domain has no marker to look for,
+    // unless the caller asks for a generation.
+    const has = name => Object.hasOwn(state.domains, name) && state.domains[name] !== undefined && state.domains[name] !== null;
+    const present = domainNames.filter(has);
+    const marked = domainNames.includes(RULES_DOMAIN) || (wanted !== undefined && wanted !== null);
     result.domains = present;
     if (!present.length) return done('empty');
-    const marks = [];
-    for (const name of present) {
+    const markOf = name => {
         const slice = state.domains[name];
-        if (!isObject(slice)) return done('damaged');
-        if (!Object.hasOwn(slice, 'rulesVersion') && !Object.hasOwn(slice, 'rulesHash')) continue;
+        if (!isObject(slice)) return undefined;
+        if (!Object.hasOwn(slice, 'rulesVersion') && !Object.hasOwn(slice, 'rulesHash')) return null;
         const { rulesVersion, rulesHash = null } = slice;
-        if (!(Number.isInteger(rulesVersion) && rulesVersion >= 1) || !(rulesHash === null || (typeof rulesHash === 'string' && rulesHash))) return done('damaged');
-        marks.push({ rulesVersion, rulesHash });
-    }
-    const versions = [...new Set(marks.map(mark => mark.rulesVersion))];
-    const hashes = [...new Set(marks.map(mark => mark.rulesHash).filter(Boolean))];
-    if (versions.length === 1) result.rulesVersion = versions[0];
-    if (hashes.length === 1) result.rulesHash = hashes[0];
+        if (!(Number.isInteger(rulesVersion) && rulesVersion >= 1) || !(rulesHash === null || (typeof rulesHash === 'string' && rulesHash))) return undefined;
+        return { rulesVersion, rulesHash };
+    };
+    const marks = new Map(present.map(name => [name, markOf(name)]));
+    if ([...marks.values()].includes(undefined)) return done('damaged');
+    if (!marked) return done('current');
+    const rules = marks.get(RULES_DOMAIN) ?? null;   // none when the module has no such slice here
+    if (!rules) return done('legacy');
+    result.rulesVersion = rules.rulesVersion;
+    result.rulesHash = rules.rulesHash;
+    const conflict = [...marks.entries()].some(([name, mark]) => name !== RULES_DOMAIN && mark && (mark.rulesVersion !== rules.rulesVersion || (mark.rulesHash && rules.rulesHash && mark.rulesHash !== rules.rulesHash)));
+    if (conflict) return done('mixed');
     if (wanted === undefined || wanted === null) return done('current');
-    if (!marks.length) return done('legacy');
-    if (versions.length > 1 || hashes.length > 1 || marks.length < present.length) return done('mixed');
-    if (versions[0] > wanted) return done('future');
-    return done(versions[0] < wanted ? 'legacy' : 'current');
+    if (rules.rulesVersion > wanted) return done('future');
+    return done(rules.rulesVersion < wanted ? 'legacy' : 'current');
 }
 
 /**
@@ -441,9 +459,15 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
         if (result?.ok && !store.saveIdle?.()) await store.saveSoon?.();
         return result;
     };
-    // A module that became ready (a peer registered, a switch, the barrier dropped) is set up now, before
-    // the reader's action or the view; a quiet host (nothing changed) costs nothing here.
-    const settle = () => (announceModules(registry, events).length ? ensureModules({ store, bus, registry, events }) : null);
+    // A module that became ready (a peer registered, a switch, the barrier dropped) is set up before the
+    // reader's action runs. What is asked is the need itself (a ready module whose domain the chat lacks),
+    // not whether a change was announced: a view may have announced it already. A quiet host costs a scan.
+    const settle = () => {
+        announceModules(registry, events);
+        if (registry.restore?.().state === 'pending' || store.headIndex?.() < 0) return null;
+        const head = store.head?.();
+        return head && missingModules(registry, head).length ? ensureModules({ store, bus, registry, events }) : null;
+    };
     // The reason a reader's action cannot run: its module is dormant or a restore is pending.
     const held = type => {
         const why = registry.refusal?.(type);
