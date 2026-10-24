@@ -156,4 +156,3 @@ The first run, Story Block, RPG Battle, Story Director and NPC State Delta at th
 | SB+RB+NSD | ok | gap | gap | gap | gap | gap | gap | gap | gap | n/a | n/a | gap | gap | gap | gap | gap |
 
 Heads: Story Block 1843d44, RPG Battle d5b67da, Story Director 0a76324, NPC State Delta 1684b11. The 28 `gap` results are the negative rows (RB holds the first message back) and RB's timed action with the clock unset; the four `todo` are `SD disabled`. Nothing fails.
-
