@@ -8,7 +8,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import * as R from '../../../../src/v2/packs/rules-v2.js';
-import { validatePack, HOST_VERSION } from '../../../../src/v2/packs/validate.js';
+import { HOST_VERSION } from '../../../../src/v2/packs/validate.js';
+// The validator before the rules kind was registered: the "old Story Block" of the F7 test (this host knows the kind now).
+import { validatePack } from '../fixtures/old-host/validate.js';
 import { smallRulesPack } from './fixtures/smallRulesPack.js';
 import { makeValidExtendedPack } from './fixtures/builders.js';
 import { makeEveryKindPack } from './fixtures/everyKindPack.js';
@@ -434,8 +436,9 @@ test('F5: a control character in a key is refused', () => {
 });
 
 test('F5: keys that collide after normalisation are refused', () => {
+    // In what the checker owns (the manifest and its definitions); Story Block's own fields (an item's effect) are Story Block's to judge.
     const pack = makeEveryKindPack();
-    pack.content.items[0].effect = { 'café': 1, 'café': 2 };
+    pack.content.rules[0].statLabels = Object.fromEntries([['caf\u00e9', 'a'], ['cafe\u0301', 'b']]);
     const res = R.validateRulesPack(pack);
     assert.equal(res.ok, false);
     assert.ok(has(res, CODES.DUP_ID), show(res));
@@ -501,7 +504,7 @@ test('F7: content.rules without the rb-rules-v2 capability is MISSING_CAPABILITY
     assert.ok(has(R.validateRulesPack(pack), CODES.BAD_CAPABILITY));
 });
 
-test('F7: section 10 D old Story Block fixture: UNKNOWN_KIND, and MISSING_CAPABILITY when capabilities are supplied', () => {
+test('F7: section 10 D old Story Block fixture (the frozen old validator): UNKNOWN_KIND, and MISSING_CAPABILITY when capabilities are supplied', () => {
     const pack = smallRulesPack();
     const unknownHost = validatePack(JSON.parse(JSON.stringify(pack)), { hostVersion: HOST_VERSION, capabilities: null });
     assert.equal(unknownHost.ok, false);
