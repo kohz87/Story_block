@@ -1,6 +1,7 @@
 // A toy stand-in for a module checkout, for the matrix runner's own tests (tests/v2/matrix/runner.test.js):
 // it has RPG Battle's id and its two habits the negative rows are about, a party that must be made before
-// any reply and a command that makes it, and nothing else. It is not a copy of the module.
+// any reply and a command that makes it, and the peer it needs (Story Director, so it is dormant without it).
+// It is not a copy of the module.
 
 export const MODULE_ID = 'rpg-battle';
 
@@ -9,6 +10,7 @@ export function createModule() {
         id: MODULE_ID,
         name: 'RPG Battle (toy)',
         version: '0.0.0',
+        requires: { peers: { 'story-director': '>=2.0.0-beta.1' } },
         domains: { party: { initial: () => ({ pc: null, actors: {}, rested: null }) } },
         commands: {
             'party.create': (ctx, payload = {}) => {
@@ -18,6 +20,7 @@ export function createModule() {
                 return { summary: `${payload.name ?? 'Wessel'} is ready.` };
             },
         },
+        queries: { 'party.actors': state => Object.keys(state.domains.party?.actors ?? {}) },
         hooks: {
             canGenerate: view => (view?.state?.domains?.party?.pc ? { ok: true } : { ok: false, reason: 'Create your character first.' }),
         },
