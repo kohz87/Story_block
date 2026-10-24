@@ -208,8 +208,11 @@ coordinator's helpers rather than at each site:
    never announced. The line of work is chat-bound the same way: work is stamped with its chat when it is queued, not when its turn
    comes, and one whose chat is no longer the open one is `STALE` and does not run. What counts operations is kept per chat (a
    chat's recovery is not suppressed by another chat's work), and a chat that is opened with an unfinished journal is barred at once
-   (`settle` raises the barrier before its recovery has had its turn; that recovery looks at the story whole, as it did when the
-   barrier came only with it). The line itself is one for the host, so another chat's work that is held delays a chat's recovery,
+   (`settle` raises the barrier before its recovery has had its turn). The recovery never lowers the barrier to look: it
+   reads the story with the modules not held in one synchronous step, inside the recovery, with commands still barred and nothing
+   announced (no `modules` or `head` event; the guards are asked again and the barrier is put back before anything else can run),
+   so no listener sees the host ready on a story whose native state has not caught up. Readiness is announced when the work is
+   done (with two unfinished entries in one journal it comes between them, which is rare). The line itself is one for the host, so another chat's work that is held delays a chat's recovery,
    but never lets that chat's commands through meanwhile.
 3. **The participants are looked at again in the commit section.** A make checks that the participants it asked are the participants
    there are (none failed to register, none registered, no schema changed) in the same synchronous section as the commit
@@ -309,7 +312,9 @@ whole reply a target falls inside of, and the readers that must go through it, a
   step 1), not the pre-restore payloads of old returns, not the proof pins of a point nothing refers to. A review measured 200 KB of
   story saved 40 times at 8.55 MB of archive, with a quadratic overhead in the descriptors (each carries the whole payload manifest).
   Archive and pin pruning come later.
-* **No timeouts** on a participant's callbacks: a callback that never answers holds the timeline's one queue. They come later.
+* **No timeouts or cancellation** on a participant's callbacks: a callback that never answers holds the timeline's one queue, and the
+  chat stays barred while it does (it fails safe: nothing goes through on a story whose native state is unknown). Timeouts and
+  cancellation come with integration.
 * **Participants after a swipe, delete or retraction** of a committed restore, and **history within a reply**, are E6b. If the reply
   holding a committed restore is swiped or deleted, the story goes back to before it and the participant stays on the restored
   checkpoint; switching it back to the checkpoint of the surviving prefix is the head-selection barrier. The journal entry is

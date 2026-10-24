@@ -791,6 +791,22 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
 
     // ---- recover -----------------------------------------------------------------------------------------------
 
+    // The story as it stands with the modules not held back, read in one synchronous step while commands stay barred: the barrier is
+    // put back before anything else can run and nothing is announced, so no listener sees the host ready (or acts) on a story whose
+    // native state has not caught up. Internal to recovery; nothing outside this file can ask it.
+    function wholeStory() {
+        const was = registry.restore();
+        if (was.state !== 'pending') return store.head();
+        registry.setRestore('idle', '');
+        try {
+            store.lifecycleChanged?.();   // (the guarded blocks are asked again with the modules not held: no 'modules' event, no 'head' event)
+            return store.head();
+        } finally {
+            registry.setRestore(was.state, was.reason);
+            store.lifecycleChanged?.();
+        }
+    }
+
     // Host startup: what was committed is finished, what was only prepared is aborted. No clock, no target is chosen again.
     async function recover() {
         if (!archive.exists()) return { ok: true, state: 'idle', return: null };
@@ -812,14 +828,12 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                     // A start finds the story whole and asks whether it still holds the restore. Within a run that already has the
                     // barrier up it cannot ask: with the modules held, their guarded blocks are off and the story is not whole.
                     // (the barrier `settle` raised when this chat opened is not one of a run: the story is looked at whole, as it was before)
-                    if (early) barrier('idle', '');
-                    const state = store.head();
+                    const state = early ? wholeStory() : store.head();
                     const there = state?.domains?.[HOST_DOMAIN]?.returns?.[entry.return];
                     if ((early || registry.restore?.().state !== 'pending') && !isObject(there)) {
                         // The story no longer holds the restore (its reply was swiped or deleted): its participants are the next package's.
                         archive.patch(entry.id, { phase: 'retracted', why: 'the story no longer holds the restore' });
-                        lower();
-                        continue;
+                        continue;   // (the barrier comes down once, below, when nothing else is left to finish)
                     }
                     raise('A restore is finishing; every part must agree before the story goes on.');
                     const done = await finish(archive.get(entry.id));

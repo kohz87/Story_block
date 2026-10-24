@@ -580,3 +580,51 @@ for (const [name, scenario] of Object.entries(SCENARIOS)) {
         assert.equal(entries.filter(entry => entry.kind === 'native-event').length <= 1, true, 'the event was not delivered twice');
     });
 }
+
+// ---- 7. recovery never lets the host look ready on a story its native state has not caught up with -----------------------------
+
+test('while a chat recovers, no listener sees the host ready and acts on a restored story with the native state not yet restored', async t => {
+    // A module whose command depends on the native state: it records the dossier's trust.
+    let trust = null;
+    const trustModule = { id: 'tl-trust', name: 'Trust', version: '0.0.1', domains: { trustxp: { initial: () => ({ granted: null }), absent: () => ({ granted: null }) } }, commands: {
+        'tl.trustxp'(ctx) {
+            ctx.draft('trustxp').granted = trust();
+            return { summary: 'Trust paid out.', narrate: false };
+        },
+    } };
+    const w = await world(t, { wrap: native => { trust = () => native.native.store.dossiers.tavi.trust; } });
+    // (the module has to be there from the start: register it, then rebuild the world's host on it)
+    await w.host.sdk.registerModule(trustModule);
+    const there = await otherChat(t);
+    const head = await w.host.sdk.timeline.head();
+    const prepared = await w.host.timeline.host.prepare({ snapshot: w.saved.id, deathEvents: DEATH, batchResult: BATCH, expectedHead: head.headHash });
+    assert.equal(prepared.ok, true, prepared.message);
+    w.native.native.fail.add('activate');
+    const pending = await w.host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash });
+    assert.equal(pending.status, 'participants-pending');
+    assert.equal(w.host.head().domains.progress.xp, 40, 'the story is restored');
+    assert.equal(w.native.native.store.dossiers.tavi.trust, 99, 'the participant is not');
+    w.native.native.fail.delete('activate');
+    // Every time the host is told the modules are ready, a command that reads the native state is issued at once (synchronously, as a
+    // listener would), and what the story and the participant stood at when the host announced it is kept.
+    const heard = [];
+    const issued = [];
+    let listening = false;
+    w.host.events.on('modules', ({ changes }) => {
+        if (listening && w.host.registry.restore().state === 'idle' && changes.some(change => change.status === 'ready')) {
+            heard.push({ xp: w.host.head().domains.progress?.xp, trust: w.native.native.store.dossiers.tavi.trust });
+            issued.push(w.host.sdk.command('tl.trustxp', {}));
+        }
+    });
+    const left = await open(w.host, there);
+    listening = true;
+    await open(w.host, left);
+    await Promise.all(issued);
+    assert.equal(heard.length >= 1, true, 'the host was announced ready');
+    assert.deepEqual(heard.filter(each => each.xp === 40 && each.trust === 99), [], 'never announced ready on the restored story with the dead timeline\'s native state');
+    assert.equal(w.native.native.store.dossiers.tavi.trust, 3);
+    assert.equal(w.host.registry.restore().state, 'idle');
+    const granted = w.host.head().domains.trustxp?.granted ?? null;
+    assert.equal(granted === null || granted === 3, true, `trust paid out against ${granted}`);
+    assert.equal(w.host.store.problems().length, 0);
+});
