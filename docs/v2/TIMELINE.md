@@ -211,8 +211,9 @@ coordinator's helpers rather than at each site:
    (`settle` raises the barrier before its recovery has had its turn). The recovery never lowers the barrier to look: it
    reads the story with the modules not held in one synchronous step, inside the recovery, with commands still barred and nothing
    announced (no `modules` or `head` event; the guards are asked again and the barrier is put back before anything else can run),
-   so no listener sees the host ready on a story whose native state has not caught up. Readiness is announced when the work is
-   done (with two unfinished entries in one journal it comes between them, which is rare). The line itself is one for the host, so another chat's work that is held delays a chat's recovery,
+   so no listener sees the host ready on a story whose native state has not caught up. Readiness is announced once, when the work is
+   done. A journal that holds two unfinished changes at once (damaged: the API refuses a second while one is pending) is not touched: the
+   chat stays barred, nothing is announced, and `recover` answers `FAILED` until the file is put right. The line itself is one for the host, so another chat's work that is held delays a chat's recovery,
    but never lets that chat's commands through meanwhile.
 3. **The participants are looked at again in the commit section.** A make checks that the participants it asked are the participants
    there are (none failed to register, none registered, no schema changed) in the same synchronous section as the commit

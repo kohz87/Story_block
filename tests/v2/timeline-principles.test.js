@@ -628,3 +628,24 @@ test('while a chat recovers, no listener sees the host ready and acts on a resto
     assert.equal(granted === null || granted === 3, true, `trust paid out against ${granted}`);
     assert.equal(w.host.store.problems().length, 0);
 });
+
+test('a journal that holds two unfinished changes (damaged: the API refuses a second) keeps the chat barred and announces nothing ready', async t => {
+    const w = await world(t);
+    const there = await otherChat(t);
+    for (const n of [1, 2]) {
+        w.host.timeline.archive.add({ id: `nm_inject0${n}`, kind: 'native-event', phase: 'prepared', session: 'ss_oldrun01', participant: NATIVE, event: `ev_inject0${n}`,
+            eventKind: 'confirmed-death', nativeKey: 'tavi', npc: NPC, expectedHead: 'a'.repeat(64), before: { module: NATIVE, checkpoint: 'ck_00000001', hash: 'b'.repeat(64), schema: 1 }, after: null,
+            boundary: { cursor: { sid: 'sr_00000001', swipeKey: 'sw_00000001', block: 'bl_00000001', op: 0, rev: 1 }, prefixHash: 'c'.repeat(64) } });
+    }
+    const left = await open(w.host, there);
+    const heard = [];
+    w.host.events.on('modules', ({ changes }) => { if (changes.some(change => change.status === 'ready')) heard.push(w.host.registry.restore().state); });
+    await open(w.host, left);
+    assert.equal(w.host.registry.restore().state, 'pending', 'held');
+    assert.deepEqual(heard, [], 'never announced ready');
+    assert.equal((await w.host.sdk.command('tl.xp', { amount: 1 })).ok, false, 'commands stay barred');
+    const result = await w.host.timeline.recover();
+    assert.equal(result.ok, false);
+    assert.match(result.message, /2 unfinished changes/);
+    assert.equal(w.native.native.calls.some(call => call.name === 'applyEvent'), false, 'the participant was not asked to change');
+});

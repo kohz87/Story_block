@@ -810,6 +810,15 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // Host startup: what was committed is finished, what was only prepared is aborted. No clock, no target is chosen again.
     async function recover() {
         if (!archive.exists()) return { ok: true, state: 'idle', return: null };
+        // Two unfinished changes at once cannot happen through the API (a second is refused while one is pending): a journal that holds them
+        // was damaged or edited. Finishing one would let go of the barrier with the other still undone, so none is touched, the chat stays
+        // barred and nothing is announced ready: it fails safe until the file is put right.
+        const unfinished = archive.entries().filter(entry => (entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
+            || (['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared'));
+        if (unfinished.length > 1) {
+            if (barrierOwner === null) raise('A restore is finishing; every part must agree before the story goes on.');
+            return fail('FAILED', `The journal holds ${unfinished.length} unfinished changes (${unfinished.map(entry => entry.id).join(', ')}); only one can be, so the chat stays held until the file is put right.`);
+        }
         const early = barrierEarly && barrierOwner === archive.holder();
         let ret = null;
         for (const entry of archive.entries()) {
