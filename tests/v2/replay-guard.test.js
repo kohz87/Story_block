@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
+import { ensureModules } from '../../src/v2/sdk.js';
 import { RECORD_ID } from '../../src/v2/check.js';
 import { claimKeys, hashJson, isMetaSpan, spanProblem } from '../../src/v2/replay.js';
 import { EPOCH, OWNER, Q1, Q2, Q5, Q9, claimKey, guarded, harness, outer } from './helpers/guarded.js';
@@ -375,4 +376,34 @@ test('a rewind keeps the guarded blocks it keeps, with their metadata, and drops
     assert.equal(h.gt().coin, 7);
     assert.equal(h.gt().lost.ann, undefined);
     assert.deepEqual(h.problems(), []);
+});
+
+test('a guarded block of a module that is not ready is off, and asked again when the module turns ready: once, never twice', async t => {
+    const asked = [];
+    const host = await createHost({ modules: [guarded({ asked })], core: false });
+    t.after(() => host.close());
+    await host.send('Go.', 'The road.');
+    assert.equal((await host.bus.command('gt.quick', { id: Q1 }, { cause: 'ui' })).ok, true);
+    const gt = () => host.head().domains.gt;
+    const claims = () => Object.keys(host.head().meta.claims).filter(key => key === claimKey(Q1, 1));
+    assert.deepEqual([gt().coin, claims().length], [1, 1]);
+    const heads = [];
+    host.sdk.on('head', () => heads.push(1));
+    const stored = JSON.stringify(host.ctx.chat[host.ctx.chat.length - 1].extra.storySuite.ops);
+    // The module turns dormant (the host switches it off): its guarded block is not asked and stays off.
+    host.registry.setEnabled(OWNER, false, 'Turned off for the test.');
+    await ensureModules({ store: host.store, bus: host.bus, registry: host.registry, events: host.events });
+    assert.equal(gt().coin, 0, 'off while the owner is not ready');
+    assert.deepEqual(claims(), [], 'no claim either');
+    assert.equal(host.store.problems().at(-1).code, 'REPLAY_PREREQUISITE');
+    assert.match(host.store.problems().at(-1).why, /not ready/);
+    assert.equal(heads.length >= 1, true, 'the screens are told the head changed');
+    asked.length = 0;
+    // It turns ready again: the block is asked again and applies, once.
+    host.registry.setEnabled(OWNER, true);
+    await ensureModules({ store: host.store, bus: host.bus, registry: host.registry, events: host.events });
+    assert.equal(asked.length >= 1, true, 'asked again');
+    assert.deepEqual([gt().coin, claims().length], [1, 1], 'applied once, not twice');
+    assert.deepEqual(host.store.problems(), []);
+    assert.equal(JSON.stringify(host.ctx.chat[host.ctx.chat.length - 1].extra.storySuite.ops), stored, 'nothing was written meanwhile');
 });

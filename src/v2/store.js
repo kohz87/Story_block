@@ -1138,6 +1138,18 @@ export function createStore({
         },
 
         /**
+         * The modules' lifecycle changed (a module turned ready or dormant, the `modules` event): when guarded blocks
+         * are in use here the head is replayed again so they are asked again. → true when it was.
+         */
+        lifecycleChanged() {
+            if (!guardSeen) return false;
+            lastMark = markNow();
+            cache = null;
+            forgetMemos();
+            return true;
+        },
+
+        /**
          * Tells the store how a guarded block is asked on replay (the command bus does this when it is made):
          * `check(state, { guard, source, block, operation, recorded })` → `{ ok: true } | { ok: false, reason }`
          * (a throw, a promise or any other answer fails closed), and `mark()` → text that changes when the

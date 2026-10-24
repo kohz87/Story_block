@@ -165,6 +165,9 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         const owner = info?.guard?.owner;
         const hook = typeof owner === 'string' ? guardHook(owner) : null;
         if (!hook) return { ok: false, reason: `${owner} has no replayGuard hook to check it` };
+        // A module that is held back (dormant, or the restore barrier is up) is not asked: its blocks stay off
+        // until it is ready, and are asked again then (the store looks again when the mark changes).
+        if (registry.held?.(owner) === true) return { ok: false, reason: `${owner} is not ready` };
         let answer;
         try {
             const tools = queryTools({ reply: null }, state);
@@ -182,8 +185,10 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return { ok: false, reason: `${owner}'s replayGuard gave an answer that is neither { ok: true } nor { ok: false, reason }` };
     }
 
-    // Changes when a module with a guard hook registers or goes: the store looks again at its guarded blocks.
-    const guardMark = () => (registry.modules?.() ?? []).filter(def => typeof def?.hooks?.replayGuard === 'function').map(def => def.id).join(',');
+    // Changes when a module with a guard hook registers, goes, or turns ready or dormant: the store looks again at
+    // its guarded blocks.
+    const guardMark = () => (registry.modules?.() ?? [])
+        .filter(def => typeof def?.hooks?.replayGuard === 'function' && registry.held?.(def.id) !== true).map(def => def.id).join(',');
     if (typeof store.attachGuard === 'function') store.attachGuard(replayGuardCheck, guardMark);
 
     // The Source this transaction's block will carry: its reply's canonical pair and ordinal (store.sourceAt).

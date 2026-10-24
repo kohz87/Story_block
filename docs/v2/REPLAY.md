@@ -89,7 +89,11 @@ Otherwise **neither the ops nor the claims** are applied. The block stays stored
 by `store.problems()` with `code: 'REPLAY_PREREQUISITE'`; it is asked again on the next replay, so a block turned
 off by a Re-read comes back when its prerequisite does. The host never picks a replacement. A Re-read does not
 refuse because a guarded block is inactive; it does refuse when a legacy block no longer applies, as before.
-Where there is no module or hook to ask (the owner is not registered), the block is inactive too.
+Where there is no module or hook to ask (the owner is not registered), the block is inactive too. So is a block
+whose owner is held back (dormant, or the restore barrier is up): it is not asked until the module is ready. When
+a module turns ready or dormant (the `modules` event) the turn calls `store.lifecycleChanged()`, which drops the
+cached heads, so the block is asked again and applies once (and the screens get a `head` event); the store also
+notices a change of which owners are ready on its next read.
 
 ## Source map and ids
 

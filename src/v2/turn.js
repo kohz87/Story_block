@@ -1223,10 +1223,16 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         if (store.dirty()) store.scheduleSave();
     }
 
+    let offModules = null;
     function install({ globalName = INTERCEPTOR_NAME } = {}) {
         for (const [key, place] of V1_KEYS) setPrompt(key, '', place);
         clearPrompts();
         if (globalName) globalThis[globalName] = interceptor;
+        // A module turned ready or dormant: guarded blocks of its are asked again (store.lifecycleChanged).
+        offModules?.();
+        offModules = events?.on?.('modules', () => {
+            if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex() });
+        }) ?? null;
         const source = ctx?.eventSource;
         const names = ctx?.eventTypes ?? ctx?.event_types ?? {};
         const on = (event, fn) => {
@@ -1248,6 +1254,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     function uninstall({ globalName = INTERCEPTOR_NAME } = {}) {
+        offModules?.();
+        offModules = null;
         const source = ctx?.eventSource;
         for (const [event, fn] of listeners) (source?.removeListener ?? source?.off)?.call(source, event, fn);
         listeners = [];
