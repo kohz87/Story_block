@@ -347,6 +347,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             if (!done.changed) return;
             store.scheduleSave?.();
             const parts = [done.planned ? `${done.planned} planned again` : '', done.removed ? `${done.removed} taken back` : ''].filter(Boolean).join(', ');
+            if (!parts) return;     // (revs numbered on, nothing the reader needs told)
             problem({ code: 'REPLANNED', quiet: true, message: `The story before some steps changed, so ${parts || 'steps'} (their changes follow what is there now).` });
         } catch (error) {
             problem({ code: 'FAILED', message: `Steps that follow the change could not be planned again: ${error?.message ?? error}` });
