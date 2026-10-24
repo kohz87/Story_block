@@ -458,3 +458,125 @@ for (const [name, scenario] of Object.entries(SCENARIOS)) {
         }
     });
 }
+
+// ---- 6. the line of work is chat-bound too ---------------------------------------------------------------------------------------
+
+const tick = () => new Promise(resolve => setImmediate(resolve));
+const until = async check => { for (let i = 0; i < 200 && !check(); i++) await tick(); return check(); };
+// Holds the first arrival at `phase` until `release()`.
+function hold(w, phase) {
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let used = false;
+    w.hook.on = async at => { if (at === phase && !used) { used = true; await held; } };
+    return { release, reached: () => used };
+}
+const HOLD_AT = { 'a save point': 'make.checkpointed', 'a restore': 'prepare.participant:tl-native', 'a native event': 'native.journaled', 'a native mutation': 'native.prepared' };
+
+test('a save queued in a chat that is left is STALE when its turn comes: it does not run in the chat that is open', async t => {
+    const w = await world(t);
+    const there = await otherChat(t);
+    const gate = hold(w, 'make.checkpointed');
+    const first = w.host.sdk.timeline.make({ kind: 'manual', name: 'A first' });
+    await until(gate.reached);
+    const queued = [w.host.sdk.timeline.make({ kind: 'manual', name: 'A queued' }), w.host.sdk.command('savepoint.make', { name: 'A queued too' })];
+    const left = await open(w.host, there);
+    gate.release();
+    for (const result of [await first, ...await Promise.all(queued)]) {
+        assert.equal(result.ok, false);
+        assert.equal(result.code, 'STALE', result.message);
+    }
+    assert.equal(w.host.head().domains.savepoints, undefined, 'nothing was made in the chat that is open');
+    assert.equal(w.host.ctx.chatMetadata.storySuite?.timeline, undefined);
+    // The chat that was left still works when it is open again.
+    await open(w.host, left);
+    assert.equal((await w.host.sdk.timeline.make({ kind: 'manual', name: 'Back' })).ok, true);
+});
+
+test('a chat opened with an unfinished journal is barred at once, even while another chat\'s work holds the line; its recovery runs in its turn', async t => {
+    const w = await world(t, { failing: 1, scenario: 'a native event' });
+    const there = await otherChat(t);
+    const failed = await SCENARIOS['a native event'].run(w);
+    assert.equal(failed.code, 'FAILED');
+    assert.equal(w.host.registry.restore().state, 'pending');
+    const left = await open(w.host, there);
+    assert.equal(w.host.registry.restore().state, 'idle', 'the other chat is not held by the first one\'s barrier');
+    const gate = hold(w, 'make.checkpointed');
+    const inB = w.host.sdk.timeline.make({ kind: 'manual', name: 'B holds the line' });
+    await until(gate.reached);
+    const reopening = open(w.host, left);
+    assert.equal(await until(() => w.host.registry.restore().state === 'pending'), true, 'barred from the moment it is open');
+    const xp = await w.host.sdk.command('tl.xp', { amount: 1 });
+    assert.equal(xp.ok, false, 'no command goes through while its recovery waits');
+    assert.equal(w.host.head().domains.progress.xp, 140);
+    gate.release();
+    assert.equal((await inB).code, 'STALE', 'B\'s work, with the chat gone');
+    await reopening;
+    assert.equal(w.host.registry.restore().state, 'idle');
+    assert.equal((await w.host.sdk.timeline.status()).state, 'idle');
+    assert.equal(w.host.timeline.host.journal().find(entry => entry.kind === 'native-event').phase, 'done', 'its own recovery finished it');
+    assert.equal((await w.host.sdk.command('tl.xp', { amount: 1 })).ok, true);
+});
+
+for (const [name, scenario] of Object.entries(SCENARIOS)) {
+    const settles = async (w, left) => {
+        await open(w.host, left);
+        assert.equal((await w.host.timeline.recover()).ok, true);
+        assert.equal(w.host.registry.restore().state, 'idle');
+        assert.equal((await w.host.sdk.timeline.status()).state, 'idle');
+        assert.equal(w.host.timeline.host.journal().every(entry => ['committed', 'discarded', 'aborted', 'complete', 'done', 'retracted'].includes(entry.phase)), true, 'nothing is left unfinished');
+        for (const each of w.told) assert.equal(each.present && each.onDisk, true, `${each.type} announced without the file and the chat having it`);
+    };
+
+    test(`${name}: held in a chat, work queued behind it, the chat left, released: everything is STALE, nothing runs in the other chat, and the first chat recovers when reopened`, async t => {
+        const w = await world(t, { scenario: name });
+        const there = await otherChat(t);
+        const gate = hold(w, HOLD_AT[name]);
+        const running = scenario.run(w);
+        await until(gate.reached);
+        const queued = w.host.sdk.timeline.make({ kind: 'manual', name: 'Queued' });
+        const left = await open(w.host, there);
+        gate.release();
+        const result = await running;
+        assert.equal(result.ok, false, name);
+        assert.equal(result.code, 'STALE', `${result.code} ${result.message}`);
+        assert.equal((await queued).code, 'STALE');
+        assert.equal(w.host.registry.restore().state, 'idle', 'no barrier on the chat that is open');
+        assert.equal(w.host.ctx.chatMetadata.storySuite?.timeline, undefined, 'nothing written to the chat that is open');
+        await settles(w, left);
+    });
+
+    test(`${name}: held in a chat, the chat left, work of the other chat queued behind it, released: the other chat's work runs in the other chat only`, async t => {
+        const w = await world(t, { scenario: name });
+        const there = await otherChat(t);
+        const gate = hold(w, HOLD_AT[name]);
+        const running = scenario.run(w);
+        await until(gate.reached);
+        const left = await open(w.host, there);
+        const inB = w.host.sdk.timeline.make({ kind: 'manual', name: 'B made' });
+        gate.release();
+        assert.equal((await running).code, 'STALE');
+        const made = await inB;
+        assert.equal(made.ok, true, made.message);
+        assert.deepEqual(Object.values(w.host.head().domains.savepoints.points).map(point => point.name), ['B made']);
+        await settles(w, left);
+    });
+
+    test(`${name}: held in a chat, the chat left and opened again before the release: the work is still that chat's and finishes, or is STALE; nothing is lost or doubled`, async t => {
+        const w = await world(t, { scenario: name });
+        const there = await otherChat(t);
+        const gate = hold(w, HOLD_AT[name]);
+        const running = scenario.run(w);
+        await until(gate.reached);
+        const left = await open(w.host, there);
+        const back = open(w.host, left);
+        gate.release();
+        const result = await running;
+        await back;
+        assert.equal(result.ok || result.code === 'STALE', true, `${result.code} ${result.message}`);
+        assert.equal(w.breaches.length, 0);
+        await settles(w, left);
+        const entries = w.host.timeline.host.journal();
+        assert.equal(entries.filter(entry => entry.kind === 'native-event').length <= 1, true, 'the event was not delivered twice');
+    });
+}

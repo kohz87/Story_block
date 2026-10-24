@@ -205,7 +205,12 @@ coordinator's helpers rather than at each site:
    operation and every look at the head begins with it) drops what belongs to another chat: the announcements, and the barrier
    (its own journal keeps what it was doing, and that chat's `recover` raises the barrier again when it is opened). Before an
    announcement is told, the chat and the receipt are checked once more: a receipt that left the chat (its reply was deleted) is
-   never announced.
+   never announced. The line of work is chat-bound the same way: work is stamped with its chat when it is queued, not when its turn
+   comes, and one whose chat is no longer the open one is `STALE` and does not run. What counts operations is kept per chat (a
+   chat's recovery is not suppressed by another chat's work), and a chat that is opened with an unfinished journal is barred at once
+   (`settle` raises the barrier before its recovery has had its turn; that recovery looks at the story whole, as it did when the
+   barrier came only with it). The line itself is one for the host, so another chat's work that is held delays a chat's recovery,
+   but never lets that chat's commands through meanwhile.
 3. **The participants are looked at again in the commit section.** A make checks that the participants it asked are the participants
    there are (none failed to register, none registered, no schema changed) in the same synchronous section as the commit
    (`SNAPSHOT_UNAVAILABLE` otherwise, nothing stored); an activate does the same against the save's participants and the slots that
