@@ -1368,3 +1368,16 @@ test('direct generation reserves SB slug space for the complete two-step graph',
     assert.equal(invalid.ok, false);
     assert.ok(invalid.errors.some(error => error.code === 'bad-rules' && error.path === 'skill'));
 });
+
+
+test('canonical export refuses formatting that would exceed the raw file boundary', () => {
+    const pack = smallRulesPack();
+    pack.content.places = Array.from({ length: 900 }, (_, index) => ({
+        slug: `p-${index}`, name: 'Place', x: index, y: 0, note: 'x'.repeat(480),
+    }));
+    assert.ok(Buffer.byteLength(JSON.stringify(pack)) < 512 * 1024);
+    assert.equal(validateRulesPack(pack).ok, true);
+    const exported = exportRulesV2(pack);
+    assert.equal(exported.ok, false);
+    assert.ok(exported.errors.some(error => error.code === 'too-large'));
+});

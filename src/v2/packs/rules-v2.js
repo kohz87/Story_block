@@ -2435,6 +2435,9 @@ export function exportRulesV2(document, constants = RULES_V2_CONSTANTS) {
     const packKey = chk.pack.id;
     const canonical = buildCanonicalDocument(chk.pack, packKey);
     const text = JSON.stringify(canonical, null, 2) + '\n';
+    if (byteLength(text) > RULES_V2_LIMITS.packBytes) {
+        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: '', message: 'Canonical export exceeds 512 KiB' }] };
+    }
     const hash = chk.hash;
 
     return { ok: true, text, hash };
