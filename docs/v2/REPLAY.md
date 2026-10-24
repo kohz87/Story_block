@@ -100,6 +100,12 @@ into a legacy block by a Re-read. When the spans are gone or do not add up, the 
 every receipt of the record: if any of those receipts is marked guarded, the whole block is inactive (and says so), not
 classified from the last receipt alone.
 
+**Quarantine.** A guarded receipt that names none of its record's changes (an older build renumbered the changes apart from
+it) means what it guarded cannot be told. That is decided once per record, before anything runs, and the record applies
+**nothing**: every block of it, whether its span survived or not, stays stored and inactive (`REPLAY_PREREQUISITE`). It is
+never planned again, nothing is added to it, a Re-read of it is refused and `truncate` (so a rewind) refuses to cut it down
+rather than keep changes it cannot attribute.
+
 Otherwise **neither the ops nor the claims** are applied. The block stays stored and inactive, and is reported
 by `store.problems()` with `code: 'REPLAY_PREREQUISITE'`; it is asked again on the next replay, so a block turned
 off by a Re-read comes back when its prerequisite does. The host never picks a replacement. A Re-read does not
@@ -146,11 +152,18 @@ replay never depends on a receipt's display data.
 
 ## Checkpoints
 
-A checkpoint lists the records it covers (`covers`, as before). The first window that fails (a covered reply
-was deleted, another swipe is shown) is a gap: a checkpoint with no `covers` after it cannot be checked and is not
-trusted either, and when no checkpoint holds there is **no state to start from** (`head()` is `null` until
-`ensureInitial` starts the chat again from the state the deleted replies ended with); the latest checkpoint is no
-longer taken unchecked. A checkpoint made after the gap, over the records as they stand, holds again.
+**A checkpoint is trusted only over the exact prefix it was made over.** It stores `prefix`: a hash chained over every
+record in front of it as it is shown now, from the first (each record's swipe key, block contents, span sizes, each
+receipt's id, rev, cause and guarded mark, the text of records that hold guarded blocks, and the first record's own
+starting point). A replay reads the chain as it goes (a lookup per record; a change costs the records from it on) and
+starts from the latest checkpoint whose stored `prefix` equals the hash in front of it now. So a reply deleted, edited,
+read again or swiped before a checkpoint fails it, and so does the checkpoint of a swipe that is not shown: it needs no
+rewriting, it just no longer matches. **A checkpoint with no `prefix` (older records, hidden swipes') is never trusted**
+except as the first record there is; the replay starts from the nearest trusted one or from the start. A Re-read or
+reconcile that rewrites a checkpoint stores the prefix it has now. `covers` (the records between it and the checkpoint
+before it), `coverHash` (for guarded windows) and `guardEnv` (the owners) are further checks when they are there. When
+no checkpoint holds there is **no state to start from** (`head()` is `null` until `ensureInitial` starts the chat again
+from the state the deleted replies ended with); the latest checkpoint is never taken unchecked.
 If the replies before the first reply that is left are gone and this session never saw them (a reload) and a checkpoint
 is left, that checkpoint cannot be checked: `ensureInitial` does **not** adopt it or reset the story. The saved history is
 kept as it is, the chat is read-only on an empty story (`store.readOnly().kind === 'unresolved'`) and a Problem offers
@@ -204,10 +217,11 @@ includes a record the window no longer names.
   `store.replansFrom()` does not know of until a replay reaches it),
   and that holds also for a step planned again to the same result: its ops, receipt and result stay, its boundaries are
   stored as they now are. A Re-read or a reconcile also numbers the revs after the replies it rewrote on from the rev
-  they ended on, so receipt revs are strictly increasing along the chat and the head's rev is the last. Every receipt a
+  they ended on, so receipt revs are strictly increasing along the chat and the head's rev is the last. A swipe made
+  before a Re-read and shown after it is numbered on the same way (a replay that meets a block numbered at or below the rev
+  before it makes `store.replansFrom()` name that carrier, and the turn's reconcile after the swipe rewrites it). Every receipt a
   block stands for follows its ops through every rev they move to (not only the last), so a guarded receipt is never
-  detached from its block; a record whose guarded receipt names none of its ops (an older build's) keeps all of its blocks
-  inactive (`REPLAY_PREREQUISITE`).
+  detached from its block; a record whose guarded receipt names none of its ops (an older build's) is quarantined (see above).
   Delete and swipe publish one head, after the steps that follow were planned again. Deleting the swipe that is shown
   is one change: SillyTavern tells of the deletion before it shows the next swipe. The shown swipe is told by whose
   record `extra` holds (stamped with the deleted index, or another swipe's own record in the slot), not by its text;

@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { Q1, Q2, guarded, harness } from './helpers/guarded.js';
+import { newSwipe, showSwipe } from './helpers/store-chat.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const setStory = (host, at, text) => {
@@ -403,4 +404,147 @@ test('a checkpoint a Re-read rewrites is given the window it has now, so a later
     fresh.chat.splice(0, fresh.chat.length, ...copy);
     fresh.store.rebuild();
     assert.equal(live, JSON.stringify(fresh.store.head()));
+});
+
+// ---- round 5: a checkpoint is trusted only over the exact prefix it was made over -----------------------------
+
+const SMALL3 = { checkpointEvery: 3, checkpointBytes: 1 << 30 };
+const cpOf = h => h.chat.map((message, i) => (message.extra?.storySuite?.checkpoint ? i : -1)).filter(i => i >= 0);
+// The head of a chat as a full replay from its first record gives it (no checkpoint but the first is read).
+function fullReplay(h, modules = [guarded()]) {
+    const fresh = harness(modules, { checkpointEvery: 100000, checkpointBytes: 1 << 30 });
+    const copy = clone(h.chat);
+    copy.forEach((message, i) => {
+        for (const holder of [message.extra, ...(message.swipe_info ?? []).map(info => info?.extra)]) {
+            const record = holder?.storySuite;
+            if (i && record) { delete record.checkpoint; delete record.covers; delete record.coverHash; delete record.prefix; }
+        }
+    });
+    fresh.chat.splice(0, fresh.chat.length, ...copy);
+    fresh.store.rebuild();
+    return fresh;
+}
+
+test('G: a checkpoint of an older chat (none of the new fields) is replayed from, not trusted; one rewritten by a Re-read is trusted only over the prefix it has', () => {
+    const h = harness([guarded()], SMALL3);
+    const at = [];
+    for (let n = 1; n <= 8; n++) {
+        at.push(h.send(`u${n}`, `r${n}`));
+        h.command('gt.hit', { actor: 'ac_00000001', amount: n });
+    }
+    assert.equal(h.gt().lost.ac_00000001, 36);
+    // An older chat: its checkpoints carry no window and no prefix.
+    for (const i of cpOf(h).slice(1)) { delete h.chat[i].extra.storySuite.covers; delete h.chat[i].extra.storySuite.prefix; delete h.chat[i].extra.storySuite.coverHash; }
+    h.store.rebuild();
+    assert.equal(h.gt().lost.ac_00000001, 36, 'replayed from the start');
+    // A Re-read rewrites them (and so gives each the prefix it is over now) ...
+    h.store.replaceStory(at[0], { ops: [], receipts: [] });
+    assert.ok(cpOf(h).slice(1).every(i => typeof h.chat[i].extra.storySuite.prefix === 'string'));
+    // ... and a reply deleted from before one of them fails it: the full replay is what counts.
+    h.chat.splice(at[3] - 1, 2);
+    h.store.rebuild();
+    assert.equal(h.gt().lost.ac_00000001, 32);
+    assert.equal(JSON.stringify(h.store.head()), JSON.stringify(fullReplay(h).store.head()));
+});
+
+test('G: the checkpoint of a swipe that is not shown is not trusted once a Re-read changed what is in front of it', () => {
+    const h = harness([guarded()], SMALL3);
+    const at = [];
+    for (let n = 1; n <= 6; n++) {
+        at.push(h.send(`u${n}`, `r${n}`));
+        if (n === 1) assert.equal(h.bus.command('gt.quick', { id: Q1 }, { cause: 'story' }).ok, true);
+        else h.command('gt.hit', { actor: 'ac_00000001', amount: 1 });
+    }
+    const last = at.at(-1);
+    newSwipe(h.chat[last], 'r6 again');
+    h.command('gt.hit', { actor: 'ac_00000001', amount: 10 });
+    assert.ok(h.chat[last].extra.storySuite.checkpoint, 'the second swipe carries a checkpoint of its own');
+    assert.equal(h.gt().coin, 1);
+    showSwipe(h.chat[last], 0);
+    h.store.rebuild();
+    // The Re-read of the first reply no longer reads the quick line: its coin and claim go.
+    h.store.replaceStory(at[0], { ops: [], receipts: [] });
+    assert.equal(h.gt().coin, 0);
+    showSwipe(h.chat[last], 1);
+    h.store.rebuild();
+    assert.equal(h.gt().coin, 0, 'the hidden swipe\'s own checkpoint does not bring the coin back');
+    assert.equal(Object.keys(h.store.head().meta.claims).length, 0);
+    assert.equal(h.gt().lost.ac_00000001, 14);
+    assert.equal(JSON.stringify(h.store.head()), JSON.stringify(fullReplay(h).store.head()));
+});
+
+test('Q: a record with an orphaned guarded receipt applies nothing: intact spans too, no replan, and it cannot be cut down', () => {
+    // Intact metadata: the quick keeps its span and guard, the receipt of the hit is the one detached.
+    const h = harness([guarded()]);
+    const at = h.send('u', 'r');
+    h.command('gt.quick', { id: Q1 });
+    h.command('gt.hit', { actor: 'ac_00000001', amount: 2 });
+    assert.equal(h.gt().coin, 1);
+    h.record(at).receipts[0].rev = 99;
+    h.store.rebuild();
+    assert.equal(h.gt().coin, 0, 'the quick has its span and passes its guard, but its record is quarantined');
+    assert.equal(h.gt().lost.ac_00000001, undefined, 'and so is the hit');
+    assert.ok(h.problems().every(problem => problem.code === 'REPLAY_PREREQUISITE'));
+    assert.ok(h.problems().length >= 2);
+    // A rewind / truncate refuses; it does not keep the ops it cannot tell apart.
+    const before = JSON.stringify(h.record(at));
+    assert.throws(() => h.store.truncate(at, 2), /cannot be cut down/);
+    assert.throws(() => h.store.truncate(at, 2, { dryRun: true }), /cannot be cut down/);
+    assert.equal(JSON.stringify(h.record(at)), before, 'nothing was written');
+    // A Re-read of it does not read it again either.
+    assert.throws(() => h.store.replaceStory(at, { ops: [], receipts: [] }), /not read again/);
+    // The stripped-span case of the report: truncate cannot bring the coin back.
+    const g = harness([guarded()]);
+    const there = g.send('u', 'r');
+    g.command('gt.quick', { id: Q1 });
+    g.command('gt.hit', { actor: 'ac_00000001', amount: 2 });
+    delete g.record(there).spans;
+    g.record(there).receipts[0].rev = 99;
+    g.store.rebuild();
+    assert.equal(g.gt().coin, 0);
+    assert.throws(() => g.store.truncate(there, 2), /cannot be cut down/);
+    assert.equal(g.gt().coin, 0);
+    const reloaded = harness([guarded()]);
+    reloaded.chat.splice(0, reloaded.chat.length, ...clone(g.chat));
+    reloaded.store.rebuild();
+    assert.equal(reloaded.gt().coin, 0, 'and after a reload');
+});
+
+test('Q: a quarantined record later in the chat is not planned again by a reconcile', () => {
+    const h = harness([guarded()]);
+    h.send('u', 'r');
+    h.command('gt.tick', { minutes: 90 });
+    const at = h.send('u2', 'r2');
+    h.command('gt.attempt', { id: Q1 }, 'system');
+    const record = h.record(at);
+    record.receipts[0].rev = 99;
+    h.store.rebuild();
+    assert.equal(h.gt().credits[Q1], undefined, 'the attempt is not applied');
+    let asked = 0;
+    h.store.reconcile(0, { rerun: () => { asked += 1; return { ok: false }; } });
+    assert.equal(asked, 0, 'a quarantined step is not asked again');
+});
+
+test('F: selecting a swipe that was made before a Re-read numbers its revs on, so the chat\'s revs stay strictly increasing', async t => {
+    const host = await createHost({ modules: [guarded()], core: false });
+    t.after(() => host.close());
+    await host.send('Go.', 'Dawn.\n\n<Changes>\n! tick 30\n</Changes>');
+    const first = host.ctx.chat.length - 1;
+    await host.send('On.', 'Noon.');
+    const second = host.ctx.chat.length - 1;
+    await host.bus.command('gt.hit', { actor: 'ac_00000001', amount: 1 }, { cause: 'ui' });
+    await host.swipe('Noon again.');
+    await host.bus.command('gt.hit', { actor: 'ac_00000001', amount: 5 }, { cause: 'ui' });
+    await host.store.flush();
+    await host.st.swipeTo(second, 0);
+    setStory(host, first, 'Dawn.\n\n<Changes>\n! tick 30\n! tick 31\n! tick 32\n</Changes>');
+    const done = await host.turn.reread(first);
+    assert.equal(done.ok, true, done.message);
+    await host.st.swipeTo(second, 1);                      // the swipe made before the Re-read
+    const receipts = receiptRevsOf(host);
+    assert.ok(inOrder(receipts), `receipt revs ${receipts}`);
+    const stored = host.ctx.chat[second].extra.storySuite;
+    assert.deepEqual(stored.receipts.map(receipt => receipt.rev), stored.ops.filter(op => op.path === '/meta/rev').map(op => op.value));
+    assert.equal(host.head().meta.rev, receipts.at(-1));
+    assert.equal(host.head().domains.gt.lost.ac_00000001, 5);
 });
