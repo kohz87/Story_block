@@ -270,14 +270,17 @@ export const touchesProof = op => !isObject(op) || touchedKeys(op.path) !== null
 /**
  * '' when the only changes `ops` make to the record of proof pins are the pins of `owned` (a Set of proof ids): a pin
  * added (or replaced) under its own id, or the whole record written with just those. Anything else that touches it
- * (an erase, a rewrite of /meta or of the root, a pin that is not its own, a move or a copy) is why not.
+ * (an erase, a rewrite of /meta or of the root, a pin that is not its own, a move or a copy) is why not. `erases`: the
+ * host's restore may also erase single pins.
  */
-export function proofWriteProblem(ops, owned) {
+export function proofWriteProblem(ops, owned, { erases = false } = {}) {
     for (const op of Array.isArray(ops) ? ops : []) {
         if (!touchesProof(op)) continue;
         const keys = touchedKeys(op.path);
         const writes = isObject(op) && (op.op === 'add' || op.op === 'replace') && op.from === undefined && keys !== null;
         if (writes && keys.length === 3 && keys[1] === 'proofs' && owned.has(keys[2]) && typeof op.value === 'string') continue;
+        // The host's restore (docs/v2/TIMELINE.md) takes back the pins the faded story gave: an erase of one pin, nothing more.
+        if (erases && isObject(op) && op.op === 'remove' && op.from === undefined && keys !== null && keys.length === 3 && keys[1] === 'proofs') continue;
         if (writes && keys.length === 2 && keys[1] === 'proofs' && isObject(op.value) && Object.keys(op.value).length > 0 && Object.entries(op.value).every(([id, pin]) => owned.has(id) && typeof pin === 'string')) continue;
         return `it changes the record of proof pins in a way a block cannot (${isObject(op) ? `${op.op} ${op.path ?? ''}` : 'an unreadable change'})`;
     }
@@ -292,7 +295,7 @@ export function evidenceProblem(span, ops) {
     const list = Array.isArray(span?.evidence) ? span.evidence : [];
     const pins = proofPins(ops);
     const ids = new Set();
-    const writes = proofWriteProblem(ops, new Set(list.map(proof => proof?.id)));
+    const writes = proofWriteProblem(ops, new Set(list.map(proof => proof?.id)), { erases: span?.module === 'story-block' && span?.operation?.type === 'savepoint.restore' });
     if (writes) return writes;
     for (const proof of list) {
         const why = proofProblem(proof);
