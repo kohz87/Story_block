@@ -1,9 +1,25 @@
 // Rules pack v2 schema, constants, validation, expansion, and export (SPEC §7, §4, §9, §10; pure).
+//
+// Contract for every exported function: it never throws. Hostile input (null entries, revoked or
+// throwing Proxies, getters, cycles, shared-reference graphs, deep nesting) comes back as the
+// module's stable error result, `{ ok: false, errors: [{ code, path, message }] }`, using
+// BAD_SCHEMA (or the function's own documented failure code: powerScore BAD_FORM, generatePowerUp
+// BAD_RULES). All untrusted values are read once into a detached plain copy (readPlain) and the
+// rest of the module only ever touches that copy.
+//
+// Two hashes, two names:
+//   rulesHash  the contract's H: SHA-256 of the normalised authored manifest and owned content
+//              + the schema + the constants. expandRulesV2 computes it.
+//   packHash   SHA-256 of the whole canonical pack (the envelope too: id, version, name, requires,
+//              currency ...) + the schema + the constants. validateRulesPack and exportRulesV2
+//              return it next to rulesHash.
+// Both are stable: the same authored data, in any key order and any equivalent spelling, gives
+// the same value.
 
-import schemaData from './rules-v2.schema.json' with { type: 'json' };
-import { byteLength } from './safety.js';
-import { parseRange, satisfies } from './version.js';
-import { PACK_FIELDS, PACK_ID, SLUG, SEMVER, DEF_ID, LIMITS, CONTENT_KINDS } from './limits.js';
+import { rulesV2SchemaSource } from './rules-v2.schema.js';
+import { byteLength, unsafeText } from './safety.js';
+import { parseRange } from './version.js';
+import { PACK_FIELDS, PACK_ID, SLUG, SEMVER, DEF_ID, CONTENT_KINDS } from './limits.js';
 import { validatePack, HOST_VERSION } from './validate.js';
 
 /** Deeply freezes an object or array and all nested structures. */
@@ -19,7 +35,10 @@ function deepFreeze(object) {
 }
 
 /** Deeply frozen JSON Schema for rules-v2 manifests and owned defs. */
-export const rulesV2Schema = deepFreeze(schemaData);
+export const rulesV2Schema = deepFreeze(rulesV2SchemaSource);
+
+/** The capability a pack with content.rules must declare in requires.capabilities. */
+export const RULES_V2_CAPABILITY = 'rb-rules-v2';
 
 /** Canonical 7 stats defined in SPEC §4. */
 export const RULES_V2_STATS = rulesV2Schema.$defs.stat.enum;
@@ -69,6 +88,8 @@ export const RULES_V2_LIMITS = deepFreeze({
     note: rulesV2Schema.$defs.note.maxLength,
     slug: rulesV2Schema.$defs.slug.maxLength,
     forms: 2048,
+    nodes: 100000,
+    errors: 20,
     branches: rulesV2Schema.properties.branches.maxItems,
     itemRules: rulesV2Schema.properties.itemRules.maxItems,
     trainers: rulesV2Schema.properties.trainers.maxItems,
@@ -115,22 +136,29 @@ export const RULES_V2_ERROR_CODES = deepFreeze({
     STEP_LIMIT: 'step-limit',
     BAD_FORM: 'bad-form',
     BAD_RULES: 'bad-rules',
+    // Story Block's own code for a missing capability (validate.js), kept as written there.
+    MISSING_CAPABILITY: 'MISSING_CAPABILITY',
 });
 
 const RECORD_ID_REGEX = /^[a-z][a-z0-9]*_[0-9a-z]{8}$/;
 const DEF_ID_REGEX = /^[a-z0-9]+(?:[._-][a-z0-9]+)*\/[a-z0-9]+(?:[_-][a-z0-9]+)*$/;
 const REF_REGEX = /^(?:pack\.[a-z0-9]+(?:-[a-z0-9]+)*\/)?[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+// Canonical ids of things the story or the map owns, resolved at activation (SPEC §7).
+const EXTERNAL_IDS = Object.freeze({
+    place: /^pl_[0-9a-z]{8}$/,
+    npc: /^np_[0-9a-z]{8}$/,
+    thread: /^th_[0-9a-z]{8}$/,
+});
+
+const fail = (code, path, message) => ({ ok: false, errors: [{ code, path, message }] });
+const unreadable = (code = RULES_V2_ERROR_CODES.BAD_SCHEMA) => fail(code, '', 'Input could not be read safely');
 
 /**
  * Pure JavaScript synchronous SHA-256 implementation.
  * Browser-compatible, zero Node builtins, deterministic.
  */
-export function sha256(input) {
-    const bytes = typeof input === 'string'
-        ? new TextEncoder().encode(input)
-        : input instanceof Uint8Array ? input : new Uint8Array(input);
-
+function sha256Bytes(bytes) {
     let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
     let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
 
@@ -207,15 +235,46 @@ export function sha256(input) {
         .join('');
 }
 
-/** Recursively sorts object keys alphabetically while strictly preserving array order. */
-export function canonicalizeJson(value) {
-    if (value === null || typeof value !== 'object') return value;
-    if (Array.isArray(value)) return value.map(canonicalizeJson);
-    const sorted = {};
-    for (const key of Object.keys(value).sort()) {
-        sorted[key] = canonicalizeJson(value[key]);
+/**
+ * SHA-256 of a string (UTF-8), Uint8Array or ArrayBuffer as lowercase hex.
+ * Never throws: any other input returns `{ ok: false, errors: [BAD_SCHEMA] }`.
+ */
+export function sha256(input) {
+    try {
+        if (typeof input === 'string') return sha256Bytes(new TextEncoder().encode(input));
+        if (input instanceof Uint8Array) return sha256Bytes(input);
+        if (input instanceof ArrayBuffer) return sha256Bytes(new Uint8Array(input));
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, '', 'sha256 input must be a string, Uint8Array or ArrayBuffer');
+    } catch {
+        return unreadable();
     }
+}
+
+/** Sorts object keys (after NFC) alphabetically at every level; array order is kept. Plain data only. */
+function sortKeys(value) {
+    if (value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(sortKeys);
+    const normalized = new Map();
+    for (const key of Object.keys(value)) normalized.set(key.normalize('NFC'), key);
+    const sorted = {};
+    for (const key of [...normalized.keys()].sort()) sorted[key] = sortKeys(value[normalized.get(key)]);
     return sorted;
+}
+
+/**
+ * Canonical form of plain JSON data: object keys NFC-normalised and sorted at every level, array
+ * order kept, -0 written as 0. Reads the input once into a detached copy first, so it never throws
+ * and never runs accessors; unreadable input (cycles, accessors, Proxies that throw, depth over 16,
+ * more than RULES_V2_LIMITS.nodes values, keys that collide after NFC) returns the error result.
+ */
+export function canonicalizeJson(value) {
+    try {
+        const read = readPlain(value, { text: false });
+        if (read.errors.length) return { ok: false, errors: read.errors };
+        return sortKeys(read.value);
+    } catch {
+        return unreadable();
+    }
 }
 
 /** Unicode normalization: NFC, line endings to \n, outer whitespace trimmed. */
@@ -224,7 +283,7 @@ function normalizeString(val) {
     return val.normalize('NFC').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 }
 
-/** Pure plain clone of safe plain JSON values. Never invokes accessors. */
+/** Pure plain clone of values already read by readPlain (or built by this module). */
 function clonePlain(val) {
     if (val === null || typeof val !== 'object') return val;
     if (Array.isArray(val)) return val.map(clonePlain);
@@ -235,152 +294,248 @@ function clonePlain(val) {
     return out;
 }
 
-/** Recursively normalizes string fields and applies defaults in an object without mutation. */
+/** Normalizes every string value (NFC, newlines, trim) and every object key (NFC) without mutation. */
 function normalizeStructure(val) {
-    if (val === null || typeof val !== 'object') {
-        if (typeof val === 'string') return normalizeString(val);
-        return val;
-    }
-    if (Array.isArray(val)) {
-        return val.map(normalizeStructure);
-    }
+    if (typeof val === 'string') return normalizeString(val);
+    if (val === null || typeof val !== 'object') return val;
+    if (Array.isArray(val)) return val.map(normalizeStructure);
     const out = {};
     for (const [k, v] of Object.entries(val)) {
-        out[k] = normalizeStructure(v);
+        out[k.normalize('NFC')] = normalizeStructure(v);
     }
     return out;
 }
 
+const NAMED_ENTITIES = { lt: '<', gt: '>', amp: '&', quot: '"', apos: '\'' };
+const codePointText = number => String.fromCodePoint(Number.isFinite(number) && number <= 0x10ffff ? number : 0xfffd);
+
+/** Character references decoded the way a browser does (semicolon optional), repeatedly, at most three passes. */
+function decodeMarkupEntities(text) {
+    let current = text;
+    for (let pass = 0; pass < 3; pass++) {
+        const next = current
+            .replace(/&#x([0-9a-f]+);?/gi, (_, hex) => codePointText(parseInt(hex, 16)))
+            .replace(/&#(\d+);?/g, (_, dec) => codePointText(Number(dec)))
+            .replace(/&(lt|gt|amp|quot|apos);?/gi, (_, name) => NAMED_ENTITIES[name.toLowerCase()]);
+        if (next === current) break;
+        current = next;
+    }
+    return current;
+}
+
+// Controls other than tab, newline and carriage return are refused in text. Keys refuse all of them.
+const CONTROL_IN_TEXT = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/;
+const CONTROL_IN_KEY = /[\x00-\x1F\x7F-\x9F]/;
+
 /**
- * Checks plain JSON safety using descriptors and plain prototypes without invoking getters.
- * Halts immediately on oversized arrays (>1000), oversized objects (>200 keys), or depth >= 16.
- * Rejects extra array properties and non-enumerable properties.
+ * Why a string (a value or, with `isKey`, an object key) cannot be pack text, or null when fine.
+ * Runs Story Block's own safety scan (safety.js unsafeText: script-like tags, on... attributes,
+ * javascript: and data: links, with entities and hidden characters removed first) and also bans
+ * "<" and ">" outright, written plainly or as a character reference (`&#60;script&#62;`).
  */
-function checkPlainSafety(value, limits = RULES_V2_LIMITS) {
+function textProblem(text, isKey = false) {
+    if (text.includes('<') || text.includes('>')) {
+        return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: isKey ? 'Key cannot contain "<" or ">"' : 'Text cannot contain "<" or ">"' };
+    }
+    if (text.includes('&') && /[<>]/.test(decodeMarkupEntities(text))) {
+        return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: 'Text cannot contain "<" or ">" written as a character reference' };
+    }
+    const why = unsafeText(text);
+    if (why) return { code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, message: `Text ${why}` };
+    if (!isKey && CONTROL_IN_TEXT.test(text)) {
+        return { code: RULES_V2_ERROR_CODES.CONTROL_CHARACTER, message: 'Text cannot contain control characters' };
+    }
+    return null;
+}
+
+/**
+ * Reads untrusted data once into a detached plain copy: `{ errors, value }` (value is undefined when
+ * there are errors). Uses property descriptors and plain prototypes only, so no getter or Proxy
+ * trap result is trusted twice, and everything after this works on the copy.
+ *
+ * Refuses: values that are not JSON (undefined, functions, symbols, bigint, NaN/Infinity), cycles,
+ * non-plain prototypes, accessors, non-enumerable or extra array properties, sparse arrays, symbol
+ * keys, reserved keys, control characters in keys, keys that collide after NFC, depth >= limits.depth,
+ * arrays over limits.array, objects over limits.keys, strings over limits.string, and more than
+ * limits.nodes visited values in total (a shared reference counts every time it is reached, so a
+ * small graph of repeated references cannot blow up). -0 becomes 0. With `text` (the default) every
+ * string and key also goes through textProblem (the markup and link scan).
+ */
+function readPlain(root, { path: rootPath = '', limits = RULES_V2_LIMITS, text = true } = {}) {
     const errors = [];
-    const seen = new Set();
+    const add = (code, path, message) => { if (errors.length < limits.errors) errors.push({ code, path, message }); };
+    const active = new Set();
+    const child = (path, key) => (path ? `${path}.${key}` : key);
+    let nodes = 0;
+    let stopped = false;
+
+    function visitObject(node, path, depth) {
+        if (active.has(node)) {
+            add(RULES_V2_ERROR_CODES.BAD_SCHEMA, path, 'Circular reference detected');
+            return undefined;
+        }
+        if (depth >= limits.depth) {
+            add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `Object nested ${depth} levels deep; maximum allowed is ${limits.depth - 1}`);
+            return undefined;
+        }
+        const isArr = Array.isArray(node);
+        const proto = Object.getPrototypeOf(node);
+        if (proto !== (isArr ? Array.prototype : Object.prototype) && !(proto === null && !isArr)) {
+            add(RULES_V2_ERROR_CODES.BAD_SCHEMA, path, 'Unsupported object prototype');
+            return undefined;
+        }
+        active.add(node);
+        try {
+            if (isArr) {
+                const length = node.length;
+                if (length > limits.array) {
+                    add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `Array has more than ${limits.array} entries`);
+                    return undefined;
+                }
+                const values = new Array(length);
+                let count = 0;
+                for (const key of Reflect.ownKeys(node)) {
+                    if (key === 'length') continue;
+                    if (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/.test(key) || Number(key) >= length) {
+                        add(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${path}.${String(key)}`, 'Array has invalid property key or extra properties');
+                        return undefined;
+                    }
+                    const desc = Object.getOwnPropertyDescriptor(node, key);
+                    if (!desc || !desc.enumerable) {
+                        add(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${path}[${key}]`, 'Non-enumerable array property is forbidden');
+                        return undefined;
+                    }
+                    if (desc.get || desc.set) {
+                        add(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${path}[${key}]`, 'Property accessor is forbidden');
+                        return undefined;
+                    }
+                    values[Number(key)] = desc.value;
+                    count += 1;
+                }
+                if (count !== length) {
+                    let hole = 0;
+                    while (hole in values) hole += 1;
+                    add(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${path}[${hole}]`, 'Sparse arrays are forbidden');
+                    return undefined;
+                }
+                const out = [];
+                for (let i = 0; i < length; i++) out.push(visit(values[i], `${path}[${i}]`, depth + 1));
+                return out;
+            }
+            const keys = Reflect.ownKeys(node);
+            if (keys.length > limits.keys) {
+                add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `Object has more than ${limits.keys} fields`);
+                return undefined;
+            }
+            const out = {};
+            const seenKeys = new Set();
+            for (const key of keys) {
+                if (typeof key === 'symbol') {
+                    add(RULES_V2_ERROR_CODES.BAD_SCHEMA, path, 'Symbol keys are forbidden');
+                    continue;
+                }
+                const at = child(path, key);
+                if (UNSAFE_KEYS.has(key)) {
+                    add(RULES_V2_ERROR_CODES.UNSAFE_KEY, at, `Reserved key "${key}" is forbidden`);
+                    continue;
+                }
+                if (key.length > limits.string) {
+                    add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `Key is longer than ${limits.string} characters`);
+                    continue;
+                }
+                if (CONTROL_IN_KEY.test(key)) {
+                    add(RULES_V2_ERROR_CODES.CONTROL_CHARACTER, at, 'Key cannot contain control characters');
+                    continue;
+                }
+                if (text) {
+                    const problem = textProblem(key, true);
+                    if (problem) {
+                        add(problem.code, at, problem.message);
+                        continue;
+                    }
+                }
+                const normalized = key.normalize('NFC');
+                if (seenKeys.has(normalized)) {
+                    add(RULES_V2_ERROR_CODES.DUP_ID, at, `Key "${normalized}" appears twice once Unicode-normalized`);
+                    continue;
+                }
+                seenKeys.add(normalized);
+                const desc = Object.getOwnPropertyDescriptor(node, key);
+                if (!desc || !desc.enumerable) {
+                    add(RULES_V2_ERROR_CODES.BAD_SCHEMA, at, 'Non-enumerable property is forbidden');
+                    continue;
+                }
+                if (desc.get || desc.set) {
+                    add(RULES_V2_ERROR_CODES.BAD_SCHEMA, at, 'Property accessor is forbidden');
+                    continue;
+                }
+                out[key] = visit(desc.value, at, depth + 1);
+            }
+            return out;
+        } finally {
+            active.delete(node);
+        }
+    }
 
     function visit(node, path, depth) {
-        if (errors.length >= 20) return;
-        if (node === null || typeof node === 'boolean') return;
+        if (stopped || errors.length >= limits.errors) return undefined;
+        nodes += 1;
+        if (nodes > limits.nodes) {
+            stopped = true;
+            add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `More than ${limits.nodes} values; a shared reference counts every time it is reached`);
+            return undefined;
+        }
+        if (node === null || typeof node === 'boolean') return node;
         if (typeof node === 'string') {
             if (node.length > limits.string) {
-                errors.push({ code: RULES_V2_ERROR_CODES.TOO_LARGE, path, message: `String is longer than ${limits.string} characters` });
-                return;
+                add(RULES_V2_ERROR_CODES.TOO_LARGE, path, `String is longer than ${limits.string} characters`);
+                return undefined;
             }
-            if (node.includes('<') || node.includes('>')) {
-                errors.push({ code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, path, message: 'Text cannot contain "<" or ">"' });
-                return;
+            if (text) {
+                const problem = textProblem(node);
+                if (problem) {
+                    add(problem.code, path, problem.message);
+                    return undefined;
+                }
             }
-            if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(node)) {
-                errors.push({ code: RULES_V2_ERROR_CODES.CONTROL_CHARACTER, path, message: 'Text cannot contain control characters' });
-                return;
-            }
-            return;
+            return node;
         }
         if (typeof node === 'number') {
             if (!Number.isFinite(node)) {
-                errors.push({ code: RULES_V2_ERROR_CODES.NUMERIC_RANGE, path, message: 'Number must be finite' });
+                add(RULES_V2_ERROR_CODES.NUMERIC_RANGE, path, 'Number must be finite');
+                return undefined;
             }
-            return;
+            return node === 0 ? 0 : node;
         }
         if (typeof node !== 'object') {
-            errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: `Unsupported value type: ${typeof node}` });
-            return;
+            add(RULES_V2_ERROR_CODES.BAD_SCHEMA, path, `Unsupported value type: ${typeof node}`);
+            return undefined;
         }
-        if (seen.has(node)) {
-            errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: 'Circular reference detected' });
-            return;
+        try {
+            return visitObject(node, path, depth);
+        } catch {
+            add(RULES_V2_ERROR_CODES.BAD_SCHEMA, path, 'Value could not be read safely');
+            return undefined;
         }
-        if (depth >= limits.depth) {
-            errors.push({ code: RULES_V2_ERROR_CODES.TOO_LARGE, path, message: `Object nested ${depth} levels deep; maximum allowed is ${limits.depth - 1}` });
-            return;
-        }
-        const proto = Object.getPrototypeOf(node);
-        if (proto !== Object.prototype && proto !== Array.prototype && proto !== null) {
-            errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: 'Unsupported object prototype' });
-            return;
-        }
-
-        seen.add(node);
-        const isArr = Array.isArray(node);
-        if (isArr) {
-            if (node.length > limits.array) {
-                errors.push({ code: RULES_V2_ERROR_CODES.TOO_LARGE, path, message: `Array has more than ${limits.array} entries` });
-                seen.delete(node);
-                return;
-            }
-            const ownKeys = Reflect.ownKeys(node);
-            for (const k of ownKeys) {
-                if (k === 'length') continue;
-                if (typeof k !== 'string' || !/^\d+$/.test(k) || Number(k) >= node.length) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${path}.${String(k)}`, message: 'Array has invalid property key or extra properties' });
-                    seen.delete(node);
-                    return;
-                }
-                const desc = Object.getOwnPropertyDescriptor(node, k);
-                if (!desc || !desc.enumerable) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${path}[${k}]`, message: 'Non-enumerable array property is forbidden' });
-                    seen.delete(node);
-                    return;
-                }
-                if (desc.get || desc.set) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${path}[${k}]`, message: 'Property accessor is forbidden' });
-                    seen.delete(node);
-                    return;
-                }
-            }
-            for (let i = 0; i < node.length; i++) {
-                if (!(i in node)) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${path}[${i}]`, message: 'Sparse arrays are forbidden' });
-                    seen.delete(node);
-                    return;
-                }
-                visit(node[i], `${path}[${i}]`, depth + 1);
-            }
-        } else {
-            const ownKeys = Reflect.ownKeys(node);
-            if (ownKeys.length > limits.keys) {
-                errors.push({ code: RULES_V2_ERROR_CODES.TOO_LARGE, path, message: `Object has more than ${limits.keys} fields` });
-                seen.delete(node);
-                return;
-            }
-            for (const key of ownKeys) {
-                if (typeof key === 'symbol') {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: 'Symbol keys are forbidden' });
-                    continue;
-                }
-                if (UNSAFE_KEYS.has(key)) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.UNSAFE_KEY, path: path ? `${path}.${key}` : key, message: `Reserved key "${key}" is forbidden` });
-                    continue;
-                }
-                if (key.includes('<') || key.includes('>')) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, path: path ? `${path}.${key}` : key, message: 'Key cannot contain "<" or ">"' });
-                    continue;
-                }
-                const desc = Object.getOwnPropertyDescriptor(node, key);
-                if (!desc || !desc.enumerable) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: path ? `${path}.${key}` : key, message: 'Non-enumerable property is forbidden' });
-                    continue;
-                }
-                if (desc.get || desc.set) {
-                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: path ? `${path}.${key}` : key, message: 'Property accessor is forbidden' });
-                    continue;
-                }
-                visit(node[key], path ? `${path}.${key}` : key, depth + 1);
-            }
-        }
-        seen.delete(node);
     }
 
-    visit(value, '', 0);
-    return errors;
+    const value = visit(root, rootPath, 0);
+    return errors.length ? { errors, value: undefined } : { errors, value };
+}
+
+/** Reads an options bag (`{ packKey, constants, capabilities }`) the same safe way; missing means {}. */
+function readOptions(rawOptions) {
+    if (rawOptions === undefined || rawOptions === null) return { ok: true, options: {} };
+    if (typeof rawOptions !== 'object' || Array.isArray(rawOptions)) return { ok: true, options: {} };
+    const read = readPlain(rawOptions, { path: 'options', text: false });
+    if (read.errors.length) return { ok: false, errors: read.errors };
+    return { ok: true, options: read.value };
 }
 
 /**
  * Validates Constants argument against frozen specification.
  * Fixed literal fields and budgets cannot be overridden. Unknown keys rejected.
- * Avoids JSON.stringify on untrusted input.
+ * Reads the argument through readPlain; never calls JSON.stringify on untrusted input.
  */
 function validateConstants(constants) {
     if (constants === undefined || constants === null) {
@@ -389,8 +544,9 @@ function validateConstants(constants) {
     if (typeof constants !== 'object' || Array.isArray(constants)) {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'constants', message: 'Constants must be an object' }] };
     }
-    const safeErrs = checkPlainSafety(constants);
-    if (safeErrs.length) return { ok: false, errors: safeErrs };
+    const read = readPlain(constants, { path: 'constants', text: false });
+    if (read.errors.length) return { ok: false, errors: read.errors };
+    constants = read.value;
 
     const allowedKeys = new Set(Object.keys(RULES_V2_CONSTANTS));
     for (const k of Object.keys(constants)) {
@@ -398,7 +554,6 @@ function validateConstants(constants) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `constants.${k}`, message: `Unknown constant "${k}"` }] };
         }
     }
-
     const fixedScalar = [
         'levelCap', 'startLevel', 'startStat', 'startPoints', 'pointsPerLevel', 'statCap',
         'usePerSkillReply', 'usePerSkillDay', 'usePerActorReply', 'usePerActorDay',
@@ -579,12 +734,20 @@ function validateSingleEffect(eff, path = 'effects') {
  * Sum effect scores times target factor plus 12 if unit is non-null. Safe Count score. Never throws.
  */
 export function powerScore(form) {
-    if (!form || typeof form !== 'object' || Array.isArray(form)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_FORM, path: '', message: 'Form must be an object' }] };
+    try {
+        if (!form || typeof form !== 'object' || Array.isArray(form)) {
+            return fail(RULES_V2_ERROR_CODES.BAD_FORM, '', 'Form must be an object');
+        }
+        const read = readPlain(form);
+        if (read.errors.length) return { ok: false, errors: read.errors };
+        return powerScoreOf(read.value);
+    } catch {
+        return unreadable(RULES_V2_ERROR_CODES.BAD_FORM);
     }
-    const safeErrs = checkPlainSafety(form);
-    if (safeErrs.length) return { ok: false, errors: safeErrs };
+}
 
+/** powerScore for a form that is already a plain copy (internal callers). */
+function powerScoreOf(form) {
     const effects = form.effects ?? form.base?.effects;
     if (!Array.isArray(effects) || effects.length === 0 || effects.length > 4) {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_FORM, path: 'effects', message: 'Form must have 1 to 4 effects' }] };
@@ -679,7 +842,7 @@ function checkParentForm(form, constants) {
     for (const key of Object.keys(rulesV2Schema.$defs.base.properties)) if (form[key] !== undefined) base[key] = form[key];
     for (const error of validateSchemaValue(base, rulesV2Schema.$defs.base, rulesV2Schema.$defs)) add(error.path, error.message);
     for (const error of validateCostCompatibility(form.type, form.cost)) add(error.path, error.message);
-    const score = powerScore(form);
+    const score = powerScoreOf(form);
     if (!score.ok) for (const error of score.errors) add(error.path, error.message);
     else {
         if (score.score > budgetFor(form.tier, form.step, constants)) add('powerScore', 'Parent exceeds its own budget');
@@ -695,14 +858,20 @@ function checkParentForm(form, constants) {
  * Validates bounds and budget closure. Parent step 2 or invalid closure returns frozen BAD_RULES contract. Never throws.
  */
 export function generatePowerUp(form, constants = RULES_V2_CONSTANTS) {
-    if (!form || typeof form !== 'object' || Array.isArray(form)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: '', message: 'Form must be an object' }] };
+    try {
+        if (!form || typeof form !== 'object' || Array.isArray(form)) {
+            return fail(RULES_V2_ERROR_CODES.BAD_RULES, '', 'Form must be an object');
+        }
+        const read = readPlain(form);
+        if (read.errors.length) return fail(RULES_V2_ERROR_CODES.BAD_RULES, '', 'Unsafe parent form input');
+        return generatePowerUpOf(read.value, constants);
+    } catch {
+        return unreadable(RULES_V2_ERROR_CODES.BAD_RULES);
     }
-    const safeErrs = checkPlainSafety(form);
-    if (safeErrs.length) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: '', message: 'Unsafe parent form input' }] };
-    }
+}
 
+/** generatePowerUp for a form that is already a plain copy (internal callers). */
+function generatePowerUpOf(form, constants = RULES_V2_CONSTANTS) {
     const cRes = validateConstants(constants);
     if (!cRes.ok) return cRes;
     const c = cRes.constants;
@@ -764,7 +933,7 @@ export function generatePowerUp(form, constants = RULES_V2_CONSTANTS) {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'effects', message: 'No modifiable effect found for power-up' }] };
     }
 
-    const scoreRes = powerScore(cloned);
+    const scoreRes = powerScoreOf(cloned);
     if (!scoreRes.ok) {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'powerScore', message: 'Failed powerScore on generated form' }] };
     }
@@ -917,7 +1086,7 @@ function applyBranchTransforms(parentForm, branch, tier, constants = RULES_V2_CO
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.NUMERIC_ONLY_BRANCH, path: branchPath.replace(/\.$/, ''), message: 'Written branch must change behavior, not merely numeric fields' }] };
     }
 
-    const scoreRes = powerScore(form);
+    const scoreRes = powerScoreOf(form);
     if (!scoreRes.ok) return scoreRes;
     const budget = budgetFor(tier, branch.step, constants);
     if (budget === null || scoreRes.score > budget) {
@@ -1201,37 +1370,48 @@ function validateSchemaValue(val, schema, defs, path = '', options = {}) {
  * Requires valid packKey matching SB PACK_ID. Validates constants per frozen type.
  * Strips host wrappers (id, pack) from manifest root for closed checking while retaining pack identity.
  * Applies schema defaults generically without guessing required unannotated lists.
- * Converges local and same-pack refs on qualified normalized IDs.
+ * Converges local and same-pack refs on qualified normalized IDs. Never throws.
  */
 export function normalizeRulesV2(raw, rawOptions = {}) {
-    const options = (rawOptions && typeof rawOptions === 'object' && !Array.isArray(rawOptions)) ? rawOptions : {};
-    const { packKey = null, constants = RULES_V2_CONSTANTS } = options;
+    try {
+        return normalizeRulesV2Of(raw, rawOptions);
+    } catch {
+        return unreadable();
+    }
+}
+
+const MANIFEST_PATH = 'content.rules[0]';
+
+function normalizeRulesV2Of(raw, rawOptions) {
+    const optionsRead = readOptions(rawOptions);
+    if (!optionsRead.ok) return { ok: false, errors: optionsRead.errors };
+    const { packKey = null, constants = RULES_V2_CONSTANTS } = optionsRead.options;
 
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: '', message: 'Manifest must be an object' }] };
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, MANIFEST_PATH, 'Manifest must be an object');
     }
 
     if (!packKey || typeof packKey !== 'string' || !PACK_ID.test(packKey)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'packKey', message: 'Valid packKey matching PACK_ID (1 to 40 lowercase letters, digits, or dashes) is required' }] };
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'packKey', 'Valid packKey matching PACK_ID (1 to 40 lowercase letters, digits, or dashes) is required');
     }
 
     const constRes = validateConstants(constants);
     if (!constRes.ok) return constRes;
 
-    const plainErrors = checkPlainSafety(raw);
-    if (plainErrors.length) return { ok: false, errors: plainErrors };
+    const read = readPlain(raw, { path: MANIFEST_PATH });
+    if (read.errors.length) return { ok: false, errors: read.errors };
 
-    const cloned = clonePlain(raw);
+    const cloned = read.value;
 
     if (cloned.id !== undefined) {
         if (typeof cloned.id !== 'string' || !(RECORD_ID_REGEX.test(cloned.id) || DEF_ID_REGEX.test(cloned.id) || REF_REGEX.test(cloned.id))) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'id', message: 'Manifest id wrapper has invalid syntax' }] };
+            return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${MANIFEST_PATH}.id`, 'Manifest id wrapper has invalid syntax');
         }
         delete cloned.id;
     }
     if (cloned.pack !== undefined) {
-        if (typeof cloned.pack !== 'string' || !PACK_ID.test(cloned.pack) || (packKey && cloned.pack !== packKey)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'pack', message: 'Manifest pack wrapper has invalid syntax or does not match packKey' }] };
+        if (typeof cloned.pack !== 'string' || !PACK_ID.test(cloned.pack) || cloned.pack !== packKey) {
+            return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${MANIFEST_PATH}.pack`, 'Manifest pack wrapper has invalid syntax or does not match packKey');
         }
         delete cloned.pack;
     }
@@ -1243,13 +1423,13 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
                 if (rec && typeof rec === 'object' && !Array.isArray(rec)) {
                     if (rec.id !== undefined) {
                         if (typeof rec.id !== 'string' || !(RECORD_ID_REGEX.test(rec.id) || DEF_ID_REGEX.test(rec.id) || REF_REGEX.test(rec.id))) {
-                            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${kind}[${i}].id`, message: 'Record id wrapper has invalid syntax' }] };
+                            return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${MANIFEST_PATH}.${kind}[${i}].id`, 'Record id wrapper has invalid syntax');
                         }
                         delete rec.id;
                     }
                     if (rec.pack !== undefined) {
                         if (typeof rec.pack !== 'string' || !PACK_ID.test(rec.pack) || rec.pack !== packKey) {
-                            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${kind}[${i}].pack`, message: 'Record pack wrapper has invalid syntax' }] };
+                            return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${MANIFEST_PATH}.${kind}[${i}].pack`, 'Record pack wrapper has invalid syntax');
                         }
                         delete rec.pack;
                     }
@@ -1303,7 +1483,7 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         }
     }
 
-    const schemaErrors = validateSchemaValue(norm, rulesV2Schema, rulesV2Schema.$defs, '', { isRecordBoundary: true });
+    const schemaErrors = validateSchemaValue(norm, rulesV2Schema, rulesV2Schema.$defs, MANIFEST_PATH, { isRecordBoundary: true });
     if (schemaErrors.length) return { ok: false, errors: schemaErrors };
 
     // Converge local and qualified references to normalized IDs
@@ -1365,60 +1545,79 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         }
     }
 
-    return { ok: true, manifest: canonicalizeJson(norm) };
+    return { ok: true, manifest: sortKeys(norm) };
 }
 
-/** Resolves reference against local pack set or verifies external syntax. */
-function checkReference(ref, packId, localSet, externalAllowed = false, path = '') {
+/**
+ * Resolves a reference against this pack's own slugs of one kind (`localSet`), or accepts it as external.
+ * - This pack's prefix (`pack.<id>/x`) or a bare slug must name a local entry; a miss is BAD_REF, never external.
+ * - `external` ('place', 'npc' or 'thread') names what the story or the map owns: a canonical id
+ *   (pl_xxxxxxxx, np_xxxxxxxx, th_xxxxxxxx) and, for places and NPCs, another pack's `pack.<other>/x`
+ *   are accepted as external and resolved at activation. Anything else is BAD_REF.
+ * - Without `external`, another pack's prefix is rejected (no cross-pack rules mixing).
+ */
+function checkReference(ref, packId, localSet, external = null, path = '') {
     if (!ref || typeof ref !== 'string') {
         return { ok: false, error: { code: RULES_V2_ERROR_CODES.BAD_REF, path, message: 'Reference must be a string' } };
     }
     const prefix = `pack.${packId}/`;
-    let localSlug = ref;
-    if (ref.startsWith(prefix)) {
-        localSlug = ref.slice(prefix.length);
+    if (ref.startsWith(prefix) || !ref.startsWith('pack.')) {
+        const localSlug = ref.startsWith(prefix) ? ref.slice(prefix.length) : ref;
+        if (localSet.has(localSlug)) return { ok: true, id: `${prefix}${localSlug}`, isExternal: false };
+        if (external && EXTERNAL_IDS[external].test(ref)) return { ok: true, id: ref, isExternal: true };
+        return { ok: false, error: { code: RULES_V2_ERROR_CODES.BAD_REF, path, message: `Reference "${ref}" is not defined in this pack` } };
     }
-    if (localSet.has(localSlug)) {
-        return { ok: true, id: `${prefix}${localSlug}`, isExternal: false };
+    if ((external === 'place' || external === 'npc') && DEF_ID_REGEX.test(ref)) {
+        return { ok: true, id: ref, isExternal: true };
     }
-    if (externalAllowed) {
-        if (RECORD_ID_REGEX.test(ref) || DEF_ID_REGEX.test(ref) || REF_REGEX.test(ref)) {
-            return { ok: true, id: ref, isExternal: true };
-        }
-    }
-    if (ref.startsWith('pack.') && !ref.startsWith(prefix)) {
-        return { ok: false, error: { code: RULES_V2_ERROR_CODES.BAD_REF, path, message: `Foreign-pack internal reference "${ref}" is rejected` } };
-    }
-    return { ok: false, error: { code: RULES_V2_ERROR_CODES.BAD_REF, path, message: `Reference "${ref}" could not be resolved` } };
+    return { ok: false, error: { code: RULES_V2_ERROR_CODES.BAD_REF, path, message: `Foreign-pack internal reference "${ref}" is rejected` } };
 }
 
 /**
  * Validates manifest and owned content per SPEC §7.
  * Resolves references, checks graph, budgets, 24 written + 12 generated structure, slots/hands compatibility.
- * Structural owned-content validation completes before semantic access. Never mutates caller data.
+ * Structural owned-content validation completes before semantic access. Reads both inputs once into detached
+ * copies, so it never mutates caller data and never throws.
  */
 export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CONSTANTS) {
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: '', message: 'Manifest must be an object' }] };
+    try {
+        const result = validateRulesV2Of(manifest, content, constants);
+        return result.ok ? { ok: true, resolved: result.resolved, warnings: result.warnings } : result;
+    } catch {
+        return unreadable();
     }
-    if (!content || typeof content !== 'object' || Array.isArray(content)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'content', message: 'Content must be an object' }] };
+}
+
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+function validateRulesV2Of(manifest, content, constants) {
+    if (!isRecord(manifest)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, MANIFEST_PATH, 'Manifest must be an object');
+    }
+    if (!isRecord(content)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'content', 'Content must be an object');
     }
 
-    const plainErrors = checkPlainSafety({ manifest, content });
-    if (plainErrors.length) return { ok: false, errors: plainErrors };
+    // One safe read of both inputs: from here on only the detached copies m and cnt are touched.
+    const manifestRead = readPlain(manifest, { path: MANIFEST_PATH });
+    if (manifestRead.errors.length) return { ok: false, errors: manifestRead.errors };
+    const contentRead = readPlain(content, { path: 'content' });
+    if (contentRead.errors.length) return { ok: false, errors: contentRead.errors };
+    const m = manifestRead.value;
+    const cnt = contentRead.value;
+    delete cnt._envelope;
 
     const constRes = validateConstants(constants);
     if (!constRes.ok) return constRes;
     const c = constRes.constants;
 
-    const packKey = manifest.pack;
+    const packKey = m.pack;
     if (!packKey || typeof packKey !== 'string' || !PACK_ID.test(packKey)) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'pack', message: 'Manifest must be normalized with a packKey before validation' }] };
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, `${MANIFEST_PATH}.pack`, 'Manifest must be normalized with a packKey before validation');
     }
 
     // Structural validation of manifest root against rulesV2Schema
-    const manifestSchemaErrors = validateSchemaValue(manifest, rulesV2Schema, rulesV2Schema.$defs, 'content.rules[0]', { isRecordBoundary: true });
+    const manifestSchemaErrors = validateSchemaValue(m, rulesV2Schema, rulesV2Schema.$defs, MANIFEST_PATH, { isRecordBoundary: true });
     if (manifestSchemaErrors.length) {
         return { ok: false, errors: manifestSchemaErrors };
     }
@@ -1426,18 +1625,31 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
     const errors = [];
     const warnings = [];
 
-    // Clone inputs safely so caller objects are never mutated or frozen
-    const m = clonePlain(manifest);
-    const cnt = clonePlain(content);
-    delete cnt._envelope;
-
-    // Structural validation of owned content container lists: must be arrays if present
+    // Owned content lists must be arrays of plain objects, each with a string slug (events: slug or id),
+    // before any record is read.
     const ownedContainerKinds = ['items', 'creatures', 'quests', 'shops', 'recipes', 'places', 'events'];
+    const shapeErrors = [];
     for (const k of ownedContainerKinds) {
-        if (cnt[k] !== undefined && !Array.isArray(cnt[k])) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `content.${k}`, message: `content.${k} must be an array` }] };
+        if (cnt[k] === undefined) continue;
+        if (!Array.isArray(cnt[k])) {
+            shapeErrors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `content.${k}`, message: `content.${k} must be an array` });
+            continue;
         }
+        cnt[k].forEach((entry, i) => {
+            const at = `content.${k}[${i}]`;
+            if (!isRecord(entry)) {
+                shapeErrors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: at, message: `${at} must be an object` });
+            } else if (k === 'events') {
+                const named = entry.slug ?? entry.id;
+                if (named !== undefined && typeof named !== 'string') {
+                    shapeErrors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${at}.${entry.slug !== undefined ? 'slug' : 'id'}`, message: 'An event slug or id must be a string' });
+                }
+            } else if (typeof entry.slug !== 'string' || !entry.slug) {
+                shapeErrors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${at}.slug`, message: `${at} needs a string slug` });
+            }
+        });
     }
+    if (shapeErrors.length) return { ok: false, errors: shapeErrors.slice(0, RULES_V2_LIMITS.errors) };
 
     const contentItems = cnt.items ?? [];
     const contentCreatures = cnt.creatures ?? [];
@@ -1493,6 +1705,20 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         const s = m.trainers[i].slug;
         if (trainerSlugs.has(s)) errors.push({ code: RULES_V2_ERROR_CODES.DUP_ID, path: `content.rules[0].trainers[${i}].slug`, message: `Duplicate trainer slug "${s}"` });
         trainerSlugs.add(s);
+    }
+
+    // One slug, one definition: classes, skills, branches and trainers share the pack's id space
+    // (pack.<id>/<slug>), so the same slug in two of those lists is refused. Same-list duplicates
+    // are reported above.
+    const definitionKinds = new Map();
+    for (const kind of ['classes', 'skills', 'branches', 'trainers']) {
+        (m[kind] ?? []).forEach((record, i) => {
+            const first = definitionKinds.get(record.slug);
+            if (first === undefined) definitionKinds.set(record.slug, kind);
+            else if (first !== kind) {
+                errors.push({ code: RULES_V2_ERROR_CODES.DUP_ID, path: `${MANIFEST_PATH}.${kind}[${i}].slug`, message: `Slug "${record.slug}" is already used by an entry of ${first}; a slug names one definition in a pack` });
+            }
+        });
     }
 
     const itemSlugs = new Set();
@@ -1659,10 +1885,12 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
             const rep = skl.replaces.startsWith(`pack.${packKey}/`) ? skl.replaces.slice(`pack.${packKey}/`.length) : skl.replaces;
             if (!skillSlugs.has(rep)) {
                 errors.push({ code: RULES_V2_ERROR_CODES.BAD_REF, path: `content.rules[0].skills[${i}].replaces`, message: `Replaced skill "${skl.replaces}" not found` });
+            } else if (rep === skl.slug) {
+                errors.push({ code: RULES_V2_ERROR_CODES.BAD_REF, path: `content.rules[0].skills[${i}].replaces`, message: `Skill "${skl.slug}" cannot replace itself` });
             }
         }
 
-        const scoreRes = powerScore(skl.base);
+        const scoreRes = powerScoreOf(skl.base);
         if (!scoreRes.ok) {
             errors.push(...scoreRes.errors);
         } else {
@@ -1785,7 +2013,7 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         branchIndexMap.set(br, i);
     }
 
-    for (const skl of m.skills ?? []) {
+    for (const [si, skl] of (m.skills ?? []).entries()) {
         const owningClassSlug = skillOwner.get(skl.slug);
         const owningClass = owningClassSlug ? classBySlug.get(owningClassSlug) : null;
         const tier = owningClass ? owningClass.tier : 0;
@@ -1793,13 +2021,13 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
 
         if (tier < 3) {
             if (branches.length > 0) {
-                errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${skl.slug}].branches`, message: `Starter/intermediate class skills (tier ${tier}) cannot have branches` });
+                errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${si}].branches`, message: `Starter/intermediate class skills (tier ${tier}) cannot have branches` });
             }
             continue;
         }
 
         if (branches.length !== 8) {
-            errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${skl.slug}].branches`, message: `Advanced skill "${skl.slug}" must have exactly 8 written branches, found ${branches.length}` });
+            errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${si}].branches`, message: `Advanced skill "${skl.slug}" must have exactly 8 written branches, found ${branches.length}` });
         }
 
         const baseFormId = `pack.${packKey}/${skl.slug}-base`;
@@ -1822,10 +2050,10 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         const step1Branches = branches.filter(b => (b.fromForm === baseFormId || b.fromForm === `${skl.slug}-base`) && b.step === 1);
         const step1Choices = new Set(step1Branches.map(b => b.choice));
         if (step1Branches.length !== 2 || step1Choices.size !== 2 || !step1Choices.has('a') || !step1Choices.has('b')) {
-            errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${skl.slug}].branches`, message: `Skill "${skl.slug}" base form must have written step-1 choices 'a' and 'b'` });
+            errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${si}].branches`, message: `Skill "${skl.slug}" base form must have written step-1 choices 'a' and 'b'` });
         }
 
-        const g1Res = generatePowerUp(baseForm, c);
+        const g1Res = generatePowerUpOf(baseForm, c);
         if (!g1Res.ok) errors.push(...g1Res.errors);
         const g1Form = g1Res.ok ? g1Res.form : null;
 
@@ -1844,11 +2072,11 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
             const step2Branches = branches.filter(b => (b.fromForm === pId || b.fromForm === pId.slice(`pack.${packKey}/`.length)) && b.step === 2);
             const step2Choices = new Set(step2Branches.map(b => b.choice));
             if (step2Branches.length !== 2 || step2Choices.size !== 2 || !step2Choices.has('a') || !step2Choices.has('b')) {
-                errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${skl.slug}].branches`, message: `Parent form "${pId}" must have written step-2 choices 'a' and 'b'` });
+                errors.push({ code: RULES_V2_ERROR_CODES.BRANCH_GRAPH, path: `content.rules[0].skills[${si}].branches`, message: `Parent form "${pId}" must have written step-2 choices 'a' and 'b'` });
             }
             const parentForm = formsAtStep1.get(pId);
             if (parentForm) {
-                const g2Res = generatePowerUp(parentForm, c);
+                const g2Res = generatePowerUpOf(parentForm, c);
                 if (!g2Res.ok) errors.push(...g2Res.errors);
                 for (const b of step2Branches) {
                     const bIdx = branchIndexMap.get(b);
@@ -1927,7 +2155,9 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
                         errors.push({ code: RULES_V2_ERROR_CODES.ITEM_RULE_MISMATCH, path: `content.rules[0].itemRules[${i}].hands`, message: 'Non-hand equipment requires hands 0' });
                     }
                 }
-                if (item.slot && !rule.allowedSlots.includes(item.slot)) {
+                // Only a standard slot id on the item is checked against the rule. A legacy free-text slot
+                // ("ring", "chest", "boots") stays Story Block's own label; the rule decides where it fits.
+                if (RULES_V2_SLOTS.includes(item.slot) && !rule.allowedSlots.includes(item.slot)) {
                     errors.push({ code: RULES_V2_ERROR_CODES.ITEM_RULE_MISMATCH, path: `content.rules[0].itemRules[${i}].allowedSlots`, message: `Item rule allowedSlots must include item declared slot "${item.slot}"` });
                 }
             }
@@ -1940,13 +2170,13 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         const p = `content.creatures[${i}]`;
         if (foe.skills) {
             for (let s = 0; s < foe.skills.length; s++) {
-                const sRef = checkReference(foe.skills[s], packKey, skillSlugs, false, `${p}.skills[${s}]`);
+                const sRef = checkReference(foe.skills[s], packKey, skillSlugs, null, `${p}.skills[${s}]`);
                 if (!sRef.ok) errors.push(sRef.error);
             }
         }
         if (foe.loot) {
             for (let l = 0; l < foe.loot.length; l++) {
-                const lRef = checkReference(foe.loot[l].def, packKey, itemSlugs, false, `${p}.loot[${l}].def`);
+                const lRef = checkReference(foe.loot[l].def, packKey, itemSlugs, null, `${p}.loot[${l}].def`);
                 if (!lRef.ok) errors.push(lRef.error);
             }
         }
@@ -1956,12 +2186,12 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         const q = contentQuests[i];
         const p = `content.quests[${i}]`;
         if (q.giver) {
-            const gRef = checkReference(q.giver, packKey, creatureSlugs, true, `${p}.giver`);
+            const gRef = checkReference(q.giver, packKey, creatureSlugs, 'npc', `${p}.giver`);
             if (!gRef.ok) errors.push(gRef.error);
             else if (gRef.isExternal) warnings.push({ path: `${p}.giver`, message: `External giver reference "${q.giver}" accepted with runtime eligibility check` });
         }
         if (q.turnInPlace) {
-            const pRef = checkReference(q.turnInPlace, packKey, placeSlugs, true, `${p}.turnInPlace`);
+            const pRef = checkReference(q.turnInPlace, packKey, placeSlugs, 'place', `${p}.turnInPlace`);
             if (!pRef.ok) errors.push(pRef.error);
             else if (pRef.isExternal) warnings.push({ path: `${p}.turnInPlace`, message: `External place reference "${q.turnInPlace}" accepted with runtime eligibility check` });
         }
@@ -1970,37 +2200,42 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
                 const req = q.requirements[r];
                 if (req.kind === 'class') {
                     for (let cIdx = 0; cIdx < req.classes.length; cIdx++) {
-                        const cRef = checkReference(req.classes[cIdx], packKey, classSlugs, false, `${p}.requirements[${r}].classes[${cIdx}]`);
+                        const cRef = checkReference(req.classes[cIdx], packKey, classSlugs, null, `${p}.requirements[${r}].classes[${cIdx}]`);
                         if (!cRef.ok) errors.push(cRef.error);
                     }
                 } else if (req.kind === 'item') {
-                    const iRef = checkReference(req.def, packKey, itemSlugs, false, `${p}.requirements[${r}].def`);
+                    const iRef = checkReference(req.def, packKey, itemSlugs, null, `${p}.requirements[${r}].def`);
                     if (!iRef.ok) errors.push(iRef.error);
                 } else if (req.kind === 'quest') {
-                    const qRef = checkReference(req.template, packKey, questSlugs, false, `${p}.requirements[${r}].template`);
+                    const qRef = checkReference(req.template, packKey, questSlugs, null, `${p}.requirements[${r}].template`);
                     if (!qRef.ok) errors.push(qRef.error);
                 } else if (req.kind === 'place') {
-                    const plRef = checkReference(req.place, packKey, placeSlugs, true, `${p}.requirements[${r}].place`);
+                    const plRef = checkReference(req.place, packKey, placeSlugs, 'place', `${p}.requirements[${r}].place`);
                     if (!plRef.ok) errors.push(plRef.error);
                     else if (plRef.isExternal) warnings.push({ path: `${p}.requirements[${r}].place`, message: `External place reference "${req.place}" accepted with runtime eligibility check` });
                 } else if (req.kind === 'thread') {
-                    const thRef = checkReference(req.thread, packKey, new Set(), true, `${p}.requirements[${r}].thread`);
+                    const thRef = checkReference(req.thread, packKey, new Set(), 'thread', `${p}.requirements[${r}].thread`);
                     if (!thRef.ok) errors.push(thRef.error);
                     else if (thRef.isExternal) warnings.push({ path: `${p}.requirements[${r}].thread`, message: `External thread reference "${req.thread}" accepted with runtime eligibility check` });
                 }
             }
         }
         if (q.objectives) {
+            const objectiveIds = new Set();
             for (let o = 0; o < q.objectives.length; o++) {
                 const obj = q.objectives[o];
+                if (objectiveIds.has(obj.id)) {
+                    errors.push({ code: RULES_V2_ERROR_CODES.DUP_ID, path: `${p}.objectives[${o}].id`, message: `Duplicate objective id "${obj.id}" in quest "${q.slug}"` });
+                }
+                objectiveIds.add(obj.id);
                 if (obj.kind === 'kill') {
-                    const fRef = checkReference(obj.foe, packKey, creatureSlugs, false, `${p}.objectives[${o}].foe`);
+                    const fRef = checkReference(obj.foe, packKey, creatureSlugs, null, `${p}.objectives[${o}].foe`);
                     if (!fRef.ok) errors.push(fRef.error);
                 } else if (obj.kind === 'collect') {
-                    const cRef = checkReference(obj.def, packKey, itemSlugs, false, `${p}.objectives[${o}].def`);
+                    const cRef = checkReference(obj.def, packKey, itemSlugs, null, `${p}.objectives[${o}].def`);
                     if (!cRef.ok) errors.push(cRef.error);
                 } else if (obj.kind === 'visit') {
-                    const vRef = checkReference(obj.place, packKey, placeSlugs, true, `${p}.objectives[${o}].place`);
+                    const vRef = checkReference(obj.place, packKey, placeSlugs, 'place', `${p}.objectives[${o}].place`);
                     if (!vRef.ok) errors.push(vRef.error);
                     else if (vRef.isExternal) warnings.push({ path: `${p}.objectives[${o}].place`, message: `External place reference "${obj.place}" accepted with runtime eligibility check` });
                 }
@@ -2008,18 +2243,18 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         }
         if (q.reward?.items) {
             for (let ri = 0; ri < q.reward.items.length; ri++) {
-                const rRef = checkReference(q.reward.items[ri].def, packKey, itemSlugs, false, `${p}.reward.items[${ri}].def`);
+                const rRef = checkReference(q.reward.items[ri].def, packKey, itemSlugs, null, `${p}.reward.items[${ri}].def`);
                 if (!rRef.ok) errors.push(rRef.error);
             }
         }
         if (q.chain) {
-            if (q.chain.previous) {
-                const chRef = checkReference(q.chain.previous, packKey, questSlugs, false, `${p}.chain.previous`);
+            for (const link of ['previous', 'next']) {
+                if (!q.chain[link]) continue;
+                const chRef = checkReference(q.chain[link], packKey, questSlugs, null, `${p}.chain.${link}`);
                 if (!chRef.ok) errors.push(chRef.error);
-            }
-            if (q.chain.next) {
-                const chRef = checkReference(q.chain.next, packKey, questSlugs, false, `${p}.chain.next`);
-                if (!chRef.ok) errors.push(chRef.error);
+                else if (chRef.id === `pack.${packKey}/${q.slug}`) {
+                    errors.push({ code: RULES_V2_ERROR_CODES.BAD_REF, path: `${p}.chain.${link}`, message: `Quest "${q.slug}" cannot chain to itself` });
+                }
             }
         }
     }
@@ -2027,12 +2262,12 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
     for (let i = 0; i < contentShops.length; i++) {
         const shp = contentShops[i];
         const p = `content.shops[${i}]`;
-        const plRef = checkReference(shp.place, packKey, placeSlugs, true, `${p}.place`);
+        const plRef = checkReference(shp.place, packKey, placeSlugs, 'place', `${p}.place`);
         if (!plRef.ok) errors.push(plRef.error);
         else if (plRef.isExternal) warnings.push({ path: `${p}.place`, message: `External place reference "${shp.place}" accepted with runtime eligibility check` });
         if (shp.stock) {
             for (let s = 0; s < shp.stock.length; s++) {
-                const iRef = checkReference(shp.stock[s].item, packKey, itemSlugs, false, `${p}.stock[${s}].item`);
+                const iRef = checkReference(shp.stock[s].item, packKey, itemSlugs, null, `${p}.stock[${s}].item`);
                 if (!iRef.ok) errors.push(iRef.error);
             }
         }
@@ -2041,11 +2276,11 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
     for (let i = 0; i < contentRecipes.length; i++) {
         const rcp = contentRecipes[i];
         const p = `content.recipes[${i}]`;
-        const mRef = checkReference(rcp.makes, packKey, itemSlugs, false, `${p}.makes`);
+        const mRef = checkReference(rcp.makes, packKey, itemSlugs, null, `${p}.makes`);
         if (!mRef.ok) errors.push(mRef.error);
         if (rcp.materials) {
             for (let mIdx = 0; mIdx < rcp.materials.length; mIdx++) {
-                const matRef = checkReference(rcp.materials[mIdx].item, packKey, itemSlugs, false, `${p}.materials[${mIdx}].item`);
+                const matRef = checkReference(rcp.materials[mIdx].item, packKey, itemSlugs, null, `${p}.materials[${mIdx}].item`);
                 if (!matRef.ok) errors.push(matRef.error);
             }
         }
@@ -2054,16 +2289,16 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
     for (let i = 0; i < (m.trainers ?? []).length; i++) {
         const trn = m.trainers[i];
         const p = `content.rules[0].trainers[${i}]`;
-        const plRef = checkReference(trn.place, packKey, placeSlugs, true, `${p}.place`);
+        const plRef = checkReference(trn.place, packKey, placeSlugs, 'place', `${p}.place`);
         if (!plRef.ok) errors.push(plRef.error);
         else if (plRef.isExternal) warnings.push({ path: `${p}.place`, message: `External place reference "${trn.place}" accepted with runtime eligibility check` });
         for (let s = 0; s < trn.skills.length; s++) {
-            const sRef = checkReference(trn.skills[s], packKey, skillSlugs, false, `${p}.skills[${s}]`);
+            const sRef = checkReference(trn.skills[s], packKey, skillSlugs, null, `${p}.skills[${s}]`);
             if (!sRef.ok) errors.push(sRef.error);
         }
         if (trn.eventTemplates) {
             for (let e = 0; e < trn.eventTemplates.length; e++) {
-                const eRef = checkReference(trn.eventTemplates[e], packKey, eventSlugs, false, `${p}.eventTemplates[${e}]`);
+                const eRef = checkReference(trn.eventTemplates[e], packKey, eventSlugs, null, `${p}.eventTemplates[${e}]`);
                 if (!eRef.ok) errors.push(eRef.error);
             }
         }
@@ -2100,14 +2335,14 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
             unit: skl.base.unit,
             tier,
         };
-        const scoreRes = powerScore(baseForm);
+        const scoreRes = powerScoreOf(baseForm);
         baseForm.powerScore = scoreRes.ok ? scoreRes.score : 0;
         forms[baseFormId] = baseForm;
 
         if (tier === 3) {
             const branches = branchesBySkillFinal.get(skl.slug) ?? [];
             const step1Branches = branches.filter(b => (b.fromForm === baseFormId || b.fromForm === `${skl.slug}-base`) && b.step === 1);
-            const g1Res = generatePowerUp(baseForm, c);
+            const g1Res = generatePowerUpOf(baseForm, c);
             if (g1Res.ok) forms[g1Res.form.id] = g1Res.form;
 
             for (const b of step1Branches) {
@@ -2119,7 +2354,7 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
             for (const pId of step1Parents) {
                 const parentForm = forms[pId];
                 if (!parentForm) continue;
-                const g2Res = generatePowerUp(parentForm, c);
+                const g2Res = generatePowerUpOf(parentForm, c);
                 if (g2Res.ok) forms[g2Res.form.id] = g2Res.form;
 
                 const step2Branches = branches.filter(b => (b.fromForm === pId || b.fromForm === pId.slice(`pack.${packKey}/`.length)) && b.step === 2);
@@ -2231,7 +2466,7 @@ export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CON
         constants: clonePlain(c),
     });
 
-    return { ok: true, resolved, warnings };
+    return { ok: true, resolved, warnings, content: cnt };
 }
 
 /** Shortens internal reference string to local slug if in same pack. */
@@ -2251,6 +2486,9 @@ function shortenTypedRef(ref, packId) {
  */
 function buildCanonicalDocument(doc, packId) {
     const raw = normalizeStructure(clonePlain(doc));
+
+    // Money defaults (SPEC §7): coins [] and display 'mixed', so equivalent packs hash the same.
+    if (isRecord(raw.currency)) applyCurrencyDefaults(raw.currency);
 
     function stripWrappers(rec) {
         if (!rec || typeof rec !== 'object' || Array.isArray(rec)) return;
@@ -2391,208 +2629,324 @@ function buildCanonicalDocument(doc, packId) {
         }
     }
 
-    return canonicalizeJson(raw);
+    return sortKeys(raw);
+}
+
+
+const CURRENCY_DISPLAYS = ['mixed', 'base'];
+
+/** Money defaults (SPEC §7): no coins, mixed display. */
+function applyCurrencyDefaults(currency) {
+    if (currency.coins === undefined) currency.coins = [];
+    if (currency.display === undefined) currency.display = 'mixed';
+}
+
+function sha256Text(text) {
+    return sha256Bytes(new TextEncoder().encode(text));
+}
+
+/**
+ * Limits on a resolved ruleset (SPEC §7): at most limits.forms expanded forms and limits.resolvedBytes
+ * of JSON. Returns `{ ok: true }` or the TOO_LARGE error result; a value exactly at a limit passes.
+ * Import, runtime and Studio share it; `limits` exists so the boundaries can be tested.
+ */
+export function checkResolvedLimits(resolved, limits = RULES_V2_LIMITS) {
+    try {
+        const formCount = Object.keys(resolved.forms).length;
+        if (formCount > limits.forms) {
+            return fail(RULES_V2_ERROR_CODES.TOO_LARGE, 'forms', `Forms count ${formCount} exceeds limit of ${limits.forms}`);
+        }
+        if (byteLength(JSON.stringify(resolved)) > limits.resolvedBytes) {
+            return fail(RULES_V2_ERROR_CODES.TOO_LARGE, 'resolved', `Resolved ruleset exceeds ${limits.resolvedBytes} bytes`);
+        }
+        return { ok: true };
+    } catch {
+        return unreadable(RULES_V2_ERROR_CODES.TOO_LARGE);
+    }
+}
+
+/** rulesHash, the contract's H: the normalised manifest and owned content + schema + constants. */
+function computeRulesHash(resolved, content) {
+    const canonical = buildCanonicalDocument({ content: { ...content, rules: [resolved.manifest] } }, resolved.manifest.pack).content;
+    return sha256Text(JSON.stringify(sortKeys({ constants: resolved.constants, content: canonical, schema: rulesV2Schema })));
+}
+
+/** Size checks and the rulesHash for a result of validateRulesV2Of. */
+function finishExpansion(validated) {
+    const limits = checkResolvedLimits(validated.resolved);
+    if (!limits.ok) return limits;
+    return {
+        ok: true,
+        resolved: deepFreeze(sortKeys(validated.resolved)),
+        rulesHash: computeRulesHash(validated.resolved, validated.content),
+    };
 }
 
 /**
  * Expands all forms (bases, written branches, generated power-ups) per SPEC §7.
- * Returns immutable resolved ruleset and deterministic SHA-256 hash.
+ * Returns the immutable resolved ruleset and its `rulesHash` (SHA-256 of the normalised authored
+ * manifest and owned content + schema + constants; the contract's H). Never throws.
  */
 export function expandRulesV2(manifest, content = {}, constants = RULES_V2_CONSTANTS) {
-    const valRes = validateRulesV2(manifest, content, constants);
-    if (!valRes.ok) return valRes;
-
-    const resolved = valRes.resolved;
-    const formCount = Object.keys(resolved.forms).length;
-    if (formCount > RULES_V2_LIMITS.forms) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: 'forms', message: `Forms count ${formCount} exceeds limit of ${RULES_V2_LIMITS.forms}` }] };
+    try {
+        const validated = validateRulesV2Of(manifest, content, constants);
+        if (!validated.ok) return validated;
+        return finishExpansion(validated);
+    } catch {
+        return unreadable();
     }
-
-    const resolvedJson = JSON.stringify(resolved);
-    if (byteLength(resolvedJson) > RULES_V2_LIMITS.resolvedBytes) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: 'resolved', message: `Resolved ruleset exceeds ${RULES_V2_LIMITS.resolvedBytes} bytes` }] };
-    }
-
-    const hashPayload = canonicalizeJson({
-        constants: resolved.constants,
-        content: buildCanonicalDocument({ content: { ...content, rules: [resolved.manifest] } }, resolved.manifest.pack).content,
-        schema: rulesV2Schema,
-    });
-    const hash = sha256(JSON.stringify(hashPayload));
-
-    return { ok: true, resolved: deepFreeze(canonicalizeJson(resolved)), hash };
 }
 
 /**
- * Exports canonical raw envelope per SPEC §7.
- * Validates document, strips host wrappers, shortens only typed internal refs, preserves authored arrays.
- * UTF-8 with 2 spaces indent and trailing newline.
+ * Exports the canonical raw envelope per SPEC §7.
+ * Validates the document, strips host wrappers, shortens only typed internal refs, preserves authored
+ * arrays, sorts object keys. UTF-8, two-space indent, final newline.
+ * Returns `{ ok, text, rulesHash, packHash }` (see the header for the two hashes). Never throws.
  */
 export function exportRulesV2(document, constants = RULES_V2_CONSTANTS) {
-    const chk = validateRulesPack(document, { constants });
-    if (!chk.ok) return { ok: false, errors: chk.errors };
+    try {
+        const chk = validatePackOf(document, { constants });
+        if (!chk.ok) return { ok: false, errors: chk.errors };
 
-    const packKey = chk.pack.id;
-    const canonical = buildCanonicalDocument(chk.pack, packKey);
-    const text = JSON.stringify(canonical, null, 2) + '\n';
-    if (byteLength(text) > RULES_V2_LIMITS.packBytes) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: '', message: 'Canonical export exceeds 512 KiB' }] };
+        const canonical = buildCanonicalDocument(chk.pack, chk.pack.id);
+        const text = JSON.stringify(canonical, null, 2) + '\n';
+        if (byteLength(text) > RULES_V2_LIMITS.packBytes) {
+            return fail(RULES_V2_ERROR_CODES.TOO_LARGE, '', 'Canonical export exceeds 512 KiB');
+        }
+        return { ok: true, text, rulesHash: chk.rulesHash, packHash: chk.packHash };
+    } catch {
+        return unreadable();
     }
-    const hash = chk.hash;
-
-    return { ok: true, text, hash };
 }
 
 /**
- * Convenience pack validator per SPEC §7, §9, §10.
- * Reuses SB validatePack on detached legacy projection.
- * Validates envelope, JSON safety, rules manifest, and owned content. Never throws.
+ * JSON.parse that also refuses duplicate keys (JSON.parse keeps the last one silently).
+ * Keys are compared after JSON unescaping, so "name" and "name" are the same key.
+ * Returns `{ ok: true, value }` or `{ ok: false, errors }` (BAD_SCHEMA for bad JSON, DUP_ID per duplicate).
+ */
+function parseJsonText(text) {
+    let value;
+    try {
+        value = JSON.parse(text);
+    } catch (err) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, '', `Invalid JSON: ${String(err?.message)}`);
+    }
+    const duplicates = findDuplicateKeys(text);
+    if (duplicates.length) return { ok: false, errors: duplicates };
+    return { ok: true, value };
+}
+
+/** Scans syntactically valid JSON text for repeated keys in one object; linear, no recursion. */
+function findDuplicateKeys(text) {
+    const errors = [];
+    const stack = [];
+    const join = (path, key) => (path ? `${path}.${key}` : key);
+    let i = 0;
+    while (i < text.length && errors.length < RULES_V2_LIMITS.errors) {
+        const ch = text[i];
+        if (ch === '"') {
+            let end = i + 1;
+            while (text[end] !== '"') end += text[end] === '\\' ? 2 : 1;
+            const top = stack[stack.length - 1];
+            if (top && top.object && top.expectKey) {
+                const key = JSON.parse(text.slice(i, end + 1));
+                if (top.keys.has(key)) {
+                    errors.push({ code: RULES_V2_ERROR_CODES.DUP_ID, path: join(top.path, key), message: `Duplicate key "${key}" in the JSON text` });
+                }
+                top.keys.add(key);
+                top.lastKey = key;
+                top.expectKey = false;
+            }
+            i = end + 1;
+            continue;
+        }
+        if (ch === '{' || ch === '[') {
+            const parent = stack[stack.length - 1];
+            let path = '';
+            if (parent) path = parent.object ? join(parent.path, parent.lastKey) : `${parent.path}[${parent.commas}]`;
+            stack.push({ object: ch === '{', path, keys: new Set(), expectKey: ch === '{', lastKey: '', commas: 0 });
+        } else if (ch === '}' || ch === ']') {
+            stack.pop();
+        } else if (ch === ',') {
+            const top = stack[stack.length - 1];
+            if (top.object) top.expectKey = true;
+            else top.commas += 1;
+        }
+        i += 1;
+    }
+    return errors;
+}
+
+/**
+ * Validates a rules pack per SPEC §7, §9, §10: the envelope, JSON safety (SB's markup and link scan
+ * over every string and key), the rules manifest and the owned content. Accepts an object or JSON
+ * text (text with a repeated key is refused). Reuses SB validatePack on a detached legacy projection.
+ * Options: `constants`, and `capabilities` (the host's capability names; when given, a missing one
+ * is MISSING_CAPABILITY like Story Block's own check). A pack with content.rules must declare the
+ * `rb-rules-v2` capability. Returns `{ ok, errors, pack, raw, resolved, rulesHash, packHash, warnings }`.
+ * Never throws.
  */
 export function validateRulesPack(pack, rawOptions = {}) {
     try {
-        const options = (rawOptions && typeof rawOptions === 'object' && !Array.isArray(rawOptions)) ? rawOptions : {};
-        const { constants = RULES_V2_CONSTANTS } = options;
-
-        let value = pack;
-        if (typeof pack === 'string') {
-            if (byteLength(pack) > RULES_V2_LIMITS.packBytes) {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: '', message: 'Pack text exceeds 512 KiB' }] };
-            }
-            try {
-                value = JSON.parse(pack);
-            } catch (err) {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: '', message: `Invalid JSON: ${err.message}` }] };
-            }
-        }
-        if (!value || typeof value !== 'object' || Array.isArray(value)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: '', message: 'Pack must be a JSON object' }] };
-        }
-
-        const plainErrors = checkPlainSafety(value);
-        if (plainErrors.length) return { ok: false, errors: plainErrors };
-
-        // Enforce 512 KiB raw boundary on object inputs too
-        try {
-            if (byteLength(JSON.stringify(value)) > RULES_V2_LIMITS.packBytes) {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: '', message: 'Pack object exceeds 512 KiB' }] };
-            }
-        } catch {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.TOO_LARGE, path: '', message: 'Pack object exceeds limits' }] };
-        }
-
-        const constRes = validateConstants(constants);
-        if (!constRes.ok) return constRes;
-        const c = constRes.constants;
-
-        // Normalize safe detached value before SB/structural/semantic checking (NFC, trim, CRLF/CR -> LF)
-        const detachedVal = normalizeStructure(clonePlain(value));
-
-        // Check envelope fields against closed PACK_FIELDS
-        for (const key of Object.keys(detachedVal)) {
-            if (!PACK_FIELDS.includes(key)) {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, path: key, message: `Unknown pack envelope field: "${key}"` }] };
-            }
-        }
-
-        // Validate envelope requirements
-        if (!detachedVal.id || typeof detachedVal.id !== 'string' || !PACK_ID.test(detachedVal.id)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'id', message: 'Pack id must be 1 to 40 lowercase letters, digits, or dashes' }] };
-        }
-        if (!detachedVal.version || typeof detachedVal.version !== 'string' || !SEMVER.test(detachedVal.version)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'version', message: 'Pack version must match semver syntax' }] };
-        }
-        if (!detachedVal.requires || typeof detachedVal.requires !== 'object' || Array.isArray(detachedVal.requires)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'requires', message: 'Pack requires must be an object' }] };
-        }
-        for (const rk of Object.keys(detachedVal.requires)) {
-            if (rk !== 'storyBlock' && rk !== 'capabilities') {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, path: `requires.${rk}`, message: `"${rk}" is not a requires field` }] };
-            }
-        }
-        if (typeof detachedVal.requires.storyBlock !== 'string' || !parseRange(detachedVal.requires.storyBlock)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'requires.storyBlock', message: 'requires.storyBlock must be a valid version range' }] };
-        }
-        if (detachedVal.requires.capabilities !== undefined) {
-            if (!Array.isArray(detachedVal.requires.capabilities) || !detachedVal.requires.capabilities.every(cap => typeof cap === 'string' && SLUG.test(cap))) {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_CAPABILITY, path: 'requires.capabilities', message: 'requires.capabilities must be a list of capability slugs' }] };
-            }
-        }
-
-        if (!detachedVal.content || typeof detachedVal.content !== 'object' || Array.isArray(detachedVal.content)) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'content', message: 'Pack content must be an object' }] };
-        }
-        for (const ck of Object.keys(detachedVal.content)) {
-            if (ck !== 'rules' && !CONTENT_KINDS.includes(ck)) {
-                return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, path: `content.${ck}`, message: `"${ck}" is not a content kind` }] };
-            }
-        }
-
-        if (!Array.isArray(detachedVal.content.rules) || detachedVal.content.rules.length !== 1) {
-            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'content.rules', message: 'Pack must carry exactly one rules manifest in content.rules[0]' }] };
-        }
-
-        // Run SB validatePack on detached legacy projection
-        const legacyProj = clonePlain(detachedVal);
-        delete legacyProj.content.rules;
-        legacyProj.content.creatures = [];
-        legacyProj.content.quests = [];
-        legacyProj.content.shops = [];
-        legacyProj.content.recipes = [];
-
-        const sbRes = validatePack(legacyProj, { hostVersion: HOST_VERSION, capabilities: null });
-        if (!sbRes.ok) {
-            const mapped = sbRes.errors.map(err => {
-                if (err.code === 'UNKNOWN_FIELD' && !err.path.includes('.')) {
-                    return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
-                }
-                if (err.code === 'UNKNOWN_KIND') {
-                    return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
-                }
-                return err;
-            });
-            return { ok: false, errors: mapped };
-        }
-
-        const rawManifest = detachedVal.content.rules[0];
-        const normRes = normalizeRulesV2(rawManifest, { packKey: detachedVal.id, constants: c });
-        if (!normRes.ok) return normRes;
-
-        const valRes = validateRulesV2(normRes.manifest, detachedVal.content, c);
-        if (!valRes.ok) return valRes;
-
-        const expRes = expandRulesV2(normRes.manifest, detachedVal.content, c);
-        if (!expRes.ok) return expRes;
-
-        // Build clean normalized pack with text normalization and recipe defaults
-        const normalizedPack = detachedVal;
-        normalizedPack.content.rules = [normRes.manifest];
-        if (Array.isArray(normalizedPack.content?.recipes)) {
-            for (const r of normalizedPack.content.recipes) {
-                if (r && typeof r === 'object' && r.known === undefined) {
-                    r.known = rulesV2Schema.$defs.recipe?.properties?.known?.default ?? true;
-                }
-            }
-        }
-
-        // Build canonical document and hash for validateRulesPack and exportRulesV2
-        const canonicalPack = buildCanonicalDocument(normalizedPack, detachedVal.id);
-        const hashPayload = canonicalizeJson({
-            constants: c,
-            pack: canonicalPack,
-            schema: rulesV2Schema,
-        });
-        const hash = sha256(JSON.stringify(hashPayload));
-
-        return {
-            ok: true,
-            errors: [],
-            pack: normalizedPack,
-            raw: clonePlain(value),
-            resolved: valRes.resolved,
-            hash,
-            warnings: valRes.warnings ?? [],
-        };
-    } catch (err) {
-        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: '', message: `Unexpected error: ${err.message}` }] };
+        return validatePackOf(pack, rawOptions);
+    } catch {
+        return unreadable();
     }
+}
+
+function validatePackOf(pack, rawOptions) {
+    const optionsRead = readOptions(rawOptions);
+    if (!optionsRead.ok) return { ok: false, errors: optionsRead.errors };
+    const { constants = RULES_V2_CONSTANTS, capabilities = null } = optionsRead.options;
+
+    let value = pack;
+    if (typeof pack === 'string') {
+        if (byteLength(pack) > RULES_V2_LIMITS.packBytes) {
+            return fail(RULES_V2_ERROR_CODES.TOO_LARGE, '', 'Pack text exceeds 512 KiB');
+        }
+        const parsed = parseJsonText(pack.replace(/^﻿/, ''));
+        if (!parsed.ok) return parsed;
+        value = parsed.value;
+    }
+    if (!isRecord(value)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, '', 'Pack must be a JSON object');
+    }
+
+    const read = readPlain(value);
+    if (read.errors.length) return { ok: false, errors: read.errors };
+    const raw = read.value;
+
+    // The 512 KiB raw boundary applies to objects as well as text.
+    if (byteLength(JSON.stringify(raw)) > RULES_V2_LIMITS.packBytes) {
+        return fail(RULES_V2_ERROR_CODES.TOO_LARGE, '', 'Pack object exceeds 512 KiB');
+    }
+
+    const constRes = validateConstants(constants);
+    if (!constRes.ok) return constRes;
+    const c = constRes.constants;
+
+    // Normalize the detached copy before SB/structural/semantic checking (NFC text and keys, trim, CRLF/CR -> LF)
+    const detachedVal = normalizeStructure(raw);
+
+    // Check envelope fields against closed PACK_FIELDS
+    for (const key of Object.keys(detachedVal)) {
+        if (!PACK_FIELDS.includes(key)) {
+            return fail(RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, key, `Unknown pack envelope field: "${key}"`);
+        }
+    }
+
+    // Validate envelope requirements
+    if (!detachedVal.id || typeof detachedVal.id !== 'string' || !PACK_ID.test(detachedVal.id)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'id', 'Pack id must be 1 to 40 lowercase letters, digits, or dashes');
+    }
+    if (!detachedVal.version || typeof detachedVal.version !== 'string' || !SEMVER.test(detachedVal.version)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'version', 'Pack version must match semver syntax');
+    }
+    if (!isRecord(detachedVal.requires)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'requires', 'Pack requires must be an object');
+    }
+    for (const rk of Object.keys(detachedVal.requires)) {
+        if (rk !== 'storyBlock' && rk !== 'capabilities') {
+            return fail(RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, `requires.${rk}`, `"${rk}" is not a requires field`);
+        }
+    }
+    if (typeof detachedVal.requires.storyBlock !== 'string' || !parseRange(detachedVal.requires.storyBlock)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'requires.storyBlock', 'requires.storyBlock must be a valid version range');
+    }
+    if (detachedVal.requires.capabilities !== undefined) {
+        if (!Array.isArray(detachedVal.requires.capabilities) || !detachedVal.requires.capabilities.every(cap => typeof cap === 'string' && SLUG.test(cap))) {
+            return fail(RULES_V2_ERROR_CODES.BAD_CAPABILITY, 'requires.capabilities', 'requires.capabilities must be a list of capability slugs');
+        }
+    }
+
+    if (!isRecord(detachedVal.content)) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'content', 'Pack content must be an object');
+    }
+    for (const ck of Object.keys(detachedVal.content)) {
+        if (ck !== 'rules' && !CONTENT_KINDS.includes(ck)) {
+            return fail(RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, `content.${ck}`, `"${ck}" is not a content kind`);
+        }
+    }
+
+    if (!Array.isArray(detachedVal.content.rules) || detachedVal.content.rules.length !== 1) {
+        return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'content.rules', 'Pack must carry exactly one rules manifest in content.rules[0]');
+    }
+
+    // A pack with content.rules must say so: an old Story Block does not know the kind, and the capability
+    // is how it learns that it cannot run this pack.
+    if (!(detachedVal.requires.capabilities ?? []).includes(RULES_V2_CAPABILITY)) {
+        return fail(RULES_V2_ERROR_CODES.MISSING_CAPABILITY, 'requires.capabilities', `A pack with content.rules must list "${RULES_V2_CAPABILITY}" in requires.capabilities`);
+    }
+
+    // Money: the display default is ours (SB's checkCurrency does not know it), so it is read here and
+    // left out of the projection that SB checks, with an empty coin list.
+    let currencyForSb = detachedVal.currency;
+    if (isRecord(detachedVal.currency)) {
+        const { display, ...rest } = detachedVal.currency;
+        if (display !== undefined && !CURRENCY_DISPLAYS.includes(display)) {
+            return fail(RULES_V2_ERROR_CODES.BAD_SCHEMA, 'currency.display', `currency.display must be one of ${CURRENCY_DISPLAYS.join(', ')}`);
+        }
+        if (Array.isArray(rest.coins) && rest.coins.length === 0) delete rest.coins;
+        currencyForSb = rest;
+    }
+
+    // Run SB validatePack on detached legacy projection
+    const legacyProj = clonePlain(detachedVal);
+    delete legacyProj.content.rules;
+    if (currencyForSb !== undefined) legacyProj.currency = currencyForSb;
+    legacyProj.content.creatures = [];
+    legacyProj.content.quests = [];
+    legacyProj.content.shops = [];
+    legacyProj.content.recipes = [];
+
+    const hostCapabilities = Array.isArray(capabilities) && capabilities.every(name => typeof name === 'string') ? capabilities : null;
+    const sbRes = validatePack(legacyProj, { hostVersion: HOST_VERSION, capabilities: hostCapabilities });
+    if (!sbRes.ok) {
+        const mapped = sbRes.errors.map(err => {
+            if (err.code === 'UNKNOWN_FIELD' && !err.path.includes('.')) {
+                return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
+            }
+            if (err.code === 'UNKNOWN_KIND') {
+                return { ...err, code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN };
+            }
+            return err;
+        });
+        return { ok: false, errors: mapped };
+    }
+
+    const normRes = normalizeRulesV2Of(detachedVal.content.rules[0], { packKey: detachedVal.id, constants: c });
+    if (!normRes.ok) return normRes;
+
+    const valRes = validateRulesV2Of(normRes.manifest, detachedVal.content, c);
+    if (!valRes.ok) return valRes;
+
+    const expRes = finishExpansion(valRes);
+    if (!expRes.ok) return expRes;
+
+    // Build clean normalized pack with text normalization, money and recipe defaults
+    const normalizedPack = detachedVal;
+    normalizedPack.content.rules = [normRes.manifest];
+    if (isRecord(normalizedPack.currency)) applyCurrencyDefaults(normalizedPack.currency);
+    if (Array.isArray(normalizedPack.content?.recipes)) {
+        for (const r of normalizedPack.content.recipes) {
+            if (r && typeof r === 'object' && r.known === undefined) {
+                r.known = rulesV2Schema.$defs.recipe?.properties?.known?.default ?? true;
+            }
+        }
+    }
+
+    // packHash: the whole canonical pack (envelope included) + schema + constants
+    const canonicalPack = buildCanonicalDocument(normalizedPack, detachedVal.id);
+    const packHash = sha256Text(JSON.stringify(sortKeys({ constants: c, pack: canonicalPack, schema: rulesV2Schema })));
+
+    return {
+        ok: true,
+        errors: [],
+        pack: normalizedPack,
+        raw,
+        resolved: expRes.resolved,
+        rulesHash: expRes.rulesHash,
+        packHash,
+        warnings: valRes.warnings ?? [],
+    };
 }

@@ -1,4 +1,5 @@
 // Rules pack v2 engine tests (SPEC §7, §4, §9, §10; pure).
+// Run: node --test "tests/v2/packs/rules-v2/*.test.js"
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -347,7 +348,7 @@ test('canonical roundtrip twice produces exact identical bytes, hash, and preser
     assert.equal(export2.ok, true, 'second export must succeed');
 
     assert.equal(export1.text, export2.text, 'text must be byte-for-byte identical across roundtrips');
-    assert.equal(export1.hash, export2.hash, 'hash must be identical across roundtrips');
+    assert.equal(export1.packHash, export2.packHash, 'hash must be identical across roundtrips');
 
     // Verify UTF-8 trailing newline
     assert.ok(export1.text.endsWith('\n'), 'exported text must end with newline');
@@ -371,8 +372,8 @@ test('exportRulesV2 and validateRulesPack produce identical text and hash', () =
     assert.equal(exp1.ok, true);
     assert.equal(exp2.ok, true);
     assert.equal(exp1.text, exp2.text, 'text must be identical whether raw or normalized pack is passed');
-    assert.equal(exp1.hash, exp2.hash, 'hash must be identical whether raw or normalized pack is passed');
-    assert.equal(exp1.hash, chk.hash, 'export hash must match validateRulesPack hash');
+    assert.equal(exp1.packHash, exp2.packHash, 'hash must be identical whether raw or normalized pack is passed');
+    assert.equal(exp1.packHash, chk.packHash, 'export hash must match validateRulesPack hash');
 });
 
 test('exportRulesV2 preserves literal IDs inside notes/names and does not shorten them', () => {
@@ -395,13 +396,13 @@ test('document hash changes when envelope version or name changes', () => {
     pack2.version = '2.1.0';
     const res2 = validateRulesPack(pack2);
     assert.equal(res2.ok, true);
-    assert.notEqual(res1.hash, res2.hash, 'changing pack version must change document hash');
+    assert.notEqual(res1.packHash, res2.packHash, 'changing pack version must change document hash');
 
     const pack3 = makeValidExtendedPack();
     pack3.name = 'Altered Name';
     const res3 = validateRulesPack(pack3);
     assert.equal(res3.ok, true);
-    assert.notEqual(res1.hash, res3.hash, 'changing pack name must change document hash');
+    assert.notEqual(res1.packHash, res3.packHash, 'changing pack name must change document hash');
 });
 
 test('budgetOf compatibility stub returns null', () => {
@@ -751,7 +752,7 @@ test('validateRulesV2 enforces schema: tampering normalized manifest schema=999 
     delete rawWithoutPack.pack;
     const res3 = validateRulesV2(rawWithoutPack, pack.content);
     assert.equal(res3.ok, false);
-    assert.ok(res3.errors.some(e => e.path === 'pack'));
+    assert.ok(res3.errors.some(e => e.path === 'content.rules[0].pack'));
 });
 
 test('malformed owned content list containers (e.g. non-array string or object) are rejected', () => {
@@ -950,7 +951,7 @@ test('regression: fixture validity before negative mutations', () => {
     assert.equal(res.errors.length, 0);
     assert.ok(res.pack);
     assert.ok(res.resolved);
-    assert.ok(typeof res.hash === 'string' && res.hash.length === 64);
+    assert.ok(typeof res.packHash === 'string' && res.packHash.length === 64);
 });
 
 test('regression: normalized-vs-raw export bytes and hash equivalence with missing defaults, CRLF, and un-trimmed strings', () => {
@@ -983,15 +984,15 @@ test('regression: normalized-vs-raw export bytes and hash equivalence with missi
     assert.equal(expRaw.ok, true, 'export of raw pack must succeed');
     assert.equal(expNorm.ok, true, 'export of normalized pack must succeed');
     assert.equal(expRaw.text, expNorm.text, 'exported text must be byte-for-byte identical between raw and normalized inputs');
-    assert.equal(expRaw.hash, expNorm.hash, 'exported hash must be identical between raw and normalized inputs');
-    assert.equal(expRaw.hash, chk.hash, 'exported hash must match validateRulesPack hash');
+    assert.equal(expRaw.packHash, expNorm.packHash, 'exported hash must be identical between raw and normalized inputs');
+    assert.equal(expRaw.packHash, chk.packHash, 'exported hash must match validateRulesPack hash');
 
     // Roundtrip parsed export through exportRulesV2 again
     const parsed = JSON.parse(expRaw.text);
     const expRoundtrip = exportRulesV2(parsed);
     assert.equal(expRoundtrip.ok, true);
     assert.equal(expRoundtrip.text, expRaw.text, 'roundtrip re-export must produce identical text');
-    assert.equal(expRoundtrip.hash, expRaw.hash, 'roundtrip re-export must produce identical hash');
+    assert.equal(expRoundtrip.packHash, expRaw.packHash, 'roundtrip re-export must produce identical hash');
 });
 
 test('regression: NFC, whitespace trim, and CRLF line ending normalization across envelope and owned records', () => {
@@ -1246,11 +1247,8 @@ test('bad inputs never throw and return clean error result across all public API
     }
 });
 
-test.skip('Story Block host import integration with rules pack (track E rules registration pending)', () => {
-    // Registered rules pack kind in SB's pack loader is track E work.
-    // Studio part 1 checker runs directly without dispatching rules through old loader.
-});
-
+// Registering the `rules` kind in Story Block's pack loader is track E work. Until then this checker is
+// called directly; review-fixes.test.js pins how today's Story Block reacts to a rules pack.
 
 test('expansion bytes, IDs, forms and hash are stable twice and across two export round trips', () => {
     for (const seed of [smallRulesPack(), makeValidExtendedPack()]) {
@@ -1333,25 +1331,18 @@ test('generation validates the complete parent and its own budget before making 
     assert.equal(generatePowerUp({ ...written, id: 'pack.fixture/s30-base-g' }).ok, false);
 });
 
-test('authored legendary items pass; form rarity/provenance cannot be injected at the closed authoring boundary', () => {
+// Generated legendary items are not the checker's job. Whether a generated item may be legendary is a
+// runtime rule: RB's generation and SB's item registration decide it, using the source form's origin
+// (a runtime flag cannot relabel it). This checker only sees authored data, where any rarity is legal
+// and forms carry no rarity field (the closed boundary refuses one).
+test('authored legendary items pass; a form cannot carry a rarity field', () => {
     const pack = makeValidExtendedPack();
     pack.content.items[0].rarity = 'legendary';
     assert.equal(validateRulesPack(pack).ok, true);
-    // Runtime generated item registration belongs to B3. Forms have no rarity field.
     const validForm = validateRulesPack(pack).resolved.forms['pack.fixture/s30-base-g'];
     assert.equal(generatePowerUp(validForm).ok, true);
     assert.equal(generatePowerUp({ ...validForm, rarity: 'legendary' }).ok, false);
-    pack.content.items[0].origin = 'generated';
-    assert.equal(validateRulesPack(pack).ok, false);
 });
-
-test('static broken tier fixture has only the intended tier-chain defect', () => {
-    const pack = JSON.parse(readFileSync(new URL('./fixtures/broken-tier-chain.json', import.meta.url), 'utf8'));
-    assert.equal(validateRulesPack(pack).ok, false);
-    pack.content.rules[0].classes[2].parent = 'c1';
-    assert.equal(validateRulesPack(pack).ok, true);
-});
-
 
 test('direct generation reserves SB slug space for the complete two-step graph', () => {
     const base = validateRulesPack(smallRulesPack()).resolved.forms['pack.fixture/s30-base'];

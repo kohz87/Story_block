@@ -1,4 +1,5 @@
 // Rules pack v2 schema data tests (SPEC §7, §4; pure).
+// Run: node --test "tests/v2/packs/rules-v2/*.test.js"
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -319,6 +320,8 @@ test('exact enums, bounds, and constants', () => {
         'itemRules',
         'trainers',
         'resolvedBytes',
+        'nodes',
+        'errors',
     ];
     assert.deepEqual(Object.keys(RULES_V2_LIMITS).sort(), expectedLimitKeys.sort());
 });
