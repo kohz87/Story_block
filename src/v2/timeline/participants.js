@@ -34,9 +34,10 @@ export function createParticipants() {
                 if (typeof spec[name] !== 'function') return fail('INVALID', `The participant ${spec.module} has no ${name}() callback.`);
             }
             if (spec.applyEvent !== undefined && typeof spec.applyEvent !== 'function') return fail('INVALID', `The participant ${spec.module} has an applyEvent that is not a function.`);
+            if (spec.current !== undefined && typeof spec.current !== 'function') return fail('INVALID', `The participant ${spec.module} has a current that is not a function.`);
             if (table.has(spec.module)) return fail('CONFLICT', `The participant ${spec.module} is registered already.`);
             const entry = { module: spec.module, schema: spec.schema };
-            for (const name of [...CALLBACKS, 'applyEvent']) if (typeof spec[name] === 'function') entry[name] = spec[name];
+            for (const name of [...CALLBACKS, 'applyEvent', 'current']) if (typeof spec[name] === 'function') entry[name] = spec[name];
             table.set(spec.module, Object.freeze(entry));
             return { ok: true, module: spec.module };
         },
@@ -44,6 +45,28 @@ export function createParticipants() {
         get: module => table.get(module) ?? null,
         /** The registered participants' modules, sorted. */
         modules: () => [...table.keys()].sort(),
+        /**
+         * The optional synchronous probe `current({ checkpoint, hash, schema })` → boolean: is its native state still the one it handed over? Asked
+         * in the section that commits a save point, where nothing may be awaited. → { current: true } (it says so, or has no probe: today's
+         * behaviour) | { current: false, why } (it says no, or throws, or answers anything but a boolean, or a promise: it fails closed).
+         */
+        probe(module, input) {
+            const entry = table.get(module);
+            if (typeof entry?.current !== 'function') return { current: true };
+            let answer;
+            try {
+                answer = entry.current(structuredClone(input));
+            } catch (error) {
+                if (crashing(error)) throw error;
+                return { current: false, why: `its probe failed: ${error?.message ?? error}` };
+            }
+            if (answer && typeof answer.then === 'function') {
+                answer.then(null, () => {});
+                return { current: false, why: 'its probe did not answer at once' };
+            }
+            if (answer === true) return { current: true };
+            return { current: false, why: answer === false ? 'its native state changed after its checkpoint' : 'its probe answered something other than true or false' };
+        },
         /**
          * Calls the participant's `method` with `input` and checks the answer. → the success (as the participant gave it) or
          * a failure envelope: the participant's own failure (unknown codes become FAILED), or FAILED when it threw,

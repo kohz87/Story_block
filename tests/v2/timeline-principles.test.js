@@ -725,3 +725,40 @@ test('recovery route after a restart: the outstanding event is finished when the
     assert.equal(w.native.native.store.applied.includes(PENDING_EVENT.event), true, 'the participant has the event');
     assert.equal((await again.sdk.command('tl.xp', { amount: 7 })).ok, true);
 });
+
+// ---- 9. a participant's native change between its checkpoint and the commit ------------------------------------------------------
+
+test('a participant whose state changed after its checkpoint holds the commit of a save point: STALE, nothing written, nothing announced; the retry works', async t => {
+    const { hashJson } = await import('../../src/v2/replay.js');
+    const w = await world(t, { wrap: native => {
+        native.def.participant.current = ({ hash }) => hashJson(native.native.store) === hash;
+    } });
+    const before = Object.keys(w.host.head().domains.savepoints.points).length;
+    const told = w.told.length;
+    w.hook.on = phase => { if (phase === 'make.archived') w.native.native.edit(state => { state.dossiers.tavi.trust = 55; }); };
+    const made = await w.host.sdk.timeline.make({ kind: 'manual', name: 'Raced' });
+    assert.equal(made.ok, false);
+    assert.equal(made.code, 'STALE');
+    assert.match(made.message, /tl-native changed its state/);
+    assert.equal(Object.keys(w.host.head().domains.savepoints.points).length, before, 'no descriptor');
+    assert.equal(w.told.length, told, 'nothing announced');
+    assert.equal(w.host.timeline.host.journal().filter(entry => entry.kind === 'make').at(-1).phase, 'discarded');
+    // The state stays as it is now and the retry hands over that state.
+    w.hook.on = null;
+    const again = await w.host.sdk.timeline.make({ kind: 'manual', name: 'Retried' });
+    assert.equal(again.ok, true, again.message);
+    assert.equal(again.snapshot.participants[0].hash, hashJson(w.native.native.store));
+});
+
+test('a probe that throws, answers a promise or answers something else fails closed; a participant without a probe keeps today\'s behaviour', async t => {
+    for (const answer of [() => { throw new Error('boom'); }, () => Promise.resolve(true), () => 'yes', () => undefined]) {
+        const w = await world(t, { wrap: native => { native.def.participant.current = answer; } });
+        const made = await w.host.sdk.timeline.make({ kind: 'manual', name: 'Probed' });
+        assert.equal(made.code, 'STALE', String(answer));
+    }
+    const w = await world(t);
+    w.hook.on = phase => { if (phase === 'make.archived') w.native.native.edit(state => { state.dossiers.tavi.trust = 55; }); };
+    assert.equal((await w.host.sdk.timeline.make({ kind: 'manual', name: 'No probe' })).ok, true, 'no probe: the head hash alone, as before');
+    const bad = await w.host.timeline.host.registerParticipant({ module: 'tl-bad', schema: 1, current: 'yes', ...Object.fromEntries(['checkpoint', 'prepare', 'activate', 'abort', 'status'].map(name => [name, () => ({ ok: true })])) });
+    assert.equal(bad.code, 'INVALID');
+});

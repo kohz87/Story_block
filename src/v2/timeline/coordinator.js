@@ -410,6 +410,16 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             archive.patch(journal, { phase: 'discarded', why: lacking });
             return fail('SNAPSHOT_UNAVAILABLE', `A save point cannot be made: ${lacking}.`);
         }
+        // A participant's native change that landed after its checkpoint was handed over is not in the head hash (it is published when its
+        // change finishes): each participant that has a probe is asked, in this synchronous section, whether its state is still the one it
+        // gave. Retryable: nothing is written or announced.
+        for (const item of checkpoints) {
+            const probed = participants.probe(item.module, { checkpoint: item.checkpoint, hash: item.hash, schema: item.schema });
+            if (!probed.current) {
+                archive.patch(journal, { phase: 'discarded', why: `${item.module}: ${probed.why}` });
+                return fail('STALE', `The participant ${item.module} changed its state while the save point was made (${probed.why}); nothing was saved. Try again.`);
+            }
+        }
         const domain = isObject(now.state.domains?.[HOST_DOMAIN]) ? now.state.domains[HOST_DOMAIN] : null;
         const ops = [];
         if (!domain) {
