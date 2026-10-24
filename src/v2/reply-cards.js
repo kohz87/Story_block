@@ -36,6 +36,17 @@ function rowOf(raw) {
     return { icon: iconOf(raw.icon, ''), text, tag, tagTone: CARD_TONES.includes(raw.tagTone) ? raw.tagTone : 'info' };
 }
 
+// A payload as plain JSON (what a command or a dialog's draft takes), or {} when it cannot be copied (a loop, a BigInt, a getter that throws).
+function payloadOf(value) {
+    if (!isRecord(value)) return {};
+    try {
+        const copy = JSON.parse(JSON.stringify(value));
+        return isRecord(copy) ? copy : {};
+    } catch {
+        return {};
+    }
+}
+
 function actionOf(raw, at) {
     if (!isRecord(raw)) return null;
     const label = oneLine(raw.label ?? '', 32);
@@ -49,7 +60,7 @@ function actionOf(raw, at) {
         icon: iconOf(raw.icon, ''),
         primary: raw.primary === true,
         command,
-        payload: isRecord(raw.payload) ? raw.payload : {},
+        payload: payloadOf(raw.payload),
         open,
     };
 }

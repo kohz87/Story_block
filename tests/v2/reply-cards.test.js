@@ -131,3 +131,14 @@ test('laterStore: a browser that refuses `localStorage` (the getter throws) read
         else delete globalThis.localStorage;
     }
 });
+
+test('normalizeCard: an action\'s payload is plain JSON (a copy); one that cannot be copied is {}', () => {
+    const loop = { a: 1 };
+    loop.self = loop;
+    const source = { n: { deep: true }, drop: undefined };
+    const card = normalizeCard({ title: 'T', actions: [{ label: 'A', command: 'a.b', payload: loop }, { label: 'B', command: 'a.c', payload: source }, { label: 'C', command: 'a.d', payload: [1] }] });
+    assert.deepEqual(card.actions[0].payload, {});
+    assert.deepEqual(card.actions[1].payload, { n: { deep: true } });
+    assert.notEqual(card.actions[1].payload, source, 'a copy: the module\'s object is not shared');
+    assert.deepEqual(card.actions[2].payload, {}, 'a list is no payload');
+});

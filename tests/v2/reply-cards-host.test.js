@@ -345,3 +345,20 @@ test('a card\'s open: the screen where the screen has a mount, else the dialog, 
         assert.equal(warn.filter(line => line.includes('qa-cards/chip')).length, 1, 'and says so once');
     } finally { console.warn = real; }
 });
+
+test('a card\'s open with a payload that cannot be copied still opens the dialog (with an empty draft) and throws nothing', async () => {
+    const { doc, ui, runtime } = await setup();
+    const loop = { name: 'Ren' };
+    loop.self = loop;
+    await runtime.sdk.registerModule({
+        id: 'qa-cards', name: 'Cards', version: '2.0.0-alpha.1',
+        screens: [{ id: 'qa-cards/wizard', title: 'Wizard', mounts: ['dialog'], template: '<p>Wizard</p>' }],
+        cards: { tools: { for: () => ({ title: 'Tools', actions: [{ id: 'wizard', label: 'Wizard', open: 'qa-cards/wizard', payload: loop }] }) } },
+    });
+    ui.refresh();
+    redraw(ui, [2]);
+    assert.doesNotThrow(() => cardsOf(doc, 2)[0].querySelector('button[data-action="wizard"]').click());
+    assert.equal(ui.mounts.dialog.current()?.screenId, 'qa-cards/wizard');
+    assert.deepEqual(ui.mounts.dialog.current().draft, {});
+    ui.mounts.dialog.closeAll();
+});

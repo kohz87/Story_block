@@ -399,9 +399,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         const nodes = items.map(item => {
             const folded = foldedNow(chat, item.key);
             const nodeKey = `${chat}|${index}|${item.key}`;
-            const sign = JSON.stringify([item.card, folded]);
+            let sign = null;
+            try { sign = JSON.stringify([item.card, folded]); } catch { sign = null; }
             const kept = replyNodes.get(nodeKey);
-            const node = kept?.sign === sign ? kept.node : drawReplyCard(doc, item, {
+            const node = sign !== null && kept?.sign === sign ? kept.node : drawReplyCard(doc, item, {
                 head: true,
                 folded,
                 onFold: on => { setFold(chat, item.key, on); mounts?.card?.refresh?.(index, { force: false }); },
