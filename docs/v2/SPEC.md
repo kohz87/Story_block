@@ -270,6 +270,9 @@ commands: {
   thing is gone (§2.2 rule d). Both only for a domain the module owns (`NOT_OWNER`), `path` a pointer
   inside it (`INVALID`).
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
+* `ctx.proof({ kind, payload, parents? })` → `{ id, payloadHash }`: the owner of `kind` (Story Director: visit, acceptance,
+  event; RPG Battle: kill, use, rescue, story) gives closed proof on the command's block; `story.evidence({ ids? })` lists
+  what is active and visible. See [EVIDENCE.md](EVIDENCE.md).
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.feature(id)` (whether the reader has
   that feature on, §6), `ctx.fail(code, message)` throws.
 * `ctx.gather(name, args)` asks every other module's hook `name` (`hooks[name]({ state, query }, args)`,

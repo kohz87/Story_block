@@ -53,7 +53,9 @@ export default {
 * Claims: `ctx.claim(key)` as before. The host reads the keys a block adds from its `/meta/claims/…` ops and
   lists them on the span. The block's ops and claims are applied together or not at all.
 * `receipt.data.v2` is stamped by the host: `schema: 2`, `epoch`/`rulesHash` from the guard, the host's `source`
-  and `guard`. The owner's own fields (`key`, `result`, `evidence`, …) stay; it cannot set `source` or `guard`.
+  and `guard`, and the `evidence` the command gave. The owner's own fields (`key`, `result`, …) stay; it cannot set
+  `source`, `guard` or `evidence`. A command that gives proof (EVIDENCE.md) without attaching a guard makes a block
+  too, with `guard: null`.
 
 ## The span
 
@@ -66,7 +68,7 @@ export default {
 | `source` | `{ sid: sr_…, swipeKey: sw_…, evidence: ev_…, ordinal }` of the carrier and swipe it was stored on |
 | `guard` | the owner's Guard, or `null` |
 | `claims` | the keys the block's ops add under `/meta/claims`, read by the host |
-| `evidence` | `[]` for now (a placeholder for proofs) |
+| `evidence` | the Proofs the command gave (`ctx.proof`, [EVIDENCE.md](EVIDENCE.md)); `[]` when it gave none |
 | `boundaries` | `[{ cursor: { sid, swipeKey, block, op, rev }, prefixHash, payloadHash }]`: where the block starts (ops before it on this carrier, meta.rev before it), the hash of everything before it, the hash of the reply's text |
 | `operation` | the root `{ type, payload }` |
 | `recorded` | the owner's second argument to `ctx.replayGuard` (or `null`) |

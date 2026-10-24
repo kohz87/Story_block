@@ -27,6 +27,10 @@
 //   matches its carrier, its claims are the ones its ops make and the owner's `hooks.replayGuard` says
 //   yes on the state before it; then its ops and its claims go in together, else neither (it stays stored
 //   and inactive, REPLAY_PREREQUISITE). A span without an `id` is a legacy block and replays as before.
+// * Proof (docs/v2/EVIDENCE.md, contract §6): a block that gives proof keeps it on its span (`evidence`) and pins
+//   it in `meta.proofs` with the same ops; the span must hold exactly the proof its ops pin, or it is not
+//   applied. `store.proofs()` lists the stored proof of the chat in source order; which of it is active is what
+//   the state pins (evidence.js), so a skipped block, a deleted reply or another swipe publishes nothing.
 // * The carrier source map (`record.source`, contract §4): each record carries the canonical pair of its
 //   logical message and swipe, worked out from its stored `sid` and persisted with it.
 // * Every state handed out is deep-frozen. The head and the checkpoints are cached; the cache is checked
@@ -38,6 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
+import { evidenceProblem, pinOps, recordEntries } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -420,11 +425,13 @@ export function createStore({
         if (claims.length !== span.claims.length || !claims.every(key => span.claims.includes(key))) {
             throw prerequisite('the claims it saved are not the claims its changes make');
         }
+        const proof = evidenceProblem(span, ops);
+        if (proof) throw prerequisite(`the proof it saved is not the proof its changes pin: ${proof}`);
         if (span.guard) {
             const answer = askGuard(state, span);
             if (!answer.ok) throw prerequisite(`its guard no longer holds: ${answer.reason}`);
         }
-        return step(state, ops, { replayed: true });
+        return step(state, span.evidence.length ? pinOps(state, ops) : ops, { replayed: true });
     }
 
     // The ids of every guarded block in the chat (a new block's id must be one of its own).
@@ -453,7 +460,7 @@ export function createStore({
         const message = arr[index];
         const span = {
             id, module: block.module, source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal },
-            guard: block.guard ?? null, claims: claimKeys(ops), evidence: [],
+            guard: block.guard ?? null, claims: claimKeys(ops), evidence: structuredClone(block.evidence ?? []),
             boundaries: [{
                 cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: id, op: offset, rev: Math.max(0, (revOp ? revOp.value : 1) - 1) },
                 prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: earlier.map(part => [isMetaSpan(part.span) ? part.span.id : null, hashJson(part.ops)]) }),
@@ -463,7 +470,7 @@ export function createStore({
             replan: receipt?.replan && Number.isInteger(receipt.seed) && typeof receipt.type === 'string'
                 ? { type: receipt.type, payload: structuredClone(receipt.replan.payload ?? {}), seed: receipt.seed } : null,
         };
-        const bad = spanProblem(span);
+        const bad = spanProblem(span) || evidenceProblem(span, ops);
         if (bad) throw new Error(`The guarded block cannot be stored: ${bad}.`);
         if (span.guard) seeGuards();
         return span;
@@ -1131,6 +1138,23 @@ export function createStore({
             return sourceOf(index, options);
         },
 
+        /**
+         * The proof stored on the chat's guarded blocks, in source order: [{ proof, block, index }] (frozen). Stored,
+         * not active: the state pins the active ones (evidence.js visibleProofs, the `story.evidence` query).
+         */
+        proofs() {
+            const arr = list();
+            const memo = lineOf(arr);
+            if (memo.proofs) return memo.proofs;
+            const out = [];
+            for (const i of carrierIndexes(arr)) {
+                const record = readRecord(arr[i]);
+                if (record && hasMeta(record)) for (const entry of recordEntries(record)) out.push(Object.freeze({ ...entry, index: i }));
+            }
+            memo.proofs = Object.freeze(out);
+            return memo.proofs;
+        },
+
         /** The hash of the text of carrier `index`'s shown swipe as evidence (what a block's boundary recorded). */
         payloadHashAt(index) {
             const message = list()[index];
@@ -1377,7 +1401,7 @@ export function createStore({
                         span = { ...span, ...stamp(arr, index, record, { ...again.block, ...(meta ? { id: was.id, source: { ...again.block.source, ordinal: was.source.ordinal } } : {}) }, blockOps, kept, nextParts, nextOps.length) };
                     } else if (meta && !again && !spanProblem(was)) {
                         // Kept as it was; its boundary is where it stands now.
-                        span = { ...span, ...stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, id: was.id }, blockOps, kept, nextParts, nextOps.length) };
+                        span = { ...span, ...stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, evidence: was.evidence, id: was.id }, blockOps, kept, nextParts, nextOps.length) };
                     }
                 } catch (error) {
                     throw fail(error);
