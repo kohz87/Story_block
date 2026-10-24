@@ -17,7 +17,7 @@ test('the part has the MODULES §A shape and no domain, command or prompt text o
     assert.deepEqual(part.commands, {});
     assert.deepEqual(part.kinds, {});
     assert.deepEqual(part.tabs, []);
-    assert.deepEqual(Object.keys(part.queries), ['packs.list', 'packs.content', 'packs.item', 'packs.itemDefs', 'packs.start', 'packs.calendar', 'packs.weather', 'packs.crafts', 'packs.economy', 'packs.markets']);
+    assert.deepEqual(Object.keys(part.queries), ['packs.list', 'packs.content', 'packs.rules', 'packs.item', 'packs.itemDefs', 'packs.start', 'packs.calendar', 'packs.weather', 'packs.crafts', 'packs.economy', 'packs.markets']);
     assert.deepEqual(Object.keys(part.hooks), ['item.resolve', 'start']);
     assert.equal(part.context.static(), '', 'the static prompt stays byte-identical whatever is installed');
     assert.deepEqual(part.context.tail({}), { lines: [], optional: [] });

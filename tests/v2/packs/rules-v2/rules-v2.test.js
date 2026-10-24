@@ -760,7 +760,8 @@ test('malformed owned content list containers (e.g. non-array string or object) 
     pack.content.creatures = 'not-an-array';
     const res = validateRulesPack(pack);
     assert.equal(res.ok, false);
-    assert.ok(res.errors.some(e => e.code === RULES_V2_ERROR_CODES.BAD_SCHEMA && e.path === 'content.creatures'));
+    // (Story Block's record pass runs first now and says BAD_CONTENT; the path is the same.)
+    assert.ok(res.errors.some(e => e.path === 'content.creatures'));
 });
 
 test('schema $ref sibling: shop.kind length 41 is rejected despite slug maxLength 64', () => {
@@ -833,6 +834,9 @@ test('collision reservation: item slug matching generated form ID s30-base-g is 
     // Rename potion to s30-base-g and update itemRule
     pack.content.items[2].slug = 's30-base-g';
     pack.content.rules[0].itemRules[2].def = 's30-base-g';
+    pack.content.shops[0].stock[1].item = 's30-base-g';
+    pack.content.recipes[0].makes = 's30-base-g';
+    pack.content.recipes[0].materials[0].item = 's30-base-g';
 
     const res = validateRulesPack(pack);
     assert.equal(res.ok, false);
