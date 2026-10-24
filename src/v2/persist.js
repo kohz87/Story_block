@@ -116,11 +116,16 @@ const MARK_CHARS = 40;
 // (trimmed at the end: hiding the change block puts a blank line before it)
 const opening = message => String(message?.mes ?? '').split('<')[0].trimEnd();
 /**
- * The text of the shown swipe a guarded block takes as its evidence payload: what comes before any tag (the
- * hidden change block and its comment come after it), without trailing space. It changes when the reply is
- * edited or continued, which is what makes a stored payload hash stale (store.js sourceAt, REPLAY.md).
+ * The text of the shown swipe a guarded block takes as its evidence payload: the reply as written, up to its
+ * <Changes> block (or the hidden comment that holds it once it is read), without trailing space. Markup in the
+ * prose (a status panel, reasoning tags) is part of it. It changes when the reply is edited or continued, which
+ * is what makes a stored payload hash stale (store.js sourceAt, REPLAY.md). Cached per message by its text.
  */
-export const payloadText = opening;
+export function payloadText(message) {
+    const mes = String(message?.mes ?? '');
+    const at = mes.search(/<Changes\b|<!--\s*STORY_SUITE_V2\b/i);
+    return (at < 0 ? mes : mes.slice(0, at)).trimEnd();
+}
 const dateOf = value => {
     if (value === undefined || value === null || value === '') return '';
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString();

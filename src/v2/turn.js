@@ -288,13 +288,59 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // The chat's state starts on its first carrier; a damaged record set up again goes to the Problems.
     function ensureInitial() {
         const notes = store.ensureInitial(initial());
-        for (const note of Array.isArray(notes) ? notes : []) problem({ code: 'DAMAGED', message: note });
+        for (const note of Array.isArray(notes) ? notes : []) problem({ code: 'DAMAGED', message: note, ...(repairOffer() ? { action: repairOffer() } : {}) });
+    }
+
+    // A damaged first record can be started over by the reader, only on their say (never automatic): the offer the
+    // Problem carries and Settings → Diagnostics shows; null when nothing is kept aside, or it is from a newer version.
+    function repairOffer() {
+        if (store.readOnly?.()?.kind !== 'damaged') return null;
+        return { id: 'start-over', label: 'Start this chat\'s story state over', confirm: 'The saved story state of this chat is damaged and is kept aside. Starting over begins the story\'s numbers (items, money, places) from their start, and the replies after it add their changes again. Start over?' };
+    }
+    /** The reader's confirmed repair (store.startOver): → { ok: true } | { ok: false, code, message }. */
+    async function startOver({ confirmed = false } = {}) {
+        try {
+            store.startOver?.({ confirmed });
+        } catch (error) {
+            return refusal('REFUSED', error?.message ?? String(error));
+        }
+        rebuild();
+        await trySave('after starting the story over');
+        return { ok: true };
     }
 
     function rebuild() {
         store.rebuild();
         if (hasCarrier()) ensureInitial();
         events?.emit('head', { index: store.headIndex() });
+    }
+
+    // A guarded system step with a `replan` planned again (store.replaceStory / store.reconcile's `rerun`): as its
+    // span saved it (type, payload, seed: `info.replan`; the receipt is only what was shown), on `state`, on the
+    // reply it is kept on (`own` for the one a Re-read is on), keeping its ordinal.
+    function planAgain(state, receipt, info = null, own = null) {
+        const plan = info?.replan ?? { type: receipt.type, payload: receipt.replan?.payload ?? {}, seed: receipt.seed };
+        const at = Number.isInteger(info?.index) ? info.index : null;
+        const reply = own ?? (at !== null && store.carrierSid?.(at) ? { index: at, sid: store.carrierSid(at) } : null);
+        const ordinal = info?.span?.source?.ordinal;
+        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
+    }
+
+    // After a delete or swipe (REPLAY.md "Reconciling"): the guarded steps that carry a `replan` are planned again
+    // from the first one on, in the same save window; steps that come out as they were change nothing and write
+    // nothing. Not while the story record is read-only. What was planned again is a Problem, quietly.
+    function reconcileNow() {
+        const from = store.replansFrom?.();
+        if (!Number.isInteger(from) || store.readOnly?.()) return;
+        try {
+            const done = store.reconcile(from, { rerun: planAgain });
+            if (!done.changed) return;
+            store.scheduleSave?.();
+            const parts = [done.planned ? `${done.planned} planned again` : '', done.removed ? `${done.removed} taken back` : ''].filter(Boolean).join(', ');
+            problem({ code: 'REPLANNED', quiet: true, message: `The story before some steps changed, so ${parts || 'steps'} (their changes follow what is there now).` });
+        } catch (error) {
+            problem({ code: 'FAILED', message: `Steps that follow the change could not be planned again: ${error?.message ?? error}` });
+        }
     }
 
     // beforeGenerate (§4.1 step 3): each hook may return lines for the tail, or commands to
@@ -962,12 +1008,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             // A kept system step marked `replan` (B-a1-13) runs again on the new story changes, as it ran
             // before: a system step, its own seed.
             // A guarded block of a later reply is planned again on its own reply, keeping its ordinal (info.span).
-            const rerun = (state, receipt, info = null) => {
-                const at = Number.isInteger(info?.index) && info.index !== index ? info.index : index;
-                const own = at === index ? reply : (store.carrierSid?.(at) ? { index: at, sid: store.carrierSid(at) } : null);
-                const ordinal = info?.span?.source?.ordinal;
-                return bus.run(receipt.type, receipt.replan?.payload ?? {}, { cause: 'system', state, seed: receipt.seed, ...(own ? { reply: Number.isInteger(ordinal) ? { ...own, ordinal } : own } : {}) });
-            };
+            const rerun = (state, receipt, info = null) => planAgain(state, receipt, info, !Number.isInteger(info?.index) || info.index === index ? reply : null);
             store.replaceStory(index, { ops, receipts, rerun, settled: steps, blocks: plan.blocks });
         } catch (error) {
             return refusal('CONFLICT', `${error?.message ?? error}`);
@@ -1206,6 +1247,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** Deleted messages, swipes, a greeting picked: the state is rebuilt from what is stored. */
     function onTimelineChanged() {
         rebuild();
+        reconcileNow();
+        events?.emit('head', { index: store.headIndex() });
     }
 
     /** GENERATION_STOPPED: the reader stopped the reply being written (its last line may be unfinished). */
@@ -1265,6 +1308,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     const api = {
+        repairOffer,
+        startOver,
         interceptor,
         install,
         uninstall,

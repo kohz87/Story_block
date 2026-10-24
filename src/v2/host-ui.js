@@ -180,6 +180,12 @@ export const DIAGNOSTICS_TEXT = Object.freeze({
     sampleTitle: 'Every building block of Story Suite\'s look, in light and dark, for checking a theme and for screenshots',
     sampleFailed: 'The UI sample could not be shown: {why}',
     credits: 'Icons: Phosphor Icons (phosphoricons.com), MIT License.',
+    repairTitle: 'Story record',
+    repairHelp: 'This chat\'s saved story state could not be read. Story Block has not touched it and works on an empty story until you decide.',
+    repairYes: 'Yes, start over',
+    repairNo: 'Cancel',
+    repairDone: 'The story state was started over.',
+    repairFailed: 'The story state could not be started over: {why}',
 });
 export const FEATURE_TEXT = Object.freeze({
     title: 'Features',

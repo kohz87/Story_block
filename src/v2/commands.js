@@ -166,7 +166,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     }
 
     // What the store asks on replay: `hooks.replayGuard({ state, query, hash }, { guard, source, block,
-    // operation, recorded })` of the guard's owner, on the state before the block. { ok: true } or { ok: false,
+    // operation, recorded, payload: { saved, current } })` of the guard's owner, on the state before the block. { ok: true } or { ok: false,
     // reason }; no hook, a throw, a promise or a malformed answer is { ok: false } (fails closed).
     function replayGuardCheck(state, info) {
         const owner = info?.guard?.owner;
@@ -179,7 +179,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         try {
             const tools = queryTools({ reply: null }, state);
             const view = Object.freeze({ state, query: tools.query, hash: hashJson });
-            answer = hook(view, deepFreeze(clone({ guard: info.guard, source: info.source, block: info.block, operation: info.operation, recorded: info.recorded ?? null })));
+            answer = hook(view, deepFreeze(clone({ guard: info.guard, source: info.source, block: info.block, operation: info.operation, recorded: info.recorded ?? null, payload: info.payload ?? null })));
         } catch (error) {
             return { ok: false, reason: `${owner}'s replayGuard failed (${error?.message ?? error})` };
         }
