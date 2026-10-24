@@ -557,7 +557,8 @@ card is drawn under the head reply with its actions enabled; older replies carry
 start card goes the moment the character exists, and a second fight's battle card sits under the newest reply, not on the first
 fight's. A card the module stops returning goes on the next draw (a character made, a fight ended); a swipe or a delete moves it
 with the head. Ask the head's state, not the history: a card that needs "has a fight started?" reads it from `state`, as the head
-carries everything so far. The card is one object:
+carries everything so far. In a brand-new chat (only the greeting, no story record on it yet) the state is the chat's initial one, so a start
+card shows before the first reply. The card is one object:
 
 | Field | Meaning |
 |---|---|
