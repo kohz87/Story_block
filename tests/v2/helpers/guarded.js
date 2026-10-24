@@ -37,7 +37,10 @@ export const OWNER = 'zz-guarded';
 export const [Q1, Q2, Q5, Q9] = ['th_questone', 'th_questtwo', 'th_questfiv', 'th_questnin'];
 export const claimKey = (id, instance) => `gt:${EPOCH}:quest:${id}:${instance}:settled`;
 
-export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH } = {}) {
+// `setting` ({ value }): an outside fact the owner reads when it plans a block and records with it ("currency", a rule setting): the
+// guard answers from the record, never from the setting as it is on replay.
+export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH, setting = null } = {}) {
+    const recording = extra => (setting ? { ...extra, setting: setting.value } : extra);
     const make = (ctx, predicate, inputs) => ({ owner: OWNER, version: 2, epoch, rulesHash: null, inputHash: ctx.hash({ predicate, inputs }), predicate });
     const settle = loose => (ctx, { id, instance, reward }) => {
         const gt = ctx.draft('gt');
@@ -76,7 +79,7 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH 
             'gt.quick'(ctx, { id }) {
                 const gt = ctx.draft('gt');
                 gt.quests[id] = { id, instance: 1, state: 'done' };
-                ctx.replayGuard(make(ctx, { kind: 'quick', id }, {}));
+                ctx.replayGuard(make(ctx, { kind: 'quick', id }, {}), recording());
                 if (!ctx.claim(claimKey(id, 1))) ctx.fail('CLAIMED', 'Already settled.');
                 gt.coin += 1;
                 return { summary: `Quick ${id}.`, narrate: false, data: { v2: { result: { id } } } };
@@ -141,7 +144,7 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH 
                 const die = ctx.roll('1d6').total;
                 gt.attempts[id] = (gt.attempts[id] ?? 0) + 1;
                 gt.credits[id] = (gt.credits[id] ?? 0) + credit;
-                ctx.replayGuard(make(ctx, { kind: 'attempt', id, minutes, credit }, { minutes, die }), { minutes, die });
+                ctx.replayGuard(make(ctx, { kind: 'attempt', id, minutes, credit }, { minutes, die }), recording({ minutes, die }));
                 return { summary: `Attempt on ${id}: credit ${credit} (die ${die}).`, narrate: false, replan: true, data: { v2: { result: { id, credit, die } } } };
             },
         },
@@ -152,7 +155,7 @@ export function guarded({ mode = { value: 'normal' }, asked = [], epoch = EPOCH 
                 if (line.kind === 'quick') {
                     // A guarded story line: the quest is put down settled, with a claim of its own.
                     gt.quests[line.name] = { id: line.name, instance: 1, state: 'done' };
-                    ctx.replayGuard(make(ctx, { kind: 'quick', id: line.name }, {}));
+                    ctx.replayGuard(make(ctx, { kind: 'quick', id: line.name }, {}), recording());
                     if (!ctx.claim(claimKey(line.name, 1))) ctx.fail('CLAIMED', 'Already settled.');
                     gt.coin += 1;
                     return { summary: `Quick ${line.name}.`, narrate: false };

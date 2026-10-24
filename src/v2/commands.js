@@ -158,6 +158,33 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return null;
     }
 
+    // The context a guard is asked in on replay (REPLAY.md "Guards are pure"): the state before its block and what it recorded,
+    // nothing else. `query` answers only the queries its owner module declares as replay-safe (`replayQueries: [names]`: they
+    // depend on the state and their arguments alone, not on settings, the clock or other messages); anything else, and
+    // `receipts()` (the chat after the block is not part of what it was recorded over), throws, which fails the guard closed.
+    // What a guard needs from outside (a setting, a currency rule) is read when the block is planned and handed to
+    // `ctx.replayGuard(guard, recorded)`, and comes back from the record.
+    function replayQuery(owner, name) {
+        for (const def of registry.modules?.() ?? []) {
+            if (def?.id === owner && typeof def.queries?.[name] === 'function' && Array.isArray(def.replayQueries) && def.replayQueries.includes(name)) return def.queries[name];
+        }
+        return null;
+    }
+    function replayTools(owner, state) {
+        const tools = Object.freeze({
+            reply: null,
+            query(name, args) {
+                const fn = replayQuery(owner, name);
+                if (!fn) throw new Error(`"${name}" is not a query a guard may ask on replay: ${owner} lists the ones that depend on the state alone in replayQueries; anything else it needs it records`);
+                return frozenCopy(fn(state, deepFreeze(clone(args)), tools));
+            },
+            receipts() {
+                throw new Error('a guard does not see receipts on replay: only the state before its block and what it recorded');
+            },
+        });
+        return tools;
+    }
+
     // What the store asks on replay: `hooks.replayGuard({ state, query, hash }, { guard, source, block,
     // operation, recorded, payload: { saved, current } })` of the guard's owner, on the state before the block. { ok: true } or { ok: false,
     // reason }; no hook, a throw, a promise or a malformed answer is { ok: false } (fails closed).
@@ -170,7 +197,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         if (registry.held?.(owner) === true) return { ok: false, reason: `${owner} is not ready` };
         let answer;
         try {
-            const tools = queryTools({ reply: null }, state);
+            const tools = replayTools(owner, state);
             const view = Object.freeze({ state, query: tools.query, hash: hashJson });
             answer = hook(view, deepFreeze(clone({ guard: info.guard, source: info.source, block: info.block, operation: info.operation, recorded: info.recorded ?? null, payload: info.payload ?? null })));
         } catch (error) {
