@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, merged, nextOccurrence, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, takenAfter, touchesProof } from './evidence.js';
+import { evidenceDigest, evidenceProblem, merged, nextOccurrence, occurrenceOf, opShapeProblem, pinOps, recordEntries, takenAfter, touchesProof } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -667,23 +667,6 @@ export function createStore({
         if (walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: span.id, index: at }));
     }
 
-    // How many of the blocks `parts` did what `operation` does (its command and line): the rank a new block of that operation has among them.
-    const operationKeys = new WeakMap();     // span → its operation's key (a span is never changed in place)
-    function keyOfSpan(span) {
-        let key = operationKeys.get(span);
-        if (key === undefined) {
-            try { key = operationKey(span.operation.type, span.operation.payload); } catch { key = null; }
-            operationKeys.set(span, key);
-        }
-        return key;
-    }
-    const sameOperation = (part, key) => isMetaSpan(part.span) && isObject(part.span.operation) && keyOfSpan(part.span) === key;
-    const rankIn = (parts, operation) => {
-        let key = null;
-        try { key = operationKey(operation?.type, operation?.payload); } catch { return 0; }
-        return parts.filter(part => sameOperation(part, key)).length;
-    };
-
     function stamp(arr, index, record, block, ops, receipt, earlier, offset, free = null) {
         const entry = record.source;
         const planned = block.source;
@@ -1170,8 +1153,7 @@ export function createStore({
         let planned = null;
         let failure = '';
         try {
-            const nth = rankIn(out.parts, span.operation);
-            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, nth, occurrence: occurrenceOf(span) ?? nth });
+            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, ...(occurrenceOf(span) === null ? {} : { occurrence: occurrenceOf(span) }) });
         } catch (error) {
             failure = `it threw (${error?.message ?? error})`;
         }
@@ -2033,8 +2015,7 @@ export function createStore({
                 const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
-                    const nth = isMetaSpan(was) ? rankIn(nextParts, was.operation) : undefined;
-                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, nth, occurrence: occurrenceOf(was) ?? nth }); } catch { out = null; }
+                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, ...(occurrenceOf(was) === null ? {} : { occurrence: occurrenceOf(was) }) }); } catch { out = null; }
                     // A guarded step goes only when its owner says it is no longer done; when it cannot be asked it stays.
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)
@@ -2087,7 +2068,7 @@ export function createStore({
                         } else {
                             // A Re-read moves a kept block's position and nothing else: its cursor and prefix hash follow where it stands now,
                             // but its payload hash, evidence, claims, guard, source and results are the ones it was stored with.
-                            const placed = stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, evidence: was.evidence, id: was.id }, blockOps, kept, nextParts, nextOps.length);
+                            const placed = stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, evidence: was.evidence, occurrence: was.occurrence, id: was.id }, blockOps, kept, nextParts, nextOps.length);
                             span = { ...was, n: blockOps.length, story: false,
                                 boundaries: was.boundaries.map((boundary, at) => (at === 0 ? { ...boundary, cursor: placed.boundaries[0].cursor, prefixHash: placed.boundaries[0].prefixHash } : boundary)) };
                         }

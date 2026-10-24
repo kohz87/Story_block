@@ -316,6 +316,8 @@ export function evidenceProblem(span, ops) {
     if (writes) return writes;
     const shape = opShapeProblem(ops);
     if (shape) return shape;
+    // A block with proof and no occurrence is from a build before proof was released: not supported, so it fails closed.
+    if (list.length && occurrenceOf(span) === null) return 'its proof has no occurrence (a block written before proof was released is not supported)';
     for (const proof of list) {
         const why = proofProblem(proof);
         if (why) return `a proof of the block is not whole: ${why}`;
@@ -490,8 +492,8 @@ export function operationKey(type, payload) {
 // apart by their occurrence: a whole number given to a block once, when it is first stamped, kept in its span (`span.occurrence`) and
 // never worked out again. A step planned again, a reconcile, a Re-read of text that did not change and a rebuild all use the one the
 // block has, so an earlier block that goes cannot move the later ones onto its identity. A new block takes the next number nobody
-// has used in that reply (`record.source.taken`, kept past the blocks that go, and the numbers of the blocks that stand). A block
-// stored before this, with no number, keeps its rank among the blocks that did the same, as it always had.
+// has used in that reply (`record.source.taken`, kept past the blocks that go, and the numbers of the blocks that stand). A block that
+// gives proof and has no number was written by a build before proof was released: it is not supported (evidenceProblem) and fails closed.
 
 const whole = value => (Number.isInteger(value) && value >= 0 ? value : null);
 
@@ -519,36 +521,30 @@ export function takenAfter(entry, spans) {
 /** The next occurrence nobody has used in `record` (the reply) for the operation `key`. */
 export function nextOccurrence(record, key) {
     let next = whole(record?.source?.taken?.[takenKey(key)]) ?? 0;
-    let count = 0;
     for (const span of Array.isArray(record?.spans) ? record.spans : []) {
-        if (!isObject(span) || typeof span.id !== 'string' || spanOperationKey(span) !== key) continue;
-        count += 1;
+        if (!isObject(span) || !Array.isArray(span.evidence) || !span.evidence.length || spanOperationKey(span) !== key) continue;
         const at = occurrenceOf(span);
         if (at !== null) next = Math.max(next, at + 1);
     }
-    return Math.max(next, count);
+    return next;
 }
 
-// The spans of a record that a Re-read gives again (its story lines and the steps afterCapture asked for), with the number each has:
-// the one it was stamped with, or (a block from before there was one) its rank among the blocks of its record that did the same.
+// The proof spans of a record that a Re-read gives again (its story lines and the steps afterCapture asked for), with the number each has.
 function regeneratedOccurrences(record) {
     const spans = Array.isArray(record?.spans) ? record.spans : [];
     const receipts = Array.isArray(record?.receipts) ? record.receipts : [];
     const out = new Map();
-    const rank = new Map();
     let at = 0;
     for (const span of spans) {
         const ops = Array.isArray(record?.ops) && Number.isInteger(span?.n) ? record.ops.slice(at, at + span.n) : [];
         at += Number.isInteger(span?.n) ? span.n : 0;
         if (!isObject(span) || typeof span.id !== 'string') continue;
-        const key = spanOperationKey(span);
+        const key = Array.isArray(span.evidence) && span.evidence.length && occurrenceOf(span) !== null ? spanOperationKey(span) : null;
         if (!key) continue;
-        const mine = rank.get(key) ?? 0;
-        rank.set(key, mine + 1);
         const rev = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
         const step = !!span.replan && receipts.some(receipt => receipt?.rev === rev && receipt?.afterCapture === true);
         if (span.story !== true && !step) continue;
-        (out.get(key) ?? out.set(key, []).get(key)).push(occurrenceOf(span) ?? mine);
+        (out.get(key) ?? out.set(key, []).get(key)).push(occurrenceOf(span));
     }
     for (const list of out.values()) list.sort((x, y) => x - y);
     return out;

@@ -71,8 +71,10 @@ first stamped, and kept in its span (`span.occurrence`); it is never worked out 
 * a Re-read gives the lines it reads again, and the steps afterCapture asks for again, the occurrences of the blocks it replaces, in
   order, per operation (so a Re-read of text that did not change gives every block its own, a Continued reply included), and the next
   unused one to a block with none to take back;
-* a block stored before there was an occurrence has none in its span and keeps what it had: its rank among the blocks of its record
-  that did the same. A store that never gave proof has no occurrence, no `taken` and no `owned` anywhere, and is written as it was.
+* **a block that gives proof and has no occurrence is not supported.** Proof was never released before this; a block written by a build
+  from before it (a development chat) is treated as damaged: it is not applied, it is a Problem ("its proof has no occurrence"), its proof
+  is not shown, and it is not planned again, so nothing can be revived from it. A block with no proof at all is as it always was, and a
+  store that never gave proof has no occurrence, no `taken` and no `owned` anywhere, and is written as it was.
 
 Two different blocks of a chat differ in one of these, so they cannot give one id, and nothing is matched, salted or reserved:
 

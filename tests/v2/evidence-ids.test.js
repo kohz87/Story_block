@@ -321,3 +321,52 @@ test('a store that never gave proof is written as it was: no list of owners, no 
         assert.ok(record.spans.every(span => !Object.hasOwn(span, 'occurrence')));
     }
 });
+
+// What a build before proof was released wrote: proof spans with no occurrence.
+function stripOccurrences(h) {
+    for (const message of h.chat) {
+        const record = message.extra?.storySuite;
+        if (!record) continue;
+        for (const span of record.spans ?? []) delete span.occurrence;
+        if (record.source) delete record.source.taken;
+    }
+    h.store.rebuild();
+}
+
+test('a block that gives proof and has no occurrence is not supported: it is not applied, it is reported, and its proof is not shown', () => {
+    const h = evidenceHarness();
+    h.send();
+    const made = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }] }).receipt.data.proofs[0];
+    h.command('sd.gate', { value: true });
+    h.send();
+    const other = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [made.id] }] }).receipt.data.proofs[0];
+    assert.deepEqual(ids(h.ask({ ids: [made.id, other.id] })), [made.id, other.id]);
+    stripOccurrences(h);
+    assert.deepEqual(h.ask(), [], 'no proof of a block with no occurrence');
+    assert.equal(h.problems().filter(problem => /no occurrence/.test(problem.why)).length, 2, 'each is reported');
+    assert.equal(h.store.head().domains.sdt.ready, true, 'a block with no proof at all is as it was');
+    assert.deepEqual(Object.keys(h.store.head().meta.proofs ?? {}), [], 'and nothing is pinned');
+});
+
+test('the earlier identical step that goes does not bring anything back from blocks written without occurrences: they fail closed, however often a reconcile runs', () => {
+    const h = evidenceHarness();
+    h.send();
+    assert.equal(h.command('sd.gate', { value: true }).ok, true);
+    h.send();
+    const first = h.command('sd.ready', {}, 'system').receipt.data.made;
+    h.command('sd.gate', { value: false });
+    h.command('sd.gate', { value: true });
+    const second = h.command('sd.ready', {}, 'system').receipt.data.made;
+    const built = h.command('sd.needs', { thread: T1, selection: 'Turn in', parent: first.id });
+    assert.equal(built.ok, true, built.message);
+    stripOccurrences(h);
+    h.chat.splice(1, 2);
+    h.store.rebuild();
+    for (let round = 1; round <= 3; round += 1) {
+        h.store.reconcile(0, { rerun: rerunOf(h) });
+        assert.deepEqual(h.ask({ ids: [first.id, second.id, built.receipt.data.proof.id] }), [], `reconcile ${round}: nothing of them is shown`);
+    }
+    h.store.rebuild();
+    assert.deepEqual(h.ask(), [], 'and not after a replay');
+    assert.ok(h.problems().length >= 3);
+});
