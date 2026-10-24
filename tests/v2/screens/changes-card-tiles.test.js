@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { changesCardScreen, replyCardLines } from '../../../src/v2/screens/index.js';
-import { core, queries, show, stocked, text } from './helpers.js';
+import { core, queries, sceneState, show, stocked, text } from './helpers.js';
 
 const lines = (answer, moduleId = 'rpg-battle') => replyCardLines([{ moduleId, fn: () => answer }], {});
 
@@ -78,4 +78,27 @@ test('the card\'s text tones meet 4.5:1 on each scheme\'s solid surface', async 
             assert.ok(ratio >= 4.5, `${scheme} ${tone} is ${ratio.toFixed(2)}:1`);
         }
     }
+});
+
+// A long main or sub line was cut on one line with nothing to read it by (fix 8k): it wraps to two lines, and the full text is the title.
+test('tiles: a long line is clamped to two lines and the whole text is in the title', () => {
+    const module = core();
+    const state = sceneState(module);
+    state.domains.scene.place = { name: 'The Very Long Named Lakeshore Hamlet Beyond the Misty Ridge of Old Bluewatch', kind: 'settlement', region: 'Lakeshore' };
+    const long = 'Elula, who has waited at the old mill for three days and trusts you now';
+    const moduleLines = replyCardLines([{ moduleId: 'rpg-battle', fn: () => [{ text: long, flag: 'trust +2, and a debt of three silver', note: 'a note that is just as long as the rest' }] }], {});
+    const { el } = show(changesCardScreen, { state, query: queries(module, state), changes: ['/domains/scene/place', '/domains/scene/present', '/domains/inventory/stacks'], extra: { moduleLines } });
+    const place = el.querySelector('.tile.place .sub');
+    assert.equal(place.getAttribute('title'), state.domains.scene.place.name, 'the place tile\'s sub line carries its whole text');
+    const extra = el.querySelector('.tile.extra');
+    assert.equal(extra.querySelector('.main').getAttribute('title'), long);
+    assert.equal(extra.querySelector('.flag').getAttribute('title'), 'trust +2, and a debt of three silver');
+    assert.equal(extra.querySelector('.note').getAttribute('title'), 'a note that is just as long as the rest');
+    const present = el.querySelector('.tile.present .main');
+    assert.equal(present.getAttribute('title'), text(present), 'who is here: the title repeats the line');
+    const css = changesCardScreen.css;
+    const rule = css.slice(css.indexOf('.tile .main, .tile .sub {'), css.indexOf('}', css.indexOf('.tile .main, .tile .sub {')));
+    assert.match(rule, /-webkit-line-clamp: 2/);
+    assert.match(rule, /line-clamp: 2/);
+    assert.ok(!/nowrap/.test(rule), 'no longer one line');
 });
