@@ -22,9 +22,16 @@ function seams() {
     };
     return {
         id: OWNER, name: 'Seams', version: '0.0.1',
-        domains: { cs: { initial: () => ({ marks: {}, steps: {} }) } },
+        domains: { cs: { initial: () => ({ marks: {}, steps: {}, lines: {}, ons: {} }) } },
         commands: {
             'cs.mark': (ctx, { id }) => mark(ctx, id),
+            // A click that stands on a line's block: it holds only while that block is there.
+            'cs.on'(ctx, { block }) {
+                if (!Object.hasOwn(ctx.read('cs').lines, block)) ctx.fail('NOT_FOUND', 'That line is not there.');
+                ctx.draft('cs').ons[block] = true;
+                ctx.replayGuard({ owner: OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash({ block }), predicate: { kind: 'on', block } });
+                return { summary: 'On.', narrate: false };
+            },
             // A planned-again step that keeps the cursor it read, under the block's own id.
             'cs.step'(ctx) {
                 const cursor = ctx.cursor();
@@ -32,9 +39,19 @@ function seams() {
                 ctx.replayGuard({ owner: OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash({ step: 'x' }), predicate: { kind: 'step' } });
                 return { summary: 'Step.', narrate: false, replan: true };
             }, 'cs.peek': ctx => { ctx.draft('cs').marks.peek = { cursor: ctx.cursor(), epoch: ctx.epoch }; return { summary: 'Peeked.', narrate: false }; } },
-        capture: { kinds: { mark: { grammar: '! mark Word' } }, apply: (ctx, line) => mark(ctx, line.name) },
+        capture: {
+            kinds: { mark: { grammar: '! mark Word' }, note: { grammar: '! note Word' } },
+            apply(ctx, line) {
+                if (line.kind !== 'note') return mark(ctx, line.name);
+                // A line kept under the block's own id, so two identical lines are two entries.
+                const cursor = ctx.cursor();
+                ctx.draft('cs').lines[cursor.block] = cursor;
+                ctx.replayGuard({ owner: OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash({ note: line.name }), predicate: { kind: 'note' } });
+                return { summary: `Noted ${line.name}.`, narrate: false };
+            },
+        },
         hooks: {
-            replayGuard: () => ({ ok: true }),
+            replayGuard: ({ state }, { guard }) => (guard.predicate.kind === 'on' && !Object.hasOwn(state.domains.cs.lines, guard.predicate.block) ? { ok: false, reason: 'the line it stands on is gone' } : { ok: true }),
             // `steps.n` identical steps, asked for after every reply's lines (planned again by a Re-read).
             afterCapture: () => ({ commands: Array.from({ length: steps.n }, () => ({ type: 'cs.step', payload: {} })) }),
         },
@@ -337,4 +354,35 @@ test('during a Re-read an afterCapture step reads the op its own stamped boundar
     }
     const line = blocks(host).map(each => each.span).find(span => span.operation.payload.raw?.includes('line') || span.operation.payload.name === 'line');
     assert.deepEqual(host.head().domains.cs.marks.line.cursor, line.boundaries[0].cursor);
+});
+
+test('delete the first of two identical lines and read the reply again: the survivor is a fresh block, the click on the first is hidden with a Problem, also after a rebuild', async t => {
+    const host = await started(t);
+    await host.send('Go.', reply('A.', ['! note dup', '! note dup']));
+    const at = host.ctx.chat.length - 1;
+    const lines = () => host.head().domains.cs.lines;
+    const [first, second] = Object.keys(lines()).sort((a, b) => lines()[a].op - lines()[b].op);
+    assert.notEqual(first, second);
+    const done = await host.sdk.command('cs.on', { block: first });
+    assert.equal(done.ok, true, done.message);
+    assert.equal(host.head().domains.cs.ons[first], true);
+    host.ctx.chat[at].mes = reply('A.', ['! note dup']);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    assert.equal((await host.sdk.reread(at)).ok, true);
+    const survivor = Object.keys(lines());
+    assert.equal(survivor.length, 1);
+    assert.equal(survivor.includes(first) || survivor.includes(second), false, 'neither old block id');
+    // The cursor it read is the stored block, and the stored occurrence is the one its id is made of.
+    const span = blocks(host).map(each => each.span).find(each => each.id === survivor[0]);
+    assert.deepEqual(lines()[survivor[0]], span.boundaries[0].cursor);
+    assert.equal(span.occurrence >= 2, true, 'a number nobody had used');
+    assert.equal(span.id, blockIdOf({ sid: span.boundaries[0].cursor.sid, swipeKey: span.boundaries[0].cursor.swipeKey, key: hashJson({ type: span.operation.type, line: span.operation.payload.raw ?? span.operation.payload }), rank: span.occurrence }));
+    // The click stood on the first: it is hidden, with a Problem, now and after a rebuild.
+    const hidden = () => host.head().domains.cs.ons[first] === undefined;
+    assert.equal(hidden(), true, 'the click is hidden');
+    assert.equal(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE' && /line it stands on is gone/.test(problem.why)), true);
+    host.store.rebuild();
+    assert.equal(hidden(), true, 'and after a rebuild');
+    assert.equal(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE' && /line it stands on is gone/.test(problem.why)), true);
+    assert.deepEqual(Object.keys(lines()), survivor);
 });

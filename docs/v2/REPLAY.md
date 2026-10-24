@@ -312,11 +312,13 @@ Two facts about the block a command makes, for an owner that records them (an ac
   (`span.occurrence`); it is never worked out again, compressed or reused. A new block takes the next number nobody has used in that reply for
   its operation (`record.source.taken` keeps the numbers of blocks that have gone, so an earlier block that goes does not hand its number to a
   later one), and every caller that plans a block that exists already (a step planned again, a reconcile, a rebuild, afterCapture's) passes
-  the one it has; a Re-read gives the blocks it reads again the numbers of the blocks they replace (the k-th of an operation takes the k-th).
+  the one it has. A Re-read gives the blocks it reads again the numbers of the blocks they replace **only while an operation has as many
+  blocks as before**; when the count changes, none of that operation's old numbers is given again (EVIDENCE.md, the occurrence rules).
   Nothing else goes into the id: no counter, no receipt, no id the chat or the process happened to hold. What that keeps: the same block has
   the same id live, when run again by a Re-read of unchanged text, when planned again, after a reload, and when an earlier identical block goes
   (it keeps its own number). **What it does not keep:** a line (or step) that is removed and then added again is a new block with the next
-  number; when a Re-read gives fewer blocks of an operation than before, the ones that remain take the first numbers by the k-th rule; a block
+  number; when a Re-read changes how many blocks an operation has, every block of it is new (a survivor does not take a deleted block's
+  identity, and what stood on the old ones is hidden with a Problem: EVIDENCE.md); a block
   stored before occurrences existed keeps the id it was stamped with. Two identical clicks in one reply are two blocks. The id is the one the
   host stamps (it is handed to the block), and the store refuses to store a block under another sid, swipe key or id than its command read.
 * **Where it sits: `op`, `rev`.** The changes before the block on the reply and the `meta.rev` before it, as they stand when it is read. These

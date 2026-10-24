@@ -522,7 +522,7 @@ export function takenAfter(entry, spans) {
 export function nextOccurrence(record, key) {
     let next = whole(record?.source?.taken?.[takenKey(key)]) ?? 0;
     for (const span of Array.isArray(record?.spans) ? record.spans : []) {
-        if (!isObject(span) || !Array.isArray(span.evidence) || !span.evidence.length || spanOperationKey(span) !== key) continue;
+        if (!isObject(span) || spanOperationKey(span) !== key) continue;
         const at = occurrenceOf(span);
         if (at !== null) next = Math.max(next, at + 1);
     }
@@ -553,7 +553,7 @@ function regeneratedOccurrences(record) {
         const ops = Array.isArray(record?.ops) && Number.isInteger(span?.n) ? record.ops.slice(at, at + span.n) : [];
         at += Number.isInteger(span?.n) ? span.n : 0;
         if (!isObject(span) || typeof span.id !== 'string') continue;
-        const key = Array.isArray(span.evidence) && span.evidence.length && occurrenceOf(span) !== null ? spanOperationKey(span) : null;
+        const key = occurrenceOf(span) !== null ? spanOperationKey(span) : null;
         if (!key) continue;
         const rev = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
         const step = !!span.replan && receipts.some(receipt => receipt?.rev === rev && receipt?.afterCapture === true);
@@ -591,7 +591,7 @@ export function reusePlan(record, retire = new Set()) {
             const counts = new Map();
             for (const piece of planned) {
                 const block = piece?.block;
-                if (!Array.isArray(block?.evidence) || !block.evidence.length || !isObject(block.operation)) continue;
+                if (occurrenceOf(block) === null || !isObject(block.operation)) continue;
                 let key = null;
                 try { key = operationKey(block.operation.type, block.operation.payload); } catch { key = null; }
                 if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
