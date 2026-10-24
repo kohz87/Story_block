@@ -13,7 +13,7 @@ packs terms/holidays tests) look for a folder holding `Story_block`, `rpg_battle
    out as `Story_block` next to the others. Otherwise pass a folder; missing repos are cloned there.
 2. Run the script from the Story Block checkout:
    ```sh
-   bash .claude/skills/suite-check/suite-check.sh                  # parent folder, branch v2
+   bash .claude/skills/suite-check/suite-check.sh                  # parent folder, branch main
    bash .claude/skills/suite-check/suite-check.sh <folder> [branch]
    ```
    For each repo it clones `<branch>` if the folder has none; a clean checkout already on `<branch>` is

@@ -2,9 +2,11 @@
 //
 // Copies Story Block's testkit and v2 runtime into a module's tests/vendor/story-block/ (docs/v2/SPEC.md
 // §10), keeping the layout so the testkit's relative imports work there: testkit/, src/v2/, src/id.js,
-// and every other file under src/ that those import (followed through their imports). Writes VERSION
-// with the commit it was copied from. The vendored folder is replaced as a whole, so files Story Block
-// dropped do not linger. Plain Node, no dependencies.
+// and every other file under src/ that those import (followed through their imports); that takes
+// testkit/matrix/ (the combination runner, docs/v2/MATRIX.md) along. Writes VERSION with the commit it
+// was copied from and the matrix runner's version ("matrix none" for a Story Block without it). The
+// vendored folder is replaced as a whole, so files Story Block dropped do not linger. Plain Node, no
+// dependencies.
 //
 // The target defaults to the current directory (a module running `node ../Story_block/scripts/
 // sync-testkit.mjs`); `--from` defaults to the checkout this script is in, or $STORY_BLOCK.
@@ -50,6 +52,16 @@ export function filesToCopy(from) {
     return [...files].sort();
 }
 
+/** The matrix runner's version in `from` (testkit/matrix/version.js), or null when it does not have one. */
+export function matrixVersionOf(from) {
+    try {
+        const match = /MATRIX_VERSION\s*=\s*(\d+)/.exec(readFileSync(join(from, 'testkit', 'matrix', 'version.js'), 'utf8'));
+        return match ? Number(match[1]) : null;
+    } catch {
+        return null;
+    }
+}
+
 function commitOf(from) {
     try {
         const sha = execFileSync('git', ['-C', from, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -60,7 +72,7 @@ function commitOf(from) {
     }
 }
 
-/** Copies into `<to>/tests/vendor/story-block/`; returns { target, files, commit }. */
+/** Copies into `<to>/tests/vendor/story-block/`; returns { target, files, commit, matrix }. */
 export function syncTestkit({ from, to }) {
     const source = resolve(from);
     const target = join(resolve(to), VENDOR);
@@ -77,8 +89,9 @@ export function syncTestkit({ from, to }) {
     try { version = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).version ?? ''; } catch { version = ''; }
     // A package.json marks the folder as ES modules even when the module's own package does not.
     writeFileSync(join(target, 'package.json'), `${JSON.stringify({ private: true, type: 'module' }, null, 2)}\n`);
-    writeFileSync(join(target, 'VERSION'), `Story Block ${version}\ncommit ${commit}\nfiles ${files.length}\n`);
-    return { target, files, commit };
+    const matrix = matrixVersionOf(source);
+    writeFileSync(join(target, 'VERSION'), `Story Block ${version}\ncommit ${commit}\nfiles ${files.length}\nmatrix ${matrix ?? 'none'}\n`);
+    return { target, files, commit, matrix };
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -92,8 +105,8 @@ if (isMain) {
         else to = args[i];
     }
     try {
-        const { target, files, commit } = syncTestkit({ from, to });
-        console.log(`Copied ${files.length} files into ${target} (commit ${commit}).`);
+        const { target, files, commit, matrix } = syncTestkit({ from, to });
+        console.log(`Copied ${files.length} files into ${target} (commit ${commit}, matrix ${matrix ?? 'none'}).`);
     } catch (error) {
         console.error(`sync-testkit: ${error.message}`);
         process.exitCode = 1;
