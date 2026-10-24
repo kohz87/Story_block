@@ -74,12 +74,16 @@ first stamped, and kept in its span (`span.occurrence`); it is never worked out 
   fewer** blocks than it replaces (a line of identical lines was deleted, or one was added), which new block stands for which old one is
   not known, so **none of that group's old occurrences is given again**: every block of the group takes a new one, every old proof id of
   the group is retired, and what was built on them is hidden (a guarded block is off, with a Problem). Other operations of the reply are
-  unaffected. Nothing is rebound to a removed block's identity;
+  unaffected. Nothing is rebound to a removed block's identity. The Re-read is planned again, from the same inputs but the retired set, while a plan
+  finds another operation changed (retiring one can change what a step hook asks for); the set only grows, and a plan that still reports a
+  changed operation is never stored;
 * **there is one allocator.** A new occurrence (a new block, a block of a group whose old ones are retired, and a step that gave no proof
   until now and gives it in a plan) is the next one nobody has used in that reply for that operation, from `record.source.taken` and the
   numbers of the blocks that stand (`allocator` in evidence.js). A plan (a Re-read, the reconcile of a record) works on one allocator, which
   moves on after each number it gives, so two blocks of a plan never take the same one; the counter in the record moves only when the plan is
-  stored;
+  stored. **No other code works one out or defaults one** (a rank, a count, a zero): a proof asked for with no occurrence given and none allocated is
+  refused, and a proof block stamped without one is damaged (tests/v2/evidence-allocation.test.js reads the source for it). A step without a guard
+  that gave no proof until now takes its operation from its replan;
 * **a block that gives proof and has no occurrence is not supported.** Proof was never released before this; a block written by a build
   from before it (a development chat) is treated as damaged: it is not applied, it is a Problem ("its proof has no occurrence"), its proof
   is not shown, and it is not planned again, so nothing can be revived from it. A block with no proof at all is as it always was, and a

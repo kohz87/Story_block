@@ -13,6 +13,8 @@
 //                                   afterCapture asks for on the first check, planned again by a Re-read or a reconcile.
 //   sd.gate { value } / sd.ready {}   a gate and a replanned step done only while it is open (two identical `sd.ready` steps stand apart by occurrence).
 //   sd.maybe {}                     a replanned step that logs 'open' or 'closed' and gives proof only while the gate is not shut (sdt.ready === false).
+//   sd.plain {}                     the same without a guard.
+//   `director({ marks: true })`     the `! mark Name` line, which keeps a ctx.id(); `director({ after: 'twins', track })` two identical steps while `track.id` is shown.
 //   sd.setting {}                   a replanned step whose guard follows `mode` as read when it is planned (a refused plan leaves the old block).
 //   sd.dependent { parent }         a guarded system step with a replan that says NO_LONGER_DONE when its parent proof is not shown.
 //   `director({ after: 'accepted', sidAt })`  afterCapture asks for one sd.after on each acceptance of the reply that has none yet.
@@ -64,7 +66,7 @@ function many(ctx, { specs, chain = false }) {
     return { summary: `Gave ${out.length} proofs.`, narrate: false, data: { proofs: out } };
 }
 
-export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false, wanted = [], checks = false, sidAt = null } = {}) {
+export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false, wanted = [], checks = false, sidAt = null, marks = false, track = null } = {}) {
     const accept = (ctx, { thread, selection, words, parents }) => {
         const payload = selection !== undefined ? { thread, selection } : { thread, words };
         const made = ctx.proof({ kind: 'acceptance', payload, ...(parents ? { parents } : {}) });
@@ -116,6 +118,13 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 const made = ctx.proof({ kind: 'visit', payload: { after: 'dependent' }, parents: [parent] });
                 ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ parent }), predicate: { kind: 'needs', parent } });
                 return { summary: 'Dependent.', narrate: false, replan: true, data: { made } };
+            },
+            // The same without a guard: a step planned again by a Re-read's placement (its receipt carries the replan).
+            'sd.plain'(ctx) {
+                const open = ctx.read('sdt').ready !== false;
+                ctx.draft('sdt').log.push(open ? 'open' : 'closed');
+                if (open) ctx.proof({ kind: 'visit', payload: { after: 'plain' } });
+                return { summary: 'Plain.', narrate: false, replan: true };
             },
             // A step that does something either way, and gives proof only while the gate is not shut (`sdt.ready === false`): when it did not give proof
             // it has no occurrence, and it gets one when a plan finds the gate open.
@@ -170,8 +179,14 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
             kinds: {
                 accept: { grammar: '! accept Thread | words: what the reader said' },
                 ...(after === 'check' || checks ? { check: { grammar: '! check Id | dc: number' } } : {}),
+                ...(marks ? { mark: { grammar: '! mark Name' } } : {}),
             },
             apply(ctx, line) {
+                if (line.kind === 'mark') {
+                    const sdt = ctx.draft('sdt');
+                    sdt.marks = { ...(sdt.marks ?? {}), [line.name]: ctx.id('mk') };
+                    return { summary: `Marked ${line.name}.`, narrate: false };
+                }
                 if (line.kind === 'check') {
                     const done = ctx.call('sd.many', { specs: [{ kind: 'event', payload: { check: line.name, actor: 'ac_hero0001', stat: 'STR', dc: Number(line.labels.dc) } }] });
                     return { summary: done.summary, narrate: false, data: done.data };
@@ -193,6 +208,13 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 afterCapture(view) {
                     const visits = view.query('story.evidence', {}).filter(proof => proof.kind === 'visit' && wanted.includes(proof.payload.place));
                     return { commands: visits.map(proof => ({ type: 'sd.dependent', payload: { parent: proof.id } })) };
+                },
+            } : after === 'twins' ? {
+                // Two identical steps while the tracked proof (`track.id`) is shown or none is tracked yet, one otherwise.
+                afterCapture(view) {
+                    const shown = !track?.id || view.query('story.evidence', { ids: [track.id] }).length > 0;
+                    const one = { type: 'sd.visit', payload: { place: 'twin' } };
+                    return { commands: shown ? [one, one] : [one] };
                 },
             } : after === 'accepted' ? {
                 // A step on each acceptance of this reply (`sidAt(index)`) that has none yet: asking again gives the steps it gave.

@@ -9,10 +9,13 @@ import { T1, T2, director, evidenceHarness, fighter, hostModule } from './helper
 
 const ids = list => list.map(each => each.id);
 const steps = ask => ask({}).filter(proof => proof.payload.after === 'dependent');
-const rerunOf = h => (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-    cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
-    reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
-});
+const rerunOf = h => (state, receipt, info) => {
+    const plan = info.replan ?? { type: receipt.type, payload: receipt.replan?.payload ?? {}, seed: receipt.seed };     // (as turn.js planAgain)
+    return h.bus.run(plan.type, plan.payload, {
+        cause: 'system', state, seed: plan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
+        reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source?.ordinal },
+    });
+};
 
 async function open(t) {
     const link = hostModule();
@@ -464,4 +467,70 @@ test('lines of identical text as many as before keep every id, and another opera
     assert.equal(accepted().length, 1);
     assert.equal(ask({}).find(proof => proof.payload.thread === T2).id, second, 'the other operation keeps its id');
     assert.equal(mine.slice(0, 2).includes(accepted()[0].id), false, 'and this one has a new id');
+});
+
+test('identical steps with no guard that gave no proof get a number each when a Re-read\'s placement finds them ready: two effects, two proofs', () => {
+    const h = evidenceHarness();
+    h.send();
+    assert.equal(h.command('sd.gate', { value: false }).ok, true);
+    h.send();
+    assert.equal(h.command('sd.plain', {}, 'system').ok, true);
+    assert.equal(h.command('sd.plain', {}, 'system').ok, true);
+    const log = () => h.store.head().domains.sdt.log.filter(entry => entry === 'open' || entry === 'closed');
+    assert.deepEqual(log(), ['closed', 'closed']);
+    h.chat.splice(1, 2);
+    h.store.rebuild();
+    h.store.replaceStory(h.chat.findIndex((message, i) => i > 0 && message.extra?.storySuite), { ops: [], receipts: [], rerun: rerunOf(h) });
+    const proofs = () => h.ask().filter(proof => proof.payload.after === 'plain');
+    assert.deepEqual(log(), ['open', 'open'], 'two effects');
+    assert.equal(proofs().length, 2, 'two proofs');
+    assert.equal(new Set(ids(proofs())).size, 2);
+    const was = ids(proofs());
+    h.store.rebuild();
+    assert.deepEqual(ids(proofs()), was, 'also after a rebuild');
+    assert.deepEqual(h.problems(), []);
+});
+
+test('a retry of a Re-read starts from the same inputs: an unchanged line that makes an id keeps it', async t => {
+    const link = hostModule();
+    const host = await createHost({ modules: [link.def, director({ marks: true }), fighter()], core: false });
+    t.after(() => host.close());
+    link.link(host.store);
+    const text = list => `Dawn.\n\n<Changes>\n${list.join('\n')}\n</Changes>`;
+    await host.send('Sure, I accept the job. Thanks a lot!', text([SAME, SAME, '! mark alpha']));
+    const at = host.ctx.chat.length - 1;
+    const mark = () => host.head().domains.sdt.marks.alpha;
+    const was = mark();
+    // A duplicate line goes: the Re-read is planned twice, and the other line is read the same both times.
+    host.ctx.chat[at].mes = text([SAME, '! mark alpha']);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(mark(), was, 'the id the unchanged line made is the one it made');
+});
+
+test('a retry that changes another operation retires it too: a step whose group shrinks on the second plan does not keep an old number', async t => {
+    const link = hostModule();
+    const track = { id: null };
+    const host = await createHost({ modules: [link.def, director({ after: 'twins', track }), fighter()], core: false });
+    t.after(() => host.close());
+    link.link(host.store);
+    const ask = args => host.sdk.query('story.evidence', args);
+    const text = list => `Dawn.\n\n<Changes>\n${list.join('\n')}\n</Changes>`;
+    await host.send('Sure, I accept the job. Thanks a lot!', text([SAME, SAME]));
+    const at = host.ctx.chat.length - 1;
+    const twins = () => ask({}).filter(proof => proof.kind === 'visit' && proof.payload.place === 'twin');
+    assert.equal(twins().length, 2);
+    track.id = ask({}).find(proof => proof.kind === 'acceptance').id;
+    const click = host.bus.command('sd.needs', { thread: T2, selection: 'Turn in', parent: twins()[0].id }, { cause: 'ui' });
+    assert.equal(click.ok, true, click.message);
+    const clickId = click.receipt.data.proof.id;
+    // One of the duplicate lines goes. The first plan keeps two steps (the tracked proof is shown), the second finds one: the steps are another group
+    // that changed, so none of their old numbers is given back, and what was built on one of them is hidden.
+    host.ctx.chat[at].mes = text([SAME]);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(twins().length, 1);
+    assert.deepEqual(ask({ ids: [clickId] }), [], 'the click built on a step that went is not shown');
+    host.store.rebuild();
+    assert.deepEqual(ask({ ids: [clickId] }), [], 'also after a rebuild');
 });
