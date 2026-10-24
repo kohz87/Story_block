@@ -296,7 +296,7 @@ These settle questions agents raised; the host changes they need are made at int
    throws, also when the story cannot be saved first). A short cue tells the next reply the PC is back at
    that moment, with no memory rules imposed.
 18. **Default look** follows the SillyTavern theme's colours (cards, meters, badges), restyled by packs/cards.
-19. **Merging.** (User decision.) PRs into `v2` merge after green CI at the coordinator's discretion.
+19. **Merging.** (User decision.) PRs into `main` merge after green CI at the coordinator's discretion.
 20. **Ersveil currency** (user decision): the Ersveil pack's one currency is the **mark** (`mk`), 1 mark = the
    lore's old copper; all lore prices rescaled into marks.
 21. **Story Director time features** (user decision): deadlines that slip or lapse when story time passes, and

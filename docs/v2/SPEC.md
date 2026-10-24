@@ -1,7 +1,7 @@
 # Story Suite v2: specification
 
 Status: **draft 1, the contract for the v2 build.** Every v2 agent builds against this file. A change to it
-goes through the coordinator (a PR to `docs/v2/SPEC.md` on Story Block's `v2` branch), never a local
+goes through the coordinator (a PR to `docs/v2/SPEC.md` on Story Block's `main` branch), never a local
 workaround in one repo.
 
 ## 0. Principles
@@ -31,9 +31,9 @@ workaround in one repo.
 | Story Director | kohz87/Story_director | Module (requires Story Block): `director` (time, quests, threads, events). |
 | NPC State Delta | kohz87/npc_state_delta | Stays a standalone engine with its own storage. When Story Block v2 is present it registers queries, a widget and its settings (phase 2). Not rewritten. |
 
-Work happens on a **`v2` branch in each repo** (created from `main`). `main` stays v1 until v2 is released.
-Versions on `v2`: `2.0.0-alpha.N` (manifest, package.json, `VERSION`, README header). Feature work is a
-branch off `v2` and a PR into `v2` (CI runs on every PR).
+Work happens on **`main` in each repo**, the development branch. v1 is on branch `v1`.
+Versions on `main`: `2.0.0-alpha.N` (manifest, package.json, `VERSION`, README header). Feature work is a
+branch off `main` and a PR into `main` (CI runs on every PR).
 
 v2 keeps v1's **pure logic** where it fits (combat maths, growth, skills, pricing, crafting maths, the
 Director's change-line grammar and tracker rules, NSD's engine) and replaces the glue: no state in
@@ -1009,7 +1009,7 @@ changes `name` and adds an alias; it never changes value, rarity or effects.
 | 1a | **SB-commands**: command bus, drafts and diff to ops, validators, claims, receipts, sfc32 rng, preview/commit (`src/v2/commands.js`, `src/v2/ops.js`, `src/v2/rng.js`, `src/v2/check.js`) | spec |
 | 1a | **SB-turn**: module registry, change-line parser and dispatch, turn pipeline, prompt assembly, settings overlay host, tab host, testkit (`src/v2/registry.js`, `src/v2/capture.js`, `src/v2/turn.js`, `src/v2/prompt.js`, `src/v2/host-ui.js`, `testkit/`) | spec |
 | 1b | **SB-domains**: `scene` and `inventory` domains, commands, capture, Inventory and Scene tabs (`src/v2/domains/`) | 1a interfaces |
-| 1c | Coordinator: integrate 1a/1b on `v2`, live check, `2.0.0-alpha.1` | 1a, 1b |
+| 1c | Coordinator: integrate 1a/1b on `main`, live check, `2.0.0-alpha.1` | 1a, 1b |
 | 2 | **RB-party** (party, checks, wounds, growth), **RB-items** (item.use, equip, item.define, currency), **RB-combat** (encounters, battle, evidence), **RB-trade** (trade, craft); **SD-tracker** (director domain, capture, time), **SD-quests** (progress, Finish, tabs); **NSD-hosted** | 1c |
 | 3 | **Packs** (format, import, lorebook), **Events** (condition engine, cues), **Layouts** (renderer), **Fishing** (reference activity), optional classifier and after-reply extractor | 2 |
 | 4 | Studio (separate app) | 3 |
