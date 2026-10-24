@@ -63,7 +63,7 @@ test('an empty chat, or one that starts with the user, has no state until a carr
     assert.deepEqual(store.at(1), initial());
 });
 
-test('a chat with v1-only extras is treated as a chat with no state', () => {
+test('a chat with v1 extras is kept as it is: read-only on an empty story until the reader starts it over', () => {
     const v1 = {
         storyBlockIdentity: { id: 'old', swipe: 0 }, storyDirectorQuest: { receipts: [{ id: 'payment' }] },
         rpgBattleEvidence: { events: [] }, storySuite: { v: 1, state: { gold: 99 } },
@@ -74,11 +74,22 @@ test('a chat with v1-only extras is treated as a chat with no state', () => {
     const { ctx, store } = setup(chat);
     assert.equal(store.head(), null);
     assert.deepEqual(store.untold(), []);
-    store.ensureInitial(initial());
-    assert.deepEqual(store.head(), initial());
-    assert.deepEqual(ctx.chat[0].extra.storySuite.checkpoint, initial());
-    assert.equal(ctx.chat[0].extra.storyBlockIdentity.id, 'old', 'v1 extras are left alone');
+    const notes = store.ensureInitial(initial());
+    assert.equal(notes.length, 1);
+    assert.match(notes[0], /older version of Story Suite/);
+    assert.deepEqual(store.head(), initial(), 'an empty working state');
+    assert.equal(store.readOnly().kind, 'legacy');
+    assert.deepEqual(ctx.chat[0].extra, v1, 'the v1 record is not replaced (this test used to expect it replaced)');
     assert.deepEqual(ctx.chat[2].extra, v1, 'later carriers are not touched');
+    assert.throws(() => store.append({ ops: [], receipt: { id: 'rc_00000001', type: 't', module: 'm', cause: 'ui', seed: 1, summary: '', narrate: false, data: {}, rev: 1 } }), /read-only/);
+    // The reader starts it over: the v1 record is set aside, not lost, and the story has a v2 record.
+    store.startOver({ confirmed: true });
+    assert.equal(store.readOnly(), null);
+    assert.deepEqual(store.head(), initial());
+    assert.deepEqual(ctx.chat[0].extra.storySuiteAside, [{ kind: 'legacy', record: v1.storySuite }]);
+    assert.deepEqual(ctx.chat[0].extra.storySuite.checkpoint, initial());
+    assert.equal(ctx.chat[0].extra.storyBlockIdentity.id, 'old', 'v1 extras of other extensions are left alone');
+    assert.deepEqual(ctx.chat[2].extra.storySuiteAside, [{ kind: 'legacy', record: v1.storySuite }], 'and so is the v1 record of a later reply, set aside');
 });
 
 test('actions go onto the head carrier, even while the user message after it waits for a reply', () => {
