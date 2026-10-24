@@ -102,6 +102,17 @@ export function isPlainJson(value) {
 
 const HASH = /^[0-9a-f]{64}$/;
 export const isHash = value => typeof value === 'string' && HASH.test(value);
+
+/** The epoch of a timeline that has never been restored (the savepoints domain starts in it). */
+export const GENESIS_EPOCH = 'ep_00000000';
+/**
+ * The epoch `state` is in: the savepoints domain's, when that domain exists (it is made by the first save point), else the genesis epoch.
+ * A pure function of the state, so of the prefix it was built from (ctx.epoch).
+ */
+export function epochOf(state) {
+    const domain = state?.domains?.savepoints;
+    return isObject(domain) && typeof domain.epoch === 'string' && domain.epoch ? domain.epoch : GENESIS_EPOCH;
+}
 export const isRecordId = value => typeof value === 'string' && RECORD_ID.test(value);
 const hasPrefix = (value, prefix) => isRecordId(value) && value.startsWith(`${prefix}_`);
 

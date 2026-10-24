@@ -297,6 +297,24 @@ also covers a count written by removing the thing that holds it (an emptied stac
 change on a counter still moves the count by its difference on replay; the domain's validator refuses what that
 would make negative, and the block is skipped, never applied half.
 
+## Where a block is: `ctx.cursor()` and `ctx.epoch`
+
+Two facts about the place of the block a command makes, for an owner that records them (an acceptance, a claim key) and checks them in its
+guard. Both are pure over the prefix: the chat before the block and the state before it, nothing outside them, so they are the same on a
+rebuild, a reload, a Re-read of an unchanged line and the other swipe's own prefix. Nothing new is stored for them (the block's span already
+holds its boundary), so there is no new replay input: if an owner writes what it read into its changes or `recorded`, those are already inputs.
+
+* `ctx.cursor()` → `{ sid, swipeKey, block, op, rev }`, the contract's `Cursor`: the reply's canonical pair (the source map above), the id the
+  host stamps on the block, the changes before the block on the reply (`op`) and the `meta.rev` before it. It is exactly the block's first
+  `boundaries[0].cursor`. The host worked it out the way it stamps (the id from the same seed: a story line's from the line and how many of it
+  came before, any other from the receipt), hands the id to the block, and the store refuses to store a block somewhere else than the cursor its
+  command read. Known in a click or a command on the head reply, and in the lines of a reply being read again (those planned before it are
+  counted); it throws `UNSUPPORTED` for a step planned for a given reply after a Re-read's kept blocks, and for a block planned again, whose
+  place the Re-read decides.
+* `ctx.epoch` is the epoch of the savepoints domain when the state has one (it is made by the first save point), else the genesis epoch
+  `ep_00000000`, so it works before there is a timeline and follows a restore's new epoch after. It is a property, read from the state the
+  command starts on.
+
 ## Decisions where the contract is silent
 
 * Block metadata is written only for blocks whose command called `ctx.replayGuard`; every other span is

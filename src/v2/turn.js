@@ -864,7 +864,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             }
             let result;
             try {
-                const run = opts => bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(seed === undefined ? {} : { seed }), ...opts });
+                const run = opts => bus.run(`${CAPTURE_PREFIX}${entry.kind}`, { ...line, kind: entry.kind, word: line.kind }, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending, planned: plan.blocks } : carrier, chat, standing, ...(seed === undefined ? {} : { seed }), ...opts });
                 result = entry.off ? await run({ capture: { ...entry, off: false }, again: true }) : await run();
                 // Refused by a feature that is off (a command it called, ctx.feature): run as it ran before.
                 if (again && !entry.off && result?.code === 'FEATURE_OFF') result = await run({ again: true });

@@ -39,7 +39,7 @@
 
 import { apply, checkOps, clone, counterInside, deepFreeze, diff, escapeKey, frozenCopy, isCounterPath, isDeepFrozen, isJson, valueAt } from './ops.js';
 import { isSeed, rng as makeRng, roll as rollDice, seed as freshSeed } from './rng.js';
-import { guardProblem, hashJson, isPlainJson } from './replay.js';
+import { epochOf, guardProblem, hashJson, isPlainJson } from './replay.js';
 
 export const MAX_DEPTH = 8;
 const CAUSES = ['ui', 'story', 'system'];
@@ -232,6 +232,26 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return tx.source;
     }
 
+    // The Cursor this transaction's block starts at (ctx.cursor): the reply's canonical pair, the block's id (the one the host stamps), the number of
+    // changes before it on the reply, and the rev before it. Worked out once from the chat as it stands (the prefix), the same way the store stamps it.
+    function cursorOf(tx) {
+        if (tx.cursor === undefined) {
+            let found = null;
+            // (a block planned again keeps the id and the place it had, and a step a Re-read runs for a given reply is stored among the kept ones:
+            // neither is told here, where it would only be a guess)
+            if (!tx.again && !tx.givenReply && Number.isInteger(tx.reply?.index) && typeof store.blockCursor === 'function') {
+                try {
+                    found = store.blockCursor(tx.reply.index, {
+                        receiptId: tx.receiptId, cause: tx.cause, operation: tx.operation, planned: tx.planned, pending: tx.pending, ordinal: tx.ordinal, rev: tx.rev - 1,
+                    });
+                } catch { found = null; }
+            }
+            tx.cursor = found ? Object.freeze(found) : null;
+        }
+        if (!tx.cursor) fail('UNSUPPORTED', 'The cursor of this block is not known here: it is planned after the blocks of a reply that is read again, and is stored with them.');
+        return tx.cursor;
+    }
+
     // ---- one transaction ----------------------------------------------------------------------
 
     function draftOf(tx, domain) {
@@ -305,6 +325,14 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             module: moduleId,
             caller,
             rev: tx.rev,
+            // The epoch of the timeline this block is made in: the savepoints domain's, else the genesis epoch (a pure function of the state before it).
+            epoch: epochOf(tx.head),
+            // The Cursor (RB contract) the block of this command starts at: { sid, swipeKey, block, op, rev }, the same the host stamps as the block's
+            // first boundary, and the same when the command is run again by a Re-read of an unchanged line. A function: it reads the chat.
+            cursor() {
+                open();
+                return cursorOf(tx);
+            },
             carrier: tx.carrier,
             chat: tx.chat,
             reply: tx.reply,
@@ -565,16 +593,21 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 rev: headRev + 1, carrier: carrierOf(carrier), chat: chatOf(chat), again: again === true && cause === 'story',
                 standing: cause === 'story' && isRecord(standing) ? (isDeepFrozen(standing) ? standing : deepFreeze(clone(standing))) : null,
                 drafts: new Map(), meta: null, failure: null, closed: false, absolute: new Set(), within: new Set(),
-                guard: null, recorded: null, source: undefined, pending: 0, ordinal: undefined,
+                guard: null, recorded: null, source: undefined, pending: 0, ordinal: undefined, cursor: undefined, operation: null, planned: null, givenReply: false,
             };
             // `reply` (run, a system step only): the reply a Re-read's step is kept on, which need not be the head.
             const given = cause === 'system' && isRecord(reply) ? replyOf(reply.index, reply.sid) : null;
             tx.reply = tx.carrier ? replyOf(tx.carrier.index, tx.carrier.sid ?? tx.carrier.key) : given ?? headReply(store);
+            tx.givenReply = !tx.carrier && given !== null;
             // A Re-read plans blocks it has not stored yet: `pending` of them come before this one, or `ordinal`
             // names the block's own (a block planned again keeps it). Only the Source's ordinal, nothing else.
             const place = tx.carrier ? carrier : given ? reply : null;
             if (Number.isInteger(place?.pending) && place.pending > 0) tx.pending = place.pending;
             if (Number.isInteger(place?.ordinal) && place.ordinal >= 0) tx.ordinal = place.ordinal;
+            // What the block's cursor is worked out from (ctx.cursor): the root command as the block will record it, and, in a Re-read, the
+            // guarded blocks planned before this one (their changes and operations), which the store has not stored yet.
+            tx.operation = { type, payload: payload ?? {} };
+            tx.planned = Array.isArray(place?.planned) ? place.planned : null;
             const out = invoke(tx, type, target, payload, 0);
             if (tx.failure) throw tx.failure;
             const done = resultOf(type, out, cause);
@@ -595,6 +628,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 block = {
                     module: target.moduleId, source, guard: tx.guard, operation: { type, payload: clone(operation) }, recorded: tx.recorded,
                     result: Object.hasOwn(data.v2, 'result') ? clone(data.v2.result) : clone(data),
+                    // A cursor the command read is the one its block is stored at: the host stamps that id and checks the rest.
+                    ...(tx.cursor ? { id: tx.cursor.block, cursor: tx.cursor } : {}),
                 };
             }
 

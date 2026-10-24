@@ -662,6 +662,10 @@ export function createStore({
         };
         const bad = spanProblem(span);
         if (bad) throw new Error(`The guarded block cannot be stored: ${bad}.`);
+        // A command that read its cursor (ctx.cursor) was told where its block starts: it is stored there, or it is not stored.
+        if (block.cursor !== undefined && hashJson(block.cursor) !== hashJson(span.boundaries[0].cursor)) {
+            throw new Error('The block is not where the cursor its command read said it would be; it is not stored.');
+        }
         if (span.guard) seeGuards();
         if (span.guard && span.replan) replanFrom = Math.min(replanFrom, index);
         return span;
@@ -1573,6 +1577,46 @@ export function createStore({
          */
         sourceAt(index, options) {
             return sourceOf(index, options);
+        },
+
+        /**
+         * The Cursor { sid, swipeKey, block, op, rev } a guarded block planned for carrier `index` will start at (ctx.cursor), worked out the way
+         * stamp works it out: the canonical pair from the source map, the block's id derived from the same seed (a story line's from the line and how
+         * many of it came before, any other from the receipt), `op` the changes before it on the reply, `rev` the one given. `spec`: { receiptId,
+         * cause, operation: { type, payload }, rev, pending?, ordinal?, planned? }. `planned` (a Re-read's, the blocks planned before this one:
+         * [{ n, block? }]) says the reply is being read again: its old story blocks' ids are free to be taken back and its new changes start
+         * from nothing. Otherwise the block goes after what the head reply holds. null where that cannot be told (a step planned after a Re-read's
+         * kept blocks, or a reply that is not the head).
+         */
+        blockCursor(index, spec = {}) {
+            const arr = list();
+            const message = arr[index];
+            if (!isCarrier(message)) return null;
+            const planned = Array.isArray(spec.planned) ? spec.planned : null;
+            const pending = Number.isInteger(spec.pending) ? spec.pending : 0;
+            if (!planned && (pending > 0 || index !== lastCarrier(arr))) return null;
+            const source = sourceOf(index, { pending, ordinal: spec.ordinal });
+            if (!source) return null;
+            const record = readRecord(message);
+            let offset;
+            let before;
+            let free = null;
+            if (planned) {
+                offset = planned.reduce((sum, part) => sum + (Number.isInteger(part?.n) ? part.n : 0), 0);
+                before = planned.map(part => part?.block?.operation).filter(Boolean);
+                free = new Set((Array.isArray(record?.spans) ? record.spans : []).filter(span => span.story && isMetaSpan(span)).map(span => span.id));
+            } else {
+                offset = record ? record.ops.length : 0;
+                before = record ? blockParts({ ...record, spans: spansFor(record), ops: record.ops }).map(part => part.span).filter(span => isMetaSpan(span) && span.operation).map(span => span.operation) : [];
+            }
+            let seed = `${source.swipeKey}:${source.ordinal}:${spec.receiptId ?? ''}`;
+            if (spec.cause === 'story' && isObject(spec.operation)) {
+                const mine = lineKey(spec.operation);
+                seed = `${source.swipeKey}:line:${mine}:${before.filter(operation => lineKey(operation) === mine).length}`;
+            }
+            const known = idsOf(arr).blocks;
+            const block = deriveId('bl', seed, { has: other => known.has(other) && !free?.has(other) });
+            return { sid: source.sid, swipeKey: source.swipeKey, block, op: offset, rev: Math.max(0, spec.rev ?? 0) };
         },
 
         /** The first carrier seen holding a guarded step with a `replan`, or blocks numbered at or below the rev before them (the turn reconciles from it), else null. */
