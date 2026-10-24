@@ -101,17 +101,18 @@ You need SillyTavern 1.19 or newer.
 Then, logged in as that profile:
 
 1. Open **Extensions → Install extension**.
-2. Paste `https://github.com/kohz87/Story_block` and choose the branch **`v2`** (type `v2` in the branch
-   box). Install. **Story Block always comes first.**
-3. Then do the same for the others you want, each on its branch `v2`:
+2. Paste `https://github.com/kohz87/Story_block` and install. There is no branch to pick; this installs the
+   default branch, `main`. **Story Block always comes first.**
+3. Then do the same for the others you want:
    `https://github.com/kohz87/rpg_battle`, `https://github.com/kohz87/Story_director`,
    `https://github.com/kohz87/npc_state_delta`.
 4. Reload the page.
 
-If your SillyTavern has no branch box, install it the usual way and switch it to `v2` from the
-extension's folder (`git checkout v2`), or ask whoever set up your SillyTavern.
+For the old Story Suite v1, install the `v1` branch of the same repos instead: paste the URL and type `v1` in the
+branch box. If your SillyTavern has no branch box, install it the usual way and switch it to `v1` from the
+extension's folder (`git checkout v1`), or ask whoever set up your SillyTavern.
 
-To update later, use **Extensions → Manage extensions → Update** as usual; the branch stays `v2`.
+To update later, use **Extensions → Manage extensions → Update** as usual; an install stays on the branch it came from (`main` for v2).
 **Update Story Block first, then the modules.** Each module says which Story Block it needs, and an
 older Story Block refuses a newer module. When that happens, the page shows a red notice such as
 *Story Suite: RPG Battle needs Story Block ≥ 2.0.0-beta.2; this is 2.0.0-beta.1. Update Story Block to
