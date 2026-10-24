@@ -47,14 +47,14 @@ test('inventory: a consumable row has Use on… with the members it would help; 
     const rows = el.querySelectorAll('.item').filter(item => item.querySelector('.name').textContent === 'Minor Healing Draught');
     assert.equal(rows.length, 2);
     // Use on… is an action in the row; its members are a fold row under the actions, open once Use on… is chosen.
-    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button:not(.fold-cancel)') ?? []).map(button => text(button));
     assert.deepEqual(['it_pota0001', 'it_potb0001'].map(folded), [[], []], 'closed');
     openFold(el, 'it_pota0001', 'use');
     openFold(el, 'it_potb0001', 'use');
     assert.deepEqual(['it_pota0001', 'it_potb0001'].map(folded), [['Mira'], ['Ren', 'Mira']]);
     assert.equal(text(rows[0].querySelector('.act')), 'Use on…');
     const rope = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Rope');
-    assert.equal(rope.querySelector('input[value="use"]'), null, 'not a consumable');
+    assert.equal(rope.querySelector('button[value="use"]'), null, 'not a consumable');
     foldOf(el, 'it_potb0001').querySelectorAll('button')[1].click();
     await settle();
     assert.deepEqual(calls.map(([type, payload]) => [type, payload]), [['item.use', { stack: 'it_potb0001', target: MIRA }]]);

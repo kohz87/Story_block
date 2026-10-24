@@ -226,9 +226,15 @@ allowed picks) and refuses with a plain sentence when one is broken.
 | `<input type="radio" value="…">` | the checked one's `value` (a word) |
 | `<input type="checkbox">` | `true` / `false` |
 | `<input type="checkbox" value="…">` (several with the same `data-draft`) | the list of checked values |
+| `<button value="…">` | a press picks its `value`; a press on the picked one clears it (`''`). For a disclosure: bind `aria-expanded="{{ draft.open == 'a' }}"` and `aria-controls` to the panel. A real button, so it is in the Tab order and Space and Enter work. |
 
 * `data-draft="stats.STR"` writes `draft.stats.STR` (a leading `draft.` is allowed and means the same).
   Keys can come from a loop: `data-draft="stats[k]"` inside `data-each="q.rules.stats as k"`.
+* `data-draft-close="path"` on a container: Escape pressed inside it, or a press on an inner `[data-draft-cancel]`, clears that
+  draft value (it closes the disclosure it holds) and puts the focus on the container's open toggle (`aria-expanded="true"`)
+  first, so it never falls to the page. Escape with nothing open is not taken (a window around it closes as usual).
+* A `<select>` whose draft value is no longer one of its options (the option left with the data it came from) goes back to
+  empty and is drawn once more; a select with no options yet keeps its seeded value.
 * The draft shows in the inputs (seed it with defaults: the dialog's starting draft). A field the reader is
   typing in is never overwritten.
 * After each change the screen renders again, so text that reads the draft (`{{ draft.name }}`) follows.

@@ -550,10 +550,15 @@ cards: {
 }
 ```
 
-`for(state, message, ctx)` is asked about each assistant message (the greeting too), oldest first, with that message's own
-state, its SillyTavern message object and `ctx` ({ index, chatId, query(name, args) } at that state). The first message whose
-answer is a card gets it, so a card id shows once per chat; a card the module stops returning goes on the next draw (a character
-made, a fight ended). A swipe or a delete moves or removes it with its message. The card is one object:
+`for(state, message, ctx)` is asked **once**, about the **head reply**: the newest assistant message (in a chat that holds only
+the greeting, the greeting). It gets the head's state, its SillyTavern message object and `ctx` ({ index, head: true, chatId,
+query(name, args) } at that state). Every card is asked on the same head state (worked out once). When it answers with a card, the
+card is drawn under the head reply with its actions enabled; older replies carry no module cards. So a card follows the story: a
+start card goes the moment the character exists, and a second fight's battle card sits under the newest reply, not on the first
+fight's. A card the module stops returning goes on the next draw (a character made, a fight ended); a swipe or a delete moves it
+with the head. Ask the head's state, not the history: a card that needs "has a fight started?" reads it from `state`, as the head
+carries everything so far. In a brand-new chat (only the greeting, no story record on it yet) the state is the chat's initial one, so a start
+card shows before the first reply. The card is one object:
 
 | Field | Meaning |
 |---|---|
@@ -563,12 +568,11 @@ made, a fight ended). A swipe or a delete moves or removes it with its message. 
 | `text` | Optional, muted, at most 200 characters. |
 | `rows` | At most four: `{ icon?, text, tag?, tagTone? }`. |
 | `actions` | At most three: `{ id, label, icon?, primary?, command?, payload?, open? }`. `primary` is the accent. An action needs `command` or `open`. |
-| `later` | `true` adds a Later button: the card folds into one line, "<title> · <first row> · Open". The fold is the viewer's (kept per chat and message in the browser), never game state. |
+| `later` | `true` adds a Later button: the card folds into one line, "<title> · <first row> · Open". The fold is the viewer's (kept per chat and card key in the browser, so a new reply does not reset it; cleared when the card stops being drawn, so a later card of the same id starts unfolded; a chat with no id keeps it for the page only), never game state. |
 
 - **`command`** is sent through `sdk.command` with its `payload` (cause `ui`), so it is recorded with the reply and a swipe or
-  delete undoes it. Only the newest reply's card can act; the others show their buttons disabled, with the reason. In a
-  chat that holds only the greeting, the greeting is the newest reply, so its card can act (a start card under the greeting
-  works); once a reply follows it, it is read-only like the rest.
+  delete undoes it. Cards are under the head reply, so their buttons are enabled. In a chat that holds only the greeting, the
+  greeting is the head, so a start card under it works; once a reply follows, the card moves to that reply.
 - **`open`** opens that screen in the game view (a window on desktop, full screen on a phone) when the screen has a `screen`
   mount; a screen opened this way need not be on the bar. A dialog-only screen (a creation wizard) opens its dialog instead
   (`sdk.dialog.open`), with the action's `payload` as the dialog's starting draft. A screen with neither mount, or none by that id, opens nothing, and the host logs it once.
@@ -582,9 +586,14 @@ Drawing: under the message, after the changes card, in the same strip. `normaliz
 A screen (in its `screens` entry) or a tab (in `tabs`) may declare `active(state, ctx) → { on, badge? }`:
 
 - Off (`on` false, or the function throws), it is not on the game view's bar, the More sheet or the desktop row, nor on
-  the Story panel's tab bar. It still opens by id (`mounts.screen.open(id)`).
-- On, it shows. With a `badge` ("alert", or a count) it takes the last pinned slot of a phone's bar (or the panel's) for
-  as long as the badge is set; the item that held that slot goes to More. A red dot sits at the icon's top-right.
+  the Story panel's tab bar. It still opens by id (`mounts.screen.open(id)`, or a card's `open`): the game view is titled
+  from the screen's definition and keeps it open, redraw after redraw, until the reader goes to another screen.
+- On, it shows. With an alert `badge` it takes the last pinned slot of a phone's bar (or the panel's) for as long as the badge is
+  set; the item that held that slot goes to More. A red **dot** sits at the icon's top-right: it is a dot, not a number. A badge
+  is an alert when it is text (`'your move'`), a count above 0 (`3`) or `true`; `0`, empty text, `false`, `null` and no badge
+  are none. The badge's words are the slot's accessible name and tooltip ("Fight, your move"; a count reads "Fight, 3"; `true`
+  "Fight, alert"). Only one tab is pinned: a second alerting tab sits under More, and More shows the dot (its name says which
+  tab, "More, Crafting: ready"), as does that tab's tile in the sheet.
 - `activeNote` (text) is what Settings → Tabs & Packs → Tabs shows for it in place of the switch ("Shown only while it is
   active (during a battle, for example)." by default).
 

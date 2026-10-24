@@ -108,7 +108,7 @@ narration, as long as both sides agree on a name and a shape.
 | **Reacting** | `hooks`, `sdk.on(event, fn)` | Run when something happens, such as after a reply is read (settle a fight, pay a quest). |
 | **On screen** | `screens`, `tabs`, `widgets`, `settings` | A module's screens appear in the bottom bar, the Story panel and the game view with the shared look; its settings appear in Story Suite's settings window. |
 | **Switches** | `features` | Parts a reader can turn on and off; other modules can ask whether one is on (`sdk.feature(id)`). |
-| **Cards under replies** | `cards` (`{ <id>: { for(state, message, ctx) → card \| null } }`) | A card under an assistant reply, in the reply's strip, from the first message that answers it: a title, rows and up to three buttons that send a command or open a screen. Story Block draws it and keeps the Later state; WIDGETS.md, "Cards under replies". |
+| **Cards under replies** | `cards` (`{ <id>: { for(state, message, ctx) → card \| null } }`) | A card under the head (newest) assistant reply, in the reply's strip, asked once on the head's state: a title, rows and up to three buttons that send a command or open a screen. Story Block draws it and keeps the Later state; WIDGETS.md, "Cards under replies". |
 | **Tabs shown while active** | `screens` or `tabs`, `active(state, ctx) → { on, badge? }` | A screen or tab that shows only while `on`; with a `badge` it takes the last pinned slot on a phone, with a red dot. Off, it is hidden from the bars and still opens by id (WIDGETS.md). |
 
 Three rules keep this safe:

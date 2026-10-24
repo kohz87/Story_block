@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    ACCENT, DEFAULT_GLASS, FONT_STACKS, GLASS_MAX, GLASS_MIN, PANEL_STYLES, ROOT_SELECTOR, THEME_ROOTS, createThemeBridge, decideScheme, glassAlphas,
+    ACCENT, DEFAULT_GLASS, FONT_STACKS, GLASS_MAX, GLASS_MIN, PALETTES, PANEL_STYLES, ROOT_SELECTOR, THEME_ROOTS, createThemeBridge, decideScheme, glassAlphas,
     luminance, parseColor, schemeTokens, themeChoice, themeCss, themeTokens,
 } from '../../../src/v2/view/theme.js';
 import { HOST_SETTINGS_DEFAULTS, HOST_SETTINGS_SCHEMA, createSettings } from '../../../src/v2/sdk.js';
@@ -337,4 +337,34 @@ test('the settings window\'s help tone reads (>= 4.5:1) on each scheme\'s surfac
     }
     const sheet = readFileSync(new URL('../../../src/v2/view/settings.css', import.meta.url), 'utf8');
     assert.match(sheet, /\.ss-settings :is\(\.ss-card-help, \.ss-field-help, \.ss-feature-help\) \{ color: var\(--ss-help, var\(--ss-muted\)\); opacity: 1; \}/);
+});
+
+// "Follow SillyTavern only" left --ss-bad, --ss-warn and --ss-info undefined, so a module's ring or tint using them was invalid there (fix 8k).
+test('every tone and colour token of the Glass look exists in Solid and in Follow SillyTavern, in both schemes', () => {
+    const layout = name => /^--ss-(sheet-|gameview-phone-)/.test(name);
+    for (const scheme of ['dark', 'light']) {
+        const glass = schemeTokens(scheme, 'glass').map(([name]) => name).filter(name => !layout(name));
+        assert.ok(glass.includes('--ss-bad') && glass.includes('--ss-warn') && glass.includes('--ss-info') && glass.includes('--ss-good'), 'the tones are in Glass');
+        for (const panel of ['solid', 'sillytavern']) {
+            const have = new Set(schemeTokens(scheme, panel).map(([name]) => name));
+            const missing = glass.filter(name => !have.has(name));
+            assert.deepEqual(missing, [], `${panel} (${scheme}) lacks ${missing.join(', ')}`);
+        }
+    }
+});
+
+test('Follow SillyTavern: --ss-bad, --ss-warn and --ss-info are the scheme\'s fixed tones, readable as text (4.5:1) on that scheme\'s surface', () => {
+    const luminance = hex => {
+        const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    for (const scheme of ['dark', 'light']) {
+        const tokens = new Map(schemeTokens(scheme, 'sillytavern'));
+        for (const tone of ['bad', 'warn', 'info']) {
+            const value = tokens.get(`--ss-${tone}`);
+            assert.equal(value, PALETTES[scheme][tone], `${scheme} ${tone}`);
+            assert.ok(ratio(value, PALETTES[scheme].solid) >= 4.5, `${scheme} ${tone} is ${ratio(value, PALETTES[scheme].solid).toFixed(2)}:1`);
+        }
+    }
 });
