@@ -386,3 +386,24 @@ test('delete the first of two identical lines and read the reply again: the surv
     assert.equal(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE' && /line it stands on is gone/.test(problem.why)), true);
     assert.deepEqual(Object.keys(lines()), survivor);
 });
+
+test('the count rule covers blocks that give no proof: fewer identical steps than before and none of the old ids is given again', async t => {
+    const host = await started(t);
+    steps.n = 2;
+    t.after(() => { steps.n = 0; });
+    await host.send('Go.', reply('A.', ['! mark line']));
+    const at = host.ctx.chat.length - 1;
+    const ids = () => Object.keys(host.head().domains.cs.steps).sort();
+    const before = ids();
+    assert.equal(before.length, 2);
+    steps.n = 1;
+    assert.equal((await host.sdk.reread(at)).ok, true);
+    const after = ids();
+    assert.equal(after.length, 1);
+    assert.equal(before.includes(after[0]), false, 'the survivor is a new block, not either old one');
+    for (let n = 0; n < 2; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.deepEqual(ids(), after, 'and then it holds still');
+    }
+    assert.deepEqual(host.head().domains.cs.steps[after[0]], blocks(host).map(each => each.span).find(span => span.id === after[0]).boundaries[0].cursor);
+});
