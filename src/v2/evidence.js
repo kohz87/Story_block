@@ -484,6 +484,99 @@ export function operationKey(type, payload) {
     return hashJson({ type, line: typeof payload?.raw === 'string' ? payload.raw : payload ?? {} });
 }
 
+// ---------- occurrence ----------
+//
+// Two blocks of one reply that did exactly the same (two lines with the same text, two steps with the same command and payload) are told
+// apart by their occurrence: a whole number given to a block once, when it is first stamped, kept in its span (`span.occurrence`) and
+// never worked out again. A step planned again, a reconcile, a Re-read of text that did not change and a rebuild all use the one the
+// block has, so an earlier block that goes cannot move the later ones onto its identity. A new block takes the next number nobody
+// has used in that reply (`record.source.taken`, kept past the blocks that go, and the numbers of the blocks that stand). A block
+// stored before this, with no number, keeps its rank among the blocks that did the same, as it always had.
+
+const whole = value => (Number.isInteger(value) && value >= 0 ? value : null);
+
+/** The key a span's operation has (operationKey), or null. */
+export function spanOperationKey(span) {
+    try { return isObject(span?.operation) ? operationKey(span.operation.type, span.operation.payload) : null; } catch { return null; }
+}
+
+/** The occurrence a block was stamped with, or null (a block from before there was one). */
+export const occurrenceOf = span => whole(span?.occurrence);
+
+const takenKey = key => key.slice(0, 16);
+
+/** `entry` (a record's source) with the occurrences of `spans` taken: undefined when none ever was (a store without proof stays as it was). */
+export function takenAfter(entry, spans) {
+    const out = isObject(entry?.taken) ? { ...entry.taken } : {};
+    for (const span of spans) {
+        const at = Array.isArray(span?.evidence) && span.evidence.length ? occurrenceOf(span) : null;
+        const key = at === null ? null : spanOperationKey(span);
+        if (key) out[takenKey(key)] = Math.max(whole(out[takenKey(key)]) ?? 0, at + 1);
+    }
+    return Object.keys(out).length ? out : undefined;
+}
+
+/** The next occurrence nobody has used in `record` (the reply) for the operation `key`. */
+export function nextOccurrence(record, key) {
+    let next = whole(record?.source?.taken?.[takenKey(key)]) ?? 0;
+    let count = 0;
+    for (const span of Array.isArray(record?.spans) ? record.spans : []) {
+        if (!isObject(span) || typeof span.id !== 'string' || spanOperationKey(span) !== key) continue;
+        count += 1;
+        const at = occurrenceOf(span);
+        if (at !== null) next = Math.max(next, at + 1);
+    }
+    return Math.max(next, count);
+}
+
+// The spans of a record that a Re-read gives again (its story lines and the steps afterCapture asked for), with the number each has:
+// the one it was stamped with, or (a block from before there was one) its rank among the blocks of its record that did the same.
+function regeneratedOccurrences(record) {
+    const spans = Array.isArray(record?.spans) ? record.spans : [];
+    const receipts = Array.isArray(record?.receipts) ? record.receipts : [];
+    const out = new Map();
+    const rank = new Map();
+    let at = 0;
+    for (const span of spans) {
+        const ops = Array.isArray(record?.ops) && Number.isInteger(span?.n) ? record.ops.slice(at, at + span.n) : [];
+        at += Number.isInteger(span?.n) ? span.n : 0;
+        if (!isObject(span) || typeof span.id !== 'string') continue;
+        const key = spanOperationKey(span);
+        if (!key) continue;
+        const mine = rank.get(key) ?? 0;
+        rank.set(key, mine + 1);
+        const rev = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
+        const step = !!span.replan && receipts.some(receipt => receipt?.rev === rev && receipt?.afterCapture === true);
+        if (span.story !== true && !step) continue;
+        (out.get(key) ?? out.set(key, []).get(key)).push(occurrenceOf(span) ?? mine);
+    }
+    for (const list of out.values()) list.sort((x, y) => x - y);
+    return out;
+}
+
+/**
+ * The occurrences for the blocks a Re-read of `record` plans: the k-th block of an operation that is given again takes the k-th
+ * number of the blocks of that operation it replaces (an unchanged Re-read gives every block its own), and a block with none to
+ * take back takes the next one nobody has used. `peek(key)` → the number the next block of that operation would take;
+ * `commit(key, value)` once it was planned.
+ */
+export function reusePlan(record) {
+    const pool = regeneratedOccurrences(record);
+    const used = new Map();
+    const given = new Map();
+    return {
+        peek(key) {
+            const list = pool.get(key) ?? [];
+            const at = used.get(key) ?? 0;
+            return at < list.length ? list[at] : Math.max(nextOccurrence(record, key), given.get(key) ?? 0);
+        },
+        commit(key, value) {
+            used.set(key, (used.get(key) ?? 0) + 1);
+            given.set(key, Math.max(given.get(key) ?? 0, value + 1));
+        },
+    };
+}
+
 /**
  * The proof of the blocks of a record that a Re-read regenerates (its story lines and its planned steps), in record order. A
  * block regenerated by a Re-read may hold these ids again (its own and nobody else's); an id any other block holds is not

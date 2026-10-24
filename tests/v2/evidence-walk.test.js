@@ -11,7 +11,7 @@ const ids = list => list.map(each => each.id);
 
 // A rerun as the turn gives the store (turn.js planAgain), for a harness.
 const rerunOf = h => (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-    cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.nth,
+    cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
     reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
 });
 

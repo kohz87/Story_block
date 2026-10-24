@@ -11,6 +11,7 @@
 //   sd.cyclic { depth? }            a visit proof whose payload contains itself (or is nested `depth` deep).
 //   `! check <id> | dc: n` (capture, with `after: 'check'`) gives a check (event) proof; sd.afterCheck { parent } is the guarded step
 //                                   afterCapture asks for on the first check, planned again by a Re-read or a reconcile.
+//   sd.gate { value } / sd.ready {}   a gate and a replanned step done only while it is open (two identical `sd.ready` steps stand apart by occurrence).
 //   sd.setting {}                   a replanned step whose guard follows `mode` as read when it is planned (a refused plan leaves the old block).
 //   sd.dependent { parent }         a guarded system step with a replan that says NO_LONGER_DONE when its parent proof is not shown.
 //   `director({ after: 'accepted', sidAt })`  afterCapture asks for one sd.after on each acceptance of the reply that has none yet.
@@ -114,6 +115,17 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 const made = ctx.proof({ kind: 'visit', payload: { after: 'dependent' }, parents: [parent] });
                 ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ parent }), predicate: { kind: 'needs', parent } });
                 return { summary: 'Dependent.', narrate: false, replan: true, data: { made } };
+            },
+            // A gate the story opens and closes, and a step that is done only while it is open: planned again with the gate shut it is NO_LONGER_DONE.
+            'sd.gate'(ctx, { value }) {
+                ctx.draft('sdt').ready = value === true;
+                return { summary: 'Gate.', narrate: false };
+            },
+            'sd.ready'(ctx) {
+                if (ctx.read('sdt').ready !== true) ctx.fail('NO_LONGER_DONE', 'It is not ready.');
+                const made = ctx.proof({ kind: 'visit', payload: { after: 'ready' } });
+                ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ ready: true }), predicate: { kind: 'accept', thread: T1 } });
+                return { summary: 'Ready.', narrate: false, replan: true, data: { made } };
             },
             // A step whose guard follows a setting read when it is planned (`mode`): planned again while the setting is 'deny', its new guard would
             // not hold on replay, so it is not stored; the old block stays, with the guard it was stored with.

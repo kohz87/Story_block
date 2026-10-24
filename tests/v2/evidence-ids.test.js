@@ -10,7 +10,7 @@ import { T1, director, evidenceHarness, fighter, hostModule } from './helpers/ev
 const ids = list => list.map(each => each.id);
 const steps = ask => ask({}).filter(proof => proof.payload.after === 'dependent');
 const rerunOf = h => (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-    cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.nth,
+    cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
     reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
 });
 
@@ -232,6 +232,11 @@ test('a checkpoint says which blocks were off: the proof before it belongs to th
     h.store.rebuild();     // a cold head: replay starts from that checkpoint
     assert.equal(shown(), live, 'a replay from the checkpoint shows what the chat as a whole shows');
     assert.ok(h.ask().some(each => each.payload.after === 'dependent'), 'and the step still');
+    // A checkpoint written before checkpoints said which blocks applied: what is before it is worked out by replaying it.
+    for (const message of h.chat) if (message.extra?.storySuite?.owned) delete message.extra.storySuite.owned;
+    h.store.rebuild();
+    assert.equal(shown(), live, 'and with no list in the checkpoints');
+    assert.equal(h.ask({ ids: [a.id] })[0]?.payload.place, 'b');
 });
 
 test('a checkpoint rewritten after a reconcile took a step back still names the blocks that applied: a later proof of its record stays shown', () => {
@@ -268,4 +273,51 @@ test('a checkpoint rewritten after a reconcile took a step back still names the 
     h.store.rebuild();     // a cold head, from the checkpoint
     assert.deepEqual(shown(), [owner.id, last.id], 'from the checkpoint too');
     assert.equal(h.ask({ ids: [owner.id] })[0].payload.place, 'o');
+});
+
+test('an earlier identical step that goes does not move the later ones onto its identity: what was built on it stays off, however often a reconcile runs', () => {
+    const h = evidenceHarness();
+    h.send();
+    assert.equal(h.command('sd.gate', { value: true }).ok, true);
+    h.send();
+    // Two identical steps in one reply, the gate shut and opened between them, and a click built on the first.
+    const first = h.command('sd.ready', {}, 'system').receipt.data.made;
+    assert.equal(h.command('sd.gate', { value: false }).ok, true);
+    assert.equal(h.command('sd.gate', { value: true }).ok, true);
+    const second = h.command('sd.ready', {}, 'system').receipt.data.made;
+    assert.notEqual(first.id, second.id, 'identical steps, two ids');
+    const built = h.command('sd.needs', { thread: T1, selection: 'Turn in', parent: first.id });
+    assert.equal(built.ok, true, built.message);
+    const onFirst = built.receipt.data.proof.id;
+    assert.deepEqual(ids(h.ask({ ids: [first.id, second.id, onFirst] })), [first.id, second.id, onFirst]);
+    // The reply that opened the gate for the first step goes: the first step is not ready any more (taken back), the second still is.
+    h.chat.splice(1, 2);
+    h.store.rebuild();
+    for (let round = 1; round <= 3; round += 1) {
+        h.store.reconcile(0, { rerun: rerunOf(h) });
+        assert.deepEqual(ids(h.ask({ ids: [first.id, second.id, onFirst] })), [second.id], `reconcile ${round}: the second step keeps its own id, and nothing built on the first comes back`);
+        assert.equal(h.ask({ ids: [second.id] })[0].payload.after, 'ready');
+    }
+    h.store.rebuild();
+    assert.deepEqual(ids(h.ask({ ids: [first.id, second.id, onFirst] })), [second.id], 'and a replay agrees');
+    assert.ok(h.problems().length >= 1, 'the click that was built on the first step is still reported off');
+    // A step of the same operation added now takes a number nobody used (not the first step's).
+    const third = h.command('sd.ready', {}, 'system').receipt.data.made;
+    assert.notEqual(third.id, first.id);
+    assert.notEqual(third.id, second.id);
+});
+
+test('a store that never gave proof is written as it was: no list of owners, no occurrences', () => {
+    const h = evidenceHarness({ options: { checkpointEvery: 2 } });
+    for (let n = 0; n < 6; n += 1) {
+        h.send();
+        assert.equal(h.command('sd.gate', { value: n % 2 === 0 }).ok, true);
+    }
+    const records = h.chat.map(message => message.extra?.storySuite).filter(Boolean);
+    assert.ok(records.filter(record => record.checkpoint).length >= 2, 'checkpoints were written');
+    for (const record of records) {
+        assert.equal(Object.hasOwn(record, 'owned'), false);
+        assert.equal(Object.hasOwn(record.source ?? {}, 'taken'), false);
+        assert.ok(record.spans.every(span => !Object.hasOwn(span, 'occurrence')));
+    }
 });

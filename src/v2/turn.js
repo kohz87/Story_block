@@ -25,7 +25,7 @@ import { assistSections, continuation, cutLine, defangMarker, extractBlock, gram
 import { notWritten } from './assist/extractor.js';
 import { refusedWhy } from './assist/safety.js';
 import { displayLines, readDisplayLine } from './extras.js';
-import { operationKey, replacedProofs } from './evidence.js';
+import { operationKey, replacedProofs, reusePlan } from './evidence.js';
 import { hash, readRecord, swipeLoading } from './persist.js';
 import { CAPTURE_PREFIX, HOST_MODULE } from './registry.js';
 import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt.js';
@@ -334,7 +334,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const ordinal = info?.span?.source?.ordinal;
         // The proof of the block being planned again may be given again: the step keeps its ids.
         const replacing = Array.isArray(info?.span?.evidence) ? info.span.evidence : [];
-        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, ...(Number.isInteger(info?.nth) ? { occurrence: info.nth } : {}), ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
+        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, ...(Number.isInteger(info?.occurrence) ? { occurrence: info.occurrence } : {}), ...(reply ? { reply: Number.isInteger(ordinal) ? { ...reply, ordinal } : reply } : {}) });
     }
 
     // After a delete or swipe (REPLAY.md "Reconciling"): the guarded steps that carry a `replan` are planned again
@@ -783,7 +783,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             for (const command of Array.isArray(out?.commands) ? out.commands : []) {
                 const payload = command?.payload ?? {};
                 const seed = seeds?.(command?.type);
-                const result = bus.run(command?.type, payload, { cause: 'system', state: live ? store.head() : now, ...(reply ? { reply: plan ? { ...reply, pending: plan.pending } : reply } : {}), ...(plan ? { planned: planned(), replacing: plan.replacing, occurrence: rankAmong([...plan.blocks, ...steps], command?.type, payload) } : {}), ...(seed === undefined ? {} : { seed }) });
+                const taking = plan ? occurrenceFor(plan, command?.type, payload) : null;
+                const result = bus.run(command?.type, payload, { cause: 'system', state: live ? store.head() : now, ...(reply ? { reply: plan ? { ...reply, pending: plan.pending } : reply } : {}), ...(plan ? { planned: planned(), replacing: plan.replacing, ...(Number.isInteger(taking.value) ? { occurrence: taking.value } : {}) } : {}), ...(seed === undefined ? {} : { seed }) });
                 if (!result?.ok) {
                     problems.push(problem({ module: moduleId, index, code: result?.code ?? 'FAILED', message: `The step "${command?.type}" after the reply's lines was not run: ${result?.message ?? 'unknown error'}` }));
                     continue;
@@ -797,7 +798,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                     events?.emit('committed', { receipt });
                 } else {
                     now = result.state;
-                    if (result.block && plan) plan.pending += 1;
+                    if (result.block && plan) {
+                        plan.pending += 1;
+                        if (taking.key && Number.isInteger(result.block.occurrence)) plan.reuse.commit(taking.key, result.block.occurrence);
+                    }
                 }
                 steps.push({ ops: result.ops, receipt, ...(result.block ? { block: result.block } : {}) });
             }
@@ -805,13 +809,12 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         return steps;
     }
 
-    // The rank a block that does `type` with `payload` has among the blocks a Re-read has planned so far (`planned`: [{ block? }]): its proof
-    // ids come from what it is and this rank, so a block read again gets the ids it had.
-    function rankAmong(planned, type, payload) {
+    // The occurrence a block of a Re-read that does `type` with `payload` takes (evidence.js reusePlan): the number of a block it replaces, else the next unused.
+    function occurrenceFor(plan, type, payload) {
         try {
             const key = operationKey(type, payload);
-            return planned.filter(piece => piece?.block?.operation && operationKey(piece.block.operation.type, piece.block.operation.payload) === key).length;
-        } catch { return 0; }
+            return { key, value: plan.reuse.peek(key) };
+        } catch { return { key: null, value: undefined }; }
     }
 
     // For a Re-read: each afterCapture step run again gets the seed of the old one of its type, in order.
@@ -882,7 +885,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             let result;
             try {
                 const operation = { type: `${CAPTURE_PREFIX}${entry.kind}`, payload: { ...line, kind: entry.kind, word: line.kind } };
-                const run = opts => bus.run(operation.type, operation.payload, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(plan ? { planned: plan.blocks.flatMap(piece => piece.block?.evidence ?? []), replacing: plan.replacing, occurrence: rankAmong(plan.blocks, operation.type, operation.payload) } : {}), ...(seed === undefined ? {} : { seed }), ...opts });
+                const taking = plan ? occurrenceFor(plan, operation.type, operation.payload) : null;
+                const run = opts => bus.run(operation.type, operation.payload, { cause: 'story', state, capture: entry, carrier: plan ? { ...carrier, pending: plan.pending } : carrier, chat, standing, ...(plan ? { planned: plan.blocks.flatMap(piece => piece.block?.evidence ?? []), replacing: plan.replacing, ...(Number.isInteger(taking.value) ? { occurrence: taking.value } : {}) } : {}), ...(seed === undefined ? {} : { seed }), ...opts });
                 result = entry.off ? await run({ capture: { ...entry, off: false }, again: true }) : await run();
                 // Refused by a feature that is off (a command it called, ctx.feature): run as it ran before.
                 if (again && !entry.off && result?.code === 'FEATURE_OFF') result = await run({ again: true });
@@ -893,7 +897,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                     collected.push(...result.ops);
                     if (plan) {
                         plan.blocks.push({ n: result.ops.length, receipt: result.receipt, ...(result.block ? { block: result.block } : {}) });
-                        if (result.block) plan.pending += 1;
+                        if (result.block) {
+                            plan.pending += 1;
+                            if (taking.key && Number.isInteger(result.block.occurrence)) plan.reuse.commit(taking.key, result.block.occurrence);
+                        }
                     }
                 } else if (result?.ok) store.append({ ops: result.ops, receipt: result.receipt, ...(result.block ? { block: result.block } : {}) });
             } catch (error) {
@@ -1010,7 +1017,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         let steps = [];
         // `replacing`: the proof of the blocks this Re-read replaces (its story lines and its steps). A proof given again keeps the id of the
         // old one of the same kind and key at the same place among those, so a line that reads as it did keeps its ids and what was built on them.
-        const plan = { blocks: [], pending: 0, replacing: replacedProofs(readRecord(message)) };
+        const plan = { blocks: [], pending: 0, replacing: replacedProofs(readRecord(message)), reuse: reusePlan(readRecord(message)) };
         try {
             let after;
             const seeds = storySeeds(readRecord(message));

@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, merged, opShapeProblem, operationKey, pinOps, recordEntries, touchesProof } from './evidence.js';
+import { evidenceDigest, evidenceProblem, merged, nextOccurrence, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, takenAfter, touchesProof } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -709,6 +709,7 @@ export function createStore({
         const span = {
             id, module: block.module, source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal },
             guard: block.guard ?? null, claims: claimKeys(ops), evidence: structuredClone(block.evidence ?? []),
+            ...(Array.isArray(block.evidence) && block.evidence.length && occurrenceOf(block) !== null ? { occurrence: block.occurrence } : {}),
             boundaries: [{
                 cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: id, op: offset, rev: Math.max(0, (revOp ? revOp.value : 1) - 1) },
                 prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: blocksBefore(earlier) }),
@@ -729,7 +730,8 @@ export function createStore({
     function advanced(entry, spans) {
         let next = Number.isInteger(entry?.next) ? entry.next : 0;
         for (const span of spans) if (isMetaSpan(span) && Number.isInteger(span.source?.ordinal)) next = Math.max(next, span.source.ordinal + 1);
-        return { ...entry, next };
+        const taken = takenAfter(entry, spans);     // (the occurrences of proof blocks, kept past the blocks that go)
+        return { ...entry, next, ...(taken ? { taken } : {}) };
     }
 
     // The carriers from `first` on, replayed on `state` (a Re-read's, reconcile's suffix): a later change that
@@ -766,7 +768,7 @@ export function createStore({
                 const guardedBefore = history;
                 history ||= hasMeta(later);
                 const checkpoint = later.checkpoint ? structuredClone(state) : undefined;
-                const owners = checkpoint && applying ? packOwners(listProofs(false), sidAtNow) : null;     // (the blocks that applied before this record)
+                const owners = checkpoint && applying && proofBefore(arr, i, j => overlay.get(j) ?? readRecord(arr[j])) ? packOwners(listProofs(false), sidAtNow) : null;     // (the blocks that applied before this record)
                 const failed = [];
                 if (applying) applying.index = i;
                 const out = replayBlocks(state, later, i, failed, { skip: broken, rerun, message: arr[i], running });
@@ -1168,7 +1170,8 @@ export function createStore({
         let planned = null;
         let failure = '';
         try {
-            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, nth: rankIn(out.parts, span.operation) });
+            const nth = rankIn(out.parts, span.operation);
+            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, nth, occurrence: occurrenceOf(span) ?? nth });
         } catch (error) {
             failure = `it threw (${error?.message ?? error})`;
         }
@@ -1263,10 +1266,26 @@ export function createStore({
             const record = readRecord(arr[i]);
             if (record && hasMeta(record)) for (const entry of recordEntries(record, blockParts(record))) if (!on || on.has(`${record.sid}\u0000${entry.block}`)) out.push(Object.freeze({ ...entry, index: i }));
         }
+        // A checkpoint that does not say (one written before it did) is worked out by replaying what is before it.
+        let listed = out;
+        if (!on && out.length && from > 0) {
+            const prior = replay(arr, from - 1);
+            if (prior.state) listed = [...proofsBefore(arr, prior.from), ...(prior.applied ?? [])];
+        }
         const seen = new Set();
-        const once = out.filter(entry => !seen.has(entry.proof.id) && seen.add(entry.proof.id));
+        const once = listed.filter(entry => !seen.has(entry.proof.id) && seen.add(entry.proof.id));
         (memo.proofsBefore ??= new Map()).set(from, once);
         return once;
+    }
+
+    // Did any record before carrier `upTo` hold proof (a block with evidence)? A checkpoint carries `owned` only when one did, so a store
+    // that never gave proof is written exactly as it was.
+    function proofBefore(arr, upTo, at = i => readRecord(arr[i])) {
+        for (let i = 0; i < upTo && i < arr.length; i++) {
+            const record = isCarrier(arr[i]) ? at(i) : null;
+            if (record && Array.isArray(record.spans) && record.spans.some(span => Array.isArray(span?.evidence) && span.evidence.length)) return true;
+        }
+        return false;
     }
 
     // The blocks that applied, as a checkpoint carries them (`owned`): [record sid, block id], each once.
@@ -1474,7 +1493,7 @@ export function createStore({
                 if (carried.length) record.carried = carried;
                 // The blocks before it that applied (the proof of an id belongs to the one that applied with it).
                 const head = index === lastCarrier(arr) ? current() : replay(arr, index - 1);
-                if (head.state && !head.readOnly) {
+                if (head.state && !head.readOnly && proofBefore(arr, index)) {
                     record.owned = packOwners([...proofsBefore(arr, head.from), ...appliedOf(arr, head)].filter(entry => entry.index < index), i => rawSidAt(arr, i));
                 }
                 record.covers = since;
@@ -1740,11 +1759,11 @@ export function createStore({
             return sourceOf(index, options);
         },
 
-        /** How many blocks of carrier `index`'s record did what `key` is (operationKey): the rank a new block of that has among them. */
-        occurrences(index, key) {
+        /** The next occurrence nobody has used in carrier `index`'s record for the operation `key` (operationKey): a new block of that takes it. */
+        nextOccurrence(index, key) {
             const arr = list();
             const record = isCarrier(arr[index]) ? readRecord(arr[index]) : null;
-            return record && hasMeta(record) ? blockParts(record).filter(part => sameOperation(part, key)).length : 0;
+            return record ? nextOccurrence(record, key) : 0;
         },
 
         /**
@@ -2014,7 +2033,8 @@ export function createStore({
                 const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
-                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, nth: isMetaSpan(was) ? rankIn(nextParts, was.operation) : undefined }); } catch { out = null; }
+                    const nth = isMetaSpan(was) ? rankIn(nextParts, was.operation) : undefined;
+                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, nth, occurrence: occurrenceOf(was) ?? nth }); } catch { out = null; }
                     // A guarded step goes only when its owner says it is no longer done; when it cannot be asked it stays.
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)
