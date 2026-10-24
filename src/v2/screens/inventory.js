@@ -200,8 +200,9 @@ const CSS = `${BASE_CSS}
 .fold .fold-q { flex-basis: 100%; color: var(--sb-em); font-weight: 400; }
 .fold .pick-member { background: color-mix(in srgb, var(--sb-accent) 24%, transparent); border-color: var(--sb-accent); }
 .fold .ss-button { min-height: 44px; }
-/* The danger tone is the confirm's text and ring, never a filled background (the Drop action itself is a plain button). */
-.fold .ss-button-danger { background: transparent; color: var(--sb-bad); border-color: var(--sb-bad); }
+/* The danger tone is the confirm's text and ring, never a filled background (the Drop action itself is a plain button). The text is the
+   theme's error text (4.5:1 on the glass); --sb-bad is a fixed #d9534f (3.3 to 4.0:1), so it stays the ring only. */
+.fold .ss-button-danger { background: transparent; color: var(--ss-bad-text, var(--sb-bad)); border-color: var(--sb-bad); }
 .loot { display: grid; gap: 6px; }
 .loot .offer { display: grid; gap: 4px; padding: 6px 8px; border-radius: 6px; background: var(--sb-raised); }
 .loot .loot-head, .loot .hint { margin: 0; }

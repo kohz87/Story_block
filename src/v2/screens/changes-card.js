@@ -119,17 +119,18 @@ const CSS = `${BASE_CSS}
 .tile.tone-warn { --ring: var(--ss-warn); }
 .tile.tone-info { --ring: var(--ss-info); }
 .tile.tone-accent { --ring: var(--ss-accent); }
-/* The checks: a 34px tile with the d20, the line beside it (wraps under the tile's edge, never over it). */
+/* The checks: a 34px tile with the d20, the line beside it (wraps under the tile's edge, never over it). The ring is the row's border and
+   tint; the words are the theme's text colour (the tone colours are under 4.5:1 on the light glass). */
 .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .check { --ring: var(--ss-border); display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; align-items: center; padding: 8px 12px;
-         border-radius: 12px; border: 1px solid var(--ring); background: color-mix(in srgb, var(--ring) 10%, transparent); }
+         border-radius: 12px; border: 1px solid var(--ring); background: color-mix(in srgb, var(--ring) 10%, transparent); color: var(--ss-text, var(--sb-fg)); }
 .check.good { --ring: var(--ss-good); }
 .check.bad { --ring: var(--ss-bad); }
 .check .dice { width: 34px; height: 34px; border-radius: 9px; background: var(--ss-tile); display: flex; align-items: center; justify-content: center;
                font-weight: 800; font-size: 1.15em; color: var(--ss-text); }
 .check .what { min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
-.check .res { color: var(--ring); }
-.check .story { grid-column: 2; justify-self: end; font-size: 0.85em; text-align: right; color: var(--ring); }
+.check .res { font-weight: 800; }
+.check .story { grid-column: 2; justify-self: end; font-size: 0.85em; text-align: right; }
 .none { margin: 0; }
 .loot { margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--ss-border, var(--sb-border)); display: grid; gap: 6px; }
 .loot-head { margin: 0; }
