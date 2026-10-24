@@ -133,7 +133,7 @@ test('a card\'s open: the screen where the screen has a mount, else the dialog, 
                 { id: 'qa-cards/chip', title: 'Chip', mounts: ['hud'], template: '<p>Chip</p>' },
             ],
             cards: {
-                tools: { for: (state, message, ctx) => (ctx.index === 2 ? { title: 'Tools', actions: [{ id: 'party', label: 'Party', open: 'qa-cards/party' }, { id: 'wizard', label: 'Wizard', open: 'qa-cards/wizard' }, { id: 'chip', label: 'Chip', open: 'qa-cards/chip' }] } : null) },
+                tools: { for: (state, message, ctx) => (ctx.index === 2 ? { title: 'Tools', actions: [{ id: 'party', label: 'Party', open: 'qa-cards/party' }, { id: 'wizard', label: 'Wizard', open: 'qa-cards/wizard', payload: { name: 'Ren' } }, { id: 'chip', label: 'Chip', open: 'qa-cards/chip' }] } : null) },
             },
         });
         ui.refresh();
@@ -142,6 +142,8 @@ test('a card\'s open: the screen where the screen has a mount, else the dialog, 
 
         act('wizard');
         assert.ok(ui.mounts.dialog.current(), 'a dialog-only screen opens its dialog');
+        assert.equal(ui.mounts.dialog.current().screenId, 'qa-cards/wizard');
+        assert.equal(ui.mounts.dialog.current().draft.name, 'Ren', 'the action\'s payload is the starting draft');
         assert.equal(ui.mounts.screen.isOpen(), false, 'not the game view');
         ui.mounts.dialog.closeAll();
 

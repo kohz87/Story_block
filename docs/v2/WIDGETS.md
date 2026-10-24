@@ -571,7 +571,7 @@ made, a fight ended). A swipe or a delete moves or removes it with its message. 
   works); once a reply follows it, it is read-only like the rest.
 - **`open`** opens that screen in the game view (a window on desktop, full screen on a phone) when the screen has a `screen`
   mount; a screen opened this way need not be on the bar. A dialog-only screen (a creation wizard) opens its dialog instead
-  (`sdk.dialog.open`). A screen with neither mount, or none by that id, opens nothing, and the host logs it once.
+  (`sdk.dialog.open`), with the action's `payload` as the dialog's starting draft. A screen with neither mount, or none by that id, opens nothing, and the host logs it once.
 - Text is plain: the host prints it (never markup). Commands are `module.action` names.
 
 Drawing: under the message, after the changes card, in the same strip. `normalizeCard` and `scanReplyCards` are in
