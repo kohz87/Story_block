@@ -66,14 +66,26 @@ a missing or wrong one is "no cap from the rules"). `level` is `party.pc.level`,
   calling `inventory.registerDefinition`; Story Block then uses `inv.defs[id]`, i.e. what the module registered,
   and fails `RULES_MISMATCH` if there is none, or if it is under another ID. Everything is one transaction: a
   later refusal (a goods limit, the carry limit, a failed payment, an unfit quantity) removes the definition
-  and the rule together. Loot on offer (`? loot`) registers nothing; taking it does. With the command
-  absent (`UNKNOWN_COMMAND`) the definition is stored directly, exactly as before.
-- A full def handed to `inventory.grant` for an ID the chat already has: alone, "the existing def wins". While
-  a rules module answers `rules.item`, a field it states (kind, rarity, value, stack, slot, stats, effect, tags,
-  note, carry; not the name) that differs is CONFLICT.
-- `itemDefsIn(packs, ids?)` (packs/content.js) is the read side for "register the frozen pack ItemDefs": the
-  enabled packs' items as ItemDefs, ID-sorted, each ID once. After they are registered the chat's copies answer
-  `inventory.definitions` whatever happens to the pack.
+  and the rule together. Loot on offer (`? loot`) registers nothing; taking it does, and what the module
+  registered is held to the goods limit again at take time (REFUSED when its value is over it). The name the
+  story wrote becomes an alias of the registered def even when the module registered another name. With the
+  command absent (`UNKNOWN_COMMAND`) or switched off (`FEATURE_OFF`; nothing has run) the definition is stored
+  directly, exactly as before.
+- A full def handed to `inventory.grant` for an ID the chat already has: alone, "the existing def wins". If it
+  states a field (kind, rarity, value, stack, slot, stats, effect, tags, note, carry; not the name) that differs,
+  it is offered to the same `rules.registerItem` route, whose `inventory.registerDefinition` refuses other bytes
+  under a used ID (CONFLICT). With no route (command absent or off) the existing def wins.
+- `~ item X | name: Y` on a def a ready rules module holds (`rules.item` answers with a rule) is alias-only: the
+  def's bytes stay as registered (so the module can register the same bytes again without CONFLICT), `Y` is an
+  alias, and `- item Y` finds it. Alone, and for a def the module has no rule for, the rename changes the
+  name as it always did. (Story Block keeps no per-stack display name.)
+- `itemDefsIn(packs, ids?)` (packs/content.js) and the query `packs.itemDefs({ ids? })` over it are the read side
+  for "register the frozen pack ItemDefs": the enabled packs' items as ItemDefs, ID-sorted, each ID once. After
+  they are registered the chat's copies answer `inventory.definitions` whatever happens to the pack.
+
+**Readiness.** A seam is ready only when what it needs is there: money needs the query; equipment needs
+`rules.equipPlan` (and `rules.sheet` for the hash); registration needs the command `rules.registerItem` (found
+by calling it; absent or feature-off means no route); rename-freezing needs `rules.item`.
 
 ## 3. Equipment (P07)
 
@@ -121,6 +133,26 @@ grammar has no equip line, so `item` capture does not equip; a capture that ever
   story's own payment lines.
 - `registerDefinition` keeps no ledger: a retry reports `created: false`.
 - Invalid `purse.currency` holds `rpg-battle`'s `wallet.pay` / `wallet.receive` (RULES_MISMATCH).
-- Hooks wanted in files this package does not own: a `packs.itemDefs` query in `packs/index.js` over
-  `itemDefsIn` (so the module can read the frozen pack defs through a public query); the settings fold's coin
-  preview (`view/settings/money.js`) still shows Story Block's own currency.
+- The settings fold's coin preview (`view/settings/money.js`) still shows Story Block's own currency.
+
+## Notes for the rules module
+
+- **Hash vectors.** `tests/v2/domains/fixtures/rules-seam-vectors.js` holds literal normalized-JSON text and SHA-256
+  hex for edge cases (keys in UTF-16 order, `-0`, `undefined` in arrays and objects, escapes, number text) and
+  for `equipInputHash`; copy it into the module's tests to prove parity.
+- **Legacy slot keys.** A chat from before the rules module has worn pieces under keys such as `hand`,
+  `worn-1` or `accessory` (and the party bag's pieces worn by the main character). A plan only knows the eight
+  slots: moving those records onto them is the module's migration (track A); until then a plan's `unequip` lists
+  only pieces worn by the actor, whatever key they hold, and Story Block applies it as given.
+- **`validCurrency` is deliberately strict**, and the module's own validator must accept exactly what it does,
+  or its answer falls back and its money is held: name and plural 1..24 and short 1..6 code points, no controls
+  or invisible format characters, none of `<` `>` `|`; at most 8 coins; coin names and plurals 1..24 code points
+  without controls, `<` `>` `|` `:` `#` `/` or digits, unique ignoring case (plurals too); value a safe integer
+  1..1,000,000; a non-empty table contains a coin worth 1; `display` absent, `mixed` or `base`; no fields beyond
+  `name plural short coins display`; coin rows hold only `name plural value`. Nothing is trimmed into shape
+  except runs of spaces.
+- **The reader's `storyCoinPerReply` beating `storyCreditCap` is deliberate** (an explicit setting of the
+  reader's stands over any module's number); `storyDebitCap` has no reader setting.
+- **The static coin line** (`coinLine`) follows the active currency, so it changes when a rules module becomes
+  ready or stops being (activation / deactivation) and not otherwise. This is an accepted exception to the
+  byte-identical static part rule.

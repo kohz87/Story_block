@@ -159,6 +159,11 @@ test('pack definitions the rules module froze stay after the pack is removed', a
     assert.deepEqual(defs.map(def => def.id), [...defs.map(def => def.id)].sort(), 'ID-sorted');
     assert.deepEqual(itemDefsIn(packs.packs(), ['pack.riverside-starter/willow-rod', 'pack.nobody/rod']).map(def => def.id), ['pack.riverside-starter/willow-rod']);
     assert.deepEqual(itemDefsIn(packs.packs(), []), [], 'an empty ask is an empty answer');
+    // The same, as the public query a rules module reads.
+    assert.deepEqual(part.queries['packs.itemDefs']({}, {}), defs);
+    assert.deepEqual(part.queries['packs.itemDefs']({}, undefined), defs);
+    assert.deepEqual(part.queries['packs.itemDefs']({}, { ids: ['pack.riverside-starter/willow-rod'] }).map(def => def.id), ['pack.riverside-starter/willow-rod']);
+    assert.deepEqual(part.queries['packs.itemDefs']({}, { ids: 'willow' }), defs, 'ids that are not a list are no narrowing');
     itemDefsIn(packs.packs())[0].name = 'Changed';
     assert.notEqual(itemDefsIn(packs.packs())[0].name, 'Changed', 'copies');
 
@@ -258,7 +263,7 @@ test('a conflicting ID or bytes is refused and nothing is kept', () => {
     const grantAs = (world, def) => world.command('inventory.grant', { def, owner: 'party' }, 'system');
     const refused = grantAs(w, { id: 'story/rope', value: 99 });
     assert.deepEqual([refused.ok, refused.code], [false, 'CONFLICT']);
-    assert.match(refused.message, /already defined, and not like this \(value\)/);
+    assert.match(refused.message, /already defined differently/);
     assert.equal(w.head(), before);
     assert.equal(grantAs(w, { id: 'story/rope', name: 'Hemp Rope', value: 0, kind: 'goods', tags: [], stats: {} }).ok, true, 'the same rules (a name may differ) is the same definition');
     assert.equal(grantAs(w, { id: 'story/rope' }).ok, true);
@@ -383,4 +388,97 @@ test('validatePack\'s items are exactly the defs a rules module would freeze', (
     const w = world();
     assert.equal(w.command('rules.activate', { defs }, 'system').ok, true, 'each passes the shape check, carry on a pack def included');
     assert.equal(w.inv().defs['pack.forge/iron-sword'].carry, 3);
+});
+
+// ---------- the route must be there to be used ----------
+
+// A rules module whose registration command is behind a feature that is off, while its queries still answer.
+const gated = { featureOn: id => id !== 'rules-feature', commandFeature: type => (type.startsWith('rules.') ? 'rules-feature' : null), feature: () => ({ label: 'RPG rules' }) };
+
+test('a registration command that is switched off is no route: the definition is stored directly', () => {
+    const w = world({ registry: gated });
+    assert.equal(w.query('rules.item', { def: 'story/rope' }), null, 'its queries do answer');
+    const made = w.capture(line('+', 'item', 'Sprocket'));
+    assert.equal(made.ok, true, made.message);
+    assert.deepEqual(w.inv().defs['story/sprocket'], defaultDef('story/sprocket', 'Sprocket'));
+    assert.deepEqual(w.rules(), {});
+    assert.equal(w.stub.log.commands.includes('rules.registerItem'), false);
+    // A full def that differs from the stored one: with no route the existing def wins, as alone.
+    const grant = w.command('inventory.grant', { def: { id: 'story/rope', value: 99 } }, 'system');
+    assert.equal(grant.ok, true, grant.message);
+    assert.equal(rope(w.head()).value, 0);
+    // Loot taken the same way.
+    w.capture(line('?', 'loot', 'Tin Cup', {}, 'on a shelf'));
+    assert.equal(w.command('inventory.lootTake', { sid: REPLY.sid, pick: [0] }, 'ui').ok, true);
+    assert.deepEqual(w.rules(), {});
+    // The same module with its feature on is the route.
+    const on = world({});
+    assert.equal(on.capture(line('+', 'item', 'Sprocket')).ok, true);
+    assert.deepEqual(Object.keys(on.rules()), ['story/sprocket']);
+    const refused = on.command('inventory.grant', { def: { id: 'story/rope', value: 99 } }, 'system');
+    assert.deepEqual([refused.ok, refused.code], [false, 'CONFLICT']);
+});
+
+test('the name the story wrote finds a definition the rules module registered under another name', () => {
+    const w = world({ rb: { tweakDef: def => ({ ...def, name: 'Rusty Blade' }) } });
+    assert.equal(w.capture(line('+', 'item', 'Glimmer Dagger')).ok, true);
+    assert.equal(w.inv().defs['story/glimmer-dagger'].name, 'Rusty Blade');
+    assert.equal(w.inv().aliases['glimmer dagger'], 'story/glimmer-dagger');
+    assert.equal(w.inv().aliases['rusty blade'], 'story/glimmer-dagger');
+    const lost = w.capture(line('-', 'item', 'Glimmer Dagger'));
+    assert.equal(lost.ok, true, lost.message);
+    const again = w.capture(line('+', 'item', 'Glimmer Dagger'));
+    assert.equal(again.ok, true, again.message);
+    assert.deepEqual(Object.keys(w.inv().defs).filter(id => id.startsWith('story/g')), ['story/glimmer-dagger'], 'no second definition');
+    assert.equal(w.stub.log.payloads.length, 1, 'and nothing registered twice');
+});
+
+// ---------- a registered definition is not renamed ----------
+
+test('renaming a definition a ready rules module holds adds a name and leaves the definition\'s bytes alone', () => {
+    const w = world();
+    w.capture(line('+', 'item', 'Moon Trout'));
+    const original = JSON.parse(JSON.stringify(w.inv().defs['story/moon-trout']));
+    const renamed = w.capture(line('~', 'item', 'Moon Trout', { name: 'Silver Trout' }));
+    assert.equal(renamed.ok, true, renamed.message);
+    assert.match(renamed.receipt.summary, /Moon Trout is also called Silver Trout/);
+    assert.deepEqual(w.inv().defs['story/moon-trout'], original, 'byte-identical');
+    assert.equal(w.inv().aliases['silver trout'], 'story/moon-trout');
+    assert.equal(w.capture(line('-', 'item', 'Silver Trout')).ok, true, 'the new name is the item\'s');
+    const again = register(w, original, { write: 'wr_00000009' });
+    assert.equal(again.ok, true, again.message);
+    assert.equal(again.receipt.data.created, false, 'the rules module can register the original bytes again');
+    assert.deepEqual(w.query('inventory.definitions', { ids: ['story/moon-trout'] }), [original]);
+    // A name another item has is still refused.
+    w.capture(line('+', 'item', 'Pike'));
+    assert.deepEqual([w.capture(line('~', 'item', 'Pike', { name: 'Silver Trout' })).ok], [false]);
+});
+
+test('alone, and for a definition the rules module has no rule for, a rename changes the name as it always did', () => {
+    const alone = world({ noRb: true });
+    alone.capture(line('+', 'item', 'Moon Trout'));
+    const out = alone.capture(line('~', 'item', 'Moon Trout', { name: 'Silver Trout' }));
+    assert.match(out.receipt.summary, /Moon Trout is now called Silver Trout/);
+    assert.equal(alone.inv().defs['story/moon-trout'].name, 'Silver Trout');
+    const beside = world();
+    const old = beside.capture(line('~', 'item', 'Rope', { name: 'Hemp Rope' }));
+    assert.equal(old.ok, true, old.message);
+    assert.equal(rope(beside.head()).name, 'Hemp Rope', 'a story def from before the module has no rule: still renamed');
+});
+
+// ---------- loot is priced again when it is taken ----------
+
+test('loot taken is held to the goods limit by the definition the rules module registered', () => {
+    const w = world({ settings: { storyCoinPerReply: 10 }, rb: { tweakDef: def => ({ ...def, value: 500 }) } });
+    assert.equal(w.capture(line('?', 'loot', 'Silver Spoon', {}, 'on the shelf')).ok, true, 'offered at the value Story Block would make');
+    const before = w.head();
+    const out = w.command('inventory.lootTake', { sid: REPLY.sid, pick: [0] }, 'ui');
+    assert.deepEqual([out.ok, out.code], [false, 'REFUSED']);
+    assert.match(out.message, /worth 500 gold; one reply's story may give goods worth at most 20 gold/);
+    assert.equal(w.head(), before, 'no definition, no rule, no claim');
+    w.stub.options.tweakDef = def => ({ ...def, value: 15 });
+    assert.equal(w.command('inventory.lootTake', { sid: REPLY.sid, pick: [0] }, 'ui').ok, true, 'within the limit it is taken');
+    const alone = world({ noRb: true, settings: { storyCoinPerReply: 10 } });
+    alone.capture(line('?', 'loot', 'Silver Spoon', {}, 'on the shelf'));
+    assert.equal(alone.command('inventory.lootTake', { sid: REPLY.sid, pick: [0] }, 'ui').ok, true);
 });

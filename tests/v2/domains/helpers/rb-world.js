@@ -13,11 +13,12 @@ export const REPLY = { index: 1, sid: 'sr_reply001' };
 
 /**
  * options: { rb?: createRbStub options, noRb?: true (Story Block alone), hooks?: { name: fn[] }, settings?: Story
- * Block's settings, edit?(state) (change the stocked state before it is stored), modules?: more module defs }.
+ * Block's settings, edit?(state) (change the stocked state before it is stored), modules?: more module defs,
+ * registry?: members laid over the fake registry (featureOn, commandFeature, feature) }.
  * Returns { bus, store, module, stub, query(name, args), command(type, payload, cause?), capture(line, carrier?),
  * head(), inv(), rules() }.
  */
-export function world({ rb = {}, noRb = false, hooks = {}, settings = {}, edit = null, modules = [] } = {}) {
+export function world({ rb = {}, noRb = false, hooks = {}, settings = {}, edit = null, modules = [], registry = {} } = {}) {
     const stub = createRbStub(rb);
     let ask = () => { throw new Error('not ready'); };
     const module = createCoreModule({ hooks: name => hooks[name] ?? [], settings: () => settings, query: (name, args) => ask(name, args) });
@@ -30,7 +31,7 @@ export function world({ rb = {}, noRb = false, hooks = {}, settings = {}, edit =
     edit?.(state);
     const store = fakeStore(state);
     const bus = createCommandBus({
-        store, registry: { ...fakeRegistry(all), featureOn: () => true }, settings: id => (id === module.id ? settings : {}), id: counterIds(), seed: () => 42,
+        store, registry: { ...fakeRegistry(all), featureOn: () => true, ...registry }, settings: id => (id === module.id ? settings : {}), id: counterIds(), seed: () => 42,
     });
     const queries = new Map();
     for (const def of all) for (const [name, fn] of Object.entries(def.queries ?? {})) if (!queries.has(name)) queries.set(name, fn);

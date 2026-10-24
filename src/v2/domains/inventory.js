@@ -431,8 +431,9 @@ function addDef(inv, def, env, about, keep = {}) {
 // in this same transaction, so one refusal later in the command (a limit, the carry limit, a failed buy)
 // takes the definition and the rule away together. `template`: the pack item the definition copies, or
 // null. The module's registered definition is the one used, whatever was offered. `route: false`: a
-// scratch inventory (loot on offer), where nothing real may be registered.
-function registerNew(ctx, inv, def, env, about, { keep = {}, template = null, route = true, hooks = true } = {}) {
+// scratch inventory (loot on offer), where nothing real may be registered. `store: false`: only use the route;
+// where it is not there, do nothing (null).
+function registerNew(ctx, inv, def, env, about, { keep = {}, template = null, route = true, hooks = true, written = null, store = true } = {}) {
     if (!route) return hooks ? addDef(inv, def, env, about, keep) : storeDef(inv, def);
     if (hooks) buildDef(def, env, about, keep);
     let out;
@@ -441,16 +442,29 @@ function registerNew(ctx, inv, def, env, about, { keep = {}, template = null, ro
             write: writeId(ctx, def.id), def: clone(def), rule: null, template, area: null, rulesHash: null,
         });
     } catch (error) {
-        if (!(error?.code === 'UNKNOWN_COMMAND' && String(error.message).includes('rules.registerItem'))) throw error;
-        return storeDef(inv, def);
+        // The command is not there (no rules module) or its feature is off: nothing has run, so the definition
+        // is stored directly, as without a rules module. Any other refusal is the rules module's and stands.
+        const absent = (error?.code === 'UNKNOWN_COMMAND' || error?.code === 'FEATURE_OFF') && String(error.message).includes('rules.registerItem');
+        if (!absent) throw error;
+        return store ? storeDef(inv, def) : null;
     }
     const id = def.id;
     const answered = out?.data?.def;
     if ((answered !== undefined && answered !== id) || !Object.hasOwn(inv.defs, id) || !isPlainObject(inv.defs[id])) {
         ctx.fail('RULES_MISMATCH', `The rules took ${def.name} but did not register its definition under ${id}, so it was not added.`);
     }
+    // The name the story wrote finds it too, whatever name the rules module registered it under.
     inv.aliases[aliasKey(inv.defs[id].name)] ??= id;
+    inv.aliases[aliasKey(written ?? def.name)] ??= id;
     return inv.defs[id];
+}
+
+// Whether a ready rules module holds this definition's rules (`rules.item` answers with a rule): its bytes
+// are then frozen (a rename is a new alias, never a change of the def). Alone, or for a def the rules module
+// has no rule for, a definition is Story Block's to rename.
+function frozenByRules(ctx, def) {
+    const asked = askRules(ctx, 'rules.item', { def: def.id });
+    return asked.found && !asked.error && isPlainObject(asked.value);
 }
 
 // A def stored as it is (its hooks, if any, have run).
@@ -474,7 +488,7 @@ function defineByName(ctx, inv, written, env, about = {}, route = true) {
     const packed = packDef(ctx, inv, name, env, route);
     if (packed) return packed;
     const def = defaultDef(freeId(inv, `story/${slugify(name)}`), name);
-    return { def: registerNew(ctx, inv, def, env, about, { route }), created: true };
+    return { def: registerNew(ctx, inv, def, env, about, { route, written: name }), created: true };
 }
 
 // The `item.resolve(name)` hooks (packs, MODULES §E): a pack's def for a name the inventory does
@@ -507,7 +521,7 @@ function packDef(ctx, inv, name, env, route = true) {
  */
 function defineGiven(ctx, inv, given, env, about) {
     if (typeof given.id === 'string' && inv.defs[given.id]) {
-        refuseConflict(ctx, inv.defs[given.id], given);
+        refuseConflict(ctx, inv, inv.defs[given.id], given);
         return { def: inv.defs[given.id], created: false };
     }
     const name = cleanName(given.name);
@@ -522,26 +536,30 @@ function defineGiven(ctx, inv, given, env, about) {
     for (const field of ['rarity', 'value']) if (given[field] !== undefined) keep[field] = given[field];
     // A pack item's carry capacity comes with it (a pack shop's stock bought through a module).
     if (packCarry(id, given.carry) !== null) keep.carry = given.carry;
-    return { def: registerNew(ctx, inv, def, env, about, { keep }), created: true };
+    return { def: registerNew(ctx, inv, def, env, about, { keep, written: name }), created: true };
 }
 
 // The fields of a def that are its rules (not its name, which a story may rename).
 const RULE_FIELDS = Object.freeze(['kind', 'rarity', 'value', 'stack', 'slot', 'stats', 'effect', 'tags', 'note', 'carry']);
 
-// While a rules module is ready, a full def handed to inventory.grant for an ID the inventory already has
-// must be that definition: the same rules, field by field for those it states. A different one is a
-// CONFLICT, never silently dropped (RB_CONTRACT §3). Alone, "an existing def with that ID wins", as ever.
-function refuseConflict(ctx, stored, given) {
-    if (!askRules(ctx, 'rules.item', { def: stored.id }).found) return;
+// A full def handed to inventory.grant for an ID the inventory already has must be that definition: the same
+// rules, field by field for those it states. Where it differs, the rules module's registration route is asked
+// to take the def as stated; it registers through inventory.registerDefinition, which refuses other bytes under
+// a used ID (CONFLICT, RB_CONTRACT §3). Where that route is not there (no rules module, or its command off)
+// "an existing def with that ID wins", as ever.
+function refuseConflict(ctx, inv, stored, given) {
     const equipment = (given.kind ?? stored.kind) === 'equipment';
     const differs = RULE_FIELDS.filter(field => {
         if (given[field] === undefined) return false;
         const offered = field === 'stack' && equipment ? false : given[field];
         return hashOf(offered) !== hashOf(stored[field] ?? null);
     });
-    if (differs.length) {
-        ctx.fail('CONFLICT', `${stored.name} (${stored.id}) is already defined, and not like this (${differs.join(', ')}); a definition never changes once it exists.`);
-    }
+    if (!differs.length) return;
+    const stated = clone(stored);
+    for (const field of RULE_FIELDS) if (given[field] !== undefined) stated[field] = clone(given[field]);
+    if (equipment) stated.stack = false;
+    registerNew(ctx, inv, stated, null, {}, { hooks: false, template: null, written: stored.name, store: false });
+    // The route accepted it (it registered the same bytes it already held): the existing def stands.
 }
 
 // The rules module's money moves in the currency it states (`purse.currency`). When it states one that is
@@ -1159,8 +1177,16 @@ function lootTake(ctx, payload, env) {
         const item = things[at];
         if (item.coin !== undefined) { coin += item.coin; continue; }
         if (owned(inv, item.name)) { skipped.push(item.name); continue; }
-        const { def } = defineByName(ctx, inv, item.name, env, { owner: 'party' });
-        wanted.push({ def, qty: item.qty });
+        const { def, created } = defineByName(ctx, inv, item.name, env, { owner: 'party' });
+        wanted.push({ def, qty: item.qty, created });
+    }
+    // The offer was held to the goods limit with the definition Story Block would make; a ready rules module
+    // may register another (a higher value), so what is made now is held to the same limit again. (Alone
+    // nothing is checked twice: the definition is the one the offer was priced with.)
+    const worth = wanted.filter(entry => entry.created).reduce((sum, entry) => sum + (isCount(entry.def.value, 1) ? entry.def.value : 0) * entry.qty, 0);
+    const limit = STORY_WORTH_TIMES * storyCoinBudget(ctx);
+    if (worth > limit && askRules(ctx, 'rules.item', { def: wanted[0].def.id }).found) {
+        ctx.fail('REFUSED', `What was made of this loot is worth ${formatAmount(worth, currencyIn(ctx))}; one reply's story may give goods worth at most ${formatAmount(limit, currencyIn(ctx))}.`);
     }
     if (!wanted.length && !coin) ctx.fail('REFUSED', `${joinNames(skipped)} ${skipped.length === 1 ? 'is' : 'are'} already carried.`);
     if (wanted.length) readerCarry(ctx, wanted.map(entry => ({ defId: entry.def.id, qty: entry.qty })), 'party');
@@ -1879,8 +1905,12 @@ export function captureItem(ctx, line, env) {
             const old = def.name;
             inv.aliases[aliasKey(old)] ??= def.id;
             inv.aliases[key] = def.id;
-            def.name = next;
-            changes.push(`${old} is now called ${next}`);
+            // A definition a ready rules module froze keeps its bytes: the new name is only another name for it.
+            if (frozenByRules(ctx, def)) changes.push(`${old} is also called ${next}`);
+            else {
+                def.name = next;
+                changes.push(`${old} is now called ${next}`);
+            }
         }
         // With a wear label the text says how it happened, not a new note.
         const note = labelOf(line, 'note') ?? (worn === null ? text || null : null);
