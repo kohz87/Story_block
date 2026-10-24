@@ -21,7 +21,7 @@ Every method is asynchronous and answers `{ ok: true, … }` or `{ ok: false, co
 
 | Method | Who | Answers | Refused with |
 |---|---|---|---|
-| `head({})` | anyone | `{ headHash, cursor, epoch, prefixHash }` | `RESTORE_PENDING` while a restore or a native change is finishing |
+| `head({})` | anyone | `{ headHash, cursor, epoch, prefixHash, source }` (`source`: the head reply's Source, the canonical `{ sid, swipeKey, evidence, ordinal }` of `store.sourceAt`, which a participant names in `nativeMutation`) | `RESTORE_PENDING` while a restore or a native change is finishing |
 | `make({ kind, name?, target?, day? })` | a reader: `manual` at the head; the host: also `initial`, `day-start` | `{ snapshot }` | `REFUSED` (another kind), `LIMITED` (the 11th manual), `STALE`, `CONFLICT`, `SNAPSHOT_UNAVAILABLE` |
 | `list({})` / `status({})` | anyone | `{ points }` / `{ state, return, participants }` | |
 | `history({ through? })` | anyone | `{ messages, faded }` (see "History" below) | |

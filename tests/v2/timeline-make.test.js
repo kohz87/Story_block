@@ -29,7 +29,7 @@ test('head: the committed head is a hash, a cursor, the epoch and the prefix has
     assert.match(first.cursor.sid, /^sr_[0-9a-z]{8}$/);
     assert.match(first.cursor.swipeKey, /^sw_[0-9a-z]{8}$/);
     assert.match(first.cursor.block, RECORD_ID);
-    assert.deepEqual(Object.keys(first).sort(), ['cursor', 'epoch', 'headHash', 'ok', 'prefixHash']);
+    assert.deepEqual(Object.keys(first).sort(), ['cursor', 'epoch', 'headHash', 'ok', 'prefixHash', 'source']);
     assert.equal((await host.sdk.timeline.head()).headHash, first.headHash, 'reading it changes nothing');
     await host.sdk.command('tl.xp', { amount: 1 });
     const second = await host.sdk.timeline.head();

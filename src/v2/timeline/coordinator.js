@@ -228,7 +228,9 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (pendingNow()) return fail('RESTORE_PENDING', 'A restore is in progress; the head is not settled until every part agrees.');
         const now = headNow();
         if (!now) return fail('NOT_FOUND', 'This chat has no story state yet.');
-        return { ok: true, headHash: now.headHash, cursor: structuredClone(now.cursor), epoch: now.epoch, prefixHash: now.prefixHash };
+        // `source`: the Source of the reply at the head ({ sid, swipeKey, evidence, ordinal }), what nativeMutation asks of a participant that reads the head
+        // through its handle (a module has no other way to name the reply a change of its own stands on).
+        return { ok: true, headHash: now.headHash, cursor: structuredClone(now.cursor), epoch: now.epoch, prefixHash: now.prefixHash, ...(isObject(now.boundary.source) ? { source: structuredClone(now.boundary.source) } : {}) };
     }
 
     // ---- list, status, history ---------------------------------------------------------------------------

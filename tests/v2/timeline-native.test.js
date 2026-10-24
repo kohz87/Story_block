@@ -292,3 +292,23 @@ test('the prefix map records a restore: after it, the participant\'s selected ch
     assert.equal(mapping.before, null);
     assert.deepEqual((await host.sdk.timeline.status()).participants, [{ module: NATIVE, checkpoint: saved.participants[0].checkpoint, hash: saved.participants[0].hash, schema: 1 }]);
 });
+
+test('head() carries the Source of the reply at the head, so a participant can name it in nativeMutation without the host\'s store', async t => {
+    const { host, native } = await started(t);
+    const head = await native.native.handle.head();
+    assert.equal(head.ok, true);
+    assert.deepEqual(head.source, host.store.sourceAt(host.store.headIndex()));
+    assert.deepEqual(Object.keys(head.source).sort(), ['evidence', 'ordinal', 'sid', 'swipeKey']);
+    // The Source it gives is the one nativeMutation accepts.
+    const out = await native.native.handle.nativeMutation({
+        participant: NATIVE, source: head.source, expectedHead: head.headHash,
+        prepare: async () => {
+            const before = native.native.checkpoint();
+            const next = clone(native.native.store);
+            const after = native.native.keep(next);
+            native.native.prepared.pr_manual002 = { checkpoint: after.checkpoint };
+            return { before: { module: NATIVE, ...before, schema: 1 }, after: { module: NATIVE, ...after, schema: 1 }, prepared: 'pr_manual002' };
+        },
+    });
+    assert.equal(out.ok, true, out.message);
+});
