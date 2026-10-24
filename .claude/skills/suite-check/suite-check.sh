@@ -5,7 +5,7 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 sb=$(git -C "$here" rev-parse --show-toplevel)
 root=${1:-$(dirname "$sb")}
-branch=${2:-v2}
+branch=${2:-main}
 mkdir -p "$root"
 root=$(cd "$root" && pwd)
 logs=$(mktemp -d)
