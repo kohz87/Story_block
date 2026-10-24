@@ -403,7 +403,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 open();
                 const made = submitProof(spec, {
                     who: moduleId, cause: tx.cause, chat: tx.chat, source: sourceOf(tx), state: () => currentState(tx),
-                    stored: () => store.proofs?.() ?? [], taken: () => store.proofs?.({ all: true }) ?? [], planned: tx.planned, root: tx.proofs, fail, free: tx.replacing,
+                    stored: () => store.proofs?.() ?? [], taken: () => store.proofs?.({ all: true }) ?? [], planned: tx.planned, root: tx.proofs, fail, replacing: tx.replacing,
                 });
                 if (made.created) {
                     const meta = metaOf(tx);
@@ -567,8 +567,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 guard: null, recorded: null, source: undefined, pending: 0, ordinal: undefined, proofs: newRoot(),
                 // The proof a Re-read's earlier lines gave (planned, not stored yet), for parents and story.evidence.
                 planned: Array.isArray(planned) ? planned : [],
-                // The ids of the proof of blocks being replaced (a Re-read's lines and steps, a step planned again): free to be given again.
-                replacing: replacing instanceof Set ? replacing : new Set(Array.isArray(replacing) ? replacing : []),
+                // The proof of the blocks being replaced (a Re-read's lines and steps, a step planned again): a proof of the same kind and key, at the same place among those, keeps the id.
+                replacing: Array.isArray(replacing) ? replacing : [],
             };
             // `reply` (run, a system step only): the reply a Re-read's step is kept on, which need not be the head.
             const given = cause === 'system' && isRecord(reply) ? replyOf(reply.index, reply.sid) : null;
@@ -761,7 +761,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
          * `carrier` and `reply` may also say `pending` (guarded blocks a Re-read has planned before this one) or
          * `ordinal` (this block's own, when it is planned again): only ctx.source's ordinal follows them. `planned`
          * (the Proofs the lines of a Re-read have given so far): parents and story.evidence see them like stored ones.
-         * `replacing` (proof ids of the blocks being replaced): they may be given again, so a line read again keeps its ids.
+         * `replacing` (the proof of the blocks being replaced): a proof of the same kind and key at the same place among those keeps the id of its old one.
          * A guarded transaction's result has a `block` too (REPLAY.md), which store.append or replaceStory keeps.
          */
         run(type, payload, { cause = 'story', seed: seedValue, state, capture, carrier = null, chat = null, again = false, standing = null, reply = null, planned = null, replacing = null } = {}) {

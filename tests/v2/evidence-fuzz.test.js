@@ -174,9 +174,9 @@ function run(seed, steps) {
             const carriers = h.chat.map((message, at) => (!message.is_user ? at : -1)).filter(at => at >= 0);
             const from = r.pick(carriers);
             log.push(`${step}: reconcile from ${from}`);
-            const shownBefore = expected(false);
+            const shownBefore = h.ask().map(proof => proof.id);
             const done = h.store.reconcile(from, { rerun: (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-                cause: 'system', state, seed: info.replan.seed, replacing: (info.span.evidence ?? []).map(proof => proof.id),
+                cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [],
                 reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
             }) });
             // The model: each step from there on whose parent is not shown where it stands is taken back, one after another.
@@ -189,7 +189,8 @@ function run(seed, steps) {
                 gone.removed = true;
                 taken += 1;
             }
-            void shownBefore;
+            // A step planned again keeps the id it had, and no reconcile gives a proof an id that was not there.
+            assert.deepEqual(h.ask().map(proof => proof.id).filter(id => !shownBefore.includes(id)), [], `seed ${seed}, step ${step}: a reconcile gave an id that was not there\n${log.join('\n')}`);
             assert.equal(done.removed ?? 0, taken, `seed ${seed}, step ${step}: the steps a reconcile takes back are the ones whose parent is gone\n${log.join('\n')}`);
         } else if (kind === 12) {
             // A hand-edited block with no metadata appended to the head reply: it writes, rewrites or erases the pins, or the

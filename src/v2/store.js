@@ -643,6 +643,13 @@ export function createStore({
     // what the bus handed over: { module, source, guard, operation, recorded, result, id? }.
     // The proof of a block that has applied, for the guards asked on the rest of a Re-read or a reconcile (walkProofs). Called only
     // after the block applied: a block that was refused or collided publishes nothing.
+    // The first of `evidence`'s proofs whose id a block that has applied already owns in `state`, else undefined. A block planned again that
+    // would give such an id is refused before it applies and before it publishes: replacing a block's own ids never exempts another owner.
+    function ownedAlready(state, evidence) {
+        const pins = state?.meta?.proofs;
+        return isObject(pins) && Array.isArray(evidence) ? evidence.find(proof => Object.hasOwn(pins, proof?.id)) : undefined;
+    }
+
     function publish(span) {
         if (walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: span.id }));
     }
@@ -1137,6 +1144,8 @@ export function createStore({
             const why = failure || `it was not asked (${planned?.code ?? 'no answer'}: ${planned?.message ?? 'nothing came back'})`;
             return { kept: true, why };
         }
+        const clash = ownedAlready(state, planned.block?.evidence);
+        if (clash) return { kept: true, why: `it would give proof ${clash.id}, which a block that applied already owns` };
         const fresh = asOps(planned.ops);
         let next;
         try {
@@ -1927,7 +1936,9 @@ export function createStore({
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)
                     } else if (!out?.ok) continue;
-                    else {
+                    else if (ownedAlready(state, out.block?.evidence)) {
+                        // (it would give a proof id a block that applied already owns: refused; the block stays as it was, replayed below)
+                    } else {
                         again = out;
                         blockOps = asOps(out.ops);
                         kept = { ...structuredClone(out.receipt), id: receipt.id };

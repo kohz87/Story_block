@@ -12,6 +12,7 @@
 //   `! check <id> | dc: n` (capture, with `after: 'check'`) gives a check (event) proof; sd.afterCheck { parent } is the guarded step
 //                                   afterCapture asks for on the first check, planned again by a Re-read or a reconcile.
 //   sd.dependent { parent }         a guarded system step with a replan that says NO_LONGER_DONE when its parent proof is not shown.
+//   `director({ after: 'each', wanted })`   afterCapture asks for one sd.dependent on each visit whose place is in `wanted`.
 //   sd.after { parent }             the step afterCapture asks for (`director({ after: true })`): a visit on `parent`, planned again by a Re-read.
 //   sd.many { specs, chain? }       calls ctx.proof once for each spec, as given (`chain`: each later one names
 //                                   the one before as its parent) → the results; the first refusal fails the root.
@@ -58,7 +59,7 @@ function many(ctx, { specs, chain = false }) {
     return { summary: `Gave ${out.length} proofs.`, narrate: false, data: { proofs: out } };
 }
 
-export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false } = {}) {
+export function director({ mode = { value: 'normal' }, seen = [], peek = null, after = false, wanted = [] } = {}) {
     const accept = (ctx, { thread, selection, words, parents }) => {
         const payload = selection !== undefined ? { thread, selection } : { thread, words };
         const made = ctx.proof({ kind: 'acceptance', payload, ...(parents ? { parents } : {}) });
@@ -154,6 +155,12 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 afterCapture(view) {
                     const check = view.query('story.evidence', {}).find(proof => proof.kind === 'event' && proof.payload.check);
                     return { commands: check ? [{ type: 'sd.afterCheck', payload: { parent: check.id } }] : [] };
+                },
+            } : after === 'each' ? {
+                // A step on each earlier visit whose place is in `wanted`, in the order the proof stand: steps of one key, one reply.
+                afterCapture(view) {
+                    const visits = view.query('story.evidence', {}).filter(proof => proof.kind === 'visit' && wanted.includes(proof.payload.place));
+                    return { commands: visits.map(proof => ({ type: 'sd.dependent', payload: { parent: proof.id } })) };
                 },
             } : after ? {
                 afterCapture(view) {

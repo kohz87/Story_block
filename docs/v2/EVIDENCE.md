@@ -61,10 +61,17 @@ block of the chat holds (so the second proof of one key on a reply is its next o
 block or its ordinal, so:
 
 * a new swipe has a new evidence id, so **fresh proof ids**;
-* an edit alone changes no id; a Re-read that finds the same line gives the same id back (the ids of the blocks it
-  replaces are free to be given again), so a guarded click that was built on the proof is still built on it. If the
-  line's payload changed, the id is the same and the bytes are not: the pin differs, and what was built on the old
-  bytes is hidden;
+* an edit alone changes no id; a Re-read that finds the same line gives the same id back, so a guarded click that was built
+  on the proof is still built on it. If the line's payload changed, the id is the same and the bytes are not: the pin
+  differs, and what was built on the old bytes is hidden;
+* **an id has one owner, the block that holds it.** A block planned again (a Re-read's line or step, a step a reconcile plans
+  again) may take back only the ids of the proof it replaces, matched by kind and key and by place among those of that key
+  (the k-th proof of a key in the new block takes the k-th old one of that key), never an id because the reply as a whole is
+  being replaced. Every other id any block holds, in the same reply or not, applied or only able to apply, is kept for that
+  block, and a proof with no old one to take back is salted past all of them. So an unchanged Re-read changes no id and loses
+  no proof, also when a step stays at a salted id because the proof before it in its key went away and another step of the
+  key has been added since. A plan that would still end on an id an applied block owns (a hand-edited file) is refused before
+  it applies and before it publishes: the block stays as it was, and being replaced never excuses a collision;
 * two roots that give the same key are two proofs with two ids (a second click is a second proof).
 
 The Source (and its `ordinal`) of a proof is that of the block that gave it, so a block planned again has a new ordinal

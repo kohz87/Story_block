@@ -476,24 +476,32 @@ export function createEvidenceQuery({ stored = () => [] } = {}) {
     };
 }
 
-/**
- * The id of a proof: derived from `seed` (the reply's evidence id and the key), salted past the ids `taken`. When the proof is
- * given again where a block is being replaced (`free`: the ids of that block), one of those ids that this seed derives is kept
- * rather than the lowest free one, so a step planned again after an earlier proof of its key went away keeps its own id and
- * does not slide down onto the gap.
- */
-function pickId(seed, taken, free, pendingIds) {
-    let gap = null;
-    for (let salt = 0; salt < 64; salt += 1) {
+/** The id of a proof: derived from `seed` (the reply's evidence id and the key), salted past every id that is `taken`. */
+function pickId(seed, taken) {
+    for (let salt = 0; salt < 1000; salt += 1) {
         const id = idFromHash('pf', sha256(`pf:${seed}:${salt}`));
-        if (free?.has(id) && !pendingIds.has(id)) return id;
-        if (gap === null && !taken.has(id)) {
-            gap = id;
-            if (!free?.size) return gap;
-        }
+        if (!taken.has(id)) return id;
     }
-    if (gap !== null) return gap;
     throw new Error(`No free pf id could be worked out for ${seed}.`);
+}
+
+/**
+ * The proof of the blocks of a record that a Re-read regenerates (its story lines and its planned steps), in record order. A
+ * regenerated proof may give again only the id of the proof its previous version gave: the one of the same kind and key, at the
+ * same place among those (see submitProof). Every other id the old blocks hold stays reserved until they are gone.
+ */
+export function replacedProofs(record) {
+    const out = [];
+    for (const span of Array.isArray(record?.spans) ? record.spans : []) {
+        if (!isObject(span) || typeof span.id !== 'string' || !(span.story === true || span.replan)) continue;
+        for (const proof of Array.isArray(span.evidence) ? span.evidence : []) if (isObject(proof)) out.push(proof);
+    }
+    return out;
+}
+
+// The key a proof has inside a root (kind and key), or null for one that has none (damaged bytes).
+function keyOfProof(proof) {
+    try { return typeof proof.kind === 'string' && isObject(proof.payload) ? `${proof.kind}:${payloadKey(proof.kind, proof.payload)}` : null; } catch { return null; }
 }
 
 // ---------- ctx.proof ----------
@@ -510,7 +518,7 @@ export const newRoot = () => ({ byKey: new Map(), list: [] });
  * story lines and steps, a step planned again), so a line read again gets its own id back.
  * → { proof, pin, created }; `created: false` is an identical retry, which gives back the proof it made.
  */
-export function submitProof(spec, { who, cause, chat, source, state, stored, taken: everyStored = null, planned = [], root, fail, free = null }) {
+export function submitProof(spec, { who, cause, chat, source, state, stored, taken: everyStored = null, planned = [], root, fail, replacing = [] }) {
     if (!isObject(spec) || Object.keys(spec).some(key => key !== 'kind' && key !== 'payload' && key !== 'parents')) {
         fail('INVALID', 'A proof is { kind, payload, parents? } and nothing else.');
     }
@@ -546,14 +554,16 @@ export function submitProof(spec, { who, cause, chat, source, state, stored, tak
         const missing = parents.find(id => !found.has(id));
         if (missing) fail('NOT_FOUND', `There is no visible proof ${missing} to be a parent.`);
     }
-    // Derived from the reply's evidence id and the key (so a new swipe has fresh ids, and a line read again has its
-    // own back), then salted past an id that another block holds: the second proof with the same key on a reply is
-    // the next occurrence. The ids of the blocks being replaced are not held.
-    // The ids not to take: those of every stored block that could apply, applied or not (a block that is off may come back).
-    const heldIds = indexOf(everyStored ? everyStored() ?? [] : held).byId;
+    // Derived from the reply's evidence id and the key (so a new swipe has fresh ids), salted past every id any other block holds,
+    // applied or not. A proof given again where a block is being replaced (`replacing`: the proof of the blocks it replaces) keeps
+    // the id of the proof its previous version gave: the old one of its kind and key with the same parents, else the first of that kind
+    // and key that this plan or root has not taken back yet (so the k-th goes to the k-th). That is the only way an id of a block being
+    // replaced is reused.
     const pendingIds = new Set(pending.map(entry => entry.proof.id));
-    const taken = { has: id => (heldIds.has(id) && !free?.has(id)) || pendingIds.has(id) };
-    const id = pickId(`${source.evidence}:${key}`, taken, free, pendingIds);
+    const olds = (replacing ?? []).filter(old => keyOfProof(old) === key && !pendingIds.has(old.id));
+    const own = (olds.find(old => Array.isArray(old.parents) && old.parents.length === parents.length && old.parents.every((id, at) => id === parents[at])) ?? olds[0])?.id;
+    const heldIds = indexOf(everyStored ? everyStored() ?? [] : held).byId;
+    const id = typeof own === 'string' ? own : pickId(`${source.evidence}:${key}`, { has: each => heldIds.has(each) || pendingIds.has(each) });
     const proof = Object.freeze({
         id, source: Object.freeze({ ...source }), owner, kind, payload: structuredClone(payload), payloadHash, parents: Object.freeze([...parents]),
     });
