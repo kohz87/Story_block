@@ -94,24 +94,24 @@ export const text = node => node.textContent.replace(/\s+/g, ' ').trim();
 /** Let the click's command promise settle. */
 export const settle = () => new Promise(resolve => setImmediate(resolve));
 
-/** Whether a radio is the action group of `stack` (the template adds `ss-t-` and, for a copy drawn again, `--c<n>`). */
-const foldName = (input, stack) => new RegExp(`fold_${stack}(--c\\d+)?$`).test(input.getAttribute('name') ?? '');
+/** Whether a button's aria-controls names the fold row of `stack` (the template adds `ss-t-` and, for a copy drawn again, `--c<n>`). */
+const controls = (node, stack) => new RegExp(`fold-${stack}(--c\\d+)?$`).test(node.getAttribute('aria-controls') ?? '');
+
+/** The buttons that open a fold of `stack` on a rendered Inventory screen: Equip on…, Use on…, Drop. */
+export const foldButtons = (el, stack) => el.querySelectorAll('button[aria-controls]').filter(node => controls(node, stack));
 
 /**
- * Opens a stack's fold on a rendered Inventory screen as a tap does: the action's radio is chosen (a change to the
- * draft, which the screen draws from). `kind` is the action: equipOn, use or drop. Its buttons are then
- * `[id="fold-<stack>"] button`.
+ * Opens a stack's fold on a rendered Inventory screen as a press does. `kind` is the action: equipOn, use or drop. Its buttons are
+ * then `[id="fold-<stack>"] button`.
  */
 export function openFold(el, stack, kind) {
-    const radio = el.querySelectorAll('input[type="radio"]').find(input => foldName(input, stack) && input.getAttribute('value') === kind);
-    if (!radio) throw new Error(`no ${kind} action on ${stack}`);
-    radio.checked = true;
-    radio.dispatch('change');
+    const trigger = foldButtons(el, stack).find(node => node.getAttribute('value') === kind);
+    if (!trigger) throw new Error(`no ${kind} action on ${stack}`);
+    trigger.click();
 }
 
 /** The fold row of a stack on a rendered Inventory screen (null while it is closed): the id its action names in aria-controls. */
 export function foldOf(el, stack) {
-    const radio = el.querySelectorAll('input[type="radio"]').find(input => foldName(input, stack));
-    const id = radio?.getAttribute('aria-controls');
+    const id = foldButtons(el, stack)[0]?.getAttribute('aria-controls');
     return id ? el.querySelector(`[id="${id}"]`) : null;
 }

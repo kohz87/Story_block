@@ -59,8 +59,8 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
         command: (type, payload, options) => bus.command(type, payload, options),
     });
     const item = name => el.querySelectorAll('.item').find(row => row.querySelector('.name').textContent === name);
-    const buttons = row => row.querySelectorAll('button').map(button => text(button));
-    const foldButtons = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    const buttons = row => row.querySelectorAll('button:not(.act)').map(button => text(button));
+    const foldButtons = stack => (foldOf(el, stack)?.querySelectorAll('button:not(.fold-cancel)') ?? []).map(button => text(button));
 
     // The action row holds the plain actions; Drop's choices are a fold row under it, shown only once Drop is chosen.
     assert.deepEqual(buttons(item('Dagger')), ['Unequip']);
@@ -107,12 +107,12 @@ test('inventory: an action opens its fold below the action row; one fold per car
     assert.deepEqual(before, ['Equip on…', 'Drop'], 'the action row, with Drop a plain action');
     assert.equal(dagger.querySelector('.actions').querySelector('.fold'), null, 'no fold inside the action row');
     assert.equal(dagger.querySelector('.actions label.ss-button.ss-button-danger'), null, 'no danger tone on the action');
-    const radio = kind => dagger.querySelector(`input[value="${kind}"]`);
+    const radio = kind => dagger.querySelector(`button[value="${kind}"]`);
     assert.equal(radio('drop').getAttribute('aria-expanded'), 'false');
     assert.equal(foldOf(el, 'it_sword001'), null, 'closed to begin with');
 
     openFold(el, 'it_sword001', 'equipOn');
-    assert.equal(foldOf(el, 'it_sword001').querySelectorAll('button').map(b => text(b)).join('|'), 'Ren|Mira', 'the members, in the fold');
+    assert.equal(foldOf(el, 'it_sword001').querySelectorAll('button:not(.fold-cancel)').map(b => text(b)).join('|'), 'Ren|Mira', 'the members, in the fold');
     assert.equal(radio('equipOn').getAttribute('aria-expanded'), 'true');
     assert.deepEqual(actionsText(), before, 'the action row did not move');
 
@@ -127,11 +127,9 @@ test('inventory: an action opens its fold below the action row; one fold per car
     assert.ok(confirm.className.includes('ss-button-danger'), 'the confirm carries the danger tone');
     assert.ok(!dagger.querySelector('.actions').querySelectorAll('.ss-button-danger').length, 'the action itself does not');
 
-    // Cancel (the group's empty value) closes the fold.
+    // Cancel closes the fold.
     assert.equal(text(foldOf(el, 'it_sword001').querySelector('.fold-cancel')), 'Cancel', 'the Cancel is labelled');
-    const cancel = foldOf(el, 'it_sword001').querySelector('.fold-cancel input');
-    cancel.checked = true;
-    cancel.dispatch('change');
+    foldOf(el, 'it_sword001').querySelector('.fold-cancel').click();
     assert.equal(foldOf(el, 'it_sword001'), null, 'Cancel closes it');
     assert.equal(radio('drop').getAttribute('aria-expanded'), 'false');
     assert.deepEqual(actionsText(), before, 'the action row did not move');

@@ -87,12 +87,12 @@ test('inventory: with RPG Battle and members, Equip on… / Give… pickers and 
     assert.equal(text(worn.querySelector('.cond')), '40/100', 'the condition stays on the row');
     assert.equal(row('Rope').querySelector('.worn-by'), null, 'a piece not worn has no tag');
     // Equip on… is a fold row under the actions: its members show once it is chosen (not before).
-    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button:not(.fold-cancel)') ?? []).map(button => text(button));
     assert.deepEqual(folded('it_sword001'), [], 'closed');
     openFold(el, 'it_sword001', 'equipOn');
     assert.deepEqual(folded('it_sword001'), ['Ren', 'Mira']);
-    assert.equal(row('Dagger').querySelector('input[value="equipOn"]'), null, 'worn: no Equip on…, only Unequip and Drop');
-    assert.equal(row('Rope').querySelector('input[value="equipOn"]'), null, 'not equipment');
+    assert.equal(row('Dagger').querySelector('button[value="equipOn"]'), null, 'worn: no Equip on…, only Unequip and Drop');
+    assert.equal(row('Rope').querySelector('button[value="equipOn"]'), null, 'not equipment');
     assert.equal(row('Rope').querySelector('.give'), null, 'Give is gone: the party shares one bag');
     assert.equal(row('Dagger').querySelector('.give'), null, 'Give is gone: the party shares one bag');
     assert.equal(row('Iron Sword').querySelectorAll('[data-command="inventory.equip"]').length, 0, 'the picker replaces the plain Equip');
@@ -125,7 +125,7 @@ test('inventory: Equip on… for an unworn piece lists only the members who can 
     });
     const { el, view, calls } = show(inventoryScreen, { state, query, widgets: DETAIL_WIDGET, draft: {}, command: async () => ({ ok: true }) });
     assert.deepEqual(view.warnings, []);
-    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button') ?? []).map(button => text(button));
+    const folded = stack => (foldOf(el, stack)?.querySelectorAll('button:not(.fold-cancel)') ?? []).map(button => text(button));
     openFold(el, 'it_sword001', 'equipOn');
     assert.deepEqual(folded('it_sword001'), ['Ren'], 'only who can wear it');
     assert.ok(asked.includes('ac_ren00001') && asked.includes('ac_mira0001'), 'each member is asked');
@@ -147,13 +147,13 @@ test('inventory without RPG Battle: the bag and purse only, no equipment control
     const dagger = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Dagger');
     assert.equal(dagger.querySelector('.worn-by'), null, 'no "Worn by" tag');
     assert.equal(dagger.querySelector('.cond'), null, 'no condition');
-    assert.equal(dagger.querySelector('input[value="equipOn"]'), null, 'no Equip on…');
+    assert.equal(dagger.querySelector('button[value="equipOn"]'), null, 'no Equip on…');
     assert.equal(dagger.querySelector('[data-command="inventory.unequip"]'), null, 'no Unequip');
     assert.equal(dagger.classList.contains('equipped'), false);
     assert.equal(el.querySelector('.filter .check'), null, 'no equipped-only filter');
     assert.equal(el.querySelector('option[value="equipment"]'), null, 'no equipment kind in the filter');
     assert.equal(dagger.querySelector('.give'), null, 'no Give: the party shares one bag');
-    assert.ok(dagger.querySelector('input[value="drop"]'), 'Drop stays: it is bag management');
+    assert.ok(dagger.querySelector('button[value="drop"]'), 'Drop stays: it is bag management');
     assert.equal(text(dagger.querySelector('.owner')), 'Ren', 'who carries it is still said');
 });
 

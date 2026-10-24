@@ -192,3 +192,66 @@ test('widgets inside a form read and write the draft through api.draft', () => {
     api.onDraft('stats.STR', 4);
     assert.equal(view.draft().stats.STR, 4, 'onDraft(name, value), as ss.stepper calls it');
 });
+
+// A disclosure's keyboard path (fix 8k): a button with data-draft and a value picks it (again: clears), data-draft-close takes Escape and
+// an inner [data-draft-cancel], and a select whose draft value is no option any more goes back to empty.
+const DISCLOSURE = `<section data-draft-close="open">
+    <button data-draft="open" value="a" aria-expanded="{{ draft.open == 'a' }}">A</button>
+    <button data-draft="open" value="b" aria-expanded="{{ draft.open == 'b' }}">B</button>
+    <div class="panel" data-if="draft.open != ''"><button data-draft-cancel>Cancel</button></div>
+</section>`;
+
+for (const [label, sanitize] of [['', null], [' (after SillyTavern\'s DOMPurify)', stPurify]]) test(`a button with data-draft picks its value, and a second press clears it; Escape and [data-draft-cancel] close it${label}`, () => {
+    const draft = { open: '' };
+    const { el, view, drafts, doc } = setup(DISCLOSURE, { draft }, {}, { sanitize });
+    const [a, b] = el.querySelectorAll('button[value]');
+    assert.equal(a.getAttribute('type'), 'button', 'never a submit');
+    a.click();
+    assert.equal(draft.open, 'a');
+    assert.equal(a.getAttribute('aria-expanded'), 'true');
+    assert.ok(el.querySelector('.panel'));
+    b.click();
+    assert.equal(draft.open, 'b', 'one value at a time');
+    b.click();
+    assert.equal(draft.open, '', 'a press on the picked one clears it');
+    assert.equal(el.querySelector('.panel'), null);
+
+    // Escape: only when something is open, and then the focus goes to the open toggle first.
+    const idle = key(a, 'Escape');
+    assert.equal(idle.defaultPrevented, false);
+    a.click();
+    a.focus();
+    b.focus();
+    const taken = key(b, 'Escape');
+    assert.equal(taken.defaultPrevented, true);
+    assert.equal(draft.open, '');
+    assert.equal(doc.activeElement, a, 'the focus went to the toggle that was open');
+    assert.deepEqual(drafts.at(-1).slice(0, 2), ['open', '']);
+
+    // The cancel button inside.
+    b.click();
+    el.querySelector('[data-draft-cancel]').click();
+    assert.equal(draft.open, '');
+    assert.equal(doc.activeElement, b);
+    assert.deepEqual(view.warnings, []);
+});
+
+const key = (node, name) => node.dispatch('keydown', { key: name });
+
+test('a select whose draft value is no option any more goes back to empty, drawn once more; one with no options yet is left alone', () => {
+    const html = '<select data-draft="kind"><option value="">All</option><option value="a">A</option><option value="gear" data-if="q.gear">Gear</option></select>';
+    const draft = { kind: 'gear' };
+    const { el, view, drafts } = setup(html, { q: { gear: true }, draft });
+    assert.equal(el.querySelector('select').value, 'gear');
+    view.update({ q: { gear: false }, draft });
+    assert.equal(draft.kind, '', 'the option is gone: back to empty');
+    assert.equal(el.querySelector('select').value, '');
+    assert.deepEqual(drafts.at(-1).slice(0, 2), ['kind', '']);
+    // No option at all yet (a list that has not arrived): the seeded value stays.
+    const seeded = { race: 'elf' };
+    const late = setup('<select data-draft="race"><option data-each="q.races as r" data-bind-attr="value: r">{{ r }}</option></select>', { q: { races: [] }, draft: seeded });
+    assert.equal(seeded.race, 'elf');
+    late.view.update({ q: { races: ['elf', 'orc'] }, draft: seeded });
+    assert.equal(seeded.race, 'elf');
+    assert.equal(late.el.querySelector('select').value, 'elf');
+});
