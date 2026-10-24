@@ -115,10 +115,15 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
 * The pin is written by the same ops as the block, so it is there exactly when the block applied. A block that was
   skipped on replay (a guard that no longer holds, a reply deleted, a domain validator), a rolled-back root, a swipe that
   is not shown, a deleted reply: no pin, no proof. Checkpoints carry `meta.proofs` like any other state.
-* A pin is written only by a block that holds the proof it pins. A block with no metadata (a legacy block) that writes
-  `meta.proofs` is not applied on replay (`REPLAY_PREREQUISITE`), and a record lists the proof of a block only if replay
-  could apply that block (it has changes, whole metadata that is the record's own, and exactly the proof its changes
-  pin): a hand-edited record cannot publish a proof through a span replay never applies.
+* **Only the block that owns a proof changes the record of pins.** Any change whose path (or `from`) is the document
+  root, `/meta`, `/meta/proofs` or anything under it is a change to that record, whatever it is (add, replace, remove,
+  move, copy; a whole record or an empty one). A block with no proof of its own (a legacy block) that makes one is not
+  applied on replay (`REPLAY_PREREQUISITE`). A guarded block may make only the writes of its own pins, exactly the ones its
+  span says (one per id, or the whole record with just those); anything else, an erase, a pin of another block, a rewrite
+  of `/meta` or of the root, a move or a copy, and the block is not applied. A record lists the proof of a block only if
+  replay could apply that block (it has changes, whole metadata that is the record's own, and exactly the proof its
+  changes pin). What is shown is read from the state replay applied (`meta.proofs`), never from the spans alone: a
+  hand-edited record cannot publish a proof through a span replay never applies, nor erase one that stands.
 * On replay a block is applied only if its span holds exactly the proofs its ops pin, each whole, closed, of an owner
   that owns its kind and carrying the span's Source (`REPLAY_PREREQUISITE` otherwise, like a damaged claim list).
   A block's ids, kinds, owners, payload hashes and parents are part of the hash that says whether a block (and so a

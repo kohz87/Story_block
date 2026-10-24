@@ -232,7 +232,7 @@ test('a hand-edited record cannot publish a proof: pins written by a block with 
     const legacy = forge(record => split(record, false));
     assert.deepEqual(legacy.ask(), [], 'nothing is published');
     assert.equal(legacy.store.head().meta.proofs, undefined, 'the pin was not written');
-    assert.match(legacy.problems()[0].why, /writes proof pins/);
+    assert.match(legacy.problems()[0].why, /changes the record of proof pins/);
     // The same, with the receipt still saying the block was guarded: the classifier takes it for a guarded block that lost its metadata.
     const stripped = forge(record => split(record, true));
     assert.deepEqual(stripped.ask(), []);
