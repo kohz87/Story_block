@@ -15,7 +15,7 @@
 
 import { isId } from './check.js';
 import { escapeKey, parsePath } from './ops.js';
-import { canonicalJson, deriveId, hashJson, isRecordId, sha256, sourceProblem, spanProblem } from './replay.js';
+import { canonicalJson, hashJson, idFromHash, isRecordId, sha256, sourceProblem, spanProblem } from './replay.js';
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -295,7 +295,10 @@ export function opShapeProblem(ops) {
     if (!Array.isArray(ops)) return 'its changes are not a list';
     for (const op of ops) {
         if (!isObject(op) || !KNOWN_OPS.includes(op.op) || typeof op.path !== 'string') return 'a change of the block is not an add, replace or remove with a path';
-        try { parsePath(op.path); } catch { return 'a change of the block has a path that cannot be read'; }
+        // (a plain path with no escapes reads as it is)
+        if (op.path !== '' && (op.path[0] !== '/' || op.path.includes('~'))) {
+            try { parsePath(op.path); } catch { return 'a change of the block has a path that cannot be read'; }
+        }
         if (op.op !== 'remove' && !Object.hasOwn(op, 'value')) return 'a change of the block adds or replaces with no value';
     }
     return '';
@@ -473,6 +476,26 @@ export function createEvidenceQuery({ stored = () => [] } = {}) {
     };
 }
 
+/**
+ * The id of a proof: derived from `seed` (the reply's evidence id and the key), salted past the ids `taken`. When the proof is
+ * given again where a block is being replaced (`free`: the ids of that block), one of those ids that this seed derives is kept
+ * rather than the lowest free one, so a step planned again after an earlier proof of its key went away keeps its own id and
+ * does not slide down onto the gap.
+ */
+function pickId(seed, taken, free, pendingIds) {
+    let gap = null;
+    for (let salt = 0; salt < 64; salt += 1) {
+        const id = idFromHash('pf', sha256(`pf:${seed}:${salt}`));
+        if (free?.has(id) && !pendingIds.has(id)) return id;
+        if (gap === null && !taken.has(id)) {
+            gap = id;
+            if (!free?.size) return gap;
+        }
+    }
+    if (gap !== null) return gap;
+    throw new Error(`No free pf id could be worked out for ${seed}.`);
+}
+
 // ---------- ctx.proof ----------
 
 /** A new, empty set of what one root has given: by key and in order. */
@@ -530,7 +553,7 @@ export function submitProof(spec, { who, cause, chat, source, state, stored, tak
     const heldIds = indexOf(everyStored ? everyStored() ?? [] : held).byId;
     const pendingIds = new Set(pending.map(entry => entry.proof.id));
     const taken = { has: id => (heldIds.has(id) && !free?.has(id)) || pendingIds.has(id) };
-    const id = deriveId('pf', `${source.evidence}:${key}`, taken);
+    const id = pickId(`${source.evidence}:${key}`, taken, free, pendingIds);
     const proof = Object.freeze({
         id, source: Object.freeze({ ...source }), owner, kind, payload: structuredClone(payload), payloadHash, parents: Object.freeze([...parents]),
     });

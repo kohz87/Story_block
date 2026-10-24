@@ -15,48 +15,61 @@ const STEPS = Number(process.env.QA_FUZZ_STEPS) || 60;
 function run(seed, steps) {
     const r = prng(seed);
     const mode = { value: 'normal' };
-    // Even seeds keep checkpoints (every 4 carriers); odd seeds do not, and turn the guard off now and then. A guard is
+    // Even seeds keep checkpoints (every 2 carriers); odd seeds do not, and turn the guard off now and then. A guard is
     // asked on replay only for the blocks after the latest checkpoint (REPLAY.md "Checkpoints"), so the two do not mix.
     const checkpoints = seed % 2 === 0;
-    const h = evidenceHarness({ mode, options: checkpoints ? { checkpointEvery: 4 } : {} });
-    const model = [];               // { id, msg, swipe, parents, guarded } in the order they were given
-    const byId = new Map();
+    const h = evidenceHarness({ mode, options: checkpoints ? { checkpointEvery: 2 } : {} });
+    // One entry per block that gave a proof (an id may be given by more than one, by hand): { uid, id, msg, swipe, parents, guarded,
+    // needs, parentOwners }. parentOwners: for each parent, the entry that owned its id when this one was given (its pin covers that
+    // parent's bytes). `needs`: a step whose guard wants that proof shown. `removed`: a step a reconcile took back.
+    const model = [];
     const log = [];
-    const dupIds = new Set();   // ids a later block was made to reuse by hand: which block owns them follows the apply order, not the model
 
-    const alive = proof => h.chat.includes(proof.msg) && proof.msg.swipe_id === proof.swipe;
-    const expected = denied => {
-        const memo = new Map();
-        const visible = proof => {
-            if (memo.has(proof.id)) return memo.get(proof.id);
-            memo.set(proof.id, false);
-            const ok = alive(proof) && !(denied && proof.guarded) && proof.parents.every(id => visible(byId.get(id)));
-            memo.set(proof.id, ok);
-            return ok;
+    const alive = e => !e.removed && h.chat.includes(e.msg) && e.msg.swipe_id === e.swipe;
+    const place = e => h.chat.indexOf(e.msg);
+    // Apply order is chat order, then the order given. The block that applied first with an id owns it; a later one collides. A step
+    // applies only while its guard's proof is shown on what has applied before it; a guarded block while the guard allows.
+    const resolve = denied => {
+        const owners = new Map();
+        const visibleIn = e => {
+            if (owners.get(e.id) !== e) return false;
+            return e.parents.every(parent => {
+                const owner = owners.get(parent);
+                return owner !== undefined && owner === e.parentOwners.get(parent) && visibleIn(owner);
+            });
         };
-        const shown = model.filter(visible);
-        // Source order: by the reply's place in the chat, then in the order they were given.
-        return shown.map((proof, at) => ({ proof, at })).sort((a, b) => h.chat.indexOf(a.proof.msg) - h.chat.indexOf(b.proof.msg) || a.at - b.at).map(entry => entry.proof.id);
+        const sorted = model.filter(alive).sort((a, b) => place(a) - place(b) || a.uid - b.uid);
+        for (const e of sorted) {
+            if (denied && e.guarded) continue;
+            if (e.needs) {
+                const owner = owners.get(e.needs);
+                if (!(owner && visibleIn(owner))) continue;
+            }
+            if (!owners.has(e.id)) owners.set(e.id, e);
+        }
+        return { owners, visibleIn, sorted };
+    };
+    const expected = denied => {
+        const { owners, visibleIn, sorted } = resolve(denied);
+        return sorted.filter(e => owners.get(e.id) === e && visibleIn(e)).map(e => e.id);
     };
     const check = (denied, when) => {
         const got = h.ask().map(proof => proof.id);
         assert.equal(new Set(got).size, got.length, `seed ${seed}, ${when}: an id is shown twice`);
-        // What hangs on an id a hand edit gave to another block is not compared either: the id lives on with the other block's bytes.
-        const tainted = id => dupIds.has(id) || (byId.get(id)?.parents ?? []).some(tainted);
-        assert.deepEqual(got.filter(id => !tainted(id)), expected(denied).filter(id => !tainted(id)), `seed ${seed}, ${when}\n${log.join('\n')}`);
+        assert.deepEqual(got, expected(denied), `seed ${seed}, ${when}\n${log.join('\n')}`);
         for (const proof of h.ask()) for (const parent of proof.parents) assert.ok(got.includes(parent), 'every parent of a shown proof is shown');
         assert.deepEqual(h.problems().filter(problem => problem.code !== 'REPLAY_PREREQUISITE'), [], `seed ${seed}, ${when}`);
     };
     const visibleIds = () => h.ask().map(proof => proof.id);
     const last = () => h.chat.findLast(message => !message.is_user);
-    const give = (type, payload, guarded = false) => {
-        const out = h.command(type, payload);
+    const give = (type, payload, { guarded = false, needs = null } = {}) => {
+        const out = h.command(type, payload, needs ? 'system' : 'ui');
         assert.equal(out.ok, true, `${type} ${JSON.stringify(payload)}: ${out.message}`);
         const msg = last();
-        for (const made of out.receipt.data.proofs ?? [out.receipt.data.proof]) {
-            const parents = payload.specs?.[0]?.parents ?? payload.parents ?? [];
-            model.push({ id: made.id, msg, swipe: msg.swipe_id, parents, guarded });
-            byId.set(made.id, model.at(-1));
+        const now = resolve(false).owners;
+        for (const made of out.receipt.data.proofs ?? [out.receipt.data.proof ?? out.receipt.data.made]) {
+            const parents = needs ? [needs] : payload.specs?.[0]?.parents ?? payload.parents ?? [];
+            model.push({ uid: model.length, id: made.id, msg, swipe: msg.swipe_id, parents, guarded, needs, parentOwners: new Map(parents.map(id => [id, now.get(id)])) });
         }
     };
 
@@ -64,7 +77,7 @@ function run(seed, steps) {
     for (let step = 0; step < steps; step += 1) {
         const pool = visibleIds();
         const parents = r.chance(0.5) && pool.length ? [...new Set(Array.from({ length: r.int(1, 2) }, () => r.pick(pool)))] : [];
-        const kind = r.int(0, 14);
+        const kind = r.int(0, 16);
         if (kind <= 2) {
             log.push(`${step}: kill`);
             give('rb.many', { specs: [{ kind: 'kill', payload: { foe: `foe-${step}` }, ...(parents.length ? { parents } : {}) }] });
@@ -73,8 +86,7 @@ function run(seed, steps) {
             give('sd.many', { specs: [{ kind: 'visit', payload: { place: `place-${step}` }, ...(parents.length ? { parents } : {}) }] });
         } else if (kind === 5) {
             log.push(`${step}: guarded accept`);
-            give('sd.guarded', { thread: r.pick([T1, T2]), selection: `pick-${step}`, ...(parents.length ? { parents } : {}) }, true);
-            model.at(-1).parents = parents;
+            give('sd.guarded', { thread: r.pick([T1, T2]), selection: `pick-${step}`, ...(parents.length ? { parents } : {}) }, { guarded: true });
         } else if (kind === 6) {
             log.push(`${step}: send`);
             h.send();
@@ -126,7 +138,7 @@ function run(seed, steps) {
                 const pin = pinOf(proof, {});
                 copy.ops = copy.ops.map(op => (op?.path === `/meta/proofs/${taken}` ? { ...op, path: `/meta/proofs/${owner}`, value: pin } : op?.path === "/meta/proofs" && op.value?.[taken] ? { ...op, value: { [owner]: pin } } : op));
                 message.extra.storySuite = copy;
-                dupIds.add(owner);
+                model.push({ uid: model.length, id: owner, msg: message, swipe: message.swipe_id, parents: [], guarded: false, needs: null, parentOwners: new Map() });
                 log.push(`${step}: a later block takes the id of a shown proof`);
                 h.store.rebuild();
                 const after = h.ask({ ids: [owner] })[0];
@@ -149,6 +161,36 @@ function run(seed, steps) {
                 h.store.rebuild();
                 assert.deepEqual(h.ask({ ids: [made.receipt.data.proofs[0].id] }), [], `seed ${seed}, step ${step}: the damaged block gives no proof`);
             }
+        } else if (kind === 15) {
+            // A system step that needs a proof shown, planned again by a reconcile.
+            const message = last();
+            if (message && message !== h.chat[0] && pool.length) {
+                const parent = r.pick(pool);
+                log.push(`${step}: a step that needs ${parent}`);
+                give('sd.dependent', { parent }, { needs: parent });
+            }
+        } else if (kind === 16) {
+            // A reconcile from an early point (the steps after it are planned again; one whose parent is not shown is taken back).
+            const carriers = h.chat.map((message, at) => (!message.is_user ? at : -1)).filter(at => at >= 0);
+            const from = r.pick(carriers);
+            log.push(`${step}: reconcile from ${from}`);
+            const shownBefore = expected(false);
+            const done = h.store.reconcile(from, { rerun: (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
+                cause: 'system', state, seed: info.replan.seed, replacing: (info.span.evidence ?? []).map(proof => proof.id),
+                reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
+            }) });
+            // The model: each step from there on whose parent is not shown where it stands is taken back, one after another.
+            let taken = 0;
+            for (;;) {
+                const { owners, visibleIn, sorted } = resolve(false);
+                void owners;
+                const gone = sorted.find(e => e.needs && place(e) >= from && !e.removed && !(owners.get(e.needs) && visibleIn(owners.get(e.needs))));
+                if (!gone) break;
+                gone.removed = true;
+                taken += 1;
+            }
+            void shownBefore;
+            assert.equal(done.removed ?? 0, taken, `seed ${seed}, step ${step}: the steps a reconcile takes back are the ones whose parent is gone\n${log.join('\n')}`);
         } else if (kind === 12) {
             // A hand-edited block with no metadata appended to the head reply: it writes, rewrites or erases the pins, or the
             // state around them. Replay refuses it, so nothing that was shown goes and nothing new is.
@@ -175,7 +217,7 @@ function run(seed, steps) {
             // The model follows the chat's messages, so it is re-pointed at the copies.
             const index = new Map(h.chat.map((message, at) => [message, at]));
             h.chat.splice(0, h.chat.length, ...copy);
-            for (const proof of model) if (index.has(proof.msg)) proof.msg = h.chat[index.get(proof.msg)];
+            for (const entry of model) if (index.has(entry.msg)) entry.msg = h.chat[index.get(entry.msg)];
             h.store.rebuild();
         }
         check(false, `step ${step}`);

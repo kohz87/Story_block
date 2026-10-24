@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, merged, pinOps, recordEntries, touchesProof } from './evidence.js';
+import { evidenceDigest, evidenceProblem, merged, opShapeProblem, pinOps, recordEntries, touchesProof } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -592,7 +592,7 @@ export function createStore({
     // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
     // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
     function replayLegacy(state, ops) {
-        if (ops.some(touchesProof)) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
+        if (ops.some(op => op && typeof op === 'object' && touchesProof(op))) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
         return step(state, ops, { replayed: true });
     }
 
@@ -641,6 +641,12 @@ export function createStore({
     // after the blocks `earlier` ([{ ops, span }]) and `offset` ops: the host stamps the id (kept when the
     // block is planned again), the source, the claims its ops make and the boundary it starts at. `block` is
     // what the bus handed over: { module, source, guard, operation, recorded, result, id? }.
+    // The proof of a block that has applied, for the guards asked on the rest of a Re-read or a reconcile (walkProofs). Called only
+    // after the block applied: a block that was refused or collided publishes nothing.
+    function publish(span) {
+        if (walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: span.id }));
+    }
+
     function stamp(arr, index, record, block, ops, receipt, earlier, offset, free = null) {
         const entry = record.source;
         const planned = block.source;
@@ -677,7 +683,6 @@ export function createStore({
         };
         const bad = spanProblem(span) || evidenceProblem(span, ops);
         if (bad) throw new Error(`The guarded block cannot be stored: ${bad}.`);
-        if (walkProofs) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: id }));
         if (span.guard) seeGuards();
         if (span.guard && span.replan) replanFrom = Math.min(replanFrom, index);
         return span;
@@ -708,7 +713,12 @@ export function createStore({
         staged = overlay;
         const outerApplying = applying;
         const head = current();
-        applying = head.state && !head.readOnly ? { list: [...appliedOf(arr, head).filter(entry => entry.index < first)], index: first, from: head.from ?? -1 } : null;
+        // Seeded from the walk's own base: the blocks before `first` that replay applied, counted once. A walk that starts before the
+        // checkpoint the head replays from lists the records before `first` as could-apply, and every record from `first` on is the walk's.
+        const rooted = first <= (head.from ?? -1);
+        applying = head.state && !head.readOnly
+            ? { list: rooted ? [] : [...appliedOf(arr, head).filter(entry => entry.index < first)], index: first, from: rooted ? first : head.from }
+            : null;
         try {
             let running = revOf(state);      // the rev the replies before ended on (a Re-read's new lines, a step planned again): the revs after are numbered on from it
             let history = false;     // guarded blocks before here: a checkpoint written here depends on their owners
@@ -835,6 +845,9 @@ export function createStore({
     // so a chat stored before a validator grew stricter still replays.
     function step(state, ops, { replayed = false, strict = false } = {}) {
         if (!ops.length) return state;
+        // Every change is looked at before any is rebased or passed over: a block with a change that is not one applies nothing.
+        const shape = opShapeProblem(ops);
+        if (shape) throw new Error(shape);
         const { ops: rebased, rebased: moved } = rebaseOps(state, ops, { scratch, replayed });
         const next = deepFreeze(apply(state, structuredClone(rebased)));
         if (typeof validate !== 'function') return next;
@@ -1139,6 +1152,7 @@ export function createStore({
             const arr = list();
             const holder = withSource(arr[index], record);
             newSpan = { ...newSpan, ...stamp(arr, index, holder, { ...planned.block, id: span.id, source: { ...planned.block.source, ordinal: span.source.ordinal } }, fresh, newReceipt, out.parts, out.parts.reduce((sum, part) => sum + part.ops.length, 0)) };
+            publish(newSpan);     // it applied (step above)
         }
         // Planned to what it was: the old block stays as it is.
         const sameness = value => hashJson({ ops: value.ops, guard: value.span.guard ?? null, claims: value.span.claims ?? null, recorded: value.span.recorded ?? null,
@@ -1855,6 +1869,7 @@ export function createStore({
                         } catch (error) {
                             throw fail(error);
                         }
+                        publish(span);     // the lines applied to the state before this point
                         storySpans.push(span);
                         nextParts.push({ ops: own, span });
                     } else if (storySpans.length && !isMetaSpan(storySpans.at(-1))) {
@@ -1889,6 +1904,7 @@ export function createStore({
                 if (ran.block) {
                     try {
                         span = { ...span, ...stamp(arr, index, record, ran.block, blockOps, ran.receipt, nextParts, nextOps.length) };
+                        publish(span);     // applied (step above)
                     } catch (error) {
                         throw fail(error);
                     }
@@ -1935,10 +1951,12 @@ export function createStore({
                 // it stays stored and inactive. A block planned again is applied as a live command is.
                 const meta = isMetaSpan(was);
                 const guarded = isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block));       // (the one classifier: a stripped span is still a guarded block)
+                let applied = true;      // the block applied: only then is its proof the guards' to see
                 try {
                     state = again ? step(state, blockOps) : guarded ? replayGuarded(state, record, blockOps, was, message, receipt) : replayLegacy(state, blockOps);
                 } catch (error) {
                     if (!guarded || again) throw fail(error);
+                    applied = false;
                     state = skipped(state, blockOps);
                     keptProblems.push({ index, block: storySpans.length + keptSpans.length, receipts: receiptsOf({ receipts: keptReceipts }, block), why: String(error?.message ?? error), code: 'REPLAY_PREREQUISITE' });
                 }
@@ -1953,6 +1971,7 @@ export function createStore({
                 } catch (error) {
                     throw fail(error);
                 }
+                if (applied) publish(span);
                 if (meta && !again && spanProblem(was)) span = { ...was, n: blockOps.length };   // damaged: kept as it is, inactive
                 nextOps.push(...blockOps);
                 keptSpans.push(span);

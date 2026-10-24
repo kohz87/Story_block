@@ -11,6 +11,7 @@
 //   sd.cyclic { depth? }            a visit proof whose payload contains itself (or is nested `depth` deep).
 //   `! check <id> | dc: n` (capture, with `after: 'check'`) gives a check (event) proof; sd.afterCheck { parent } is the guarded step
 //                                   afterCapture asks for on the first check, planned again by a Re-read or a reconcile.
+//   sd.dependent { parent }         a guarded system step with a replan that says NO_LONGER_DONE when its parent proof is not shown.
 //   sd.after { parent }             the step afterCapture asks for (`director({ after: true })`): a visit on `parent`, planned again by a Re-read.
 //   sd.many { specs, chain? }       calls ctx.proof once for each spec, as given (`chain`: each later one names
 //                                   the one before as its parent) → the results; the first refusal fails the root.
@@ -102,6 +103,13 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
                 const made = ctx.proof({ kind: 'visit', payload: { after: 'check' }, parents: [parent] });
                 ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ parent }), predicate: { kind: 'needs', parent } });
                 return { summary: 'After the check.', narrate: false, replan: true, data: { made } };
+            },
+            // A guarded system step that needs its parent proof still shown, and says NO_LONGER_DONE when it is not: planned again by a reconcile or a Re-read.
+            'sd.dependent'(ctx, { parent }) {
+                if (!ctx.query('story.evidence', { ids: [parent] }).length) ctx.fail('NO_LONGER_DONE', 'Its parent proof is gone.');
+                const made = ctx.proof({ kind: 'visit', payload: { after: 'dependent' }, parents: [parent] });
+                ctx.replayGuard({ owner: SD, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ parent }), predicate: { kind: 'needs', parent } });
+                return { summary: 'Dependent.', narrate: false, replan: true, data: { made } };
             },
             // The step afterCapture asks for: a visit on the acceptance it found (it is planned again by a Re-read).
             'sd.after'(ctx, { parent }) {

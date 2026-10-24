@@ -132,6 +132,13 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   from, replay did not look at the blocks, so they are listed if they could apply, and of two that give one id the first
   listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
   take an id from any of them, since a block that is off may come back.
+* **What a guard sees during a Re-read or a reconcile** is exactly the set of blocks that have applied so far, counted once, from
+  the walk's own base: the blocks before the walk's first record that replay applied (or, when the walk starts before the
+  checkpoint the head replays from, the blocks that could apply before it), then each block the walk applies. A block's proof is
+  published to the guards only after the block applied: one that was refused, collided or is off publishes nothing, so it cannot
+  shadow the owner.
+* Every change of every block, legacy or guarded, is checked (below) before any change is rebased or passed over (a change marked as
+  inside a holder that is not there is otherwise dropped quietly). A block with a change that is not a change applies nothing.
 * A change that is not a change (not an object, an op that is not add, replace or remove, no path or one that does not read,
   no value to add) makes a block fail closed: not applied, no proof listed, a Problem, never an error from a query.
 * On replay a block is applied only if its span holds exactly the proofs its ops pin, each whole, closed, of an owner
@@ -147,7 +154,7 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
 
 * Shows a proof only when it is **active** (its pin is in the state), **visible** (its parents are shown, a cycle is
   not) and **code-validated** (whole and closed, its owner owns its kind, `payloadHash` is the hash of its payload, its
-  pin matches its bytes and its parents' pins). A proof given twice (by two blocks) is shown by neither.
+  pin matches its bytes and its parents' pins). An id is shown once: the block that applied with it first owns it, and a later block that gives it is not applied (see above); only if the listing itself holds two proofs of one id (two blocks before the first checkpoint a replay starts from that were not told apart) is neither shown.
 * Default: all, in source order (chat order, block order, the order given in the block). With `ids`: those, in the order
   asked, once each; only those proofs and their parents are looked at, not the whole chat's (the stored index is kept until anything is
   written), by a loop, so a chain of any length is read and a cycle is not shown. Unknown ids are left out. Malformed arguments (not a record, other keys, `ids` not a list, or with a gap in it, of at
