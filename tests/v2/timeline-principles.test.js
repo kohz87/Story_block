@@ -731,7 +731,7 @@ test('recovery route after a restart: the outstanding event is finished when the
 test('a participant whose state changed after its checkpoint holds the commit of a save point: STALE, nothing written, nothing announced; the retry works', async t => {
     const { hashJson } = await import('../../src/v2/replay.js');
     const w = await world(t, { wrap: native => {
-        native.def.participant.current = ({ hash }) => hashJson(native.native.store) === hash;
+        native.def.participant.current = ({ hash }) => ({ ok: true, current: hashJson(native.native.store) === hash });
     } });
     const before = Object.keys(w.host.head().domains.savepoints.points).length;
     const told = w.told.length;
@@ -751,7 +751,7 @@ test('a participant whose state changed after its checkpoint holds the commit of
 });
 
 test('a probe that throws, answers a promise or answers something else fails closed; a participant without a probe keeps today\'s behaviour', async t => {
-    for (const answer of [() => { throw new Error('boom'); }, () => Promise.resolve(true), () => 'yes', () => undefined]) {
+    for (const answer of [() => { throw new Error('boom'); }, () => Promise.resolve({ ok: true, current: true }), () => true, () => ({ ok: false }), () => ({ ok: true }), () => undefined]) {
         const w = await world(t, { wrap: native => { native.def.participant.current = answer; } });
         const made = await w.host.sdk.timeline.make({ kind: 'manual', name: 'Probed' });
         assert.equal(made.code, 'STALE', String(answer));

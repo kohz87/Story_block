@@ -46,9 +46,9 @@ export function createParticipants() {
         /** The registered participants' modules, sorted. */
         modules: () => [...table.keys()].sort(),
         /**
-         * The optional synchronous probe `current({ checkpoint, hash, schema })` → boolean: is its native state still the one it handed over? Asked
+         * The optional synchronous probe `current({ checkpoint, hash, schema })` → `{ ok: true, current: boolean }`: is its native state still the one it handed over? Asked
          * in the section that commits a save point, where nothing may be awaited. → { current: true } (it says so, or has no probe: today's
-         * behaviour) | { current: false, why } (it says no, or throws, or answers anything but a boolean, or a promise: it fails closed).
+         * behaviour) | { current: false, why } (it says no, or throws, or answers anything but `{ ok: true, current }`, or a promise: it fails closed).
          */
         probe(module, input) {
             const entry = table.get(module);
@@ -64,8 +64,10 @@ export function createParticipants() {
                 answer.then(null, () => {});
                 return { current: false, why: 'its probe did not answer at once' };
             }
-            if (answer === true) return { current: true };
-            return { current: false, why: answer === false ? 'its native state changed after its checkpoint' : 'its probe answered something other than true or false' };
+            if (isObject(answer) && answer.ok === true && typeof answer.current === 'boolean') {
+                return answer.current ? { current: true } : { current: false, why: 'its native state changed after its checkpoint' };
+            }
+            return { current: false, why: 'its probe answered something other than { ok: true, current: boolean }' };
         },
         /**
          * Calls the participant's `method` with `input` and checks the answer. → the success (as the participant gave it) or

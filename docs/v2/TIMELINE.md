@@ -259,10 +259,10 @@ so old stores and modules that never use the timeline are not asked anything new
 
 A module declares `participant` in its definition (`schema` and the callbacks of contract §8, `applyEvent?`, and `attach?`); the
 host registers it when it registers the module (`registerParticipant`: duplicate `CONFLICT`, a missing callback `INVALID`) and gives
-`attach(handle)` the module's own handle: `{ head(), nativeMutation(input) }`. The declaration may also have `current({ checkpoint, hash, schema })` → boolean, a **synchronous probe** (optional): is the module's native
+`attach(handle)` the module's own handle: `{ head(), nativeMutation(input) }`. The declaration may also have `current({ checkpoint, hash, schema })` → `{ ok: true, current: boolean }`, a **synchronous probe** (optional): is the module's native
 state still the one it handed over in that checkpoint? A native change that lands after `checkpoint()` has answered and before the save point
 commits is not in the head hash (it is published when its change finishes), so in the commit section of a make the host asks each participant
-that has the probe, once, for the checkpoint it supplied. If any answers `false` (or throws, or answers anything but a boolean, or a promise)
+that has the probe, once, for the checkpoint it supplied. If any answers `current: false` (or throws, or answers anything but `{ ok: true, current }`, or a promise)
 the commit is discarded with `STALE`: retryable, nothing written, nothing announced. A participant without the probe keeps the old behaviour (the
 head hash alone). NSD answers `hashJson(readState()) === hash && no pending intent`. The callbacks are the module's own; each answers
 `{ ok: true, …fields }` or the common failure, and whatever else it does (throws, answers nothing, the wrong shape, an
