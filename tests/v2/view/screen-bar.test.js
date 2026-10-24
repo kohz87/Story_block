@@ -329,3 +329,24 @@ test('the row: when the focused slot disappears the focus goes to the current sl
     phone.bar.update({ items: ITEMS, current: 'story-block/home', row: false });
     assert.equal(phone.doc.activeElement, phone.more());
 });
+
+// Only the first alert is pinned; a second one sits under More, and More shows the dot (fix 8k).
+test('a second alerting tab under More gives More the dot and a name that says so; its tile has the dot too', () => {
+    const items = ITEMS.map(item => (item.id === 'rpg-battle/craft' ? { ...item, alert: true, alertText: 'ready' } : item));
+    const { more, root, tiles } = setup({ items, current: 'story-block/home' });
+    assert.ok(more().querySelector('.ss-screenbar-alert'), 'the dot on More');
+    assert.equal(more().getAttribute('aria-label'), 'More, Crafting: ready');
+    assert.equal(more().getAttribute('title'), 'More, Crafting: ready');
+    const tile = tiles().find(node => node.getAttribute('data-id') === 'rpg-battle/craft');
+    assert.ok(tile.querySelector('.ss-screenbar-alert'), 'and on its tile');
+    assert.equal(tile.getAttribute('aria-label'), 'Crafting, ready');
+    // No alert under More: no dot, More\'s plain name.
+    const calm = setup({ current: 'story-block/home' });
+    assert.equal(calm.more().querySelector('.ss-screenbar-alert'), null);
+    assert.equal(calm.more().getAttribute('aria-label'), null);
+    assert.equal(calm.more().getAttribute('title'), 'More');
+    // An alerting tab that is pinned is not More\'s business.
+    const pinned = setup({ items: ITEMS.map(item => (item.id === 'story-block/party' ? { ...item, alert: true } : item)), current: 'story-block/home' });
+    assert.equal(pinned.more().querySelector('.ss-screenbar-alert'), null);
+    void root;
+});

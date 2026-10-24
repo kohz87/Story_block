@@ -45,8 +45,9 @@ export function barItems(list) {
         if (!id || seen.has(id)) continue;
         seen.add(id);
         const label = str(raw.label).replace(/\s+/g, ' ').trim().slice(0, LABEL_MAX) || id;
-        // `alert`: the tab is active with something to show (a red dot); see pinAlerts.
-        out.push({ id, label, icon: typeof raw.icon === 'string' ? raw.icon : '', alert: raw.alert === true });
+        // `alert`: the tab is active with something to show (a red dot, no number); `alertText` is the badge's words for its name; see pinAlerts.
+        const alert = raw.alert === true;
+        out.push({ id, label, icon: typeof raw.icon === 'string' ? raw.icon : '', alert, alertText: alert ? str(raw.alertText).replace(/\s+/g, ' ').trim().slice(0, 40) : '' });
     }
     return out;
 }
@@ -86,6 +87,18 @@ function glyph(doc, value, className, solid = false) {
 
 function labelNode(doc, text) {
     return h(doc, 'span', 'ss-screenbar-label', text);
+}
+
+// The alert's red dot (an active tab with something to show): at the icon's top-right, decorative; the name says it.
+function alertNode(doc) {
+    const alert = h(doc, 'span', 'ss-screenbar-alert');
+    alert.setAttribute('aria-hidden', 'true');
+    return alert;
+}
+
+// The name of a slot or tile: its label, and the alert's words after it when it has one ("Fight, your move"; "Fight, alert" with none).
+function nameOf(item) {
+    return item.alert ? fill(S.alertSlot, { title: item.label, alert: item.alertText || S.alertWord }) : item.label;
 }
 
 // The dot under the current slot: decorative (the state is in aria-current).
@@ -141,14 +154,10 @@ export function createScreenBar(doc, host, options = {}) {
     // The slot's content: the icon, the label, the dot (the dot is what marks the current one, besides the colour).
     function paint(node, item, isCurrent) {
         node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-icon', isCurrent), labelNode(doc, item.label), dotNode(doc));
-        if (item.alert) {
-            // The alert: a small red dot at the icon's top-right (Cards.dc.html), the tab's label says it too.
-            const alert = h(doc, 'span', 'ss-screenbar-alert');
-            alert.setAttribute('aria-hidden', 'true');
-            node.appendChild(alert);
-        }
+        // The alert: a small red dot at the icon's top-right (Cards.dc.html); the slot's name and tooltip say it ("Fight, your move").
+        if (item.alert) node.appendChild(alertNode(doc));
         node.setAttribute('data-id', item.id);
-        node.setAttribute('title', item.label);
+        name(node, item);
         if (isCurrent) {
             node.setAttribute('aria-current', 'page');
             node.classList.add('ss-screenbar-current');
@@ -156,6 +165,13 @@ export function createScreenBar(doc, host, options = {}) {
             node.removeAttribute('aria-current');
             node.classList.remove('ss-screenbar-current');
         }
+    }
+
+    // The accessible name and the tooltip: the label alone, or with the alert's words.
+    function name(node, item) {
+        node.setAttribute('title', nameOf(item));
+        if (item.alert) node.setAttribute('aria-label', nameOf(item));
+        else node.removeAttribute('aria-label');
     }
 
     function slotFor(item) {
@@ -245,21 +261,26 @@ export function createScreenBar(doc, host, options = {}) {
 
         // More: its own icon and label, unless a screen under it is current.
         const held = row ? null : moreHolds(items, current, pinnedCount);
+        // An alerting tab under More (the second one: only the first is pinned) gives More the dot.
+        const hidden = rest.find(item => item.alert);
         more.replaceChildren(
             glyph(doc, held ? held.icon : MORE_ICON, 'ss-screenbar-icon', Boolean(held)),
             labelNode(doc, held ? held.label : S.more),
             dotNode(doc),
+            ...(hidden ? [alertNode(doc)] : []),
         );
         more.classList.toggle('ss-screenbar-current', Boolean(held));
+        const moreName = held ? fill(S.moreWith, { title: held.label }) : S.more;
+        const shown = hidden ? fill(S.moreAlert, { more: moreName, title: hidden.label, alert: hidden.alertText || S.alertWord }) : moreName;
         if (held) {
             more.setAttribute('aria-current', 'page');
-            more.setAttribute('aria-label', fill(S.moreWith, { title: held.label }));
-            more.setAttribute('title', held.label);
+            more.setAttribute('title', shown);
         } else {
             more.removeAttribute('aria-current');
-            more.removeAttribute('aria-label');
-            more.setAttribute('title', S.more);
+            more.setAttribute('title', hidden ? shown : S.more);
         }
+        if (held || hidden) more.setAttribute('aria-label', shown);
+        else more.removeAttribute('aria-label');
 
         // The sheet's tiles: the rest, in order; the current one marked.
         const tileKeep = new Set(rest.map(item => item.id));
@@ -267,9 +288,9 @@ export function createScreenBar(doc, host, options = {}) {
         rest.forEach((item, at) => {
             const node = tileFor(item);
             const isCurrent = item.id === current;
-            node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-tile-icon', isCurrent), labelNode(doc, item.label));
+            node.replaceChildren(glyph(doc, item.icon, 'ss-screenbar-tile-icon', isCurrent), labelNode(doc, item.label), ...(item.alert ? [alertNode(doc)] : []));
             node.setAttribute('data-id', item.id);
-            node.setAttribute('title', item.label);
+            name(node, item);
             if (isCurrent) node.setAttribute('aria-current', 'page');
             else node.removeAttribute('aria-current');
             decorate(node, item);

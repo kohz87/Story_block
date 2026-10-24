@@ -489,7 +489,11 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     const headStateNow = () => { const index = store.headIndex(); return Number.isInteger(index) && index >= 0 ? store.at(index) : null; };
     const activeTabs = () => panelTabs()
         .filter(tab => typeof tab.active !== 'function' || activeNow(tab, headStateNow(), queryAt).on)
-        .map(tab => (typeof tab.active === 'function' ? { ...tab, alert: activeNow(tab, headStateNow(), queryAt).alert } : tab));
+        .map(tab => {
+            if (typeof tab.active !== 'function') return tab;
+            const now = activeNow(tab, headStateNow(), queryAt);
+            return { ...tab, alert: now.alert, alertText: now.badge ?? '' };
+        });
     const tabSource = { tabs: () => visibleNav(activeTabs(), tabOrder.choice(), navKey, tab => tab.order, navPresent) };
 
     // Settings → Tabs & Packs → Tabs: every tab and screen once (by id), where it shows, in the reader's order.

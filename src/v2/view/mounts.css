@@ -644,6 +644,9 @@
               border-radius: 14px; border: 1px solid var(--ring); background: var(--ss-glass, var(--ss-tile)); color: var(--ss-text);
               font: inherit; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* An active tab's alert (view/screen-bar.js): a red dot at the top-right of the icon, with a ring in the bar's own colour. */
+/* An active tab's alert (view/screen-bar.js): a red dot at the top-right of the icon, with a ring in the bar's own colour. It is a dot, never
+   a number: the badge's words are the slot's name and tooltip. More gets one when an alerting tab sits under it; a sheet tile too. */
 .ss-screenbar-alert { position: absolute; top: 8px; right: calc(50% - 20px); width: 9px; height: 9px; border-radius: 50%;
                       background: var(--ss-bad); border: 2px solid var(--ss-badge, #1e2132); pointer-events: none; }
+.ss-screenbar-tile { position: relative; }
+.ss-screenbar-tile > .ss-screenbar-alert { top: 8px; right: 8px; }

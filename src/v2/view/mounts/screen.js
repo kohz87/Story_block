@@ -53,7 +53,10 @@ export function createScreenMount(deps) {
         view.root.classList.toggle('ss-gameview-single', listed.length < 2);
         const state = headStateSafe(deps);
         const row = view.phone?.matches === false;
-        const items = listed.map(entry => ({ id: entry.id, label: entry.screen.title ?? entry.id, icon: iconFor(entry.id, entry.screen.icon), alert: activeNow(entry.screen, state, deps.query).alert }));
+        const items = listed.map(entry => {
+            const now = activeNow(entry.screen, state, deps.query);
+            return { id: entry.id, label: entry.screen.title ?? entry.id, icon: iconFor(entry.id, entry.screen.icon), alert: now.alert, alertText: now.badge ?? '' };
+        });
         // On a phone an active tab with an alert takes the last pinned slot (the one it displaces goes to More); the wide row keeps the order.
         view.bar.update({ items: row ? items : pinAlerts(items), current: view.screenId, row });
         return entries;
