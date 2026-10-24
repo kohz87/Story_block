@@ -59,7 +59,7 @@ function run(seed, steps) {
     for (let step = 0; step < steps; step += 1) {
         const pool = visibleIds();
         const parents = r.chance(0.5) && pool.length ? [...new Set(Array.from({ length: r.int(1, 2) }, () => r.pick(pool)))] : [];
-        const kind = r.int(0, 11);
+        const kind = r.int(0, 12);
         if (kind <= 2) {
             log.push(`${step}: kill`);
             give('rb.many', { specs: [{ kind: 'kill', payload: { foe: `foe-${step}` }, ...(parents.length ? { parents } : {}) }] });
@@ -104,6 +104,26 @@ function run(seed, steps) {
             check(true, `step ${step} with the guard off`);
             mode.value = 'normal';
             h.store.rebuild();
+        } else if (kind === 12) {
+            // A hand-edited block with no metadata appended to the head reply: it writes, rewrites or erases the pins, or the
+            // state around them. Replay refuses it, so nothing that was shown goes and nothing new is.
+            const message = last();
+            const record = message?.extra?.storySuite;
+            if (record && message !== h.chat[0]) {
+                const hostile = r.pick([
+                    [{ op: 'replace', path: '/meta/proofs', value: {} }],
+                    [{ op: 'remove', path: '/meta/proofs' }],
+                    [{ op: 'replace', path: '/meta', value: { rev: 1, claims: {} } }],
+                    [{ op: 'replace', path: '', value: { v: 2, meta: { rev: 1, claims: {} }, domains: {} } }],
+                    [{ op: 'add', path: '/meta/proofs/pf_hostile01', value: 'x' }],
+                    [{ op: 'copy', from: '/meta/proofs', path: '/meta/backup' }],
+                ]);
+                const rev = Math.max(0, ...record.ops.filter(op => op.path === '/meta/rev').map(op => op.value)) + 1;
+                const ops = [...hostile, { op: 'replace', path: '/meta/rev', value: rev }];
+                log.push(`${step}: hostile block ${JSON.stringify(hostile[0].op)} ${hostile[0].path}`);
+                message.extra.storySuite = { ...record, ops: [...record.ops, ...ops], spans: [...record.spans, { n: ops.length, story: false }] };
+                h.store.rebuild();
+            }
         } else {
             log.push(`${step}: reload`);
             const copy = JSON.parse(JSON.stringify(h.chat));
