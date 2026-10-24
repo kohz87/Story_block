@@ -148,6 +148,8 @@ export function storeSaving({ ctx, live = () => ctx, fetch = null, onSaveError =
             } catch { return false; }
         },
         chat: () => ctx.chat,
+        // The chat's metadata (SillyTavern's, saved with the chat file): the store keeps the source-map archive there.
+        metadata: () => context().chatMetadata ?? null,
         chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId),
         place: () => file.where(),
         save: (change, { keepalive = false, signal = null, stamp: wanted = false } = {}) => {
