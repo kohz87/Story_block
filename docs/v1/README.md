@@ -1,8 +1,8 @@
-> **Story Block 1 documentation, kept for reference.** This branch (`v2`) is Story Suite v2: see the [README](../../README.md). Story Block 1 lives on the [`main` branch](https://github.com/kohz87/Story_block/tree/main).
+> **Story Block 1 documentation, kept for reference.** Story Suite v2 is the current version: see the [README](../../README.md). Story Block 1 lives on the [`v1` branch](https://github.com/kohz87/Story_block/tree/v1).
 
 # Story Block v0.9.26
 
-> **Story Suite v2 beta (2.0.0-beta.2) is on the `v2` branch.** It is a fresh start: the story's state is kept as JSON in the replies, code sets every number, and the screens are modular. It is for test play, not your real campaigns yet. To try it, install Story Block and the modules you want from their `v2` branches in a separate SillyTavern profile (1.19 or newer). Player guide: [docs/v2/GUIDE.md](../v2/GUIDE.md). Release notes: [docs/v2/RELEASES.md](../v2/RELEASES.md). Status: [docs/v2/STATUS.md](../v2/STATUS.md). The rest of this README describes v1 until v2 is released.
+> **Story Suite v2 beta (2.0.0-beta.2) is the current version.** It is a fresh start: the story's state is kept as JSON in the replies, code sets every number, and the screens are modular. It is for test play, not your real campaigns yet. To try it, install Story Block and the modules you want from their repo URLs (no branch to pick) in a separate SillyTavern profile (1.19 or newer). Player guide: [docs/v2/GUIDE.md](../v2/GUIDE.md). Release notes: [docs/v2/RELEASES.md](../v2/RELEASES.md). Status: [docs/v2/STATUS.md](../v2/STATUS.md). The rest of this README describes v1 until v2 is released.
 
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene

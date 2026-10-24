@@ -13,10 +13,10 @@ nothing from them is copied into the pack.
 
 Setup used for this guide: SillyTavern 1.19; Gemini most of the time, also GLM, Kimi and Gemma.
 
-## 1. Extensions (v2 branches)
+## 1. Extensions
 
-Install these four from their **`v2`** branch (SillyTavern → Extensions → Install extension: paste the
-URL and type `v2` as the branch). If you have the v1 versions installed, remove them first or use a
+Install these four (SillyTavern → Extensions → Install extension: paste the URL and install; there is no
+branch to pick). If you have the v1 versions installed, remove them first or use a
 separate SillyTavern profile; v2 doesn't read v1 chats or v1 blocks.
 
 | Extension | URL |
