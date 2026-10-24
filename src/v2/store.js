@@ -43,6 +43,7 @@ import {
 } from './persist.js';
 import { claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, spanProblem } from './replay.js';
 import { evidenceDigest, evidenceProblem, merged, pinOps, proofPins, recordEntries } from './evidence.js';
+import { gateProblem } from './timeline/gate.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -570,6 +571,9 @@ export function createStore({
         const taken = isObject(held) ? span.claims.find(key => Object.hasOwn(held, key)) : undefined;
         if (taken !== undefined) throw prerequisite(`claim already held (${taken})`);
         if (span.guard) {
+            // The host's own check of the guard's epoch and rules hash against the timeline (docs/v2/TIMELINE.md), then the owner's.
+            const gate = gateProblem(state, span.guard);
+            if (gate) throw prerequisite(`its guard no longer holds: ${gate}`);
             const answer = askGuard(state, span, message);
             if (!answer.ok) throw prerequisite(`its guard no longer holds: ${answer.reason}`);
         }
@@ -1505,6 +1509,42 @@ export function createStore({
         },
 
         /**
+         * Where the committed story ends (the timeline's head, contract §8): the cursor and the prefix hash a block
+         * stored now would start at, so `{ cursor, prefixHash }` is exactly the boundary that block's span will carry
+         * (apart from its own block id: `cursor.block` is the last block's on the head reply, or a stand-in worked out
+         * from the position when it has none). `payloadHash` is the head reply's text as evidence; `source` its Source.
+         * null without a carrier or a state. Nothing is written (a first record's id is only reserved, as sourceAt does).
+         */
+        boundary() {
+            const arr = list();
+            const index = lastCarrier(arr);
+            if (index < 0) return null;
+            const head = current();
+            if (!head.state) return null;
+            const message = arr[index];
+            const record = readRecord(message);
+            const sid = record ? record.sid : reservedSid(message);
+            if (typeof sid !== 'string') return null;
+            const entry = isObject(record?.source) ? record.source : sourceFor(arr, message, sid);
+            const spans = record ? spansFor(record) : [];
+            const parts = record ? blockParts({ ...record, spans, ops: record.ops }) : [];
+            const op = record ? record.ops.length : 0;
+            const last = [...spans].reverse().find(isMetaSpan);
+            return {
+                index,
+                cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: last ? last.id : deriveId('bl', `end:${entry.swipeKey}:${op}`), op, rev: revOf(head.state) },
+                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: blocksBefore(parts) }),
+                payloadHash: payloadHashOf(message),
+                source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal: Number.isInteger(entry.next) ? entry.next : 0 },
+            };
+        },
+
+        /** Marks the chat as changed outside its records (the timeline's archive in the chat's metadata): the next save writes it. */
+        touch() {
+            saver.touch();
+        },
+
+        /**
          * The modules' lifecycle changed (a module turned ready or dormant, the `modules` event): the checkpoints over guarded
          * blocks that were made under other owners no longer hold (chain), so the head is replayed again from before them with
          * the guards asked, and only then does the caller publish a head. Guarded blocks before the checkpoint a replay would
@@ -1546,6 +1586,11 @@ export function createStore({
             if (receipt !== null && !isObject(receipt)) throw new TypeError('A receipt must be an object.');
             if (block !== null && !isObject(block)) throw new TypeError('A block must be an object.');
             if (!added.length && !receipt) return;
+            if (block?.guard) {
+                // A guard that replay would turn away (another epoch, other rules) is not stored: live and replay agree.
+                const gate = gateProblem(base, block.guard);
+                if (gate) throw new Error(`The guarded change cannot be stored: ${gate}.`);
+            }
             const next = step(base, added);       // throws on a bad op: nothing is written
             const taken = take(arr, index, base);
             const { message } = taken;
