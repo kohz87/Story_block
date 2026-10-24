@@ -164,11 +164,10 @@ export function makeValidExtendedPack() {
     pack.content.events = [
         {
             id: 'trial-combat',
-            when: 100,
+            when: 'always',
             cue: 'Master blade training begins',
             once: true,
-            after: 0,
-            then: 1,
+            then: [],
         },
     ];
 
@@ -219,19 +218,48 @@ export function makeBrokenPack(errorCode) {
             // skill slug colliding with generated form
             pack.content.rules[0].skills[0].slug = 's30-base-g';
             break;
+        case 'class-generated-collision':
+            // class slug colliding with generated form
+            pack.content.rules[0].classes[2].slug = 's30-base-g';
+            pack.content.rules[0].classes[3].parent = 's30-base-g';
+            break;
+        case 'item-generated-collision':
+            // item slug colliding with generated form
+            pack.content.items[2].slug = 's30-base-g';
+            pack.content.rules[0].itemRules[2].def = 's30-base-g';
+            break;
         case RULES_V2_ERROR_CODES.TIER_CHAIN:
             // c2 skips c1 and points to c0
             pack.content.rules[0].classes[2].parent = 'c0';
             break;
+        case 'cycle-class':
+            // c1 points to c2, creating cycle c1 <-> c2
+            pack.content.rules[0].classes[1].parent = 'c2';
+            break;
         case 'orphan-class':
             pack.content.rules[0].classes[1].parent = 'nonexistent-class';
+            break;
+        case 'leaf-not-tier3':
+            pack.content.rules[0].classes[3].tier = 2;
+            break;
+        case 'root-not-tier0':
+            pack.content.rules[0].classes[0].tier = 1;
             break;
         case RULES_V2_ERROR_CODES.BAD_REF:
             pack.content.rules[0].classes[0].skills[0] = 'nonexistent-skill';
             break;
+        case 'foreign-internal-ref':
+            pack.content.rules[0].classes[0].skills[0] = 'pack.other/s00';
+            break;
         case RULES_V2_ERROR_CODES.CLASS_SKILLS:
             // Duplicate skill inside same class
             pack.content.rules[0].classes[0].skills = ['s00', 's00', 's02'];
+            break;
+        case 'skills-count-2':
+            pack.content.rules[0].classes[0].skills = ['s00', 's01'];
+            break;
+        case 'skills-count-4':
+            pack.content.rules[0].classes[0].skills = ['s00', 's01', 's02', 's10'];
             break;
         case 'orphan-skill':
             // Append orphan unowned skill
@@ -252,6 +280,15 @@ export function makeBrokenPack(errorCode) {
             pack.content.rules[0].branches = pack.content.rules[0].branches.filter(
                 b => !(b.skill === 's30' && b.step === 1 && b.choice === 'b')
             );
+            break;
+        case 'missing-step2-branch':
+            // Drop step 2 branches from selected parents (base-a, base-b), leaving 12 written branches instead of 24
+            pack.content.rules[0].branches = pack.content.rules[0].branches.filter(
+                b => !(b.step === 2 && (b.fromForm.endsWith('-a') || b.fromForm.endsWith('-b')))
+            );
+            break;
+        case 'unknown-kind':
+            pack.content.unknownKind = [];
             break;
         case 'unaccounted-branch':
             // Append branch for nonexistent skill
@@ -295,6 +332,14 @@ export function makeBrokenPack(errorCode) {
             // duplicate item rule for greatsword covering missing potion
             pack.content.rules[0].itemRules[2] = { ...pack.content.rules[0].itemRules[0] };
             break;
+        case 'item-rule-2h-offhand':
+            // 2H weapon cannot occupy offhand
+            pack.content.rules[0].itemRules[0].allowedSlots = ['weapon', 'offhand'];
+            break;
+        case 'item-rule-non-equip-slot':
+            // non-equipment item cannot have allowedSlots
+            pack.content.rules[0].itemRules[2].allowedSlots = ['body'];
+            break;
         case RULES_V2_ERROR_CODES.BAD_EFFECT:
             // damage effect with damageType null
             pack.content.rules[0].skills[0].base.effects[0].damageType = null;
@@ -305,6 +350,21 @@ export function makeBrokenPack(errorCode) {
             break;
         case RULES_V2_ERROR_CODES.BAD_XP_PER_LEVEL:
             return { pack, constants: { xpPerLevel: 95 } };
+        case 'generated-legendary':
+            return {
+                pack,
+                constants: undefined,
+                form: {
+                    id: 'pack.fixture/s30-base',
+                    skill: 'pack.fixture/s30',
+                    name: 'Step 0 Form',
+                    step: 0,
+                    origin: 'generated',
+                    rarity: 'legendary',
+                    tier: 3,
+                    effects: [{ op: 'damage', target: 'one', power: 20, element: 'none', damageType: 'physical' }],
+                },
+            };
         case RULES_V2_ERROR_CODES.BAD_SCHEMA:
             pack.content.rules[0].schema = 3;
             break;

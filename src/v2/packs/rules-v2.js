@@ -272,7 +272,7 @@ function checkPlainSafety(value, limits = RULES_V2_LIMITS) {
                 errors.push({ code: RULES_V2_ERROR_CODES.UNSAFE_MARKUP, path, message: 'Text cannot contain "<" or ">"' });
                 return;
             }
-            if (/[\x00-\x08\x0B-\x1F\x7F-\x9F]/.test(node)) {
+            if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(node)) {
                 errors.push({ code: RULES_V2_ERROR_CODES.CONTROL_CHARACTER, path, message: 'Text cannot contain control characters' });
                 return;
             }
@@ -667,6 +667,9 @@ export function generatePowerUp(form, constants = RULES_V2_CONSTANTS) {
     if (!form.id || typeof form.id !== 'string') {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'id', message: 'Parent form must have a valid string id' }] };
     }
+    if (form.rarity === 'legendary' && form.origin === 'generated') {
+        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'rarity', message: 'Parent form marked as generated legendary is refused' }] };
+    }
     const step = form.step ?? 0;
     if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 0) {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_RULES, path: 'step', message: 'Parent form step must be a non-negative integer' }] };
@@ -904,6 +907,28 @@ function applyBranchTransforms(parentForm, branch, tier, constants = RULES_V2_CO
     return { ok: true, form };
 }
 
+function resolveSchema(s, defs) {
+    let curr = s;
+    let depth = 0;
+    while (curr && curr.$ref && depth < 10) {
+        const refName = curr.$ref.replace('#/$defs/', '');
+        const target = defs ? defs[refName] : null;
+        if (!target) break;
+        const { $ref: _r, ...siblings } = curr;
+        curr = Object.keys(siblings).length > 0 ? { ...target, ...siblings } : target;
+        depth++;
+    }
+    return curr;
+}
+
+function matchesDiscriminator(resolvedSub, key, valKey) {
+    if (!resolvedSub || !resolvedSub.properties || !resolvedSub.properties[key]) return false;
+    const prop = resolvedSub.properties[key];
+    if (prop.const !== undefined && prop.const === valKey) return true;
+    if (Array.isArray(prop.enum) && prop.enum.includes(valKey)) return true;
+    return false;
+}
+
 /**
  * Generic schema validation for manifest and owned definitions subset with $ref sibling checks.
  * Evaluates keywords independently of explicit type so siblings (e.g. maxLength:40 on $ref) are strictly enforced.
@@ -927,13 +952,56 @@ function validateSchemaValue(val, schema, defs, path = '', options = {}) {
 
     if (schema.oneOf) {
         const matches = [];
+        const branchDiagnostics = [];
         for (const sub of schema.oneOf) {
             const errs = validateSchemaValue(val, sub, defs, path, options);
-            if (errs.length === 0) matches.push(sub);
+            if (errs.length === 0) {
+                matches.push(sub);
+            }
+            branchDiagnostics.push({ sub, resolved: resolveSchema(sub, defs), errs });
         }
-        if (matches.length !== 1) {
-            errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: `Value did not match exactly one oneOf branch (matched ${matches.length})` });
+        if (matches.length === 1) {
+            return errors;
         }
+        if (matches.length > 1) {
+            errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: `Value matched multiple oneOf branches (${matches.length})` });
+            return errors;
+        }
+
+        // matches.length === 0: select discriminator-compatible alternative (op/kind or matching type)
+        let selected = null;
+        if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+            if (val.op !== undefined) {
+                const opBranches = branchDiagnostics.filter(b => matchesDiscriminator(b.resolved, 'op', val.op));
+                if (opBranches.length === 1) selected = opBranches[0];
+            }
+            if (!selected && val.kind !== undefined) {
+                const kindBranches = branchDiagnostics.filter(b => matchesDiscriminator(b.resolved, 'kind', val.kind));
+                if (kindBranches.length === 1) selected = kindBranches[0];
+            }
+            if (!selected) {
+                const objBranches = branchDiagnostics.filter(b => b.resolved?.type === 'object' || b.resolved?.properties !== undefined);
+                if (objBranches.length === 1) selected = objBranches[0];
+            }
+        } else if (val === null) {
+            const nullBranches = branchDiagnostics.filter(b => b.resolved?.type === 'null');
+            if (nullBranches.length === 1) selected = nullBranches[0];
+        } else if (typeof val === 'string') {
+            const strBranches = branchDiagnostics.filter(b => b.resolved?.type === 'string');
+            if (strBranches.length === 1) selected = strBranches[0];
+        } else if (typeof val === 'number') {
+            const numBranches = branchDiagnostics.filter(b => b.resolved?.type === 'integer' || b.resolved?.type === 'number');
+            if (numBranches.length === 1) selected = numBranches[0];
+        } else if (typeof val === 'boolean') {
+            const boolBranches = branchDiagnostics.filter(b => b.resolved?.type === 'boolean');
+            if (boolBranches.length === 1) selected = boolBranches[0];
+        }
+
+        if (selected && selected.errs.length > 0) {
+            return selected.errs;
+        }
+
+        errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path, message: 'Value did not match any oneOf branch' });
         return errors;
     }
 
@@ -1037,7 +1105,8 @@ function validateSchemaValue(val, schema, defs, path = '', options = {}) {
             const areItemsRecords = (
                 path.endsWith('classes') || path.endsWith('skills') || path.endsWith('branches') ||
                 path.endsWith('trainers') || path.endsWith('items') || path.endsWith('creatures') ||
-                path.endsWith('quests') || path.endsWith('shops') || path.endsWith('recipes')
+                path.endsWith('quests') || path.endsWith('shops') || path.endsWith('recipes') ||
+                path.endsWith('places') || path.endsWith('rules')
             );
             for (let i = 0; i < val.length; i++) {
                 errors.push(...validateSchemaValue(
@@ -1133,8 +1202,41 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
     if (plainErrors.length) return { ok: false, errors: plainErrors };
 
     const cloned = clonePlain(raw);
-    delete cloned.id;
-    delete cloned.pack;
+
+    if (cloned.id !== undefined) {
+        if (typeof cloned.id !== 'string' || !(RECORD_ID_REGEX.test(cloned.id) || DEF_ID_REGEX.test(cloned.id) || REF_REGEX.test(cloned.id))) {
+            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'id', message: 'Manifest id wrapper has invalid syntax' }] };
+        }
+        delete cloned.id;
+    }
+    if (cloned.pack !== undefined) {
+        if (typeof cloned.pack !== 'string' || !PACK_ID.test(cloned.pack) || (packKey && cloned.pack !== packKey)) {
+            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'pack', message: 'Manifest pack wrapper has invalid syntax or does not match packKey' }] };
+        }
+        delete cloned.pack;
+    }
+
+    for (const kind of ['classes', 'skills', 'branches', 'trainers']) {
+        if (Array.isArray(cloned[kind])) {
+            for (let i = 0; i < cloned[kind].length; i++) {
+                const rec = cloned[kind][i];
+                if (rec && typeof rec === 'object' && !Array.isArray(rec)) {
+                    if (rec.id !== undefined) {
+                        if (typeof rec.id !== 'string' || !(RECORD_ID_REGEX.test(rec.id) || DEF_ID_REGEX.test(rec.id) || REF_REGEX.test(rec.id))) {
+                            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${kind}[${i}].id`, message: 'Record id wrapper has invalid syntax' }] };
+                        }
+                        delete rec.id;
+                    }
+                    if (rec.pack !== undefined) {
+                        if (typeof rec.pack !== 'string' || !PACK_ID.test(rec.pack) || rec.pack !== packKey) {
+                            return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${kind}[${i}].pack`, message: 'Record pack wrapper has invalid syntax' }] };
+                        }
+                        delete rec.pack;
+                    }
+                }
+            }
+        }
+    }
 
     // Apply generic annotated defaults from rulesV2Schema
     if (cloned.statLabels === undefined && rulesV2Schema.properties.statLabels?.default !== undefined) {
@@ -1195,6 +1297,7 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         for (const cls of norm.classes) {
             if (cls && typeof cls === 'object') {
                 cls.id = `${prefix}${cls.slug}`;
+                cls.pack = packKey;
                 if (cls.parent) cls.parent = toFull(cls.parent);
                 if (Array.isArray(cls.skills)) cls.skills = cls.skills.map(toFull);
             }
@@ -1205,6 +1308,7 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         for (const skl of norm.skills) {
             if (skl && typeof skl === 'object') {
                 skl.id = `${prefix}${skl.slug}`;
+                skl.pack = packKey;
                 if (skl.replaces) skl.replaces = toFull(skl.replaces);
                 if (skl.base?.unit?.class) skl.base.unit.class = toFull(skl.base.unit.class);
             }
@@ -1215,6 +1319,7 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         for (const br of norm.branches) {
             if (br && typeof br === 'object') {
                 br.id = `${prefix}${br.slug}`;
+                br.pack = packKey;
                 if (br.skill) br.skill = toFull(br.skill);
                 if (br.fromForm) br.fromForm = toFull(br.fromForm);
             }
@@ -1233,6 +1338,7 @@ export function normalizeRulesV2(raw, rawOptions = {}) {
         for (const trn of norm.trainers) {
             if (trn && typeof trn === 'object') {
                 trn.id = `${prefix}${trn.slug}`;
+                trn.pack = packKey;
                 if (Array.isArray(trn.skills)) trn.skills = trn.skills.map(toFull);
                 if (Array.isArray(trn.eventTemplates)) trn.eventTemplates = trn.eventTemplates.map(toFull);
             }
@@ -1274,6 +1380,9 @@ function checkReference(ref, packId, localSet, externalAllowed = false, path = '
 export function validateRulesV2(manifest, content = {}, constants = RULES_V2_CONSTANTS) {
     if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
         return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: '', message: 'Manifest must be an object' }] };
+    }
+    if (!content || typeof content !== 'object' || Array.isArray(content)) {
+        return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'content', message: 'Content must be an object' }] };
     }
 
     const plainErrors = checkPlainSafety({ manifest, content });
@@ -2109,51 +2218,69 @@ function shortenTypedRef(ref, packId) {
 
 /**
  * Builds canonical authored shortened representation of document.
- * Strips host wrappers ONLY at record boundaries.
+ * Normalizes text (NFC, CRLF to LF, trimmed) and defaults across WHOLE document.
+ * Validates and strips host wrappers ONLY at documented record boundaries.
  * Shortens ONLY typed internal $defs.ref fields, never names, notes, or canonical place IDs.
+ * Preserves authored array ordering and canonicalizes object keys.
  */
 function buildCanonicalDocument(doc, packId) {
-    const raw = clonePlain(doc);
-    delete raw.pack;
+    const raw = normalizeStructure(clonePlain(doc));
+
+    function stripWrappers(rec) {
+        if (!rec || typeof rec !== 'object' || Array.isArray(rec)) return;
+        if (rec.id !== undefined) {
+            if (typeof rec.id === 'string' && (RECORD_ID_REGEX.test(rec.id) || DEF_ID_REGEX.test(rec.id) || REF_REGEX.test(rec.id))) {
+                delete rec.id;
+            }
+        }
+        if (rec.pack !== undefined) {
+            if (typeof rec.pack === 'string' && PACK_ID.test(rec.pack)) {
+                delete rec.pack;
+            }
+        }
+    }
 
     if (raw.content?.rules?.[0]) {
         const r = raw.content.rules[0];
-        delete r.id;
-        delete r.pack;
+        stripWrappers(r);
+
+        if (r.statLabels === undefined) r.statLabels = {};
+        if (r.memory === undefined) r.memory = 'deja-vu';
 
         if (Array.isArray(r.classes)) {
             for (const c of r.classes) {
-                delete c.id;
-                delete c.pack;
+                stripWrappers(c);
+                if (c.note === undefined) c.note = '';
                 if (c.parent) c.parent = shortenTypedRef(c.parent, packId);
                 if (Array.isArray(c.skills)) c.skills = c.skills.map(s => shortenTypedRef(s, packId));
             }
         }
         if (Array.isArray(r.skills)) {
             for (const s of r.skills) {
-                delete s.id;
-                delete s.pack;
+                stripWrappers(s);
+                if (s.note === undefined) s.note = '';
+                if (s.replaces === undefined) s.replaces = null;
                 if (s.replaces) s.replaces = shortenTypedRef(s.replaces, packId);
                 if (s.base?.unit?.class) s.base.unit.class = shortenTypedRef(s.base.unit.class, packId);
             }
         }
         if (Array.isArray(r.branches)) {
             for (const b of r.branches) {
-                delete b.id;
-                delete b.pack;
+                stripWrappers(b);
+                if (b.note === undefined) b.note = '';
                 if (b.skill) b.skill = shortenTypedRef(b.skill, packId);
                 if (b.fromForm) b.fromForm = shortenTypedRef(b.fromForm, packId);
             }
         }
         if (Array.isArray(r.itemRules)) {
             for (const ir of r.itemRules) {
+                if (ir.unique === undefined) ir.unique = false;
                 if (ir.def) ir.def = shortenTypedRef(ir.def, packId);
             }
         }
         if (Array.isArray(r.trainers)) {
             for (const trn of r.trainers) {
-                delete trn.id;
-                delete trn.pack;
+                stripWrappers(trn);
                 if (Array.isArray(trn.skills)) trn.skills = trn.skills.map(s => shortenTypedRef(s, packId));
                 if (Array.isArray(trn.eventTemplates)) trn.eventTemplates = trn.eventTemplates.map(e => shortenTypedRef(e, packId));
             }
@@ -2162,15 +2289,13 @@ function buildCanonicalDocument(doc, packId) {
 
     if (Array.isArray(raw.content?.items)) {
         for (const it of raw.content.items) {
-            delete it.id;
-            delete it.pack;
+            stripWrappers(it);
         }
     }
 
     if (Array.isArray(raw.content?.creatures)) {
         for (const f of raw.content.creatures) {
-            delete f.id;
-            delete f.pack;
+            stripWrappers(f);
             if (Array.isArray(f.skills)) f.skills = f.skills.map(s => shortenTypedRef(s, packId));
             if (Array.isArray(f.loot)) {
                 for (const l of f.loot) {
@@ -2182,8 +2307,7 @@ function buildCanonicalDocument(doc, packId) {
 
     if (Array.isArray(raw.content?.quests)) {
         for (const q of raw.content.quests) {
-            delete q.id;
-            delete q.pack;
+            stripWrappers(q);
             if (Array.isArray(q.requirements)) {
                 for (const req of q.requirements) {
                     if (req.kind === 'class' && Array.isArray(req.classes)) req.classes = req.classes.map(c => shortenTypedRef(c, packId));
@@ -2212,8 +2336,7 @@ function buildCanonicalDocument(doc, packId) {
 
     if (Array.isArray(raw.content?.shops)) {
         for (const s of raw.content.shops) {
-            delete s.id;
-            delete s.pack;
+            stripWrappers(s);
             // Place IDs stay qualified
             if (Array.isArray(s.stock)) {
                 for (const st of s.stock) {
@@ -2225,8 +2348,7 @@ function buildCanonicalDocument(doc, packId) {
 
     if (Array.isArray(raw.content?.recipes)) {
         for (const r of raw.content.recipes) {
-            delete r.id;
-            delete r.pack;
+            stripWrappers(r);
             if (r.known === undefined) r.known = rulesV2Schema.$defs.recipe?.properties?.known?.default ?? true;
             if (r.makes) r.makes = shortenTypedRef(r.makes, packId);
             if (Array.isArray(r.materials)) {
@@ -2239,8 +2361,7 @@ function buildCanonicalDocument(doc, packId) {
 
     if (Array.isArray(raw.content?.places)) {
         for (const p of raw.content.places) {
-            delete p.id;
-            delete p.pack;
+            stripWrappers(p);
         }
     }
 
@@ -2335,52 +2456,55 @@ export function validateRulesPack(pack, rawOptions = {}) {
         if (!constRes.ok) return constRes;
         const c = constRes.constants;
 
+        // Normalize safe detached value before SB/structural/semantic checking (NFC, trim, CRLF/CR -> LF)
+        const detachedVal = normalizeStructure(clonePlain(value));
+
         // Check envelope fields against closed PACK_FIELDS
-        for (const key of Object.keys(value)) {
+        for (const key of Object.keys(detachedVal)) {
             if (!PACK_FIELDS.includes(key)) {
                 return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, path: key, message: `Unknown pack envelope field: "${key}"` }] };
             }
         }
 
         // Validate envelope requirements
-        if (!value.id || typeof value.id !== 'string' || !PACK_ID.test(value.id)) {
+        if (!detachedVal.id || typeof detachedVal.id !== 'string' || !PACK_ID.test(detachedVal.id)) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'id', message: 'Pack id must be 1 to 40 lowercase letters, digits, or dashes' }] };
         }
-        if (!value.version || typeof value.version !== 'string' || !SEMVER.test(value.version)) {
+        if (!detachedVal.version || typeof detachedVal.version !== 'string' || !SEMVER.test(detachedVal.version)) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'version', message: 'Pack version must match semver syntax' }] };
         }
-        if (!value.requires || typeof value.requires !== 'object' || Array.isArray(value.requires)) {
+        if (!detachedVal.requires || typeof detachedVal.requires !== 'object' || Array.isArray(detachedVal.requires)) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'requires', message: 'Pack requires must be an object' }] };
         }
-        for (const rk of Object.keys(value.requires)) {
+        for (const rk of Object.keys(detachedVal.requires)) {
             if (rk !== 'storyBlock' && rk !== 'capabilities') {
                 return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, path: `requires.${rk}`, message: `"${rk}" is not a requires field` }] };
             }
         }
-        if (typeof value.requires.storyBlock !== 'string' || !parseRange(value.requires.storyBlock)) {
+        if (typeof detachedVal.requires.storyBlock !== 'string' || !parseRange(detachedVal.requires.storyBlock)) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'requires.storyBlock', message: 'requires.storyBlock must be a valid version range' }] };
         }
-        if (value.requires.capabilities !== undefined) {
-            if (!Array.isArray(value.requires.capabilities) || !value.requires.capabilities.every(cap => typeof cap === 'string' && SLUG.test(cap))) {
+        if (detachedVal.requires.capabilities !== undefined) {
+            if (!Array.isArray(detachedVal.requires.capabilities) || !detachedVal.requires.capabilities.every(cap => typeof cap === 'string' && SLUG.test(cap))) {
                 return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_CAPABILITY, path: 'requires.capabilities', message: 'requires.capabilities must be a list of capability slugs' }] };
             }
         }
 
-        if (!value.content || typeof value.content !== 'object' || Array.isArray(value.content)) {
+        if (!detachedVal.content || typeof detachedVal.content !== 'object' || Array.isArray(detachedVal.content)) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'content', message: 'Pack content must be an object' }] };
         }
-        for (const ck of Object.keys(value.content)) {
+        for (const ck of Object.keys(detachedVal.content)) {
             if (ck !== 'rules' && !CONTENT_KINDS.includes(ck)) {
                 return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN, path: `content.${ck}`, message: `"${ck}" is not a content kind` }] };
             }
         }
 
-        if (!Array.isArray(value.content.rules) || value.content.rules.length !== 1) {
+        if (!Array.isArray(detachedVal.content.rules) || detachedVal.content.rules.length !== 1) {
             return { ok: false, errors: [{ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: 'content.rules', message: 'Pack must carry exactly one rules manifest in content.rules[0]' }] };
         }
 
         // Run SB validatePack on detached legacy projection
-        const legacyProj = clonePlain(value);
+        const legacyProj = clonePlain(detachedVal);
         delete legacyProj.content.rules;
         legacyProj.content.creatures = [];
         legacyProj.content.quests = [];
@@ -2401,32 +2525,35 @@ export function validateRulesPack(pack, rawOptions = {}) {
             return { ok: false, errors: mapped };
         }
 
-        const rawManifest = value.content.rules[0];
-        const normRes = normalizeRulesV2(rawManifest, { packKey: value.id, constants: c });
+        const rawManifest = detachedVal.content.rules[0];
+        const normRes = normalizeRulesV2(rawManifest, { packKey: detachedVal.id, constants: c });
         if (!normRes.ok) return normRes;
 
-        const valRes = validateRulesV2(normRes.manifest, value.content, c);
+        const valRes = validateRulesV2(normRes.manifest, detachedVal.content, c);
         if (!valRes.ok) return valRes;
 
-        const expRes = expandRulesV2(normRes.manifest, value.content, c);
+        const expRes = expandRulesV2(normRes.manifest, detachedVal.content, c);
         if (!expRes.ok) return expRes;
 
+        // Build clean normalized pack with text normalization and recipe defaults
+        const normalizedPack = detachedVal;
+        normalizedPack.content.rules = [normRes.manifest];
+        if (Array.isArray(normalizedPack.content?.recipes)) {
+            for (const r of normalizedPack.content.recipes) {
+                if (r && typeof r === 'object' && r.known === undefined) {
+                    r.known = rulesV2Schema.$defs.recipe?.properties?.known?.default ?? true;
+                }
+            }
+        }
+
         // Build canonical document and hash for validateRulesPack and exportRulesV2
-        const canonicalPack = buildCanonicalDocument(value, value.id);
+        const canonicalPack = buildCanonicalDocument(normalizedPack, detachedVal.id);
         const hashPayload = canonicalizeJson({
             constants: c,
             pack: canonicalPack,
             schema: rulesV2Schema,
         });
         const hash = sha256(JSON.stringify(hashPayload));
-
-        const normalizedPack = {
-            ...clonePlain(value),
-            content: {
-                ...clonePlain(value.content),
-                rules: [normRes.manifest],
-            },
-        };
 
         return {
             ok: true,

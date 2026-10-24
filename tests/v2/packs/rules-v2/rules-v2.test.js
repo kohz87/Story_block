@@ -941,34 +941,311 @@ test('static valid-pack.json fixture validates cleanly with 0 errors', () => {
     assert.equal(res.errors.length, 0);
 });
 
-test('bad inputs never throw and return clean error result', () => {
-    const badInputs = [null, undefined, 42, NaN, 'not-json', true, [], {}];
+test('regression: fixture validity before negative mutations', () => {
+    const pack = makeValidExtendedPack();
+    const res = validateRulesPack(pack);
+    assert.equal(res.ok, true, 'base makeValidExtendedPack fixture must be completely valid before mutations');
+    assert.equal(res.errors.length, 0);
+    assert.ok(res.pack);
+    assert.ok(res.resolved);
+    assert.ok(typeof res.hash === 'string' && res.hash.length === 64);
+});
+
+test('regression: normalized-vs-raw export bytes and hash equivalence with missing defaults, CRLF, and un-trimmed strings', () => {
+    const rawPack = makeValidExtendedPack();
+    // Omit optional fields that have defaults
+    delete rawPack.content.rules[0].statLabels;
+    delete rawPack.content.rules[0].memory;
+    for (const c of rawPack.content.rules[0].classes) delete c.note;
+    for (const s of rawPack.content.rules[0].skills) {
+        delete s.note;
+        delete s.replaces;
+    }
+    for (const b of rawPack.content.rules[0].branches) delete b.note;
+    for (const ir of rawPack.content.rules[0].itemRules) delete ir.unique;
+    for (const r of rawPack.content.recipes) delete r.known;
+
+    // Inject unnormalized strings (CRLF, untrimmed whitespace, decomposed Unicode)
+    rawPack.name = '  Fixture \r\n Pack  ';
+    rawPack.content.rules[0].name = '  Rules \r\n Name  ';
+    rawPack.content.items[0].note = 'Note line 1\r\nline 2  ';
+    rawPack.content.items[0].name = '  P\u006f\u0301tion  '; // decomposed ó
+
+    const chk = validateRulesPack(rawPack);
+    assert.equal(chk.ok, true, 'raw pack with missing defaults and unnormalized strings must validate cleanly');
+    assert.equal(chk.errors.length, 0);
+
+    const expRaw = exportRulesV2(rawPack);
+    const expNorm = exportRulesV2(chk.pack);
+
+    assert.equal(expRaw.ok, true, 'export of raw pack must succeed');
+    assert.equal(expNorm.ok, true, 'export of normalized pack must succeed');
+    assert.equal(expRaw.text, expNorm.text, 'exported text must be byte-for-byte identical between raw and normalized inputs');
+    assert.equal(expRaw.hash, expNorm.hash, 'exported hash must be identical between raw and normalized inputs');
+    assert.equal(expRaw.hash, chk.hash, 'exported hash must match validateRulesPack hash');
+
+    // Roundtrip parsed export through exportRulesV2 again
+    const parsed = JSON.parse(expRaw.text);
+    const expRoundtrip = exportRulesV2(parsed);
+    assert.equal(expRoundtrip.ok, true);
+    assert.equal(expRoundtrip.text, expRaw.text, 'roundtrip re-export must produce identical text');
+    assert.equal(expRoundtrip.hash, expRaw.hash, 'roundtrip re-export must produce identical hash');
+});
+
+test('regression: NFC, whitespace trim, and CRLF line ending normalization across envelope and owned records', () => {
+    const pack = makeValidExtendedPack();
+    pack.name = '  Extended \r\n Pack  ';
+    pack.description = 'Desc\r\nline2';
+    pack.content.rules[0].name = '  Rules \r\n Manifest  ';
+    pack.content.rules[0].classes[0].name = '  Class \u0061\u0300  '; // decomposed à
+    pack.content.rules[0].classes[0].note = '  C0 note\r\nline2  ';
+    pack.content.rules[0].skills[0].name = '  Skill \u0065\u0301  '; // decomposed é
+    pack.content.rules[0].skills[0].note = '  Skill note\r\nline2  ';
+    pack.content.rules[0].branches[0].name = '  Branch \u0069\u0302  '; // decomposed î
+    pack.content.rules[0].branches[0].note = '  Branch note\r\nline2  ';
+    pack.content.items[0].name = '  Iron \u0053\u0077\u006f\u0072\u0064  ';
+    pack.content.items[0].note = '  Sword note\r\nline2  ';
+    pack.content.creatures[0].name = '  Goblin \r\n Scout  ';
+    pack.content.quests[0].name = '  Scout \r\n Quest  ';
+    pack.content.shops[0].name = '  Armory \r\n Shop  ';
+    pack.content.recipes[0].name = '  Potion \r\n Recipe  ';
+    pack.content.places[0].name = '  Haven \r\n Town  ';
+    pack.content.rules[0].trainers[0].name = '  Master \r\n Blade  ';
+
+    const res = validateRulesPack(pack);
+    assert.equal(res.ok, true);
+    assert.equal(res.errors.length, 0);
+
+    // Verify envelope strings normalized
+    assert.equal(res.pack.name, 'Extended \n Pack');
+    assert.equal(res.pack.description, 'Desc\nline2');
+    assert.equal(res.pack.content.rules[0].name, 'Rules \n Manifest');
+
+    // Verify owned records NFC and whitespace trim
+    assert.equal(res.pack.content.rules[0].classes[0].name, 'Class \u00e0');
+    assert.equal(res.pack.content.rules[0].classes[0].note, 'C0 note\nline2');
+    assert.equal(res.pack.content.rules[0].skills[0].name, 'Skill \u00e9');
+    assert.equal(res.pack.content.rules[0].skills[0].note, 'Skill note\nline2');
+    assert.equal(res.pack.content.rules[0].branches[0].name, 'Branch \u00ee');
+    assert.equal(res.pack.content.rules[0].branches[0].note, 'Branch note\nline2');
+    assert.equal(res.pack.content.items[0].name, 'Iron Sword');
+    assert.equal(res.pack.content.items[0].note, 'Sword note\nline2');
+    assert.equal(res.pack.content.creatures[0].name, 'Goblin \n Scout');
+    assert.equal(res.pack.content.quests[0].name, 'Scout \n Quest');
+    assert.equal(res.pack.content.shops[0].name, 'Armory \n Shop');
+    assert.equal(res.pack.content.recipes[0].name, 'Potion \n Recipe');
+    assert.equal(res.pack.content.places[0].name, 'Haven \n Town');
+    assert.equal(res.pack.content.rules[0].trainers[0].name, 'Master \n Blade');
+
+    const exported = exportRulesV2(pack);
+    assert.equal(exported.ok, true);
+    assert.ok(!exported.text.includes('\r\n'), 'exported text must not contain carriage returns');
+});
+
+test('regression: section 10 D - generated-parent step2 branch expands and stays within budget', () => {
+    const pack = smallRulesPack();
+    const res = validateRulesPack(pack);
+    assert.equal(res.ok, true);
+
+    const norm = normalizeRulesV2(pack.content.rules[0], { packKey: pack.id });
+    const exp = expandRulesV2(norm.manifest, pack.content, RULES_V2_CONSTANTS);
+    assert.equal(exp.ok, true);
+
+    // Verify step 1 generated parent exists
+    const genParentId = 'pack.fixture/s30-base-g';
+    assert.ok(exp.resolved.forms[genParentId], 'step 1 generated parent must exist');
+    assert.equal(exp.resolved.forms[genParentId].step, 1);
+    assert.equal(exp.resolved.forms[genParentId].origin, 'generated');
+    assert.equal(exp.resolved.forms[genParentId].fromForm, 'pack.fixture/s30-base');
+
+    // Verify step 2 written branches from generated parent exist
+    const step2WrittenA = 'pack.fixture/s30-base-g-a';
+    const step2WrittenB = 'pack.fixture/s30-base-g-b';
+    assert.ok(exp.resolved.forms[step2WrittenA], 'step 2 written branch a from generated parent must exist');
+    assert.equal(exp.resolved.forms[step2WrittenA].step, 2);
+    assert.equal(exp.resolved.forms[step2WrittenA].origin, 'written');
+    assert.equal(exp.resolved.forms[step2WrittenA].fromForm, genParentId);
+
+    assert.ok(exp.resolved.forms[step2WrittenB], 'step 2 written branch b from generated parent must exist');
+    assert.equal(exp.resolved.forms[step2WrittenB].step, 2);
+    assert.equal(exp.resolved.forms[step2WrittenB].origin, 'written');
+    assert.equal(exp.resolved.forms[step2WrittenB].fromForm, genParentId);
+
+    // Verify step 2 generated branch from generated parent exists
+    const step2GenG = 'pack.fixture/s30-base-g-g';
+    assert.ok(exp.resolved.forms[step2GenG], 'step 2 generated branch g from generated parent must exist');
+    assert.equal(exp.resolved.forms[step2GenG].step, 2);
+    assert.equal(exp.resolved.forms[step2GenG].origin, 'generated');
+    assert.equal(exp.resolved.forms[step2GenG].fromForm, genParentId);
+
+    // Verify budget closure at step 2 (48 + 2 * 12 = 72)
+    const step2Budget = RULES_V2_CONSTANTS.classBudget[3] + 2 * RULES_V2_CONSTANTS.pathBudgetIncrement;
+    assert.equal(step2Budget, 72);
+    assert.ok(exp.resolved.forms[step2WrittenA].powerScore <= step2Budget);
+    assert.ok(exp.resolved.forms[step2WrittenB].powerScore <= step2Budget);
+    assert.ok(exp.resolved.forms[step2GenG].powerScore <= step2Budget);
+});
+
+test('regression: section 10 D - 12-versus-24 written graph rejects missing step 2 branches with BRANCH_GRAPH', () => {
+    const { pack } = makeBrokenPack('missing-step2-branch');
+    const res = validateRulesPack(pack);
+    assert.equal(res.ok, false);
+    assert.ok(
+        res.errors.some(e => e.code === RULES_V2_ERROR_CODES.BRANCH_GRAPH && e.path.includes('branches')),
+        'missing step 2 branch must fail with BRANCH_GRAPH'
+    );
+});
+
+test('regression: section 10 D - class hierarchy failures (cycle, leaf not tier 3, root not tier 0, orphan) reject with TIER_CHAIN', () => {
+    // Cycle in classes (c1 <-> c2)
+    const { pack: packCycle } = makeBrokenPack('cycle-class');
+    const resCycle = validateRulesPack(packCycle);
+    assert.equal(resCycle.ok, false);
+    assert.ok(resCycle.errors.some(e => e.code === RULES_V2_ERROR_CODES.TIER_CHAIN));
+
+    // Leaf class not tier 3
+    const { pack: packLeaf } = makeBrokenPack('leaf-not-tier3');
+    const resLeaf = validateRulesPack(packLeaf);
+    assert.equal(resLeaf.ok, false);
+    assert.ok(resLeaf.errors.some(e => e.code === RULES_V2_ERROR_CODES.TIER_CHAIN));
+
+    // Root class not tier 0
+    const { pack: packRoot } = makeBrokenPack('root-not-tier0');
+    const resRoot = validateRulesPack(packRoot);
+    assert.equal(resRoot.ok, false);
+    assert.ok(resRoot.errors.some(e => e.code === RULES_V2_ERROR_CODES.TIER_CHAIN));
+
+    // Orphan class pointing to nonexistent class
+    const { pack: packOrphan } = makeBrokenPack('orphan-class');
+    const resOrphan = validateRulesPack(packOrphan);
+    assert.equal(resOrphan.ok, false);
+    assert.ok(resOrphan.errors.some(e => e.code === RULES_V2_ERROR_CODES.TIER_CHAIN || e.code === RULES_V2_ERROR_CODES.BAD_REF));
+});
+
+test('regression: section 10 D - item rule failures (2H offhand and non-equip slots) reject with ITEM_RULE_MISMATCH', () => {
+    // 2H weapon occupying offhand
+    const { pack: pack2H } = makeBrokenPack('item-rule-2h-offhand');
+    const res2H = validateRulesPack(pack2H);
+    assert.equal(res2H.ok, false);
+    assert.ok(res2H.errors.some(e => e.code === RULES_V2_ERROR_CODES.ITEM_RULE_MISMATCH));
+
+    // Non-equipment consumable item with allowedSlots
+    const { pack: packNonEquip } = makeBrokenPack('item-rule-non-equip-slot');
+    const resNonEquip = validateRulesPack(packNonEquip);
+    assert.equal(resNonEquip.ok, false);
+    assert.ok(resNonEquip.errors.some(e => e.code === RULES_V2_ERROR_CODES.ITEM_RULE_MISMATCH));
+});
+
+test('regression: section 10 D - unknown kind in content rejects with ENVELOPE_UNKNOWN', () => {
+    const { pack } = makeBrokenPack('unknown-kind');
+    const res = validateRulesPack(pack);
+    assert.equal(res.ok, false);
+    assert.ok(res.errors.some(e => e.code === RULES_V2_ERROR_CODES.ENVELOPE_UNKNOWN && e.path.includes('unknownKind')));
+});
+
+test('regression: section 10 D - generated-legendary power-up generation rejects with BAD_RULES', () => {
+    const { form } = makeBrokenPack('generated-legendary');
+    const res = generatePowerUp(form, RULES_V2_CONSTANTS);
+    assert.equal(res.ok, false);
+    assert.equal(res.errors[0].code, RULES_V2_ERROR_CODES.BAD_RULES);
+});
+
+test('regression: section 10 D - defaults application across envelope and owned records', () => {
+    const pack = makeValidExtendedPack();
+    delete pack.content.rules[0].statLabels;
+    delete pack.content.rules[0].memory;
+    delete pack.content.rules[0].classes[0].note;
+    delete pack.content.rules[0].skills[0].note;
+    delete pack.content.rules[0].skills[0].replaces;
+    delete pack.content.rules[0].branches[0].note;
+    delete pack.content.rules[0].itemRules[0].unique;
+    delete pack.content.recipes[0].known;
+
+    const res = validateRulesPack(pack);
+    assert.equal(res.ok, true);
+
+    assert.deepEqual(res.pack.content.rules[0].statLabels, {});
+    assert.equal(res.pack.content.rules[0].memory, 'deja-vu');
+    assert.equal(res.pack.content.rules[0].classes[0].note, '');
+    assert.equal(res.pack.content.rules[0].skills[0].note, '');
+    assert.equal(res.pack.content.rules[0].skills[0].replaces, null);
+    assert.equal(res.pack.content.rules[0].branches[0].note, '');
+    assert.equal(res.pack.content.rules[0].itemRules[0].unique, false);
+    assert.equal(res.pack.content.recipes[0].known, true);
+    assert.equal(res.resolved.recipes['pack.fixture/brew-potion'].known, true);
+});
+
+test('bad inputs never throw and return clean error result across all public APIs', () => {
+    const circular = {};
+    circular.self = circular;
+
+    const badInputs = [
+        null,
+        undefined,
+        42,
+        -1,
+        0,
+        3.14,
+        NaN,
+        Infinity,
+        -Infinity,
+        '',
+        'not-json',
+        '{ bad json',
+        true,
+        false,
+        Symbol('sym'),
+        () => {},
+        [],
+        [1, 2, 3],
+        {},
+        { id: 123 },
+        circular,
+        Object.create(null),
+    ];
+
     for (const bad of badInputs) {
         assert.doesNotThrow(() => {
             const res = validateRulesPack(bad);
-            assert.equal(res.ok, false);
+            assert.equal(typeof res.ok, 'boolean');
             assert.ok(Array.isArray(res.errors));
-        });
+        }, `validateRulesPack threw on: ${String(bad)}`);
+
         assert.doesNotThrow(() => {
             const res = normalizeRulesV2(bad, { packKey: 'fixture' });
-            assert.equal(res.ok, false);
+            assert.equal(typeof res.ok, 'boolean');
             assert.ok(Array.isArray(res.errors));
-        });
+        }, `normalizeRulesV2 threw on: ${String(bad)}`);
+
         assert.doesNotThrow(() => {
-            const res = powerScore(bad);
-            assert.equal(res.ok, false);
+            const res = validateRulesV2(bad, {}, RULES_V2_CONSTANTS);
+            assert.equal(typeof res.ok, 'boolean');
             assert.ok(Array.isArray(res.errors));
-        });
+        }, `validateRulesV2 threw on: ${String(bad)}`);
+
         assert.doesNotThrow(() => {
-            const res = generatePowerUp(bad);
-            assert.equal(res.ok, false);
+            const res = expandRulesV2(bad, {}, RULES_V2_CONSTANTS);
+            assert.equal(typeof res.ok, 'boolean');
             assert.ok(Array.isArray(res.errors));
-        });
+        }, `expandRulesV2 threw on: ${String(bad)}`);
+
         assert.doesNotThrow(() => {
             const res = exportRulesV2(bad);
-            assert.equal(res.ok, false);
-            assert.ok(Array.isArray(res.errors));
-        });
+            assert.equal(typeof res.ok, 'boolean');
+            if (!res.ok) assert.ok(Array.isArray(res.errors));
+        }, `exportRulesV2 threw on: ${String(bad)}`);
+
+        assert.doesNotThrow(() => {
+            const res = powerScore(bad);
+            assert.equal(typeof res.ok, 'boolean');
+            if (!res.ok) assert.ok(Array.isArray(res.errors));
+        }, `powerScore threw on: ${String(bad)}`);
+
+        assert.doesNotThrow(() => {
+            const res = generatePowerUp(bad);
+            assert.equal(typeof res.ok, 'boolean');
+            if (!res.ok) assert.ok(Array.isArray(res.errors));
+        }, `generatePowerUp threw on: ${String(bad)}`);
     }
 });
 
