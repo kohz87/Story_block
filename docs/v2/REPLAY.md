@@ -178,14 +178,16 @@ Windows with no guarded block carry nothing new, and checkpoints of older chats 
   again** by `rerun(state, receipt, { index, span })` on the state as it stands at its place, on this reply and
   on later ones: the old block (ops, claims, receipt) is not applied, the new one takes its place with the same
   block id, source ordinal, receipt id and seed (no new roll), and it claims again on the state without the old
-  claim, so it claims once. If it is not done any more, the block, its claims and its receipt all go. All or
-  nothing: a later legacy change that no longer applies throws and nothing is written.
+  claim, so it claims once. If it is not done any more, the block, its claims and its receipt all go. A Re-read or
+  reconcile writes all of its records or none: if a later legacy change no longer applies, that call throws and writes
+  nothing, which also means the steps after the change are **not** planned again then (the turn reports it as a Problem
+  and they stay as they were, possibly out of date, until a later change lets the walk through).
 * The step is asked again with what its **span** saved (`info.replan`: `type`, `payload`, `seed`); the receipt is only
   what was shown. Only an owner that answers **`NO_LONGER_DONE`** (`ctx.fail('NO_LONGER_DONE', …)`, exported as
   `NO_LONGER_DONE` from `store.js`) removes the block. When the step cannot be asked (the command is gone, the owner
   is held back or a feature is off, it threw, any other refusal) the old block is left exactly as it is and replayed as
   it was, so its guard decides: it stays off with `REPLAY_PREREQUISITE` when its guard fails. A step planned again to
-  what it was changes nothing and writes nothing.
+  what it was changes no ops, receipt or result; its stored boundaries are rewritten when where it stands has moved.
 * `store.reconcile(index, { rerun })` does the same from carrier `index` to the head without a Re-read and returns
   `{ changed, planned, removed }`. **The turn calls it by itself** after a delete or swipe (not when a chat opens), from
   the first carrier that holds such a step, in the same save window, never while the story record is read-only, and only
@@ -193,13 +195,21 @@ Windows with no guarded block carry nothing new, and checkpoints of older chats 
   planned again or taken back is a quiet Problem (`REPLANNED`).
 * Revs after a planned-again block are numbered on from its rev, on the same reply and on every reply after it, so no
   two receipts share one and the order never goes back. The boundaries (`prefixHash`) of steps planned again follow
-  what the reconcile has staged, not the chat as it stands (`store.boundaryProblems()` lists any that do not match),
+  what the reconcile has staged, not the chat as it stands (`store.boundaryProblems()` lists any that do not match; it
+  is clean for the steps planned again from where the walk started, not for guarded blocks without a `replan`, whose
+  `prefixHash` is not rewritten when something before them changes, nor for a step before a still-valid checkpoint, which
+  `store.replansFrom()` does not know of until a replay reaches it),
   and that holds also for a step planned again to the same result: its ops, receipt and result stay, its boundaries are
   stored as they now are. A Re-read or a reconcile also numbers the revs after the replies it rewrote on from the rev
-  they ended on, so receipt revs are strictly increasing along the chat and the head's rev is the last.
+  they ended on, so receipt revs are strictly increasing along the chat and the head's rev is the last. Every receipt a
+  block stands for follows its ops through every rev they move to (not only the last), so a guarded receipt is never
+  detached from its block; a record whose guarded receipt names none of its ops (an older build's) keeps all of its blocks
+  inactive (`REPLAY_PREREQUISITE`).
   Delete and swipe publish one head, after the steps that follow were planned again. Deleting the swipe that is shown
-  is one change: SillyTavern tells of the deletion before it shows the next swipe, and the head is read and told of
-  when that swipe is loaded, not on the half-way state.
+  is one change: SillyTavern tells of the deletion before it shows the next swipe. The shown swipe is told by whose
+  record `extra` holds (stamped with the deleted index, or another swipe's own record in the slot), not by its text;
+  until the swipe is loaded (`MESSAGE_SWIPED`) nothing is rebuilt, restamped, reconciled or published and no record is
+  written, and a record is never mirrored over a slot that holds another swipe's own record. The load then does it once.
 
 ## Preserved records
 

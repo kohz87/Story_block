@@ -421,6 +421,14 @@ export function createStore({
     // `receipts`: one receipt or all those the block stands for (a block whose span is gone may stand for several: every one counts).
     const isGuardedBlock = (span, receipts) => isMetaSpan(span) || [receipts].flat().some(receipt => receipt?.guarded === true);
 
+    // A guarded receipt that names none of its record's changes (an older build renumbered the changes apart from it): what it
+    // guarded cannot be told, so the record's plain blocks are not taken for legacy ones either (both are inactive).
+    const orphanGuard = record => {
+        const revs = new Set(record.ops.filter(op => op?.path === '/meta/rev').map(op => op.value));
+        return record.receipts.some(receipt => receipt?.guarded === true && !revs.has(receipt.rev));
+    };
+    const ORPHAN = 'a guarded receipt of this reply names none of its stored changes, so what it guarded cannot be told';
+
     // The receipts whose changes are in `ops` (each receipt's ops end with its `/meta/rev` op), in the record's order.
     const receiptsFor = (record, ops) => {
         const revs = new Set(ops.filter(op => op?.path === '/meta/rev' && Number.isInteger(op.value)).map(op => op.value));
@@ -864,13 +872,15 @@ export function createStore({
         const rewrites = plans || running !== null;
         const out = rewrites ? { parts: [], gone: new Map(), changed: false, running, planned: 0, removed: 0 } : null;
         const anyGuardedReceipt = record.receipts.some(each => each?.guarded === true);
+        const orphan = anyGuardedReceipt && orphanGuard(record);
         parts.forEach(({ ops, span: stored }, block) => {
             let span = stored;
             const receipt = rewrites || anyGuardedReceipt ? record.receipts.find(each => each?.rev === revOfOps(ops)) ?? null : null;
             let blockOps = ops;
-            let kept = receipt;
+            const stands = rewrites || anyGuardedReceipt ? receiptsFor(record, ops) : [];     // every receipt this block's ops are
+            const remapped = new Map();                                                       // receipt → the same receipt at its new rev
             if (rewrites && out.running !== null) {
-                let moved = null;
+                const moves = new Map();
                 blockOps = ops.map(op => {
                     if (op?.path !== '/meta/rev' || !Number.isInteger(op.value)) return op;
                     if (op.value > out.running) {
@@ -878,25 +888,27 @@ export function createStore({
                         return op;
                     }
                     out.running += 1;
-                    moved = [op.value, out.running];
+                    moves.set(op.value, out.running);
                     return { ...op, value: out.running };
                 });
-                if (moved) {
+                if (moves.size) {
                     out.changed = true;
-                    if (receipt?.rev === moved[0]) kept = { ...receipt, rev: moved[1] };
+                    // (every receipt of the block follows its ops, not only the last one: a block that stands for several
+                    // receipts keeps each of them, the guarded one too, tied to its changes)
+                    for (const each of stands) if (moves.has(each.rev)) remapped.set(each, { ...each, rev: moves.get(each.rev) });
                 }
             }
             const keep = () => {
                 if (!rewrites) return;
                 out.parts.push({ ops: blockOps, span });
-                if (receipt && kept !== receipt) out.gone.set(receipt, kept);
+                for (const [was, now] of remapped) out.gone.set(was, now);
             };
             if (skip?.has(`${index}:${block}`)) {
                 state = skipped(state, blockOps);
                 keep();
                 return;
             }
-            const guarded = isGuardedBlock(span, anyGuardedReceipt ? receiptsFor(record, ops) : null);
+            const guarded = orphan || isGuardedBlock(span, anyGuardedReceipt ? stands : null);
             if (plans && isMetaSpan(span) && span.guard && span.replan && receipt) {
                 const done = replanned(state, record, index, span, receipt, blockOps, out, rerun);
                 if (!done.kept) {
@@ -915,6 +927,7 @@ export function createStore({
                 // It could not be asked: the block stays as it was, replayed as any block is (its guard decides).
             }
             try {
+                if (orphan && !isMetaSpan(span)) throw prerequisite(ORPHAN);
                 state = guarded ? replayGuarded(state, record, blockOps, span, message, receipt) : step(state, blockOps, { replayed: true });
                 keep();
             } catch (error) {
@@ -1309,7 +1322,9 @@ export function createStore({
                 if (kind !== 'legacy' && kind !== 'damaged') continue;
                 // Every record set aside is kept, in the order it was: a later repair adds to the list, never replaces an entry.
                 const earlier = message.extra.storySuiteAside;
-                const kept = Array.isArray(earlier) ? earlier : earlier === undefined ? [] : [{ kind: 'earlier', record: earlier }];
+                // (a list of { kind, record } entries is ours; anything else that is there, an array of records from before included, is one earlier record)
+                const ours = Array.isArray(earlier) && earlier.every(entry => isObject(entry) && typeof entry.kind === 'string' && Object.hasOwn(entry, 'record'));
+                const kept = ours ? earlier : earlier === undefined ? [] : [{ kind: 'earlier', record: earlier }];
                 message.extra.storySuiteAside = [...kept, { kind, record: structuredClone(raw) }];
                 delete message.extra[KEY];
                 const info = Array.isArray(message.swipe_info) ? message.swipe_info[swipeOf(message)] : null;
@@ -1637,6 +1652,7 @@ export function createStore({
             }
             const keptSpans = [];
             const moved = new Map();
+            const orphan = orphanGuard(record);
             // The afterCapture steps run again, right after the new story ops (their revs follow them).
             for (const ran of resettle ? settled : []) {
                 const blockOps = asOps(ran.ops);
@@ -1682,7 +1698,6 @@ export function createStore({
                     }
                 }
                 if (!again) {
-                    let renumbered = null;
                     blockOps = block.map(op => {
                         if (op?.path !== '/meta/rev' || !Number.isInteger(op.value)) return op;
                         if (op.value > rev) {
@@ -1690,16 +1705,14 @@ export function createStore({
                             return op;
                         }
                         rev += 1;
-                        renumbered = [op.value, rev];
                         moved.set(op.value, rev);
                         return { ...op, value: rev };
                     });
-                    if (renumbered && kept?.rev === renumbered[0]) kept.rev = renumbered[1];
                 }
                 // A kept guarded block is asked again here (its guard may not hold on the new story): then
                 // it stays stored and inactive. A block planned again is applied as a live command is.
                 const meta = isMetaSpan(was);
-                const guarded = isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block));       // (the one classifier: a stripped span is still a guarded block)
+                const guarded = orphan || isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block));       // (the one classifier: a stripped span is still a guarded block)
                 try {
                     state = again ? step(state, blockOps) : guarded ? replayGuarded(state, record, blockOps, was, message, receipt) : step(state, blockOps, { replayed: true });
                 } catch (error) {
@@ -1723,10 +1736,9 @@ export function createStore({
                 nextParts.push({ ops: blockOps, span });
                 if (kept) nextReceipts.push(kept);
             }
-            if (!paired) {
-                for (const receipt of keptReceipts) if (moved.has(receipt.rev)) receipt.rev = moved.get(receipt.rev);
-                nextReceipts.push(...keptReceipts);
-            }
+            // Every kept receipt follows its ops through every rev they moved to (once: by the rev it had), the guarded one too.
+            for (const receipt of keptReceipts) if (moved.has(receipt.rev)) receipt.rev = moved.get(receipt.rev);
+            if (!paired) nextReceipts.push(...keptReceipts);
             const allSpans = [...storySpans, ...keptSpans];
             const rewritten = {
                 ...record,
@@ -1852,7 +1864,7 @@ export function createStore({
             // replay rules: a remove of what a deleted reply added is passed over), so a chat that
             // replays fine is not refused. A kept block that still does not apply refuses the rewind.
             const problems = [];
-            const state = replayRecord(base, { ...record, ops, spans }, index, problems, null, message);
+            const state = replayRecord(base, { ...record, ops, spans, receipts }, index, problems, null, message);
             // (a guarded block whose guard no longer holds stays stored and inactive; it does not refuse)
             const refusing = problems.filter(problem => problem.code !== 'REPLAY_PREREQUISITE');
             if (refusing.length) throw new Error(refusing[0].why);
