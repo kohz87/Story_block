@@ -42,7 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { evidenceDigest, evidenceProblem, merged, nextOccurrence, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, takenAfter, touchesProof } from './evidence.js';
+import { allocator, evidenceDigest, evidenceProblem, merged, nextOccurrence, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, spanOperationKey, takenAfter, touchesProof } from './evidence.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -666,23 +666,6 @@ export function createStore({
         if (walkProofs && isMetaSpan(span) && Array.isArray(span.evidence)) for (const proof of span.evidence) walkProofs.set(proof.id, Object.freeze({ proof, block: span.id, index: at }));
     }
 
-    // How many of the blocks `parts` did what `operation` does (its command and line): the rank a new block of that operation has among them.
-    const operationKeys = new WeakMap();     // span → its operation's key (a span is never changed in place)
-    function keyOfSpan(span) {
-        let key = operationKeys.get(span);
-        if (key === undefined) {
-            try { key = operationKey(span.operation.type, span.operation.payload); } catch { key = null; }
-            operationKeys.set(span, key);
-        }
-        return key;
-    }
-    const sameOperation = (part, key) => isMetaSpan(part.span) && isObject(part.span.operation) && keyOfSpan(part.span) === key;
-    const rankIn = (parts, operation) => {
-        let key = null;
-        try { key = operationKey(operation?.type, operation?.payload); } catch { return 0; }
-        return parts.filter(part => sameOperation(part, key)).length;
-    };
-
     function stamp(arr, index, record, block, ops, receipt, earlier, offset) {
         const entry = record.source;
         const planned = block.source;
@@ -695,17 +678,20 @@ export function createStore({
         // a Re-read of an unchanged line, a reload and an earlier block that goes all leave it as it was. A block stored before there was one
         // has the id it was stamped with, and keeps its rank among the blocks that did the same.
         let id = block.id;
+        let occurrence = occurrenceOf(block);
         if (typeof id !== 'string') {
-            let key = null;
+            let key = '';
             try { key = operationKey(block.operation?.type, block.operation?.payload); } catch { key = ''; }
-            id = blockIdOf({ sid: entry.logical, swipeKey: entry.swipeKey, key, rank: occurrenceOf(block) ?? rankIn(earlier, block.operation) });
+            // (a block handed over with no number, by a caller that did not allocate one: the reply's next unused, from the same record the allocator reads)
+            occurrence ??= Math.max(nextOccurrence(record, key), earlier.filter(part => isMetaSpan(part.span) && spanOperationKey(part.span) === key).length);
+            id = blockIdOf({ sid: entry.logical, swipeKey: entry.swipeKey, key, rank: occurrence });
         }
         const revOp = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value));
         const message = arr[index];
         const span = {
             id, module: block.module, source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal },
             guard: block.guard ?? null, claims: claimKeys(ops), evidence: structuredClone(block.evidence ?? []),
-            ...(occurrenceOf(block) !== null ? { occurrence: block.occurrence } : {}),
+            ...(occurrence !== null ? { occurrence } : {}),
             boundaries: [{
                 cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: id, op: offset, rev: Math.max(0, (revOp ? revOp.value : 1) - 1) },
                 prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: blocksBefore(earlier) }),
@@ -1160,6 +1146,15 @@ export function createStore({
         return { state, fields: { ops, receipts, spans, source: advanced(record.source, spans), planned: out.planned, removed: out.removed }, running: out.running };
     }
 
+    // The occurrence a block planned again gives its proof: the one it was stamped with, else (a block that gave no proof until now) the next one
+    // nobody has used in its reply, from the plan's one allocator (evidence.js allocator).
+    function occurrenceFor(span, alloc) {
+        const stored = occurrenceOf(span);
+        if (stored !== null) return stored;
+        const key = spanOperationKey(span);
+        return key ? alloc.take(key) : undefined;
+    }
+
     // One guarded system block planned again on `state` (replayBlocks). → { state } the state after the new block
     // (or after the old one when it comes out the same: nothing changes), { state: null } when the owner says the
     // step is NO_LONGER_DONE (the block, its claims and its receipt go), or { kept: true, why } when it could not
@@ -1171,8 +1166,7 @@ export function createStore({
         let planned = null;
         let failure = '';
         try {
-            const nth = rankIn(out.parts, span.operation);
-            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, nth, occurrence: occurrenceOf(span) ?? nth });
+            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, occurrence: occurrenceFor(span, (out.alloc ??= allocator(record))) });
         } catch (error) {
             failure = `it threw (${error?.message ?? error})`;
         }
@@ -1973,6 +1967,8 @@ export function createStore({
             const nextOps = [...fresh];
             const nextReceipts = [];
             const nextParts = [];     // [{ ops, span }] of the record being built, for the boundaries' prefix hashes
+            // (the occurrences the blocks built so far hold, so a kept step that starts giving proof takes one nobody has)
+            const keptAlloc = allocator(record, key => nextParts.reduce((most, part) => (Array.isArray(part.span?.evidence) && part.span.evidence.length && occurrenceOf(part.span) !== null && spanOperationKey(part.span) === key ? Math.max(most, occurrenceOf(part.span) + 1) : most), 0));
             const storySpans = [];
             // The new story lines: each guarded one a block of its own, the others together as one (as before).
             const replacedIds = new Set(spans.filter(span => span.story && isMetaSpan(span)).map(span => span.id));
@@ -2047,8 +2043,7 @@ export function createStore({
                 const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
-                    const nth = isMetaSpan(was) ? rankIn(nextParts, was.operation) : undefined;
-                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, nth, occurrence: occurrenceOf(was) ?? nth }); } catch { out = null; }
+                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, occurrence: isMetaSpan(was) ? occurrenceFor(was, keptAlloc) : undefined }); } catch { out = null; }
                     // A guarded step goes only when its owner says it is no longer done; when it cannot be asked it stays.
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)
@@ -2101,7 +2096,7 @@ export function createStore({
                         } else {
                             // A Re-read moves a kept block's position and nothing else: its cursor and prefix hash follow where it stands now,
                             // but its payload hash, evidence, claims, guard, source and results are the ones it was stored with.
-                            const placed = stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, evidence: was.evidence, id: was.id }, blockOps, kept, nextParts, nextOps.length);
+                            const placed = stamp(arr, index, record, { module: was.module, source: was.source, guard: was.guard, operation: was.operation, recorded: was.recorded, result: was.result, evidence: was.evidence, occurrence: was.occurrence, id: was.id }, blockOps, kept, nextParts, nextOps.length);
                             span = { ...was, n: blockOps.length, story: false,
                                 boundaries: was.boundaries.map((boundary, at) => (at === 0 ? { ...boundary, cursor: placed.boundaries[0].cursor, prefixHash: placed.boundaries[0].prefixHash } : boundary)) };
                         }

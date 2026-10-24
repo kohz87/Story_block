@@ -316,6 +316,8 @@ export function evidenceProblem(span, ops) {
     if (writes) return writes;
     const shape = opShapeProblem(ops);
     if (shape) return shape;
+    // A block with proof and no occurrence is from a build before proof was released: not supported, so it fails closed.
+    if (list.length && occurrenceOf(span) === null) return 'its proof has no occurrence (a block written before proof was released is not supported)';
     for (const proof of list) {
         const why = proofProblem(proof);
         if (why) return `a proof of the block is not whole: ${why}`;
@@ -490,8 +492,8 @@ export function operationKey(type, payload) {
 // apart by their occurrence: a whole number given to a block once, when it is first stamped, kept in its span (`span.occurrence`) and
 // never worked out again. A step planned again, a reconcile, a Re-read of text that did not change and a rebuild all use the one the
 // block has, so an earlier block that goes cannot move the later ones onto its identity. A new block takes the next number nobody
-// has used in that reply (`record.source.taken`, kept past the blocks that go, and the numbers of the blocks that stand). A block
-// stored before this, with no number, keeps its rank among the blocks that did the same, as it always had.
+// has used in that reply (`record.source.taken`, kept past the blocks that go, and the numbers of the blocks that stand). A block that
+// gives proof and has no number was written by a build before proof was released: it is not supported (evidenceProblem) and fails closed.
 
 const whole = value => (Number.isInteger(value) && value >= 0 ? value : null);
 
@@ -519,60 +521,82 @@ export function takenAfter(entry, spans) {
 /** The next occurrence nobody has used in `record` (the reply) for the operation `key`. */
 export function nextOccurrence(record, key) {
     let next = whole(record?.source?.taken?.[takenKey(key)]) ?? 0;
-    let count = 0;
     for (const span of Array.isArray(record?.spans) ? record.spans : []) {
-        if (!isObject(span) || typeof span.id !== 'string' || spanOperationKey(span) !== key) continue;
-        count += 1;
+        if (!isObject(span) || !Array.isArray(span.evidence) || !span.evidence.length || spanOperationKey(span) !== key) continue;
         const at = occurrenceOf(span);
         if (at !== null) next = Math.max(next, at + 1);
     }
-    return Math.max(next, count);
+    return next;
 }
 
-// The spans of a record that a Re-read gives again (its story lines and the steps afterCapture asked for), with the number each has:
-// the one it was stamped with, or (a block from before there was one) its rank among the blocks of its record that did the same.
+/**
+ * The one place a new occurrence is allocated. A plan (a Re-read, a reconcile of a record) works on one allocator per record: it starts from
+ * what the record holds (`nextOccurrence`: `record.source.taken` and the numbers of the blocks that stand, `also(key)`: numbers the plan has
+ * given in blocks not stored yet) and moves on after each number it gives, so two blocks of one plan never take the same one. Nothing is
+ * kept in the record until the plan is stored (the span's `occurrence` and `takenAfter` do that).
+ * → { peek(key), note(key, value), take(key) }: the next number for an operation, a number used, and both.
+ */
+export function allocator(record, also = () => 0) {
+    const given = new Map();
+    const peek = key => Math.max(nextOccurrence(record, key), also(key), given.get(key) ?? 0);
+    const note = (key, value) => given.set(key, Math.max(given.get(key) ?? 0, value + 1));
+    return { peek, note, take(key) { const value = peek(key); note(key, value); return value; } };
+}
+
+// The proof spans of a record that a Re-read gives again (its story lines and the steps afterCapture asked for), with the number each has.
 function regeneratedOccurrences(record) {
     const spans = Array.isArray(record?.spans) ? record.spans : [];
     const receipts = Array.isArray(record?.receipts) ? record.receipts : [];
     const out = new Map();
-    const rank = new Map();
     let at = 0;
     for (const span of spans) {
         const ops = Array.isArray(record?.ops) && Number.isInteger(span?.n) ? record.ops.slice(at, at + span.n) : [];
         at += Number.isInteger(span?.n) ? span.n : 0;
         if (!isObject(span) || typeof span.id !== 'string') continue;
-        const key = spanOperationKey(span);
+        const key = Array.isArray(span.evidence) && span.evidence.length && occurrenceOf(span) !== null ? spanOperationKey(span) : null;
         if (!key) continue;
-        const mine = rank.get(key) ?? 0;
-        rank.set(key, mine + 1);
         const rev = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
         const step = !!span.replan && receipts.some(receipt => receipt?.rev === rev && receipt?.afterCapture === true);
         if (span.story !== true && !step) continue;
-        (out.get(key) ?? out.set(key, []).get(key)).push(occurrenceOf(span) ?? mine);
+        (out.get(key) ?? out.set(key, []).get(key)).push(occurrenceOf(span));
     }
     for (const list of out.values()) list.sort((x, y) => x - y);
     return out;
 }
 
 /**
- * The occurrences for the blocks a Re-read of `record` plans: the k-th block of an operation that is given again takes the k-th
- * number of the blocks of that operation it replaces (an unchanged Re-read gives every block its own), and a block with none to
- * take back takes the next one nobody has used. `peek(key)` → the number the next block of that operation would take;
- * `commit(key, value)` once it was planned.
+ * The occurrences for the blocks a Re-read of `record` plans. For an operation whose blocks are as many as before, the k-th block that is
+ * given again takes the k-th number of the blocks of that operation it replaces (an unchanged Re-read gives every block its own). When
+ * the number of blocks of an operation goes up or down, which old block each new one stands for is not known, so none of that
+ * operation's old numbers is given again (`retire`, found with `ambiguous` after a first plan): every block of it takes a number
+ * nobody has used, every old proof id of it is retired and what was built on them is hidden. A block with none to take back also takes
+ * the next unused one. `peek(key)` → the number the next block of that operation would take; `commit(key, value)` once it was planned;
+ * `ambiguous(planned)` → the operations (keys) whose block count differs from the one it replaces.
  */
-export function reusePlan(record) {
+export function reusePlan(record, retire = new Set()) {
     const pool = regeneratedOccurrences(record);
     const used = new Map();
-    const given = new Map();
+    const fresh = allocator(record);
     return {
         peek(key) {
-            const list = pool.get(key) ?? [];
+            const list = retire.has(key) ? [] : pool.get(key) ?? [];
             const at = used.get(key) ?? 0;
-            return at < list.length ? list[at] : Math.max(nextOccurrence(record, key), given.get(key) ?? 0);
+            return at < list.length ? list[at] : fresh.peek(key);
         },
         commit(key, value) {
             used.set(key, (used.get(key) ?? 0) + 1);
-            given.set(key, Math.max(given.get(key) ?? 0, value + 1));
+            fresh.note(key, value);
+        },
+        ambiguous(planned) {
+            const counts = new Map();
+            for (const piece of planned) {
+                const block = piece?.block;
+                if (!Array.isArray(block?.evidence) || !block.evidence.length || !isObject(block.operation)) continue;
+                let key = null;
+                try { key = operationKey(block.operation.type, block.operation.payload); } catch { key = null; }
+                if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+            }
+            return [...counts].filter(([key, count]) => !retire.has(key) && pool.has(key) && pool.get(key).length !== count).map(([key]) => key);
         },
     };
 }

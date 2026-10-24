@@ -68,11 +68,22 @@ first stamped, and kept in its span (`span.occurrence`); it is never worked out 
 * a new block takes the next occurrence nobody has used in that reply for that operation: one past every occurrence a block of that
   reply has held, those of the blocks that went included (`record.source.taken`, an object from an operation key to the next free
   number, kept past the blocks that go). While the reply exists, a removed block's occurrence is not given again;
-* a Re-read gives the lines it reads again, and the steps afterCapture asks for again, the occurrences of the blocks it replaces, in
-  order, per operation (so a Re-read of text that did not change gives every block its own, a Continued reply included), and the next
-  unused one to a block with none to take back;
-* a block stored before there was an occurrence has none in its span and keeps what it had: its rank among the blocks of its record
-  that did the same. A store that never gave proof has no occurrence, no `taken` and no `owned` anywhere, and is written as it was.
+* **a Re-read gives back the occurrences of the blocks it replaces only when it is unambiguous which is which.** Group the blocks of the reply
+  that gives proof by operation. When a group has as many blocks as before, the k-th block read again takes the k-th occurrence of the
+  group (so a Re-read of text that did not change gives every block its own, a Continued reply included). When a group has **more or
+  fewer** blocks than it replaces (a line of identical lines was deleted, or one was added), which new block stands for which old one is
+  not known, so **none of that group's old occurrences is given again**: every block of the group takes a new one, every old proof id of
+  the group is retired, and what was built on them is hidden (a guarded block is off, with a Problem). Other operations of the reply are
+  unaffected. Nothing is rebound to a removed block's identity;
+* **there is one allocator.** A new occurrence (a new block, a block of a group whose old ones are retired, and a step that gave no proof
+  until now and gives it in a plan) is the next one nobody has used in that reply for that operation, from `record.source.taken` and the
+  numbers of the blocks that stand (`allocator` in evidence.js). A plan (a Re-read, the reconcile of a record) works on one allocator, which
+  moves on after each number it gives, so two blocks of a plan never take the same one; the counter in the record moves only when the plan is
+  stored;
+* **a block that gives proof and has no occurrence is not supported.** Proof was never released before this; a block written by a build
+  from before it (a development chat) is treated as damaged: it is not applied, it is a Problem ("its proof has no occurrence"), its proof
+  is not shown, and it is not planned again, so nothing can be revived from it. A block with no proof at all is as it always was, and a
+  store that never gave proof has no occurrence, no `taken` and no `owned` anywhere, and is written as it was.
 
 Two different blocks of a chat differ in one of these, so they cannot give one id, and nothing is matched, salted or reserved:
 
