@@ -5,9 +5,28 @@ returns the frozen §8 shape. A restore whose target is inside a reply fades tha
 restore carrier, including intervening reader messages. Raw chat stays readable. Prompt/extraction/journal/native
 consumers must use the active projection; this host package cannot migrate consumers in other repositories.
 
+One rule says which messages are faded (`activeLine` in the coordinator, the same one `history` answers from) and one
+filter applies it (`src/v2/timeline/active.js`, asked for by name through `timeline.active(name)`): the chat-completion
+request and the text-completion request (a faded reply's or reader message's text is cut from the request, matched from
+the newest message back, so an older message with the same words is never mistaken for a newer one), the Inner chatter
+tail line, the last reader message a module's view shows, and the late safety-net lines of the previous reply. The
+capability reports `retainedChatRestore: true` only while every named reader (`ACTIVE_READERS`) has been wired. A
+request whose text a front end changed beyond a speaker prefix cannot be matched and keeps the message: the host cannot
+see what it cannot find.
+
 Every head change runs one participant selection rule over exact surviving prefix witnesses and replayed state.
 Until native participants acknowledge that selection the host returns `RESTORE_PENDING`. It settles before heads,
 mutable commands, scanning or generation are exposed; checkpoint recovery and full replay must agree.
+
+The barrier comes down, and the modules are announced ready, in one place (`lowerWhenSettled`), reached only through
+`release`: the head's checkpoints are reconciled to a fixed point (bounded; each pass plans again), what was published
+is made durable, and the final look (nothing outstanding in the journal, no selection needed) lowers the barrier in
+the same synchronous step. A change that finishes after its reply was swiped or deleted, a restore taken back while
+its participants switch, and a head change met while an operation runs all end this way. A participant is recorded as
+standing on a restore's checkpoint as it acknowledges, and a restore is published for the head (its checkpoint bound
+to the head's prefix) only if the story read whole still holds it in the same synchronous section; else it is
+retracted, `activate` answers `STALE`, and the participants follow the selected head with the barrier up until they
+confirm. A failed final save leaves the barrier up (`recover` or the retry finishes it).
 
 `ctx.clockBoundary({minute,source}) -> {cursor,prefixHash}` is synchronous. Only Story Director's existing
 `capture.time`, `director.seed`, `time.settle` and `director.advance` handlers, under story/system cause, may call it.

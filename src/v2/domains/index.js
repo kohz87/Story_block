@@ -252,14 +252,15 @@ export function mergeParts(parts) {
 /**
  * The tail part of Inner chatter (MODULES §F115): with the reader's `chatterInPrompt` on, the thoughts
  * of the reply the reader's latest message answered, as one optional line (dropped first when the tail
- * is full). Off (the default), nothing: chatter never reaches a later prompt. `extras`: { chat() →
- * SillyTavern's chat, display(mes) → displayLines' answer }; without it, nothing.
+ * is full). Off (the default), nothing: chatter never reaches a later prompt. `extras`: { promptChat() →
+ * SillyTavern's chat without the messages a restore faded (the timeline's active-history reader), display(mes) → displayLines' answer };
+ * without it, nothing.
  */
 export function chatterBack(settings, extras) {
     let on = false;
     try { on = settings()?.chatterInPrompt === true; } catch { on = false; }
-    if (!on || typeof extras?.chat !== 'function' || typeof extras.display !== 'function') return { lines: [], optional: [] };
-    const chat = extras.chat();
+    if (!on || typeof extras?.promptChat !== 'function' || typeof extras.display !== 'function') return { lines: [], optional: [] };
+    const chat = extras.promptChat();
     const at = answeredReply(chat);
     if (at < 0) return { lines: [], optional: [] };
     const line = chatterTail(extras.display(String(chat[at]?.mes ?? '')).chatter);

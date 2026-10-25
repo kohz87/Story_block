@@ -123,9 +123,11 @@ and compares the manifest hash to the prepared one, then re-reads head, source a
 between the recheck and the writes), and in **one synchronous section** stores the restore block and writes the
 journal's word that it is committed, raises the restore barrier (`registry.setRestore('pending')`), makes the chat file durable (a flush that fails is the failure of `activate`, and the journal decides what `recover` does),
 and has each participant `activate`, acknowledging each in the journal as it answers. `savepoint.complete` is told only after the final flush. A participant that cannot is
-`participants-pending`: the barrier stays up and a later `activate` or `recover` carries on. When every part has agreed the
-barrier drops and the return is marked `complete` in the story by a small block of its own (with the barrier down, so every
-module's blocks are asked again and the block sees the story whole).
+`participants-pending`: the barrier stays up and a later `activate` or `recover` carries on. When every part has agreed, the story is read whole in one
+synchronous section: if it still holds the restore, the return is marked `complete` by a small block of its own and the
+restore is published for the head; if not (a swipe or delete took it away meanwhile) it is retracted and `activate` answers
+`STALE`. Either way the barrier drops only in `release`, once the participants stand on the selected head's checkpoints and
+the chat file has it (HISTORY.md).
 
 **What the restore block installs**, every domain at its path with an `add` (no `was`, nothing relative), so replaying it on any
 numbers leaves the saved ones:

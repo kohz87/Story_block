@@ -220,9 +220,10 @@ export const mountQuery = (registry, receipts = () => []) => (name, args, state)
  * (optional): another state than the head and the reply it stands for (`tools.reply`), for a Re-read's
  * afterCapture hook, which reads the reply's state after its new story lines (turn.js).
  */
-export function makeView({ store, registry, settings, chat = [], state = store.head(), reply = headReply(store), pendingProofs = null }) {
+export function makeView({ store, registry, settings, chat = [], active = null, state = store.head(), reply = headReply(store), pendingProofs = null }) {
     const messages = Array.isArray(chat) ? chat : [];
-    const lastUser = [...messages].reverse().find(message => message?.is_user);
+    // (`active`: the timeline's reader of earlier messages, so a faded message of the reader's is not the last one a module sees)
+    const lastUser = [...(active ? active.messages(messages) : messages)].reverse().find(message => message?.is_user);
     return Object.freeze({
         state,
         query: (name, args) => runQuery(registry, state, name, args, { receipts: () => store.receipts?.() ?? [], reply, pendingProofs }),
@@ -495,6 +496,7 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
         timelines.set(registry, timeline);
         for (const def of registry.modules()) attachParticipant(def);
     }
+    const viewReader = typeof timeline?.active === 'function' ? timeline.active('view.lastUser') : null;
     const noTimeline = async () => ({ ok: false, code: 'UNSUPPORTED', message: 'This host has no timeline.' });
     const sdk = Object.freeze({
         apiVersion: 2,
@@ -562,7 +564,7 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
         /** The view tabs and contexts get: { state, query, settings, chat }. */
         view: () => {
             announceModules(registry, events);
-            return makeView({ store, registry, settings, chat: chat() });
+            return makeView({ store, registry, settings, chat: chat(), active: viewReader });
         },
         /**
          * What the chat holds for `module`, read-only and usable before it registers (docs/v2/LIFECYCLE.md):

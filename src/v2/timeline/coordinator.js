@@ -17,6 +17,7 @@
 
 import { deriveId, hashJson, isHash, isPlainJson, isRecordId, sourceProblem } from '../replay.js';
 import { cutAt } from '../../text.js';
+import { createActiveHistory } from './active.js';
 import { createArchive } from './archive.js';
 import { GENESIS_EPOCH, HOST_DOMAIN, epochOf } from './gate.js';
 import { appendHostBlock, stateHash } from './host-block.js';
@@ -306,25 +307,37 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         return { ok: true, state, return: pending?.kind === 'restore' ? pending.return : null, participants: out };
     }
 
+    // The one rule for which messages of the chat are on the active line: the faded interval of each return on the line of history,
+    // (target, restore], excludes the whole target reply when the cursor is inside it (op > 0), through the restoring reply,
+    // including intervening reader messages. A cursor at op 0 denotes the boundary at that carrier.
+    // → { messages, sids (the canonical ids of each carrier), faded (the intervals as returned), at (the Set of faded indexes) }.
+    function activeLine({ ids = false } = {}) {
+        const state = store.head();
+        const messages = typeof chat === 'function' ? chat() : [];
+        const returns = Object.values(isObject(state?.domains?.[HOST_DOMAIN]?.returns) ? state.domains[HOST_DOMAIN].returns : {}).filter(isObject);
+        const faded = returns.map(item => item.faded).filter(item => isObject(item?.after) && isObject(item?.through))
+            .map(item => ({ after: structuredClone(item.after), through: structuredClone(item.through) }));
+        const sids = faded.length || ids ? messages.map((message, at) => (message?.is_user ? null : store.sourceAt(at))) : [];
+        const spans = faded.map(item => ({ from: sids.findIndex(source => source?.sid === item.after.sid && source?.swipeKey === item.after.swipeKey), to: sids.findIndex(source => source?.sid === item.through.sid && source?.swipeKey === item.through.swipeKey), inside: item.after.op > 0 }))
+            .filter(span => span.from >= 0 && span.to >= span.from);
+        const at = new Set();
+        for (let index = 0; index < messages.length; index += 1) if (spans.some(span => index >= span.from + (span.inside ? 0 : 1) && index <= span.to)) at.add(index);
+        return { messages, sids, faded, at };
+    }
+    // Every host reader of earlier messages asks this (src/v2/timeline/active.js), by name; the capability counts the names.
+    const activeHistory = createActiveHistory({ messages: () => (typeof chat === 'function' ? chat() : []), faded: () => activeLine().at });
+
     // A projection of the chat's messages for the readers of the story (prompt, extraction, native scans): the canonical
     // ids of each message and whether it is on the active line. A message with no carrier record of its own (the reader's
-    // own) gets a projection-only msg_ id worked out from where it stands. The faded interval of a return, (target, restore],
-    // excludes the whole target reply when the cursor is inside it (op > 0), through the restoring reply,
-    // including intervening reader messages. A cursor at op 0 denotes the boundary at that carrier.
+    // own) gets a projection-only msg_ id worked out from where it stands.
     async function history(input = {}) {
         if (!isObject(input) || Object.keys(input).some(key => key !== 'through')) return fail('INVALID', 'history takes { through? }.');
         const through = input.through;
         if (through !== undefined && (!isObject(through) || !isRecordId(through.sid))) return fail('INVALID', 'through is a cursor.');
-        const state = store.head();
-        const messages = typeof chat === 'function' ? chat() : [];
-        const sids = messages.map((message, at) => (message?.is_user ? null : store.sourceAt(at)));
+        const line = activeLine({ ids: true });
+        const { messages, sids, faded } = line;
         const cut = through === undefined ? messages.length - 1 : sids.findIndex(source => source?.sid === through.sid && source?.swipeKey === through.swipeKey);
         if (through !== undefined && cut < 0) return fail('NOT_FOUND', 'No message of this chat has that cursor.');
-        const returns = Object.values(isObject(state?.domains?.[HOST_DOMAIN]?.returns) ? state.domains[HOST_DOMAIN].returns : {}).filter(isObject);
-        const faded = returns.map(item => item.faded).filter(item => isObject(item?.after) && isObject(item?.through))
-            .map(item => ({ after: structuredClone(item.after), through: structuredClone(item.through) }));
-        const spans = faded.map(item => ({ from: sids.findIndex(source => source?.sid === item.after.sid && source?.swipeKey === item.after.swipeKey), to: sids.findIndex(source => source?.sid === item.through.sid && source?.swipeKey === item.through.swipeKey), inside: item.after.op > 0 }))
-            .filter(span => span.from >= 0 && span.to >= span.from);
         const out = [];
         for (let at = 0; at <= cut && at < messages.length; at++) {
             const message = messages[at];
@@ -333,7 +346,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 const id = deriveId('msg', hashJson({ lineage: archive.lineage(), at, name: message?.name ?? '', date: message?.send_date ?? '', mes: message?.mes ?? '' }));
                 return { sid: id, swipeKey: id };
             })();
-            out.push({ sid: ids.sid, swipeKey: ids.swipeKey, text: String(message?.mes ?? ''), active: !spans.some(span => at >= span.from + (span.inside ? 0 : 1) && at <= span.to) });
+            out.push({ sid: ids.sid, swipeKey: ids.swipeKey, text: String(message?.mes ?? ''), active: !line.at.has(at) });
         }
         return { ok: true, messages: out, faded };
     }
@@ -1307,7 +1320,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const installed = declarations.every(def => participants.has(def.id) && !broken.has(def.id));
         const oldWitnesses = archive.entries().some(entry => entry.kind === 'restore' && entry.phase !== 'aborted' && !entry.boundary);
         const participantsReady = installed && participants.ready() && !brokenProblem() && !oldWitnesses && registry.restore?.().state !== 'pending' && !selectionNeeded();
-        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0;
+        // (a restore fades earlier messages: retained-chat restore is offered only once every host reader of earlier messages filters them)
+        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0 && activeHistory.wired();
         return { api: 2, snapshots, retainedChatRestore, participantsReady };
     }
 
@@ -1386,6 +1400,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         needsRecovery: () => runningIn(archive.holder()) === 0 && ((archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded())) || unmaterializedMarkers().length > 0
             || (barrierOwner !== null && barrierOwner === archive.holder())),
         archive,
+        /** The active-history reader a host path of earlier messages asks for by name (active.js ACTIVE_READERS): → { messages, faded, chatPrompt, textPrompt }. */
+        active: name => activeHistory.reader(name),
         pending: pendingNow,
         /** Points of `state` with their bytes checked, in target order (the savepoint.list query). */
         points: state => listNow(state),

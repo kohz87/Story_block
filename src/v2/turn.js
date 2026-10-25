@@ -210,6 +210,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     const roles = () => ctx?.extension_prompt_roles ?? ctx?.extensionPromptRoles ?? {};
     const position = place => (place === 'static' ? types().IN_PROMPT ?? IN_PROMPT : types().IN_CHAT ?? IN_CHAT);
     const hostSettings = () => (typeof settings === 'function' ? settings() : settings ?? {});
+    // The host readers of earlier messages that this turn owns, each asked for by name from the timeline's one active-history filter
+    // (timeline/active.js): faded messages (after a restore) never reach a request or a module's view. A host without a timeline has none.
+    const reader = name => (typeof timeline?.active === 'function' ? timeline.active(name) : null);
+    const chatRequest = reader('prompt.chat');
+    const textRequest = reader('prompt.text');
+    const lateReader = reader('assist.late');
+    const viewReader = reader('view.lastUser');
     let session = null;
     let deferred = false;   // cues committed before a reply, left for the reply's save (runCues)
     let listeners = [];
@@ -282,7 +289,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         }
     }
 
-    const view = () => makeView({ store, registry, settings, chat: ctx?.chat });
+    const view = () => makeView({ store, registry, settings, chat: ctx?.chat, active: viewReader });
     const hasCarrier = () => (ctx?.chat ?? []).some(isCarrier);
     const lastCarrier = () => (ctx?.chat ?? []).findLastIndex(isCarrier);
 
@@ -621,6 +628,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** CHAT_COMPLETION_PROMPT_READY: { chat, dryRun }. */
     function onPromptReady(eventData) {
         if (!eventData || eventData.dryRun === true || !Array.isArray(eventData.chat) || isOwn(eventData)) return;
+        chatRequest?.chatPrompt(eventData.chat);
         stripHistory(eventData.chat);
         if (backgroundPrompt() || !session || session.prompted) return;
         session.prompted = true;
@@ -630,6 +638,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** GENERATE_AFTER_COMBINE_PROMPTS (text completion): { prompt, dryRun }. */
     function onTextPromptReady(eventData) {
         if (!eventData || eventData.dryRun === true || typeof eventData.prompt !== 'string' || isOwn(eventData)) return;
+        if (textRequest) eventData.prompt = textRequest.textPrompt(eventData.prompt);
         // Only the hidden form: the static text's own example block must stay.
         const hidden = new RegExp(`\\s*<!--\\s*STORY_SUITE_V2\\b[\\s\\S]*?-->`, 'g');
         eventData.prompt = eventData.prompt.replace(hidden, '');
@@ -700,7 +709,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     function lateLines(index, own = []) {
         const chat = ctx?.chat ?? [];
         const from = chat.slice(0, Math.max(0, index)).findLastIndex(isCarrier);
-        if (from < 0) return [];
+        if (from < 0 || lateReader?.faded().has(from)) return [];
         const stored = assistSections(String(chat[from]?.mes ?? '')).next;
         if (!stored.length) return [];
         const safe = parseChanges(stored.join('\n')).lines.filter(line => !refusedWhy(line, null, { late: true }));
@@ -770,7 +779,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // A Re-read has stored nothing yet: the proof its lines and earlier steps planned is what the hooks and steps see.
         const planned = () => (live || !plan ? [] : [...plan.blocks.flatMap(piece => piece.block?.evidence ?? []), ...steps.flatMap(step => step.block?.evidence ?? [])]);
         for (const { moduleId, fn } of registry.hookEntries('afterCapture')) {
-            const seen = live ? view() : makeView({ store, registry, settings, chat: ctx?.chat, state: now, reply, pendingProofs: () => planned().map(proof => ({ proof, block: null })) });
+            const seen = live ? view() : makeView({ store, registry, settings, chat: ctx?.chat, active: viewReader, state: now, reply, pendingProofs: () => planned().map(proof => ({ proof, block: null })) });
             let out;
             try { out = await within(fn(seen, { index, type }), HOOK_TIMEOUT_MS); } catch (error) {
                 problems.push(problem({ module: moduleId, index, code: 'FAILED', message: `afterCapture failed: ${error?.message ?? error}` }));
