@@ -1,0 +1,333 @@
+{
+  "itemRules": [
+    {
+      "def": "cane-blade",
+      "allowedSlots": [
+        "weapon"
+      ],
+      "hands": 1,
+      "requires": {
+        "DEX": 6
+      },
+      "weight": 800
+    },
+    {
+      "def": "patched-oilcloth-coat",
+      "allowedSlots": [
+        "body"
+      ],
+      "hands": 0,
+      "requires": {},
+      "weight": 1200
+    },
+    {
+      "def": "knife",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "whetstone",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "minor-healing-draught",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "healing-salve",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "bandage",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "common-antidote",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "mana-draught",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "leech-salt-pouch",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "coarse-bread",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "hot-meal",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "common-ale",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "trail-rations",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "torch",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "lamp-oil",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "flint-and-steel",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "hemp-rope",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "waterskin",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "bedroll",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "wool-blanket",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "backpack",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "pack-mule",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "barge-hold-share",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "burlap-sack",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "coarse-salt",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "completion-salts",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "fur-lined-cloak",
+      "allowedSlots": [
+        "accessory-1",
+        "accessory-2"
+      ],
+      "hands": 0,
+      "requires": {},
+      "weight": 1000
+    },
+    {
+      "def": "spear",
+      "allowedSlots": [
+        "weapon"
+      ],
+      "hands": 2,
+      "requires": {
+        "STR": 6
+      },
+      "weight": 1800
+    },
+    {
+      "def": "hatchet",
+      "allowedSlots": [
+        "weapon"
+      ],
+      "hands": 1,
+      "requires": {
+        "STR": 5
+      },
+      "weight": 900
+    },
+    {
+      "def": "iron-bound-buckler",
+      "allowedSlots": [
+        "offhand"
+      ],
+      "hands": 1,
+      "requires": {
+        "STR": 6
+      },
+      "weight": 1400
+    },
+    {
+      "def": "gambeson",
+      "allowedSlots": [
+        "body"
+      ],
+      "hands": 0,
+      "requires": {},
+      "weight": 2500
+    },
+    {
+      "def": "iron-cap",
+      "allowedSlots": [
+        "head"
+      ],
+      "hands": 0,
+      "requires": {},
+      "weight": 1100
+    },
+    {
+      "def": "wolf-pelt-mantle",
+      "allowedSlots": [
+        "accessory-1",
+        "accessory-2"
+      ],
+      "hands": 0,
+      "requires": {},
+      "weight": 900
+    },
+    {
+      "def": "crag-wolf-pelt",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "crag-wolf-fang",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "rat-tail",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "live-leech",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "small-monster-core",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "river-drake-scale",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "bluecap-moss",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "cleansing-spirits",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    },
+    {
+      "def": "iron-filings",
+      "allowedSlots": [],
+      "hands": 0,
+      "requires": {},
+      "weight": 100
+    }
+  ]
+}
