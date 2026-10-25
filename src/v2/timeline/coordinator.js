@@ -752,6 +752,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             if (answer.checkpoint !== slot.checkpoint || answer.hash !== slot.hash) return hold(`the participant ${module} switched to another checkpoint than the save holds`);
             slot = { ...slot, ack: { checkpoint: answer.checkpoint, hash: answer.hash } };
             archive.patch(entry.id, { participants: { ...fresh().participants, [module]: slot }, phase: 'committed' });
+            // The participant stands on the restore's checkpoint from now on, whatever becomes of the restore: what is selected is where
+            // the participants are, so a head that does not hold the restore finds it off its checkpoint and switches it back.
+            archive.remember(fresh().before);
+            archive.select({ ...archive.selection(), [module]: { module, checkpoint: answer.checkpoint, hash: answer.hash, schema: slot.schema } });
             await durable();
             await point(`activate.participant:${module}:acked`);
         }
@@ -761,9 +765,17 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         return complete(entry);
     }
 
-    // Every part agreed. In one synchronous section the story is read whole (the barrier stays up), the return is marked complete (a
-    // small block of its own) and the restore is published for the head it ends at. The barrier comes down in `release`, after the
-    // chat file has it all and the participants are on the selected head. Complete is told only once the chat file has it.
+    // Whether the committed restore is in the story that is selected now. The story is read whole (the barrier holds the modules, and
+    // their blocks, back): a swipe, a delete or a Re-read that took the restore away leaves no return of it.
+    function restoreHeld(entry) {
+        return withWholePrefixes(() => isObject(store.head()?.domains?.[HOST_DOMAIN]?.returns?.[entry.return]));
+    }
+
+    // Every part agreed. In one synchronous section the story is read whole and the restore is looked for in the head that is selected
+    // now; only if it is there is the return marked complete (a small block of its own) and the restore published for that head. Else
+    // the restore is retracted, nothing is published, and the participants, which stand on its checkpoint, are brought to the checkpoint
+    // of the selected head. The barrier comes down in `release`, after the chat file has it all and the participants are on the selected
+    // head. Complete is told only once the chat file has it.
     async function complete(entry) {
         if (pendingEntry(entry.id) !== null) {
             // Another change is outstanding in this journal (it cannot be through the API): this restore is not complete until it has settled.
@@ -772,20 +784,20 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
         here();
         const section = withWholePrefixes(() => {
+            if (!restoreHeld(entry)) return { held: false };
             const now = headNow();
-            const returns = now?.state?.domains?.[HOST_DOMAIN]?.returns;
-            const found = isObject(returns) ? returns[entry.return] : null;
+            const found = now?.state?.domains?.[HOST_DOMAIN]?.returns?.[entry.return];
             if (found?.status === 'committed') {
                 const stored = appendHostBlock({
                     store, announce, here: stillHere, head: now, ops: [{ op: 'replace', path: `/domains/${HOST_DOMAIN}/returns/${entry.return}/status`, value: 'complete' }],
                     spec: { type: 'savepoint.complete', cause: 'system', summary: 'The return is complete.', key: `complete:${entry.return}`, blockId: makeId('bl'),
                         predicate: { kind: 'complete', return: entry.return }, payload: { return: entry.return }, recorded: null, result: { return: entry.return, status: 'complete' } },
                 });
-                if (!stored.ok) return { failed: stored };
+                if (!stored.ok) return { held: true, failed: stored };
                 owe(stored);
             }
             publishRestore(entry);
-            return {};
+            return { held: true };
         });
         if (section.failed) {
             // (the story cannot take the word yet: the restore waits, behind the barrier, for recover to try again)
@@ -793,11 +805,17 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             raise('A restore is finishing; every part must agree before the story goes on.');
             return { ok: true, return: entry.return, status: 'participants-pending' };
         }
-        archive.patch(entry.id, { phase: 'complete' });
+        archive.patch(entry.id, section.held ? { phase: 'complete' } : { phase: 'retracted', why: 'the story no longer holds the restore' });
         const released = await release(entry.id);
+        if (!section.held) return { ok: true, return: entry.return, status: 'retracted' };
         await point('activate.completed');
         return { ok: true, return: entry.return, status: released.ok ? 'complete' : 'participants-pending' };
     }
+
+    // A restore taken back by a swipe, a delete or a Re-read while its participants were switching did not take: say so.
+    const answered = done => (done.ok && done.status === 'retracted'
+        ? fail('STALE', 'The restore was taken back (its reply was swiped or deleted, or an earlier reply changed) while its participants were switching; the story does not hold it, and the participants follow the selected head.')
+        : done);
 
     async function activate(input) {
         if (!isObject(input) || Object.keys(input).some(key => !['prepared', 'expectedHead'].includes(key)) || typeof input.prepared !== 'string' || !isHash(input.expectedHead)) {
@@ -818,7 +836,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
         if (['committed', 'participants-pending', 'acked'].includes(entry.phase)) {
             raise('A restore is finishing; every part must agree before the story goes on.');
-            return finish(entry);
+            return answered(await finish(entry));
         }
         if (entry.phase !== 'prepared') return fail('REFUSED', 'That restore was aborted.');
         // One change at a time: a restore does not start while a native event or change (or another restore) is outstanding, whatever order
@@ -883,7 +901,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         // Nothing is switched before the commit is in the chat file: a failed save is the caller's failure, and the barrier stays up.
         await durable();
         await point('activate.committed');
-        return finish(archive.get(entry.id));
+        return answered(await finish(archive.get(entry.id)));
     }
 
     async function abort(input) {
@@ -929,10 +947,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                     // A start finds the story whole and asks whether it still holds the restore. Within a run that already has the
                     // barrier up it cannot ask: with the modules held, their guarded blocks are off and the story is not whole.
                     // (the barrier `settle` raised when this chat opened is not one of a run: the story is looked at whole, as it was before)
-                    const state = early ? withWholePrefixes(() => store.head()) : store.head();
-                    const there = state?.domains?.[HOST_DOMAIN]?.returns?.[entry.return];
-                    if ((early || registry.restore?.().state !== 'pending') && !isObject(there)) {
-                        // The story no longer holds the restore (its reply was swiped or deleted): its participants are the next package's.
+                    if ((early || registry.restore?.().state !== 'pending') && !restoreHeld(entry)) {
+                        // The story no longer holds the restore (its reply was swiped or deleted): its participants, which may stand on its
+                        // checkpoints (they are recorded as selected as they acknowledge), are brought to the selected head below.
+                        archive.remember(entry.before);
                         archive.patch(entry.id, { phase: 'retracted', why: 'the story no longer holds the restore' });
                         continue;   // (the barrier comes down once, below, when nothing else is left to finish)
                     }
@@ -940,7 +958,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                     const done = await finish(archive.get(entry.id));
                     if (done.ok === false) return done;
                     ret = entry.return;
-                    if (done.status === 'complete') ret = null;
+                    if (done.status === 'complete' || done.status === 'retracted') ret = null;
                 }
             } else if (entry.kind === 'selection') {
                 if (entry.phase !== 'complete') {
