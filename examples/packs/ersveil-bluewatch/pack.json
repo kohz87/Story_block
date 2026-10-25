@@ -2648,8 +2648,8 @@
           }
         ],
         "reward": {
-          "coin": 100,
-          "xp": 100,
+          "coin": 150,
+          "xp": 150,
           "items": [
             {
               "def": "waterskin",
@@ -2709,8 +2709,8 @@
           }
         ],
         "reward": {
-          "coin": 1200,
-          "xp": 600,
+          "coin": 400,
+          "xp": 200,
           "items": [
             {
               "def": "wolf-pelt-mantle",
@@ -2743,8 +2743,8 @@
           }
         ],
         "reward": {
-          "coin": 1000,
-          "xp": 500,
+          "coin": 400,
+          "xp": 200,
           "items": []
         },
         "durationMinutes": null,
@@ -2772,8 +2772,8 @@
           }
         ],
         "reward": {
-          "coin": 2400,
-          "xp": 1200,
+          "coin": 400,
+          "xp": 200,
           "items": [
             {
               "def": "minor-healing-draught",
@@ -2811,8 +2811,8 @@
           }
         ],
         "reward": {
-          "coin": 1800,
-          "xp": 800,
+          "coin": 400,
+          "xp": 180,
           "items": []
         },
         "durationMinutes": null,
@@ -2840,8 +2840,8 @@
           }
         ],
         "reward": {
-          "coin": 1400,
-          "xp": 700,
+          "coin": 400,
+          "xp": 200,
           "items": [
             {
               "def": "torch",
@@ -2873,8 +2873,8 @@
           }
         ],
         "reward": {
-          "coin": 900,
-          "xp": 450,
+          "coin": 400,
+          "xp": 200,
           "items": [
             {
               "def": "fur-lined-cloak",
@@ -2907,8 +2907,8 @@
           }
         ],
         "reward": {
-          "coin": 2000,
-          "xp": 1000,
+          "coin": 400,
+          "xp": 200,
           "items": []
         },
         "durationMinutes": null,
@@ -2936,8 +2936,8 @@
           }
         ],
         "reward": {
-          "coin": 2200,
-          "xp": 1100,
+          "coin": 400,
+          "xp": 200,
           "items": [
             {
               "def": "completion-salts",
@@ -2970,8 +2970,8 @@
           }
         ],
         "reward": {
-          "coin": 4500,
-          "xp": 2200,
+          "coin": 3000,
+          "xp": 1470,
           "items": []
         },
         "durationMinutes": null,
@@ -2999,8 +2999,8 @@
           }
         ],
         "reward": {
-          "coin": 6000,
-          "xp": 3000,
+          "coin": 3000,
+          "xp": 1500,
           "items": []
         },
         "durationMinutes": null,
@@ -3028,8 +3028,8 @@
           }
         ],
         "reward": {
-          "coin": 5500,
-          "xp": 2600,
+          "coin": 3000,
+          "xp": 1420,
           "items": []
         },
         "durationMinutes": null,
@@ -3057,8 +3057,8 @@
           }
         ],
         "reward": {
-          "coin": 8000,
-          "xp": 4000,
+          "coin": 3000,
+          "xp": 1500,
           "items": []
         },
         "durationMinutes": null,
@@ -3144,8 +3144,8 @@
           }
         ],
         "reward": {
-          "coin": 18000,
-          "xp": 9000,
+          "coin": 12000,
+          "xp": 6000,
           "items": []
         },
         "durationMinutes": null,
@@ -3231,8 +3231,8 @@
           }
         ],
         "reward": {
-          "coin": 45000,
-          "xp": 22000,
+          "coin": 60000,
+          "xp": 29330,
           "items": []
         },
         "durationMinutes": null,
@@ -3260,8 +3260,8 @@
           }
         ],
         "reward": {
-          "coin": 120000,
-          "xp": 60000,
+          "coin": 360000,
+          "xp": 180000,
           "items": []
         },
         "durationMinutes": null,
@@ -3289,8 +3289,8 @@
           }
         ],
         "reward": {
-          "coin": 500000,
-          "xp": 250000,
+          "coin": 2000000,
+          "xp": 1000000,
           "items": []
         },
         "durationMinutes": null,
