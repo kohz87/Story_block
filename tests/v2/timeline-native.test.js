@@ -34,6 +34,44 @@ const mutate = async (host, native, edit, { source, expectedHead, prepare } = {}
     });
 };
 
+test('an unchanged Re-read keeps published native prefixes when story and afterCapture owners store their Source', async t => {
+    const native = nativeModule();
+    const write = (ctx, slot) => {
+        ctx.draft('sources')[slot] = ctx.source;
+        ctx.replayGuard({ owner: 'source-owner', version: 2, epoch: 'ep_00000000', rulesHash: null,
+            inputHash: ctx.hash({ slot }), predicate: { kind: slot } });
+        return { summary: 'Source recorded.', narrate: false };
+    };
+    const owner = {
+        id: 'source-owner', name: 'Source owner', version: '1.0.0',
+        domains: { sources: { initial: () => ({}) } },
+        capture: { kinds: { sourced: { grammar: '! sourced <name>' } }, apply: ctx => write(ctx, 'story') },
+        commands: { 'source.step': ctx => write(ctx, 'step') },
+        hooks: { afterCapture: () => ({ commands: [{ type: 'source.step', payload: {} }] }), replayGuard: () => ({ ok: true }) },
+    };
+    const host = await createHost({ modules: [native.def, owner] });
+    t.after(() => host.close());
+    await host.send('Go.', reply('Same reply.', ['! sourced one']));
+    const at = host.ctx.chat.length - 1;
+    const before = clone(host.head().domains.sources);
+    assert.ok(before.story);
+    assert.ok(before.step);
+    assert.equal((await mutate(host, native, state => { state.dossiers.tavi.trust = 9; })).ok, true);
+    const selected = clone((await host.sdk.timeline.status()).participants);
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.deepEqual(host.head().domains.sources, before);
+    assert.equal(native.native.store.dossiers.tavi.trust, 9);
+    assert.deepEqual((await host.sdk.timeline.status()).participants, selected);
+    assert.equal(host.registry.restore().state, 'idle');
+    assert.deepEqual(host.store.problems(), []);
+    // Changing the reply still invalidates that exact prefix and selects its living/native baseline.
+    host.ctx.chat[at].mes = 'Another reply.';
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(native.native.store.dossiers.tavi.trust, 3);
+    assert.equal(host.registry.restore().state, 'idle');
+    assert.deepEqual(host.store.problems(), []);
+});
+
 test('a module\'s participant is registered by the host with the module, and the module gets its own handle', async t => {
     const { host, native } = await started(t);
     assert.deepEqual(host.timeline.host.participants(), [NATIVE]);
