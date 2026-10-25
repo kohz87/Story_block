@@ -1897,12 +1897,12 @@
           {
             "item": "torch",
             "qty": 25,
-            "price": 8
+            "price": 3
           },
           {
             "item": "lamp-oil",
             "qty": 10,
-            "price": 15
+            "price": 4
           },
           {
             "item": "hemp-rope",
@@ -1922,12 +1922,12 @@
           {
             "item": "wool-blanket",
             "qty": 8,
-            "price": 40
+            "price": 60
           },
           {
             "item": "backpack",
             "qty": 4,
-            "price": 80
+            "price": 150
           },
           {
             "item": "burlap-sack",
@@ -1937,7 +1937,7 @@
           {
             "item": "flint-and-steel",
             "qty": 10,
-            "price": 25
+            "price": 10
           }
         ]
       },
@@ -1985,7 +1985,7 @@
           {
             "item": "cleansing-spirits",
             "qty": 6,
-            "price": 30
+            "price": 12
           }
         ]
       },
@@ -2023,17 +2023,17 @@
           {
             "item": "gambeson",
             "qty": 3,
-            "price": 450
+            "price": 600
           },
           {
             "item": "iron-cap",
             "qty": 4,
-            "price": 250
+            "price": 400
           },
           {
             "item": "iron-filings",
             "qty": 10,
-            "price": 15
+            "price": 3
           }
         ]
       },
@@ -2074,12 +2074,12 @@
           {
             "item": "torch",
             "qty": 30,
-            "price": 8
+            "price": 3
           },
           {
             "item": "lamp-oil",
             "qty": 15,
-            "price": 15
+            "price": 4
           },
           {
             "item": "hemp-rope",
@@ -2099,7 +2099,7 @@
           {
             "item": "backpack",
             "qty": 6,
-            "price": 85
+            "price": 100
           }
         ]
       },
@@ -2132,7 +2132,7 @@
           {
             "item": "cleansing-spirits",
             "qty": 8,
-            "price": 25
+            "price": 8
           }
         ]
       },
@@ -2160,7 +2160,7 @@
           {
             "item": "patched-oilcloth-coat",
             "qty": 4,
-            "price": 220
+            "price": 60
           },
           {
             "item": "waterskin",
