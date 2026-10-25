@@ -272,7 +272,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                     originOf(tx);
                     const held = Number.isInteger(tx.ordinal) ? store.blockAt?.(tx.reply.index, tx.ordinal) ?? null : null;
                     const block = tx.reusing ? tx.reusing.id : held ? held.block : tx.operation ? blockIdOf({ sid: source.sid, swipeKey: source.swipeKey, key: tx.operation, rank: tx.rank }) : null;
-                    const op = held ? held.op : Number.isInteger(tx.opsBefore) ? tx.opsBefore : store.opsAt(tx.reply.index).length;
+                    const op = Number.isInteger(tx.opsBefore) ? tx.opsBefore : held ? held.op : store.opsAt(tx.reply.index).length;
                     if (block) found = { sid: source.sid, swipeKey: source.swipeKey, block, op, rev: Math.max(0, tx.rev - 1) };
                 } catch { found = null; }
             }

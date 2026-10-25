@@ -1160,6 +1160,14 @@ export function createStore({
         return key ? alloc.take(key) : undefined;
     }
 
+    // Every rerun sees the position the accepted blocks of this plan leave, rather than the old record's offset.
+    function rerunBlock(rerun, state, receipt, index, span, earlier, alloc) {
+        return rerun(deepFreeze(structuredClone(state)), receipt, {
+            index, span, replan: span.replan ?? null, occurrence: occurrenceFor(span, receipt, alloc),
+            opsBefore: earlier.reduce((sum, part) => sum + part.ops.length, 0),
+        });
+    }
+
     // One guarded system block planned again on `state` (replayBlocks). → { state } the state after the new block
     // (or after the old one when it comes out the same: nothing changes), { state: null } when the owner says the
     // step is NO_LONGER_DONE (the block, its claims and its receipt go), or { kept: true, why } when it could not
@@ -1171,7 +1179,7 @@ export function createStore({
         let planned = null;
         let failure = '';
         try {
-            planned = rerun(deepFreeze(structuredClone(state)), receipt, { index, span, replan: span.replan, occurrence: occurrenceFor(span, receipt, (out.alloc ??= allocator(record))) });
+            planned = rerunBlock(rerun, state, receipt, index, span, out.parts, (out.alloc ??= allocator(record)));
         } catch (error) {
             failure = `it threw (${error?.message ?? error})`;
         }
@@ -2048,7 +2056,7 @@ export function createStore({
                 const asks = typeof rerun === 'function' && !(isMetaSpan(was) && intactReason(record, block, was, receipt)) && ((isMetaSpan(was) && was.guard && was.replan && receipt) || (receipt?.replan && !isGuardedBlock(was, paired ? receipt : receiptsFor({ receipts: keptReceipts }, block))));
                 if (asks) {
                     let out = null;
-                    try { out = rerun(deepFreeze(structuredClone(state)), receipt, { index, span: was, replan: was.replan ?? null, occurrence: occurrenceFor(was, receipt, keptAlloc) }); } catch { out = null; }
+                    try { out = rerunBlock(rerun, state, receipt, index, was, nextParts, keptAlloc); } catch { out = null; }
                     // A guarded step goes only when its owner says it is no longer done; when it cannot be asked it stays.
                     if (!out?.ok && isMetaSpan(was) && !(out?.ok === false && out.code === NO_LONGER_DONE)) {
                         // (it could not be asked: the block stays exactly as it was, replayed below as any kept block is)

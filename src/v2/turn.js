@@ -334,7 +334,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const ordinal = info?.span?.source?.ordinal;
         // The proof of the block being planned again may be given again: the step keeps its ids.
         const replacing = Array.isArray(info?.span?.evidence) ? info.span.evidence : [];
-        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, reusing: typeof info?.span?.id === 'string' ? info.span : null, ...(Number.isInteger(info?.occurrence) ? { occurrence: info.occurrence } : {}), ...(reply ? { reply: { ...reply, ...(Number.isInteger(ordinal) ? { ordinal } : {}) } } : {}) });
+        return bus.run(plan.type, plan.payload ?? {}, { cause: 'system', state, seed: plan.seed, replacing, reusing: typeof info?.span?.id === 'string' ? info.span : null, ...(Number.isInteger(info?.occurrence) ? { occurrence: info.occurrence } : {}), ...(reply ? { reply: { ...reply, ...(Number.isInteger(ordinal) ? { ordinal } : {}), ...(Number.isInteger(info?.opsBefore) ? { opsBefore: info.opsBefore } : {}) } } : {}) });
     }
 
     // After a delete or swipe (REPLAY.md "Reconciling"): the guarded steps that carry a `replan` are planned again

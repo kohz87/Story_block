@@ -34,7 +34,8 @@ function seams({ giveProof = false } = {}) {
                 return { summary: 'On.', narrate: false };
             },
             // A planned-again step that keeps the cursor it read, under the block's own id.
-            'cs.step'(ctx) {
+            'cs.step'(ctx, { needs } = {}) {
+                if (needs && !ctx.read('cs').marks[needs]) ctx.fail('NO_LONGER_DONE', 'The required mark is gone.');
                 const cursor = ctx.cursor();
                 ctx.draft('cs').steps[cursor.block] = cursor;
                 ctx.replayGuard({ owner: OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash({ step: 'x' }), predicate: { kind: 'step' } });
@@ -433,6 +434,9 @@ test('during a Re-read an afterCapture step reads the op its own stamped boundar
     await click(host, 'kept');
     await click(host, 'kept2');
     const at = host.ctx.chat.length - 1;
+    for (const { span } of blocks(host).filter(each => each.span.operation.type === 'cs.step')) {
+        assert.deepEqual(host.head().domains.cs.steps[span.id], span.boundaries[0].cursor, 'live afterCapture');
+    }
     for (let n = 0; n < 2; n += 1) {
         assert.equal((await host.sdk.reread(at)).ok, true);
         const stepBlocks = blocks(host).map(each => each.span).filter(span => span.operation.type === 'cs.step');
@@ -445,6 +449,55 @@ test('during a Re-read an afterCapture step reads the op its own stamped boundar
     }
     const line = blocks(host).map(each => each.span).find(span => span.operation.payload.raw?.includes('line') || span.operation.payload.name === 'line');
     assert.deepEqual(host.head().domains.cs.marks.line.cursor, line.boundaries[0].cursor);
+});
+
+for (const count of [1, 2]) test(`Re-read replans ${count} kept system steps at their actual preceding-op count`, async t => {
+    const host = await started(t);
+    await host.send('Go.', reply('A.', ['! mark line']));
+    for (let n = 0; n < count; n += 1) {
+        const out = host.bus.run('cs.step', {}, { cause: 'system' });
+        assert.equal(out.ok, true, out.message);
+        host.store.append({ ops: out.ops, receipt: out.receipt, block: out.block });
+    }
+    const stepBlocks = () => blocks(host).map(each => each.span).filter(span => span.operation.type === 'cs.step');
+    const before = stepBlocks().map(span => span.boundaries[0].cursor);
+    for (const span of stepBlocks()) assert.deepEqual(host.head().domains.cs.steps[span.id], span.boundaries[0].cursor, 'live system step');
+    const at = host.ctx.chat.length - 1;
+    host.ctx.chat[at].mes = reply('A.', ['! mark before', '! mark line']);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    for (let pass = 0; pass < 2; pass += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        const after = stepBlocks();
+        assert.equal(after.length, count);
+        for (const [n, span] of after.entries()) {
+            assert.equal(span.id, before[n].block);
+            assert.equal(span.boundaries[0].cursor.op > before[n].op, true, 'the added line moved the step');
+            assert.deepEqual(host.head().domains.cs.steps[span.id], span.boundaries[0].cursor, 'every cursor field matches the stamped boundary');
+        }
+        assert.deepEqual(host.store.problems(), []);
+        host.store.rebuild();
+    }
+});
+
+test('reconcile reruns a later kept step at its new offset when an earlier step is taken back', async t => {
+    const host = await started(t);
+    await host.send('Go.', reply('A.', ['! mark needed']));
+    const first = host.ctx.chat.length - 1;
+    await host.send('Next.', reply('B.', ['! mark anchor']));
+    for (const payload of [{ needs: 'needed' }, {}]) {
+        const out = host.bus.run('cs.step', payload, { cause: 'system' });
+        assert.equal(out.ok, true, out.message);
+        host.store.append({ ops: out.ops, receipt: out.receipt, block: out.block });
+    }
+    const before = blocks(host).map(each => each.span).filter(span => span.operation.type === 'cs.step');
+    host.ctx.chat.splice(first - 1, 2);
+    await host.turn.onTimelineChanged();
+    const after = blocks(host).map(each => each.span).filter(span => span.operation.type === 'cs.step');
+    assert.equal(after.length, 1);
+    assert.equal(after[0].id, before[1].id);
+    assert.equal(after[0].boundaries[0].cursor.op < before[1].boundaries[0].cursor.op, true);
+    assert.deepEqual(host.head().domains.cs.steps[after[0].id], after[0].boundaries[0].cursor);
+    assert.deepEqual(host.store.problems(), []);
 });
 
 test('delete the first of two identical lines and read the reply again: the survivor is a fresh block, the click on the first is hidden with a Problem, also after a rebuild', async t => {
