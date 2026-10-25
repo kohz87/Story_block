@@ -1,6 +1,6 @@
 // assist.precheck on the real host (testkit createHost: registry, command bus, store, turn): the
 // classifier's answer is committed before the reply as one system receipt that claims the message,
-// makes the check through the check kind's capture, rolls it with check.roll, and is told to the reply.
+// makes the check through the check kind's capture (Story Director's one checks.roll), and is told to the reply.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
@@ -14,40 +14,26 @@ const ACTION = 'I slip past the gate guard while he looks at the cart.';
 const CHECK = '? check stealth — slipping past the gate guard | dc: hard';
 const DC = { easy: 8, normal: 12, hard: 15 };
 
-// A stand-in for RPG Battle's checks (MODULES §F16): the `check` kind makes a pending check
-// (`data.check` = its id); `check.roll { id }` rolls it. `pending: false` resolves at once (the
-// party part before pending checks); `roll: false` has no check.roll.
-function checksModule({ pending = true, roll = true, refuse = false } = {}) {
+// A stand-in for Story Director's checks (contract P09): the `check` kind is one `checks.roll`, one die, resolved at once
+// (`data.v2.result` = the check, its die and outcome). `legacy: true` also has the older `check.roll`, which must never be called.
+function checksModule({ refuse = false, legacy = false } = {}) {
     return {
-        id: 'rpg-battle',
-        name: 'RPG Battle',
-        domains: { party: { initial: () => ({ checks: {}, made: 0 }) } },
-        commands: roll ? {
-            'check.roll'(ctx, payload) {
-                const party = ctx.draft('party');
-                const check = party.checks[payload.id];
-                if (!check || check.status !== 'pending') ctx.fail('NOT_FOUND', 'That check is not waiting.');
-                const die = ctx.roll('1d20').total;
-                const outcome = die >= check.dc ? 'success' : 'failure';
-                Object.assign(check, { status: 'rolled', die, outcome });
-                return { summary: `You try ${check.skill} (${check.what}): d20 ${die} against ${check.dc}, ${outcome}.`, data: { check: payload.id, die, outcome }, narrate: true };
-            },
-        } : {},
+        id: 'story-director',
+        name: 'Story Director',
+        domains: { party: { initial: () => ({ checks: {}, made: 0, legacyRolls: 0 }) } },
+        commands: legacy ? { 'check.roll'(ctx) { ctx.draft('party').legacyRolls += 1; return { summary: 'legacy', narrate: true }; } } : {},
         capture: {
             kinds: { check: { grammar: '? check skill — what is attempted | dc: easy|normal|hard|<number>' } },
             apply(ctx, line) {
-                if (refuse) ctx.fail('REFUSED', 'There is no character to make the check yet.');
+                if (refuse) ctx.fail('REFUSED', 'There is no actor to make the check yet.');
                 const party = ctx.draft('party');
                 const dc = DC[line.labels.dc] ?? Number(line.labels.dc);
                 party.made += 1;
-                if (!pending) {
-                    const die = ctx.roll('1d20').total;
-                    const outcome = die >= dc ? 'success' : 'failure';
-                    return { summary: `You try ${line.name}: d20 ${die} against ${dc}, ${outcome}.`, data: { die, outcome }, narrate: true };
-                }
+                const die = ctx.roll('1d20').total;
+                const outcome = die >= dc ? 'success' : 'failure';
                 const id = `ck_${String(party.made).padStart(8, '0')}`;
-                party.checks[id] = { skill: line.name, what: line.text, dc, status: 'pending' };
-                return { summary: `A ${line.name} check waits.`, data: { check: id }, narrate: false };
+                party.checks[id] = { skill: line.name, what: line.text, dc, status: 'rolled', die, outcome };
+                return { summary: `You try ${line.name} (${line.text}): d20 ${die} against ${dc}, ${outcome}.`, data: { v2: { key: `check:${id}`, result: { check: id, die, dc, outcome } } }, narrate: false };
             },
         },
     };
@@ -97,6 +83,7 @@ test('a risky message: the check is made and rolled before the reply, and the re
     assert.deepEqual(Object.keys(receipt.data).sort(), ['check', 'dc', 'key', 'outcome', 'rolled', 'skill']);
     assert.equal(receipt.data.rolled, true);
     assert.equal(receipt.data.outcome, checks[0].outcome);
+    assert.equal(receipt.data.check, Object.keys(party(host).checks)[0]);
 
     const tail = tailOf(request);
     assert.ok(tail.includes(`[Happened]\n${receipt.summary}`), tail);
@@ -136,22 +123,15 @@ test('none, garbage or off: no receipt and nothing changes', { skip }, async () 
     }
 });
 
-test('a check kind that resolves at once is kept as it is; without check.roll the check stays pending', { skip }, async () => {
-    const now = await setup({ checks: { pending: false } });
-    await now.host.send(ACTION, 'You slip by.');
-    const resolved = now.host.ctx.chat[0].extra.storySuite.receipts.at(-1);
-    assert.match(resolved.summary, /^You try stealth: d20 \d+ against 15/);
-    assert.equal(resolved.data.check, null);
-    assert.equal(resolved.data.rolled, false);
-    now.host.close();
-
-    const waiting = await setup({ checks: { roll: false } });
-    await waiting.host.send(ACTION, 'You slip by.');
-    const left = waiting.host.ctx.chat[0].extra.storySuite.receipts.at(-1);
-    assert.equal(left.summary, 'A stealth check waits.');
-    assert.equal(left.data.rolled, false);
-    assert.equal(Object.values(party(waiting.host).checks)[0].status, 'pending');
-    waiting.host.close();
+test('one capture, one die: the check kind resolves it, and no older check.roll is ever called', { skip }, async () => {
+    const { host } = await setup({ checks: { legacy: true } });
+    await host.send(ACTION, 'You slip by.');
+    const receipt = host.ctx.chat[0].extra.storySuite.receipts.at(-1);
+    assert.match(receipt.summary, /^You try stealth \(slipping past the gate guard\): d20 \d+ against 15/);
+    assert.equal(receipt.data.rolled, true);
+    assert.equal(party(host).made, 1);
+    assert.equal(party(host).legacyRolls, 0);
+    host.close();
 });
 
 test('rejections save nothing: a refused check, a second pre-roll of the same message, a bad payload', { skip }, async () => {
@@ -160,7 +140,7 @@ test('rejections save nothing: a refused check, a second pre-roll of the same me
     await refused.host.send(ACTION, 'You slip by.');
     assert.equal(refused.host.head().meta.rev, rev);
     assert.deepEqual(refused.host.head().meta.claims, {});
-    assert.match(refused.host.turn.problems().at(-1).message, /assist\.precheck.*There is no character/);
+    assert.match(refused.host.turn.problems().at(-1).message, /assist\.precheck.*There is no actor/);
     refused.host.close();
 
     const { host } = await setup();

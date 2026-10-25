@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     CLASSIFIER_HEAD, MESSAGE_LIMIT, PRECHECK, PROMPT_BUDGET, ROLLED_LINE, checkLine, claimKey, classifierPrompt,
-    createAssistPart, estimateTokens, hashText, normalizeDc, parseClassifierAnswer, pendingCheckId,
+    createAssistPart, estimateTokens, hashText, normalizeDc, parseClassifierAnswer,
 } from '../../../src/v2/assist/index.js';
 import { NEVER, fakeModel, flush, manualTimer, on, reply, user, view } from './helpers/fakes.js';
 
@@ -70,10 +70,6 @@ test('difficulties and check lines are normalized and checked', () => {
     assert.equal(checkLine({ op: '+', kind: 'check', name: 'stealth', labels: { dc: 'hard' } }), null);
     assert.equal(checkLine(null), null);
     assert.equal(checkLine({ op: '?', kind: 'check', name: 'stealth', text: 'x'.repeat(400), labels: { dc: 'hard' } }).text.length, 160);
-    assert.equal(pendingCheckId({ check: 'ck_aaaaaaaa' }), 'ck_aaaaaaaa');
-    assert.equal(pendingCheckId({ id: 'ck_bbbbbbbb' }), 'ck_bbbbbbbb');
-    assert.equal(pendingCheckId({ check: 'ck_aaaaaaaa', outcome: 'success' }), null, 'already resolved');
-    assert.equal(pendingCheckId(null), null);
 });
 
 test('off (the default): nothing, and no model call', async () => {
