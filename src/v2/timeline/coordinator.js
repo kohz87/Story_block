@@ -271,8 +271,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // A projection of the chat's messages for the readers of the story (prompt, extraction, native scans): the canonical
     // ids of each message and whether it is on the active line. A message with no carrier record of its own (the reader's
     // own) gets a projection-only msg_ id worked out from where it stands. The faded interval of a return, (target, restore],
-    // is carrier-wide here: the replies after the target's reply through the restoring one, and the reader's messages between.
-    // The exclusion of the reply a target falls inside of, and the head-selection barrier, are the next package's.
+    // excludes the whole target reply when the cursor is inside it (op > 0), through the restoring reply,
+    // including intervening reader messages. A cursor at op 0 denotes the boundary at that carrier.
     async function history(input = {}) {
         if (!isObject(input) || Object.keys(input).some(key => key !== 'through')) return fail('INVALID', 'history takes { through? }.');
         const through = input.through;
@@ -280,12 +280,12 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const state = store.head();
         const messages = typeof chat === 'function' ? chat() : [];
         const sids = messages.map((message, at) => (message?.is_user ? null : store.sourceAt(at)));
-        const cut = through === undefined ? messages.length - 1 : sids.findIndex(source => source?.sid === through.sid);
-        if (cut < 0) return fail('NOT_FOUND', 'No message of this chat has that cursor.');
+        const cut = through === undefined ? messages.length - 1 : sids.findIndex(source => source?.sid === through.sid && source?.swipeKey === through.swipeKey);
+        if (through !== undefined && cut < 0) return fail('NOT_FOUND', 'No message of this chat has that cursor.');
         const returns = Object.values(isObject(state?.domains?.[HOST_DOMAIN]?.returns) ? state.domains[HOST_DOMAIN].returns : {}).filter(isObject);
         const faded = returns.map(item => item.faded).filter(item => isObject(item?.after) && isObject(item?.through))
             .map(item => ({ after: structuredClone(item.after), through: structuredClone(item.through) }));
-        const spans = faded.map(item => ({ from: sids.findIndex(source => source?.sid === item.after.sid), to: sids.findIndex(source => source?.sid === item.through.sid) }))
+        const spans = faded.map(item => ({ from: sids.findIndex(source => source?.sid === item.after.sid && source?.swipeKey === item.after.swipeKey), to: sids.findIndex(source => source?.sid === item.through.sid && source?.swipeKey === item.through.swipeKey), inside: item.after.op > 0 }))
             .filter(span => span.from >= 0 && span.to >= span.from);
         const out = [];
         for (let at = 0; at <= cut && at < messages.length; at++) {
@@ -295,7 +295,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 const id = deriveId('msg', hashJson({ lineage: archive.lineage(), at, name: message?.name ?? '', date: message?.send_date ?? '', mes: message?.mes ?? '' }));
                 return { sid: id, swipeKey: id };
             })();
-            out.push({ sid: ids.sid, swipeKey: ids.swipeKey, text: String(message?.mes ?? ''), active: !spans.some(span => at > span.from && at <= span.to) });
+            out.push({ sid: ids.sid, swipeKey: ids.swipeKey, text: String(message?.mes ?? ''), active: !spans.some(span => at >= span.from + (span.inside ? 0 : 1) && at <= span.to) });
         }
         return { ok: true, messages: out, faded };
     }
