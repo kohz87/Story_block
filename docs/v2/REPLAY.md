@@ -134,6 +134,16 @@ a module turns ready or dormant (the `modules` event) the turn calls `store.life
 cached heads, so the block is asked again and applies once (and the screens get a `head` event); the store also
 notices a change of which owners are ready on its next read.
 
+## Reply-bound guards
+
+A guard may carry `replyBound: true` (a boolean; the field is left out otherwise, so stored bytes of every other guard are unchanged).
+Such a block belongs to the reply it was stored on in a way history cannot carry: when that reply is no longer in the
+chat, replay does not apply the block, even when deleting the earliest replies would otherwise carry the formerly known
+state forward (`carriedTo`); a replay that still lists the deleted reply fails the block's prerequisite ("its reply was deleted").
+A swipe away from the reply does the same as it does for any block of that swipe; a Re-read of the reply keeps the block, because
+the reply is still there. Use it for a choice the rest of the owner's state depends on (RPG Battle's rules pin): taking the
+reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
+
 ## Source map and ids
 
 Every record carries `source: { logical, swipeKey, evidence, next }` (contract §4's source map). It is worked

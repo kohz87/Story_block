@@ -666,6 +666,9 @@ export function createStore({
 
     function replayGuarded(state, record, ops, span, message = null, receipt = null) {
         blockIntact(record, ops, span, receipt);
+        // Some setup choices must retract even when deletion of the earliest replies carries their
+        // other state forward (carriedTo replays the formerly known prefix). Never carry this choice.
+        if (span.guard?.replyBound === true && message && !list().includes(message)) throw prerequisite('its reply was deleted');
         const clockPrefix = markerPrefixProblem(span, state);
         if (clockPrefix) throw prerequisite(clockPrefix);
         // A proof id belongs to the block that applied with it first: a later block that gives the same id collides and does not apply.
