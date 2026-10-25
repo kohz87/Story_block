@@ -28,7 +28,7 @@ async function sellAll(h, match) {
 test('what one reply\'s story lines make sells for no more than one reply may give in coin', { skip }, async () => {
     const h = await suite.started({ seed: 3 });
     try {
-        const budget = h.q('quest.ranks')[0].reward[1];
+        const budget = h.q('inventory.storyBudget').budget;
         await h.send('A cache.', h.reply('An alchemist\'s cache.', Array.from({ length: 50 }, (_, i) => `+ item Phoenix Draught ${i + 1} | qty: 20 | note: heal 999`)));
         const got = await sellAll(h, name => name.startsWith('Phoenix Draught'));
         assert.ok(got <= budget * 2, `one reply's goods sold for ${got}; one reply may give ${budget} in coin`);
