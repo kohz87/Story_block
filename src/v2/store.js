@@ -42,7 +42,8 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
-import { allocator, evidenceDigest, evidenceProblem, merged, occurrenceOf, opShapeProblem, operationKey, pinOps, recordEntries, spanOperationKey, takenAfter, touchesProof } from './evidence.js';
+import { allocator, evidenceDigest, evidenceProblem, merged, occurrenceOf, opShapeProblem, operationKey, pinOps, reachesBranch, recordEntries, spanOperationKey, takenAfter, touchesProof } from './evidence.js';
+import { HOST_DOMAIN, gateProblem } from './timeline/gate.js';
 
 export const CHECKPOINT_EVERY = 100;
 export const CHECKPOINT_BYTES = 128 * 1024;
@@ -52,6 +53,12 @@ export const CHECKPOINT_BYTES = 128 * 1024;
 export const CHECKPOINT_MIN_GAP = 10;
 /** The code an owner's replan answers with when the step is no longer done (REPLAY.md): only this removes a block. */
 export const NO_LONGER_DONE = 'NO_LONGER_DONE';
+
+// The host's savepoints domain (timeline/gate.js): written only by the host's own blocks (module story-block, operation savepoint.*).
+// A write reaches it when its path or `from` is the domain, anything below it, or anything that holds it (/domains, the root): any op.
+const HOST_BRANCH = ['domains', HOST_DOMAIN];
+const touchesHostDomain = op => !op || typeof op !== 'object' || reachesBranch(op.path, HOST_BRANCH) || reachesBranch(op.from, HOST_BRANCH);
+const hostBlock = (module, type) => module === 'story-block' && typeof type === 'string' && type.startsWith('savepoint.');
 
 const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const utf8 = new TextEncoder();
@@ -586,6 +593,7 @@ export function createStore({
     // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
     function replayLegacy(state, ops) {
         if (ops.some(op => op && typeof op === 'object' && touchesProof(op))) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
+        if (ops.some(touchesHostDomain)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         return step(state, ops, { replayed: true });
     }
 
@@ -595,6 +603,9 @@ export function createStore({
     const arr0 = index => list()[index];
     function guardHolds(state, span, message) {
         if (typeof guardCheck !== 'function' || !isMetaSpan(span) || !span.guard) return;
+        // (the epoch and rules gate first, as a replay does: docs/v2/TIMELINE.md)
+        const gate = gateProblem(state, span.guard);
+        if (gate) throw new Error(`Its guard would not hold when this is replayed, so it is not stored: ${gate}`);
         const answer = askGuard(state, span, message);
         if (!answer.ok) throw new Error(`Its guard would not hold when this is replayed, so it is not stored: ${answer.reason}`);
     }
@@ -620,6 +631,7 @@ export function createStore({
         if (claims.length !== span.claims.length || !claims.every(key => span.claims.includes(key))) {
             throw prerequisite('the claims it saved are not the claims its changes make');
         }
+        if (ops.some(touchesHostDomain) && !hostBlock(span.module, span.operation?.type)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         const proof = evidenceProblem(span, ops);
         if (proof) throw prerequisite(`the proof it saved is not the proof its changes pin: ${proof}`);
     }
@@ -639,6 +651,9 @@ export function createStore({
         const taken = isObject(held) ? span.claims.find(key => Object.hasOwn(held, key)) : undefined;
         if (taken !== undefined) throw prerequisite(`claim already held (${taken})`);
         if (span.guard) {
+            // The host's own check of the guard's epoch and rules hash against the timeline (docs/v2/TIMELINE.md), then the owner's.
+            const gate = gateProblem(state, span.guard);
+            if (gate) throw prerequisite(`its guard no longer holds: ${gate}`);
             const answer = askGuard(state, span, message);
             if (!answer.ok) throw prerequisite(`its guard no longer holds: ${answer.reason}`);
         }
@@ -1835,6 +1850,42 @@ export function createStore({
         },
 
         /**
+         * Where the committed story ends (the timeline's head, contract §8): the cursor and the prefix hash a block
+         * stored now would start at, so `{ cursor, prefixHash }` is exactly the boundary that block's span will carry
+         * (apart from its own block id: `cursor.block` is the last block's on the head reply, or a stand-in worked out
+         * from the position when it has none). `payloadHash` is the head reply's text as evidence; `source` its Source.
+         * null without a carrier or a state. Nothing is written (a first record's id is only reserved, as sourceAt does).
+         */
+        boundary() {
+            const arr = list();
+            const index = lastCarrier(arr);
+            if (index < 0) return null;
+            const head = current();
+            if (!head.state) return null;
+            const message = arr[index];
+            const record = readRecord(message);
+            const sid = record ? record.sid : reservedSid(message);
+            if (typeof sid !== 'string') return null;
+            const entry = isObject(record?.source) ? record.source : sourceFor(arr, message, sid);
+            const spans = record ? spansFor(record) : [];
+            const parts = record ? blockParts({ ...record, spans, ops: record.ops }) : [];
+            const op = record ? record.ops.length : 0;
+            const last = [...spans].reverse().find(isMetaSpan);
+            return {
+                index,
+                cursor: { sid: entry.logical, swipeKey: entry.swipeKey, block: last ? last.id : deriveId('bl', `end:${entry.swipeKey}:${op}`), op, rev: revOf(head.state) },
+                prefixHash: hashJson({ p: chainHash(arr, index), k: entry.swipeKey, t: payloadHashOf(message), b: blocksBefore(parts) }),
+                payloadHash: payloadHashOf(message),
+                source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal: Number.isInteger(entry.next) ? entry.next : 0 },
+            };
+        },
+
+        /** Marks the chat as changed outside its records (the timeline's archive in the chat's metadata): the next save writes it. */
+        touch() {
+            saver.touch();
+        },
+
+        /**
          * The modules' lifecycle changed (a module turned ready or dormant, the `modules` event): the checkpoints over guarded
          * blocks that were made under other owners no longer hold (chain), so the head is replayed again from before them with
          * the guards asked, and only then does the caller publish a head. Guarded blocks before the checkpoint a replay would
@@ -1876,6 +1927,12 @@ export function createStore({
             if (receipt !== null && !isObject(receipt)) throw new TypeError('A receipt must be an object.');
             if (block !== null && !isObject(block)) throw new TypeError('A block must be an object.');
             if (!added.length && !receipt) return;
+            if (added.some(touchesHostDomain) && !hostBlock(block?.module, block?.operation?.type)) throw new Error('The savepoints are the host\'s own; only its blocks write them.');
+            if (block?.guard) {
+                // A guard that replay would turn away (another epoch, other rules) is not stored: live and replay agree.
+                const gate = gateProblem(base, block.guard);
+                if (gate) throw new Error(`The guarded change cannot be stored: ${gate}.`);
+            }
             const next = step(base, added);       // throws on a bad op: nothing is written
             const taken = take(arr, index, base);
             // (what a quarantined record would hold is never applied: a change put on it would be lost on the next replay)
