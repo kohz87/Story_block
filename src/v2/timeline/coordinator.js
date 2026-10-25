@@ -31,6 +31,8 @@ const KINDS = Object.freeze(['initial', 'manual', 'day-start']);
 const ENDS = Object.freeze({ make: ['committed', 'discarded', 'aborted'], restore: ['complete', 'aborted', 'retracted'], 'native-mutation': ['done', 'aborted'], 'native-event': ['done', 'aborted'], selection: ['complete'] });
 const settled = entry => (ENDS[entry.kind] ?? []).includes(entry.phase);
 const NAME_MAX = 80;
+// How many times a head is planned again, one pass after the other, before it is called moving (the barrier stays up then).
+const SELECTION_PASSES = 32;
 
 const textProblem = (value, max) => {
     if (typeof value !== 'string') return 'is not text';
@@ -85,7 +87,11 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         settle();
         if (archive.holder() !== holder) return fail('STALE', 'Another chat was opened before this was done; nothing was changed in the chat that is open now.');
         scope = { holder };
-        try { return await fn(); } finally { scope = null; }
+        try {
+            const out = await fn();
+            await reconcile();
+            return out;
+        } finally { scope = null; }
     };
     const exclusive = fn => {
         settle();
@@ -143,18 +149,20 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
     };
     // What belongs to a chat that is not the open one is dropped: announcements owed, and a barrier raised for it (its own journal
-    // keeps what it was doing, and its `recover` raises the barrier again when that chat is opened).
+    // keeps what it was doing, and its `recover` raises the barrier again when that chat is opened). The open chat is asked every
+    // time whether its participants stand on the checkpoints of its selected head, whether or not an operation is running: a head
+    // change met meanwhile raises the barrier at once, and the operation ends by reconciling (`reconcile`).
     function settle() {
         const holder = archive.holder();
         owed = owed.filter(each => each.holder === holder);
         if (barrierOwner !== null && barrierOwner !== holder) {
             barrierOwner = null;
             barrierEarly = false;
-            barrier('idle', '');
+            lowerWhenSettled();   // (held on, without a moment of readiness, when the open chat has something of its own to finish)
         }
-        // A chat whose journal has work unfinished is barred from the moment it is open; its recovery follows when the queue gives it
-        // its turn (a make of another chat may be holding the line meanwhile).
-        if (holder && barrierOwner === null && (pendingEntry() !== null || (runningIn(holder) === 0 && selectionNeeded()))) {
+        // A chat whose journal has work unfinished, or whose participants are off its selected head, is barred from the moment it is
+        // open; its recovery follows when the queue gives it its turn (a make of another chat may be holding the line meanwhile).
+        if (holder && barrierOwner === null && (pendingEntry() !== null || selectionNeeded())) {
             barrierOwner = holder;
             barrierEarly = true;
             barrier('pending', 'A restore is finishing; every part must agree before the story goes on.');
@@ -171,16 +179,44 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const owe = stored => { owed.push({ stored, holder: archive.holder(), id: stored.receipt.id }); return stored; };
     // The host's restore barrier, raised or dropped only for the chat the operation is in, and remembered as that chat's.
     const raise = reason => { here(); barrierOwner = archive.holder(); barrierEarly = false; barrier('pending', reason); };
-    // At most one change is outstanding in a chat, and the barrier stays up until every one has settled: it comes down, and the host is
-    // announced ready, only when the journal holds none besides the one being settled (→ whether it came down).
-    const lower = (settling = null) => {
-        here();
-        if (pendingEntry(settling) !== null) return false;
+    // The one place the barrier comes down and the host is announced ready: nothing is outstanding in the journal (besides the change
+    // being settled) and the participants stand on the checkpoints the selected head names. Judged in the same synchronous step that
+    // lowers it, so no listener is told ready on a story whose native state has not caught up. → whether it came down.
+    function lowerWhenSettled(settling = null) {
+        if (pendingEntry(settling) !== null || selectionNeeded()) return false;
         barrierOwner = null;
         barrierEarly = false;
         barrier('idle', '');
         return true;
-    };
+    }
+    // Brings the participants to the selected head and lowers the barrier, in this order: the head's checkpoints are reconciled to a
+    // fixed point (each pass plans again from the head as it stands; a pass that still reports a change is followed by another), what
+    // was published is made durable, and the look that lowers the barrier is the last thing done, with nothing awaited after it.
+    // Bounded: a head that keeps moving leaves the barrier up for the next recovery. → { ok: true } when it came down, else why not.
+    async function release(settling = null) {
+        for (let pass = 0; pass < SELECTION_PASSES; pass += 1) {
+            here();
+            if (pendingEntry(settling) !== null) return fail('RESTORE_PENDING', 'Another change is outstanding in this chat; the barrier holds until it has settled.');
+            if (selectionNeeded()) {
+                const selected = await selectHead();
+                if (!selected.ok) return selected;
+                continue;
+            }
+            await durable();
+            if (lowerWhenSettled(settling)) return { ok: true };
+        }
+        return fail('FAILED', 'The selected head kept moving; the barrier remains held.');
+    }
+    // An operation that ends with the barrier raised for a selection (a head change it met while it ran) brings the participants to
+    // the selected head before the next one starts. A failure leaves the barrier up: a recovery finishes it. (A save that failed is not
+    // tried again here: the operation told its caller, and the retry or the recovery is the next try.)
+    async function reconcile() {
+        if (barrierOwner === null || barrierOwner !== archive.holder() || pendingEntry() !== null || !selectionNeeded()) return;
+        try { await release(); } catch (error) {
+            if (crashing(error)) throw error;
+            if (isStaleChat(error)) settle();
+        }
+    }
     const isHost = auth => auth === capability || auth?.capability === capability;
     // A change that is outstanding: a restore committed and not complete, a native change prepared and not done (`ignore`: the one being settled).
     const pendingEntry = (ignore = null) => archive.entries().find(entry => entry.id !== ignore && entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
@@ -725,36 +761,42 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         return complete(entry);
     }
 
-    // Every part agreed: the barrier drops, then the return is marked complete in the story (with the barrier down, so
-    // every module's blocks are asked again and the block sees the story whole). Complete is told only once the chat file has it.
+    // Every part agreed. In one synchronous section the story is read whole (the barrier stays up), the return is marked complete (a
+    // small block of its own) and the restore is published for the head it ends at. The barrier comes down in `release`, after the
+    // chat file has it all and the participants are on the selected head. Complete is told only once the chat file has it.
     async function complete(entry) {
-        if (!lower(entry.id)) {
+        if (pendingEntry(entry.id) !== null) {
             // Another change is outstanding in this journal (it cannot be through the API): this restore is not complete until it has settled.
             archive.patch(entry.id, { phase: 'acked', why: 'another change is outstanding in this chat' });
             return { ok: true, return: entry.return, status: 'participants-pending' };
         }
-        const now = headNow();
-        const returns = now?.state?.domains?.[HOST_DOMAIN]?.returns;
-        const found = isObject(returns) ? returns[entry.return] : null;
-        if (found?.status === 'committed') {
-            const stored = appendHostBlock({
-                store, announce, here: stillHere, head: now, ops: [{ op: 'replace', path: `/domains/${HOST_DOMAIN}/returns/${entry.return}/status`, value: 'complete' }],
-                spec: { type: 'savepoint.complete', cause: 'system', summary: 'The return is complete.', key: `complete:${entry.return}`, blockId: makeId('bl'),
-                    predicate: { kind: 'complete', return: entry.return }, payload: { return: entry.return }, recorded: null, result: { return: entry.return, status: 'complete' } },
-            });
-            if (!stored.ok) {
-                // (the story cannot take the word yet: the restore waits, behind the barrier, for recover to try again)
-                archive.patch(entry.id, { phase: 'acked', why: stored.message });
-                raise('A restore is finishing; every part must agree before the story goes on.');
-                return { ok: true, return: entry.return, status: 'participants-pending' };
+        here();
+        const section = withWholePrefixes(() => {
+            const now = headNow();
+            const returns = now?.state?.domains?.[HOST_DOMAIN]?.returns;
+            const found = isObject(returns) ? returns[entry.return] : null;
+            if (found?.status === 'committed') {
+                const stored = appendHostBlock({
+                    store, announce, here: stillHere, head: now, ops: [{ op: 'replace', path: `/domains/${HOST_DOMAIN}/returns/${entry.return}/status`, value: 'complete' }],
+                    spec: { type: 'savepoint.complete', cause: 'system', summary: 'The return is complete.', key: `complete:${entry.return}`, blockId: makeId('bl'),
+                        predicate: { kind: 'complete', return: entry.return }, payload: { return: entry.return }, recorded: null, result: { return: entry.return, status: 'complete' } },
+                });
+                if (!stored.ok) return { failed: stored };
+                owe(stored);
             }
-            owe(stored);
+            publishRestore(entry);
+            return {};
+        });
+        if (section.failed) {
+            // (the story cannot take the word yet: the restore waits, behind the barrier, for recover to try again)
+            archive.patch(entry.id, { phase: 'acked', why: section.failed.message });
+            raise('A restore is finishing; every part must agree before the story goes on.');
+            return { ok: true, return: entry.return, status: 'participants-pending' };
         }
-        publishRestore(entry);
         archive.patch(entry.id, { phase: 'complete' });
-        await durable();
+        const released = await release(entry.id);
         await point('activate.completed');
-        return { ok: true, return: entry.return, status: 'complete' };
+        return { ok: true, return: entry.return, status: released.ok ? 'complete' : 'participants-pending' };
     }
 
     async function activate(input) {
@@ -767,6 +809,11 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         // when the chat file has it.
         if (entry.phase === 'complete') {
             await durable();
+            // (a save that failed after the restore was complete left the barrier up: it comes down now that the file has it)
+            if (barrierOwner === archive.holder()) {
+                const released = await release();
+                if (!released.ok) return { ok: true, return: entry.return, status: 'participants-pending' };
+            }
             return { ok: true, return: entry.return, status: 'complete' };
         }
         if (['committed', 'participants-pending', 'acked'].includes(entry.phase)) {
@@ -851,22 +898,6 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
 
     // ---- recover -----------------------------------------------------------------------------------------------
 
-    // The story as it stands with the modules not held back, read in one synchronous step while commands stay barred: the barrier is
-    // put back before anything else can run and nothing is announced, so no listener sees the host ready (or acts) on a story whose
-    // native state has not caught up. Internal to recovery; nothing outside this file can ask it.
-    function wholeStory() {
-        const was = registry.restore();
-        if (was.state !== 'pending') return store.head();
-        registry.setRestore('idle', '');
-        try {
-            store.lifecycleChanged?.();   // (the guarded blocks are asked again with the modules not held: no 'modules' event, no 'head' event)
-            return store.head();
-        } finally {
-            registry.setRestore(was.state, was.reason);
-            store.lifecycleChanged?.();
-        }
-    }
-
     // Host startup: what was committed is finished, what was only prepared is aborted. No clock, no target is chosen again.
     async function recover() {
         if (!archive.exists() && !(store.head()?.meta?.proofs && store.timelineMarkers().length)) return { ok: true, state: 'idle', return: null };
@@ -898,7 +929,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                     // A start finds the story whole and asks whether it still holds the restore. Within a run that already has the
                     // barrier up it cannot ask: with the modules held, their guarded blocks are off and the story is not whole.
                     // (the barrier `settle` raised when this chat opened is not one of a run: the story is looked at whole, as it was before)
-                    const state = early ? wholeStory() : store.head();
+                    const state = early ? withWholePrefixes(() => store.head()) : store.head();
                     const there = state?.domains?.[HOST_DOMAIN]?.returns?.[entry.return];
                     if ((early || registry.restore?.().state !== 'pending') && !isObject(there)) {
                         // The story no longer holds the restore (its reply was swiped or deleted): its participants are the next package's.
@@ -924,14 +955,12 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 }
             }
         }
-        for (let pass = 0; pass < 32; pass += 1) {
-            const selection = await selectHead();
-            if (!selection.ok) return selection;
-            if (!selectionNeeded()) break;
-            if (pass === 31) return fail('FAILED', 'The selected head kept moving; the barrier remains held.');
+        // The participants are brought to the selected head, and the barrier (a barrier raised as this chat opened, for work that turned
+        // out to be nothing to finish, does not stay up) comes down: in `release`, the one place that does.
+        if (pendingEntry() === null && (barrierOwner === archive.holder() || selectionNeeded())) {
+            const released = await release();
+            if (!released.ok) return released;
         }
-        // (a barrier raised as this chat opened, for work that turned out to be nothing to finish, does not stay up)
-        if (barrierOwner === archive.holder() && pendingEntry() === null) lower();
         if (pendingEntry() === null) {
             const markers = await materializeMarkers();
             if (!markers.ok) return markers;
@@ -1094,9 +1123,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             return fail('CONFLICT', `The participant ${module} answered other bytes than the change prepared.`);
         }
         publish(settled);
-        lower(settled.id);
         // Told done only when the file has it; a failed save is the caller's failure (a retry of the same event answers once it is saved).
-        await durable();
+        // The barrier comes down in `release`, once the participants stand on the selected head: the reply this change stood on may be
+        // gone by now. (A selection that cannot be confirmed yet leaves the barrier up for a recovery; the change itself is done.)
+        await release(settled.id);
         return { ok: true, checkpoint: settled.after.checkpoint, hash: settled.after.hash };
     }
 
@@ -1335,7 +1365,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         settle,
         available: hash => archive.hasPayload(hash),
         /** Whether the journal holds work no operation owns (a crashed make, a restore left half way): the host recovers it. */
-        needsRecovery: () => runningIn(archive.holder()) === 0 && ((archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded())) || unmaterializedMarkers().length > 0),
+        needsRecovery: () => runningIn(archive.holder()) === 0 && ((archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded())) || unmaterializedMarkers().length > 0
+            || (barrierOwner !== null && barrierOwner === archive.holder())),
         archive,
         pending: pendingNow,
         /** Points of `state` with their bytes checked, in target order (the savepoint.list query). */

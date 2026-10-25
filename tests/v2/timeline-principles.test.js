@@ -182,8 +182,10 @@ test('the last save of a native change failing is a failure, not a success, and 
     assert.equal(result.code, 'FAILED');
     assert.equal(w.native.native.store.applied.includes('ev_sweep0001'), true, 'the participant did change');
     w.counter.failing = 0;
-    const head = await w.host.sdk.timeline.head();
-    void head;
+    // The barrier comes down only once the file has the change (E6b): until then the head cannot be read, and the recovery finishes it.
+    assert.equal((await w.host.sdk.timeline.head()).code, 'RESTORE_PENDING');
+    assert.equal((await w.host.timeline.recover()).ok, true);
+    assert.equal(w.host.registry.restore().state, 'idle');
     const retried = await w.host.timeline.host.nativeEvent({ event: 'ev_sweep0001', participant: NATIVE, kind: 'confirmed-death', npc: NPC, expectedHead: (await w.host.sdk.timeline.head()).headHash });
     assert.equal(retried.ok, true, retried.message);
     assert.equal(probe.done(w), true, 'acknowledged once saved');

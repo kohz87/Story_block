@@ -202,6 +202,28 @@ export function nativeModule({ id = NATIVE } = {}) {
     };
 }
 
+/**
+ * A participant callback that can be held: `gate = pause(def.participant, 'activate')` (before the host registers it). While armed
+ * (`gate.arm()`), the next call waits at `gate.entered` until `gate.release()`; unarmed, it is the callback it was.
+ */
+export function pause(participant, name) {
+    const original = participant[name];
+    const gate = { armed: false, entered: null, release: null };
+    gate.arm = () => {
+        gate.armed = true;
+        gate.entered = new Promise(resolve => { gate.entering = resolve; });
+        gate.released = new Promise(resolve => { gate.release = resolve; });
+        return gate;
+    };
+    participant[name] = input => {
+        if (!gate.armed) return original(input);
+        gate.armed = false;
+        gate.entering();
+        return gate.released.then(() => original(input));
+    };
+    return gate;
+}
+
 // ---- a host, what a save wrote, and a start again from it -------------------------------------------------
 
 export const clone = value => JSON.parse(JSON.stringify(value));
