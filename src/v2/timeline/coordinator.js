@@ -1250,6 +1250,18 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
     }
 
+    // Synchronous §2 capability projection. Reading it creates no archive or participant checkpoint.
+    // Installed NSD needs its native participant even when its optional UI/social features are off.
+    function contract() {
+        const snapshots = archive.holder() !== null && store.readOnly?.() == null;
+        const declarations = registry.modules().filter(def => def.participant !== undefined || def.id === 'npc-state-delta');
+        const installed = declarations.every(def => participants.has(def.id) && !broken.has(def.id));
+        const oldWitnesses = archive.entries().some(entry => entry.kind === 'restore' && entry.phase !== 'aborted' && !entry.boundary);
+        const participantsReady = installed && participants.ready() && !brokenProblem() && !oldWitnesses && registry.restore?.().state !== 'pending' && !selectionNeeded();
+        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0;
+        return { api: 2, snapshots, retainedChatRestore, participantsReady };
+    }
+
     // ---- the public adapter of savepoint.make ------------------------------------------------------------
 
     /** sdk.command('savepoint.make', payload): the receipt envelope of §3, after the checkpoints and the head check. */
@@ -1327,5 +1339,6 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         pending: pendingNow,
         /** Points of `state` with their bytes checked, in target order (the savepoint.list query). */
         points: state => listNow(state),
+        contract,
     });
 }

@@ -56,6 +56,7 @@ export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS } = {}) 
             return { ok: true, module: spec.module };
         },
         has: module => table.has(module),
+        ready: () => inflight.size === 0,
         get: module => table.get(module) ?? null,
         /** The registered participants' modules, sorted. */
         modules: () => [...table.keys()].sort(),

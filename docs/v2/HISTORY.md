@@ -43,3 +43,12 @@ Contract gaps and owner follow-ups:
 - Consumers outside this repo must adopt active history for prompts, extraction, journal facts and native scanning.
 - The frozen contract supplies no public RB activation-registration callback. RB owns its public query probes.
 - Memory `none`/`full` and automatic death-target choice remain owner integration work; E6a's limitations apply.
+
+`savepoint.contract({}) -> {api:2,snapshots,retainedChatRestore,participantsReady}` is a synchronous, read-only
+capability projection. It creates no archive or checkpoint. A missing timeline or read-only store reports no snapshot
+support; committed clock markers awaiting publication report retained-chat restore unavailable. Every installed native
+participant must register successfully (NSD even with optional features off); callbacks in flight, unresolved selection,
+restore barriers, and old restore journals lacking native prefix witnesses report participants not ready. The independent
+modules remain usable when a capability is false. The RB bootstrap must reject a missing, thrown, null, malformed,
+wrong-version or false capability answer as DEPENDENCY_UNAVAILABLE; its public query probe is tested as a consumer
+fixture because the available real RB checkout has not yet implemented that bootstrap migration.

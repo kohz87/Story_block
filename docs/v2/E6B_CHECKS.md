@@ -27,3 +27,8 @@ or real SD/NSD marker/history integrations are finished. Follow the owners' cont
 Extended part-3 fuzz: 8 seeds × 60 operations (480 mixed operations), all 8 pass. The 30 × 80 exploratory
 run exceeded its 180-second wall bound and is not counted as passing; archive/prefix performance remains a
 fails-safe follow-up. The ordinary eight-seed fuzz is also included in the green full host suite.
+
+Part 4: savepoint.contract query, read-only capability calculation and in-flight participant readiness. The
+contract/lifecycle/byte tests pass 39/39; all timeline and lifecycle tests pass 241/241. Removing only query
+registration makes the regression file fail. Changed-source syntax and diff checks pass. Real RB consumer
+migration is the integration gap described above, not an invented host registration interface.
