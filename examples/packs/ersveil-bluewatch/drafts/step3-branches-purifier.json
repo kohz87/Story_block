@@ -1,0 +1,508 @@
+{
+  "branches": [
+    {
+      "slug": "dawn-aegis-base-a",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base",
+      "step": 1,
+      "choice": "a",
+      "name": "Dawn Pillar",
+      "note": "Focusing radiant aegis into an impenetrable personal shield.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "self"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 520
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-b",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base",
+      "step": 1,
+      "choice": "b",
+      "name": "Solar Bastion",
+      "note": "Tempering the protective aura with searing solar fire.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-a-a",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base-a",
+      "step": 2,
+      "choice": "a",
+      "name": "Solar Pillar",
+      "note": "Imbuing the personal pillar with roaring flame.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-a-b",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base-a",
+      "step": 2,
+      "choice": "b",
+      "name": "Storm Pillar",
+      "note": "Crackling lightning surrounding the personal barrier.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-b-a",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base-b",
+      "step": 2,
+      "choice": "a",
+      "name": "Solar Vanguard",
+      "note": "Focusing the flame barrier onto oneself for extreme protection.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "self"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-b-b",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base-b",
+      "step": 2,
+      "choice": "b",
+      "name": "Sanctified Solar Bastion",
+      "note": "Re-consecrating the fiery group barrier with holy power.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-g-a",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base-g",
+      "step": 2,
+      "choice": "a",
+      "name": "Empowered Dawn Pillar",
+      "note": "Focused radiant shield deflecting siege weapons.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "self"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "dawn-aegis-base-g-b",
+      "skill": "dawn-aegis",
+      "fromForm": "dawn-aegis-base-g",
+      "step": 2,
+      "choice": "b",
+      "name": "Empowered Solar Bastion",
+      "note": "Fiery radiant shelter guarding all against apocalypse.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-a",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base",
+      "step": 1,
+      "choice": "a",
+      "name": "Blazing Wrath Wave",
+      "note": "Spreading the strike into a broad multi-target wave.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-b",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base",
+      "step": 1,
+      "choice": "b",
+      "name": "Elemental Blazing Wrath",
+      "note": "Channeling elemental energy through the focused strike.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 520
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-a-a",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base-a",
+      "step": 2,
+      "choice": "a",
+      "name": "Radiant Blazing Wrath Wave",
+      "note": "Infusing the sweeping wave with bright elemental light.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-a-b",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base-a",
+      "step": 2,
+      "choice": "b",
+      "name": "Storm Blazing Wrath Wave",
+      "note": "Charging the sweeping attack with crackling lightning.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-b-a",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base-b",
+      "step": 2,
+      "choice": "a",
+      "name": "Expanded Blazing Wrath",
+      "note": "Expanding the elemental blast across all opposing targets.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-b-b",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base-b",
+      "step": 2,
+      "choice": "b",
+      "name": "Searing Blazing Wrath",
+      "note": "Intensifying the single-target burst to maximum heat.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-g-a",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base-g",
+      "step": 2,
+      "choice": "a",
+      "name": "Cataclysmic Blazing Wrath",
+      "note": "Unleashing the empowered strike over the whole battlefield.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "blazing-wrath-base-g-b",
+      "skill": "blazing-wrath",
+      "fromForm": "blazing-wrath-base-g",
+      "step": 2,
+      "choice": "b",
+      "name": "Sanctified Blazing Wrath",
+      "note": "Empowered single strike consecrated with holy wrath.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-a",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base",
+      "step": 1,
+      "choice": "a",
+      "name": "Focused Sanctified Inferno",
+      "note": "Compressing the area fury into a single fatal focal point.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "one"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 520
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-b",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base",
+      "step": 1,
+      "choice": "b",
+      "name": "Elemental Sanctified Inferno",
+      "note": "Shifting the area devastation into complementary elements.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-a-a",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base-a",
+      "step": 2,
+      "choice": "a",
+      "name": "Glacial Sanctified Inferno",
+      "note": "Condensing glacial cold into the single strike point.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "ice"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-a-b",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base-a",
+      "step": 2,
+      "choice": "b",
+      "name": "Thunderous Sanctified Inferno",
+      "note": "Charging the single focused strike with piercing lightning.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-b-a",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base-b",
+      "step": 2,
+      "choice": "a",
+      "name": "Piercing Sanctified Inferno",
+      "note": "Focusing the altered elemental wave into a single target.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "one"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-b-b",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base-b",
+      "step": 2,
+      "choice": "b",
+      "name": "Blazing Sanctified Inferno",
+      "note": "Igniting the sweeping wave with scouring wildfire.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-g-a",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base-g",
+      "step": 2,
+      "choice": "a",
+      "name": "Empowered Focal Sanctified Inferno",
+      "note": "Concentrating the amplified blast directly on one foe.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "one"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "sanctified-inferno-base-g-b",
+      "skill": "sanctified-inferno",
+      "fromForm": "sanctified-inferno-base-g",
+      "step": 2,
+      "choice": "b",
+      "name": "Empowered Elemental Sanctified Inferno",
+      "note": "Channeling amplified holy energy across all targets.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    }
+  ]
+}

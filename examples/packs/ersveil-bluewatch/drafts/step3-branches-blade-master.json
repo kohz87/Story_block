@@ -1,0 +1,508 @@
+{
+  "branches": [
+    {
+      "slug": "flash-draw-base-a",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base",
+      "step": 1,
+      "choice": "a",
+      "name": "Flash Draw Wave",
+      "note": "Spreading the strike into a broad multi-target wave.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-b",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base",
+      "step": 1,
+      "choice": "b",
+      "name": "Elemental Flash Draw",
+      "note": "Channeling elemental energy through the focused strike.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 520
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-a-a",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base-a",
+      "step": 2,
+      "choice": "a",
+      "name": "Radiant Flash Draw Wave",
+      "note": "Infusing the sweeping wave with bright elemental light.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-a-b",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base-a",
+      "step": 2,
+      "choice": "b",
+      "name": "Storm Flash Draw Wave",
+      "note": "Charging the sweeping attack with crackling lightning.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-b-a",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base-b",
+      "step": 2,
+      "choice": "a",
+      "name": "Expanded Flash Draw",
+      "note": "Expanding the elemental blast across all opposing targets.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-b-b",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base-b",
+      "step": 2,
+      "choice": "b",
+      "name": "Searing Flash Draw",
+      "note": "Intensifying the single-target burst to maximum heat.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-g-a",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base-g",
+      "step": 2,
+      "choice": "a",
+      "name": "Cataclysmic Flash Draw",
+      "note": "Unleashing the empowered strike over the whole battlefield.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "flash-draw-base-g-b",
+      "skill": "flash-draw",
+      "fromForm": "flash-draw-base-g",
+      "step": 2,
+      "choice": "b",
+      "name": "Sanctified Flash Draw",
+      "note": "Empowered single strike consecrated with holy wrath.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-a",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base",
+      "step": 1,
+      "choice": "a",
+      "name": "Focused Thousand Petal Cut",
+      "note": "Compressing the area fury into a single fatal focal point.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "one"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 520
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-b",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base",
+      "step": 1,
+      "choice": "b",
+      "name": "Elemental Thousand Petal Cut",
+      "note": "Shifting the area devastation into complementary elements.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-a-a",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base-a",
+      "step": 2,
+      "choice": "a",
+      "name": "Glacial Thousand Petal Cut",
+      "note": "Condensing glacial cold into the single strike point.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "ice"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-a-b",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base-a",
+      "step": 2,
+      "choice": "b",
+      "name": "Thunderous Thousand Petal Cut",
+      "note": "Charging the single focused strike with piercing lightning.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-b-a",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base-b",
+      "step": 2,
+      "choice": "a",
+      "name": "Piercing Thousand Petal Cut",
+      "note": "Focusing the altered elemental wave into a single target.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "one"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-b-b",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base-b",
+      "step": 2,
+      "choice": "b",
+      "name": "Blazing Thousand Petal Cut",
+      "note": "Igniting the sweeping wave with scouring wildfire.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-g-a",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base-g",
+      "step": 2,
+      "choice": "a",
+      "name": "Empowered Focal Thousand Petal Cut",
+      "note": "Concentrating the amplified blast directly on one foe.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "one"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 620
+        }
+      ]
+    },
+    {
+      "slug": "thousand-petal-cut-base-g-b",
+      "skill": "thousand-petal-cut",
+      "fromForm": "thousand-petal-cut-base-g",
+      "step": 2,
+      "choice": "b",
+      "name": "Empowered Elemental Thousand Petal Cut",
+      "note": "Channeling amplified holy energy across all targets.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "holy"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 220
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-a",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base",
+      "step": 1,
+      "choice": "a",
+      "name": "Zen Sweeping Counter",
+      "note": "Unleashing counter kinetic energy in a wide defensive circle.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 140
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-b",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base",
+      "step": 1,
+      "choice": "b",
+      "name": "Lightning Zen Strike",
+      "note": "Channeling electric static into the precise counter-thrust.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 400
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-a-a",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base-a",
+      "step": 2,
+      "choice": "a",
+      "name": "Thunder Zen Sweep",
+      "note": "Crackling lightning discharging across all foes parried.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-a-b",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base-a",
+      "step": 2,
+      "choice": "b",
+      "name": "Blazing Zen Sweep",
+      "note": "Friction flame bursting from the sweeping parry arc.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-b-a",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base-b",
+      "step": 2,
+      "choice": "a",
+      "name": "Electric Zen Cleave",
+      "note": "Expanding the lightning counter-thrust into a full circle.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-b-b",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base-b",
+      "step": 2,
+      "choice": "b",
+      "name": "Searing Lightning Riposte",
+      "note": "Combining friction flame with lightning into a lethal puncture.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "fire"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 500
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-g-a",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base-g",
+      "step": 2,
+      "choice": "a",
+      "name": "Empowered Zen Sweep",
+      "note": "Amplified sweeping counter hurling back all attackers.",
+      "transforms": [
+        {
+          "op": "set-target",
+          "at": 0,
+          "value": "all"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 180
+        }
+      ]
+    },
+    {
+      "slug": "zen-counter-base-g-b",
+      "skill": "zen-counter",
+      "fromForm": "zen-counter-base-g",
+      "step": 2,
+      "choice": "b",
+      "name": "Empowered Thunder Counter",
+      "note": "Devastating electric discharge neutralizing priority targets.",
+      "transforms": [
+        {
+          "op": "set-element",
+          "at": 0,
+          "value": "lightning"
+        },
+        {
+          "op": "set-power",
+          "at": 0,
+          "value": 500
+        }
+      ]
+    }
+  ]
+}

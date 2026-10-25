@@ -42,10 +42,26 @@ test('a minor healing draught is a fraction of an F-rank job', () => {
     assert.ok(draught.value * 4 <= F.reward[1], `${draught.value} copper: a quarter of the best F job at most`);
     const price = pack.content.shops.flatMap(shop => shop.stock).find(line => line.item === draught.id).price;
     assert.ok(price <= F.reward[0], `Bluewatch asks ${price}: the poorest F job still pays for one`);
-    for (const quest of pack.content.quests) {
-        const reward = Number(/^(\d+) copper$/.exec(quest.reward)[1]);
+    // The three Bluewatch jobs (rules v2 quests: the reward is `{ coin, xp, items }`, coin in copper).
+    for (const quest of pack.content.quests.slice(0, 3)) {
+        const reward = quest.reward.coin;
         assert.ok(reward >= F.reward[0] && reward <= F.reward[1], `${quest.name} pays inside the F range`);
         assert.ok(reward / draught.value >= 1.5, `${quest.name} buys more than one draught`);
+    }
+});
+
+test('every quest pays whole copper inside a rank\'s reward range, and the F jobs inside the F range', () => {
+    const inside = coin => pack.content.ranks.some(rank => coin >= rank.reward[0] && coin <= rank.reward[1]);
+    for (const quest of pack.content.quests) {
+        assert.ok(Number.isInteger(quest.reward.coin) && inside(quest.reward.coin), `${quest.name}: ${quest.reward.coin} copper is in no rank's range`);
+        // Items paid on top are worth part of the job, not more than it.
+        const paid = quest.reward.items.reduce((sum, row) => sum + items.get(row.def).value * row.qty, 0);
+        assert.ok(paid <= quest.reward.coin, `${quest.name}: items worth ${paid} on a ${quest.reward.coin} copper job`);
+    }
+    // Kill jobs against foes that a rank-F character meets (level up to the F rank's top) are F jobs.
+    const foes = new Map(pack.content.creatures.map(creature => [creature.id, creature]));
+    for (const quest of pack.content.quests.filter(entry => !entry.requirements.length && entry.objectives.every(objective => objective.kind === 'kill' && foes.get(objective.foe).level <= F.levels[1]))) {
+        assert.ok(quest.reward.coin >= F.reward[0] && quest.reward.coin <= F.reward[1], `${quest.name}: an open job against low-level foes pays the F range`);
     }
 });
 

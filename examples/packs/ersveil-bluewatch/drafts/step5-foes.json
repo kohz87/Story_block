@@ -1,0 +1,1339 @@
+{
+  "creatures": [
+    {
+      "slug": "cellar-rat-swarm",
+      "name": "Cellar Rat Swarm",
+      "tier": 0,
+      "level": 1,
+      "stats": {
+        "STR": 5,
+        "VIT": 5,
+        "AGI": 8,
+        "DEX": 6,
+        "INT": 3,
+        "LUK": 6,
+        "CHA": 3
+      },
+      "skills": [
+        "hidden-shiv"
+      ],
+      "loot": [
+        {
+          "def": "rat-tail",
+          "chance": 80,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "vermin",
+        "bluewatch",
+        "settled"
+      ]
+    },
+    {
+      "slug": "sluice-leech",
+      "name": "Sluice Leech",
+      "tier": 0,
+      "level": 2,
+      "stats": {
+        "STR": 6,
+        "VIT": 7,
+        "AGI": 4,
+        "DEX": 5,
+        "INT": 2,
+        "LUK": 5,
+        "CHA": 2
+      },
+      "skills": [
+        "low-strike"
+      ],
+      "loot": [
+        {
+          "def": "live-leech",
+          "chance": 75,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "aquatic",
+        "parasite",
+        "bluewatch"
+      ]
+    },
+    {
+      "slug": "starved-crag-wolf",
+      "name": "Starved Crag Wolf",
+      "tier": 0,
+      "level": 3,
+      "stats": {
+        "STR": 7,
+        "VIT": 7,
+        "AGI": 9,
+        "DEX": 8,
+        "INT": 4,
+        "LUK": 5,
+        "CHA": 4
+      },
+      "skills": [
+        "low-strike",
+        "hidden-shiv"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-pelt",
+          "chance": 60,
+          "qty": 1
+        },
+        {
+          "def": "crag-wolf-fang",
+          "chance": 50,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "wolf",
+        "bluewatch"
+      ]
+    },
+    {
+      "slug": "salt-crew-tough",
+      "name": "Salt-crew Tough",
+      "tier": 0,
+      "level": 3,
+      "stats": {
+        "STR": 8,
+        "VIT": 8,
+        "AGI": 6,
+        "DEX": 7,
+        "INT": 5,
+        "LUK": 6,
+        "CHA": 5
+      },
+      "skills": [
+        "brace-spear",
+        "shield-bash"
+      ],
+      "loot": [
+        {
+          "def": "coarse-salt",
+          "chance": 50,
+          "qty": 1
+        },
+        {
+          "def": "knife",
+          "chance": 20,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "humanoid",
+        "bandit",
+        "river"
+      ]
+    },
+    {
+      "slug": "crag-wolf-matriarch",
+      "name": "Crag Wolf Matriarch",
+      "tier": 1,
+      "level": 5,
+      "stats": {
+        "STR": 10,
+        "VIT": 11,
+        "AGI": 12,
+        "DEX": 10,
+        "INT": 6,
+        "LUK": 7,
+        "CHA": 6
+      },
+      "skills": [
+        "low-strike",
+        "guard-cleave",
+        "gutter-feint"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-pelt",
+          "chance": 100,
+          "qty": 1
+        },
+        {
+          "def": "crag-wolf-fang",
+          "chance": 80,
+          "qty": 2
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 40,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "wolf",
+        "alpha"
+      ]
+    },
+    {
+      "slug": "river-drake",
+      "name": "River Drake",
+      "tier": 2,
+      "level": 12,
+      "stats": {
+        "STR": 16,
+        "VIT": 18,
+        "AGI": 14,
+        "DEX": 12,
+        "INT": 8,
+        "LUK": 8,
+        "CHA": 6
+      },
+      "skills": [
+        "guard-cleave",
+        "unyielding-step",
+        "crushing-blow"
+      ],
+      "loot": [
+        {
+          "def": "river-drake-scale",
+          "chance": 90,
+          "qty": 2
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 75,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "drake",
+        "reptile",
+        "river"
+      ]
+    },
+    {
+      "slug": "ditch-crawler",
+      "name": "Ditch Crawler",
+      "tier": 0,
+      "level": 2,
+      "stats": {
+        "STR": 5,
+        "VIT": 6,
+        "AGI": 5,
+        "DEX": 6,
+        "INT": 2,
+        "LUK": 5,
+        "CHA": 2
+      },
+      "skills": [
+        "low-strike"
+      ],
+      "loot": [
+        {
+          "def": "live-leech",
+          "chance": 70,
+          "qty": 1
+        },
+        {
+          "def": "rat-tail",
+          "chance": 40,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "vermin",
+        "marsh",
+        "settled"
+      ]
+    },
+    {
+      "slug": "roadside-bandit",
+      "name": "Roadside Bandit",
+      "tier": 0,
+      "level": 4,
+      "stats": {
+        "STR": 8,
+        "VIT": 7,
+        "AGI": 8,
+        "DEX": 8,
+        "INT": 5,
+        "LUK": 6,
+        "CHA": 5
+      },
+      "skills": [
+        "hidden-shiv",
+        "gutter-feint"
+      ],
+      "loot": [
+        {
+          "def": "knife",
+          "chance": 30,
+          "qty": 1
+        },
+        {
+          "def": "common-ale",
+          "chance": 40,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "humanoid",
+        "outlaw",
+        "road"
+      ]
+    },
+    {
+      "slug": "fen-wolf",
+      "name": "Fen Wolf",
+      "tier": 0,
+      "level": 4,
+      "stats": {
+        "STR": 8,
+        "VIT": 8,
+        "AGI": 10,
+        "DEX": 8,
+        "INT": 4,
+        "LUK": 5,
+        "CHA": 4
+      },
+      "skills": [
+        "low-strike",
+        "hidden-shiv"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-pelt",
+          "chance": 65,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "wolf",
+        "marsh"
+      ]
+    },
+    {
+      "slug": "barge-pirate",
+      "name": "Barge Pirate",
+      "tier": 0,
+      "level": 5,
+      "stats": {
+        "STR": 9,
+        "VIT": 8,
+        "AGI": 8,
+        "DEX": 9,
+        "INT": 6,
+        "LUK": 7,
+        "CHA": 5
+      },
+      "skills": [
+        "river-skiff-footwork",
+        "hidden-shiv"
+      ],
+      "loot": [
+        {
+          "def": "hemp-rope",
+          "chance": 45,
+          "qty": 1
+        },
+        {
+          "def": "knife",
+          "chance": 25,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "humanoid",
+        "pirate",
+        "river"
+      ]
+    },
+    {
+      "slug": "wild-boar",
+      "name": "Wild Boar",
+      "tier": 0,
+      "level": 5,
+      "stats": {
+        "STR": 10,
+        "VIT": 10,
+        "AGI": 7,
+        "DEX": 6,
+        "INT": 3,
+        "LUK": 5,
+        "CHA": 3
+      },
+      "skills": [
+        "shield-bash",
+        "watchmans-grit"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-fang",
+          "chance": 70,
+          "qty": 2
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "wilderness"
+      ]
+    },
+    {
+      "slug": "red-cap-goblin",
+      "name": "Red-cap Goblin",
+      "tier": 0,
+      "level": 4,
+      "stats": {
+        "STR": 6,
+        "VIT": 6,
+        "AGI": 10,
+        "DEX": 9,
+        "INT": 6,
+        "LUK": 8,
+        "CHA": 4
+      },
+      "skills": [
+        "hidden-shiv",
+        "slum-instinct"
+      ],
+      "loot": [
+        {
+          "def": "iron-filings",
+          "chance": 50,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "goblinoid",
+        "cunning",
+        "hills"
+      ]
+    },
+    {
+      "slug": "crag-goat-ram",
+      "name": "Crag Goat Ram",
+      "tier": 0,
+      "level": 4,
+      "stats": {
+        "STR": 9,
+        "VIT": 8,
+        "AGI": 9,
+        "DEX": 7,
+        "INT": 3,
+        "LUK": 6,
+        "CHA": 4
+      },
+      "skills": [
+        "shield-bash"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-fang",
+          "chance": 50,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "mountain"
+      ]
+    },
+    {
+      "slug": "shore-crab-giant",
+      "name": "Shore Crab Giant",
+      "tier": 1,
+      "level": 6,
+      "stats": {
+        "STR": 12,
+        "VIT": 14,
+        "AGI": 6,
+        "DEX": 8,
+        "INT": 3,
+        "LUK": 5,
+        "CHA": 3
+      },
+      "skills": [
+        "guard-cleave",
+        "iron-breathing"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 45,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "crustacean",
+        "coast"
+      ]
+    },
+    {
+      "slug": "mud-snapper",
+      "name": "Mud Snapper",
+      "tier": 1,
+      "level": 6,
+      "stats": {
+        "STR": 12,
+        "VIT": 13,
+        "AGI": 6,
+        "DEX": 7,
+        "INT": 3,
+        "LUK": 5,
+        "CHA": 3
+      },
+      "skills": [
+        "shield-bash",
+        "iron-breathing"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 50,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "aquatic",
+        "river"
+      ]
+    },
+    {
+      "slug": "bog-leech-mother",
+      "name": "Bog Leech Mother",
+      "tier": 1,
+      "level": 7,
+      "stats": {
+        "STR": 11,
+        "VIT": 14,
+        "AGI": 5,
+        "DEX": 8,
+        "INT": 4,
+        "LUK": 6,
+        "CHA": 3
+      },
+      "skills": [
+        "low-strike",
+        "gutter-feint"
+      ],
+      "loot": [
+        {
+          "def": "live-leech",
+          "chance": 90,
+          "qty": 3
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 55,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "parasite",
+        "marsh",
+        "nest"
+      ]
+    },
+    {
+      "slug": "rime-wolf",
+      "name": "Rime Wolf",
+      "tier": 1,
+      "level": 8,
+      "stats": {
+        "STR": 12,
+        "VIT": 11,
+        "AGI": 13,
+        "DEX": 11,
+        "INT": 5,
+        "LUK": 6,
+        "CHA": 4
+      },
+      "skills": [
+        "low-strike",
+        "frost-shard"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-pelt",
+          "chance": 75,
+          "qty": 1
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 50,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "wolf",
+        "frost"
+      ]
+    },
+    {
+      "slug": "bone-seeker",
+      "name": "Bone Seeker",
+      "tier": 1,
+      "level": 8,
+      "stats": {
+        "STR": 10,
+        "VIT": 9,
+        "AGI": 12,
+        "DEX": 11,
+        "INT": 5,
+        "LUK": 7,
+        "CHA": 3
+      },
+      "skills": [
+        "hidden-shiv",
+        "slum-instinct"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 60,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "vermin",
+        "crypt",
+        "auvoth"
+      ]
+    },
+    {
+      "slug": "snow-spider",
+      "name": "Snow Spider",
+      "tier": 1,
+      "level": 9,
+      "stats": {
+        "STR": 10,
+        "VIT": 10,
+        "AGI": 14,
+        "DEX": 12,
+        "INT": 5,
+        "LUK": 7,
+        "CHA": 3
+      },
+      "skills": [
+        "frost-shard",
+        "gutter-feint"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 60,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "spider",
+        "tundra",
+        "frost"
+      ]
+    },
+    {
+      "slug": "highland-harpy",
+      "name": "Highland Harpy",
+      "tier": 1,
+      "level": 10,
+      "stats": {
+        "STR": 11,
+        "VIT": 10,
+        "AGI": 15,
+        "DEX": 13,
+        "INT": 7,
+        "LUK": 7,
+        "CHA": 5
+      },
+      "skills": [
+        "swift-thrust",
+        "poised-step"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 65,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "monstrosity",
+        "winged",
+        "mountain"
+      ]
+    },
+    {
+      "slug": "restless-corpse",
+      "name": "Restless Corpse",
+      "tier": 1,
+      "level": 10,
+      "stats": {
+        "STR": 13,
+        "VIT": 14,
+        "AGI": 5,
+        "DEX": 7,
+        "INT": 3,
+        "LUK": 4,
+        "CHA": 2
+      },
+      "skills": [
+        "guard-cleave",
+        "watchmans-grit"
+      ],
+      "loot": [
+        {
+          "def": "completion-salts",
+          "chance": 50,
+          "qty": 1
+        },
+        {
+          "def": "iron-filings",
+          "chance": 40,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "undead",
+        "crypt",
+        "auvoth"
+      ]
+    },
+    {
+      "slug": "reef-shark",
+      "name": "Reef Shark",
+      "tier": 1,
+      "level": 11,
+      "stats": {
+        "STR": 14,
+        "VIT": 13,
+        "AGI": 14,
+        "DEX": 10,
+        "INT": 4,
+        "LUK": 6,
+        "CHA": 3
+      },
+      "skills": [
+        "guard-cleave",
+        "low-strike"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-fang",
+          "chance": 80,
+          "qty": 2
+        }
+      ],
+      "loreTags": [
+        "aquatic",
+        "coast"
+      ]
+    },
+    {
+      "slug": "frost-bear",
+      "name": "Frost Bear",
+      "tier": 1,
+      "level": 12,
+      "stats": {
+        "STR": 16,
+        "VIT": 17,
+        "AGI": 9,
+        "DEX": 10,
+        "INT": 4,
+        "LUK": 6,
+        "CHA": 4
+      },
+      "skills": [
+        "crushing-blow",
+        "iron-breathing"
+      ],
+      "loot": [
+        {
+          "def": "crag-wolf-pelt",
+          "chance": 90,
+          "qty": 2
+        },
+        {
+          "def": "crag-wolf-fang",
+          "chance": 80,
+          "qty": 2
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 70,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "beast",
+        "frost",
+        "tundra"
+      ]
+    },
+    {
+      "slug": "drowned-sailor",
+      "name": "Drowned Sailor",
+      "tier": 1,
+      "level": 13,
+      "stats": {
+        "STR": 14,
+        "VIT": 15,
+        "AGI": 6,
+        "DEX": 8,
+        "INT": 4,
+        "LUK": 5,
+        "CHA": 2
+      },
+      "skills": [
+        "brace-spear",
+        "guard-cleave"
+      ],
+      "loot": [
+        {
+          "def": "completion-salts",
+          "chance": 60,
+          "qty": 1
+        },
+        {
+          "def": "knife",
+          "chance": 40,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "undead",
+        "aquatic",
+        "coast"
+      ]
+    },
+    {
+      "slug": "ash-crawler",
+      "name": "Ash Crawler",
+      "tier": 1,
+      "level": 14,
+      "stats": {
+        "STR": 13,
+        "VIT": 14,
+        "AGI": 11,
+        "DEX": 11,
+        "INT": 5,
+        "LUK": 6,
+        "CHA": 3
+      },
+      "skills": [
+        "cauterize",
+        "cinder-ward"
+      ],
+      "loot": [
+        {
+          "def": "completion-salts",
+          "chance": 70,
+          "qty": 1
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 70,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "vermin",
+        "ashlands",
+        "fire"
+      ]
+    },
+    {
+      "slug": "crypt-spider",
+      "name": "Crypt Spider",
+      "tier": 1,
+      "level": 14,
+      "stats": {
+        "STR": 12,
+        "VIT": 13,
+        "AGI": 15,
+        "DEX": 13,
+        "INT": 6,
+        "LUK": 7,
+        "CHA": 3
+      },
+      "skills": [
+        "gutter-feint",
+        "low-strike"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 75,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "spider",
+        "crypt",
+        "auvoth"
+      ]
+    },
+    {
+      "slug": "tundra-stalker",
+      "name": "Tundra Stalker",
+      "tier": 2,
+      "level": 15,
+      "stats": {
+        "STR": 16,
+        "VIT": 15,
+        "AGI": 18,
+        "DEX": 16,
+        "INT": 7,
+        "LUK": 8,
+        "CHA": 5
+      },
+      "skills": [
+        "frost-shard",
+        "riposte-lunge",
+        "poised-step"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 80,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "predator",
+        "tundra",
+        "frost"
+      ]
+    },
+    {
+      "slug": "cave-troll",
+      "name": "Cave Troll",
+      "tier": 2,
+      "level": 18,
+      "stats": {
+        "STR": 22,
+        "VIT": 24,
+        "AGI": 8,
+        "DEX": 9,
+        "INT": 4,
+        "LUK": 6,
+        "CHA": 3
+      },
+      "skills": [
+        "crushing-blow",
+        "fortress-stance",
+        "unyielding-step"
+      ],
+      "loot": [
+        {
+          "def": "iron-filings",
+          "chance": 75,
+          "qty": 2
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 85,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "troll",
+        "mountain",
+        "subterranean"
+      ]
+    },
+    {
+      "slug": "ice-troll",
+      "name": "Ice Troll",
+      "tier": 2,
+      "level": 20,
+      "stats": {
+        "STR": 24,
+        "VIT": 25,
+        "AGI": 9,
+        "DEX": 10,
+        "INT": 5,
+        "LUK": 6,
+        "CHA": 4
+      },
+      "skills": [
+        "crushing-blow",
+        "frost-lance",
+        "fortress-stance"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 90,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "troll",
+        "frost",
+        "frontier"
+      ]
+    },
+    {
+      "slug": "stone-hound",
+      "name": "Stone Hound",
+      "tier": 2,
+      "level": 22,
+      "stats": {
+        "STR": 22,
+        "VIT": 26,
+        "AGI": 12,
+        "DEX": 12,
+        "INT": 5,
+        "LUK": 6,
+        "CHA": 3
+      },
+      "skills": [
+        "fortress-stance",
+        "unyielding-step"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 95,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "construct",
+        "mountain"
+      ]
+    },
+    {
+      "slug": "cinder-hound",
+      "name": "Cinder Hound",
+      "tier": 2,
+      "level": 24,
+      "stats": {
+        "STR": 20,
+        "VIT": 20,
+        "AGI": 22,
+        "DEX": 18,
+        "INT": 8,
+        "LUK": 7,
+        "CHA": 5
+      },
+      "skills": [
+        "judgement-flare",
+        "cauterize"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 95,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "elemental",
+        "ashlands",
+        "fire"
+      ]
+    },
+    {
+      "slug": "dungeon-shade",
+      "name": "Dungeon Shade",
+      "tier": 2,
+      "level": 25,
+      "stats": {
+        "STR": 14,
+        "VIT": 16,
+        "AGI": 24,
+        "DEX": 20,
+        "INT": 18,
+        "LUK": 8,
+        "CHA": 4
+      },
+      "skills": [
+        "shadow-cut",
+        "gloom-veil"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 95,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "undead",
+        "shadow",
+        "auvoth"
+      ]
+    },
+    {
+      "slug": "cliff-drake",
+      "name": "Cliff Drake",
+      "tier": 2,
+      "level": 26,
+      "stats": {
+        "STR": 26,
+        "VIT": 25,
+        "AGI": 20,
+        "DEX": 16,
+        "INT": 9,
+        "LUK": 8,
+        "CHA": 6
+      },
+      "skills": [
+        "crushing-blow",
+        "unyielding-step",
+        "guard-cleave"
+      ],
+      "loot": [
+        {
+          "def": "river-drake-scale",
+          "chance": 100,
+          "qty": 3
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 95,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "drake",
+        "mountain"
+      ]
+    },
+    {
+      "slug": "glass-beetle",
+      "name": "Glass Beetle",
+      "tier": 2,
+      "level": 28,
+      "stats": {
+        "STR": 24,
+        "VIT": 28,
+        "AGI": 12,
+        "DEX": 14,
+        "INT": 6,
+        "LUK": 7,
+        "CHA": 3
+      },
+      "skills": [
+        "fortress-stance",
+        "crushing-blow"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 1
+        }
+      ],
+      "loreTags": [
+        "vermin",
+        "glass-waste"
+      ]
+    },
+    {
+      "slug": "dust-wraith",
+      "name": "Dust Wraith",
+      "tier": 3,
+      "level": 35,
+      "stats": {
+        "STR": 20,
+        "VIT": 24,
+        "AGI": 32,
+        "DEX": 28,
+        "INT": 26,
+        "LUK": 10,
+        "CHA": 6
+      },
+      "skills": [
+        "kinetic-wave",
+        "gloom-veil",
+        "shadow-cut"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 2
+        }
+      ],
+      "loreTags": [
+        "undead",
+        "ashlands",
+        "spirit"
+      ]
+    },
+    {
+      "slug": "tomb-sentinel",
+      "name": "Tomb Sentinel",
+      "tier": 3,
+      "level": 40,
+      "stats": {
+        "STR": 36,
+        "VIT": 38,
+        "AGI": 16,
+        "DEX": 18,
+        "INT": 12,
+        "LUK": 8,
+        "CHA": 5
+      },
+      "skills": [
+        "titan-cleave",
+        "bastion-roar",
+        "adamant-barrier"
+      ],
+      "loot": [
+        {
+          "def": "iron-filings",
+          "chance": 100,
+          "qty": 4
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 2
+        }
+      ],
+      "loreTags": [
+        "construct",
+        "crypt",
+        "auvoth"
+      ]
+    },
+    {
+      "slug": "sea-drake",
+      "name": "Sea Drake",
+      "tier": 3,
+      "level": 42,
+      "stats": {
+        "STR": 38,
+        "VIT": 38,
+        "AGI": 28,
+        "DEX": 24,
+        "INT": 16,
+        "LUK": 10,
+        "CHA": 8
+      },
+      "skills": [
+        "kinetic-wave",
+        "titan-cleave",
+        "frost-lance"
+      ],
+      "loot": [
+        {
+          "def": "river-drake-scale",
+          "chance": 100,
+          "qty": 4
+        },
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 2
+        }
+      ],
+      "loreTags": [
+        "drake",
+        "aquatic",
+        "sea"
+      ]
+    },
+    {
+      "slug": "obsidian-goliath",
+      "name": "Obsidian Goliath",
+      "tier": 3,
+      "level": 45,
+      "stats": {
+        "STR": 44,
+        "VIT": 46,
+        "AGI": 14,
+        "DEX": 16,
+        "INT": 14,
+        "LUK": 8,
+        "CHA": 5
+      },
+      "skills": [
+        "titan-cleave",
+        "adamant-barrier",
+        "cleansing-pyre"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 3
+        }
+      ],
+      "loreTags": [
+        "titan",
+        "volcanic",
+        "ashlands"
+      ]
+    },
+    {
+      "slug": "catacomb-wraith",
+      "name": "Catacomb Wraith",
+      "tier": 3,
+      "level": 48,
+      "stats": {
+        "STR": 26,
+        "VIT": 30,
+        "AGI": 40,
+        "DEX": 36,
+        "INT": 36,
+        "LUK": 12,
+        "CHA": 8
+      },
+      "skills": [
+        "phantom-arc",
+        "shadow-cut",
+        "gloom-veil"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 3
+        }
+      ],
+      "loreTags": [
+        "undead",
+        "auvoth-depths",
+        "shadow"
+      ]
+    },
+    {
+      "slug": "grey-walker-manifestation",
+      "name": "Grey Walker Manifestation",
+      "tier": 4,
+      "level": 75,
+      "stats": {
+        "STR": 65,
+        "VIT": 68,
+        "AGI": 60,
+        "DEX": 58,
+        "INT": 62,
+        "LUK": 20,
+        "CHA": 15
+      },
+      "skills": [
+        "null-sphere",
+        "astral-flare",
+        "tempest-fury"
+      ],
+      "loot": [
+        {
+          "def": "small-monster-core",
+          "chance": 100,
+          "qty": 5
+        }
+      ],
+      "loreTags": [
+        "apex",
+        "ancient",
+        "abyssal"
+      ]
+    }
+  ]
+}

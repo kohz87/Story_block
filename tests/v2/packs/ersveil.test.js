@@ -19,6 +19,8 @@ const file = new URL('../../../examples/packs/ersveil-bluewatch/pack.json', impo
 const text = readFileSync(file, 'utf8');
 const raw = () => JSON.parse(text);
 const PACK = 'ersveil-bluewatch';
+// A rules pack's currency is stored with `display` ('mixed' unless the pack says 'base'; PACKS.md, rules pack).
+const CURRENCY = { name: 'copper', plural: 'copper', short: 'c', display: 'mixed', coins: [{ name: 'copper', plural: 'copper', value: 1 }, { name: 'bronze', plural: 'bronze', value: 1 }, { name: 'silver', plural: 'silver', value: 10 }, { name: 'gold', plural: 'gold', value: 100 }] };
 
 function checked() {
     const result = validatePack(text);
@@ -51,11 +53,11 @@ test('the pack validates, under the size limit, with every content kind', () => 
     assert.ok(byteLength(text) < LIMITS.packBytes, `${byteLength(text)} bytes`);
     const pack = checked();
     assert.equal(pack.id, PACK);
-    assert.deepEqual(pack.currency, { name: 'copper', plural: 'copper', short: 'c', coins: [{ name: 'copper', plural: 'copper', value: 1 }, { name: 'bronze', plural: 'bronze', value: 1 }, { name: 'silver', plural: 'silver', value: 10 }, { name: 'gold', plural: 'gold', value: 100 }] });
-    for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets']) {
+    assert.deepEqual(pack.currency, CURRENCY);
+    for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'rules']) {
         assert.ok(pack.content[kind].length > 0, `${kind} is not empty`);
     }
-    assert.deepEqual(pack.requires, { storyBlock: '^2', capabilities: ['inventory', 'scene'] });
+    assert.deepEqual(pack.requires, { storyBlock: '^2', capabilities: ['inventory', 'scene', 'rb-rules-v2'] });
 });
 
 test('money is the lore\'s coins, counted in copper: whole numbers, and every amount in the text a known coin', () => {
@@ -63,8 +65,9 @@ test('money is the lore\'s coins, counted in copper: whole numbers, and every am
     for (const item of pack.content.items) assert.ok(Number.isInteger(item.value) && item.value >= 0, item.name);
     for (const shop of pack.content.shops) for (const line of shop.stock) assert.ok(line.price === undefined || Number.isInteger(line.price), shop.name);
     assert.equal(pack.start.inventory.money, 44, '4 silver 4 copper');
-    // No "marks" left from the one-coin days (MODULES §F108): "Silver Mark" and Highmark are proper names.
-    assert.equal(text.replace(/Silver Mark|Highmark/g, '').match(/\bmarks?\b/gi), null);
+    // No "marks" left from the one-coin days (MODULES §F108): "Silver Mark" and Highmark are proper names, and so
+    // is the skill Duelist's Mark (slug duelists-mark).
+    assert.equal(text.replace(/Silver Mark|Highmark|Duelist's Mark|duelists-mark/g, '').match(/\bmarks?\b/gi), null);
     // Every "<number> <word>" money amount names one of the pack's coins.
     const currency = currencyOf({ currency: pack.currency.name, currencyPlural: pack.currency.plural, coins: pack.currency.coins });
     for (const [, amount] of text.matchAll(/\b(\d+ (?:copper|silver|gold|bronze))\b/g)) assert.ok(parseAmount(amount, currency).amount > 0, amount);
@@ -105,7 +108,7 @@ test('places, routes and the calendar come out of the packs queries', async () =
 
 test('the start state applies to a new chat: Bluewatch, Wessel\'s kit and a purse of copper', () => {
     const start = mergeStart([checked()]);
-    assert.deepEqual(start.currency, { name: 'copper', plural: 'copper', short: 'c', coins: [{ name: 'copper', plural: 'copper', value: 1 }, { name: 'bronze', plural: 'bronze', value: 1 }, { name: 'silver', plural: 'silver', value: 10 }, { name: 'gold', plural: 'gold', value: 100 }] });
+    assert.deepEqual(start.currency, CURRENCY);
     assert.deepEqual(start.scene, { place: { name: 'Bluewatch Village', kind: 'settlement', region: 'River Confederacy' }, present: ['Marrit', 'Quay inspector'] });
     let n = 0;
     const id = prefix => `${prefix}_${String(++n).padStart(8, '0')}`;
@@ -125,58 +128,74 @@ test('the start state applies to a new chat: Bluewatch, Wessel\'s kit and a purs
 test('shops, recipes and loot name items of the pack', () => {
     const pack = checked();
     const ids = new Set(pack.content.items.map(item => item.id));
-    const names = new Set(pack.content.items.map(item => item.name));
-    assert.deepEqual(pack.content.shops.map(shop => [shop.name, shop.kind]), [['Watch Stores', 'general goods'], ['Salt-and-Ash Dispensary', 'apothecary'], ['Gate Forge', 'smith'], ['Stray Oar', 'inn']]);
-    for (const shop of pack.content.shops) for (const line of shop.stock) assert.ok(ids.has(line.item), `${shop.name}: ${line.item}`);
+    // Rules v2 shops: a slug kind and the id of a place of the pack (SPEC: rules pack schema 2, shop).
+    assert.deepEqual(pack.content.shops.map(shop => [shop.name, shop.kind]), [
+        ['Watch Stores', 'general-goods'], ['Salt-and-Ash Dispensary', 'apothecary'], ['Gate Forge', 'smith'], ['Stray Oar', 'inn'],
+        ['Delver\'s Provisions', 'general-goods'], ['Auvoth Apothecary', 'apothecary'], ['Hulkrow Chandlery', 'general-goods'], ['Mirage Blade Exchange', 'smith'],
+    ]);
+    const places = new Set(pack.content.places.map(place => place.id));
+    for (const shop of pack.content.shops) {
+        assert.ok(places.has(shop.place), `${shop.name} is at a place of the pack: ${shop.place}`);
+        for (const line of shop.stock) assert.ok(ids.has(line.item), `${shop.name}: ${line.item}`);
+    }
     for (const recipe of pack.content.recipes) assert.ok(ids.has(recipe.makes) && recipe.materials.every(line => ids.has(line.item)), recipe.name);
     const draught = pack.content.items.find(item => item.name === 'Minor Healing Draught');
     assert.deepEqual([draught.kind, draught.effect], ['consumable', { heal: 20 }]);
     for (const creature of pack.content.creatures) {
-        for (const row of creature.loot) assert.ok(names.has(row.name), `${creature.name} drops ${row.name}`);
-        assert.ok(Number.isInteger(creature.level) && creature.level >= 1 && creature.moves.length >= 2, creature.name);
+        for (const row of creature.loot) assert.ok(ids.has(row.def), `${creature.name} drops ${row.def}`);
+        assert.ok(Number.isInteger(creature.level) && creature.level >= 1 && creature.skills.length >= 1, creature.name);
     }
-});
-
-test('creatures have RPG Battle\'s template shape', () => {
-    const templates = new URL('../../../../rpg_battle/src/templates.js', import.meta.url);
-    const roots = ['/home/user/rpg_battle/src/templates.js', templates.pathname];
-    const found = roots.find(path => existsSync(path));
-    const pack = checked();
-    for (const creature of pack.content.creatures) {
-        assert.ok(['beast', 'insect', 'drake', 'humanoid'].includes(creature.template), creature.name);
-        for (const move of creature.moves) assert.deepEqual(Object.keys(move), ['name', 'type', 'stat', 'target', 'effect', 'cooldown', 'description'], `${creature.name}: ${move.name}`);
-    }
-    return found ? import(found).then(({ cleanCreature }) => {
-        for (const creature of pack.content.creatures) {
-            const made = cleanCreature(creature);
-            assert.equal(made.template, creature.template, creature.name);
-            assert.equal(made.level, creature.level);
-            assert.deepEqual(made.moves.map(move => move.name), creature.moves.map(move => move.name), `${creature.name}: moves kept`);
-            assert.deepEqual(made.loot.map(row => row.name), creature.loot.map(row => row.name), `${creature.name}: loot kept`);
+    // Quest rewards and collect objectives name items of the pack, and every place a quest names is a place of it.
+    for (const quest of pack.content.quests) {
+        for (const row of quest.reward.items) assert.ok(ids.has(row.def), `${quest.name} pays ${row.def}`);
+        for (const objective of quest.objectives) {
+            if (objective.kind === 'collect') assert.ok(ids.has(objective.def), `${quest.name} asks for ${objective.def}`);
+            if (objective.kind === 'visit') assert.ok(places.has(objective.place), `${quest.name} sends to ${objective.place}`);
         }
-    }) : undefined;
+        if (quest.turnInPlace) assert.ok(places.has(quest.turnInPlace), `${quest.name} turns in at ${quest.turnInPlace}`);
+    }
 });
 
-test('the three Bluewatch jobs: giver, place, target and reward in copper, as Story Director reads them', director, async () => {
-    const { parseTarget, parseReward, settleReward, nameMatches } = await import(`${DIRECTOR}/src/v2/quests/parse.js`);
+test('creatures have the rules v2 foe shape: tier, level, seven stats, written skills, loot of the pack', () => {
+    // Rules v2 foes (RB_CONTRACT §7) replace the legacy template/moves record: a closed record whose skills are
+    // skills of the pack's manifest and whose loot rows are `{ def, chance, qty }`.
     const pack = checked();
-    const creatures = pack.content.creatures.map(creature => creature.name);
-    const read = quest => {
-        const target = parseTarget(quest, quest.goal);
-        return { name: quest.name, giver: quest.giver, place: quest.place, target, reward: settleReward(parseReward(quest, quest.goal, { currency: pack.currency }), target) };
-    };
-    const jobs = pack.content.quests.map(read);
-    assert.deepEqual(jobs.map(job => [job.name, job.giver, job.place, job.target.count, job.target.noun, job.reward.amount, job.reward.each]), [
-        ['Granary Rats', 'Fenna', 'Bluewatch Village', 6, 'cellar rats', 50, false],
-        ['East Bluff Wolves', 'Fenna', 'Bluewatch Village', 4, 'crag wolves', 200, false],
-        ['Culvert Leeches', 'Fenna', 'Bluewatch Village', 8, 'sluice leeches', 120, false],
+    const skills = new Set(pack.content.rules[0].skills.map(skill => skill.id));
+    assert.equal(pack.content.creatures.length, 40);
+    for (const creature of pack.content.creatures) {
+        assert.deepEqual(Object.keys(creature).sort(), ['id', 'level', 'loot', 'loreTags', 'name', 'pack', 'skills', 'slug', 'stats', 'tier'], creature.name);
+        assert.ok(Number.isInteger(creature.tier) && creature.tier >= 0 && creature.tier <= 9, `${creature.name}: tier`);
+        assert.ok(Number.isInteger(creature.level) && creature.level >= 1 && creature.level <= 99, `${creature.name}: level`);
+        assert.deepEqual(Object.keys(creature.stats).sort(), ['AGI', 'CHA', 'DEX', 'INT', 'LUK', 'STR', 'VIT'], `${creature.name}: the seven stats`);
+        for (const value of Object.values(creature.stats)) assert.ok(Number.isInteger(value) && value >= 1 && value <= 99, `${creature.name}: stat ${value}`);
+        assert.ok(creature.skills.length >= 1 && creature.skills.length <= 3, `${creature.name}: one to three skills`);
+        for (const skill of creature.skills) assert.ok(skills.has(skill), `${creature.name} uses ${skill}`);
+        for (const row of creature.loot) {
+            assert.deepEqual(Object.keys(row).sort(), ['chance', 'def', 'qty'], `${creature.name}: loot row`);
+            assert.ok(row.chance >= 0 && row.chance <= 100 && row.qty >= 1, `${creature.name}: ${row.def}`);
+        }
+    }
+});
+
+test('the three Bluewatch jobs: place, target and reward in copper, as rules v2 quests', () => {
+    // Rules v2 quests (RB_CONTRACT §7) replace the free-form giver/place/goal/reward text: a turn-in place, structured
+    // objectives (a kill names a foe of the pack) and a reward of coin, xp and items; the coin is a whole number of
+    // copper inside the F rank's reward range. The giver is an id or null (the clerk has no id in the pack).
+    const pack = checked();
+    const foes = new Map(pack.content.creatures.map(creature => [creature.id, creature]));
+    const village = `pack.${PACK}/bluewatch-village`;
+    const F = pack.content.ranks.find(rank => rank.id === 'F');
+    const jobs = pack.content.quests.slice(0, 3);
+    assert.deepEqual(jobs.map(job => [job.name, job.turnInPlace, job.objectives.map(objective => [objective.kind, foes.get(objective.foe)?.name, objective.count]), job.reward.coin]), [
+        ['Granary Rats', village, [['kill', 'Cellar Rat Swarm', 6]], 50],
+        ['East Bluff Wolves', village, [['kill', 'Starved Crag Wolf', 4]], 200],
+        ['Culvert Leeches', village, [['kill', 'Sluice Leech', 8]], 120],
     ]);
-    // The amount is a whole number of the chat's one currency (MODULES §F1); the unit word is the story's.
-    // A fight against the pack's creatures counts for the job (whole-word names, MODULES §C2).
-    assert.ok(nameMatches('cellar rats', 'Cellar Rat Swarm'));
-    assert.ok(nameMatches('crag wolves', 'Starved Crag Wolf') && nameMatches('crag wolves', 'Crag Wolf Matriarch'));
-    assert.ok(nameMatches('sluice leeches', 'Sluice Leech'));
-    for (const job of jobs) assert.ok(creatures.some(name => nameMatches(job.target.noun, name)), job.name);
+    for (const job of jobs) {
+        assert.ok(job.giver === null || /^(?:[a-z][a-z0-9]*_[0-9a-z]{8}|pack\.[a-z0-9._-]+\/[a-z0-9_-]+)$/.test(job.giver), `${job.name}: giver ${job.giver}`);
+        assert.ok(Number.isInteger(job.reward.coin) && job.reward.coin >= F.reward[0] && job.reward.coin <= F.reward[1], `${job.name} pays inside the F range`);
+        assert.equal(job.requirements.length, 0, `${job.name} is open to a new Guild hand`);
+    }
 });
 
 test('the event times are the calendar\'s minutes, the way Story Director\'s clock counts them', director, async () => {
@@ -284,5 +303,5 @@ test('Wessel (kit) pre-fills the Human race, two talents, his stat points and hi
 test('nothing in the pack runs as code: it installs through the safety checks and round-trips as data', async () => {
     const { settings, packs } = await installedPart();
     assert.deepEqual(settings.root.packs[0].pack, raw(), 'kept as given');
-    assert.deepEqual(packs.list()[0].counts, { items: 43, creatures: 6, shops: 4, recipes: 7, events: 6, quests: 3, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7, crafts: 2, meterPresets: 2, markets: 2 });
+    assert.deepEqual(packs.list()[0].counts, { items: 43, creatures: 40, shops: 8, recipes: 7, events: 6, quests: 30, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7, crafts: 2, meterPresets: 2, markets: 2, rules: 1 });
 });
