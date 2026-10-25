@@ -1,0 +1,401 @@
+{
+  "chat": [
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "The story begins.",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "The story begins."
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {}
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_faf070afdbb3",
+          "checkpoint": {
+            "v": 2,
+            "meta": {
+              "rev": 0,
+              "claims": {}
+            },
+            "domains": {
+              "cs": {
+                "marks": {},
+                "steps": {},
+                "lines": {},
+                "ons": {}
+              },
+              "inventory": {
+                "defs": {},
+                "stacks": {},
+                "wallets": {},
+                "aliases": {}
+              },
+              "scene": {
+                "place": {
+                  "name": "",
+                  "kind": "",
+                  "region": ""
+                },
+                "present": []
+              }
+            }
+          },
+          "ops": [],
+          "receipts": [],
+          "narrated": [],
+          "spans": [],
+          "rev": 0,
+          "source": {
+            "logical": "sr_5vsmsdah",
+            "swipeKey": "sw_1bqg0j9v",
+            "evidence": "ev_dkpptrbj",
+            "next": 0
+          },
+          "swipe": 0,
+          "mark": {
+            "t": "ca1478b1:17",
+            "d": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "You",
+      "is_user": true,
+      "is_system": false,
+      "mes": "Go.",
+      "send_date": "",
+      "extra": {}
+    },
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "A.\n\n<!-- STORY_SUITE_V2\n<Changes>\n! note dup\n</Changes>\n-->",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "A.\n\n<!-- STORY_SUITE_V2\n<Changes>\n! note dup\n</Changes>\n-->"
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {
+            "storySuite": {
+              "v": 2,
+              "sid": "sw_e3dad74f73ed",
+              "ops": [
+                {
+                  "op": "add",
+                  "path": "/domains/cs/lines/bl_3f1smvil",
+                  "value": {
+                    "sid": "sr_aaujwckq",
+                    "swipeKey": "sw_276ibo71",
+                    "block": "bl_3f1smvil",
+                    "op": 0,
+                    "rev": 0
+                  }
+                },
+                {
+                  "op": "replace",
+                  "path": "/meta/rev",
+                  "value": 1
+                }
+              ],
+              "receipts": [
+                {
+                  "id": "rc_jyoyhorq",
+                  "type": "capture.note",
+                  "module": "cs-seams",
+                  "cause": "story",
+                  "seed": 3243764136,
+                  "summary": "Noted dup.",
+                  "narrate": false,
+                  "data": {
+                    "v2": {
+                      "schema": 2,
+                      "epoch": "ep_00000000",
+                      "rulesHash": null,
+                      "source": {
+                        "sid": "sr_aaujwckq",
+                        "swipeKey": "sw_276ibo71",
+                        "evidence": "ev_6b1al5qw",
+                        "ordinal": 0
+                      },
+                      "guard": {
+                        "owner": "cs-seams",
+                        "version": 2,
+                        "epoch": "ep_00000000",
+                        "rulesHash": null,
+                        "inputHash": "7df6e7c27dc5757db069322148dc8edcef28b882c995325ea95a8de28522b378",
+                        "predicate": {
+                          "kind": "note"
+                        }
+                      }
+                    }
+                  },
+                  "rev": 1,
+                  "guarded": true,
+                  "line": "12dc6df9"
+                }
+              ],
+              "narrated": [],
+              "spans": [
+                {
+                  "n": 2,
+                  "story": true,
+                  "id": "bl_3f1smvil",
+                  "module": "cs-seams",
+                  "source": {
+                    "sid": "sr_aaujwckq",
+                    "swipeKey": "sw_276ibo71",
+                    "evidence": "ev_6b1al5qw",
+                    "ordinal": 0
+                  },
+                  "guard": {
+                    "owner": "cs-seams",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": null,
+                    "inputHash": "7df6e7c27dc5757db069322148dc8edcef28b882c995325ea95a8de28522b378",
+                    "predicate": {
+                      "kind": "note"
+                    }
+                  },
+                  "claims": [],
+                  "evidence": [],
+                  "boundaries": [
+                    {
+                      "cursor": {
+                        "sid": "sr_aaujwckq",
+                        "swipeKey": "sw_276ibo71",
+                        "block": "bl_3f1smvil",
+                        "op": 0,
+                        "rev": 0
+                      },
+                      "prefixHash": "5e29cb53e90955a5fa9a8330f174fb3eb33cb5eb0eb49d65b5165516d9c078b9",
+                      "payloadHash": "c846dd8ba29356027d1c0330fa7b6a51d094940f9f36d9ceb7b1bedfccfd19e0"
+                    }
+                  ],
+                  "operation": {
+                    "type": "capture.note",
+                    "payload": {
+                      "op": "!",
+                      "kind": "note",
+                      "name": "dup",
+                      "text": "",
+                      "labels": {},
+                      "raw": "! note dup",
+                      "index": 0,
+                      "word": "note"
+                    }
+                  },
+                  "recorded": null,
+                  "result": {
+                    "v2": {
+                      "schema": 2,
+                      "epoch": "ep_00000000",
+                      "rulesHash": null,
+                      "source": {
+                        "sid": "sr_aaujwckq",
+                        "swipeKey": "sw_276ibo71",
+                        "evidence": "ev_6b1al5qw",
+                        "ordinal": 0
+                      },
+                      "guard": {
+                        "owner": "cs-seams",
+                        "version": 2,
+                        "epoch": "ep_00000000",
+                        "rulesHash": null,
+                        "inputHash": "7df6e7c27dc5757db069322148dc8edcef28b882c995325ea95a8de28522b378",
+                        "predicate": {
+                          "kind": "note"
+                        }
+                      }
+                    }
+                  },
+                  "replan": null
+                }
+              ],
+              "source": {
+                "logical": "sr_aaujwckq",
+                "swipeKey": "sw_276ibo71",
+                "evidence": "ev_6b1al5qw",
+                "next": 1
+              },
+              "rev": 1,
+              "swipe": 0,
+              "mark": {
+                "t": "80d5a5c6:2",
+                "d": ""
+              }
+            }
+          }
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_e3dad74f73ed",
+          "ops": [
+            {
+              "op": "add",
+              "path": "/domains/cs/lines/bl_3f1smvil",
+              "value": {
+                "sid": "sr_aaujwckq",
+                "swipeKey": "sw_276ibo71",
+                "block": "bl_3f1smvil",
+                "op": 0,
+                "rev": 0
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 1
+            }
+          ],
+          "receipts": [
+            {
+              "id": "rc_jyoyhorq",
+              "type": "capture.note",
+              "module": "cs-seams",
+              "cause": "story",
+              "seed": 3243764136,
+              "summary": "Noted dup.",
+              "narrate": false,
+              "data": {
+                "v2": {
+                  "schema": 2,
+                  "epoch": "ep_00000000",
+                  "rulesHash": null,
+                  "source": {
+                    "sid": "sr_aaujwckq",
+                    "swipeKey": "sw_276ibo71",
+                    "evidence": "ev_6b1al5qw",
+                    "ordinal": 0
+                  },
+                  "guard": {
+                    "owner": "cs-seams",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": null,
+                    "inputHash": "7df6e7c27dc5757db069322148dc8edcef28b882c995325ea95a8de28522b378",
+                    "predicate": {
+                      "kind": "note"
+                    }
+                  }
+                }
+              },
+              "rev": 1,
+              "guarded": true,
+              "line": "12dc6df9"
+            }
+          ],
+          "narrated": [],
+          "spans": [
+            {
+              "n": 2,
+              "story": true,
+              "id": "bl_3f1smvil",
+              "module": "cs-seams",
+              "source": {
+                "sid": "sr_aaujwckq",
+                "swipeKey": "sw_276ibo71",
+                "evidence": "ev_6b1al5qw",
+                "ordinal": 0
+              },
+              "guard": {
+                "owner": "cs-seams",
+                "version": 2,
+                "epoch": "ep_00000000",
+                "rulesHash": null,
+                "inputHash": "7df6e7c27dc5757db069322148dc8edcef28b882c995325ea95a8de28522b378",
+                "predicate": {
+                  "kind": "note"
+                }
+              },
+              "claims": [],
+              "evidence": [],
+              "boundaries": [
+                {
+                  "cursor": {
+                    "sid": "sr_aaujwckq",
+                    "swipeKey": "sw_276ibo71",
+                    "block": "bl_3f1smvil",
+                    "op": 0,
+                    "rev": 0
+                  },
+                  "prefixHash": "5e29cb53e90955a5fa9a8330f174fb3eb33cb5eb0eb49d65b5165516d9c078b9",
+                  "payloadHash": "c846dd8ba29356027d1c0330fa7b6a51d094940f9f36d9ceb7b1bedfccfd19e0"
+                }
+              ],
+              "operation": {
+                "type": "capture.note",
+                "payload": {
+                  "op": "!",
+                  "kind": "note",
+                  "name": "dup",
+                  "text": "",
+                  "labels": {},
+                  "raw": "! note dup",
+                  "index": 0,
+                  "word": "note"
+                }
+              },
+              "recorded": null,
+              "result": {
+                "v2": {
+                  "schema": 2,
+                  "epoch": "ep_00000000",
+                  "rulesHash": null,
+                  "source": {
+                    "sid": "sr_aaujwckq",
+                    "swipeKey": "sw_276ibo71",
+                    "evidence": "ev_6b1al5qw",
+                    "ordinal": 0
+                  },
+                  "guard": {
+                    "owner": "cs-seams",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": null,
+                    "inputHash": "7df6e7c27dc5757db069322148dc8edcef28b882c995325ea95a8de28522b378",
+                    "predicate": {
+                      "kind": "note"
+                    }
+                  }
+                }
+              },
+              "replan": null
+            }
+          ],
+          "source": {
+            "logical": "sr_aaujwckq",
+            "swipeKey": "sw_276ibo71",
+            "evidence": "ev_6b1al5qw",
+            "next": 1
+          },
+          "rev": 1,
+          "swipe": 0,
+          "mark": {
+            "t": "80d5a5c6:2",
+            "d": ""
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "tainted": true
+  }
+}

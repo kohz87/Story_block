@@ -4,7 +4,7 @@ How a module that owns a kind of proof gives it, and how anyone reads it. The fr
 [contract/RB_CONTRACT.md](contract/RB_CONTRACT.md) §6 ("Proof submission", `story.evidence`), §3 (P23, the acceptance
 rules) and §10 E (the `story.evidence` row); this page says what the host does with them. It builds on the span
 metadata of [REPLAY.md](REPLAY.md): a proof lives on the block (span) of the command that gave it. A module that
-does not call `ctx.proof` stores and replays exactly as before.
+calls neither `ctx.proof` nor `ctx.replayGuard` stores and replays exactly as before.
 
 Code: `src/v2/evidence.js` (everything pure: kinds, payloads, pins, visibility, the query), `commands.js`
 (`ctx.proof`, the block), `store.js` (stamping, replay check, `store.proofs()`), `domains/index.js` (the query is
@@ -86,8 +86,11 @@ first stamped, and kept in its span (`span.occurrence`); it is never worked out 
   that gave no proof until now takes its operation from its replan;
 * **a block that gives proof and has no occurrence is not supported.** Proof was never released before this; a block written by a build
   from before it (a development chat) is treated as damaged: it is not applied, it is a Problem ("its proof has no occurrence"), its proof
-  is not shown, and it is not planned again, so nothing can be revived from it. A block with no proof at all is as it always was, and a
-  store that never gave proof has no occurrence, no `taken` and no `owned` anywhere, and is written as it was.
+  is not shown, and it is not planned again, so nothing can be revived from it. A chat with no guarded blocks is written as before.
+  Newly stamped guarded blocks, including those with no proof, carry an `occurrence`, advance `source.taken`, and use a hash-derived
+  block id. Supported old proofless guarded spans keep their stored ids and bytes on an unchanged Re-read, including an absent
+  occurrence; they participate in the same count rule. If an old block starts giving proof, its occurrence comes from the shared
+  allocator. `owned` is written only for checkpoint windows containing proof.
 
 Two different blocks of a chat differ in one of these, so they cannot give one id, and nothing is matched, salted or reserved:
 

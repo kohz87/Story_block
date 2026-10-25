@@ -300,6 +300,46 @@ also covers a count written by removing the thing that holds it (an emptied stac
 change on a counter still moves the count by its difference on replay; the domain's validator refuses what that
 would make negative, and the block is skipped, never applied half.
 
+## Where a block is: `ctx.cursor()` and `ctx.epoch`
+
+Two facts about the block a command makes, for an owner that records them (an acceptance, a claim key) and checks them in its guard.
+
+**`ctx.cursor()`** → `{ sid, swipeKey, block, op, rev }`, the contract's `Cursor`. It has two parts of different kinds.
+
+* **Who the block is: `sid`, `swipeKey`, `block`.** The reply's canonical pair (the source map above) and the block's id, which is the hash of
+  the pair, the block's operation (`evidence.js` `operationKey`: the command and the line or payload it was made with) and its **occurrence**
+  (`replay.js` `blockIdOf`). The occurrence is a whole number given to a block **once, when it is first stamped**, and kept in its span
+  (`span.occurrence`); it is never worked out again, compressed or reused. A new block takes the next number nobody has used in that reply for
+  its operation (`record.source.taken` keeps the numbers of blocks that have gone, so an earlier block that goes does not hand its number to a
+  later one), and every caller that plans a block that exists already (a step planned again, a reconcile, a rebuild, afterCapture's) passes
+  the one it has. A Re-read gives the blocks it reads again the numbers of the blocks they replace **only while an operation has as many
+  blocks as before**; when the count changes, none of that operation's old numbers is given again (EVIDENCE.md, the occurrence rules, which here apply to every
+  guarded block, not only to those that give proof).
+  Nothing else goes into the id: no counter, no receipt, no id the chat or the process happened to hold. What that keeps: the same block has
+  the same id live, when run again by a Re-read of unchanged text, when planned again, after a reload, and when an earlier identical block goes
+  (it keeps its own number). **What it does not keep:** a line (or step) that is removed and then added again is a new block with the next
+  number; when a Re-read changes how many blocks an operation has, every block of it is new (a survivor does not take a deleted block's
+  identity, and what stood on the old ones is hidden with a Problem: EVIDENCE.md); a block
+  stored before occurrences existed keeps the id it was stamped with. Two identical clicks in one reply are two blocks. The id is the one the
+  host stamps (it is handed to the block), and the store refuses to store a block under another sid, swipe key or id than its command read.
+* **Where it sits: `op`, `rev`.** The changes before the block on the reply and the `meta.rev` before it, as they stand when it is read. These
+  move: a Re-read that puts a line before a kept block shifts its `op`, and a saved cursor keeps what it was. **Anything that compares a saved
+  cursor with a block (an acceptance cursor, a claim anchored at a block) compares `{ sid, swipeKey, block }`, never `op` or `rev`.** The block's
+  first boundary (`boundaries[0].cursor`) is the cursor as it stands now.
+
+A command that reads its cursor makes a guarded block or fails (`ctx.replayGuard`): no id is handed out that is never stored.
+
+**`ctx.epoch`** is the epoch of the savepoints domain when the state has one (it is made by the first save point), else the genesis epoch
+`ep_00000000`, so it works before there is a timeline and follows a restore's new epoch after. It is a property, read from the state the command
+starts on.
+
+*What "pure" means here.* Both are functions of the chat before the block and the state before it, nothing outside them, so a rebuild, a reload
+and the other swipe's prefix give them the same. That holds for the identity (`sid`, `swipeKey`, `block`, as above: it depends on the occurrences the reply's
+record holds, which are part of what replay reads) and for the epoch. `op` and `rev` are
+pure too, but of the prefix as it is at the moment they are read, which is why a Re-read changes them for a kept block and why they are not an
+identity. Nothing new is stored for any of it (the span already holds the boundary), so there is no new replay input: what an owner writes from
+a cursor into its changes or `recorded` is already an input.
+
 ## Decisions where the contract is silent
 
 * Block metadata is written only for blocks whose command called `ctx.replayGuard`; every other span is
