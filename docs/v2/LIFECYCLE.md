@@ -69,7 +69,7 @@ Re-read replaces a reply's story changes with what its change block says now. If
 receipts or ops of a module that is held back, it could not read them again and would lose what they stored, so
 `sdk.reread` refuses (`DEPENDENCY_UNAVAILABLE` or `RESTORE_PENDING`): `Re-read is waiting for <Module>:
 <reason> Nothing was changed.` Replies that hold nothing of such a module are read again as usual, and Re-read
-works on the held reply once the module runs.
+works on the held reply once the module runs. A block whose guard says `replyBound` (REPLAY.md) goes with a Re-read of its reply.
 
 ### Features
 

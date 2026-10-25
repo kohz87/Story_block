@@ -140,8 +140,9 @@ A guard may carry `replyBound: true` (a boolean; the field is left out otherwise
 Such a block belongs to the reply it was stored on in a way history cannot carry: when that reply is no longer in the
 chat, replay does not apply the block, even when deleting the earliest replies would otherwise carry the formerly known
 state forward (`carriedTo`); a replay that still lists the deleted reply fails the block's prerequisite ("its reply was deleted").
-A swipe away from the reply does the same as it does for any block of that swipe; a Re-read of the reply keeps the block, because
-the reply is still there. Use it for a choice the rest of the owner's state depends on (RPG Battle's rules pin): taking the
+A swipe away from the reply does the same as it does for any block of that swipe, and a Re-read of the reply takes the block
+and its receipt too (`replaceStory` does not keep it; a block built under it is replayed without it and stays off, as after a
+delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (RPG Battle's rules pin): taking the
 reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
 
 ## Source map and ids

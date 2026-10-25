@@ -1,5 +1,5 @@
-// Reply-bound guards (docs/v2/REPLAY.md, "Reply-bound blocks"): a guard may say `replyBound: true`, which retracts
-// its block when its reply is deleted or swiped away, even when deleting the earliest replies would otherwise carry
+// Reply-bound guards (docs/v2/REPLAY.md, "Reply-bound guards"): a guard may say `replyBound: true`, which retracts
+// its block when its reply is deleted, swiped away or read again, even when deleting the earliest replies would otherwise carry
 // the formerly known state forward. A guard without it is carried as before.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,6 +16,7 @@ function pinner({ bound }) {
         domains: {
             pin: { initial: () => ({ choice: null }), deferred: true },
             after: { initial: () => ({ n: 0 }), deferred: true },
+            char: { initial: () => ({ name: null }), deferred: true },
         },
         commands: {
             'pin.set'(ctx, { choice }) {
@@ -24,6 +25,13 @@ function pinner({ bound }) {
                 ctx.draft('pin').choice = choice;
                 return { summary: `Pinned ${choice}.`, narrate: false };
             },
+            // A block built under the pin: its guard holds only while the pin it names is the state's pin.
+            'char.make'(ctx, { name }) {
+                ctx.replayGuard({ owner: OWNER, version: 2, epoch: EPOCH, rulesHash: null, inputHash: ctx.hash({ name }),
+                    predicate: { kind: 'char', pin: 'a' } });
+                ctx.draft('char').name = name;
+                return { summary: `Made ${name}.`, narrate: false };
+            },
             'pin.later'(ctx) {
                 const after = ctx.draft('after');
                 after.n = (after.n ?? 0) + 1;
@@ -31,7 +39,13 @@ function pinner({ bound }) {
             },
         },
         queries: { 'pin.id': state => state.domains.pin?.choice ?? null },
-        hooks: { replayGuard: (_view, { guard }) => (guard.owner === OWNER ? { ok: true } : undefined) },
+        hooks: {
+            replayGuard: (view, { guard }) => {
+                if (guard.owner !== OWNER) return undefined;
+                if (guard.predicate?.kind === 'char') return view.state.domains.pin?.choice === guard.predicate.pin ? { ok: true } : { ok: false, reason: 'the pin is gone' };
+                return { ok: true };
+            },
+        },
     };
 }
 
@@ -91,14 +105,54 @@ test('a reply-bound pin is retracted when its reply is swiped away, as any block
     assert.equal(pinned(), null);
 });
 
-test('a Re-read of the pinned reply keeps a reply-bound pin: the reply is still there', async t => {
-    const { host, pinned } = await world(t, 'flag');
+test('a Re-read of the pinned reply retracts a reply-bound pin and its receipt, and what was built under it', async t => {
+    const { host, ui, pinned } = await world(t, 'flag');
+    assert.equal((await ui('char.make', { name: 'Ada' })).ok, true);
+    assert.equal(host.head().domains.char?.name, 'Ada');
+    const carrier = host.ctx.chat[0];
+    const receiptsBefore = carrier.extra.storySuite.receipts.length;
+    host.ctx.chat[0].mes = `${host.ctx.chat[0].mes} Edited.`;
+    host.ctx.chat[0].swipes[0] = host.ctx.chat[0].mes;
+    const result = await host.turn.reread(0);
+    assert.equal(result.ok, true, `${result.code}: ${result.message}`);
+    assert.equal(pinned(), null, 'the pin goes with the Re-read of its reply');
+    assert.equal(host.head().domains.char?.name ?? null, null, 'the character created under it goes too');
+    assert.equal(host.head().domains.after.n, 1, 'what later replies did stays');
+    const stored = host.ctx.chat[0].extra.storySuite;
+    assert.equal(stored.spans.some(span => span.guard?.replyBound === true), false, 'the block is gone from the reply');
+    assert.ok(stored.receipts.length < receiptsBefore, 'its receipt is gone');
+    assert.equal(stored.spans.reduce((sum, span) => sum + span.n, 0), stored.ops.length, 'spans and ops still line up');
+    await reload(host);
+    assert.equal(pinned(), null);
+    assert.equal(host.head().domains.char?.name ?? null, null);
+    // (the block built under the pin stays stored and off, as it does when the pin's reply is deleted)
+    assert.deepEqual(host.store.problems().map(problem => problem.code), ['REPLAY_PREREQUISITE']);
+});
+
+test('a Re-read of an unrelated reply keeps a reply-bound pin and what was built under it', async t => {
+    const { host, ui, pinned } = await world(t, 'flag');
+    assert.equal((await ui('char.make', { name: 'Ada' })).ok, true);
+    const last = host.ctx.chat.length - 1;
+    assert.ok(last > 0);
+    host.ctx.chat[last].mes = `${host.ctx.chat[last].mes} Edited.`;
+    host.ctx.chat[last].swipes[0] = host.ctx.chat[last].mes;
+    const result = await host.turn.reread(last);
+    assert.equal(result.ok, true, `${result.code}: ${result.message}`);
+    assert.equal(pinned(), 'a');
+    assert.equal(host.head().domains.char?.name, 'Ada');
+    assert.deepEqual(host.store.problems(), []);
+    await reload(host);
+    assert.equal(pinned(), 'a');
+    assert.equal(host.head().domains.char?.name, 'Ada');
+});
+
+test('a Re-read of a reply whose pin does not say replyBound keeps it (the control)', async t => {
+    const { host, pinned } = await world(t, 'none');
     host.ctx.chat[0].mes = `${host.ctx.chat[0].mes} Edited.`;
     host.ctx.chat[0].swipes[0] = host.ctx.chat[0].mes;
     const result = await host.turn.reread(0);
     assert.equal(result.ok, true, `${result.code}: ${result.message}`);
     assert.equal(pinned(), 'a');
-    assert.deepEqual(host.store.problems(), []);
     await reload(host);
     assert.equal(pinned(), 'a');
 });
