@@ -243,14 +243,19 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
         return tx.source;
     }
 
-    // What a block is for the ids of its proof: its command and line, and its rank among the blocks of its reply that did the same
-    // (counted by the caller that plans blocks again, else from the reply's stored blocks). Two blocks of a reply differ in it.
+    // What a block is for the ids of its proof: its command and line, and its occurrence among the blocks of its reply that did the same
+    // (given once and kept in the block's span: the caller that plans a block again passes the one it has, else the reply's next unused
+    // one). Two blocks of a reply differ in it.
     function originOf(tx) {
         if (tx.origin === null) {
+            try { tx.operation = operationKey(tx.call.type, tx.call.payload); } catch { tx.operation = null; }
+            // (never invented here: the caller that plans a block gives it, else the store's allocator does; with neither the proof is refused)
             let rank = tx.occurrence;
             if (rank === null) {
-                try { rank = Number.isInteger(tx.reply?.index) && tx.operation ? store.occurrences?.(tx.reply.index, tx.operation) ?? 0 : 0; } catch { rank = 0; }
+                try { rank = Number.isInteger(tx.reply?.index) && tx.operation ? store.allocateOccurrence?.(tx.reply.index, tx.operation) : null; } catch { rank = null; }
             }
+            if (!Number.isInteger(rank) || rank < 0) throw new Error('No occurrence could be given to this proof.');
+            tx.rank = rank;
             tx.origin = `${tx.operation}:${rank}`;
         }
         return tx.origin;
@@ -614,9 +619,9 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 // The proof of the blocks being replaced (a Re-read's lines and steps, a step planned again): a proof of the same kind and key, at the same place among those, keeps the id.
                 replacing: Array.isArray(replacing) ? replacing : [],
                 // What this root is (its command and line) and its rank among blocks of the reply that did the same: its proof ids come from it.
-                origin: null, operation: null, occurrence: Number.isInteger(occurrence) && occurrence >= 0 ? occurrence : null,
+                origin: null, rank: null, operation: null, occurrence: Number.isInteger(occurrence) && occurrence >= 0 ? occurrence : null,
             };
-            try { tx.operation = operationKey(type, payload); } catch { tx.operation = null; }
+            tx.call = { type, payload };
             // `reply` (run, a system step only): the reply a Re-read's step is kept on, which need not be the head.
             const given = cause === 'system' && isRecord(reply) ? replyOf(reply.index, reply.sid) : null;
             tx.reply = tx.carrier ? replyOf(tx.carrier.index, tx.carrier.sid ?? tx.carrier.key) : given ?? headReply(store);
@@ -652,7 +657,7 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
                 block = {
                     module: target.moduleId, source, guard: tx.guard ?? null, operation: { type, payload: clone(operation) }, recorded: tx.recorded,
                     result: Object.hasOwn(data.v2, 'result') ? clone(data.v2.result) : clone(data),
-                    ...(proofs.length ? { evidence: clone(proofs) } : {}),
+                    ...(proofs.length ? { evidence: clone(proofs), occurrence: tx.rank } : {}),
                 };
                 // The receipt shows the proof too (contract Receipt.data.v2.evidence); the span's is what the host reads.
                 if (proofs.length) data = { ...data, v2: { ...data.v2, evidence: receiptEvidence(proofs) } };

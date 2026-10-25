@@ -57,27 +57,50 @@ payloads can repeat (two kills of the same foe in one reply) must carry a field 
 target's id). Note for RPG Battle's payloads (B3/B6).
 
 The `id` is derived from **what the block that gives the proof is**, so no id is chosen by looking at other blocks: it is
-the hash of the reply's evidence id (`Source.evidence`), the block's operation, the block's rank among blocks of its reply that
-did the same, and the proof's key. The operation is the root's command and, for a story line, the line as written (the text of
-the line, as the replay core names a line); for a step, its command and payload; for a click, its command and payload. The
-rank is the number of blocks before it in its reply with that very operation (two lines with the same text, two steps with the
-same command and payload), counted in the order the blocks stand in the reply. Two different blocks of a chat differ in one of
-these, so they cannot give one id, and nothing is matched, salted or reserved:
+the hash of the reply's evidence id (`Source.evidence`), the block's operation, the block's **occurrence**, and the proof's key.
+The operation is the root's command and, for a story line, the line as written (the text of the line, as the replay core names a
+line); for a step or a click, its command and payload. The occurrence tells apart two blocks of one reply that did exactly the same
+(two lines with the same text, two steps with the same command and payload). It is a whole number **given to a block once, when it is
+first stamped, and kept in its span (`span.occurrence`); it is never worked out again**:
+
+* a block planned again (a step, by a reconcile or a Re-read) and a rebuild use the occurrence the block has, so an earlier identical
+  block that goes (a step taken back) cannot move the later ones onto its identity, and nothing built on it comes back;
+* a new block takes the next occurrence nobody has used in that reply for that operation: one past every occurrence a block of that
+  reply has held, those of the blocks that went included (`record.source.taken`, an object from an operation key to the next free
+  number, kept past the blocks that go). While the reply exists, a removed block's occurrence is not given again;
+* **a Re-read gives back the occurrences of the blocks it replaces only when it is unambiguous which is which.** Group the blocks of the reply
+  that gives proof by operation. When a group has as many blocks as before, the k-th block read again takes the k-th occurrence of the
+  group (so a Re-read of text that did not change gives every block its own, a Continued reply included). When a group has **more or
+  fewer** blocks than it replaces (a line of identical lines was deleted, or one was added), which new block stands for which old one is
+  not known, so **none of that group's old occurrences is given again**: every block of the group takes a new one, every old proof id of
+  the group is retired, and what was built on them is hidden (a guarded block is off, with a Problem). Other operations of the reply are
+  unaffected. Nothing is rebound to a removed block's identity. The Re-read is planned again, from the same inputs but the retired set, while a plan
+  finds another operation changed (retiring one can change what a step hook asks for); the set only grows, and a plan that still reports a
+  changed operation is never stored;
+* **there is one allocator.** A new occurrence (a new block, a block of a group whose old ones are retired, and a step that gave no proof
+  until now and gives it in a plan) is the next one nobody has used in that reply for that operation, from `record.source.taken` and the
+  numbers of the blocks that stand (`allocator` in evidence.js). A plan (a Re-read, the reconcile of a record) works on one allocator, which
+  moves on after each number it gives, so two blocks of a plan never take the same one; the counter in the record moves only when the plan is
+  stored. **No other code works one out or defaults one** (a rank, a count, a zero): a proof asked for with no occurrence given and none allocated is
+  refused, and a proof block stamped without one is damaged (tests/v2/evidence-allocation.test.js reads the source for it). A step without a guard
+  that gave no proof until now takes its operation from its replan;
+* **a block that gives proof and has no occurrence is not supported.** Proof was never released before this; a block written by a build
+  from before it (a development chat) is treated as damaged: it is not applied, it is a Problem ("its proof has no occurrence"), its proof
+  is not shown, and it is not planned again, so nothing can be revived from it. A block with no proof at all is as it always was, and a
+  store that never gave proof has no occurrence, no `taken` and no `owned` anywhere, and is written as it was.
+
+Two different blocks of a chat differ in one of these, so they cannot give one id, and nothing is matched, salted or reserved:
 
 * a new swipe has a new evidence id, so **fresh proof ids**;
 * an edit alone changes no id. **A Re-read of a line whose text changed reads another line**: its proof has a new id, the old id
   shows nothing, and what was built on the old id (a click, a later step that recorded it as its parent) is hidden, a guarded
-  block off, until the text is put back, when the old id, and with it everything built on it, is back. A step the hook asks
-  for again on the same reply builds on the new proof; a step recorded on a later reply with the old id as its parent cannot
+  block off. Putting the text back reads yet another line (its first occurrence was used), so the old id stays empty. A step the hook
+  asks for again on the same reply builds on the new proof; a step recorded on a later reply with the old id as its parent cannot
   follow (its owner's replan says `NO_LONGER_DONE` or its guard no longer holds). A Re-read of text that did not change gives
-  every proof of every block the id it had, a Continued reply included;
-* a block planned again (a Re-read's line or step, a step a reconcile plans again) works its ids out from the same operation
-  and rank, and so gets its own back. It may hold an id it already holds and no other: an id another block holds (a file edited by
-  hand) is a `CONFLICT` at the call, and a plan that would still end on an id a block that applied already owns is refused before
-  it applies and before it publishes, the block staying as it was;
-* two blocks of one reply with exactly the same operation are told apart by their rank among them. When an earlier one of them
-  goes (a step taken back), the later ones take its rank at the next plan, which is the one thing that can move an id without the
-  text of a line changing;
+  every proof of every block the id it had;
+* a block planned again works its ids out from the same operation and occurrence, and so gets its own back. An id another block holds
+  (a file edited by hand) is a `CONFLICT` at the call, and a plan that would still end on an id a block that applied already owns is
+  refused before it applies and before it publishes, the block staying as it was;
 * two roots that give the same key are two proofs with two ids (a second click is a second proof).
 
 The Source (and its `ordinal`) of a proof is that of the block that gave it, so a block planned again has a new ordinal
@@ -142,9 +165,10 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
   decides nothing about another block's proof. **A proof id belongs to the block that applied with it first**: a later
   block (a hand-edited record, or a block another reply gave) whose proof takes the same id is an ownership collision and is
   not applied (`REPLAY_PREREQUISITE`, "already belongs to a block that applied"). Before the first checkpoint a replay starts
-  from, replay did not look at the blocks, so they are listed if they could apply less the blocks the checkpoint carries as off
-  (its `carried` Problems: the account of them replay gave when it made the checkpoint), and of two that are both on and give one id
-  the first listed keeps it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
+  from, replay did not look at the blocks, so they are listed if they could apply only the blocks the checkpoint says applied
+  (its `owned` list, [record sid, block id], written with the checkpoint, and again whenever a Re-read or a reconcile writes it, only when
+  a record before it held proof; a position among a record's blocks is not used, since a reconcile moves them). A checkpoint that has none
+  although proof stands before it (one written before it did) is worked out by replaying what is before it. `store.proofs({ all: true })` lists every block that could apply, applied or not: a new proof does not
   take an id from any of them, since a block that is off may come back.
 * **A guard may ask `story.evidence`** in the context a replay gives it (REPLAY.md "Guards are pure"), whoever owns the guard: the query reads the
   pins in the state before the block and the proof of the blocks that applied before it, which is the prefix and nothing else.

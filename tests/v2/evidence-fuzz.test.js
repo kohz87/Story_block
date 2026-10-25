@@ -39,15 +39,16 @@ function run(seed, steps) {
             });
         };
         const sorted = model.filter(alive).sort((a, b) => place(a) - place(b) || a.uid - b.uid);
+        const unmet = new Set();     // the steps whose parent was not shown where they stand (a parent that comes after them does not count)
         for (const e of sorted) {
             if (denied && e.guarded) continue;
             if (e.needs) {
                 const owner = owners.get(e.needs);
-                if (!(owner && visibleIn(owner))) continue;
+                if (!(owner && visibleIn(owner))) { unmet.add(e); continue; }
             }
             if (!owners.has(e.id)) owners.set(e.id, e);
         }
-        return { owners, visibleIn, sorted };
+        return { owners, visibleIn, sorted, unmet };
     };
     const expected = denied => {
         const { owners, visibleIn, sorted } = resolve(denied);
@@ -176,15 +177,14 @@ function run(seed, steps) {
             log.push(`${step}: reconcile from ${from}`);
             const shownBefore = h.ask().map(proof => proof.id);
             const done = h.store.reconcile(from, { rerun: (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-                cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.nth,
+                cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
                 reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
             }) });
             // The model: each step from there on whose parent is not shown where it stands is taken back, one after another.
             let taken = 0;
             for (;;) {
-                const { owners, visibleIn, sorted } = resolve(false);
-                void owners;
-                const gone = sorted.find(e => e.needs && place(e) >= from && !e.removed && !(owners.get(e.needs) && visibleIn(owners.get(e.needs))));
+                const { sorted, unmet } = resolve(false);
+                const gone = sorted.find(e => e.needs && place(e) >= from && !e.removed && unmet.has(e));
                 if (!gone) break;
                 gone.removed = true;
                 taken += 1;
@@ -235,4 +235,70 @@ for (const seed of SEEDS) {
         const given = run(seed, STEPS);
         assert.ok(given > 5, 'the run gave proof');
     });
+}
+
+// Identical steps in one reply, the gate that readies them shut and opened between them, and the reply that opened the first gate goes:
+// the steps that are not ready any more are taken back, the others keep the ids they had, and what was built on a step that went stays
+// off, however often a reconcile runs (an occurrence is given once and never worked out again).
+function twins(seed) {
+    const r = prng(seed + 1000);
+    const h = evidenceHarness({ options: seed % 2 ? { checkpointEvery: 2 } : {} });
+    const rerun = (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
+        cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
+        reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
+    });
+    h.send();
+    assert.equal(h.command('sd.gate', { value: true }).ok, true);
+    h.send();
+    let gate = true;
+    const steps = [];
+    for (let n = 0, count = r.int(2, 6); n < count; n += 1) {
+        if (!gate || r.chance(0.5)) {
+            gate = r.chance(0.7);
+            assert.equal(h.command('sd.gate', { value: gate }).ok, true);
+        }
+        if (!gate) continue;
+        const made = h.command('sd.ready', {}, 'system');
+        assert.equal(made.ok, true, made.message);
+        const step = { id: made.receipt.data.made.id, ready: null, built: null };
+        // A click built on the step, under a guard that needs it (it is not planned again, so it comes back if its parent does).
+        if (r.chance(0.7)) {
+            const click = h.command('sd.needs', { thread: T1, selection: `pick ${n}`, parent: step.id });
+            assert.equal(click.ok, true, click.message);
+            step.built = click.receipt.data.proof.id;
+        }
+        steps.push({ ...step, gateAfter: gate });
+        // (where the gate stood when the step ran, and so what stands before it, is what decides it now)
+        step.ready = null;
+    }
+    assert.equal(new Set(steps.map(step => step.id)).size, steps.length, `seed ${seed}: identical steps, one id each`);
+    // The reply that opened the first gate goes: the gate is shut from the start, and the steps that follow a gate the reply opens again stay.
+    h.chat.splice(1, 2);
+    h.store.rebuild();
+    // (the model: the gate as the reply's own gate changes leave it, from shut)
+    const kept = [];
+    const record = h.chat[2].extra.storySuite;
+    let open = false;
+    let at = 0;
+    for (const span of record.spans) {
+        const ops = record.ops.slice(at, at + span.n);
+        at += span.n;
+        if (span.evidence?.length) {
+            const step = steps.find(each => span.evidence.some(proof => proof.id === each.id));
+            if (step && span.replan) { if (open) kept.push(step.id); }
+        } else if (ops.some(op => op.path === '/domains/sdt/ready')) open = ops.find(op => op.path === '/domains/sdt/ready').value === true;
+    }
+    for (let round = 1; round <= 3; round += 1) {
+        h.store.reconcile(0, { rerun });
+        const shown = h.ask().filter(proof => proof.payload.after === 'ready').map(proof => proof.id);
+        assert.deepEqual(shown, kept, `seed ${seed}, reconcile ${round}: the steps still ready keep their ids`);
+        for (const step of steps) if (step.built && !kept.includes(step.id)) assert.deepEqual(h.ask({ ids: [step.built] }), [], `seed ${seed}, reconcile ${round}: what was built on a step that went stays off`);
+    }
+    h.store.rebuild();
+    assert.deepEqual(h.ask().filter(proof => proof.payload.after === 'ready').map(proof => proof.id), kept, `seed ${seed}: a replay agrees`);
+    for (const step of steps) if (step.built && !kept.includes(step.id)) assert.deepEqual(h.ask({ ids: [step.built] }), [], `seed ${seed}: and what was built on a step that went stays off after a replay`);
+}
+
+for (const seed of SEEDS) {
+    test(`proof fuzz seed ${seed}: identical steps in one reply, one goes, and a reconcile run again moves no identity`, () => twins(seed));
 }

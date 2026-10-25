@@ -103,7 +103,7 @@ function allowed(path, listed) {
     const [top, ...rest] = path.split('.');
     if (!listed.has(top)) return false;
     if (top === 'receipts' && rest[1] === 'data') return rest.length <= 2 || rest[2] === 'v2';
-    if (top === 'source') return rest.length === 0 || ['logical', 'swipeKey', 'evidence', 'next'].includes(rest[0]);
+    if (top === 'source') return rest.length === 0 || ['logical', 'swipeKey', 'evidence', 'next', 'taken'].includes(rest[0]);
     return true;
 }
 

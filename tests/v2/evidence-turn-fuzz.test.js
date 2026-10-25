@@ -25,7 +25,16 @@ async function run(t, seed, steps) {
     link.link(host.store);
     t.mock.method(console, 'warn', () => {});
     const turns = [];
-    host.events.on('turn', turn => turns.push(turn));
+    // The kill lines refused for want of the acceptance they build on: `reply|foe|thread`. Only a line that was refused may be given later by text that did not change.
+    const refused = new Set();
+    host.events.on('turn', turn => {
+        turns.push(turn);
+        for (const problem of turn.problems ?? []) {
+            const line = /^! kill (\S+) \| after: (\S+)$/.exec(String(problem.line ?? ''));
+            const sid = Number.isInteger(problem.index) ? host.store.carrierSid(problem.index) : null;
+            if (line && sid && /No acceptance of/.test(String(problem.message))) refused.add(`${sid}|${line[1]}|${line[2]}`);
+        }
+    });
     const ask = args => host.sdk.query('story.evidence', args);
     const log = [];
     let most = 0;
@@ -76,17 +85,35 @@ async function run(t, seed, steps) {
             // Re-read of text that did not change: every proof stays as it was.
             log.push(`${step}: re-read, unchanged`);
             // (A block planned again has an ordinal of its own; the proof, its id, kind, hash and parents, is the same: every id of every
-            // block stays, each step on the id it had, and no proof is lost, a Continued reply included.)
-            // (as a set: a Continued reply had its steps between its parts, a Re-read puts them after its lines)
-            const plain = () => JSON.stringify(ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]).sort((x, y) => (x[0] < y[0] ? -1 : 1)));
+            // block stays, each step on the id it had, and no proof is lost, a Continued reply included. The one thing text that did not
+            // change may add is a kill whose line was refused before, for want of the acceptance it builds on, and that another reply has
+            // given since: a Re-read reads every line again in the story as it is now.)
+            const plain = () => ask({}).map(({ id, kind, payloadHash, parents }) => [id, kind, payloadHash, parents]).sort((x, y) => (x[0] < y[0] ? -1 : 1));
             const before = plain();
+            const storedBefore = new Map(host.store.proofs({ all: true }).map(entry => [entry.proof.id, entry.proof]));     // (shown or not)
             const result = await host.turn.reread(at);
-            if (result.ok && plain() !== before) {
-                const was = JSON.parse(before).map(item => item.join('|').slice(0, 40));
-                const now = JSON.parse(plain()).map(item => item.join('|').slice(0, 40));
-                log.push(`  was ${was.filter(x => !now.includes(x)).join(' ; ')}`, `  now ${now.filter(x => !was.includes(x)).join(' ; ')}`);
+            if (result.ok) {
+                const now = plain();
+                const kept = new Set(now.map(item => JSON.stringify(item)));
+                const lost = before.filter(item => !kept.has(JSON.stringify(item)));
+                const was = new Set(before.map(item => item[0]));
+                const added = now.filter(item => !was.has(item[0]));
+                // (each added proof must be a kill of this reply whose acceptance is shown now and was not when it was refused or hidden)
+                const sid = host.store.carrierSid(at);
+                const shownBefore = new Set(before.map(item => item[0]));
+                const stray = added.filter(item => {
+                    const proof = ask({ ids: [item[0]] })[0];
+                    // (or a kill that was stored and hidden, its acceptance not shown, and is shown now that it is)
+                    const hidden = storedBefore.get(item[0]);
+                    if (hidden && hidden.kind === 'kill' && hidden.parents.some(parent => !shownBefore.has(parent))) return false;
+                    const parent = proof?.parents?.length === 1 ? ask({ ids: [proof.parents[0]] })[0] : null;
+                    const key = proof && parent ? `${sid}|${proof.payload.foe}|${parent.payload.thread}` : null;
+                    return !(proof.kind === 'kill' && proof.source.sid === sid && parent?.kind === 'acceptance' && refused.delete(key));
+                });
+                if (lost.length || stray.length) log.push(`  lost ${lost.map(item => item[0]).join(' ; ')}`, `  added ${added.map(item => `${item[0]}:${item[1]}`).join(' ; ')}`);
+                assert.deepEqual(lost, [], `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
+                assert.deepEqual(stray.map(item => item[0]), [], `seed ${seed}, ${step}: an unchanged Re-read gave a proof that no refused line explains\n${log.join('\n')}`);
             }
-            if (result.ok) assert.equal(plain(), before, `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
         } else if (kind === 6 && at > 0) {
             log.push(`${step}: edit, re-read`);
             const message = host.ctx.chat[at];
