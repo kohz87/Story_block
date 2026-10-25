@@ -841,7 +841,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (entry.phase === 'complete') {
             await durable();
             // (a save that failed after the restore was complete left the barrier up: it comes down now that the file has it)
-            if (barrierOwner === archive.holder()) {
+            if (barrierOwner !== null && barrierOwner === archive.holder()) {
                 const released = await release();
                 if (!released.ok) return { ok: true, return: entry.return, status: 'participants-pending' };
             }
