@@ -464,6 +464,13 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   bare manifests; `packs.list` counts them (`counts.rules`) and tags the pack **Rules pack · RPG Battle**, also when
   it names Story Director too (its quests and places). The Packs list shows "1 rules set". Only a manifest makes a Rules
   pack: a pack that merely lists `rb-rules-v2` keeps the tag it would have without it.
+* **Pinning it.** `packs.rules({ pack?, resolve: true })` adds `pin` to each entry: the checked, detached transport a
+  rules module freezes on a character timeline, `{ resolved, rulesHash, packHash, packKey, packVersion, progression,
+  constantsHash, defs }` (`defs`: the pack's item definitions by definition ID, as `packs.itemDefs` gives them), or `null`
+  when the pack's rules do not check. A module never resolves a manifest itself. `rulesHash` covers the rules; `packHash` the
+  whole pack, so installing the same version again with other content gives other hashes, which is how a module tells that
+  what it offered is no longer what is installed. Without `resolve` the answer is as above. Tests:
+  `tests/v2/packs/rules-resolve.test.js`.
 
 ## Value guide
 
