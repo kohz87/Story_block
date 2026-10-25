@@ -6,10 +6,13 @@ import assert from 'node:assert/strict';
 import { evidenceHarness } from './helpers/evidence.js';
 
 const ids = list => list.map(each => each.id);
-const rerunOf = h => (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-    cause: 'system', state, seed: info.replan.seed, replacing: info.span.evidence ?? [], occurrence: info.nth,
-    reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
-});
+const rerunOf = h => (state, receipt, info) => {
+    const plan = info.replan ?? { type: receipt.type, payload: receipt.replan?.payload ?? {}, seed: receipt.seed };     // (as turn.js planAgain)
+    return h.bus.run(plan.type, plan.payload, {
+        cause: 'system', state, seed: plan.seed, replacing: info.span.evidence ?? [], occurrence: info.occurrence,
+        reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source?.ordinal },
+    });
+};
 
 test('a settings change makes the replan\'s guard fail: the dependent that stands on the owner is not deleted, and a later valid dependent works', () => {
     const mode = { value: 'normal' };
