@@ -589,7 +589,7 @@ test('every quest objective and requirement kind resolves, with external ids rep
 
 // If one of these changes on purpose, update every consumer of the hash with it.
 const GOLDEN = {
-    smallRulesPack: { rulesHash: 'bbcf96a8f04da8e007c2fb3840a3939a1d30e3820ddcb48c3e4632186e816f5b', packHash: '19d91d55a09d3d21bf9ea865e1cadc63561a44be65745d61530046c39b718625' },
+    smallRulesPack: { rulesHash: 'abefa51fb43800ffca5fb0c8e5eb92ede0ebfffd2d09e6e334e2badb2342532a', packHash: '15f199c52dab51676942a834ae2087d678f4b51bfa875744675b012dbfe0f175' },
 };
 
 test('golden: smallRulesPack exports these exact bytes and hashes', () => {

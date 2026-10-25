@@ -122,6 +122,10 @@ test('representative complete $defs and reference resolution', () => {
         'objective',
         'reward',
         'quest',
+        'closedQuest',
+        'openQuest',
+        'openObjective',
+        'openReward',
         'foe',
         'shop',
         'recipe',
@@ -208,7 +212,7 @@ test('exact enums, bounds, and constants', () => {
     assert.deepEqual(rulesV2Schema.$defs.unit.properties.kind.enum, ['summon', 'pet']);
 
     // Quests
-    assert.deepEqual(rulesV2Schema.$defs.quest.properties.category.enum, ['main', 'side', 'bounty']);
+    assert.deepEqual(rulesV2Schema.$defs.closedQuest.properties.category.enum, ['main', 'side', 'bounty']);
 
     // Manifest collection bounds
     assert.equal(rulesV2Schema.properties.classes.minItems, 1);
@@ -377,7 +381,9 @@ test('schema required and closed manifest and owned defs', () => {
         'itemRule',
         'trainer',
         'reward',
-        'quest',
+        'closedQuest',
+        'openQuest',
+        'openReward',
         'foe',
         'shop',
         'recipe',
