@@ -168,23 +168,17 @@ test('after a swipe the cursor is the swipe\'s own: the same sid, the swipe\'s k
     assert.deepEqual(marks(host).one.cursor, boundaryOf(host, 'one'));
 });
 
-test('the epoch is the genesis epoch until the savepoints domain exists, then that domain\'s; a replay gives the same', async t => {
+test('the epoch is the genesis epoch until the savepoints domain exists, then that domain\'s (a state is read the same way by the gate and by ctx.epoch)', async t => {
     const host = await started(t);
     await host.send('Go.', reply('A.'));
     assert.equal(epochOf(host.head()), GENESIS_EPOCH);
     await click(host, 'before');
     assert.equal(marks(host).before.epoch, 'ep_00000000');
-    // The first save point makes the domain (simulated here by a module that owns it, as E6a's host will); its epoch takes over.
-    await host.sdk.registerModule({ id: 'cs-sim', name: 'Simulated save points', version: '0.0.1', domains: { savepoints: { initial: () => ({ epoch: 'ep_00000007' }) } } });
-    assert.equal(host.head().domains.savepoints.epoch, 'ep_00000007');
-    await click(host, 'after');
-    assert.equal(marks(host).after.epoch, 'ep_00000007');
-    assert.equal(marks(host).before.epoch, 'ep_00000000', 'what was read before stays');
-    host.store.rebuild();
-    assert.deepEqual([marks(host).before.epoch, marks(host).after.epoch], ['ep_00000000', 'ep_00000007']);
+    assert.equal(epochOf({ domains: { savepoints: { epoch: 'ep_00000007' } } }), 'ep_00000007');
     assert.equal(epochOf({ domains: { savepoints: { epoch: '' } } }), GENESIS_EPOCH);
     assert.equal(epochOf({ domains: { savepoints: 5 } }), GENESIS_EPOCH);
     assert.equal(epochOf(null), GENESIS_EPOCH);
+    // (after the first save point, and after a restore, against the real timeline: ctx-epoch-timeline.test.js)
 });
 
 test('a block that is not the one its command\'s cursor named is not stored', async t => {
