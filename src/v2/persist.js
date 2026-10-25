@@ -15,8 +15,9 @@
 //   chat without dates is never judged by its text alone.
 // * `spans` = [{ n, story }]: how many of `ops` each append added and whether it came from a story capture,
 //   so a Re-read can replace the story ops and keep the rest. A block a module guarded (ctx.replayGuard)
-//   carries more on its span: id, module, source, guard, claims, boundaries, operation, recorded, result,
-//   replan (docs/v2/REPLAY.md, contract §6); a span without an `id` is a legacy block and replays as ever.
+//   carries more on its span: id, module, source, guard, claims, evidence (the proof it gave, docs/v2/EVIDENCE.md),
+//   boundaries, operation, recorded, result, replan (docs/v2/REPLAY.md, contract §6); a span without an `id` is a
+//   legacy block and replays as ever.
 // * `source` = { logical, swipeKey, evidence, next }: the carrier source map (contract §4). `logical` is the
 //   canonical sid of the logical message (`sr_` + 8 base36, shared by all its swipes), `swipeKey` this
 //   swipe's own (`sw_` + 8), `evidence` the id of the swipe's text as evidence (`ev_` + 8), `next` the
@@ -51,8 +52,8 @@
 //   (SPEC §2.2): receipt data older than 200 carriers may be dropped, and modules must not rely on it;
 //   what a module needs later it keeps in its own state. Story Block itself never reads it then (claims
 //   live in meta.claims, Re-read uses `line` and `seed`, narration `summary` and `narrate`). Every other
-//   field stays. The one exception is `data.v2` (contract §6: the guard, source and result of a guarded
-//   block), which is kept: `data: { v2 }`.
+//   field stays. The one exception is `data.v2` (contract §6: the guard, source, result and evidence of a
+//   guarded block), which is kept: `data: { v2 }`.
 
 import { randomId } from '../id.js';
 

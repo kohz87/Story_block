@@ -22,6 +22,9 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
 - **Guarded blocks** (`ctx.replayGuard`, REPLAY.md): the span carries the block's id, source, guard, claims and more;
   replay applies the ops and claims together only while the owner's `hooks.replayGuard` holds, else the block stays
   stored and inactive (`REPLAY_PREREQUISITE`). Spans without an `id` are legacy blocks and replay as ever.
+- **Proof** (`ctx.proof`, EVIDENCE.md): a block keeps what it gave in `span.evidence` and pins it in `meta.proofs` with
+  the same ops, so a skipped block, a deleted reply or another swipe leaves nothing active; `story.evidence` shows only
+  pinned, validated proof whose parents are shown. `store.proofs()` lists what is stored, not what is active.
 - **Records Story Block does not own are kept:** a first record that is a future version's or damaged is never written
   or repaired; the head is an empty read-only state (`store.readOnly()`) and writers throw (REPLAY.md "Preserved records").
 - **Checkpoints stop at a gap:** the first `covers`/`coverHash` window that fails ends trust (a checkpoint without
