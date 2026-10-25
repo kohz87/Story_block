@@ -1,11 +1,13 @@
 # The timeline: save points, restore and participants
 
+E6b implements active history, participant head selection and logical clock markers; see [HISTORY.md](HISTORY.md)
+for the current behavior and compatibility evidence.
+
 How the host keeps save points, installs one absolutely when a character dies and comes back, and lets a module with native state
 beside the story (NPC dossiers and their history) take part. The frozen contract is
 [contract/RB_CONTRACT.md](contract/RB_CONTRACT.md) §8 (death and return), §2 (lifecycle), §3 (receipt envelope), §6 (replay
-recording) and §10 E (the timeline row); this page says what the host does with them. It is the first half of the E6 package
-(E6a): the active-history projection, the participants' head-selection barrier, `ctx.clockBoundary` and `savepoint.contract` are
-the second (E6b) and are not here. Nothing here changes a module that does not use the timeline: its blocks, its spans, its
+recording) and §10 E (the timeline row); this page describes E6a's primitive. E6b adds active history, participant head
+selection, `ctx.clockBoundary` and `savepoint.contract`; [HISTORY.md](HISTORY.md) documents those additions. Nothing here changes a module that does not use the timeline: its blocks, its spans, its
 replay, its domains and its saves are what they were.
 
 Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `manifest.js` the all-domain payload and the restore plan,
@@ -118,12 +120,14 @@ The same prepare again returns the first answer; the same batch with another mea
 
 **activate** is once: it checks the head again (a moved head aborts the preparation and is `STALE`), plans again from the bytes
 and compares the manifest hash to the prepared one, then re-reads head, source and chat **in the section itself** (no `await`
-between the recheck and the writes), and in **one synchronous section** stores the restore block and writes the
-journal's word that it is committed, raises the restore barrier (`registry.setRestore('pending')`), makes the chat file durable (a flush that fails is the failure of `activate`, and the journal decides what `recover` does),
+between the recheck and the writes), and in **one synchronous section** stores the restore block, writes the
+journal's word that it is committed, hides the messages it faded (HISTORY.md), raises the restore barrier (`registry.setRestore('pending')`), makes the chat file durable (a flush that fails is the failure of `activate`, and the journal decides what `recover` does),
 and has each participant `activate`, acknowledging each in the journal as it answers. `savepoint.complete` is told only after the final flush. A participant that cannot is
-`participants-pending`: the barrier stays up and a later `activate` or `recover` carries on. When every part has agreed the
-barrier drops and the return is marked `complete` in the story by a small block of its own (with the barrier down, so every
-module's blocks are asked again and the block sees the story whole).
+`participants-pending`: the barrier stays up and a later `activate` or `recover` carries on. When every part has agreed, the story is read whole in one
+synchronous section: if it still holds the restore, the return is marked `complete` by a small block of its own and the
+restore is published for the head; if not (a swipe or delete took it away meanwhile) it is retracted and `activate` answers
+`STALE`. Either way the barrier drops only in `release`, once the participants stand on the selected head's checkpoints and
+the chat file has it (HISTORY.md).
 
 **What the restore block installs**, every domain at its path with an `add` (no `was`, nothing relative), so replaying it on any
 numbers leaves the saved ones:
@@ -294,9 +298,9 @@ rethrows from everywhere) and starts a new host over it.
 ## History
 
 `history({ through? })` is the projection of the chat's messages: canonical `sid` and `swipeKey` of each carrier, `msg_` ids made
-from where they stand for the reader's own messages, the text, and `active`. The faded intervals of the returns are applied
-carrier-wide: the replies after the target's reply through the restoring one, and the reader's messages between. Excluding the
-whole reply a target falls inside of, and the readers that must go through it, are E6b (history within a reply as well).
+from where they stand for the reader's own messages, the text, and `active`. A faded interval excludes the entire target reply when the target lies inside it (`op > 0`), through the restoring reply,
+and the reader's messages between. A boundary between messages excludes only later messages. A restore hides the messages it faded with
+SillyTavern's own flag (`is_system`), so no prompt carries them, and shows exactly those again if the restore leaves the story. See [HISTORY.md](HISTORY.md).
 
 ## Decisions where the contract is silent
 
@@ -336,13 +340,10 @@ whole reply a target falls inside of, and the readers that must go through it, a
 * **No pruning.** Every make and every prepare adds a payload to the metadata, and nothing is deleted: not old day-starts (contract §8
   step 1), not the pre-restore payloads of old returns, not the proof pins of a point nothing refers to. A review measured 200 KB of
   story saved 40 times at 8.55 MB of archive, with a quadratic overhead in the descriptors (each carries the whole payload manifest).
-  Archive and pin pruning come later.
-* **No timeouts or cancellation** on a participant's callbacks: a callback that never answers holds the timeline's one queue, and the
-  chat stays barred while it does (it fails safe: nothing goes through on a story whose native state is unknown). Timeouts and
-  cancellation come with integration.
-* **Participants after a swipe, delete or retraction** of a committed restore, and **history within a reply**, are E6b. If the reply
-  holding a committed restore is swiped or deleted, the story goes back to before it and the participant stays on the restored
-  checkpoint; switching it back to the checkpoint of the surviving prefix is the head-selection barrier. The journal entry is
-  `complete` and nothing reports it.
+  E6b retains these bytes deliberately while old swipes/returns can reference them; reachability pruning remains a performance follow-up (HISTORY.md).
+* **Callback cancellation:** callbacks are bounded at 10 seconds and quarantined per chat until they really settle,
+  including native preparation. The frozen protocol has no cancellation method; owners must keep late work bound to its chat.
+* **Head selection and history exclusion** are implemented by E6b; see [HISTORY.md](HISTORY.md) for behavior and
+  [E6B_CHECKS.md](E6B_CHECKS.md) for verification and remaining owner integrations.
 * **Déjà vu is the only memory policy** (decision 8); `none` and `full` are the owner's and are not given to `prepare` yet.
 * **The 11th manual point** counts the points on the line of history; points on other swipes do not count.

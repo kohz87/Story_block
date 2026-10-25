@@ -1,0 +1,1776 @@
+{
+  "branchPoint": "c36b355",
+  "mergedMain": "fa1853d",
+  "oldGuarded": {
+    "chat": [
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "The story begins.",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "The story begins."
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {}
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_480e832bf04d",
+            "checkpoint": {
+              "v": 2,
+              "meta": {
+                "rev": 0,
+                "claims": {}
+              },
+              "domains": {
+                "combat": {
+                  "fight": null
+                },
+                "death": {
+                  "batches": {}
+                },
+                "director": {
+                  "time": {
+                    "minutes": 0
+                  }
+                },
+                "gear": {
+                  "equipped": {}
+                },
+                "inventory": {
+                  "defs": {},
+                  "stacks": {},
+                  "wallets": {},
+                  "aliases": {}
+                },
+                "npc": {
+                  "meters": {}
+                },
+                "party": {
+                  "pools": {
+                    "hp": 20,
+                    "mp": 5,
+                    "sp": 10
+                  },
+                  "names": []
+                },
+                "progress": {
+                  "xp": 0,
+                  "level": 1
+                },
+                "rules": {
+                  "rulesVersion": 2,
+                  "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                "scene": {
+                  "place": {
+                    "name": "",
+                    "kind": "",
+                    "region": ""
+                  },
+                  "present": []
+                },
+                "training": {
+                  "session": null,
+                  "paid": 0
+                }
+              }
+            },
+            "ops": [],
+            "receipts": [],
+            "narrated": [],
+            "spans": [],
+            "rev": 0,
+            "source": {
+              "logical": "sr_dddxrnom",
+              "swipeKey": "sw_97av58uo",
+              "evidence": "ev_5m8qcd8i",
+              "next": 0
+            },
+            "swipe": 0,
+            "mark": {
+              "t": "ca1478b1:17",
+              "d": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "You",
+        "is_user": true,
+        "is_system": false,
+        "mes": "Begin.",
+        "send_date": "",
+        "extra": {}
+      },
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "Here.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 7\n</Changes>\n-->",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "Here.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 7\n</Changes>\n-->"
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {}
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_06e59052a986",
+            "ops": [
+              {
+                "op": "add",
+                "path": "/domains/inventory/perReply",
+                "value": {
+                  "sw_06e59052a986": {
+                    "coin": 7,
+                    "worth": 0,
+                    "made": 0,
+                    "items": {}
+                  }
+                }
+              },
+              {
+                "op": "add",
+                "path": "/domains/inventory/wallets/party",
+                "value": {
+                  "coin": 7
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 1
+              },
+              {
+                "op": "replace",
+                "path": "/domains/progress/xp",
+                "value": 1,
+                "was": 0
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 2
+              }
+            ],
+            "receipts": [
+              {
+                "id": "rc_1w26e0ny",
+                "type": "capture.coin",
+                "module": "story-block",
+                "cause": "story",
+                "seed": 82057295,
+                "summary": "The party receives 7 gold (now 7 gold).",
+                "narrate": false,
+                "data": {
+                  "owner": "party",
+                  "amount": 7,
+                  "now": 7,
+                  "note": ""
+                },
+                "rev": 1,
+                "line": "7db8275c"
+              },
+              {
+                "id": "rc_yt4ct9ag",
+                "type": "tl.guarded",
+                "module": "tl-rules",
+                "cause": "ui",
+                "seed": 2337208455,
+                "summary": "Guarded.",
+                "narrate": false,
+                "data": {
+                  "v2": {
+                    "schema": 2,
+                    "epoch": "ep_00000001",
+                    "rulesHash": null,
+                    "source": {
+                      "sid": "sr_d009wfjc",
+                      "swipeKey": "sw_br41b59s",
+                      "evidence": "ev_9t44lckb",
+                      "ordinal": 0
+                    },
+                    "guard": {
+                      "owner": "tl-rules",
+                      "version": 2,
+                      "epoch": "ep_00000001",
+                      "rulesHash": null,
+                      "inputHash": "a4207fe175b654e0d2def0f6e3cb1f7c5ae6e55943b0775ed334039619bc2f9e",
+                      "predicate": {
+                        "kind": "always"
+                      }
+                    }
+                  }
+                },
+                "rev": 2,
+                "guarded": true
+              }
+            ],
+            "narrated": [],
+            "spans": [
+              {
+                "n": 3,
+                "story": true
+              },
+              {
+                "n": 2,
+                "story": false,
+                "id": "bl_4s8mjvfa",
+                "module": "tl-rules",
+                "source": {
+                  "sid": "sr_d009wfjc",
+                  "swipeKey": "sw_br41b59s",
+                  "evidence": "ev_9t44lckb",
+                  "ordinal": 0
+                },
+                "guard": {
+                  "owner": "tl-rules",
+                  "version": 2,
+                  "epoch": "ep_00000001",
+                  "rulesHash": null,
+                  "inputHash": "a4207fe175b654e0d2def0f6e3cb1f7c5ae6e55943b0775ed334039619bc2f9e",
+                  "predicate": {
+                    "kind": "always"
+                  }
+                },
+                "claims": [],
+                "evidence": [],
+                "boundaries": [
+                  {
+                    "cursor": {
+                      "sid": "sr_d009wfjc",
+                      "swipeKey": "sw_br41b59s",
+                      "block": "bl_4s8mjvfa",
+                      "op": 3,
+                      "rev": 1
+                    },
+                    "prefixHash": "59ffd387b3899a1175cca8d9c0cac0f832c412f8f74393c0fb6acff10f605ccc",
+                    "payloadHash": "21365a87660d3daebd26cc12f5f5361deb6c6a302d868387b894c001177b24a0"
+                  }
+                ],
+                "operation": {
+                  "type": "tl.guarded",
+                  "payload": {
+                    "epoch": "ep_00000001"
+                  }
+                },
+                "recorded": null,
+                "result": {
+                  "v2": {
+                    "schema": 2,
+                    "epoch": "ep_00000001",
+                    "rulesHash": null,
+                    "source": {
+                      "sid": "sr_d009wfjc",
+                      "swipeKey": "sw_br41b59s",
+                      "evidence": "ev_9t44lckb",
+                      "ordinal": 0
+                    },
+                    "guard": {
+                      "owner": "tl-rules",
+                      "version": 2,
+                      "epoch": "ep_00000001",
+                      "rulesHash": null,
+                      "inputHash": "a4207fe175b654e0d2def0f6e3cb1f7c5ae6e55943b0775ed334039619bc2f9e",
+                      "predicate": {
+                        "kind": "always"
+                      }
+                    }
+                  }
+                },
+                "replan": null
+              }
+            ],
+            "source": {
+              "logical": "sr_d009wfjc",
+              "swipeKey": "sw_br41b59s",
+              "evidence": "ev_9t44lckb",
+              "next": 1
+            },
+            "rev": 2,
+            "swipe": 0,
+            "mark": {
+              "t": "db3cd91f:5",
+              "d": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "You",
+        "is_user": true,
+        "is_system": false,
+        "mes": "Go.",
+        "send_date": "",
+        "extra": {}
+      },
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "There.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 3\n</Changes>\n--> Still here.",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "There.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 3\n</Changes>\n--> Still here.",
+          "Elsewhere.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 2\n</Changes>\n-->"
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {
+              "storySuite": {
+                "v": 2,
+                "sid": "sw_2444452140e1",
+                "ops": [
+                  {
+                    "op": "remove",
+                    "path": "/domains/inventory/perReply/sw_06e59052a986"
+                  },
+                  {
+                    "op": "add",
+                    "path": "/domains/inventory/perReply/sw_2444452140e1",
+                    "value": {
+                      "coin": 3,
+                      "worth": 0,
+                      "made": 0,
+                      "items": {}
+                    }
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/domains/inventory/wallets/party/coin",
+                    "value": 10,
+                    "was": 7
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/meta/rev",
+                    "value": 3
+                  }
+                ],
+                "receipts": [
+                  {
+                    "id": "rc_q4cmfvmr",
+                    "type": "capture.coin",
+                    "module": "story-block",
+                    "cause": "story",
+                    "seed": 2833982949,
+                    "summary": "The party receives 3 gold (now 10 gold).",
+                    "narrate": false,
+                    "data": {
+                      "owner": "party",
+                      "amount": 3,
+                      "now": 10,
+                      "note": ""
+                    },
+                    "rev": 3,
+                    "line": "79b82110"
+                  }
+                ],
+                "narrated": [],
+                "spans": [
+                  {
+                    "n": 4,
+                    "story": true
+                  }
+                ],
+                "source": {
+                  "logical": "sr_dkjtrak4",
+                  "swipeKey": "sw_12zkybpt",
+                  "evidence": "ev_10iglci8",
+                  "next": 0
+                },
+                "rev": 3,
+                "swipe": 0,
+                "mark": {
+                  "t": "d4547e29:6",
+                  "d": ""
+                }
+              }
+            }
+          },
+          {
+            "send_date": "",
+            "extra": {
+              "storySuite": {
+                "v": 2,
+                "sid": "sw_67bb3c5a6731",
+                "ops": [
+                  {
+                    "op": "remove",
+                    "path": "/domains/inventory/perReply/sw_06e59052a986"
+                  },
+                  {
+                    "op": "add",
+                    "path": "/domains/inventory/perReply/sw_67bb3c5a6731",
+                    "value": {
+                      "coin": 2,
+                      "worth": 0,
+                      "made": 0,
+                      "items": {}
+                    }
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/domains/inventory/wallets/party/coin",
+                    "value": 9,
+                    "was": 7
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/meta/rev",
+                    "value": 3
+                  }
+                ],
+                "receipts": [
+                  {
+                    "id": "rc_63yye3ik",
+                    "type": "capture.coin",
+                    "module": "story-block",
+                    "cause": "story",
+                    "seed": 3872896010,
+                    "summary": "The party receives 2 gold (now 9 gold).",
+                    "narrate": false,
+                    "data": {
+                      "owner": "party",
+                      "amount": 2,
+                      "now": 9,
+                      "note": ""
+                    },
+                    "rev": 3,
+                    "line": "7ab822a3"
+                  }
+                ],
+                "narrated": [],
+                "spans": [
+                  {
+                    "n": 4,
+                    "story": true
+                  }
+                ],
+                "source": {
+                  "logical": "sr_dkjtrak4",
+                  "swipeKey": "sw_dcwvo47o",
+                  "evidence": "ev_4whhn7v1",
+                  "next": 0
+                },
+                "rev": 3,
+                "swipe": 1,
+                "mark": {
+                  "t": "62282cdf:10",
+                  "d": ""
+                }
+              }
+            }
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_2444452140e1",
+            "ops": [
+              {
+                "op": "remove",
+                "path": "/domains/inventory/perReply/sw_06e59052a986"
+              },
+              {
+                "op": "add",
+                "path": "/domains/inventory/perReply/sw_2444452140e1",
+                "value": {
+                  "coin": 3,
+                  "worth": 0,
+                  "made": 0,
+                  "items": {}
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/domains/inventory/wallets/party/coin",
+                "value": 10,
+                "was": 7
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 3
+              }
+            ],
+            "receipts": [
+              {
+                "id": "rc_q4cmfvmr",
+                "type": "capture.coin",
+                "module": "story-block",
+                "cause": "story",
+                "seed": 2833982949,
+                "summary": "The party receives 3 gold (now 10 gold).",
+                "narrate": false,
+                "data": {
+                  "owner": "party",
+                  "amount": 3,
+                  "now": 10,
+                  "note": ""
+                },
+                "rev": 3,
+                "line": "79b82110"
+              }
+            ],
+            "narrated": [],
+            "spans": [
+              {
+                "n": 4,
+                "story": true
+              }
+            ],
+            "source": {
+              "logical": "sr_dkjtrak4",
+              "swipeKey": "sw_12zkybpt",
+              "evidence": "ev_10iglci8",
+              "next": 0
+            },
+            "rev": 3,
+            "swipe": 0,
+            "mark": {
+              "t": "d4547e29:6",
+              "d": ""
+            }
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "tainted": true
+    },
+    "head": {
+      "v": 2,
+      "meta": {
+        "rev": 3,
+        "claims": {}
+      },
+      "domains": {
+        "combat": {
+          "fight": null
+        },
+        "death": {
+          "batches": {}
+        },
+        "director": {
+          "time": {
+            "minutes": 0
+          }
+        },
+        "gear": {
+          "equipped": {}
+        },
+        "inventory": {
+          "defs": {},
+          "stacks": {},
+          "wallets": {
+            "party": {
+              "coin": 10
+            }
+          },
+          "aliases": {},
+          "perReply": {
+            "sw_2444452140e1": {
+              "coin": 3,
+              "worth": 0,
+              "made": 0,
+              "items": {}
+            }
+          }
+        },
+        "npc": {
+          "meters": {}
+        },
+        "party": {
+          "pools": {
+            "hp": 20,
+            "mp": 5,
+            "sp": 10
+          },
+          "names": []
+        },
+        "progress": {
+          "xp": 1,
+          "level": 1
+        },
+        "rules": {
+          "rulesVersion": 2,
+          "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "scene": {
+          "place": {
+            "name": "",
+            "kind": "",
+            "region": ""
+          },
+          "present": []
+        },
+        "training": {
+          "session": null,
+          "paid": 0
+        }
+      }
+    }
+  },
+  "plain": {
+    "chat": [
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "The story begins.",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "The story begins."
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {}
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_480e832bf04d",
+            "checkpoint": {
+              "v": 2,
+              "meta": {
+                "rev": 0,
+                "claims": {}
+              },
+              "domains": {
+                "combat": {
+                  "fight": null
+                },
+                "death": {
+                  "batches": {}
+                },
+                "director": {
+                  "time": {
+                    "minutes": 0
+                  }
+                },
+                "gear": {
+                  "equipped": {}
+                },
+                "inventory": {
+                  "defs": {},
+                  "stacks": {},
+                  "wallets": {},
+                  "aliases": {}
+                },
+                "npc": {
+                  "meters": {}
+                },
+                "party": {
+                  "pools": {
+                    "hp": 20,
+                    "mp": 5,
+                    "sp": 10
+                  },
+                  "names": []
+                },
+                "progress": {
+                  "xp": 0,
+                  "level": 1
+                },
+                "rules": {
+                  "rulesVersion": 2,
+                  "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                "scene": {
+                  "place": {
+                    "name": "",
+                    "kind": "",
+                    "region": ""
+                  },
+                  "present": []
+                },
+                "training": {
+                  "session": null,
+                  "paid": 0
+                }
+              }
+            },
+            "ops": [],
+            "receipts": [],
+            "narrated": [],
+            "spans": [],
+            "rev": 0,
+            "source": {
+              "logical": "sr_dddxrnom",
+              "swipeKey": "sw_97av58uo",
+              "evidence": "ev_5m8qcd8i",
+              "next": 0
+            },
+            "swipe": 0,
+            "mark": {
+              "t": "ca1478b1:17",
+              "d": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "You",
+        "is_user": true,
+        "is_system": false,
+        "mes": "Begin.",
+        "send_date": "",
+        "extra": {}
+      },
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "Here.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 7\n</Changes>\n-->",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "Here.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 7\n</Changes>\n-->"
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {}
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_06e59052a986",
+            "ops": [
+              {
+                "op": "add",
+                "path": "/domains/inventory/perReply",
+                "value": {
+                  "sw_06e59052a986": {
+                    "coin": 7,
+                    "worth": 0,
+                    "made": 0,
+                    "items": {}
+                  }
+                }
+              },
+              {
+                "op": "add",
+                "path": "/domains/inventory/wallets/party",
+                "value": {
+                  "coin": 7
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 1
+              }
+            ],
+            "receipts": [
+              {
+                "id": "rc_1w26e0ny",
+                "type": "capture.coin",
+                "module": "story-block",
+                "cause": "story",
+                "seed": 82057295,
+                "summary": "The party receives 7 gold (now 7 gold).",
+                "narrate": false,
+                "data": {
+                  "owner": "party",
+                  "amount": 7,
+                  "now": 7,
+                  "note": ""
+                },
+                "rev": 1,
+                "line": "7db8275c"
+              }
+            ],
+            "narrated": [],
+            "spans": [
+              {
+                "n": 3,
+                "story": true
+              }
+            ],
+            "source": {
+              "logical": "sr_d009wfjc",
+              "swipeKey": "sw_br41b59s",
+              "evidence": "ev_9t44lckb",
+              "next": 0
+            },
+            "rev": 1,
+            "swipe": 0,
+            "mark": {
+              "t": "db3cd91f:5",
+              "d": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "You",
+        "is_user": true,
+        "is_system": false,
+        "mes": "Go.",
+        "send_date": "",
+        "extra": {}
+      },
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "There.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 3\n</Changes>\n--> Still here.",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "There.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 3\n</Changes>\n--> Still here.",
+          "Elsewhere.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 2\n</Changes>\n-->"
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {
+              "storySuite": {
+                "v": 2,
+                "sid": "sw_8f48fd4cdf77",
+                "ops": [
+                  {
+                    "op": "remove",
+                    "path": "/domains/inventory/perReply/sw_06e59052a986"
+                  },
+                  {
+                    "op": "add",
+                    "path": "/domains/inventory/perReply/sw_8f48fd4cdf77",
+                    "value": {
+                      "coin": 3,
+                      "worth": 0,
+                      "made": 0,
+                      "items": {}
+                    }
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/domains/inventory/wallets/party/coin",
+                    "value": 10,
+                    "was": 7
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/meta/rev",
+                    "value": 2
+                  }
+                ],
+                "receipts": [
+                  {
+                    "id": "rc_d1joyycx",
+                    "type": "capture.coin",
+                    "module": "story-block",
+                    "cause": "story",
+                    "seed": 2968491482,
+                    "summary": "The party receives 3 gold (now 10 gold).",
+                    "narrate": false,
+                    "data": {
+                      "owner": "party",
+                      "amount": 3,
+                      "now": 10,
+                      "note": ""
+                    },
+                    "rev": 2,
+                    "line": "79b82110"
+                  }
+                ],
+                "narrated": [],
+                "spans": [
+                  {
+                    "n": 4,
+                    "story": true
+                  }
+                ],
+                "source": {
+                  "logical": "sr_67o1piln",
+                  "swipeKey": "sw_818zkh84",
+                  "evidence": "ev_0umea3wq",
+                  "next": 0
+                },
+                "rev": 2,
+                "swipe": 0,
+                "mark": {
+                  "t": "d4547e29:6",
+                  "d": ""
+                }
+              }
+            }
+          },
+          {
+            "send_date": "",
+            "extra": {
+              "storySuite": {
+                "v": 2,
+                "sid": "sw_c4ee62c8e4ec",
+                "ops": [
+                  {
+                    "op": "remove",
+                    "path": "/domains/inventory/perReply/sw_06e59052a986"
+                  },
+                  {
+                    "op": "add",
+                    "path": "/domains/inventory/perReply/sw_c4ee62c8e4ec",
+                    "value": {
+                      "coin": 2,
+                      "worth": 0,
+                      "made": 0,
+                      "items": {}
+                    }
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/domains/inventory/wallets/party/coin",
+                    "value": 9,
+                    "was": 7
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/meta/rev",
+                    "value": 2
+                  }
+                ],
+                "receipts": [
+                  {
+                    "id": "rc_x43lfli6",
+                    "type": "capture.coin",
+                    "module": "story-block",
+                    "cause": "story",
+                    "seed": 2838623475,
+                    "summary": "The party receives 2 gold (now 9 gold).",
+                    "narrate": false,
+                    "data": {
+                      "owner": "party",
+                      "amount": 2,
+                      "now": 9,
+                      "note": ""
+                    },
+                    "rev": 2,
+                    "line": "7ab822a3"
+                  }
+                ],
+                "narrated": [],
+                "spans": [
+                  {
+                    "n": 4,
+                    "story": true
+                  }
+                ],
+                "source": {
+                  "logical": "sr_67o1piln",
+                  "swipeKey": "sw_9xqq44rp",
+                  "evidence": "ev_2cha4shi",
+                  "next": 0
+                },
+                "rev": 2,
+                "swipe": 1,
+                "mark": {
+                  "t": "62282cdf:10",
+                  "d": ""
+                }
+              }
+            }
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_8f48fd4cdf77",
+            "ops": [
+              {
+                "op": "remove",
+                "path": "/domains/inventory/perReply/sw_06e59052a986"
+              },
+              {
+                "op": "add",
+                "path": "/domains/inventory/perReply/sw_8f48fd4cdf77",
+                "value": {
+                  "coin": 3,
+                  "worth": 0,
+                  "made": 0,
+                  "items": {}
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/domains/inventory/wallets/party/coin",
+                "value": 10,
+                "was": 7
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 2
+              }
+            ],
+            "receipts": [
+              {
+                "id": "rc_d1joyycx",
+                "type": "capture.coin",
+                "module": "story-block",
+                "cause": "story",
+                "seed": 2968491482,
+                "summary": "The party receives 3 gold (now 10 gold).",
+                "narrate": false,
+                "data": {
+                  "owner": "party",
+                  "amount": 3,
+                  "now": 10,
+                  "note": ""
+                },
+                "rev": 2,
+                "line": "79b82110"
+              }
+            ],
+            "narrated": [],
+            "spans": [
+              {
+                "n": 4,
+                "story": true
+              }
+            ],
+            "source": {
+              "logical": "sr_67o1piln",
+              "swipeKey": "sw_818zkh84",
+              "evidence": "ev_0umea3wq",
+              "next": 0
+            },
+            "rev": 2,
+            "swipe": 0,
+            "mark": {
+              "t": "d4547e29:6",
+              "d": ""
+            }
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "tainted": true
+    },
+    "head": {
+      "v": 2,
+      "meta": {
+        "rev": 2,
+        "claims": {}
+      },
+      "domains": {
+        "combat": {
+          "fight": null
+        },
+        "death": {
+          "batches": {}
+        },
+        "director": {
+          "time": {
+            "minutes": 0
+          }
+        },
+        "gear": {
+          "equipped": {}
+        },
+        "inventory": {
+          "defs": {},
+          "stacks": {},
+          "wallets": {
+            "party": {
+              "coin": 10
+            }
+          },
+          "aliases": {},
+          "perReply": {
+            "sw_8f48fd4cdf77": {
+              "coin": 3,
+              "worth": 0,
+              "made": 0,
+              "items": {}
+            }
+          }
+        },
+        "npc": {
+          "meters": {}
+        },
+        "party": {
+          "pools": {
+            "hp": 20,
+            "mp": 5,
+            "sp": 10
+          },
+          "names": []
+        },
+        "progress": {
+          "xp": 0,
+          "level": 1
+        },
+        "rules": {
+          "rulesVersion": 2,
+          "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "scene": {
+          "place": {
+            "name": "",
+            "kind": "",
+            "region": ""
+          },
+          "present": []
+        },
+        "training": {
+          "session": null,
+          "paid": 0
+        }
+      }
+    }
+  },
+  "guarded": {
+    "chat": [
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "The story begins.",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "The story begins."
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {}
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_480e832bf04d",
+            "checkpoint": {
+              "v": 2,
+              "meta": {
+                "rev": 0,
+                "claims": {}
+              },
+              "domains": {
+                "combat": {
+                  "fight": null
+                },
+                "death": {
+                  "batches": {}
+                },
+                "director": {
+                  "time": {
+                    "minutes": 0
+                  }
+                },
+                "gear": {
+                  "equipped": {}
+                },
+                "inventory": {
+                  "defs": {},
+                  "stacks": {},
+                  "wallets": {},
+                  "aliases": {}
+                },
+                "npc": {
+                  "meters": {}
+                },
+                "party": {
+                  "pools": {
+                    "hp": 20,
+                    "mp": 5,
+                    "sp": 10
+                  },
+                  "names": []
+                },
+                "progress": {
+                  "xp": 0,
+                  "level": 1
+                },
+                "rules": {
+                  "rulesVersion": 2,
+                  "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                "scene": {
+                  "place": {
+                    "name": "",
+                    "kind": "",
+                    "region": ""
+                  },
+                  "present": []
+                },
+                "training": {
+                  "session": null,
+                  "paid": 0
+                }
+              }
+            },
+            "ops": [],
+            "receipts": [],
+            "narrated": [],
+            "spans": [],
+            "rev": 0,
+            "source": {
+              "logical": "sr_dddxrnom",
+              "swipeKey": "sw_97av58uo",
+              "evidence": "ev_5m8qcd8i",
+              "next": 0
+            },
+            "swipe": 0,
+            "mark": {
+              "t": "ca1478b1:17",
+              "d": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "You",
+        "is_user": true,
+        "is_system": false,
+        "mes": "Begin.",
+        "send_date": "",
+        "extra": {}
+      },
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "Here.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 7\n</Changes>\n-->",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "Here.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 7\n</Changes>\n-->"
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {}
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_06e59052a986",
+            "ops": [
+              {
+                "op": "add",
+                "path": "/domains/inventory/perReply",
+                "value": {
+                  "sw_06e59052a986": {
+                    "coin": 7,
+                    "worth": 0,
+                    "made": 0,
+                    "items": {}
+                  }
+                }
+              },
+              {
+                "op": "add",
+                "path": "/domains/inventory/wallets/party",
+                "value": {
+                  "coin": 7
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 1
+              },
+              {
+                "op": "replace",
+                "path": "/domains/progress/xp",
+                "value": 1,
+                "was": 0
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 2
+              }
+            ],
+            "receipts": [
+              {
+                "id": "rc_1w26e0ny",
+                "type": "capture.coin",
+                "module": "story-block",
+                "cause": "story",
+                "seed": 82057295,
+                "summary": "The party receives 7 gold (now 7 gold).",
+                "narrate": false,
+                "data": {
+                  "owner": "party",
+                  "amount": 7,
+                  "now": 7,
+                  "note": ""
+                },
+                "rev": 1,
+                "line": "7db8275c"
+              },
+              {
+                "id": "rc_yt4ct9ag",
+                "type": "tl.guarded",
+                "module": "tl-rules",
+                "cause": "ui",
+                "seed": 2337208455,
+                "summary": "Guarded.",
+                "narrate": false,
+                "data": {
+                  "v2": {
+                    "schema": 2,
+                    "epoch": "ep_00000001",
+                    "rulesHash": null,
+                    "source": {
+                      "sid": "sr_d009wfjc",
+                      "swipeKey": "sw_br41b59s",
+                      "evidence": "ev_9t44lckb",
+                      "ordinal": 0
+                    },
+                    "guard": {
+                      "owner": "tl-rules",
+                      "version": 2,
+                      "epoch": "ep_00000001",
+                      "rulesHash": null,
+                      "inputHash": "a4207fe175b654e0d2def0f6e3cb1f7c5ae6e55943b0775ed334039619bc2f9e",
+                      "predicate": {
+                        "kind": "always"
+                      }
+                    }
+                  }
+                },
+                "rev": 2,
+                "guarded": true
+              }
+            ],
+            "narrated": [],
+            "spans": [
+              {
+                "n": 3,
+                "story": true
+              },
+              {
+                "n": 2,
+                "story": false,
+                "id": "bl_3pnh31vr",
+                "module": "tl-rules",
+                "source": {
+                  "sid": "sr_d009wfjc",
+                  "swipeKey": "sw_br41b59s",
+                  "evidence": "ev_9t44lckb",
+                  "ordinal": 0
+                },
+                "guard": {
+                  "owner": "tl-rules",
+                  "version": 2,
+                  "epoch": "ep_00000001",
+                  "rulesHash": null,
+                  "inputHash": "a4207fe175b654e0d2def0f6e3cb1f7c5ae6e55943b0775ed334039619bc2f9e",
+                  "predicate": {
+                    "kind": "always"
+                  }
+                },
+                "claims": [],
+                "evidence": [],
+                "occurrence": 0,
+                "boundaries": [
+                  {
+                    "cursor": {
+                      "sid": "sr_d009wfjc",
+                      "swipeKey": "sw_br41b59s",
+                      "block": "bl_3pnh31vr",
+                      "op": 3,
+                      "rev": 1
+                    },
+                    "prefixHash": "59ffd387b3899a1175cca8d9c0cac0f832c412f8f74393c0fb6acff10f605ccc",
+                    "payloadHash": "21365a87660d3daebd26cc12f5f5361deb6c6a302d868387b894c001177b24a0"
+                  }
+                ],
+                "operation": {
+                  "type": "tl.guarded",
+                  "payload": {
+                    "epoch": "ep_00000001"
+                  }
+                },
+                "recorded": null,
+                "result": {
+                  "v2": {
+                    "schema": 2,
+                    "epoch": "ep_00000001",
+                    "rulesHash": null,
+                    "source": {
+                      "sid": "sr_d009wfjc",
+                      "swipeKey": "sw_br41b59s",
+                      "evidence": "ev_9t44lckb",
+                      "ordinal": 0
+                    },
+                    "guard": {
+                      "owner": "tl-rules",
+                      "version": 2,
+                      "epoch": "ep_00000001",
+                      "rulesHash": null,
+                      "inputHash": "a4207fe175b654e0d2def0f6e3cb1f7c5ae6e55943b0775ed334039619bc2f9e",
+                      "predicate": {
+                        "kind": "always"
+                      }
+                    }
+                  }
+                },
+                "replan": null
+              }
+            ],
+            "source": {
+              "logical": "sr_d009wfjc",
+              "swipeKey": "sw_br41b59s",
+              "evidence": "ev_9t44lckb",
+              "next": 1,
+              "taken": {
+                "ae1fdd0368ee0034": 1
+              }
+            },
+            "rev": 2,
+            "swipe": 0,
+            "mark": {
+              "t": "db3cd91f:5",
+              "d": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "You",
+        "is_user": true,
+        "is_system": false,
+        "mes": "Go.",
+        "send_date": "",
+        "extra": {}
+      },
+      {
+        "name": "Narrator",
+        "is_user": false,
+        "is_system": false,
+        "mes": "There.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 3\n</Changes>\n--> Still here.",
+        "send_date": "",
+        "swipe_id": 0,
+        "swipes": [
+          "There.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 3\n</Changes>\n--> Still here.",
+          "Elsewhere.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 2\n</Changes>\n-->"
+        ],
+        "swipe_info": [
+          {
+            "send_date": "",
+            "extra": {
+              "storySuite": {
+                "v": 2,
+                "sid": "sw_2444452140e1",
+                "ops": [
+                  {
+                    "op": "remove",
+                    "path": "/domains/inventory/perReply/sw_06e59052a986"
+                  },
+                  {
+                    "op": "add",
+                    "path": "/domains/inventory/perReply/sw_2444452140e1",
+                    "value": {
+                      "coin": 3,
+                      "worth": 0,
+                      "made": 0,
+                      "items": {}
+                    }
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/domains/inventory/wallets/party/coin",
+                    "value": 10,
+                    "was": 7
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/meta/rev",
+                    "value": 3
+                  }
+                ],
+                "receipts": [
+                  {
+                    "id": "rc_q4cmfvmr",
+                    "type": "capture.coin",
+                    "module": "story-block",
+                    "cause": "story",
+                    "seed": 2833982949,
+                    "summary": "The party receives 3 gold (now 10 gold).",
+                    "narrate": false,
+                    "data": {
+                      "owner": "party",
+                      "amount": 3,
+                      "now": 10,
+                      "note": ""
+                    },
+                    "rev": 3,
+                    "line": "79b82110"
+                  }
+                ],
+                "narrated": [],
+                "spans": [
+                  {
+                    "n": 4,
+                    "story": true
+                  }
+                ],
+                "source": {
+                  "logical": "sr_dkjtrak4",
+                  "swipeKey": "sw_12zkybpt",
+                  "evidence": "ev_10iglci8",
+                  "next": 0
+                },
+                "rev": 3,
+                "swipe": 0,
+                "mark": {
+                  "t": "d4547e29:6",
+                  "d": ""
+                }
+              }
+            }
+          },
+          {
+            "send_date": "",
+            "extra": {
+              "storySuite": {
+                "v": 2,
+                "sid": "sw_67bb3c5a6731",
+                "ops": [
+                  {
+                    "op": "remove",
+                    "path": "/domains/inventory/perReply/sw_06e59052a986"
+                  },
+                  {
+                    "op": "add",
+                    "path": "/domains/inventory/perReply/sw_67bb3c5a6731",
+                    "value": {
+                      "coin": 2,
+                      "worth": 0,
+                      "made": 0,
+                      "items": {}
+                    }
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/domains/inventory/wallets/party/coin",
+                    "value": 9,
+                    "was": 7
+                  },
+                  {
+                    "op": "replace",
+                    "path": "/meta/rev",
+                    "value": 3
+                  }
+                ],
+                "receipts": [
+                  {
+                    "id": "rc_63yye3ik",
+                    "type": "capture.coin",
+                    "module": "story-block",
+                    "cause": "story",
+                    "seed": 3872896010,
+                    "summary": "The party receives 2 gold (now 9 gold).",
+                    "narrate": false,
+                    "data": {
+                      "owner": "party",
+                      "amount": 2,
+                      "now": 9,
+                      "note": ""
+                    },
+                    "rev": 3,
+                    "line": "7ab822a3"
+                  }
+                ],
+                "narrated": [],
+                "spans": [
+                  {
+                    "n": 4,
+                    "story": true
+                  }
+                ],
+                "source": {
+                  "logical": "sr_dkjtrak4",
+                  "swipeKey": "sw_dcwvo47o",
+                  "evidence": "ev_4whhn7v1",
+                  "next": 0
+                },
+                "rev": 3,
+                "swipe": 1,
+                "mark": {
+                  "t": "62282cdf:10",
+                  "d": ""
+                }
+              }
+            }
+          }
+        ],
+        "extra": {
+          "storySuite": {
+            "v": 2,
+            "sid": "sw_2444452140e1",
+            "ops": [
+              {
+                "op": "remove",
+                "path": "/domains/inventory/perReply/sw_06e59052a986"
+              },
+              {
+                "op": "add",
+                "path": "/domains/inventory/perReply/sw_2444452140e1",
+                "value": {
+                  "coin": 3,
+                  "worth": 0,
+                  "made": 0,
+                  "items": {}
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/domains/inventory/wallets/party/coin",
+                "value": 10,
+                "was": 7
+              },
+              {
+                "op": "replace",
+                "path": "/meta/rev",
+                "value": 3
+              }
+            ],
+            "receipts": [
+              {
+                "id": "rc_q4cmfvmr",
+                "type": "capture.coin",
+                "module": "story-block",
+                "cause": "story",
+                "seed": 2833982949,
+                "summary": "The party receives 3 gold (now 10 gold).",
+                "narrate": false,
+                "data": {
+                  "owner": "party",
+                  "amount": 3,
+                  "now": 10,
+                  "note": ""
+                },
+                "rev": 3,
+                "line": "79b82110"
+              }
+            ],
+            "narrated": [],
+            "spans": [
+              {
+                "n": 4,
+                "story": true
+              }
+            ],
+            "source": {
+              "logical": "sr_dkjtrak4",
+              "swipeKey": "sw_12zkybpt",
+              "evidence": "ev_10iglci8",
+              "next": 0
+            },
+            "rev": 3,
+            "swipe": 0,
+            "mark": {
+              "t": "d4547e29:6",
+              "d": ""
+            }
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "tainted": true
+    },
+    "head": {
+      "v": 2,
+      "meta": {
+        "rev": 3,
+        "claims": {}
+      },
+      "domains": {
+        "combat": {
+          "fight": null
+        },
+        "death": {
+          "batches": {}
+        },
+        "director": {
+          "time": {
+            "minutes": 0
+          }
+        },
+        "gear": {
+          "equipped": {}
+        },
+        "inventory": {
+          "defs": {},
+          "stacks": {},
+          "wallets": {
+            "party": {
+              "coin": 10
+            }
+          },
+          "aliases": {},
+          "perReply": {
+            "sw_2444452140e1": {
+              "coin": 3,
+              "worth": 0,
+              "made": 0,
+              "items": {}
+            }
+          }
+        },
+        "npc": {
+          "meters": {}
+        },
+        "party": {
+          "pools": {
+            "hp": 20,
+            "mp": 5,
+            "sp": 10
+          },
+          "names": []
+        },
+        "progress": {
+          "xp": 1,
+          "level": 1
+        },
+        "rules": {
+          "rulesVersion": 2,
+          "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "scene": {
+          "place": {
+            "name": "",
+            "kind": "",
+            "region": ""
+          },
+          "present": []
+        },
+        "training": {
+          "session": null,
+          "paid": 0
+        }
+      }
+    }
+  }
+}

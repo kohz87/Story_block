@@ -44,7 +44,7 @@ for (const phase of MAKE_PHASES) {
         t.after(() => again.close());
         // Recovery ran when the chat opened: nothing is left in flight, no barrier, no problem.
         assert.equal(again.registry.restore().state, 'idle');
-        assert.deepEqual(await again.sdk.timeline.status(), { ok: true, state: 'idle', return: null, participants: [] });
+        assert.deepEqual(await again.sdk.timeline.status(), { ok: true, state: 'idle', return: null, participants: (await again.sdk.timeline.list()).points[0]?.participants ?? [] });
         assert.deepEqual(again.store.problems(), []);
         const points = (await again.sdk.timeline.list()).points;
         assert.equal(points.length <= 1, true);
@@ -96,7 +96,7 @@ for (const phase of RESTORE_PHASES) {
         const now = restored(again, native, saved);
         // After recovery the barrier is down, nothing is in flight, nothing is reported.
         assert.equal(again.registry.restore().state, 'idle');
-        assert.deepEqual(await again.sdk.timeline.status(), { ok: true, state: 'idle', return: null, participants: now.story ? [{ module: 'tl-native', checkpoint: saved.participants[0].checkpoint, hash: saved.participants[0].hash, schema: 1 }] : [] });
+        assert.deepEqual(await again.sdk.timeline.status(), { ok: true, state: 'idle', return: null, participants: now.story ? [{ module: 'tl-native', checkpoint: saved.participants[0].checkpoint, hash: saved.participants[0].hash, schema: 1 }] : saved.participants });
         assert.deepEqual(again.store.problems(), []);
         assert.equal(again.sdk.modules().every(module => module.status === 'ready'), true);
         const entries = again.timeline.host.journal().filter(entry => entry.kind === 'restore');

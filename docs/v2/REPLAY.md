@@ -364,3 +364,10 @@ setting), and after every step the head, the state at sampled replies and the Pr
 record gives, revs strictly increasing, no guarded effect without its guard, no effect from a quarantined record. Example:
 `for s in $(seq 1 300); do node scripts/fuzz-replay.mjs $s 120 $(( (s % 2) * 3 + 4 )); done | grep -v '"fails":\[\]'` prints
 nothing when it holds.
+
+A thrown replay guard is also a store Problem when its block was only a tentative plan and was never stored.
+The shared guard check names the module, predicate kind (or explicitly missing kind), and the exception text,
+including the refused query for an undeclared replayQueries access. It refuses the new changes/claims. E1's rule
+for failed replacement plans still applies: a valid old block may stay, but the failed replacement is diagnosed.
+Diagnostics for an unstored plan are held in memory for its chat/source and survive a rebuild in that session;
+stored inactive blocks use the usual replay Problems and checkpoint retention. No diagnostic writes chat bytes.

@@ -392,7 +392,7 @@ test('participants that cannot switch leave the restore committed and the barrie
     assert.equal(host.head().domains.progress.xp, 40, 'the story is restored (when every module is asked: after the barrier)');
     assert.deepEqual(host.sdk.modules().map(module => module.status), ['restore-pending', 'restore-pending', 'restore-pending', 'restore-pending']);
     assert.equal((await host.sdk.timeline.head()).code, 'RESTORE_PENDING');
-    assert.deepEqual(await host.sdk.timeline.status(), { ok: true, state: 'pending', return: prepared.return, participants: [] });
+    assert.deepEqual(await host.sdk.timeline.status(), { ok: true, state: 'pending', return: prepared.return, participants: saved.participants });
     assert.equal((await host.sdk.command('tl.xp', { amount: 1 })).code, 'RESTORE_PENDING');
     assert.equal((await host.sdk.timeline.make({ kind: 'manual' })).code, 'RESTORE_PENDING');
     assert.equal((await host.timeline.host.prepare({ snapshot: saved.id, deathEvents: ['ev_other0001'], batchResult: batchFor('br_batch009'), expectedHead: head.headHash })).code, 'RESTORE_PENDING');
