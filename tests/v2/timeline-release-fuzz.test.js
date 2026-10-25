@@ -49,11 +49,18 @@ async function run(t, seed, steps) {
     let batch = 0;
     let event = 0;
     const heard = [];
+    const mine = new WeakSet();   // the messages the reader hid themselves
+    const shown = new WeakSet();  // the faded messages the reader showed again (their choice: not hidden again)
     const open = async image => {
         host = image ? await reload(createHost, image, modules(), { st: { mainApi } }) : await createHost({ modules: modules(), st: { mainApi } });
         t.after(() => host.close());
         // A prompt-only regex (SillyTavern's own): the request's words are not the chat's, so a faded message can only be found by who it is.
         host.st.promptRegex.push({ find: / (says|narrates|answers|swiped|edited|probe|goes on)\./g });
+        // (a start again forgets which hide was whose: what is hidden, active and not the restore's was the reader's; what is faded and shown, theirs)
+        if (image) {
+            host.ctx.chat.forEach(message => { if (message.is_system === true && message.story_suite_hid === undefined) mine.add(message); });
+            (await host.sdk.timeline.history({})).messages.forEach((message, at) => { if (!message.active && host.ctx.chat[at].is_system !== true) shown.add(host.ctx.chat[at]); });
+        }
         host.events.on('modules', ({ changes }) => {
             if (!changes.some(change => change.status === 'ready')) return;
             heard.push({ state: host.registry.restore().state, ready: host.sdk.query('savepoint.contract', {}).participantsReady });
@@ -187,13 +194,26 @@ async function run(t, seed, steps) {
         const request = host.st.requests.at(-1);
         const built = request.chat ? request.chat.map(entry => (typeof entry.content === 'string' ? entry.content : '')).join('\n') : request.prompt;
         const history = await host.sdk.timeline.history({});
-        for (const message of history.messages.slice(0, -1)) {
+        for (const [at, message] of history.messages.slice(0, -1).entries()) {
+            const hidden = host.ctx.chat[at].is_system === true;
             for (const word of message.text.match(/FZ[a-z]\d+Z/g) ?? []) {
-                assert.equal(built.includes(word), message.active, fail(`${when}: ${message.active ? 'an active' : 'a faded'} message (${word}) ${message.active ? 'is missing from' : 'reached'} the request`));
+                assert.equal(built.includes(word), !hidden, fail(`${when}: ${hidden ? 'a hidden' : 'a visible'} message (${word}) ${hidden ? 'reached' : 'is missing from'} the request`));
             }
         }
     }
 
+    // The messages the story fades are exactly the hidden ones (the reader's own hides aside: `mine`), so SillyTavern leaves them out of a prompt.
+    const checkHidden = async when => {
+        const history = await host.sdk.timeline.history({});
+        history.messages.forEach((message, at) => {
+            const chatted = host.ctx.chat[at];
+            const hidden = chatted.is_system === true;
+            if (message.active) shown.delete(chatted);
+            const expected = mine.has(chatted) || (!message.active && !shown.has(chatted));
+            if (!message.active && !hidden && shown.has(chatted)) return;   // the reader showed it again
+            assert.equal(hidden, expected, fail(`${when}: message ${at} is ${message.active ? 'active' : 'faded'} and ${hidden ? 'hidden' : 'shown'}`));
+        });
+    };
     const check = when => {
         const problems = host.store.problems();
         assert.deepEqual(problems.filter(problem => problem.code !== 'REPLAY_PREREQUISITE').map(problem => problem.message), [], fail(`${when}: a problem that is not a prerequisite`));
@@ -225,6 +245,20 @@ async function run(t, seed, steps) {
             const image = { chat: clone(host.ctx.chat), metadata: clone(host.ctx.chatMetadata) };
             host.close();
             await open(image);
+        } else if (pick < 97) {
+            // the reader hides a message of their own, or shows one again (a faded one included)
+            const at = r.int(1, host.ctx.chat.length - 1);
+            const message = host.ctx.chat[at];
+            if (message.is_system === true) {
+                log.push(`show ${at}`);
+                message.is_system = false;
+                mine.delete(message);
+                if (message.story_suite_hid !== undefined) shown.add(message);
+            } else {
+                log.push(`hide ${at}`);
+                message.is_system = true;
+                mine.add(message);
+            }
         } else { log.push('rebuild'); host.store.rebuild(); }
         // Before anything asks for a recovery: if the barrier is down, the participants are where the selected head puts them.
         await checkSelected(`${when} (before recovery)`);
@@ -234,6 +268,7 @@ async function run(t, seed, steps) {
         if (selected) assert.equal(selected.hash, hashJson(native.native.store), fail(`${when}: native checkpoint does not match the selected head`));
         await checkSelected(`${when} (after recovery)`);
         check(when);
+        await checkHidden(when);
         if (step % 3 === 0) await checkPrompt(when);
     }
     assert.deepEqual(heard.filter(each => each.state !== 'idle' || each.ready !== true), [], fail('the modules were announced ready with the barrier up or the participants not ready'));

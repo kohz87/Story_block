@@ -462,6 +462,9 @@ export function createRuntime({
     };
     timeline = createTimeline({
         store, registry, metadata: chatMetadata, chat: () => ctx.chat, settings: id => settings(id), faults: timelineFaults,
+        // a message a restore hid or showed again is drawn again; a message that could not be hidden is a Problem
+        redraw: (index, message) => { try { ctx.updateMessageBlock?.(index, message); } catch { /* drawn from the saved chat later */ } },
+        problem: entry => turn?.report(entry),
         query: (name, args, state) => runQuery(registry, state, name, args),
         barrier: (state, reason) => {
             registry.setRestore(state, reason);

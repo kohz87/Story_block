@@ -5,33 +5,40 @@ returns the frozen §8 shape. A restore whose target is inside a reply fades tha
 restore carrier, including intervening reader messages. Raw chat stays readable. Prompt/extraction/journal/native
 consumers must use the active projection; this host package cannot migrate consumers in other repositories.
 
-One rule says which messages are faded (`activeLine` in the coordinator, the same one `history` answers from) and one
-filter applies it (`src/v2/timeline/active.js`, asked for by name through `timeline.active(name)`).
+One rule says which messages are faded (`activeLine` in the coordinator, the same one `history` answers from).
 
-A request is filtered by identity first. SillyTavern hands the generation interceptor (manifest `generate_interceptor`) the
-chat it is about to build the prompt from, before any formatting or regex. The interceptor ties each entry to the chat's
-messages by who spoke, which swipe and which record (never by text: a prompt-only regex changes the text), takes the faded
-entries out, and the prompt is built from what is left. If an entry cannot be tied (a message the chat does not have, or
-in another place) nothing is removed on that basis, a `HISTORY_UNTIED` Problem is recorded once, and the capability reports
-`retainedChatRestore: false` for that chat until a request is tied again. The text filters over the finished request (a
-faded reply's or reader message's text cut from the chat-completion or text-completion request, matched from the newest
-message back) are only a second line, used when the request was not tied.
+**Faded replies are hidden with SillyTavern's own flag.** SillyTavern leaves a hidden message (`is_system: true`, the ghost
+the reader sees) out of every prompt it builds: chat and text completion, with or without prompt-only regexes, nested and
+quiet generations. Story Block does not filter requests. A committed restore hides, in the same synchronous section that
+stores the restore block (and so in the same durable flush), each faded message that is not hidden already, and notes on
+its journal entry which ones it hid (`hid`: place, record id and a stamp, `story_suite_hid`, kept on the message so a
+swipe or a delete elsewhere does not lose it). When the restore is gone from the story (swiped, deleted, retracted,
+turned off by a Re-read of an earlier reply) exactly those messages are shown again, and no others: a message the reader
+hid beforehand stays hidden, and one the reader shows again while it is faded is their choice (`released`): it is not
+hidden again and nothing is said. If the restore comes back (the reader swipes to it again) its faded messages are hidden
+again. `syncHidden` is that rule; it runs when the restore commits, whenever the head changes with the barrier down, and
+before the barrier is lowered. A message that cannot be hidden or shown records a `HIDE_FAILED` Problem and makes the
+capability report `retainedChatRestore: false` for that chat. A chat that never restored has no stamp and no note, and is
+not touched. A hidden reply keeps its record and can still be read again.
 
-The capability reports `retainedChatRestore: true` only while every named reader (`ACTIVE_READERS`) has been wired and the
-chat's last request was tied. Every read of chat messages in `src/` (v1's `src/*.js` and `index.v1.js` are not loaded):
+Story Block's own readers of earlier messages, which read records and text from the chat and not a prompt, ask the
+filter in `src/v2/timeline/active.js` by name (`ACTIVE_READERS`): the Inner chatter tail line and the two chatter queries
+(`chatter.head`, `scene.chatter`, and so the Scene screen), the last reader message a module's view shows, and the late
+safety-net lines of the previous reply. `retainedChatRestore` is true while the hide mechanism works and every one of
+them is wired. Every read of chat messages in `src/` (v1's `src/*.js` and `index.v1.js` are not loaded):
 
 | Reader | Status |
 |---|---|
-| `turn.js` interceptor (`dropFadedFromChat`), `onPromptReady`, `onTextPromptReady` | filtered (`prompt.intercept`, `prompt.chat`, `prompt.text`) |
-| `domains/index.js` `chatterBack` (tail line), queries `chatter.head` and `scene.chatter` (and so the Scene screen) | filtered (`prompt.chatter`, `query.chatter.head`, `query.scene.chatter`) |
+| The prompts SillyTavern builds (chat completion, text completion, quiet, nested, regexed) | not read: hidden messages are not in them |
+| `domains/index.js` `chatterBack`, queries `chatter.head` and `scene.chatter` | filtered (`prompt.chatter`, `query.chatter.head`, `query.scene.chatter`) |
 | `sdk.js` / `turn.js` `makeView` `chat.lastUser` (module views, hooks) | filtered (`view.lastUser`) |
 | `turn.js` `lateLines` (previous reply's late safety-net lines) | filtered (`assist.late`) |
 | `turn.js` capture (`ctx.chat.lastUser` / `reply`, Continue base, Re-read, edit handling), `commands.js`, `inventory.js` `ctx.chat.reply` | not history: the reply being captured and the message right before it |
-| `assist/classifier.js` (last message, only when it is the reader's) | not history: the reader's new message, which is never inside a faded interval (the interval ends at the restoring reply) |
+| `assist/classifier.js` (last message, only when it is the reader's) | not history: the reader's new message, never inside a faded interval (the interval ends at the restoring reply) |
 | `assist/extractor.js` | not history: the reply just written |
 | `inspect.js`, `ui-host.js`, `extras-ui.js`, `reply-notes.js`, `view/mounts/card.js`, `view/game-header.js` | not a request: the reader's own display of the raw chat, which stays readable |
 | `rewind.js`, `runtime.js` (save, keep-alive size, record lookup by sid), `sdk.js` preflight | not text: structure and records, not what a request says |
-| `coordinator.js` `history`, `activeLine` | the rule itself |
+| `coordinator.js` `history`, `activeLine`, `syncHidden` | the rule and the mechanism themselves |
 
 Every head change runs one participant selection rule over exact surviving prefix witnesses and replayed state.
 Until native participants acknowledge that selection the host returns `RESTORE_PENDING`. It settles before heads,

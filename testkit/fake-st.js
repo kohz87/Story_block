@@ -180,11 +180,12 @@ export function createFakeContext(options = {}) {
         .filter(key => prompts[key].value && prompts[key].position === (place === 'in-prompt' ? EXTENSION_PROMPT_TYPES.IN_PROMPT : EXTENSION_PROMPT_TYPES.IN_CHAT))
         .map(key => ctx.substituteParams(prompts[key].value));
 
-    // The chat as SillyTavern hands it to the generation interceptors: a copy of the messages (a swipe leaves out the one being
-    // swiped), with the prompt-only regexes (`fake.promptRegex`: [{ find, replace }]) already run over each one's text. The
-    // interceptors change this list, and the request is built from what is left.
+    // The chat as SillyTavern hands it to the generation interceptors: a copy of the messages without the hidden ones (`is_system`, the
+    // ghost: SillyTavern leaves them out of every prompt, and out of quiet and nested generations too), a swipe leaving out the one being
+    // swiped, with the prompt-only regexes (`fake.promptRegex`: [{ find, replace }]) already run over each one's text. The interceptors
+    // change this list, and the request is built from what is left.
     function interceptorChat(type) {
-        const messages = type === 'swipe' ? ctx.chat.slice(0, -1) : ctx.chat;
+        const messages = (type === 'swipe' ? ctx.chat.slice(0, -1) : ctx.chat).filter(message => !message.is_system);
         return messages.map(message => ({ ...message, mes: fake.promptRegex.reduce((text, rule) => text.replace(rule.find, rule.replace ?? ''), String(message.mes ?? '')) }));
     }
 

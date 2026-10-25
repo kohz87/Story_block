@@ -52,9 +52,11 @@ const ordered = (a, b) => (a.target.rev - b.target.rev) || (a.target.op - b.targ
  * * `barrier(state, reason)`: raises or drops the host-wide restore barrier (registry.setRestore and the announcement);
  * * `announce(receipt)`: told of each block the host stores (the `committed` event);
  * * `query(name, args, state)`: a registered query over `state` (the clock, the atlas, the journal), or throws when there is none;
+ * * `problem(entry)`: told of a Problem the host reader should see (faded messages that could not be hidden); `redraw(index, message)`: told when a
+ *   message's hidden flag changed, so the page can draw it;
  * * `faults`: `{ at(phase) }`, awaited at every phase boundary (tests simulate a crash by throwing `crash()` there).
  */
-export function createTimeline({ store, registry, metadata, chat = () => [], barrier = () => {}, announce = null, query = null, settings = () => ({}), faults = null }) {
+export function createTimeline({ store, registry, metadata, chat = () => [], barrier = () => {}, announce = null, query = null, settings = () => ({}), faults = null, problem = null, redraw = null }) {
     // The chat the running operation began in (operations run one at a time): every write and every clean-up of it is bound to that
     // chat, and when another one is open it touches nothing there (`staleChat`, answered STALE).
     let scope = null;
@@ -161,6 +163,9 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             barrierEarly = false;
             lowerWhenSettled();   // (held on, without a moment of readiness, when the open chat has something of its own to finish)
         }
+        // The faded messages follow the story as it is now (read whole: with the barrier up the story is not, and the operation that holds it
+        // does this itself before it lowers it).
+        if (holder && registry.restore?.().state !== 'pending') syncHidden();
         // A chat whose journal has work unfinished, or whose participants are off its selected head, is barred from the moment it is
         // open; its recovery follows when the queue gives it its turn (a make of another chat may be holding the line meanwhile).
         if (holder && barrierOwner === null && (pendingEntry() !== null || selectionNeeded())) {
@@ -198,6 +203,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         for (let pass = 0; pass < SELECTION_PASSES; pass += 1) {
             here();
             if (pendingEntry(settling) !== null) return fail('RESTORE_PENDING', 'Another change is outstanding in this chat; the barrier holds until it has settled.');
+            withWholePrefixes(syncHidden);
             if (selectionNeeded()) {
                 const selected = await selectHead();
                 if (!selected.ok) return selected;
@@ -324,8 +330,105 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         for (let index = 0; index < messages.length; index += 1) if (spans.some(span => index >= span.from + (span.inside ? 0 : 1) && index <= span.to)) at.add(index);
         return { messages, sids, faded, at };
     }
-    // Every host reader of earlier messages asks this (src/v2/timeline/active.js), by name; the capability counts the names.
-    const activeHistory = createActiveHistory({ messages: () => (typeof chat === 'function' ? chat() : []), faded: () => activeLine().at, holder: () => archive.holder() });
+    // Story Block's own readers of earlier messages (the chatter queries, the module view, the late lines) ask this
+    // (src/v2/timeline/active.js), by name; the capability counts the names. A generation request is not one of them: faded messages
+    // leave it because they are hidden (below).
+    const activeHistory = createActiveHistory({ faded: () => activeLine().at });
+
+    // ---- hiding the faded messages ------------------------------------------------------------------------------
+    //
+    // SillyTavern leaves a hidden message (`is_system: true`, the ghost the reader sees) out of every prompt it builds: chat and text
+    // completion, regexes, nested and quiet generations. A restore hides the messages it faded that are not hidden already, and
+    // records which ones it hid in its journal entry (`hid`: [{ stamp, index, sid }]); when the restore is gone from the story (a swipe,
+    // a delete, a Re-read) it shows exactly those again. Each message it hid carries the stamp (`story_suite_hid`, on the message, which
+    // swipes and deletions of other messages do not move), so a record is found again whatever happened to the places. A message the
+    // reader hid is never stamped, so it is never shown; one the reader showed again while it was faded is the reader's choice
+    // (`released`): it is not hidden again and nothing is said. `syncHidden` is that rule, run in one synchronous step over the story
+    // read whole; it changes nothing when nothing is faded and nothing was hid, so a chat that never restored is untouched.
+    const STAMP = 'story_suite_hid';
+    const hideFailed = new WeakSet();   // chats (by their holder) where a faded message could not be hidden or shown
+    const restoreEntries = () => archive.entries().filter(entry => entry.kind === 'restore' && entry.phase !== 'aborted');
+    function syncHidden() {
+        if (!archive.exists() || !archive.holder()) return;
+        const entries = restoreEntries();
+        const line = activeLine({ ids: true });
+        const noted = entries.some(entry => entry.hid?.length || entry.released?.length);
+        if (!line.at.size && !noted) { hideFailed.delete(archive.holder()); return; }
+        const { messages, sids } = line;
+        const placeOf = new Map();
+        messages.forEach((message, at) => { if (typeof message?.[STAMP] === 'string') placeOf.set(message[STAMP], at); });
+        const returns = store.head()?.domains?.[HOST_DOMAIN]?.returns;
+        const owner = entries.filter(entry => isObject(returns) && isObject(returns[entry.return])).at(-1) ?? null;
+        let failed = '';
+        let flipped = false;
+        const flip = (at, hidden) => {
+            const message = messages[at];
+            try {
+                message.is_system = hidden;
+                if (message.is_system !== hidden) throw new Error('the message did not take the flag');
+            } catch (error) { failed ||= `message ${at} could not be ${hidden ? 'hidden' : 'shown'} (${error?.message ?? error})`; return false; }
+            flipped = true;
+            try { redraw?.(at, message); } catch { /* not drawn yet: it is drawn from the saved chat */ }
+            return true;
+        };
+        const stamped = (at, stamp) => {
+            try { if (stamp === null) delete messages[at][STAMP]; else messages[at][STAMP] = stamp; } catch (error) { failed ||= `message ${at} could not be marked (${error?.message ?? error})`; return false; }
+            flipped = true;
+            return true;
+        };
+        const notes = new Map();   // entry id -> { hid, released }
+        const noteOf = entry => {
+            if (!notes.has(entry.id)) notes.set(entry.id, { hid: (entry.hid ?? []).map(item => ({ ...item })), released: [...(entry.released ?? [])] });
+            return notes.get(entry.id);
+        };
+        const known = new Set();
+        for (const entry of entries) {
+            for (const item of entry.hid ?? []) {
+                known.add(item.stamp);
+                const at = placeOf.get(item.stamp);
+                const note = noteOf(entry);
+                const drop = () => { note.hid = note.hid.filter(each => each.stamp !== item.stamp); };
+                if (at === undefined) { drop(); continue; }   // the message is gone
+                if (!line.at.has(at)) {
+                    // the restore is gone from the story: what it hid is shown again (unless the reader showed it already)
+                    if (messages[at].is_system === true && !flip(at, false)) continue;
+                    if (stamped(at, null)) drop();
+                } else if (messages[at].is_system !== true) {
+                    // the reader showed it again while it was faded: theirs to choose, and not hidden again
+                    drop();
+                    note.released.push(item.stamp);
+                }
+            }
+            for (const stamp of entry.released ?? []) {
+                known.add(stamp);
+                const at = placeOf.get(stamp);
+                if (at === undefined) { const note = noteOf(entry); note.released = note.released.filter(each => each !== stamp); continue; }
+                if (!line.at.has(at)) { const note = noteOf(entry); if (stamped(at, null)) note.released = note.released.filter(each => each !== stamp); }
+            }
+        }
+        // what is faded and still visible is hidden now, and noted on the newest restore the story holds
+        for (const at of line.at) {
+            const message = messages[at];
+            if (message.is_system === true || known.has(message[STAMP])) continue;
+            if (!owner) { failed ||= 'a return in the story has no restore in the journal to note the hidden messages on'; break; }
+            const stamp = makeId('hd');
+            if (stamped(at, stamp) && flip(at, true)) noteOf(owner).hid.push({ stamp, index: at, sid: sids[at]?.sid ?? null });
+            else if (message[STAMP] === stamp) stamped(at, null);
+        }
+        for (const [id, note] of notes) {
+            const entry = archive.get(id);
+            if (hashJson({ hid: entry.hid ?? [], released: entry.released ?? [] }) !== hashJson(note)) archive.patch(id, { hid: note.hid, released: note.released });
+        }
+        const holder = archive.holder();
+        if (failed) {
+            if (!hideFailed.has(holder)) {
+                hideFailed.add(holder);
+                try { problem?.({ code: 'HIDE_FAILED', message: `Messages a restore faded could not all be hidden or shown again (${failed}), so they may reach a prompt.` }); } catch { /* a listener is not the timeline's business */ }
+            }
+        } else hideFailed.delete(holder);
+        // (the flags are the chat's: it is saved with them, by the operation's own flush or the next save)
+        if (flipped) { store.touch?.(); store.scheduleSave?.(); }
+    }
 
     // A projection of the chat's messages for the readers of the story (prompt, extraction, native scans): the canonical
     // ids of each message and whether it is on the active line. A message with no carrier record of its own (the reader's
@@ -910,6 +1013,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (!stored2.ok) { await abortEntry(entry, stored2.message); return stored2; }
         owe(stored2);
         archive.patch(entry.id, { phase: 'committed' });
+        // The messages the restore faded are hidden in this same section, and noted on the restore's journal entry; the flush below makes both durable.
+        syncHidden();
         raise('A restore is finishing; every part must agree before the story goes on.');
         // Nothing is switched before the commit is in the chat file: a failed save is the caller's failure, and the barrier stays up.
         await durable();
@@ -1320,9 +1425,9 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const installed = declarations.every(def => participants.has(def.id) && !broken.has(def.id));
         const oldWitnesses = archive.entries().some(entry => entry.kind === 'restore' && entry.phase !== 'aborted' && !entry.boundary);
         const participantsReady = installed && participants.ready() && !brokenProblem() && !oldWitnesses && registry.restore?.().state !== 'pending' && !selectionNeeded();
-        // (a restore fades earlier messages: retained-chat restore is offered only once every host reader of earlier messages filters them,
-        // and not for a chat whose last request could not be tied to its messages)
-        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0 && activeHistory.wired() && activeHistory.intact();
+        // (a restore fades earlier messages: retained-chat restore is offered only while Story Block's own readers of earlier messages filter
+        // them, and not for a chat where a faded message could not be hidden)
+        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0 && activeHistory.wired() && !hideFailed.has(archive.holder());
         return { api: 2, snapshots, retainedChatRestore, participantsReady };
     }
 
@@ -1401,7 +1506,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         needsRecovery: () => runningIn(archive.holder()) === 0 && ((archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded())) || unmaterializedMarkers().length > 0
             || (barrierOwner !== null && barrierOwner === archive.holder())),
         archive,
-        /** The active-history reader a host path of earlier messages asks for by name (active.js ACTIVE_READERS): → { messages, faded, chatPrompt, textPrompt }. */
+        /** The active-history reader one of Story Block's own readers of earlier messages asks for by name (active.js ACTIVE_READERS): → { messages, faded }. */
         active: name => activeHistory.reader(name),
         pending: pendingNow,
         /** Points of `state` with their bytes checked, in target order (the savepoint.list query). */

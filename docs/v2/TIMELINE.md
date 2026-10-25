@@ -120,8 +120,8 @@ The same prepare again returns the first answer; the same batch with another mea
 
 **activate** is once: it checks the head again (a moved head aborts the preparation and is `STALE`), plans again from the bytes
 and compares the manifest hash to the prepared one, then re-reads head, source and chat **in the section itself** (no `await`
-between the recheck and the writes), and in **one synchronous section** stores the restore block and writes the
-journal's word that it is committed, raises the restore barrier (`registry.setRestore('pending')`), makes the chat file durable (a flush that fails is the failure of `activate`, and the journal decides what `recover` does),
+between the recheck and the writes), and in **one synchronous section** stores the restore block, writes the
+journal's word that it is committed, hides the messages it faded (HISTORY.md), raises the restore barrier (`registry.setRestore('pending')`), makes the chat file durable (a flush that fails is the failure of `activate`, and the journal decides what `recover` does),
 and has each participant `activate`, acknowledging each in the journal as it answers. `savepoint.complete` is told only after the final flush. A participant that cannot is
 `participants-pending`: the barrier stays up and a later `activate` or `recover` carries on. When every part has agreed, the story is read whole in one
 synchronous section: if it still holds the restore, the return is marked `complete` by a small block of its own and the
@@ -299,7 +299,8 @@ rethrows from everywhere) and starts a new host over it.
 
 `history({ through? })` is the projection of the chat's messages: canonical `sid` and `swipeKey` of each carrier, `msg_` ids made
 from where they stand for the reader's own messages, the text, and `active`. A faded interval excludes the entire target reply when the target lies inside it (`op > 0`), through the restoring reply,
-and the reader's messages between. A boundary between messages excludes only later messages. See [HISTORY.md](HISTORY.md).
+and the reader's messages between. A boundary between messages excludes only later messages. A restore hides the messages it faded with
+SillyTavern's own flag (`is_system`), so no prompt carries them, and shows exactly those again if the restore leaves the story. See [HISTORY.md](HISTORY.md).
 
 ## Decisions where the contract is silent
 
