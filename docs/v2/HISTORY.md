@@ -6,13 +6,32 @@ restore carrier, including intervening reader messages. Raw chat stays readable.
 consumers must use the active projection; this host package cannot migrate consumers in other repositories.
 
 One rule says which messages are faded (`activeLine` in the coordinator, the same one `history` answers from) and one
-filter applies it (`src/v2/timeline/active.js`, asked for by name through `timeline.active(name)`): the chat-completion
-request and the text-completion request (a faded reply's or reader message's text is cut from the request, matched from
-the newest message back, so an older message with the same words is never mistaken for a newer one), the Inner chatter
-tail line, the last reader message a module's view shows, and the late safety-net lines of the previous reply. The
-capability reports `retainedChatRestore: true` only while every named reader (`ACTIVE_READERS`) has been wired. A
-request whose text a front end changed beyond a speaker prefix cannot be matched and keeps the message: the host cannot
-see what it cannot find.
+filter applies it (`src/v2/timeline/active.js`, asked for by name through `timeline.active(name)`).
+
+A request is filtered by identity first. SillyTavern hands the generation interceptor (manifest `generate_interceptor`) the
+chat it is about to build the prompt from, before any formatting or regex. The interceptor ties each entry to the chat's
+messages by who spoke, which swipe and which record (never by text: a prompt-only regex changes the text), takes the faded
+entries out, and the prompt is built from what is left. If an entry cannot be tied (a message the chat does not have, or
+in another place) nothing is removed on that basis, a `HISTORY_UNTIED` Problem is recorded once, and the capability reports
+`retainedChatRestore: false` for that chat until a request is tied again. The text filters over the finished request (a
+faded reply's or reader message's text cut from the chat-completion or text-completion request, matched from the newest
+message back) are only a second line, used when the request was not tied.
+
+The capability reports `retainedChatRestore: true` only while every named reader (`ACTIVE_READERS`) has been wired and the
+chat's last request was tied. Every read of chat messages in `src/` (v1's `src/*.js` and `index.v1.js` are not loaded):
+
+| Reader | Status |
+|---|---|
+| `turn.js` interceptor (`dropFadedFromChat`), `onPromptReady`, `onTextPromptReady` | filtered (`prompt.intercept`, `prompt.chat`, `prompt.text`) |
+| `domains/index.js` `chatterBack` (tail line), queries `chatter.head` and `scene.chatter` (and so the Scene screen) | filtered (`prompt.chatter`, `query.chatter.head`, `query.scene.chatter`) |
+| `sdk.js` / `turn.js` `makeView` `chat.lastUser` (module views, hooks) | filtered (`view.lastUser`) |
+| `turn.js` `lateLines` (previous reply's late safety-net lines) | filtered (`assist.late`) |
+| `turn.js` capture (`ctx.chat.lastUser` / `reply`, Continue base, Re-read, edit handling), `commands.js`, `inventory.js` `ctx.chat.reply` | not history: the reply being captured and the message right before it |
+| `assist/classifier.js` (last message, only when it is the reader's) | not history: the reader's new message, which is never inside a faded interval (the interval ends at the restoring reply) |
+| `assist/extractor.js` | not history: the reply just written |
+| `inspect.js`, `ui-host.js`, `extras-ui.js`, `reply-notes.js`, `view/mounts/card.js`, `view/game-header.js` | not a request: the reader's own display of the raw chat, which stays readable |
+| `rewind.js`, `runtime.js` (save, keep-alive size, record lookup by sid), `sdk.js` preflight | not text: structure and records, not what a request says |
+| `coordinator.js` `history`, `activeLine` | the rule itself |
 
 Every head change runs one participant selection rule over exact surviving prefix witnesses and replayed state.
 Until native participants acknowledge that selection the host returns `RESTORE_PENDING`. It settles before heads,

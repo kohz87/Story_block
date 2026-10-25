@@ -113,6 +113,32 @@ test('a request that cannot be tied to the chat is a Problem and retainedChatRes
     assert.equal(host.sdk.query('savepoint.contract', {}).retainedChatRestore, true);
 });
 
+test('the chatter queries and the Scene screen never carry the thoughts of a faded reply, also after a rebuild and a reload', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const modules = [rulesModule()];
+    const settings = { features: { 'story-block.chatter': true } };
+    const host = await createHost({ modules, settings });
+    t.after(() => host.close());
+    await host.send('Begin.', 'Before.');
+    await host.send('Accept.', 'Arn arrives.\n\n<Changes>\n+ present Arn\n</Changes>');
+    await host.sdk.command('tl.xp', { amount: 2 });
+    const point = await host.sdk.timeline.make({ kind: 'manual' });
+    await host.send('Go on.', `Death.\n\n<Changes>\n~ chatter Arn: ${GAMMA}\n</Changes>`);
+    assert.equal(JSON.stringify(host.sdk.query('chatter.head', {})).includes(GAMMA), true, 'the thought is there before the restore');
+    assert.equal(JSON.stringify(host.sdk.query('scene.chatter', {})).includes(GAMMA), true);
+    assert.equal((await restore(host, point.snapshot.id)).activated.status, 'complete');
+    const gone = h => {
+        assert.equal(JSON.stringify(h.sdk.query('chatter.head', {})).includes(GAMMA), false, 'chatter.head');
+        assert.equal(JSON.stringify(h.sdk.query('scene.chatter', {})).includes(GAMMA), false, 'scene.chatter');
+    };
+    gone(host);
+    host.store.rebuild();
+    gone(host);
+    const fresh = await reload(createHost, { chat: clone(host.ctx.chat), metadata: clone(host.ctx.chatMetadata) }, modules, { settings });
+    t.after(() => fresh.close());
+    gone(fresh);
+});
+
 test('a reply that is not faded, whose words are the same as a faded one, stays in the request', async t => {
     t.mock.method(console, 'warn', () => {});
     const host = await createHost({ modules: [rulesModule()] });

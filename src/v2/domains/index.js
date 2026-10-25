@@ -337,11 +337,11 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         // whether the head reply moved the scene to another place (Story Director's World → Here, §F119).
         queries: {
             ...merged.queries,
-            'chatter.head': Object.assign(() => headChatter(extras?.chat?.(), extras?.display), { feature: CORE_FEATURE.chatter }),
+            'chatter.head': Object.assign(() => headChatter(extras?.headChat?.(), extras?.display), { feature: CORE_FEATURE.chatter }),
             'scene.chatter': Object.assign(state => {
                 let world = false;
                 try { world = extras?.worldShown?.() === true; } catch { world = false; }
-                return world ? [] : sceneChatter(state?.domains?.scene?.present, headChatter(extras?.chat?.(), extras?.display));
+                return world ? [] : sceneChatter(state?.domains?.scene?.present, headChatter(extras?.sceneChat?.(), extras?.display));
             }, { feature: CORE_FEATURE.chatter }),
             'scene.moved': (_state, _args, tools) => headMoved(tools, extras?.headIndex),
             // The active, visible, code-validated proof (contract §6, docs/v2/EVIDENCE.md); the stored proof comes from the store.

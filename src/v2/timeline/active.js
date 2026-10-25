@@ -14,6 +14,8 @@ export const ACTIVE_READERS = Object.freeze([
     'prompt.text',      // the text-completion request (turn.js onTextPromptReady)
     'prompt.intercept', // the chat the generation interceptor is handed, filtered by identity (turn.js interceptor)
     'prompt.chatter',   // the Inner chatter tail line (domains chatterBack)
+    'query.chatter.head', // the newest reply's Inner chatter (query chatter.head)
+    'query.scene.chatter', // the thoughts under the people present (query scene.chatter, the Scene screen)
     'view.lastUser',    // the reader's last message a module's view shows (sdk makeView)
     'assist.late',      // the previous reply's late safety-net lines (turn.js lateLines)
 ]);
