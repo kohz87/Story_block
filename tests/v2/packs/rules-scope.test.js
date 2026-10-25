@@ -65,7 +65,9 @@ test('old packs are unchanged: every pack on file validates to exactly what the 
     }
     // Also as text, and for the shipped examples without options.
     for (const [name, pack] of found.filter(([name]) => name.startsWith('examples/'))) {
-        assert.deepEqual(validatePack(JSON.stringify(pack)), oldValidatePack(JSON.stringify(pack)), name);
+        // The Ersveil example carries a rules manifest: the old validator refuses its kind, the current one accepts it.
+        if (pack.content?.rules) assert.equal(oldValidatePack(JSON.stringify(pack)).ok, false, name);
+        else assert.deepEqual(validatePack(JSON.stringify(pack)), oldValidatePack(JSON.stringify(pack)), name);
         assert.equal(validatePack(pack).ok, true, name);
     }
 });
