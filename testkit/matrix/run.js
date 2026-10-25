@@ -19,6 +19,7 @@
 import assert from 'node:assert/strict';
 import { createHost } from '../host.js';
 import { createStore } from '../../src/v2/store.js';
+import { createCommandBus } from '../../src/v2/commands.js';
 import { MODULES, ORDER } from './modules.js';
 import { CASES, NOT_EXPRESSIBLE, ROWS } from './rows.js';
 
@@ -129,9 +130,14 @@ function replayed(host, when = '') {
         const errors = typeof fn === 'function' ? fn(state?.domains?.[name], state) : [];
         return Array.isArray(errors) ? errors.map(String) : [];
     });
-    const fresh = createStore({ chat: () => host.ctx.chat, save: () => {}, validate, scratch: name => registry.scratch(name) });
+    const chat = structuredClone(host.ctx.chat);
+    const metadata = structuredClone(host.ctx.chatMetadata ?? {});
+    const fresh = createStore({ chat: () => chat, metadata: () => metadata, save: () => {}, validate, scratch: name => registry.scratch(name) });
+    // As on a real reload, the bus attaches the owners' replay guards before the first store read.
+    createCommandBus({ store: fresh, registry, settings: id => host.sdk.settings(id) });
     fresh.ensureInitial(registry.initialState());
     assert.deepEqual(fresh.head().domains, host.head().domains, `a cold rebuild from the chat's records is not the live state${when}`);
+    assert.deepEqual(fresh.problems(), [], `a cold rebuild reports problems${when}`);
 }
 function changed(before, after, keys, what) {
     for (const key of keysOf({}, keys)) assert.notDeepEqual(after[key], before[key], `${label(key)}: ${what} changed nothing it keeps`);
@@ -273,7 +279,7 @@ async function basics(env, row, rec) {
                 for (const key of keysOf(row, active)) {
                     const watch = MODULES[key].watch ?? MODULES[key].facts;
                     const before = watch(host);
-                    const [type, payload] = MODULES[key].action(host);
+                    const [type, payload] = await MODULES[key].action(host);
                     const result = await host.sdk.command(type, payload);
                     assert.ok(result.ok, `${label(key)} ${type} was refused: ${result.message}`);
                     assert.notDeepEqual(watch(host), before, `${label(key)} ${type} changed nothing it keeps`);
@@ -400,7 +406,14 @@ async function unsetClock(env, row, rec) {
             await host.send('Turn A.', `A reply with no time.\n\n<Changes>\n${quiet.join('\n')}\n</Changes>`);
             noProblems(host);
             assert.equal(host.head().domains.director.time.minutes, null, 'the clock should still be unset');
-            assert.ok(MODULES.sd.facts(host).quests.length, 'SD should still create a quest with the clock unset');
+            assert.ok(MODULES.sd.facts(host).goals.length, 'SD should still create a neutral goal with the clock unset');
+            const [type, payload] = await MODULES.sd.action(host);
+            const accepted = await host.sdk.command(type, payload);
+            assert.ok(accepted.ok, `neutral acceptance with the clock unset: ${accepted.message}`);
+            const goal = host.sdk.query('director.thread', { id: payload.thread });
+            assert.ok(goal.acceptance, 'neutral acceptance should retain its evidence without time');
+            assert.equal(goal.acceptance.minute, null);
+            assert.equal(goal.rpg, undefined, 'a neutral goal needs no RPG extension');
             replayed(host);
             if (!active.includes('rb')) return { note: 'creation and views work; no timed action in this row' };
             const rest = await host.sdk.command('party.rest', { kind: 'short' });
