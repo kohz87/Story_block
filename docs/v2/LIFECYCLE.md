@@ -213,3 +213,16 @@ discovery, dormant hooks and the veto, late activation announced once, restore b
 peers, Re-read while held, set-up before the next action, features of a held module, one refusal at every
 entry point), `tests/v2/ux/lifecycle-status.test.js` (the status in Modules and Versions) and `tests/v2/preflight.test.js` (the shape, each classification, damaged inputs, inputs checked,
 before registration, read-only for every kind of store, an old party untouched by registration).
+
+### Assist pre-roll lifecycle
+
+Assist previews a check for the generation prompt without appending to the previous reply. On
+completion the turn runs that seed on the generated reply before its story lines, then runs
+`afterCapture` even when the pre-roll is the reply's only change. The roll, message claim and
+practice attempt share the generated reply's Source. A cancelled generation leaves no claim.
+
+The pre-roll receipt is a system step marked `beforeGenerate` and `afterCapture`. Re-read replaces
+its prelude before re-reading story lines, using its stored payload, seed and the existing occurrence
+allocator, then settles practice after those lines. A swipe or delete retracts that reply's claim and
+attempt; another generation can prepare one new roll from the cached classification. A live claim
+suppresses a duplicate without erasing the classification needed after retraction.

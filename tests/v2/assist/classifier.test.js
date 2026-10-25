@@ -174,3 +174,14 @@ test('settings come from the view when none are injected', async () => {
     assert.ok(await part.hooks.beforeGenerate(v));
     assert.deepEqual(asked, ['story-block']);
 });
+
+
+test('a successful classification survives a live claim, then prepares one new roll after retraction', async () => {
+    const { before, callModel } = setup();
+    const first = await before();
+    assert.ok(first);
+    const claims = { [claimKey(keyOf(1, ACTION))]: true };
+    assert.equal(await before(view({ claims })), null);
+    assert.deepEqual(await before(view(), { type: 'regenerate' }), first);
+    assert.equal(callModel.calls.length, 1);
+});

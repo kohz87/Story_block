@@ -1,6 +1,6 @@
 // assist.precheck on the real host (testkit createHost: registry, command bus, store, turn): the
-// classifier's answer is committed before the reply as one system receipt that claims the message,
-// makes the check through the check kind's capture (Story Director's one checks.roll), and is told to the reply.
+// classifier's answer is previewed for the prompt and stored on the generated reply as one system receipt,
+// claiming the message and making the check through the check kind's capture (Story Director's one checks.roll), and is told to the reply.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
@@ -73,8 +73,8 @@ test('a risky message: the check is made and rolled before the reply, and the re
     const key = `1-${hashText(ACTION)}`;
     assert.equal(host.head().meta.claims[claimKey(key)], true);
 
-    // One system receipt on the carrier before the message (the greeting), narrated.
-    const record = host.ctx.chat[0].extra.storySuite;
+    // One system receipt on the generated reply, narrated.
+    const record = host.ctx.chat[2].extra.storySuite;
     const receipt = record.receipts.at(-1);
     assert.equal(receipt.type, PRECHECK);
     assert.equal(receipt.cause, 'system');
@@ -97,14 +97,14 @@ test('a risky message: the check is made and rolled before the reply, and the re
     host.close();
 });
 
-test('re-narrating never re-rolls: a swipe or a regenerate is told the same roll, with no new call', { skip }, async () => {
+test('a swipe or regenerate replaces the roll once, reusing the classification without a new call', { skip }, async () => {
     const { host, callModel } = await setup();
     await host.send(ACTION, 'You slip by.');
-    const summary = host.ctx.chat[0].extra.storySuite.receipts.at(-1).summary;
+    const summary = () => host.ctx.chat[2].extra.storySuite.receipts.at(-1).summary;
     const { request } = await host.swipe('Another telling.');
-    assert.ok(tailOf(request).includes(summary));
+    assert.ok(tailOf(request).includes(summary()));
     const again = await host.regenerate('A third telling.');
-    assert.ok(tailOf(again.request).includes(summary));
+    assert.ok(tailOf(again.request).includes(summary()));
     assert.equal(callModel.calls.length, 1);
     assert.equal(Object.keys(party(host).checks).length, 1);
     assert.equal(party(host).made, 1);
@@ -126,7 +126,7 @@ test('none, garbage or off: no receipt and nothing changes', { skip }, async () 
 test('one capture, one die: the check kind resolves it, and no older check.roll is ever called', { skip }, async () => {
     const { host } = await setup({ checks: { legacy: true } });
     await host.send(ACTION, 'You slip by.');
-    const receipt = host.ctx.chat[0].extra.storySuite.receipts.at(-1);
+    const receipt = host.ctx.chat[2].extra.storySuite.receipts.at(-1);
     assert.match(receipt.summary, /^You try stealth \(slipping past the gate guard\): d20 \d+ against 15/);
     assert.equal(receipt.data.rolled, true);
     assert.equal(party(host).made, 1);
@@ -164,4 +164,22 @@ test('the handler on its own: a check kind that is missing fails the command', (
         fail,
     };
     assert.throws(() => precheck(ctx, { key: '1-abc', line: { op: '?', kind: 'check', name: 'stealth', labels: { dc: 'hard' } } }), /capture\.check/);
+});
+
+test('interceptor retries keep one preview, and an abandoned generation stores no roll or claim', { skip }, async t => {
+    const { host, callModel } = await setup();
+    t.after(() => host.close());
+    host.ctx.chat.push({ is_user: true, mes: ACTION });
+    const before = structuredClone(host.head());
+    await host.turn.interceptor([], 8192, () => {}, 'normal');
+    const seed = host.turn.session().prechecks[0].seed;
+    await host.turn.interceptor([], 8192, () => {}, 'normal');
+    assert.equal(host.turn.session().prechecks[0].seed, seed);
+    assert.deepEqual(host.head(), before, 'only the prompt preview exists');
+    host.turn.onGenerationEnded();
+    await host.turn.onChatChanged();
+    assert.deepEqual(host.head(), before, 'abandoned preview has no persisted claim');
+    await host.regenerate('You slip by.');
+    assert.equal(callModel.calls.length, 1);
+    assert.equal(party(host).made, 1);
 });
