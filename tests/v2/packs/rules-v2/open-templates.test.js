@@ -28,3 +28,22 @@ for (const [name, change] of [
     ['repeat without binding', q => { q.repeat = { cooldownMinutes: 0 }; }],
     ['invalid kind', q => { q.objectives[0].kind = 'guess'; }],
 ]) test(`open template refuses ${name}`, () => { const p = openPack(); change(p.content.quests[0]); assert.equal(validateRulesPack(p).ok, false); });
+
+test('the independent Ersveil additions contain three bounded open templates for every F–C rank', async () => {
+    const { readFileSync } = await import('node:fs');
+    const base = new URL('../../../../examples/packs/ersveil-bluewatch/', import.meta.url);
+    const pack = JSON.parse(readFileSync(new URL('pack.json', base)));
+    const additions = JSON.parse(readFileSync(new URL('open-templates.json', base)));
+    assert.equal(additions.length, 12);
+    for (const rank of ['F', 'E', 'D', 'C']) {
+        const rows = additions.filter(q => q.rank === rank);
+        assert.equal(rows.length, 3);
+        assert.deepEqual(rows.map(q => q.objectives[0].kind).sort(), ['collect', 'kill', 'story']);
+        const [min, max] = pack.content.ranks.find(r => r.id === rank).reward;
+        for (const q of rows) for (const unit of ['coin', 'xp']) {
+            assert.ok(q.reward[`${unit}Min`] >= min && q.reward[`${unit}Max`] <= max);
+            const fixture = openPack(); fixture.content.ranks = pack.content.ranks; fixture.content.quests = [q];
+            const result = validateRulesPack(fixture); assert.equal(result.ok, true, JSON.stringify(result.errors));
+        }
+    }
+});
