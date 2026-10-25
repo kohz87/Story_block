@@ -165,7 +165,7 @@ function ticked() {
     return { h, at };
 }
 const planAgain = h => (state, receipt, info) => h.bus.run(info.replan.type, info.replan.payload, {
-    cause: 'system', state, seed: info.replan.seed,
+    cause: 'system', state, seed: info.replan.seed, occurrence: info.occurrence,
     reply: { index: info.index, sid: h.store.carrierSid(info.index), ordinal: info.span.source.ordinal },
 });
 const fresh = (chat, options = SMALL) => {
