@@ -25,7 +25,6 @@ import { CASES, NOT_EXPRESSIBLE, ROWS } from './rows.js';
 
 const gap = detail => ({ gap: detail });
 const na = detail => ({ na: detail });
-const todo = detail => ({ todo: detail });
 const oneLine = text => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 360);
 const label = key => (key === 'sb' ? 'SB' : MODULES[key].label);
 const PEER_QUERIES = { sd: ['director.time', 'director.threads'], nsd: ['npc.present', 'npc.dossier'] };
@@ -416,9 +415,13 @@ async function unsetClock(env, row, rec) {
             assert.equal(goal.rpg, undefined, 'a neutral goal needs no RPG extension');
             replayed(host);
             if (!active.includes('rb')) return { note: 'creation and views work; no timed action in this row' };
-            const rest = await host.sdk.command('party.rest', { kind: 'short' });
-            if (rest.ok) return gap('RB ran a timed action (party.rest) with the clock unset; CLOCK_UNSET lands with RB\'s dependency work');
-            assert.equal(rest.code, 'CLOCK_UNSET', `a timed action with the clock unset was refused with ${rest.code}: ${rest.message}`);
+            for (const kind of ['short', 'long']) {
+                const before = structuredClone(host.head());
+                const rest = await host.sdk.command('party.rest', { kind });
+                assert.equal(rest.ok, false, `RB ran a ${kind} rest with the clock unset`);
+                assert.equal(rest.code, 'CLOCK_UNSET', `a timed action with the clock unset was refused with ${rest.code}: ${rest.message}`);
+                assert.deepEqual(host.head(), before, 'a refused rest must change no state');
+            }
             return undefined;
         });
     });
@@ -427,7 +430,53 @@ async function unsetClock(env, row, rec) {
 async function disabledSd(env, row, rec) {
     await rec.step('disabled-sd', async () => {
         if (!row.modules.includes('sd')) return na('there is no SD in this row to disable');
-        return todo(NOT_EXPRESSIBLE['disabled-SD']);
+        const held = row.modules.filter(key => key === 'sd' || key === 'rb');
+        const active = row.modules.filter(key => !held.includes(key));
+        await withHost(env, row.modules, {}, async host => {
+            const domains = host.sdk.modules().filter(entry => held.some(key => MODULES[key].id === entry.id)).flatMap(entry => entry.domains);
+            const saved = () => structuredClone(Object.fromEntries(domains.map(domain => [domain, host.head().domains[domain]])));
+            const disable = async () => {
+                assert.equal(host.registry.setEnabled(MODULES.sd.id, false, 'Matrix: SD disabled.'), true);
+                for (const key of held) {
+                    await dormancy(host, key, 'with SD disabled');
+                    assert.ok(host.registry.contexts().every(entry => entry.moduleId !== MODULES[key].id), `${label(key)} still supplies prompts`);
+                    const def = env.loaded[key].make(host.ref);
+                    for (const hook of Object.keys(def.hooks ?? {})) {
+                        assert.ok(host.registry.hookEntries(hook).every(entry => entry.moduleId !== def.id), `${label(key)} still supplies ${hook}`);
+                    }
+                    for (const kind of Object.keys(def.capture?.kinds ?? {})) assert.equal(host.registry.capture(kind), null, `${label(key)} still captures ${kind}`);
+                }
+                const refused = await host.sdk.command('threads.offer', {
+                    write: 'wr_disabled', thread: 'th_disabled', kind: 'hook', key: 'Disabled goal',
+                    summary: '', fields: {}, expectedHash: null,
+                });
+                assert.equal(refused.code, 'DEPENDENCY_UNAVAILABLE');
+            };
+            // Disable before character creation: a dormant RB must not veto the other modules' replies.
+            await disable();
+            const initial = factsOf(host, active);
+            const before = saved();
+            await play(host, active, 'A');
+            changed(initial, factsOf(host, active), active, 'a reply with SD disabled');
+            assert.deepEqual(saved(), before, 'disabled modules changed their saved slices');
+            noProblems(host);
+            replayed(host, ' (SD disabled before setup)');
+            host.registry.setEnabled(MODULES.sd.id, true);
+            checkRegistered(host, row);
+            await runSetups(host, activeOf(row));
+            await play(host, activeOf(row), 'B');
+            noProblems(host);
+            // Disable a second time with real saved state, then reactivate without resetting it.
+            const established = saved();
+            await disable();
+            await play(host, active, 'C');
+            assert.deepEqual(saved(), established, 'disabling SD must preserve initialized slices');
+            noProblems(host);
+            replayed(host, ' (SD disabled with saved state)');
+            host.registry.setEnabled(MODULES.sd.id, true);
+            checkRegistered(host, row);
+            assert.deepEqual(saved(), established, 'reactivation reset saved state');
+        });
     });
 }
 

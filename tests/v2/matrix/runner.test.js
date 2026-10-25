@@ -26,7 +26,7 @@ test('the rows are the combination table of the contract, §2', () => {
     }
 });
 
-test('Story Block alone: every case passes, the ones that need a module are n/a, SD disabled is todo', async () => {
+test('Story Block alone: every applicable case passes, including n/a for SD disabled', async () => {
     const out = await runMatrix({ rows: ['SB'] });
     assert.equal(out.ok, true, formatDetails(out.results));
     const marks = Object.fromEntries(out.results.map(result => [result.id, result.status]));
@@ -127,10 +127,10 @@ test('sync-testkit takes testkit/matrix along, writes its version, and the vendo
         for (const file of ['testkit/matrix/index.js', 'testkit/matrix/run.js', 'testkit/matrix/modules.js', 'testkit/matrix/rows.js', 'testkit/matrix/report.js', 'testkit/matrix/version.js']) {
             assert.ok(files.includes(file), file);
         }
-        assert.equal(matrix, 1);
-        assert.match(readFileSync(join(target, 'VERSION'), 'utf8'), /\nmatrix 1\n$/);
+        assert.equal(matrix, 2);
+        assert.match(readFileSync(join(target, 'VERSION'), 'utf8'), /\nmatrix 2\n$/);
         const vendored = await import(pathToFileURL(join(target, 'testkit', 'matrix', 'index.js')).href);
-        assert.match(vendored.describeTestkit(), /\(vendored\), matrix 1$/);
+        assert.match(vendored.describeTestkit(), /\(vendored\), matrix 2$/);
         const out = await vendored.runMatrix({ rows: ['SB'], cases: ['register', 'reply', 'replay', 'swipe'] });
         assert.equal(out.ok, true, vendored.formatDetails(out.results));
         assert.deepEqual(out.results.map(result => result.id), ['register', 'reply', 'replay', 'swipe']);

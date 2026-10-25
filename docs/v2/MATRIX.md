@@ -49,10 +49,8 @@ registered (its names reserved) but its script does not run.
 `docs/v2/LIFECYCLE.md`) a module that names Story Director as a peer is dormant without it, so the `RB dormant`
 column checks `status === 'dormant'` with a `reason`, that RB's setup command is refused, and that SB and NSD
 work beside it; positive rows expect `status === 'ready'`. The `gap` result remains only for a host whose
-`sdk.modules()` entries have no `status` (before the lifecycle). **The real RPG Battle does not declare
-`requires.peers` yet, so on the real checkouts its negative rows (`SB+RB`, `SB+RB+NSD`) fail strictly
-("RB should be dormant without SD") until RB declares its peer. That is expected: it lands with track B, in RB's
-definition (`module.js` is lead-owned), and the rows then pass without a change here.**
+`sdk.modules()` entries have no `status` (before the lifecycle). RPG Battle declares Story Director in
+`requires.peers`; its negative rows (`SB+RB`, `SB+RB+NSD`) must pass strictly.
 
 ## Cases (columns)
 
@@ -62,15 +60,15 @@ Each case boots its own host(s); none of them uses a stub for the module under t
 |---|---|
 | registers once | every module of the row is listed once in `sdk.modules()`; nothing held back at boot |
 | scripted reply | one reply with every module's change lines: each module's facts changed, no store problems, no console errors |
-| action | each module's reader action succeeds and changes what it keeps (SB `inventory.drop`, SD `quest.abandon`, NSD `npc.set`, RB `party.rest`) |
+| action | each module's reader action succeeds and changes what it keeps (SB `inventory.drop`, SD neutral `threads.offer` then `threads.accept`, NSD `npc.set`, RB `party.rest`) |
 | replay | a cold rebuild (a second store over the same chat, set up like a reload) equals the live state |
 | static prompt | the static part of the prompt is byte-identical from reply to reply |
 | RB dormant | negative rows only: see above |
 | missing query | every query of an absent peer is unknown (`no module answers the query`); a reply after them still works |
 | malformed answer | a stand-in for each absent peer (SD, NSD) answers its real query names three ways (throws, null, wrong shape); the modules present carry on, replay holds; with an SD stand-in an RB row also checks dormancy. The stand-ins stand for a peer only; the note says how often the modules asked |
 | feature off | all Features of each module off in turn: a reply still works for the others, replay holds, back on works |
-| unset clock | SD rows: replies without `~ time` leave the clock unset and quests still work; with RB, a timed action (`party.rest`) should be refused `CLOCK_UNSET` (`gap` until RB does) |
-| SD disabled | `todo`: the host can switch a module off (`registry.setEnabled`, host-internal, no setting yet) but the matrix does not drive it, so "SD present but off" is not run |
+| unset clock | SD rows: replies without `~ time` leave the clock unset; neutral goals can be offered and accepted with evidence and no RPG extension. Both RB rests refuse `CLOCK_UNSET` without changing state. |
+| SD disabled | drive host-internal `registry.setEnabled` before character creation and again with saved state: SD and RB are dormant with no hooks, capture or prompts; commands refuse, SB/NSD continue, replay holds, and reactivation preserves state |
 | late registration | the last module registered after a reply: listed once, earlier state unchanged, ends where a boot with all of them does |
 | duplicate name | the same id twice, and a second owner of a name each module owns (`already registered`, `already belongs to "…"`), nothing changed |
 | swipe | a swipe, then back: the state is that of a fresh host that played only the replies left |
@@ -80,7 +78,7 @@ Each case boots its own host(s); none of them uses a stub for the module under t
 **The oracle.** Nothing is compared with a hand-written number. After a swipe, a re-read or a delete, a
 module's *facts* must equal those of a fresh host that played only the replies that remain. Facts
 (`testkit/matrix/modules.js`) are what a module keeps that does not depend on the replies before it: SB place
-and items, SD time and quests, NSD one NPC per reply, RB conditions. HP and meter values are left out on
+and items, SD time and neutral goals, NSD one NPC per reply, RB conditions. HP and meter values are left out on
 purpose: they move with story time and with earlier replies (a meter is stored as the value it reached, so a
 delete in the middle keeps later values), which the rules a-d of SPEC §2.2 do not promise to undo.
 
@@ -93,7 +91,7 @@ the runner's version into `tests/vendor/story-block/VERSION`:
 Story Block 2.0.0-beta.2
 commit <sha>
 files <n>
-matrix 1
+matrix 2
 ```
 
 `matrix none` means the Story Block it was copied from has no runner. `MATRIX_VERSION`
@@ -135,8 +133,7 @@ The sibling folders must be named as in `FOLDERS` (`Story_block` or `sb`, `rpg_b
   `CASES`.
 * A module's script, facts and action: `modules.js`. Keep a module's three replies (A, B, C) independent of
   each other, as above.
-* The lifecycle has landed (see above): replace `SD disabled`'s `todo` with a real case (drive
-  `registry.setEnabled`); add `requires.peers` / `sdk.preflight` cases and raise `MATRIX_VERSION`.
+* Lifecycle cases drive host-internal `registry.setEnabled`; no product setting or screen is needed.
 * The runner's own tests: `tests/v2/matrix/runner.test.js` (a toy checkout stands in only to test the runner;
   the real modules run through `npm run matrix`, like the suite helpers they need the checkouts side by side
   and CI of this repo alone does not run them).
