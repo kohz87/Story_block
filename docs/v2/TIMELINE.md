@@ -1,5 +1,8 @@
 # The timeline: save points, restore and participants
 
+E6b implements active history, participant head selection and logical clock markers; see [HISTORY.md](HISTORY.md)
+for the current behavior and compatibility evidence. The E6a implementation notes below describe the original split.
+
 How the host keeps save points, installs one absolutely when a character dies and comes back, and lets a module with native state
 beside the story (NPC dossiers and their history) take part. The frozen contract is
 [contract/RB_CONTRACT.md](contract/RB_CONTRACT.md) §8 (death and return), §2 (lifecycle), §3 (receipt envelope), §6 (replay

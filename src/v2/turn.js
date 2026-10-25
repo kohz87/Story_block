@@ -1156,6 +1156,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = hidden;
                 edited = true;
             }
+            if (timeline?.needsRecovery()) {
+                const anchored = await timeline.recover();
+                if (!anchored.ok) problem({ index: id, code: anchored.code, message: anchored.message });
+            }
             deferred = false;
             // One write for the reply, its capture and the reader's actions after it (store.saveIdle).
             if (idle && store.dirty()) store.saveIdle();

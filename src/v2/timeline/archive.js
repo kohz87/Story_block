@@ -89,6 +89,9 @@ export function createArchive({ metadata, touch = () => {}, bound = () => null }
         },
         hasPayload: hash => api.payload(hash) !== null,
 
+        marker: id => find()?.markers?.[id] ?? null,
+        putMarker(id, value) { write(root => { if (!isObject(root.markers)) root.markers = {}; root.markers[id] = structuredClone(value); }); },
+
         // ---- descriptors ----
         putSnapshot(id, value) {
             write(root => { root.snapshots[id] = structuredClone(value); });

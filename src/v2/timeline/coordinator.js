@@ -324,7 +324,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
 
     // One save point: reserve it, ask the participants for their checkpoints, put the bytes in the archive, then, only
     // if the story has not moved, store the descriptor and its receipt together. → { ok: true, snapshot, receipt } | failure.
-    async function makeNow(input, { host, cause }) {
+    async function makeNow(input, { host, cause, marker = null }) {
         const bad = makeInput(input, host);
         if (!bad.ok) return bad;
         if (pendingNow()) return fail('RESTORE_PENDING', 'A restore is in progress; a save point cannot be made until every part agrees.');
@@ -355,15 +355,32 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const blockId = makeId('bl');
         const name = input.name ?? (input.kind === 'initial' ? 'Start' : input.kind === 'day-start' ? `Day ${input.day}` : 'Save point');
         const journal = makeId('jr');
-        const taken = capture({ registry, state: first.state, settings });
+        const taken = marker ? structuredClone(marker.entry) : capture({ registry, state: first.state, settings });
+        if (marker) {
+            // Earlier markers in this same root precede this logical capture, although their async
+            // descriptors were necessarily published later. Carry only those proved predecessors.
+            for (const point of Object.values(pointsOf(first.state))) {
+                if (!marker.prior.includes(point.target.block)) continue;
+                if (!taken.payload.domains[HOST_DOMAIN]) {
+                    taken.payload.domains[HOST_DOMAIN] = initialSavepoints(first.epoch);
+                    taken.payload.domainVersions[HOST_DOMAIN] = 1;
+                }
+                const domain = taken.payload.domains[HOST_DOMAIN];
+                domain.points[point.id] = structuredClone(point);
+                domain.dayStarts[String(point.day)] = point.id;
+                domain.previousDay = previousDayOf(domain.dayStarts);
+            }
+        }
         archive.add({ id: journal, kind: 'make', phase: 'reserved', session: session(), snapshot: id, savekind: input.kind, expectedHead: first.headHash, block: blockId });
         await point('make.reserved');
 
         // 2. the participants' checkpoints, as of this head.
-        const cursor = { ...structuredClone(first.cursor), block: blockId };
+        const cursor = marker ? structuredClone(marker.cursor) : { ...structuredClone(first.cursor), block: blockId };
         const checkpoints = [];
+        const historical = marker ? selectionPlan(marker.root.cursor) : {};
         for (const module of participants.modules()) {
-            const answer = await callParticipant(module, 'checkpoint', { cursor, headHash: first.headHash });
+            const selected = historical[module];
+            const answer = selected ? { ok: true, ...selected } : await callParticipant(module, 'checkpoint', { cursor, headHash: marker ? marker.prefixHash : first.headHash });
             if (!answer.ok) {
                 archive.patch(journal, { phase: 'aborted', why: answer.message });
                 return fail(answer.code === 'FAILED' ? 'SNAPSHOT_UNAVAILABLE' : answer.code, `The participant ${module} could not save its state: ${answer.message}`);
@@ -385,10 +402,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const day = input.kind === 'day-start' ? input.day : Number.isInteger(minute) ? Math.floor(minute / MINUTES_PER_DAY) : null;
         const journalDay = day === null ? null : ask('journal.day', { day }, first.state);
         const descriptor = {
-            capturedAtRev: first.cursor.rev, label: name, id, kind: input.kind, name, epoch: first.epoch,
+            capturedAtRev: marker ? marker.cursor.rev : first.cursor.rev, label: name, id, kind: input.kind, name, epoch: first.epoch,
             target: cursor, eligibleFrom: structuredClone(cursor), minute: Number.isInteger(minute) ? minute : null, day,
-            scene: sceneOf(first.state), journal: isObject(journalDay) ? journalDay : null,
-            payloadHash, participants: checkpoints, lineage: first.prefixHash, available: true,
+            scene: sceneOf(marker ? { domains: taken.payload.domains } : first.state), journal: isObject(journalDay) ? journalDay : null,
+            payloadHash, participants: checkpoints, lineage: marker ? marker.prefixHash : first.prefixHash, available: true,
         };
         archive.putPayload(payloadHash, { payload: taken.payload, proofs: taken.proofs });
         archive.putSnapshot(id, { descriptor, payloadHash });
@@ -415,7 +432,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         // A participant's native change that landed after its checkpoint was handed over is not in the head hash (it is published when its
         // change finishes): each participant that has a probe is asked, in this synchronous section, whether its state is still the one it
         // gave. Retryable: nothing is written or announced.
-        for (const item of checkpoints) {
+        if (marker && hashJson(historical) !== hashJson(selectionPlan(marker.root.cursor))) return fail('STALE', 'The native prefix of the clock marker changed before publication.');
+        for (const item of checkpoints.filter(item => !historical[item.module])) {
             const probed = participants.probe(item.module, { checkpoint: item.checkpoint, hash: item.hash, schema: item.schema });
             if (!probed.current) {
                 archive.patch(journal, { phase: 'discarded', why: `${item.module}: ${probed.why}` });
@@ -441,13 +459,14 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             store, head: now, ops, announce, here: stillHere,
             spec: {
                 type: 'savepoint.make', cause, summary: `Save point "${name}" made.`, key: `make:${id}`, blockId,
-                predicate: { kind: 'make', snapshot: id, payloadHash }, payload: { kind: input.kind, ...(input.name !== undefined ? { name: input.name } : {}), ...(input.kind === 'day-start' ? { day: input.day } : {}) },
+                predicate: { kind: 'make', snapshot: id, payloadHash, ...(marker ? { marker: { proof: marker.proof, pin: marker.pin } } : {}) }, payload: { kind: input.kind, ...(input.name !== undefined ? { name: input.name } : {}), ...(input.kind === 'day-start' ? { day: input.day } : {}) },
                 recorded: { payloadHash, participants: checkpoints }, result: { snapshot: id },
             },
         });
         if (!stored.ok) { archive.patch(journal, { phase: 'discarded', why: stored.message }); return stored; }
         owe(stored);
         archive.remember(checkpoints);
+        if (marker) archive.putMarker(marker.cursor.block, { prefixHash: marker.prefixHash, snapshot: id });
         archive.patch(journal, { phase: 'committed' });
         await point('make.committed');
         // Made only once the chat file has it: a failed save is the caller's failure (the save point stands in memory and the store tries again).
@@ -850,7 +869,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
 
     // Host startup: what was committed is finished, what was only prepared is aborted. No clock, no target is chosen again.
     async function recover() {
-        if (!archive.exists()) return { ok: true, state: 'idle', return: null };
+        if (!archive.exists() && !(store.head()?.meta?.proofs && store.timelineMarkers().length)) return { ok: true, state: 'idle', return: null };
         // Two unfinished changes at once cannot happen through the API (a second is refused while one is pending): a journal that holds them
         // was damaged or edited. Finishing one would let go of the barrier with the other still undone, so none is touched, the chat stays
         // barred and nothing is announced ready: it fails safe until the file is put right.
@@ -913,23 +932,43 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
         // (a barrier raised as this chat opened, for work that turned out to be nothing to finish, does not stay up)
         if (barrierOwner === archive.holder() && pendingEntry() === null) lower();
+        if (pendingEntry() === null) {
+            const markers = await materializeMarkers();
+            if (!markers.ok) return markers;
+        }
         await durable();
         const left = pendingEntry();
         return { ok: true, state: left ? 'pending' : 'idle', return: left?.kind === 'restore' ? left.return : ret };
     }
 
+    function unmaterializedMarkers() {
+        if (!store.head()?.meta?.proofs) return [];
+        return withWholePrefixes(() => store.timelineMarkers().filter(marker => archive.marker(marker.cursor.block)?.prefixHash !== marker.prefixHash));
+    }
+    async function materializeMarkers() {
+        for (const marker of unmaterializedMarkers()) {
+            if (archive.marker(marker.cursor.block)) return fail('CONFLICT', 'The clock marker changed its captured prefix; its old identity is retired, not rebound.');
+            if (pendingNow()) return fail('RESTORE_PENDING', 'The clock anchors are waiting for native recovery.');
+            const made = await makeNow({ kind: 'day-start', day: marker.minute / MINUTES_PER_DAY }, { host: true, cause: 'system', marker });
+            if (!made.ok) return made;
+        }
+        return { ok: true };
+    }
+
     // One selection rule for every head change. Prefix identity AND replayed state must match;
     // no revision, positional fallback or nearest-swipe rebinding is allowed.
-    function selectionPlan() {
+    function selectionPlan(limit = null) {
         if (!archive.exists()) return {};
         return withWholePrefixes(() => {
             const result = { ...archive.baseline() };
+            const through = limit ? store.prefixWitness(limit) : null;
+            if (limit && !through) throw new Error('The marker root no longer has a unique prefix.');
             for (const module of participants.modules()) {
                 const candidates = [];
                 for (const mapping of archive.prefixes(module)) {
                     if (!mapping.boundary || !mapping.after) continue;
                     const witness = store.prefixWitness(mapping.boundary.cursor);
-                    if (witness && witness.prefixHash === mapping.boundary.prefixHash && stateHash(witness.state) === mapping.boundary.stateHash) {
+                    if (witness && (!through || witness.index < through.index || (witness.index === through.index && witness.op <= through.op)) && witness.prefixHash === mapping.boundary.prefixHash && stateHash(witness.state) === mapping.boundary.stateHash) {
                         candidates.push({ mapping, index: witness.index, op: witness.op });
                     }
                 }
@@ -1200,7 +1239,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (!isObject(predicate)) return { ok: false, reason: 'its guard names no predicate' };
         if (asked.inputHash !== hashJson({ predicate, stateHash: stateHash(state) })) return { ok: false, reason: 'the story before it is not the story it was made on' };
         switch (predicate.kind) {
-            case 'make': return { ok: true };
+            case 'make': return !predicate.marker || state?.meta?.proofs?.[predicate.marker.proof] === predicate.marker.pin ? { ok: true } : { ok: false, reason: 'the clock marker no longer belongs to the active prefix' };
             // (a restore carries what it installs in its own changes: replaying it needs no archive)
             case 'restore': return { ok: true };
             case 'forget':
@@ -1283,7 +1322,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         settle,
         available: hash => archive.hasPayload(hash),
         /** Whether the journal holds work no operation owns (a crashed make, a restore left half way): the host recovers it. */
-        needsRecovery: () => runningIn(archive.holder()) === 0 && archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded()),
+        needsRecovery: () => runningIn(archive.holder()) === 0 && ((archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded())) || unmaterializedMarkers().length > 0),
         archive,
         pending: pendingNow,
         /** Points of `state` with their bytes checked, in target order (the savepoint.list query). */

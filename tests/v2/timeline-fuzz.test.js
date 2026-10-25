@@ -13,6 +13,8 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { HOST_DOMAIN } from '../../src/v2/timeline/index.js';
 import { prng, seedCrypto } from './qa/helpers/seeded.js';
+import { clockModule } from './helpers/clock.js';
+import { hashJson } from '../../src/v2/replay.js';
 import { director, T1, T2 } from './helpers/evidence.js';
 import { NATIVE, batchFor, clone, nativeModule, reload, rulesModule, seal } from './helpers/timeline.js';
 
@@ -37,7 +39,15 @@ async function run(t, seed, steps) {
     t.mock.method(console, 'warn', () => {});
     const r = prng(seed);
     const native = nativeModule();
-    const modules = () => [rulesModule(), native.def, director()];
+    const modules = () => {
+        const rules = rulesModule();
+        delete rules.domains.director;
+        const sd = director();
+        const clock = clockModule({ start: 1410 });
+        return [rules, native.def, { ...sd, domains: { ...sd.domains, ...clock.domains },
+            commands: { ...sd.commands, ...clock.commands }, queries: { ...sd.queries, ...clock.queries }, replayQueries: clock.replayQueries,
+            hooks: { ...sd.hooks, replayGuard: (view, info) => Object.hasOwn(info.guard.predicate, 'before') ? clock.hooks.replayGuard(view, info) : sd.hooks.replayGuard(view, info) } }];
+    };
     let host = await createHost({ modules: modules() });
     t.after(() => host.close());
     const log = [];
@@ -53,17 +63,18 @@ async function run(t, seed, steps) {
     async function click() {
         const pick = r.int(0, 7);
         const calls = [
-            ['tl.xp', { amount: r.int(1, 30) }], ['tl.hurt', { amount: r.int(1, 3) }], ['tl.heal', { amount: r.int(1, 3) }], ['tl.time', { minutes: r.int(0, 3000) }],
+            ['tl.xp', { amount: r.int(1, 30) }], ['tl.hurt', { amount: r.int(1, 3) }], ['tl.heal', { amount: r.int(1, 3) }], ['director.advance', { minutes: r.int(30, 3000) }],
             ['tl.equip', { slot: r.pick(SLOTS), item: r.pick(ITEMS) }], ['tl.meter', { npc: r.pick(['tavi', 'orrin']), value: r.int(1, 4) }],
             ['tl.claim', { key: `claim-${r.int(1, 6)}` }], ['sd.accept', { thread: r.pick([T1, T2]), selection: `pick ${r.int(1, 4)}` }],
         ];
         const [type, payload] = calls[pick];
         log.push(`click ${type} ${JSON.stringify(payload)}`);
-        await host.sdk.command(type, payload);
+        if (type === 'director.advance') host.bus.command(type, payload, { cause: 'system' });
+        else await host.sdk.command(type, payload);
     }
 
     async function save() {
-        const kind = r.pick(['manual', 'manual', 'manual', 'initial', 'day-start']);
+        const kind = r.pick(['manual', 'manual', 'manual', 'initial']);
         log.push(`make ${kind}`);
         if (kind === 'manual') await host.sdk.timeline.make({ kind, name: `Save ${log.length}` });
         else if (kind === 'initial') await host.timeline.host.make({ kind });
@@ -165,13 +176,18 @@ async function run(t, seed, steps) {
             }
         } else if (pick < 95) await reloadHost();
         else { log.push('rebuild'); host.store.rebuild(); }
+        const settled = await host.timeline.host.recover();
+        assert.equal(settled.ok, true, fail(`step ${step}: recovery ${settled.message}`));
+        const selected = (await host.sdk.timeline.status()).participants.find(p => p.module === NATIVE);
+        if (selected) assert.equal(selected.hash, hashJson(native.native.store), fail(`step ${step}: native checkpoint does not match the selected head`));
         check(`step ${step}`);
         if (kept) checkRestore(`step ${step}`);
         // A fresh host over a copy of the chat file agrees with this one (every few steps: it is the dear check).
         if (step % 7 === 0) {
             await host.store.flush();
+            const liveHandle = native.native.handle;
             const fresh = await reload(createHost, { chat: clone(host.ctx.chat), metadata: clone(host.ctx.chatMetadata) }, modules());
-            try { assert.deepEqual(clone(fresh.head()), clone(stateOf(host)), fail(`step ${step}: a new host over the chat file differs`)); } finally { fresh.close(); }
+            try { assert.deepEqual(clone(fresh.head()), clone(stateOf(host)), fail(`step ${step}: a new host over the chat file differs`)); } finally { fresh.close(); native.native.handle = liveHandle; }
         }
     }
     if (process.env.QA_FUZZ_VERBOSE) process.stderr.write(`seed ${seed}: ${['restore', 'make', 'delete', 'swipe', 'edit', 'native', 'reload'].map(word => `${word} ${log.filter(line => line.startsWith(word)).length}`).join(', ')}\n`);

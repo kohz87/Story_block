@@ -42,6 +42,7 @@ import {
     newRecordId, payloadText, readRecord, recordFault, restamp, restoreCopy, swipeOf, trimReceipts, writeRecord,
 } from './persist.js';
 import { blockIdOf, claimKeys, deriveId, hashJson, isMetaSpan, isRecordId, replayInputsOf, spanProblem } from './replay.js';
+import { clockWriteProblem, markerProblem, markerPrefixProblem } from './timeline/boundary.js';
 import { allocator, evidenceDigest, evidenceProblem, merged, occurrenceOf, opShapeProblem, operationKey, pinOps, reachesBranch, recordEntries, spanOperationKey, takenAfter, touchesProof } from './evidence.js';
 import { HOST_DOMAIN, gateProblem } from './timeline/gate.js';
 
@@ -592,6 +593,8 @@ export function createStore({
     // A block with no metadata (a legacy block) never pins proof: only a guarded or proof block that holds the proof it
     // pins does (replayGuarded), so a hand-edited record cannot publish a proof by writing its pin on another block.
     function replayLegacy(state, ops) {
+        const clock = clockWriteProblem(null, ops);
+        if (clock) throw prerequisite(clock);
         if (ops.some(op => op && typeof op === 'object' && touchesProof(op))) throw prerequisite('it changes the record of proof pins (or the state around it), and a block with no proof of its own cannot');
         if (ops.some(touchesHostDomain)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
         return step(state, ops, { replayed: true });
@@ -602,6 +605,8 @@ export function createStore({
     // is built again by replay cannot disagree about it. Nothing is asked of a store with no guard check attached.
     const arr0 = index => list()[index];
     function guardHolds(state, span, message) {
+        const clockPrefix = markerPrefixProblem(span, state);
+        if (clockPrefix) throw prerequisite(clockPrefix);
         if (typeof guardCheck !== 'function' || !isMetaSpan(span) || !span.guard) return;
         // (the epoch and rules gate first, as a replay does: docs/v2/TIMELINE.md)
         const gate = gateProblem(state, span.guard);
@@ -632,6 +637,8 @@ export function createStore({
             throw prerequisite('the claims it saved are not the claims its changes make');
         }
         if (ops.some(touchesHostDomain) && !hostBlock(span.module, span.operation?.type)) throw prerequisite('it writes the host\'s savepoints, and only the host\'s own blocks do');
+        const clock = clockWriteProblem(span, ops);
+        if (clock) throw prerequisite(clock);
         const proof = evidenceProblem(span, ops);
         if (proof) throw prerequisite(`the proof it saved is not the proof its changes pin: ${proof}`);
     }
@@ -641,6 +648,8 @@ export function createStore({
 
     function replayGuarded(state, record, ops, span, message = null, receipt = null) {
         blockIntact(record, ops, span, receipt);
+        const clockPrefix = markerPrefixProblem(span, state);
+        if (clockPrefix) throw prerequisite(clockPrefix);
         // A proof id belongs to the block that applied with it first: a later block that gives the same id collides and does not apply.
         const owned = state?.meta?.proofs;
         const collides = isObject(owned) ? span.evidence.find(each => Object.hasOwn(owned, each.id)) : undefined;
@@ -704,6 +713,7 @@ export function createStore({
         const revOp = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value));
         const message = arr[index];
         const span = {
+            ...(block.clockBoundaries ? { clockBoundaries: structuredClone(block.clockBoundaries) } : {}),
             id, module: block.module, source: { sid: entry.logical, swipeKey: entry.swipeKey, evidence: entry.evidence, ordinal },
             guard: block.guard ?? null, claims: claimKeys(ops), evidence: structuredClone(block.evidence ?? []),
             ...(occurrence !== null ? { occurrence } : {}),
@@ -716,7 +726,7 @@ export function createStore({
             replan: receipt?.replan && Number.isInteger(receipt.seed) && typeof receipt.type === 'string'
                 ? { type: receipt.type, payload: structuredClone(receipt.replan.payload ?? {}), seed: receipt.seed } : null,
         };
-        const bad = spanProblem(span) || evidenceProblem(span, ops);
+        const bad = spanProblem(span) || evidenceProblem(span, ops) || clockWriteProblem(span, ops);
         if (bad) throw new Error(`The guarded block cannot be stored: ${bad}.`);
         // A command that read its cursor (ctx.cursor) was told which block it is: it is stored as that one, or it is not stored. (Where the block
         // starts, `op` and `rev`, is where it sits when it is told; a Re-read moves it.)
@@ -1880,6 +1890,28 @@ export function createStore({
             };
         },
 
+        // Only committed marker pins are projected. A skipped/failed/replaced root publishes none.
+        timelineMarkers() {
+            const state = current().state;
+            const pins = state?.meta?.proofs ?? {};
+            const out = [];
+            const seen = new Set();
+            for (const index of carrierIndexes(list())) {
+                const record = readRecord(list()[index]);
+                if (!record) continue;
+                for (const span of record.spans ?? []) {
+                    const prior = [];
+                    for (const marker of span.clockBoundaries ?? []) {
+                        if (markerProblem(marker) || pins[marker.proof] !== marker.pin || seen.has(marker.cursor.block)) continue;
+                        seen.add(marker.cursor.block);
+                        out.push({ ...structuredClone(marker), root: structuredClone(span.boundaries[0]), prior: [...prior] });
+                        prior.push(marker.cursor.block);
+                    }
+                }
+            }
+            return out;
+        },
+
         // Internal timeline witness. A native checkpoint belongs to this exact surviving prefix,
         // including the state its guards accepted. Never match by revision or by message index.
         prefixWitness(cursor) {
@@ -1959,6 +1991,8 @@ export function createStore({
             if (receipt !== null && !isObject(receipt)) throw new TypeError('A receipt must be an object.');
             if (block !== null && !isObject(block)) throw new TypeError('A block must be an object.');
             if (!added.length && !receipt) return;
+            const clock = clockWriteProblem(block, added);
+            if (clock) throw new Error(clock);
             if (added.some(touchesHostDomain) && !hostBlock(block?.module, block?.operation?.type)) throw new Error('The savepoints are the host\'s own; only its blocks write them.');
             if (block?.guard) {
                 // A guard that replay would turn away (another epoch, other rules) is not stored: live and replay agree.
