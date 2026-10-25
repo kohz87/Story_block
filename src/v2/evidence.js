@@ -543,8 +543,8 @@ export function allocator(record, also = () => 0) {
     return { peek, note, take(key) { const value = peek(key); note(key, value); return value; } };
 }
 
-// The proof spans of a record that a Re-read gives again (its story lines and the steps afterCapture asked for), with the number each has.
-function regeneratedOccurrences(record) {
+// The supported guarded spans a Re-read gives again, in record order. Old proofless spans have an id but no occurrence.
+function regeneratedSpans(record) {
     const spans = Array.isArray(record?.spans) ? record.spans : [];
     const receipts = Array.isArray(record?.receipts) ? record.receipts : [];
     const out = new Map();
@@ -553,14 +553,13 @@ function regeneratedOccurrences(record) {
         const ops = Array.isArray(record?.ops) && Number.isInteger(span?.n) ? record.ops.slice(at, at + span.n) : [];
         at += Number.isInteger(span?.n) ? span.n : 0;
         if (!isObject(span) || typeof span.id !== 'string') continue;
-        const key = occurrenceOf(span) !== null ? spanOperationKey(span) : null;
+        const key = occurrenceOf(span) !== null || !span.evidence?.length ? spanOperationKey(span) : null;
         if (!key) continue;
         const rev = [...ops].reverse().find(op => op?.path === '/meta/rev' && Number.isInteger(op.value))?.value;
         const step = !!span.replan && receipts.some(receipt => receipt?.rev === rev && receipt?.afterCapture === true);
         if (span.story !== true && !step) continue;
-        (out.get(key) ?? out.set(key, []).get(key)).push(occurrenceOf(span));
+        (out.get(key) ?? out.set(key, []).get(key)).push(span);
     }
-    for (const list of out.values()) list.sort((x, y) => x - y);
     return out;
 }
 
@@ -571,27 +570,28 @@ function regeneratedOccurrences(record) {
  * operation's old numbers is given again (`retire`, found with `ambiguous` after a first plan): every block of it takes a number
  * nobody has used, every old proof id of it is retired and what was built on them is hidden. A block with none to take back also takes
  * the next unused one. `peek(key)` → the number the next block of that operation would take; `commit(key, value)` once it was planned;
+ * `span(key)` → the stored identity to reuse (including old proofless spans without an occurrence);
  * `ambiguous(planned)` → the operations (keys) whose block count differs from the one it replaces.
  */
 export function reusePlan(record, retire = new Set()) {
-    const pool = regeneratedOccurrences(record);
+    const pool = regeneratedSpans(record);
     const used = new Map();
     const fresh = allocator(record);
+    const span = key => (retire.has(key) ? null : pool.get(key)?.[used.get(key) ?? 0] ?? null);
     return {
+        span,
         peek(key) {
-            const list = retire.has(key) ? [] : pool.get(key) ?? [];
-            const at = used.get(key) ?? 0;
-            return at < list.length ? list[at] : fresh.peek(key);
+            return occurrenceOf(span(key)) ?? fresh.peek(key);
         },
         commit(key, value) {
             used.set(key, (used.get(key) ?? 0) + 1);
-            fresh.note(key, value);
+            if (whole(value) !== null) fresh.note(key, value);
         },
         ambiguous(planned) {
             const counts = new Map();
             for (const piece of planned) {
                 const block = piece?.block;
-                if (occurrenceOf(block) === null || !isObject(block.operation)) continue;
+                if (!isObject(block?.operation)) continue;
                 let key = null;
                 try { key = operationKey(block.operation.type, block.operation.payload); } catch { key = null; }
                 if (key) counts.set(key, (counts.get(key) ?? 0) + 1);

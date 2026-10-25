@@ -4,6 +4,7 @@
 // epoch is the savepoints domain's when there is one, else the genesis epoch.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createHost } from '../../testkit/index.js';
 import { GENESIS_EPOCH, blockIdOf, epochOf, hashJson, isMetaSpan } from '../../src/v2/replay.js';
 import { readRecord } from '../../src/v2/persist.js';
@@ -12,7 +13,7 @@ const reply = (text, lines = []) => (lines.length ? `${text}\n\n<Changes>\n${lin
 const OWNER = 'cs-seams';
 
 // A module that reads both facts in a guarded click (cs.mark) and in a guarded story line (! mark Word), and keeps what it read.
-function seams() {
+function seams({ giveProof = false } = {}) {
     const mark = (ctx, id) => {
         const cursor = ctx.cursor();
         const epoch = ctx.epoch;
@@ -46,6 +47,7 @@ function seams() {
                 // A line kept under the block's own id, so two identical lines are two entries.
                 const cursor = ctx.cursor();
                 ctx.draft('cs').lines[cursor.block] = cursor;
+                if (giveProof) ctx.call('cs.visit', {});
                 ctx.replayGuard({ owner: OWNER, version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash({ note: line.name }), predicate: { kind: 'note' } });
                 return { summary: `Noted ${line.name}.`, narrate: false };
             },
@@ -58,6 +60,19 @@ function seams() {
     };
 }
 const steps = { n: 0 };
+
+// Captured by origin/main at 20e1c706: an actual seeded guarded span, before occurrences existed. Its note records the
+// cursor main stamped (the module predates ctx.cursor); the current module reads the same cursor through the host API.
+async function upgraded(t, modules = [seams()]) {
+    const image = JSON.parse(readFileSync(new URL('./helpers/fixtures/ctx-seams-main.json', import.meta.url), 'utf8'));
+    const saved = JSON.stringify(readRecord(image.chat.at(-1)).spans[0]);
+    const host = await createHost({ modules, st: { chat: image.chat } });
+    t.after(() => host.close());
+    host.ctx.chatMetadata = image.metadata;
+    await host.turn.onChatChanged();
+    assert.equal(JSON.stringify(readRecord(host.ctx.chat.at(-1)).spans[0]), saved, 'reload keeps the old span byte for byte');
+    return { host, saved };
+}
 
 async function started(t) {
     t.mock.method(console, 'warn', () => {});
@@ -333,6 +348,82 @@ test('a command that reads its cursor makes a guarded block, or fails: no id is 
 function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
+
+test('a main-written guarded line keeps its seeded id and every stored span byte on reload and unchanged Re-reads', async t => {
+    const { host, saved } = await upgraded(t);
+    const at = host.ctx.chat.length - 1;
+    for (let n = 0; n < 2; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        assert.equal(JSON.stringify(readRecord(host.ctx.chat[at]).spans[0]), saved);
+        assert.deepEqual(Object.values(host.head().domains.cs.lines), [JSON.parse(saved).boundaries[0].cursor]);
+        assert.deepEqual(host.store.problems(), []);
+    }
+});
+
+test('Continue beside a main-written identical line gives only the new line an occurrence; unchanged Re-read renumbers neither it nor untouched neighbours', async t => {
+    const { host, saved } = await upgraded(t);
+    await host.cont(reply(' More.', ['! note dup']));
+    await click(host, 'neighbour');
+    await click(host, 'neighbour');
+    const at = host.ctx.chat.length - 1;
+    const before = readRecord(host.ctx.chat[at]).spans;
+    assert.equal(JSON.stringify(before[0]), saved);
+    assert.equal(Object.hasOwn(before[0], 'occurrence'), false);
+    assert.equal(Number.isInteger(before[1].occurrence), true, 'the new block has an allocated occurrence');
+    assert.notEqual(before[1].id, before[0].id);
+    const identities = before.map(span => [span.id, span.occurrence]);
+    for (let n = 0; n < 2; n += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        const after = readRecord(host.ctx.chat[at]).spans;
+        assert.equal(JSON.stringify(after[0]), saved);
+        assert.deepEqual(after.map(span => [span.id, span.occurrence]), identities);
+        assert.deepEqual(host.store.problems(), []);
+    }
+});
+
+test('a count change on Re-read retires a mixed old/new key and hides its dependent with a Problem', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const { host, saved } = await upgraded(t);
+    await host.cont(reply(' More.', ['! note dup']));
+    const at = host.ctx.chat.length - 1;
+    const [old, newer] = readRecord(host.ctx.chat[at]).spans;
+    assert.equal(JSON.stringify(old), saved);
+    assert.equal((await host.sdk.command('cs.on', { block: newer.id })).ok, true);
+    host.ctx.chat[at].mes = reply('A. More.', ['! note dup']);
+    host.ctx.chat[at].swipes[host.ctx.chat[at].swipe_id] = host.ctx.chat[at].mes;
+    assert.equal((await host.sdk.reread(at)).ok, true);
+    const survivor = readRecord(host.ctx.chat[at]).spans.find(span => span.story);
+    assert.equal([old.id, newer.id].includes(survivor.id), false, 'both old identities retire');
+    assert.equal(survivor.occurrence > newer.occurrence, true);
+    for (let n = 0; n < 2; n += 1) {
+        assert.equal(host.head().domains.cs.ons[newer.id], undefined);
+        assert.equal(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE' && /line it stands on is gone/.test(problem.why)), true);
+        host.store.rebuild();
+    }
+});
+
+test('an old guarded line that starts giving proof keeps its seeded id and its allocated occurrence on subsequent Re-reads', async t => {
+    const owner = {
+        id: 'story-director', name: 'Proof owner', version: '0.0.1',
+        commands: { 'cs.visit'(ctx) { ctx.proof({ kind: 'visit', payload: { place: 'A' } }); return { summary: 'Visited.' }; } },
+    };
+    const { host, saved } = await upgraded(t, [seams({ giveProof: true }), owner]);
+    const at = host.ctx.chat.length - 1;
+    let identity;
+    for (let pass = 0; pass < 3; pass += 1) {
+        assert.equal((await host.sdk.reread(at)).ok, true);
+        const record = readRecord(host.ctx.chat[at]);
+        const span = record.spans[0];
+        assert.equal(span.id, JSON.parse(saved).id);
+        assert.deepEqual(host.head().domains.cs.lines[span.id], span.boundaries[0].cursor);
+        assert.equal(Number.isInteger(span.occurrence), true);
+        assert.equal(span.evidence.length, 1);
+        const now = [span.id, span.occurrence, span.evidence[0].id, record.source.taken];
+        if (identity) assert.deepEqual(now, identity);
+        identity = now;
+        assert.deepEqual(host.store.problems(), []);
+    }
+});
 
 test('during a Re-read an afterCapture step reads the op its own stamped boundary has, as a story line does', async t => {
     const host = await started(t);
