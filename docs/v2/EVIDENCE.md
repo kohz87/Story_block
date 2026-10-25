@@ -244,7 +244,8 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
 * **Checkpoint identity**: a window's hash covers each block's ops (which hold the pins) and the ids, kinds, owners,
   payload hashes and parents of its proof. The payload bytes are checked against their hash and pin when shown.
 * **Rewinds and savepoints** (E6): the host's restore installs captured state; `meta.proofs` is part of `state.meta` like
-  `claims`, and the bytes are in the spans a restore keeps. How a restore treats proofs given after the savepoint is E6's.
+  `claims`, and the bytes are in the spans a restore keeps. A restore removes the pins the save did not hold, so the proof the
+  faded story gave is no longer active ([TIMELINE.md](TIMELINE.md) "Restore").
 
 ## What this does not do
 

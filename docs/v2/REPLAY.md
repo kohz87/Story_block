@@ -306,10 +306,9 @@ would make negative, and the block is skipped, never applied half.
   `{ n, story }`, so modules that do not use the API store and replay exactly as before. (A span with metadata
   and `guard: null` is valid: its claims are checked and nothing is asked.)
 * `epoch` and `rulesHash` of a guard are carried and covered by `inputHash`; the host checks their shape, the owner
-  checks their meaning. The host does not compare `epoch` with a state field (the savepoint epoch arrives with the
-  timeline package).
-* TODO (E6, timeline and restore): the host's comparison of a guard's `epoch` and `rulesHash` with the active savepoint
-  epoch and frozen rules is a tracked gate of that package; E1 only checks their shape.
+  checks their meaning. The host also compares them with the timeline (a guard's `epoch` with the savepoints domain's, its
+  `rulesHash` with the `rules` slice's marker), when the state has them, on replay and when a block is stored: see
+  [TIMELINE.md](TIMELINE.md) "The epoch and rules gate".
 * A stale payload hash is evidence for the owner and for checkpoint identity, not a reason to drop a block.
 * `Source.ordinal` is the next block ordinal of the swipe's record, never reused; `boundaries` holds the boundary
   the block starts at.
