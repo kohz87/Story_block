@@ -21,14 +21,14 @@ import { createArchive } from './archive.js';
 import { GENESIS_EPOCH, HOST_DOMAIN, epochOf } from './gate.js';
 import { appendHostBlock, stateHash } from './host-block.js';
 import { capture, initialSavepoints, planRestore, previousDayOf } from './manifest.js';
-import { createParticipants } from './participants.js';
+import { boundedParticipant, createParticipants } from './participants.js';
 import { crashing, fail, isNotDurable, isObject, isStaleChat, makeId, notDurable, staleChat } from './util.js';
 
 export const MANUAL_LIMIT = 10;
 const MINUTES_PER_DAY = 1440;
 const KINDS = Object.freeze(['initial', 'manual', 'day-start']);
 // The phases a journal entry ends in, by kind; any other is work to recover.
-const ENDS = Object.freeze({ make: ['committed', 'discarded', 'aborted'], restore: ['complete', 'aborted', 'retracted'], 'native-mutation': ['done', 'aborted'], 'native-event': ['done', 'aborted'] });
+const ENDS = Object.freeze({ make: ['committed', 'discarded', 'aborted'], restore: ['complete', 'aborted', 'retracted'], 'native-mutation': ['done', 'aborted'], 'native-event': ['done', 'aborted'], selection: ['complete'] });
 const settled = entry => (ENDS[entry.kind] ?? []).includes(entry.phase);
 const NAME_MAX = 80;
 
@@ -88,6 +88,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         try { return await fn(); } finally { scope = null; }
     };
     const exclusive = fn => {
+        settle();
         const holder = archive.holder();
         bump(holder, 1);
         const run = busy.then(() => scoped(fn, holder), () => scoped(fn, holder));
@@ -153,7 +154,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         }
         // A chat whose journal has work unfinished is barred from the moment it is open; its recovery follows when the queue gives it
         // its turn (a make of another chat may be holding the line meanwhile).
-        if (holder && barrierOwner === null && pendingEntry() !== null) {
+        if (holder && barrierOwner === null && (pendingEntry() !== null || (runningIn(holder) === 0 && selectionNeeded()))) {
             barrierOwner = holder;
             barrierEarly = true;
             barrier('pending', 'A restore is finishing; every part must agree before the story goes on.');
@@ -183,6 +184,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     const isHost = auth => auth === capability || auth?.capability === capability;
     // A change that is outstanding: a restore committed and not complete, a native change prepared and not done (`ignore`: the one being settled).
     const pendingEntry = (ignore = null) => archive.entries().find(entry => entry.id !== ignore && entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
+        ?? archive.entries().find(entry => entry.id !== ignore && entry.kind === 'selection' && entry.phase !== 'complete')
         ?? archive.entries().find(entry => entry.id !== ignore && ['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared')
         ?? null;
     const pendingNow = () => {
@@ -255,14 +257,14 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     }
 
     async function status() {
+        settle();
         const entries = archive.entries();
-        const damaged = entries.some(entry => !['make', 'restore', 'native-mutation', 'native-event'].includes(entry.kind));
+        const damaged = entries.some(entry => !['make', 'restore', 'native-mutation', 'native-event', 'selection'].includes(entry.kind));
         const pending = pendingEntry();
         const state = damaged ? 'failed' : pending || registry.restore?.().state === 'pending' ? 'pending' : 'idle';
         const out = [];
         for (const module of participants.modules()) {
-            const latest = archive.prefixes(module).at(-1);
-            const selected = latest?.[latest.selected];
+            const selected = archive.selection()[module];
             if (selected) out.push({ module, checkpoint: selected.checkpoint, hash: selected.hash, schema: selected.schema });
         }
         return { ok: true, state, return: pending?.kind === 'restore' ? pending.return : null, participants: out };
@@ -445,6 +447,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         });
         if (!stored.ok) { archive.patch(journal, { phase: 'discarded', why: stored.message }); return stored; }
         owe(stored);
+        archive.remember(checkpoints);
         archive.patch(journal, { phase: 'committed' });
         await point('make.committed');
         // Made only once the chat file has it: a failed save is the caller's failure (the save point stands in memory and the store tries again).
@@ -612,6 +615,14 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
 
         // The story as it is now (the dead timeline) is pinned beside the batch result: what the restore replaces stays retrievable.
         const pre = capture({ registry, state: now.state, settings });
+        for (const module of participants.modules()) {
+            const before = await callParticipant(module, 'checkpoint', { cursor: now.cursor, headHash: now.headHash });
+            if (!before.ok) return before;
+            pre.payload.participants.push({ module, checkpoint: before.checkpoint, hash: before.hash, schema: before.schema });
+        }
+        here();
+        const checked = headNow();
+        if (!checked || checked.headHash !== now.headHash) return fail('STALE', 'The head moved while the pre-restore checkpoints were saved.');
         const preHash = hashJson({ payload: pre.payload, proofs: pre.proofs });
         archive.putPayload(preHash, { payload: pre.payload, proofs: pre.proofs });
         const slots = {};
@@ -619,7 +630,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         archive.add({
             id: preparedId, kind: 'restore', phase: 'preparing', session: session(), return: returnId, snapshot: found.id, deathEvents: [...input.deathEvents],
             batchResult: { ...input.batchResult }, expectedHead: now.headHash, newEpoch, block: blockId, cue: record.cue, payloadHash: found.payloadHash,
-            manifest: plan.manifest, manifestHash: plan.manifestHash, participants: slots, pre: preHash,
+            manifest: plan.manifest, manifestHash: plan.manifestHash, participants: slots, pre: preHash, before: pre.payload.participants, boundary: { cursor: now.cursor, prefixHash: now.prefixHash, stateHash: stateHash(now.state) },
         });
         archive.putPin(input.batchResult.id, { id: input.batchResult.id, hash: input.batchResult.hash, bytes: sealed.bytes, resolvedBy: sealed.module, return: returnId, prepared: preparedId, deathEvents: [...input.deathEvents], manifestHash: plan.manifestHash, preRestore: preHash, aborted: false });
         try { await durable(); } catch (error) { await dropPrepared(preparedId, error); }
@@ -844,6 +855,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         // was damaged or edited. Finishing one would let go of the barrier with the other still undone, so none is touched, the chat stays
         // barred and nothing is announced ready: it fails safe until the file is put right.
         const unfinished = archive.entries().filter(entry => (entry.kind === 'restore' && ['committed', 'participants-pending', 'acked'].includes(entry.phase))
+            || (entry.kind === 'selection' && entry.phase !== 'complete')
             || (['native-mutation', 'native-event'].includes(entry.kind) && entry.phase === 'prepared'));
         if (unfinished.length > 1) {
             if (barrierOwner === null) raise('A restore is finishing; every part must agree before the story goes on.');
@@ -880,6 +892,11 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                     ret = entry.return;
                     if (done.status === 'complete') ret = null;
                 }
+            } else if (entry.kind === 'selection') {
+                if (entry.phase !== 'complete') {
+                    const done = await finishSelection(entry);
+                    if (!done.ok) return done;
+                }
             } else if (entry.kind === 'native-mutation' || entry.kind === 'native-event') {
                 if (entry.phase === 'prepared') {
                     raise('A native change is finishing; every part must agree before the story goes on.');
@@ -888,11 +905,87 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
                 }
             }
         }
+        for (let pass = 0; pass < 32; pass += 1) {
+            const selection = await selectHead();
+            if (!selection.ok) return selection;
+            if (!selectionNeeded()) break;
+            if (pass === 31) return fail('FAILED', 'The selected head kept moving; the barrier remains held.');
+        }
         // (a barrier raised as this chat opened, for work that turned out to be nothing to finish, does not stay up)
         if (barrierOwner === archive.holder() && pendingEntry() === null) lower();
         await durable();
         const left = pendingEntry();
         return { ok: true, state: left ? 'pending' : 'idle', return: left?.kind === 'restore' ? left.return : ret };
+    }
+
+    // One selection rule for every head change. Prefix identity AND replayed state must match;
+    // no revision, positional fallback or nearest-swipe rebinding is allowed.
+    function selectionPlan() {
+        if (!archive.exists()) return {};
+        return withWholePrefixes(() => {
+            const result = { ...archive.baseline() };
+            for (const module of participants.modules()) {
+                const candidates = [];
+                for (const mapping of archive.prefixes(module)) {
+                    if (!mapping.boundary || !mapping.after) continue;
+                    const witness = store.prefixWitness(mapping.boundary.cursor);
+                    if (witness && witness.prefixHash === mapping.boundary.prefixHash && stateHash(witness.state) === mapping.boundary.stateHash) {
+                        candidates.push({ mapping, index: witness.index, op: witness.op });
+                    }
+                }
+                candidates.sort((a, b) => a.index - b.index || a.op - b.op || a.mapping.seq - b.mapping.seq);
+                if (candidates.length) result[module] = candidates.at(-1).mapping.after;
+            }
+            return result;
+        });
+    }
+    function withWholePrefixes(fn) {
+        const was = registry.restore();
+        if (was.state !== 'pending') return fn();
+        registry.setRestore('idle', '');
+        try { store.lifecycleChanged?.(); return fn(); }
+        finally { registry.setRestore(was.state, was.reason); store.lifecycleChanged?.(); }
+    }
+    const selectionNeeded = () => hashJson(selectionPlan()) !== hashJson(archive.selection());
+
+    async function selectHead() {
+        if (!selectionNeeded()) return { ok: true };
+        const desired = selectionPlan();
+        if (availability(Object.values(desired))) { raise('The selected history needs unavailable native participants.'); return fail('SNAPSHOT_UNAVAILABLE', 'The participants needed by this head are unavailable.'); }
+        const entry = archive.add({ id: makeId('hs'), kind: 'selection', phase: 'prepared', desired, slots: {} });
+        raise('The selected history is waiting for its native checkpoints.');
+        await durable();
+        return finishSelection(entry);
+    }
+
+    async function finishSelection(entry) {
+        raise('The selected history is waiting for its native checkpoints.');
+        await durable();
+        for (const [module, target] of Object.entries(entry.desired)) {
+            const registered = participants.get(module);
+            if (!registered || registered.schema !== target.schema) return fail('SNAPSHOT_UNAVAILABLE', `The participant ${module} is unavailable for the selected head.`);
+            let slot = archive.get(entry.id).slots[module];
+            if (!slot) {
+                const prepared = await callParticipant(module, 'prepare', { return: entry.id, checkpoint: target.checkpoint, hash: target.hash });
+                if (!prepared.ok) return prepared;
+                if (prepared.hash !== target.hash) return fail('CONFLICT', 'The participant prepared other selected bytes.');
+                slot = { prepared: prepared.prepared, ack: false };
+                archive.patch(entry.id, { slots: { ...archive.get(entry.id).slots, [module]: slot } });
+                await durable();
+            }
+            if (!slot.ack) {
+                const done = await callParticipant(module, 'activate', { return: entry.id, prepared: slot.prepared });
+                if (!done.ok) return done;
+                if (done.checkpoint !== target.checkpoint || done.hash !== target.hash) return fail('CONFLICT', 'The participant selected other bytes.');
+                archive.patch(entry.id, { slots: { ...archive.get(entry.id).slots, [module]: { ...slot, ack: true } } });
+                await durable();
+            }
+        }
+        // A head may move during any callback: settle this durable selection, then plan again.
+        archive.select(entry.desired);
+        archive.patch(entry.id, { phase: 'complete' });
+        await durable();
+        return { ok: true };
     }
 
     // ---- native mutations and events ---------------------------------------------------------------------
@@ -904,8 +997,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const seq = archive.bumpNative();
         archive.putPrefix(entry.participant, key, {
             seq, participant: entry.participant, tx: entry.id, source: entry.source ?? null, schema: entry.after.schema,
-            before: entry.before, after: entry.after, selected: 'after',
+            before: entry.before, after: entry.after, selected: 'after', boundary: entry.boundary,
         });
+        archive.remember([entry.before]);
+        archive.select({ ...archive.selection(), [entry.participant]: entry.after });
         archive.patch(entry.id, { phase: 'done' });
     }
 
@@ -914,16 +1009,22 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const now = headNow();
         if (!now) return;
         const key = prefixKey(now.cursor, now.prefixHash);
+        const beforeKey = prefixKey(entry.boundary.cursor, entry.boundary.prefixHash);
+        archive.remember(entry.before);
+        for (const item of entry.before) archive.putPrefix(item.module, beforeKey, {
+            seq: archive.bumpNative(), participant: item.module, tx: entry.id, schema: item.schema,
+            before: null, after: item, selected: 'after', boundary: entry.boundary,
+        });
         let moved = false;
         for (const [module, slot] of Object.entries(entry.participants ?? {})) {
             if (!slot.ack || archive.prefix(module, key)?.tx === entry.id) continue;
             archive.putPrefix(module, key, {
                 seq: archive.bumpNative(), participant: module, tx: entry.id, source: null, schema: slot.schema, before: null,
-                after: { module, checkpoint: slot.ack.checkpoint, hash: slot.ack.hash, schema: slot.schema }, selected: 'after',
+                after: { module, checkpoint: slot.ack.checkpoint, hash: slot.ack.hash, schema: slot.schema }, selected: 'after', boundary: { cursor: now.cursor, prefixHash: now.prefixHash, stateHash: stateHash(now.state) },
             });
             moved = true;
         }
-        void moved;
+        if (moved) archive.select(Object.fromEntries(Object.entries(entry.participants).map(([module, slot]) => [module, { module, checkpoint: slot.ack.checkpoint, hash: slot.ack.hash, schema: slot.schema }])));
     }
 
     // The activation of a native entry, or its recovery after a crash: whatever the participant's own status says it did.
@@ -977,7 +1078,8 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (input.source.sid !== first.cursor.sid || input.source.swipeKey !== first.cursor.swipeKey) return fail('STALE', 'That source is not the reply at the head.');
         // The participant makes both checkpoints durable on its side and gives back what it made, without showing the new state.
         let made;
-        try { made = await input.prepare(); } catch (error) {
+        try { made = await boundedParticipant(() => input.prepare());
+            here(); } catch (error) {
             if (crashing(error)) throw error;
             return fail('FAILED', `The participant ${who} could not prepare its change: ${error?.message ?? error}`);
         }
@@ -997,7 +1099,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
             return fail('STALE', 'The head moved while the change was prepared; it was cancelled before it was shown.');
         }
         archive.add({ id: tx, kind: 'native-mutation', phase: 'prepared', session: session(), participant: who, source: structuredClone(input.source), expectedHead: first.headHash,
-            before: structuredClone(made.before), after: structuredClone(made.after), preparedId: made.prepared, boundary: { cursor: structuredClone(first.cursor), prefixHash: first.prefixHash } });
+            before: structuredClone(made.before), after: structuredClone(made.after), preparedId: made.prepared, boundary: { cursor: structuredClone(first.cursor), prefixHash: first.prefixHash, stateHash: stateHash(first.state) } });
         raise('A native change is finishing; every part must agree before the story goes on.');
         await durable();
         await point('native.journaled');
@@ -1051,7 +1153,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         archive.putEvent(input.event, { participant: input.participant, npc: input.npc, kind: input.kind, nativeKey: identity.nativeKey, tx });
         archive.add({ id: tx, kind: 'native-event', phase: 'prepared', session: session(), participant: input.participant, event: input.event, eventKind: input.kind, nativeKey: identity.nativeKey, npc: input.npc,
             expectedHead: first.headHash, before: { module: input.participant, checkpoint: before.checkpoint, hash: before.hash, schema: before.schema }, after: null,
-            boundary: { cursor: structuredClone(first.cursor), prefixHash: first.prefixHash } });
+            boundary: { cursor: structuredClone(first.cursor), prefixHash: first.prefixHash, stateHash: stateHash(first.state) } });
         raise('A native change is finishing; every part must agree before the story goes on.');
         await durable();
         await point('native.journaled');
@@ -1181,7 +1283,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         settle,
         available: hash => archive.hasPayload(hash),
         /** Whether the journal holds work no operation owns (a crashed make, a restore left half way): the host recovers it. */
-        needsRecovery: () => runningIn(archive.holder()) === 0 && archive.exists() && archive.entries().some(entry => !settled(entry)),
+        needsRecovery: () => runningIn(archive.holder()) === 0 && archive.exists() && (archive.entries().some(entry => !settled(entry)) || selectionNeeded()),
         archive,
         pending: pendingNow,
         /** Points of `state` with their bytes checked, in target order (the savepoint.list query). */

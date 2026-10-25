@@ -187,7 +187,7 @@ test('list: the eligible points in target order, with their bytes checked; statu
     assert.deepEqual(listed.points.map(point => point.name), ['A', 'B', 'C']);
     assert.deepEqual(listed.points.map(point => point.id), [a.id, b.id, c.id]);
     assert.deepEqual(host.sdk.query('savepoint.list', {}).map(point => point.id), [a.id, b.id, c.id], 'the query answers the same');
-    assert.deepEqual(await host.sdk.timeline.status(), { ok: true, state: 'idle', return: null, participants: [] });
+    assert.deepEqual(await host.sdk.timeline.status(), { ok: true, state: 'idle', return: null, participants: a.participants });
     // Bytes that are gone show as unavailable; the point stays listed.
     delete host.ctx.chatMetadata.storySuite.timeline.payloads[b.payloadHash];
     const after = (await host.sdk.timeline.list()).points;

@@ -475,6 +475,7 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
     // reader's action runs. What is asked is the need itself (a ready module whose domain the chat lacks),
     // not whether a change was announced: a view may have announced it already. A quiet host costs a scan.
     const settle = () => {
+        timeline?.settle();
         announceModules(registry, events);
         if (registry.restore?.().state === 'pending' || store.headIndex?.() < 0) return null;
         const head = store.head?.();
@@ -531,7 +532,7 @@ export function createSdk({ store, bus, registry, settings, events = createEvent
             return held(type) ?? bus.preview(type, payload);
         },
         commit: async token => saved(committed(await bus.commit(token))),
-        query: (name, args) => runQuery(registry, store.head(), name, args, { receipts: () => store.receipts?.() ?? [], reply: headReply(store) }),
+        query: (name, args) => { timeline?.settle(); return runQuery(registry, store.head(), name, args, { receipts: () => store.receipts?.() ?? [], reply: headReply(store) }); },
         /** The stored receipts on the current line of history, in chat order: [{ index, receipt }]. */
         receipts: () => store.receipts?.() ?? [],
         /**

@@ -152,6 +152,21 @@ export function createArchive({ metadata, touch = () => {}, bound = () => null }
             return isObject(table) ? Object.entries(table).filter(([, value]) => isObject(value)).map(([key, value]) => ({ key, ...value })).sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0)) : [];
         },
 
+        // The checkpoints actually selected, and the first known native state before any change.
+        selection: () => find()?.selection ?? {},
+        baseline: () => find()?.baseline ?? {},
+        select(value) { write(root => { root.selection = structuredClone(value); }); },
+        remember(items) {
+            write(root => {
+                if (!isObject(root.baseline)) root.baseline = {};
+                if (!isObject(root.selection)) root.selection = {};
+                for (const item of items) {
+                    if (!Object.hasOwn(root.baseline, item.module)) root.baseline[item.module] = structuredClone(item);
+                    if (!Object.hasOwn(root.selection, item.module)) root.selection[item.module] = structuredClone(item);
+                }
+            });
+        },
+
         // ---- native events (confirmed deaths) ----
         event: id => {
             const root = find();

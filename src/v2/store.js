@@ -1856,6 +1856,38 @@ export function createStore({
             };
         },
 
+        // Internal timeline witness. A native checkpoint belongs to this exact surviving prefix,
+        // including the state its guards accepted. Never match by revision or by message index.
+        prefixWitness(cursor) {
+            const arr = list();
+            const matches = carrierIndexes(arr).filter(index => {
+                const source = api.sourceAt(index);
+                return source?.sid === cursor.sid && source?.swipeKey === cursor.swipeKey;
+            });
+            if (matches.length !== 1) return null;
+            const index = matches[0];
+            const record = readRecord(arr[index]);
+            if (!record || !Number.isSafeInteger(cursor.op) || cursor.op < 0) return null;
+            const parts = blockParts(record);
+            const earlier = [];
+            let count = 0;
+            for (const part of parts) {
+                if (count === cursor.op) break;
+                count += part.ops.length;
+                earlier.push(part);
+            }
+            if (count !== cursor.op) return null;
+            const base = baseFor(arr, index);
+            if (!base) return null;
+            const ops = earlier.flatMap(part => part.ops);
+            const revs = new Set(ops.filter(op => op.path === '/meta/rev').map(op => op.value));
+            const state = replayRecord(base, { ...record, ops, spans: earlier.map(part => ({ ...part.span, n: part.ops.length })), receipts: record.receipts.filter(receipt => revs.has(receipt.rev)) }, index, [], null, arr[index]);
+            return {
+                index, op: count, state,
+                prefixHash: hashJson({ p: chainHash(arr, index), k: cursor.swipeKey, t: payloadHashOf(arr[index]), b: blocksBefore(earlier) }),
+            };
+        },
+
         /** Marks the chat as changed outside its records (the timeline's archive in the chat's metadata): the next save writes it. */
         touch() {
             saver.touch();

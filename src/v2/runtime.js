@@ -494,7 +494,7 @@ export function createRuntime({
         dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline });
     sdk = made.sdk;
     const initial = () => initialWithStart(registry);
-    turn = createTurn({ ctx, live, store, bus, registry, settings, events, onBlocked, initial, ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });
+    turn = createTurn({ ctx, live, store, bus, timeline, registry, settings, events, onBlocked, initial, ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });
     // The UI (ui-host.js) plugs its dialog mount in here, for sdk.dialog.open (and .current).
     const setDialog = (fn, current = null) => {
         dialogOpener = typeof fn === 'function' ? fn : null;

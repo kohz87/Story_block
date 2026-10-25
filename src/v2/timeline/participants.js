@@ -8,6 +8,19 @@
 import { isHash } from '../replay.js';
 import { CODES, crashing, fail, isObject } from './util.js';
 
+export const PARTICIPANT_TIMEOUT_MS = 10000;
+
+// One bound for every asynchronous participant callback, including native prepare. A timed-out
+// call remains quarantined until it really settles: a late activation must not race a new selection.
+export async function boundedParticipant(callback, timeoutMs = PARTICIPANT_TIMEOUT_MS) {
+    let timer;
+    try {
+        return await Promise.race([Promise.resolve().then(callback), new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`participant callback timed out after ${timeoutMs} ms`)), timeoutMs);
+        })]);
+    } finally { clearTimeout(timer); }
+}
+
 export const CALLBACKS = Object.freeze(['checkpoint', 'prepare', 'activate', 'abort', 'status']);
 const MODULE_ID = /^[a-z0-9][a-z0-9._-]*$/;
 const STATUSES = Object.freeze(['prepared', 'active', 'aborted']);
@@ -23,7 +36,8 @@ const SHAPES = Object.freeze({
     applyEvent: answer => text(answer.event) && text(answer.checkpoint) && isHash(answer.hash) && answer.ack === true,
 });
 
-export function createParticipants() {
+export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS } = {}) {
+    const inflight = new Map();
     const table = new Map();
     return {
         /** Registers a participant: → { ok: true, module } | INVALID | CONFLICT. */
@@ -81,7 +95,11 @@ export function createParticipants() {
             if (typeof callback !== 'function') return fail('UNSUPPORTED', `The participant ${module} cannot ${method}.`);
             let answer;
             try {
-                answer = await callback(structuredClone(input));
+                if (inflight.has(module)) return fail('FAILED', `The participant ${module} still has a timed-out callback in flight.`);
+                const pending = Promise.resolve().then(() => callback(structuredClone(input)));
+                inflight.set(module, pending);
+                pending.then(() => { if (inflight.get(module) === pending) inflight.delete(module); }, () => { if (inflight.get(module) === pending) inflight.delete(module); });
+                answer = await boundedParticipant(() => pending, timeoutMs);
             } catch (error) {
                 if (crashing(error)) throw error;
                 return fail('FAILED', `The participant ${module} failed at ${method}: ${error?.message ?? error}`);
