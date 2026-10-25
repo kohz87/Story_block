@@ -72,6 +72,35 @@ test('an unchanged Re-read keeps published native prefixes when story and afterC
     assert.deepEqual(host.store.problems(), []);
 });
 
+for (const failure of ['refusal', 'throw', 'promise', 'rejection']) test(`a native dependency ${failure} keeps the host barrier until the owner confirms`, async t => {
+    const { host } = await started(t);
+    const head = await host.sdk.timeline.head();
+    assert.equal((await host.timeline.host.nativeEvent({ event: 'de_death001', participant: NATIVE,
+        npc: NPC, kind: 'confirmed-death', expectedHead: head.headHash })).ok, true);
+    let agrees = false;
+    await host.sdk.registerModule({ id: 'native-dependent', name: 'Native dependent', version: '1.0.0', hooks: {
+        nativeSelection(_view, { events }) {
+            assert.equal(Object.isFrozen(events), true);
+            assert.equal(Object.isFrozen(events[0]), true);
+            assert.equal(events[0].event, 'de_death001');
+            if (agrees) return { ok: true };
+            if (failure === 'throw') throw new Error('The native record differs.');
+            if (failure === 'promise') return Promise.resolve({ ok: true });
+            if (failure === 'rejection') return Promise.reject(new Error('No asynchronous dependency check.'));
+            return { ok: false, reason: 'The native record differs. Restore a save point from before the change, or put the changed reply back.' };
+        },
+    } });
+    assert.equal((await host.sdk.timeline.head()).code, 'RESTORE_PENDING');
+    assert.equal(host.sdk.query('savepoint.contract').participantsReady, false);
+    assert.equal((await host.timeline.host.recover()).code, 'SNAPSHOT_UNAVAILABLE');
+    assert.equal((await host.st.generate('normal', { reply: 'Must wait.' })).aborted, true);
+    assert.match(host.st.notices.at(-1).reason, /restore a save point.*put the changed reply back/i);
+    agrees = true;
+    assert.equal((await host.timeline.host.recover()).state, 'idle');
+    assert.equal(host.sdk.query('savepoint.contract').participantsReady, true);
+    assert.deepEqual(host.store.problems(), []);
+});
+
 test('a module\'s participant is registered by the host with the module, and the module gets its own handle', async t => {
     const { host, native } = await started(t);
     assert.deepEqual(host.timeline.host.participants(), [NATIVE]);
