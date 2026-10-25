@@ -437,11 +437,15 @@ async function lateRegistration(env, row, rec) {
         const late = order.at(-1);
         if (!late) return na('SB alone has no module to register late');
         const early = row.modules.filter(key => key !== late);
-        const activeEarly = early.filter(key => !row.dormant.includes(key));
+        const activeEarly = await withHost(env, row.modules, { withhold: [late] }, host => early.filter(key => {
+            const entry = host.sdk.modules().find(item => item.id === MODULES[key].id);
+            return entry?.status ? entry.status === 'ready' : !row.dormant.includes(key);
+        }));
         const active = activeOf(row);
         const expected = await oracle(env, row, [{ set: 'A', keys: activeEarly }, { set: 'B' }]);
         const gaps = [];
         await withHost(env, row.modules, { withhold: [late] }, async host => {
+            if (late === 'sd' && early.includes('rb')) await dormancy(host, 'rb', 'until SD registers');
             await runSetups(host, activeEarly);
             await play(host, activeEarly, 'A');
             const before = factsOf(host, activeEarly);
@@ -451,7 +455,7 @@ async function lateRegistration(env, row, rec) {
             assert.deepEqual(factsOf(host, activeEarly), before, 'registering a module changed what the others keep');
             noProblems(host);
             if (row.dormant.includes(late)) gaps.push((await dormancy(host, late, 'when registered late'))?.gap);
-            else await runSetups(host, [late]);
+            else await runSetups(host, active.filter(key => !activeEarly.includes(key)));
             await play(host, active, 'B');
             noProblems(host);
             assert.deepEqual(factsOf(host, active), expected, 'a late registration should end where a boot with all of them does');
