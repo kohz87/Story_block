@@ -325,7 +325,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         return { messages, sids, faded, at };
     }
     // Every host reader of earlier messages asks this (src/v2/timeline/active.js), by name; the capability counts the names.
-    const activeHistory = createActiveHistory({ messages: () => (typeof chat === 'function' ? chat() : []), faded: () => activeLine().at });
+    const activeHistory = createActiveHistory({ messages: () => (typeof chat === 'function' ? chat() : []), faded: () => activeLine().at, holder: () => archive.holder() });
 
     // A projection of the chat's messages for the readers of the story (prompt, extraction, native scans): the canonical
     // ids of each message and whether it is on the active line. A message with no carrier record of its own (the reader's
@@ -1320,8 +1320,9 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         const installed = declarations.every(def => participants.has(def.id) && !broken.has(def.id));
         const oldWitnesses = archive.entries().some(entry => entry.kind === 'restore' && entry.phase !== 'aborted' && !entry.boundary);
         const participantsReady = installed && participants.ready() && !brokenProblem() && !oldWitnesses && registry.restore?.().state !== 'pending' && !selectionNeeded();
-        // (a restore fades earlier messages: retained-chat restore is offered only once every host reader of earlier messages filters them)
-        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0 && activeHistory.wired();
+        // (a restore fades earlier messages: retained-chat restore is offered only once every host reader of earlier messages filters them,
+        // and not for a chat whose last request could not be tied to its messages)
+        const retainedChatRestore = snapshots && unmaterializedMarkers().length === 0 && activeHistory.wired() && activeHistory.intact();
         return { api: 2, snapshots, retainedChatRestore, participantsReady };
     }
 

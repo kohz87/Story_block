@@ -66,6 +66,53 @@ for (const mainApi of ['openai', 'textgen']) {
     });
 }
 
+// A prompt-only regex (SillyTavern's own feature: it changes the text of the prompt, never the chat) takes out the words a text
+// match would have used. The faded messages are tied to the request by who spoke and which swipe, so they go all the same.
+for (const mainApi of ['openai', 'textgen']) {
+    test(`${mainApi}: a prompt-only regex over the history does not let faded text through, also after a rebuild and a reload`, async t => {
+        const { host, modules } = await world(t, { mainApi });
+        const rules = [{ find: /Target, and /g }, { find: /I say: /g }, { find: / Continued: /g }, { find: /Accept the job\./g, replace: 'Accept.' }];
+        host.st.promptRegex.push(...rules);
+        await host.send('Move on.', 'Later.');
+        let next = host.st.requests.at(-1);
+        for (const secret of SECRETS) assert.equal(seen(next).includes(secret), false, `${secret} reached the request`);
+        assert.match(text(next), /Before\./);
+        assert.match(text(next), /Accept\./, 'the regex did run over what is left');
+        assert.equal(host.sdk.query('savepoint.contract', {}).retainedChatRestore, true);
+        assert.equal(host.turn.problems().some(problem => problem.code === 'HISTORY_UNTIED'), false);
+        host.store.rebuild();
+        await host.send('Again.', 'Once more.');
+        for (const secret of SECRETS) assert.equal(seen(host.st.requests.at(-1)).includes(secret), false, `rebuild: ${secret}`);
+        // a swipe, which leaves out the reply being swiped
+        await host.swipe('Later, again.');
+        for (const secret of SECRETS) assert.equal(seen(host.st.requests.at(-1)).includes(secret), false, `swipe: ${secret}`);
+        const fresh = await reload(createHost, { chat: clone(host.ctx.chat), metadata: clone(host.ctx.chatMetadata) }, modules, { st: { mainApi } });
+        t.after(() => fresh.close());
+        fresh.st.promptRegex.push(...rules);
+        await fresh.send('After reload.', 'Fine.');
+        next = fresh.st.requests.at(-1);
+        for (const secret of SECRETS) assert.equal(seen(next).includes(secret), false, `reload: ${secret}`);
+        assert.match(text(next), /Before\./);
+        assert.equal(fresh.sdk.query('savepoint.contract', {}).retainedChatRestore, true);
+    });
+}
+
+test('a request that cannot be tied to the chat is a Problem and retainedChatRestore is false for that chat, until a request is tied', async t => {
+    const { host } = await world(t);
+    const intercept = host.st.interceptor;
+    host.st.interceptor = (coreChat, ...rest) => intercept([...coreChat].reverse(), ...rest);
+    await host.send('Move on.', 'Later.');
+    assert.equal(host.turn.problems().filter(problem => problem.code === 'HISTORY_UNTIED').length, 1);
+    assert.equal(host.sdk.query('savepoint.contract', {}).retainedChatRestore, false);
+    // the second line over the finished request still takes the faded words it can find
+    for (const secret of SECRETS) assert.equal(seen(host.st.requests.at(-1)).includes(secret), false, secret);
+    await host.send('Again.', 'Still.');
+    assert.equal(host.turn.problems().filter(problem => problem.code === 'HISTORY_UNTIED').length, 1, 'told once');
+    host.st.interceptor = intercept;
+    await host.send('Tied.', 'Now.');
+    assert.equal(host.sdk.query('savepoint.contract', {}).retainedChatRestore, true);
+});
+
 test('a reply that is not faded, whose words are the same as a faded one, stays in the request', async t => {
     t.mock.method(console, 'warn', () => {});
     const host = await createHost({ modules: [rulesModule()] });

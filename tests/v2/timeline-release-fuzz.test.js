@@ -52,6 +52,8 @@ async function run(t, seed, steps) {
     const open = async image => {
         host = image ? await reload(createHost, image, modules(), { st: { mainApi } }) : await createHost({ modules: modules(), st: { mainApi } });
         t.after(() => host.close());
+        // A prompt-only regex (SillyTavern's own): the request's words are not the chat's, so a faded message can only be found by who it is.
+        host.st.promptRegex.push({ find: / (says|narrates|answers|swiped|edited|probe|goes on)\./g });
         host.events.on('modules', ({ changes }) => {
             if (!changes.some(change => change.status === 'ready')) return;
             heard.push({ state: host.registry.restore().state, ready: host.sdk.query('savepoint.contract', {}).participantsReady });

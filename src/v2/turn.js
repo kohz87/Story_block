@@ -26,7 +26,7 @@ import { notWritten } from './assist/extractor.js';
 import { refusedWhy } from './assist/safety.js';
 import { displayLines, readDisplayLine } from './extras.js';
 import { occurrenceOf, operationKey, replacedProofs, reusePlan } from './evidence.js';
-import { hash, readRecord, swipeLoading } from './persist.js';
+import { KEY, hash, readRecord, swipeLoading } from './persist.js';
 import { CAPTURE_PREFIX, HOST_MODULE } from './registry.js';
 import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt.js';
 import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
@@ -213,6 +213,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     // The host readers of earlier messages that this turn owns, each asked for by name from the timeline's one active-history filter
     // (timeline/active.js): faded messages (after a restore) never reach a request or a module's view. A host without a timeline has none.
     const reader = name => (typeof timeline?.active === 'function' ? timeline.active(name) : null);
+    const interceptRequest = reader('prompt.intercept');
     const chatRequest = reader('prompt.chat');
     const textRequest = reader('prompt.text');
     const lateReader = reader('assist.late');
@@ -532,9 +533,31 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         try { notify?.(reason, null); } catch { /* a missing toastr is not an error */ }
     }
 
+    // Who a message is, by what formatting and regexes cannot change: the reader or the narrator, which swipe, which record. The chat the
+    // host hands the interceptor is tied to the chat's messages by this, and the faded ones are taken out before the prompt is built.
+    const identityOf = message => (message?.is_user ? `u|${message.name ?? ''}`
+        : `a|${message?.name ?? ''}|${message?.swipe_id ?? 0}|${typeof message?.extra?.[KEY]?.sid === 'string' ? message.extra[KEY].sid : ''}`);
+    let untiedTold = false;
+    // The interceptor tied the request it was handed to the chat and took the faded messages out of it: the text filters over the
+    // finished request (a second line, for a request that was not tied) would only take an active message of the same words.
+    let intercepted = false;
+    function dropFadedFromChat(entries, kind) {
+        if (!interceptRequest) return;
+        if (store.headIndex() !== lastCarrier()) store.rebuild();
+        const done = interceptRequest.intercept(entries, identityOf, { swipe: kind === 'swipe' });
+        intercepted = done.ok;
+        if (done.ok) { untiedTold = false; return; }
+        // Never silently passed on: the chat is marked untied (the capability says retainedChatRestore is false) and the reader is told once.
+        if (!untiedTold) {
+            untiedTold = true;
+            problem({ code: 'HISTORY_UNTIED', message: `The request could not be matched to the chat (${done.why}), so messages a restore faded may be in it.` });
+        }
+    }
+
     async function interceptor(_chat, contextSize, abort, type) {
         const kind = normalizeType(type);
         if (!FOREGROUND.includes(kind)) {
+            dropFadedFromChat(_chat, kind);
             // A quiet prompt built while the reply's own is pending must not carry its text; the
             // reply's prompt gets it back at the quiet prompt's prompt-ready (below).
             // A reply already on its way keeps its session, so it is still captured.
@@ -565,6 +588,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 block(blocked, abort);
                 return;
             }
+            dropFadedFromChat(_chat, kind);
             const cues = await runCues(kind);
             const built = build(cues);
             tellTooSmall(built.fit);
@@ -628,7 +652,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** CHAT_COMPLETION_PROMPT_READY: { chat, dryRun }. */
     function onPromptReady(eventData) {
         if (!eventData || eventData.dryRun === true || !Array.isArray(eventData.chat) || isOwn(eventData)) return;
-        chatRequest?.chatPrompt(eventData.chat);
+        if (!intercepted) chatRequest?.chatPrompt(eventData.chat);
+        intercepted = false;
         stripHistory(eventData.chat);
         if (backgroundPrompt() || !session || session.prompted) return;
         session.prompted = true;
@@ -638,7 +663,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     /** GENERATE_AFTER_COMBINE_PROMPTS (text completion): { prompt, dryRun }. */
     function onTextPromptReady(eventData) {
         if (!eventData || eventData.dryRun === true || typeof eventData.prompt !== 'string' || isOwn(eventData)) return;
-        if (textRequest) eventData.prompt = textRequest.textPrompt(eventData.prompt);
+        if (textRequest && !intercepted) eventData.prompt = textRequest.textPrompt(eventData.prompt);
+        intercepted = false;
         // Only the hidden form: the static text's own example block must stay.
         const hidden = new RegExp(`\\s*<!--\\s*STORY_SUITE_V2\\b[\\s\\S]*?-->`, 'g');
         eventData.prompt = eventData.prompt.replace(hidden, '');

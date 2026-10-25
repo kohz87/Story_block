@@ -2,11 +2,17 @@
 // generation request, a prompt note or a module's view may read. `faded()` is the coordinator's rule (the faded intervals of the
 // returns on the line of history); nothing else decides it. Every host reader of earlier messages asks for a reader here by
 // name, and the host reports `retainedChatRestore` only when every name has been asked for.
+//
+// A request is filtered by identity first: the chat the host hands the generation interceptor is tied to the chat's messages (who
+// spoke, which swipe, which record), before any formatting or regex has changed a word of it, and the faded entries are taken out
+// (`intercept`). The text filters (`chatPrompt`, `textPrompt`) are a second line over the finished request. A request that cannot be
+// tied is not passed on silently: the chat is marked untied and the capability reports retainedChatRestore false for it.
 
 /** The host's readers of earlier messages. Adding one means asking for it by name, so the capability cannot claim more than is wired. */
 export const ACTIVE_READERS = Object.freeze([
     'prompt.chat',      // the chat-completion request (turn.js onPromptReady)
     'prompt.text',      // the text-completion request (turn.js onTextPromptReady)
+    'prompt.intercept', // the chat the generation interceptor is handed, filtered by identity (turn.js interceptor)
     'prompt.chatter',   // the Inner chatter tail line (domains chatterBack)
     'view.lastUser',    // the reader's last message a module's view shows (sdk makeView)
     'assist.late',      // the previous reply's late safety-net lines (turn.js lateLines)
@@ -44,8 +50,11 @@ function cuts(messages, faded, find) {
  * `messages()`: the chat; `faded()`: the Set of indexes of its faded messages. `reader(name)` → { messages(list), chatPrompt(entries),
  * textPrompt(text) } and counts `name` as wired.
  */
-export function createActiveHistory({ messages, faded }) {
+export function createActiveHistory({ messages, faded, holder = () => null }) {
     const wired = new Set();
+    // Chats (by their holder) whose last request could not be tied to their messages.
+    const untied = new WeakSet();
+    const mark = (ok) => { const chat = holder(); if (chat !== null && typeof chat === 'object') { if (ok) untied.delete(chat); else untied.add(chat); } };
     const find = {
         // A request of { role, content } entries.
         chat: entries => (text, before) => {
@@ -63,6 +72,8 @@ export function createActiveHistory({ messages, faded }) {
     };
     return Object.freeze({
         wired: () => ACTIVE_READERS.every(name => wired.has(name)),
+        /** False for a chat whose last request could not be tied to its messages (faded text may have gone with it). */
+        intact: () => { const chat = holder(); return chat === null || typeof chat !== 'object' || !untied.has(chat); },
         reader(name) {
             if (!ACTIVE_READERS.includes(name)) throw new Error(`"${name}" is not a host reader of earlier messages.`);
             wired.add(name);
@@ -71,6 +82,35 @@ export function createActiveHistory({ messages, faded }) {
                 messages: list => {
                     const out = faded();
                     return out.size ? list.filter((_, at) => !out.has(at)) : list;
+                },
+                /**
+                 * The chat the generation interceptor is handed (`entries`), tied to the chat's messages by `idOf` (who, which swipe, which
+                 * record: nothing that formatting or a regex changes) and without the entries of faded messages; the list itself is changed.
+                 * Messages the host leaves out are system messages, or the last one of a swipe (`swipe`). → { ok: true } or { ok: false, why }
+                 * when an entry cannot be tied, in which case nothing is removed and the chat is marked untied.
+                 */
+                intercept(entries, idOf, { swipe = false } = {}) {
+                    const out = faded();
+                    if (!out.size) { mark(true); return { ok: true }; }
+                    if (!Array.isArray(entries)) { mark(false); return { ok: false, why: 'the host gave the interceptor no chat' }; }
+                    const list = messages();
+                    const at = [];
+                    let next = 0;
+                    for (const entry of entries) {
+                        const want = idOf(entry);
+                        while (next < list.length && idOf(list[next]) !== want) {
+                            if (!list[next]?.is_system) { mark(false); return { ok: false, why: `the request holds a message (${want}) that is not where the chat has it` }; }
+                            next += 1;
+                        }
+                        if (next >= list.length) { mark(false); return { ok: false, why: `the request holds a message (${want}) that the chat does not` }; }
+                        at.push(next);
+                        next += 1;
+                    }
+                    const left = list.slice(next).filter(message => !message?.is_system).length;
+                    if (left > (swipe ? 1 : 0)) { mark(false); return { ok: false, why: 'the chat has messages the request does not' }; }
+                    for (let n = entries.length - 1; n >= 0; n -= 1) if (out.has(at[n])) entries.splice(n, 1);
+                    mark(true);
+                    return { ok: true };
                 },
                 /** The indexes of the chat's faded messages. */
                 faded: () => faded(),
