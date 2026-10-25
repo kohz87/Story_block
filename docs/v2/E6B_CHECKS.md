@@ -39,3 +39,18 @@ chat's slot. Follow-up/selection/contract/byte tests pass 30/30; all timeline+li
 Reverting only native preparation's use of that runner fails the follow-up file. Syntax and diff checks pass.
 Retention is deliberately conservative: older day payloads and old pre-restore pins stay readable. Reachability
 pruning/native checkpoint release is not a small change and remains a documented fails-safe performance follow-up.
+
+Part 6: thrown guards now report a chat/source-bound store Problem through the shared guard check, including
+owner, predicate kind and refused query. This covers a first live commit, replay after Re-read/reload, and a
+rejected replacement whose valid old block remains. Reverting the exception routing fails all four new tests.
+The focused replay/compatibility group passes 61/61. The core-module query inventory assertions were updated
+for the savepoint.contract query added in part 4.
+
+Final external checks use copies refreshed from this exact working tree, including both RB vendor locations:
+SD 1,125 tests (1,124 pass, one skip); NSD 1,439 pass plus compatibility and runtime smoke. RB remains 1,674
+(1,650 pass, five confirmed pre-existing fixture failures, 13 skip, six todo). The real-module matrix is unchanged
+from merged main: 77 ok, two gaps, four todo, 19 n/a, 26 failures. Extended timeline fuzz: eight seeds × 60
+operations, all pass. Replay CLI fuzz: 20 seeds × 120 operations, zero failures. Syntax and diff checks pass.
+
+Final full host run: 3,407 tests, 3,396 pass, zero failures, 10 skips, one existing todo. The query inventory
+assertions and new guard diagnostic tests are included. No README, CHANGELOG or frozen contract was edited.

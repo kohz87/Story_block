@@ -214,7 +214,8 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
             const view = Object.freeze({ state, query: tools.query, hash: hashJson });
             answer = hook(view, deepFreeze(clone({ guard: info.guard, source: info.source, block: info.block, operation: info.operation, recorded: info.recorded ?? null, payload: info.payload ?? null })));
         } catch (error) {
-            return { ok: false, reason: `${owner}'s replayGuard failed (${error?.message ?? error})` };
+            // The store records thrown guards even when this is a tentative plan that will not be stored.
+            throw error;
         }
         if (answer && typeof answer.then === 'function') {
             answer.then(null, () => {});

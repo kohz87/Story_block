@@ -562,6 +562,24 @@ export function createStore({
         lastMark = markNow();
     }
 
+    // Rejected plans have no stored block to replay a Problem from. Keep thrown-guard diagnostics in
+    // this chat only, at the one point where every guard is checked; successful checks clear that exact fault.
+    let guardFaults = null;
+    function faultsNow() {
+        const arr = list(), id = chatId(), holder = metadata();
+        if (!guardFaults || guardFaults.arr !== arr || guardFaults.id !== id || guardFaults.holder !== holder) {
+            guardFaults = { arr, id, holder, entries: new Map() };
+        }
+        return guardFaults.entries;
+    }
+    const guardFaultKey = span => `${span.id}:${hashJson(span.guard)}`;
+    function thrownGuard(span, message, error) {
+        const kind = isObject(span.guard?.predicate) && typeof span.guard.predicate.kind === 'string' ? span.guard.predicate.kind : '<missing>';
+        const why = `${span.guard.owner}'s replayGuard kind ${kind} failed (${error?.message ?? error})`;
+        faultsNow().set(guardFaultKey(span), { message, source: span.source, block: span.id, why });
+        return { ok: false, reason: why };
+    }
+
     // The owner's answer for a guarded block on `state` (the state before it): { ok: true } or { ok: false,
     // reason }. Nothing to ask, a throw, a promise or any other shape fails closed.
     function askGuard(state, span, message) {
@@ -573,13 +591,13 @@ export function createStore({
             const payload = { saved: span.boundaries?.[0]?.payloadHash ?? null, current: message ? payloadHashOf(message) : null };
             answer = guardCheck(state, { guard: span.guard, source: span.source, block: span.id, operation: span.operation, recorded: span.recorded ?? null, payload });
         } catch (error) {
-            return { ok: false, reason: `its guard could not be checked (${error?.message ?? error})` };
+            return thrownGuard(span, message, error);
         }
         if (answer && typeof answer.then === 'function') {
             answer.then(null, () => {});
             return { ok: false, reason: 'its guard did not answer at once' };
         }
-        if (isObject(answer) && answer.ok === true) return { ok: true };
+        if (isObject(answer) && answer.ok === true) { faultsNow().delete(guardFaultKey(span)); return { ok: true }; }
         if (isObject(answer) && answer.ok === false && typeof answer.reason === 'string' && answer.reason) return { ok: false, reason: answer.reason };
         return { ok: false, reason: 'its guard gave an answer that is neither { ok: true } nor { ok: false, reason }' };
     }
@@ -1641,7 +1659,17 @@ export function createStore({
         // Problems met by the last head rebuild: [{ index, block, receipts, why, message }], one per block
         // of stored ops that no longer applies (`receipts`: the IDs whose changes were skipped).
         problems() {
-            return current().problems.map(problem => ({ ...problem, receipts: [...(problem.receipts ?? [])] }));
+            const problems = current().problems.map(problem => ({ ...problem, receipts: [...(problem.receipts ?? [])] }));
+            for (const fault of faultsNow().values()) {
+                const index = list().indexOf(fault.message);
+                if (index < 0) continue;
+                const source = api.sourceAt(index);
+                if (source?.sid !== fault.source.sid || source?.swipeKey !== fault.source.swipeKey) continue;
+                if (problems.some(problem => problem.index === index && problem.why.includes(fault.why))) continue;
+                problems.push({ index, block: null, receipts: [], why: fault.why, code: 'REPLAY_PREREQUISITE',
+                    message: `A replay guard on message ${index} refused its planned changes: ${fault.why}` });
+            }
+            return problems;
         },
 
         // Why the head is only the empty read-only state: the first record is a future version's, an older one's or
