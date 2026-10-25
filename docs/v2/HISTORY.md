@@ -52,3 +52,18 @@ restore barriers, and old restore journals lacking native prefix witnesses repor
 modules remain usable when a capability is false. The RB bootstrap must reject a missing, thrown, null, malformed,
 wrong-version or false capability answer as DEPENDENCY_UNAVAILABLE; its public query probe is tested as a consumer
 fixture because the available real RB checkout has not yet implemented that bootstrap migration.
+
+Callback bound: 10 seconds, already introduced with part 2, now applied through one runner to all registered
+callbacks and nativeMutation.prepare alike. A timeout returns a failure and releases the host queue. That
+participant's same-chat slot remains quarantined until the actual callback settles, preventing a late activation
+from racing another selection. In-flight slots belong to their original metadata holder; late cleanup cannot
+clear a different chat's slot. A committed restore stays barred on failure; a precommit preparation publishes no
+journal/state. Callback cancellation is not a frozen participant method; owners must bind native work to its chat.
+
+Retention decision: retain payloads older than the day before the newest, and old pre-restore pins, while retained
+history can still select them. No deletion by calendar age is introduced. An earlier swipe can select an earlier day;
+a manual/initial snapshot can retain an older anchor; old return records must still resolve their sealed batch and
+pre-restore evidence. Safe reclamation therefore needs reachability across hidden swipes, immutable snapshot
+payloads and native checkpoints, plus an owner checkpoint-release protocol (not supplied by the frozen contract).
+That is not a small archive edit. Age-based pruning and unreferenced-cache collection remain an explicit performance
+follow-up; tests assert older bytes/pins remain readable. This decision trades archive growth for replay consistency.

@@ -21,7 +21,7 @@ import { createArchive } from './archive.js';
 import { GENESIS_EPOCH, HOST_DOMAIN, epochOf } from './gate.js';
 import { appendHostBlock, stateHash } from './host-block.js';
 import { capture, initialSavepoints, planRestore, previousDayOf } from './manifest.js';
-import { boundedParticipant, createParticipants } from './participants.js';
+import { createParticipants } from './participants.js';
 import { crashing, fail, isNotDurable, isObject, isStaleChat, makeId, notDurable, staleChat } from './util.js';
 
 export const MANUAL_LIMIT = 10;
@@ -56,7 +56,7 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
     // chat, and when another one is open it touches nothing there (`staleChat`, answered STALE).
     let scope = null;
     const archive = createArchive({ metadata, touch: () => store.touch?.(), bound: () => scope?.holder ?? null });
-    const participants = createParticipants();
+    const participants = createParticipants({ chat: () => archive.holder() });
     const capability = Object.freeze({ timeline: 'story-block' });
     const handles = new Map();
     const broken = new Map();   // module -> why its participant declaration was not registered
@@ -1117,9 +1117,10 @@ export function createTimeline({ store, registry, metadata, chat = () => [], bar
         if (input.source.sid !== first.cursor.sid || input.source.swipeKey !== first.cursor.swipeKey) return fail('STALE', 'That source is not the reply at the head.');
         // The participant makes both checkpoints durable on its side and gives back what it made, without showing the new state.
         let made;
-        try { made = await boundedParticipant(() => input.prepare());
+        try { made = await participants.run(who, () => input.prepare());
             here(); } catch (error) {
             if (crashing(error)) throw error;
+            if (isStaleChat(error)) throw error;
             return fail('FAILED', `The participant ${who} could not prepare its change: ${error?.message ?? error}`);
         }
         if (!isObject(made) || !participantShape(made.before, who) || !participantShape(made.after, who) || typeof made.prepared !== 'string' || !made.prepared) {

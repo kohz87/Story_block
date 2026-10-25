@@ -32,3 +32,10 @@ Part 4: savepoint.contract query, read-only capability calculation and in-flight
 contract/lifecycle/byte tests pass 39/39; all timeline and lifecycle tests pass 241/241. Removing only query
 registration makes the regression file fail. Changed-source syntax and diff checks pass. Real RB consumer
 migration is the integration gap described above, not an invented host registration interface.
+
+Part 5: one chat-scoped timeout/quarantine runner covers native preparation as well as registered participant
+callbacks. The 10-second bound releases the queue; late completion cannot race same-chat work or clear another
+chat's slot. Follow-up/selection/contract/byte tests pass 30/30; all timeline+lifecycle tests pass 245/245.
+Reverting only native preparation's use of that runner fails the follow-up file. Syntax and diff checks pass.
+Retention is deliberately conservative: older day payloads and old pre-restore pins stay readable. Reachability
+pruning/native checkpoint release is not a small change and remains a documented fails-safe performance follow-up.

@@ -36,8 +36,23 @@ const SHAPES = Object.freeze({
     applyEvent: answer => text(answer.event) && text(answer.checkpoint) && isHash(answer.hash) && answer.ack === true,
 });
 
-export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS } = {}) {
+export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS, chat = () => null } = {}) {
+    // Callback state belongs to the chat that began it. Late completion clears only that chat's slot.
     const inflight = new Map();
+    async function run(module, callback) {
+        const holder = chat();
+        let calls = inflight.get(holder);
+        if (!calls) { calls = new Map(); inflight.set(holder, calls); }
+        if (calls.has(module)) throw new Error(`The participant ${module} still has a timed-out callback in flight.`);
+        const pending = Promise.resolve().then(callback);
+        calls.set(module, pending);
+        const clear = () => {
+            if (calls.get(module) === pending) calls.delete(module);
+            if (!calls.size && inflight.get(holder) === calls) inflight.delete(holder);
+        };
+        pending.then(clear, clear);
+        return boundedParticipant(() => pending, timeoutMs);
+    }
     const table = new Map();
     return {
         /** Registers a participant: → { ok: true, module } | INVALID | CONFLICT. */
@@ -56,7 +71,8 @@ export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS } = {}) 
             return { ok: true, module: spec.module };
         },
         has: module => table.has(module),
-        ready: () => inflight.size === 0,
+        ready: () => !inflight.get(chat())?.size,
+        run,
         get: module => table.get(module) ?? null,
         /** The registered participants' modules, sorted. */
         modules: () => [...table.keys()].sort(),
@@ -96,11 +112,7 @@ export function createParticipants({ timeoutMs = PARTICIPANT_TIMEOUT_MS } = {}) 
             if (typeof callback !== 'function') return fail('UNSUPPORTED', `The participant ${module} cannot ${method}.`);
             let answer;
             try {
-                if (inflight.has(module)) return fail('FAILED', `The participant ${module} still has a timed-out callback in flight.`);
-                const pending = Promise.resolve().then(() => callback(structuredClone(input)));
-                inflight.set(module, pending);
-                pending.then(() => { if (inflight.get(module) === pending) inflight.delete(module); }, () => { if (inflight.get(module) === pending) inflight.delete(module); });
-                answer = await boundedParticipant(() => pending, timeoutMs);
+                answer = await run(module, () => callback(structuredClone(input)));
             } catch (error) {
                 if (crashing(error)) throw error;
                 return fail('FAILED', `The participant ${module} failed at ${method}: ${error?.message ?? error}`);
