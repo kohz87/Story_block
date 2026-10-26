@@ -1354,12 +1354,12 @@ test('direct generation reserves SB slug space for the complete two-step graph',
         const skill = `pack.fixture/${'s'.repeat(length)}`;
         return { ...base, skill, id: `${skill}-base` };
     };
-    const first = generatePowerUp(make(52));
+    const first = generatePowerUp(make(RULES_V2_LIMITS.skillSlug));
     assert.equal(first.ok, true);
     const second = generatePowerUp(first.form);
     assert.equal(second.ok, true);
-    assert.ok(second.form.id.split('/')[1].length <= 64);
-    const invalid = generatePowerUp(make(53));
+    assert.ok(second.form.id.split('/')[1].length <= RULES_V2_LIMITS.slug);
+    const invalid = generatePowerUp(make(RULES_V2_LIMITS.skillSlug + 1));
     assert.equal(invalid.ok, false);
     assert.ok(invalid.errors.some(error => error.code === 'bad-rules' && error.path === 'skill'));
 });

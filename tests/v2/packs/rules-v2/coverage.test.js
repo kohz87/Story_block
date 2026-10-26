@@ -99,9 +99,9 @@ function renameSkill(pack, from, to) {
 test('a skill slug may have 52 characters and no more', () => {
     for (const from of ['s30', 's00']) {
         const index = smallRulesPack().content.rules[0].skills.findIndex(s => s.slug === from);
-        const fits = R.validateRulesPack(renameSkill(smallRulesPack(), from, 'a'.repeat(52)));
+        const fits = R.validateRulesPack(renameSkill(smallRulesPack(), from, 'a'.repeat(R.RULES_V2_LIMITS.skillSlug)));
         assert.equal(fits.ok, true, `${from}: ${show(fits)}`);
-        const tooLong = R.validateRulesPack(renameSkill(smallRulesPack(), from, 'a'.repeat(53)));
+        const tooLong = R.validateRulesPack(renameSkill(smallRulesPack(), from, 'a'.repeat(R.RULES_V2_LIMITS.skillSlug + 1)));
         assert.equal(tooLong.ok, false, from);
         assert.ok(has(tooLong, CODES.NUMERIC_RANGE, `content.rules[0].skills[${index}].slug`), show(tooLong));
     }

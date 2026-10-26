@@ -299,6 +299,7 @@ test('exact enums, bounds, and constants', () => {
     assert.equal(RULES_V2_LIMITS.name, 80);
     assert.equal(RULES_V2_LIMITS.note, 240);
     assert.equal(RULES_V2_LIMITS.slug, 64);
+    assert.equal(RULES_V2_LIMITS.skillSlug, 52);
     assert.equal(RULES_V2_LIMITS.forms, 2048);
     assert.equal(RULES_V2_LIMITS.branches, 1000);
     assert.equal(RULES_V2_LIMITS.itemRules, 1000);
@@ -315,6 +316,7 @@ test('exact enums, bounds, and constants', () => {
         'name',
         'note',
         'slug',
+        'skillSlug',
         'forms',
         'branches',
         'itemRules',
