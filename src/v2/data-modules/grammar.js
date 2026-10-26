@@ -27,7 +27,15 @@ export function kindExample(definition, name, reference) {
         + Object.entries(kind.labels).map(([label, schema]) => ` | ${label}: ${first(schema)}`).join('');
 }
 
-/** The text a module adds to the static part, within the module's character budget. */
+/** The lines a module adds to the static part, one per kind, within the module's character budget (whole lines only). */
 export function moduleGrammar(definition, reference) {
-    return Object.keys(definition.kinds).map(name => kindGrammar(definition, name, reference)).join('; ').slice(0, L.staticCharacters);
+    const lines = [];
+    let used = 0;
+    for (const name of Object.keys(definition.kinds)) {
+        const line = kindGrammar(definition, name, reference);
+        if (used + line.length + 1 > L.staticCharacters) break;
+        lines.push(line);
+        used += line.length + 1;
+    }
+    return lines.join('\n');
 }

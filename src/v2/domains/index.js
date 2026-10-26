@@ -310,7 +310,8 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),
     });
-    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), createDataModulesPart({ packs: packs.packs, ...dataModules })]);
+    const dataPart = createDataModulesPart({ packs: packs.packs, ...dataModules });
+    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), dataPart]);
     const timelineGuard = merged.hooks.replayGuard;
     merged.hooks.replayGuard = Object.assign((view, info) => String(info?.guard?.predicate?.kind ?? '').startsWith('dm.')
         ? dataModuleGuard(view, info) : timelineGuard(view, info), { hostOwned: true });
@@ -372,7 +373,8 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
                 }
                 return { lines, optional };
             },
-            budget: merged.budget || CORE_BUDGET,
+            // The core's own room, plus 100 tokens for each pinned data module (none without a pin: part.js context.extra).
+            get budget() { return (merged.budget || CORE_BUDGET) + dataPart.context.extra(); },
             // Inner chatter back to the story, only while the reader's setting asks for it (MODULES §F115).
             parts: [Object.freeze({ feature: CORE_FEATURE.chatter, tail: () => chatterBack(settings, extras) })],
         },

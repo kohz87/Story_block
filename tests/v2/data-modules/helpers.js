@@ -37,3 +37,22 @@ export function directorStub({ minute = 1000, actors = [{ id: 'ca_wessel01', nam
     } }, queries: { 'director.time': state => ({ ...state.domains.director.time, formatted: 'must never reach a data guard' }),
         'checks.policy': state => ({ ...state.domains.checks.policy, secret: 'not projected' }) } };
 }
+// Live head, a reload of the chat array, and a cold rebuild must all agree.
+export async function reload(host) {
+    const live = JSON.stringify(host.head());
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.equal(JSON.stringify(host.head()), live, 'a reload gives the live head');
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'a cold rebuild gives the live head');
+}
+export const inactive = host => host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE');
+export const storyRecord = (host, index) => host.ctx.chat[index].extra.storySuite;
+export const spansOf = (host, kindPrefix = 'dm.') => host.ctx.chat.flatMap(message => message.extra?.storySuite?.spans ?? []).filter(span => String(span.guard?.predicate?.kind ?? '').startsWith(kindPrefix));
+// Version 2 of the small counter: the same mechanics and one new field with a default (additive migration only).
+export const counterV2 = () => {
+    const next = definition();
+    next.stateVersion = 2; next.name = 'Counter plus';
+    next.state.bonus = int(5, 0, 50);
+    next.migrations = [{ from: 1, to: 2, add: { bonus: int(5, 0, 50) } }];
+    return next;
+};

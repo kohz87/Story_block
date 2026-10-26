@@ -64,12 +64,14 @@ export function pinnedPresentation(state, kind = 'screens') {
     });
 }
 
+/** The static lines for the pinned modules (empty without a pin); they change only when a pin does. */
 export function grammarFor(state) {
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
-    return active.map(id => {
+    const lines = active.map(id => {
         const definition = activeDefinition(state, id);
         return definition ? moduleGrammar(definition, referenceOf(active, id)) : '';
-    }).filter(Boolean).join('\n');
+    }).filter(Boolean);
+    return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }
 
 function checkedTarget(definition, state) {
@@ -124,7 +126,26 @@ export function dataModuleGuard(view, info) {
     } catch { return { ok: false, reason: 'Damaged or unsupported data module pin/guard.' }; }
 }
 
-export function createDataModulesPart({ packs, state = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }) } = {}) {
+const valueText = value => (typeof value === 'string' ? JSON.stringify(value) : String(value));
+const fieldsText = fields => Object.entries(fields).map(([key, value]) => (value !== null && typeof value === 'object'
+    ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${valueText(value)}`)).join('; ');
+
+/** One module's state in plain words for the prompt's tail, at most 100 tokens: "Survival — Wessel: hunger 12; fatigue 6." */
+export function summaryOf(state, module) {
+    const definition = activeDefinition(state, module);
+    if (!definition) return `${module} — unavailable (damaged or unknown pin).`;
+    const view = moduleView(state, { module });
+    let waiting = '';
+    try { const inputs = inputsOf(state, definition); if (definition.timers.some(timer => inputs[timer.clock]?.minutes == null)) waiting = ' Waiting for story time.'; } catch { waiting = ' Waiting.'; }
+    const body = definition.scope === 'chat' ? fieldsText(view.chat)
+        : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(fields)}`).join(' | ') || 'no one attached';
+    return `${definition.name} — ${body}.${waiting}`.slice(0, L.tailTokens * 4);
+}
+const tailLines = state => Object.keys(state?.domains?.dataModules?.active ?? {}).map(module => summaryOf(state, module));
+
+export function createDataModulesPart({ packs, state: head = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }) } = {}) {
+    // The runtime's late-bound readers may not exist yet while the definition registers: read as "no state" until they do.
+    const state = () => { try { return head(); } catch { return null; } };
     function offers() {
         const where = new Map();
         try { for (const entry of packs?.list?.() ?? []) where.set(entry.id, entry.source === 'lorebook' ? 'a lorebook' : String(entry.origin ?? '')); } catch { /* no list: no origin */ }
@@ -257,8 +278,11 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
     // that is only unavailable now (a peer is away, a restore is pending) is a plain refusal: the old block is kept as it was.
     function tick(ctx, payload) {
         if (ctx.cause !== 'system' || ctx.caller !== null) refuse('REFUSED', '', 'Timers run only as host system steps.');
-        const prefix = stateOf(ctx), module = payload.module, subject = payload.subject, definition = activeDefinition(prefix, module);
-        if (!definition || !subjectsOf(prefix, module).includes(subject)) refuse('NO_LONGER_DONE', 'who', 'This module or subject is no longer pinned and attached.');
+        const prefix = stateOf(ctx), module = payload.module, subject = payload.subject;
+        if (!prefix.domains.dataModules?.active?.[module] || !subjectsOf(prefix, module).includes(subject)) refuse('NO_LONGER_DONE', 'who', 'This module or subject is no longer pinned and attached.');
+        // A pin this build cannot read is kept as it is (a plain refusal), never taken back.
+        const definition = activeDefinition(prefix, module);
+        if (!definition) refuse('DM_SCHEMA', module, 'Unsupported or damaged pin; inspect it in Setup.');
         dependency(definition, prefix);
         if (subject !== 'chat') resolveActor(prefix, subject, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = copy(prefix.domains.dataModules), instance = atPath(draft, instancePath(module, subject));
@@ -277,9 +301,11 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
     // peer is away or a restore is pending (Setup shows the reason; an explicit action is refused with it), and for a
     // subject whose actor is gone. Nothing due: nothing returned, nothing consumed.
     function due(view) {
-        const prefix = view.state, commands = [];
+        const prefix = view?.state, commands = [];
+        // Nothing pinned (or no state yet, in a new chat): the hook answers nothing and reads nothing else.
+        if (!prefix?.domains?.dataModules?.active || !Object.keys(prefix.domains.dataModules.active).length) return undefined;
         if (restore()?.state === 'pending') return undefined;
-        for (const module of Object.keys(prefix.domains?.dataModules?.active ?? {})) {
+        for (const module of Object.keys(prefix.domains.dataModules.active)) {
             const definition = activeDefinition(prefix, module);
             if (!definition?.timers.length) continue;
             try { dependency(definition, prefix); } catch { continue; }
@@ -296,7 +322,7 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
         return commands.length ? { commands } : undefined;
     }
     const kind = { get enabled() { return Boolean(Object.keys(state()?.domains?.dataModules?.active ?? {}).length); },
-        grammar: '! dm Module — reason | kind: local-kind (+ dm / - dm / ~ dm / ? dm use each declared op)', apply: wrap((ctx, line) => act(ctx, {}, line)) };
+        grammar: '! dm Module — reason | kind: name | label: value (only the lines listed under Data modules; each has its own op)', apply: wrap((ctx, line) => act(ctx, {}, line)) };
     return {
         domains: { dataModules: { initial, deferred: true, snapshot: 'when-present', scratch: ['perReply'], validate: validateDomain } },
         commands: { 'dm.pin': wrap((ctx, payload) => target(ctx, payload)), 'dm.migrate': wrap((ctx, payload) => target(ctx, payload, true)),
@@ -330,14 +356,11 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
             },
             'dataModules.presentation': (prefix, { kind: name = 'screens' } = {}) => pinnedPresentation(prefix, name) },
         hooks: { afterCapture: due, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
-        context: { static: () => grammarFor(state()), tail(view) {
-            const lines = Object.keys(view.state?.domains?.dataModules?.active ?? {}).map(module => {
-                const definition = activeDefinition(view.state, module);
-                if (!definition) return `${module}: Unsupported pin.`;
-                const inputs = inputsOf(view.state, definition), waiting = definition.timers.some(timer => inputs[timer.clock]?.minutes == null);
-                return `${definition.name}: ${waiting ? 'Waiting for story time. ' : ''}${JSON.stringify(moduleView(view.state, { module }))}`.slice(0, L.tailTokens * 4);
-            });
-            return { lines, optional: [] };
-        }, budget: 0 },
+        context: {
+            static: () => grammarFor(state()),
+            tail: view => ({ lines: tailLines(view.state), optional: [] }),
+            // Tail room for the lines above: 100 tokens for each pinned module, on top of the core's own; none without a pin.
+            extra: () => Math.min(Object.keys(state()?.domains?.dataModules?.active ?? {}).length, L.pins) * L.tailTokens,
+        },
     };
 }
