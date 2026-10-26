@@ -1,0 +1,1385 @@
+{
+  "id": "lanternfall",
+  "version": "1.0.0",
+  "name": "Lanternfall (tiny example world)",
+  "author": "Story Block authoring kit",
+  "description": "A very small complete rules pack: one class line, three places, three foes, a shop, two quests. It shows what the kit produces from examples/tiny-world/lore.md.",
+  "requires": {
+    "storyBlock": "^2",
+    "capabilities": [
+      "rb-rules-v2"
+    ]
+  },
+  "currency": {
+    "name": "mark",
+    "plural": "marks",
+    "short": "mk"
+  },
+  "content": {
+    "items": [
+      {
+        "slug": "trail-bread",
+        "name": "Trail Bread",
+        "kind": "consumable",
+        "rarity": "common",
+        "value": 3,
+        "effect": {
+          "heal": 5
+        },
+        "tags": [
+          "food"
+        ],
+        "note": "Hard, dry and filling."
+      },
+      {
+        "slug": "lamp-oil",
+        "name": "Lamp Oil",
+        "kind": "goods",
+        "rarity": "common",
+        "value": 4,
+        "tags": [
+          "lamp"
+        ],
+        "note": "A flask of pressed reed oil."
+      },
+      {
+        "slug": "marsh-reed",
+        "name": "Marsh Reed",
+        "kind": "material",
+        "rarity": "common",
+        "value": 2,
+        "tags": [
+          "plant"
+        ],
+        "note": "Cut from the Reedmoor shallows."
+      },
+      {
+        "slug": "gloam-ash",
+        "name": "Gloam Ash",
+        "kind": "material",
+        "rarity": "uncommon",
+        "value": 6,
+        "tags": [
+          "gloaming"
+        ],
+        "note": "Grey ash left where a shadow burned out."
+      },
+      {
+        "slug": "reed-tonic",
+        "name": "Reed Tonic",
+        "kind": "consumable",
+        "rarity": "common",
+        "value": 15,
+        "effect": {
+          "heal": 20
+        },
+        "tags": [
+          "potion"
+        ],
+        "note": "Bitter, green and quick."
+      },
+      {
+        "slug": "lamplighters-pole",
+        "name": "Lamplighter's Pole",
+        "kind": "equipment",
+        "rarity": "common",
+        "value": 80,
+        "slot": "weapon",
+        "stats": {
+          "STR": 2
+        },
+        "tags": [
+          "weapon",
+          "polearm"
+        ],
+        "note": "A long pole with a hook and a wick-tip."
+      },
+      {
+        "slug": "oilskin-coat",
+        "name": "Oilskin Coat",
+        "kind": "equipment",
+        "rarity": "common",
+        "value": 60,
+        "slot": "body",
+        "stats": {
+          "VIT": 1
+        },
+        "tags": [
+          "armour"
+        ],
+        "note": "Keeps off marsh damp and spilled oil."
+      },
+      {
+        "slug": "ward-charm",
+        "name": "Ward Charm",
+        "kind": "equipment",
+        "rarity": "uncommon",
+        "value": 120,
+        "slot": "accessory-1",
+        "stats": {
+          "LUK": 1
+        },
+        "tags": [
+          "charm"
+        ],
+        "note": "A tin lantern on a cord, blessed at the guild."
+      }
+    ],
+    "places": [
+      {
+        "slug": "lanternfall",
+        "name": "Lanternfall",
+        "region": "The Slow River",
+        "kind": "settlement",
+        "x": 0,
+        "y": 0,
+        "market": "town",
+        "tags": [
+          "river"
+        ],
+        "note": "A market town lit by a thousand lamps."
+      },
+      {
+        "slug": "reedmoor",
+        "name": "Reedmoor",
+        "region": "The Slow River",
+        "kind": "wilderness",
+        "x": 3,
+        "y": -2,
+        "tags": [
+          "marsh"
+        ],
+        "note": "Reed marsh south-east of town, thick with wisps after dark."
+      },
+      {
+        "slug": "lamp-tower",
+        "name": "The Lamp Tower",
+        "region": "The Slow River",
+        "kind": "landmark",
+        "x": -2,
+        "y": 4,
+        "note": "The Lamplighters' guildhall and highest beacon."
+      }
+    ],
+    "ranks": [
+      {
+        "id": "F",
+        "title": "Apprentice",
+        "levels": [
+          1,
+          10
+        ],
+        "reward": [
+          30,
+          300
+        ]
+      },
+      {
+        "id": "E",
+        "title": "Journeyman",
+        "levels": [
+          11,
+          20
+        ],
+        "reward": [
+          300,
+          1500
+        ]
+      }
+    ],
+    "creatures": [
+      {
+        "slug": "reed-wisp",
+        "name": "Reed Wisp",
+        "tier": 0,
+        "level": 1,
+        "stats": {
+          "STR": 3,
+          "VIT": 4,
+          "AGI": 8,
+          "DEX": 6,
+          "INT": 7,
+          "LUK": 5,
+          "CHA": 2
+        },
+        "skills": [
+          "ember-spark"
+        ],
+        "loot": [
+          {
+            "def": "marsh-reed",
+            "chance": 60,
+            "qty": 1
+          }
+        ],
+        "loreTags": [
+          "marsh",
+          "gloaming"
+        ]
+      },
+      {
+        "slug": "mud-crawler",
+        "name": "Mud Crawler",
+        "tier": 0,
+        "level": 3,
+        "stats": {
+          "STR": 9,
+          "VIT": 10,
+          "AGI": 4,
+          "DEX": 4,
+          "INT": 2,
+          "LUK": 4,
+          "CHA": 1
+        },
+        "skills": [
+          "hook-and-haul"
+        ],
+        "loot": [
+          {
+            "def": "marsh-reed",
+            "chance": 40,
+            "qty": 2
+          },
+          {
+            "def": "gloam-ash",
+            "chance": 20,
+            "qty": 1
+          }
+        ],
+        "loreTags": [
+          "marsh"
+        ]
+      },
+      {
+        "slug": "gloam-hound",
+        "name": "Gloam Hound",
+        "tier": 1,
+        "level": 6,
+        "stats": {
+          "STR": 12,
+          "VIT": 10,
+          "AGI": 12,
+          "DEX": 9,
+          "INT": 4,
+          "LUK": 6,
+          "CHA": 2
+        },
+        "skills": [
+          "lantern-swing",
+          "beacon-flare"
+        ],
+        "loot": [
+          {
+            "def": "gloam-ash",
+            "chance": 75,
+            "qty": 2
+          }
+        ],
+        "loreTags": [
+          "gloaming",
+          "road"
+        ]
+      }
+    ],
+    "shops": [
+      {
+        "slug": "lamp-stall",
+        "name": "The Lamp Stall",
+        "place": "pack.lanternfall/lanternfall",
+        "kind": "general-goods",
+        "stock": [
+          {
+            "item": "trail-bread",
+            "qty": 20,
+            "price": 3
+          },
+          {
+            "item": "lamp-oil",
+            "qty": 20,
+            "price": 4
+          },
+          {
+            "item": "reed-tonic",
+            "qty": 6,
+            "price": 18
+          },
+          {
+            "item": "lamplighters-pole",
+            "qty": 2,
+            "price": 90
+          },
+          {
+            "item": "oilskin-coat",
+            "qty": 2,
+            "price": 70
+          },
+          {
+            "item": "ward-charm",
+            "qty": 1,
+            "price": 140
+          }
+        ]
+      }
+    ],
+    "recipes": [
+      {
+        "slug": "reed-tonic",
+        "name": "Reed Tonic",
+        "craft": "alchemy",
+        "makes": "reed-tonic",
+        "qty": 1,
+        "materials": [
+          {
+            "item": "marsh-reed",
+            "qty": 2
+          },
+          {
+            "item": "lamp-oil",
+            "qty": 1
+          }
+        ],
+        "fee": 0,
+        "minutes": 30,
+        "dc": 8,
+        "stat": "INT",
+        "known": true
+      }
+    ],
+    "quests": [
+      {
+        "slug": "wisps-on-the-reed-road",
+        "name": "Wisps on the Reed Road",
+        "category": "side",
+        "giver": null,
+        "turnInPlace": "pack.lanternfall/lanternfall",
+        "requirements": [],
+        "objectives": [
+          {
+            "id": "wisps-on-the-reed-road/kill",
+            "kind": "kill",
+            "foe": "reed-wisp",
+            "count": 4
+          }
+        ],
+        "reward": {
+          "coin": 60,
+          "xp": 40,
+          "items": []
+        },
+        "durationMinutes": null,
+        "repeat": null,
+        "chain": null
+      },
+      {
+        "slug": "ash-for-the-guild",
+        "name": "Ash for the Guild",
+        "category": "bounty",
+        "giver": null,
+        "turnInPlace": "pack.lanternfall/lamp-tower",
+        "requirements": [
+          {
+            "kind": "level",
+            "min": 2
+          }
+        ],
+        "objectives": [
+          {
+            "id": "ash-for-the-guild/collect",
+            "kind": "collect",
+            "def": "gloam-ash",
+            "count": 3,
+            "consume": true
+          },
+          {
+            "id": "ash-for-the-guild/visit",
+            "kind": "visit",
+            "place": "pack.lanternfall/lamp-tower"
+          }
+        ],
+        "reward": {
+          "coin": 140,
+          "xp": 90,
+          "items": [
+            {
+              "def": "ward-charm",
+              "qty": 1
+            }
+          ]
+        },
+        "durationMinutes": null,
+        "repeat": null,
+        "chain": null
+      }
+    ],
+    "rules": [
+      {
+        "slug": "rules",
+        "name": "Lanternfall rules",
+        "schema": 2,
+        "statLabels": {
+          "STR": "Might",
+          "INT": "Lore"
+        },
+        "memory": "deja-vu",
+        "classes": [
+          {
+            "slug": "lamplighter",
+            "name": "Lamplighter",
+            "tier": 0,
+            "parent": null,
+            "skills": [
+              "lantern-swing",
+              "warding-glow",
+              "ember-spark"
+            ],
+            "note": "Keeps the street lamps burning and the night roads open."
+          },
+          {
+            "slug": "beacon-warden",
+            "name": "Beacon Warden",
+            "tier": 1,
+            "parent": "lamplighter",
+            "skills": [
+              "beacon-flare",
+              "guard-the-road",
+              "hook-and-haul"
+            ],
+            "note": "Posted at the beacon towers; answers when a lamp goes dark."
+          },
+          {
+            "slug": "night-keeper",
+            "name": "Night Keeper",
+            "tier": 2,
+            "parent": "beacon-warden",
+            "skills": [
+              "lamp-wall",
+              "sunder-gloam",
+              "dawn-step"
+            ],
+            "note": "Stands the long watch against the Gloaming."
+          },
+          {
+            "slug": "keeper-of-the-first-light",
+            "name": "Keeper of the First Light",
+            "tier": 3,
+            "parent": "night-keeper",
+            "skills": [
+              "first-light-lance",
+              "sunrise-verse",
+              "long-night-vigil"
+            ],
+            "note": "Carries the one flame that has never gone out."
+          }
+        ],
+        "skills": [
+          {
+            "slug": "lantern-swing",
+            "name": "Lantern Swing",
+            "note": "A swing of the heavy street lantern.",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "cost": {
+                "mp": 0,
+                "sp": 3,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 100,
+                  "element": "none",
+                  "damageType": "physical"
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "warding-glow",
+            "name": "Warding Glow",
+            "note": "Lamplight that turns the first blow aside.",
+            "base": {
+              "type": "buff",
+              "stat": "INT",
+              "cost": {
+                "mp": 4,
+                "sp": 0,
+                "cooldown": 2
+              },
+              "effects": [
+                {
+                  "op": "condition",
+                  "target": "self",
+                  "kind": "guard",
+                  "chance": 100,
+                  "rounds": 3
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "ember-spark",
+            "name": "Ember Spark",
+            "note": "A spark thrown from the wick.",
+            "base": {
+              "type": "magic",
+              "stat": "INT",
+              "cost": {
+                "mp": 3,
+                "sp": 0,
+                "cooldown": 0
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 80,
+                  "element": "fire",
+                  "damageType": "magic"
+                },
+                {
+                  "op": "condition",
+                  "target": "one",
+                  "kind": "burn",
+                  "chance": 25,
+                  "rounds": 2
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "beacon-flare",
+            "name": "Beacon Flare",
+            "note": "A flare that dazzles everything near.",
+            "base": {
+              "type": "magic",
+              "stat": "INT",
+              "cost": {
+                "mp": 6,
+                "sp": 0,
+                "cooldown": 1
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "all",
+                  "power": 40,
+                  "element": "fire",
+                  "damageType": "magic"
+                },
+                {
+                  "op": "condition",
+                  "target": "all",
+                  "kind": "daze",
+                  "chance": 25,
+                  "rounds": 1
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "guard-the-road",
+            "name": "Guard the Road",
+            "note": "Hold the lantern high and stand fast.",
+            "base": {
+              "type": "buff",
+              "stat": "VIT",
+              "cost": {
+                "mp": 5,
+                "sp": 0,
+                "cooldown": 3
+              },
+              "effects": [
+                {
+                  "op": "stat",
+                  "target": "ally",
+                  "stat": "VIT",
+                  "amount": 2,
+                  "rounds": 3
+                },
+                {
+                  "op": "heal",
+                  "target": "ally",
+                  "power": 60,
+                  "element": "none",
+                  "damageType": null
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "hook-and-haul",
+            "name": "Hook and Haul",
+            "note": "The lamp-hook drags a foe off balance.",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "cost": {
+                "mp": 0,
+                "sp": 5,
+                "cooldown": 2
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 150,
+                  "element": "none",
+                  "damageType": "physical"
+                },
+                {
+                  "op": "condition",
+                  "target": "one",
+                  "kind": "slow",
+                  "chance": 50,
+                  "rounds": 2
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "lamp-wall",
+            "name": "Lamp Wall",
+            "note": "A row of lanterns becomes a barrier.",
+            "base": {
+              "type": "buff",
+              "stat": "VIT",
+              "cost": {
+                "mp": 8,
+                "sp": 0,
+                "cooldown": 4
+              },
+              "effects": [
+                {
+                  "op": "shield",
+                  "target": "allies",
+                  "power": 30,
+                  "element": "none",
+                  "damageType": null
+                },
+                {
+                  "op": "condition",
+                  "target": "allies",
+                  "kind": "guard",
+                  "chance": 50,
+                  "rounds": 2
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "sunder-gloam",
+            "name": "Sunder Gloam",
+            "note": "Holy light that tears the Gloaming.",
+            "base": {
+              "type": "magic",
+              "stat": "INT",
+              "cost": {
+                "mp": 9,
+                "sp": 0,
+                "cooldown": 2
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "all",
+                  "power": 60,
+                  "element": "holy",
+                  "damageType": "magic"
+                },
+                {
+                  "op": "stat",
+                  "target": "one",
+                  "stat": "INT",
+                  "amount": -2,
+                  "rounds": 2
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "dawn-step",
+            "name": "Dawn Step",
+            "note": "A fast, bright lunge.",
+            "base": {
+              "type": "physical",
+              "stat": "AGI",
+              "cost": {
+                "mp": 0,
+                "sp": 6,
+                "cooldown": 3
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 200,
+                  "element": "holy",
+                  "damageType": "physical"
+                },
+                {
+                  "op": "stat",
+                  "target": "self",
+                  "stat": "AGI",
+                  "amount": 3,
+                  "rounds": 2
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "first-light-lance",
+            "name": "First Light Lance",
+            "note": "A lance of dawn driven through the dark.",
+            "base": {
+              "type": "physical",
+              "stat": "STR",
+              "cost": {
+                "mp": 0,
+                "sp": 8,
+                "cooldown": 2
+              },
+              "effects": [
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 250,
+                  "element": "holy",
+                  "damageType": "physical"
+                },
+                {
+                  "op": "condition",
+                  "target": "one",
+                  "kind": "burn",
+                  "chance": 50,
+                  "rounds": 2
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "sunrise-verse",
+            "name": "Sunrise Verse",
+            "note": "A hymn that mends and keeps mending.",
+            "base": {
+              "type": "heal",
+              "stat": "INT",
+              "cost": {
+                "mp": 10,
+                "sp": 0,
+                "cooldown": 3
+              },
+              "effects": [
+                {
+                  "op": "heal",
+                  "target": "ally",
+                  "power": 300,
+                  "element": "holy",
+                  "damageType": null
+                },
+                {
+                  "op": "condition",
+                  "target": "ally",
+                  "kind": "regen",
+                  "chance": 100,
+                  "rounds": 3
+                }
+              ],
+              "unit": null
+            }
+          },
+          {
+            "slug": "long-night-vigil",
+            "name": "Long Night Vigil",
+            "note": "Patient light that wears the dark down.",
+            "base": {
+              "type": "debuff",
+              "stat": "INT",
+              "cost": {
+                "mp": 12,
+                "sp": 0,
+                "cooldown": 4
+              },
+              "effects": [
+                {
+                  "op": "condition",
+                  "target": "one",
+                  "kind": "slow",
+                  "chance": 100,
+                  "rounds": 3
+                },
+                {
+                  "op": "stat",
+                  "target": "all",
+                  "stat": "STR",
+                  "amount": -2,
+                  "rounds": 2
+                },
+                {
+                  "op": "damage",
+                  "target": "one",
+                  "power": 60,
+                  "element": "holy",
+                  "damageType": "magic"
+                }
+              ],
+              "unit": null
+            }
+          }
+        ],
+        "branches": [
+          {
+            "slug": "first-light-lance-base-a",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base",
+            "step": 1,
+            "choice": "a",
+            "name": "Lance Sweep",
+            "note": "Wider and weaker: the light sweeps the whole line.",
+            "transforms": [
+              {
+                "op": "set-target",
+                "at": 0,
+                "value": "all"
+              },
+              {
+                "op": "set-power",
+                "at": 0,
+                "value": 120
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-b",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base",
+            "step": 1,
+            "choice": "b",
+            "name": "Stunning Lance",
+            "note": "The blow rings the target like a bell.",
+            "transforms": [
+              {
+                "op": "replace-effect",
+                "at": 1,
+                "value": {
+                  "op": "condition",
+                  "target": "one",
+                  "kind": "stun",
+                  "chance": 50,
+                  "rounds": 1
+                }
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-a-a",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base-a",
+            "step": 2,
+            "choice": "a",
+            "name": "Frost Sweep",
+            "note": "The sweep arrives as cold white light.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 0,
+                "value": "ice"
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-a-b",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base-a",
+            "step": 2,
+            "choice": "b",
+            "name": "Slowing Sweep",
+            "note": "The sweep leaves the line wading through syrup.",
+            "transforms": [
+              {
+                "op": "add-effect",
+                "value": {
+                  "op": "condition",
+                  "target": "all",
+                  "kind": "slow",
+                  "chance": 50,
+                  "rounds": 2
+                }
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-b-a",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base-b",
+            "step": 2,
+            "choice": "a",
+            "name": "Storm Lance",
+            "note": "Dawn light with a thunderhead behind it.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 0,
+                "value": "lightning"
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-b-b",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base-b",
+            "step": 2,
+            "choice": "b",
+            "name": "Breaking Lance",
+            "note": "The ringing blow shakes the target's strength loose.",
+            "transforms": [
+              {
+                "op": "add-effect",
+                "value": {
+                  "op": "stat",
+                  "target": "one",
+                  "stat": "STR",
+                  "amount": -3,
+                  "rounds": 2
+                }
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-g-a",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base-g",
+            "step": 2,
+            "choice": "a",
+            "name": "Radiant Sweep",
+            "note": "The strengthened lance, thrown wide.",
+            "transforms": [
+              {
+                "op": "set-target",
+                "at": 0,
+                "value": "all"
+              },
+              {
+                "op": "set-power",
+                "at": 0,
+                "value": 130
+              }
+            ]
+          },
+          {
+            "slug": "first-light-lance-base-g-b",
+            "skill": "first-light-lance",
+            "fromForm": "first-light-lance-base-g",
+            "step": 2,
+            "choice": "b",
+            "name": "Emberbright Lance",
+            "note": "The strengthened lance, burning hot.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 0,
+                "value": "fire"
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-a",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base",
+            "step": 1,
+            "choice": "a",
+            "name": "Chorus of Dawn",
+            "note": "The hymn reaches the whole party.",
+            "transforms": [
+              {
+                "op": "set-target",
+                "at": 0,
+                "value": "allies"
+              },
+              {
+                "op": "set-power",
+                "at": 0,
+                "value": 90
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-b",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base",
+            "step": 1,
+            "choice": "b",
+            "name": "Guarding Verse",
+            "note": "The hymn stiffens the skin instead of mending it.",
+            "transforms": [
+              {
+                "op": "replace-effect",
+                "at": 1,
+                "value": {
+                  "op": "condition",
+                  "target": "ally",
+                  "kind": "guard",
+                  "chance": 100,
+                  "rounds": 3
+                }
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-a-a",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base-a",
+            "step": 2,
+            "choice": "a",
+            "name": "Plain Chorus",
+            "note": "The chorus without its holy colour.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 0,
+                "value": "none"
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-a-b",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base-a",
+            "step": 2,
+            "choice": "b",
+            "name": "Shielding Chorus",
+            "note": "A verse that also lays a ward on the singer.",
+            "transforms": [
+              {
+                "op": "add-effect",
+                "value": {
+                  "op": "shield",
+                  "target": "self",
+                  "power": 40,
+                  "element": "none",
+                  "damageType": null
+                }
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-b-a",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base-b",
+            "step": 2,
+            "choice": "a",
+            "name": "Plain Guard",
+            "note": "A steady hum with no holy colour.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 0,
+                "value": "none"
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-b-b",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base-b",
+            "step": 2,
+            "choice": "b",
+            "name": "Heartening Verse",
+            "note": "The guarded one also stands taller.",
+            "transforms": [
+              {
+                "op": "add-effect",
+                "value": {
+                  "op": "stat",
+                  "target": "ally",
+                  "stat": "CHA",
+                  "amount": 2,
+                  "rounds": 3
+                }
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-g-a",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base-g",
+            "step": 2,
+            "choice": "a",
+            "name": "Rising Chorus",
+            "note": "The strengthened hymn, sung for everyone.",
+            "transforms": [
+              {
+                "op": "set-target",
+                "at": 0,
+                "value": "allies"
+              },
+              {
+                "op": "set-power",
+                "at": 0,
+                "value": 100
+              }
+            ]
+          },
+          {
+            "slug": "sunrise-verse-base-g-b",
+            "skill": "sunrise-verse",
+            "fromForm": "sunrise-verse-base-g",
+            "step": 2,
+            "choice": "b",
+            "name": "Quiet Verse",
+            "note": "The strengthened hymn, sung without its glow.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 0,
+                "value": "none"
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-a",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base",
+            "step": 1,
+            "choice": "a",
+            "name": "Vigil of Many",
+            "note": "Slows every foe instead of one.",
+            "transforms": [
+              {
+                "op": "replace-effect",
+                "at": 0,
+                "value": {
+                  "op": "condition",
+                  "target": "all",
+                  "kind": "slow",
+                  "chance": 50,
+                  "rounds": 2
+                }
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-b",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base",
+            "step": 1,
+            "choice": "b",
+            "name": "Narrow Vigil",
+            "note": "All attention on one foe.",
+            "transforms": [
+              {
+                "op": "set-target",
+                "at": 1,
+                "value": "one"
+              },
+              {
+                "op": "set-element",
+                "at": 2,
+                "value": "fire"
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-a-a",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base-a",
+            "step": 2,
+            "choice": "a",
+            "name": "Vigil of Weariness",
+            "note": "Drains agility from every foe.",
+            "transforms": [
+              {
+                "op": "replace-effect",
+                "at": 1,
+                "value": {
+                  "op": "stat",
+                  "target": "all",
+                  "stat": "AGI",
+                  "amount": -2,
+                  "rounds": 2
+                }
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-a-b",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base-a",
+            "step": 2,
+            "choice": "b",
+            "name": "Vigil of Quiet",
+            "note": "Slows everyone, and no more.",
+            "transforms": [
+              {
+                "op": "remove-effect",
+                "at": 2
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-b-a",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base-b",
+            "step": 2,
+            "choice": "a",
+            "name": "Cold Vigil",
+            "note": "The narrow vigil, cold as a marsh dawn.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 2,
+                "value": "ice"
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-b-b",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base-b",
+            "step": 2,
+            "choice": "b",
+            "name": "Dazing Vigil",
+            "note": "The narrow vigil also leaves the foe dazed.",
+            "transforms": [
+              {
+                "op": "add-effect",
+                "value": {
+                  "op": "condition",
+                  "target": "one",
+                  "kind": "daze",
+                  "chance": 50,
+                  "rounds": 1
+                }
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-g-a",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base-g",
+            "step": 2,
+            "choice": "a",
+            "name": "Long Slow Vigil",
+            "note": "The strengthened vigil, slowing every foe.",
+            "transforms": [
+              {
+                "op": "set-target",
+                "at": 0,
+                "value": "all"
+              }
+            ]
+          },
+          {
+            "slug": "long-night-vigil-base-g-b",
+            "skill": "long-night-vigil",
+            "fromForm": "long-night-vigil-base-g",
+            "step": 2,
+            "choice": "b",
+            "name": "Ember Vigil",
+            "note": "The strengthened vigil, in firelight.",
+            "transforms": [
+              {
+                "op": "set-element",
+                "at": 2,
+                "value": "fire"
+              }
+            ]
+          }
+        ],
+        "itemRules": [
+          {
+            "def": "trail-bread",
+            "allowedSlots": [],
+            "hands": 0,
+            "requires": {},
+            "weight": 200
+          },
+          {
+            "def": "lamp-oil",
+            "allowedSlots": [],
+            "hands": 0,
+            "requires": {},
+            "weight": 500
+          },
+          {
+            "def": "marsh-reed",
+            "allowedSlots": [],
+            "hands": 0,
+            "requires": {},
+            "weight": 100
+          },
+          {
+            "def": "gloam-ash",
+            "allowedSlots": [],
+            "hands": 0,
+            "requires": {},
+            "weight": 50
+          },
+          {
+            "def": "reed-tonic",
+            "allowedSlots": [],
+            "hands": 0,
+            "requires": {},
+            "weight": 150
+          },
+          {
+            "def": "lamplighters-pole",
+            "allowedSlots": [
+              "weapon"
+            ],
+            "hands": 2,
+            "requires": {
+              "STR": 6
+            },
+            "weight": 2500
+          },
+          {
+            "def": "oilskin-coat",
+            "allowedSlots": [
+              "body"
+            ],
+            "hands": 0,
+            "requires": {},
+            "weight": 1800
+          },
+          {
+            "def": "ward-charm",
+            "allowedSlots": [
+              "accessory-1",
+              "accessory-2"
+            ],
+            "hands": 0,
+            "requires": {},
+            "weight": 100
+          }
+        ],
+        "trainers": [
+          {
+            "slug": "instructor-wick",
+            "name": "Instructor Wick",
+            "place": "pack.lanternfall/lanternfall",
+            "skills": [
+              "lantern-swing",
+              "warding-glow",
+              "ember-spark"
+            ],
+            "fee": 20,
+            "minutes": 60,
+            "eventTemplates": []
+          }
+        ]
+      }
+    ]
+  }
+}

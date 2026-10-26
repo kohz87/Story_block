@@ -1,0 +1,3 @@
+# Your lore and your drafts stay on your machine: nothing in work/ is committed except its README.
+/work/*
+!/work/README.md

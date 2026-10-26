@@ -1,0 +1,252 @@
+{
+  "id": "faction-standing",
+  "version": "1.0.0",
+  "name": "Faction standing",
+  "requires": {
+    "storyBlock": "^2",
+    "capabilities": [
+      "data-modules-v1"
+    ]
+  },
+  "content": {
+    "dataModules": [
+      {
+        "slug": "reputation",
+        "name": "Reputation",
+        "schema": 1,
+        "stateVersion": 1,
+        "scope": "chat",
+        "state": {
+          "standing": {
+            "type": "map",
+            "keys": [
+              "guild",
+              "watch",
+              "compact"
+            ],
+            "values": {
+              "type": "int",
+              "min": -100,
+              "max": 100,
+              "default": 0
+            }
+          },
+          "title": {
+            "type": "enum",
+            "values": [
+              "none",
+              "Guild Friend"
+            ],
+            "default": "none"
+          }
+        },
+        "rewards": {
+          "favour": {
+            "bindings": {
+              "faction": {
+                "type": "enum",
+                "values": [
+                  "guild",
+                  "watch",
+                  "compact"
+                ]
+              }
+            },
+            "values": {
+              "amount": {
+                "min": 1,
+                "max": 5,
+                "pick": "midpoint"
+              }
+            },
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "standing",
+                  [
+                    "bind",
+                    "faction"
+                  ]
+                ],
+                "value": [
+                  "reward",
+                  "amount"
+                ],
+                "bounds": "clamp"
+              }
+            ]
+          }
+        },
+        "kinds": {
+          "gain": {
+            "op": "+",
+            "oncePerReply": [
+              "faction"
+            ],
+            "labels": {
+              "faction": {
+                "type": "enum",
+                "values": [
+                  "guild",
+                  "watch",
+                  "compact"
+                ]
+              }
+            },
+            "effects": [
+              {
+                "op": "reward",
+                "template": "favour",
+                "bind": {
+                  "faction": [
+                    "arg",
+                    "faction"
+                  ]
+                }
+              }
+            ]
+          },
+          "loss": {
+            "op": "-",
+            "oncePerReply": [
+              "faction"
+            ],
+            "labels": {
+              "faction": {
+                "type": "enum",
+                "values": [
+                  "guild",
+                  "watch",
+                  "compact"
+                ]
+              }
+            },
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "standing",
+                  [
+                    "arg",
+                    "faction"
+                  ]
+                ],
+                "value": -5,
+                "bounds": "clamp"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "guild-title",
+            "when": [
+              "and",
+              [
+                "ge",
+                [
+                  "get",
+                  [
+                    "standing",
+                    "guild"
+                  ]
+                ],
+                6
+              ],
+              [
+                "eq",
+                [
+                  "get",
+                  [
+                    "title"
+                  ]
+                ],
+                "none"
+              ]
+            ],
+            "then": [
+              {
+                "op": "set",
+                "path": [
+                  "title"
+                ],
+                "value": "Guild Friend"
+              }
+            ]
+          }
+        ],
+        "exports": {
+          "standing": {
+            "fields": [
+              "standing",
+              "title"
+            ]
+          }
+        },
+        "screens": [
+          {
+            "id": "faction-reputation",
+            "title": "Reputation",
+            "icon": "fa-flag",
+            "mounts": [
+              "tab",
+              "card"
+            ],
+            "layout": {
+              "root": {
+                "type": "col",
+                "children": [
+                  {
+                    "type": "text",
+                    "label": "Guild",
+                    "bind": {
+                      "query": "dataModules.view",
+                      "args": {
+                        "module": "pack.faction-standing/reputation"
+                      },
+                      "path": "chat.standing.guild"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "label": "Watch",
+                    "bind": {
+                      "query": "dataModules.view",
+                      "args": {
+                        "module": "pack.faction-standing/reputation"
+                      },
+                      "path": "chat.standing.watch"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "label": "Compact",
+                    "bind": {
+                      "query": "dataModules.view",
+                      "args": {
+                        "module": "pack.faction-standing/reputation"
+                      },
+                      "path": "chat.standing.compact"
+                    }
+                  },
+                  {
+                    "type": "badge",
+                    "label": "Title",
+                    "bind": {
+                      "query": "dataModules.view",
+                      "args": {
+                        "module": "pack.faction-standing/reputation"
+                      },
+                      "path": "chat.title"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
