@@ -38,6 +38,12 @@ Tests for a part use a fake ctx implementing SPEC §3.2 (`read`, `draft`, `call`
 `settings`, `time`, `fail`, `receiptId`) plus `query(name, args)`; keep it in `tests/v2/helpers/` of your part
 (`tests/v2/<part>/helpers/fake-ctx.js`).
 
+**Capabilities.** A module definition may declare `capabilities: ['rb-rules-v2', …]`: the names a pack can list in
+`requires.capabilities` that this module provides (PACKS.md). Each is a slug (lowercase words joined by `-`, at most 64
+characters), the list holds at most 32 names, and a malformed list is refused when the module registers. Duplicates are
+dropped. `sdk.modules()` shows the list on each entry as a frozen `capabilities` array (empty when the module declares
+none), also while the module is dormant: a pack is installed into the library whatever its peers are doing.
+
 ## B. RPG Battle (module id `rpg-battle`)
 
 ### B1. `party` (part **party**, agent RB-party)

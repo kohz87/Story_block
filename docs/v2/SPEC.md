@@ -1112,6 +1112,7 @@ Screen = {
   theme: { '--ss-accent': '#7c5cff', … },                  // CSS custom properties
   data: { pc: { query: 'party.pc' }, gear: { query: 'items.gear', args: { actor: '$pc.id' } } },
   steps: [ { id, title, template } ],                      // dialog wizards only (§13.6)
+  width: 'wide',                                           // optional; a dialog on a wide screen opens at 960px instead of 640px
 }
 ```
 Modules register default screens with `registerModule({ screens: [...] })`; packs and cards add or override

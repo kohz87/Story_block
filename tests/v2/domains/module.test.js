@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CORE_BUDGET, CORE_KINDS, CORE_MODULE_ID, CORE_STATIC, createCoreModule, createCorePart } from '../../../src/v2/domains/index.js';
+import { currencyOf, moneyLine } from '../../../src/v2/domains/money.js';
 import { createHarness, initialState, line } from './helpers/fake-ctx.js';
 import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
@@ -54,8 +55,10 @@ test('static() is byte-identical whatever the state', () => {
     const h = createHarness([module], { state: stocked(module) });
     h.capture(line('+', 'item', 'Moonveil Trout'));
     assert.equal(module.context.static(), a);
-    assert.equal(a, CORE_STATIC);
-    assert.ok(!/\d/.test(a), 'no numbers');
+    // The money line (money.js moneyLine) names the chat's currency; it is the only addition to CORE_STATIC.
+    assert.equal(a, `${CORE_STATIC}\n${moneyLine(currencyOf(CROWNS))}`);
+    assert.match(a, /\nMoney in this story is crowns \(short: cr\)\. Name amounts in crowns in narration/);
+    assert.ok(!/\d/.test(a.replace('(+ coin 35)', '')), 'no numbers but the example coin line');
 });
 
 test('scene commands', () => {

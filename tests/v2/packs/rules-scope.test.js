@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { validatePack } from '../../../src/v2/packs/validate.js';
+import { HOST_VERSION, validatePack } from '../../../src/v2/packs/validate.js';
 import { validatePack as oldValidatePack } from './fixtures/old-host/validate.js';
 import * as R from '../../../src/v2/packs/rules-v2.js';
 import { LIMITS } from '../../../src/v2/packs/limits.js';
@@ -89,7 +89,7 @@ test('old packs are unchanged: broken packs fail with the same errors, and the k
     for (const [name, change] of cases) {
         const pack = base();
         change(pack);
-        const expected = oldValidatePack(clone(pack), { capabilities: ['inventory'] });
+        const expected = oldValidatePack(clone(pack), { hostVersion: HOST_VERSION, capabilities: ['inventory'] });
         const got = validatePack(clone(pack), { capabilities: ['inventory'] });
         assert.equal(got.ok, false, name);
         // The one message that names the kinds includes the newly supported kinds.
@@ -358,10 +358,10 @@ test('a rules pack and the shop and recipe checks of the host agree on reference
 // Options the host hands the checker, and one code for unsafe text
 // ---------------------------------------------------------------------------------------------
 
-test('the checker takes the real host version and limits for its envelope pass (and keeps 2.0.0 and the default limits when given none)', () => {
+test('the checker takes the real host version and limits for its envelope pass (and keeps 2.1.0 and the default limits when given none)', () => {
     const wants = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
-    // Packs that ask for an older host than the checker's built-in 2.0.0 (a beta), and one that asks for a newer host.
-    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.1', '2.1.4']]) {
+    // Packs that ask for an older host than the checker's built-in 2.1.0 (a beta), and one that asks for a newer host.
+    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.2', '2.2.4']]) {
         assert.equal(R.validateRulesPack(wants(range)).ok, false, `${range}: the built-in version is not enough`);
         const given = R.validateRulesPack(wants(range), { hostVersion });
         assert.equal(given.ok, true, `${range} on ${hostVersion}: ${show(given)}`);

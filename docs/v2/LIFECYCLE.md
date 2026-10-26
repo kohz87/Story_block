@@ -123,7 +123,8 @@ While `pending`:
 
 ## `sdk.modules()`
 
-Keeps `id, name, version, domains, commands, kinds, tabs, features`, and adds `status` and `reason`.
+Keeps `id, name, version, domains, commands, kinds, tabs, features`, and adds `capabilities` (the names the module declares
+for packs' `requires.capabilities`: a frozen list, empty when none), `status` and `reason`.
 `domains`, `commands` and `kinds` are the declared inventory, also for a dormant module. **A module is
 available only while `status === 'ready'`.** Callers that discover each other through `sdk.modules()`
 (Story Director's fight runner) must check it; older hosts have no `status`.

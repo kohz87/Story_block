@@ -26,9 +26,9 @@ await import('../../index.js');
 const sdk = await globalThis.StoryBlock.ready;
 const texts = (root, selector) => root.querySelectorAll(selector).map(node => node.textContent);
 
-test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.0.0', () => {
+test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.1.0', () => {
     const manifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '2.0.0');
+    assert.equal(manifest.version, '2.1.0');
     assert.equal(manifest.css, 'src/v2/view/host.css');
     assert.match(readFileSync(new URL('../../src/v2/view/host.css', import.meta.url), 'utf8'), /@import url\('\.\/mounts\.css'\)/);
     assert.equal(typeof globalThis[manifest.generate_interceptor], 'function');
@@ -45,7 +45,7 @@ test('the bar sits right above the message box; the drawer and the wand menu are
     assert.ok(next === sendForm || (next.classList.contains('ss-hud') && next.nextElementSibling === sendForm), 'the bar, then the hud strip, then the message box');
     assert.ok(doc.querySelector('#story_suite_v2_drawer'));
     assert.ok(doc.querySelector('#story_suite_v2_menu'));
-    assert.match(doc.querySelector('#story_suite_v2_drawer').textContent, /Story Block 2\.0\.0 \(v2\)/);
+    assert.match(doc.querySelector('#story_suite_v2_drawer').textContent, /Story Block 2\.1\.0 \(v2\)/);
 });
 
 test('a reply\'s change lines reach the Inventory tab of the story panel', async () => {

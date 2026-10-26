@@ -143,7 +143,7 @@ test('settings: module values over defaults under extension_settings.storySuite.
 test('modules() describes each module; settings(id) and view() read through the host', async () => {
     const host = await createHost({ fakes: true, core: false, modules: [counter()] });
     assert.deepEqual(host.sdk.modules(), [{
-        id: 'counter', name: 'Counter', version: '2.0.0-alpha.1', domains: ['tally'], commands: ['tally.add', 'tally.steal'], kinds: ['tally'], tabs: ['tally'], features: [], status: 'ready', reason: null,
+        id: 'counter', name: 'Counter', version: '2.0.0-alpha.1', domains: ['tally'], commands: ['tally.add', 'tally.steal'], kinds: ['tally'], tabs: ['tally'], features: [], capabilities: [], status: 'ready', reason: null,
     }]);
     assert.equal(host.sdk.settings('counter').step, 1);
     const view = host.sdk.view();
