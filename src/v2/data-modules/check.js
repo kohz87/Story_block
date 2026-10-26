@@ -241,27 +241,10 @@ function presentation(definition, path, add) {
         }
         if (dmOwn(value, 'command')) {
             if (value.command !== 'dm.act') add('DM_SCHEMA', `${at}.command`, 'Data module actions may call only dm.act.');
-            else {
-                shape(value.payload, { required: ['module', 'kind'], optional: ['who', 'labels'] }, `${at}.payload`, add);
-                if (value.payload?.module !== definition.id || !dmOwn(definition.kinds, value.payload?.kind) || definition.kinds[value.payload.kind]?.ui !== true) add('DM_SCHEMA', `${at}.payload`, 'A screen action must name this module and a local kind with ui: true.');
-                else {
-                    const labels = value.payload.labels ?? {};
-                    const declared = definition.kinds[value.payload.kind].labels;
-                    if (!dmObject(labels)) add('DM_LABEL', `${at}.payload.labels`, 'Screen action labels must be a named object.');
-                    else {
-                        for (const key of Object.keys(labels)) if (!dmOwn(declared, key)) add('DM_LABEL', `${at}.payload.labels.${key}`, 'Unknown local kind label.');
-                        for (const [key, schema] of entries(declared)) {
-                            const where = `${at}.payload.labels.${key}`;
-                            if (!dmOwn(labels, key)) add('DM_LABEL', where, 'Missing local kind label.');
-                            else if (!(typeof labels[key] === 'string' && /^\$(?:item|index)(?:\.|$)/.test(labels[key]))) {
-                                if (labels[key] !== null && typeof labels[key] === 'object') add('DM_LABEL', where, 'Screen labels are typed literals or renderer row references.');
-                                else if (!compatible(fieldType(schema), expressionType(labels[key], {}, where, add))) add('DM_LABEL', where, 'Screen label literal is outside its declared type or bounds.');
-                            }
-                        }
-                    }
-                    if (definition.scope === 'chat' && value.payload.who !== undefined) add('DM_LABEL', `${at}.payload.who`, 'Chat-scoped actions cannot select a character.');
-                }
-            }
+            else actionPayload(definition, value.payload, `${at}.payload`, add);
+            // The payload is data, checked above as a whole: a label may be called "query" or "command" and hold any text.
+            for (const [key, child] of Object.entries(value)) if (key !== 'payload') check(child, Array.isArray(value) ? `${at}[${key}]` : `${at}.${key}`);
+            return;
         }
         for (const [key, child] of Object.entries(value)) check(child, Array.isArray(value) ? `${at}[${key}]` : `${at}.${key}`);
     };
@@ -273,7 +256,16 @@ function presentation(definition, path, add) {
             if (typeof text !== 'string') return;
             // Read the same HTML tree as the renderer, including decoded attributes.
             const visit = nodes => { for (const node of nodes) {
-                for (const [key, value] of node.attrs ?? []) if (['data-command', 'data-submit'].includes(key) && value.trim() !== 'dm.act') add('DM_SCHEMA', where, 'Data module template actions may call only dm.act.');
+                const attrs = new Map(node.attrs ?? []);
+                if (attrs.has('data-submit')) add('DM_SCHEMA', where, 'A data module template button uses data-command="dm.act" with a closed data-payload; a form cannot carry one.');
+                if (attrs.has('data-command')) {
+                    if (attrs.get('data-command').trim() !== 'dm.act') add('DM_SCHEMA', where, 'Data module template actions may call only dm.act.');
+                    else {
+                        const payload = attrs.has('data-payload') ? templatePayload(attrs.get('data-payload')) : null;
+                        if (!payload) add('DM_SCHEMA', where, 'A dm.act button needs a data-payload that is one JSON record: module, kind and the declared labels.');
+                        else actionPayload(definition, payload, `${where}.data-payload`, add);
+                    }
+                }
                 visit(node.children ?? []);
             } };
             visit(parseHtml(text));
@@ -286,6 +278,50 @@ function presentation(definition, path, add) {
     });
     check(definition.screens, `${path}.screens`);
     check(definition.layouts, `${path}.layouts`);
+}
+
+// The closed shape of a screen action: dm.act of this module, a local kind that allows screens, its declared labels with typed
+// literals (or a renderer row reference), and `who` only for character scope. `payload` is data, never a binding or an action.
+function actionPayload(definition, payload, at, add) {
+    shape(payload, { required: ['module', 'kind'], optional: ['who', 'labels'] }, at, add);
+    if (!dmObject(payload)) return;
+    if (payload.module !== definition.id || !dmOwn(definition.kinds, payload.kind) || definition.kinds[payload.kind]?.ui !== true) {
+        add('DM_SCHEMA', at, 'A screen action must name this module and a local kind with ui: true.');
+        return;
+    }
+    const labels = payload.labels ?? {};
+    const declared = definition.kinds[payload.kind].labels;
+    if (!dmObject(labels)) add('DM_LABEL', `${at}.labels`, 'Screen action labels must be a named object.');
+    else {
+        for (const key of Object.keys(labels)) if (!dmOwn(declared, key)) add('DM_LABEL', `${at}.labels.${key}`, 'Unknown local kind label.');
+        for (const [key, schema] of entries(declared)) {
+            const where = `${at}.labels.${key}`;
+            if (!dmOwn(labels, key)) add('DM_LABEL', where, 'Missing local kind label.');
+            else if (!(typeof labels[key] === 'string' && /^\$(?:item|index)(?:\.|$)/.test(labels[key]))) {
+                if (labels[key] !== null && typeof labels[key] === 'object') add('DM_LABEL', where, 'Screen labels are typed literals or renderer row references.');
+                else if (!compatible(fieldType(schema), expressionType(labels[key], {}, where, add))) add('DM_LABEL', where, 'Screen label literal is outside its declared type or bounds.');
+            }
+        }
+    }
+    if (definition.scope === 'chat' && payload.who !== undefined) add('DM_LABEL', `${at}.who`, 'Chat-scoped actions cannot select a character.');
+    if (payload.who !== undefined && typeof payload.who !== 'string') add('DM_LABEL', `${at}.who`, 'who names one attached character.');
+}
+
+// A template button's `data-payload` as the renderer will compile it: holes ({{ }}) become row references, so what is left is the
+// closed payload shape or nothing at all. Anything that does not parse to a record is not a payload.
+function templatePayload(text) {
+    const source = String(text ?? '');
+    let out = '', inString = false;
+    for (let i = 0; i < source.length; i += 1) {
+        if (source.startsWith('{{', i)) {
+            const close = source.indexOf('}}', i + 2);
+            if (close >= 0) { out += inString ? '$item.hole' : '"$item.hole"'; i = close + 1; continue; }
+        }
+        if (inString && source[i] === '\\') { out += source[i] + (source[i + 1] ?? ''); i += 1; continue; }
+        if (source[i] === '"') inString = !inString;
+        out += source[i];
+    }
+    try { const value = JSON.parse(out); return dmObject(value) ? value : null; } catch { return null; }
 }
 
 function viewPath(definition, path, at, add) {

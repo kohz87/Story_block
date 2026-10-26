@@ -531,3 +531,44 @@ test('screen action label names and literals use the same local kind schema', ()
     ok(pack([d]));
     payload.labels.unknown = 1; refuse(pack([d]), 'DM_LABEL');
 });
+
+// Review findings on the checker (early review of 22a3976): label payloads are plain data, and a template button's payload is
+// held to the same closed shape as a layout action's.
+const askKind = () => {
+    const d = definition();
+    d.kinds.ask = { op: '!', ui: true, labels: { query: { type: 'enum', values: ['hello', 'bye'] }, command: { type: 'enum', values: ['hello', 'bye'] } }, effects: [change()] };
+    return d;
+};
+const action = payload => ({ type: 'button', label: 'Ask', command: 'dm.act', payload });
+const withLayout = (d, payload) => { d.screens = [{ id: 'ask-screen', title: 'Ask', mounts: ['tab'], layout: { root: { type: 'col', children: [action(payload)] } } }]; return pack([d]); };
+const GOOD = { module: 'pack.dm-test/counter', kind: 'ask', labels: { query: 'hello', command: 'bye' } };
+
+test('a label may be called query or command and hold any text of its type: a payload is data, not a binding or an action', () => {
+    ok(withLayout(askKind(), GOOD));
+    // The label's value still has to be of its declared type.
+    refuse(withLayout(askKind(), { ...GOOD, labels: { query: 'nope', command: 'bye' } }), 'DM_LABEL');
+    // And a real binding or foreign action beside it is still held to the rules.
+    const d = askKind();
+    withLayout(d, GOOD);
+    d.screens[0].layout.root.children.push({ type: 'text', label: 'x', bind: { query: 'inventory.items', args: {} } });
+    refuse(pack([d]), 'DM_SCHEMA');
+});
+
+test('a template button carries the closed dm.act payload only: foreign, unknown, extra, unlabelled and form payloads are refused', () => {
+    const page = (button, extra = {}) => { const d = askKind(); d.screens = [{ id: 'ask-screen', title: 'Ask', mounts: ['tab'], template: button, ...extra }]; return pack([d]); };
+    const payload = value => `<button data-command="dm.act" data-payload='${JSON.stringify(value)}'>Ask</button>`;
+    ok(page(payload(GOOD)));
+    ok(page('<button data-command="dm.act" data-payload=\'{"module":"pack.dm-test/counter","kind":"ask","labels":{"query":"{{ item.q }}","command":"bye"}}\'>Ask</button>'));
+    refuse(page(payload({ ...GOOD, module: 'pack.other/counter' })));
+    refuse(page(payload({ ...GOOD, kind: 'gain' })), 'DM_SCHEMA');                                     // not a ui kind
+    refuse(page(payload({ ...GOOD, kind: 'nope' })));
+    refuse(page(payload({ ...GOOD, extra: 1 })));                                                       // outside the closed shape
+    refuse(page(payload({ module: GOOD.module, kind: 'ask' })), 'DM_LABEL');                           // labels missing
+    refuse(page(payload({ ...GOOD, labels: { query: 'hello', command: 'bye', more: 'x' } })), 'DM_LABEL');
+    refuse(page(payload({ ...GOOD, who: 'Wessel' })), 'DM_LABEL');                                     // chat scope has no who
+    refuse(page('<button data-command="dm.act">Ask</button>'));                                         // no payload at all
+    refuse(page('<button data-command="dm.act" data-payload=\'[1]\'>Ask</button>'));
+    refuse(page('<button data-command="dm.act" data-payload=\'{"module":"{{ x }}","kind":"ask","labels":{"query":"hello","command":"bye"}}\'>Ask</button>'));
+    refuse(page('<form data-submit="dm.act"><input data-draft="x"></form>'));
+    refuse(page(payload(GOOD), { steps: [{ id: 's', template: payload({ ...GOOD, module: 'pack.other/counter' }) }] }));
+});
