@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 2.3.0
 
 - **Authoring kit** (`authoring-kit/`): prompts, standing instructions, references and a checker for drafting a rules pack or a data module with your own AI tool, offline. `node authoring-kit/check.mjs <pack.json>` runs Story Block's own pack checker with every Story Suite capability and prints numbered problems with a hint each. Story Studio carries a synced copy.
+- `--through N` checks a rules pack that is still being drafted, step by step. A capability no Story Suite module provides is an error unless you name your own module with `--with-capability`.
+- Story Studio (part 5b) can now start a **code module**: a SillyTavern extension that is a real Story Suite module, with Story Block's testkit and tests that pass. It needs Story Block 2.1.0 or later.
+
+### Upgrading from 2.2
+
+Nothing changes in play: the kit is a separate folder that SillyTavern never loads, and chats, packs and data modules are as they were. Story Director, RPG Battle and NPC State Delta are unchanged; their host and peer requirements remain satisfied.
 
 ## 2.2.0
 

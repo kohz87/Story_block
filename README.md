@@ -1,6 +1,6 @@
-# Story Block 2.2.0
+# Story Block 2.3.0
 
-> Story Block 2.2.0; Story Director and RPG Battle 2.1.0; NPC State Delta 1.3.0.
+> Story Block 2.3.0; Story Director and RPG Battle 2.1.0; NPC State Delta 1.3.0.
 
 ## What it is
 

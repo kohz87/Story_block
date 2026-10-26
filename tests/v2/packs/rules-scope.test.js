@@ -358,10 +358,10 @@ test('a rules pack and the shop and recipe checks of the host agree on reference
 // Options the host hands the checker, and one code for unsafe text
 // ---------------------------------------------------------------------------------------------
 
-test('the checker takes the real host version and limits for its envelope pass (and keeps 2.2.0 and the default limits when given none)', () => {
+test('the checker takes the real host version and limits for its envelope pass (and keeps 2.3.0 and the default limits when given none)', () => {
     const wants = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
-    // Packs that ask for an older host than the checker's built-in 2.2.0, and one that asks for a newer host.
-    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.3', '2.3.4']]) {
+    // Packs that ask for an older host than the checker's built-in 2.3.0, and one that asks for a newer host.
+    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.4', '2.4.4']]) {
         assert.equal(R.validateRulesPack(wants(range)).ok, false, `${range}: the built-in version is not enough`);
         const given = R.validateRulesPack(wants(range), { hostVersion });
         assert.equal(given.ok, true, `${range} on ${hostVersion}: ${show(given)}`);
