@@ -22,7 +22,7 @@ async function start(t, { settings = {}, ersveil = false } = {}) {
 }
 
 test('the money line: one short line per currency, by name, plural and short form', () => {
-    assert.equal(moneyLine(currencyOf({})), 'Money in this story is the gold. Name amounts in gold in narration and in coin lines (+ coin 35); no other coins exist.');
+    assert.equal(moneyLine(currencyOf({})), 'Money in this story is gold. Name amounts in gold in narration and in coin lines (+ coin 35); no other coins exist.');
     assert.equal(moneyLine(currencyOf({ currency: 'crown' })), 'Money in this story is the crown (plural: crowns). Name amounts in crowns in narration and in coin lines (+ coin 35); no other coins exist.');
     assert.equal(moneyLine(currencyOf({ currency: 'mark', currencyPlural: 'marken', currencyShort: 'mk' })),
         'Money in this story is the mark (plural: marken, short: mk). Name amounts in marken in narration and in coin lines (+ coin 35); no other coins exist.');
@@ -54,7 +54,7 @@ test('the new line does not conflict with foreignCoin: the currency\'s own words
 test('(a) the default chat names gold in the static prompt', async t => {
     const host = await start(t);
     assert.deepEqual(moneyOf(staticPart(host)), [moneyLine(currencyOf({}))]);
-    assert.match(staticPart(host), /Money in this story is the gold\. Name amounts in gold/);
+    assert.match(staticPart(host), /Money in this story is gold\. Name amounts in gold/);
 });
 
 test('(b) a reader-named single currency: the static prompt names crown/crowns', async t => {

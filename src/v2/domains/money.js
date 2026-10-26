@@ -304,7 +304,7 @@ export function moneyLine(currency = DEFAULT_CURRENCY) {
     const short = tidy(currency?.short, MAX_SHORT);
     const ownShort = name === DEFAULT_CURRENCY.name ? DEFAULT_CURRENCY.short : Array.from(name)[0].toLowerCase();
     const forms = [plural.toLowerCase() === name.toLowerCase() ? '' : `plural: ${plural}`, short && short !== ownShort ? `short: ${short}` : ''].filter(Boolean).join(', ');
-    return `Money in this story is ${plural.toLowerCase() === name.toLowerCase() && name !== DEFAULT_CURRENCY.name ? '' : 'the '}${name}${forms ? ` (${forms})` : ''}. Name amounts in ${plural} in narration and in coin lines (+ coin 35); no other coins exist.`;
+    return `Money in this story is ${plural.toLowerCase() === name.toLowerCase() ? '' : 'the '}${name}${forms ? ` (${forms})` : ''}. Name amounts in ${plural} in narration and in coin lines (+ coin 35); no other coins exist.`;
 }
 
 /**
