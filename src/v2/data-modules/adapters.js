@@ -40,9 +40,14 @@ export function projectImport(state, entry) {
 
 export function resolveActor(state, value, attached = null) {
     const actors = actorsOf(state), ids = attached ?? Object.keys(actors);
-    if (typeof value !== 'string' || value.startsWith('ac_')) refuse('DM_LABEL', 'who', 'Select one SD ca_ actor; an ac_ character is not an actor.');
-    const matches = ids.filter(id => dmOwn(actors, id) && (id === value || actors[id].name.normalize('NFKC').toLowerCase() === value.normalize('NFKC').toLowerCase()));
-    if (matches.length !== 1) refuse('DM_LABEL', 'who', matches.length ? `Ambiguous actor: ${matches.join(', ')}.` : 'Actor is missing, removed or not attached.');
+    if (typeof value !== 'string' || !value.trim() || value.startsWith('ac_')) refuse('DM_LABEL', 'who', 'who must name a Story Director actor (a name or a ca_ ID), not a party character ID');
+    const wanted = value.normalize('NFKC').trim().toLowerCase();
+    const matches = ids.filter(id => dmOwn(actors, id) && (id === value.trim() || actors[id].name.normalize('NFKC').toLowerCase() === wanted));
+    if (matches.length > 1) refuse('DM_LABEL', 'who', `who is ambiguous: ${matches.map(id => `${actors[id].name} (${id})`).join(' and ')} both fit; use the ca_ ID`);
+    if (matches.length !== 1) {
+        const here = ids.filter(id => dmOwn(actors, id)).map(id => actors[id].name);
+        refuse('DM_LABEL', 'who', `who must be ${attached ? 'an attached character' : 'an actor of Story Director'}${here.length ? ` (${here.join(', ')})` : ''}`);
+    }
     return matches[0];
 }
 

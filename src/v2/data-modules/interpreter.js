@@ -22,40 +22,50 @@ export function scalarHolds(schema, value) {
         && schema.keys.every(key => dmOwn(value, key) && scalarHolds(schema.values, value[key]));
 }
 
+/** "guild, watch or compact" */
+export const orList = values => {
+    const list = values.map(String);
+    return list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} or ${list.at(-1)}`;
+};
+const ruleOf = schema => (schema.type === 'enum' ? `be ${orList(schema.values)}`
+    : schema.type === 'int' ? `be a whole number from ${schema.min} to ${schema.max}` : 'be true or false');
+
+// Each label of a line is one declared name with one value of its declared type; anything else is refused with a plain sentence
+// ("faction must be guild, watch or compact"), never guessed. `text`: a story line (its values are text); else typed (a reader action).
 export function parseLabels(definition, kind, labels, { text = false } = {}) {
     const args = {};
     const allowed = ['kind', ...(definition.scope === 'character' ? ['who'] : []), ...Object.keys(kind.labels)];
-    for (const key of Object.keys(labels)) if (!allowed.includes(key)) refuse('DM_LABEL', key, `Unknown label ${key}.`);
+    for (const key of Object.keys(labels)) if (!allowed.includes(key)) refuse('DM_LABEL', key, key === 'who' ? 'this module has no characters, so who is not allowed' : `${key} is not a label of this line (${orList(allowed.filter(name => name !== 'kind'))})`);
     for (const [key, schema] of Object.entries(kind.labels)) {
-        if (!dmOwn(labels, key)) refuse('DM_LABEL', key, `Missing label ${key}.`);
+        if (!dmOwn(labels, key)) refuse('DM_LABEL', key, `${key} is missing`);
         let value = labels[key];
         if (text) {
             if (schema.type === 'int' && /^-?\d+$/.test(value)) value = Number(value);
             if (schema.type === 'bool' && ['true', 'false'].includes(value)) value = value === 'true';
             if (schema.type === 'enum') {
                 const matches = schema.values.filter(candidate => String(candidate) === value);
-                if (matches.length !== 1) refuse('DM_LABEL', key, `${key} must be ${schema.values.map(String).join(', ')}.`);
-                value = matches[0];
+                if (matches.length === 1) value = matches[0];
             }
         }
         const valid = schema.type === 'int' ? dmInt(value, schema.min, schema.max)
             : schema.type === 'bool' ? typeof value === 'boolean' : schema.values.includes(value);
-        if (!valid) refuse('DM_LABEL', key, `${key} is outside its declared ${schema.type} values.`);
+        if (!valid) refuse('DM_LABEL', key, `${key} must ${ruleOf(schema)}`);
         args[key] = value;
     }
     return args;
 }
 
-export function createEvaluation(definition, instance, { inputs = {}, source, cursor, subject = 'chat' } = {}) {
-    const original = copy(instance), reads = new Map(), notes = [], decisions = [];
-    let visits = 0;
+export function createEvaluation(definition, instance, { inputs = {}, source, cursor, subject = 'chat', lookup = null } = {}) {
+    const original = copy(instance), reads = new Map(), notes = [], decisions = [], conds = [], written = new Set();
+    let visits = 0, frame = null;
     const charge = (n = 1) => {
         visits += n;
         if (visits > L.rootVisits) refuse('DM_BUDGET', '', `More than ${L.rootVisits} evaluation visits; nothing applied.`);
     };
+    // A read of the prefix. A field this root wrote already holds the root's own value, which the root's other reads decided.
     const read = path => {
         const key = JSON.stringify(path);
-        if (!reads.has(key)) reads.set(key, { path: copy(path), value: copy(atPath(original, path)) });
+        if (!reads.has(key) && !written.has(JSON.stringify(path.slice(1)))) reads.set(key, { path: copy(path), value: copy(atPath(original, path)) });
     };
     const integer = value => {
         if (!dmInt(value, -L.integer, L.integer)) refuse('DM_BOUNDS', '', 'Unsafe arithmetic intermediate.');
@@ -68,8 +78,14 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         const [op, a, b, c] = node;
         if (op === 'get') {
             const path = pathOf(a, env);
+            const key = JSON.stringify(path);
+            // A guard asking again: the fields of its prefix, except those the root wrote before this condition (recorded).
+            if (lookup) return lookup(path, key);
+            const value = atPath(instance.fields, path);
+            // In a condition the value is not read for itself: only the answer matters (see `condition`).
+            if (frame) { if (written.has(key)) frame.internal[key] = value; return value; }
             read(['fields', ...path]);
-            return atPath(instance.fields, path);
+            return value;
         }
         if (op === 'arg' || op === 'bind' || op === 'reward' || op === 'timer') {
             const value = env[op]?.[a];
@@ -109,6 +125,21 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         if (op === 'ge') return x >= y;
         refuse('DM_SCHEMA', '', `Unsupported interpreter operation ${op}.`);
     }
+    // A condition (a kind's `when`, a rule's, a reward's) is a question with a yes or no. What it read matters only through that
+    // answer, so the answer is recorded with the fields it saw that this root had written itself, and a guard asks the same
+    // question again on its prefix: an earlier change that leaves the answer as it was does not make the action stale.
+    function condition(ref, expression, env) {
+        if (typeof expression === 'boolean') return expression;
+        const before = frame;
+        frame = { internal: {} };
+        let outcome;
+        try { outcome = Boolean(evaluate(expression, env)); } finally {
+            const done = frame;
+            frame = before;
+            if (outcome !== undefined) conds.push({ ref, env: copy(env), outcome, internal: done.internal });
+        }
+        return outcome;
+    }
     function field(path) {
         const schema = definition.state[path[0]];
         if (!schema || path.length !== (schema.type === 'map' ? 2 : 1)
@@ -119,6 +150,7 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         if (!scalarHolds(field(path), value)) refuse('DM_BOUNDS', path.join('.'), 'Field value is outside its schema.');
         const parent = path.length === 1 ? instance.fields : instance.fields[path[0]];
         parent[path.at(-1)] = value;
+        written.add(JSON.stringify(path));
     }
     function freezeReward(template, bindings, env) {
         const reward = definition.rewards[template];
@@ -139,7 +171,7 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         const reward = definition.rewards[offer.template];
         if (offer.templateHash !== hashJson(reward)) refuse('DM_SCHEMA', offer.template, 'The frozen template is damaged.');
         const env = { bind: offer.bind, reward: offer.values };
-        if (!evaluate(reward.when, env)) refuse('DM_CONDITION', offer.template, 'Reward condition is not met.');
+        if (!condition(['reward', offer.template], reward.when, env)) refuse('DM_CONDITION', offer.template, 'Reward condition is not met.');
         effects(reward.effects, env);
     }
     function effects(list, env = {}) {
@@ -201,13 +233,29 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         }
     }
     function rules() {
-        for (const rule of definition.rules) { charge(); if (evaluate(rule.when)) effects(rule.then); }
+        for (const rule of definition.rules) { charge(); if (condition(['rule', rule.id], rule.when, {})) effects(rule.then); }
     }
-    return { evaluate, effects, timers, rules, charge, read,
+    return { evaluate, condition, effects, timers, rules, charge, read,
         finish() {
             for (const [key, schema] of Object.entries(definition.state)) if (!scalarHolds(schema, instance.fields[key])) refuse('DM_BOUNDS', key, 'Invalid instance field.');
             if (bytes(instance) > L.instanceBytes) refuse('DM_BUDGET', '', 'Instance storage exhausted.');
-            return { reads: [...reads.values()], visits, notes, decisions };
+            return { reads: [...reads.values()], visits, notes, decisions, conds };
         },
     };
+}
+
+/**
+ * A guard asking a recorded condition again on its prefix: the same expression of the frozen definition, the recorded arguments, the
+ * prefix's fields for everything the root had not written itself and the recorded value for what it had. Pure and bounded.
+ * → true when the answer is the one recorded. Throws a DataModuleError when the condition cannot be evaluated (the guard then fails closed).
+ */
+export function conditionHolds(definition, record, prefixFields, inputs = {}) {
+    const [kind, name] = Array.isArray(record?.ref) ? record.ref : [];
+    const expression = kind === 'kind' ? definition.kinds?.[name]?.when : kind === 'rule' ? definition.rules?.find(rule => rule.id === name)?.when
+        : kind === 'reward' ? definition.rewards?.[name]?.when : undefined;
+    if (expression === undefined || !dmObject(record.internal) || typeof record.outcome !== 'boolean') refuse('DM_SCHEMA', '', 'A recorded condition is damaged.');
+    const evaluation = createEvaluation(definition, { fields: prefixFields, timers: {}, offers: {}, settled: {} }, {
+        inputs, lookup: (path, key) => (Object.hasOwn(record.internal, key) ? record.internal[key] : atPath(prefixFields, path)),
+    });
+    return (typeof expression === 'boolean' ? expression : Boolean(evaluation.evaluate(expression, record.env ?? {}))) === record.outcome;
 }

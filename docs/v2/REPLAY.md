@@ -145,6 +145,18 @@ and its receipt too (`replaceStory` does not keep it; a block built under it is 
 delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (RPG Battle's rules pin): taking the
 reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
 
+## Data module guards
+
+Story Block's data modules (DATA_MODULES.md) use this API as an owner: `owner: 'story-block'`, a `dm.pin` / `dm.attach` /
+`dm.migrate` / `dm.act` / `dm.tick` predicate, `replyBound: true` for the first three. Its replay guard is the host-owned dispatcher in
+`domains/index.js` (`hostOwned`, so no owner readiness enters a checkpoint's `guardEnv`): a predicate that starts with `dm.` goes to
+`dataModuleGuard`, every other predicate to the timeline guard exactly as before, and an unknown `dm.*` predicate fails closed.
+The guard reads the state before the block, `recorded`, the Source and its one declared replay query, `dataModules.replayInputs`
+(the pin, the generation, the attached subject, the paths the action read, the prefix projections of the clock and the actors);
+it asks the pure condition expressions of the frozen definition again, and never settings, installed packs, wall time, RNG or `receipts()`.
+A relevant earlier change makes the later action inactive (`REPLAY_PREREQUISITE`, Re-read to apply it again); a tick, which
+asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconcile instead.
+
 ## Source map and ids
 
 Every record carries `source: { logical, swipeKey, evidence, next }` (contract §4's source map). It is worked
@@ -253,7 +265,7 @@ reply's source, a receipt that kept another guard) is **not** healed: it stays e
   `{ changed, planned, removed }`. **The turn calls it by itself** after a delete or swipe (not when a chat opens), from
   the first carrier that holds such a step, in the same save window, never while the story record is read-only, and only
   when a guarded step with a `replan` has been seen (`store.replansFrom()`, kept while replaying; no scan). What was
-  planned again or taken back is a quiet Problem (`REPLANNED`).
+  planned again or taken back is a quiet Problem (`REPLANNED`). The Problems of a record a step was taken out of name its blocks as the record is written back, so they are those a full replay gives.
 * Revs after a planned-again block are numbered on from its rev, on the same reply and on every reply after it, so no
   two receipts share one and the order never goes back. The boundaries (`prefixHash`) of steps planned again follow
   what the reconcile has staged, not the chat as it stands (`store.boundaryProblems()` lists any that do not match; it

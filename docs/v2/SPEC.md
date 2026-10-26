@@ -5,8 +5,10 @@ goes through the coordinator (a PR to `docs/v2/SPEC.md` on Story Block's `main` 
 workaround in one repo.
 
 For data-defined modules, use [DATA_MODULES.md](DATA_MODULES.md), with its approved 26 Oct
-decisions taking precedence, and the [implementation status](DATA_MODULES_IMPLEMENTATION.md).
-The shared checker is delivered first; runtime/replay APIs remain pending at that boundary.
+decisions taking precedence, and the [implementation notes](DATA_MODULES_IMPLEMENTATION.md). Story Block
+owns a deferred `dataModules` domain (absent until a chat pins a module), the capture kind `dm` (`op dm
+<module> — reason | kind: … | label: value`, enabled only while the chat has a pin) and the commands
+`dm.pin`, `dm.attach`, `dm.act` and `dm.migrate`; a chat that pins nothing is byte for byte the chat it was.
 
 ## 0. Principles
 

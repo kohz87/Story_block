@@ -48,7 +48,7 @@ for (const [line, code] of [
     await host.send('Try.', reply(line));
     assert.deepEqual(host.head().domains.dataModules, before);
     const problem = host.turn.problems().find(problem => problem.code === code); assert.ok(problem, JSON.stringify(host.turn.problems()));
-    assert.ok(refusedFrom(host.turn.problems(), host.ctx.chat.length - 1).some(row => row.reason.includes('Nothing applied')));
+    assert.ok(refusedFrom(host.turn.problems(), host.ctx.chat.length - 1).some(row => row.reason.includes('nothing applied')));
 });
 
 test('dm parser alone diagnoses duplicate labels and trailing text; legacy duplicate behavior is unchanged', () => {
@@ -211,4 +211,58 @@ test('pure interpreter charges visits, short circuits absent inputs, clamps, div
     assert.equal(ev.evaluate(['clamp', 200, 0, 100]), 100);
     assert.throws(() => ev.evaluate(['mul', L.integer, 2]), error => error instanceof DataModuleError && error.code === 'DM_BOUNDS');
     assert.throws(() => ev.charge(L.rootVisits), error => error.code === 'DM_BUDGET');
+});
+
+test('refusals say it in plain words on the reply card: the module name, what was expected, and that nothing was applied', async t => {
+    const host = await world(t); await pin(host);
+    const reasons = async line => {
+        await host.send('Try.', reply(line));
+        return refusedFrom(host.turn.problems(), host.ctx.chat.length - 1).map(row => row.reason);
+    };
+    assert.deepEqual(await reasons('+ dm reputation — a favour | kind: gain | faction: crown'), ['Reputation: faction must be guild, watch or compact; nothing applied.']);
+    assert.deepEqual(await reasons('+ dm reputation — a favour | kind: gain'), ['Reputation: faction is missing; nothing applied.']);
+    // A line the parser cannot read at all (a repeated label) is listed by its own words on the card.
+    assert.equal((await reasons('+ dm reputation — a favour | kind: gain | faction: guild | faction: watch')).length, 1);
+    assert.match(host.turn.problems().at(-1).message, /not a change line: DM_LABEL: duplicate label faction/);
+    assert.deepEqual(await reasons('+ dm reputation — a favour | kind: gain | faction: guild | rank: 3'), ['Reputation: rank is not a label of this line (faction); nothing applied.']);
+    assert.deepEqual(await reasons('+ dm reputation — a favour | kind: boast | faction: guild'), ['Reputation: kind must be gain or loss; nothing applied.']);
+    assert.deepEqual(await reasons('- dm reputation — a favour | kind: gain | faction: guild'), ['Reputation: gain is written with +, not -; nothing applied.']);
+    assert.equal((await reasons('+ dm reputation — a favour | kind: gain | faction: guild | and then some words')).length, 1);
+    assert.match(host.turn.problems().at(-1).message, /unused trailing text/);
+    assert.deepEqual(await reasons('+ dm Reputation — a favour | kind: gain | faction: guild'), [], 'the narrator\'s capital letter is forgiven, nothing else is');
+    assert.equal(view(host).chat.standing.guild, 3);
+});
+
+// What a condition read matters through its answer only: an earlier change that leaves the answer as it was leaves the later action
+// in force; one that flips it makes the action stale (REPLAY_PREREQUISITE) until a Re-read. The action's own values are value reads.
+test('conditions are recorded as answers: a changed field behind an unchanged answer is not a stale prerequisite; a flipped answer is', async t => {
+    const d = definition();
+    d.state = { a: int(0, 0, 40), b: int(0, 0, 40), flag: { type: 'bool', default: false } };
+    d.kinds = {
+        bump: { op: '+', labels: { n: { type: 'int', min: 1, max: 10 } }, effects: [{ op: 'add', path: ['a'], value: ['arg', 'n'], bounds: 'clamp' }] },
+        touch: { op: '+', labels: {}, effects: [{ op: 'add', path: ['b'], value: 1, bounds: 'clamp' }] },
+    };
+    d.rules = [{ id: 'high', when: ['ge', ['get', ['a']], 5], then: [{ op: 'set', path: ['flag'], value: true }] }];
+    const run = async (lines, doomed) => {
+        const host = await world(t, pack([d])); await pin(host);
+        const at = [];
+        for (const line of lines) { await host.send('Go.', reply(line)); at.push(host.ctx.chat.length - 1); }
+        await host.st.deleteMessage(at[doomed]);
+        return { host, at };
+    };
+    const fields = host => view(host, 'pack.dm-test/counter').chat;
+    const stale = host => host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE').length;
+    const BUMP = n => `+ dm counter — x | kind: bump | n: ${n}`;
+    // a 6, a 7, touch (the rule answers yes). Delete the 7: a is 6 under the touch, the answer is still yes: in force.
+    let { host } = await run([BUMP(6), BUMP(1), '+ dm counter — x | kind: touch'], 1);
+    assert.deepEqual(fields(host), { a: 6, b: 1, flag: true });
+    assert.equal(stale(host), 0);
+    // a 3, a 6, touch (yes). Delete the second bump: a is 3 under the touch, the answer is now no: stale until a Re-read.
+    ({ host } = await run([BUMP(3), BUMP(3), '+ dm counter — x | kind: touch'], 1));
+    assert.equal(stale(host), 1, 'the answer would flip');
+    assert.deepEqual(fields(host), { a: 3, b: 0, flag: false });
+    success(await host.turn.reread(host.ctx.chat.length - 1));
+    assert.deepEqual(fields(host), { a: 3, b: 1, flag: false });
+    assert.equal(stale(host), 0);
+    rebuilt(host);
 });

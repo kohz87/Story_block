@@ -1,10 +1,12 @@
 # Data-defined modules — Studio Part 5, Stage 1
 
-Status: approved design; implementation in progress on `stage6/data-modules`.
-Step 1 supplies the shared importer/checker for `content.dataModules` and capability
-`data-modules-v1`. Both complete examples below pass that checker. Runtime, Setup and replay
-delivery (steps 2–4) remains pending; the runtime APIs below are not yet registered.
-The [implementation notes](DATA_MODULES_IMPLEMENTATION.md) distinguish delivered work from the design.
+Status: approved design, v1 implemented on `stage6/data-modules`. The shared importer/checker for
+`content.dataModules` and capability `data-modules-v1` (step 1), the runtime part merged into Story Block
+(deferred `dataModules` domain, the host kind `dm`, `dm.pin` / `dm.attach` / `dm.act` / `dm.migrate`, timers,
+rewards, exports, budgets, Setup, screens) and the replay and lifecycle rules are delivered, with both complete
+examples below tested end to end. The [implementation notes](DATA_MODULES_IMPLEMENTATION.md) say where the code and
+tests are, the calls Story Studio's simulator makes and where the runtime differs from the wording below (for
+example, a condition's answer is what the replay guard records, not the fields it read).
 The **Decisions (approved 26 Oct)** section takes precedence over earlier text, including checks
 and economic adapters, which require v1.1 and are refused at import in v1.
 

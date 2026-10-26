@@ -179,3 +179,60 @@ export async function play({ root, seed = 1, steps = 40, siblings = {}, packs = 
         if (saved) Object.defineProperty(globalThis, 'crypto', saved);
     }
 }
+
+/**
+ * The combination matrix's own chats (testkit/matrix: each module's scripted replies A, B and C and its reader action) on the real
+ * modules beside this tree, with `libraryOnly` packs installed and inspected but never enabled. The same hash per step as `play`.
+ * Returns { steps, saves, draws } or null when no module is beside.
+ */
+export async function playMatrix({ root, siblings = {}, libraryOnly = [], seed = 1 } = {}) {
+    const { createHost } = await at(root, 'testkit/index.js');
+    const matrix = await at(root, 'testkit/matrix/index.js');
+    const { loaded } = await matrix.loadModules(Object.fromEntries(Object.entries(siblings).filter(([, folder]) => folder)));
+    const keys = ['rb', 'sd', 'nsd'].filter(key => loaded[key]);
+    if (!keys.length) return null;
+    const saved = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    const { counter, source } = seededCrypto(seed * 104729 + 7);
+    Object.defineProperty(globalThis, 'crypto', { value: source, configurable: true, writable: true });
+    const trace = [];
+    let host = null;
+    const savedSB = globalThis.StoryBlock;
+    const originalWarn = console.warn;
+    try {
+        console.warn = () => {};
+        const ref = { sdk: null };
+        host = await createHost({ modules: keys.map(key => loaded[key].make(ref)) });
+        ref.sdk = host.sdk;
+        globalThis.StoryBlock = { apiVersion: 2, ready: Promise.resolve(host.sdk), sdk: host.sdk };
+        for (const item of libraryOnly) await host.packs.packs.install(item.text, { origin: item.origin });
+        for (const key of keys) if (loaded[key].setup) await loaded[key].setup(host);
+        const scripts = set => ['sb', ...keys].flatMap(key => matrix.MODULES[key][set]);
+        const text = set => `The ${set} reply.\n\n<Changes>\n${scripts(set).join('\n')}\n</Changes>`;
+        const snap = async label => {
+            let prompt = '';
+            try { prompt = JSON.stringify(await host.turn.preview()); } catch (error) { prompt = `preview ${error?.message}`; }
+            trace.push(sha([label, JSON.stringify(host.ctx.chat), JSON.stringify(host.ctx.chatMetadata ?? null), JSON.stringify(host.head()), prompt,
+                JSON.stringify(host.turn.problems().map(({ module, code, message, index }) => [module, code, message, index])), host.st.saves.length, counter.draws].join('\u0001')));
+        };
+        await host.send('Turn A.', text('A')); await snap('A');
+        for (const key of ['sb', ...keys]) {
+            const [type, payload] = await matrix.MODULES[key].action(host);
+            await host.sdk.command(type, payload);
+        }
+        await snap('actions');
+        await host.send('Turn B.', text('B')); await snap('B');
+        await host.swipe(text('C')); await snap('swipe');
+        const last = host.ctx.chat.length - 1;
+        host.ctx.chat[last].mes = text('A'); host.ctx.chat[last].swipes[host.ctx.chat[last].swipe_id] = host.ctx.chat[last].mes;
+        await host.turn.reread(last); await snap('reread');
+        await host.st.deleteMessage(host.ctx.chat.length - 1); await snap('delete');
+        host.store.rebuild(); await snap('rebuild');
+        await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat))); await snap('reload');
+        return { steps: trace, saves: host.st.saves.length, draws: counter.draws };
+    } finally {
+        console.warn = originalWarn;
+        host?.close();
+        if (savedSB === undefined) delete globalThis.StoryBlock; else globalThis.StoryBlock = savedSB;
+        if (saved) Object.defineProperty(globalThis, 'crypto', saved);
+    }
+}

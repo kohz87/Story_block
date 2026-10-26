@@ -191,7 +191,13 @@ A command, a query or a capture kind (the object in `capture.kinds`) may also ca
 While it reads `false` the host acts as if it were not declared: the command is not found, the query is answered by no
 module, the kind is not in the prompt and its lines are not read. No `enabled` means on, so modules that do not use it are
 unchanged. `enabled` is read when the API is looked up, never stored; it must depend on state the module can read again after a
-reload. Tests: `tests/v2/deferred-domains.test.js`.
+reload. A capture kind with `enabled` false is **not declared**: `registry.capture(word)` finds nothing, so a line of that kind is
+told as an unknown kind ("No module keeps …") exactly as in a host that never had the kind, and its grammar is not in the prompt.
+Tests: `tests/v2/deferred-domains.test.js`.
+
+A deferred domain may also say `snapshot: 'when-present'`: a save point records it only while the chat holds it, and restoring a
+save made before it existed removes it (an empty slice is never left behind), so a chat that never used the domain has no trace of
+it in its save-point metadata. Story Block's `dataModules` is the one user (DATA_MODULES_IMPLEMENTATION.md).
 
 ## Host-internal API (not for modules)
 

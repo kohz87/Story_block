@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { play } from './unused/play.js';
+import { play, playMatrix } from './unused/play.js';
 import { REPO, SCENARIOS } from './unused/scenarios.js';
 import { fixture } from './helpers.js';
 
@@ -72,3 +72,16 @@ for (const seed of [41, 42]) {
         assert.equal(library.draws, bare.draws);
     });
 }
+
+// The combination matrix's own chats (each module's scripted replies, actions, a swipe, a Re-read, a delete, a reload) on all the real
+// modules that are beside this checkout, with an unpinned data module library: the same bytes at every step.
+const anyBeside = ['sd', 'rb', 'nsd'].some(key => existsSync(join(siblings[key], key === 'sd' ? 'src/v2/module.js' : key === 'rb' ? 'src/v2/module.js' : 'src/storysuite-v2.js')));
+test('the matrix chats are identical with an installed, inspected, never-enabled data module library', { skip: anyBeside ? false : 'no module checkout beside this one' }, async () => {
+    const bare = await playMatrix({ root: REPO, siblings, packs: [], libraryOnly: [{ ...mini(), origin: 'mini.json' }] });
+    const library = await playMatrix({ root: REPO, siblings, libraryOnly: [{ ...mini(), origin: 'mini.json' }, dataPack(), { text: JSON.stringify(fixture('survival')), origin: 'survival.json' }] });
+    assert.ok(bare && library);
+    assert.equal(bare.steps.length, 8);
+    assert.deepEqual(library.steps, bare.steps);
+    assert.equal(library.saves, bare.saves);
+    assert.equal(library.draws, bare.draws);
+});

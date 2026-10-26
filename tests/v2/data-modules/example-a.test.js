@@ -85,33 +85,45 @@ test('A: repeating a gain for Guild in a Continue of the same reply is CLAIMED',
     assert.ok(host.turn.problems().some(problem => problem.code === 'CLAIMED'));
 });
 
-test('A: deleting the second gain retracts its +3 and its title together; the later loss read the guild, so it waits for a Re-read', async t => {
+test('A: deleting the second gain retracts its +3 and its title together; the loss, whose answers do not change, stays', async t => {
     const { host, at } = await story(t);
     await host.st.deleteMessage(at[1]);
-    // The title rule reads the guild standing in every action, so the loss's starting-value guard fails too (rules count as reads).
-    assert.deepEqual(standing(host), { standing: { guild: 3, watch: 0, compact: 0 }, title: 'none' });
-    assert.equal(dmProblems(host).length, 1);
-    await reload(host);
-    success(await host.turn.reread(at[2] - 1));
     assert.deepEqual(standing(host), { standing: { guild: 3, watch: -5, compact: 0 }, title: 'none' });
     assert.deepEqual(dmProblems(host), []);
     await reload(host);
 });
 
-test('A: deleting the first gain makes the second inactive (REPLAY_PREREQUISITE); Re-read applies +3 without a title', async t => {
+test('A: deleting the first gain makes only the second inactive (REPLAY_PREREQUISITE); Re-read applies +3 without a title', async t => {
     const { host, at } = await story(t);
     await host.st.deleteMessage(at[0]);
-    assert.deepEqual(standing(host), { standing: { guild: 0, watch: 0, compact: 0 }, title: 'none' });
+    // The second gain's starting-value guard fails. The loss read the guild standing only for the title rule, which answers
+    // "no" now as it did then, so it is still in force.
+    assert.deepEqual(standing(host), { standing: { guild: 0, watch: -5, compact: 0 }, title: 'none' });
     const inactive = dmProblems(host);
-    assert.equal(inactive.length, 2, 'the second gain, and the loss that read the guild standing');
+    assert.equal(inactive.length, 1, JSON.stringify(inactive));
     assert.match(inactive[0].message, /Re-read/);
     await reload(host);
-    assert.equal(dmProblems(host).length, 2);
-    // One message fewer before them now: the second gain, then the loss.
+    assert.equal(dmProblems(host).length, 1);
+    // One message fewer before it now.
     success(await host.turn.reread(at[1] - 1));
-    assert.deepEqual(standing(host), { standing: { guild: 3, watch: 0, compact: 0 }, title: 'none' }, 'recomputed from the new starting value: +3, no title');
+    assert.deepEqual(standing(host), { standing: { guild: 3, watch: -5, compact: 0 }, title: 'none' }, 'recomputed from the new starting value: +3, no title, the loss untouched');
+    assert.deepEqual(dmProblems(host), []);
+    await reload(host);
+});
+
+test('A: a later action whose rule answer would change is stale; one whose answer stays is not', async t => {
+    // gain, gain (title), gain: the third read "guild 6 and no title yet" = no. Without the second, it would be "guild 3 + 3 = 6" = yes.
+    const host = await world(t);
+    await host.send('Begin.', 'The guild hall.');
+    await pin(host);
+    const at = [];
+    for (const reason of ['one', 'two', 'three']) { await host.send('Go.', reply(GAIN(reason))); at.push(host.ctx.chat.length - 1); }
+    assert.deepEqual(standing(host), { standing: { guild: 9, watch: 0, compact: 0 }, title: 'Guild Friend' });
+    await host.st.deleteMessage(at[1]);
+    assert.equal(dmProblems(host).length, 1, 'the third gain would now earn the title: its recorded answer is stale');
+    assert.deepEqual(standing(host), { standing: { guild: 3, watch: 0, compact: 0 }, title: 'none' });
     success(await host.turn.reread(at[2] - 1));
-    assert.deepEqual(standing(host), { standing: { guild: 3, watch: -5, compact: 0 }, title: 'none' });
+    assert.deepEqual(standing(host), { standing: { guild: 6, watch: 0, compact: 0 }, title: 'Guild Friend' });
     assert.deepEqual(dmProblems(host), []);
     await reload(host);
 });
