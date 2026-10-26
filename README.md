@@ -1,6 +1,6 @@
-# Story Block 2.0.0
+# Story Block 2.1.0
 
-> Story Suite 2.0.0.
+> Story Suite 2.1.0.
 
 ## What it is
 
@@ -23,7 +23,7 @@ Tested with **SillyTavern 1.19**. In **Extensions → Install extension**, insta
 3. [RPG Battle](https://github.com/kohz87/rpg_battle)
 4. [NPC State Delta](https://github.com/kohz87/npc_state_delta)
 
-To start with the bundled **Ersveil** rules pack, open a fresh chat and follow **Setup → Pin Ersveil Rules → Create**,
+To start with the bundled **Ersveil 1.5.0** rules pack, open a fresh chat and follow **Setup → Pin Ersveil Rules → Create**,
 then choose your character's options. Existing chats load and rebuild unchanged; legacy chats stay unpinned.
 
 Report bugs in [this repo's Issues](https://github.com/kohz87/Story_block/issues), with steps to reproduce.
@@ -70,6 +70,7 @@ is off is gone from the story; nothing it made is lost.
   Chronicle, other extensions' tabs, Director, and **Dossiers last**. Only installed extensions show. Move, hide or
   show them in Settings → **Tabs & Packs**.
 - **Packs** (Settings → Tabs & Packs): import a world pack (items, races, places, shops, recipes, events, ranks, calendar, weather…).
+  Ersveil 1.5.0 includes 12 open quest templates. Import only `examples/packs/ersveil-bluewatch/pack.json`; the files in `drafts/` are source references already merged into that pack.
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.
@@ -92,6 +93,8 @@ is off is gone from the story; nothing it made is lost.
    under **Problems**. Numbers are clamped and capped per reply; model text never makes coin, items or XP.
 4. **Swipe, delete, Re-read and reload stay correct:** the state is kept as JSON with each reply, so a swipe or a
    deleted reply takes its changes back. If you edit a reply's text, press **Re-read** to read its block again.
+
+With a pinned rules pack, a quest offer can add `| like: <template>`; the reader can also choose **Make this a quest**. Code fixes the reward from the template's range at offer time. A foe variant uses `! encounter <name> | like: <foe>`; new pinned encounters follow their danger label.
 
 Details: [GUIDE](docs/v2/GUIDE.md) (the `<Changes>` block, Checks, Screens) and [SPEC](docs/v2/SPEC.md)
 (§4 the turn, §2.2 storage and replay, §5 the prompt).

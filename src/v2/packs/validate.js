@@ -33,7 +33,7 @@ import { MAX_COINS, MAX_COIN_VALUE, coinsOf } from '../domains/money.js';
 // other's exports when called, never while loading, so the cycle is harmless.
 import { validateRulesPack } from './rules-v2.js';
 
-export const HOST_VERSION = '2.0.0';
+export const HOST_VERSION = '2.1.0';
 
 /** A slug for a display name: "Iron Sword (old)" → "iron-sword-old". */
 export function slugify(name) {
