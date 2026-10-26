@@ -579,3 +579,13 @@ Open questions (the design above uses the recommended answers):
 3. How much migration should v1 support? Recommended: explicit additive fields with defaults only; changed mechanics or destructive state changes require a new timeline.
 4. What should an absolute backwards story-time edit do to survival timers? Recommended: accrue nothing and keep the high-water minute; history retraction or restore rebuilds the earlier cursor.
 5. Should a captured action automatically recompute after an earlier prerequisite changes? Recommended: re-plan system ticks only; mark dependent story actions inactive and require Re-read, preserving recorded reward and check decisions.
+
+## Decisions (approved 26 Oct)
+
+1. Narrator kinds: one host wire kind `dm`; authored kinds stay local to their definition (selected by `kind:`); no global kind names reserved.
+2. A reader may enable a module in an existing chat, explicitly in Setup; it attaches at the current story minute with no retroactive effects.
+3. Migration in v1 is additive only (new fields with defaults); changed mechanics or destructive state changes need a new timeline.
+4. A backwards story-time edit accrues nothing on timers and keeps the high-water minute; retraction or restore rebuilds the earlier cursor.
+5. When an earlier change invalidates a later action: system ticks are re-planned; dependent story actions go inactive with `REPLAY_PREREQUISITE` and need a Re-read; recorded rewards and checks are kept, never recalculated.
+6. Short module references: a `dm` line may name a module by its bare slug (`+ dm reputation — … | kind: gain | faction: guild`) when that slug is unique among the chat's active pins; the full `pack.<pack-id>/<slug>` ID always works; an ambiguous bare slug is refused with both candidates named. The generated narrator grammar uses the short form whenever it is unique.
+7. Delivery in two steps. **v1:** fields, kinds, conditions, rules, rewards/offers into the module's own fields, timers on SD minutes, exports between data modules, screens/layouts, Setup enable/attach, additive migration. **v1.1:** owner-reviewed adapters — SD skill checks inside a `dm` root, and `grantCoin` / `grantItem` / `grantXp`. In v1 a definition using a v1.1 feature is refused at import with a clear "needs data-modules v1.1" message (not accepted and left unavailable).
