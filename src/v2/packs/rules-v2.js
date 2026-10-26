@@ -2746,7 +2746,11 @@ export function checkResolvedLimits(resolved, limits = RULES_V2_LIMITS) {
 
 /** rulesHash, the contract's H: the normalised manifest and owned content + schema + constants. */
 function computeRulesHash(resolved, content) {
-    const canonical = buildCanonicalDocument({ content: { ...content, rules: [resolved.manifest] } }, resolved.manifest.pack).content;
+    // Data definitions are independently pinned SB mechanics. Installing an unused one
+    // must not change the RB rules marker that existing replay guards compare.
+    const owned = { ...content, rules: [resolved.manifest] };
+    delete owned.dataModules;
+    const canonical = buildCanonicalDocument({ content: owned }, resolved.manifest.pack).content;
     return sha256Text(JSON.stringify(sortKeys({ constants: resolved.constants, content: canonical, schema: rulesV2Schema })));
 }
 

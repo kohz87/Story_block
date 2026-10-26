@@ -22,6 +22,12 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 
 ## Unreleased
 
+- Data modules, step 1 (WIP): shared schema 1 checker/descriptors/limits/diagnostics for
+  `content.dataModules` and `data-modules-v1`, worked-example/refusal fixtures, public import
+  and additive migration checking. v1.1 checks and economic grants refuse at import.
+  Runtime, Setup and replay support are still pending; see
+  [implementation status](docs/v2/DATA_MODULES_IMPLEMENTATION.md).
+
 - Licence: AGPL-3.0 (was GPL-3.0). Releases already published keep the licence they shipped with.
 
 ## 2.0.0-beta.2 (`v2` branch)

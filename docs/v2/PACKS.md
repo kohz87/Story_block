@@ -87,6 +87,18 @@ Inside a pack, an item is referred to (in shop stock, recipes, the start) by its
 
 ## Content kinds
 
+### dataModules (implementation in progress)
+
+`content.dataModules: [...]` carries closed, data-defined module schema 1 definitions and requires
+`data-modules-v1` in `requires.capabilities`. See the approved
+[data modules contract](DATA_MODULES.md) and [implementation status](DATA_MODULES_IMPLEMENTATION.md).
+The shared checker, descriptors, limits, diagnostics, migration comparison and definition hash are
+exported from `src/v2/data-modules/check.js` and `src/v2/packs/index.js` for Story Studio; there is
+one schema. Both worked examples are checked fixtures. Checks inside a `dm` root and
+`grantCoin` / `grantItem` / `grantXp` refuse at import with `needs data-modules v1.1`.
+Import does not enable a module in a chat; runtime and Setup delivery remains pending at step 1.
+Packs omitting this collection keep their existing normalization and fingerprints.
+
 ### items
 
 These are inventory definitions (SPEC §7). Only these fields are allowed:

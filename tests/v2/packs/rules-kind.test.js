@@ -29,7 +29,7 @@ const MODULES = ['story-director', 'rpg-battle', 'story-block', 'scene', 'invent
 test('the rules kind is registered as a content kind that is kept only when the file gives it', () => {
     assert.ok(CONTENT_KINDS.includes('rules'));
     assert.ok(OPTIONAL_KINDS.includes('rules'));
-    assert.deepEqual([...HOST_CAPABILITIES], [R.RULES_V2_CAPABILITY], 'the host has the capability the checker asks a rules pack to declare');
+    assert.deepEqual([...HOST_CAPABILITIES], [R.RULES_V2_CAPABILITY, 'data-modules-v1'], 'the host declares its rules and data-module checker capabilities');
     const plain = validatePack({ id: 'plain', version: '1.0.0', requires: { storyBlock: '^2' }, content: { items: [] } });
     assert.equal(plain.ok, true, show(plain));
     assert.ok(!('rules' in plain.pack.content), 'a pack without a manifest has no rules key, as before');

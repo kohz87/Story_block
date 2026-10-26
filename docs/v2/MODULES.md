@@ -4,6 +4,10 @@ Exact data layouts and command ownership for the phase 2 and 3 modules, so agent
 the same module agree on shapes. SPEC.md rules apply throughout (IDs, integers, one writer per domain, pure
 synchronous handlers, capture as `story` commands, no JSON in prompts).
 
+Data-defined modules use Story Block's trusted part rather than executable authored parts:
+see [DATA_MODULES.md](DATA_MODULES.md) and its approved decisions. The
+[implementation status](DATA_MODULES_IMPLEMENTATION.md) records the checker/runtime delivery boundary.
+
 ## A. How a module with several agents is put together
 
 Each agent writes a **part** in its own folder and exports it from `src/v2/<part>/index.js`:

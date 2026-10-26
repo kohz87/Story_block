@@ -1,9 +1,12 @@
 # Data-defined modules — Studio Part 5, Stage 1
 
-Status: design for review; no runtime or authoring implementation in this change.
-`content.dataModules`, capability `data-modules-v1`, and APIs named below are **proposed**.
-Today's importer refuses this content kind. The JSON examples specify the proposed format, not
-files claimed to pass today's checker. Existing pack formats and runtime contracts remain authoritative.
+Status: approved design; implementation in progress on `stage6/data-modules`.
+Step 1 supplies the shared importer/checker for `content.dataModules` and capability
+`data-modules-v1`. Both complete examples below pass that checker. Runtime, Setup and replay
+delivery (steps 2–4) remains pending; the runtime APIs below are not yet registered.
+The [implementation notes](DATA_MODULES_IMPLEMENTATION.md) distinguish delivered work from the design.
+The **Decisions (approved 26 Oct)** section takes precedence over earlier text, including checks
+and economic adapters, which require v1.1 and are refused at import in v1.
 
 Read with [SPEC](SPEC.md) §§2–6/13, [MODULES](MODULES.md) §A/F121,
 [PACKS](PACKS.md), [REPLAY](REPLAY.md), [LIFECYCLE](LIFECYCLE.md),
