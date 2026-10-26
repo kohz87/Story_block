@@ -21,7 +21,7 @@ import { validateDomain } from '../../../../src/v2/data-modules/part.js';
 import { DM_LIMITS } from '../../../../src/v2/data-modules/schema.js';
 import { createHost } from '../../../../testkit/index.js';
 import { fixture, directorStub } from '../helpers.js';
-import { generate, rng } from './generate.js';
+import { generate, witnessDefinition, rng } from './generate.js';
 
 const J = value => JSON.stringify(value);
 const reply = (...lines) => `The story.${lines.length ? `\n<Changes>\n${lines.join('\n')}\n</Changes>` : ''}`;
@@ -64,6 +64,7 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
     const r = rng(seed);
     const fails = [];
     const trace = [];
+    const sourceDeletes = { noOp: 0, clock: 0 };
     let before = null;      // the chat before the step that is running (DUMP writes it with the failing one)
     const fail = (label, message, extra) => {
         if (fails.length < 4) fails.push({ label, message, ...(extra ? { extra } : {}) });
@@ -81,7 +82,8 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
         const alpha = gen('alpha', { clock: r.chance(0.6), offers: r.chance(0.5) });
         const beta = gen('beta', { scope: 'character', clock: true, source: 'pack.fz-a/alpha' });
         const gamma = gen('gamma', { offers: true });
-        packs.push({ id: 'fz-a', version: '1.0.0', requires: { storyBlock: '^2', capabilities: ['data-modules-v1', 'story-director'] }, content: { dataModules: [alpha, beta, gamma] } });
+        const witness = witnessDefinition(r);
+        packs.push({ id: 'fz-a', version: '1.0.0', requires: { storyBlock: '^2', capabilities: ['data-modules-v1', 'story-director'] }, content: { dataModules: [alpha, beta, gamma, witness] } });
         if (r.chance(0.5)) packs.push({ id: 'fz-b', version: '1.0.0', requires: { storyBlock: '^2', capabilities: ['data-modules-v1'] }, content: { dataModules: [gen('alpha', {})] } });
         if (r.chance(0.6)) packs.push(fixture('reputation'));
         if (r.chance(0.6)) packs.push(fixture('survival'));
@@ -115,8 +117,39 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
         };
         const aiIndexes = () => host.ctx.chat.map((message, index) => (message.is_user ? -1 : index)).filter(index => index >= 0);
         const pinned = () => Object.keys(host.head()?.domains?.dataModules?.active ?? {});
+        const probe = kind => send(`! dm pack.fz-a/witness — source probe | kind: ${kind}`);
+        const probeInstance = () => host.head()?.domains?.dataModules?.instances?.['pack.fz-a/witness']?.chat;
+        const probeReady = () => {
+            const domain = host.head()?.domains?.dataModules, active = domain?.active?.['pack.fz-a/witness'];
+            return Boolean(active && domain.pins[active.hash]?.definition.kinds.repeat);
+        };
+        const staleProbe = () => host.store.problems().some(problem => problem.index === host.ctx.chat.length - 1 && problem.code === 'REPLAY_PREREQUISITE');
 
         const operations = {
+            deleteNoOpSource: async () => {
+                if (!probeReady()) return;
+                await probe('reset'); verify('no-op reset');
+                await probe('prime'); verify('no-op source');
+                const source = host.ctx.chat.length - 1;
+                await probe('repeat'); verify('no-op repeat');
+                if (!probeInstance()?.fields.title) { fail('no-op source', 'probe did not earn its title'); return; }
+                await host.st.deleteMessage(source);
+                sourceDeletes.noOp += 1;
+                if (probeInstance()?.fields.score !== 1 || probeInstance()?.fields.title !== false || !staleProbe()) fail('no-op source', 'deleting the original write did not invalidate the no-op set and reward');
+            },
+            deleteClockSource: async () => {
+                if (!probeReady()) return;
+                await send();
+                await host.sdk.command('test.minute', { minute: 1000 }); verify('clock baseline');
+                await probe('reset'); verify('clock reset');
+                await send(`! time ${witness.rules[0].when[2][2] - 1000}`); verify('clock source');
+                const source = host.ctx.chat.length - 1;
+                await probe('arm'); verify('clock gate');
+                if (!probeInstance()?.fields.clockTitle) { fail('clock source', 'probe did not earn its clock title'); return; }
+                await host.st.deleteMessage(source);
+                sourceDeletes.clock += 1;
+                if (host.head().domains.director.time.minutes !== 1000 || probeInstance()?.fields.clockTitle !== false || !staleProbe()) fail('clock source', 'deleting the advance did not invalidate the clock-gated rule');
+            },
             reply: () => send(...randomLines()),
             replyMany: async () => { await send(...randomLines()); await send(...randomLines()); },
             cont: () => host.cont(reply(...randomLines())),
@@ -210,7 +243,7 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
             },
         };
         const names = Object.keys(operations);
-        const weights = { reply: 24, replyMany: 4, cont: 5, swipe: 5, regenerate: 3, delete: 7, reread: 7, edit: 2, reload: 3, rebuild: 2, setup: 9, act: 5, clock: 4, actor: 3, library: 4, settings: 1, savepoint: 2, barrier: 1, damage: 3 };
+        const weights = { deleteNoOpSource: 2, deleteClockSource: 2, reply: 24, replyMany: 4, cont: 5, swipe: 5, regenerate: 3, delete: 7, reread: 7, edit: 2, reload: 3, rebuild: 2, setup: 9, act: 5, clock: 4, actor: 3, library: 4, settings: 1, savepoint: 2, barrier: 1, damage: 3 };
         const deck = names.flatMap(name => Array(weights[name] ?? 1).fill(name));
 
         // ---- the properties -------------------------------------------------------------------
@@ -268,6 +301,15 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
         };
 
         verify('start');
+        const offer = host.sdk.query('dataModules.offers').find(row => row.module === 'pack.fz-a/witness');
+        const pin = await host.sdk.command('dm.pin', { module: offer.module, hash: offer.hash, packHash: offer.packHash });
+        if (!pin.ok) fail('probe pin', `could not pin generated witness module: ${J(pin)}`);
+        verify('probe pin');
+        // Every seed exercises both semantic failures, before arbitrary edits can remove the pin.
+        for (const name of ['deleteNoOpSource', 'deleteClockSource']) {
+            await operations[name]();
+            verify(name);
+        }
         // Most of the chat runs with something pinned: enable up to three modules (and attach actors) in the first replies.
         for (let n = r.int(1, 3); n > 0; n -= 1) {
             try { await operations.setup(); if (r.chance(0.6)) await send(...randomLines()); } catch (error) { fail('opening', `the operation threw: ${error?.message}`); }
@@ -282,7 +324,7 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
             trace.push(name);
             verify(`${name}#${step}`);
         }
-        const stats = { pinned: pinned().length, spans: host.ctx.chat.flatMap(message => message.extra?.storySuite?.spans ?? []).filter(span => String(span.guard?.predicate?.kind ?? '').startsWith('dm.')).length };
+        const stats = { sourceDeletes, pinned: pinned().length, spans: host.ctx.chat.flatMap(message => message.extra?.storySuite?.spans ?? []).filter(span => String(span.guard?.predicate?.kind ?? '').startsWith('dm.')).length };
         host.close();
         host = null;
         return { seed, steps, fails, stats, ...(verbose ? { trace } : {}) };

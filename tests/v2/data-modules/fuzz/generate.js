@@ -64,6 +64,8 @@ export function generate(r, slug, { scope = 'chat', clock = false, source = null
             if (labels.which && r.chance(0.8)) effects.push({ op: 'add', path: ['m', ['arg', 'which']], value: labels.n ? ['arg', 'n'] : r.int(1, 4), bounds: 'clamp' });
             if (r.chance(0.3)) effects.push({ op: 'set', path: ['flag'], value: r.chance(0.5) });
             if (r.chance(0.2)) effects.push({ op: 'set', path: ['tier'], value: r.pick(TIERS) });
+            // Constants repeat across actions: these sets can be no-ops with no saved field patch.
+            if (r.chance(0.4)) effects.push({ op: 'set', path: ['b'], value: r.pick([0, 5, 100]) });
             if (labels.tier && definition.rewards.prize) effects.push({ op: 'reward', template: 'prize', bind: { tier: ['arg', 'tier'] } });
             if (source && r.chance(0.5)) effects.push({ op: 'set', path: ['b'], value: ['clamp', ['input', 'src', 'a'], 0, 100] });
             if (!effects.length) effects.push({ op: 'set', path: ['flag'], value: true });
@@ -81,6 +83,8 @@ export function generate(r, slug, { scope = 'chat', clock = false, source = null
         if (rich || r.chance(0.5)) definition.rules.push({ id: 'latch', when: ['and', ['ge', ['get', ['b']], r.int(10, 40)], ['not', ['get', ['flag']]]], then: [{ op: 'set', path: ['flag'], value: true }] });
         if (rich && r.chance(0.6)) definition.rules.push({ id: 'bonus', when: ['ge', ['get', ['a']], r.int(2, 9)], then: [{ op: 'add', path: ['b'], value: 1, bounds: 'clamp' }] });
         if (clock) {
+            definition.imports.gate = { query: 'director.time', mode: r.pick(['prefix', 'recorded']), projection: ['minutes'] };
+            definition.rules.push({ id: 'late', when: ['ge', ['input', 'gate', 'minutes'], r.pick([1030, 1060, 1120])], then: [{ op: 'set', path: ['tier'], value: 'high' }] });
             definition.timers.push({ id: 'tick', clock: 'clock', every: r.pick([15, 30, 60, 90]), effects: [{ op: 'add', path: ['b'], value: ['mul', ['timer', 'periods'], r.int(1, 3)], bounds: 'clamp' }] });
             if (rich) definition.timers[0].effects.push({ op: 'add', path: ['a'], value: ['timer', 'periods'], bounds: 'clamp' });
         }
@@ -90,6 +94,33 @@ export function generate(r, slug, { scope = 'chat', clock = false, source = null
         if (verdict.ok || source) return definition;
     }
     throw new Error(`no valid generated definition for ${slug}`);
+}
+
+// Small generated semantic probes. Both original review bugs agreed live/cold, so these also
+// assert that deleting a source retracts the dependent action, rather than only testing parity.
+export function witnessDefinition(r) {
+    const score = r.int(3, 9), minutes = 1000 + r.pick([30, 60, 90, 120]);
+    return {
+        slug: 'witness', name: 'Witness', schema: 1, stateVersion: 1, scope: 'chat',
+        state: { score: int(1, score, 1), title: { type: 'bool', default: false },
+            armed: { type: 'bool', default: false }, clockTitle: { type: 'bool', default: false } },
+        imports: { clock: { query: 'director.time', mode: r.pick(['recorded', 'recorded', 'prefix']), projection: ['minutes'] } },
+        kinds: {
+            reset: { op: '!', labels: {}, effects: [
+                { op: 'set', path: ['score'], value: 1 },
+                ...['title', 'armed', 'clockTitle'].map(key => ({ op: 'set', path: [key], value: false })),
+            ] },
+            prime: { op: '!', labels: {}, effects: [{ op: 'set', path: ['score'], value: score }] },
+            repeat: { op: '!', labels: {}, when: ['ge', ['get', ['score']], 1], effects: [
+                { op: 'set', path: ['score'], value: score }, { op: 'reward', template: 'title', bind: {} },
+            ] },
+            arm: { op: '!', labels: {}, effects: [{ op: 'set', path: ['armed'], value: true }] },
+        },
+        rewards: { title: { bindings: {}, values: {}, when: ['ge', ['get', ['score']], score],
+            effects: [{ op: 'set', path: ['title'], value: true }] } },
+        rules: [{ id: 'late', when: ['and', ['get', ['armed']], ['ge', ['input', 'clock', 'minutes'], minutes]],
+            then: [{ op: 'set', path: ['clockTitle'], value: true }] }],
+    };
 }
 
 /** Random damage to a valid definition: the checker may refuse or accept, but must not throw. */

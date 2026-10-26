@@ -148,6 +148,9 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
     }
     function write(path, value) {
         if (!scalarHolds(field(path), value)) refuse('DM_BOUNDS', path.join('.'), 'Field value is outside its schema.');
+        // Saved ops omit no-ops. Witness the ORIGINAL destination even then: later conditions may
+        // use this root's internal value, which is valid only while its starting value is unchanged.
+        read(['fields', ...path]);
         const parent = path.length === 1 ? instance.fields : instance.fields[path[0]];
         parent[path.at(-1)] = value;
         written.add(JSON.stringify(path));
@@ -183,7 +186,6 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
                 let value;
                 if (effect.op === 'set') value = evaluate(effect.value, env);
                 else {
-                    read(['fields', ...path]);
                     const before = atPath(instance.fields, path);
                     if (effect.op === 'clamp') value = Math.min(evaluate(effect.max, env), Math.max(evaluate(effect.min, env), before));
                     else {

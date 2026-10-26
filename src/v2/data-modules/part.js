@@ -26,6 +26,18 @@ const pairKey = source => `${source.sid}/${source.swipeKey}`;
 const subjectsOf = (state, id) => state.domains.dataModules?.active?.[id]?.subjects ?? [];
 const instancePath = (id, subject) => ['instances', id, ...(subject === 'chat' ? ['chat'] : ['characters', subject])];
 const rawDefinition = definition => Object.fromEntries(Object.entries(definition).filter(([key]) => !['id', 'pack'].includes(key)));
+// Clock/actor identities and inputs used for eligibility are live prerequisites even when the
+// author requested a recorded snapshot. Other recorded values can still be frozen effect inputs.
+const prefixImports = definition => {
+    // An imported value can reach a condition through writes or reward bindings. Conservatively
+    // witness public values whenever the module has eligibility expressions, including that case.
+    const eligibility = [...Object.values(definition.kinds), ...definition.rules, ...Object.values(definition.rewards)]
+        .some(entry => entry.when !== undefined && typeof entry.when !== 'boolean');
+    return Object.keys(definition.imports).filter(alias => {
+        const entry = definition.imports[alias];
+        return entry.mode === 'prefix' || ['director.time', 'checks.policy'].includes(entry.query) || eligibility;
+    });
+};
 
 export function validateDomain(domain) {
     if (!dmObject(domain) || Object.keys(domain).some(key => !['pins', 'active', 'instances', 'perReply'].includes(key))
@@ -105,13 +117,20 @@ function newInstance(definition, inputs) {
 
 // Witnesses contain only relevant local paths. A guard never interprets effects or asks live
 // services: it verifies the recorded decision against the prefix and allows the host's saved ops.
-export function replayInputs(state, { module, subject = 'chat', reads = [], imports = [], actor = false, adapters = null, subjects = [] } = {}) {
+export function replayInputs(state, { module, subject = 'chat', reads = [], imports = [], actor = false, adapters = null, subjects = [], available = [] } = {}) {
     const domain = state?.domains?.dataModules, active = domain?.active?.[module];
     const definition = activeDefinition(state, module), instance = instanceOf(state, module, subject);
     return { active: active ? { hash: active.hash, generation: active.generation, attached: active.subjects.includes(subject) } : null,
         reads: reads.map(path => ({ path, value: copy(atPath(instance, path)) })),
         imports: Object.fromEntries(imports.map(alias => [alias, (adapters ?? definition?.imports)?.[alias] ? projectImport(state, (adapters ?? definition.imports)[alias]) : null])),
         actor: actor ? actorsOf(state)[subject] ?? null : null,
+        ...(available.length ? { available: Object.fromEntries(available.map(alias => {
+            const entry = (adapters ?? definition?.imports)?.[alias];
+            return [alias, entry?.query === 'dataModules.public' ? {
+                export: publicView(state, entry.args) !== null,
+                actor: entry.args.who ? Boolean(actorsOf(state)[entry.args.who]) : null,
+            } : null];
+        })) } : {}),
         subjects: Object.fromEntries(subjects.filter(id => id !== 'chat').map(id => [id, actorsOf(state)[id] ?? null])) };
 }
 
@@ -193,7 +212,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     }
     function guard(ctx, prefix, { kind, module, hash, generation, subject = 'chat', reads = [], imports = [], actor = false, decision = {}, pin = null, bound = false }) {
         const predicate = { kind, module, hash, generation, subject };
-        const selector = { module, subject, reads, imports, actor, ...(pin ? { adapters: pin.definition.imports, subjects: decision.subjects ?? [] } : {}) };
+        const adapters = pin?.definition.imports ?? activeDefinition(prefix, module)?.imports ?? {};
+        const available = Object.keys(adapters).filter(alias => adapters[alias].query === 'dataModules.public');
+        const selector = { module, subject, reads, imports, actor, ...(available.length ? { available } : {}),
+            ...(pin ? { adapters, subjects: decision.subjects ?? [] } : {}) };
         const source = copy(ctx.source);
         if (!source) refuse('DM_SCHEMA', '', 'A reply must hold this data module action.');
         const witness = replayInputs(prefix, selector);
@@ -299,7 +321,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         evaluation.effects(kind.effects, { arg: args }); evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: Object.keys(definition.imports).filter(alias => definition.imports[alias].mode === 'prefix'),
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition),
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes };
@@ -326,7 +348,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.tick', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), imports: Object.keys(definition.imports).filter(alias => definition.imports[alias].mode === 'prefix'),
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition),
             actor: subject !== 'chat', decision: { inputs, conds: result.conds } });
         return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes }, summary: `${definition.name}: story time settled.` });
     }
