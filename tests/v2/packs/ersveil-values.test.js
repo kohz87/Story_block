@@ -53,6 +53,16 @@ test('a minor healing draught is a fraction of an F-rank job', () => {
 test('every quest pays whole copper inside a rank\'s reward range, and the F jobs inside the F range', () => {
     const inside = coin => pack.content.ranks.some(rank => coin >= rank.reward[0] && coin <= rank.reward[1]);
     for (const quest of pack.content.quests) {
+        if (quest.open) {
+            const rank = pack.content.ranks.find(entry => entry.id === quest.rank);
+            for (const unit of ['coin', 'xp']) {
+                const min = quest.reward[`${unit}Min`], max = quest.reward[`${unit}Max`];
+                assert.ok(Number.isInteger(min) && Number.isInteger(max) && min <= max, `${quest.name}: whole ${unit} bounds`);
+                assert.ok(min >= rank.reward[0] && max <= rank.reward[1], `${quest.name}: ${unit} stays inside ${rank.id}`);
+            }
+            assert.deepEqual(quest.reward.items, [], `${quest.name}: items bind when opened`);
+            continue;
+        }
         assert.ok(Number.isInteger(quest.reward.coin) && inside(quest.reward.coin), `${quest.name}: ${quest.reward.coin} copper is in no rank's range`);
         // Items paid on top are worth part of the job, not more than it.
         const paid = quest.reward.items.reduce((sum, row) => sum + items.get(row.def).value * row.qty, 0);

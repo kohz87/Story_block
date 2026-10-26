@@ -38,6 +38,11 @@ the model writes is `<Changes>`, and Story Block's own instruction asks for it.
 
 ## 3. The pack
 
+Pack **1.5.0** keeps every existing content slug and adds twelve open quest templates: story tasks,
+hunts and deliveries for ranks F through C. Import the single `pack.json` to install all of them.
+Open a template with an explicit `like:` binding or the quest reader; the existing thirty quests keep
+their fixed objectives and rewards.
+
 1. Story Suite settings → **Packs** → **Import pack file** → `examples/packs/ersveil-bluewatch/pack.json`.
    The list shows "41 items, 6 creatures, 4 shops, 7 recipes, 6 events, 3 quests, 7 races,
    6 talents, 2 skills, 1 ready-made character, 54 places, 63 routes, 1 term set, 7 ranks, 2 crafts,

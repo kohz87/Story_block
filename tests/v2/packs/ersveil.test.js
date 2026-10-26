@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createPacksPart } from '../../../src/v2/packs/index.js';
 import { applyStart, mergeStart } from '../../../src/v2/packs/content.js';
 import { LIMITS } from '../../../src/v2/packs/limits.js';
@@ -37,7 +38,7 @@ async function installedPart() {
 }
 
 // Story Director's own code, when a checkout is next to this one (it is not in Story Block's CI).
-const DIRECTOR = ['/home/user/_wt/int-story_director', '/home/user/story_director']
+const DIRECTOR = [fileURLToPath(new URL('../../../../Story_director/', import.meta.url)), '/home/user/_wt/int-story_director', '/home/user/story_director']
     .find(root => existsSync(`${root}/src/v2/quests/parse.js`) && existsSync(`${root}/src/calendar.js`));
 const director = DIRECTOR ? { skip: false } : { skip: 'No Story Director checkout with src/v2/quests/parse.js next to this repo.' };
 
@@ -53,6 +54,7 @@ test('the pack validates, under the size limit, with every content kind', () => 
     assert.ok(byteLength(text) < LIMITS.packBytes, `${byteLength(text)} bytes`);
     const pack = checked();
     assert.equal(pack.id, PACK);
+    assert.equal(pack.version, '1.5.0');
     assert.deepEqual(pack.currency, CURRENCY);
     for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'rules']) {
         assert.ok(pack.content[kind].length > 0, `${kind} is not empty`);
@@ -149,7 +151,7 @@ test('shops, recipes and loot name items of the pack', () => {
     for (const quest of pack.content.quests) {
         for (const row of quest.reward.items) assert.ok(ids.has(row.def), `${quest.name} pays ${row.def}`);
         for (const objective of quest.objectives) {
-            if (objective.kind === 'collect') assert.ok(ids.has(objective.def), `${quest.name} asks for ${objective.def}`);
+            if (objective.kind === 'collect' && (!quest.open || objective.def)) assert.ok(ids.has(objective.def), `${quest.name} asks for ${objective.def}`);
             if (objective.kind === 'visit') assert.ok(places.has(objective.place), `${quest.name} sends to ${objective.place}`);
         }
         if (quest.turnInPlace) assert.ok(places.has(quest.turnInPlace), `${quest.name} turns in at ${quest.turnInPlace}`);
@@ -303,5 +305,5 @@ test('Wessel (kit) pre-fills the Human race, two talents, his stat points and hi
 test('nothing in the pack runs as code: it installs through the safety checks and round-trips as data', async () => {
     const { settings, packs } = await installedPart();
     assert.deepEqual(settings.root.packs[0].pack, raw(), 'kept as given');
-    assert.deepEqual(packs.list()[0].counts, { items: 43, creatures: 40, shops: 8, recipes: 7, events: 6, quests: 30, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7, crafts: 2, meterPresets: 2, markets: 2, rules: 1 });
+    assert.deepEqual(packs.list()[0].counts, { items: 43, creatures: 40, shops: 8, recipes: 7, events: 6, quests: 42, races: 7, talents: 6, skills: 2, presets: 1, places: 54, routes: 63, terms: 1, ranks: 7, crafts: 2, meterPresets: 2, markets: 2, rules: 1 });
 });
