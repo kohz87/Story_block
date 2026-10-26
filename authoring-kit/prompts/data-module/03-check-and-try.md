@@ -15,7 +15,7 @@ It prints `OK` or a numbered list of problems, each with its path and a hint. Wh
 | `DM_LABEL` | a label is not one lowercase word, is `kind` or `who`, or is not an int, bool or enum; or an `oncePerReply` entry is not an enum label. |
 | `DM_CONDITION` | a `when` does not give true or false; compare values of one type, with `eq`, `lt`, `and`, `not`. |
 | `DM_BUDGET` | the module is too big for version 1 (see `reference/LIMITS.md`): fewer fields, kinds or rules. |
-| `MISSING_CAPABILITY` / `BAD_REQUIRES` | the pack must list `"data-modules-v1"` in `requires.capabilities` (and `"story-director"` when it reads the story clock). |
+| `MISSING_CAPABILITY` / `BAD_REQUIRES` | the pack must list `"data-modules-v1"` in `requires.capabilities` (and `"story-director"` when it reads the story clock). Any other name is refused; fix the spelling, or, only if you really have a module installed that provides it, add `--with-capability <name>` to the check. |
 
 Typical mistakes: a text field read in an expression (text is display only), a path to a map without its key
 (`["standing"]` instead of `["standing", "guild"]`), a division by something that is not a positive literal, a timer

@@ -4,10 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkPack, report, withStandIns } from '../../../authoring-kit/check.mjs';
+import { checkPack, report, withStandIns, SUITE_CAPABILITIES } from '../../../authoring-kit/check.mjs';
 import { join as joinSteps, readAnswer, RULES_LISTS, CONTENT_LISTS } from '../../../authoring-kit/scripts/join.mjs';
 import * as R from '../../../src/v2/packs/rules-v2.js';
 import { DM_LIMITS } from '../../../src/v2/data-modules/schema.js';
@@ -82,12 +83,40 @@ test('every error code the rules checker and the host use gets a hint of its own
     }
 });
 
-test('a capability the kit does not know is a note, never a refusal', () => {
+test('a capability the suite does not provide is an error, unless --with-capability names it', () => {
     const pack = clone(json('examples/tiny-world/pack.json'));
     pack.requires.capabilities.push('mystery-module');
     const result = checkPack(pack);
-    assert.equal(result.ok, true);
-    assert.match(report('x', result), /note: requires\.capabilities lists "mystery-module"/);
+    assert.equal(result.ok, false);
+    assert.equal(result.errors.length, 1);
+    assert.equal(result.errors[0].code, 'MISSING_CAPABILITY');
+    assert.match(report('x', result), /mystery-module[\s\S]*hint: .*--with-capability <name>/);
+    // Only names passed that way are added, and each one only for its own run.
+    assert.equal(checkPack(pack, { withCapabilities: ['other-module'] }).ok, false);
+    const allowed = checkPack(pack, { withCapabilities: ['mystery-module'] });
+    assert.equal(allowed.ok, true);
+    assert.match(report('x', allowed), /note: --with-capability: "mystery-module"/);
+    assert.equal(checkPack(pack).ok, false);
+    // A misspelling of a real one is caught too.
+    const typo = clone(json('examples/tiny-world/pack.json'));
+    typo.requires.capabilities = ['rb-rules-v3'];
+    assert.equal(checkPack(typo).ok, false);
+
+    const file = join(tmpdir(), `kit-capability-${process.pid}.json`);
+    writeFileSync(file, JSON.stringify(pack));
+    try {
+        const run = node('authoring-kit/check.mjs', file);
+        assert.equal(run.status, 1);
+        assert.match(run.out, /^1 problem in /);
+        assert.match(run.out, /requires\.capabilities\n {4}This pack needs mystery-module/);
+        assert.equal(node('authoring-kit/check.mjs', file, '--with-capability', 'mystery-module').status, 0);
+        assert.equal(node('authoring-kit/check.mjs', file, '--with-capability', 'mystery-module', '--with-capability', 'second').status, 0);
+        assert.equal(node('authoring-kit/check.mjs', file, '--with-capability', 'other-module').status, 1);
+        assert.equal(node('authoring-kit/check.mjs', file, '--with-capability').status, 2);
+        assert.equal(node('authoring-kit/check.mjs', file, '--with-capability', 'Bad Name').status, 2);
+    } finally { rmSync(file, { force: true }); }
+    // The names the checker knows are the ones PACK-FORMAT.md tells authors about.
+    for (const name of SUITE_CAPABILITIES) assert.ok(read('reference/PACK-FORMAT.md').includes(`\`${name}\``), name);
 });
 
 test('--through judges the steps done with stand-ins for the rest, and never passes a pack that is wrong', () => {
@@ -144,6 +173,66 @@ test('--through judges the steps done with stand-ins for the rest, and never pas
     assert.match(cli.out, /^OK through step 3: /);
 });
 
+test('--through never lets an incomplete or wrong earlier step pass: stand-ins fill only what later steps write', () => {
+    const full = json('examples/tiny-world/pack.json');
+    const later = pack => { for (const kind of ['creatures', 'quests', 'shops', 'recipes']) delete pack.content[kind]; pack.content.rules[0].trainers = []; };
+    // The step that owns each thing, and a way to leave it missing, null or wrong. A pack with the damage at step k must fail
+    // for every --through N from k to 6 (the stand-ins at N stand in for steps after N only).
+    const damage = [
+        [1, 'classes missing', (p, r) => { delete r.classes; }],
+        [1, 'classes null', (p, r) => { r.classes = null; }],
+        [1, 'a class with the wrong parent', (p, r) => { r.classes[2].parent = 'lamplighter'; }],
+        [1, 'a class with two skills', (p, r) => { r.classes[0].skills.pop(); }],
+        [2, 'skills missing', (p, r) => { delete r.skills; }],
+        [2, 'skills null', (p, r) => { r.skills = null; }],
+        [2, 'skills empty', (p, r) => { r.skills = []; }],
+        [2, 'one class skill not written', (p, r) => { r.skills.splice(0, 1); }],
+        [2, 'a skill over its budget', (p, r) => { r.skills[0].base.effects[0].target = 'all'; }],
+        [3, 'branches missing', (p, r) => { delete r.branches; }],
+        [3, 'branches null', (p, r) => { r.branches = null; }],
+        [3, 'branches empty', (p, r) => { r.branches = []; }],
+        [3, 'one branch short', (p, r) => { r.branches.pop(); }],
+        [3, 'a numbers-only branch', (p, r) => { r.branches[0].transforms = [{ op: 'set-power', at: 0, value: 110 }]; }],
+        [4, 'itemRules missing', (p, r) => { delete r.itemRules; }],
+        [4, 'itemRules null', (p, r) => { r.itemRules = null; }],
+        [4, 'itemRules empty', (p, r) => { r.itemRules = []; }],
+        [4, 'items empty and itemRules null', (p, r) => { p.content.items = []; r.itemRules = null; }],
+        [4, 'one item without a rule', (p, r) => { r.itemRules.pop(); }],
+        [4, 'a rule with the wrong slots', (p, r) => { r.itemRules[5].allowedSlots = ['offhand']; }],
+        [5, 'a foe with an unknown skill', (p, r) => { p.content.creatures[0].skills = ['no-such-skill']; }],
+        [5, 'a foe with no stats', (p, r) => { delete p.content.creatures[0].stats; }],
+        [6, 'a quest for a foe that is not there', (p, r) => { p.content.quests[0].objectives[0].foe = 'no-such-foe'; }],
+    ];
+    for (const [step, label, change] of damage) {
+        for (let through = 1; through <= 6; through += 1) {
+            const pack = clone(full);
+            if (through < 5) later(pack);
+            if (through === 5) { for (const kind of ['quests', 'shops', 'recipes']) delete pack.content[kind]; pack.content.rules[0].trainers = []; }
+            if (through === 6) { for (const kind of ['shops', 'recipes']) delete pack.content[kind]; pack.content.rules[0].trainers = []; }
+            if (step > through) continue;
+            change(pack, pack.content.rules[0]);
+            // For --through below the step that owns the part, the part is not required yet: only steps <= through are held to account.
+            const result = checkPack(pack, { through });
+            assert.equal(result.ok, false, `--through ${through} passed with step ${step} damaged: ${label}`);
+            const cli = report('x', result, { through });
+            assert.match(cli, /^\d+ problems? in x/, label);
+        }
+    }
+    // The reported case: no items and itemRules null passes nothing at --through 4, and the full check agrees.
+    const reported = clone(full);
+    later(reported);
+    reported.content.items = [];
+    reported.content.rules[0].itemRules = null;
+    assert.equal(checkPack(reported, { through: 4 }).ok, false);
+    assert.ok(checkPack(reported, { through: 4 }).errors.some(error => error.path === 'content.rules[0].itemRules'));
+    assert.equal(checkPack(reported).ok, false);
+    // The same pack passes --through 3, where item rules are a later step.
+    assert.equal(checkPack(reported, { through: 3 }).ok, true);
+    // Absent lists of later steps are stand-ins; null in a step already due is not.
+    const standIn = withStandIns(clone(full), 2);
+    assert.ok(standIn.content.rules[0].itemRules.length >= full.content.rules[0].itemRules.length);
+});
+
 test('join.mjs puts step answers back together: the tiny world split into steps joins to the same pack', () => {
     const full = json('examples/tiny-world/pack.json');
     const rules = full.content.rules[0];
@@ -164,6 +253,22 @@ test('join.mjs puts step answers back together: the tiny world split into steps 
     // A chat answer may come wrapped in a fence with a sentence around it.
     const wrapped = readAnswer(`Here is step 1:\n\n\`\`\`json\n${JSON.stringify(steps[0])}\n\`\`\`\n\nDone.`);
     assert.deepEqual(wrapped, steps[0]);
+    // Two blocks are an error that names the file; so is text that is not JSON.
+    assert.throws(() => readAnswer('```json\n{"classes":[]}\n```\nand then\n```json\n{"skills":[]}\n```', 'answer.md'), /^Error: answer\.md: more than one JSON block; keep one$/);
+    assert.throws(() => readAnswer('{ nope', 'f.json'), /f\.json: not valid JSON/);
+    const dir = mkdtempSync(join(tmpdir(), 'kit-join-'));
+    try {
+        const basePath = join(dir, 'base.json');
+        const twice = join(dir, 'twice.md');
+        writeFileSync(basePath, JSON.stringify({ id: 'x', version: '1.0.0', name: 'X' }));
+        writeFileSync(twice, '```json\n{"classes":[]}\n```\n```json\n{"skills":[]}\n```\n');
+        const run = node('authoring-kit/scripts/join.mjs', basePath, twice, '--out', join(dir, 'out.json'));
+        assert.equal(run.status, 1);
+        assert.ok(run.err.includes(`join: ${twice}: more than one JSON block; keep one`), run.err);
+        assert.equal(existsSync(join(dir, 'out.json')), false);
+        writeFileSync(twice, 'Here you go:\n```json\n{"classes":[]}\n```\n');
+        assert.equal(node('authoring-kit/scripts/join.mjs', basePath, twice, '--out', join(dir, 'out.json')).status, 0);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
     const joined = joinSteps({ ...base, name: full.name }, steps.map((answer, i) => ({ name: `step ${i}`, answer })));
     joined.content.rules[0].name = rules.name;
     assert.deepEqual(joined.content, full.content);
@@ -272,7 +377,7 @@ test('a grid of the exact rules the prompts promise is enforced by the checker',
     fails((p, r) => { r.branches.pop(); }, 'branch-graph');
     fails((p, r) => { r.itemRules.pop(); }, 'item-rule-mismatch');
     fails((p, r) => { r.branches[0].slug = 'wrong'; }, 'branch-graph');
-    fails((p, r) => { p.content.quests[0].giver = 'npc/marta-vell'; }, 'bad-ref');
+    fails((p, r) => { p.content.quests[0].giver = 'npc/some-person'; }, 'bad-ref');
     fails((p, r) => { p.content.quests[0].turnInPlace = 'lanternfall'; }, 'bad-schema');
     fails((p, r) => { r.classes[0].note = 'a <b>tag</b>'; }, 'UNSAFE_HTML');
 });

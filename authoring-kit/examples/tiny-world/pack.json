@@ -1366,8 +1366,8 @@
         ],
         "trainers": [
           {
-            "slug": "instructor-wick",
-            "name": "Instructor Wick",
+            "slug": "drill-instructor",
+            "name": "The Drill Instructor",
             "place": "pack.lanternfall/lanternfall",
             "skills": [
               "lantern-swing",

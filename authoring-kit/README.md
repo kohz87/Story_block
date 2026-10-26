@@ -34,7 +34,9 @@ already use, and Story Block's own checker tells you when the result is valid.
 
    (From the repository root, write `node authoring-kit/check.mjs authoring-kit/work/pack.json`.) Each problem has a path, the
    checker's message and a one-line hint. A rules pack that is still being drafted is checked step by step with
-   `--through N` (for example `--through 3`); only the finished pack is checked without it.
+   `--through N` (for example `--through 3`); only the finished pack is checked without it. A `requires.capabilities` name the suite
+   does not provide is an error; if you really have another module installed that provides it, add `--with-capability <name>`
+   (repeat the flag for more than one).
 5. **Import.** In SillyTavern open Settings, Tabs & Packs, **Import pack file**, and choose your file. For a data module,
    open a chat, go to Settings, Tabs & Packs, **Data modules** and press **Enable for this chat**.
 
@@ -61,7 +63,7 @@ No Node? Open the pack in Story Studio instead: its Problems list is the same ch
 
 ```
 AGENTS.md  CLAUDE.md  GEMINI.md        standing rules for the agent (the other two point to AGENTS.md)
-check.mjs                              the checker: node check.mjs <pack.json> [--through 1..7]
+check.mjs                              the checker: node check.mjs <pack.json> [--through 1..7] [--with-capability <name>]
 prompts/rules-pack/                    00-master, 00-base-pack, 01-classes ... 07-trainers-shops-recipes,
                                        08-reward-tuning, 09-join-and-check
 prompts/data-module/                   01-design, 02-lines, 03-check-and-try

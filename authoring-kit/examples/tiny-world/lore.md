@@ -17,7 +17,7 @@ lit. Money is the **mark**.
 
 The Lamplighters' Guild keeps the lamps burning and the night roads open. A young **Lamplighter** carries a lantern and a pole. With years she is posted to a beacon tower as a **Beacon Warden**,
 then stands the long watch as a **Night Keeper**, and the rare one is named **Keeper of the First Light** and carries the one
-flame that has never gone out. Instructor Wick at the guildhall teaches the first lessons for a small fee.
+flame that has never gone out. The drill instructor at the guildhall teaches the first lessons for a small fee.
 
 Their arts: swinging the heavy lantern, throwing a spark from the wick, a glow that turns the first blow aside; later,
 flares that dazzle a crowd, the lamp-hook that drags a foe off balance, a wall of lanterns, holy light that tears the

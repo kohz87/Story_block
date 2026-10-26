@@ -21,7 +21,7 @@ Write the base pack for {{WORLD_NAME}} from {{LORE_FILES}} as one JSON file, wor
 PACK-FORMAT.md and LIMITS.md. It holds only these parts, and nothing else:
 
 1. The envelope: "id": "{{PACK_ID}}", "version": "1.0.0", "name", "author" (leave it as "You" unless told),
-   "description" (one or two sentences), "requires": {"storyBlock": "^2", "capabilities": ["rb-rules-v2"]}.
+   "description" (one or two sentences), "requires": {"storyBlock": "^2", "capabilities": ["rb-rules-v2"]}.  List no other capability.
 2. "currency": the world's money as {{MONEY}}. Name the smallest coin first with value 1; every price, value and reward
    in the pack is in that smallest coin. Add a "coins" list only when the world has coins of different worth.
 3. content.ranks: the ladder of quest ranks the lore uses (or F, E, D, C, B, A, S if it has none), lowest first, each

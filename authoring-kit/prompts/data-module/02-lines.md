@@ -70,6 +70,6 @@ subtracts a fixed 5 and clamps; a rule earns the title "Guild Friend" once at 6.
 `gain` for the guild in the same reply is refused as already counted.
 
 `reference/data-modules/survival-meters.pack.json`: a per-character module on the story clock. A timer raises hunger and
-fatigue every 60 story minutes; `! dm survival — ate supper | kind: meal | who: Mara` lowers hunger by 20, `! dm
-survival — slept at the camp | kind: rest | who: Mara | hours: 6` lowers fatigue by 60 (clamped at 0), and `hours: 9` is
+fatigue every 60 story minutes; `! dm survival — ate supper | kind: meal | who: the guide` lowers hunger by 20, `! dm
+survival — slept at the camp | kind: rest | who: the guide | hours: 6` lowers fatigue by 60 (clamped at 0), and `hours: 9` is
 refused (the label allows 1 to 8).

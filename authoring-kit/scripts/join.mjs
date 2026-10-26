@@ -21,10 +21,15 @@ export const CONTENT_LISTS = Object.freeze(['items', 'places', 'ranks', 'crafts'
 
 const keyOf = (record, list) => list === 'itemRules' ? record?.def : list === 'ranks' || list === 'crafts' ? record?.id : record?.slug;
 
-/** Reads JSON from text that may be a chat answer: the first ```json fence when there is one, else the whole text. */
-export function readAnswer(text) {
-    const fenced = /```(?:json)?\s*\n([\s\S]*?)\n```/.exec(text);
-    return JSON.parse((fenced ? fenced[1] : text).replace(/^﻿/, ''));
+/**
+ * Reads JSON from text that may be a chat answer: the one ```json fence when there is one, else the whole text.
+ * More than one fence is an error (which one is meant?); `name` is the file, so the message can say where.
+ */
+export function readAnswer(text, name = 'answer') {
+    const fences = [...text.matchAll(/```(?:json)?\s*\n([\s\S]*?)\n```/g)];
+    if (fences.length > 1) throw new Error(`${name}: more than one JSON block; keep one`);
+    try { return JSON.parse((fences.length ? fences[0][1] : text).replace(/^\uFEFF/, '')); }
+    catch (error) { throw new Error(`${name}: not valid JSON (${error.message})`); }
 }
 
 function put(target, records, list) {
@@ -67,8 +72,8 @@ function main(argv) {
     if (args.length < 1 || (at >= 0 && !out)) { console.error('usage: node scripts/join.mjs <base-pack.json> [step.json ...] [--out pack.json]'); return 2; }
     try {
         const [basePath, ...stepPaths] = args;
-        const base = readAnswer(readFileSync(basePath, 'utf8'));
-        const steps = stepPaths.map(path => ({ name: path, answer: readAnswer(readFileSync(path, 'utf8')) }));
+        const base = readAnswer(readFileSync(basePath, 'utf8'), basePath);
+        const steps = stepPaths.map(path => ({ name: path, answer: readAnswer(readFileSync(path, 'utf8'), path) }));
         const text = JSON.stringify(join(base, steps), null, 2) + '\n';
         if (out) { writeFileSync(out, text); console.error(`Wrote ${out} from ${steps.length} step file${steps.length === 1 ? '' : 's'}. Now run: node check.mjs ${out}`); }
         else process.stdout.write(text);

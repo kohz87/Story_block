@@ -24,6 +24,10 @@ reference is `docs/v2/PACKS.md` in the Story Block repository.
 - `requires.storyBlock`: a version range, normally `"^2"`.
 - `requires.capabilities`: names the pack needs. A pack with `content.rules` lists `"rb-rules-v2"`; a pack with
   `content.dataModules` lists `"data-modules-v1"` (and `"story-director"` when a module reads the story clock).
+- The checker knows these capability names: `rb-rules-v2`, `data-modules-v1`, `story-block`, `rpg-battle`, `story-director`,
+  `npc-state-delta`, `inventory`, `scene`, `party`, `combat`, `director`, `quests`, `npc`. Any other name is an error
+  (`MISSING_CAPABILITY`), usually a misspelling. If the author really has another module installed that provides it,
+  run `node check.mjs <pack> --with-capability <name>`.
 - Any other top-level field is refused, so a misspelling is never silently ignored. The top-level fields are `id`,
   `version`, `name`, `author`, `description`, `requires`, `currency`, `economy`, `calendar`, `weather`, `content`,
   `start`, `layouts`, `screens`, `theme`.

@@ -33,6 +33,8 @@ change the extension itself. For this job, this file wins.
    `node check.mjs work/pack.json` (no `--through`) when it is finished and for every data module. (Every path in this kit is
    relative to this folder; from the repository root, put `authoring-kit/` in front of each.) Read each hint; fix the cause named, not the symptom. Never edit a
    number by guessing: the problem says which value is out of range, and `reference/LIMITS.md` says what the range is.
+   A `requires.capabilities` name the checker refuses (`MISSING_CAPABILITY`) is a mistake to fix, not to work around: correct the
+   spelling or remove it. Use `--with-capability <name>` only when the author tells you they have a module installed that provides it.
    The checker is the final word; if a prompt and the checker disagree, follow the checker and note it.
 5. **Explain your choices in `work/notes.md`, not inside the JSON.** Keep it short: what you decided where the lore was
    silent, what the format could not hold, scores you were asked to show. The `note` fields in the JSON are one-line

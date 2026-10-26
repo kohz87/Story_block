@@ -2,14 +2,18 @@
 //
 //   node check.mjs work/pack.json                 (from the authoring-kit folder; or node authoring-kit/check.mjs ...)
 //   node check.mjs work/pack.json --through 3     a rules pack still being drafted: see below
+//   node check.mjs work/pack.json --with-capability my-module     (repeatable) a module you really have installed
 //
 // Prints OK, or a numbered list of problems, each with the path it is at and a one-line hint. Exit code 0 when the
 // pack is accepted, 1 when it is not (or cannot be read), 2 when it is used wrongly. No dependencies, no network.
 //
 // The pack is judged as if every module of a full Story Suite were installed, so only the pack itself is in question.
+// A capability the suite does not provide (a misspelling, or a module this kit does not know) is an error, exit 1; an author who
+// really has another module installed names what it provides with --with-capability <name>, and only those names are added.
 // `--through N` (1 to 6, the steps of prompts/rules-pack/) is for a rules pack that is not finished: it fills in
-// harmless stand-ins for what the later steps will write (skills, branches, item rules), so the checker can judge the
-// steps already done. A pack is only ever finished when it passes without --through.
+// harmless stand-ins for what the steps AFTER N will write (skills, branches, item rules, trainers), so the checker can
+// judge the steps already done. Whatever step N or an earlier step owns is judged exactly as written, missing or null
+// included. A pack is only ever finished when it passes without --through.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { SB_V2 } from './scripts/sb-root.mjs';
@@ -47,7 +51,7 @@ const HINTS = Object.freeze({
     'bad-form': 'A skill form needs 1 to 4 effects and a valid unit.',
     'bad-rules': 'A generated power-up does not fit: keep the first damage, heal or shield power at 980 or less (or the first stat amount at 9, or condition rounds at 5).',
     'bad-capability': 'List "rb-rules-v2" in requires.capabilities.',
-    MISSING_CAPABILITY: 'List the capability in requires.capabilities spelled exactly as the reference says.',
+    MISSING_CAPABILITY: 'Check the spelling against reference/PACK-FORMAT.md; if you really have a module installed that provides it, run the check with --with-capability <name>.',
     UNKNOWN_FIELD: 'Remove the field or fix its spelling; only the listed fields are allowed.',
     UNKNOWN_KIND: 'content only holds the kinds reference/PACK-FORMAT.md lists.',
     UNKNOWN_REF: 'The name does not exist in this pack; check it against the list it comes from.',
@@ -95,7 +99,9 @@ export function withStandIns(pack, through) {
     try {
         const rules = doc?.content?.rules?.[0];
         if (!isRecord(rules) || !Array.isArray(rules.classes)) return doc;
-        for (const key of ['skills', 'branches', 'itemRules', 'trainers']) rules[key] ??= [];
+        // A list a later step writes may be absent for now. A list step `through` or an earlier step owns is judged as it stands.
+        const owner = { skills: 2, branches: 3, itemRules: 4, trainers: 7 };
+        for (const [key, step] of Object.entries(owner)) if (step > through) rules[key] ??= [];
         if (through < 2 && Array.isArray(rules.skills)) {
             const have = new Set(rules.skills.map(skill => skill?.slug));
             for (const cls of rules.classes) for (const ref of Array.isArray(cls?.skills) ? cls.skills : []) {
@@ -143,17 +149,18 @@ export function withStandIns(pack, through) {
     return doc;
 }
 
-/** Checks pack text or an object. Returns { ok, errors, notes, capped, hashes? }; never throws. */
-export function checkPack(input, { through = null } = {}) {
+/**
+ * Checks pack text or an object. Returns { ok, errors, notes, capped, hashes? }; never throws.
+ * `withCapabilities`: names a module the author really has installed provides, added to the suite's own.
+ */
+export function checkPack(input, { through = null, withCapabilities = [] } = {}) {
     let pack = input;
     if (typeof input === 'string') {
-        try { pack = JSON.parse(input.replace(/^﻿/, '')); }
+        try { pack = JSON.parse(input.replace(/^\uFEFF/, '')); }
         catch (error) { return { ok: false, errors: [{ code: 'not-json', path: '', message: `This is not valid JSON: ${error.message}` }], notes: [] }; }
     }
-    const asked = Array.isArray(pack?.requires?.capabilities) ? pack.requires.capabilities.filter(name => typeof name === 'string') : [];
-    // The pack's own list is let through so a name the kit does not know is a note, never a refusal.
-    const capabilities = [...new Set([...SUITE_CAPABILITIES, ...asked])];
-    const notes = asked.filter(name => !SUITE_CAPABILITIES.includes(name)).map(name => `requires.capabilities lists "${name}", which the kit does not know; Story Block refuses a pack that needs a capability no installed module provides.`);
+    const capabilities = [...new Set([...SUITE_CAPABILITIES, ...withCapabilities])];
+    const notes = withCapabilities.filter(name => !SUITE_CAPABILITIES.includes(name)).map(name => `--with-capability: "${name}" is taken as provided by a module you have installed; Story Block refuses the pack where no installed module provides it.`);
     const draft = through !== null && through < 7 && isRecord(pack) ? withStandIns(pack, through) : pack;
     const result = validatePack(draft, { capabilities });
     if (result.ok) {
@@ -187,17 +194,21 @@ export function report(file, result, { through = null } = {}) {
 
 function main(argv) {
     const args = argv.slice(2);
-    const at = args.indexOf('--through');
     let through = null;
-    if (at >= 0) {
-        through = Number(args[at + 1]);
-        args.splice(at, 2);
-        if (!Number.isInteger(through) || through < 1 || through > 7) { console.error('--through takes a step number from 1 to 7'); return 2; }
+    const withCapabilities = [];
+    for (const [flag, take] of [['--through', value => { through = Number(value); }], ['--with-capability', value => { withCapabilities.push(value); }]]) {
+        for (let at = args.indexOf(flag); at >= 0; at = args.indexOf(flag)) {
+            if (args[at + 1] === undefined || args[at + 1].startsWith('--')) { console.error(`${flag} needs a value`); return 2; }
+            take(args[at + 1]);
+            args.splice(at, 2);
+        }
     }
-    if (args.length !== 1 || args[0].startsWith('--')) { console.error('usage: node check.mjs <pack.json> [--through 1..7]'); return 2; }
+    if (through !== null && (!Number.isInteger(through) || through < 1 || through > 7)) { console.error('--through takes a step number from 1 to 7'); return 2; }
+    if (withCapabilities.some(name => !/^[a-z][a-z0-9-]{0,39}$/.test(name))) { console.error('--with-capability takes a name of lowercase letters, digits and dashes'); return 2; }
+    if (args.length !== 1 || args[0].startsWith('--')) { console.error('usage: node check.mjs <pack.json> [--through 1..7] [--with-capability <name>]...'); return 2; }
     let text;
     try { text = readFileSync(args[0], 'utf8'); } catch (error) { console.error(`Cannot read ${args[0]}: ${error.code ?? error.message}`); return 1; }
-    const result = checkPack(text, { through });
+    const result = checkPack(text, { through, withCapabilities });
     console.log(report(args[0], result, { through }));
     return result.ok ? 0 : 1;
 }
