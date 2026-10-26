@@ -65,7 +65,7 @@ test('without Story Director the survival module waits with a plain reason: Setu
     assert.equal(JSON.stringify(host.head()), before);
 });
 
-test('a recorded import is a snapshot: a guard never reads it again, so the source can change without staling the action', async t => {
+test('a recorded effect value stays a snapshot while its source remains available', async t => {
     const source = definition(); source.exports = { score: { fields: ['points'] } };
     const follower = definition(); follower.slug = 'follower';
     follower.imports = { score: { query: 'dataModules.public', args: { module: 'pack.dm-test/counter', export: 'score' }, mode: 'recorded', projection: ['points'] } };

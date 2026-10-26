@@ -103,12 +103,12 @@ export function witnessDefinition(r) {
     return {
         slug: 'witness', name: 'Witness', schema: 1, stateVersion: 1, scope: 'chat',
         state: { score: int(1, score, 1), title: { type: 'bool', default: false },
-            armed: { type: 'bool', default: false }, clockTitle: { type: 'bool', default: false } },
+            armed: { type: 'bool', default: false }, 'clock-title': { type: 'bool', default: false } },
         imports: { clock: { query: 'director.time', mode: r.pick(['recorded', 'recorded', 'prefix']), projection: ['minutes'] } },
         kinds: {
             reset: { op: '!', labels: {}, effects: [
                 { op: 'set', path: ['score'], value: 1 },
-                ...['title', 'armed', 'clockTitle'].map(key => ({ op: 'set', path: [key], value: false })),
+                ...['title', 'armed', 'clock-title'].map(key => ({ op: 'set', path: [key], value: false })),
             ] },
             prime: { op: '!', labels: {}, effects: [{ op: 'set', path: ['score'], value: score }] },
             repeat: { op: '!', labels: {}, when: ['ge', ['get', ['score']], 1], effects: [
@@ -119,7 +119,7 @@ export function witnessDefinition(r) {
         rewards: { title: { bindings: {}, values: {}, when: ['ge', ['get', ['score']], score],
             effects: [{ op: 'set', path: ['title'], value: true }] } },
         rules: [{ id: 'late', when: ['and', ['get', ['armed']], ['ge', ['input', 'clock', 'minutes'], minutes]],
-            then: [{ op: 'set', path: ['clockTitle'], value: true }] }],
+            then: [{ op: 'set', path: ['clock-title'], value: true }] }],
     };
 }
 

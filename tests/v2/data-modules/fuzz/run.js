@@ -145,10 +145,10 @@ export async function runFuzz({ seed = 1, steps = 40, verbose = false } = {}) {
                 await send(`! time ${witness.rules[0].when[2][2] - 1000}`); verify('clock source');
                 const source = host.ctx.chat.length - 1;
                 await probe('arm'); verify('clock gate');
-                if (!probeInstance()?.fields.clockTitle) { fail('clock source', 'probe did not earn its clock title'); return; }
+                if (!probeInstance()?.fields['clock-title']) { fail('clock source', 'probe did not earn its clock title'); return; }
                 await host.st.deleteMessage(source);
                 sourceDeletes.clock += 1;
-                if (host.head().domains.director.time.minutes !== 1000 || probeInstance()?.fields.clockTitle !== false || !staleProbe()) fail('clock source', 'deleting the advance did not invalidate the clock-gated rule');
+                if (host.head().domains.director.time.minutes !== 1000 || probeInstance()?.fields['clock-title'] !== false || !staleProbe()) fail('clock source', 'deleting the advance did not invalidate the clock-gated rule');
             },
             reply: () => send(...randomLines()),
             replyMany: async () => { await send(...randomLines()); await send(...randomLines()); },

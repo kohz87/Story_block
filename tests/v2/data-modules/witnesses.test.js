@@ -130,6 +130,34 @@ test('recorded actor identities need the prefix that created the actor', async t
     });
 });
 
+for (const mode of ['recorded', 'prefix']) test(`${mode} public imports require their subject actor even when its exported value still exists`, async t => {
+    const source = definition(); source.scope = 'character'; source.state.points.default = 7;
+    source.exports = { score: { fields: ['points'] } };
+    const d = definition(); d.slug = 'follower';
+    d.imports = { score: { query: 'dataModules.public', args: {
+        module: 'pack.dm-test/counter', export: 'score', who: 'ca_wessel01',
+    }, mode, projection: ['points'] } };
+    d.kinds.gain.effects = [{ op: 'set', path: ['points'], value: ['input', 'score', 'points'] }];
+    const p = pack([source, d]); p.requires.capabilities.push('story-director');
+    const host = await world(t, p, [directorStub()]);
+    await pin(host, ['Wessel']); await pin(host, [], 1);
+    await host.send('Away.', 'Wessel leaves.');
+    success(await host.sdk.command('test.actor', { id: 'ca_wessel01', name: null }));
+    await host.send('Return.', 'Wessel returns.');
+    success(await host.sdk.command('test.actor', { id: 'ca_wessel01', name: 'Wessel' }));
+    const restored = host.ctx.chat.length - 1;
+    await host.send('Copy.', reply('+ dm follower — copy | kind: gain'));
+    assert.equal(fields(host.store, 'pack.dm-test/follower').points, 7);
+    await host.st.deleteMessage(restored);
+    assertCold(host, store => {
+        // Removing the actor does not erase its pinned instance or exported field. Availability
+        // must therefore be witnessed separately from the projected import value, in both modes.
+        assert.equal(store.head().domains.dataModules.instances['pack.dm-test/counter'].characters.ca_wessel01.fields.points, 7);
+        assert.equal(fields(store, 'pack.dm-test/follower').points, 0);
+        assert.equal(store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE').length, 1);
+    });
+});
+
 test('deleting an offer source invalidates its later award', async t => {
     const d = definition(); d.state = { score: int(5, 1, 5), title: { type: 'bool', default: false } }; d.rewards = { title };
     d.kinds = {

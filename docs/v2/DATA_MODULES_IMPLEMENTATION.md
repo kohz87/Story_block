@@ -70,9 +70,17 @@ For a replay comparison, build a second store over a copy of the chat the way `t
 - **Conditions are recorded as answers.** DATA_MODULES.md says the input hash covers "relevant field reads". A field a kind's
   `when`, a rule's `when` or a reward's `when` reads is *not* in the read set; the condition's answer is recorded (with the
   values of fields the same root had already written) and the guard asks the same pure expression again on its prefix. A change
-  before the action that leaves every answer as it was leaves the action in force; one that flips an answer makes it inactive with
-  `REPLAY_PREREQUISITE`. Values an effect uses (an `add` target, a `get` in a value) are still value reads. Example A: deleting
-  the second gain keeps the later loss; deleting the first gain makes only the second gain inactive.
+  before the action that leaves every answer and value witness as it was leaves the action in force; one that flips an answer
+  makes it inactive with `REPLAY_PREREQUISITE`. Every write destination witnesses its original prefix value, including no-op
+  `set`, clamped `add`, and `clamp`; repeated writes never replace that witness with an intermediate value. A `get` in an effect
+  value is also a value read. Example A: deleting the second gain keeps the later loss; deleting the first gain makes only the
+  second gain inactive.
+- **Live import prerequisites require prefix witnesses**, including imports declared `recorded`: SD minutes and actor identities
+  are always witnessed. Public imports witness export/subject availability and actor existence; their projected values are also
+  witnessed whenever the definition has a nonliteral eligibility condition. This conservative rule covers inputs reaching a
+  condition through a write or reward binding. Recorded public values used only as effect inputs can remain snapshots while
+  their source stays available. Outstanding offers and settlement claims remain local prefix reads. Condition answers do not
+  replace any of these witnesses.
 - **Setup** is a "Data modules" card on Settings → Tabs & Packs, below Packs, drawn only when the library holds a definition or the
   chat has a pin. RPG Battle's rules selection is RPG Battle's own screen; Setup here does not depend on it.
 - **A capture kind or query with `enabled: false` is not declared** (LIFECYCLE.md): a `dm` line in a chat with no pin is told as
