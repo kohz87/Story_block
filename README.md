@@ -1,6 +1,6 @@
-# Story Block 2.1.0
+# Story Block 2.2.0
 
-> Story Suite 2.1.0.
+> Story Block 2.2.0; Story Director and RPG Battle 2.1.0; NPC State Delta 1.3.0.
 
 ## What it is
 
@@ -74,6 +74,14 @@ is off is gone from the story; nothing it made is lost.
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.
+
+## Data modules
+
+Packs can ship small game systems as data: fields, narrator `dm …` lines, rules, rewards fixed at capture,
+story-time timers and screens. Import either worked example pack — [Ersveil faction reputation](examples/packs/ersveil-factions/pack.json)
+or [Ersveil survival](examples/packs/ersveil-survival/pack.json) (needs Story Director; attach a character in Setup) — then enable it
+for this chat in **Settings → Tabs & Packs → Data modules**. Lines can use short module names such as `reputation` or `survival`.
+See [Data modules](docs/v2/DATA_MODULES.md) for the format and both worked examples. Checks inside modules and coin/item/XP grants are planned for v1.1.
 
 ## How a turn works
 
