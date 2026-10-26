@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.2.0
+
+- **Data-defined modules (v1)** — a pack can ship small game systems as data: bounded fields, narrator lines `dm …`, conditions and rules, rewards fixed at capture, timers on story time, and screens. Enable each module per chat in **Settings → Tabs & Packs → Data modules**; installing a pack alone enables nothing. Lines can use short module names such as `reputation` or `survival`.
+- Try the installable [Ersveil faction reputation](examples/packs/ersveil-factions/pack.json) and [Ersveil survival](examples/packs/ersveil-survival/pack.json) packs. Survival needs Story Director and a character attached in Setup. The [data-module guide](docs/v2/DATA_MODULES.md) explains both worked examples.
+- Each chat keeps a frozen copy of its enabled definitions. Pack updates do not rewrite that history; additive migrations are a reader choice. Rewards, timers and refusals appear on reply cards.
+- **Not in v1:** Story Director checks inside a module and coin, item or XP grants (`grantCoin`, `grantItem`, `grantXp`). These require v1.1 and are refused at import in v1.
+
+### Upgrading from 2.1
+
+Nothing changes for chats that never enable a module. Story Director, RPG Battle and NPC State Delta are unchanged for this release; their existing host and peer requirements remain satisfied.
+
+### Known issues
+
+- Unrelated recorded imports can make a data-module action go stale, with a visible **Problem**. The action stays inactive pending Re-read.
+
 ## 2.1.0
 
 - **Open quest templates:** add `| like: <template>` to a quest offer line, or use the reader's **Make this a quest** action. The reward is fixed from the template's range at offer time and recorded with the offer.
@@ -43,18 +58,6 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 
 ## Unreleased
 
-- **Data-defined modules, v1.** A pack can carry closed JSON modules (`content.dataModules`, capability `data-modules-v1`):
-  bounded fields, the narrator's own `dm` lines, conditions, ordered rules, fixed rewards and offers, timers on Story Director's
-  story minutes, exports between modules, screens and layouts. Nothing is enabled by installing a pack: a reader enables a module
-  for one chat in Settings → Tabs & Packs → **Data modules** (a preview first; the pin, an attached character or a migration is
-  saved with the latest reply and goes with it when that reply is deleted, swiped away or read again). The chat keeps its own
-  frozen copy of the definition, so updating, disabling or removing the pack changes nothing there; an additive update is a
-  migration the reader chooses. Replay stays pure: a later action whose earlier prerequisite changed is inactive until Re-read
-  (a rule or condition only matters through its answer), and story-time ticks are planned again. Ticks, rewards and refusals
-  are shown on the reply card in plain words. Checks inside a module and `grantCoin` / `grantItem` / `grantXp` need data-modules v1.1
-  and refuse at import. A chat that enables nothing is byte for byte what it was (a seeded differential against the commit
-  before this work proves it). Contract and decisions: [DATA_MODULES.md](docs/v2/DATA_MODULES.md); what shipped, the calls Story
-  Studio's simulator makes and the places the runtime differs from the design text: [implementation notes](docs/v2/DATA_MODULES_IMPLEMENTATION.md).
 - Host: a capture kind or query whose `enabled` reads false is not declared (its lines are unknown kinds again, not "feature off");
   a deferred domain may say `snapshot: 'when-present'` (no save-point trace until used); the Problems of a record a planned-again
   step was taken out of name its blocks as a full replay does; the testkit's `createHost` takes `storeOptions`.

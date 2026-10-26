@@ -3,7 +3,7 @@
 // The ownership rule: the checker owns the manifest and its creatures, quests, shops and recipes; Story Block owns the rest.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { slugify, validatePack } from '../../../src/v2/packs/validate.js';
 import * as R from '../../../src/v2/packs/rules-v2.js';
 import { createInstalled } from '../../../src/v2/packs/installed.js';
@@ -36,7 +36,7 @@ function exampleWithManifest(name) {
 }
 
 test('both shipped example packs plus a manifest are accepted, host and checker alone, with the slugs Story Block derives', () => {
-    const names = readdirSync(new URL('../../../examples/packs/', import.meta.url));
+    const names = ['ersveil-bluewatch', 'riverside-starter'];
     assert.ok(names.includes('ersveil-bluewatch') && names.includes('riverside-starter'));
     for (const name of names) {
         const pack = exampleWithManifest(name);

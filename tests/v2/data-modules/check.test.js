@@ -39,6 +39,10 @@ for (const name of ['reputation', 'survival']) test(`worked example ${name} is t
     const doc = readFileSync(new URL('../../../docs/v2/DATA_MODULES.md', import.meta.url), 'utf8');
     const examples = [...doc.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match => JSON.parse(match[1]));
     const input = read(name);
+    const installable = readFileSync(new URL(`../../../examples/packs/${input.id}/pack.json`, import.meta.url), 'utf8');
+    assert.deepEqual(JSON.parse(installable), input, 'the installable pack matches the worked example');
+    const installed = validatePack(installable, { capabilities: ['data-modules-v1', 'story-director'] });
+    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
     assert.deepEqual(input, examples.find(p => p.id === input.id));
     const before = JSON.stringify(input);
     const result = ok(input);
