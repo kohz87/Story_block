@@ -13,7 +13,7 @@ import {
     featureOn, initialInventory, inventoryTail, validateInventory,
 } from './inventory.js';
 import { WEATHER_CHARS, capturePlace, capturePresent, captureWeather, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
-import { DEFAULT_CURRENCY, MAX_COIN_VALUE, coinLine, resolveCurrency } from './money.js';
+import { DEFAULT_CURRENCY, MAX_COIN_VALUE, moneyLine, resolveCurrency } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
 import { renderSceneTab } from '../ui/scene-tab.js';
 import { FEATURE_TEXT, createAssistPart } from '../assist/index.js';
@@ -156,8 +156,8 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
             loot: { ...kind(CORE_KINDS.loot.grammar, (ctx, line) => captureLoot(ctx, line, env)), feature: FEATURE.loot },
         },
         context: {
-            // The coins' line (money.js coinLine) only when the world has coins: it changes with them only.
-            static: () => [CORE_STATIC, coinLine(currency())].filter(Boolean).join('\n'),
+            // The money line (money.js moneyLine) always names the chat's currency (and its coins): it changes with the currency setting only.
+            static: () => [CORE_STATIC, moneyLine(currency())].join('\n'),
             // Half the budget for the lines that always go, half for the optional overflow.
             tail(view) {
                 const chars = CORE_BUDGET * 4;

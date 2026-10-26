@@ -40,41 +40,64 @@ async function randomStates(t, mainApi) {
     const h = await createHost({ modules: [probeModule()], st: { mainApi } });
     t.after(() => h.close());
     const statics = [];
+    const currencies = [];
     const requests = [];
     const heads = new Set();
+    let currency = 'gold';
     for (let i = 0; i < 200; i++) {
         if (r.chance(0.3)) await h.sdk.command('probe.tick', {});
-        if (r.chance(0.15)) h.settings.set('story-block', 'currency', r.pick(['gold', 'Gil', 'denar', '{{user}} bucks']));
+        if (r.chance(0.15)) h.settings.set('story-block', 'currency', currency = r.pick(['gold', 'Gil', 'denar', '{{user}} bucks']));
         if (r.chance(0.1)) h.settings.set(null, 'tailBudget', r.pick([100, 400, 1500, 20000]));
         const result = r.chance(0.15) && h.ctx.chat.length > 1 && !h.ctx.chat.at(-1).is_user
             ? await h.swipe(randomReply(r))
             : await h.send(`Turn ${i}.`, randomReply(r));
         assert.ok(result.request, `request ${i} was built`);
         statics.push(h.st.promptLog.filter(entry => entry.key === STATIC_KEY && entry.value).at(-1).value);
+        currencies.push(currency);
         requests.push(result.request);
         heads.add(JSON.stringify(h.head()));
     }
     assert.ok(heads.size > 150, `the states really differ (${heads.size} distinct heads)`);
-    return { h, statics, requests };
+    return { h, statics, currencies, requests };
+}
+
+// One static text per currency name, and each names its currency.
+function sameWhileCurrencyIs(statics, currencies) {
+    const byCurrency = new Map();
+    statics.forEach((text, i) => {
+        if (!byCurrency.has(currencies[i])) byCurrency.set(currencies[i], text);
+        assert.equal(text, byCurrency.get(currencies[i]), `static ${i}: unchanged while the currency is ${currencies[i]}`);
+    });
+    assert.ok(byCurrency.size >= 3, `the run really renames the currency (${byCurrency.size})`);
+    // The host fills the macros ({{user}} is "You") before the prompt goes out.
+    for (const [currency, text] of byCurrency) {
+        const written = currency.replace('{{user}}', 'You');
+        assert.ok(text.includes(`Money in this story is the ${written}`) || text.includes(`Money in this story is ${written}`), `names ${currency}: ${text}`);
+    }
 }
 
 test('chat completion: the static part is byte-identical across 200 random states, and sits first in every request', async t => {
-    const { statics, requests } = await randomStates(t, 'openai');
-    assert.equal(new Set(statics).size, 1, 'one static text for the whole chat');
-    const text = statics[0];
-    assert.ok(text.startsWith(STATIC_MARKER));
-    for (const word of ['Moonveil', 'Fenna', 'Bluewatch', 'Gil', 'denar', 'Tick', 'ember']) assert.ok(!text.includes(word), `the static part names no "${word}"`);
-    const firsts = new Set(requests.map(request => request.chat[0].content));
-    assert.equal(firsts.size, 1, 'the first system message of every request is the same bytes');
-    assert.ok([...firsts][0].includes(text));
+    const { statics, currencies, requests } = await randomStates(t, 'openai');
+    // The static part names the chat's currency (the money line), so it changes with the currency setting
+    // and with nothing else: one text per currency used.
+    sameWhileCurrencyIs(statics, currencies);
+    for (const text of statics) {
+        assert.ok(text.startsWith(STATIC_MARKER));
+        for (const word of ['Moonveil', 'Fenna', 'Bluewatch', 'Tick', 'ember']) assert.ok(!text.includes(word), `the static part names no "${word}"`);
+    }
+    requests.forEach((request, i) => {
+        assert.ok(request.chat[0].content.includes(statics[i]), `request ${i} starts with its static part`);
+        assert.equal(request.chat[0].content, requests[currencies.indexOf(currencies[i])].chat[0].content, `request ${i}: the first system message is the same bytes while the currency is`);
+    });
 });
 
 test('text completion: every request starts with the same bytes, the static part included', async t => {
-    const { statics, requests } = await randomStates(t, 'text');
-    assert.equal(new Set(statics).size, 1);
+    const { statics, currencies, requests } = await randomStates(t, 'text');
+    sameWhileCurrencyIs(statics, currencies);
     for (let i = 1; i < requests.length; i++) {
+        if (currencies[i] !== currencies[i - 1]) continue;
         const shared = sharedPrefix(requests[i - 1].prompt, requests[i].prompt);
-        assert.ok(shared.chars >= requests[i].prompt.indexOf(statics[0]) + statics[0].length, `request ${i} shares at least the static part with the one before`);
+        assert.ok(shared.chars >= requests[i].prompt.indexOf(statics[i]) + statics[i].length, `request ${i} shares at least the static part with the one before`);
     }
 });
 
