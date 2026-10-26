@@ -4,7 +4,7 @@
 //  1. Differential against the baseline: seeded random chats (replies of every kind, swipes, Continues, deletes, Re-reads,
 //     reloads, rebuilds, chat switches, save points, features, shipped example packs, checkpoints on long chats) are played
 //     here and compared step by step, as one hash of the exact serialized messages and extras, chat metadata, head
-//     state, next prompt and Problems, with the trace the same script made on main at cc0b793 (before this work;
+//     state, next prompt and Problems, with the trace the same script made on main at 958021b (v2.1.0, the release this ships on top of;
 //     scripts/dm-unused-golden.mjs writes it). Also compared: the number of saves, the RNG draws, the installed packs'
 //     normalized form. A line that names a data module in a chat that has none is an unknown kind, as it was.
 //  2. In-tree: the same chats with data module definitions installed and inspected (library discovery, Setup queries) but

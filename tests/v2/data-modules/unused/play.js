@@ -3,7 +3,7 @@
 //   play({ root, seed, steps, siblings, pack }) -> { steps: [hash...], saves, draws, final }
 //
 // `root` is the Story Block tree to run on (its testkit, its src): the same scenario runs on today's tree and on the
-// baseline commit this branch started from (main at cc0b793), whose trace is stored in fixtures/unused-baseline.json
+// baseline commit this branch started from (main at 958021b, v2.1.0), whose trace is stored in fixtures/unused-baseline.json
 // (scripts/dm-unused-golden.mjs writes it). `siblings` ({ sd?, rb?, nsd? } checkout folders) adds the real modules,
 // scripted by the matrix's own module scripts. Everything random comes from `seed`: the choices below and the host's
 // crypto (receipt ids, seeds), so two runs differ only if the code under test does.

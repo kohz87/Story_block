@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const BASELINE_COMMIT = 'cc0b793';
+export const BASELINE_COMMIT = '958021b';
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO = join(here, '..', '..', '..', '..');
 const pack = (folder, origin) => ({ text: readFileSync(join(REPO, 'examples', 'packs', folder, 'pack.json'), 'utf8'), origin });
