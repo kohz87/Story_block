@@ -230,6 +230,24 @@ test('a dialog keeps Tab inside itself and pulls stray focus back; mounts.css di
     assert.match(css, /\.ss-dialog-backdrop \{[^}]*background: rgba\(0, 0, 0, 0\.55\);[^}]*backdrop-filter: blur\(3px\)/);
 });
 
+test('a dialog screen may ask for a wide window; the width is validated and mounts.css gives it room on wide screens only', () => {
+    const doc = setupDom();
+    const wide = screen('m/wide', ['dialog'], { title: 'Wide', width: 'wide' });
+    const plain = screen('m/plain', ['dialog'], { title: 'Plain' });
+    const screens = screensWith([wide, plain]);
+    const dialogs = createDialogMount({ screens, render: () => {}, query: () => null, stateAt: () => ({ v: 2, meta: { rev: 1 }, domains: {} }), headIndex: () => 0, document: doc, api: {} });
+    const a = dialogs.open('m/wide', { submit: 'm.go' });
+    const b = dialogs.open('m/plain', { submit: 'm.go' });
+    assert.match(a.root.className, /\bss-dialog-wide\b/);
+    assert.doesNotMatch(b.root.className, /ss-dialog-wide/);
+    a.close();
+    b.close();
+    assert.deepEqual(validateScreen({ ...wide, width: 'wide' }), []);
+    assert.match(validateScreen({ ...wide, width: 'huge' }).join(' '), /width must be "wide"/);
+    const css = read('view/mounts.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.match(css, /@media \(min-width: 768px\) \{[^@]*\.ss-dialog\.ss-dialog-wide \{\s*width: min\(960px, 94vw\);/);
+});
+
 // ---- widgets, Home, CSS guards ----------------------------------------------------------------------
 
 test('radar labels: never under the minimum on screen, growing with a big chart', () => {
