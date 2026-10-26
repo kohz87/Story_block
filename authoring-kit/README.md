@@ -32,7 +32,7 @@ already use, and Story Block's own checker tells you when the result is valid.
    node check.mjs work/pack.json
    ```
 
-   (From the repository root, write `node authoring-kit/check.mjs work/pack.json`.) Each problem has a path, the
+   (From the repository root, write `node authoring-kit/check.mjs authoring-kit/work/pack.json`.) Each problem has a path, the
    checker's message and a one-line hint. A rules pack that is still being drafted is checked step by step with
    `--through N` (for example `--through 3`); only the finished pack is checked without it.
 5. **Import.** In SillyTavern open Settings, Tabs & Packs, **Import pack file**, and choose your file. For a data module,

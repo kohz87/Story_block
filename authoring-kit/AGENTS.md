@@ -30,8 +30,8 @@ change the extension itself. For this job, this file wins.
    when asked. New records get new slugs: lowercase letters, digits and single hyphens.
 4. **After every step, run the checker and fix every problem before you go on:**
    `node check.mjs work/pack.json --through N` for step N of a rules pack while it is unfinished, and
-   `node check.mjs work/pack.json` (no `--through`) when it is finished and for every data module. (From the repository
-   root, write `node authoring-kit/check.mjs ...`.) Read each hint; fix the cause named, not the symptom. Never edit a
+   `node check.mjs work/pack.json` (no `--through`) when it is finished and for every data module. (Every path in this kit is
+   relative to this folder; from the repository root, put `authoring-kit/` in front of each.) Read each hint; fix the cause named, not the symptom. Never edit a
    number by guessing: the problem says which value is out of range, and `reference/LIMITS.md` says what the range is.
    The checker is the final word; if a prompt and the checker disagree, follow the checker and note it.
 5. **Explain your choices in `work/notes.md`, not inside the JSON.** Keep it short: what you decided where the lore was

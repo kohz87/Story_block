@@ -88,7 +88,7 @@ See [Data modules](docs/v2/DATA_MODULES.md) for the format and both worked examp
 The [authoring kit](authoring-kit/README.md) is a folder of prompts, instructions, references and a checker for drafting a
 rules pack or a data module for your own world in the coding agent or chat you already use: Claude Code, Cursor, Gemini CLI
 or Antigravity, Codex CLI, or any chat by copy and paste. It has no AI page, no keys and no network code. Put your lore in
-`authoring-kit/work/lore/`, let your agent follow `AGENTS.md`, and run `node authoring-kit/check.mjs work/pack.json` until it
+`authoring-kit/work/lore/`, let your agent follow `AGENTS.md`, and run `node check.mjs work/pack.json` in that folder until it
 prints OK; that is Story Block's own checker. Then import the file in **Settings → Tabs & Packs**.
 
 ## How a turn works
