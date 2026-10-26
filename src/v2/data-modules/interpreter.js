@@ -131,7 +131,7 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
             ranges[name] = copy(r);
             values[name] = r.pick === 'min' ? r.min : r.pick === 'max' ? r.max : r.min + Math.floor((r.max - r.min) / 2);
         }
-        const decision = { template, templateHash: hashJson(reward), bind, values, ranges, recipient: subject, source: copy(source), cursor: copy(cursor) };
+        const decision = { template, templateHash: hashJson(reward), bind, values, ranges, recipient: subject, source: copy(source), cursor: cursor ? { sid: cursor.sid, swipeKey: cursor.swipeKey, block: cursor.block } : null };
         decisions.push(copy(decision));
         return decision;
     }

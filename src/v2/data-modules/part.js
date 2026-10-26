@@ -6,7 +6,7 @@ import { copy, bytes, refuse, DataModuleError, createEvaluation, parseLabels, at
 import { activeDefinition, actorsOf, inputsOf, instanceOf, publicView, projectImport, resolveActor } from './adapters.js';
 import { hashJson } from '../replay.js';
 import { diff } from '../ops.js';
-import { renderDataModules } from './setup.js';
+import { moduleGrammar, referenceOf } from './grammar.js';
 
 const initial = () => ({ pins: {}, active: {}, instances: {}, perReply: {} });
 const stateOf = ctx => ({ domains: { dataModules: ctx.read('dataModules'), director: ctx.read('director'), checks: ctx.read('checks'), rules: ctx.read('rules') } });
@@ -68,12 +68,7 @@ export function grammarFor(state) {
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
     return active.map(id => {
         const definition = activeDefinition(state, id);
-        if (!definition) return '';
-        const reference = active.filter(other => other.split('/')[1] === definition.slug).length === 1 ? definition.slug : id;
-        const grammar = Object.entries(definition.kinds).map(([name, kind]) => `${kind.op} dm ${reference} — reason | kind: ${name}`
-            + (definition.scope === 'character' ? ' | who: attached SD actor' : '')
-            + Object.entries(kind.labels).map(([label, schema]) => ` | ${label}: ${schema.type === 'enum' ? schema.values.map(String).join('|') : schema.type === 'int' ? `${schema.min}..${schema.max}` : 'true/false'}`).join('')).join('; ');
-        return grammar.slice(0, L.staticCharacters);
+        return definition ? moduleGrammar(definition, referenceOf(active, id)) : '';
     }).filter(Boolean).join('\n');
 }
 
@@ -131,9 +126,11 @@ export function dataModuleGuard(view, info) {
 
 export function createDataModulesPart({ packs, state = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }) } = {}) {
     function offers() {
+        const where = new Map();
+        try { for (const entry of packs?.list?.() ?? []) where.set(entry.id, entry.source === 'lorebook' ? 'a lorebook' : String(entry.origin ?? '')); } catch { /* no list: no origin */ }
         return (packs?.packs?.() ?? []).flatMap(pack => (pack.content.dataModules ?? []).map(definition => ({ module: definition.id,
             definition: copy(definition), hash: dataModuleHash(definition), packId: pack.id, packVersion: pack.version,
-            packHash: dataModulesPackHash(pack), interpreter: 1 })));
+            packHash: dataModulesPackHash(pack), interpreter: 1, origin: where.get(pack.id) ?? '' })));
     }
     function dependency(definition, prefix) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', 'A restore is pending.');
@@ -255,19 +252,20 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions } });
         return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, summary: `${definition.name}: ${labels.kind}.` });
     }
+    // A step the host plans again (REPLAY.md "Re-read and reconciling") answers NO_LONGER_DONE when the story before it
+    // leaves nothing to settle (the pin, the subject or the elapsed time is gone), and its block then goes. A dependency
+    // that is only unavailable now (a peer is away, a restore is pending) is a plain refusal: the old block is kept as it was.
     function tick(ctx, payload) {
         if (ctx.cause !== 'system' || ctx.caller !== null) refuse('REFUSED', '', 'Timers run only as host system steps.');
-        const prefix = stateOf(ctx), module = resolveModule(prefix, payload.module), definition = activeDefinition(prefix, module);
-        if (!definition) refuse('DM_SCHEMA', '', 'Unsupported pin.');
+        const prefix = stateOf(ctx), module = payload.module, subject = payload.subject, definition = activeDefinition(prefix, module);
+        if (!definition || !subjectsOf(prefix, module).includes(subject)) refuse('NO_LONGER_DONE', 'who', 'This module or subject is no longer pinned and attached.');
         dependency(definition, prefix);
-        const subject = payload.subject;
-        if (!subjectsOf(prefix, module).includes(subject)) refuse('DM_SCHEMA', 'who', 'Subject is not attached.');
         if (subject !== 'chat') resolveActor(prefix, subject, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = copy(prefix.domains.dataModules), instance = atPath(draft, instancePath(module, subject));
         const inputs = inputsOf(prefix, definition), before = hashJson(instance);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
         evaluation.charge(); evaluation.timers();
-        if (hashJson(instance) === before) refuse('STALE', '', 'Timer is already settled.');
+        if (hashJson(instance) === before) refuse('NO_LONGER_DONE', '', 'Story time is already settled here.');
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.tick', module, hash: active.hash, generation: active.generation, subject,
@@ -275,14 +273,20 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
             actor: subject !== 'chat', decision: { inputs } });
         return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, summary: `${definition.name}: story time settled.` });
     }
+    // The timers whose clock has moved past their cursor, as `dm.tick` steps (one per module and subject). Silent while a
+    // peer is away or a restore is pending (Setup shows the reason; an explicit action is refused with it), and for a
+    // subject whose actor is gone. Nothing due: nothing returned, nothing consumed.
     function due(view) {
         const prefix = view.state, commands = [];
         if (restore()?.state === 'pending') return undefined;
         for (const module of Object.keys(prefix.domains?.dataModules?.active ?? {})) {
             const definition = activeDefinition(prefix, module);
             if (!definition?.timers.length) continue;
+            try { dependency(definition, prefix); } catch { continue; }
+            const inputs = inputsOf(prefix, definition);
             for (const subject of subjectsOf(prefix, module)) {
-                const instance = instanceOf(prefix, module, subject), inputs = inputsOf(prefix, definition);
+                if (subject !== 'chat') { try { resolveActor(prefix, subject, subjectsOf(prefix, module)); } catch { continue; } }
+                const instance = instanceOf(prefix, module, subject);
                 if (definition.timers.some(timer => {
                     const minute = inputs[timer.clock]?.minutes, last = instance?.timers?.[timer.id]?.lastMinute;
                     return minute !== null && minute !== undefined && (last === null || last === undefined || minute > last);
@@ -335,6 +339,5 @@ export function createDataModulesPart({ packs, state = () => null, lifecycle = (
             });
             return { lines, optional: [] };
         }, budget: 0 },
-        settings: { section: 'Data modules', defaults: {}, schema: {}, render: renderDataModules },
     };
 }
