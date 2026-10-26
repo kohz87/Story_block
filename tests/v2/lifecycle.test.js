@@ -88,7 +88,7 @@ test('a module with no peers is always ready, and sdk.modules() keeps its fields
     const host = await createHost({ modules: [social()] });
     const entry = modulesById(host)['npc-state-delta'];
     assert.deepEqual(entry, {
-        id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.20', domains: ['npc'], commands: [], kinds: [], tabs: [], features: [], status: 'ready', reason: null,
+        id: 'npc-state-delta', name: 'NPC State Delta', version: '1.2.20', domains: ['npc'], commands: [], kinds: [], tabs: [], features: [], capabilities: [], status: 'ready', reason: null,
     });
     assert.equal(modulesById(host)['story-block'].status, 'ready');
     assert.ok(Object.isFrozen(entry));
