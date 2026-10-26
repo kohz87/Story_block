@@ -1,6 +1,6 @@
-# Story Block 2.0.0-beta.2
+# Story Block 2.0.0
 
-> Story Suite v2, second beta (2.0.0-beta.2). It is for test play, not for your real campaigns yet.
+> Story Suite 2.0.0.
 
 ## What it is
 
@@ -9,20 +9,24 @@ purse, where you are, who is here), reads a short hidden list of changes at the 
 shows the result on tabs, cards and a status strip. Code sets every number; the story only proposes.
 
 The other three Story Suite extensions plug into it and add their own tabs and rules:
-[RPG Battle](https://github.com/kohz87/rpg_battle) (party, dice checks, fights, trade),
-[Story Director](https://github.com/kohz87/Story_director) (clock, quests, World, map, arc) and
+[RPG Battle](https://github.com/kohz87/rpg_battle) (party, fights, trade),
+[Story Director](https://github.com/kohz87/Story_director) (dice checks, clock, quests, World, map, arc) and
 [NPC State Delta](https://github.com/kohz87/npc_state_delta) (a dossier for every NPC). Story Block works
 alone: you get the inventory, the purse and the scene.
 
 ## Install
 
-1. You need **SillyTavern 1.19 or newer**. Try v2 in a separate SillyTavern profile; the beta is not for your
-   real campaigns.
-2. **Extensions → Install extension**, paste `https://github.com/kohz87/Story_block` and install. There is no
-   branch to pick: this installs the default branch, `main`. Reload the page.
-3. **Install Story Block first**, then any of the others, the same way:
-   `https://github.com/kohz87/rpg_battle`, `https://github.com/kohz87/Story_director`,
-   `https://github.com/kohz87/npc_state_delta`.
+Tested with **SillyTavern 1.19**. In **Extensions → Install extension**, install in this order, then reload:
+
+1. [Story Block](https://github.com/kohz87/Story_block)
+2. [Story Director](https://github.com/kohz87/Story_director)
+3. [RPG Battle](https://github.com/kohz87/rpg_battle)
+4. [NPC State Delta](https://github.com/kohz87/npc_state_delta)
+
+To start with the bundled **Ersveil** rules pack, open a fresh chat and follow **Setup → Pin Ersveil Rules → Create**,
+then choose your character's options. Existing chats load and rebuild unchanged; legacy chats stay unpinned.
+
+Report bugs in [this repo's Issues](https://github.com/kohz87/Story_block/issues), with steps to reproduce.
 
 For the old Story Suite v1, install the `v1` branch of the same repo instead: paste the URL and type `v1` as the branch.
 
