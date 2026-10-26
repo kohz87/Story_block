@@ -1,0 +1,193 @@
+{
+  "id": "ersveil-survival",
+  "version": "1.0.0",
+  "name": "Ersveil survival meters",
+  "requires": {
+    "storyBlock": "^2",
+    "capabilities": [
+      "data-modules-v1",
+      "story-director"
+    ]
+  },
+  "content": {
+    "dataModules": [
+      {
+        "slug": "survival",
+        "name": "Survival",
+        "schema": 1,
+        "stateVersion": 1,
+        "scope": "character",
+        "imports": {
+          "clock": {
+            "query": "director.time",
+            "mode": "prefix",
+            "projection": [
+              "minutes"
+            ]
+          },
+          "actors": {
+            "query": "checks.policy",
+            "mode": "prefix",
+            "projection": [
+              "actors.id",
+              "actors.name"
+            ]
+          }
+        },
+        "state": {
+          "hunger": {
+            "type": "int",
+            "min": 0,
+            "max": 100,
+            "default": 0
+          },
+          "fatigue": {
+            "type": "int",
+            "min": 0,
+            "max": 100,
+            "default": 0
+          }
+        },
+        "timers": [
+          {
+            "id": "needs",
+            "clock": "clock",
+            "every": 60,
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "hunger"
+                ],
+                "value": [
+                  "mul",
+                  [
+                    "timer",
+                    "periods"
+                  ],
+                  2
+                ],
+                "bounds": "clamp"
+              },
+              {
+                "op": "add",
+                "path": [
+                  "fatigue"
+                ],
+                "value": [
+                  "timer",
+                  "periods"
+                ],
+                "bounds": "clamp"
+              }
+            ]
+          }
+        ],
+        "kinds": {
+          "meal": {
+            "op": "!",
+            "labels": {},
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "hunger"
+                ],
+                "value": -20,
+                "bounds": "clamp"
+              }
+            ]
+          },
+          "rest": {
+            "op": "!",
+            "labels": {
+              "hours": {
+                "type": "int",
+                "min": 1,
+                "max": 8
+              }
+            },
+            "when": [
+              "ge",
+              [
+                "arg",
+                "hours"
+              ],
+              1
+            ],
+            "refusal": "Rest needs 1 to 8 hours already narrated.",
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "fatigue"
+                ],
+                "value": [
+                  "mul",
+                  [
+                    "arg",
+                    "hours"
+                  ],
+                  -10
+                ],
+                "bounds": "clamp"
+              }
+            ]
+          }
+        },
+        "exports": {
+          "needs": {
+            "fields": [
+              "hunger",
+              "fatigue"
+            ]
+          }
+        },
+        "screens": [
+          {
+            "id": "ersveil-survival",
+            "title": "Survival",
+            "icon": "fa-campground",
+            "mounts": [
+              "tab",
+              "hud"
+            ],
+            "layout": {
+              "root": {
+                "type": "list",
+                "empty": "Attach a character in Setup.",
+                "bind": {
+                  "query": "dataModules.view",
+                  "args": {
+                    "module": "pack.ersveil-survival/survival"
+                  },
+                  "path": "characters"
+                },
+                "item": {
+                  "type": "box",
+                  "title": "$item.name",
+                  "children": [
+                    {
+                      "type": "meter",
+                      "label": "Hunger",
+                      "value": "$item.hunger",
+                      "max": 100,
+                      "tone": "warn"
+                    },
+                    {
+                      "type": "meter",
+                      "label": "Fatigue",
+                      "value": "$item.fatigue",
+                      "max": 100,
+                      "tone": "warn"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

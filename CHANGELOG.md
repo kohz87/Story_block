@@ -43,6 +43,22 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 
 ## Unreleased
 
+- **Data-defined modules, v1.** A pack can carry closed JSON modules (`content.dataModules`, capability `data-modules-v1`):
+  bounded fields, the narrator's own `dm` lines, conditions, ordered rules, fixed rewards and offers, timers on Story Director's
+  story minutes, exports between modules, screens and layouts. Nothing is enabled by installing a pack: a reader enables a module
+  for one chat in Settings → Tabs & Packs → **Data modules** (a preview first; the pin, an attached character or a migration is
+  saved with the latest reply and goes with it when that reply is deleted, swiped away or read again). The chat keeps its own
+  frozen copy of the definition, so updating, disabling or removing the pack changes nothing there; an additive update is a
+  migration the reader chooses. Replay stays pure: a later action whose earlier prerequisite changed is inactive until Re-read
+  (a rule or condition only matters through its answer), and story-time ticks are planned again. Ticks, rewards and refusals
+  are shown on the reply card in plain words. Checks inside a module and `grantCoin` / `grantItem` / `grantXp` need data-modules v1.1
+  and refuse at import. A chat that enables nothing is byte for byte what it was (a seeded differential against the commit
+  before this work proves it). Contract and decisions: [DATA_MODULES.md](docs/v2/DATA_MODULES.md); what shipped, the calls Story
+  Studio's simulator makes and the places the runtime differs from the design text: [implementation notes](docs/v2/DATA_MODULES_IMPLEMENTATION.md).
+- Host: a capture kind or query whose `enabled` reads false is not declared (its lines are unknown kinds again, not "feature off");
+  a deferred domain may say `snapshot: 'when-present'` (no save-point trace until used); the Problems of a record a planned-again
+  step was taken out of name its blocks as a full replay does; the testkit's `createHost` takes `storeOptions`.
+
 - Licence: AGPL-3.0 (was GPL-3.0). Releases already published keep the licence they shipped with.
 - The narrator is always told the chat's currency: naming your own (say "crown") in Settings now makes prose and coin lines use it, even over a pack such as Ersveil whose lore counts in copper and silver.
 

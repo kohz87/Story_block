@@ -92,14 +92,14 @@ test('old packs are unchanged: broken packs fail with the same errors, and the k
         const expected = oldValidatePack(clone(pack), { hostVersion: HOST_VERSION, capabilities: ['inventory'] });
         const got = validatePack(clone(pack), { capabilities: ['inventory'] });
         assert.equal(got.ok, false, name);
-        // The one message that names the kinds now names `rules` too.
+        // The one message that names the kinds includes the newly supported kinds.
         const plain = errors => errors.map(error => (error.code === 'UNKNOWN_KIND' ? { ...error, message: error.message.replace(/\(expected .*\)\.$/, '') } : error));
         assert.deepEqual(plain(got.errors), plain(expected.errors), name);
     }
     const unknown = base();
     unknown.content.rulez = [];
     const message = validatePack(unknown).errors[0].message;
-    assert.match(message, /markets, rules\)/, 'the list of kinds ends with rules');
+    assert.match(message, /markets, rules, dataModules\)/, 'the kind list includes rules and data modules');
 });
 
 // ---------------------------------------------------------------------------------------------

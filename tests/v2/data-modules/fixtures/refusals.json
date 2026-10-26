@@ -1,0 +1,7 @@
+[
+  {"code":"DM_SCHEMA","path":"content.dataModules[0].schema","message":"Only data module schema 1 is supported.","target":["schema"],"value":2},
+  {"code":"DM_BOUNDS","path":"content.dataModules[0].state.points.default","message":"The integer default must be inside its inclusive bounds.","target":["state","points","default"],"value":101},
+  {"code":"DM_LABEL","path":"content.dataModules[0].kinds.gain.labels.who","message":"kind and who are host-reserved labels.","target":["kinds","gain","labels","who"],"value":{"type":"bool"}},
+  {"code":"DM_CONDITION","path":"content.dataModules[0].kinds.gain.when","message":"A condition must produce a boolean, without coercion.","target":["kinds","gain","when"],"value":1},
+  {"code":"DM_BUDGET","path":"content.dataModules[0].kinds.gain.effects","message":"Version 1 permits at most 16 entries here.","target":["kinds","gain","effects"],"repeat":17}
+]

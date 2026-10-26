@@ -4,6 +4,12 @@ Status: **draft 1, the contract for the v2 build.** Every v2 agent builds agains
 goes through the coordinator (a PR to `docs/v2/SPEC.md` on Story Block's `main` branch), never a local
 workaround in one repo.
 
+For data-defined modules, use [DATA_MODULES.md](DATA_MODULES.md), with its approved 26 Oct
+decisions taking precedence, and the [implementation notes](DATA_MODULES_IMPLEMENTATION.md). Story Block
+owns a deferred `dataModules` domain (absent until a chat pins a module), the capture kind `dm` (`op dm
+<module> — reason | kind: … | label: value`, enabled only while the chat has a pin) and the commands
+`dm.pin`, `dm.attach`, `dm.act` and `dm.migrate`; a chat that pins nothing is byte for byte the chat it was.
+
 ## 0. Principles
 
 1. **Code first, narration second.** Everything that is arithmetic, a lookup, a rule or a roll is done in
