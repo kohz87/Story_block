@@ -244,9 +244,8 @@ export function track(host) {
 
 /** A host started again over what a save wrote: the chat opens, the modules register, the timeline recovers. */
 export async function reload(createHost, image, modules, options = {}) {
-    const host = await createHost({ ...options, modules, st: { ...(options.st ?? {}), chat: image.chat } });
-    host.ctx.chatMetadata = clone(image.metadata);
-    await host.turn.onChatChanged();
+    // A real chat load presents its metadata before runtime recovery starts.
+    const host = await createHost({ ...options, modules, st: { ...(options.st ?? {}), chat: image.chat, chatMetadata: clone(image.metadata) } });
     return host;
 }
 

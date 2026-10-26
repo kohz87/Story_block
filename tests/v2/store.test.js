@@ -366,7 +366,7 @@ test('Re-read rejects non-story receipts and changes that no longer fit, writing
     store.append({ ops: [{ op: 'replace', path: '/domains/inventory/stacks/it_trout/qty', value: 0 }], receipt: receipt() });
     const snapshot = structuredClone(ctx.chat);
     const head = store.head();
-    assert.throws(() => store.replaceStory(2, { ops: [], receipts: [receipt({ cause: 'ui' })] }), /story receipts only/);
+    assert.throws(() => store.replaceStory(2, { ops: [], receipts: [receipt({ cause: 'ui' })] }), /story receipts and generated-reply preludes only/);
     assert.throws(() => store.replaceStory(2, { ops: [], receipts: [] }), /do not fit/);
     assert.throws(() => store.replaceStory(1, { ops: [], receipts: [] }), RangeError);
     assert.deepEqual(ctx.chat, snapshot);
