@@ -83,6 +83,14 @@ or [Ersveil survival](examples/packs/ersveil-survival/pack.json) (needs Story Di
 for this chat in **Settings → Tabs & Packs → Data modules**. Lines can use short module names such as `reputation` or `survival`.
 See [Data modules](docs/v2/DATA_MODULES.md) for the format and both worked examples. Checks inside modules and coin/item/XP grants are planned for v1.1.
 
+## Make a pack with your own AI
+
+The [authoring kit](authoring-kit/README.md) is a folder of prompts, instructions, references and a checker for drafting a
+rules pack or a data module for your own world in the coding agent or chat you already use: Claude Code, Cursor, Gemini CLI
+or Antigravity, Codex CLI, or any chat by copy and paste. It has no AI page, no keys and no network code. Put your lore in
+`authoring-kit/work/lore/`, let your agent follow `AGENTS.md`, and run `node check.mjs work/pack.json` in that folder until it
+prints OK; that is Story Block's own checker. Then import the file in **Settings → Tabs & Packs**.
+
 ## How a turn works
 
 1. Before each reply, Story Block adds a short note to the prompt: the same fixed instructions every time, plus

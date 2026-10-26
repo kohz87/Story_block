@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Authoring kit** (`authoring-kit/`): prompts, standing instructions, references and a checker for drafting a rules pack or a data module with your own AI tool, offline. `node authoring-kit/check.mjs <pack.json>` runs Story Block's own pack checker with every Story Suite capability and prints numbered problems with a hint each. Story Studio carries a synced copy.
+
 ## 2.2.0
 
 - **Data-defined modules (v1)** — a pack can ship small game systems as data: bounded fields, narrator lines `dm …`, conditions and rules, rewards fixed at capture, timers on story time, and screens. Enable each module per chat in **Settings → Tabs & Packs → Data modules**; installing a pack alone enables nothing. Lines can use short module names such as `reputation` or `survival`.

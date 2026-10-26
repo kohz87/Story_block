@@ -1,4 +1,4 @@
-// Syntax-checks every shipped module (index.js and everything under src/, testkit/ and examples/).
+// Syntax-checks every shipped module (index.js and everything under src/, testkit/, examples/, scripts/ and authoring-kit/).
 import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,5 +11,5 @@ function walk(dir) {
     });
 }
 
-for (const file of ['index.js', ...walk('src'), ...walk('testkit'), ...walk('examples'), ...walk('scripts')]) execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
+for (const file of ['index.js', ...walk('src'), ...walk('testkit'), ...walk('examples'), ...walk('scripts'), ...walk('authoring-kit')]) execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
 console.log('syntax ok');

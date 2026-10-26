@@ -1,0 +1,47 @@
+# Step 6: quests
+
+## Fill in
+
+| Placeholder | What to put |
+|---|---|
+| `{{WORLD_NAME}}` | your world |
+| `{{PACK_ID}}` | the pack id (place references are `pack.{{PACK_ID}}/<place slug>`) |
+| `{{QUEST_SOURCES}}` | the lore entries with jobs, guild work, story arcs, bounties, rumours |
+| `{{QUEST_COUNT}}` | roughly how many quests, for example 20 to 30 |
+
+## The prompt
+
+```
+Step 6. Rewrite the base pack's quests (if it has any) as schema-2 quest templates and add guild and story quests for
+{{WORLD_NAME}} from {{QUEST_SOURCES}}, up to about {{QUEST_COUNT}}, spread over the ranks. Each quest:
+{"slug","name","category":"main"|"side"|"bounty","giver":null,"turnInPlace":null or a place id,"requirements":[...],
+"objectives":[1-8 of kill/collect/visit/story],"reward":{"coin","xp","items"},"durationMinutes":null or minutes,
+"repeat":null or {"cooldownMinutes":0-525600},"chain":null or {"previous":<quest slug or null>,"next":<quest slug or null>}}.
+
+- Objective ids are "<quest slug>/<short-id>". Objectives: kill {id,kind,foe,count}, collect {id,kind,def,count,consume},
+  visit {id,kind,place}, story {id,kind,text}. A foe is a foe slug from step 5, an item an item slug from the pack, a
+  place a full id "pack.{{PACK_ID}}/<place slug>".
+- Requirements (at most 16): {kind:"level",min}, {kind:"stat",stat,min}, {kind:"quest",template},
+  {kind:"item",def,qty}, {kind:"place",place}, {kind:"class",classes:[class slugs]}, {kind:"flag",key,value}.
+- giver is null, or "pack.{{PACK_ID}}/<foe slug>" when the quest giver is a record in creatures. Do not write ids for
+  people who are not records; name the giver in the objective's text or the quest's name instead.
+- Rewards follow the pack's ranks: a quest's level is the min of its level requirement (1 if none), its rank is the first
+  rank whose level range contains that level, and reward.coin lies inside that rank's reward range. xp rises with coin.
+  Reward items are item slugs (at most 8) and are worth less than the coin.
+- A chain's later quests never pay less than the one before.
+- Optional: an open quest template draws its reward from a range for its rank: "open": true, "rank": "<rank id>",
+  "reward": {"coinMin","coinMax","xpMin","xpMax","items":[]} (both ranges inside that rank's reward range),
+  objectives without a fixed target ({"id","kind":"kill","count":3}), "repeat": null, "chain": null. Use two or three for
+  generic guild jobs.
+Output {"quests":[...]}. In a file: put it at content.quests of work/pack.json.
+```
+
+## Check
+
+```
+node check.mjs work/pack.json --through 6
+```
+
+It should print `OK through step 6`. Typical problems: `bad-ref` (a foe, item, place or giver that is not defined: places
+need the full `pack.<id>/<slug>`), `bad-schema` (an objective with a missing field, a quest without all eleven fields),
+`bad-schema` on an open quest whose coin or xp range leaves the rank's reward range.
