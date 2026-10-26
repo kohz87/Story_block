@@ -23,6 +23,7 @@ For a pinned Ersveil adventure, start a fresh chat with **Setup → Pin Ersveil 
 ## Unreleased
 
 - Licence: AGPL-3.0 (was GPL-3.0). Releases already published keep the licence they shipped with.
+- The narrator is always told the chat's currency: naming your own (say "crown") in Settings now makes prose and coin lines use it, even over a pack such as Ersveil whose lore counts in copper and silver.
 
 ## 2.0.0-beta.2 (`v2` branch)
 
