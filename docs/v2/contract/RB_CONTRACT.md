@@ -179,9 +179,9 @@ type ThreadProjection = {id:Id; key:Text120; kind:string; summary:Text600;
 // journal.day({day:Day,snapshot?:Id}); at most 12 visible lines
 type JournalDay = {day:Day; title:Text80; lines:Text240[];
   source:'digest'|'facts'|'snapshot'; missing:boolean};
-// rules.modifier({actor:Id,stat:Stat,skill?:Text80}); no die, no relationship bonus
+// rules.modifier({actor:Id,stat:Stat,skill?:Text80,craft?:{recipe:Ref,at?:'campfire'}}); no die, no relationship bonus
 type RulesModifier = {actor:Id; stat:Stat; amount:Int<-30,30>;
-  parts:{source:'stat'|'skill'|'talent'|'item'|'effect'|'encumbrance'; ref:Id|null; reason:Text120; amount:Int<-30,30>}[]};
+  parts:{source:'stat'|'skill'|'talent'|'item'|'effect'|'encumbrance'|'rank'|'station'|'materials'|'cap'; ref:Id|null; reason:Text120; amount:Int<-30,30>}[]};
 type SkillView = {skill:Ref; form:Ref; name:Text80; mastery:Int<0,5>;
   uses:Int<0,35>; nextAt:Int<1,35>|null; steps:Int<0,2>; formMastery:Record<Ref,{uses:Count; mastery:Int<0,5>}>};
 type SheetView = {id:Id; name:Text80; role:Text80; portrait:string|null; background:Text2000; origin:OriginView; kind:'pc'|'companion'|'summon'|'pet'; npcId:RecordId|null;
@@ -313,7 +313,19 @@ part, clamp final modifier to −30..30 and append a policy-cap adjustment part 
 recorded parts sum exactly to mod. SD settings defaultDc:15 (range1..40), costMargin:2 (0..5),
 rbModifiers:true and social:true are SD-owned; no RB settings lookup. checks.roll dc omitted
 uses defaultDc. One SD d20: natural20 crit, natural1 critfail, else total>=dc success,
->=dc−costMargin cost, else fail (default matches RB party/checks.js:57).
+>=dc−costMargin cost, else fail.
+
+Stage 5 lead decisions: SD alone registers `checks` and captures `? check`. The narrator omits
+`| result:`; old labels are ignored without flags or Problems. Check outcomes appear in receipts
+and the next tail, with no status-card check rows. RB crafting calls SD `checks.roll` with the
+recipe context (only RB may supply `craft`), recipe DC and linked actor. `rules.modifier` returns
+the recipe stat-modifier sum, craft rank, tools, station and material quality; SD rolls once and
+RB decides the existing quality bands. No RB table or supplied die. A check using a held RB
+skill records one practice attempt through internal `rules.practiceCheck`, success or failure;
+stat-only checks count nothing. The existing two-per-skill/six-per-reply/thirty-per-day caps and
+unset-clock behavior apply. The attempt shares the check transaction and retracts with a
+Re-read, swipe or deletion. Guards read state, declared replay queries, story.evidence and
+recorded external facts according to the replay rule.
 
 New/extended payloads. Optional fields have the stated default. Refuse unknown fields. Retain
 shipped payload variants through adapters; see appendix. In particular, `party.spend` still
@@ -335,7 +347,7 @@ type Commands = {
   'party.summon':{owner:ActorId; template:Ref; fight:Id}; // trusted paid form/pet event only
   'summon.end':{actor:Id; reason:'expired'|'dismissed'|'downed'|'fight-ended'};
   'death.resolve':{event:Id}; // never caller-selected outcome or snapshot
-  'checks.roll':{actor?:Id; stat?:Stat; skill:Text80; targetNpc?:Id; dc?:Int<1,40>; evidence:Id};
+  'checks.roll':{actor?:Id; stat?:Stat; skill:Text80; targetNpc?:Id; dc?:Int<1,40>; evidence:Id; craft?:{recipe:Ref;at?:'campfire'}};
   'rules.settle':{boundary:Source}; // trusted rule boundary; internals in track B
   'item.equip':{stack:Id; to?:Id; actor?:Id; targetSlot?:Slot}; // slot is the only new field
   'savepoint.make':{name?:Text80}; // default "Save point", player only
@@ -481,7 +493,7 @@ turn.js:720; neither has the review's nested afterCapture shape).
 | party.setActive | Player outside combat; `{actors,reserve}` | REFUSED >3, lacks PC, duplicate/dead/temporary actor or active fight. |
 | party.summon | Authenticated paid form/pet event; `{actor,fight,template}` | REFUSED limit6 or wrong owner/fight; no arbitrary stat/class payload. |
 | summon.end | Host/RB rule; player owner may dismiss only; `{actor,reason}` | REFUSED durable actor/wrong reason/caller; identical dismissal returns prior result. |
-| checks.roll | SD capture/precheck/system only; `{check,actor,die,modifiers,mod,total,dc,outcome}` | NOT_FOUND unknown actor/evidence; REFUSED inactive/used evidence; no supplied die/outcome. |
+| checks.roll | SD capture/precheck/system; RB recipe crafting only; `{check,actor,die,modifiers,mod,total,dc,outcome}` | NOT_FOUND unknown actor/evidence; REFUSED inactive/used evidence; no supplied die/outcome. |
 | death.resolve | RB/host system only; `{event,batch,outcome,snapshot:Id\|null}` | REFUSED unsealed/invalid evidence; no caller-picked outcome/target; native protocol §8. |
 | savepoint.make / restore | Player asynchronous host adapter / authenticated coordinator; `{snapshot}` / `{return,status:'committed'}` | SNAPSHOT_UNAVAILABLE missing bytes/participant; STALE prepared head; RESTORE_PENDING barrier. |
 | return.cue v2 | Host complete-token only; `{return,cue}` | REFUSED before complete; same wake idempotent, conflicting cue CONFLICT. Legacy payload only in legacy runtime. |

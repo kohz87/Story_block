@@ -44,6 +44,18 @@ Every head change runs one participant selection rule over exact surviving prefi
 Until native participants acknowledge that selection the host returns `RESTORE_PENDING`. It settles before heads,
 mutable commands, scanning or generation are exposed; checkpoint recovery and full replay must agree.
 
+After native work has been published, an unchanged Re-read reuses the Source of each reused story/afterCapture
+root. A fresh ordinal alone must not change the owner's saved Source and invalidate an otherwise identical native
+prefix. Changed reply text still uses ordinary allocation and selection; this adds no prefix fallback or checkpoint
+rebinding. Chats without published native work keep their existing Re-read behavior.
+
+A module with a native dependency may declare `hooks.nativeSelection({state,query}, {events})`, a synchronous,
+read-only check returning `{ok:true}` or `{ok:false,reason}`. `events` is the immutable list of delivered native-event
+identities (`event`, `npc`, `participant`). The host checks it on the whole selected story after selecting checkpoints,
+before lowering the barrier, and in the readiness probe. A refusal, throw or asynchronous answer keeps the barrier
+with a visible remedy (`SNAPSHOT_UNAVAILABLE` on recovery); it never changes the owner's/native state or chooses
+an older checkpoint. RB uses this to require agreement with NSD's `npc.dossier({id})` for delivered deaths.
+
 The barrier comes down, and the modules are announced ready, in one place (`lowerWhenSettled`), reached only through
 `release`: the head's checkpoints are reconciled to a fixed point (bounded; each pass plans again), what was published
 is made durable, and the final look (nothing outstanding in the journal, no selection needed) lowers the barrier in
