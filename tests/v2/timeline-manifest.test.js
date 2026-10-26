@@ -22,7 +22,7 @@ test('every registry domain is captured, including one registered a moment ago; 
     t.after(() => host.close());
     await host.send('Hello.', reply('The road.', ['+ coin 5']));
     const first = (await host.sdk.timeline.make({ kind: 'manual', name: 'One' })).snapshot;
-    const names = registered(host.registry).map(item => item.name);
+    const names = registered(host.registry).filter(item => host.registry.module(item.owner).domains[item.name].snapshot !== 'when-present').map(item => item.name);
     assert.deepEqual(names.filter(name => !Object.hasOwn(payloadOf(host, first).domains, name)), [], 'every registered domain is in the payload');
     assert.deepEqual(Object.keys(payloadOf(host, first).domains).sort(), [...Object.keys(host.head().domains)].filter(name => name !== 'savepoints').sort());
     for (const core of ['inventory', 'scene']) assert.equal(Object.hasOwn(payloadOf(host, first).domains, core), true, core);

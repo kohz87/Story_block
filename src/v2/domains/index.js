@@ -27,6 +27,7 @@ import { screens as defaultScreens } from '../screens/index.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { firstPackRanks, readerRanks } from '../packs/ranks.js';
 import { createTimelinePart } from '../timeline/part.js';
+import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
 
 // The packs part bound to SillyTavern (src/v2/packs/index.js), in createPacksPart()'s shape.
 const livePacks = Object.freeze({ part: livePart, packs: liveInstalled, resolveItem: liveResolve, startState: liveStart });
@@ -303,13 +304,16 @@ export function readerLadder(hooks) {
     return null;
 }
 
-export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null } = {}) {
+export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null, dataModules = {} } = {}) {
     const core = createCorePart({ hooks, settings, hookEntries, problem, query, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null) });
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),
     });
-    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline })]);
+    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), createDataModulesPart({ packs: packs.packs, ...dataModules })]);
+    const timelineGuard = merged.hooks.replayGuard;
+    merged.hooks.replayGuard = Object.assign((view, info) => String(info?.guard?.predicate?.kind ?? '').startsWith('dm.')
+        ? dataModuleGuard(view, info) : timelineGuard(view, info), { hostOwned: true });
     // The reader's rank ladder answers packs.content's ranks in place of the packs', with the first pack's
     // numbers at each place (packs/ranks.js); a call for one pack's own ranks (`pack`) is the pack's as
     // before. The ladder is a module's setting (RPG Battle's Terms: Rank ladder and Levels per rank),
@@ -332,6 +336,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         features: [...CORE_FEATURES, ...INVENTORY_FEATURES].map(feature => ({ ...feature })),
         domains: merged.domains,
         commands: merged.commands,
+        replayQueries: ['dataModules.replayInputs'],
         // The newest reply's Inner chatter, [{ name, text }] (MODULES §F115; null while the feature is off), the
         // same under each present person for the Scene screen while Story Director's World is not there, and
         // whether the head reply moved the scene to another place (Story Director's World → Here, §F119).
@@ -348,7 +353,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
             'story.evidence': createEvidenceQuery({ stored: () => extras?.proofs?.() ?? [] }),
         },
         capture: {
-            kinds: CORE_KINDS,
+            kinds: { ...CORE_KINDS, dm: merged.kinds.dm },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);
