@@ -438,6 +438,20 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   its name (`slugify`: "Iron Sword (old)" → `iron-sword-old`), in the checker too; the manifest's `itemRules` name an
   item by that slug. `rules` is the manifest's own slug (`pack.<id>/rules`): no other record of a rules pack may have
   it, nor a class, skill, branch or trainer (`DUPLICATE` from the host, `dup-id` from the checker alone).
+* **Trainers and trainer templates** (2.4.0). `content.rules[0].trainers` holds two kinds in one list (100 entries at
+  most, one slug space). A *fixed trainer* stands at one `place` with a whole-number `fee`, and may write
+  `"open": false`. A *trainer template* is `"open": true` with a `rank` (the `id` of a row of the pack's
+  `content.ranks`), a `fee` range `{ "coinMin", "coinMax" }` (each 1 to 1,000,000, `coinMin` not above `coinMax`),
+  `skills` (1 to 30), `minutes` 60 and `eventTemplates`, and **no `place`** (writing one is refused with
+  `envelope-unknown`). A template is a recipe for a teacher, not a teacher: it stands nowhere until the story offers
+  one with RPG Battle 2.2.0 (`+ trainer Name | like: <template>`, optionally `| teaches: …` to narrow the skills, never
+  to add one) or the reader uses **Make this a trainer** on someone present. The fee is rolled from the range then, and
+  the trainer stays where it was offered. Unlike an open quest's reward, the fee range is **not** held inside the rank's
+  reward range (lessons cost less than jobs pay); the authoring kit's checker prints a note when a template's highest fee
+  is above its rank's reward maximum. Refusals: `bad-schema` on `trainers[i].rank` (not a rank of the pack, or missing)
+  and on `trainers[i].fee` (one number, or `coinMin` above `coinMax`), `numeric-range` for a fee of 0 or over 1,000,000.
+  A consumer tells a template from a fixed trainer by `open === true`. The rules hash of every pack changes with this
+  release because the schema is part of it; a chat keeps the hash it pinned.
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's

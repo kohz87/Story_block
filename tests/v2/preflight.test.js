@@ -42,7 +42,7 @@ test('the shape: hostApi, deferredDomains, hostVersion, storeVersion, classifica
     const out = host.sdk.preflight(RB);
     assert.deepEqual(Object.keys(out), ['hostApi', 'deferredDomains', 'hostVersion', 'storeVersion', 'classification', 'domains', 'rulesVersion', 'rulesHash', 'peers', 'restore']);
     assert.deepEqual(out, {
-        hostApi: 2, deferredDomains: true, hostVersion: '2.3.0', storeVersion: 2, classification: 'empty', domains: [], rulesVersion: null, rulesHash: null,
+        hostApi: 2, deferredDomains: true, hostVersion: '2.4.0', storeVersion: 2, classification: 'empty', domains: [], rulesVersion: null, rulesHash: null,
         peers: [{ module: PEER, version: null, enabled: false }], restore: 'idle',
     });
     assert.ok(PREFLIGHT_CLASSES.includes(out.classification));
@@ -52,7 +52,7 @@ test('the shape: hostApi, deferredDomains, hostVersion, storeVersion, classifica
 test('empty: a chat with no story yet, and a chat with a story that holds none of the module\'s domains', async () => {
     const none = await createHost({ st: { chat: [] } });
     assert.deepEqual({ ...none.sdk.preflight(RB), peers: undefined }, {
-        hostApi: 2, deferredDomains: true, hostVersion: '2.3.0', storeVersion: null, classification: 'empty', domains: [], rulesVersion: null, rulesHash: null, peers: undefined, restore: 'idle',
+        hostApi: 2, deferredDomains: true, hostVersion: '2.4.0', storeVersion: null, classification: 'empty', domains: [], rulesVersion: null, rulesHash: null, peers: undefined, restore: 'idle',
     });
     none.close();
     const other = await read(await chatWith({ elsewhere: { n: 1 } }));

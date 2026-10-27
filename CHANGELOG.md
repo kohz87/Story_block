@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.4.0
+
+**Story Block 2.4.0 and RPG Battle 2.2.0 ship together.** Update both.
+
+- **Open trainer templates:** a rules pack can list trainers with `"open": true`, a rank and a fee range instead of a
+  place and a fee. With RPG Battle 2.2.0 the narrator offers one with `+ trainer Name | like: <template>` (optionally
+  `| teaches: …` to narrow its skills), or the reader uses **Make this a trainer** on someone present. The fee is rolled
+  from the range when the trainer is offered and recorded with the offer; the trainer stays where it was offered.
+- Ersveil: Bluewatch Starter **1.6.0** adds four templates (blade drills, spear and shield drills, street craft,
+  hedge-magic lessons). The authoring kit's step 7 and checker know templates; the checker notes a template whose highest
+  fee is more than a whole quest of its rank pays.
+
+### Upgrading from 2.3
+
+Update RPG Battle to 2.2.0 with this release; the two ship together. Every rules pack's fingerprint (rules hash) changes
+because the rules schema changed; chats already pinned to a pack keep their own copy and play on unchanged. Existing pins
+never gain templates: start a new character timeline to pin 1.6.0. Story Director and NPC State Delta need no update.
+
+### Known issues
+
+- With RPG Battle 2.1.0 and Story Block 2.4.0 together, a pack's templates show in the training list as trainers who are
+  never "here" (they have no place), and nothing can be trained with one. Update RPG Battle to 2.2.0.
+
 ## 2.3.0
 
 - **Authoring kit** (`authoring-kit/`): prompts, standing instructions, references and a checker for drafting a rules pack or a data module with your own AI tool, offline. `node authoring-kit/check.mjs <pack.json>` runs Story Block's own pack checker with every Story Suite capability and prints numbered problems with a hint each. Story Studio carries a synced copy.
