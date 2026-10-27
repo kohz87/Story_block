@@ -304,9 +304,19 @@ Battle for foe strength:
 | `title` | Optional, 1–30 characters, the same rules as a term. |
 | `levels` | Optional `[lowest, highest]`: whole levels from 1 to 999, the first not above the second. |
 | `reward` | Optional `[lowest, highest]`: whole amounts ≥ 0 of the chat's one currency (its smallest unit). |
+| `xp` | Optional `[lowest, highest]` (2.5.0): whole experience points from 0 to 1,000,000, the first not above the second: what a job of the rank may give. |
 
 Only these fields are allowed, and a pack holds at most 12 ranks. Ranges may overlap, but a rank's
-`levels` or `reward` can't start below the last rank before it that has one. `packs.content({ kind:
+`levels`, `reward` or `xp` can't start below the last rank before it that has one.
+
+**Experience is flat.** RPG Battle's curve is 100 XP a level at every level, so a job's XP is not a coin amount: a rank's coin
+`reward` says nothing about it. Before 2.5.0 an open quest template's `xpMin` and `xpMax` were held inside the rank's coin
+`reward` range, which made an E job (coin 800 to 3000) at least eight levels of XP and a D job at least thirty. From 2.5.0 they
+are held inside the rank's `xp` range when the rank has one, and inside `reward` as before when it has none, so a pack without
+`xp` is unchanged and still valid; `coinMin` and `coinMax` are always held inside `reward`. A job is worth roughly a third of a
+level to two levels: about 30 to 200 XP, a little more at higher ranks. The message says which range was used ("inside rank E's xp
+range" or "…reward range"). `xp` has an effect only with RPG Battle 2.3.0 (2.2.0 ignores it), and a pack that writes it should
+require `"storyBlock": "^2.5"`: an older Story Block refuses the field. `packs.content({ kind:
 'ranks' })` lists every enabled pack's ladder one after another, each record with its `pack`, so a reader
 takes one pack's ranks (the first that has any).
 
@@ -314,10 +324,10 @@ takes one pack's ranks (the first that has any).
 lowest first ("Soul Class I" … "Soul Class IX", or `F`, `E` … `SSS`), optionally with the first level of
 each ("Soul Class II: 11"). When it is set, `packs.content({ kind: 'ranks' })` answers with it instead of the
 packs' ladders, so Story Director's quest ranks, RPG Battle's party and foe ranks and Story Block's coin
-budget all use it, with or without each other. Its records are `{ id, title, levels?, reward?, pack: null,
+budget all use it, with or without each other. Its records are `{ id, title, levels?, reward?, xp?, pack: null,
 reader: true }`: the title as typed, the id the short word the story writes (the line itself when it is one
 short word, else its last word, "IX"; else R1, R2 …). A rank keeps the first enabled pack's levels at its
-place (unless every line gives its first level), and pays the reward range of the pack's rank at its first
+place (unless every line gives its first level), and pays the reward range, and has the `xp` range, of the pack's rank at its first
 level (the last pack rank that starts at or below it), so renaming a ladder never changes what quests pay
 and a longer ladder of narrower ranks never pays more at a level (a ladder renames and re-bands; it never
 raises money). Past the pack's ranks, modules pay by level too (RPG Battle on the built-in F to S, times

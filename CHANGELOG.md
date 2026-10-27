@@ -28,6 +28,13 @@
   until now (every promotion needs all three skills at the top mastery), and a pack without it is unchanged. The resolved
   constants a chat pins carry the effective value; `masteryAt`, the use caps and every other constant stay fixed. It needs
   `"storyBlock": "^2.5"` and RPG Battle 2.3.0 to have an effect; RPG Battle 2.2.0 ignores it.
+- **Ranks can have an XP range; job XP is no longer held to coin.** The experience curve is flat (100 XP a level), but an open
+  quest template's `xpMin`/`xpMax` had to lie inside its rank's coin `reward` range, so an E job was at least eight levels of
+  XP and a D job thirty, whatever the pack. A rank in `content.ranks` may now write `xp: [min, max]` (whole numbers 0 to
+  1,000,000, ordered like `reward`), and a template's XP bounds are held to it. A rank without `xp` keeps the old rule (inside
+  `reward`), so every existing pack stays valid and unchanged; coin bounds are always held to `reward`. A job is worth roughly a
+  third of a level to two levels (about 30 to 200 XP). A pack that writes `xp` should require `"storyBlock": "^2.5"`; RPG Battle
+  2.3.0 reads it and 2.2.0 ignores it.
 - **The Assist safety net never offers jobs or teachers.** `+ quest` and `+ trainer` are refused under any setting of
   *Kinds the safety net may write*, on the reply and on the next reply alike. Before, a reader who added `+ quest` to that
   list let the net offer jobs. Quest progress (`~ quest`) and a turn-in (`- quest`) are as they were. The narrator's own

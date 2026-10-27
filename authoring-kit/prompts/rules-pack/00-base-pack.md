@@ -25,8 +25,12 @@ PACK-FORMAT.md and LIMITS.md. It holds only these parts, and nothing else:
 2. "currency": the world's money as {{MONEY}}. Name the smallest coin first with value 1; every price, value and reward
    in the pack is in that smallest coin. Add a "coins" list only when the world has coins of different worth.
 3. content.ranks: the ladder of quest ranks the lore uses (or F, E, D, C, B, A, S if it has none), lowest first, each
-   {"id", "title", "levels": [lo, hi], "reward": [lo, hi]}. The ranges follow the lore (a character's level
-   cap is 99). The lowest rank's jobs pay a few days' wages; each rank pays more than the one below.
+   {"id", "title", "levels": [lo, hi], "reward": [lo, hi], "xp": [lo, hi]}. The ranges follow the lore (a character's level
+   cap is 99). The lowest rank's jobs pay a few days' wages; each rank pays more than the one below. "reward" is coin;
+   "xp" is the experience a job of the rank gives and is optional. Experience is flat: a level takes 100 XP at every level,
+   so a job's XP is not a coin amount. Give a job roughly a third of a level to two levels of XP (about 30 to 200 XP, a
+   little more at higher ranks); an "xp" range is whole numbers from 0 to 1000000, rising from rank to rank. A pack that
+   uses "xp" needs "storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to have an effect; RPG Battle 2.2.0 ignores it.
 4. content.places: every place the lore names that a character can go to (settlements, wilds, dungeons, guild halls,
    temples): {"slug", "name", "region", "kind", "x", "y", "note"} plus "market" (a settlement type such as village,
    town or city) and "tags" (lowercase environment words) where the lore says. x and y are numbers on one map unit that

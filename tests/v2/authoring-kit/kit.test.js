@@ -687,3 +687,40 @@ test('promotionMastery: the classes prompt, the format page and LIMITS.md state 
         assert.match(hintFor(result.errors[0]), /^promotionMastery is exactly 3 whole numbers, each 1 to 5: the mastery needed for the promotions at levels 10, 20 and 30/);
     }
 });
+
+test('rank xp: the base-pack, quests and tuning prompts, the format page and LIMITS.md explain the flat curve; the checker hints at each mistake', () => {
+    const base = read('prompts/rules-pack/00-base-pack.md');
+    const quests = read('prompts/rules-pack/06-quests.md');
+    const tuning = read('prompts/rules-pack/08-reward-tuning.md');
+    const format = read('reference/PACK-FORMAT.md');
+    for (const [name, text] of [['00-base-pack', base], ['06-quests', quests], ['08-reward-tuning', tuning], ['PACK-FORMAT', format]]) {
+        assert.match(text, /about 30 to 200 XP/, name);
+        assert.match(text, /flat/i, name);
+    }
+    assert.ok(base.includes('"xp": [lo, hi]') && base.includes('whole numbers from 0 to 1000000'));
+    assert.ok(base.includes('"storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to have an effect'));
+    assert.ok(quests.includes('xpMin/xpMax\n  inside the rank\'s "xp" range when the rank has one, else inside its coin "reward" range as before'));
+    assert.ok(tuning.includes('if its rank has an "xp" range, xp must lie inside it'));
+    assert.ok(format.includes('"xp": [30, 150]') && format.includes('RPG Battle 2.2.0 ignores it'));
+    assert.match(read('reference/LIMITS.md'), /A rank's optional `xp` range \| two whole numbers 0 to 1,000,000, the first not above the second and not below the previous rank's;/);
+    assert.match(read('reference/LIMITS.md'), /xp inside its `xp` range when the rank has one, else inside `reward` as before/);
+
+    const full = json('examples/tiny-world/pack.json');
+    const inside = { coinMin: 40, coinMax: 120, xpMin: 30, xpMax: 150 };
+    const build = ({ xp, reward = inside }) => {
+        const pack = clone(full);
+        if (xp) pack.content.ranks[0].xp = xp;
+        pack.content.quests.push({ ...openHunt(), reward: { ...reward, items: [] } });
+        return checkPack(pack);
+    };
+    // Tiny world's rank F pays 30 to 300 coin.
+    assert.equal(build({}).ok, true, 'no rank xp: XP inside the coin range, as before');
+    assert.equal(build({ xp: [30, 150] }).ok, true);
+    assert.equal(build({ xp: [5, 20], reward: { ...inside, xpMin: 5, xpMax: 20 } }).ok, true, 'a rank xp range lets XP sit below the coin range');
+    const hints = result => result.errors.map(error => [error.path, error.message, hintFor(error)]);
+    assert.deepEqual(hints(build({ xp: [30, 150], reward: { ...inside, xpMin: 5, xpMax: 20 } })), [['content.quests[2].reward', "Open xp bounds must be ordered and inside rank F's xp range", "Keep xpMin and xpMax inside the rank's xp range (and xpMin not above xpMax) in content.ranks."]]);
+    assert.deepEqual(hints(build({ reward: { ...inside, xpMin: 5, xpMax: 20 } })), [['content.quests[2].reward', "Open xp bounds must be ordered and inside rank F's reward range", 'This rank has no xp range, so xpMin and xpMax are held to its coin reward range. Give the rank an xp range in content.ranks (experience is flat, a job is roughly 30 to 200 XP) and keep xpMin and xpMax inside it.']]);
+    const bad = build({ xp: [150, 30] });
+    assert.deepEqual(bad.errors.map(error => [error.code, error.path]), [['BAD_RECORD', 'content.ranks[0].xp']]);
+    assert.match(hintFor(bad.errors[0]), /^A rank's xp is \[lowest, highest\]: two whole numbers from 0 to 1,000,000, the first not above the second and not below the xp of the rank before it\./);
+});

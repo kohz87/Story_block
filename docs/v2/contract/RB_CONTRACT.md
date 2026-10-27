@@ -1457,7 +1457,15 @@ the rule before 2.5.0 (every promotion needs all three skills at the top mastery
 field, a number outside 1 to 5 or not whole `numeric-range` at the entry, a non-array `bad-schema`. The resolved constants carry
 the effective value as `constants.promotionMastery` (so a pin does, and its `constantsHash`); the constants argument of the
 checker may only repeat `[5, 5, 5]`, and `masteryAt`, the use caps and every other constant stay fixed. It has an effect only with
-RPG Battle 2.3.0; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5. The Assist
+RPG Battle 2.3.0; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5.
+A rank in `content.ranks[]` (a pack content kind, not part of the closed rules schema, so no hash input changes for a pack that
+does not write it) may carry `xp:[min,max]`, whole numbers 0 to 1,000,000, next to `reward:[min,max]` (coin). Experience is flat
+(100 XP a level), so Stage 5's rule that an open template's `xpMin`/`xpMax` lie inside the rank's `reward` range, which is coin,
+made an E job at least eight levels and a D job thirty. From 2.5.0 an open template's XP bounds lie inside the rank's `xp` range
+when it has one, and inside `reward` as before when it has none; `coinMin`/`coinMax` always lie inside `reward`. The `xp` range is
+checked like `reward` (`BAD_RECORD` at `content.ranks[i].xp`: two whole numbers, ordered, not below the previous rank's); the
+reader's ladder takes a rank's `xp` from the pack rank it is paid as, as it does `reward`. A job is worth roughly a third of a
+level to two levels (about 30 to 200 XP). RPG Battle 2.3.0 reads `xp`; 2.2.0 ignores it. The Assist
 safety net never writes `+ quest` or `+ trainer` under any `assistExtractorKinds` (`assist/safety.js` `refusedWhy`); `~ quest`
 and `- quest` are unchanged. The schema hash changes; existing timeline pins keep their bytes. Story Block 2.5.0 and
 RPG Battle 2.3.0 ship together.

@@ -62,13 +62,19 @@ one coin needs no `coins` list. Ranks are a ladder of quest ranks, lowest first:
 
 ```json
 "ranks": [
-  { "id": "F", "title": "Apprentice", "levels": [1, 10], "reward": [30, 300] },
-  { "id": "E", "title": "Journeyman", "levels": [11, 20], "reward": [300, 1500] }
+  { "id": "F", "title": "Apprentice", "levels": [1, 10], "reward": [30, 300], "xp": [30, 150] },
+  { "id": "E", "title": "Journeyman", "levels": [11, 20], "reward": [300, 1500], "xp": [50, 300] }
 ]
 ```
 
 A rank id is up to 8 letters, digits, `+` or `-`. `levels` is the character levels the rank is for, `reward` the
-coin a quest of that rank pays, in the smallest coin.
+coin a quest of that rank pays, in the smallest coin. `xp` is optional: the experience a job of the rank may give, two whole
+numbers from 0 to 1,000,000, the first not above the second, and not below the `xp` of the rank before it. Experience is flat
+(a level takes 100 XP at every level), so a rank's coin range says nothing about its XP; give a job roughly a third of a level
+to two levels (about 30 to 200 XP, a little more at higher ranks). An open quest template's `xpMin` and `xpMax` are held to
+the rank's `xp` range when it has one, and to its `reward` range when it has none (its `coinMin` and `coinMax` always to
+`reward`). A pack that writes `xp` needs `"storyBlock": "^2.5"` in `requires` and RPG Battle 2.3.0 to have an effect;
+RPG Battle 2.2.0 ignores it.
 
 ### Numbers that hold together
 
