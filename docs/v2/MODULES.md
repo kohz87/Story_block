@@ -742,7 +742,8 @@ These settle questions agents raised; the host changes they need are made at int
     *What it may write:* only the kinds of the setting `assistExtractorKinds` (default
     `! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item`), and under
     any setting never value (src/v2/assist/safety.js): no coin kind, no `+` of item, coin, loot, XP, reward,
-    join or skill, no `?` line, no `heal:`/`reward:`/`price:` label. A turn-in (`- quest`) is still checked by
+    join or skill, no `+ quest` or `+ trainer` (a job or a teacher: the narrator offers those, 2.5.0), no `?` line, no
+    `heal:`/`reward:`/`price:` label. A turn-in (`- quest`) is still checked by
     its owner (goal, place, budget, F121); `- item` only moves or removes what the party holds (the owner
     refuses the rest). *No duplicates:* a line the reply's lines already hold (C-1's matching, capture.js
     `sameChangeLine`, or the same op, kind and name) is dropped. *How it applies:* as story lines on that

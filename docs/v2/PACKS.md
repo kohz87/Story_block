@@ -452,6 +452,20 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   and on `trainers[i].fee` (one number, or `coinMin` above `coinMax`), `numeric-range` for a fee of 0 or over 1,000,000.
   A consumer tells a template from a fixed trainer by `open === true`. The rules hash of every pack changes with this
   release because the schema is part of it; a chat keeps the hash it pinned.
+* **Generative offers: count bounds, aliases and offer words** (2.5.0). Three optional additions, so a pack that writes
+  none of them reads as before. An open quest template's `kill` and `collect` objectives may write `countMin` and
+  `countMax` (whole numbers 1 to 999) beside `count`; the checker requires `countMin <= count <= countMax` for whichever
+  are written and answers `bad-schema` at the objective's `count` otherwise. They bound the count a job made from the
+  template may ask for when the narrator offers one in its own words (RPG Battle 2.3.0). A template without bounds gets
+  them derived from the pack's closed quests: the largest `count` of that objective kind among them, never below the
+  template's own, and 1 for the lower bound. A foe may list `aliases`: up to 8 different names, 1 to 80 characters
+  each, other names the story may use for the creature (never another creature's name); the resolved foes keep them.
+  The rules manifest (`content.rules[0]`) may carry `offerWords`, eleven optional lists named `hunt`, `cull`, `gather`,
+  `deliver`, `explore`, `escort`, `task`, `easy`, `normal`, `hard`, `nightmare`, each at most 40 words of 1 to 24
+  characters, written in lower case (a capital letter is `bad-schema` at the word): they add a language's or a setting's
+  words to the ones an offer line is read with. Lengths are counted in UTF-16 units like every other text here. The
+  example pack Ersveil 1.6.0 is unchanged and uses none of them. The rules hash of every pack changes with this release
+  because the schema is part of it; a chat keeps the hash it pinned.
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's
