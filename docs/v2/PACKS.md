@@ -499,6 +499,11 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   only repeat `[5, 5, 5]`, and `masteryAt`, the use caps and every other constant stay fixed. It has an effect only with
   RPG Battle 2.3.0 (RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5); a pack that uses it should require
   `"storyBlock": "^2.5"`.
+* **Pairing with RPG Battle** (2.5.0). Every field this release adds to a rules pack (`countMin`/`countMax`, `offerType`, foe
+  `aliases`, `offerWords`, `promotionMastery`, a rank's `xp`) needs RPG Battle 2.3.0; the two ship together. With RPG Battle
+  2.2.0, opening an open quest template that carries count bounds or an `offerType` fails ("Invalid Quest extension"), and the
+  other fields are ignored. Such a pack should require `"storyBlock": "^2.5"`. Packs that write none of them (the bundled
+  Ersveil 1.6.0 among them) work with both.
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's

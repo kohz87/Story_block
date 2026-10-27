@@ -53,6 +53,12 @@ packs, pins and data modules need no edit. One change in a stored reply: a Re-re
 was a `+ quest` or `+ trainer` (possible only if the reader had widened *Kinds the safety net may write*) no longer applies
 that line, and raises no new Problem. Story Director and NPC State Delta need no update.
 
+**A pack that uses the new 2.5.0 fields needs RPG Battle 2.3.0.** The new fields are `countMin`/`countMax`, `offerType`, foe
+`aliases`, `offerWords`, `promotionMastery` and a rank's `xp`. With RPG Battle 2.2.0, opening an open quest template that
+carries count bounds or an `offerType` fails ("Invalid Quest extension"); the other fields are ignored (every promotion still
+needs 5 of 5, a rank's `xp` and the aliases and offer words do nothing). Update both to 2.3.0 together, and have such packs
+require `"storyBlock": "^2.5"`. The bundled Ersveil pack (1.6.0) uses none of them.
+
 ## 2.4.0
 
 **Story Block 2.4.0 and RPG Battle 2.2.0 ship together.** Update both.
