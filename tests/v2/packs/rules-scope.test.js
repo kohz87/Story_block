@@ -133,9 +133,10 @@ test('the same legacy creature and quest are refused with a manifest: conflicts 
     const wolf = withLegacy('creatures', LEGACY_CREATURE);
     assert.equal(wolf.ok, false);
     assert.ok(has(wolf, 'bad-schema') || has(wolf, 'envelope-unknown'), show(wolf));
-    // A schema-2 foe that also keeps a legacy field.
-    for (const field of ['moves', 'template', 'boss', 'look', 'aliases', 'hp']) {
-        const result = withLegacy('creatures', { ...goblin, [field]: field === 'moves' ? ['bite'] : field === 'aliases' ? ['gob'] : field === 'boss' ? true : 'x' });
+    // A schema-2 foe that also keeps a legacy field. (`aliases` was one until 2.5.0, when it became a schema-2 foe field:
+    // tests/v2/packs/rules-v2/offer-bounds.test.js holds it, accepted and refused.)
+    for (const field of ['moves', 'template', 'boss', 'look', 'hp']) {
+        const result = withLegacy('creatures', { ...goblin, [field]: field === 'moves' ? ['bite'] : field === 'boss' ? true : 'x' });
         assert.equal(result.ok, false, field);
         assert.ok(has(result, 'envelope-unknown', `content.creatures[0].${field}`), `${field}: ${show(result)}`);
     }
