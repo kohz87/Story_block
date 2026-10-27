@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkPack, report, withStandIns, SUITE_CAPABILITIES } from '../../../authoring-kit/check.mjs';
+import { checkPack, report, hintFor, withStandIns, SUITE_CAPABILITIES } from '../../../authoring-kit/check.mjs';
 import { join as joinSteps, readAnswer, RULES_LISTS, CONTENT_LISTS } from '../../../authoring-kit/scripts/join.mjs';
 import * as R from '../../../src/v2/packs/rules-v2.js';
 import { DM_LIMITS } from '../../../src/v2/data-modules/schema.js';
@@ -308,6 +308,10 @@ test('LIMITS.md is exactly what scripts/limits.mjs prints', () => {
     assert.equal(printed.status, 0, printed.err);
     assert.equal(read('reference/LIMITS.md'), printed.out);
     assert.match(printed.out, /\| Classes \| 1 to 40 entries \|/);
+    // Trainers: fixed and templates share one list; each kind has its own row, from the schema's own numbers.
+    assert.match(printed.out, /\| Trainers \(fixed and templates together\) \| 0 to 100 entries \|/);
+    assert.match(printed.out, /\| Trainer \(fixed\) \| place a full place id; skills 1 to 30; fee 1 to 1,000,000 \(never 0\); minutes exactly 60; up to 8 eventTemplates \|/);
+    assert.match(printed.out, /\| Trainer template \| `open: true`, a `rank` that names a pack rank, no `place`; skills 1 to 30; fee `\{ coinMin, coinMax \}`, each 1 to 1,000,000, coinMin not above coinMax; minutes exactly 60; up to 8 eventTemplates \|/);
     assert.match(printed.out, /Budgets: tier 0 12, tier 1 24, tier 2 36, tier 3 48; each branch step adds 12 \(a tier 3 step 1 form 60, a step 2 form 72\)/);
 });
 
@@ -351,6 +355,17 @@ test('the master prompt and the steps state Story Block\'s current numbers', () 
     assert.ok(steps.includes(`"minutes":${trainer.minutes.const}`));
     assert.ok(steps.includes(`"eventTemplates":[]`));
     assert.ok(steps.includes(`at most 1000000`) && trainer.fee.maximum === 1000000 && trainer.fee.minimum === 1);
+    // Trainer templates (step 7 (c)): the same numbers, for the template's fee range.
+    const template = defs.openTrainer.properties;
+    const range = defs.openFee.properties;
+    const step7 = read('prompts/rules-pack/07-trainers-shops-recipes.md');
+    assert.ok(step7.includes('"open":true') && template.open.const === true);
+    assert.ok(step7.includes(`"minutes":${template.minutes.const}`));
+    assert.ok(step7.includes('"coinMin"') && step7.includes('"coinMax"'));
+    assert.ok(step7.includes(`at least ${range.coinMin.minimum}`) && range.coinMin.minimum === 1);
+    assert.equal(step7.split(`at most ${range.coinMax.maximum}`).length - 1, 2, 'both the fixed fee and the template fee state the maximum');
+    assert.equal(range.coinMax.maximum, trainer.fee.maximum);
+    assert.ok(step7.includes(`${template.skills.minItems}-${template.skills.maxItems} skill slugs`));
     assert.ok(steps.includes('"weight":<whole number 0-10000>') && defs.itemRule.properties.weight.maximum === 10000);
     assert.ok(steps.includes('tier":0-9') && defs.foe.properties.tier.maximum === 9);
     assert.ok(steps.includes('dc":5-40') && defs.recipe.properties.dc.minimum === 5 && defs.recipe.properties.dc.maximum === 40);
@@ -380,6 +395,80 @@ test('a grid of the exact rules the prompts promise is enforced by the checker',
     fails((p, r) => { p.content.quests[0].giver = 'npc/some-person'; }, 'bad-ref');
     fails((p, r) => { p.content.quests[0].turnInPlace = 'lanternfall'; }, 'bad-schema');
     fails((p, r) => { r.classes[0].note = 'a <b>tag</b>'; }, 'UNSAFE_HTML');
+    // Trainer templates: the mistakes step 7 (c) warns about.
+    const lesson = () => ({ slug: 'open-drills', name: 'Drills', open: true, rank: 'F', skills: ['lantern-swing', 'warding-glow'], fee: { coinMin: 20, coinMax: 60 }, minutes: 60, eventTemplates: [] });
+    const withTemplate = change => (p, r) => { const t = lesson(); change(t); r.trainers.push(t); };
+    assert.equal(checkPack((() => { const pack = clone(full); pack.content.rules[0].trainers.push(lesson()); return pack; })()).ok, true, 'a well-formed template is accepted');
+    fails(withTemplate(t => { t.place = 'pack.lanternfall/lanternfall'; }), 'envelope-unknown');
+    fails(withTemplate(t => { t.fee = { coinMin: 61, coinMax: 60 }; }), 'bad-schema');
+    fails(withTemplate(t => { t.rank = 'Z'; }), 'bad-schema');
+    fails(withTemplate(t => { t.fee = 40; }), 'bad-schema');
+});
+
+test('a trainer template\'s four mistakes each get the sharper hint, and a fixed trainer never gets them', () => {
+    const full = json('examples/tiny-world/pack.json');
+    const lesson = () => ({ slug: 'open-drills', name: 'Drills', open: true, rank: 'F', skills: ['lantern-swing', 'warding-glow'], fee: { coinMin: 20, coinMax: 60 }, minutes: 60, eventTemplates: [] });
+    const hintsFor = change => {
+        const pack = clone(full);
+        const t = lesson();
+        change(t);
+        pack.content.rules[0].trainers.push(t);
+        const result = checkPack(pack);
+        assert.equal(result.ok, false);
+        return result.errors.map(error => ({ path: error.path, hint: hintFor(error) }));
+    };
+    const at = 'content.rules[0].trainers[1]';
+    assert.deepEqual(hintsFor(t => { t.place = 'pack.lanternfall/lanternfall'; }), [{ path: `${at}.place`, hint: 'A trainer template has no place: it stands where the story offers it. Remove "place", or remove "open" to make a fixed trainer.' }]);
+    assert.deepEqual(hintsFor(t => { t.fee = 40; }), [{ path: `${at}.fee`, hint: 'A trainer template\'s fee is a range: {"coinMin": 30, "coinMax": 80}.' }]);
+    assert.deepEqual(hintsFor(t => { t.fee = { coinMin: 61, coinMax: 60 }; }), [{ path: `${at}.fee`, hint: 'coinMin must not be above coinMax.' }]);
+    assert.deepEqual(hintsFor(t => { t.rank = 'Z'; }), [{ path: `${at}.rank`, hint: 'Name a rank id from content.ranks, such as "F".' }]);
+    // The same text comes out of the command line.
+    const pack = clone(full);
+    pack.content.rules[0].trainers.push({ ...lesson(), place: 'pack.lanternfall/lanternfall', fee: 40 });
+    const file = join(tmpdir(), `kit-template-${process.pid}.json`);
+    writeFileSync(file, JSON.stringify(pack));
+    try {
+        const run = node('authoring-kit/check.mjs', file);
+        assert.equal(run.status, 1);
+        assert.match(run.out, /trainers\[1\]\.place\n.*\n {4}hint: A trainer template has no place/);
+        assert.match(run.out, /trainers\[1\]\.fee\n.*\n {4}hint: A trainer template's fee is a range/);
+    } finally { rmSync(file, { force: true }); }
+    // A fixed trainer's own mistakes keep the general hints.
+    const fixed = clone(full);
+    fixed.content.rules[0].trainers[0].fee = 0;
+    const bad = checkPack(fixed);
+    assert.equal(bad.ok, false);
+    for (const error of bad.errors) assert.notEqual(hintFor(error), 'coinMin must not be above coinMax.');
+    assert.equal(hintFor({ code: 'bad-schema', path: 'content.rules[0].trainers[0].rank', message: 'x' }), 'Name a rank id from content.ranks, such as "F".');
+    assert.equal(hintFor({ code: 'bad-schema', path: 'content.rules[0].shops[0].place', message: 'x' }), hintFor({ code: 'bad-schema', message: 'x' }));
+});
+
+test('a template whose dearest lesson costs more than a whole quest of its rank pays gets a note, and still passes', () => {
+    const pack = clone(json('examples/tiny-world/pack.json'));
+    const [, top] = pack.content.ranks.find(row => row.id === 'F').reward;
+    const lesson = (coinMax) => ({ slug: 'open-drills', name: 'Drills', open: true, rank: 'F', skills: ['lantern-swing'], fee: { coinMin: 20, coinMax }, minutes: 60, eventTemplates: [] });
+    pack.content.rules[0].trainers.push(lesson(top));
+    const quiet = checkPack(pack);
+    assert.equal(quiet.ok, true);
+    assert.deepEqual(quiet.notes, [], 'a range that reaches the rank\'s reward maximum is quiet');
+    pack.content.rules[0].trainers[1] = lesson(top + 1);
+    const loud = checkPack(pack);
+    assert.equal(loud.ok, true, 'a note is advice, never a failure');
+    assert.deepEqual(loud.notes, [`content.rules[0].trainers[1]: a lesson can cost up to ${top + 1}, more than a whole rank F quest pays (${top}). Check the range.`]);
+    assert.match(report('x.json', loud), /^OK x\.json\nrules [0-9a-f]{12}  pack [0-9a-f]{12}\n\nnote: content\.rules\[0\]\.trainers\[1\]: a lesson can cost up to /);
+    const file = join(tmpdir(), `kit-template-note-${process.pid}.json`);
+    writeFileSync(file, JSON.stringify(pack));
+    try {
+        const run = node('authoring-kit/check.mjs', file);
+        assert.equal(run.status, 0);
+        assert.match(run.out, /note: content\.rules\[0\]\.trainers\[1\]: a lesson can cost up to/);
+    } finally { rmSync(file, { force: true }); }
+    // A fixed trainer never gets the note, whatever its fee.
+    const fixed = clone(json('examples/tiny-world/pack.json'));
+    fixed.content.rules[0].trainers[0].fee = 999999;
+    const result = checkPack(fixed);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.notes, []);
 });
 
 test('every file the README, the prompts and the agent files point to exists', () => {
