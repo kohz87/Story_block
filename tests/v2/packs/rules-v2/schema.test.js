@@ -118,6 +118,9 @@ test('representative complete $defs and reference resolution', () => {
         'branch',
         'itemRule',
         'trainer',
+        'fixedTrainer',
+        'openTrainer',
+        'openFee',
         'requirement',
         'objective',
         'reward',
@@ -139,7 +142,7 @@ test('representative complete $defs and reference resolution', () => {
             `$defs must include "${defName}"`
         );
     }
-    assert.equal(actualDefs.length, expectedDefs.length, 'all 29 defs must be present');
+    assert.equal(actualDefs.length, expectedDefs.length, 'all 36 defs must be present');
 
     const collectedRefs = [];
     function collectRefs(obj) {
@@ -258,9 +261,19 @@ test('exact enums, bounds, and constants', () => {
     assert.equal(rulesV2Schema.$defs.itemRule.properties.unique.default, false);
 
     // Trainers
-    assert.equal(rulesV2Schema.$defs.trainer.properties.fee.minimum, 1);
-    assert.equal(rulesV2Schema.$defs.trainer.properties.fee.maximum, 1000000);
-    assert.equal(rulesV2Schema.$defs.trainer.properties.minutes.const, 60);
+    assert.equal(rulesV2Schema.$defs.fixedTrainer.properties.fee.minimum, 1);
+    assert.equal(rulesV2Schema.$defs.fixedTrainer.properties.fee.maximum, 1000000);
+    assert.equal(rulesV2Schema.$defs.fixedTrainer.properties.minutes.const, 60);
+    assert.deepEqual(rulesV2Schema.$defs.trainer.oneOf, [{ $ref: '#/$defs/fixedTrainer' }, { $ref: '#/$defs/openTrainer' }]);
+    assert.equal(rulesV2Schema.$defs.fixedTrainer.properties.open.const, false);
+    assert.equal(rulesV2Schema.$defs.openTrainer.properties.open.const, true);
+    assert.equal(rulesV2Schema.$defs.openTrainer.properties.minutes.const, 60);
+    assert.equal(rulesV2Schema.$defs.openTrainer.properties.place, undefined, 'a template has no place');
+    assert.equal(rulesV2Schema.$defs.openTrainer.properties.fee.$ref, '#/$defs/openFee');
+    assert.equal(rulesV2Schema.$defs.openFee.properties.coinMin.minimum, 1);
+    assert.equal(rulesV2Schema.$defs.openFee.properties.coinMin.maximum, 1000000);
+    assert.equal(rulesV2Schema.$defs.openFee.properties.coinMax.minimum, 1);
+    assert.equal(rulesV2Schema.$defs.openFee.properties.coinMax.maximum, 1000000);
 
     // Section 4 Constants
     assert.equal(RULES_V2_CONSTANTS.levelCap, 99);
@@ -381,7 +394,9 @@ test('schema required and closed manifest and owned defs', () => {
         'skill',
         'branch',
         'itemRule',
-        'trainer',
+        'fixedTrainer',
+        'openTrainer',
+        'openFee',
         'reward',
         'closedQuest',
         'openQuest',

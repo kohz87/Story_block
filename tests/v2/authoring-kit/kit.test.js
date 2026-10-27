@@ -347,7 +347,7 @@ test('the master prompt and the steps state Story Block\'s current numbers', () 
     assert.ok(master.includes('+20\n  power') || master.includes('+20 power'));
     assert.ok(master.includes('980'));
     assert.equal(1000 - 20, 980);
-    const trainer = defs.trainer.properties;
+    const trainer = defs.fixedTrainer.properties;
     assert.ok(steps.includes(`"minutes":${trainer.minutes.const}`));
     assert.ok(steps.includes(`"eventTemplates":[]`));
     assert.ok(steps.includes(`at most 1000000`) && trainer.fee.maximum === 1000000 && trainer.fee.minimum === 1);
