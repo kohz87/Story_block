@@ -11,7 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_KINDS, KIND_CHOICES, SETTING, allowedKinds, createAssistPart, parseExtractorAnswer, refusedWhy, safeLines } from '../../../src/v2/assist/index.js';
-import { assistSections } from '../../../src/v2/capture.js';
+import { assistSections, withAssist } from '../../../src/v2/capture.js';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { fakeModel, flush } from './helpers/fakes.js';
 
@@ -277,5 +277,23 @@ test('on the real host: the narrator\'s own + quest and + trainer lines still re
     await host.send('I ask about the rats.', 'The innkeeper wants the cellar cleared.\n<Changes>\n+ quest Rat Job | giver: the innkeeper | reward: 5 silver\n+ trainer Old Soldier — blades | fee: 4 silver\n</Changes>');
     await flush();
     assert.deepEqual(seen.filter(line => /^\+ /.test(line)).sort(), ['+ quest Rat Job', '+ trainer Old Soldier']);
+    host.close();
+});
+
+test('on the real host: a Re-read of a reply whose stored safety-net lines include a + quest or + trainer (written before this wall) no longer applies them, and raises no Problem', { skip }, async () => {
+    const seen = [];
+    const host = await hostWith(fakeModel('none'), seen);
+    const { index } = await host.send('I ask about the rats.', 'The innkeeper wants the cellar cleared.');
+    await flush();
+    // What a 2.4 safety net, widened by its reader, could have stored on the reply, in both of its sections.
+    const message = host.ctx.chat[index];
+    message.mes = withAssist(withAssist(message.mes, ['+ quest Rat Job | giver: the innkeeper', '~ quest Pelts | step: 2', '+ trainer Old Soldier — blades']), ['+ quest Late Job'], { next: true });
+    assert.ok(assistSections(message.mes).now.some(line => /^\+ quest/.test(line)), 'the old lines are stored');
+    seen.length = 0;
+    const again = await host.sdk.reread(index);
+    assert.equal(again.ok, true, JSON.stringify(again));
+    assert.deepEqual(seen.filter(line => /^\+ /.test(line)), [], 'no offer applied');
+    assert.ok(seen.includes('~ quest Pelts'), 'the other stored line still is');
+    assert.deepEqual(again.problems ?? [], [], 'and no Problem is raised for the refused ones');
     host.close();
 });
