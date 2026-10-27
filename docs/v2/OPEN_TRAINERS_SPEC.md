@@ -957,3 +957,15 @@ Manual checks in SillyTavern with SB 2.4.0, SD, RB 2.2.0 and Bluewatch 1.6.0 pin
 * Mockups: generated from `docs/mockups/records-ux/{desktop,phone}.html` on Studio's `mockup/records-ux` branch (their
   `<style>`, top bar and pack-parts rail reused as they are), measured in headless Chromium: desktop 1280 × 3,749 px,
   phone 390 × 5,599 px, page width equal to the viewport, every button, input, select and summary at least 44 px tall.
+
+## Decisions (approved 27 Oct)
+
+- The editor mockups in `docs/v2/mockups/open-trainers/` are approved as drawn.
+- All open questions in §18 are accepted as recommended: the fee range is not held inside the rank's quest reward range
+  (the checker warns); a seeded roll with the die recorded; click-made trainers are not reply-bound; no `- trainer` line in
+  this release; a session already run goes with its trainer's reply; the narrator is told about each offer; one trainer per
+  name per chat; only people present can be picked; at most 100 per chat; Studio stays 0.1.0; no fifth template; no
+  capability flag (Story Block 2.4.0 and RPG Battle 2.2.0 ship together, stated in both release notes); "Make this a
+  trainer" lives in RPG Battle's Progress screen; one rank and one fee range per template.
+- Build order: Story Block 2.4.0 (M1–M4) first; then RPG Battle 2.2.0, Story Director's re-vendor and Studio in parallel;
+  the four-repo suite check last. Test on Node 24 (CI's version) as well as Node 22.
