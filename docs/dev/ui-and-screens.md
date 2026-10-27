@@ -280,7 +280,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   and its note says why (no Connection Manager, it is off, no profiles yet). The kinds are **chips** (`chipsetField` over the stored text,
   one chip per `KIND_CHOICES` entry in assist/safety.js: time set, time moves on, place, someone arrives or leaves, weather, quest progress
   and turn-in, wounds, an item handed over); an entry the chips do not list stays in the stored text. **The value wall is stated plainly and
-  has no chips**: coin, new items, XP, loot and healing are never written, whatever is stored (`refusedWhy`, the code, not a setting), and if
+  has no chips**: coin, new items, XP, loot, healing, a new job (`+ quest`) and a new teacher (`+ trainer`) are never written, whatever is stored (`refusedWhy`, the code, not a setting), and if
   the net finishes after the reader has already sent the next message its lines wait for the next reply and may not add anything new
   but someone arriving. There is no "late lines" setting; the page only says it. A test keeps every chip on the right side of the wall.
   The fold key `story-block::group:Assist` (`ASSIST_FOLD`) opens the page with its first control focused.
