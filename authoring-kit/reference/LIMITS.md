@@ -28,7 +28,7 @@
 | Skills | 3 to 120 entries |
 | Written branches | 0 to 1000 entries |
 | Item rules (one per item in `content.items`) | 0 to 1000 entries |
-| Trainers | 0 to 100 entries |
+| Trainers (fixed and templates together) | 0 to 100 entries |
 | A class's skills | exactly 3, each owned by one class |
 | A skill slug | 52 characters (room for the branch suffixes) |
 | A name | 1 to 80 characters |
@@ -106,7 +106,8 @@ Each form that has a generated child must survive the engine's power-up: +20 pow
 | Open quest template | `open: true` and a `rank` that names a pack rank with a reward range; `reward` is coinMin, coinMax, xpMin, xpMax (coin and xp alike inside that rank's reward range, each min not above its max) and no items; `repeat` and `chain` are null |
 | Shop | stock 1 to 100 lines (qty 1 to 999); `kind` a slug of at most 40 characters |
 | Recipe | qty 1 to 99; materials 1 to 8 (qty 1 to 99); minutes 0 to 1,440; dc 5 to 40 |
-| Trainer | skills 1 to 30; fee 1 to 1,000,000 (never 0); minutes exactly 60; up to 8 eventTemplates |
+| Trainer (fixed) | place a full place id; skills 1 to 30; fee 1 to 1,000,000 (never 0); minutes exactly 60; up to 8 eventTemplates |
+| Trainer template | `open: true`, a `rank` that names a pack rank, no `place`; skills 1 to 30; fee `{ coinMin, coinMax }`, each 1 to 1,000,000, coinMin not above coinMax; minutes exactly 60; up to 8 eventTemplates |
 
 ## Progression the engine applies
 

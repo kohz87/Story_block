@@ -54,7 +54,7 @@ test('the pack validates, under the size limit, with every content kind', () => 
     assert.ok(byteLength(text) < LIMITS.packBytes, `${byteLength(text)} bytes`);
     const pack = checked();
     assert.equal(pack.id, PACK);
-    assert.equal(pack.version, '1.5.0');
+    assert.equal(pack.version, '1.6.0');
     assert.deepEqual(pack.currency, CURRENCY);
     for (const kind of ['items', 'creatures', 'shops', 'recipes', 'events', 'quests', 'races', 'talents', 'skills', 'presets', 'places', 'routes', 'terms', 'ranks', 'crafts', 'meterPresets', 'rules']) {
         assert.ok(pack.content[kind].length > 0, `${kind} is not empty`);

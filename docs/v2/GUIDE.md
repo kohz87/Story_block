@@ -671,6 +671,12 @@ file** in the Packs section, like any pack. Switch off other packs that set a st
 [ERSVEIL.md](ERSVEIL.md) walks through the rest: the lorebooks, the persona, the first message and the
 ready-made character.
 
+**Teachers you meet on the road.** A pack can list trainer *templates*: kinds of teaching (blade drills, hedge-magic
+lessons) with no place of their own. With RPG Battle 2.2.0 the story can introduce one wherever you are, and in
+RPG Battle's **Progress** screen you can use **Make this a trainer** on someone who is here. The fee is picked once from
+the template's range and written down with the teacher, who stays where they were met. Ersveil 1.6.0 has four templates;
+a chat started on an earlier version of the pack keeps the pack it began with, so start a new character timeline to get them.
+
 ## Settings
 
 Open the settings with **Settings** on the Story Suite bar above the message box, **Story Suite** in the

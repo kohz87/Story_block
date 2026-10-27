@@ -76,8 +76,17 @@ const HINTS = Object.freeze({
 });
 const GENERAL = 'See reference/LIMITS.md and reference/PACK-FORMAT.md for what this part allows.';
 
-/** The one-line advice for a problem: by its code, with sharper lines for the two mistakes made most often. */
-export function hintFor({ code, message = '' }) {
+/** The one-line advice for a problem: by its code, with sharper lines for the mistakes made most often. */
+export function hintFor({ code, path = '', message = '' }) {
+    // A trainer template (step 7 (c)): the path and the message tell which of its four mistakes this is. A fixed
+    // trainer has a place and a whole-number fee, so it never produces the first two.
+    const trainerField = /^content\.rules\[0\]\.trainers\[\d+\]\.(place|fee|rank)$/.exec(path)?.[1];
+    if (code === 'envelope-unknown' && trainerField === 'place') return 'A trainer template has no place: it stands where the story offers it. Remove "place", or remove "open" to make a fixed trainer.';
+    if (code === 'bad-schema' && trainerField === 'fee') {
+        if (/Expected object/.test(message)) return 'A trainer template\'s fee is a range: {"coinMin": 30, "coinMax": 80}.';
+        if (/must be ordered/.test(message)) return 'coinMin must not be above coinMax.';
+    }
+    if (code === 'bad-schema' && trainerField === 'rank') return 'Name a rank id from content.ranks, such as "F".';
     if (code === 'bad-schema' && /does not match pattern/.test(message)) {
         if (message.includes('(?:[a-z][a-z0-9]*_[0-9a-z]{8}|')) return 'Places and other ids are written in full as pack.<pack id>/<slug>, with the pack\'s own id.';
         if (message.includes('^[a-z0-9]+(?:-[a-z0-9]+)*$')) return 'A slug is lowercase letters, digits and single dashes, with no spaces or capitals.';
@@ -150,6 +159,28 @@ export function withStandIns(pack, through) {
 }
 
 /**
+ * Advice for a trainer template whose dearest lesson costs more than a whole quest of its rank pays. The validator
+ * accepts it on purpose (lessons are not bound to quest pay), so this is a note and never a failure.
+ */
+export function templateFeeNotes(pack) {
+    const notes = [];
+    try {
+        const trainers = pack?.content?.rules?.[0]?.trainers;
+        const ranks = pack?.content?.ranks;
+        if (!Array.isArray(trainers) || !Array.isArray(ranks)) return notes;
+        trainers.forEach((trainer, i) => {
+            if (!isRecord(trainer) || trainer.open !== true || !isRecord(trainer.fee)) return;
+            const rank = ranks.find(row => isRecord(row) && row.id === trainer.rank);
+            const top = Array.isArray(rank?.reward) ? rank.reward[1] : undefined;
+            if (Number.isFinite(top) && Number.isFinite(trainer.fee.coinMax) && trainer.fee.coinMax > top) {
+                notes.push(`content.rules[0].trainers[${i}]: a lesson can cost up to ${trainer.fee.coinMax}, more than a whole rank ${rank.id} quest pays (${top}). Check the range.`);
+            }
+        });
+    } catch { /* a note is a bonus */ }
+    return notes;
+}
+
+/**
  * Checks pack text or an object. Returns { ok, errors, notes, capped, hashes? }; never throws.
  * `withCapabilities`: names a module the author really has installed provides, added to the suite's own.
  */
@@ -166,7 +197,7 @@ export function checkPack(input, { through = null, withCapabilities = [] } = {})
     if (result.ok) {
         const hashes = {};
         for (const key of ['rulesHash', 'packHash']) { try { if (result[key]) hashes[key] = result[key]; } catch { /* a hash is a bonus */ } }
-        return { ok: true, errors: [], notes, hashes };
+        return { ok: true, errors: [], notes: [...notes, ...templateFeeNotes(pack)], hashes };
     }
     const errors = result.errors ?? [];
     return { ok: false, errors, notes, capped: errors.length >= 20 };

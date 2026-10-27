@@ -1,6 +1,6 @@
 {
   "id": "ersveil-bluewatch",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "name": "Ersveil: Bluewatch Starter",
   "author": "Story Suite examples",
   "description": "Test-play pack for Story Suite v2 in the Ersveil world: Wessel arrives at Bluewatch Village, the northernmost village, with three F-letter jobs on the Guild board. Money is the lore's three coins, copper, silver and gold (1 gold = 10 silver = 100 copper), counted in copper. Lore stays in the Ersveil lorebooks.",
@@ -9932,6 +9932,86 @@
               "frost-shard"
             ],
             "fee": 80,
+            "minutes": 60,
+            "eventTemplates": []
+          },
+          {
+            "slug": "open-blade-drills",
+            "name": "Blade drills",
+            "open": true,
+            "rank": "F",
+            "skills": [
+              "swift-thrust",
+              "parrying-turn",
+              "poised-step",
+              "riposte-lunge",
+              "flickering-guard",
+              "duelists-mark"
+            ],
+            "fee": {
+              "coinMin": 40,
+              "coinMax": 90
+            },
+            "minutes": 60,
+            "eventTemplates": []
+          },
+          {
+            "slug": "open-spear-and-shield",
+            "name": "Spear and shield drills",
+            "open": true,
+            "rank": "F",
+            "skills": [
+              "brace-spear",
+              "shield-bash",
+              "watchmans-grit",
+              "iron-breathing",
+              "guard-cleave",
+              "stalwart-line"
+            ],
+            "fee": {
+              "coinMin": 35,
+              "coinMax": 80
+            },
+            "minutes": 60,
+            "eventTemplates": []
+          },
+          {
+            "slug": "open-street-craft",
+            "name": "Street craft",
+            "open": true,
+            "rank": "F",
+            "skills": [
+              "river-skiff-footwork",
+              "hidden-shiv",
+              "slum-instinct",
+              "cane-draw",
+              "gutter-feint",
+              "low-strike"
+            ],
+            "fee": {
+              "coinMin": 30,
+              "coinMax": 70
+            },
+            "minutes": 60,
+            "eventTemplates": []
+          },
+          {
+            "slug": "open-hedge-lessons",
+            "name": "Hedge-magic lessons",
+            "open": true,
+            "rank": "E",
+            "skills": [
+              "spark-dart",
+              "mana-shield",
+              "attunement-pulse",
+              "frost-shard",
+              "force-pulse",
+              "arcane-barrier"
+            ],
+            "fee": {
+              "coinMin": 80,
+              "coinMax": 160
+            },
             "minutes": 60,
             "eventTemplates": []
           }

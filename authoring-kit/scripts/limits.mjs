@@ -25,7 +25,9 @@ const q = defs.closedQuest.properties;
 const foe = defs.foe.properties;
 const recipe = defs.recipe.properties;
 const shop = defs.shop.properties;
-const trainer = defs.trainer.properties;
+const trainer = defs.fixedTrainer.properties;
+const template = defs.openTrainer.properties;
+const openFee = defs.openFee.properties;
 const itemRule = defs.itemRule.properties;
 const unit = defs.unit.properties;
 const cost = defs.cost.properties;
@@ -59,7 +61,7 @@ say('## A rules pack (schema 2): sizes', table(['What', 'Limit'], [
     ['Skills', range(props.skills)],
     ['Written branches', range(props.branches)],
     ['Item rules (one per item in `content.items`)', range(props.itemRules)],
-    ['Trainers', range(props.trainers)],
+    ['Trainers (fixed and templates together)', range(props.trainers)],
     ['A class\'s skills', `exactly ${defs.class.properties.skills.minItems}, each owned by one class`],
     ['A skill slug', `${RULES_V2_LIMITS.skillSlug} characters (room for the branch suffixes)`],
     ['A name', range(defs.name)],
@@ -124,7 +126,8 @@ say('## Foes, quests, shops, recipes, trainers', table(['Record', 'Limits'], [
     ['Open quest template', `\`open: true\` and a \`rank\` that names a pack rank with a reward range; \`reward\` is coinMin, coinMax, xpMin, xpMax (coin and xp alike inside that rank\'s reward range, each min not above its max) and no items; \`repeat\` and \`chain\` are null`],
     ['Shop', `stock ${shop.stock.minItems} to ${shop.stock.maxItems} lines (qty ${range(shop.stock.items.properties.qty)}); \`kind\` a slug of at most 40 characters`],
     ['Recipe', `qty ${range(recipe.qty)}; materials ${recipe.materials.minItems} to ${recipe.materials.maxItems} (qty ${range(recipe.materials.items.properties.qty)}); minutes ${range(recipe.minutes)}; dc ${range(recipe.dc)}`],
-    ['Trainer', `skills ${trainer.skills.minItems} to ${trainer.skills.maxItems}; fee ${range(trainer.fee)} (never 0); minutes exactly ${trainer.minutes.const}; up to ${trainer.eventTemplates.maxItems} eventTemplates`],
+    ['Trainer (fixed)', `place a full place id; skills ${trainer.skills.minItems} to ${trainer.skills.maxItems}; fee ${range(trainer.fee)} (never 0); minutes exactly ${trainer.minutes.const}; up to ${trainer.eventTemplates.maxItems} eventTemplates`],
+    ['Trainer template', `\`open: true\`, a \`rank\` that names a pack rank, no \`place\`; skills ${template.skills.minItems} to ${template.skills.maxItems}; fee \`{ coinMin, coinMax }\`, each ${range(openFee.coinMin)}, coinMin not above coinMax; minutes exactly ${template.minutes.const}; up to ${template.eventTemplates.maxItems} eventTemplates`],
 ]));
 
 say('## Progression the engine applies', table(['Constant', 'Value'], [

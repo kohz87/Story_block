@@ -29,11 +29,11 @@ for (const [name, change] of [
     ['invalid kind', q => { q.objectives[0].kind = 'guess'; }],
 ]) test(`open template refuses ${name}`, () => { const p = openPack(); change(p.content.quests[0]); assert.equal(validateRulesPack(p).ok, false); });
 
-test('Ersveil 1.5.0 ships three bounded open templates for every F–C rank', async () => {
+test('Ersveil 1.6.0 ships three bounded open templates for every F–C rank', async () => {
     const { readFileSync } = await import('node:fs');
     const base = new URL('../../../../examples/packs/ersveil-bluewatch/', import.meta.url);
     const pack = JSON.parse(readFileSync(new URL('pack.json', base)));
-    assert.equal(pack.version, '1.5.0');
+    assert.equal(pack.version, '1.6.0');
     const checked = validateRulesPack(pack);
     assert.equal(checked.ok, true, JSON.stringify(checked.errors));
     const additions = pack.content.quests.filter(q => q.open);

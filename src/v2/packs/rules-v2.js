@@ -2368,9 +2368,19 @@ function validateRulesV2Of(manifest, content, constants, { host = false } = {}) 
     for (let i = 0; i < (m.trainers ?? []).length; i++) {
         const trn = m.trainers[i];
         const p = `content.rules[0].trainers[${i}]`;
-        const plRef = checkReference(trn.place, packKey, placeSlugs, 'place', `${p}.place`);
-        if (!plRef.ok) errors.push(plRef.error);
-        else if (plRef.isExternal) warnings.push({ path: `${p}.place`, message: `External place reference "${trn.place}" accepted with runtime eligibility check` });
+        if (trn.open === true) {
+            // A template has no place; it names a pack rank and a fee range (OPEN_TRAINERS_SPEC §3.2).
+            if (!(cnt.ranks ?? []).some(row => row.id === trn.rank)) {
+                errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${p}.rank`, message: 'An open trainer names a pack rank' });
+            }
+            if (trn.fee.coinMin > trn.fee.coinMax) {
+                errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${p}.fee`, message: 'Open trainer fee bounds must be ordered (coinMin not above coinMax)' });
+            }
+        } else {
+            const plRef = checkReference(trn.place, packKey, placeSlugs, 'place', `${p}.place`);
+            if (!plRef.ok) errors.push(plRef.error);
+            else if (plRef.isExternal) warnings.push({ path: `${p}.place`, message: `External place reference "${trn.place}" accepted with runtime eligibility check` });
+        }
         for (let s = 0; s < trn.skills.length; s++) {
             const sRef = checkReference(trn.skills[s], packKey, skillSlugs, null, `${p}.skills[${s}]`);
             if (!sRef.ok) errors.push(sRef.error);
