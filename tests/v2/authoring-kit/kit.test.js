@@ -665,3 +665,25 @@ test('offerType: the quests prompt, the format page and LIMITS.md state it; the 
     assert.deepEqual(refused.errors.map(error => [error.code, error.path]), [['envelope-unknown', 'content.quests[0].offerType']]);
     assert.match(hintFor(refused.errors[0]), /^offerType belongs to an open quest template/);
 });
+
+test('promotionMastery: the classes prompt, the format page and LIMITS.md state it; the checker accepts it and hints at each mistake', () => {
+    const field = R.rulesV2Schema.properties.promotionMastery;
+    const classes = read('prompts/rules-pack/01-classes.md');
+    assert.ok(classes.includes('"promotionMastery": [a, b, c] (exactly 3 whole numbers, each 1-5)'));
+    assert.ok(classes.includes('the promotion at level 10, b at level 20, c at level 30'));
+    assert.ok(classes.includes('"storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to\nhave an effect; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5'));
+    assert.deepEqual([field.minItems, field.maxItems, field.items.minimum, field.items.maximum], [3, 3, 1, 5]);
+    assert.deepEqual(R.RULES_V2_CONSTANTS.promotionMilestones, [10, 20, 30]);
+    assert.ok(read('reference/PACK-FORMAT.md').includes('`promotionMastery`') && read('reference/PACK-FORMAT.md').includes('RPG Battle 2.2.0 ignores it'));
+    assert.match(read('reference/LIMITS.md'), /optional `promotionMastery` on the rules manifest: exactly 3 whole numbers 1 to 5, one for each promotion in that order; left out it is 5, 5, 5 \|/);
+
+    const full = json('examples/tiny-world/pack.json');
+    const withValue = value => { const pack = clone(full); pack.content.rules[0].promotionMastery = value; return checkPack(pack); };
+    for (const value of [[3, 4, 5], [1, 1, 1], [5, 5, 5]]) assert.equal(withValue(value).ok, true, JSON.stringify(withValue(value).errors));
+    for (const [value, path, code] of [[[3, 4], 'content.rules[0].promotionMastery', 'numeric-range'], [[3, 4, 6], 'content.rules[0].promotionMastery[2]', 'numeric-range'], [[0, 4, 5], 'content.rules[0].promotionMastery[0]', 'numeric-range'], [5, 'content.rules[0].promotionMastery', 'bad-schema']]) {
+        const result = withValue(value);
+        assert.equal(result.ok, false, JSON.stringify(value));
+        assert.deepEqual(result.errors.map(error => [error.code, error.path]), [[code, path]], JSON.stringify(value));
+        assert.match(hintFor(result.errors[0]), /^promotionMastery is exactly 3 whole numbers, each 1 to 5: the mastery needed for the promotions at levels 10, 20 and 30/);
+    }
+});

@@ -480,6 +480,15 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   uses any of the four should require `"storyBlock": "^2.5"`; an older Story Block refuses the fields. The
   example pack Ersveil 1.6.0 is unchanged and uses none of them. The rules hash of every pack changes with this release
   because the schema is part of it; a chat keeps the hash it pinned.
+* **Promotion mastery** (2.5.0). The rules manifest may write `promotionMastery`: exactly 3 whole numbers, each 1 to 5, for the
+  mastery all three of a class's skills need for the promotions at levels 10, 20 and 30, in the order of
+  `constants.promotionMilestones`. Left out it means `[5, 5, 5]`, the rule before 2.5.0 (every promotion needs the top mastery
+  in all three skills), and a pack without it writes no key and keeps its export bytes. A wrong length is `numeric-range` at the
+  field, a number outside 1 to 5 or a fraction `numeric-range` at the entry, a non-list `bad-schema`. The resolved constants
+  (the pin a rules module freezes) carry the effective value as `constants.promotionMastery`; the checker's constants argument can
+  only repeat `[5, 5, 5]`, and `masteryAt`, the use caps and every other constant stay fixed. It has an effect only with
+  RPG Battle 2.3.0 (RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5); a pack that uses it should require
+  `"storyBlock": "^2.5"`.
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's

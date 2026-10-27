@@ -140,6 +140,7 @@ say('## Progression the engine applies', table(['Constant', 'Value'], [
     ['Stat cap', RULES_V2_CONSTANTS.statCap],
     ['XP per level', RULES_V2_CONSTANTS.xpPerLevel],
     ['Class promotions at levels', RULES_V2_CONSTANTS.promotionMilestones.join(', ')],
+    ['Mastery each promotion needs in all three skills', `optional \`promotionMastery\` on the rules manifest: exactly ${props.promotionMastery.minItems} whole numbers ${range(props.promotionMastery.items)}, one for each promotion in that order; left out it is ${RULES_V2_CONSTANTS.promotionMastery.join(', ')}`],
     ['Skill path steps at levels', RULES_V2_CONSTANTS.pathMilestones.join(', ')],
     ['Mastery ranks reached at uses', RULES_V2_CONSTANTS.masteryAt.join(', ')],
     ['Training', `${RULES_V2_CONSTANTS.trainMinutes} minutes, ${RULES_V2_CONSTANTS.trainCredits} credits`],

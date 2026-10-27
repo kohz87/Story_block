@@ -102,6 +102,7 @@ export function hintFor({ code, path = '', message = '' }) {
     if (/^content\.creatures\[\d+\]\.aliases$/.test(path) && code === 'dup-id') return 'An alias is written twice; list each alias once.';
     if (/^content\.creatures\[\d+\]\.aliases$/.test(path) && code === 'numeric-range') return 'A foe has at most 8 aliases.';
     if (/^content\.creatures\[\d+\]\.aliases/.test(path)) return 'A foe\'s aliases are a list of at most 8 different strings, each 1 to 80 UTF-16 units; see reference/LIMITS.md.';
+    if (/^content\.rules\[0\]\.promotionMastery/.test(path)) return 'promotionMastery is exactly 3 whole numbers, each 1 to 5: the mastery needed for the promotions at levels 10, 20 and 30, in that order. Leave it out for 5, 5, 5.';
     if (/^content\.rules\[0\]\.offerWords/.test(path)) return 'offerWords holds the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard and nightmare, each at most 40 lower-case words of 1 to 24 UTF-16 units.';
     if (code === 'bad-schema' && /does not match pattern/.test(message)) {
         if (message.includes('(?:[a-z][a-z0-9]*_[0-9a-z]{8}|')) return 'Places and other ids are written in full as pack.<pack id>/<slug>, with the pack\'s own id.';

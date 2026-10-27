@@ -184,6 +184,11 @@ from capitals and spacing, any creature's name or slug (its own included), anoth
 the same creature, and needs a visible character. A pack that uses `countMin`/`countMax`, `offerType`, `aliases` or `offerWords`
 needs `"storyBlock": "^2.5"` in `requires`.
 
+The rules manifest (`content.rules[0]`) may also carry `promotionMastery`: exactly 3 whole numbers, each 1 to 5, for the
+mastery all three of a class's skills need for the promotions at levels 10, 20 and 30, in that order. Left out it means
+`[5, 5, 5]` (the top mastery for every promotion). It needs `"storyBlock": "^2.5"` in `requires` and RPG Battle 2.3.0 to have an
+effect; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5.
+
 ## Text rules
 
 Names, notes and every other text in a rules pack may not contain `<` or `>` (or an HTML character reference for

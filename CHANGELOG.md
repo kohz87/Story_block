@@ -23,6 +23,11 @@
   `offerType` otherwise), a closed quest refuses it (`envelope-unknown`), and two templates may share a type and rank (pack
   order decides). It needs `"storyBlock": "^2.5"` and RPG Battle 2.3.0 to have an effect; without it RPG Battle uses the first
   template of the kind, as before.
+- **Packs can say how much mastery a promotion needs.** The rules manifest may write `promotionMastery`: 3 whole numbers,
+  each 1 to 5, for the promotions at levels 10, 20 and 30 (for example `[3, 4, 5]`). Left out it means `[5, 5, 5]`, the rule
+  until now (every promotion needs all three skills at the top mastery), and a pack without it is unchanged. The resolved
+  constants a chat pins carry the effective value; `masteryAt`, the use caps and every other constant stay fixed. It needs
+  `"storyBlock": "^2.5"` and RPG Battle 2.3.0 to have an effect; RPG Battle 2.2.0 ignores it.
 - **The Assist safety net never offers jobs or teachers.** `+ quest` and `+ trainer` are refused under any setting of
   *Kinds the safety net may write*, on the reply and on the next reply alike. Before, a reader who added `+ quest` to that
   list let the net offer jobs. Quest progress (`~ quest`) and a turn-in (`- quest`) are as they were. The narrator's own

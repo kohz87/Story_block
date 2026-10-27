@@ -120,6 +120,7 @@ Each form that has a generated child must survive the engine's power-up: +20 pow
 | Stat cap | 99 |
 | XP per level | 100 |
 | Class promotions at levels | 10, 20, 30 |
+| Mastery each promotion needs in all three skills | optional `promotionMastery` on the rules manifest: exactly 3 whole numbers 1 to 5, one for each promotion in that order; left out it is 5, 5, 5 |
 | Skill path steps at levels | 40, 50, 60, 70, 80, 90 |
 | Mastery ranks reached at uses | 1, 5, 12, 22, 35 |
 | Training | 60 minutes, 2 credits |

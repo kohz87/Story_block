@@ -31,6 +31,12 @@ entries each tier-0 class comes from.
 
 Optionally add "statLabels": {"STR": "...", ...} (a name of 1-80 characters for any of the seven stats) to the manifest if
 the lore calls the stats something else. Do not rename the stat keys themselves.
+
+Optionally add "promotionMastery": [a, b, c] (exactly 3 whole numbers, each 1-5) to the manifest to say how much mastery
+a promotion needs in all three of a class's skills: a for the promotion at level 10, b at level 20, c at level 30. Left
+out it means [5, 5, 5], the top mastery for every promotion; lower numbers make promotions easier, for example [3, 4, 5]
+for a world where the first promotion comes quickly. It needs "storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to
+have an effect; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5.
 ```
 
 ## Check
@@ -41,4 +47,4 @@ node check.mjs work/pack.json --through 1
 
 `--through 1` lets the checker judge the tree while the skills do not exist yet. It should print `OK through step 1`.
 Typical problems: `tier-chain` (a parent of the wrong tier, or a leaf that is not tier 3), `class-skills` (not exactly
-3 skills, or one skill in two classes), `bad-schema` (a slug with capitals or spaces).
+3 skills, or one skill in two classes), `bad-schema` (a slug with capitals or spaces), `numeric-range` (a `promotionMastery` that does not have exactly 3 numbers, or a number outside 1-5 or not whole).
