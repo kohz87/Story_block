@@ -1162,6 +1162,10 @@ function matchesDiscriminator(resolvedSub, key, valKey) {
     return false;
 }
 
+// The objective kind each open quest `offerType` settles (GENERATIVE_OFFERS_SPEC §3.2): hunt and cull are kills, gather and deliver
+// are collections, explore is a visit, escort and task are story goals.
+const OFFER_TYPE_KIND = Object.freeze({ hunt: 'kill', cull: 'kill', gather: 'collect', deliver: 'collect', explore: 'visit', escort: 'story', task: 'story' });
+
 /**
  * Generic schema validation for manifest and owned definitions subset with $ref sibling checks.
  * Evaluates keywords independently of explicit type so siblings (e.g. maxLength:40 on $ref) are strictly enforced.
@@ -2283,6 +2287,15 @@ function validateRulesV2Of(manifest, content, constants, { host = false } = {}) 
     for (let i = 0; i < contentQuests.length; i++) {
         const q = contentQuests[i];
         const p = `content.quests[${i}]`;
+        if (q.open === true && q.offerType !== undefined) {
+            // The type a narrator's `type:` word picks this template by must be one its objective can settle (GENERATIVE_OFFERS_SPEC §3.2,
+            // §4.6): the template's first objective is the one a job takes. Two templates may share a type and rank; pack order decides.
+            const kind = q.objectives?.[0]?.kind;
+            const wanted = OFFER_TYPE_KIND[q.offerType];
+            if (wanted !== undefined && kind !== wanted) {
+                errors.push({ code: RULES_V2_ERROR_CODES.BAD_SCHEMA, path: `${p}.offerType`, message: `offerType "${q.offerType}" needs a ${wanted} objective first; this template's first objective is ${kind === undefined ? 'missing' : `a ${kind} one`}` });
+            }
+        }
         if (q.open === true) {
             const rank = (cnt.ranks ?? []).find(row => row.id === q.rank);
             const range = rank?.reward;
