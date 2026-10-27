@@ -70,6 +70,16 @@ test('one bound alone, and a count equal to a bound, are fine', () => {
     }
 });
 
+test('an inverted range (countMin above countMax) is said once, at countMax, whatever the count is', () => {
+    for (const [min, count, max] of [[7, 2, 6], [7, 6, 6], [7, 7, 6], [7, 9, 6], [3, 2, 1]]) {
+        const pack = boundsPack();
+        Object.assign(pack.content.quests[0].objectives[0], { countMin: min, count, countMax: max });
+        const result = validateRulesPack(pack);
+        assert.equal(result.ok, false);
+        assert.deepEqual(result.errors.map(e => [e.code, e.path, e.message]), [[CODES.BAD_SCHEMA, `${Q}[0].objectives[0].countMax`, `countMin ${min} is above countMax ${max}`]], `${min} ${count} ${max}`);
+    }
+});
+
 for (const [name, kind, change, message] of [
     ['an inverted range (countMin above the count)', 0, o => { o.countMin = 3; }, /below its countMin 3/],
     ['a count above countMax', 0, o => { o.countMax = 1; }, /above its countMax 1/],
@@ -173,6 +183,74 @@ test('markup in an alias is refused like markup anywhere else in a foe', () => {
     pack.content.creatures[0].aliases = ['<b>wolf</b>'];
     const result = validateRulesPack(pack);
     assert.equal(result.ok, false);
+});
+
+// An alias must name its own foe and no other: RB matches a job's target by exact name, slug or alias in pack order, so an alias
+// that is another foe's name would bind the job to the wrong foe. Compared folded (lower case, white space collapsed, trimmed).
+const collisions = [
+    ['another foe\'s name', 0, ['Orc Brute'], 'aliases[0]', /name of another foe/],
+    ['another foe\'s name in other capitals', 0, ['  ORC   brute '], 'aliases[0]', /name of another foe/],
+    ['another foe\'s slug', 0, ['orc-brute'], 'aliases[0]', /slug of another foe/],
+    ['its own name', 0, ['Goblin Scout'], 'aliases[0]', /own name/],
+    ['its own name, folded', 1, ['orc  BRUTE'], 'aliases[0]', /own name/],
+    ['its own slug', 0, ['goblin-scout'], 'aliases[0]', /own slug/],
+    ['its own slug, folded', 1, ['Orc-Brute'], 'aliases[0]', /own slug/],
+    ['an earlier alias that differs in capitals', 0, ['Wolf', 'wolf'], 'aliases[1]', /repeats an earlier alias/],
+    ['an earlier alias that differs in spacing', 0, ['a  b', 'a b'], 'aliases[1]', /repeats an earlier alias/],
+];
+for (const [name, foe, aliases, where, message] of collisions) {
+    test(`an alias that equals ${name} is bad-schema at the alias`, () => {
+        const pack = makeValidExtendedPack();
+        pack.content.creatures[foe].aliases = aliases;
+        const result = validateRulesPack(pack);
+        assert.equal(result.ok, false);
+        const found = result.errors.find(e => e.path === `content.creatures[${foe}].${where}`);
+        assert.ok(found, show(result));
+        assert.equal(found.code, CODES.BAD_SCHEMA);
+        assert.match(found.message, message);
+    });
+}
+
+test('an alias that is an alias of an earlier foe is bad-schema at the later alias, and an exact repeat in one list stays dup-id', () => {
+    const pack = makeValidExtendedPack();
+    pack.content.creatures[0].aliases = ['Wolf', 'hound'];
+    pack.content.creatures[1].aliases = ['bear', ' WOLF '];
+    const result = validateRulesPack(pack);
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.errors.map(e => [e.code, e.path]), [[CODES.BAD_SCHEMA, 'content.creatures[1].aliases[1]']]);
+    assert.match(result.errors[0].message, /already an alias of another foe \(content\.creatures\[0\]\)/);
+    const exact = makeValidExtendedPack();
+    exact.content.creatures[0].aliases = ['wolf', 'wolf'];
+    const again = validateRulesPack(exact);
+    assert.deepEqual(again.errors.map(e => [e.code, e.path]), [[CODES.DUP_ID, 'content.creatures[0].aliases']], 'one problem for an exact repeat, from the schema');
+});
+
+for (const [name, alias] of [['a zero-width space', '\u200b'], ['zero-width marks and spaces', ' \u200b\u200d\ufeff \u2060 '], ['a no-break space between zero-width marks', '\u200b\u00a0\u200b']]) {
+    test(`an alias with no visible character (${name}) is bad-schema`, () => {
+        const pack = makeValidExtendedPack();
+        pack.content.creatures[0].aliases = ['fine', alias];
+        const result = validateRulesPack(pack);
+        assert.equal(result.ok, false);
+        assert.ok(errorAt(result, 'content.creatures[0].aliases[1]', CODES.BAD_SCHEMA), show(result));
+    });
+}
+
+test('white space at the ends of an alias is trimmed when the pack is read, so only the schema\'s own problems remain', () => {
+    // Spaces alone trim to nothing (the schema's minLength); a repeat that differs only at the ends is an exact repeat (dup-id).
+    const empty = makeValidExtendedPack();
+    empty.content.creatures[0].aliases = ['fine', '   \t'];
+    assert.ok(errorAt(validateRulesPack(empty), 'content.creatures[0].aliases[1]', CODES.NUMERIC_RANGE));
+    const ends = makeValidExtendedPack();
+    ends.content.creatures[0].aliases = ['a b', ' a b\t'];
+    assert.ok(errorAt(validateRulesPack(ends), 'content.creatures[0].aliases', CODES.DUP_ID));
+});
+
+test('names that differ in more than capitals and spacing are different aliases, even across foes', () => {
+    const pack = makeValidExtendedPack();
+    pack.content.creatures[0].aliases = ['goblin', 'scouts', 'ünïcode wisp', 'a‍b'];
+    pack.content.creatures[1].aliases = ['brute', 'Orc', 'goblin scouts'];
+    const result = validateRulesPack(pack);
+    assert.equal(result.ok, true, show(result));
 });
 
 // ---- offerWords --------------------------------------------------------------------------------------------------

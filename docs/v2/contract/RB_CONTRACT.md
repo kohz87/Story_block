@@ -1438,10 +1438,12 @@ ship together.
 Three optional additions to the rules schema; a pack that writes none of them reads exactly as before.
 `$defs.openObjective` kill and collect branches take `countMin` and `countMax` (integers 1 to 999); when given, the
 checker requires `countMin <= count <= countMax` and refuses a count outside them as `bad-schema` at
-`…objectives[i].count`. `$defs.foe` takes `aliases` (0 to 8 unique strings of 1 to 80 characters: other names the story
-may use for the creature); the resolved foes keep them. The rules manifest takes `offerWords` (`$defs.offerWords`, eleven
+`…objectives[i].count` (an inverted range as one `bad-schema` at `…countMax`). `$defs.foe` takes `aliases` (0 to 8 unique
+strings of 1 to 80 UTF-16 units: other names the story may use for the creature); the checker also refuses, as `bad-schema`
+at the alias, one that equals (folded: capitals ignored, white space collapsed) its own foe's name or slug, any other foe's
+name or slug, an earlier foe's alias or an earlier alias of its list, or has no visible character. The resolved foes keep them. The rules manifest takes `offerWords` (`$defs.offerWords`, eleven
 optional lists named `hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard, nightmare`, each 0 to 40
-lower-case words of 1 to 24 characters; a capital letter is `bad-schema` at the word). Story Block validates, exports and
+lower-case words of 1 to 24 UTF-16 units; a capital letter is `bad-schema` at the word). Story Block validates, exports and
 resolves them and nothing more: RPG Battle 2.3.0 reads them when the narrator offers a job in its own words. The Assist
 safety net never writes `+ quest` or `+ trainer` under any `assistExtractorKinds` (`assist/safety.js` `refusedWhy`); `~ quest`
 and `- quest` are unchanged. The schema hash changes; existing timeline pins keep their bytes. Story Block 2.5.0 and
