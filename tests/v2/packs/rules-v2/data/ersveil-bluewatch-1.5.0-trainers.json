@@ -1,0 +1,100 @@
+[
+  {
+    "slug": "guild-drillmaster-morn",
+    "name": "Guild Drillmaster Morn",
+    "place": "pack.ersveil-bluewatch/guild-office",
+    "skills": [
+      "brace-spear",
+      "shield-bash",
+      "hidden-shiv",
+      "swift-thrust"
+    ],
+    "fee": 40,
+    "minutes": 60,
+    "eventTemplates": []
+  },
+  {
+    "slug": "brother-kadren",
+    "name": "Brother Kadren",
+    "place": "pack.ersveil-bluewatch/ashbell-hospice",
+    "skills": [
+      "sacred-ember",
+      "cauterize",
+      "prayer-of-light",
+      "consecrated-burst"
+    ],
+    "fee": 50,
+    "minutes": 60,
+    "eventTemplates": []
+  },
+  {
+    "slug": "delver-grek",
+    "name": "Delver Grek",
+    "place": "pack.ersveil-bluewatch/delver-s-crown",
+    "skills": [
+      "river-skiff-footwork",
+      "slum-instinct",
+      "cane-draw",
+      "gutter-feint"
+    ],
+    "fee": 60,
+    "minutes": 60,
+    "eventTemplates": []
+  },
+  {
+    "slug": "captain-aldus-vane",
+    "name": "Captain Aldus Vane",
+    "place": "pack.ersveil-bluewatch/highmark-capital",
+    "skills": [
+      "iron-breathing",
+      "guard-cleave",
+      "stalwart-line",
+      "fortress-stance"
+    ],
+    "fee": 100,
+    "minutes": 60,
+    "eventTemplates": []
+  },
+  {
+    "slug": "fencing-master-daubrey",
+    "name": "Fencing Master Daubrey",
+    "place": "pack.ersveil-bluewatch/mirage-city",
+    "skills": [
+      "parrying-turn",
+      "poised-step",
+      "riposte-lunge",
+      "flickering-guard"
+    ],
+    "fee": 120,
+    "minutes": 60,
+    "eventTemplates": []
+  },
+  {
+    "slug": "inquisitor-valeria",
+    "name": "Inquisitor Valeria",
+    "place": "pack.ersveil-bluewatch/holy-city-of-aurelion",
+    "skills": [
+      "soothing-flame",
+      "cinder-ward",
+      "judgement-flare",
+      "radiant-mend"
+    ],
+    "fee": 150,
+    "minutes": 60,
+    "eventTemplates": []
+  },
+  {
+    "slug": "magister-orion-kell",
+    "name": "Magister Orion Kell",
+    "place": "pack.ersveil-bluewatch/thousand-sails",
+    "skills": [
+      "spark-dart",
+      "mana-shield",
+      "attunement-pulse",
+      "frost-shard"
+    ],
+    "fee": 80,
+    "minutes": 60,
+    "eventTemplates": []
+  }
+]

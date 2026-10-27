@@ -130,3 +130,46 @@ test('100 trainers is still the limit, templates counted', () => {
     pack.content.rules[0].trainers.pop();
     assert.equal(validateRulesPack(pack).ok, true, '100 trainers is the limit');
 });
+
+test('Ersveil 1.6.0 ships four bounded trainer templates matching its class lines', async () => {
+    const { readFileSync } = await import('node:fs');
+    const pack = JSON.parse(readFileSync(new URL('../../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url)));
+    assert.equal(pack.version, '1.6.0');
+    const checked = validateRulesPack(pack);
+    assert.equal(checked.ok, true, JSON.stringify(checked.errors));
+    assert.deepEqual(checked.warnings ?? [], []);
+    const rules = pack.content.rules[0];
+    const templates = rules.trainers.filter(t => t.open === true);
+    assert.deepEqual(templates.map(t => t.slug), ['open-blade-drills', 'open-spear-and-shield', 'open-street-craft', 'open-hedge-lessons']);
+    assert.deepEqual(templates.map(t => t.rank), ['F', 'F', 'F', 'E']);
+    assert.deepEqual(templates.map(t => [t.fee.coinMin, t.fee.coinMax]), [[40, 90], [35, 80], [30, 70], [80, 160]]);
+    // Each template teaches exactly the six skills of a tier-0 class and its tier-1 child, in class order.
+    const lines = [['blade-initiate', 'mirage-fencer'], ['militiaman', 'iron-cadet'], ['barge-drifter', 'slum-stalker'], ['hedge-apprentice', 'spell-weaver']];
+    templates.forEach((template, i) => {
+        const [base, child] = lines.at(i).map(slug => rules.classes.find(c => c.slug === slug));
+        assert.equal(base.tier, 0);
+        assert.equal(child.tier, 1);
+        assert.equal(child.parent, base.slug);
+        assert.deepEqual(template.skills, [...base.skills, ...child.skills], template.slug);
+        assert.equal(template.skills.length, 6);
+        assert.equal(template.minutes, 60);
+        assert.deepEqual(template.eventTemplates, []);
+        assert.equal(template.place, undefined);
+        assert.deepEqual(Object.keys(template).sort(), ['eventTemplates', 'fee', 'minutes', 'name', 'open', 'rank', 'skills', 'slug']);
+    });
+    // The fees sit under their rank's quest reward maximum, so the checker's note stays quiet.
+    for (const template of templates) assert.ok(template.fee.coinMax <= pack.content.ranks.find(r => r.id === template.rank).reward[1], template.slug);
+    // The flame line has no template: its teachers are people the pack already places.
+    assert.ok(!templates.some(t => t.skills.includes('sacred-ember')));
+    // The seven fixed trainers of 1.5.0 come first and are unchanged.
+    const before = JSON.parse(readFileSync(new URL('./data/ersveil-bluewatch-1.5.0-trainers.json', import.meta.url)));
+    assert.equal(before.length, 7);
+    assert.deepEqual(rules.trainers.slice(0, 7), before);
+    assert.equal(rules.trainers.length, 11);
+    assert.equal(checked.resolved.manifest.trainers.length, 11);
+    // The authoring kit's checker agrees: OK, and no note.
+    const { checkPack } = await import('../../../../authoring-kit/check.mjs');
+    const kit = checkPack(pack);
+    assert.equal(kit.ok, true);
+    assert.deepEqual(kit.notes, []);
+});

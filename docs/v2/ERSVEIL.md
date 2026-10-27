@@ -38,10 +38,14 @@ the model writes is `<Changes>`, and Story Block's own instruction asks for it.
 
 ## 3. The pack
 
-Pack **1.5.0** keeps every existing content slug and adds twelve open quest templates: story tasks,
-hunts and deliveries for ranks F through C. Import the single `pack.json` to install all of them.
-Open a template with an explicit `like:` binding or the quest reader; the existing thirty quests keep
-their fixed objectives and rewards.
+Pack **1.6.0** keeps every existing content slug and adds twelve open quest templates (story tasks,
+hunts and deliveries for ranks F through C) and, new in this version, four open trainer templates (blade,
+spear and shield, street craft, hedge magic). Import the single `pack.json` to install all of them.
+Open a quest template with an explicit `like:` binding or the quest reader; the existing thirty quests keep
+their fixed objectives and rewards. A trainer template has no place and a fee range: with RPG Battle 2.2.0 the
+narrator offers one with `+ trainer Name | like: open-blade-drills`, or you use **Make this a trainer** on
+someone present, and the trainer stays where it was offered. The seven fixed trainers are unchanged. Chats
+already pinned to an earlier version of the pack keep it; start a new character timeline to pin 1.6.0.
 
 1. Story Suite settings → **Packs** → **Import pack file** → `examples/packs/ersveil-bluewatch/pack.json`.
    The list shows "41 items, 6 creatures, 4 shops, 7 recipes, 6 events, 3 quests, 7 races,

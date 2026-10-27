@@ -23,7 +23,7 @@ Tested with **SillyTavern 1.19**. In **Extensions → Install extension**, insta
 3. [RPG Battle](https://github.com/kohz87/rpg_battle)
 4. [NPC State Delta](https://github.com/kohz87/npc_state_delta)
 
-To start with the bundled **Ersveil 1.5.0** rules pack, open a fresh chat and follow **Setup → Pin Ersveil Rules → Create**,
+To start with the bundled **Ersveil 1.6.0** rules pack, open a fresh chat and follow **Setup → Pin Ersveil Rules → Create**,
 then choose your character's options. Existing chats load and rebuild unchanged; legacy chats stay unpinned.
 
 Report bugs in [this repo's Issues](https://github.com/kohz87/Story_block/issues), with steps to reproduce.
@@ -70,7 +70,7 @@ is off is gone from the story; nothing it made is lost.
   Chronicle, other extensions' tabs, Director, and **Dossiers last**. Only installed extensions show. Move, hide or
   show them in Settings → **Tabs & Packs**.
 - **Packs** (Settings → Tabs & Packs): import a world pack (items, races, places, shops, recipes, events, ranks, calendar, weather…).
-  Ersveil 1.5.0 includes 12 open quest templates. Import only `examples/packs/ersveil-bluewatch/pack.json`; the files in `drafts/` are source references already merged into that pack.
+  Ersveil 1.6.0 includes 12 open quest templates and 4 open trainer templates (blade, spear and shield, street craft, hedge magic). Import only `examples/packs/ersveil-bluewatch/pack.json`; the files in `drafts/` are source references already merged into that pack.
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.
