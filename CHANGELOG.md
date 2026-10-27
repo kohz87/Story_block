@@ -15,7 +15,14 @@
   of 1 to 24 UTF-16 units, for a pack written in another language or another voice. All three are optional; a pack that
   writes none reads exactly as before. A pack that does not bound a count gets bounds derived from its own closed quests
   (RPG Battle 2.3.0 reads the largest count of that objective kind among them), so existing packs need no edit. A pack that
-  uses any of the three should require `"storyBlock": "^2.5"`.
+  uses any of these fields, or `offerType` below, should require `"storyBlock": "^2.5"`.
+- **Open quest templates can say which job they are for.** An open template may write `offerType` (`hunt`, `cull`,
+  `gather`, `deliver`, `explore`, `escort` or `task`). Hunt and cull share the objective kind `kill`, gather and deliver
+  `collect`, escort and task `story`, so a narrator's `type: cull` used to land on the first kill template; with `offerType`
+  RPG Battle 2.3.0 picks the template whose type matches. The type must suit the template's first objective (`bad-schema` at
+  `offerType` otherwise), a closed quest refuses it (`envelope-unknown`), and two templates may share a type and rank (pack
+  order decides). It needs `"storyBlock": "^2.5"` and RPG Battle 2.3.0 to have an effect; without it RPG Battle uses the first
+  template of the kind, as before.
 - **The Assist safety net never offers jobs or teachers.** `+ quest` and `+ trainer` are refused under any setting of
   *Kinds the safety net may write*, on the reply and on the next reply alike. Before, a reader who added `+ quest` to that
   list let the net offer jobs. Quest progress (`~ quest`) and a turn-in (`- quest`) are as they were. The narrator's own

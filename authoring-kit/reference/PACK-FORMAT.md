@@ -171,14 +171,17 @@ An **open quest template** is a quest whose reward is a range for its rank inste
 without a fixed target (`{ "id", "kind": "kill", "count": 3 }`), and `repeat` and `chain` both `null`. Its coin and
 xp bounds lie inside the named rank's `reward` range. A kill or collect objective of a template may also write
 `countMin` and `countMax` (whole numbers 1 to 999) beside its `count`, with `countMin <= count <= countMax`; they bound
-the count a job made from the template may ask for, and both are optional.
+the count a job made from the template may ask for, and both are optional. A template may also write `offerType`
+(`hunt`, `cull`, `gather`, `deliver`, `explore`, `escort` or `task`): the kind of job it is for, which RPG Battle 2.3.0
+uses to choose between templates that share an objective kind (a cull and a hunt both kill). Its first objective must suit
+it (hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story); a quest with a fixed reward refuses it.
 
 A foe may list `aliases` (at most 8 different names of 1 to 80 UTF-16 units) that the story may use for it, and the rules
 manifest (`content.rules[0]`) may carry `offerWords`: lists named `hunt`, `cull`, `gather`, `deliver`, `explore`, `escort`, `task`, `easy`,
 `normal`, `hard` and `nightmare`, each of at most 40 lower-case words of 1 to 24 UTF-16 units, which add the words of
 your language or setting to the ones an offer line is read with. All three are optional. An alias may not equal, apart
 from capitals and spacing, any creature's name or slug (its own included), another creature's alias or another alias of
-the same creature, and needs a visible character. A pack that uses `countMin`/`countMax`, `aliases` or `offerWords`
+the same creature, and needs a visible character. A pack that uses `countMin`/`countMax`, `offerType`, `aliases` or `offerWords`
 needs `"storyBlock": "^2.5"` in `requires`.
 
 ## Text rules

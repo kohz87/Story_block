@@ -631,3 +631,37 @@ test('the checker accepts count bounds, aliases and offer words, and each mistak
     assert.deepEqual(hints(p => { Object.assign(p.content.quests[2].objectives[0], { countMin: 9, countMax: 8 }); }), [{ path: `${q}.countMax`, hint: 'countMin is above countMax: swap them, or lower countMin, so that countMin <= count <= countMax.' }]);
     assert.match(hints(p => { p.content.rules[0].offerWords = { slay: ['x'] }; })[0].hint, /^offerWords holds the lists/);
 });
+
+test('offerType: the quests prompt, the format page and LIMITS.md state it; the checker gives each mistake its own hint', () => {
+    const defs = R.rulesV2Schema.$defs;
+    const types = defs.openQuest.properties.offerType.enum;
+    assert.deepEqual(types, ['hunt', 'cull', 'gather', 'deliver', 'explore', 'escort', 'task']);
+    assert.equal(defs.closedQuest.properties.offerType, undefined, 'only an open template has it');
+    const quests = read('prompts/rules-pack/06-quests.md');
+    assert.ok(quests.includes('"offerType"') && quests.includes('"hunt", "cull", "gather", "deliver",\n  "explore", "escort" or "task"'));
+    assert.ok(quests.includes('(hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story)'));
+    assert.ok(quests.includes('"storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to have an effect'));
+    const format = read('reference/PACK-FORMAT.md');
+    assert.ok(format.includes('`offerType`') && format.includes('hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story'));
+    assert.match(read('reference/LIMITS.md'), /optional `offerType` \(hunt, cull, gather, deliver, explore, escort, task\) says which kind of job the template is for, and its first objective must suit it: hunt and cull kill, gather and deliver collect, explore visit, escort and task story \|/);
+
+    const full = json('examples/tiny-world/pack.json');
+    const hint = change => {
+        const pack = clone(full);
+        pack.content.quests.push(openHunt());
+        change(pack.content.quests);
+        const result = checkPack(pack);
+        assert.equal(result.ok, false);
+        assert.equal(result.errors.length, 1, JSON.stringify(result.errors));
+        assert.equal(result.errors[0].path, 'content.quests[2].offerType');
+        return hintFor(result.errors[0]);
+    };
+    assert.equal(checkPack((() => { const pack = clone(full); pack.content.quests.push({ ...openHunt(), offerType: 'cull' }); return pack; })()).ok, true, 'a hunt template typed cull is accepted');
+    assert.match(hint(q => { q[2].offerType = 'gather'; }), /^The offerType must suit the template's first objective: hunt or cull with a kill/);
+    assert.match(hint(q => { q[2].offerType = 'slay'; }), /^offerType is one of hunt, cull, gather, deliver, explore, escort or task\.$/);
+    const closed = clone(full);
+    closed.content.quests[0].offerType = 'hunt';
+    const refused = checkPack(closed);
+    assert.deepEqual(refused.errors.map(error => [error.code, error.path]), [['envelope-unknown', 'content.quests[0].offerType']]);
+    assert.match(hintFor(refused.errors[0]), /^offerType belongs to an open quest template/);
+});

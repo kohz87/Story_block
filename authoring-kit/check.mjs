@@ -92,6 +92,11 @@ export function hintFor({ code, path = '', message = '' }) {
     if (/\.objectives\[\d+\]\.countMax$/.test(path) && /^countMin \d+ is above countMax/.test(message)) return 'countMin is above countMax: swap them, or lower countMin, so that countMin <= count <= countMax.';
     if (/\.objectives\[\d+\]\.count$/.test(path) && /countM(in|ax)/.test(message)) return 'An open objective\'s count must lie between its countMin and its countMax; move one of the three numbers (both bounds are optional, each 1 to 999).';
     if (/\.objectives\[\d+\]\.countM(in|ax)$/.test(path)) return 'countMin and countMax are whole numbers from 1 to 999, and countMin is not above the objective\'s count or above countMax.';
+    if (/^content\.quests\[\d+\]\.offerType$/.test(path)) {
+        if (code === 'envelope-unknown') return 'offerType belongs to an open quest template ("open": true) only; remove it from a quest with a fixed reward.';
+        if (/needs a (kill|collect|visit|story) objective first/.test(message)) return 'The offerType must suit the template\'s first objective: hunt or cull with a kill, gather or deliver with a collect, explore with a visit, escort or task with a story objective; change the type or the objective.';
+        return 'offerType is one of hunt, cull, gather, deliver, explore, escort or task.';
+    }
     if (/^content\.creatures\[\d+\]\.aliases\[\d+\]$/.test(path) && code === 'bad-schema') return 'An alias may not equal, apart from capitals and spacing, any creature\'s name or slug (its own included), another creature\'s alias or an earlier alias of this one, and it needs a visible character; remove it or make it different.';
     if (/^content\.creatures\[\d+\]\.aliases\[\d+\]$/.test(path) && code === 'numeric-range') return 'An alias is 1 to 80 UTF-16 units long.';
     if (/^content\.creatures\[\d+\]\.aliases$/.test(path) && code === 'dup-id') return 'An alias is written twice; list each alias once.';
