@@ -570,15 +570,21 @@ test('the quests and foes prompts teach count bounds and aliases with Story Bloc
     assert.ok(quests.includes('one story, one hunt and one delivery\n  template for each rank you use'));
     const aliases = defs.foe.properties.aliases;
     assert.deepEqual([aliases.maxItems, aliases.items.minLength, aliases.items.maxLength, aliases.uniqueItems], [8, 1, 80, true]);
-    assert.ok(foes.includes('"aliases":[...] (at most 8 different names of 1-80\ncharacters'));
-    assert.ok(foes.includes('never the name of\nanother creature'));
+    assert.ok(foes.includes('"aliases":[...] (at most 8 different names of 1-80\nUTF-16 units'));
+    assert.ok(foes.includes('An alias is never\nthe name or slug of any creature (this one included) nor an alias of another creature'));
+    // Each code the checker answers for an alias is named in the step's typical problems, with what causes it.
+    assert.match(foes, /`bad-schema` \([^)]*an alias that equals, apart from capitals and spacing, a creature's name or slug, another creature's alias or an earlier alias of the same creature, or has no visible character\)/);
+    assert.match(foes, /`numeric-range` \(more than 8 aliases, an alias of 0 or over 80 UTF-16 units\)/);
+    assert.match(foes, /`dup-id` \(an alias written twice exactly\)/);
+    // A pack that uses the 2.5 fields needs a Story Block that knows them.
+    for (const text of [quests, foes, read('reference/PACK-FORMAT.md')]) assert.ok(text.includes('"storyBlock": "^2.5"') || text.includes('`"storyBlock": "^2.5"`'));
     // The reference page says all three, and LIMITS.md (generated) carries their numbers.
     const format = read('reference/PACK-FORMAT.md');
     for (const word of ['countMin', 'countMax', 'aliases', 'offerWords', 'nightmare']) assert.ok(format.includes(word), word);
     const limits = read('reference/LIMITS.md');
-    assert.match(limits, /optional `aliases`, up to 8 different names/);
+    assert.match(limits, /optional `aliases`, up to 8 different names the story may use for it \(1 to 80 UTF-16 units each; an alias never equals, apart from capitals and spacing, a creature's name or slug, another creature's alias or one of its own, and has a visible character\)/);
     assert.match(limits, /`countMin` and `countMax` \(each 1 to 999/);
-    assert.match(limits, /`offerWords` on the rules manifest: the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard, nightmare; each 0 to 40 entries, a word 1 to 24 characters, lower case/);
+    assert.match(limits, /`offerWords` on the rules manifest: the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard, nightmare; each 0 to 40 entries, a word 1 to 24 UTF-16 units, lower case/);
     assert.deepEqual(Object.keys(defs.offerWords.properties), ['hunt', 'cull', 'gather', 'deliver', 'explore', 'escort', 'task', 'easy', 'normal', 'hard', 'nightmare']);
 });
 
@@ -609,8 +615,19 @@ test('the checker accepts count bounds, aliases and offer words, and each mistak
     const closed = hints(p => { p.content.quests[0].objectives[0].countMax = 6; });
     assert.equal(closed.length, 1);
     assert.match(closed[0].hint, /^Only an open quest template/);
-    assert.match(hints(p => { p.content.creatures[0].aliases = ['wisp', 'wisp']; })[0].hint, /^A foe's aliases are at most 8 different names/);
-    assert.match(hints(p => { p.content.creatures[0].aliases = Array.from({ length: 9 }, (_, i) => `a${i}`); })[0].hint, /^A foe's aliases/);
+    // Each alias mistake gets the hint for the code the checker really answers with.
+    const alias = change => { const out = hints(p => change(p.content.creatures)); assert.equal(out.length, 1, JSON.stringify(out)); return out[0]; };
+    assert.deepEqual(alias(c => { c[0].aliases = ['wisp', 'wisp']; }), { path: 'content.creatures[0].aliases', hint: 'An alias is written twice; list each alias once.' });
+    assert.deepEqual(alias(c => { c[0].aliases = Array.from({ length: 9 }, (_, i) => `a${i}`); }), { path: 'content.creatures[0].aliases', hint: 'A foe has at most 8 aliases.' });
+    assert.deepEqual(alias(c => { c[0].aliases = ['x'.repeat(81)]; }), { path: 'content.creatures[0].aliases[0]', hint: 'An alias is 1 to 80 UTF-16 units long.' });
+    const collide = /^An alias may not equal, apart from capitals and spacing, any creature's name or slug/;
+    for (const [aliases, at] of [[['Wisp', 'wisp'], 1], [[`Mud  Crawler`], 0], [['reed-wisp'], 0], [['\u200b'], 0]]) {
+        const found = alias(c => { c[0].aliases = aliases; });
+        assert.equal(found.path, `content.creatures[0].aliases[${at}]`);
+        assert.match(found.hint, collide);
+    }
     assert.match(hints(p => { p.content.rules[0].offerWords = { hunt: ['Slay'] }; })[0].hint, /^offerWords holds the lists hunt, cull/);
+    // An inverted range is said once, at countMax.
+    assert.deepEqual(hints(p => { Object.assign(p.content.quests[2].objectives[0], { countMin: 9, countMax: 8 }); }), [{ path: `${q}.countMax`, hint: 'countMin is above countMax: swap them, or lower countMin, so that countMin <= count <= countMax.' }]);
     assert.match(hints(p => { p.content.rules[0].offerWords = { slay: ['x'] }; })[0].hint, /^offerWords holds the lists/);
 });

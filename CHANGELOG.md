@@ -6,12 +6,16 @@
 
 - **Rules packs can bound the jobs the story makes up.** An open quest template's kill and collect objectives may write
   `countMin` and `countMax` beside `count` (1 to 999, `countMin <= count <= countMax`; a count outside them is a
-  `bad-schema` problem at the objective's `count`). A foe may list `aliases` (up to 8 other names the story may use for
-  it, 1 to 80 characters, all different). The rules manifest may carry `offerWords`: eleven lists (`hunt`, `cull`,
+  `bad-schema` problem at the objective's `count`, or at `countMax` when `countMin` is above it). A foe may list `aliases`
+  (up to 8 other names the story may use for it, 1 to 80 UTF-16 units; repeating one is `dup-id`, more than 8 or a bad length
+  is `numeric-range`, and an alias equal to a creature's name or slug, to another creature's alias or to an earlier alias of
+  its own, ignoring capitals and spacing, or with no visible character, is `bad-schema` at the alias, because the story's
+  target is matched by exact name, slug or alias). The rules manifest may carry `offerWords`: eleven lists (`hunt`, `cull`,
   `gather`, `deliver`, `explore`, `escort`, `task`, `easy`, `normal`, `hard`, `nightmare`) of up to 40 lower-case words
-  of 1 to 24 characters, for a pack written in another language or another voice. All three are optional; a pack that
+  of 1 to 24 UTF-16 units, for a pack written in another language or another voice. All three are optional; a pack that
   writes none reads exactly as before. A pack that does not bound a count gets bounds derived from its own closed quests
-  (RPG Battle 2.3.0 reads the largest count of that objective kind among them), so existing packs need no edit.
+  (RPG Battle 2.3.0 reads the largest count of that objective kind among them), so existing packs need no edit. A pack that
+  uses any of the three should require `"storyBlock": "^2.5"`.
 - **The Assist safety net never offers jobs or teachers.** `+ quest` and `+ trainer` are refused under any setting of
   *Kinds the safety net may write*, on the reply and on the next reply alike. Before, a reader who added `+ quest` to that
   list let the net offer jobs. Quest progress (`~ quest`) and a turn-in (`- quest`) are as they were. The narrator's own
@@ -26,7 +30,9 @@
 
 Update RPG Battle to 2.3.0 with this release; the two ship together. Every rules pack's fingerprint (rules hash) changes
 because the rules schema changed; chats already pinned to a pack keep their own copy and play on unchanged. Existing
-packs, pins and data modules need no edit. Story Director and NPC State Delta need no update.
+packs, pins and data modules need no edit. One change in a stored reply: a Re-read of a reply whose stored safety-net line
+was a `+ quest` or `+ trainer` (possible only if the reader had widened *Kinds the safety net may write*) no longer applies
+that line, and raises no new Problem. Story Director and NPC State Delta need no update.
 
 ## 2.4.0
 

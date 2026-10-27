@@ -173,10 +173,13 @@ xp bounds lie inside the named rank's `reward` range. A kill or collect objectiv
 `countMin` and `countMax` (whole numbers 1 to 999) beside its `count`, with `countMin <= count <= countMax`; they bound
 the count a job made from the template may ask for, and both are optional.
 
-A foe may list `aliases` (at most 8 different names of 1 to 80 characters) that the story may use for it, and the rules
+A foe may list `aliases` (at most 8 different names of 1 to 80 UTF-16 units) that the story may use for it, and the rules
 manifest (`content.rules[0]`) may carry `offerWords`: lists named `hunt`, `cull`, `gather`, `deliver`, `explore`, `escort`, `task`, `easy`,
-`normal`, `hard` and `nightmare`, each of at most 40 lower-case words of 1 to 24 characters, which add the words of
-your language or setting to the ones an offer line is read with. All three are optional.
+`normal`, `hard` and `nightmare`, each of at most 40 lower-case words of 1 to 24 UTF-16 units, which add the words of
+your language or setting to the ones an offer line is read with. All three are optional. An alias may not equal, apart
+from capitals and spacing, any creature's name or slug (its own included), another creature's alias or another alias of
+the same creature, and needs a visible character. A pack that uses `countMin`/`countMax`, `aliases` or `offerWords`
+needs `"storyBlock": "^2.5"` in `requires`.
 
 ## Text rules
 
