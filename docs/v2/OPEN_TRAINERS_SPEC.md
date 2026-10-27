@@ -1,6 +1,6 @@
 # Open trainer templates: implementation spec
 
-Status: **spec only, for review.** No product code changes with this page. It turns the approved design into
+Status: **approved 27 Oct.** Story Block 2.4.0 implements §3, §14 and §15; RPG Battle 2.2.0 and Story Studio follow. It turns the approved design into
 exact, buildable work for Story Block (SB), RPG Battle (RB), Story Director (SD) and Story Studio, and checks
 each claim against the code at these commits:
 
@@ -241,7 +241,7 @@ New file `tests/v2/packs/rules-v2/open-trainers.test.js`, modelled on `open-temp
 | `open` removed | delete `open` | `bad-schema` | `…trainers[i].place` (read as a fixed trainer) |
 | slug of a skill | `slug: '<a skill slug>'` | `dup-id` | `…trainers[i].slug` |
 
-* `a fixed trainer may write open: false and nothing else changes` (same `resolved`, same hash as without it).
+* `a fixed trainer may write open: false and nothing else changes` (same `resolved` apart from the `open: false` key itself, which is kept and so is part of the hash).
 * `100 trainers is still the limit, templates counted` (copy `coverage.test.js:416-422` with half templates).
 * In `schema.test.js`: the def list (`:115-133`, `:380-395`) gains `fixedTrainer`, `openTrainer`, `openFee`
   ("all 29 defs" becomes 33+3=36 as the prototype counted); `:261-263` read `$defs.fixedTrainer` and add
@@ -961,7 +961,7 @@ Manual checks in SillyTavern with SB 2.4.0, SD, RB 2.2.0 and Bluewatch 1.6.0 pin
 ## Decisions (approved 27 Oct)
 
 - The editor mockups in `docs/v2/mockups/open-trainers/` are approved as drawn.
-- All open questions in §18 are accepted as recommended: the fee range is not held inside the rank's quest reward range
+- All open questions in §19 are accepted as recommended: the fee range is not held inside the rank's quest reward range
   (the checker warns); a seeded roll with the die recorded; click-made trainers are not reply-bound; no `- trainer` line in
   this release; a session already run goes with its trainer's reply; the narrator is told about each offer; one trainer per
   name per chat; only people present can be picked; at most 100 per chat; Studio stays 0.1.0; no fifth template; no
