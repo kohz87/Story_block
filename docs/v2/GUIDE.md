@@ -665,17 +665,17 @@ look for the screens. Packs are data only; nothing in them can run code.
 You can switch a pack off or remove it at any time (Remove asks first). A story already told keeps what it got from the
 pack. Each pack in the list says what it adds: its items and creatures, a currency, a calendar, weather tables, screens.
 
-**Trying Ersveil.** Story Block comes with the Ersveil starter pack
-(`examples/packs/ersveil-bluewatch/pack.json` in Story Block's folder). Import it with **Import pack
-file** in the Packs section, like any pack. Switch off other packs that set a start or a currency.
-[ERSVEIL.md](ERSVEIL.md) walks through the rest: the lorebooks, the persona, the first message and the
-ready-made character.
+**Trying Ersveil.** Story Block comes with the Ersveil example pack
+(`examples/packs/ersveil/pack.json` in Story Block's folder, with its lorebook `ersveil-lore.json` beside it). Import the
+pack with **Import pack file** in the Packs section, like any pack, and the lorebook in SillyTavern's World Info. Switch off
+other packs that set a start or a currency. It needs RPG Battle 2.3.0. [ERSVEIL.md](ERSVEIL.md) walks through the rest:
+the lorebook, character creation, the start, currency, jobs and teachers, and the three data modules.
 
 **Teachers you meet on the road.** A pack can list trainer *templates*: kinds of teaching (blade drills, hedge-magic
 lessons) with no place of their own. With RPG Battle 2.2.0 the story can introduce one wherever you are, and in
 RPG Battle's **Progress** screen you can use **Make this a trainer** on someone who is here. The fee is picked once from
-the template's range and written down with the teacher, who stays where they were met. Ersveil 1.6.0 has four templates;
-a chat started on an earlier version of the pack keeps the pack it began with, so start a new character timeline to get them.
+the template's range and written down with the teacher, who stays where they were met. Ersveil 1.0.0 has thirteen templates;
+a chat started on an earlier version of the pack (or on the old Bluewatch pack) keeps the pack it began with, so start a new character timeline to get them.
 
 ## Settings
 

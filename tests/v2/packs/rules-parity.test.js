@@ -21,21 +21,26 @@ const SLOTS = ['weapon', 'offhand', 'head', 'body', 'legs', 'feet', 'accessory-1
 /** Both ways in, for one pack. */
 const both = pack => ({ host: validatePack(clone(pack), { capabilities: null }), alone: R.validateRulesPack(clone(pack)) });
 
+/** Where a pack on file lives: the examples, and Bluewatch 1.6.0 (the old example pack) among the test fixtures. */
+const packUrl = name => name === 'ersveil-bluewatch'
+    ? new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)
+    : new URL(`../../../examples/packs/${name}/pack.json`, import.meta.url);
+
 /** A shipped example with a rules manifest added: the example's own items and places (no slug written), a rule for each item. */
 function exampleWithManifest(name) {
-    const pack = JSON.parse(readFileSync(new URL(`../../../examples/packs/${name}/pack.json`, import.meta.url), 'utf8'));
+    const pack = JSON.parse(readFileSync(packUrl(name), 'utf8'));
     pack.requires = { ...pack.requires, capabilities: [...new Set([...(pack.requires.capabilities ?? []), 'rb-rules-v2'])] };
     for (const kind of ['creatures', 'quests', 'shops', 'recipes']) pack.content[kind] = [];
     const rules = smallRulesPack().content.rules[0];
     rules.itemRules = (pack.content.items ?? []).map(item => {
         const equipment = item.kind === 'equipment';
-        return { def: slugify(item.name), allowedSlots: equipment ? [SLOTS.includes(item.slot) ? item.slot : 'body'] : [], hands: equipment && ['weapon', 'offhand'].includes(item.slot) ? 1 : 0, requires: {}, weight: 1, unique: false };
+        return { def: item.slug ?? slugify(item.name), allowedSlots: equipment ? [SLOTS.includes(item.slot) ? item.slot : 'body'] : [], hands: equipment && ['weapon', 'offhand'].includes(item.slot) ? 1 : 0, requires: {}, weight: 1, unique: false };
     });
     pack.content.rules = [rules];
     return pack;
 }
 
-test('both shipped example packs plus a manifest are accepted, host and checker alone, with the slugs Story Block derives', () => {
+test('the riverside example and the Bluewatch fixture plus a manifest are accepted, host and checker alone, with the slugs Story Block derives', () => {
     const names = ['ersveil-bluewatch', 'riverside-starter'];
     assert.ok(names.includes('ersveil-bluewatch') && names.includes('riverside-starter'));
     for (const name of names) {
@@ -47,13 +52,28 @@ test('both shipped example packs plus a manifest are accepted, host and checker 
         assert.equal(host.ok, true, `${name} through the host: ${JSON.stringify(codes(host))}`);
         assert.equal(alone.ok, true, `${name} alone: ${JSON.stringify(codes(alone))}`);
         // The same ids the example has without the manifest, and the checker's pack carries the derived slugs.
-        const ordinary = JSON.parse(readFileSync(new URL(`../../../examples/packs/${name}/pack.json`, import.meta.url), 'utf8'));
+        const ordinary = JSON.parse(readFileSync(packUrl(name), 'utf8'));
         const plain = validatePack(ordinary, { capabilities: null });
         assert.deepEqual(host.pack.content.items.map(item => item.id), plain.pack.content.items.map(item => item.id), name);
         assert.deepEqual(host.pack.content.places?.map(place => place.id), plain.pack.content.places?.map(place => place.id), name);
         assert.deepEqual(alone.pack.content.items.map(item => item.slug), items.map(item => slugify(item.name)), name);
         assert.deepEqual((alone.pack.content.places ?? []).map(place => place.slug), places.map(place => slugify(place.name)), name);
     }
+});
+
+test('the Ersveil example, which writes its item slugs and derives its place slugs, plus a manifest is accepted by the host and the checker alone with the same ids', () => {
+    const pack = exampleWithManifest('ersveil');
+    assert.ok((pack.content.items ?? []).length > 0 && (pack.content.places ?? []).length > 0);
+    assert.ok(pack.content.items.every(item => item.slug !== undefined), 'Ersveil writes its item slugs out');
+    assert.ok(pack.content.places.every(place => place.slug === undefined), 'Ersveil leaves its place slugs to be derived');
+    const { host, alone } = both(pack);
+    assert.equal(host.ok, true, `through the host: ${JSON.stringify(codes(host))}`);
+    assert.equal(alone.ok, true, `alone: ${JSON.stringify(codes(alone))}`);
+    const plain = validatePack(JSON.parse(readFileSync(packUrl('ersveil'), 'utf8')), { capabilities: null });
+    assert.deepEqual(host.pack.content.items.map(item => item.id), plain.pack.content.items.map(item => item.id));
+    assert.deepEqual(host.pack.content.places.map(place => place.id), plain.pack.content.places.map(place => place.id));
+    assert.deepEqual(alone.pack.content.items.map(item => item.slug), pack.content.items.map(item => item.slug));
+    assert.deepEqual(alone.pack.content.places.map(place => place.slug), pack.content.places.map(place => slugify(place.name)));
 });
 
 test('a missing slug on an item or place is the one Story Block derives; writing it out gives the same pack and hash', () => {

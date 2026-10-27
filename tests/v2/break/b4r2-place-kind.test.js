@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost } from '../../../testkit/index.js';
 
-const PACK = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+const PACK = readFileSync(new URL('../packs/fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
 const said = (text, lines) => `${text}\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 const kind = host => host.head().domains.scene.place.kind;
 

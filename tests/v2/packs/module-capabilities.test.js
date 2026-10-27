@@ -9,7 +9,7 @@ import { MAX_CAPABILITIES, definitionProblems, definitionWarnings } from '../../
 import { stCapabilities } from '../../../src/v2/packs/st-adapter.js';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 
-const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+const ERSVEIL = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
 const mod = (id, extra = {}) => ({ id, name: id, version: '1.0.0', domains: { [`${id}-state`.replace(/[^a-z-]/g, '')]: { initial: () => ({}) } }, ...extra });
 
 async function withHost(modules, fn) {

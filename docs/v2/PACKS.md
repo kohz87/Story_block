@@ -9,8 +9,8 @@ JSON file of plain data. Nothing in a pack runs as code. This page is the refere
 make packs; the contract behind it is [SPEC.md §9 and §13](SPEC.md) and [MODULES.md §E and §F](MODULES.md).
 
 A complete small example is [`examples/packs/riverside-starter/pack.json`](../../examples/packs/riverside-starter/pack.json);
-a large one, with a map, a calendar, skills and a ready-made character, is the Ersveil starter pack
-[`examples/packs/ersveil-bluewatch/pack.json`](../../examples/packs/ersveil-bluewatch/pack.json) ([ERSVEIL.md](ERSVEIL.md)).
+a large one, with a map, a calendar, a rules manifest and data modules, is the Ersveil example pack
+[`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json) ([ERSVEIL.md](ERSVEIL.md)).
 
 ## Installing
 
@@ -502,8 +502,8 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
 * **Pairing with RPG Battle** (2.5.0). Every field this release adds to a rules pack (`countMin`/`countMax`, `offerType`, foe
   `aliases`, `offerWords`, `promotionMastery`, a rank's `xp`) needs RPG Battle 2.3.0; the two ship together. With RPG Battle
   2.2.0, opening an open quest template that carries count bounds or an `offerType` fails ("Invalid Quest extension"), and the
-  other fields are ignored. Such a pack should require `"storyBlock": "^2.5"`. Packs that write none of them (the bundled
-  Ersveil 1.6.0 among them) work with both.
+  other fields are ignored. Such a pack should require `"storyBlock": "^2.5"`. Packs that write none of them work with both
+  (the bundled Ersveil 1.0.0 writes them all and needs RPG Battle 2.3.0).
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's

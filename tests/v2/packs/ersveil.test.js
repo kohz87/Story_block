@@ -1,4 +1,5 @@
-// The Ersveil starter pack (examples/packs/ersveil-bluewatch): it validates, its map and calendar
+// The Ersveil: Bluewatch Starter pack 1.6.0 (tests/v2/packs/fixtures/ersveil-bluewatch-1.6.0.json, the old example pack kept
+// as a fixture): it validates, its map and calendar
 // come out of the packs queries, its start state applies, and its quests, events and ready-made
 // character read the way Story Director, the events engine and RPG Battle's creation read them.
 import test from 'node:test';
@@ -16,7 +17,7 @@ import { WALLET_KEY, currencyOf, parseAmount } from '../../../src/v2/domains/mon
 import { evaluateCondition, parse } from '../../../src/v2/events/condition.js';
 import { fakeSettings } from './helpers/fake-settings.js';
 
-const file = new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url);
+const file = new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url);
 const text = readFileSync(file, 'utf8');
 const raw = () => JSON.parse(text);
 const PACK = 'ersveil-bluewatch';

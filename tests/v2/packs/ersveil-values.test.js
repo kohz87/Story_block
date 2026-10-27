@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { craftsOf } from '../../../src/v2/packs/content.js';
 
-const text = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
 
 function checked() {
     const result = validatePack(text);

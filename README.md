@@ -1,6 +1,6 @@
-# Story Block 2.5.0
+# Story Block 2.5.1
 
-> Story Block 2.5.0 and RPG Battle 2.3.0 (they ship together); Story Director 2.1.0; NPC State Delta 1.3.0.
+> Story Block 2.5.1 and RPG Battle 2.3.0 (they ship together); Story Director 2.1.0; NPC State Delta 1.3.0.
 
 ## What it is
 
@@ -70,7 +70,9 @@ is off is gone from the story; nothing it made is lost.
   Chronicle, other extensions' tabs, Director, and **Dossiers last**. Only installed extensions show. Move, hide or
   show them in Settings → **Tabs & Packs**.
 - **Packs** (Settings → Tabs & Packs): import a world pack (items, races, places, shops, recipes, events, ranks, calendar, weather…).
-  Ersveil 1.6.0 includes 12 open quest templates and 4 open trainer templates (blade, spear and shield, street craft, hedge magic). Import only `examples/packs/ersveil-bluewatch/pack.json`; the files in `drafts/` are source references already merged into that pack.
+  The bundled example is **Ersveil 1.0.0** (`examples/packs/ersveil/pack.json`): the whole world (320 places, 350 routes, 13 class
+  lines from one shared start), 49 open quest templates and 13 open trainer templates for generative offers, and three data
+  modules. Its lean lorebook is `examples/packs/ersveil/ersveil-lore.json`. It needs RPG Battle 2.3.0; [ERSVEIL.md](docs/v2/ERSVEIL.md) is the walk-through.
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.

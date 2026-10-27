@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { coinLine, currencyOf, foreignCoin, moneyLine, parseAmount } from '../../../src/v2/domains/money.js';
 import { createHost } from '../../../testkit/index.js';
 
-const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+const ERSVEIL = readFileSync(new URL('../packs/fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
 const staticPart = host => host.st.requests.at(-1).chat.find(message => message.role === 'system').content;
 const moneyOf = text => text.split('\n').filter(line => /^Money /.test(line));
 

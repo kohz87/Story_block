@@ -116,7 +116,7 @@ test('the 1000 × level story coin budget is scaled: by the pack, and by the rea
     assert.equal(coin(host), 60 + 7, 'the reader\'s own budget is never scaled');
 });
 
-const ERSVEIL = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+const ERSVEIL = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
 
 test('Ersveil sets scale 8; its own ranks, values and prices stay as written', () => {
     const ersveil = ok(ERSVEIL);

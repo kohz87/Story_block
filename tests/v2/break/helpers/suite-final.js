@@ -28,7 +28,7 @@ const { createHost } = await import(at('Story_block/testkit/index.js'));
 const RB = await import(at('rpg_battle/src/v2/module.js'));
 const SD = await import(at('Story_director/src/v2/module.js'));
 const NSD = await import(at('npc_state_delta/src/storysuite-v2.js'));
-export const PACK_TEXT = readFileSync(path.join(ROOT, 'Story_block/examples/packs/ersveil-bluewatch/pack.json'), 'utf8');
+export const PACK_TEXT = readFileSync(path.join(ROOT, 'Story_block/tests/v2/packs/fixtures/ersveil-bluewatch-1.6.0.json'), 'utf8');
 export const PACK = JSON.parse(PACK_TEXT);
 
 function source(seed) {

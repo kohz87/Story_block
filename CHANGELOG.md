@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.5.1
+
+**Content release: no code or rules change.** The bundled example pack is now **Ersveil 1.0.0**.
+
+- **The example pack is Ersveil 1.0.0** (`examples/packs/ersveil/pack.json`, id `ersveil`), the whole world: 320 places and 350
+  routes, 31 markets and 84 weather tables, 124 items, 69 creatures, 20 shops, 21 recipes, 54 quests (49 open quest templates),
+  29 teachers (13 open trainer templates), 7 events, 10 races, 8 talents, 7 Guild ranks and 2 NPC meter presets. All characters
+  start from one basic class (Awakened) and choose one of **13 class lines** at level 10 (40 classes, 120 skills). It uses the
+  2.5.0 fields throughout: generative-offer templates with `offerType`, count bounds and per-rank XP, promotion mastery
+  `[3, 5, 5]`, and offer words. It also carries three data modules (standing with the powers, fame by region, Guild
+  membership), which stay off until you enable them in Settings → Tabs & Packs → Data modules. A new story starts at the
+  Bluewatch Village Guild office, CY 611, Goldwane 12, with a plain travel kit and 4 silver.
+- **A lean lorebook ships with it:** `examples/packs/ersveil/ersveil-lore.json`, a SillyTavern World Info book named
+  "Ersveil Lore" (170 entries) that holds only what the narrator alone uses; everything the game counts is in the pack.
+- **Bluewatch 1.6.0 moved to the test fixtures.** Ersveil: Bluewatch Starter is no longer an example; its file is kept byte for
+  byte at `tests/v2/packs/fixtures/ersveil-bluewatch-1.6.0.json` for the tests (and its `drafts/` source files are gone from the
+  tree). Chats pinned to `ersveil-bluewatch` keep their pinned copy and play on unchanged; the pack's id differs from
+  `ersveil`, so importing the new pack does not touch them.
+- **Needs RPG Battle 2.3.0.** The new pack requires Story Block `^2.5` and uses fields only RPG Battle 2.3.0 reads. No upgrade
+  steps otherwise; start a new character timeline to play on the new pack.
+- Docs: `docs/v2/ERSVEIL.md` is rewritten for the new pack; the README, GUIDE, PACKS and developer notes point at it.
+- Tests: the new `ersveil-pack.test.js` checks that the pack passes the checker and the validator, its row counts, and that the
+  lorebook has 170 entries with unique uids. The tests that read the old example pack read the fixture.
+
 ## 2.5.0
 
 **Story Block 2.5.0 and RPG Battle 2.3.0 ship together.** Update both.

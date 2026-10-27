@@ -133,7 +133,7 @@ test('100 trainers is still the limit, templates counted', () => {
 
 test('Ersveil 1.6.0 ships four bounded trainer templates matching its class lines', async () => {
     const { readFileSync } = await import('node:fs');
-    const pack = JSON.parse(readFileSync(new URL('../../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url)));
+    const pack = JSON.parse(readFileSync(new URL('../fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)));
     assert.equal(pack.version, '1.6.0');
     const checked = validateRulesPack(pack);
     assert.equal(checked.ok, true, JSON.stringify(checked.errors));

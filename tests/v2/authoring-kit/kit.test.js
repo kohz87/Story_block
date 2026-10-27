@@ -33,7 +33,9 @@ test('the checker accepts every example pack the kit and Story Block ship', () =
         'reference/example-rules-pack.json', 'reference/data-modules/faction-standing.pack.json',
         'reference/data-modules/survival-meters.pack.json', 'examples/tiny-world/pack.json',
     ].map(path => join(kit, path));
-    for (const name of ['ersveil-bluewatch', 'ersveil-factions', 'ersveil-survival', 'riverside-starter']) files.push(join(root, 'examples', 'packs', name, 'pack.json'));
+    for (const name of ['ersveil', 'ersveil-factions', 'ersveil-survival', 'riverside-starter']) files.push(join(root, 'examples', 'packs', name, 'pack.json'));
+    // Bluewatch 1.6.0, the old example pack, is a test fixture now and still passes.
+    files.push(join(root, 'tests', 'v2', 'packs', 'fixtures', 'ersveil-bluewatch-1.6.0.json'));
     for (const file of files) {
         const result = checkPack(readFileSync(file, 'utf8'));
         assert.equal(result.ok, true, `${file}: ${report(file, result)}`);

@@ -1,6 +1,7 @@
 # Open trainer templates: implementation spec
 
-Status: **approved 27 Oct.** Story Block 2.4.0 implements §3, §14 and §15; RPG Battle 2.2.0 and Story Studio follow. It turns the approved design into
+Status: **approved 27 Oct.** Story Block 2.4.0 implements §3, §14 and §15; RPG Battle 2.2.0 and Story Studio follow.
+*Note (Story Block 2.5.1): Ersveil: Bluewatch Starter 1.6.0, named below at `examples/packs/ersveil-bluewatch/pack.json`, is no longer an example. It is the test fixture `tests/v2/packs/fixtures/ersveil-bluewatch-1.6.0.json`, byte for byte; the example pack is now Ersveil 1.0.0 (`examples/packs/ersveil/`). The paths and commands below are as written for 2.4.0.* It turns the approved design into
 exact, buildable work for Story Block (SB), RPG Battle (RB), Story Director (SD) and Story Studio, and checks
 each claim against the code at these commits:
 
