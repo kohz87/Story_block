@@ -33,6 +33,11 @@ Step 6. Rewrite the base pack's quests (if it has any) as schema-2 quest templat
   "reward": {"coinMin","coinMax","xpMin","xpMax","items":[]} (both ranges inside that rank's reward range),
   objectives without a fixed target ({"id","kind":"kill","count":3}), "repeat": null, "chain": null. Use two or three for
   generic guild jobs.
+- A story that offers jobs in its own words is matched to these templates, so write one story, one hunt and one delivery
+  template for each rank you use. An open kill or collect objective can also bound the count a job may ask for:
+  "countMin" and/or "countMax" (whole numbers 1-999) beside "count", with countMin <= count <= countMax (a hunt that
+  takes 1 to 8 foes: {"id","kind":"kill","count":3,"countMin":1,"countMax":8}). Both are optional; leave them out
+  where the template's own count is the only one that makes sense.
 Output {"quests":[...]}. In a file: put it at content.quests of work/pack.json.
 ```
 
@@ -44,4 +49,5 @@ node check.mjs work/pack.json --through 6
 
 It should print `OK through step 6`. Typical problems: `bad-ref` (a foe, item, place or giver that is not defined: places
 need the full `pack.<id>/<slug>`), `bad-schema` (an objective with a missing field, a quest without all eleven fields),
-`bad-schema` on an open quest whose coin or xp range leaves the rank's reward range.
+`bad-schema` on an open quest whose coin or xp range leaves the rank's reward range, `bad-schema` at an open objective's
+`count` when it is not between its `countMin` and `countMax`.

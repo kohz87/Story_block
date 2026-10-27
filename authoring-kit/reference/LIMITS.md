@@ -101,9 +101,10 @@ Each form that has a generated child must survive the engine's power-up: +20 pow
 
 | Record | Limits |
 |---|---|
-| Foe | tier 0 to 9; level 1 to 99; all seven stats; skills 1 to 3; loot up to 8 lines (chance 0 to 100, qty 1 to 99); up to 8 loreTags |
+| Foe | tier 0 to 9; level 1 to 99; all seven stats; skills 1 to 3; loot up to 8 lines (chance 0 to 100, qty 1 to 99); up to 8 loreTags; optional `aliases`, up to 8 different names the story may use for it (1 to 80 characters each, never another creature's name) |
 | Quest | category main, side, bounty; up to 16 requirements; objectives 1 to 8 (kill, collect, visit, story; counts 1 to 999); reward items up to 8; `durationMinutes` null or 1 to 525,600; `repeat` null or a cooldown of 0 to 525,600 minutes |
-| Open quest template | `open: true` and a `rank` that names a pack rank with a reward range; `reward` is coinMin, coinMax, xpMin, xpMax (coin and xp alike inside that rank's reward range, each min not above its max) and no items; `repeat` and `chain` are null |
+| Open quest template | `open: true` and a `rank` that names a pack rank with a reward range; `reward` is coinMin, coinMax, xpMin, xpMax (coin and xp alike inside that rank's reward range, each min not above its max) and no items; `repeat` and `chain` are null; a kill or collect objective may add `countMin` and `countMax` (each 1 to 999, countMin not above its count, countMax not below it) |
+| Offer words | optional `offerWords` on the rules manifest: the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard, nightmare; each 0 to 40 entries, a word 1 to 24 characters, lower case |
 | Shop | stock 1 to 100 lines (qty 1 to 999); `kind` a slug of at most 40 characters |
 | Recipe | qty 1 to 99; materials 1 to 8 (qty 1 to 99); minutes 0 to 1,440; dc 5 to 40 |
 | Trainer (fixed) | place a full place id; skills 1 to 30; fee 1 to 1,000,000 (never 0); minutes exactly 60; up to 8 eventTemplates |

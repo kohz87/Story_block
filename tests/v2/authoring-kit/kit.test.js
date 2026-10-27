@@ -549,3 +549,68 @@ test('the data module numbers the prompts quote are the interpreter\'s', () => {
     assert.ok(format.includes(`at most ${DM_LIMITS.migrations} steps`));
     assert.ok(format.includes(`1 to ${DM_LIMITS.elapsedMinutes.toLocaleString('en-US')} minutes`));
 });
+
+// ---- Story Block 2.5.0: count bounds, foe aliases and offer words (GENERATIVE_OFFERS_SPEC §12.1, §12.3) ----
+
+const openHunt = (extra = {}) => ({
+    slug: 'open-hunt-f', name: 'Hunt', open: true, rank: 'F', category: 'bounty', giver: null, turnInPlace: null, requirements: [],
+    objectives: [{ id: 'open-hunt-f/kill', kind: 'kill', count: 3, countMin: 1, countMax: 8, allowVariants: true, ...extra }],
+    reward: { coinMin: 40, coinMax: 120, xpMin: 30, xpMax: 90, items: [] }, durationMinutes: null, repeat: null, chain: null,
+});
+
+test('the quests and foes prompts teach count bounds and aliases with Story Block\'s own numbers', () => {
+    const defs = R.rulesV2Schema.$defs;
+    const quests = read('prompts/rules-pack/06-quests.md');
+    const foes = read('prompts/rules-pack/05-foes.md');
+    const bound = defs.openObjective.oneOf[0].properties.countMin;
+    assert.deepEqual([bound.minimum, bound.maximum], [1, 999]);
+    assert.deepEqual(defs.openObjective.oneOf[1].properties.countMax, defs.openObjective.oneOf[0].properties.countMax);
+    assert.ok(quests.includes('"countMin" and/or "countMax" (whole numbers 1-999)'));
+    assert.ok(quests.includes('countMin <= count <= countMax'));
+    assert.ok(quests.includes('one story, one hunt and one delivery\n  template for each rank you use'));
+    const aliases = defs.foe.properties.aliases;
+    assert.deepEqual([aliases.maxItems, aliases.items.minLength, aliases.items.maxLength, aliases.uniqueItems], [8, 1, 80, true]);
+    assert.ok(foes.includes('"aliases":[...] (at most 8 different names of 1-80\ncharacters'));
+    assert.ok(foes.includes('never the name of\nanother creature'));
+    // The reference page says all three, and LIMITS.md (generated) carries their numbers.
+    const format = read('reference/PACK-FORMAT.md');
+    for (const word of ['countMin', 'countMax', 'aliases', 'offerWords', 'nightmare']) assert.ok(format.includes(word), word);
+    const limits = read('reference/LIMITS.md');
+    assert.match(limits, /optional `aliases`, up to 8 different names/);
+    assert.match(limits, /`countMin` and `countMax` \(each 1 to 999/);
+    assert.match(limits, /`offerWords` on the rules manifest: the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard, nightmare; each 0 to 40 entries, a word 1 to 24 characters, lower case/);
+    assert.deepEqual(Object.keys(defs.offerWords.properties), ['hunt', 'cull', 'gather', 'deliver', 'explore', 'escort', 'task', 'easy', 'normal', 'hard', 'nightmare']);
+});
+
+test('the checker accepts count bounds, aliases and offer words, and each mistake gets its own hint', () => {
+    const full = json('examples/tiny-world/pack.json');
+    const build = change => {
+        const pack = clone(full);
+        pack.content.quests.push(openHunt());
+        change(pack);
+        return pack;
+    };
+    const good = checkPack(build(pack => {
+        pack.content.creatures[0].aliases = ['wisp', 'marsh light'];
+        pack.content.rules[0].offerWords = { hunt: ['jagd'], easy: ['leicht'] };
+    }));
+    assert.equal(good.ok, true, JSON.stringify(good.errors));
+    const hints = change => {
+        const result = checkPack(build(change));
+        assert.equal(result.ok, false);
+        return result.errors.map(error => ({ path: error.path, hint: hintFor(error) }));
+    };
+    const q = 'content.quests[2].objectives[0]';
+    const bounds = 'An open objective\'s count must lie between its countMin and its countMax; move one of the three numbers (both bounds are optional, each 1 to 999).';
+    assert.deepEqual(hints(p => { p.content.quests[2].objectives[0].countMin = 4; }), [{ path: `${q}.count`, hint: bounds }]);
+    assert.deepEqual(hints(p => { p.content.quests[2].objectives[0].countMax = 2; }), [{ path: `${q}.count`, hint: bounds }]);
+    assert.match(hints(p => { p.content.quests[2].objectives[0].countMin = 0; })[0].hint, /whole numbers from 1 to 999/);
+    // A closed quest, or a visit objective, has no count to bound.
+    const closed = hints(p => { p.content.quests[0].objectives[0].countMax = 6; });
+    assert.equal(closed.length, 1);
+    assert.match(closed[0].hint, /^Only an open quest template/);
+    assert.match(hints(p => { p.content.creatures[0].aliases = ['wisp', 'wisp']; })[0].hint, /^A foe's aliases are at most 8 different names/);
+    assert.match(hints(p => { p.content.creatures[0].aliases = Array.from({ length: 9 }, (_, i) => `a${i}`); })[0].hint, /^A foe's aliases/);
+    assert.match(hints(p => { p.content.rules[0].offerWords = { hunt: ['Slay'] }; })[0].hint, /^offerWords holds the lists hunt, cull/);
+    assert.match(hints(p => { p.content.rules[0].offerWords = { slay: ['x'] }; })[0].hint, /^offerWords holds the lists/);
+});

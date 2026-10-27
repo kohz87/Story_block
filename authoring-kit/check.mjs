@@ -87,6 +87,12 @@ export function hintFor({ code, path = '', message = '' }) {
         if (/must be ordered/.test(message)) return 'coinMin must not be above coinMax.';
     }
     if (code === 'bad-schema' && trainerField === 'rank') return 'Name a rank id from content.ranks, such as "F".';
+    // Count bounds, foe aliases and offer words (Story Block 2.5.0): the path tells which one this is.
+    if (/\.objectives\[\d+\]\.count(Min|Max)$/.test(path) && code === 'envelope-unknown') return 'Only an open quest template ("open": true) bounds a count, and only on a kill or collect objective; remove countMin and countMax here.';
+    if (/\.objectives\[\d+\]\.count$/.test(path) && /countM(in|ax)/.test(message)) return 'An open objective\'s count must lie between its countMin and its countMax; move one of the three numbers (both bounds are optional, each 1 to 999).';
+    if (/\.objectives\[\d+\]\.countM(in|ax)$/.test(path)) return 'countMin and countMax are whole numbers from 1 to 999, and countMin is not above the objective\'s count.';
+    if (/^content\.creatures\[\d+\]\.aliases/.test(path)) return 'A foe\'s aliases are at most 8 different names, each 1 to 80 characters: other names the story may use for this creature, never another creature\'s name.';
+    if (/^content\.rules\[0\]\.offerWords/.test(path)) return 'offerWords holds the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard and nightmare, each at most 40 lower-case words of 1 to 24 characters.';
     if (code === 'bad-schema' && /does not match pattern/.test(message)) {
         if (message.includes('(?:[a-z][a-z0-9]*_[0-9a-z]{8}|')) return 'Places and other ids are written in full as pack.<pack id>/<slug>, with the pack\'s own id.';
         if (message.includes('^[a-z0-9]+(?:-[a-z0-9]+)*$')) return 'A slug is lowercase letters, digits and single dashes, with no spaces or capitals.';

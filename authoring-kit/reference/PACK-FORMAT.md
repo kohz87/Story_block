@@ -137,7 +137,8 @@ the rules schema (no extra fields). Examples that pass the checker:
 ```json
 { "slug": "reed-wisp", "name": "Reed Wisp", "tier": 0, "level": 1,
   "stats": { "STR": 3, "VIT": 4, "AGI": 8, "DEX": 6, "INT": 7, "LUK": 5, "CHA": 2 },
-  "skills": ["ember-spark"], "loot": [ { "def": "marsh-reed", "chance": 60, "qty": 1 } ], "loreTags": ["marsh"] }
+  "skills": ["ember-spark"], "loot": [ { "def": "marsh-reed", "chance": 60, "qty": 1 } ], "loreTags": ["marsh"],
+  "aliases": ["wisp", "marsh light"] }
 ```
 
 ```json
@@ -168,7 +169,14 @@ Objectives are `kill` (`foe`, `count`), `collect` (`def`, `count`, `consume`), `
 An **open quest template** is a quest whose reward is a range for its rank instead of fixed numbers:
 `"open": true`, `"rank": "F"`, `"reward": { "coinMin", "coinMax", "xpMin", "xpMax", "items": [] }`, objectives
 without a fixed target (`{ "id", "kind": "kill", "count": 3 }`), and `repeat` and `chain` both `null`. Its coin and
-xp bounds lie inside the named rank's `reward` range.
+xp bounds lie inside the named rank's `reward` range. A kill or collect objective of a template may also write
+`countMin` and `countMax` (whole numbers 1 to 999) beside its `count`, with `countMin <= count <= countMax`; they bound
+the count a job made from the template may ask for, and both are optional.
+
+A foe may list `aliases` (at most 8 different names of 1 to 80 characters) that the story may use for it, and the rules
+manifest (`content.rules[0]`) may carry `offerWords`: lists named `hunt`, `cull`, `gather`, `deliver`, `explore`, `escort`, `task`, `easy`,
+`normal`, `hard` and `nightmare`, each of at most 40 lower-case words of 1 to 24 characters, which add the words of
+your language or setting to the ones an offer line is read with. All three are optional.
 
 ## Text rules
 
