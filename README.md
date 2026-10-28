@@ -75,7 +75,8 @@ is off is gone from the story; nothing it made is lost.
   the calendar, the weather, world events and three data modules (standing, fame, Guild membership), for Story Block and
   Story Director with **no RPG Battle**. It lists no items, shops, prices or foes: the story makes them up from the lore. Its lean
   lorebook is `examples/packs/ersveil/ersveil-lore.json`; [ERSVEIL.md](docs/v2/ERSVEIL.md) is the walk-through. (Ersveil 1.0.0, with
-  RPG Battle's rules, is now a test fixture.)
+  RPG Battle's rules, is now a test fixture.) Beside it, the interim **Lean RPG** pack ([examples/packs/lean-rpg](examples/packs/lean-rpg/README.md))
+  adds a character sheet and skills made of data modules only (health, Soul Class and XP, stats with points to spend, sixteen skills).
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.

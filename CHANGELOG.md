@@ -22,10 +22,17 @@ and Story Director, with no RPG Battle.
 - **Ersveil 1.0.0 moved to the test fixtures** (`tests/v2/packs/fixtures/ersveil-1.0.0.json`, byte for byte), beside
   Bluewatch 1.6.0. The rules tests and the kit's checker test read it there. Importing 2.0.0 replaces an installed 1.0.0 (same
   id); chats started on 1.0.0 keep their pinned copy and play on unchanged.
+- **A small interim pack, Lean RPG 0.1.0** (`examples/packs/lean-rpg/`, id `lean-rpg`), made of data modules v1 only:
+  a **Character** sheet per Story Director character (health, mana and stamina in words; Soul Class I to IX with XP to
+  100, which goes up by itself and gives 2 stat points; six stats with their dice bonus and points to spend with +1 / −1
+  on the sheet) and **Skills** (sixteen skills that rank novice to master with practice). It needs Story Director, works
+  on its own or beside Ersveil 2.0.0 (the five modules pin together in one chat), and its README lists the narrator's
+  lines, the limits (fixed skill names, the long `dm` lines, no dice yet) and a combat prompt to paste into World Info.
 - Docs: `docs/v2/ERSVEIL.md` is rewritten (short) for the open world; the README's install and Packs paragraphs no longer
   point at an Ersveil rules pack; GUIDE, PACKS and the developer notes say which Ersveil is which.
 - Tests: `ersveil-pack.test.js` checks the open pack (it validates without RPG Battle, its rows, that what it kept equals
-  1.0.0, its install line, the lorebook's count and wording); the new `ersveil-rules-fixture.test.js` checks the 1.0.0 fixture.
+  1.0.0, its install line, the lorebook's count and wording); the new `ersveil-rules-fixture.test.js` checks the 1.0.0 fixture;
+  the new `lean-rpg.test.js` checks Lean RPG and plays it beside Ersveil against the real Story Director (a suite test).
 
 ## 2.5.2
 

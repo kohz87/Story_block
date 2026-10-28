@@ -31,7 +31,7 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
   `mergeStart`, `applyStart`. `ranks.js`: the rank ladder (reader's ladder through the `ranks.reader` hook).
 - `src/v2/packs/installed.js` (where packs are kept), `panel.js` (the Packs fold), `st-adapter.js`, `lorebook.js`.
 - `examples/packs/ersveil/pack.json` (Ersveil 2.0.0, the open world, with its lorebook `ersveil-lore.json`),
-  `examples/packs/riverside-starter/pack.json`, and the old example packs kept as test fixtures with RPG Battle's rules,
+  `examples/packs/riverside-starter/pack.json`, `examples/packs/lean-rpg/pack.json` (data modules only), and the old example packs kept as test fixtures with RPG Battle's rules,
   `tests/v2/packs/fixtures/ersveil-1.0.0.json` and `tests/v2/packs/fixtures/ersveil-bluewatch-1.6.0.json`.
 
 ## Tests that guard it

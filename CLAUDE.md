@@ -37,7 +37,7 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `src/v2/rewind.js`, `reply-notes.js`, `diagnostics.js`: rewinds and save points, per-reply notes, Diagnostics fold.
 - `testkit/`: fake SillyTavern (`createFakeContext`) and a whole host on it (`createHost`); vendored by modules.
 - `scripts/`: `check.mjs` (syntax), `sync-testkit.mjs`, `bench-v2.mjs` / `bench-long.mjs` (PERFORMANCE.md).
-- `examples/packs/`: `ersveil` (Ersveil 2.0.0, the open-world example pack for SB + SD, plus its lorebook `ersveil-lore.json`), `riverside-starter` (small); the former examples with RPG Battle's rules are test fixtures: `tests/v2/packs/fixtures/ersveil-1.0.0.json` and `ersveil-bluewatch-1.6.0.json`. `examples/fishing/`: reference activity.
+- `examples/packs/`: `ersveil` (Ersveil 2.0.0, the open-world example pack for SB + SD, plus its lorebook `ersveil-lore.json`), `riverside-starter` (small), `lean-rpg` (interim character sheet and skills, data modules only); the former examples with RPG Battle's rules are test fixtures: `tests/v2/packs/fixtures/ersveil-1.0.0.json` and `ersveil-bluewatch-1.6.0.json`. `examples/fishing/`: reference activity.
 - `tests/*.test.js`: v1 tests (still run). `tests/v2/`: v2 tests; `qa/` (fuzz, ownership, security, prompt layout),
   `break/` (one file per break finding, named after the finding id), `domains/`, `packs/`, `view/`, `screens/`, `ux/`.
 - `docs/v2/`: the specs (below). `docs/dev/`: short area notes for agents.
