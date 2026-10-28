@@ -1,6 +1,7 @@
 // The 2.5.2 size change in the stylesheets: Story Suite's roots are drawn at --ss-zoom (0.8, the old 80%) and SillyTavern's own
 // chat, top bar and message box are not; on a phone or a touch screen every control inside a root is still 44px on the screen;
-// Close in the settings window has its own row on a phone; a full-screen layer inside a root undoes the zoom.
+// the reply card's header is one line on a phone; Close in the settings window has its own row on a phone; a full-screen layer
+// inside a root undoes the zoom.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -64,6 +65,20 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     assert.match(hit[1], /width: max\(100%, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
     assert.match(hit[1], /height: max\(100%, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
     assert.match(hit[1], /transform: translate\(-50%, -50%\);/);
+});
+
+test('the reply card\'s header is one line on a phone: the summary takes the room left and ends in an ellipsis', () => {
+    const mounts = read('view/mounts.css');
+    const phone = '@media (max-width: 759.98px) {\n    .ss-card-head {';
+    assert.ok(mounts.includes(phone), 'a phone rule for the header');
+    assert.match(rule(mounts, '.ss-card-head', phone), /flex-wrap: nowrap;/);
+    assert.match(rule(mounts, '.ss-card-head > :not(.ss-card-summary)', phone), /flex: none;/);
+    const summary = rule(mounts, '.ss-card-summary', phone);
+    for (const part of ['flex: 1 1 0;', 'display: block;', 'white-space: nowrap;', 'text-overflow: ellipsis;']) assert.ok(summary.includes(part), part);
+    // The base rule still hides the overflow (the ellipsis needs it) and keeps the summary on the right.
+    const base = rule(mounts, '.ss-card-summary');
+    assert.match(base, /overflow: hidden;/);
+    assert.match(base, /text-align: right;/);
 });
 
 test('settings on a phone: the title row is as tall as Close (44px on the screen), so Close never covers the search box', () => {
