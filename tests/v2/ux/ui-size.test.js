@@ -92,6 +92,7 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     const link = decl(`${scope} :is(p, li, span, small, em, strong, b, i, label, dd, td, figcaption) > a[href]:not([class*="button"], [role="button"], [role="tab"], [data-ss-hit])`);
     assert.ok(link.includes('padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2));'));
     assert.ok(link.includes('margin-block: min(0px, calc((1lh - 44px / var(--ss-zoomed, 1)) / 2));'));
+    assert.ok(link.includes('padding-inline: calc(10px / var(--ss-zoomed, 1));') && link.includes('margin-inline: calc(-10px / var(--ss-zoomed, 1));'), 'a short link is wider to tap, the words beside it unmoved');
     // The search box keeps the clear button's 44px (right: 4px) free of text.
     assert.match(block, /\.ss-search \.ss-search-input \{\s*padding-right: calc\(44px \/ var\(--ss-zoomed, 1\) \+ 8px\);/);
     assert.match(read('view/glass.css'), /\.ss-search-clear \{\s*position: absolute;\s*right: 4px;/);
