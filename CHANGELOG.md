@@ -9,12 +9,15 @@
   message box keep their size. The game view's and the story panel's windows keep their size too; what is inside them is smaller.
   Every screen inside follows, the modules' and the packs' included (CSS `zoom` on Story Suite's roots, `view/size.css`).
 - **Phones and touch screens keep 44px targets**: every button, tab, field and list inside Story Suite is at least 44 × 44 px on
-  the screen; the on/off switches keep their look and get a 44px tap area. In the settings window on a phone, Close no longer
-  covers the search box.
+  the screen; the on/off switches, checkboxes and radios keep their look and get a 44px tap area (and the label around a checkbox
+  or radio is 44px tall), sliders are 44px tall round their thin track, and a link in running text gets a 44px tap area without
+  moving the line. A search box keeps its 44px clear button clear of the typed text. In the settings window on a phone, Close no
+  longer covers the search box. The UI sample's dialog follows the new size too.
 - **The card header under a reply is one line on a phone**: the summary on the right ends in "…" instead of wrapping.
 - **Inventory: the actions sit beside the name**, on the right of the row and centred on it, on a desktop and on a phone. More
-  buttons than fit wrap as a group on the right. Notes and the item detail stay under the name; Equip on…, Use on… and Drop still
-  open below the row.
+  buttons than fit wrap as a group on the right. A long name breaks and the chips (Worn by, the condition, key, carry) wrap, so
+  nothing runs under the actions. Notes and the item detail stay under the name; Equip on…, Use on… and Drop still open below the
+  row.
 - **For module and pack authors:** inside Story Suite's roots, vw, vh and px are zoomed; a length that must stay the screen's divides
   by `var(--ss-zoomed, 1)`. Scripts that measure (`getBoundingClientRect`, a pointer's `clientX`) get drawn pixels and must divide by
   the node's zoom before setting `style.left` or `scrollTop` (`zoomOf` in `view/scroll.js`). A control that draws its own tap area
