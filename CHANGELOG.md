@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0
+
+- RPG Battle is no longer supported. Its rules packs cannot be imported. Existing RPG Battle chats should stay on the previous versions.
+- Automatic money gives have no per-reply limit; set a number in Money to limit them. The Advanced row holds the money scale.
+- Inventory and Assist continue to work on their own. Story Director can provide checks and story-told quests.
+
 ## 2.5.3
 
 **Content release: no code or rules change.** The bundled example pack is now **Ersveil 2.0.0, an open world** for Story Block
