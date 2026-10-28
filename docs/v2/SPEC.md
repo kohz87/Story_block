@@ -33,7 +33,6 @@ owns a deferred `dataModules` domain (absent until a chat pins a module), the ca
 | Product | Repo | v2 role |
 |---|---|---|
 | Story Block | kohz87/Story_block | The host: state store, persistence, commands, capture, prompt assembly, module registry, settings overlay, tabs. Core domains `scene` and `inventory`. Works alone. |
-| RPG Battle | kohz87/rpg_battle | Module (requires Story Block): `party`, `combat`, `trade`, `bestiary`; item effects, checks, crafting. |
 | Story Director | kohz87/Story_director | Module (requires Story Block): `director` (time, quests, threads, events). |
 | NPC State Delta | kohz87/npc_state_delta | Stays a standalone engine with its own storage. When Story Block v2 is present it registers queries, a widget and its settings (phase 2). Not rewritten. |
 
@@ -45,7 +44,7 @@ v2 keeps v1's **pure logic** where it fits (combat maths, growth, skills, pricin
 Director's change-line grammar and tracker rules, NSD's engine) and replaces the glue: no state in
 model-written blocks, no envelope parsing, no text repair.
 
-RPG Battle and Story Director declare `"dependencies": ["third-party/Story_block"]` in `manifest.json`
+Story Director declares `"dependencies": ["third-party/Story_block"]` in `manifest.json`
 (SillyTavern 1.19 checks it) and also check at runtime (`globalThis.StoryBlock?.sdk`); without the host
 they show one line in their drawer saying Story Block v2 is needed, and do nothing else.
 
@@ -194,7 +193,7 @@ by hand.
 Receipt = {
   id: 'rc_xxxxxxxx',
   type: 'item.use',                 // the command
-  module: 'rpg-battle',             // owner of the command
+  module: 'example-module',             // owner of the command
   cause: 'ui' | 'story' | 'system', // a click, a captured change line, the host itself
   seed: 123456789,                  // uint32; the handler's only source of randomness
   summary: 'Ren drinks a Minor Healing Draught: +20 HP (now 77/82).', // code-written, for narration
@@ -277,19 +276,19 @@ commands: {
   inside it (`INVALID`).
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
 * `ctx.proof({ kind, payload, parents? })` → `{ id, payloadHash }`: the owner of `kind` (Story Director: visit, acceptance,
-  event; RPG Battle: kill, use, rescue, story) gives closed proof on the command's block; `story.evidence({ ids? })` lists
+  event) gives closed proof on the command's block; `story.evidence({ ids? })` lists
   what is active and visible. See [EVIDENCE.md](EVIDENCE.md).
 * `ctx.settings(moduleId?)`, `ctx.time()` (the Director's minutes, or null), `ctx.feature(id)` (whether the reader has
   that feature on, §6), `ctx.fail(code, message)` throws.
 * `ctx.gather(name, args)` asks every other module's hook `name` (`hooks[name]({ state, query }, args)`,
   synchronous, on the transaction's current state) → `[{ module, answer }]`, frozen copies; an answer that is
-  null, a promise or a throw is left out (MODULES §F126; RPG Battle's `checkModifiers`).
+  null, a promise or a throw is left out (MODULES.md).
 * A failed `ctx.call` fails the whole command even if the caller catches it, except `UNKNOWN_COMMAND`
   and `FEATURE_OFF` (nothing ran), which a handler may catch to treat another module's command as optional.
 * A handler may add `problem: 'sentence'` to its result: done, but not all of what was asked (a clamp).
   For a capture the sentence goes to the Problems list (`LIMITED`); it is not kept in the receipt.
 * A system step (cause `system`, a beforeGenerate cue) may add `replan: true` to its result: what it did is
-  planned from the story state it ran on (RPG Battle's story-time heal). Its receipt keeps `replan: {
+  planned from the story state it ran on (a time-based module action). Its receipt keeps `replan: {
   payload }`, and a Re-read of the reply it is kept on runs it again on the new story changes, at its place
   and with its seed, instead of applying its old ops; a step that is then refused leaves its block out.
 * An **afterCapture step** (§4.2 step 3, MODULES §F121) is a system step a module's `afterCapture` hook asks
@@ -561,7 +560,7 @@ One hidden block at the end of the reply:
 * **Buttons first.** Anything the UI offers (use, equip, fight, trade, craft, fish) is a command; no model
   needed to decide it.
 * **Stop at the check.** For a risky attempt typed in the message, the model writes `? check <skill> — <what>
-  | dc: easy|normal|hard|<number>` and stops before the outcome. RPG Battle resolves it after the reply
+  | dc: easy|normal|hard|<number>` and stops before the outcome. Story Director resolves it after the reply
   (a `story` receipt with the roll), and the next reply narrates the result.
 * **Optional classifier** (phase 3, off by default): a cheap call before the reply turns the message into a
   check so the reply can narrate the result directly.
@@ -613,7 +612,7 @@ Story Block is the only v2 code that calls `setExtensionPrompt` for the host and
 
 ```js
 sdk.registerModule({
-  id: 'rpg-battle', name: 'RPG Battle', version: '2.0.0-alpha.1',
+  id: 'example-module', name: 'Example Module', version: '2.0.0-alpha.1',
   domains: {
     party: { initial: () => ({ actors: {}, order: [] }), validate: (slice, state) => [] },
   },
@@ -625,21 +624,21 @@ sdk.registerModule({
   hooks:    { beforeGenerate(view) {}, canGenerate(view) {}, 'item.define'(def) {}, diagnostics() {} },
   settings: { defaults: {…}, schema: {…}, section?: (el, api) => {} },
   tabs:     [{ id: 'party', title: 'Party', icon: 'fa-users', render: (el, view, api) => {} }],
-  features: [{ id: 'rpg-battle.wear', label: 'Wear', describe: 'Gear wears out and breaks.', default: false }],
+  features: [{ id: 'example-module.wear', label: 'Wear', describe: 'Gear wears out and breaks.', default: false }],
 });
 ```
 
 * `view` = `{ state (frozen head), query, settings, feature(id), chat: { length, lastUser } }`.
-* **Hooks** let a module shape another's work without writing its domain: `item.define` (RPG Battle sets
-  rarity, value, stats, effects of an item the story introduced), `canGenerate` (any `false` or
+* **Hooks** let a module shape another's work without writing its domain: `item.define` (a module can
+  supply details of an item the story introduced), `canGenerate` (any `false` or
   `{ ok: false, reason, action? }` blocks a story generation, with a reason; MODULES §F12; Home's "Before you
   start" card shows the reason with a button that runs the module's `onBlocked(reason, moduleId)` hook,
-  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`, `ranks.reader()` (→ `{ lines, perRank }`: the reader's rank ladder lines and levels per rank, which `packs.content({ kind: 'ranks' })` answers with; MODULES §F105),
+  labelled `action` (≤ 40 characters), else "Get started"; `action: false` for none), `beforeGenerate`,
   `afterCapture(view, { index, type })` (→ `{ commands }`, system steps run once after a reply's last story
   line as part of that reply, §4.2 step 3; an older Story Block never calls it, so a module keeps a fallback,
   e.g. a beforeGenerate step that finds what is still left to do),
   `checkModifiers({ state, query }, { actor, skill, stat, target, dc })` (→ `[{ mod, text }]`: a module's
-  adjustments to an RPG Battle check, asked through `ctx.gather`, MODULES §F126),
+  adjustments to a check, asked through `ctx.gather`, MODULES §F126),
   `replyCard({ index, state, before, changes })` (→ `[{ text, summary?, flag?, note?, icon? }]`: the module's
   own lines on that reply's "Changed this reply" card, §13.4, MODULES §F125),
   `ownPrompt` (what the module sends with the reply under its own prompt keys, §5) and `diagnostics()` (optional: the module's own section of Settings → Diagnostics, a string, a list of
@@ -699,7 +698,7 @@ sdk.registerModule({
     * a capture kind: `kinds: { wear: { grammar, feature } }`;
     * a command: `{ handler, feature }`, or a handler function with a `feature` property;
     * a query or a hook: a function with a `feature` property
-      (`Object.assign(fn, { feature: 'rpg-battle.wear' })`), so an older host, which takes only
+      (`Object.assign(fn, { feature: 'example-module.wear' })`), so an older host, which takes only
       functions there, still takes it;
     * the context: `context.feature` covers the whole context; `context.parts: [{ feature?, static?,
       tail? }]` adds static text and tail lines of their own to the module's, under its `budget`;
@@ -832,33 +831,7 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   `party.actors` (or the `party` domain) does not list is `REFUSED`.
 * **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,
   `- item mark`), is money: it goes to or from the party's wallet like `+ coin` / `- coin`.
-* **Story limits.** One reply's story lines pay at most `storyCoinPerReply` (setting; 0 = the top reward of
-  the player character's rank from `quest.ranks`, else 1000 × level × the money scale, rounded, at least 1), give at most 20 of one item, give goods
-  worth at most 2 × that coin budget in all (Σ def `value` × count given), and bring in at most 10 new item
-  definitions. Past a limit a line is clamped with a `LIMITED` Problem; once it is spent, a line is `REFUSED`
-  (a refused line makes no definition). **One notable item per reply, given as a key item:** the first
-  `+ item` line whose one item is worth more than the goods budget has left gives one of it outside the worth
-  tally, when it is worth at most 5 × the goods budget (a count over 1 is clamped to 1 with a `LIMITED`
-  Problem: the rest is over the goods budget). Its receipt says "<name>, given as a key item" and its data
-  has `notable: true, key: true`. An item worth more than 5 × the goods budget on its own is not notable.
-  A **key item** is a stack of its own marked `key: true` (also on `inventory.items` rows; the Inventory
-  screen tags it "Key"): used, equipped, given away and consumed like any other, but with no cash value. It
-  never joins another stack of the item, nor another stack it (a grant, a transfer, a story line; `inventory.merge`
-  is `REFUSED`), and a part given away or split off stays a key item. Modules that buy things back or count
-  what they are worth treat it as worth 0 (RPG Battle's trade refuses to buy it: "<name> is a key item; it
-  can't be sold"; its crafting and commissions count it as 0), so story text never sells for more than a
-  reply's goods. **The story's own:** every stack a `+ item` line gives, and every thing the reader takes from
-  a story's `? loot` (`inventory.lootTake`), is marked `story: true` (also on `inventory.items` rows), whatever
-  its def (a pack item the story names too); `inventory.grant` never marks it (no story line reaches it: a
-  module or a pack event names what it gives, and it moves no stack); a stack it joins, or that
-  joins it (a grant, a transfer, `inventory.merge`), is the story's too, and a part given away or split off
-  stays the story's. Its worth was counted in the reply's goods budget, so a module that buys things back
-  holds what it pays for it to its worth at the sell rate (RPG Battle's trade). Later lines over the budget
-  are held as above, and the 20-of-one and 10-new-definitions limits still apply. A `~ item` raise is never notable. A `~ item … | qty:` that raises a count is a gain, held to
-  the same limits and to the carry limit when a module answers `items.carry`
-  (`{ owner, add: [{ defId, qty }] }` → `{ ok: false, message }` refuses it); lowering a count is free. The
-  tally is `inventory.perReply[<sid>]` (scratch, §2.2; `notable: true` once the reply's notable item is given), so a
-  swipe or a deleted reply takes it back. Code's own payouts are not counted, except:
+* **Story limits.** `storyCoinPerReply` is the reader's per-reply coin cap. Automatic (0) leaves story money and items without a per-reply coin, worth, quantity or new-kind limit. With an explicit coin cap, the associated item limits apply. Receipts and Problems explain limits and refusals; per-reply bookkeeping follows swipes and deletions.
 * **Story-vouched payouts.** `wallet.receive { owner, amount, note?, story: true }`, called by a module
   (`ctx.call`) while a reply is captured, is money the story alone vouched for (a quest the story closed
   that no code could count). It counts against the same per-reply coin budget as the story's coin lines and
@@ -894,42 +867,20 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   the `cond` of `inventory.items` rows (there while below 100); never from the stack. Stacks in different
   condition never merge or pile together; a split or part hand-over starts the new lot where the old one
   stands. Two commands, **another module's calls only** (`ctx.call`, so `ctx.caller` is set; at the top,
-  whatever the cause, `REFUSED`), for RPG Battle's wear rules:
+  whatever the cause, `REFUSED`), for module-driven wear:
   * `inventory.wear { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); an event
     of −amount. → `data: { stack, def, amount, before, now, broken }`. Wearing a broken piece changes
     nothing and does not fail.
   * `inventory.repair { stack, amount }`: `amount` a whole number ≥ 1 (more than 100 counts as 100); an
-    event of +amount, held at 100. → `data: { stack, def, amount, before, now }`. RPG Battle keeps a piece's
-    own maximum (below 100 after field patches) and asks for the difference.
+    event of +amount, held at 100. → `data: { stack, def, amount, before, now }`. A module may keep its own maximum and ask for the difference.
   A malformed amount is `INVALID`; neither is narrated.
   The story's word for wear, `~ item Coat — torn by brambles | wear: scuff|tear|ruin` (or a word for one of
   them: scratched, ripped, shattered…), goes to `item.wear { name, wear, why, story: true }` when a module
-  answers it (RPG Battle's gear rules); without one Story Block wears the piece (the worn one, else the first
+  answers it; without one Story Block wears the piece (the worn one, else the first
   lot) by 5, 15 or 40, once per piece per reply (claim `wear:<sid>:<stack>`, else `CLAIMED`). With `item.wear`
-  there Story Block writes nothing for the line itself: RPG Battle's gear rules own it (and write through
+  there Story Block writes nothing for the line itself: the module owns it (and write through
   `inventory.wear` / `inventory.repair`).
-* **Equip on…** (MODULES §F99). `inventory.equipOn { stack, actor }` (`actor` a party member's `ac_` id)
-  hands the piece to that member and puts it on in one step. It must be equipment with a slot that member
-  can wear: a slot this chat's rules count, and what `items.canWear({ actor, defId })` says when a module
-  answers it (`{ ok: false, message }` refuses). Slots `accessory` and `worn` hold several pieces, each copy
-  under its own key (`accessory-1`, `accessory-2`, as RPG Battle keys them); their counts come from
-  `items.slots` (`{ accessory | accessories, worn }`, RPG Battle's rules), held to 0…3, else 2 accessories
-  and 1 worn piece. Every other slot holds one piece. What sits in the slot goes back into that member's own
-  carry: for a one-piece slot the piece there (a two-handed weapon also puts the off-hand away; an off-hand
-  is refused while a two-handed weapon is held); for a full many-piece slot the oldest (keys are renumbered
-  in the order pieces went on, the new one last). A piece the shared bag holds counts as the main
-  character's (`party.pc`). A piece someone else wears comes off them. The hand-over follows the carry limit
-  (`items.carry` with `move: true`), and so do the pieces going back into that member's carry from the
-  shared bag: when they do not fit along with the new piece, it is refused with the module's reason. The receipt names both pieces: `data: { stack, def, actor, from, slot,
-  replaced: [stack ids], replacedNames }`. `inventory.unequip` leaves the piece in its wearer's carry.
-  `inventory.equipment` → `{ members, worn: [{ id, name, items }], wearers: { [stack]: [{ id, name }] },
-  givers: { [stack]: [{ id, name }] }, users: { [stack]: [{ id, name }] }, limits, detail }` is what the
-  Inventory screen's Equipped section, "Equip on…", "Use on…" and "Give…" pickers draw (`users`: for each
-  consumable the party holds, the members a module answering `items.useOn` → `{ [stack]: [{ id }] }` names,
-  RPG Battle's "a dose would help them now, nobody while a fight has the party"; `{}` without one, so there
-  is no Use on…; a choice runs that module's `item.use { stack, target }`) (`detail`: RPG Battle's `rpg-battle.itemDetail` is answered, so its
-  `rpg-battle.item-detail` widget is drawn in each row). A reader's `inventory.transfer` (cause `ui`, Give)
-  is refused when the taker cannot carry it (`items.carry`, `move: true`).
+* **Equipment.** `inventory.equip` and `inventory.unequip` manage the party's equipment. Optional modules may provide item use and carry queries; the screen only offers actions they support.
 * **Loot to pick from** (`story-block.loot`). `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar
   shelf | qty: 1` lays things out without giving them (a count per thing as `Name x2`, of any length, else `qty:`, else 1; a count is never part of a name).
   The offer is held to the reply's story limits when it is read, each thing as a `+ item` line would be but
@@ -964,7 +915,7 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   `- item` lines and loot use the same lookup.
 Story-introduced items: `+ item Name` resolves an existing def by alias, else creates `story/<slug>` with
 defaults (`goods`, `common`, value 0), then calls the `item.define` hooks (`(def, { note, owner, scale })`,
-`scale` the money scale of `inventory.economy`) so RPG Battle can set its rules' numbers. A later rename
+`scale` the money scale of `inventory.economy`) so a module can supply its own numbers. A later rename
 changes `name` and adds an alias; it never changes value, rarity or effects.
 * **Carry capacity** (MODULES §F106). A def may hold `carry` (whole, 1–1000): the capacity it adds while
   owned (equipment: while worn), which the carry module (`items.carry`) adds and the Inventory shows as
@@ -974,15 +925,9 @@ changes `name` and adds an alias; it never changes value, rarity or effects.
 
 ## 8. Module domains (phase 2, outline)
 
-* **RPG Battle**: `party.actors[id] = { name, level, xp, hp:{cur,max}, mp, sp, stats, skills, conditions,
-  equipped }`; `combat.session`; `trade.orders`; `bestiary`. Commands: `item.use`, `party.equip`,
-  `party.spend`, `combat.start|act|end`, `trade.buy|sell`, `craft.commission|collect`, `check.resolve`.
-  Capture kinds: `wound`, `check`, `encounter`, `join` (companions), `skill`. Battle evidence (foes beaten)
-  is a receipt with `data.foes` that the Director's quest progress reads by query.
 * **Story Director**: `director = { time: { minutes, calendar }, threads: { [id]: { kind, key, fields,
   status, … } }, problems: [] }`; its v1 tracker rules apply ops through capture; quest progress and turn-in
-  (story-led, MODULES §C2) read `inventory` and RPG Battle's battle receipts by query; payouts use `ctx.call('wallet.receive')` with a
-  claim. Capture kinds: `agenda`, `event`, `hook`, `quest`, `clock`, `beat`, `secret`, `time`.
+  (story-led, MODULES §C2) are told by the story. Capture kinds: `agenda`, `event`, `hook`, `quest`, `clock`, `beat`, `secret`, `time`.
 * **NSD**: registers queries `npc.present`, `npc.dossier`, a Cast widget and its settings; keeps its own
   storage and history rules.
 
@@ -1104,7 +1049,7 @@ packs can restyle or replace any screen; code enters only through **widgets** fr
 ### 13.1 Screen definition
 ```js
 Screen = {
-  id: 'rpg-battle/party', title: 'Party', icon: 'fa-users',
+  id: 'example-module/party', title: 'Party', icon: 'fa-users',
   mounts: ['tab', 'screen', 'card', 'hud', 'dialog'],      // where it may appear (§13.4)
   template: '<div class="sheet">…</div>',                  // HTML template (§13.2)  — or —
   layout: { root: Node },                                  // JSON tree (Studio's format, src/v2/layout/)

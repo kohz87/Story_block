@@ -1,10 +1,8 @@
 # Proof and evidence: ctx.proof and story.evidence
 
-How a module that owns a kind of proof gives it, and how anyone reads it. The frozen contract is
-[contract/RB_CONTRACT.md](contract/RB_CONTRACT.md) §6 ("Proof submission", `story.evidence`), §3 (P23, the acceptance
-rules) and §10 E (the `story.evidence` row); this page says what the host does with them. It builds on the span
-metadata of [REPLAY.md](REPLAY.md): a proof lives on the block (span) of the command that gave it. A module that
-calls neither `ctx.proof` nor `ctx.replayGuard` stores and replays exactly as before.
+How a module that owns a kind of proof gives it, and how anyone reads it. A proof lives on the block
+(span) of the command that gave it; see [REPLAY.md](REPLAY.md). A module that calls neither `ctx.proof`
+nor `ctx.replayGuard` stores and replays as before.
 
 Code: `src/v2/evidence.js` (everything pure: kinds, payloads, pins, visibility, the query), `commands.js`
 (`ctx.proof`, the block), `store.js` (stamping, replay check, `store.proofs()`), `domains/index.js` (the query is
@@ -28,7 +26,7 @@ share the root). The host checks, in this order, and a failure fails the whole r
 | Check | Code |
 |---|---|
 | The call is `{ kind, payload, parents? }` and nothing else; `kind` is text | `INVALID` |
-| `kind` is one of the seven and the calling module owns it (table below); an unknown kind belongs to no one | `REFUSED` |
+| `kind` is one of the supported kinds and the calling module owns it (table below); an unknown kind belongs to no one | `REFUSED` |
 | The payload is the kind's closed payload; `parents` are up to 8 different proof ids | `INVALID` |
 | Reader intent the host did not see (below) | `REFUSED` |
 | The same key was given in this root with other contents (or other parents) | `CONFLICT` |
@@ -41,7 +39,6 @@ Who owns what (the module id the host's table names, `evidence.js` `OWNERS`):
 | Module | Kinds |
 |---|---|
 | `story-director` | `visit`, `acceptance`, `event` |
-| `rpg-battle` | `kill`, `use`, `rescue`, `story` |
 
 The caller is the module whose handler runs `ctx.proof` (so a nested command gives its own module's proof, never
 its caller's). The host stamps the **id**, the **Source** (the block's: `{ sid, swipeKey, evidence, ordinal }`) and the
@@ -53,8 +50,7 @@ receipt: the host writes that too.
 A proof is named by its **key**: an acceptance by its thread, a check by its check id, any other payload by the
 payload itself. In one root, the same kind and key with the same contents (and parents) returns the same `id`; with
 other contents it is `CONFLICT`. Two identical opaque payloads in one root are **one proof**, not two: a kind whose
-payloads can repeat (two kills of the same foe in one reply) must carry a field that tells them apart (a counter, the
-target's id). Note for RPG Battle's payloads (B3/B6).
+payloads can repeat must carry a field that tells them apart, such as a counter or target id.
 
 The `id` is derived from **what the block that gives the proof is**, so no id is chosen by looking at other blocks: it is
 the hash of the reply's evidence id (`Source.evidence`), the block's operation, the block's **occurrence**, and the proof's key.
@@ -115,12 +111,11 @@ and the same proof id.
 |---|---|
 | `acceptance` | `{ thread: RecordId, selection: Text120 }` or `{ thread: RecordId, words: Text240 }`, exactly one of the two |
 | `event` with a `check` key | `{ check: RecordId, actor: Id, stat: 'STR'\|'VIT'\|'AGI'\|'DEX'\|'INT'\|'LUK'\|'CHA', dc: 1..40 }` |
-| every other payload (`visit`, `kill`, `use`, `rescue`, `story`, `event` without `check`) | a plain JSON object, not empty, at most 4096 bytes of normalized JSON |
+| every other payload (`visit`, or `event` without `check`) | a plain JSON object, not empty, at most 4096 bytes of normalized JSON |
 
 A payload is plain JSON: no list with a gap in it, no object that contains itself, nothing nested more than 64 levels
 deep (`INVALID`). Text is plain: no space at either end, no control character, counted in code points. The last row is the host's
-placeholder for payloads the contract leaves to others (B3/B6 for RPG Battle, Story Director's own for visits and
-events): the owner checks what they mean. When their shapes are frozen the table and `payloadProblem` grow; nothing
+placeholder for visits and events: the owner checks what they mean. When their shapes are frozen the table and `payloadProblem` grow; nothing
 else changes.
 
 ### Reader intent
@@ -227,8 +222,7 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
 
 ## Decisions where the contract is silent
 
-* **Kinds and owners** are a table in the host (`story-director`, `rpg-battle`); the contract names them by owner
-  ("SD", "RB"). A third module cannot be added without the table.
+* **Kinds and owners** are a table in the host. Story Director owns the supported kinds; adding another owner requires updating the table.
 * **Opaque payloads**: see above. Their key is the whole payload, so a different payload is a different proof, never a
   `CONFLICT`; a kind that needs `CONFLICT` on a changed payload needs a key in `payloadKey` when its shape is frozen.
 * **The SD check** (`{ check, actor, stat, dc }`) is an `event` proof, since the contract's kind list has no `check`.
@@ -252,6 +246,5 @@ in short in `receipt.data.v2.evidence` (`{ id, kind, payloadHash }` each; `trimR
 
 ## What this does not do
 
-It does not decide what a proof means. Whether a kill is a kill, a visit a visit or a rescue a rescue, and what an
-`acceptance` is worth to a thread, is the owner's: Story Director's `threads.accept` verifies its acceptance with
-`story.evidence`, and RPG Battle's rules read kills, uses, rescues and story steps the same way.
+It does not decide what a proof means. Story Director's `threads.accept` verifies its acceptance with
+`story.evidence`; the owning module decides what that acceptance is worth.

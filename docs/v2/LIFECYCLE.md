@@ -1,8 +1,7 @@
 # Module lifecycle: peers, dormant modules, the restore barrier, `sdk.preflight`
 
 Story Block decides, for every registered module, whether it is running. This page is the behaviour the
-host has (src/v2/registry.js, src/v2/sdk.js, a few lines of src/v2/turn.js). Its source is the frozen
-contract in `docs/v2/contract/RB_CONTRACT.md` §2 (P22) and §9; where they differ, the contract wins.
+host has (src/v2/registry.js, src/v2/sdk.js, a few lines of src/v2/turn.js).
 A module that names no peers is untouched by all of it.
 
 ## `requires.peers`
@@ -152,9 +151,7 @@ or a `domains` / `peers` option that is not a list of valid names (a name left o
   "registered and not dormant".
 * `restore`: the barrier's state.
 
-Which domains and peers are the module's: its definition, when registered; else the lists in the options
-(`domains`, `peers`); else, for the suite's own modules, the table `SUITE_MODULES` (`rpg-battle`: its
-domains and `story-director`). A module that is none of those has no domains here and reads `empty`.
+Which domains and peers are the module's: its definition, when registered, or the lists in the options (`domains`, `peers`). Without either, it has no domains here and reads `empty`.
 
 **The rules marker.** The authoritative marker is the module's `rules` slice: `rulesVersion` (a whole number
 from 1) and `rulesHash` (non-empty text, or absent or `null`) at its root. Story Block only reads it. Other
@@ -181,7 +178,7 @@ Problems note), so preflight tells what is there after that.
 
 ## Deferred domains and switched-off APIs
 
-A module that must not touch a chat until the reader chooses (RPG Battle's rules, chosen in Setup) declares those
+A module that must not touch a chat until the reader chooses declares those
 domains `deferred: true` (a boolean; anything else is a problem). The host then does not add a slice of the
 domain to a new chat, in the module's set-up step, or in the state a chat starts from, and does not count it as a missing domain
 (`ensureModules`, preflight): the module's chat reads as it would without the domain. The slice appears when one of the

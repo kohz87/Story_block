@@ -129,7 +129,7 @@ draws every section with it (steps 3b to 3g). The UI sample shows a demo form
 import { renderSettingsForm, renderModuleForm } from './src/v2/view/form/index.js';
 
 const form = renderSettingsForm(parent, {
-    moduleId: 'rpg-battle',          // null: the host's own schema (HOST_SETTINGS_SCHEMA)
+    moduleId: 'example-module',          // null: the host's own schema (HOST_SETTINGS_SCHEMA)
     schema,                          // { key: field } as registered
     settings,                        // createSettings(): settings(id) → values, settings.set(id, key, value) → stored or undefined
     doc, title, hint,
@@ -261,26 +261,24 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   line is named: `Line 2 ("silver: lots"): …`); `coinProblems(rows)` is its `check` and says what the story will not use (no name, a number
   in a name, a worth outside 1–1,000,000, a name an earlier coin has, a coin past the eighth). **The budget** (`storyCoinPerReply`, in
   whole coins, up to a billion in the store) is a slider over 0–1000 that grows to a larger value (`BUDGET_SLIDER_MAX`), its words from
-  `budgetText(n, values)`: "60 pennies", "1 penny", **"Automatic" for 0** (worked out from the installed modules); the unit is
-  `baseUnit(currencyOf(values))`: the coin worth 1, else the money word, the **Currency** setting ("gold" by default; Terms (RPG Battle's
-  level and XP words) has no money word). It follows the coins and the Currency box after any change. The General group's fold key
+  `budgetText(n, values)`: "60 pennies", "1 penny", **"Automatic: no limit" for 0**; the unit is
+  `baseUnit(currencyOf(values))`: the coin worth 1, else the money word, the **Currency** setting ("gold" by default). It follows the coins and the Currency box after any change. The General group's fold key
   (`MONEY_FOLD`, `story-block::group:General`) opens the Money page with its first field focused (`has`/`open` on the body).
 - **Assist** (`assist.js`, step 3d): Story Block's two optional helpers in the concept's Assist page, four cards: **Extra calls** (the Connection
   Manager profile both helpers use, `assistProfile`, and the host's "one call at a time per connection" switch `callQueue`, which moved here
-  from the Story Suite fold: `ASSIST_HOST_KEYS` keeps it out of that fold), **Checks** (the pre-roll, "Roll checks before the reply", the strict
-  mode: the check is rolled first, from the reader's message), **Safety net** ("Read changes the reply forgot", its own profile
+  from the Story Suite fold: `ASSIST_HOST_KEYS` keeps it out of that fold), **Checks** (the pre-roll, "Roll checks before the reply": the check is rolled first, from the reader's message), **Safety net** ("Read changes the reply forgot", its own profile
   `assistExtractorProfile`, and the allowed kinds `assistExtractorKinds`) and **Recent runs** (the old Assist panel, `renderAssistSection`, with
   its Refresh). `assistSchema({ featureOn…})` builds the page's schema; `renderSettingsForm` draws it (`quiet`, `className: 'ss-assist-page'`;
   two columns from 900px with the Safety net card down the right, one column below; fields stacked). **The two switches are Features**
   (`story-block.preroll`, `story-block.extractor`): they live in the form's **`sources`** (below), not in the settings store, so the
   Features page and this one agree (a switch here redraws the other pages through `ctx.changed()`, and the Features page's switch redraws this
   one). **A row that cannot work is drawn and locked, with the reason, never hidden** (`lockText`): the pre-roll says what the feature says
-  ("Needs a module that keeps checks, like RPG Battle.") while no module keeps checks; the safety net's profile and kinds say "Off while the
+  ("Needs a module that keeps checks.") while no module keeps checks; the safety net's profile and kinds say "Off while the
   safety net is off"; the shared profile says "Off while both helpers are off"; a profile select with only "Same as chat" to pick is disabled
   and its note says why (no Connection Manager, it is off, no profiles yet). The kinds are **chips** (`chipsetField` over the stored text,
   one chip per `KIND_CHOICES` entry in assist/safety.js: time set, time moves on, place, someone arrives or leaves, weather, quest progress
   and turn-in, wounds, an item handed over); an entry the chips do not list stays in the stored text. **The value wall is stated plainly and
-  has no chips**: coin, new items, XP, loot, healing, a new job (`+ quest`) and a new teacher (`+ trainer`) are never written, whatever is stored (`refusedWhy`, the code, not a setting), and if
+  has no chips**: coin, new items, XP, loot, healing are never written, whatever is stored (`refusedWhy`, the code, not a setting), and if
   the net finishes after the reader has already sent the next message its lines wait for the next reply and may not add anything new
   but someone arriving. There is no "late lines" setting; the page only says it. A test keeps every chip on the right side of the wall.
   The fold key `story-block::group:Assist` (`ASSIST_FOLD`) opens the page with its first control focused.
@@ -491,7 +489,7 @@ their states, the plates, the class-level exceptions and their specificity), `te
   import is Settings → Tabs & Packs). Home keeps the Where, Purse and pack, Quests and Save points cards (and Party and Fight when
   their modules are there).
 - **The Inventory's rows** (`inventory.js` CSS): the tile, then a grid of the name line, the note and the item detail on the left
-  (`min-width: 0`, `overflow-wrap: anywhere`: a long name breaks, the chips wrap, nothing runs under the actions; RPG Battle's
+  (`min-width: 0`, `overflow-wrap: anywhere`: a long name breaks, the chips wrap, nothing runs under the actions; a module's
   item detail is held to the column by the Inventory's CSS: its chips wrap and its condition bar shrinks)
   and the actions on the right (`fit-content(50%)`, a group that wraps on the right when the row is narrow), on every width; the
   text and the actions are centred on each other (the actions span the text's rows and a `1fr` row above and below), and an open
@@ -539,7 +537,7 @@ their states, the plates, the class-level exceptions and their specificity), `te
 - Scripts: `getBoundingClientRect()` and a pointer's `clientX` are drawn pixels; `style.left`, `scrollTop` and a node's own sizes are
   not. Divide a measured distance by `zoomOf(node)` (`view/scroll.js`: `currentCSSZoom`, else drawn width over `offsetWidth`) before
   it moves a scroller or places something (`revealIn`, `revealItem`; Story Director's map does the same). Code that only compares
-  measured rects with each other, or places things in percentages, needs nothing (Story Block's map widget, RPG Battle's skill-tree
+  measured rects with each other, or places things in percentages, needs nothing (Story Block's map widget, the skill-tree
   lines, whose SVG viewBox is the measured box).
 - A phone or a touch screen (`(max-width: 759.98px), (pointer: coarse)`): every button, tab, link, summary and field inside a root is
   at least 44px on the screen (`!important`, over screens' own 36–40px minimums; `role="button"` elements too, a text one such as a

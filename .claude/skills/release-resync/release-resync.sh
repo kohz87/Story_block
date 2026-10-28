@@ -2,7 +2,7 @@
 # Release re-sync (see SKILL.md): rebase Story Block's release branch on main, then rebuild each module's
 # release commit on its main with the testkit copied from the Story Block release head.
 # Usage: release-resync.sh <sb release branch> <module release branch> [folder]
-#   folder: holds the four checkouts (default the parent of this Story Block checkout); they are only read
+#   folder: holds the three checkouts (default the parent of this Story Block checkout); they are only read
 #   and fetched. The work is done in git worktrees under a new temporary folder.
 #   PUSH=1 pushes the results (force-with-lease on the branch's current remote commit); without it nothing
 #   leaves the machine.
@@ -33,7 +33,7 @@ fi
 
 # 2. Each module: the release commit's own changes (everything but tests/vendor) replayed on origin/main,
 #    the testkit synced from the Story Block release head, the message naming that head.
-for repo in rpg_battle Story_director npc_state_delta; do
+for repo in Story_director npc_state_delta; do
     git -C "$root/$repo" fetch -q origin main "$mod_rel"
     dir="$work/$repo"
     git -C "$root/$repo" worktree add -q -B "resync-$mod_rel" "$dir" "origin/$mod_rel"

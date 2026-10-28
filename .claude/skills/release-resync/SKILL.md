@@ -9,9 +9,9 @@ A release is one draft PR per repo (Story Block first, then the modules): Story 
 (e.g. `v2-release-beta1`) carries the version bump; each module's release branch (e.g.
 `v2-release-beta1-r2`) is one commit on its `main`: version, `requires` Story Block, CHANGELOG, and the
 Story Block testkit re-synced to the Story Block release head (its message names that head:
-"Story Block <sha>, <version>"). When Story Block's `main` moves, all four must be rebuilt.
+"Story Block <sha>, <version>"). When Story Block's `main` moves, all three must be rebuilt.
 
-1. Have the four checkouts side by side (`Story_block`, `rpg_battle`, `Story_director`, `npc_state_delta`,
+1. Have the three checkouts side by side (`Story_block`, `Story_director`, `npc_state_delta`,
    see the `suite-check` skill). The script only fetches in them; it works in git worktrees under a new
    temporary folder, so local work is never touched.
 2. Dry run first (nothing is pushed):
@@ -25,7 +25,7 @@ Story Block testkit re-synced to the Story Block release head (its message names
    re-sync is a real incompatibility with the new host: fix it on `main` in that module first (its own PR),
    then re-run this.
 4. Push: run again with `PUSH=1` (each branch is pushed with `--force-with-lease` on its current remote
-   commit). The open release PRs update in place; wait for CI green on all four.
+   commit). The open release PRs update in place; wait for CI green on all three.
 5. Do not merge them yourself: message the coordinator with the four PR links. Merge order is Story Block
    first, then the modules. NSD's `DEVELOPMENT.md` may name the testkit or version by hand: check it.
 6. Clean up, in each checkout: `git worktree remove --force <work>/<repo>` and
