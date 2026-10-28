@@ -87,6 +87,27 @@ export function hintFor({ code, path = '', message = '' }) {
         if (/must be ordered/.test(message)) return 'coinMin must not be above coinMax.';
     }
     if (code === 'bad-schema' && trainerField === 'rank') return 'Name a rank id from content.ranks, such as "F".';
+    // Rank xp ranges (Story Block 2.5.0): the experience curve is flat, so job XP has a range of its own.
+    if (/^content\.ranks\[\d+\]\.xp$/.test(path)) return 'A rank\'s xp is [lowest, highest]: two whole numbers from 0 to 1,000,000, the first not above the second and not below the xp of the rank before it. A job is worth roughly 30 to 200 XP.';
+    if (/^content\.quests\[\d+\]\.reward$/.test(path) && /^Open xp bounds .* xp range$/.test(message)) return 'Keep xpMin and xpMax inside the rank\'s xp range (and xpMin not above xpMax) in content.ranks.';
+    if (/^content\.quests\[\d+\]\.reward$/.test(path) && /^Open xp bounds .* reward range$/.test(message)) return 'This rank has no xp range, so xpMin and xpMax are held to its coin reward range. Give the rank an xp range in content.ranks (experience is flat, a job is roughly 30 to 200 XP) and keep xpMin and xpMax inside it.';
+    // Count bounds, foe aliases and offer words (Story Block 2.5.0): the path (and the code) tell which mistake this is.
+    if (/\.objectives\[\d+\]\.count(Min|Max)$/.test(path) && code === 'envelope-unknown') return 'Only an open quest template ("open": true) bounds a count, and only on a kill or collect objective; remove countMin and countMax here.';
+    if (/\.objectives\[\d+\]\.countMax$/.test(path) && /^countMin \d+ is above countMax/.test(message)) return 'countMin is above countMax: swap them, or lower countMin, so that countMin <= count <= countMax.';
+    if (/\.objectives\[\d+\]\.count$/.test(path) && /countM(in|ax)/.test(message)) return 'An open objective\'s count must lie between its countMin and its countMax; move one of the three numbers (both bounds are optional, each 1 to 999).';
+    if (/\.objectives\[\d+\]\.countM(in|ax)$/.test(path)) return 'countMin and countMax are whole numbers from 1 to 999, and countMin is not above the objective\'s count or above countMax.';
+    if (/^content\.quests\[\d+\]\.offerType$/.test(path)) {
+        if (code === 'envelope-unknown') return 'offerType belongs to an open quest template ("open": true) only; remove it from a quest with a fixed reward.';
+        if (/needs a (kill|collect|visit|story) objective first/.test(message)) return 'The offerType must suit the template\'s first objective: hunt or cull with a kill, gather or deliver with a collect, explore with a visit, escort or task with a story objective; change the type or the objective.';
+        return 'offerType is one of hunt, cull, gather, deliver, explore, escort or task.';
+    }
+    if (/^content\.creatures\[\d+\]\.aliases\[\d+\]$/.test(path) && code === 'bad-schema') return 'An alias may not equal, apart from capitals and spacing, any creature\'s name or slug (its own included), another creature\'s alias or an earlier alias of this one, and it needs a visible character; remove it or make it different.';
+    if (/^content\.creatures\[\d+\]\.aliases\[\d+\]$/.test(path) && code === 'numeric-range') return 'An alias is 1 to 80 UTF-16 units long.';
+    if (/^content\.creatures\[\d+\]\.aliases$/.test(path) && code === 'dup-id') return 'An alias is written twice; list each alias once.';
+    if (/^content\.creatures\[\d+\]\.aliases$/.test(path) && code === 'numeric-range') return 'A foe has at most 8 aliases.';
+    if (/^content\.creatures\[\d+\]\.aliases/.test(path)) return 'A foe\'s aliases are a list of at most 8 different strings, each 1 to 80 UTF-16 units; see reference/LIMITS.md.';
+    if (/^content\.rules\[0\]\.promotionMastery/.test(path)) return 'promotionMastery is exactly 3 whole numbers, each 1 to 5: the mastery needed for the promotions at levels 10, 20 and 30, in that order. Leave it out for 5, 5, 5.';
+    if (/^content\.rules\[0\]\.offerWords/.test(path)) return 'offerWords holds the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard and nightmare, each at most 40 lower-case words of 1 to 24 UTF-16 units.';
     if (code === 'bad-schema' && /does not match pattern/.test(message)) {
         if (message.includes('(?:[a-z][a-z0-9]*_[0-9a-z]{8}|')) return 'Places and other ids are written in full as pack.<pack id>/<slug>, with the pack\'s own id.';
         if (message.includes('^[a-z0-9]+(?:-[a-z0-9]+)*$')) return 'A slug is lowercase letters, digits and single dashes, with no spaces or capitals.';

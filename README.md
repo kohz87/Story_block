@@ -1,6 +1,6 @@
-# Story Block 2.4.0
+# Story Block 2.5.0
 
-> Story Block 2.4.0 and RPG Battle 2.2.0 (they ship together); Story Director 2.1.0; NPC State Delta 1.3.0.
+> Story Block 2.5.0 and RPG Battle 2.3.0 (they ship together); Story Director 2.1.0; NPC State Delta 1.3.0.
 
 ## What it is
 
@@ -59,7 +59,7 @@ is off is gone from the story; nothing it made is lost.
   **Inner chatter** (`story-block.chatter`, off): unspoken thoughts, shown on World, or on Scene without Story Director.
 - **Assist safety net** (*Safety net: read changes the reply forgot*, `story-block.extractor`, **off**): one cheap
   call after each reply keeps time, place, who came or went, weather, quest progress or a hand-over the story
-  told but its change lines missed. It never adds coin, items or XP. Lines it adds are marked "(assist)" and stored,
+  told but its change lines missed. It never adds coin, items, XP, jobs or teachers (`+ quest`, `+ trainer`). Lines it adds are marked "(assist)" and stored,
   so Re-read never calls the model again. A send waits for it at most 1.5 s; a later answer is used on the next reply.
 - **Pre-roll, strict mode** (*Roll checks before the reply*, `story-block.preroll`, **off**): one cheap call reads
   your message and code fixes the check's stat and difficulty and rolls it before the reply. It needs a module that

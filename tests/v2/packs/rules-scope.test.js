@@ -133,9 +133,10 @@ test('the same legacy creature and quest are refused with a manifest: conflicts 
     const wolf = withLegacy('creatures', LEGACY_CREATURE);
     assert.equal(wolf.ok, false);
     assert.ok(has(wolf, 'bad-schema') || has(wolf, 'envelope-unknown'), show(wolf));
-    // A schema-2 foe that also keeps a legacy field.
-    for (const field of ['moves', 'template', 'boss', 'look', 'aliases', 'hp']) {
-        const result = withLegacy('creatures', { ...goblin, [field]: field === 'moves' ? ['bite'] : field === 'aliases' ? ['gob'] : field === 'boss' ? true : 'x' });
+    // A schema-2 foe that also keeps a legacy field. (`aliases` was one until 2.5.0, when it became a schema-2 foe field:
+    // tests/v2/packs/rules-v2/offer-bounds.test.js holds it, accepted and refused.)
+    for (const field of ['moves', 'template', 'boss', 'look', 'hp']) {
+        const result = withLegacy('creatures', { ...goblin, [field]: field === 'moves' ? ['bite'] : field === 'boss' ? true : 'x' });
         assert.equal(result.ok, false, field);
         assert.ok(has(result, 'envelope-unknown', `content.creatures[0].${field}`), `${field}: ${show(result)}`);
     }
@@ -358,10 +359,10 @@ test('a rules pack and the shop and recipe checks of the host agree on reference
 // Options the host hands the checker, and one code for unsafe text
 // ---------------------------------------------------------------------------------------------
 
-test('the checker takes the real host version and limits for its envelope pass (and keeps 2.4.0 and the default limits when given none)', () => {
+test('the checker takes the real host version and limits for its envelope pass (and keeps 2.5.0 and the default limits when given none)', () => {
     const wants = range => smallRulesPack({ requires: { storyBlock: range, capabilities: ['rb-rules-v2'] } });
-    // Packs that ask for an older host than the checker's built-in 2.4.0, and one that asks for a newer host.
-    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.5', '2.5.4']]) {
+    // Packs that ask for an older host than the checker's built-in 2.5.0, and one that asks for a newer host.
+    for (const [range, hostVersion] of [['=2.0.0-beta.2', '2.0.0-beta.2'], ['<=2.0.0-beta.5', '2.0.0-beta.2'], ['>=2.0.0-beta.1 <2.0.0', '2.0.0-beta.2'], ['^2.6', '2.6.4']]) {
         assert.equal(R.validateRulesPack(wants(range)).ok, false, `${range}: the built-in version is not enough`);
         const given = R.validateRulesPack(wants(range), { hostVersion });
         assert.equal(given.ok, true, `${range} on ${hostVersion}: ${show(given)}`);

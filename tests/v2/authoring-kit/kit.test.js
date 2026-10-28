@@ -549,3 +549,178 @@ test('the data module numbers the prompts quote are the interpreter\'s', () => {
     assert.ok(format.includes(`at most ${DM_LIMITS.migrations} steps`));
     assert.ok(format.includes(`1 to ${DM_LIMITS.elapsedMinutes.toLocaleString('en-US')} minutes`));
 });
+
+// ---- Story Block 2.5.0: count bounds, foe aliases and offer words (GENERATIVE_OFFERS_SPEC §12.1, §12.3) ----
+
+const openHunt = (extra = {}) => ({
+    slug: 'open-hunt-f', name: 'Hunt', open: true, rank: 'F', category: 'bounty', giver: null, turnInPlace: null, requirements: [],
+    objectives: [{ id: 'open-hunt-f/kill', kind: 'kill', count: 3, countMin: 1, countMax: 8, allowVariants: true, ...extra }],
+    reward: { coinMin: 40, coinMax: 120, xpMin: 30, xpMax: 90, items: [] }, durationMinutes: null, repeat: null, chain: null,
+});
+
+test('the quests and foes prompts teach count bounds and aliases with Story Block\'s own numbers', () => {
+    const defs = R.rulesV2Schema.$defs;
+    const quests = read('prompts/rules-pack/06-quests.md');
+    const foes = read('prompts/rules-pack/05-foes.md');
+    const bound = defs.openObjective.oneOf[0].properties.countMin;
+    assert.deepEqual([bound.minimum, bound.maximum], [1, 999]);
+    assert.deepEqual(defs.openObjective.oneOf[1].properties.countMax, defs.openObjective.oneOf[0].properties.countMax);
+    assert.ok(quests.includes('"countMin" and/or "countMax" (whole numbers 1-999)'));
+    assert.ok(quests.includes('countMin <= count <= countMax'));
+    assert.ok(quests.includes('one story, one hunt and one delivery\n  template for each rank you use'));
+    const aliases = defs.foe.properties.aliases;
+    assert.deepEqual([aliases.maxItems, aliases.items.minLength, aliases.items.maxLength, aliases.uniqueItems], [8, 1, 80, true]);
+    assert.ok(foes.includes('"aliases":[...] (at most 8 different names of 1-80\nUTF-16 units'));
+    assert.ok(foes.includes('An alias is never\nthe name or slug of any creature (this one included) nor an alias of another creature'));
+    // Each code the checker answers for an alias is named in the step's typical problems, with what causes it.
+    assert.match(foes, /`bad-schema` \([^)]*an alias that equals, apart from capitals and spacing, a creature's name or slug, another creature's alias or an earlier alias of the same creature, or has no visible character\)/);
+    assert.match(foes, /`numeric-range` \(more than 8 aliases, an alias of 0 or over 80 UTF-16 units\)/);
+    assert.match(foes, /`dup-id` \(an alias written twice exactly\)/);
+    // A pack that uses the 2.5 fields needs a Story Block that knows them.
+    for (const text of [quests, foes, read('reference/PACK-FORMAT.md')]) assert.ok(text.includes('"storyBlock": "^2.5"') || text.includes('`"storyBlock": "^2.5"`'));
+    // The reference page says all three, and LIMITS.md (generated) carries their numbers.
+    const format = read('reference/PACK-FORMAT.md');
+    for (const word of ['countMin', 'countMax', 'aliases', 'offerWords', 'nightmare']) assert.ok(format.includes(word), word);
+    const limits = read('reference/LIMITS.md');
+    assert.match(limits, /optional `aliases`, up to 8 different names the story may use for it \(1 to 80 UTF-16 units each; an alias never equals, apart from capitals and spacing, a creature's name or slug, another creature's alias or one of its own, and has a visible character\)/);
+    assert.match(limits, /`countMin` and `countMax` \(each 1 to 999/);
+    assert.match(limits, /`offerWords` on the rules manifest: the lists hunt, cull, gather, deliver, explore, escort, task, easy, normal, hard, nightmare; each 0 to 40 entries, a word 1 to 24 UTF-16 units, lower case/);
+    assert.deepEqual(Object.keys(defs.offerWords.properties), ['hunt', 'cull', 'gather', 'deliver', 'explore', 'escort', 'task', 'easy', 'normal', 'hard', 'nightmare']);
+});
+
+test('the checker accepts count bounds, aliases and offer words, and each mistake gets its own hint', () => {
+    const full = json('examples/tiny-world/pack.json');
+    const build = change => {
+        const pack = clone(full);
+        pack.content.quests.push(openHunt());
+        change(pack);
+        return pack;
+    };
+    const good = checkPack(build(pack => {
+        pack.content.creatures[0].aliases = ['wisp', 'marsh light'];
+        pack.content.rules[0].offerWords = { hunt: ['jagd'], easy: ['leicht'] };
+    }));
+    assert.equal(good.ok, true, JSON.stringify(good.errors));
+    const hints = change => {
+        const result = checkPack(build(change));
+        assert.equal(result.ok, false);
+        return result.errors.map(error => ({ path: error.path, hint: hintFor(error) }));
+    };
+    const q = 'content.quests[2].objectives[0]';
+    const bounds = 'An open objective\'s count must lie between its countMin and its countMax; move one of the three numbers (both bounds are optional, each 1 to 999).';
+    assert.deepEqual(hints(p => { p.content.quests[2].objectives[0].countMin = 4; }), [{ path: `${q}.count`, hint: bounds }]);
+    assert.deepEqual(hints(p => { p.content.quests[2].objectives[0].countMax = 2; }), [{ path: `${q}.count`, hint: bounds }]);
+    assert.match(hints(p => { p.content.quests[2].objectives[0].countMin = 0; })[0].hint, /whole numbers from 1 to 999/);
+    // A closed quest, or a visit objective, has no count to bound.
+    const closed = hints(p => { p.content.quests[0].objectives[0].countMax = 6; });
+    assert.equal(closed.length, 1);
+    assert.match(closed[0].hint, /^Only an open quest template/);
+    // Each alias mistake gets the hint for the code the checker really answers with.
+    const alias = change => { const out = hints(p => change(p.content.creatures)); assert.equal(out.length, 1, JSON.stringify(out)); return out[0]; };
+    assert.deepEqual(alias(c => { c[0].aliases = ['wisp', 'wisp']; }), { path: 'content.creatures[0].aliases', hint: 'An alias is written twice; list each alias once.' });
+    assert.deepEqual(alias(c => { c[0].aliases = Array.from({ length: 9 }, (_, i) => `a${i}`); }), { path: 'content.creatures[0].aliases', hint: 'A foe has at most 8 aliases.' });
+    assert.deepEqual(alias(c => { c[0].aliases = ['x'.repeat(81)]; }), { path: 'content.creatures[0].aliases[0]', hint: 'An alias is 1 to 80 UTF-16 units long.' });
+    const collide = /^An alias may not equal, apart from capitals and spacing, any creature's name or slug/;
+    for (const [aliases, at] of [[['Wisp', 'wisp'], 1], [[`Mud  Crawler`], 0], [['reed-wisp'], 0], [['\u200b'], 0]]) {
+        const found = alias(c => { c[0].aliases = aliases; });
+        assert.equal(found.path, `content.creatures[0].aliases[${at}]`);
+        assert.match(found.hint, collide);
+    }
+    assert.match(hints(p => { p.content.rules[0].offerWords = { hunt: ['Slay'] }; })[0].hint, /^offerWords holds the lists hunt, cull/);
+    // An inverted range is said once, at countMax.
+    assert.deepEqual(hints(p => { Object.assign(p.content.quests[2].objectives[0], { countMin: 9, countMax: 8 }); }), [{ path: `${q}.countMax`, hint: 'countMin is above countMax: swap them, or lower countMin, so that countMin <= count <= countMax.' }]);
+    assert.match(hints(p => { p.content.rules[0].offerWords = { slay: ['x'] }; })[0].hint, /^offerWords holds the lists/);
+});
+
+test('offerType: the quests prompt, the format page and LIMITS.md state it; the checker gives each mistake its own hint', () => {
+    const defs = R.rulesV2Schema.$defs;
+    const types = defs.openQuest.properties.offerType.enum;
+    assert.deepEqual(types, ['hunt', 'cull', 'gather', 'deliver', 'explore', 'escort', 'task']);
+    assert.equal(defs.closedQuest.properties.offerType, undefined, 'only an open template has it');
+    const quests = read('prompts/rules-pack/06-quests.md');
+    assert.ok(quests.includes('"offerType"') && quests.includes('"hunt", "cull", "gather", "deliver",\n  "explore", "escort" or "task"'));
+    assert.ok(quests.includes('(hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story)'));
+    assert.ok(quests.includes('"storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to have an effect'));
+    const format = read('reference/PACK-FORMAT.md');
+    assert.ok(format.includes('`offerType`') && format.includes('hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story'));
+    assert.match(read('reference/LIMITS.md'), /optional `offerType` \(hunt, cull, gather, deliver, explore, escort, task\) says which kind of job the template is for, and its first objective must suit it: hunt and cull kill, gather and deliver collect, explore visit, escort and task story \|/);
+
+    const full = json('examples/tiny-world/pack.json');
+    const hint = change => {
+        const pack = clone(full);
+        pack.content.quests.push(openHunt());
+        change(pack.content.quests);
+        const result = checkPack(pack);
+        assert.equal(result.ok, false);
+        assert.equal(result.errors.length, 1, JSON.stringify(result.errors));
+        assert.equal(result.errors[0].path, 'content.quests[2].offerType');
+        return hintFor(result.errors[0]);
+    };
+    assert.equal(checkPack((() => { const pack = clone(full); pack.content.quests.push({ ...openHunt(), offerType: 'cull' }); return pack; })()).ok, true, 'a hunt template typed cull is accepted');
+    assert.match(hint(q => { q[2].offerType = 'gather'; }), /^The offerType must suit the template's first objective: hunt or cull with a kill/);
+    assert.match(hint(q => { q[2].offerType = 'slay'; }), /^offerType is one of hunt, cull, gather, deliver, explore, escort or task\.$/);
+    const closed = clone(full);
+    closed.content.quests[0].offerType = 'hunt';
+    const refused = checkPack(closed);
+    assert.deepEqual(refused.errors.map(error => [error.code, error.path]), [['envelope-unknown', 'content.quests[0].offerType']]);
+    assert.match(hintFor(refused.errors[0]), /^offerType belongs to an open quest template/);
+});
+
+test('promotionMastery: the classes prompt, the format page and LIMITS.md state it; the checker accepts it and hints at each mistake', () => {
+    const field = R.rulesV2Schema.properties.promotionMastery;
+    const classes = read('prompts/rules-pack/01-classes.md');
+    assert.ok(classes.includes('"promotionMastery": [a, b, c] (exactly 3 whole numbers, each 1-5)'));
+    assert.ok(classes.includes('the promotion at level 10, b at level 20, c at level 30'));
+    assert.ok(classes.includes('"storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to\nhave an effect; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5'));
+    assert.deepEqual([field.minItems, field.maxItems, field.items.minimum, field.items.maximum], [3, 3, 1, 5]);
+    assert.deepEqual(R.RULES_V2_CONSTANTS.promotionMilestones, [10, 20, 30]);
+    assert.ok(read('reference/PACK-FORMAT.md').includes('`promotionMastery`') && read('reference/PACK-FORMAT.md').includes('RPG Battle 2.2.0 ignores it'));
+    assert.match(read('reference/LIMITS.md'), /optional `promotionMastery` on the rules manifest: exactly 3 whole numbers 1 to 5, one for each promotion in that order; left out it is 5, 5, 5 \|/);
+
+    const full = json('examples/tiny-world/pack.json');
+    const withValue = value => { const pack = clone(full); pack.content.rules[0].promotionMastery = value; return checkPack(pack); };
+    for (const value of [[3, 4, 5], [1, 1, 1], [5, 5, 5]]) assert.equal(withValue(value).ok, true, JSON.stringify(withValue(value).errors));
+    for (const [value, path, code] of [[[3, 4], 'content.rules[0].promotionMastery', 'numeric-range'], [[3, 4, 6], 'content.rules[0].promotionMastery[2]', 'numeric-range'], [[0, 4, 5], 'content.rules[0].promotionMastery[0]', 'numeric-range'], [5, 'content.rules[0].promotionMastery', 'bad-schema']]) {
+        const result = withValue(value);
+        assert.equal(result.ok, false, JSON.stringify(value));
+        assert.deepEqual(result.errors.map(error => [error.code, error.path]), [[code, path]], JSON.stringify(value));
+        assert.match(hintFor(result.errors[0]), /^promotionMastery is exactly 3 whole numbers, each 1 to 5: the mastery needed for the promotions at levels 10, 20 and 30/);
+    }
+});
+
+test('rank xp: the base-pack, quests and tuning prompts, the format page and LIMITS.md explain the flat curve; the checker hints at each mistake', () => {
+    const base = read('prompts/rules-pack/00-base-pack.md');
+    const quests = read('prompts/rules-pack/06-quests.md');
+    const tuning = read('prompts/rules-pack/08-reward-tuning.md');
+    const format = read('reference/PACK-FORMAT.md');
+    for (const [name, text] of [['00-base-pack', base], ['06-quests', quests], ['08-reward-tuning', tuning], ['PACK-FORMAT', format]]) {
+        assert.match(text, /about 30 to 200 XP/, name);
+        assert.match(text, /flat/i, name);
+    }
+    assert.ok(base.includes('"xp": [lo, hi]') && base.includes('whole numbers from 0 to 1000000'));
+    assert.ok(base.includes('"storyBlock": "^2.5" in requires and RPG Battle 2.3.0 to have an effect'));
+    assert.ok(quests.includes('xpMin/xpMax\n  inside the rank\'s "xp" range when the rank has one, else inside its coin "reward" range as before'));
+    assert.ok(tuning.includes('if its rank has an "xp" range, xp must lie inside it'));
+    assert.ok(format.includes('"xp": [30, 150]') && format.includes('RPG Battle 2.2.0 ignores it'));
+    assert.match(read('reference/LIMITS.md'), /A rank's optional `xp` range \| two whole numbers 0 to 1,000,000, the first not above the second and not below the previous rank's;/);
+    assert.match(read('reference/LIMITS.md'), /xp inside its `xp` range when the rank has one, else inside `reward` as before/);
+
+    const full = json('examples/tiny-world/pack.json');
+    const inside = { coinMin: 40, coinMax: 120, xpMin: 30, xpMax: 150 };
+    const build = ({ xp, reward = inside }) => {
+        const pack = clone(full);
+        if (xp) pack.content.ranks[0].xp = xp;
+        pack.content.quests.push({ ...openHunt(), reward: { ...reward, items: [] } });
+        return checkPack(pack);
+    };
+    // Tiny world's rank F pays 30 to 300 coin.
+    assert.equal(build({}).ok, true, 'no rank xp: XP inside the coin range, as before');
+    assert.equal(build({ xp: [30, 150] }).ok, true);
+    assert.equal(build({ xp: [5, 20], reward: { ...inside, xpMin: 5, xpMax: 20 } }).ok, true, 'a rank xp range lets XP sit below the coin range');
+    const hints = result => result.errors.map(error => [error.path, error.message, hintFor(error)]);
+    assert.deepEqual(hints(build({ xp: [30, 150], reward: { ...inside, xpMin: 5, xpMax: 20 } })), [['content.quests[2].reward', "Open xp bounds must be ordered and inside rank F's xp range", "Keep xpMin and xpMax inside the rank's xp range (and xpMin not above xpMax) in content.ranks."]]);
+    assert.deepEqual(hints(build({ reward: { ...inside, xpMin: 5, xpMax: 20 } })), [['content.quests[2].reward', "Open xp bounds must be ordered and inside rank F's reward range", 'This rank has no xp range, so xpMin and xpMax are held to its coin reward range. Give the rank an xp range in content.ranks (experience is flat, a job is roughly 30 to 200 XP) and keep xpMin and xpMax inside it.']]);
+    const bad = build({ xp: [150, 30] });
+    assert.deepEqual(bad.errors.map(error => [error.code, error.path]), [['BAD_RECORD', 'content.ranks[0].xp']]);
+    assert.match(hintFor(bad.errors[0]), /^A rank's xp is \[lowest, highest\]: two whole numbers from 0 to 1,000,000, the first not above the second and not below the xp of the rank before it\./);
+});

@@ -133,6 +133,8 @@ test('representative complete $defs and reference resolution', () => {
         'shop',
         'recipe',
         'unit',
+        'offerWords',
+        'offerWordList',
     ];
 
     const actualDefs = Object.keys(rulesV2Schema.$defs);
@@ -142,7 +144,7 @@ test('representative complete $defs and reference resolution', () => {
             `$defs must include "${defName}"`
         );
     }
-    assert.equal(actualDefs.length, expectedDefs.length, 'all 36 defs must be present');
+    assert.equal(actualDefs.length, expectedDefs.length, 'all 38 defs must be present');
 
     const collectedRefs = [];
     function collectRefs(obj) {

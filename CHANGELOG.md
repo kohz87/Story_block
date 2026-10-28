@@ -1,5 +1,64 @@
 # Changelog
 
+## 2.5.0
+
+**Story Block 2.5.0 and RPG Battle 2.3.0 ship together.** Update both.
+
+- **Rules packs can bound the jobs the story makes up.** An open quest template's kill and collect objectives may write
+  `countMin` and `countMax` beside `count` (1 to 999, `countMin <= count <= countMax`; a count outside them is a
+  `bad-schema` problem at the objective's `count`, or at `countMax` when `countMin` is above it). A foe may list `aliases`
+  (up to 8 other names the story may use for it, 1 to 80 UTF-16 units; repeating one is `dup-id`, more than 8 or a bad length
+  is `numeric-range`, and an alias equal to a creature's name or slug, to another creature's alias or to an earlier alias of
+  its own, ignoring capitals and spacing, or with no visible character, is `bad-schema` at the alias, because the story's
+  target is matched by exact name, slug or alias). The rules manifest may carry `offerWords`: eleven lists (`hunt`, `cull`,
+  `gather`, `deliver`, `explore`, `escort`, `task`, `easy`, `normal`, `hard`, `nightmare`) of up to 40 lower-case words
+  of 1 to 24 UTF-16 units, for a pack written in another language or another voice. All three are optional; a pack that
+  writes none reads exactly as before. A pack that does not bound a count gets bounds derived from its own closed quests
+  (RPG Battle 2.3.0 reads the largest count of that objective kind among them), so existing packs need no edit. A pack that
+  uses any of these fields, or `offerType` below, should require `"storyBlock": "^2.5"`.
+- **Open quest templates can say which job they are for.** An open template may write `offerType` (`hunt`, `cull`,
+  `gather`, `deliver`, `explore`, `escort` or `task`). Hunt and cull share the objective kind `kill`, gather and deliver
+  `collect`, escort and task `story`, so a narrator's `type: cull` used to land on the first kill template; with `offerType`
+  RPG Battle 2.3.0 picks the template whose type matches. The type must suit the template's first objective (`bad-schema` at
+  `offerType` otherwise), a closed quest refuses it (`envelope-unknown`), and two templates may share a type and rank (pack
+  order decides). It needs `"storyBlock": "^2.5"` and RPG Battle 2.3.0 to have an effect; without it RPG Battle uses the first
+  template of the kind, as before.
+- **Packs can say how much mastery a promotion needs.** The rules manifest may write `promotionMastery`: 3 whole numbers,
+  each 1 to 5, for the promotions at levels 10, 20 and 30 (for example `[3, 4, 5]`). Left out it means `[5, 5, 5]`, the rule
+  until now (every promotion needs all three skills at the top mastery), and a pack without it is unchanged. The resolved
+  constants a chat pins carry the effective value; `masteryAt`, the use caps and every other constant stay fixed. It needs
+  `"storyBlock": "^2.5"` and RPG Battle 2.3.0 to have an effect; RPG Battle 2.2.0 ignores it.
+- **Ranks can have an XP range; job XP is no longer held to coin.** The experience curve is flat (100 XP a level), but an open
+  quest template's `xpMin`/`xpMax` had to lie inside its rank's coin `reward` range, so an E job was at least eight levels of
+  XP and a D job thirty, whatever the pack. A rank in `content.ranks` may now write `xp: [min, max]` (whole numbers 0 to
+  1,000,000, ordered like `reward`), and a template's XP bounds are held to it. A rank without `xp` keeps the old rule (inside
+  `reward`), so every existing pack stays valid and unchanged; coin bounds are always held to `reward`. A job is worth roughly a
+  third of a level to two levels (about 30 to 200 XP). A pack that writes `xp` should require `"storyBlock": "^2.5"`; RPG Battle
+  2.3.0 reads it and 2.2.0 ignores it.
+- **The Assist safety net never offers jobs or teachers.** `+ quest` and `+ trainer` are refused under any setting of
+  *Kinds the safety net may write*, on the reply and on the next reply alike. Before, a reader who added `+ quest` to that
+  list let the net offer jobs. Quest progress (`~ quest`) and a turn-in (`- quest`) are as they were. The narrator's own
+  `+ quest` and `+ trainer` lines are not affected.
+- **Authoring kit:** the quests prompt asks for one story, one hunt and one delivery template for each rank and explains
+  count bounds; the foes prompt explains aliases; `PACK-FORMAT.md` and the generated `LIMITS.md` state the new limits; the
+  checker gives each mistake its own hint.
+- **The example pack is unchanged.** Ersveil: Bluewatch Starter stays at **1.6.0** (no count bounds, no aliases); the
+  bounds the story needs are derived from its closed quests.
+
+### Upgrading from 2.4
+
+Update RPG Battle to 2.3.0 with this release; the two ship together. Every rules pack's fingerprint (rules hash) changes
+because the rules schema changed; chats already pinned to a pack keep their own copy and play on unchanged. Existing
+packs, pins and data modules need no edit. One change in a stored reply: a Re-read of a reply whose stored safety-net line
+was a `+ quest` or `+ trainer` (possible only if the reader had widened *Kinds the safety net may write*) no longer applies
+that line, and raises no new Problem. Story Director and NPC State Delta need no update.
+
+**A pack that uses the new 2.5.0 fields needs RPG Battle 2.3.0.** The new fields are `countMin`/`countMax`, `offerType`, foe
+`aliases`, `offerWords`, `promotionMastery` and a rank's `xp`. With RPG Battle 2.2.0, opening an open quest template that
+carries count bounds or an `offerType` fails ("Invalid Quest extension"); the other fields are ignored (every promotion still
+needs 5 of 5, a rank's `xp` and the aliases and offer words do nothing). Update both to 2.3.0 together, and have such packs
+require `"storyBlock": "^2.5"`. The bundled Ersveil pack (1.6.0) uses none of them.
+
 ## 2.4.0
 
 **Story Block 2.4.0 and RPG Battle 2.2.0 ship together.** Update both.

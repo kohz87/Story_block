@@ -62,13 +62,19 @@ one coin needs no `coins` list. Ranks are a ladder of quest ranks, lowest first:
 
 ```json
 "ranks": [
-  { "id": "F", "title": "Apprentice", "levels": [1, 10], "reward": [30, 300] },
-  { "id": "E", "title": "Journeyman", "levels": [11, 20], "reward": [300, 1500] }
+  { "id": "F", "title": "Apprentice", "levels": [1, 10], "reward": [30, 300], "xp": [30, 150] },
+  { "id": "E", "title": "Journeyman", "levels": [11, 20], "reward": [300, 1500], "xp": [50, 300] }
 ]
 ```
 
 A rank id is up to 8 letters, digits, `+` or `-`. `levels` is the character levels the rank is for, `reward` the
-coin a quest of that rank pays, in the smallest coin.
+coin a quest of that rank pays, in the smallest coin. `xp` is optional: the experience a job of the rank may give, two whole
+numbers from 0 to 1,000,000, the first not above the second, and not below the `xp` of the rank before it. Experience is flat
+(a level takes 100 XP at every level), so a rank's coin range says nothing about its XP; give a job roughly a third of a level
+to two levels (about 30 to 200 XP, a little more at higher ranks). An open quest template's `xpMin` and `xpMax` are held to
+the rank's `xp` range when it has one, and to its `reward` range when it has none (its `coinMin` and `coinMax` always to
+`reward`). A pack that writes `xp` needs `"storyBlock": "^2.5"` in `requires` and RPG Battle 2.3.0 to have an effect;
+RPG Battle 2.2.0 ignores it.
 
 ### Numbers that hold together
 
@@ -137,7 +143,8 @@ the rules schema (no extra fields). Examples that pass the checker:
 ```json
 { "slug": "reed-wisp", "name": "Reed Wisp", "tier": 0, "level": 1,
   "stats": { "STR": 3, "VIT": 4, "AGI": 8, "DEX": 6, "INT": 7, "LUK": 5, "CHA": 2 },
-  "skills": ["ember-spark"], "loot": [ { "def": "marsh-reed", "chance": 60, "qty": 1 } ], "loreTags": ["marsh"] }
+  "skills": ["ember-spark"], "loot": [ { "def": "marsh-reed", "chance": 60, "qty": 1 } ], "loreTags": ["marsh"],
+  "aliases": ["wisp", "marsh light"] }
 ```
 
 ```json
@@ -168,7 +175,25 @@ Objectives are `kill` (`foe`, `count`), `collect` (`def`, `count`, `consume`), `
 An **open quest template** is a quest whose reward is a range for its rank instead of fixed numbers:
 `"open": true`, `"rank": "F"`, `"reward": { "coinMin", "coinMax", "xpMin", "xpMax", "items": [] }`, objectives
 without a fixed target (`{ "id", "kind": "kill", "count": 3 }`), and `repeat` and `chain` both `null`. Its coin and
-xp bounds lie inside the named rank's `reward` range.
+xp bounds lie inside the named rank's `reward` range. A kill or collect objective of a template may also write
+`countMin` and `countMax` (whole numbers 1 to 999) beside its `count`, with `countMin <= count <= countMax`; they bound
+the count a job made from the template may ask for, and both are optional. A template may also write `offerType`
+(`hunt`, `cull`, `gather`, `deliver`, `explore`, `escort` or `task`): the kind of job it is for, which RPG Battle 2.3.0
+uses to choose between templates that share an objective kind (a cull and a hunt both kill). Its first objective must suit
+it (hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story); a quest with a fixed reward refuses it.
+
+A foe may list `aliases` (at most 8 different names of 1 to 80 UTF-16 units) that the story may use for it, and the rules
+manifest (`content.rules[0]`) may carry `offerWords`: lists named `hunt`, `cull`, `gather`, `deliver`, `explore`, `escort`, `task`, `easy`,
+`normal`, `hard` and `nightmare`, each of at most 40 lower-case words of 1 to 24 UTF-16 units, which add the words of
+your language or setting to the ones an offer line is read with. All three are optional. An alias may not equal, apart
+from capitals and spacing, any creature's name or slug (its own included), another creature's alias or another alias of
+the same creature, and needs a visible character. A pack that uses `countMin`/`countMax`, `offerType`, `aliases` or `offerWords`
+needs `"storyBlock": "^2.5"` in `requires`.
+
+The rules manifest (`content.rules[0]`) may also carry `promotionMastery`: exactly 3 whole numbers, each 1 to 5, for the
+mastery all three of a class's skills need for the promotions at levels 10, 20 and 30, in that order. Left out it means
+`[5, 5, 5]` (the top mastery for every promotion). It needs `"storyBlock": "^2.5"` in `requires` and RPG Battle 2.3.0 to have an
+effect; RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5.
 
 ## Text rules
 

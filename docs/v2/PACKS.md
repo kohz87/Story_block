@@ -304,9 +304,19 @@ Battle for foe strength:
 | `title` | Optional, 1–30 characters, the same rules as a term. |
 | `levels` | Optional `[lowest, highest]`: whole levels from 1 to 999, the first not above the second. |
 | `reward` | Optional `[lowest, highest]`: whole amounts ≥ 0 of the chat's one currency (its smallest unit). |
+| `xp` | Optional `[lowest, highest]` (2.5.0): whole experience points from 0 to 1,000,000, the first not above the second: what a job of the rank may give. |
 
 Only these fields are allowed, and a pack holds at most 12 ranks. Ranges may overlap, but a rank's
-`levels` or `reward` can't start below the last rank before it that has one. `packs.content({ kind:
+`levels`, `reward` or `xp` can't start below the last rank before it that has one.
+
+**Experience is flat.** RPG Battle's curve is 100 XP a level at every level, so a job's XP is not a coin amount: a rank's coin
+`reward` says nothing about it. Before 2.5.0 an open quest template's `xpMin` and `xpMax` were held inside the rank's coin
+`reward` range, which made an E job (coin 800 to 3000) at least eight levels of XP and a D job at least thirty. From 2.5.0 they
+are held inside the rank's `xp` range when the rank has one, and inside `reward` as before when it has none, so a pack without
+`xp` is unchanged and still valid; `coinMin` and `coinMax` are always held inside `reward`. A job is worth roughly a third of a
+level to two levels: about 30 to 200 XP, a little more at higher ranks. The message says which range was used ("inside rank E's xp
+range" or "…reward range"). `xp` has an effect only with RPG Battle 2.3.0 (2.2.0 ignores it), and a pack that writes it should
+require `"storyBlock": "^2.5"`: an older Story Block refuses the field. `packs.content({ kind:
 'ranks' })` lists every enabled pack's ladder one after another, each record with its `pack`, so a reader
 takes one pack's ranks (the first that has any).
 
@@ -314,10 +324,10 @@ takes one pack's ranks (the first that has any).
 lowest first ("Soul Class I" … "Soul Class IX", or `F`, `E` … `SSS`), optionally with the first level of
 each ("Soul Class II: 11"). When it is set, `packs.content({ kind: 'ranks' })` answers with it instead of the
 packs' ladders, so Story Director's quest ranks, RPG Battle's party and foe ranks and Story Block's coin
-budget all use it, with or without each other. Its records are `{ id, title, levels?, reward?, pack: null,
+budget all use it, with or without each other. Its records are `{ id, title, levels?, reward?, xp?, pack: null,
 reader: true }`: the title as typed, the id the short word the story writes (the line itself when it is one
 short word, else its last word, "IX"; else R1, R2 …). A rank keeps the first enabled pack's levels at its
-place (unless every line gives its first level), and pays the reward range of the pack's rank at its first
+place (unless every line gives its first level), and pays the reward range, and has the `xp` range, of the pack's rank at its first
 level (the last pack rank that starts at or below it), so renaming a ladder never changes what quests pay
 and a longer ladder of narrower ranks never pays more at a level (a ladder renames and re-bands; it never
 raises money). Past the pack's ranks, modules pay by level too (RPG Battle on the built-in F to S, times
@@ -452,6 +462,48 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   and on `trainers[i].fee` (one number, or `coinMin` above `coinMax`), `numeric-range` for a fee of 0 or over 1,000,000.
   A consumer tells a template from a fixed trainer by `open === true`. The rules hash of every pack changes with this
   release because the schema is part of it; a chat keeps the hash it pinned.
+* **Generative offers: count bounds, offer types, aliases and offer words** (2.5.0). Four optional additions, so a pack that writes
+  none of them reads as before. An open quest template's `kill` and `collect` objectives may write `countMin` and
+  `countMax` (whole numbers 1 to 999) beside `count`; the checker requires `countMin <= count <= countMax` for whichever
+  are written and answers `bad-schema` at the objective's `count` otherwise (when `countMin` is above `countMax`, one
+  `bad-schema` at `countMax` says so). They bound the count a job made from the
+  template may ask for when the narrator offers one in its own words (RPG Battle 2.3.0). A template without bounds gets
+  them derived from the pack's closed quests: the largest `count` of that objective kind among them, never below the
+  template's own, and 1 for the lower bound. An open template may also write `offerType` (`hunt`, `cull`, `gather`,
+  `deliver`, `explore`, `escort`, `task`): the kind of job it is for. Hunt and cull share the objective kind `kill`, gather
+  and deliver `collect`, escort and task `story`, so a narrator's `type:` word could only reach the first template of a kind;
+  with `offerType` RPG Battle 2.3.0 picks the template whose type matches. The type must agree with the template's first
+  objective (hunt, cull: kill; gather, deliver: collect; explore: visit; escort, task: story), else `bad-schema` at
+  `offerType`; a closed quest refuses it (`envelope-unknown`); two templates may share a type and rank (pack order decides);
+  the resolved quests carry it. It has an effect only with RPG Battle 2.3.0 and a Story Block that knows it: without it, RPG
+  Battle uses the first template of the kind as before. A foe may list `aliases`: up to 8 different names, 1 to 80 UTF-16
+  units each, other names the story may use for the creature; the resolved foes keep them. The story's target is matched by
+  exact name, slug or alias, so an alias must name its own foe and no other. Refusals: `numeric-range` (more than 8, or one of
+  0 or over 80 units), `dup-id` (the same alias written twice exactly), and `bad-schema` at `aliases[j]` for an alias that
+  equals, folded (capitals ignored, runs of white space as one space, trimmed), its own foe's name or slug, any other foe's
+  name or slug, an alias of an earlier foe, or an earlier alias of its own list, and for one with no visible character
+  (white space and zero-width marks only).
+  The rules manifest (`content.rules[0]`) may carry `offerWords`, eleven optional lists named `hunt`, `cull`, `gather`,
+  `deliver`, `explore`, `escort`, `task`, `easy`, `normal`, `hard`, `nightmare`, each at most 40 words of 1 to 24
+  UTF-16 units, written in lower case (a capital letter is `bad-schema` at the word): they add a language's or a setting's
+  words to the ones an offer line is read with. Lengths are counted in UTF-16 units like every other text here. A pack that
+  uses any of the four should require `"storyBlock": "^2.5"`; an older Story Block refuses the fields. The
+  example pack Ersveil 1.6.0 is unchanged and uses none of them. The rules hash of every pack changes with this release
+  because the schema is part of it; a chat keeps the hash it pinned.
+* **Promotion mastery** (2.5.0). The rules manifest may write `promotionMastery`: exactly 3 whole numbers, each 1 to 5, for the
+  mastery all three of a class's skills need for the promotions at levels 10, 20 and 30, in the order of
+  `constants.promotionMilestones`. Left out it means `[5, 5, 5]`, the rule before 2.5.0 (every promotion needs the top mastery
+  in all three skills), and a pack without it writes no key and keeps its export bytes. A wrong length is `numeric-range` at the
+  field, a number outside 1 to 5 or a fraction `numeric-range` at the entry, a non-list `bad-schema`. The resolved constants
+  (the pin a rules module freezes) carry the effective value as `constants.promotionMastery`; the checker's constants argument can
+  only repeat `[5, 5, 5]`, and `masteryAt`, the use caps and every other constant stay fixed. It has an effect only with
+  RPG Battle 2.3.0 (RPG Battle 2.2.0 ignores it and every promotion still needs 5 of 5); a pack that uses it should require
+  `"storyBlock": "^2.5"`.
+* **Pairing with RPG Battle** (2.5.0). Every field this release adds to a rules pack (`countMin`/`countMax`, `offerType`, foe
+  `aliases`, `offerWords`, `promotionMastery`, a rank's `xp`) needs RPG Battle 2.3.0; the two ship together. With RPG Battle
+  2.2.0, opening an open quest template that carries count bounds or an `offerType` fails ("Invalid Quest extension"), and the
+  other fields are ignored. Such a pack should require `"storyBlock": "^2.5"`. Packs that write none of them (the bundled
+  Ersveil 1.6.0 among them) work with both.
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's

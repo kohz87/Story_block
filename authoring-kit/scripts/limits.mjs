@@ -28,6 +28,8 @@ const shop = defs.shop.properties;
 const trainer = defs.fixedTrainer.properties;
 const template = defs.openTrainer.properties;
 const openFee = defs.openFee.properties;
+const openKill = defs.openObjective.oneOf[0].properties;
+const offerList = defs.offerWordList;
 const itemRule = defs.itemRule.properties;
 const unit = defs.unit.properties;
 const cost = defs.cost.properties;
@@ -52,6 +54,7 @@ say('## A pack file', table(['What', 'Limit'], [
     ['A tag or slot word', `${RECORD_LIMITS.word} characters`],
     ['Problems listed for one pack', `${LIMITS.errors}, then the checker stops: fix and run again`],
     ['Quest ranks in `content.ranks`', RANKS_LIMITS.records],
+    ['A rank\'s optional `xp` range', `two whole numbers 0 to ${group(RANKS_LIMITS.xp)}, the first not above the second and not below the previous rank\'s; an open template\'s xpMin and xpMax lie inside it (inside \`reward\` when the rank has none)`],
     ['Money scale (`economy.scale`)', `${ECONOMY_LIMITS.min} to ${ECONOMY_LIMITS.max}`],
     ['A recipe\'s difficulty `dc`', `${RECIPE_LIMITS.dcMin} to ${RECIPE_LIMITS.dcMax}`],
 ]));
@@ -121,9 +124,10 @@ say('## Item rules', table(['Field', 'Allowed'], [
 ]));
 
 say('## Foes, quests, shops, recipes, trainers', table(['Record', 'Limits'], [
-    ['Foe', `tier ${range(foe.tier)}; level ${range(foe.level)}; all seven stats; skills ${foe.skills.minItems} to ${foe.skills.maxItems}; loot up to ${foe.loot.maxItems} lines (chance ${range(foe.loot.items.properties.chance)}, qty ${range(foe.loot.items.properties.qty)}); up to ${foe.loreTags.maxItems} loreTags`],
+    ['Foe', `tier ${range(foe.tier)}; level ${range(foe.level)}; all seven stats; skills ${foe.skills.minItems} to ${foe.skills.maxItems}; loot up to ${foe.loot.maxItems} lines (chance ${range(foe.loot.items.properties.chance)}, qty ${range(foe.loot.items.properties.qty)}); up to ${foe.loreTags.maxItems} loreTags; optional \`aliases\`, up to ${foe.aliases.maxItems} different names the story may use for it (${foe.aliases.items.minLength} to ${foe.aliases.items.maxLength} UTF-16 units each; an alias never equals, apart from capitals and spacing, a creature\'s name or slug, another creature\'s alias or one of its own, and has a visible character)`],
     ['Quest', `category ${q.category.enum.join(', ')}; up to ${q.requirements.maxItems} requirements; objectives ${q.objectives.minItems} to ${q.objectives.maxItems} (kill, collect, visit, story; counts ${range(defs.objective.oneOf[0].properties.count)}); reward items up to ${defs.reward.properties.items.maxItems}; \`durationMinutes\` null or ${range(q.durationMinutes.oneOf[1])}; \`repeat\` null or a cooldown of ${range(q.repeat.oneOf[1].properties.cooldownMinutes)} minutes`],
-    ['Open quest template', `\`open: true\` and a \`rank\` that names a pack rank with a reward range; \`reward\` is coinMin, coinMax, xpMin, xpMax (coin and xp alike inside that rank\'s reward range, each min not above its max) and no items; \`repeat\` and \`chain\` are null`],
+    ['Open quest template', `\`open: true\` and a \`rank\` that names a pack rank with a reward range; \`reward\` is coinMin, coinMax, xpMin, xpMax (coin inside that rank\'s \`reward\` range; xp inside its \`xp\` range when the rank has one, else inside \`reward\` as before; each min not above its max) and no items; \`repeat\` and \`chain\` are null; a kill or collect objective may add \`countMin\` and \`countMax\` (each ${range(openKill.countMin)}, countMin not above its count, countMax not below it); optional \`offerType\` (${defs.openQuest.properties.offerType.enum.join(', ')}) says which kind of job the template is for, and its first objective must suit it: hunt and cull kill, gather and deliver collect, explore visit, escort and task story`],
+    ['Offer words', `optional \`offerWords\` on the rules manifest: the lists ${Object.keys(defs.offerWords.properties).join(', ')}; each ${range(offerList)}, a word ${offerList.items.minLength} to ${offerList.items.maxLength} UTF-16 units, lower case`],
     ['Shop', `stock ${shop.stock.minItems} to ${shop.stock.maxItems} lines (qty ${range(shop.stock.items.properties.qty)}); \`kind\` a slug of at most 40 characters`],
     ['Recipe', `qty ${range(recipe.qty)}; materials ${recipe.materials.minItems} to ${recipe.materials.maxItems} (qty ${range(recipe.materials.items.properties.qty)}); minutes ${range(recipe.minutes)}; dc ${range(recipe.dc)}`],
     ['Trainer (fixed)', `place a full place id; skills ${trainer.skills.minItems} to ${trainer.skills.maxItems}; fee ${range(trainer.fee)} (never 0); minutes exactly ${trainer.minutes.const}; up to ${trainer.eventTemplates.maxItems} eventTemplates`],
@@ -137,6 +141,7 @@ say('## Progression the engine applies', table(['Constant', 'Value'], [
     ['Stat cap', RULES_V2_CONSTANTS.statCap],
     ['XP per level', RULES_V2_CONSTANTS.xpPerLevel],
     ['Class promotions at levels', RULES_V2_CONSTANTS.promotionMilestones.join(', ')],
+    ['Mastery each promotion needs in all three skills', `optional \`promotionMastery\` on the rules manifest: exactly ${props.promotionMastery.minItems} whole numbers ${range(props.promotionMastery.items)}, one for each promotion in that order; left out it is ${RULES_V2_CONSTANTS.promotionMastery.join(', ')}`],
     ['Skill path steps at levels', RULES_V2_CONSTANTS.pathMilestones.join(', ')],
     ['Mastery ranks reached at uses', RULES_V2_CONSTANTS.masteryAt.join(', ')],
     ['Training', `${RULES_V2_CONSTANTS.trainMinutes} minutes, ${RULES_V2_CONSTANTS.trainCredits} credits`],
