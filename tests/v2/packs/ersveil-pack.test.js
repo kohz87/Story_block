@@ -1,6 +1,6 @@
 // The example pack (examples/packs/ersveil, Ersveil 2.0.0, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
-// docs/v2/ERSVEIL.md describes; the lorebook is a SillyTavern World Info book of 170 entries with unique uids. (The former
+// docs/v2/ERSVEIL.md describes; the lorebook is a SillyTavern World Info book of 171 entries with unique uids. (The former
 // example packs are fixtures: Ersveil 1.0.0 with RPG Battle's rules, ersveil-rules-fixture.test.js, and Bluewatch 1.6.0,
 // ersveil.test.js and its neighbours.)
 import test from 'node:test';
@@ -82,15 +82,15 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     assert.equal(addsLine(installed.list()[0]), '7 events, 320 places, 350 routes, start state, 4 coins, a calendar, 84 weather tables');
 });
 
-test('ersveil-lore.json is a SillyTavern World Info book of 170 entries with unique uids', () => {
+test('ersveil-lore.json is a SillyTavern World Info book of 171 entries with unique uids', () => {
     const book = JSON.parse(readFileSync(lorePath, 'utf8'));
     assert.equal(book.name, 'Ersveil Lore');
     assert.ok(book.entries && typeof book.entries === 'object' && !Array.isArray(book.entries), 'entries is an object keyed by uid, as SillyTavern exports it');
     const entries = Object.values(book.entries);
-    assert.equal(entries.length, 170);
+    assert.equal(entries.length, 171);
     const uids = entries.map(entry => entry.uid);
     assert.ok(uids.every(uid => Number.isInteger(uid)));
-    assert.equal(new Set(uids).size, 170, 'every uid is unique');
+    assert.equal(new Set(uids).size, 171, 'every uid is unique');
     for (const [key, entry] of Object.entries(book.entries)) {
         assert.equal(String(entry.uid), key, `entry ${key}: the key is the uid`);
         assert.ok(Array.isArray(entry.key), `entry ${key} lists its trigger words`);
@@ -100,4 +100,19 @@ test('ersveil-lore.json is a SillyTavern World Info book of 170 entries with uni
     }
     // It is lore for the narrator, not a pack carried in a lorebook entry: nothing in it is tagged [storysuite:pack].
     assert.deepEqual(findPackEntries(entries.map(entry => ({ book: book.name, uid: entry.uid, title: entry.comment, content: entry.content }))), []);
+});
+
+test('the lorebook is written for the open world: no RPG Battle wording, classes, Soul Class, Guild letters and peoples kept as lore, no item or shop lists', () => {
+    const book = JSON.parse(readFileSync(lorePath, 'utf8'));
+    const entries = Object.values(book.entries);
+    const all = entries.map(entry => entry.content).join('\n');
+    for (const word of [/RPG Battle/, /Party sheet/, /character screen/, /markets, prices/]) assert.doesNotMatch(all, word);
+    const byTitle = title => entries.find(entry => entry.comment === title)?.content ?? '';
+    assert.match(byTitle('[CORE] Authority and Generation'), /Open world: the pack lists no items, shops, prices, foes or jobs/);
+    assert.match(byTitle('[CORE] Classification'), /Soul Class \(I-IX\)/);
+    assert.match(byTitle('Adventurer Guild'), /F Registered, E Journeyman, D Proven, C Veteran, B Elite, A Paragon, S Legend/);
+    const callings = byTitle('Callings: the Thirteen Lines');
+    assert.equal(callings.split('\n').filter(line => line.startsWith('- ')).length, 13, 'the thirteen class lines, as lore');
+    assert.ok(callings.length < 1600, 'one lean entry');
+    assert.match(byTitle('Peoples of Ersveil'), /Ten sapient peoples/);
 });
