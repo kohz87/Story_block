@@ -1,15 +1,5 @@
-// npm run matrix -- [--root <folder>] [--rb <path>] [--sd <path>] [--nsd <path>] [options]
-//
-// Runs the combination matrix (docs/v2/MATRIX.md): every module combination of docs/v2/contract/
-// RB_CONTRACT.md §2 with the real modules on this checkout's testkit. The module checkouts are, in this
-// order: the flags above; $MATRIX_RB, $MATRIX_SD, $MATRIX_NSD; the folders RPG Battle (rpg_battle),
-// Story Director (Story_director) and NPC State Delta (npc_state_delta) next to this checkout, or in
-// --root / $STORY_SUITE_ROOT. A row that needs a module that is not found is skipped, and said so.
-//
-// Options: --rows "SB+SD,SB+SD+RB"  only those rows        --only rb|sd|nsd  the rows that include a module
-//          --cases swipe,delete      only those cases       --strict          a known gap fails the run
-//          --json                    results as JSON        --verbose         failures a known gap hides, too
-// Exit code 1 when a result is FAIL (or a gap with --strict). Plain Node, no dependencies.
+// npm run matrix -- [--root <folder>] [--sd <path>] [--nsd <path>] [options]
+// Runs the Story Block, Story Director and NPC State Delta combinations.
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +15,7 @@ function parse(argv) {
         if (FLAGS.has(flag)) { out[flag.slice(2)] = true; continue; }
         const value = argv[++i];
         if (value === undefined) throw new Error(`${flag} needs a value.`);
-        if (['--rb', '--sd', '--nsd'].includes(flag)) out.roots[flag.slice(2)] = value;
+        if (['--sd', '--nsd'].includes(flag)) out.roots[flag.slice(2)] = value;
         else if (flag === '--root') out.root = value;
         else if (flag === '--rows') out.rows = value.split(',').map(item => item.trim()).filter(Boolean);
         else if (flag === '--cases') out.cases = value.split(',').map(item => item.trim()).filter(Boolean);
@@ -40,7 +30,7 @@ try {
     const base = resolve(options.root ?? process.env.STORY_SUITE_ROOT ?? resolve(here, '..', '..'));
     const found = discoverRoots(base);
     const roots = {};
-    for (const key of ['rb', 'sd', 'nsd']) {
+    for (const key of ['sd', 'nsd']) {
         roots[key] = options.roots[key] ?? process.env[`MATRIX_${key.toUpperCase()}`] ?? found[key];
     }
     const { loaded, missing, broken } = await loadModules(roots);
