@@ -71,7 +71,9 @@
     }
     :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"]):not(label input) {
         overflow: visible;
-        margin: max(0px, calc((44px / var(--ss-zoomed, 1) - 0.8em) / 2));
+        /* half the room each side across; the whole room above and below, since SillyTavern's checkbox is a block (display: grid) and the
+           margins of two stacked ones collapse into one */
+        margin: max(0px, calc(44px / var(--ss-zoomed, 1) - 0.8em)) max(0px, calc((44px / var(--ss-zoomed, 1) - 0.8em) / 2));
     }
     :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"]):not(label input)::after {
         content: "";

@@ -94,7 +94,8 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     assert.match(decl(`:where(${scope} input:is([type="checkbox"], [type="radio"]):not(label input))`), /position: relative;/);
     const bare = decl(`${scope} input:is([type="checkbox"], [type="radio"]):not(label input)`);
     assert.match(bare, /overflow: visible;/);
-    assert.ok(bare.includes('margin: max(0px, calc((44px / var(--ss-zoomed, 1) - 0.8em) / 2));'), 'room of its own for the tap area');
+    // room of its own for the tap area: half each side across, the whole above and below (stacked block checkboxes' margins collapse)
+    assert.ok(bare.includes('margin: max(0px, calc(44px / var(--ss-zoomed, 1) - 0.8em)) max(0px, calc((44px / var(--ss-zoomed, 1) - 0.8em) / 2));'));
     assert.ok(!/min-(width|height)/.test(bare), 'the box itself keeps its size');
     const hit = decl(`${scope} input:is([type="checkbox"], [type="radio"]):not(label input)::after`);
     for (const part of ['content: "";', 'position: absolute;', `width: ${tap};`, `height: ${tap};`, 'transform: translate(-50%, -50%);']) assert.ok(hit.includes(part), part);
