@@ -21,8 +21,8 @@
    select inside a root is at least 44 x 44 CSS px on the screen, so 44px / zoom before it. `!important` because some screens give
    their own controls a 36px or 40px minimum with a heavier selector. A switch keeps its look and gets a 44px tap area (::after); a
    checkbox or a radio is pressed through its 44 x 44 label, or, with no label, gets a 44px tap area in a margin of its own; a
-   slider's box is 44px tall around its thin track; a link in running text gets padding to 44px tall and 10px each side that a
-   negative margin takes back; a search box leaves the room of its 44px clear button free of text. A map marker draws its own tap area (`.ss-w-map-node`, or any control marked `data-ss-hit`,
+   slider's box is 44px tall around its thin track; a link in running text is a 44 x 44 box in the line; a search box leaves the
+   room of its 44px clear button free of text. No tap area reaches over a neighbour's. A map marker draws its own tap area (`.ss-w-map-node`, or any control marked `data-ss-hit`,
    e.g. Story Director's places). */
 @media (max-width: 759.98px), (pointer: coarse) {
     :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) :is(button, [role="tab"], a[href], summary):not(.ss-switch, .ss-w-map-node, [data-ss-hit]) {
@@ -77,11 +77,17 @@
         padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 5px) / 2));
         background-clip: content-box;
     }
+    /* A link in running text is a 44 x 44 box of its own in the line (the line grows where one sits); no negative margin, so it never
+       reaches over the words, buttons or links beside it. */
     :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) :is(p, li, span, small, em, strong, b, i, label, dd, td, figcaption) > a[href]:not([class*="button"], [role="button"], [role="tab"], [data-ss-hit]) {
-        padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2));
-        margin-block: min(0px, calc((1lh - 44px / var(--ss-zoomed, 1)) / 2));
-        padding-inline: calc(10px / var(--ss-zoomed, 1));
-        margin-inline: calc(-10px / var(--ss-zoomed, 1));
+        display: inline-block;
+        box-sizing: border-box;
+        min-width: calc(44px / var(--ss-zoomed, 1));
+        min-height: calc(44px / var(--ss-zoomed, 1));
+        max-width: 100%;
+        padding: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2)) calc(4px / var(--ss-zoomed, 1));
+        text-align: center;
+        overflow-wrap: anywhere;
     }
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-search .ss-search-input {
         padding-right: calc(44px / var(--ss-zoomed, 1) + 8px);
