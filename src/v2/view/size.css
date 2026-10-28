@@ -31,6 +31,7 @@
         min-height: calc(44px / var(--ss-zoomed, 1)) !important;
     }
     :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"])) {
+        min-width: calc(44px / var(--ss-zoomed, 1)) !important;
         min-height: calc(44px / var(--ss-zoomed, 1)) !important;
     }
     :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-switch::after {

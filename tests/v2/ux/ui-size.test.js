@@ -57,6 +57,9 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     const fields = block.match(/([^{}]+:is\(select, textarea, input:not\(\[type="checkbox"\], \[type="radio"\], \[type="range"\], \[type="hidden"\]\)\))\s*\{([^}]*)\}/);
     assert.ok(fields, 'the fields rule');
     assert.match(fields[2], /min-height: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
+    // wide enough too: a colour well (controls.css: 2.4em) or a short select is 44px across on the screen
+    assert.match(fields[2], /min-width: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
+    assert.match(read('view/controls.css'), /input:where\(\[type="color"\]\) \{\s*inline-size: 2\.4em;/);
     // Both name every zoomed root's place, so a control in any of them is covered.
     for (const scope of ['.ss-cards', '.story-suite-extras', '.story-suite-reply-note', '.story-suite-bar', '.ss-hud', '.story-suite-sheet', '.ss-gameview', '.story-suite-overlay', '.ss-dialog', '.ss-sample', '.ss-sample-dialog']) {
         assert.ok(buttons[1].includes(scope) && fields[1].includes(scope), scope);
