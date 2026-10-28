@@ -491,7 +491,8 @@ their states, the plates, the class-level exceptions and their specificity), `te
   import is Settings → Tabs & Packs). Home keeps the Where, Purse and pack, Quests and Save points cards (and Party and Fight when
   their modules are there).
 - **The Inventory's rows** (`inventory.js` CSS): the tile, then a grid of the name line, the note and the item detail on the left
-  (`min-width: 0`, `overflow-wrap: anywhere`: a long name breaks, the chips wrap, nothing runs under the actions)
+  (`min-width: 0`, `overflow-wrap: anywhere`: a long name breaks, the chips wrap, nothing runs under the actions; RPG Battle's
+  item detail is held to the column by the Inventory's CSS: its chips wrap and its condition bar shrinks)
   and the actions on the right (`fit-content(50%)`, a group that wraps on the right when the row is narrow), on every width; the
   text and the actions are centred on each other (the actions span the text's rows and a `1fr` row above and below), and an open
   fold (Equip on…, Use on…, Drop) is the last row, under both.
@@ -541,10 +542,12 @@ their states, the plates, the class-level exceptions and their specificity), `te
   measured rects with each other, or places things in percentages, needs nothing (Story Block's map widget, RPG Battle's skill-tree
   lines, whose SVG viewBox is the measured box).
 - A phone or a touch screen (`(max-width: 759.98px), (pointer: coarse)`): every button, tab, link, summary and field inside a root is
-  at least 44px on the screen (`!important`, over screens' own 36–40px minimums). A switch, a checkbox and a radio keep their look
-  with a 44px `::after` tap area (the label round a checkbox or radio is 44px tall); a slider's box is 44px tall (another range keeps
-  its bar in 44px of padding, `background-clip: content-box`); a link in running text gets padding to 44px tall and 10px each side,
-  taken back by a negative margin, so the line does not move; a search box's text stops short of its 44px clear button. A control
+  at least 44px on the screen (`!important`, over screens' own 36–40px minimums). A switch keeps its look with a 44px `::after` tap
+  area; a checkbox or radio in a label is pressed through the label (44 × 44, no `::after`: it would reach the next label), one with
+  no label gets a 44px `::after` inside a margin of its own; a slider's box is 44px tall (another range keeps its bar in 44px of
+  padding, `background-clip: content-box`); a link in running text is an inline block of at least 44 × 44 with no negative margin
+  (the line grows where one sits); a search box's text stops short of its 44px clear button. No tap area may reach over a
+  neighbour's: no negative margins, no pseudo-element larger than the room around it. A control
   that draws its own tap area (a map marker) is left alone: `.ss-w-map-node`, or any control marked `data-ss-hit`.
 - The UI sample's dialog sits in a wrapper of its own on the page (`.ss-sample-dialog`), a root beside the sample, not inside it.
 - Checked live (ST 1.19, Chromium) at 1280 × 900 and 390 × 844: no control under 44px on a phone but the switches and map dots
