@@ -36,6 +36,38 @@ test('automatic money allows a loot offer with more than twenty items', async t 
     assert.equal(qty(host, 'Arrows'), 30);
 });
 
+// With no limit (Automatic) the story decides how many; a thing that does not stack is one stack a piece, so one line (and
+// one offer) gives at most 50 of it, with a problem that says so, and the Take always fits the offer.
+test('automatic money: past 50 of a thing that does not stack, the offer and a + item line hold to 50 and say so', async t => {
+    const sample = JSON.parse(readFileSync(new URL('../../examples/packs/riverside-starter/pack.json', import.meta.url), 'utf8'));
+    sample.start.inventory = { items: [], money: 0 };
+    const host = await fresh(t, { settings: { packs: [{ id: sample.id, version: sample.version, enabled: true, source: 'file', origin: 'test', pack: sample }] } });
+    const pieces = name => host.sdk.query('inventory.items').filter(item => item.name === name).length;
+    await host.send('Look.', reply('A rack of rods.', ['? loot Willow Rod x51, Hemp Line x80 — on the rack']));
+    assert.deepEqual(Object.values(offer(host).items), [{ name: 'Willow Rod', qty: 50 }, { name: 'Hemp Line', qty: 80 }]);
+    assert.match(host.turn.problems().map(problem => problem.message).join(' '), /Willow Rod ×51 was written, but Willow Rod does not stack and at most 50 can be given at once; 50 were given\./);
+    const taken = await take(host, [0, 1]);
+    assert.equal(taken.ok, true, taken.message);
+    assert.deepEqual([qty(host, 'Willow Rod'), pieces('Willow Rod'), qty(host, 'Hemp Line')], [50, 50, 80]);
+    await host.send('More.', reply('Another rack.', ['+ item Willow Rod | qty: 51']));
+    assert.equal(qty(host, 'Willow Rod'), 100, 'the line gives 50 rather than nothing');
+    assert.match(host.turn.problems().map(problem => problem.message).join(' '), /at most 50 can be given at once; 50 were given/);
+    const live = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, live, 'a rebuild equals live');
+    const loaded = await createHost({ st: { chat: structuredClone(host.ctx.chat), extensionSettings: structuredClone(host.ctx.extensionSettings) } });
+    t.after(() => loaded.close());
+    assert.deepEqual(loaded.head().domains.inventory, live, 'a reload equals live');
+    await host.swipe(reply('No rack after all.', ['+ coin 1']));
+    assert.equal(qty(host, 'Willow Rod'), 50);
+    await host.st.deleteMessage(host.ctx.chat.findIndex(message => /A rack of rods/.test(message.mes)));
+    assert.deepEqual([qty(host, 'Willow Rod'), qty(host, 'Hemp Line')], [0, 0], 'deleting the loot\'s reply takes the offer and the take back');
+    const after = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, after);
+    assert.deepEqual(host.store.problems(), []);
+});
+
 test('? loot lays things out without giving them; the reader takes the ones ticked', async t => {
     const host = await fresh(t);
     await host.send('Search the cellar.', reply('Dusty shelves.', ['? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar shelf']));

@@ -4,6 +4,7 @@
 
 - RPG Battle is no longer supported. Its rules packs cannot be imported. Existing RPG Battle chats should stay on the previous versions.
 - Automatic money gives have no per-reply limit; set a number in Money to limit them. The Advanced row holds the money scale.
+- With no limit, a story line or loot offer of more than 50 of something that does not stack gives (or offers) 50 and says so, instead of an offer that could not be taken or a line that gave nothing.
 - Inventory and Assist continue to work on their own. Story Director can provide checks and story-told quests.
 
 ## 2.5.3
