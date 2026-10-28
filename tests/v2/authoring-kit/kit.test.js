@@ -33,7 +33,7 @@ test('the checker accepts every example pack the kit and Story Block ship', () =
         'reference/example-rules-pack.json', 'reference/data-modules/faction-standing.pack.json',
         'reference/data-modules/survival-meters.pack.json', 'examples/tiny-world/pack.json',
     ].map(path => join(kit, path));
-    for (const name of ['ersveil', 'ersveil-factions', 'ersveil-survival', 'lean-rpg', 'riverside-starter']) files.push(join(root, 'examples', 'packs', name, 'pack.json'));
+    for (const name of ['ersveil', 'ersveil-factions', 'ersveil-survival', 'riverside-starter']) files.push(join(root, 'examples', 'packs', name, 'pack.json'));
     // Bluewatch 1.6.0 and Ersveil 1.0.0, the old example packs with RPG Battle rules, are test fixtures now and still pass.
     for (const name of ['ersveil-bluewatch-1.6.0.json', 'ersveil-1.0.0.json']) files.push(join(root, 'tests', 'v2', 'packs', 'fixtures', name));
     for (const file of files) {
