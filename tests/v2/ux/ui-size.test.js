@@ -11,7 +11,7 @@ const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta
 const size = read('view/size.css');
 const PHONE = '@media (max-width: 759.98px), (pointer: coarse)';
 const ROOTS = ['.ss-cards', '.story-suite-extras', '.story-suite-reply-note', '.story-suite-bar', '.ss-hud', '.story-suite-sheet > *',
-    '.ss-gameview-main > *', '.story-suite-overlay > .ss-settings', '.ss-dialog', '.ss-sample > *'];
+    '.ss-gameview-main > *', '.story-suite-overlay > .ss-settings', '.ss-dialog', '.ss-sample > *', '.ss-sample-dialog'];
 
 // The declarations of the first rule whose selector list is exactly `selector` (it starts a line), inside `css` (from `at` when given).
 function rule(css, selector, at = '') {
@@ -58,7 +58,7 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     assert.ok(fields, 'the fields rule');
     assert.match(fields[2], /min-height: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
     // Both name every zoomed root's place, so a control in any of them is covered.
-    for (const scope of ['.ss-cards', '.story-suite-extras', '.story-suite-reply-note', '.story-suite-bar', '.ss-hud', '.story-suite-sheet', '.ss-gameview', '.story-suite-overlay', '.ss-dialog', '.ss-sample']) {
+    for (const scope of ['.ss-cards', '.story-suite-extras', '.story-suite-reply-note', '.story-suite-bar', '.ss-hud', '.story-suite-sheet', '.ss-gameview', '.story-suite-overlay', '.ss-dialog', '.ss-sample', '.ss-sample-dialog']) {
         assert.ok(buttons[1].includes(scope) && fields[1].includes(scope), scope);
     }
     const hit = block.match(/\.ss-switch::after\s*\{([^}]*)\}/);
@@ -75,7 +75,7 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
         assert.ok(at >= 0, selector);
         return block.slice(at, block.indexOf('}', at));
     };
-    const scope = ':is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample)';
+    const scope = ':is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog)';
     const tap = 'calc(44px / var(--ss-zoomed, 1))';
     // A checkbox or radio keeps its drawn box; its tap area is a 44px ::after (SillyTavern's clip let go of), and its label is 44px tall.
     assert.match(decl(`:where(${scope} input:is([type="checkbox"], [type="radio"]))`), /position: relative;/);
