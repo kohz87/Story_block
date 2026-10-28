@@ -109,6 +109,7 @@ test('the sample\'s "Open a dialog" opens the ss.dialog widget over the page, in
     const wrap = doc.body.children.find(node => node.getAttribute('data-ss-screen') === UI_SAMPLE_ID && node !== sample.root);
     assert.ok(wrap, 'a wrapper of its own, outside the sample\'s glass cards');
     assert.ok(wrap.classList.contains('ss-scheme-dark'), 'the dark pane\'s scheme');
+    assert.ok(wrap.classList.contains('ss-sample-dialog'), 'inside the zoom and the phone\'s 44px rule, as the sample is (size.css)');
     assert.equal(wrap.querySelector('.ss-modal-panel').getAttribute('role'), 'dialog');
     assert.equal(wrap.querySelector('.ss-modal-title').textContent, UI_SAMPLE_DATA.dialog.title);
     // An action closes it and removes the wrapper.

@@ -10,8 +10,9 @@
 // (`item.equip { stack, to }` for an unworn piece, MODULES §F99), the plain Equip, Unequip, the condition, and a "Worn by" tag on a worn
 // piece. Without RPG Battle the inventory is the bag and the purse only. Drop is bag management and always there. Its texts are in src/v2/strings.js. Nothing here writes state; the buttons run the core commands
 // with the payloads of MODULES §F5 (`inventory.equip { stack }`, `inventory.unequip { stack }`,
-// `inventory.drop { stack, qty }`). Equip on…, Use on… and Drop open a fold row BELOW the action row (one open per card); Drop
-// asks first there ("Drop …?" and the confirm). The party shares one bag, so there is no Give here (`inventory.transfer` stays
+// `inventory.drop { stack, qty }`). The actions sit on the right of the row, beside the name (a group that wraps on the right when
+// the row is narrow); notes and the item detail stay under the name. Equip on…, Use on… and Drop open a fold row BELOW the row (one
+// open per card); Drop asks first there ("Drop …?" and the confirm). The party shares one bag, so there is no Give here (`inventory.transfer` stays
 // a core command).
 
 import { KIND_ORDER, RARITIES } from '../domains/inventory.js';
@@ -50,7 +51,7 @@ const RARITY_CLASSES = rarityClasses('it');
 // The actions that open a fold (Equip on…, Use on…, Drop). Each is a real button in the card's action row with aria-expanded and
 // aria-controls (the fold row's id): a press sets the card's `fold[stack]` in the view's draft (`data-draft` on a button picks its
 // value; a press on the open one closes it), and that one value is the one open fold of the card. The fold opens in a row BELOW the
-// action row, so the row does not move. Escape inside the card closes the open fold and the focus goes back to its button
+// name and the actions, so the row does not move. Escape inside the card closes the open fold and the focus goes back to its button
 // (`data-draft-close` on the card); Cancel does the same (`data-draft-cancel`). Arrow keys do nothing here: they are not radios.
 const foldAction = (kind, when, icon, label, title) => `
           <button type="button" class="ss-button act"${when ? ` data-if="${when}"` : ''} title="${title}" data-draft="fold[it.stack]" value="${kind}" aria-expanded="{{ draft.fold[it.stack] == '${kind}' }}" aria-controls="fold-{{ it.stack }}"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${label}</button>`;
@@ -172,8 +173,27 @@ const CSS = `${BASE_CSS}
 .groups:not(:has(.item)) + .nomatch { display: block; }
 .item { --rarity: var(--sb-common); padding: 12px; margin: 0 0 4px; border-radius: var(--ss-radius-l, 14px); transition: box-shadow 0.15s ease; }
 /* UI 5b: an item is a glass card: its tile (the kind's icon, the count in the corner) with the rarity ring, the name and the actions beside it */
-.item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
-.item > .body { display: grid; gap: 6px; min-width: 0; }
+.item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+.item:has(> .body > .fold) { align-items: start; }
+/* The body: the name line, the note and the item detail in the left column; the actions on the right, at most half the row (more
+   buttons than fit wrap as a group on the right); an open fold below both. The text and the actions are centred on each other: the
+   actions span the text's rows and a 1fr row above and below them, which take the room when the actions are the taller. */
+.item > .body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(50%); grid-template-rows: 1fr auto auto auto 1fr auto; column-gap: 12px; row-gap: 0; align-items: center; min-width: 0; }
+.item > .body > .line { grid-column: 1; grid-row: 2; }
+.item > .body > .note { grid-column: 1; grid-row: 3; margin-top: 6px; }
+.item > .body > .detail { grid-column: 1; grid-row: 4; margin-top: 6px; }
+/* The text column never reaches under the actions: it may shrink below its longest word, a long name breaks anywhere and the chips
+   (Worn by, the condition, key, carry) wrap to the next line, each cut to the column. */
+.item > .body > :is(.line, .note, .detail) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.item > .body > .line > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* RPG Battle's item detail (its widget's own chips are nowrap, with a 3.2em condition bar): held to the column too; a chip wraps and
+   its bar shrinks before anything reaches the actions. */
+.item > .body > .detail > *, .detail .rpg-id { min-width: 0; max-width: 100%; }
+.detail .rpg-id-chip { box-sizing: border-box; min-width: 0; max-width: 100%; white-space: normal; flex-wrap: wrap; overflow-wrap: anywhere; }
+.detail .rpg-id-chip > * { min-width: 0; max-width: 100%; }
+.detail .rpg-id-bar { flex: 0 1 3.2em; width: auto; min-width: 1em; }
+.item > .body > .actions { grid-column: 2; grid-row: 1 / 6; justify-content: flex-end; margin: 0; }
+.item > .body > .fold { grid-column: 1 / -1; grid-row: 6; margin-top: 8px; }
 .item .ss-tile-box { --rarity-ring: var(--rarity); width: 44px; height: 44px; border: 2px solid var(--rarity); border-radius: var(--ss-radius-m, 12px); }
 .item .ss-tile-count { right: -6px; bottom: -6px; }
 .item.r-uncommon { --rarity: var(--sb-uncommon); }
@@ -191,7 +211,7 @@ const CSS = `${BASE_CSS}
 .worn-by > i { color: var(--sb-accent); }
 .owner { font-size: 0.85em; }
 .note { margin: 2px 0 0; font-size: 0.85em; }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .act { cursor: pointer; }
 .act[aria-expanded="true"] { border-color: var(--sb-accent); }
 .act:focus-visible, .fold-cancel:focus-visible, .fold .ss-button:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }

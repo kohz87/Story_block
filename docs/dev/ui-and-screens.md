@@ -391,8 +391,8 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
 - **The notes under a reply** (`reply-notes.js`, `host.css`). One glass row: the note's icon in a 28px tile, the line in the muted
   colour, Re-read as a pill, the error line in the accent. A note is not folded and was not folded before; it stays one row.
 - **The changes card** (`screens/changes-card.js`, `mounts.css` `.ss-card`). The card under a reply is a glass card (the frame is a
-  theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted; on a phone it takes the next
-  line, two at most), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
+  theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted; in a narrow chat column it
+  takes the next line, two at most; on a phone, under 760px, the header stays one line and the summary ends in an ellipsis), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
   folded by default, as before (the card mount's fold, unchanged).
   SillyTavern's swipe row (the arrows and the 1/1 counter) is drawn at the bottom right of the last message only; the last message's
   cards keep clear of it with a bottom margin (`.last_mes .ss-cards`), which was already overlapping before step 4a.
@@ -490,6 +490,12 @@ their states, the plates, the class-level exceptions and their specificity), `te
   `ss-button-danger`) so they take the look's states. Home has no hero card (the header draws the lead) and no Packs card (the
   import is Settings → Tabs & Packs). Home keeps the Where, Purse and pack, Quests and Save points cards (and Party and Fight when
   their modules are there).
+- **The Inventory's rows** (`inventory.js` CSS): the tile, then a grid of the name line, the note and the item detail on the left
+  (`min-width: 0`, `overflow-wrap: anywhere`: a long name breaks, the chips wrap, nothing runs under the actions; RPG Battle's
+  item detail is held to the column by the Inventory's CSS: its chips wrap and its condition bar shrinks)
+  and the actions on the right (`fit-content(50%)`, a group that wraps on the right when the row is narrow), on every width; the
+  text and the actions are centred on each other (the actions span the text's rows and a `1fr` row above and below), and an open
+  fold (Equip on…, Use on…, Drop) is the last row, under both.
 - **Home's cards** (`home.js` CSS): the grid stretches, so every card in a row has the row's height and its content is
   top-aligned. A long list is capped: `.sb-cap[data-capped="true"]` is at most 15em (about two normal cards) with no scrollbar,
   and a "Show all" / "Show less" button (`capToggle` in `screens/show-more.js`, the widget `story-block.show-more` for a template's
@@ -519,6 +525,37 @@ their states, the plates, the class-level exceptions and their specificity), `te
 - A dialog or a tab pane disposes its widgets when it closes or is drawn again (`dispose` in mounts/common.js; the tab host
   calls what its tab's render returned). Tests: `tests/v2/view/modal-stack.test.js`, `mounts/dialog-chat.test.js`,
   `mounts/dialog-focus.test.js`, `mounts/dispose.test.js`, `mounts/window.test.js`.
+
+## The size (2.5.2)
+
+- Everything Story Suite draws is at `--ss-zoom` (0.8, what used to be 80%), with CSS `zoom` on its roots (`view/size.css`): the
+  cards, Choices and notes under a reply, the bar and the HUD above the message box, the story panel's and the game view's contents
+  (`.story-suite-sheet > *`, `.ss-gameview-main > *`: the frames keep their size), the settings window, the dialog mount and the UI
+  sample's contents. SillyTavern's chat text, top bar and message box are not touched. `zoom` and not a scale on every length,
+  because it reaches every screen inside the roots, the modules' and the packs' CSS included, without any of them taking part.
+- A zoomed root also sets `--ss-zoomed`; outside one it is unset. Inside a root, vw, vh and px are all zoomed, so a length that must
+  stay the screen's divides by it: `calc(100vw / var(--ss-zoomed, 1))` for ss.dialog's full-screen layer, `calc(44px / var(--ss-zoomed, 1))`
+  for a tap area. A root must never sit inside another root (the zoom would multiply).
+- Scripts: `getBoundingClientRect()` and a pointer's `clientX` are drawn pixels; `style.left`, `scrollTop` and a node's own sizes are
+  not. Divide a measured distance by `zoomOf(node)` (`view/scroll.js`: `currentCSSZoom`, else drawn width over `offsetWidth`) before
+  it moves a scroller or places something (`revealIn`, `revealItem`; Story Director's map does the same). Code that only compares
+  measured rects with each other, or places things in percentages, needs nothing (Story Block's map widget, RPG Battle's skill-tree
+  lines, whose SVG viewBox is the measured box).
+- A phone or a touch screen (`(max-width: 759.98px), (pointer: coarse)`): every button, tab, link, summary and field inside a root is
+  at least 44px on the screen (`!important`, over screens' own 36–40px minimums; `role="button"` elements too, a text one such as a
+  module's "more" as a 44px inline block); fields are 44px wide too. A switch keeps its look with a 44px `::after` tap area
+  inside a margin of its own; a checkbox or radio in a label, at any depth, is pressed through the label (44 × 44, no `::after`:
+  it would reach the next label; an inline label becomes an inline block at no weight), one with no label gets a 44px `::after`
+  inside a margin of its own (the whole room above and below: stacked block checkboxes' margins collapse); a slider's box is 44px
+  tall (another range keeps its bar in 44px of padding, `background-clip: content-box`); every link (any parent, any role) and
+  every text element with `role="button"` or `role="tab"` is an inline block of at least 44 × 44 with real padding and no negative
+  margin, at no weight so a flex, grid or block control keeps its display (the line grows where one sits); a search box's text stops short of its 44px clear button. No tap area may reach over a
+  neighbour's: no negative margins, no pseudo-element larger than the room around it. A control
+  that draws its own tap area (a map marker) is left alone: `.ss-w-map-node`, or any control marked `data-ss-hit`.
+- The UI sample's dialog sits in a wrapper of its own on the page (`.ss-sample-dialog`), a root beside the sample, not inside it.
+- Checked live (ST 1.19, Chromium) at 1280 × 900 and 390 × 844: no control under 44px on a phone but the switches and map dots
+  (their tap areas are 44px), the Map's drag, wheel and clicks land on the right place, the settings window's Close has its own row.
+  Tests: `tests/v2/ux/ui-size.test.js`, `tests/v2/view/scroll.test.js` (`zoomOf`, `revealIn` zoomed), `widgets/blocks.test.js` (`revealItem` zoomed).
 
 ## Key files and functions
 
