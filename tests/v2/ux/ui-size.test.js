@@ -149,6 +149,12 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
         assert.ok(rule(css, '.item > .body > .line > *').includes(part), `${part} (the name and the chips)`);
     }
     assert.match(rule(css, '.line'), /flex-wrap: wrap;/);
+    // RPG Battle's item detail in the column: its nowrap chips wrap and its 3.2em condition bar shrinks before reaching the actions.
+    const chip = rule(css, '.detail .rpg-id-chip');
+    for (const part of ['box-sizing: border-box;', 'min-width: 0;', 'max-width: 100%;', 'white-space: normal;', 'flex-wrap: wrap;', 'overflow-wrap: anywhere;']) assert.ok(chip.includes(part), part);
+    assert.match(rule(css, '.detail .rpg-id-chip > *'), /min-width: 0; max-width: 100%;/);
+    assert.match(rule(css, '.detail .rpg-id-bar'), /flex: 0 1 3\.2em; width: auto; min-width: 1em;/);
+    assert.match(rule(css, '.item > .body > .detail > *, .detail .rpg-id'), /min-width: 0; max-width: 100%;/);
     // A group that wraps on the right when the row is narrow; never a line of its own under the row.
     assert.match(rule(css, '.actions'), /display: flex; flex-wrap: wrap;/);
     assert.doesNotMatch(css, /@container|@media[^{]*\{[^}]*\.actions/, 'the same layout on a phone');

@@ -186,6 +186,12 @@ const CSS = `${BASE_CSS}
    (Worn by, the condition, key, carry) wrap to the next line, each cut to the column. */
 .item > .body > :is(.line, .note, .detail) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .item > .body > .line > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* RPG Battle's item detail (its widget's own chips are nowrap, with a 3.2em condition bar): held to the column too; a chip wraps and
+   its bar shrinks before anything reaches the actions. */
+.item > .body > .detail > *, .detail .rpg-id { min-width: 0; max-width: 100%; }
+.detail .rpg-id-chip { box-sizing: border-box; min-width: 0; max-width: 100%; white-space: normal; flex-wrap: wrap; overflow-wrap: anywhere; }
+.detail .rpg-id-chip > * { min-width: 0; max-width: 100%; }
+.detail .rpg-id-bar { flex: 0 1 3.2em; width: auto; min-width: 1em; }
 .item > .body > .actions { grid-column: 2; grid-row: 1 / 6; justify-content: flex-end; margin: 0; }
 .item > .body > .fold { grid-column: 1 / -1; grid-row: 6; margin-top: 8px; }
 .item .ss-tile-box { --rarity-ring: var(--rarity); width: 44px; height: 44px; border: 2px solid var(--rarity); border-radius: var(--ss-radius-m, 12px); }
