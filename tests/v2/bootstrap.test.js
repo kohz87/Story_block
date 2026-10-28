@@ -112,9 +112,9 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.ok(page('tabs').querySelector('.ss-prompt-card .story-suite-size, .ss-prompt-card .ss-field[data-field="tailBudget"]'), 'the budgets and the size in the Prompt card');
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
     assert.ok(overlay.querySelector('.ss-settings-foot'), 'the footer bar: what is sent each reply');
-    // Story Block's money settings (its General group) are the form engine's Money page: three cards, no fold.
-    assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'What the story may pay', 'Money words']);
-    assert.equal(page('money').querySelectorAll('details').length, 0);
+    // Story Block's money settings include a folded Advanced row.
+    assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'What the story may pay', 'Money words', 'Advanced']);
+    assert.equal(page('money').querySelectorAll('details').length, 1);
     // Its Assist settings are the form engine's Assist page: Extra calls, Checks, Safety net, then the old panel as Recent runs.
     assert.equal(page('assist').querySelectorAll('details').length, 0);
     assert.deepEqual(texts(page('assist'), '.ss-section-title'), ['Extra calls', 'Checks', 'Safety net', 'Recent runs']);

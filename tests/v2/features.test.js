@@ -369,7 +369,7 @@ test('needs: a feature is unavailable (off, its choice kept) until a module regi
     assert.equal(host.sdk.feature(CORE_FEATURE.preroll), false, 'off without a module that keeps checks');
     const [preroll] = host.sdk.features().filter(feature => feature.id === CORE_FEATURE.preroll);
     assert.equal(preroll.available, false);
-    assert.equal(preroll.why, 'Needs a module that keeps checks, like RPG Battle.');
+    assert.equal(preroll.why, 'Needs a module that keeps checks, like Story Director.');
     assert.equal(host.sdk.query('assist.status').classifier.on, false);
     await host.sdk.registerModule(CHECKS);
     assert.equal(host.sdk.feature(CORE_FEATURE.preroll), true, 'the reader\'s choice, kept, now counts');
