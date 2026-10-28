@@ -200,7 +200,7 @@ STORY_BLOCKS_V1_CONTEXT_BEGIN
   (rules: order, close every tag, never visible narration, escapes, where this reply's part is,
   stateful = full rewrite / changes only, first, this reply only, kept blocks)
 
-### Character — <Character> (kept by RPG Battle: read it, never write it)
+### Character — <Character> (kept by Example Module: read it, never write it)
 <its prompt note>
 
 ### Inventory — <Inventory_Changes> (kept: write only the changes)
@@ -221,7 +221,7 @@ STORY_BLOCKS_V1_CONTEXT_END
 ```
 STORY_BLOCKS_V1_STATE_BEGIN
 ## Story Blocks: this reply
-### Character: current state (kept by RPG Battle)
+### Character: current state (kept by Example Module)
 <Character>
 <the extension's newest copy>
 </Character>
@@ -316,7 +316,7 @@ A throwing listener is logged and skipped.
 
 #### Kept blocks (v0.7)
 
-A block another extension keeps and the model only reads (RPG Battle's Character and Party
+A block another extension keeps and the model only reads (Example Module's Character and Party
 sheets). `pluginBlockDef` (`src/plugin.js`) builds it with `normalizeBlock` and checks it with
 `validateBlock`, plus: `owner` required; `format` `'fields' | 'text'` (default `fields` when
 `fields` are given); `display` `'fields' | 'plain'` (default by format; `fields` needs the
@@ -327,7 +327,7 @@ fields format); every field has a label and a known type; `tab` is `true`, `fals
 as its state, as for any stateful block.
 
 - **Only stamped copies count.** `upsertBlock` writes a kept block's tag as
-  `<Character kept="RPG Battle">`. `ownCopy(entry, def)` (`src/envelope.js`) accepts only such
+  `<Character kept="Example Module">`. `ownCopy(entry, def)` (`src/envelope.js`) accepts only such
   copies, and `latestBlockInText` and `view.blockStatusInText` use it, so a copy the model wrote
   is never the current state. The model never sees the stamp: envelopes are stripped from the
   prompt history and the current state is shown in plain tags.
@@ -353,7 +353,7 @@ as its state, as for any stateful block.
   it is still stamped, kept, prompted read-only (`keptEntries` takes every kept block), its
   dice modifier still applies, a model's copy is still dropped, and `getBlock`,
   `blockForGeneration`, `blockInText` and `setBlockText` read and write it as before.
-  For an extension that draws the block in a tab of its own (RPG Battle's Battle tab).
+  For an extension that draws the block in a tab of its own (Example Module's Battle tab).
   `registerBlock` again with the same id may flip `tab`; the sidebar redraws at once (a kept
   block registered or replaced refreshes). An older Story Block ignores `tab` and shows the tab.
   `tests/ui-runtime-tabs.test.js` runs the real `index.js` against the fake DOM to check the
@@ -362,7 +362,7 @@ as its state, as for any stateful block.
 ### Story Suite (`src/suite.js`, `src/handshake.js`, v0.8)
 
 `src/suite.js` is the shared registry (`globalThis.StorySuite`), byte-identical in Story Block,
-Story Director, NPC State Delta and RPG Battle; never edit it here alone. The contract, areas and
+Story Director, NPC State Delta; keep the shared copy in step. The contract, areas and
 owners are in [STORY_SUITE.md](STORY_SUITE.md). `src/handshake.js` is Story Block's pure side:
 
 | Export | Does |
@@ -370,12 +370,11 @@ owners are in [STORY_SUITE.md](STORY_SUITE.md). `src/handshake.js` is Story Bloc
 | `offeredAreas(blocks)` / `blockAreas(def)` | Areas the enabled blocks offer, by `template` (duplicates keep it): `world-state` (or display `scene`) → `scene`, `timeline`; `inventory` (or tag `Inventory`) → `items`; `character-sheet` → `stats`; `dice`, `dice-everyone` (or display `dice`) → `rolls`. Kept and plugin blocks offer nothing |
 | `normalizeSourceChoices(value)` | `settings.sourceOfTruth`: `{ scene, timeline, items, stats, rolls }`, each `'auto' \| 'mine' \| 'theirs'`, default `'auto'` |
 | `deferredTo(area, choice, suite)` | `{ id, name }` of the extension Story Block defers to, or null while it is the source of truth (`isSourceOfTruth`) |
-| `statsNotice(def, choices, suite)` | The Character Sheet's "RPG Battle owns stats…" note, or '' |
+| `statsNotice(def, choices, suite)` | The Character Sheet's "Example Module owns stats…" note, or '' |
 | `keepsOwnRolls(choice, suite)` | True only when the reader chose `mine` for rolls while another extension offers them: kept blocks' `diceModifier`s are then left out of the prompt |
-| `sourceStatus(area, …)` | The settings line under each choice ("Now: RPG Battle", "Inventory is off") |
+| `sourceStatus(area, …)` | The settings line under each choice ("Now: Example Module", "Inventory is off") |
 | `displaysShownElsewhere(suite)` | v0.9.1: the displays (of `SHOWABLE_DISPLAYS`, only `'chatter'`) that an enabled provider other than Story Block lists in its announcement's top-level `shows`. `buildCardTabs` and `listBlocks` pass them to `hasTab(def, { shownElsewhere })`, so a block with that display has no tab (or badge, or strip line) while it lasts; it is still prompted, written and kept. Re-evaluated on every refresh, and `onChange` refreshes |
 | `chatterNote(def, suite)` | v0.9.1: `CHATTER_NOTE` ("Voice each NPC as their NPC State Delta card describes.") for a reader's `chatter`-display block while `npc-state-delta` is announced and enabled, else ''. `prepareGeneration` puts it on the entry as `note`, which `buildContext` adds as a line under the block's prompt; the stored prompt is never changed |
-| `diceNote(def, suite)` | v0.9.4: `FIGHT_NOTE` ("Never roll a fight: when blows are about to land, stop there; RPG Battle runs it.") for a reader's `dice`-display block (Dice, Dice: Everyone) while `rpg-battle` is announced and enabled, else ''. Put on the entry as `note` like `chatterNote` (a block has one or the other, never both) |
 | `timelineKeeper(choices, suite)` / `timelineTrimmed(def, state, keeper, cut)` | v0.9.5: who keeps the timeline instead of the World State ({ id, name } or null, via `deferredTo`), and the block as the model is shown it then: layout, prompt and current state without `TIMELINE_SECTIONS` (`threads`, `seeds`, `timers`, `arc`) using `scene.withoutSections`. Applied in `generationEntries` and the token estimate; the stored block is untouched |
 
 The runtime announces `{ id: 'story-block', name: 'Story Block', version, owns, settings: '#story_block_settings', api }`
@@ -430,7 +429,7 @@ export function suiteOverlayTab()            // the selected tab's id, or null
   rows) and one `div.story-suite-pane`. Esc (captured on the document), the close button and a
   backdrop click close it; Tab is trapped; focus moves in on open and back to `opener` on close.
 - Tabs: Overview, then every provider with a `settings` selector, in `SUITE_ORDER`
-  (story-block, story-director, npc-state-delta, rpg-battle, then others as announced).
+  (story-block, story-director, npc-state-delta, then others as announced).
 - Overview (v0.9.1): `div.story-suite-panel` pane > `div.story-suite-folds` > three
   `details.story-suite-fold[data-fold]` (`installed`, `sources`, `tokens`), the panels' markup:
   `summary` (`b.story-suite-fold-title`, `small.story-suite-fold-hint`) + `div.story-suite-fold-body`.

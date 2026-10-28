@@ -1,8 +1,6 @@
 // The example pack (examples/packs/ersveil, Ersveil 2.0.0, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
-// docs/v2/ERSVEIL.md describes; the lorebook is a SillyTavern World Info book of 171 entries with unique uids. (The former
-// example packs are fixtures: Ersveil 1.0.0 with RPG Battle's rules, ersveil-rules-fixture.test.js, and Bluewatch 1.6.0,
-// ersveil.test.js and its neighbours.)
+// docs/v2/ERSVEIL.md describes; the lorebook has 171 entries with unique uids.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -50,7 +48,7 @@ test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weat
     assert.equal(value.id, 'ersveil');
     assert.equal(value.version, '2.0.0');
     assert.equal(value.name, 'Ersveil (open world)');
-    assert.match(value.description, /Story Block and Story Director, no RPG Battle needed/);
+    assert.match(value.description, /Story Block and Story Director:/);
     assert.equal(value.requires.storyBlock, '^2.5');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
