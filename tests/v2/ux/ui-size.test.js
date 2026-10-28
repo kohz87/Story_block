@@ -103,12 +103,14 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     assert.ok(decl(`${scope} .ss-slider .ss-slider-input`).includes(`min-height: ${tap};`));
     const range = decl(`${scope} input[type="range"]:not(.ss-slider-input)`);
     for (const part of ['box-sizing: content-box;', 'padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 5px) / 2));', 'background-clip: content-box;']) assert.ok(range.includes(part), part);
-    // A link in running text (or a text element acting as a button) is a 44 x 44 box in the line, with no negative margin (nothing
-    // reaches over its neighbours).
-    const link = decl(`${scope} :is(p, li, span, small, em, strong, b, i, label, dd, td, figcaption) > a[href]:not([class*="button"], [role="button"], [role="tab"], [data-ss-hit]),\n    ${scope} :is(span, i, b, small, em, strong)[role="button"]:not([data-ss-hit])`);
-    for (const part of ['display: inline-block;', 'box-sizing: border-box;', `min-width: ${tap};`, `min-height: ${tap};`, 'max-width: 100%;']) assert.ok(link.includes(part), part);
+    // A link anywhere (any parent, any role) and a text element acting as a button or tab are inline blocks with real padding, at no
+    // weight (a flex/grid/block control keeps its display), and no negative margin anywhere (nothing reaches over its neighbours).
+    const inl = 'span, i, b, em, strong, small, abbr, code, kbd, label, img';
+    const link = decl(`:where(${scope} :is(a[href], :is(${inl})[role="button"], :is(${inl})[role="tab"]):not([data-ss-hit]))`);
+    for (const part of ['display: inline-block;', 'box-sizing: border-box;', 'max-width: 100%;', 'padding: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2)) calc(4px / var(--ss-zoomed, 1));']) assert.ok(link.includes(part), part);
     assert.doesNotMatch(link, /margin/);
     assert.doesNotMatch(size, /margin[^;]*:\s*(min\(|calc\(-|-)/, 'no negative margins anywhere in the size rules');
+    assert.doesNotMatch(size, /:is\(p, li, span/, 'not only links under some text elements');
     // The search box keeps the clear button's 44px (right: 4px) free of text.
     assert.match(block, /\.ss-search \.ss-search-input \{\s*padding-right: calc\(44px \/ var\(--ss-zoomed, 1\) \+ 8px\);/);
     assert.match(read('view/glass.css'), /\.ss-search-clear \{\s*position: absolute;\s*right: 4px;/);
