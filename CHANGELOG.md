@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.5.2
+
+**Interface release: no rules or story state change.** Story Suite is drawn smaller by default, and two screens are tidier.
+
+- **Everything Story Suite draws is at what used to be 80%**: the cards, Choices and notes under a reply, the bar and the HUD above
+  the message box, the story panel, the game view, the settings window and the dialogs. SillyTavern's own chat text, top bar and
+  message box keep their size. The game view's and the story panel's windows keep their size too; what is inside them is smaller.
+  Every screen inside follows, the modules' and the packs' included (CSS `zoom` on Story Suite's roots, `view/size.css`).
+- **Phones and touch screens keep 44px targets**: every button, tab, field and list inside Story Suite is at least 44 × 44 px on
+  the screen; the on/off switches keep their look and get a 44px tap area. In the settings window on a phone, Close no longer
+  covers the search box.
+- **The card header under a reply is one line on a phone**: the summary on the right ends in "…" instead of wrapping.
+- **Inventory: the actions sit beside the name**, on the right of the row and centred on it, on a desktop and on a phone. More
+  buttons than fit wrap as a group on the right. Notes and the item detail stay under the name; Equip on…, Use on… and Drop still
+  open below the row.
+- **For module and pack authors:** inside Story Suite's roots, vw, vh and px are zoomed; a length that must stay the screen's divides
+  by `var(--ss-zoomed, 1)`. Scripts that measure (`getBoundingClientRect`, a pointer's `clientX`) get drawn pixels and must divide by
+  the node's zoom before setting `style.left` or `scrollTop` (`zoomOf` in `view/scroll.js`). A control that draws its own tap area
+  can opt out of the 44px phone rule with `data-ss-hit`. See `docs/dev/ui-and-screens.md` "The size".
+- **Update Story Director to 2.1.1 with it:** its Map works out positions at the new size; Story Director 2.1.0's Map draws its
+  places in a corner of the map and its drags and clicks land off target under Story Block 2.5.2. RPG Battle and NPC State Delta
+  need no update.
+- Tests: `tests/v2/ux/ui-size.test.js` (the zoomed roots, the 44px phone rule, the card header, Close's row, the full-screen layer,
+  the Inventory's rows) and the zoomed scroll helpers in `scroll.test.js` and `blocks.test.js`.
+
 ## 2.5.1
 
 **Content release: no code or rules change.** The bundled example pack is now **Ersveil 1.0.0**.
