@@ -56,7 +56,7 @@ director = {
     status: 'active' | 'resolved',
     offer: false | true,                             // a job offered, not yet taken
     shown: null | { turn },                          // a held offer (F88) is shown from this Director turn
-    ready: false | true,                             // the story said a goal code cannot count is met (F83)
+    ready?: null | { rev },                          // older chats only: the story said a goal code could not count was met (F83)
     taken: null | { rev },                           // when the story (or the reader) took it on
     ended: null | { rev, reason, outcome: 'done'|'failed'|'abandoned'|'declined'|'superseded' },
     target: null | { noun, count, kind: 'foes'|'items' },

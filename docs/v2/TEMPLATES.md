@@ -387,8 +387,7 @@ card shows only those lines. Mount: `card`.
     <span class="k">Next</span>
     <span class="v">{{ q.events[0].summary }}<small data-if="q.events[0].fields.due != null"> — due {{ q.events[0].fields.due }}</small></span>
   </div>
-  <div class="row goal" data-if="len(q.quests) > 0 && (settings.onlyChanged != true || changed('state.director.threads'))"
-       data-class="ready: q.quests[0].ready == true">
+  <div class="row goal" data-if="len(q.quests) > 0 && (settings.onlyChanged != true || changed('state.director.threads'))">
     <span class="k">Goal</span>
     <span class="v">
       <b>{{ q.quests[0].key }}</b> — {{ q.quests[0].fields.goal }}
@@ -407,7 +406,6 @@ card shows only those lines. Mount: `card`.
 .v small { opacity: .7; }
 .new .v { color: var(--ss-accent); }
 .new .k::after { content: " •"; color: var(--ss-accent); }
-.goal.ready .v b { color: #5cb85c; }
 ```
 
 `changed('state.director.time')` is true only on the reply whose changes moved the clock, so the card under
