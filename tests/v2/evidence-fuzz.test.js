@@ -81,7 +81,7 @@ function run(seed, steps) {
         const kind = r.int(0, 16);
         if (kind <= 2) {
             log.push(`${step}: kill`);
-            give('rb.many', { specs: [{ kind: 'kill', payload: { foe: `foe-${step}` }, ...(parents.length ? { parents } : {}) }] });
+            give('demo.many', { specs: [{ kind: 'event', payload: { foe: `foe-${step}` }, ...(parents.length ? { parents } : {}) }] });
         } else if (kind === 3 || kind === 4) {
             log.push(`${step}: visit`);
             give('sd.many', { specs: [{ kind: 'visit', payload: { place: `place-${step}` }, ...(parents.length ? { parents } : {}) }] });

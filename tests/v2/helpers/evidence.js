@@ -1,5 +1,4 @@
-// Small test-only owners for the proof and evidence tests (docs/v2/EVIDENCE.md). They stand for the two modules
-// that own kinds of proof (the ids the host's table names: `story-director`, `rpg-battle`) with rules made up
+// Small test-only owners for the proof and evidence tests (docs/v2/EVIDENCE.md). They stand for a proof-owning module and a second module that calls it, with rules made up
 // for the tests; none of it is a rule of the real modules.
 //
 // `story-director` (domain `sdt`: accepted (by proof id), rolls, log):
@@ -26,19 +25,19 @@
 //   sd.needs { thread, selection, parent }   an acceptance under a guard that asks story.evidence for `parent`.
 //   sd.guarded { thread, selection, parents? }   an acceptance under a guard that holds while `mode.value` is not 'deny'.
 //   `! accept <thread> | words: …` (capture)   an acceptance by the reader's words.
-// `rpg-battle` (domain `rpgt`: xp, kills):
-//   rb.kill { foe, parents? }       a kill proof.
-//   rb.quest { thread, selection | words, check, after? }   one root: accepts, rolls (nested story-director
-//                                   commands, the accept twice), then its own story proof on both; `after: 'fail'`
+// `sample-extension` (domain `demoState`: xp, kills):
+//   demo.record { foe, parents? }       an event proof made by the owner.
+//   demo.flow { thread, selection | words, check, after? }   one root: accepts, rolls (nested story-director
+//                                   commands, the accept twice), then an event proof on both; `after: 'fail'`
 //                                   refuses at the end.
 //   `! kill <foe> | after: <thread>` (capture)   a kill that builds on the thread's acceptance, given by an earlier line.
-//   rb.many { specs, chain? }       the same for rpg-battle.
+//   demo.many { specs, chain? }       the same for sample-extension.
 import { createEvidenceQuery } from '../../../src/v2/evidence.js';
 import { runQuery } from '../../../src/v2/sdk.js';
 import { EPOCH, harness } from './guarded.js';
 
 export const SD = 'story-director';
-export const RB = 'rpg-battle';
+export const SAMPLE = 'sample-extension';
 export const [T1, T2] = ['th_thread01', 'th_thread02'];
 export const CHECK = 'ck_check001';
 
@@ -62,7 +61,7 @@ function many(ctx, { specs, chain = false }) {
         const parents = chain && out.length ? { parents: [out.at(-1).id] } : {};
         out.push(ctx.proof({ ...spec, ...parents }));
     }
-    ctx.draft(ctx.module === SD ? 'sdt' : 'rpgt').log.push(out.length);
+    ctx.draft(ctx.module === SD ? 'sdt' : 'demoState').log.push(out.length);
     return { summary: `Gave ${out.length} proofs.`, narrate: false, data: { proofs: out } };
 }
 
@@ -241,27 +240,32 @@ export function director({ mode = { value: 'normal' }, seen = [], peek = null, a
     };
 }
 
-export function fighter() {
+export function sampleModule() {
     return {
-        id: RB, name: 'Battle', version: '0.0.1',
-        domains: { rpgt: { initial: () => ({ xp: 0, kills: [], log: [] }), counters: ['xp'] } },
+        id: SAMPLE, name: 'Sample extension', version: '0.0.1',
+        domains: { demoState: { initial: () => ({ xp: 0, kills: [], log: [] }), counters: ['xp'] } },
         commands: {
-            'rb.kill'(ctx, { foe, parents }) {
-                const made = ctx.proof({ kind: 'kill', payload: { foe }, ...(parents ? { parents } : {}) });
-                ctx.draft('rpgt').kills.push(foe);
+            'demo.record'(ctx, { foe, parents }) {
+                const made = ctx.call('sd.many', { specs: [{ kind: 'event', payload: { foe }, ...(parents ? { parents } : {}) }] }).data.proofs[0];
+                ctx.draft('demoState').kills.push(foe);
                 return { summary: `Killed ${foe}.`, narrate: false, data: { proof: made } };
             },
-            'rb.quest'(ctx, { thread, selection, words, check, after = 'ok' }) {
+            'demo.flow'(ctx, { thread, selection, words, check, after = 'ok' }) {
                 const accepted = ctx.call('sd.accept', selection !== undefined ? { thread, selection } : { thread, words });
                 const rolled = ctx.call('sd.roll', { check, actor: 'ac_hero0001', stat: 'STR', dc: 12, parents: [accepted.data.proof.id] });
                 const again = ctx.call('sd.accept', selection !== undefined ? { thread, selection } : { thread, words });
                 if (again.data.proof.id !== accepted.data.proof.id) ctx.fail('FAILED', 'A retry must give the same id.');
-                const story = ctx.proof({ kind: 'story', payload: { thread, step: 1 }, parents: [accepted.data.proof.id, rolled.data.proof.id] });
-                ctx.draft('rpgt').xp += 5;
+                const story = ctx.call('sd.many', { specs: [{ kind: 'event', payload: { thread, step: 1 }, parents: [accepted.data.proof.id, rolled.data.proof.id] }] }).data.proofs[0];
+                ctx.draft('demoState').xp += 5;
                 if (after === 'fail') ctx.fail('REFUSED', 'Refused at the end.');
                 return { summary: 'Quest step.', narrate: false, data: { accepted: accepted.data.proof, rolled: rolled.data.proof, story } };
             },
-            'rb.many': many,
+            'demo.many'(ctx, payload) {
+                const result = ctx.call('sd.many', payload);
+                ctx.draft('demoState').log.push(result.data.proofs.length);
+                return result;
+            },
+            'demo.refuse': many,
         },
         capture: {
             kinds: { kill: { grammar: '! kill Foe | after: thread' } },
@@ -269,7 +273,7 @@ export function fighter() {
             apply(ctx, line) {
                 const accepted = ctx.query('story.evidence', {}).find(proof => proof.kind === 'acceptance' && proof.payload.thread === line.labels.after);
                 if (!accepted) ctx.fail('NOT_FOUND', `No acceptance of ${line.labels.after} to build on.`);
-                const done = ctx.call('rb.many', { specs: [{ kind: 'kill', payload: { foe: line.name }, parents: [accepted.id] }] });
+                const done = ctx.call('demo.many', { specs: [{ kind: 'event', payload: { foe: line.name }, parents: [accepted.id] }] });
                 return { summary: done.summary, narrate: false, data: done.data };
             },
         },
@@ -277,12 +281,12 @@ export function fighter() {
 }
 
 /**
- * A harness (guarded.js) with the host's story.evidence, both owners and `extra` modules. `ask(name, args)` runs
+ * A harness (guarded.js) with the host's story.evidence, an owner and `extra` modules. `ask(name, args)` runs
  * a public query on the head, as the sdk does: stored and pinned proof only.
  */
 export function evidenceHarness({ extra = [], options = {}, mode, seen, peek } = {}) {
     const host = hostModule();
-    const h = harness([host.def, director({ mode, seen, peek }), fighter(), ...extra], options);
+    const h = harness([host.def, director({ mode, seen, peek }), sampleModule(), ...extra], options);
     host.link(h.store);
     return Object.assign(h, {
         ask: (args) => runQuery(h.registry, h.store.head(), 'story.evidence', args, { receipts: () => h.store.receipts() }),

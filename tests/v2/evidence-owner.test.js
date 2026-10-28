@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { pinOf } from '../../src/v2/evidence.js';
-import { SD, T1, T2, director, evidenceHarness, fighter, hostModule } from './helpers/evidence.js';
+import { SD, T1, T2, director, evidenceHarness, sampleModule, hostModule } from './helpers/evidence.js';
 
 const ids = list => list.map(each => each.id);
 const collisions = h => h.problems().filter(problem => /already belongs to a block that applied/.test(problem.why));
@@ -92,10 +92,10 @@ test('an id taken by a hand edit survives a truncate and a rebuild: the projecti
     const mode = { value: 'normal' };
     const h = evidenceHarness({ mode });
     h.send();
-    const a = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
+    const a = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
     const at = h.send();
     const first = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }] });
-    const second = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'bear' } }] });
+    const second = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'bear' } }] });
     assert.deepEqual(ids(h.ask()), [a.id, first.receipt.data.proofs[0].id, second.receipt.data.proofs[0].id]);
     const rev = second.receipt.rev;
     h.store.truncate(at, rev);
@@ -107,19 +107,19 @@ test('an id taken by a hand edit survives a truncate and a rebuild: the projecti
     h.chat[at].extra.storySuite = record;
     h.store.rebuild();
     assert.deepEqual(ids(h.ask()), [a.id]);
-    assert.equal(h.ask()[0].kind, 'kill', 'the first block\'s bytes');
+    assert.equal(h.ask()[0].kind, 'event', 'the first block\'s bytes');
 });
 
 test('through a Re-read: a kept block that gives the id of a line read again collides, and the line owns it', async t => {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director(), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director(), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const text = lines => `Dawn.\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
     await host.send('Sure, I accept the job. Thanks a lot!', text([`! accept ${T1} | words: Sure, I accept the job`]));
     const at = host.ctx.chat.length - 1;
     const accepted = host.sdk.query('story.evidence', {})[0];
-    const click = host.bus.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }, { cause: 'ui' });
+    const click = host.bus.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }, { cause: 'ui' });
     assert.equal(click.ok, true);
     // The click's proof takes the line\'s id by hand.
     const record = structuredClone(host.ctx.chat[at].extra.storySuite);
@@ -149,7 +149,7 @@ test('a change that is not a change fails closed: the block is not applied, list
     for (const [name, bad] of Object.entries(malformed)) {
         const h = evidenceHarness();
         h.send();
-        const first = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
+        const first = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
         const at = h.send();
         const second = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }] }).receipt.data.proofs[0];
         const record = structuredClone(h.chat[at].extra.storySuite);

@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { pinOf } from '../../src/v2/evidence.js';
-import { T1, T2, director, evidenceHarness, fighter, hostModule } from './helpers/evidence.js';
+import { T1, T2, director, evidenceHarness, sampleModule, hostModule } from './helpers/evidence.js';
 
 const ids = list => list.map(each => each.id);
 const steps = ask => ask({}).filter(proof => proof.payload.after === 'dependent');
@@ -20,7 +20,7 @@ const rerunOf = h => (state, receipt, info) => {
 async function open(t) {
     const link = hostModule();
     const wanted = ['a', 'b'];
-    const host = await createHost({ modules: [link.def, director({ after: 'each', wanted }), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director({ after: 'each', wanted }), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const ask = args => host.sdk.query('story.evidence', args);
@@ -94,7 +94,7 @@ test('a plan that would take the id of a block that applied is refused: the owne
     h.send();
     const a = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }] }).receipt.data.proofs[0];
     const second = h.send();
-    const kill = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
+    const kill = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
     const third = h.send();
     // A step planned again by a reconcile, and one that comes later and needs it (a step too, so a reconcile plans it again).
     const step = h.command('sd.dependent', { parent: a.id }, 'system').receipt.data.made;
@@ -123,12 +123,12 @@ test('a plan that would take the id of a block that applied is refused: the owne
     h.store.rebuild();
     const shown = () => JSON.stringify(h.ask().map(each => [each.id, each.kind, each.parents]));
     const owner = () => h.ask({ ids: [step.id] });
-    assert.equal(owner()[0]?.kind, 'kill', 'the block that applied first holds the id');
+    assert.equal(owner()[0]?.kind, 'event', 'the block that applied first holds the id');
     assert.deepEqual(ids(h.ask({ ids: [child.id] })), [child.id], 'and what was built on it is shown');
     const was = shown();
     const done = h.store.reconcile(0, { rerun: rerunOf(h) });
     void done;
-    assert.equal(owner()[0]?.kind, 'kill', 'a plan that would take the id is refused: the owner stays');
+    assert.equal(owner()[0]?.kind, 'event', 'a plan that would take the id is refused: the owner stays');
     assert.deepEqual(ids(h.ask({ ids: [child.id] })), [child.id], 'and what is built on it stays shown');
     assert.equal(shown(), was, 'a reconcile changes nothing here');
     h.store.rebuild();
@@ -152,7 +152,7 @@ test('a Re-read that no longer asks for the first of several steps of one key le
 
 test('several proofs of one key with one parent set in a reply, and a Continue: an unchanged Re-read keeps every id and what is built on them', async t => {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director({ checks: true }), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director({ checks: true }), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const ask = args => host.sdk.query('story.evidence', args);
@@ -162,12 +162,12 @@ test('several proofs of one key with one parent set in a reply, and a Continue: 
     // The reply goes on: two more of the key, the second the same line as an earlier one.
     await host.cont(text([check(12), check(11)]));
     const at = host.ctx.chat.length - 1;
-    const checks = () => ask({}).filter(proof => proof.kind === 'event');
+    const checks = () => ask({}).filter(proof => proof.kind === 'event' && proof.payload.check);
     assert.deepEqual(checks().map(proof => proof.payload.dc), [10, 11, 12, 11], 'four proofs of one key, none lost');
     assert.equal(new Set(ids(checks())).size, 4);
     // The reader builds on the third.
     const third = checks()[2];
-    const built = host.bus.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [third.id] }] }, { cause: 'ui' });
+    const built = host.bus.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' }, parents: [third.id] }] }, { cause: 'ui' });
     assert.equal(built.ok, true, built.message);
     const map = () => JSON.stringify(ask({}).map(proof => [proof.id, proof.payloadHash, proof.parents]).sort());
     const was = map();
@@ -223,7 +223,7 @@ test('a checkpoint says which blocks were off: the proof before it belongs to th
     // Replies on top, so the head replays from a checkpoint after both, and a step that needs the id.
     for (let n = 0; n < 5; n += 1) {
         h.send();
-        assert.equal(h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: `wolf ${n}` } }] }).ok, true);
+        assert.equal(h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: `wolf ${n}` } }] }).ok, true);
     }
     const step = h.command('sd.dependent', { parent: a.id }, 'system');
     assert.equal(step.ok, true, step.message);
@@ -251,7 +251,7 @@ test('a checkpoint rewritten after a reconcile took a step back still names the 
     h.command('sd.dependent', { parent: parent.id }, 'system');
     const owner = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'o' } }] }).receipt.data.proofs[0];
     const taker = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'taker' } }] }).receipt.data.proofs[0];
-    const last = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'last' } }] }).receipt.data.proofs[0];
+    const last = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'last' } }] }).receipt.data.proofs[0];
     const record = structuredClone(h.chat[two].extra.storySuite);
     const span = record.spans.find(each => each.evidence?.some(proof => proof.id === taker.id));
     const proof = span.evidence.find(each => each.id === taker.id);
@@ -263,7 +263,7 @@ test('a checkpoint rewritten after a reconcile took a step back still names the 
     h.store.rebuild();
     for (let n = 0; n < 6; n += 1) {
         h.send();
-        assert.equal(h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: `wolf ${n}` } }] }).ok, true);
+        assert.equal(h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: `wolf ${n}` } }] }).ok, true);
     }
     // The first reply goes, and the step on it with it; the checkpoints after are written again.
     h.chat.splice(1, 2);
@@ -342,7 +342,7 @@ test('a block that gives proof and has no occurrence is not supported: it is not
     const made = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }] }).receipt.data.proofs[0];
     h.command('sd.gate', { value: true });
     h.send();
-    const other = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [made.id] }] }).receipt.data.proofs[0];
+    const other = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' }, parents: [made.id] }] }).receipt.data.proofs[0];
     assert.deepEqual(ids(h.ask({ ids: [made.id, other.id] })), [made.id, other.id]);
     stripOccurrences(h);
     assert.deepEqual(h.ask(), [], 'no proof of a block with no occurrence');
@@ -405,7 +405,7 @@ test('identical steps that gave no proof get a number each when a plan finds the
 // A reply of identical lines (and others), on the host, with a click built on the first of them.
 async function lined(t, lines) {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director(), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director(), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const ask = args => host.sdk.query('story.evidence', args);
@@ -493,7 +493,7 @@ test('identical steps with no guard that gave no proof get a number each when a 
 
 test('a retry of a Re-read starts from the same inputs: an unchanged line that makes an id keeps it', async t => {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director({ marks: true }), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director({ marks: true }), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const text = list => `Dawn.\n\n<Changes>\n${list.join('\n')}\n</Changes>`;
@@ -511,7 +511,7 @@ test('a retry of a Re-read starts from the same inputs: an unchanged line that m
 test('a retry that changes another operation retires it too: a step whose group shrinks on the second plan does not keep an old number', async t => {
     const link = hostModule();
     const track = { id: null };
-    const host = await createHost({ modules: [link.def, director({ after: 'twins', track }), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director({ after: 'twins', track }), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const ask = args => host.sdk.query('story.evidence', args);
