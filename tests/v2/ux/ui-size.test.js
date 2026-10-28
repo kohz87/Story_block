@@ -113,6 +113,12 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     assert.match(actions, /grid-column: 2; grid-row: 1 \/ 6;/, 'beside the name, the note and the detail, centred on them');
     assert.match(actions, /justify-content: flex-end;/);
     assert.match(rule(css, '.item > .body > .fold'), /grid-column: 1 \/ -1; grid-row: 6;/, 'the fold opens below the name and the actions');
+    // The text column never paints under the actions: it may shrink, long names break anywhere, the chips wrap and are cut to it.
+    for (const part of ['min-width: 0;', 'max-width: 100%;', 'overflow-wrap: anywhere;']) {
+        assert.ok(rule(css, '.item > .body > :is(.line, .note, .detail)').includes(part), part);
+        assert.ok(rule(css, '.item > .body > .line > *').includes(part), `${part} (the name and the chips)`);
+    }
+    assert.match(rule(css, '.line'), /flex-wrap: wrap;/);
     // A group that wraps on the right when the row is narrow; never a line of its own under the row.
     assert.match(rule(css, '.actions'), /display: flex; flex-wrap: wrap;/);
     assert.doesNotMatch(css, /@container|@media[^{]*\{[^}]*\.actions/, 'the same layout on a phone');

@@ -181,7 +181,11 @@ const CSS = `${BASE_CSS}
 .item > .body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(50%); grid-template-rows: 1fr auto auto auto 1fr auto; column-gap: 12px; row-gap: 0; align-items: center; min-width: 0; }
 .item > .body > .line { grid-column: 1; grid-row: 2; }
 .item > .body > .note { grid-column: 1; grid-row: 3; margin-top: 6px; }
-.item > .body > .detail { grid-column: 1; grid-row: 4; margin-top: 6px; min-width: 0; }
+.item > .body > .detail { grid-column: 1; grid-row: 4; margin-top: 6px; }
+/* The text column never reaches under the actions: it may shrink below its longest word, a long name breaks anywhere and the chips
+   (Worn by, the condition, key, carry) wrap to the next line, each cut to the column. */
+.item > .body > :is(.line, .note, .detail) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.item > .body > .line > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .item > .body > .actions { grid-column: 2; grid-row: 1 / 6; justify-content: flex-end; margin: 0; }
 .item > .body > .fold { grid-column: 1 / -1; grid-row: 6; margin-top: 8px; }
 .item .ss-tile-box { --rarity-ring: var(--rarity); width: 44px; height: 44px; border: 2px solid var(--rarity); border-radius: var(--ss-radius-m, 12px); }
