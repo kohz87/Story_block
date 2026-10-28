@@ -1,0 +1,19 @@
+{
+  "id": "lanternfall",
+  "version": "1.0.0",
+  "name": "Lanternfall",
+  "description": "A small world of lamps, a guild, and the marsh beyond the town.",
+  "requires": { "storyBlock": "^2.6" },
+  "content": {
+    "places": [
+      { "name": "Lanternfall", "slug": "lanternfall", "kind": "town", "x": 0, "y": 0 },
+      { "name": "Reedmoor", "slug": "reedmoor", "kind": "marsh", "x": 3, "y": 2 },
+      { "name": "Lamp Tower", "slug": "lamp-tower", "kind": "landmark", "x": -1, "y": -2 }
+    ],
+    "routes": [
+      { "slug": "lanternfall-reedmoor", "from": "lanternfall", "to": "reedmoor", "kind": "road" },
+      { "slug": "lanternfall-lamp-tower", "from": "lanternfall", "to": "lamp-tower", "kind": "road" }
+    ],
+    "events": []
+  }
+}

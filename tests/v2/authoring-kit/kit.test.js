@@ -15,6 +15,12 @@ test('the data-module examples pass the same checker as the host', () => {
     }
 });
 
+test('the tiny world example is a valid ordinary pack', () => {
+    const input = readFileSync(new URL('../../../authoring-kit/examples/tiny-world/pack.json', import.meta.url), 'utf8');
+    const result = checkPack(input);
+    assert.equal(result.ok, true, report('tiny-world', result));
+});
+
 test('the command-line checker reports a valid pack and an invalid one', () => {
     const output = execFileSync(process.execPath, ['authoring-kit/check.mjs', 'authoring-kit/reference/data-modules/faction-standing.pack.json'], { cwd: root, encoding: 'utf8' });
     assert.match(output, /^OK authoring-kit\/reference\/data-modules\/faction-standing\.pack\.json/);
