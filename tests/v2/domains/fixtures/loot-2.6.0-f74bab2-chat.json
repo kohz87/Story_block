@@ -1,0 +1,314 @@
+{
+ "note": "A chat saved by Story Block f74bab2 (2.6.0 before the unstackable limit) with the Riverside Starter pack enabled and its start emptied: an offer of 51 Willow Rods, a thing that does not stack.",
+ "chat": [
+  {
+   "name": "Narrator",
+   "is_user": false,
+   "is_system": false,
+   "mes": "The story begins.",
+   "send_date": "",
+   "swipe_id": 0,
+   "swipes": [
+    "The story begins."
+   ],
+   "swipe_info": [
+    {
+     "send_date": "",
+     "extra": {}
+    }
+   ],
+   "extra": {
+    "storySuite": {
+     "v": 2,
+     "sid": "sw_fbac2e00b05e",
+     "checkpoint": {
+      "v": 2,
+      "meta": {
+       "rev": 0,
+       "claims": {}
+      },
+      "domains": {
+       "inventory": {
+        "defs": {},
+        "stacks": {},
+        "wallets": {},
+        "aliases": {}
+       },
+       "scene": {
+        "place": {
+         "name": "Bluewatch Village",
+         "kind": "settlement",
+         "region": "the Lowmere"
+        },
+        "present": [
+         "Hollis"
+        ]
+       }
+      }
+     },
+     "ops": [],
+     "receipts": [],
+     "narrated": [],
+     "spans": [],
+     "rev": 0,
+     "source": {
+      "logical": "sr_7h2fcqsg",
+      "swipeKey": "sw_5p90qren",
+      "evidence": "ev_7fljtcmh",
+      "next": 0
+     },
+     "swipe": 0,
+     "mark": {
+      "t": "ca1478b1:17",
+      "d": ""
+     }
+    }
+   }
+  },
+  {
+   "name": "You",
+   "is_user": true,
+   "is_system": false,
+   "mes": "Hello.",
+   "send_date": "",
+   "extra": {}
+  },
+  {
+   "name": "Narrator",
+   "is_user": false,
+   "is_system": false,
+   "mes": "The road.",
+   "send_date": "",
+   "swipe_id": 0,
+   "swipes": [
+    "The road."
+   ],
+   "swipe_info": [
+    {
+     "send_date": "",
+     "extra": {}
+    }
+   ],
+   "extra": {
+    "storySuite": {
+     "v": 2,
+     "sid": "sw_aea963cf6a71",
+     "ops": [],
+     "receipts": [],
+     "narrated": [],
+     "spans": [],
+     "source": {
+      "logical": "sr_03o6uw2b",
+      "swipeKey": "sw_5xoezjng",
+      "evidence": "ev_7d5uj3m9",
+      "next": 0
+     },
+     "rev": 0,
+     "swipe": 0,
+     "mark": {
+      "t": "ebfb3744:9",
+      "d": ""
+     }
+    }
+   }
+  },
+  {
+   "name": "You",
+   "is_user": true,
+   "is_system": false,
+   "mes": "Look.",
+   "send_date": "",
+   "extra": {}
+  },
+  {
+   "name": "Narrator",
+   "is_user": false,
+   "is_system": false,
+   "mes": "A rack of rods.\n\n<!-- STORY_SUITE_V2\n<Changes>\n? loot Willow Rod x51 — on the rack\n</Changes>\n-->",
+   "send_date": "",
+   "swipe_id": 0,
+   "swipes": [
+    "A rack of rods.\n\n<!-- STORY_SUITE_V2\n<Changes>\n? loot Willow Rod x51 — on the rack\n</Changes>\n-->"
+   ],
+   "swipe_info": [
+    {
+     "send_date": "",
+     "extra": {
+      "storySuite": {
+       "v": 2,
+       "sid": "sw_49d41ee681ea",
+       "ops": [
+        {
+         "op": "add",
+         "path": "/domains/inventory/loot",
+         "value": {
+          "sw_49d41ee681ea": {
+           "sid": "sw_49d41ee681ea",
+           "n": 1,
+           "where": "on the rack",
+           "claim": "loot:sw_49d41ee681ea",
+           "items": {
+            "0": {
+             "name": "Willow Rod",
+             "qty": 51
+            }
+           }
+          }
+         }
+        },
+        {
+         "op": "add",
+         "path": "/domains/inventory/perReply",
+         "value": {
+          "sw_49d41ee681ea": {
+           "coin": 0,
+           "worth": 6120,
+           "made": 1,
+           "items": {
+            "pack.riverside-starter/willow-rod": 51
+           }
+          }
+         }
+        },
+        {
+         "op": "replace",
+         "path": "/meta/rev",
+         "value": 1
+        }
+       ],
+       "receipts": [
+        {
+         "id": "rc_202u7o01",
+         "type": "capture.loot",
+         "module": "story-block",
+         "cause": "story",
+         "seed": 1214439808,
+         "summary": "Loot to pick from (on the rack): Willow Rod ×51. The reader picks what to take (this reply's card, or To pick up in the Inventory).",
+         "narrate": false,
+         "data": {
+          "sid": "sw_49d41ee681ea",
+          "where": "on the rack",
+          "items": [
+           {
+            "name": "Willow Rod",
+            "qty": 51
+           }
+          ]
+         },
+         "rev": 1,
+         "line": "2869efa8"
+        }
+       ],
+       "narrated": [],
+       "spans": [
+        {
+         "n": 3,
+         "story": true
+        }
+       ],
+       "source": {
+        "logical": "sr_dvvtdd1e",
+        "swipeKey": "sw_3oesy3re",
+        "evidence": "ev_2gre2k85",
+        "next": 0
+       },
+       "rev": 1,
+       "swipe": 0,
+       "mark": {
+        "t": "5145dffc:15",
+        "d": ""
+       }
+      }
+     }
+    }
+   ],
+   "extra": {
+    "storySuite": {
+     "v": 2,
+     "sid": "sw_49d41ee681ea",
+     "ops": [
+      {
+       "op": "add",
+       "path": "/domains/inventory/loot",
+       "value": {
+        "sw_49d41ee681ea": {
+         "sid": "sw_49d41ee681ea",
+         "n": 1,
+         "where": "on the rack",
+         "claim": "loot:sw_49d41ee681ea",
+         "items": {
+          "0": {
+           "name": "Willow Rod",
+           "qty": 51
+          }
+         }
+        }
+       }
+      },
+      {
+       "op": "add",
+       "path": "/domains/inventory/perReply",
+       "value": {
+        "sw_49d41ee681ea": {
+         "coin": 0,
+         "worth": 6120,
+         "made": 1,
+         "items": {
+          "pack.riverside-starter/willow-rod": 51
+         }
+        }
+       }
+      },
+      {
+       "op": "replace",
+       "path": "/meta/rev",
+       "value": 1
+      }
+     ],
+     "receipts": [
+      {
+       "id": "rc_202u7o01",
+       "type": "capture.loot",
+       "module": "story-block",
+       "cause": "story",
+       "seed": 1214439808,
+       "summary": "Loot to pick from (on the rack): Willow Rod ×51. The reader picks what to take (this reply's card, or To pick up in the Inventory).",
+       "narrate": false,
+       "data": {
+        "sid": "sw_49d41ee681ea",
+        "where": "on the rack",
+        "items": [
+         {
+          "name": "Willow Rod",
+          "qty": 51
+         }
+        ]
+       },
+       "rev": 1,
+       "line": "2869efa8"
+      }
+     ],
+     "narrated": [],
+     "spans": [
+      {
+       "n": 3,
+       "story": true
+      }
+     ],
+     "source": {
+      "logical": "sr_dvvtdd1e",
+      "swipeKey": "sw_3oesy3re",
+      "evidence": "ev_2gre2k85",
+      "next": 0
+     },
+     "rev": 1,
+     "swipe": 0,
+     "mark": {
+      "t": "5145dffc:15",
+      "d": ""
+     }
+    }
+   }
+  }
+ ]
+}
