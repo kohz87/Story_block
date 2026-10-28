@@ -29,12 +29,15 @@ const budgetSlider = page => budget(page).querySelector('.ss-slider-input');
 const say = page => budget(page).querySelector('.ss-slider-value').textContent;
 const err = (page, key) => field(page, key).querySelector('.ss-field-error');
 
-test('the page: three cards (Coins, What the story may pay, Money words) hold the General group\'s seven fields, in the form engine, with no fold', async () => {
+test('the page groups the money settings and folds the advanced scale', async () => {
     const { page, host } = await open({ coins: COINS });
     assert.deepEqual(page.querySelectorAll('.ss-section-title').map(node => node.textContent), MONEY_CARDS.map(card => card.title));
     assert.deepEqual(page.querySelectorAll('.ss-section').map(card => card.querySelectorAll('.ss-field').map(row => row.dataset.field)), MONEY_CARDS.map(card => [...card.keys]));
     assert.ok(page.querySelector('.ss-form').classList.contains('ss-money'));
-    assert.equal(page.querySelectorAll('details').length, 0);
+    assert.equal(page.querySelectorAll('details').length, 1);
+    assert.equal(page.querySelector('details').open, false);
+    assert.equal(page.querySelector('details').querySelector('summary').textContent, 'Advanced');
+    assert.equal(field(page, 'economyScale').closest('details'), page.querySelector('details'));
     // The old rows are gone; every field of the group is still there, with its label and help as the schema has them.
     assert.equal(page.querySelectorAll('.story-suite-row').length, 0);
     assert.equal(field(page, 'coins').querySelector('.ss-field-label').textContent, 'Coins (smallest first)');
@@ -89,7 +92,7 @@ test('the budget is a slider; its words are the smallest coin\'s, and follow a c
     assert.equal(say(page), '1 penny');
     slider.value = '0';
     slider.dispatch('change');
-    assert.equal(say(page), 'Automatic', '0 is worked out from the installed modules');
+    assert.equal(say(page), 'Automatic: no limit — the story decides');
     slider.value = '60';
     slider.dispatch('change');
     // The coin is renamed: the unit follows, plural as written after the slash.
@@ -130,8 +133,8 @@ test('budgetUnit and budgetText: the coin worth 1, else the money word; 0 is Aut
     assert.equal(budgetText(60, { currency: 'mark' }), '60 marks');
     assert.equal(budgetText(1, { currency: 'mark' }), '1 mark');
     assert.equal(budgetText(1234, { coins: COINS }), '1,234 pennies');
-    assert.equal(budgetText(0, {}), 'Automatic');
-    assert.equal(budgetText(Number.NaN, {}), 'Automatic');
+    assert.equal(budgetText(0, {}), 'Automatic: no limit — the story decides');
+    assert.equal(budgetText(Number.NaN, {}), 'Automatic: no limit — the story decides');
 });
 
 test('a bad Coins line is named, and the list is kept as it was', async () => {
@@ -219,7 +222,7 @@ test('moneySchema: the General group regrouped into the cards; a field the cards
     assert.equal(schema.storyCoinPerReply.form, 'slider');
     assert.equal(schema.storyCoinPerReply.sliderMax, BUDGET_SLIDER_MAX);
     assert.equal(schema.storyCoinPerReply.max, 1_000_000_000, 'the store\'s limit is untouched');
-    assert.equal(schema.storyCoinPerReply.format(0), 'Automatic');
+    assert.equal(schema.storyCoinPerReply.format(0), 'Automatic: no limit — the story decides');
     assert.equal(base.coins.form, 'lines', 'the registry\'s own schema is not changed');
     assert.deepEqual(moneySchema(undefined, () => ({})), {});
 });

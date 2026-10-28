@@ -13,18 +13,31 @@ const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Cha
 const coin = host => host.head().domains.inventory.wallets.party?.coin ?? 0;
 const qty = (host, name) => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
 const problems = host => host.turn.problems().map(problem => `${problem.code}: ${problem.message}`);
-const BUDGET = 1000;   // 1000 × level 1, no quest ranks
+const BUDGET = 1000;
 
 // Rules that price story items: a Gem is worth 300, everything else nothing.
 const pricing = { id: 'zz-prices', name: 'Prices', hooks: { 'item.define': def => (def.name.startsWith('Gem') ? { value: 300 } : null) } };
 
 async function fresh(t, options) {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost(options);
+    const host = await createHost({ settings: { modules: { 'story-block': { storyCoinPerReply: BUDGET } } }, ...options });
     t.after(() => host.close());
     await host.send('Hello.', reply('The road.', ['+ item Torch']));
     return host;
 }
+
+test('automatic money lets the story give coin, valuable goods, quantities and new kinds without per-reply limits', async t => {
+    const host = await fresh(t, { settings: { modules: { 'story-block': { storyCoinPerReply: 0 } } }, modules: [pricing] });
+    const lines = ['+ coin 50000', '+ item Gem A | qty: 30', ...Array.from({ length: 12 }, (_, i) => `+ item Trinket ${i + 1}`)];
+    await host.send('A hoard.', reply('A hoard.', lines));
+    assert.equal(coin(host), 50000);
+    assert.equal(qty(host, 'Gem A'), 30);
+    assert.equal(host.sdk.query('inventory.items').filter(item => item.name.startsWith('Trinket')).length, 12);
+    assert.deepEqual(problems(host), []);
+    const budget = host.sdk.query('inventory.storyBudget');
+    assert.equal(budget.budget, null);
+    assert.equal(budget.left, null);
+});
 
 test('~ item | qty: raising a count is held to the per-reply item limit; the clamp is a LIMITED Problem', async t => {
     const host = await fresh(t);

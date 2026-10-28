@@ -27,7 +27,7 @@ const clicking = {
 
 async function fresh(t, options = {}) {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost({ modules: [clicking], ...options });
+    const host = await createHost({ modules: [clicking], settings: { modules: { 'story-block': { storyCoinPerReply: BUDGET } } }, ...options });
     t.after(() => host.close());
     await host.send('Hello.', reply('The road.', ['+ item Torch']));
     seen.length = 0;

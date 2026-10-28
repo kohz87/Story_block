@@ -86,7 +86,7 @@ export const CORE_SETTINGS = Object.freeze({
         currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
         storyCoinPerReply: Object.freeze({
             type: 'int', min: 0, max: 1000000000, label: 'Money one reply may give',
-            help: 'The most + coin lines of one reply may pay, in whole coins. 0: worked out from your installed modules (a quest rank\'s top reward, or 1000 per character level, times the money scale; 1000 times the scale when neither is installed).',
+            help: 'The most one reply may give, in whole coins. 0: no limit; the story decides. A number also limits the items and goods one reply may give.',
         }),
         // A number from 0.001 to 1000, kept as text so it can hold a fraction (MODULES §F104).
         economyScale: Object.freeze({

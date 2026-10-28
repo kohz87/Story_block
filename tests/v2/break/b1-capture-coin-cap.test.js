@@ -9,7 +9,7 @@ const coin = host => host.head().domains.inventory.wallets.party?.coin ?? 0;
 
 async function fresh(t) {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost();
+    const host = await createHost({ settings: { modules: { 'story-block': { storyCoinPerReply: 1000 } } } });
     t.after(() => host.close());
     await host.send('Hello.', 'The road.');
     return host;

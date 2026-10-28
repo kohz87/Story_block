@@ -1032,9 +1032,9 @@ function lootErrors(loot) {
         if (typeof offer.where !== 'string' || typeof offer.claim !== 'string' || !Number.isSafeInteger(offer.n)) errors.push(`The loot of reply ${key} is missing where it lies, its claim or its order.`);
         const list = lootItems(offer);
         if (!list || !list.length || list.length > LOOT_ITEMS
-            || list.some(item => !isPlainObject(item) || !nonBlank(item.name) || item.name.length > MAX_NAME || !isCount(item.qty, 1) || item.qty > STORY_ITEM_QTY
+            || list.some(item => !isPlainObject(item) || !nonBlank(item.name) || item.name.length > MAX_NAME || !isCount(item.qty, 1)
                 || (item.coin !== undefined && !isCount(item.coin, 1)))) {
-            errors.push(`The loot of reply ${key} needs 1 to ${LOOT_ITEMS} things, each with a name and a quantity of 1 to ${STORY_ITEM_QTY}.`);
+            errors.push(`The loot of reply ${key} needs 1 to ${LOOT_ITEMS} things, each with a name and a positive quantity.`);
         }
     }
     return errors;
@@ -1079,7 +1079,7 @@ export function captureLoot(ctx, line, env) {
     if (ctx.cause !== 'story' || typeof sid !== 'string' || !sid) ctx.fail('REFUSED', 'Loot is laid out by a reply\'s change lines only.');
     const inv = ctx.draft('inventory');
     const fallback = lineQty(ctx, line, 1);
-    if (fallback < 1 || fallback > STORY_ITEM_QTY) ctx.fail('INVALID', `A quantity of loot is 1 to ${STORY_ITEM_QTY}.`);
+    if (fallback < 1) ctx.fail('INVALID', 'A quantity of loot must be at least 1.');
     const parts = String(line.name ?? '').split(/[,;]/).map(part => part.trim()).filter(Boolean);
     if (!parts.length) ctx.fail('INVALID', 'A loot line needs the things that lie there: ? loot Rusty Key, Lantern Oil — where.');
     const before = isPlainObject(inv.loot) && isPlainObject(inv.loot[sid]) ? inv.loot[sid] : null;
@@ -1502,10 +1502,9 @@ export function createInventoryCommands(env) {
 // says the story alone vouched for (`wallet.receive { story: true }`, below), during the reply's capture
 // or by a click after it (counted against the reply the click is stored on, ctx.reply; RX-E-2).
 // `inventory.storyBudget` tells a module what is left (createInventoryQueries).
-// * Coin: `storyCoinPerReply` in Story Block's settings, or with 0 (the default) the top reward of the
-//   quest rank for the player character's level (`quest.ranks` and `party.pc`, when modules answer),
-//   else 1000 × that level. Past it a line is paid what is left, and the Problems list says so.
-// * Items: at most STORY_ITEM_QTY of one item per reply, however many lines name it (so a line repeated
+// * Coin: a positive `storyCoinPerReply` setting caps one reply; 0 lets the story decide. Past a
+//   configured cap a line is paid what is left, and the Problems list says so.
+// * When a cap is set, items: at most STORY_ITEM_QTY of one item per reply, however many lines name it (so a line repeated
 //   is counted together), and goods worth at most STORY_WORTH_TIMES × the coin budget in all (each
 //   def's `value` × the count given), so many kinds of item cannot add up to more than the coin limit.
 //   Past either, a line gives what is left, and the Problems list says so. A `~ item … | qty:` that
@@ -1566,47 +1565,12 @@ export function scaledDefault(amount, scale = 1) {
     return Math.max(1, Math.round(amount * (scaleIn(scale) ?? 1)));
 }
 
-// The player character's level (`party.pc`), 1 without a party module.
-function pcLevel(ctx) {
-    try {
-        const pc = ctx.query('party.pc');
-        if (Number.isSafeInteger(pc?.level) && pc.level > 0) return pc.level;
-    } catch { /* no party module: level 1 */ }
-    return 1;
-}
+const policyCaps = ctx => moneyCaps((name, args) => ctx.query(name, args), 1);
 
-// The caps a ready rules module puts on a reply's story money (`rules.moneyPolicy`, money.js moneyCaps).
-const policyCaps = ctx => moneyCaps((name, args) => ctx.query(name, args), pcLevel(ctx));
-
-// `ctx` needs settings() and query(); a query passes its own (createInventoryQueries). The reader's own
-// number wins; then a ready rules module's `storyCreditCap` for this level; then what the installed modules
-// and packs say, and last the level fallback (all of which stand alone, as they always did).
+// Zero means that the story decides; a positive setting is a per-reply limit.
 function storyCoinBudget(ctx) {
     const set = Number(ctx.settings()?.storyCoinPerReply);
-    if (Number.isSafeInteger(set) && set > 0) return set;
-    const level = pcLevel(ctx);
-    const credit = moneyCaps((name, args) => ctx.query(name, args), level).credit;
-    if (credit !== null) return credit;
-    const topFor = ranks => {
-        const rank = Array.isArray(ranks) ? ranks.find(r => Array.isArray(r?.levels) && level >= r.levels[0] && level <= r.levels[1]) : null;
-        const top = rank?.reward?.[1];
-        return Number.isSafeInteger(top) && top > 0 ? top : null;
-    };
-    try {
-        const top = topFor(ctx.query('quest.ranks'));
-        if (top) return top;
-    } catch { /* no quest module: the pack's own ladder, else by level */ }
-    // Without a quest module, the first enabled pack's own rank ladder (as written, never scaled).
-    try {
-        const records = ctx.query('packs.content', { kind: 'ranks' });
-        const first = Array.isArray(records) && records.length ? records[0]?.pack : null;
-        const top = topFor(Array.isArray(records) ? records.filter(record => record?.pack === first) : null);
-        if (top) return top;
-    } catch { /* no packs part: by level */ }
-    // The built-in fallback is gold-scale: the money scale brings it to the chat's coin.
-    let scale = 1;
-    try { scale = ctx.query('inventory.economy')?.scale ?? 1; } catch { /* no economy query: as written */ }
-    return scaledDefault(STORY_COIN_PER_LEVEL * level, scale);
+    return Number.isSafeInteger(set) && set > 0 ? set : Infinity;
 }
 
 const tallied = value => (isCount(value, 0) ? value : 0);
@@ -1718,6 +1682,15 @@ function storyDebit(ctx, inv, amount, currency) {
 function storyItems(ctx, inv, def, qty, created = false, more = false, notableOk = !more) {
     const tally = tallyOf(ctx, inv);
     if (!tally) return { qty, problem: null, notable: false };
+    if (!Number.isFinite(storyCoinBudget(ctx))) {
+        // Keep the reply's accounting for replay and for a later change to the setting, without limiting the gift.
+        if (created) tally.made = Math.min(Number.MAX_SAFE_INTEGER, tally.made + 1);
+        tally.items[def.id] = Math.min(Number.MAX_SAFE_INTEGER, (tally.items[def.id] ?? 0) + qty);
+        const value = isCount(def.value, 1) ? def.value : 0;
+        tally.worth = Math.min(Number.MAX_SAFE_INTEGER, tally.worth + value * qty);
+        keepTally(inv, tally);
+        return { qty, problem: null, notable: false };
+    }
     if (created) {
         if (tally.made >= STORY_NEW_DEFS) ctx.fail('REFUSED', `This reply has already brought ${STORY_NEW_DEFS} new kinds of item into the story, the most one reply may; ${def.name} was not added.`);
         tally.made += 1;
@@ -2184,8 +2157,8 @@ export const createInventoryQueries = env => ({
     // { budget, paid, left, vouched }: the story money (`+ coin` lines and modules' `wallet.receive { story:
     // true }`) the current reply may give, has given and has left (RX-E-2); `vouched` is the part of
     // `paid` that modules' vouched payouts gave (quest rewards), so a module can tell a reply whose
-    // budget its own payouts used from one whose coin lines did. The budget is the reader's
-    // `storyCoinPerReply`, else the party rank's top (storyCoinBudget). The current reply is the one
+    // budget its own payouts used from one whose coin lines did. A null budget and left mean no limit.
+    // The current reply is the one
     // the asking command is stored on (tools.reply: a capture's carrier, else the head carrier); with
     // none known, nothing is counted as given yet.
     'inventory.storyBudget': (state, args, tools) => {
@@ -2193,7 +2166,7 @@ export const createInventoryQueries = env => ({
         const stored = storedTally(state?.domains?.inventory, tools?.reply?.sid);
         const clicks = tools?.reply?.sid ? clicksOf(state?.domains?.inventory, tools.reply.sid) : 0;
         const paid = Math.min(budget, tallied(stored?.coin) + clicks);
-        return { budget, paid, left: Math.max(0, budget - paid), vouched: Math.min(paid, tallied(stored?.vouched) + clicks) };
+        return { budget: Number.isFinite(budget) ? budget : null, paid, left: Number.isFinite(budget) ? Math.max(0, budget - paid) : null, vouched: Math.min(paid, tallied(stored?.vouched) + clicks) };
     },
     'inventory.wallet': (state, args = {}) => ({ ...(state?.domains?.inventory?.wallets?.[args?.owner ?? 'party'] ?? {}) }),
     // { status: 'found' | 'ambiguous' | 'none', defs: [def copies], stacks: [items of the found def] }

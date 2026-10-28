@@ -25,6 +25,17 @@ async function fresh(t, options = {}) {
     return host;
 }
 
+test('automatic money allows a loot offer with more than twenty items', async t => {
+    const host = await fresh(t);
+    await host.send('Look.', reply('A crate.', ['? loot Arrows x30 — in the crate']));
+    assert.deepEqual(Object.values(offer(host).items), [{ name: 'Arrows', qty: 30 }]);
+    const taken = await take(host, [0]);
+    assert.equal(taken.ok, true, taken.message);
+    assert.equal(qty(host, 'Arrows'), 30);
+    host.store.rebuild();
+    assert.equal(qty(host, 'Arrows'), 30);
+});
+
 test('? loot lays things out without giving them; the reader takes the ones ticked', async t => {
     const host = await fresh(t);
     await host.send('Search the cellar.', reply('Dusty shelves.', ['? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar shelf']));
@@ -79,7 +90,7 @@ test('the offer is held to the reply\'s story limits when it is read (worth, 20 
         queries: { 'quest.ranks': () => [{ id: 'F', levels: [1, 10], reward: [10, 50] }] },
         hooks: { 'item.define': def => (Object.hasOwn(PRICES, def.name) ? { value: PRICES[def.name] } : null) },
     };
-    const host = await fresh(t, { modules: [world] });
+    const host = await fresh(t, { modules: [world], settings: { modules: { 'story-block': { storyCoinPerReply: 50 } } } });
     // Goods worth at most 100 per reply: 2 Ruby Shards fit; the crown is never notable as loot.
     await host.send('The vault.', reply('Glitter.', ['? loot Ruby Shard x3, Royal Crown, Arrows x25 — in the vault']));
     assert.deepEqual(Object.values(offer(host).items), [{ name: 'Ruby Shard', qty: 2 }, { name: 'Arrows', qty: 20 }]);
