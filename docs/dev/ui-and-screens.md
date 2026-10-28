@@ -542,8 +542,8 @@ their states, the plates, the class-level exceptions and their specificity), `te
   measured rects with each other, or places things in percentages, needs nothing (Story Block's map widget, RPG Battle's skill-tree
   lines, whose SVG viewBox is the measured box).
 - A phone or a touch screen (`(max-width: 759.98px), (pointer: coarse)`): every button, tab, link, summary and field inside a root is
-  at least 44px on the screen (`!important`, over screens' own 36–40px minimums). A switch keeps its look with a 44px `::after` tap
-  area; a checkbox or radio in a label is pressed through the label (44 × 44, no `::after`: it would reach the next label), one with
+  at least 44px on the screen (`!important`, over screens' own 36–40px minimums; `role="button"` elements too, a text one such as a
+  module's "more" as a 44px inline block). A switch keeps its look with a 44px `::after` tap area inside a margin of its own; a checkbox or radio in a label is pressed through the label (44 × 44, no `::after`: it would reach the next label), one with
   no label gets a 44px `::after` inside a margin of its own; a slider's box is 44px tall (another range keeps its bar in 44px of
   padding, `background-clip: content-box`); a link in running text is an inline block of at least 44 × 44 with no negative margin
   (the line grows where one sits); a search box's text stops short of its 44px clear button. No tap area may reach over a

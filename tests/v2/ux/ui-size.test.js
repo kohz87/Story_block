@@ -49,7 +49,7 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     const at = size.indexOf(PHONE);
     assert.ok(at > 0, 'the phone line (760px) or a coarse pointer');
     const block = size.slice(at);
-    const buttons = block.match(/([^{}]+:is\(button, \[role="tab"\], a\[href\], summary\)[^{}]*)\{([^}]*)\}/);
+    const buttons = block.match(/([^{}]+:is\(button, \[role="button"\], \[role="tab"\], a\[href\], summary\)[^{}]*)\{([^}]*)\}/);
     assert.ok(buttons, 'the controls rule');
     assert.match(buttons[1], /:not\(\.ss-switch, \.ss-w-map-node, \[data-ss-hit\]\)/, 'switches and map markers draw their own tap area');
     assert.match(buttons[2], /min-width: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
@@ -66,6 +66,9 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     assert.match(hit[1], /width: max\(100%, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
     assert.match(hit[1], /height: max\(100%, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
     assert.match(hit[1], /transform: translate\(-50%, -50%\);/);
+    // ...in room of its own round the 48 x 28 switch, so that area never reaches a neighbour.
+    assert.match(block, /\.ss-switch \{\s*margin: max\(0px, calc\(\(44px \/ var\(--ss-zoomed, 1\) - 28px\) \/ 2\)\) max\(0px, calc\(\(44px \/ var\(--ss-zoomed, 1\) - 48px\) \/ 2\)\) !important;/);
+    assert.match(read('view/glass.css'), /\) \.ss-switch \{[^}]*width: 48px;\s*height: 28px;/);
 });
 
 test('a phone or a touch screen: checkboxes, radios, sliders, links in running text and the search box\'s clear button are 44px targets too', () => {
@@ -93,8 +96,9 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     assert.ok(decl(`${scope} .ss-slider .ss-slider-input`).includes(`min-height: ${tap};`));
     const range = decl(`${scope} input[type="range"]:not(.ss-slider-input)`);
     for (const part of ['box-sizing: content-box;', 'padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 5px) / 2));', 'background-clip: content-box;']) assert.ok(range.includes(part), part);
-    // A link in running text is a 44 x 44 box in the line, with no negative margin (nothing reaches over its neighbours).
-    const link = decl(`${scope} :is(p, li, span, small, em, strong, b, i, label, dd, td, figcaption) > a[href]:not([class*="button"], [role="button"], [role="tab"], [data-ss-hit])`);
+    // A link in running text (or a text element acting as a button) is a 44 x 44 box in the line, with no negative margin (nothing
+    // reaches over its neighbours).
+    const link = decl(`${scope} :is(p, li, span, small, em, strong, b, i, label, dd, td, figcaption) > a[href]:not([class*="button"], [role="button"], [role="tab"], [data-ss-hit]),\n    ${scope} :is(span, i, b, small, em, strong)[role="button"]:not([data-ss-hit])`);
     for (const part of ['display: inline-block;', 'box-sizing: border-box;', `min-width: ${tap};`, `min-height: ${tap};`, 'max-width: 100%;']) assert.ok(link.includes(part), part);
     assert.doesNotMatch(link, /margin/);
     assert.doesNotMatch(size, /margin[^;]*:\s*(min\(|calc\(-|-)/, 'no negative margins anywhere in the size rules');
