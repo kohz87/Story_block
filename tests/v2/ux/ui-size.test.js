@@ -77,13 +77,18 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     };
     const scope = ':is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog)';
     const tap = 'calc(44px / var(--ss-zoomed, 1))';
-    // A checkbox or radio keeps its drawn box; its tap area is a 44px ::after (SillyTavern's clip let go of), and its label is 44px tall.
-    assert.match(decl(`:where(${scope} input:is([type="checkbox"], [type="radio"]))`), /position: relative;/);
-    assert.match(decl(`${scope} input:is([type="checkbox"], [type="radio"])`), /overflow: visible;/);
-    const hit = decl(`${scope} input:is([type="checkbox"], [type="radio"])::after`);
+    // A checkbox or radio in a label is pressed through the label, 44 x 44, and draws no tap area of its own (it would reach the next
+    // label: loot chips sit 4px apart). One with no label keeps its box and gets a 44px ::after inside a margin of its own.
+    const label = decl(`${scope} label:has(> input:is([type="checkbox"], [type="radio"]))`);
+    for (const part of ['box-sizing: border-box;', `min-width: ${tap};`, `min-height: ${tap};`]) assert.ok(label.includes(part), part);
+    assert.match(decl(`:where(${scope} input:is([type="checkbox"], [type="radio"]):not(label input))`), /position: relative;/);
+    const bare = decl(`${scope} input:is([type="checkbox"], [type="radio"]):not(label input)`);
+    assert.match(bare, /overflow: visible;/);
+    assert.ok(bare.includes('margin: max(0px, calc((44px / var(--ss-zoomed, 1) - 0.8em) / 2));'), 'room of its own for the tap area');
+    assert.ok(!/min-(width|height)/.test(bare), 'the box itself keeps its size');
+    const hit = decl(`${scope} input:is([type="checkbox"], [type="radio"]):not(label input)::after`);
     for (const part of ['content: "";', 'position: absolute;', `width: ${tap};`, `height: ${tap};`, 'transform: translate(-50%, -50%);']) assert.ok(hit.includes(part), part);
-    assert.ok(!/min-(width|height)/.test(decl(`${scope} input:is([type="checkbox"], [type="radio"])`)), 'the box itself keeps its size');
-    assert.ok(decl(`${scope} label:has(> input:is([type="checkbox"], [type="radio"]))`).includes(`min-height: ${tap};`));
+    assert.doesNotMatch(block, /\) input:is\(\[type="checkbox"\], \[type="radio"\]\)::after/, 'no tap area round a labelled box');
     // Sliders: Story Suite's clear box grows around its track; another range keeps its 5px bar inside 44px of padding.
     assert.ok(decl(`${scope} .ss-slider .ss-slider-input`).includes(`min-height: ${tap};`));
     const range = decl(`${scope} input[type="range"]:not(.ss-slider-input)`);

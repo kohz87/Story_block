@@ -19,11 +19,10 @@
 
 /* A phone or a touch screen (the phone layout's line, 760px, or a coarse pointer): every button, tab, link, summary, input and
    select inside a root is at least 44 x 44 CSS px on the screen, so 44px / zoom before it. `!important` because some screens give
-   their own controls a 36px or 40px minimum with a heavier selector. A switch, a checkbox and a radio keep their look and get a
-   44px tap area (::after), and the label around a checkbox or a radio is 44px tall; a slider's box is 44px tall around its thin
-   track; a link in running text gets padding to 44px tall and 10px each side that a negative margin takes back (the line and the
-   words beside it do not move); a search box leaves the room of
-   its 44px clear button free of text. A map marker draws its own tap area (`.ss-w-map-node`, or any control marked `data-ss-hit`,
+   their own controls a 36px or 40px minimum with a heavier selector. A switch keeps its look and gets a 44px tap area (::after); a
+   checkbox or a radio is pressed through its 44 x 44 label, or, with no label, gets a 44px tap area in a margin of its own; a
+   slider's box is 44px tall around its thin track; a link in running text gets padding to 44px tall and 10px each side that a
+   negative margin takes back; a search box leaves the room of its 44px clear button free of text. A map marker draws its own tap area (`.ss-w-map-node`, or any control marked `data-ss-hit`,
    e.g. Story Director's places). */
 @media (max-width: 759.98px), (pointer: coarse) {
     :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) :is(button, [role="tab"], a[href], summary):not(.ss-switch, .ss-w-map-node, [data-ss-hit]) {
@@ -41,15 +40,25 @@
         height: max(100%, calc(44px / var(--ss-zoomed, 1)));
         transform: translate(-50%, -50%);
     }
-    /* the box places its tap area (no weight: a screen that places its own input, e.g. over its label, keeps that); SillyTavern clips
-       its checkbox (overflow: hidden, 0,1,1), so letting the tap area out takes a rule heavier than that */
-    :where(:is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"])) {
+    /* A checkbox or a radio in a label is pressed through the label: the label is the 44 x 44 target and the box draws nothing more
+       (a tap area round the box would reach into the next label: loot chips sit 4px apart). A box with no label keeps its look and
+       gets a 44px tap area (::after) inside a margin of its own, so it never reaches a neighbour; SillyTavern clips its checkbox
+       (overflow: hidden, 0,1,1), so letting the tap area out takes a rule heavier than that. The position has no weight: a screen
+       that places its own input keeps that. */
+    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) label:has(> input:is([type="checkbox"], [type="radio"])) {
+        box-sizing: border-box;
+        min-width: calc(44px / var(--ss-zoomed, 1));
+        min-height: calc(44px / var(--ss-zoomed, 1));
+        align-items: center;
+    }
+    :where(:is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"]):not(label input)) {
         position: relative;
     }
-    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"]) {
+    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"]):not(label input) {
         overflow: visible;
+        margin: max(0px, calc((44px / var(--ss-zoomed, 1) - 0.8em) / 2));
     }
-    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"])::after {
+    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) input:is([type="checkbox"], [type="radio"]):not(label input)::after {
         content: "";
         position: absolute;
         left: 50%;
@@ -57,10 +66,6 @@
         width: calc(44px / var(--ss-zoomed, 1));
         height: calc(44px / var(--ss-zoomed, 1));
         transform: translate(-50%, -50%);
-    }
-    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) label:has(> input:is([type="checkbox"], [type="radio"])) {
-        min-height: calc(44px / var(--ss-zoomed, 1));
-        align-items: center;
     }
     /* Story Suite's slider draws a thin track in a clear box: the box grows. Another range paints its bar on the box, so the room
        is padding outside a bar clipped to the content. */
