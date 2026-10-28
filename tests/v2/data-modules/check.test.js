@@ -5,7 +5,6 @@ import { validatePack } from '../../../src/v2/packs/validate.js';
 import { contentOf } from '../../../src/v2/packs/content.js';
 import { HOST_CAPABILITIES } from '../../../src/v2/packs/limits.js';
 import { validatePack as oldValidatePack } from '../packs/fixtures/old-host/validate.js';
-import { validateRulesPack } from '../../../src/v2/packs/rules-v2.js';
 import { validateDataModules, validateDataMigration, dataModuleDefaults, dataModuleHash,
     DM_LIMITS as L, DM_DESCRIPTORS as D, DM_DIAGNOSTICS } from '../../../src/v2/data-modules/check.js';
 import * as packsApi from '../../../src/v2/packs/index.js';
@@ -467,20 +466,13 @@ test('malformed definition/property sweep never throws, mutates input or exceeds
     assert.ok(vectors >= 3000);
 });
 
-test('ordinary pack hash goldens remain stable; combined rules/data packs hash their data definitions', () => {
-    const input = JSON.parse(readFileSync(new URL('../packs/rules-v2/fixtures/valid-pack.json', import.meta.url), 'utf8'));
-    const before = validateRulesPack(input);
-    assert.equal(before.ok, true, JSON.stringify(before.errors));
-    const hostBefore = ok(input);
-    assert.equal(hostBefore.packHash, before.packHash);
-    input.requires.capabilities.push('data-modules-v1');
-    input.content.dataModules = [definition()];
+test('a data pack hash changes when its definition changes', () => {
+    const input = pack();
     const first = ok(input);
-    assert.equal(first.rulesHash, before.rulesHash, 'unrelated data definitions do not change RB mechanics');
-    const hash = first.packHash;
+    assert.match(first.packHash, /^[0-9a-f]{64}$/);
+    assert.equal(ok(structuredClone(input)).packHash, first.packHash);
     input.content.dataModules[0].kinds.gain.effects[0].value = 2;
-    const second = ok(input);
-    assert.notEqual(second.packHash, hash);
+    assert.notEqual(ok(input).packHash, first.packHash);
 });
 
 test('enum scalar literals are exact, with finite numeric/bool membership and case-sensitive text', () => {

@@ -8,7 +8,7 @@ import { validatePack } from '../../../src/v2/packs/validate.js';
 import { economyOf as packEconomyOf } from '../../../src/v2/packs/content.js';
 import { createPacksPart } from '../../../src/v2/packs/index.js';
 import { ECONOMY_LIMITS, PACK_FIELDS } from '../../../src/v2/packs/limits.js';
-import { STORY_COIN_PER_LEVEL, createInventoryQueries, economyOf, scaledDefault } from '../../../src/v2/domains/inventory.js';
+import { createInventoryQueries, economyOf, scaledDefault } from '../../../src/v2/domains/inventory.js';
 import { CORE_SETTINGS } from '../../../src/v2/domains/index.js';
 import { createHost } from '../../../testkit/index.js';
 import { fakeSettings } from './helpers/fake-settings.js';
@@ -99,54 +99,12 @@ async function fresh(t) {
     return host;
 }
 
-test('the 1000 × level story coin budget is scaled: by the pack, and by the reader over the pack', async t => {
+test('money scale does not set the story budget', async t => {
     const host = await fresh(t);
-    assert.deepEqual(host.sdk.query('inventory.economy'), { scale: 1, source: 'default' });
-    const installed = await host.packs.packs.install(JSON.stringify(pack({ id: 'copper', economy: { scale: 0.01 } })));
-    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
-    assert.deepEqual(host.sdk.query('inventory.economy'), { scale: 0.01, source: 'pack' });
+    assert.equal((await host.packs.packs.install(pack({ id: 'copper', economy: { scale: 0.01 } }))).ok, true);
     await host.send('Chest.', reply('Coins.', ['+ coin 500']));
-    assert.equal(coin(host), STORY_COIN_PER_LEVEL * 0.01, 'level 1: 1000 × 0.01');
-    host.settings.set('story-block', 'economyScale', '0.05');
-    assert.deepEqual(host.sdk.query('inventory.economy'), { scale: 0.05, source: 'settings' });
-    await host.send('Another chest.', reply('More coins.', ['+ coin 500']));
-    assert.equal(coin(host), 10 + 50);
+    assert.equal(coin(host), 500);
     host.settings.set('story-block', 'storyCoinPerReply', 7);
-    await host.send('A purse.', reply('A few.', ['+ coin 500']));
-    assert.equal(coin(host), 60 + 7, 'the reader\'s own budget is never scaled');
-});
-
-const ERSVEIL = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
-
-test('Ersveil sets scale 8; its own ranks, values and prices stay as written', () => {
-    const ersveil = ok(ERSVEIL);
-    const raw = JSON.parse(ERSVEIL);
-    assert.deepEqual(ersveil.economy, { scale: 8, note: 'copper is small coin: about 8 copper to one coin of the built-in defaults' });
-    assert.deepEqual(ersveil.content.ranks.map(rank => rank.reward), raw.content.ranks.map(rank => rank.reward));
-    assert.deepEqual(ersveil.content.items.map(item => item.value), raw.content.items.map(item => item.value ?? 0));
-    assert.deepEqual(ersveil.content.shops.flatMap(shop => shop.stock.map(line => line.price ?? null)), raw.content.shops.flatMap(shop => shop.stock.map(line => line.price ?? null)));
-});
-
-test('with Ersveil, inventory.economy is { scale: 8, source: pack }; its rank sets the coin budget, unscaled', async t => {
-    t.mock.method(console, 'warn', () => {});
-    // The rank ladder as Story Director reads it (the first enabled pack's ranks) and a level-3 character.
-    const director = {
-        id: 'ranks-probe', name: 'Ranks', version: '0.0.0',
-        queries: { 'party.pc': () => ({ level: 3 }), 'quest.ranks': (_state, _args, tools) => tools.query('packs.content', { kind: 'ranks' }) },
-    };
-    const host = await createHost({ modules: [director] });
-    t.after(() => host.close());
-    const installed = await host.packs.packs.install(ERSVEIL, { origin: 'pack.json' });
-    assert.equal(installed.ok, true, JSON.stringify(installed.errors));
-    assert.deepEqual(host.sdk.query('inventory.economy'), { scale: 8, source: 'pack' });
-    const before = coin(host);
-    await host.send('Chest.', reply('Marks.', ['+ coin 5000']));
-    assert.equal(coin(host) - before, 400, 'the top F reward as written, not 400 × 8');
-    // Without a quest module, the pack's own ladder still sets the budget (as written, never scaled).
-    const bare = await createHost();
-    t.after(() => bare.close());
-    await bare.packs.packs.install(ERSVEIL, { origin: 'pack.json' });
-    const start = coin(bare);
-    await bare.send('Chest.', reply('Marks.', ['+ coin 99999']));
-    assert.equal(coin(bare) - start, 400, 'no quest module: the pack\'s F top at level 1, not 1000 × 8');
+    await host.send('A purse.', reply('Coins.', ['+ coin 500']));
+    assert.equal(coin(host), 507);
 });

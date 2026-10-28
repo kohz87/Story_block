@@ -1,16 +1,4 @@
-// Seeded random chats for the "unused means byte-identical" property (DATA_MODULES.md section 4, differential property).
-//
-//   play({ root, seed, steps, siblings, pack }) -> { steps: [hash...], saves, draws, final }
-//
-// `root` is the Story Block tree to run on (its testkit, its src): the same scenario runs on today's tree and on the
-// baseline commit this branch started from (main at 958021b, v2.1.0), whose trace is stored in fixtures/unused-baseline.json
-// (scripts/dm-unused-golden.mjs writes it). `siblings` ({ sd?, rb?, nsd? } checkout folders) adds the real modules,
-// scripted by the matrix's own module scripts. Everything random comes from `seed`: the choices below and the host's
-// crypto (receipt ids, seeds), so two runs differ only if the code under test does.
-//
-// Per step the trace holds one hash over the exact serialized chat (messages and their extras), chat metadata, head
-// state, the prompt the next reply would carry, and the problems list; the end holds the saves, the RNG draws and the
-// installed packs' normalized form. No placeholder is ever added for a data module that nobody pinned.
+// Replay seeded stories and record hashes for differential data-module checks.
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -96,7 +84,7 @@ export async function play({ root, seed = 1, steps = 40, siblings = {}, packs = 
     try {
         const { loaded } = await matrix.loadModules(Object.fromEntries(Object.entries(siblings).filter(([, folder]) => folder)));
         const ref = { sdk: null };
-        const modules = ['rb', 'sd', 'nsd'].filter(key => loaded[key]).map(key => loaded[key].make(ref));
+        const modules = ['sd', 'nsd'].filter(key => loaded[key]).map(key => loaded[key].make(ref));
         let settings = {};
         const seedPacks = [...packs];
         if (seedPacks.length) {
@@ -112,7 +100,6 @@ export async function play({ root, seed = 1, steps = 40, siblings = {}, packs = 
         ref.sdk = host.sdk;
         const savedSB = globalThis.StoryBlock;
         globalThis.StoryBlock = { apiVersion: 2, ready: Promise.resolve(host.sdk), sdk: host.sdk };
-        for (const key of ['rb']) if (loaded[key]?.setup) await loaded[key].setup(host);
         // Library only: definitions that are installed (and inspected, and previewed) but never enabled for this chat.
         const inspect = () => { for (const name of ['dataModules.offers', 'dataModules.setup', 'dataModules.presentation']) { try { host.sdk.query(name); } catch { /* an older tree has none of these */ } } };
         for (const item of libraryOnly) { await host.packs.packs.install(item.text, { origin: item.origin ?? 'pack.json' }); inspect(); }
@@ -189,7 +176,7 @@ export async function playMatrix({ root, siblings = {}, libraryOnly = [], seed =
     const { createHost } = await at(root, 'testkit/index.js');
     const matrix = await at(root, 'testkit/matrix/index.js');
     const { loaded } = await matrix.loadModules(Object.fromEntries(Object.entries(siblings).filter(([, folder]) => folder)));
-    const keys = ['rb', 'sd', 'nsd'].filter(key => loaded[key]);
+    const keys = ['sd', 'nsd'].filter(key => loaded[key]);
     if (!keys.length) return null;
     const saved = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
     const { counter, source } = seededCrypto(seed * 104729 + 7);

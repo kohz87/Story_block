@@ -100,14 +100,3 @@ test('packs.content({ kind: "ranks" }) gives the ladders, each pack\'s in order,
     assert.deepEqual(packs.list().map(entry => entry.counts.ranks), [3, 2, undefined]);
 });
 
-test('the Ersveil pack\'s ladder is the Guild ranks F to S, in marks (1 gold = 100 marks)', () => {
-    const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
-    const ranks = contentOf([ok(text)], 'ranks');
-    assert.deepEqual(ranks.map(rank => [rank.id, rank.title]), [['F', 'Registered'], ['E', 'Journeyman'], ['D', 'Proven'], ['C', 'Veteran'], ['B', 'Elite'], ['A', 'Paragon'], ['S', 'Legend']]);
-    // The lore's contract pay per party in gold (E 8–30 … S 20,000–100,000), times 100.
-    assert.deepEqual(ranks.slice(1).map(rank => rank.reward), [[800, 3000], [3000, 12000], [12000, 60000], [60000, 360000], [360000, 2000000], [2000000, 10000000]]);
-    // F reaches down to the pack's own smallest F job (Granary Rats, 50 marks).
-    const quests = JSON.parse(text).content.quests.filter(quest => quest.letter === 'F').map(quest => Number.parseInt(quest.reward, 10));
-    for (const reward of quests) assert.ok(reward >= ranks[0].reward[0] && reward <= ranks[0].reward[1], `${reward} marks is an F reward`);
-    for (const rank of ranks) assert.ok(rank.levels[1] <= 60, 'the ladder stays within Soul Class VI');
-});

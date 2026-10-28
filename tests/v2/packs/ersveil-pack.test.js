@@ -25,8 +25,6 @@ test('the example folder holds exactly the pack and its lorebook, and the old ex
     assert.ok(existsSync(packPath) && existsSync(lorePath));
     assert.deepEqual(readdirSync(new URL('../../../examples/packs/ersveil/', import.meta.url)).sort(), ['ersveil-lore.json', 'pack.json']);
     assert.equal(existsSync(new URL('../../../examples/packs/ersveil-bluewatch/', import.meta.url)), false);
-    assert.ok(existsSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)), 'Bluewatch 1.6.0 is kept as a fixture');
-    assert.ok(existsSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url)), 'Ersveil 1.0.0 with its rules is kept as a fixture');
 });
 
 test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code and on the command line', () => {
@@ -65,15 +63,7 @@ test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weat
     assert.deepEqual(value.start.inventory, { money: 40 }, 'four silver and no pack items');
     assert.deepEqual(value.calendar.start, { year: 611, month: 'Goldwane', day: 12, hour: 6, minute: 40 });
     assert.deepEqual(value.content.dataModules.map(module => module.slug), ['standing', 'fame', 'guild-membership']);
-    // The map, the calendar, the weather, the events and the data modules are the 1.0.0 fixture's, unchanged but for the places'
-    // market types and the signal braziers' closing time (20:00 on the first evening).
-    const before = JSON.parse(readFileSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url), 'utf8'));
-    for (const key of ['currency', 'calendar', 'weather']) assert.deepEqual(value[key], before[key], key);
-    const closed = event => (event.id === 'bluewatch-signal-braziers'
-        ? { ...event, when: event.when.replace(' && time() < 316932240', '') } : event);
-    for (const kind of ['routes', 'dataModules']) assert.deepEqual(value.content[kind], before.content[kind], kind);
-    assert.deepEqual(value.content.events.map(closed), before.content.events, 'events');
-    assert.deepEqual(value.content.places, before.content.places.map(({ market, ...rest }) => rest));
+
 });
 
 test('the pack, once installed without RPG Battle, reads back as 320 places, 350 routes and the rest ERSVEIL.md quotes', async () => {

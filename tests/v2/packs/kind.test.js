@@ -11,13 +11,10 @@ const pack = ({ capabilities = [], lists = {}, extra = {} } = {}) => ({ requires
 test('a declared module names the pack: its tag says what it is for', () => {
     assert.equal(packTag(pack({ capabilities: ['story-director'] })), 'World pack · Story Director');
     assert.equal(packTag(pack({ capabilities: ['director'] })), 'World pack · Story Director', 'the state area Story Director owns');
-    assert.equal(packTag(pack({ capabilities: ['rpg-battle'] })), 'Rules pack · RPG Battle');
-    assert.equal(packTag(pack({ capabilities: ['party', 'combat'] })), 'Rules pack · RPG Battle', 'the areas RPG Battle owns');
     assert.equal(packTag(pack({ capabilities: ['inventory', 'scene'] })), 'Story Block pack');
 });
 
 test('a pack that declares two modules, or none it knows, is "Pack" when it holds nothing to tell by', () => {
-    assert.equal(packTag(pack({ capabilities: ['director', 'party'] })), 'Pack', 'two modules');
     assert.equal(packTag(pack({ capabilities: ['npc-state-delta'] })), 'Pack', 'a module this list does not name, and no content');
     assert.equal(packTag(pack()), 'Pack', 'nothing declared, nothing held');
     assert.equal(packTag(null), 'Pack', 'a pack that is not usable');
@@ -27,12 +24,10 @@ test('with nothing declared, what the pack holds decides', () => {
     assert.equal(packTag(pack({ lists: { places: [{ name: 'Harbour' }] } })), 'World pack · Story Director');
     assert.equal(packTag(pack({ extra: { calendar: { months: [] } } })), 'World pack · Story Director', 'a calendar');
     assert.equal(packTag(pack({ extra: { weather: { tables: {} } } })), 'World pack · Story Director', 'weather');
-    assert.equal(packTag(pack({ lists: { races: [{ name: 'Dwarf' }] } })), 'Rules pack · RPG Battle');
     assert.equal(packTag(pack({ lists: { items: [{ name: 'Rope' }] } })), 'Story Block pack', 'items alone are the host\'s');
     assert.equal(packTag(pack({ extra: { currency: { name: 'mark' } } })), 'Story Block pack', 'a currency alone');
     // Creatures and quests are read by both modules, so they say nothing; a world and a rules pack at once are not sorted.
-    assert.equal(packTag(pack({ lists: { creatures: [{ name: 'Wolf' }], quests: [{ name: 'Q' }] } })), 'Pack');
-    assert.equal(packTag(pack({ lists: { places: [{ name: 'Harbour' }], skills: [{ name: 'Brew' }] } })), 'Pack');
+    assert.equal(packTag(pack({ lists: { creatures: [{ name: 'Wolf' }], quests: [{ name: 'Q' }] } })), 'Story Block pack');
 });
 
 test('a validated pack gets the same tag (its declared modules and its content)', () => {

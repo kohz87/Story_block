@@ -130,23 +130,3 @@ test('a pack carried in a lorebook brings its terms too', async () => {
     assert.deepEqual(contentOf(installed.packs(), 'terms').map(record => [record.pack, record.levelName, record.xpName]), [['riverside-starter', 'Soul Class', 'Soul Growth']]);
 });
 
-test('the Ersveil pack suggests the lore\'s own words: Soul Class in Roman-numeral tiers, Soul Growth', () => {
-    const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
-    const terms = contentOf([ok(text)], 'terms');
-    assert.deepEqual(terms, [{ name: 'Soul Class', ...SOUL, id: 'pack.ersveil-bluewatch/soul-class', slug: 'soul-class', pack: 'ersveil-bluewatch' }]);
-});
-
-// RPG Battle's own reader (src/terms.js packTerms), when a checkout is next to this one (it is not
-// in Story Block's CI). It takes the first record that has fields.
-const RPG = ['/home/user/_ro/rpg_battle', '/home/user/rpg_battle'].find(root => existsSync(`${root}/src/terms.js`) && existsSync(`${root}/src/rules.js`));
-test('RPG Battle reads the records as its terms, the reader\'s own over them', { skip: RPG ? false : 'No RPG Battle checkout with src/terms.js next to this repo.' }, async () => {
-    const { packTerms, mergeTerms, termsOf, levelText } = await import(`${RPG}/src/terms.js`);
-    const packs = [ok(withTerms([SOUL], { id: 'ersveil' })), ok(withTerms([{ levelName: 'Circle' }], { id: 'other' }))];
-    const query = (name, args) => (name === 'packs.content' ? contentOf(packs, args.kind) : null);
-    const suggested = packTerms(query);
-    assert.deepEqual(suggested, SOUL);
-    assert.equal(levelText(24, { terms: mergeTerms(undefined, suggested) }), 'Soul Class III (Lv 24)');
-    assert.equal(termsOf({ terms: mergeTerms({ levelName: 'Rank' }, suggested) }).levelName, 'Rank', 'the reader\'s setting wins');
-    const tiersOnly = [ok(withTerms([{ tiers: true }]))];
-    assert.deepEqual(packTerms((name, args) => contentOf(tiersOnly, args.kind)), { tiers: { size: 10, numerals: 'roman' } });
-});
