@@ -812,7 +812,7 @@ chatter under each present person, for the Scene screen while Story Director's W
 }
 ```
 Commands: `inventory.grant`, `inventory.consume`, `inventory.transfer`, `inventory.drop`, `inventory.equip`,
-`inventory.unequip`, `inventory.split`, `inventory.merge`, `inventory.equipOn`, `inventory.wear`,
+`inventory.unequip`, `inventory.split`, `inventory.merge`, `inventory.wear`,
 `inventory.repair`, `inventory.lootTake`, `wallet.pay`, `wallet.receive`. Capture kinds `item`
 (`+ / - / ~ item`), `coin` (`+ coin 30 | from: the sealer`; the op is the only sign, so an amount
 written with one, any dash or minus sign, is refused, and so is one with other than plain digits: a
@@ -825,8 +825,8 @@ setting wins (0 or blank: the pack's), then the first enabled pack's `economy.sc
 writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, falling back to a scale of 1.
 * **The caller rule.** What makes items or money out of nothing (`inventory.grant`, `wallet.receive`) and
   `wallet.pay` run for the story, the host, or another module's command (`ctx.call`, which sets
-  `ctx.caller`); the same command at the top with cause `ui` is `REFUSED`. A shop's `trade.buy` pays, a
-  quest's `quest.finish` receives.
+  `ctx.caller`); the same command at the top with cause `ui` is `REFUSED`. A module's own command (a shop of
+  its own, a reward its code decides) pays or receives through them.
 * **Owners** are the party or a member: a grant, transfer or `wallet.receive` to an `ac_` id that
   `party.actors` (or the `party` domain) does not list is `REFUSED`.
 * **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,

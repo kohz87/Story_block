@@ -23,7 +23,7 @@ export default {
     },
   },
   commands: {
-    'quest.settle'(ctx, payload) {
+    'my-rules.settle'(ctx, payload) {
       // ... draft the changes, claim once ...
       ctx.replayGuard({ owner: 'my-rules', version: 2, epoch, rulesHash, inputHash: ctx.hash(inputs), predicate }, recorded);
       return { summary, data: { v2: { key: 'settle:...', result: { ... } } } };

@@ -125,16 +125,13 @@ These settle questions agents raised; the host changes they need are made at int
    stays for malformed payloads and failed validators.
 5. **Command payloads** (callers use exactly these):
    `inventory.consume { stack, qty }`, `inventory.transfer { stack, to, qty }`, `inventory.equip { stack, slot }`,
-   `inventory.unequip { stack }`, `inventory.grant { def | defId, qty, owner, note? }`,
-   `party.heal { actor, hp, cure: [] }`, `party.restore { actor, mp?, sp? }`,
-   `party.grantXp { actor?, amount?, quest?, difficulty? }` (no actor: the whole party by v1 rules).
+   `inventory.unequip { stack }`, `inventory.grant { def | defId, qty, owner, note? }` (a module's command only,
+   never a button), `wallet.receive { owner, amount, note?, story? }`, `wallet.pay { owner, amount, note? }`.
    Queries: `inventory.items({ owner? })` → `[{ stack, def, name, kind, qty, owner, equipped, note }]`;
-   `combat.foesBeaten({ sinceRev })` → `[{ rev, foes: [{ name, count }], won }]`; `party.pc` → actor or null.
+   `inventory.wallet({ owner? })`; Story Director's `director.threads({ kind, status })` and `checks.policy`.
 6. **Equipment** defs have `stack: false`; `inventory.grant` of equipment makes one stack per piece (qty 1).
-7. **One fight pays one kill quest.** (User decision.) Among quests whose target counts foes, `quest.finish`
-   claims each `beaten` entry it counts (`beaten:<rev>`) and progress skips entries another kill quest
-   claimed. Item quests (pelts, tails) count the Inventory and are independent: the same fight can feed a
-   hunt quest and a pelt quest.
+7. **Quests are told by the story.** (User decision, Story Director 2.2.) A quest closes when the story says it
+   is done (`- quest`); no fight, count or turn-in pays it, and its reward is what the story gives.
 8. **Effects** may carry `damage` (combat items) besides `heal`, `mp`, `cure`.
 9. **Widget names are namespaced** `<module-id>.<name>`; standard widgets use `ss.*`, while module widgets use their own id, such as `fishing-activity.fishing`.
 
@@ -488,9 +485,8 @@ These settle questions agents raised; the host changes they need are made at int
     again after the new story lines, on the state as the Re-read has it, `ctx.reply` that reply, each new step
     at the seed of the old one of its type (SPEC §3.2), so a Re-read of unchanged text gives the live state.
     A swipe or delete of the reply takes its steps back; a rebuild applies their stored ops (§2.2). Hook
-    failures, a hook slower than 2.5 s and refused steps are Problems. Story Director settles its waiting
-    turn-ins there (`quest.settle`), and keeps its beforeGenerate `quest.settle` as the fallback on an older
-    Story Block, which never calls `afterCapture`.
+    failures, a hook slower than 2.5 s and refused steps are Problems. Story Director sets the day's weather
+    there (`scene.weather`, F122).
 
 ### User decisions from beta live test 5 (2026-10-22, F122)
 
@@ -522,9 +518,9 @@ These settle questions agents raised; the host changes they need are made at int
     *What it may write:* only the kinds of the setting `assistExtractorKinds` (default
     `! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item`), and under
     any setting never value (src/v2/assist/safety.js): no coin kind, no `+` of item, coin, loot, XP, reward,
-    join or skill, no `+ quest` or `+ trainer` (a job or a teacher: the narrator offers those, 2.5.0), no `?` line, no
-    `heal:`/`reward:`/`price:` label. A turn-in (`- quest`) is still checked by
-    its owner (goal, place, budget, F121); `- item` only moves or removes what the party holds (the owner
+    join or skill, no `?` line, no
+    `heal:`/`reward:`/`price:` label. A quest the story finished (`- quest`) is recorded by Story Director, which
+    pays nothing for it; `- item` only moves or removes what the party holds (the owner
     refuses the rest). *No duplicates:* a line the reply's lines already hold (C-1's matching, capture.js
     `sameChangeLine`, or the same op, kind and name) is dropped. *How it applies:* as story lines on that
     reply after its own (cause `story`, same capture rules, claims and the reply's `maxChangeLines` cap),

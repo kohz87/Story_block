@@ -357,7 +357,7 @@ without one, `ss.portrait` draws initials.
 ## Example 2: inline status card under each reply
 
 A small card under each reply showing **that reply's** state: time, place, the next event, the current goal
-and its progress. Things that reply changed are marked; with the reader's "only what changed" setting the
+and where it stands. Things that reply changed are marked; with the reader's "only what changed" setting the
 card shows only those lines. Mount: `card`.
 
 ```js
@@ -366,7 +366,6 @@ card shows only those lines. Mount: `card`.
   data: {
     events: { query: 'director.threads', args: { kind: 'event', status: 'active' } },
     quests: { query: 'director.threads', args: { kind: 'quest', status: 'active' } },
-    progress: { query: 'quest.progress', args: { id: '$quests.0.id' } },   // { have, need, met }
   },
   theme: { '--ss-accent': '#7c5cff' },
   template: /* below */, css: /* below */,
@@ -389,13 +388,11 @@ card shows only those lines. Mount: `card`.
     <span class="v">{{ q.events[0].summary }}<small data-if="q.events[0].fields.due != null"> — due {{ q.events[0].fields.due }}</small></span>
   </div>
   <div class="row goal" data-if="len(q.quests) > 0 && (settings.onlyChanged != true || changed('state.director.threads'))"
-       data-bind-var="--done: ratio(q.progress.have, q.progress.need)"
-       data-class="met: q.progress.met == true">
+       data-class="ready: q.quests[0].ready == true">
     <span class="k">Goal</span>
     <span class="v">
       <b>{{ q.quests[0].key }}</b> — {{ q.quests[0].fields.goal }}
-      <span class="track" data-if="q.progress.need > 0"><i></i></span>
-      <small data-if="q.progress.need > 0">{{ q.progress.have }} / {{ q.progress.need }}</small>
+      <small data-if="q.quests[0].fields.step != null"> · now: {{ q.quests[0].fields.step }}</small>
     </span>
   </div>
 </div>
@@ -410,10 +407,7 @@ card shows only those lines. Mount: `card`.
 .v small { opacity: .7; }
 .new .v { color: var(--ss-accent); }
 .new .k::after { content: " •"; color: var(--ss-accent); }
-.track { display: inline-block; vertical-align: middle; width: 80px; height: 6px; margin: 0 4px;
-         border-radius: 3px; background: rgba(127, 127, 127, .25); overflow: hidden; }
-.track > i { display: block; height: 100%; width: calc(var(--done, 0) * 100%); background: var(--ss-accent); }
-.goal.met .track > i { background: #5cb85c; }
+.goal.ready .v b { color: #5cb85c; }
 ```
 
 `changed('state.director.time')` is true only on the reply whose changes moved the clock, so the card under
