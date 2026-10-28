@@ -104,15 +104,15 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     const css = inventoryScreen.css;
     const body = rule(css, '.item > .body');
     assert.match(body, /grid-template-columns: minmax\(0, 1fr\) fit-content\(50%\);/, 'the name column, then at most half the row for the actions');
+    assert.match(body, /grid-template-rows: 1fr auto auto auto 1fr auto;/, 'room above and below the text, so it is centred on taller actions');
     assert.match(body, /align-items: center;/);
-    assert.match(rule(css, '.item > .body > .line'), /grid-column: 1; grid-row: 1;/);
-    assert.match(rule(css, '.item > .body > .note'), /grid-column: 1; grid-row: 2;/);
-    assert.match(rule(css, '.item > .body > .detail'), /grid-column: 1; grid-row: 3;/);
+    assert.match(rule(css, '.item > .body > .line'), /grid-column: 1; grid-row: 2;/);
+    assert.match(rule(css, '.item > .body > .note'), /grid-column: 1; grid-row: 3;/);
+    assert.match(rule(css, '.item > .body > .detail'), /grid-column: 1; grid-row: 4;/);
     const actions = rule(css, '.item > .body > .actions');
-    assert.match(actions, /grid-column: 2; grid-row: 1;/);
+    assert.match(actions, /grid-column: 2; grid-row: 1 \/ 6;/, 'beside the name, the note and the detail, centred on them');
     assert.match(actions, /justify-content: flex-end;/);
-    assert.match(rule(css, '.item > .body:has(> .note, > .detail) > .actions'), /grid-row: 1 \/ span 3;/, 'centred beside the note and the detail too');
-    assert.match(rule(css, '.item > .body > .fold'), /grid-column: 1 \/ -1; grid-row: 4;/, 'the fold opens below the name and the actions');
+    assert.match(rule(css, '.item > .body > .fold'), /grid-column: 1 \/ -1; grid-row: 6;/, 'the fold opens below the name and the actions');
     // A group that wraps on the right when the row is narrow; never a line of its own under the row.
     assert.match(rule(css, '.actions'), /display: flex; flex-wrap: wrap;/);
     assert.doesNotMatch(css, /@container|@media[^{]*\{[^}]*\.actions/, 'the same layout on a phone');

@@ -175,15 +175,15 @@ const CSS = `${BASE_CSS}
 /* UI 5b: an item is a glass card: its tile (the kind's icon, the count in the corner) with the rarity ring, the name and the actions beside it */
 .item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
 .item:has(> .body > .fold) { align-items: start; }
-/* The body: the name line, the note and the item detail in the left column; the actions on the right, centred beside them, at most half
-   the row (more buttons than fit wrap as a group on the right); an open fold below both. */
-.item > .body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(50%); column-gap: 12px; row-gap: 0; align-items: center; min-width: 0; }
-.item > .body > .line { grid-column: 1; grid-row: 1; }
-.item > .body > .note { grid-column: 1; grid-row: 2; margin-top: 6px; }
-.item > .body > .detail { grid-column: 1; grid-row: 3; margin-top: 6px; min-width: 0; }
-.item > .body > .actions { grid-column: 2; grid-row: 1; justify-content: flex-end; margin: 0; }
-.item > .body:has(> .note, > .detail) > .actions { grid-row: 1 / span 3; }
-.item > .body > .fold { grid-column: 1 / -1; grid-row: 4; margin-top: 8px; }
+/* The body: the name line, the note and the item detail in the left column; the actions on the right, at most half the row (more
+   buttons than fit wrap as a group on the right); an open fold below both. The text and the actions are centred on each other: the
+   actions span the text's rows and a 1fr row above and below them, which take the room when the actions are the taller. */
+.item > .body { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(50%); grid-template-rows: 1fr auto auto auto 1fr auto; column-gap: 12px; row-gap: 0; align-items: center; min-width: 0; }
+.item > .body > .line { grid-column: 1; grid-row: 2; }
+.item > .body > .note { grid-column: 1; grid-row: 3; margin-top: 6px; }
+.item > .body > .detail { grid-column: 1; grid-row: 4; margin-top: 6px; min-width: 0; }
+.item > .body > .actions { grid-column: 2; grid-row: 1 / 6; justify-content: flex-end; margin: 0; }
+.item > .body > .fold { grid-column: 1 / -1; grid-row: 6; margin-top: 8px; }
 .item .ss-tile-box { --rarity-ring: var(--rarity); width: 44px; height: 44px; border: 2px solid var(--rarity); border-radius: var(--ss-radius-m, 12px); }
 .item .ss-tile-count { right: -6px; bottom: -6px; }
 .item.r-uncommon { --rarity: var(--sb-uncommon); }
