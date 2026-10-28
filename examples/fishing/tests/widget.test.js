@@ -151,7 +151,7 @@ test('a rejected cast shows its message', async () => {
 
 test('values in the log use the currency hook when a module offers one', async () => {
     const t = setup();
-    t.fake.sdk.registerModule({ id: 'rpg-battle', hooks: { currency: () => ({ mode: 'single', single: 'marks' }) } });
+    t.fake.sdk.registerModule({ id: 'currency-demo', hooks: { currency: () => ({ mode: 'single', single: 'marks' }) } });
     const session = await castNow(t);
     await t.timers.advance(session.bite.bite);
     await act(t.el, 'reel').click();

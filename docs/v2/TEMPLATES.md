@@ -7,7 +7,7 @@ complete screens close the page.
 
 ```js
 {
-  id: 'rpg-battle/hud', title: 'Hero', icon: 'fa-heart',
+  id: 'hero-sheet/hud', title: 'Hero', icon: 'fa-heart',
   mounts: ['hud', 'tab'],
   data: { pc: { query: 'party.pc' } },          // → q.pc in the template
   theme: { '--ss-accent': '#c9a227' },          // custom properties on the screen root
@@ -153,12 +153,12 @@ hold with or without DOMPurify).
 
 A screen shares the page with SillyTavern and with other screens, so a few things are renamed or refused:
 
-* **Ids** are drawn as `ss-t-<screen>-<id>` (`id="hp"` in `rpg-battle/party` becomes `ss-t-rpg-battle-party-hp`).
+* **Ids** are drawn as `ss-t-<screen>-<id>` (`id="hp"` in `hero-sheet/party` becomes `ss-t-hero-sheet-party-hp`).
   What points at an id is rewritten to match: `#id` selectors in the screen's CSS, `for`, `aria-*` id lists
   (`aria-labelledby`, `aria-describedby`, …), `href="#id"` and `url(#id)` in SVG paint. Attribute selectors
   such as `[id="hp"]` are **not** rewritten and match nothing: write `#hp`. A screen drawn more than once at
   a time (a card under every reply, a tab and a hud) gives each other copy its own ids and control names
-  (`ss-t-rpg-battle-party-hp--c2`), so a label or a radio group stays in its own copy; the screen's `#id`
+  (`ss-t-hero-sheet-party-hp--c2`), so a label or a radio group stays in its own copy; the screen's `#id`
   CSS reaches every copy.
 * **Form names**: a `<form name="…">` gets the same prefix, so it never takes over a `document.<name>`.
   Control names SillyTavern reads as its own radio groups (`character_names`, `continue_postfix`,
@@ -203,7 +203,7 @@ Every drop adds a plain sentence to the screen's warnings.
 ```
 
 * `name` is namespaced: Story Block's `ss.meter`, `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`,
-  `ss.badge`, `ss.timeline`, `ss.stepper`; modules' own use their id (`rpg-battle.battle-board`).
+  `ss.badge`, `ss.timeline`, `ss.stepper`; modules' own use their id (`hero-sheet.battle-board`).
 * `data-props` is JSON with holes, filled like a payload, nested at most 16 deep (as `data-payload`); a pack
   screen with deeper JSON is refused, and a deeper one drawn shows the widget's "failed" line. `"bind": "<path or expression>"` adds the bound
   data as `value` (a record's fields become the widget's props, e.g. `{ cur, max }` for a meter; see the
@@ -279,7 +279,7 @@ status badges with turns left, and the time and place. Mounts: `hud`, `tab`.
 
 ```js
 {
-  id: 'rpg-battle/hud', title: 'Hero', icon: 'fa-heart', mounts: ['hud', 'tab'],
+  id: 'hero-sheet/hud', title: 'Hero', icon: 'fa-heart', mounts: ['hud', 'tab'],
   data: {
     pc: { query: 'party.pc' },                               // the actor record (MODULES B1)
     xp: { query: 'party.xpToNext', args: { actor: '$pc.id' } },   // { have, need }: your rules' query
@@ -429,7 +429,7 @@ sends the whole draft to `party.create`. The steppers keep each stat between the
 
 ```js
 {
-  id: 'rpg-battle/create', title: 'New character', icon: 'fa-user-plus', mounts: ['dialog'],
+  id: 'hero-sheet/create', title: 'New character', icon: 'fa-user-plus', mounts: ['dialog'],
   data: { rules: { query: 'party.creation' } },
   // → { points: 12, min: 1, max: 8, stats: ['STR','VIT','AGI','DEX','INT','LUK','CHA'],
   //     races: [{ id, name, note }], talents: [{ id, name }] }
@@ -484,8 +484,8 @@ Each `ss.stepper` writes its stat into the draft (`api.onDraft('stats.STR', 5)`)
 again from the draft. Without the widget, a plain number field does the same job:
 `<input type="number" data-draft="stats[k]" data-bind-attr="min: q.rules.min; max: q.rules.max">`.
 
-**Points left.** When the draft keeps the points spent on each stat (`points: { STR: 0, VIT: 0, … }`,
-the way RPG Battle's creation wizard does), `sum(draft.points)` is what is spent so far. Give it to each
+**Points left.** When the draft keeps the points spent on each stat (`points: { STR: 0, VIT: 0, … }`),
+`sum(draft.points)` is what is spent so far. Give it to each
 stepper as `spent` with the budget as `pool`: the stepper shows "Points left: 5" and stops at the budget,
 and the legend gets the class `over` once more is spent than the budget. The rule itself still lives in `party.create`.
 

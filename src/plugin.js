@@ -11,14 +11,14 @@
 // keeps it out of the narration and out of the prompt's history, but never prompts for it
 // and never gives it a tab. The plugin writes its own instructions.
 //
-// A kept block (`kept: true`, v0.7) is a plugin block the model reads but never writes:
-// RPG Battle's Character and Party sheets. Its newest copy is shown in every reply's prompt
+// A kept block (`kept: true`, v0.7) is a plugin block the model reads but never writes.
+// Its newest copy is shown in every reply's prompt
 // as read-only state, it gets a tab like the reader's blocks (without Edit), and only the
 // extension writes it, through setBlockText. A copy the model writes anyway is dropped on
 // receive and never counts (envelope.js: ownCopy, dropForeignCopies).
 //
 // A kept block registered with `tab: false` (v0.9.1) is all of that without the tab: the
-// extension shows it in a tab of its own (RPG Battle's Battle tab), so Story Block's sidebar
+// extension shows it in a tab of its own, so Story Block's sidebar
 // and card leave it out, with its badge. Underneath it is a block with `visible: false`, the
 // reader's own "Show tab" switch, so it is left out exactly where theirs is (hasTab).
 

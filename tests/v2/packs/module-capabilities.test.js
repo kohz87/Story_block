@@ -1,6 +1,5 @@
 // Capabilities a module declares (`capabilities: [slug, …]` on its definition): they show in sdk.modules(),
-// stCapabilities() offers them, and a pack's requires.capabilities is checked against them
-// (the real Ersveil pack needs `custom-ledger`, which RPG Battle declares).
+// stCapabilities() offers them, and a pack's requires.capabilities is checked against them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';

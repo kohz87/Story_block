@@ -166,7 +166,7 @@ function landsVerb(who) {
 }
 
 /**
- * A value in the smallest coin as words, using a currency shaped like Story Block's and RPG Battle's
+ * A value in the smallest coin as words, using a currency shaped like Story Block's
  * ({ tiers: [{ name, rate }] smallest first, each rate counting the tier before; or { single }):
  * 672 → "6 gold 7 silver 2 copper". Without a currency: "672 coin".
  */

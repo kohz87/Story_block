@@ -1,6 +1,6 @@
 // The `ranks` content kind: a ladder of quest ranks, lowest first ({ id, title?, levels?, reward? }),
-// for Story Director's `quest.ranks` and RPG Battle's foe strength. Validation (every field, every
-// rejection, unique ids, the order, the cap), the packs.content query and the Ersveil ladder.
+// Validation (every field, every rejection, unique ids, the order, the cap), the packs.content query
+// and the example ladder.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

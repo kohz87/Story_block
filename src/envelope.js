@@ -364,8 +364,8 @@ function blockText(def, body, { close = true, tag = `<${def.tag}>` } = {}) {
     return close ? `${open}\n</${def.tag}>` : open;
 }
 
-// A block kept by another extension (RPG Battle's Character sheet) counts only in the copies
-// that extension wrote. upsertBlock stamps their opening tag (`<Character kept="RPG Battle">`);
+// A block kept by another extension counts only in the copies that extension wrote.
+// upsertBlock stamps their opening tag (for example `<Dossier kept="Example Module">`);
 // the model is never shown the stamp (envelopes are stripped from the prompt and the current
 // state is shown in plain tags), so a copy it writes anyway is never taken for the extension's.
 const KEPT_STAMP = /[ \t]kept\s*=\s*"[^"]*"/i;

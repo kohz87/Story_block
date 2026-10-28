@@ -1,6 +1,6 @@
 // The `terms` content kind (MODULES §F25): the words a world uses for levels and XP, suggested by a
 // pack the way it suggests a currency. Validation (every field, every rejection, the record cap,
-// the safety walls), the packs.content query, lorebook packs, and RPG Battle's reader.
+// the safety walls), the packs.content query, and lorebook packs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -42,7 +42,7 @@ test('a terms record normalizes with its id, slug and pack, and only the fields 
     const [record] = ok(withTerms([SOUL])).content.terms;
     assert.deepEqual(record, { ...SOUL, id: 'pack.mini/terms', slug: 'terms', pack: 'mini' });
     assert.deepEqual(ok(withTerms([{ xpName: '  Power   Growth ' }])).content.terms[0], { xpName: 'Power Growth', id: 'pack.mini/terms', slug: 'terms', pack: 'mini' });
-    assert.equal(ok(withTerms([{ tiers: true }])).content.terms[0].tiers, true, 'tiers: true is kept (RPG Battle fills in size 10, roman)');
+    assert.equal(ok(withTerms([{ tiers: true }])).content.terms[0].tiers, true, 'tiers: true is kept');
     assert.deepEqual(ok(withTerms([{ tiers: {} }])).content.terms[0].tiers, {});
     assert.deepEqual(ok(withTerms([{ tiers: { enabled: false } }])).content.terms[0].tiers, { enabled: false });
     assert.deepEqual(ok(withTerms([{ levelName: 'Circle', tiers: { numerals: 'arabic', size: 1 } }])).content.terms[0].tiers, { numerals: 'arabic', size: 1 });
@@ -67,7 +67,7 @@ test('every bad field is refused with its own sentence', () => {
         refused(one({ levelName: value }), 'BAD_RECORD', 'content.terms[0].levelName');
         refused(one({ xpName: value }), 'BAD_RECORD', 'content.terms[0].xpName');
     }
-    // A term is a label in RPG Battle's blocks: no field separators, no line breaks.
+    // Term labels contain no field separators or line breaks.
     for (const value of ['Soul|Class', 'Soul: Class', '#1', 'Rank\nTwo', 'a > b']) refused(one({ levelName: value }), 'BAD_RECORD', 'content.terms[0].levelName');
     const hit = refused(one({ xpName: 'Growth:' }), 'BAD_RECORD', 'content.terms[0].xpName');
     assert.match(hit.message, /\| : # < >/);
