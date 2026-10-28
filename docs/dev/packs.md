@@ -30,7 +30,8 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
 - `src/v2/packs/content.js`: `itemDef`, `contentOf`, `calendarOf`, `economyOf`, `craftsOf`, `resolveItemIn`,
   `mergeStart`, `applyStart`. `ranks.js`: the rank ladder (reader's ladder through the `ranks.reader` hook).
 - `src/v2/packs/installed.js` (where packs are kept), `panel.js` (the Packs fold), `st-adapter.js`, `lorebook.js`.
-- `examples/packs/ersveil-bluewatch/pack.json`, `examples/packs/riverside-starter/pack.json`.
+- `examples/packs/ersveil/pack.json` (with its lorebook `ersveil-lore.json`), `examples/packs/riverside-starter/pack.json`, and
+  the old example pack kept as a test fixture, `tests/v2/packs/fixtures/ersveil-bluewatch-1.6.0.json`.
 
 ## Tests that guard it
 
@@ -42,4 +43,5 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
 ## When you change it
 
 - A new field or kind: validator + safety + limit + PACKS.md section + a test that a hostile value is refused.
-- Changing Ersveil values: keep ERSVEIL.md and `ersveil-values.test.js` in step; bump the pack's version.
+- Changing Ersveil values: keep ERSVEIL.md and `ersveil-pack.test.js` in step; bump the pack's version. The Bluewatch fixture
+  (`ersveil-values.test.js` and the other tests that load it) must never change: its bytes are pinned by the unused-chat baseline.

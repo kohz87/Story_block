@@ -101,7 +101,7 @@ test('packs.content({ kind: "ranks" }) gives the ladders, each pack\'s in order,
 });
 
 test('the Ersveil pack\'s ladder is the Guild ranks F to S, in marks (1 gold = 100 marks)', () => {
-    const text = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+    const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
     const ranks = contentOf([ok(text)], 'ranks');
     assert.deepEqual(ranks.map(rank => [rank.id, rank.title]), [['F', 'Registered'], ['E', 'Journeyman'], ['D', 'Proven'], ['C', 'Veteran'], ['B', 'Elite'], ['A', 'Paragon'], ['S', 'Legend']]);
     // The lore's contract pay per party in gold (E 8–30 … S 20,000–100,000), times 100.

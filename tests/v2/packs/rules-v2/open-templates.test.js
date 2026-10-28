@@ -31,8 +31,7 @@ for (const [name, change] of [
 
 test('Ersveil 1.6.0 ships three bounded open templates for every F–C rank', async () => {
     const { readFileSync } = await import('node:fs');
-    const base = new URL('../../../../examples/packs/ersveil-bluewatch/', import.meta.url);
-    const pack = JSON.parse(readFileSync(new URL('pack.json', base)));
+    const pack = JSON.parse(readFileSync(new URL('../fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)));
     assert.equal(pack.version, '1.6.0');
     const checked = validateRulesPack(pack);
     assert.equal(checked.ok, true, JSON.stringify(checked.errors));

@@ -131,7 +131,7 @@ test('a pack carried in a lorebook brings its terms too', async () => {
 });
 
 test('the Ersveil pack suggests the lore\'s own words: Soul Class in Roman-numeral tiers, Soul Growth', () => {
-    const text = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+    const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
     const terms = contentOf([ok(text)], 'terms');
     assert.deepEqual(terms, [{ name: 'Soul Class', ...SOUL, id: 'pack.ersveil-bluewatch/soul-class', slug: 'soul-class', pack: 'ersveil-bluewatch' }]);
 });

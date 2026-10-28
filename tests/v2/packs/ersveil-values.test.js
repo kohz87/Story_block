@@ -1,4 +1,4 @@
-// The Ersveil pack's value scale (PACKS.md "Value guide", ERSVEIL.md §8): money is counted in copper (1 silver = 10, 1 gold = 100),
+// The Bluewatch 1.6.0 fixture's value scale (PACKS.md "Value guide"; the 2.5.0 ERSVEIL.md §8): money is counted in copper (1 silver = 10, 1 gold = 100),
 // everyday goods and gear keep the lore's prices, and the consumables a fight uses are on the play scale,
 // a fraction of an F-rank job. Also its crafting data (recipes, crafts) and its meter presets.
 import test from 'node:test';
@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { craftsOf } from '../../../src/v2/packs/content.js';
 
-const text = readFileSync(new URL('../../../examples/packs/ersveil-bluewatch/pack.json', import.meta.url), 'utf8');
+const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
 
 function checked() {
     const result = validatePack(text);
@@ -32,7 +32,7 @@ const LORE = {
 };
 // Priced on the play scale instead: the lore asks 1–60 gold for these, five to forty F jobs for one.
 const PLAY_SCALE = ['Healing Salve', 'Common Antidote', 'Minor Healing Draught', 'Mana Draught'];
-// No lore price: the pack's own numbers (ERSVEIL.md §9).
+// No lore price: the pack's own numbers (the 2.5.0 ERSVEIL.md §9).
 const OWN = ['Cane-Blade', 'Pack Mule', 'Barge Hold Share', 'Whetstone', 'Leech-salt Pouch', 'Burlap Sack', 'Coarse Salt', 'Crag Wolf Fang', 'Rat Tail', 'Live Leech', 'Bluecap Moss', 'Iron Filings'];
 
 test('a minor healing draught is a fraction of an F-rank job', () => {
