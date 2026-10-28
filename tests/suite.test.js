@@ -1,5 +1,5 @@
 // The Story Suite registry (src/suite.js, shared byte for byte with Story Director, NPC State
-// Delta and RPG Battle): announcements, owners, listeners, the upgrade path, and the reader's
+// Delta): announcements, owners, listeners, the upgrade path, and the reader's
 // Source of truth choices. Every test starts from an empty globalThis.StorySuite.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ function fresh() {
 }
 
 const block = (owns = ['scene', 'items', 'stats', 'rolls']) => ({ id: 'story-block', name: 'Story Block', version: '0.8.0', owns });
-const battle = (owns = ['stats', 'items', 'rolls']) => ({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns });
+const battle = (owns = ['stats', 'items', 'rolls']) => ({ id: 'sample-extension', name: 'Sample Extension', version: '1.0.0', owns });
 
 test('the first caller creates the registry on globalThis; later callers join it', () => {
     const suite = fresh();
@@ -46,9 +46,9 @@ test('owner: the first in AREAS order that offers the area, whatever the load or
     const suite = fresh();
     suite.announce(battle());
     suite.announce(block());
-    assert.equal(suite.owner('stats'), 'rpg-battle', 'the specialist wins');
-    assert.equal(suite.owner('items'), 'story-block', 'though RPG Battle announced first');
-    assert.equal(suite.owner('rolls'), 'rpg-battle');
+    assert.equal(suite.owner('stats'), 'story-block', 'the listed owner wins');
+    assert.equal(suite.owner('items'), 'story-block', 'though Sample Extension announced first');
+    assert.equal(suite.owner('rolls'), 'story-block');
     assert.equal(suite.owner('scene'), 'story-block');
     assert.equal(suite.owner('calendar'), null, 'nobody offers it');
     assert.equal(suite.owner('no-such-area'), null);
@@ -67,8 +67,8 @@ test('a disabled provider offers nothing and shares nothing', () => {
     const suite = fresh();
     suite.announce({ ...battle(), enabled: false, api: { members: () => [] } });
     suite.announce(block());
-    assert.equal(suite.has('rpg-battle'), false);
-    assert.equal(suite.api('rpg-battle'), null);
+    assert.equal(suite.has('sample-extension'), false);
+    assert.equal(suite.api('sample-extension'), null);
     assert.equal(suite.owner('stats'), 'story-block');
     assert.deepEqual(suite.offering('stats'), ['story-block']);
 });
@@ -78,7 +78,7 @@ test('offering: everyone offering an area, owner first', () => {
     suite.announce(block());
     suite.announce({ id: 'npc-state-delta', name: 'NPC State Delta', owns: ['scene', 'stats'] });
     suite.announce(battle());
-    assert.deepEqual(suite.offering('stats'), ['rpg-battle', 'story-block', 'npc-state-delta']);
+    assert.deepEqual(suite.offering('stats'), ['story-block', 'npc-state-delta', 'sample-extension']);
     assert.deepEqual(suite.offering('scene'), ['story-block', 'npc-state-delta']);
     assert.deepEqual(suite.offering('calendar'), []);
 });
@@ -90,12 +90,12 @@ test('withdraw: removes the provider and notifies only when there was one', () =
     suite.announce(battle());
     suite.announce(block());
     assert.equal(calls, 2);
-    suite.withdraw('rpg-battle');
+    suite.withdraw('sample-extension');
     assert.equal(calls, 3);
     assert.equal(suite.owner('stats'), 'story-block', 'the next in line owns it');
-    suite.withdraw('rpg-battle');
+    suite.withdraw('sample-extension');
     assert.equal(calls, 3, 'withdrawing twice notifies once');
-    assert.equal(suite.has('rpg-battle'), false);
+    assert.equal(suite.has('sample-extension'), false);
 });
 
 test('onChange: every listener on each change, a throwing one skipped, unsubscribe works', () => {
@@ -109,27 +109,27 @@ test('onChange: every listener on each change, a throwing one skipped, unsubscri
         suite.announce(block(['stats']));
         suite.announce(battle(['stats']));
         assert.equal(off(), true);
-        suite.withdraw('rpg-battle');
+        suite.withdraw('sample-extension');
     } finally {
         console.warn = warn;
     }
-    assert.deepEqual(seen, ['story-block', 'rpg-battle']);
+    assert.deepEqual(seen, ['story-block', 'story-block']);
 });
 
 test('upgrade: a newer registry takes over an older one and keeps its providers and listeners', () => {
     delete globalThis.StorySuite;
     // An older version's registry, as another extension may have left it on globalThis.
-    const providers = new Map([['rpg-battle', { ...battle(), enabled: true, owns: ['stats'] }]]);
+    const providers = new Map([['sample-extension', { ...battle(), enabled: true, owns: ['stats'] }]]);
     let heard = 0;
     globalThis.StorySuite = {
-        version: 0,
+        version: 1,
         snapshot: () => [...providers.entries()],
         listenersSnapshot: () => [() => { heard += 1; }],
     };
     const suite = storySuite();
-    assert.notEqual(suite.version, 0);
+    assert.equal(suite.version, 2);
     assert.equal(globalThis.StorySuite, suite);
-    assert.equal(suite.owner('stats'), 'rpg-battle', 'the older registry\'s providers carry over');
+    assert.equal(suite.owner('stats'), 'sample-extension', 'the older registry\'s providers carry over');
     suite.announce(block(['stats']));
     assert.equal(heard, 1, 'the older registry\'s listeners carry over');
 
@@ -157,18 +157,18 @@ test('isSourceOfTruth with another extension: auto follows the owner, mine and t
     const suite = fresh();
     suite.announce(block());
     suite.announce(battle());
-    // Stats: RPG Battle owns them.
-    assert.equal(isSourceOfTruth('story-block', 'stats', 'auto', suite), false);
+    // Stats: Story Block owns them by default.
+    assert.equal(isSourceOfTruth('story-block', 'stats', 'auto', suite), true);
     assert.equal(isSourceOfTruth('story-block', 'stats', 'mine', suite), true);
     assert.equal(isSourceOfTruth('story-block', 'stats', 'theirs', suite), false);
-    assert.equal(isSourceOfTruth('rpg-battle', 'stats', 'auto', suite), true);
+    assert.equal(isSourceOfTruth('sample-extension', 'stats', 'auto', suite), false);
     // Items: Story Block owns them.
     assert.equal(isSourceOfTruth('story-block', 'items', 'auto', suite), true);
     assert.equal(isSourceOfTruth('story-block', 'items', 'theirs', suite), false);
-    assert.equal(isSourceOfTruth('rpg-battle', 'items', 'auto', suite), false);
-    assert.equal(isSourceOfTruth('rpg-battle', 'items', 'mine', suite), true);
+    assert.equal(isSourceOfTruth('sample-extension', 'items', 'auto', suite), false);
+    assert.equal(isSourceOfTruth('sample-extension', 'items', 'mine', suite), true);
     // The default choice is auto, and the default suite is the shared one.
-    assert.equal(isSourceOfTruth('story-block', 'stats'), false);
+    assert.equal(isSourceOfTruth('story-block', 'stats'), true);
     // Not offering an area itself, an extension is its source of truth only when nobody else is.
     assert.equal(isSourceOfTruth('story-block', 'calendar', 'auto', suite), true);
 });

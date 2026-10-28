@@ -69,7 +69,7 @@ function setup() {
     before.id = 'before';
     host.appendChild(before);
     const exts = {
-        battle: extension('rpg-battle', 'RPG Battle', { areas: ['stats', 'items', 'rolls'], switchable: true }),
+        battle: extension('sample-extension', 'Sample Extension', { areas: ['stats', 'items', 'rolls'], switchable: true }),
         block: extension('story-block', 'Story Block', { areas: ['scene', 'timeline', 'items', 'stats', 'rolls'], owns: ['items'] }),
         other: extension('other-ext', 'Other', { areas: ['scene'] }),
         director: extension('story-director', 'Story Director', { areas: ['npc', 'calendar', 'timeline'], switchable: true }),
@@ -96,10 +96,10 @@ const hostOrder = () => host.children.map(node => node.id || node.className);
 
 test('pure: suite order, candidates (manage.areas, else owns), the table\'s value and what picking one sets', () => {
     const p = (id, extra = {}) => ({ id, owns: [], ...extra });
-    assert.deepEqual(orderProviders([p('x'), p('rpg-battle'), p('story-block'), p('y'), p('npc-state-delta'), p('story-director')]).map(item => item.id),
-        ['story-block', 'story-director', 'npc-state-delta', 'rpg-battle', 'x', 'y']);
-    const list = [p('rpg-battle', { owns: ['stats'] }), p('story-block', { owns: [], api: { manage: { areas: ['stats'] } } }), p('x', { owns: ['stats'], api: { manage: { areas: [] } } })];
-    assert.deepEqual(areaCandidates(list, 'stats').map(item => item.id), ['story-block', 'rpg-battle'], 'manage.areas wins over owns; owns without manage');
+    assert.deepEqual(orderProviders([p('x'), p('sample-extension'), p('story-block'), p('y'), p('npc-state-delta'), p('story-director')]).map(item => item.id),
+        ['story-block', 'story-director', 'npc-state-delta', 'x', 'sample-extension', 'y']);
+    const list = [p('sample-extension', { owns: ['stats'] }), p('story-block', { owns: [], api: { manage: { areas: ['stats'] } } }), p('x', { owns: ['stats'], api: { manage: { areas: [] } } })];
+    assert.deepEqual(areaCandidates(list, 'stats').map(item => item.id), ['story-block', 'sample-extension'], 'manage.areas wins over owns; owns without manage');
 
     const said = (...choices) => choices.map((choice, index) => p(`e${index}`, { api: { manage: { sources: () => (choice === undefined ? {} : { stats: choice }) } } }));
     assert.equal(currentSource(said('auto', undefined), 'stats'), 'auto', 'missing counts as Automatic');
@@ -133,12 +133,12 @@ test('opens a modal dialog with Overview first, then a tab per extension with a 
     assert.equal(node.querySelector('#story_suite_title').textContent, 'Story Suite');
     assert.ok(node.querySelector('.story-suite-close'));
     assert.ok(doc.body.classList.contains('story-suite-open'), 'the page knows it is open, for other extensions\' floating buttons');
-    assert.deepEqual(texts(node, '.story-suite-tab'), ['Overview', 'Story Block', 'Story Director', 'RPG Battle', 'Other'], 'NPC State Delta has no panel here');
+    assert.deepEqual(texts(node, '.story-suite-tab'), ['Overview', 'Story Block', 'Story Director', 'Sample Extension', 'Other'], 'NPC State Delta has no panel here');
     assert.equal(suiteOverlayTab(), 'overview');
     assert.equal(tab('overview').getAttribute('aria-selected'), 'true');
     same(doc.activeElement, tab('overview'), 'focus moves in');
-    assert.equal(openSuiteOverlay({ document: doc, suite: storySuite(), tab: 'rpg-battle' }), node, 'opening again selects a tab of the same overlay');
-    assert.equal(suiteOverlayTab(), 'rpg-battle');
+    assert.equal(openSuiteOverlay({ document: doc, suite: storySuite(), tab: 'sample-extension' }), node, 'opening again selects a tab of the same overlay');
+    assert.equal(suiteOverlayTab(), 'sample-extension');
     closeSuiteOverlay();
     assert.equal(root(), null);
     assert.ok(!doc.body.classList.contains('story-suite-open'));
@@ -151,26 +151,26 @@ test('Overview: a row per announced extension, on or off, with a switch only whe
     const exts = setup();
     openSuiteOverlay({ document: doc, suite: storySuite() });
     const rows = () => pane().querySelectorAll('.story-suite-provider');
-    assert.deepEqual(rows().map(row => row.dataset.providerId), ['story-block', 'story-director', 'npc-state-delta', 'rpg-battle', 'other-ext']);
-    assert.deepEqual(texts(pane(), '.story-suite-provider-name'), ['Story Block', 'Story Director', 'NPC State Delta', 'RPG Battle', 'Other']);
+    assert.deepEqual(rows().map(row => row.dataset.providerId), ['story-block', 'story-director', 'npc-state-delta', 'sample-extension', 'other-ext']);
+    assert.deepEqual(texts(pane(), '.story-suite-provider-name'), ['Story Block', 'Story Director', 'NPC State Delta', 'Sample Extension', 'Other']);
     assert.deepEqual(texts(pane(), '.story-suite-provider-version'), Array(5).fill('v1.2.0'));
     assert.deepEqual(texts(pane(), '.story-suite-provider-state'), Array(5).fill('on'));
-    assert.deepEqual(rows().filter(row => row.querySelector('.story-suite-switch')).map(row => row.dataset.providerId), ['story-director', 'rpg-battle']);
+    assert.deepEqual(rows().filter(row => row.querySelector('.story-suite-switch')).map(row => row.dataset.providerId), ['story-director', 'sample-extension']);
 
-    const toggle = rows().find(row => row.dataset.providerId === 'rpg-battle').querySelector('.story-suite-switch');
+    const toggle = rows().find(row => row.dataset.providerId === 'sample-extension').querySelector('.story-suite-switch');
     assert.equal(toggle.getAttribute('role'), 'switch');
     toggle.focus();
     toggle.checked = false;
     toggle.dispatch('change');
     assert.deepEqual(exts.battle.calls, [['setEnabled', false]]);
-    const battle = rows().find(row => row.dataset.providerId === 'rpg-battle');
+    const battle = rows().find(row => row.dataset.providerId === 'sample-extension');
     assert.equal(battle.querySelector('.story-suite-provider-state').textContent, 'off', 'redrawn, still listed');
     assert.equal(battle.querySelector('.story-suite-switch').checked, false);
     same(doc.activeElement, battle.querySelector('.story-suite-switch'), 'focus stays on the switch across the redraw');
     battle.querySelector('.story-suite-switch').checked = true;
     battle.querySelector('.story-suite-switch').dispatch('change');
     assert.deepEqual(exts.battle.calls, [['setEnabled', false], ['setEnabled', true]]);
-    assert.equal(rows().find(row => row.dataset.providerId === 'rpg-battle').querySelector('.story-suite-provider-state').textContent, 'on');
+    assert.equal(rows().find(row => row.dataset.providerId === 'sample-extension').querySelector('.story-suite-provider-state').textContent, 'on');
     closeSuiteOverlay();
 });
 
@@ -185,7 +185,7 @@ test('Source of truth: a row per area two or more can keep, Automatic, an owner 
     assert.equal(areaRow('timeline').querySelector('.story-suite-area-name').textContent, 'Timeline (agendas, quests, clocks)');
     assert.equal(areaRow('rolls').querySelector('.story-suite-area-name').textContent, 'Roll modifiers');
     assert.deepEqual(optionTexts('scene'), ['Automatic (NPC State Delta)', 'Story Block', 'NPC State Delta', 'Other'], 'Story Block offers no scene now: World State is off');
-    assert.deepEqual(optionTexts('items'), ['Automatic (Story Block)', 'Story Block', 'RPG Battle']);
+    assert.deepEqual(optionTexts('items'), ['Automatic (Story Block)', 'Story Block', 'Sample Extension']);
     assert.equal(select('items').value, 'auto');
     assert.equal(areaRow('items').querySelector('.story-suite-lead').textContent, 'Leads now: Story Block');
 
@@ -193,18 +193,18 @@ test('Source of truth: a row per area two or more can keep, Automatic, an owner 
     const mixed = select('stats').children.at(-1);
     assert.equal(mixed.textContent, 'Mixed — set in each extension');
     assert.equal(mixed.disabled, true);
-    assert.equal(areaRow('stats').querySelector('.story-suite-lead').textContent, 'Leads now: NPC State Delta and RPG Battle (each keeps it)', 'the choices as each extension applies them');
+    assert.equal(areaRow('stats').querySelector('.story-suite-lead').textContent, 'Leads now: NPC State Delta and Sample Extension (each keeps it)', 'the choices as each extension applies them');
 
-    pick('stats', 'rpg-battle');
+    pick('stats', 'sample-extension');
     assert.deepEqual(exts.block.calls, [['setSource', 'stats', 'theirs']]);
     assert.deepEqual(exts.delta.calls, [['setSource', 'stats', 'theirs']]);
     assert.deepEqual(exts.battle.calls, [['setSource', 'stats', 'mine']]);
-    assert.equal(select('stats').value, 'rpg-battle', 'redrawn from fresh sources()');
+    assert.equal(select('stats').value, 'sample-extension', 'redrawn from fresh sources()');
     assert.ok(!optionTexts('stats').includes('Mixed — set in each extension'));
-    assert.equal(areaRow('stats').querySelector('.story-suite-lead').textContent, 'Leads now: RPG Battle');
+    assert.equal(areaRow('stats').querySelector('.story-suite-lead').textContent, 'Leads now: Sample Extension');
 
-    pick('items', 'rpg-battle');
-    assert.equal(areaRow('items').querySelector('.story-suite-lead').textContent, 'Leads now: RPG Battle', 'Story Block defers although it owns items by default');
+    pick('items', 'sample-extension');
+    assert.equal(areaRow('items').querySelector('.story-suite-lead').textContent, 'Leads now: Sample Extension', 'Story Block defers although it owns items by default');
     pick('items', 'auto');
     assert.deepEqual(exts.block.calls.slice(-1), [['setSource', 'items', 'auto']]);
     assert.deepEqual(exts.battle.calls.slice(-1), [['setSource', 'items', 'auto']]);
@@ -238,8 +238,8 @@ test('an extension\'s tab moves its panel in, drawer open, and puts it back exac
     same(placeholder.nextElementSibling, host.querySelector('#after'), 'the placeholder holds its place');
     assert.ok(exts.director.panel.querySelector('.inline-drawer').classList.contains('story-suite-drawer'), 'shown open, without its toggle');
 
-    tab('rpg-battle').click();
-    assert.equal(suiteOverlayTab(), 'rpg-battle');
+    tab('sample-extension').click();
+    assert.equal(suiteOverlayTab(), 'sample-extension');
     same(pane().children[0], exts.battle.panel);
     assert.equal(host.querySelectorAll('[data-story-suite-placeholder]').length, 1, 'one placeholder at a time');
     same(host.querySelector('[data-story-suite-placeholder]').nextElementSibling, host.querySelector('#story_block_settings'));
@@ -270,11 +270,11 @@ test('a missing panel says so; a panel removed or an extension leaving meanwhile
     host.insertBefore(exts.director.panel, host.querySelector('#after'));
 
     // The extension whose tab is open leaves: its panel goes back and Overview is shown.
-    tab('rpg-battle').click();
-    storySuite().withdraw('rpg-battle');
+    tab('sample-extension').click();
+    storySuite().withdraw('sample-extension');
     refreshSuiteOverlay();
     assert.equal(suiteOverlayTab(), 'overview');
-    assert.ok(!tab('rpg-battle'));
+    assert.ok(!tab('sample-extension'));
     assert.deepEqual(hostOrder(), order.filter(id => id !== 'other_ext_settings'));
 
     // Something removed the whole overlay: the next refresh tears it down and puts panels back.
@@ -328,7 +328,7 @@ test('Esc, the close button and the backdrop close it; arrows move between tabs;
 test('an overlay a previous copy left behind gives its panel back', async () => {
     const exts = setup();
     const order = hostOrder();
-    openSuiteOverlay({ document: doc, suite: storySuite(), tab: 'rpg-battle' });
+    openSuiteOverlay({ document: doc, suite: storySuite(), tab: 'sample-extension' });
     // A copy of the extension reloaded without a page refresh starts with no overlay state:
     // closing (as init() does) finds the stale overlay in the page and puts its panel back.
     const fresh = await import('../src/ui/suite-overlay.js?reloaded');
@@ -366,8 +366,8 @@ test('pure: a tokens report is whole counts or null; rows are the enabled provid
     assert.equal(tokensReport(p('d', { tokens: async () => ({ input: 1 }) })), null, 'a promise');
     assert.equal(tokensReport(p('e', { tokens: () => 7 })), null);
     assert.equal(tokensReport(p('f', null)), null, 'no manage');
-    const rows = tokenRows([p('x', { tokens: () => ({ input: 100, output: 10 }) }), p('story-block', { tokens: () => ({ input: 3000, output: 640 }) }), p('off', { tokens: () => ({ input: 9, output: 9 }) }, { enabled: false }), p('rpg-battle', {})]);
-    assert.deepEqual(rows.map(row => [row.provider.id, Boolean(row.report)]), [['story-block', true], ['rpg-battle', false], ['x', true]], 'suite order; a switched-off one adds nothing');
+    const rows = tokenRows([p('x', { tokens: () => ({ input: 100, output: 10 }) }), p('story-block', { tokens: () => ({ input: 3000, output: 640 }) }), p('off', { tokens: () => ({ input: 9, output: 9 }) }, { enabled: false }), p('sample-extension', {})]);
+    assert.deepEqual(rows.map(row => [row.provider.id, Boolean(row.report)]), [['story-block', true], ['x', true], ['sample-extension', false]], 'suite order; a switched-off one adds nothing');
     assert.deepEqual(tokenTotal(rows), { input: 3100, output: 650, reported: 2 });
     assert.equal(tokensSummary(tokenTotal(rows)), '~3,100 in · ~650 out');
     assert.equal(tokensSummary(tokenTotal([])), 'Not reported');
@@ -375,7 +375,7 @@ test('pure: a tokens report is whole counts or null; rows are the enabled provid
     assert.equal(installedSummary([p('a'), p('b'), p('c'), p('d')]), '4 on');
     assert.equal(installedSummary([p('a'), p('b'), p('c'), p('d', null, { enabled: false })]), '3 on, 1 off');
     assert.equal(sourcesSummary(['auto', 'auto']), 'Automatic');
-    assert.equal(sourcesSummary(['auto', 'rpg-battle', 'story-block']), '2 chosen by hand');
+    assert.equal(sourcesSummary(['auto', 'sample-extension', 'story-block']), '2 chosen by hand');
     assert.equal(sourcesSummary(['mixed', 'auto']), '1 mixed');
     assert.equal(sourcesSummary(['mixed', 'story-block']), '1 chosen by hand, 1 mixed');
     assert.equal(sourcesSummary([]), 'Nothing shared');
@@ -386,10 +386,10 @@ test('Tokens per reply: a row per enabled extension, its parts in a fold, a tota
     delete globalThis.StorySuite;
     host.replaceChildren();
     const exts = {
-        block: extension('story-block', 'Story Block', { areas: ['items'], tokens: () => ({ input: 2400, output: 520, parts: [{ label: 'Inventory', input: 900, output: 300 }, { label: 'Party (kept by RPG Battle)', input: 700, output: 0 }, { label: 'Rules and envelope', input: 800, output: 220 }] }) }),
+        block: extension('story-block', 'Story Block', { areas: ['items'], tokens: () => ({ input: 2400, output: 520, parts: [{ label: 'Inventory', input: 900, output: 300 }, { label: 'Party (kept by Sample Extension)', input: 700, output: 0 }, { label: 'Rules and envelope', input: 800, output: 220 }] }) }),
         director: extension('story-director', 'Story Director', { tokens: () => ({ input: 1000, output: 130 }) }),
         delta: extension('npc-state-delta', 'NPC State Delta', { tokens() { throw new Error('boom'); } }),
-        battle: extension('rpg-battle', 'RPG Battle', { areas: ['items'], switchable: true }),
+        battle: extension('sample-extension', 'Sample Extension', { areas: ['items'], switchable: true }),
     };
     openSuiteOverlay({ document: doc, suite: storySuite() });
     assert.equal(pane().querySelectorAll('.story-suite-folds > details').map(node => node.dataset.fold).join(), 'installed,sources,tokens,sent');
@@ -397,10 +397,10 @@ test('Tokens per reply: a row per enabled extension, its parts in a fold, a tota
     const rows = () => fold('tokens').children[1].children.filter(node => node.classList.contains('story-suite-tokens-row'));
     const row = id => rows().find(node => node.dataset.providerId === id);
     const count = node => node.querySelector('.story-suite-tokens-count, summary .story-suite-fold-hint').textContent;
-    assert.deepEqual(rows().map(node => node.dataset.providerId ?? 'total'), ['story-block', 'story-director', 'npc-state-delta', 'rpg-battle', 'total']);
+    assert.deepEqual(rows().map(node => node.dataset.providerId ?? 'total'), ['story-block', 'story-director', 'npc-state-delta', 'sample-extension', 'total']);
     assert.equal(count(row('story-director')), '~1,000 in · ~130 out');
     assert.equal(count(row('npc-state-delta')), 'not reported', 'a throwing tokens()');
-    assert.equal(count(row('rpg-battle')), 'not reported', 'no tokens()');
+    assert.equal(count(row('sample-extension')), 'not reported', 'no tokens()');
     const total = rows().at(-1);
     assert.equal(total.querySelector('.story-suite-tokens-name').textContent, 'Total');
     assert.equal(count(total), '~3,400 in · ~650 out');
@@ -412,7 +412,7 @@ test('Tokens per reply: a row per enabled extension, its parts in a fold, a tota
     assert.equal(parts.open, false);
     assert.equal(count(parts), '~2,400 in · ~520 out');
     assert.deepEqual(parts.querySelectorAll('.story-suite-tokens-part').map(node => [node.querySelector('.story-suite-tokens-name').textContent, node.querySelector('.story-suite-tokens-count').textContent]),
-        [['Inventory', '~900 in · ~300 out'], ['Party (kept by RPG Battle)', '~700 in · ~0 out'], ['Rules and envelope', '~800 in · ~220 out']]);
+        [['Inventory', '~900 in · ~300 out'], ['Party (kept by Sample Extension)', '~700 in · ~0 out'], ['Rules and envelope', '~800 in · ~220 out']]);
     toggleFold(parts, true);
     refreshSuiteOverlay();
     assert.equal(row('story-block').open, true, 'kept open across the redraw');
@@ -440,7 +440,7 @@ test('Overview folds: one-line summaries, Installed open and the others closed b
     assert.equal(foldHint('sources'), '1 chosen by hand');
     assert.equal(foldHint('tokens'), 'Not reported');
     assert.ok(fold('installed').querySelectorAll('.story-suite-row.story-suite-provider').length === 5, 'Installed rows are panel rows');
-    assert.equal(fold('installed').querySelector('.story-suite-provider[data-provider-id="rpg-battle"]').tagName, 'LABEL', 'with its switch inside');
+    assert.equal(fold('installed').querySelector('.story-suite-provider[data-provider-id="sample-extension"]').tagName, 'LABEL', 'with its switch inside');
 
     toggleFold(fold('sources'), true);
     toggleFold(fold('installed'), false);
@@ -482,11 +482,11 @@ test("What's sent: a fold per extension that offers preview(), read only when op
     extension('story-block', 'Story Block', { areas: ['items'], preview: () => { reads += 1; return [{ label: 'Story Blocks', text: 'STORY_BLOCKS_V1_CONTEXT_BEGIN\n## Story Blocks' }]; } });
     extension('story-director', 'Story Director', { preview: () => 'Director note: the bell rings at dusk.' });
     extension('npc-state-delta', 'NPC State Delta', { preview() { throw new Error('boom'); } });
-    extension('rpg-battle', 'RPG Battle', { areas: ['items'], preview: () => ({ injection: 'Live dossier: Elke.', liveCapture: '' }) });
+    extension('sample-extension', 'Sample Extension', { areas: ['items'], preview: () => ({ injection: 'Live dossier: Elke.', liveCapture: '' }) });
     openSuiteOverlay({ document: doc, suite: storySuite() });
     assert.equal(foldHint('sent'), '4 to read');
     const folds = fold('sent').querySelectorAll('details.story-suite-fold');
-    assert.deepEqual(folds.map(node => node.dataset.providerId), ['story-block', 'story-director', 'npc-state-delta', 'rpg-battle']);
+    assert.deepEqual(folds.map(node => node.dataset.providerId), ['story-block', 'story-director', 'npc-state-delta', 'sample-extension']);
     assert.equal(reads, 0, 'nothing is read before a fold opens');
     folds[0].open = true;
     folds[0].dispatch('toggle');
