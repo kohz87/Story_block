@@ -123,7 +123,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
         content.routes = records(given.routes, 'routes', { add, packId, check: (record, path) => checkRoute(record, path, add, place), named: false, autoSlug: routeSlug });
     }
     if (given.terms !== undefined) {
-        if (Array.isArray(given.terms) && given.terms.length > TERMS_LIMITS.records) add('BAD_CONTENT', 'content.terms', `content.terms holds at most ${TERMS_LIMITS.records} records (RPG Battle reads the first one that names something).`);
+        if (Array.isArray(given.terms) && given.terms.length > TERMS_LIMITS.records) add('BAD_CONTENT', 'content.terms', `content.terms holds at most ${TERMS_LIMITS.records} records.`);
         else content.terms = records(given.terms, 'terms', { add, packId, check: (record, path, label) => checkTerms(record, path, label, add), slugField: 'id', named: false, autoSlug: termsSlug() });
     }
     if (given.ranks !== undefined) content.ranks = checkRanks(given.ranks, packId, add);
@@ -1191,7 +1191,7 @@ export function checkScreens(list, packId, add) {
         let ok = true;
         const say = (field, message, code = 'BAD_SCREENS') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
         for (const key of Object.keys(screen)) if (!SCREEN_FIELDS.includes(key)) say(key, `"${key}" is not a screen field (expected ${SCREEN_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
-        if (typeof screen.id !== 'string' || !SCREEN_ID.test(screen.id) || screen.id.length > 100) say('id', 'id must be a screen id like "rpg-battle/party" (to restyle that screen) or "riverside-board".');
+        if (typeof screen.id !== 'string' || !SCREEN_ID.test(screen.id) || screen.id.length > 100) say('id', 'id must be a screen id like "example-module/overview" (to restyle that screen) or "riverside-board".');
         else if (seen.has(screen.id)) say('id', 'two screens share this id.', 'DUPLICATE');
         else seen.add(screen.id);
         for (const field of ['title', 'icon']) if (screen[field] !== undefined && (typeof screen[field] !== 'string' || screen[field].length > LIMITS.name)) say(field, `${field} must be text of at most ${LIMITS.name} characters.`);
