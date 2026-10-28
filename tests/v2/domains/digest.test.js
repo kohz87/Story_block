@@ -1,5 +1,4 @@
-// The hash both sides of the rules seam compute (RB_CONTRACT §4: SHA-256 of normalized JSON, sorted keys,
-// array order kept), synchronously, with no Node built-ins.
+// SHA-256 of normalized JSON, with sorted keys and array order kept, synchronously without Node built-ins.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

@@ -727,8 +727,7 @@ function checkStart(start, add, ref) {
 const isText = (value, max) => typeof value === 'string' && value.length <= max;
 const isNumber = value => typeof value === 'number' && Number.isFinite(value);
 
-// A skill template for RPG Battle (v1 skillFromTemplate): what it is, never its numbers, which
-// RPG Battle's rules set at the level it is learned.
+// A skill template describes a skill; its numbers are supplied by the consuming module.
 function checkSkill(record, path, label, add) {
     let ok = true;
     const say = (field, message, code = 'BAD_RECORD') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
@@ -872,9 +871,9 @@ function termsSlug() {
     };
 }
 
-// The words a world uses for levels and XP (MODULES §F25), as RPG Battle's terms read them:
+// The words a world uses for levels and XP (MODULES §F25), for a consuming module:
 // `{ id?, name?, levelName?, xpName?, tiers?: true | { size?, numerals?, enabled? } }`. The reader's
-// own terms win over these. A term is a label in RPG Battle's blocks, so it may not hold `| : # < >`
+// own terms win over these. A term is a label in a module's blocks, so it may not hold `| : # < >`
 // or a line break; checkPlain has already refused any markup or script link in it.
 function checkTerms(record, path, label, add) {
     let ok = true;
@@ -909,7 +908,7 @@ function checkTerms(record, path, label, add) {
     return ok ? out : null;
 }
 
-// A ladder of ranks, lowest first (Story Director's quest letters, RPG Battle's foe strength). The id is
+// A ladder of ranks, lowest first for a module that reads them. The id is
 // the rank as the story writes it ('F', 'SS'), kept as given and unique ignoring case, not a slug;
 // `levels`, `reward` and `xp` are whole-number ranges, the reward in units of the chat's one currency and the xp (2.5.0, optional,
 // at most RANKS_LIMITS.xp) the experience a job of the rank may give.
@@ -971,8 +970,8 @@ function checkRanks(list, packId, add) {
     return ok ? out : [];
 }
 
-// Markets (PACKS.md "Markets"): settlement types and environment tags with their price factors, as
-// RPG Battle's trade reads them over its built-in ones. Each record is a type (`type`, with `buy`, `sell`
+// Markets (PACKS.md "Markets"): settlement types and environment tags with their price factors.
+// A module can read these alongside its own defaults. Each record is a type (`type`, with `buy`, `sell`
 // and `stock`) or a tag (`tag`, with `prices` per item category); one of each name per pack.
 function checkMarkets(list, packId, add) {
     if (!Array.isArray(list)) {

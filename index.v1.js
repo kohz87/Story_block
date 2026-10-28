@@ -535,7 +535,7 @@ function ensureMessageIdentity(message, replaced = []) {
     return true;
 }
 
-const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'rpgBattleEvidence', 'rpgBattleAwards', 'storyBlockReplacement'];
+const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'storyBlockReplacement'];
 const chatMetadata = ctx => ctx?.chatMetadata ?? ctx?.chat_metadata ?? null;
 let uncertainJournalRepair = null;
 
@@ -1031,7 +1031,7 @@ function blockTab(view, uiKey) {
 // (0.9.20) Whose a tab is, so each extension's tabs sit together in the row: what it
 // registered as `group`, else the suite's own extensions by their tab ids, else the id's
 // first word.
-const KNOWN_TAB_OWNERS = [['rpg-', 'RPG Battle'], ['story-director', 'Story Director'], ['npc-state-delta', 'NPC State Delta']];
+const KNOWN_TAB_OWNERS = [['story-director', 'Story Director'], ['npc-state-delta', 'NPC State Delta']];
 function tabGroup(tab) {
     const given = String(tab?.group ?? '').trim();
     if (given) return given;
@@ -1422,7 +1422,7 @@ function renderSuiteSection() {
     const suite = storySuite();
     const offered = offeredAreas(blocks());
     const make = (tag, className = '', text = '') => el(tag, className, text, documentRef);
-    const intro = make('p', 'story-suite-muted', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
+    const intro = make('p', 'story-suite-muted', 'With Story Director or NPC State Delta installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
     const nodes = [intro];
     for (const area of SHARED_AREAS) {
         const { label, provider } = AREA_LABELS[area];

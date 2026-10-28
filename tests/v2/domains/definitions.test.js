@@ -1,11 +1,4 @@
-// Item definitions between Story Block and a ready rules module (RB_CONTRACT §3, P01; §10 E):
-//   * `inventory.definitions` lists the definitions the chat holds, and nothing depends on a pack being installed;
-//   * `inventory.registerDefinition` is the rules module's way to put one in, no stack, same bytes a no-op,
-//     other bytes a CONFLICT;
-//   * a definition that is new to the chat (story, pack hook or a module's full def) goes through the rules
-//     module's `rules.registerItem` while one is ready, in the same transaction as the grant, so a failure
-//     anywhere leaves neither the definition nor the rule.
-// The rules module is a test-only stand-in (helpers/rb-stub.js); "alone" runs have none.
+// Item definitions stay available through the generic inventory query.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness, line } from './helpers/fake-ctx.js';

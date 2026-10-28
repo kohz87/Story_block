@@ -10,15 +10,10 @@ import { core, foldOf, openFold, queries, recordingWidgets, renderSkip, sceneSta
 
 const skip = renderSkip;
 
-// RPG Battle installed: its item detail answers (the screen's probe for equipment) and draws the detail widget per row.
-const RPG = { query: { 'rpg-battle.itemDetail': () => null }, widgets: { 'rpg-battle.item-detail': { render: () => ({ update() {}, destroy() {} }) } } };
-
-// `rpg: true` draws it with RPG Battle installed (its item detail answers, equipment controls show).
-function inventoryView(state = null, { rpg = false, ...options } = {}) {
+function inventoryView(state = null, options = {}) {
     const module = core();
     const s = state ?? stocked(module);
-    const extra = rpg ? RPG.query : {};
-    return { module, state: s, ...show(inventoryScreen, { state: s, query: queries(module, s, extra), widgets: rpg ? RPG.widgets : {}, ...options }) };
+    return { module, state: s, ...show(inventoryScreen, { state: s, query: queries(module, s), ...options }) };
 }
 
 const visibleItems = el => el.querySelectorAll('.item').map(item => item.querySelector('.name').textContent);
@@ -27,7 +22,7 @@ test('inventory: grouped by kind, with qty, rarity, equipped marker and the wall
     const module = core();
     const state = stocked(module);
     state.domains.inventory.stacks.it_sword001.equipped = 'hand';
-    const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG.query), widgets: RPG.widgets });
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state) });
     assert.deepEqual(view.warnings, []);
     assert.equal(text(el.querySelector('.wallet')), '125 gold');
     const groups = el.querySelectorAll('.group').map(group => [group.getAttribute('data-kind'), group.querySelectorAll('.item').length]);
@@ -55,7 +50,7 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, calls, results } = show(inventoryScreen, {
-        state, query: queries(module, state, RPG.query), widgets: RPG.widgets, draft: {},
+        state, query: queries(module, state), draft: {},
         command: (type, payload, options) => bus.command(type, payload, options),
     });
     const item = name => el.querySelectorAll('.item').find(row => row.querySelector('.name').textContent === name);
@@ -99,7 +94,7 @@ test('inventory: an action opens its fold below the action row; one fold per car
     const module = core();
     const state = stocked(module);
     state.domains.party = { pc: null, order: ['ac_ren00001', 'ac_mira0001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' }, ac_mira0001: { id: 'ac_mira0001', name: 'Mira' } } };
-    const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG.query), widgets: RPG.widgets, draft: {} });
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state), draft: {} });
     assert.deepEqual(view.warnings, []);
     const dagger = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Iron Sword');
     const actionsText = () => dagger.querySelector('.actions').querySelectorAll('button, label').map(node => text(node));
@@ -131,7 +126,7 @@ test('inventory: an action opens its fold below the action row; one fold per car
 
 test('inventory: the filter box fills the draft and narrows the list', { skip }, () => {
     const draft = {};
-    const { el, view, state, calls } = inventoryView(null, { draft, rpg: true });
+    const { el, view, state, calls } = inventoryView(null, { draft });
     const filter = el.querySelector('.filter');
     const [kind, rarity] = filter.querySelectorAll('select');
     kind.value = 'equipment';

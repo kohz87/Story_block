@@ -1,4 +1,4 @@
-// sdk.preflight (RB_CONTRACT §2, §9, docs/v2/LIFECYCLE.md): what the chat holds for a module, read
+// sdk.preflight (docs/v2/LIFECYCLE.md): what the chat holds for a module, read
 // before the module registers, with nothing written. One test per kind of store, then the shape,
 // the peers, the inputs and the proof that it writes nothing.
 import test from 'node:test';
