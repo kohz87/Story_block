@@ -1,0 +1,40 @@
+/* The size of everything Story Suite draws (2.5.2): what used to be 80% is the default. SillyTavern's own chat text, top bar
+   and message box keep their size; only Story Suite's roots are drawn smaller, with CSS `zoom`, so every screen inside them
+   (Story Block's, the modules' and the packs') follows without a size of its own: the cards under a reply, the Choices and the
+   notes under it, the bar and the HUD above the message box, the story panel's and the game view's contents (their frames keep
+   their size), the settings window, the dialog mount and the UI sample.
+
+   `--ss-zoom` is the size; a zoomed root also sets `--ss-zoomed` to it, so a rule inside one can undo the zoom where a length
+   must stay a screen's length (a full-screen layer in vw/dvh, a 44px tap area). Outside a root `--ss-zoomed` is unset (1).
+   Measured distances (getBoundingClientRect, a pointer's clientX) are drawn pixels and a node's own lengths (style.left,
+   scrollTop) are not: scripts divide by the node's zoom (view/scroll.js zoomOf; Story Director's map does the same). */
+:root {
+    --ss-zoom: 0.8;
+}
+.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud,
+.story-suite-sheet > *, .ss-gameview-main > *, .story-suite-overlay > .ss-settings, .ss-dialog, .ss-sample > * {
+    zoom: var(--ss-zoom);
+    --ss-zoomed: var(--ss-zoom);
+}
+
+/* A phone or a touch screen (the phone layout's line, 760px, or a coarse pointer): every button, tab, link, summary, input and
+   select inside a root is at least 44 x 44 CSS px on the screen, so 44px / zoom before it. `!important` because some screens give
+   their own controls a 36px or 40px minimum with a heavier selector. A switch keeps its look and gets a 44px tap area (::after);
+   a map marker draws its own tap area (`.ss-w-map-node`, or any control marked `data-ss-hit`, e.g. Story Director's places). */
+@media (max-width: 759.98px), (pointer: coarse) {
+    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample) :is(button, [role="tab"], a[href], summary):not(.ss-switch, .ss-w-map-node, [data-ss-hit]) {
+        min-width: calc(44px / var(--ss-zoomed, 1)) !important;
+        min-height: calc(44px / var(--ss-zoomed, 1)) !important;
+    }
+    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample) :is(select, textarea, input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"])) {
+        min-height: calc(44px / var(--ss-zoomed, 1)) !important;
+    }
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-switch::after {
+        inset: auto;
+        left: 50%;
+        top: 50%;
+        width: max(100%, calc(44px / var(--ss-zoomed, 1)));
+        height: max(100%, calc(44px / var(--ss-zoomed, 1)));
+        transform: translate(-50%, -50%);
+    }
+}

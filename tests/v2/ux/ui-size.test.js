@@ -1,0 +1,86 @@
+// The 2.5.2 size change in the stylesheets: Story Suite's roots are drawn at --ss-zoom (0.8, the old 80%) and SillyTavern's own
+// chat, top bar and message box are not; on a phone or a touch screen every control inside a root is still 44px on the screen;
+// Close in the settings window has its own row on a phone; a full-screen layer inside a root undoes the zoom.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const size = read('view/size.css');
+const PHONE = '@media (max-width: 759.98px), (pointer: coarse)';
+const ROOTS = ['.ss-cards', '.story-suite-extras', '.story-suite-reply-note', '.story-suite-bar', '.ss-hud', '.story-suite-sheet > *',
+    '.ss-gameview-main > *', '.story-suite-overlay > .ss-settings', '.ss-dialog', '.ss-sample > *'];
+
+// The declarations of the first rule whose selector list is exactly `selector` (it starts a line), inside `css` (from `at` when given).
+function rule(css, selector, at = '') {
+    const from = at ? css.indexOf(at) : 0;
+    assert.ok(from >= 0, `no ${at}`);
+    const head = new RegExp(`(^|\\n)[ \\t]*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{`);
+    const match = css.slice(from).match(head);
+    if (!match) return '';
+    const open = from + match.index + match[0].length;
+    return css.slice(open, css.indexOf('}', open));
+}
+
+test('host.css loads size.css last, so its zoom and its phone sizes come after every other sheet', () => {
+    const host = read('view/host.css');
+    const imports = [...host.matchAll(/@import url\('\.\/([\w-]+\.css)'\);/g)].map(match => match[1]);
+    assert.equal(imports.at(-1), 'size.css');
+});
+
+test('the roots are zoomed to --ss-zoom (0.8 by default) and say so in --ss-zoomed; SillyTavern\'s own page is not', () => {
+    assert.match(rule(size, ':root'), /--ss-zoom: 0\.8;/);
+    const zoomed = size.match(/([^{}]+)\{\s*zoom: var\(--ss-zoom\);\s*--ss-zoomed: var\(--ss-zoom\);\s*\}/);
+    assert.ok(zoomed, 'one rule zooms the roots');
+    const roots = zoomed[1].split(',').map(part => part.trim());
+    assert.deepEqual([...roots].sort(), [...ROOTS].sort());
+    // The frames keep their size (the game view's and the story panel's window, the settings layer): only what is inside is zoomed.
+    for (const frame of ['.ss-gameview', '.story-suite-sheet', '.story-suite-overlay', '.ss-gameview-main']) assert.ok(!roots.includes(frame), frame);
+    // Nothing of SillyTavern's is named: its chat text, top bar and message box keep their size.
+    for (const st of ['#chat', '.mes', '.mes_text', '#top-bar', '#top-settings-holder', '#send_form', '#send_textarea', '#form_sheld', 'body', 'html']) {
+        assert.ok(!new RegExp(`(^|[\\s,(])${st.replace(/[.#]/g, '\\$&')}(?![\\w-])`).test(size.replace(/:root/g, '')), st);
+    }
+    assert.equal((size.match(/(^|[\s;{])zoom:/g) ?? []).length, 1, 'zoom is set in one place');
+});
+
+test('a phone or a touch screen: every button, tab, link, summary and field in a root is 44px on the screen (44px / zoom), switches keep their look with a 44px tap area', () => {
+    const at = size.indexOf(PHONE);
+    assert.ok(at > 0, 'the phone line (760px) or a coarse pointer');
+    const block = size.slice(at);
+    const buttons = block.match(/([^{}]+:is\(button, \[role="tab"\], a\[href\], summary\)[^{}]*)\{([^}]*)\}/);
+    assert.ok(buttons, 'the controls rule');
+    assert.match(buttons[1], /:not\(\.ss-switch, \.ss-w-map-node, \[data-ss-hit\]\)/, 'switches and map markers draw their own tap area');
+    assert.match(buttons[2], /min-width: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
+    assert.match(buttons[2], /min-height: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
+    const fields = block.match(/([^{}]+:is\(select, textarea, input:not\(\[type="checkbox"\], \[type="radio"\], \[type="range"\], \[type="hidden"\]\)\))\s*\{([^}]*)\}/);
+    assert.ok(fields, 'the fields rule');
+    assert.match(fields[2], /min-height: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
+    // Both name every zoomed root's place, so a control in any of them is covered.
+    for (const scope of ['.ss-cards', '.story-suite-extras', '.story-suite-reply-note', '.story-suite-bar', '.ss-hud', '.story-suite-sheet', '.ss-gameview', '.story-suite-overlay', '.ss-dialog', '.ss-sample']) {
+        assert.ok(buttons[1].includes(scope) && fields[1].includes(scope), scope);
+    }
+    const hit = block.match(/\.ss-switch::after\s*\{([^}]*)\}/);
+    assert.ok(hit, 'the switch\'s tap area');
+    assert.match(hit[1], /width: max\(100%, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
+    assert.match(hit[1], /height: max\(100%, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
+    assert.match(hit[1], /transform: translate\(-50%, -50%\);/);
+});
+
+test('settings on a phone: the title row is as tall as Close (44px on the screen), so Close never covers the search box', () => {
+    const settings = read('view/settings.css');
+    const title = settings.match(/@media \(max-width: 759\.98px\) \{\s*:where\([^)]*\) \.ss-settings-title \{([^}]*)\}/);
+    assert.ok(title, 'a phone rule for the title');
+    assert.match(title[1], /line-height: max\(40px, calc\(44px \/ var\(--ss-zoomed, 1\)\)\);/);
+    // Close sits in that row: the window's top padding plus the side's, at the right.
+    const close = settings.match(/\) \.ss-settings-close \{([^}]*)\}/)[1];
+    assert.match(close, /top: calc\(env\(safe-area-inset-top, 0px\) \+ var\(--ss-space-3\)\);/);
+    assert.match(settings.match(/\) \.ss-settings-side \{([^}]*)\}/)[1], /padding: var\(--ss-space-3\) 0 0;/);
+});
+
+test('ss.dialog\'s full-screen layer covers the screen inside a zoomed root (vw and dvh are zoomed with it)', () => {
+    const glass = read('view/glass.css');
+    const modal = glass.match(/\) \.ss-modal \{([^}]*)\}/)[1];
+    assert.match(modal, /width: calc\(100vw \/ var\(--ss-zoomed, 1\)\);/);
+    assert.match(modal, /height: calc\(100dvh \/ var\(--ss-zoomed, 1\)\);/);
+});
+

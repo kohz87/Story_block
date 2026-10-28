@@ -1,7 +1,7 @@
 // view/scroll.js (phone hotfix): scrolling and focus inside the settings window move nothing around the page scroller.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { followViewport, focusNode, holdPage, revealIn, scrollerOf, showAndFocus } from '../../../src/v2/view/scroll.js';
+import { followViewport, focusNode, holdPage, revealIn, scrollerOf, showAndFocus, zoomOf } from '../../../src/v2/view/scroll.js';
 
 // A scroller with a box and a scrollTop that clamps like a browser's; ancestors that must never move.
 function scene({ nodeTop = 500, nodeHeight = 40, scrollTop = 0, sticky = 0 } = {}) {
@@ -49,6 +49,26 @@ test('revealIn "center" and "nearest"', () => {
     const below = scene({ nodeTop: 690, nodeHeight: 40 });
     assert.equal(revealIn(below.scroller, below.node, 'nearest'), true);
     assert.ok(below.node.getBoundingClientRect().bottom <= 700);
+});
+
+test('zoomOf: the browser\'s currentCSSZoom, else drawn width over own width, else 1', () => {
+    assert.equal(zoomOf({ currentCSSZoom: 0.8, offsetWidth: 100, getBoundingClientRect: () => ({ width: 50 }) }), 0.8);
+    assert.equal(zoomOf({ offsetWidth: 500, getBoundingClientRect: () => ({ width: 400 }) }), 0.8);
+    assert.equal(zoomOf({ offsetWidth: 0, getBoundingClientRect: () => ({ width: 0 }) }), 1, 'no layout');
+    assert.equal(zoomOf({ currentCSSZoom: 0 }), 1);
+    assert.equal(zoomOf({}), 1);
+    assert.equal(zoomOf(null), 1);
+});
+
+test('revealIn in a zoomed window (size.css): the measured distance is drawn pixels, scrollTop the scroller\'s own, so it lands as at 100%', () => {
+    // At 80% a node 400 drawn pixels below the scroller's top is 500 of its own; scrolling by 400 would leave it 80 drawn pixels short.
+    const { scroller, node } = scene({ nodeTop: 500 });
+    let top = 0;
+    Object.defineProperty(scroller, 'scrollTop', { get: () => top, set: value => { top = Math.max(0, Math.min(2000, value)); } });
+    scroller.currentCSSZoom = 0.8;
+    node.getBoundingClientRect = () => ({ top: 100 + (400 - top * 0.8), bottom: 100 + (400 - top * 0.8) + 32, height: 32 });
+    assert.equal(revealIn(scroller, node, 'start'), true);
+    assert.ok(Math.abs(node.getBoundingClientRect().top - (100 + 8)) < 1e-9, `top ${node.getBoundingClientRect().top}`);
 });
 
 test('revealIn does nothing, and does not throw, with no layout or no node (the tests\' fake DOM)', () => {

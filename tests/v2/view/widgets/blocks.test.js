@@ -336,6 +336,13 @@ for (const [kind, widget] of [['tabs', tabs], ['navbar', navbar]]) {
     });
 }
 
+test('revealItem in a zoomed root (size.css): the drawn distance is turned into the list\'s own pixels', () => {
+    const list = { getBoundingClientRect: () => ({ left: 0, right: 240, width: 240 }), currentCSSZoom: 0.8, scrollBy(o) { this.did = o; }, ownerDocument: {} };
+    const item = { getBoundingClientRect: () => ({ left: 320, right: 392, width: 72 }) };
+    assert.equal(revealItem(list, item), true);
+    assert.deepEqual(list.did, { left: (320 - (240 - 72) / 2) / 0.8, behavior: 'auto' });
+});
+
 test('revealItem: only an item that is cut off is scrolled, centred; nothing before layout', () => {
     const list = { getBoundingClientRect: () => ({ left: 0, right: 300, width: 300 }), scrollBy(o) { this.did = o; }, ownerDocument: {} };
     const item = rect => ({ getBoundingClientRect: () => rect });
