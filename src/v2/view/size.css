@@ -52,7 +52,15 @@
        gets a 44px tap area (::after) inside a margin of its own, so it never reaches a neighbour; SillyTavern clips its checkbox
        (overflow: hidden, 0,1,1), so letting the tap area out takes a rule heavier than that. The position has no weight: a screen
        that places its own input keeps that. */
-    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) label:has(> input:is([type="checkbox"], [type="radio"])) {
+    /* any label holding one, however deep (`<label><span><input type="radio"></span> X</label>`); a label that has no display of its
+       own (inline, which a minimum size does not reach) becomes an inline block with its line in the middle, at no weight, so a flex
+       or grid label of a screen keeps its own */
+    :where(:is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) label:has(input[type="checkbox"], input[type="radio"])) {
+        display: inline-block;
+        vertical-align: middle;
+        padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2));
+    }
+    :is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog) label:has(input[type="checkbox"], input[type="radio"]) {
         box-sizing: border-box;
         min-width: calc(44px / var(--ss-zoomed, 1));
         min-height: calc(44px / var(--ss-zoomed, 1));

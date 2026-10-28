@@ -85,8 +85,12 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     const tap = 'calc(44px / var(--ss-zoomed, 1))';
     // A checkbox or radio in a label is pressed through the label, 44 x 44, and draws no tap area of its own (it would reach the next
     // label: loot chips sit 4px apart). One with no label keeps its box and gets a 44px ::after inside a margin of its own.
-    const label = decl(`${scope} label:has(> input:is([type="checkbox"], [type="radio"]))`);
+    // Any label holding one, however deep; a label with no display of its own becomes an inline block (no weight: flex/grid labels keep theirs).
+    const label = decl(`${scope} label:has(input[type="checkbox"], input[type="radio"])`);
     for (const part of ['box-sizing: border-box;', `min-width: ${tap};`, `min-height: ${tap};`]) assert.ok(label.includes(part), part);
+    const inlineLabel = decl(`:where(${scope} label:has(input[type="checkbox"], input[type="radio"]))`);
+    for (const part of ['display: inline-block;', 'vertical-align: middle;', 'padding-block: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2));']) assert.ok(inlineLabel.includes(part), part);
+    assert.doesNotMatch(size, /label:has\(> input/, 'not only a direct child');
     assert.match(decl(`:where(${scope} input:is([type="checkbox"], [type="radio"]):not(label input))`), /position: relative;/);
     const bare = decl(`${scope} input:is([type="checkbox"], [type="radio"]):not(label input)`);
     assert.match(bare, /overflow: visible;/);
