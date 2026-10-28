@@ -1,10 +1,11 @@
 // The 2.5.2 size change in the stylesheets: Story Suite's roots are drawn at --ss-zoom (0.8, the old 80%) and SillyTavern's own
 // chat, top bar and message box are not; on a phone or a touch screen every control inside a root is still 44px on the screen;
 // the reply card's header is one line on a phone; Close in the settings window has its own row on a phone; a full-screen layer
-// inside a root undoes the zoom.
+// inside a root undoes the zoom; and the Inventory's actions sit on the right of the row, beside the name, on every width.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { inventoryScreen } from '../../../src/v2/screens/index.js';
 
 const read = path => readFileSync(new URL(`../../../src/v2/${path}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const size = read('view/size.css');
@@ -99,3 +100,25 @@ test('ss.dialog\'s full-screen layer covers the screen inside a zoomed root (vw 
     assert.match(modal, /height: calc\(100dvh \/ var\(--ss-zoomed, 1\)\);/);
 });
 
+test('the Inventory: the actions sit on the right of the row beside the name, centred, on every width; notes and detail under the name; a fold below', () => {
+    const css = inventoryScreen.css;
+    const body = rule(css, '.item > .body');
+    assert.match(body, /grid-template-columns: minmax\(0, 1fr\) fit-content\(50%\);/, 'the name column, then at most half the row for the actions');
+    assert.match(body, /align-items: center;/);
+    assert.match(rule(css, '.item > .body > .line'), /grid-column: 1; grid-row: 1;/);
+    assert.match(rule(css, '.item > .body > .note'), /grid-column: 1; grid-row: 2;/);
+    assert.match(rule(css, '.item > .body > .detail'), /grid-column: 1; grid-row: 3;/);
+    const actions = rule(css, '.item > .body > .actions');
+    assert.match(actions, /grid-column: 2; grid-row: 1;/);
+    assert.match(actions, /justify-content: flex-end;/);
+    assert.match(rule(css, '.item > .body:has(> .note, > .detail) > .actions'), /grid-row: 1 \/ span 3;/, 'centred beside the note and the detail too');
+    assert.match(rule(css, '.item > .body > .fold'), /grid-column: 1 \/ -1; grid-row: 4;/, 'the fold opens below the name and the actions');
+    // A group that wraps on the right when the row is narrow; never a line of its own under the row.
+    assert.match(rule(css, '.actions'), /display: flex; flex-wrap: wrap;/);
+    assert.doesNotMatch(css, /@container|@media[^{]*\{[^}]*\.actions/, 'the same layout on a phone');
+    // The tile stays put when a fold opens.
+    assert.match(rule(css, '.item:has(> .body > .fold)'), /align-items: start;/);
+    // The template keeps its order: name line, note, detail, actions, folds.
+    const order = ['class="line"', 'class="note', 'class="detail"', 'class="actions"', 'class="fold '].map(part => inventoryScreen.template.indexOf(part));
+    assert.deepEqual([...order].sort((a, b) => a - b), order);
+});
