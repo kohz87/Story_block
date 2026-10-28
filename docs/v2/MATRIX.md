@@ -60,7 +60,7 @@ Each case boots its own host(s); none of them uses a stub for the module under t
 |---|---|
 | registers once | every module of the row is listed once in `sdk.modules()`; nothing held back at boot |
 | scripted reply | one reply with every module's change lines: each module's facts changed, no store problems, no console errors |
-| action | each module's reader action succeeds and changes what it keeps (SB `inventory.drop`, SD neutral `threads.offer` then `threads.accept`, NSD `npc.set`, RB `party.rest`) |
+| action | each module's reader action succeeds and changes what it keeps (SB `inventory.drop`, SD neutral `threads.offer` then `threads.accept`, NSD `npc.set`, RB `party.rest`, which on a row with a story clock follows one reply that moves it an hour, as RPG Battle 2.3.0 requires) |
 | replay | a cold rebuild (a second store over the same chat, set up like a reload) equals the live state |
 | static prompt | the static part of the prompt is byte-identical from reply to reply |
 | RB dormant | negative rows only: see above |
