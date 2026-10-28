@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.5.3
+
+**Content release: no code or rules change.** The bundled example pack is now **Ersveil 2.0.0, an open world** for Story Block
+and Story Director, with no RPG Battle.
+
+- **Ersveil 2.0.0** (`examples/packs/ersveil/pack.json`, id `ersveil`, name "Ersveil (open world)") keeps the world's
+  structure: 320 places and 350 routes for the map, the calendar (CY 611, Goldwane 12, 06:40), 84 weather tables, the coins
+  (copper, also called bronze, silver and gold), 7 world events and the three data modules (standing with the powers, fame by
+  region, Guild membership). It drops everything that was RPG Battle's or the economy's: the rules manifest (13 class lines),
+  items, creatures, quests and trainer templates, shops, markets, recipes, crafts, races, talents, terms, ranks, the money
+  scale and the NPC meter presets. The narrator makes items, shops, prices and foes up in the story from the lore. The pack
+  asks for `scene`, `inventory` and `data-modules-v1` only (no `rb-rules-v2`). 400 KB before, 132 KB after.
+- **The start** is still Bluewatch Village / Guild Office with 40 copper (4 silver). The travel kit is gone: a start item
+  must be one of the pack's own items, and the pack has none, so the story hands out the kit.
+- **The places lose their market type** (the price records they named are gone); their tags stay as descriptions.
+- **The lorebook is written for the open world** (171 entries, was 170): it no longer calls markets and prices the pack's or
+  names RPG Battle's Party sheet, it says the story makes items, shops, prices and foes, the Guild entry gives the letters'
+  titles (F Registered to S Legend) and what a contract of each pays, and a new "Callings" entry keeps the thirteen class lines
+  as lore. No item or shop lists.
+- **Ersveil 1.0.0 moved to the test fixtures** (`tests/v2/packs/fixtures/ersveil-1.0.0.json`, byte for byte), beside
+  Bluewatch 1.6.0. The rules tests and the kit's checker test read it there. Importing 2.0.0 replaces an installed 1.0.0 (same
+  id); chats started on 1.0.0 keep their pinned copy and play on unchanged.
+- Docs: `docs/v2/ERSVEIL.md` is rewritten (short) for the open world; the README's install and Packs paragraphs no longer
+  point at an Ersveil rules pack; GUIDE, PACKS and the developer notes say which Ersveil is which.
+- Tests: `ersveil-pack.test.js` checks the open pack (it validates without RPG Battle, its rows, that what it kept equals
+  1.0.0, its install line, the lorebook's count and wording); the new `ersveil-rules-fixture.test.js` checks the 1.0.0 fixture.
+
 ## 2.5.2
 
 **Interface release: no rules or story state change.** Story Suite is drawn smaller by default, and two screens are tidier.
