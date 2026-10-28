@@ -1,0 +1,879 @@
+{
+  "id": "lean-rpg",
+  "version": "0.1.0",
+  "name": "Lean RPG (interim)",
+  "author": "Story Suite examples",
+  "description": "An interim character sheet made of data modules only: health, mana and stamina in words, Soul Class I to IX with XP, six stats with points to spend from the sheet, and sixteen skills that rank up with practice. Each character is attached in Settings, Tabs & Packs, Data modules. Needs Story Block and Story Director; works on its own or beside Ersveil (open world).",
+  "requires": {
+    "storyBlock": "^2.5",
+    "capabilities": [
+      "data-modules-v1",
+      "story-director"
+    ]
+  },
+  "content": {
+    "dataModules": [
+      {
+        "slug": "character",
+        "name": "Character",
+        "schema": 1,
+        "stateVersion": 1,
+        "scope": "character",
+        "state": {
+          "health": {
+            "type": "enum",
+            "values": [
+              "unhurt",
+              "grazed",
+              "hurt",
+              "wounded",
+              "badly-wounded",
+              "down"
+            ],
+            "default": "unhurt"
+          },
+          "mana": {
+            "type": "enum",
+            "values": [
+              "fresh",
+              "steady",
+              "tired",
+              "spent",
+              "empty"
+            ],
+            "default": "fresh"
+          },
+          "stamina": {
+            "type": "enum",
+            "values": [
+              "fresh",
+              "steady",
+              "tired",
+              "spent",
+              "empty"
+            ],
+            "default": "fresh"
+          },
+          "soul-class": {
+            "type": "int",
+            "min": 1,
+            "max": 9,
+            "default": 1
+          },
+          "xp": {
+            "type": "int",
+            "min": 0,
+            "max": 129,
+            "default": 0
+          },
+          "points": {
+            "type": "int",
+            "min": 0,
+            "max": 60,
+            "default": 6
+          },
+          "stats": {
+            "type": "map",
+            "keys": [
+              "str",
+              "dex",
+              "con",
+              "int",
+              "wis",
+              "cha"
+            ],
+            "values": {
+              "type": "int",
+              "min": 1,
+              "max": 20,
+              "default": 10
+            }
+          },
+          "bonus": {
+            "type": "map",
+            "keys": [
+              "str",
+              "dex",
+              "con",
+              "int",
+              "wis",
+              "cha"
+            ],
+            "values": {
+              "type": "int",
+              "min": 0,
+              "max": 10,
+              "default": 5
+            }
+          }
+        },
+        "kinds": {
+          "health": {
+            "op": "~",
+            "labels": {
+              "to": {
+                "type": "enum",
+                "values": [
+                  "unhurt",
+                  "grazed",
+                  "hurt",
+                  "wounded",
+                  "badly-wounded",
+                  "down"
+                ]
+              }
+            },
+            "effects": [
+              {
+                "op": "set",
+                "path": [
+                  "health"
+                ],
+                "value": [
+                  "arg",
+                  "to"
+                ]
+              }
+            ]
+          },
+          "mana": {
+            "op": "~",
+            "labels": {
+              "to": {
+                "type": "enum",
+                "values": [
+                  "fresh",
+                  "steady",
+                  "tired",
+                  "spent",
+                  "empty"
+                ]
+              }
+            },
+            "effects": [
+              {
+                "op": "set",
+                "path": [
+                  "mana"
+                ],
+                "value": [
+                  "arg",
+                  "to"
+                ]
+              }
+            ]
+          },
+          "stamina": {
+            "op": "~",
+            "labels": {
+              "to": {
+                "type": "enum",
+                "values": [
+                  "fresh",
+                  "steady",
+                  "tired",
+                  "spent",
+                  "empty"
+                ]
+              }
+            },
+            "effects": [
+              {
+                "op": "set",
+                "path": [
+                  "stamina"
+                ],
+                "value": [
+                  "arg",
+                  "to"
+                ]
+              }
+            ]
+          },
+          "xp": {
+            "op": "+",
+            "labels": {
+              "amount": {
+                "type": "int",
+                "min": 1,
+                "max": 30
+              }
+            },
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "xp"
+                ],
+                "value": [
+                  "arg",
+                  "amount"
+                ],
+                "bounds": "clamp"
+              }
+            ]
+          },
+          "points": {
+            "op": "+",
+            "labels": {
+              "amount": {
+                "type": "int",
+                "min": 1,
+                "max": 3
+              }
+            },
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "points"
+                ],
+                "value": [
+                  "arg",
+                  "amount"
+                ],
+                "bounds": "clamp"
+              }
+            ]
+          },
+          "raise": {
+            "op": "+",
+            "ui": true,
+            "labels": {
+              "stat": {
+                "type": "enum",
+                "values": [
+                  "str",
+                  "dex",
+                  "con",
+                  "int",
+                  "wis",
+                  "cha"
+                ]
+              },
+              "at": {
+                "type": "enum",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20
+                ]
+              }
+            },
+            "oncePerReply": [
+              "stat",
+              "at"
+            ],
+            "when": [
+              "and",
+              [
+                "eq",
+                [
+                  "arg",
+                  "at"
+                ],
+                [
+                  "get",
+                  [
+                    "stats",
+                    [
+                      "arg",
+                      "stat"
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "and",
+                [
+                  "gt",
+                  [
+                    "get",
+                    [
+                      "points"
+                    ]
+                  ],
+                  0
+                ],
+                [
+                  "lt",
+                  [
+                    "get",
+                    [
+                      "stats",
+                      [
+                        "arg",
+                        "stat"
+                      ]
+                    ]
+                  ],
+                  20
+                ]
+              ]
+            ],
+            "refusal": "No unspent points, the stat is already 20, or the sheet changed since it was drawn",
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "stats",
+                  [
+                    "arg",
+                    "stat"
+                  ]
+                ],
+                "value": 1
+              },
+              {
+                "op": "add",
+                "path": [
+                  "points"
+                ],
+                "value": -1
+              },
+              {
+                "op": "set",
+                "path": [
+                  "bonus",
+                  [
+                    "arg",
+                    "stat"
+                  ]
+                ],
+                "value": [
+                  "floorDiv",
+                  [
+                    "get",
+                    [
+                      "stats",
+                      [
+                        "arg",
+                        "stat"
+                      ]
+                    ]
+                  ],
+                  2
+                ]
+              }
+            ]
+          },
+          "lower": {
+            "op": "-",
+            "ui": true,
+            "labels": {
+              "stat": {
+                "type": "enum",
+                "values": [
+                  "str",
+                  "dex",
+                  "con",
+                  "int",
+                  "wis",
+                  "cha"
+                ]
+              },
+              "at": {
+                "type": "enum",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  17,
+                  18,
+                  19,
+                  20
+                ]
+              }
+            },
+            "oncePerReply": [
+              "stat",
+              "at"
+            ],
+            "when": [
+              "and",
+              [
+                "eq",
+                [
+                  "arg",
+                  "at"
+                ],
+                [
+                  "get",
+                  [
+                    "stats",
+                    [
+                      "arg",
+                      "stat"
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "and",
+                [
+                  "gt",
+                  [
+                    "get",
+                    [
+                      "stats",
+                      [
+                        "arg",
+                        "stat"
+                      ]
+                    ]
+                  ],
+                  1
+                ],
+                [
+                  "lt",
+                  [
+                    "get",
+                    [
+                      "points"
+                    ]
+                  ],
+                  60
+                ]
+              ]
+            ],
+            "refusal": "The stat is already 1, the points are full, or the sheet changed since it was drawn",
+            "effects": [
+              {
+                "op": "add",
+                "path": [
+                  "stats",
+                  [
+                    "arg",
+                    "stat"
+                  ]
+                ],
+                "value": -1
+              },
+              {
+                "op": "add",
+                "path": [
+                  "points"
+                ],
+                "value": 1
+              },
+              {
+                "op": "set",
+                "path": [
+                  "bonus",
+                  [
+                    "arg",
+                    "stat"
+                  ]
+                ],
+                "value": [
+                  "floorDiv",
+                  [
+                    "get",
+                    [
+                      "stats",
+                      [
+                        "arg",
+                        "stat"
+                      ]
+                    ]
+                  ],
+                  2
+                ]
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "class-up",
+            "when": [
+              "and",
+              [
+                "ge",
+                [
+                  "get",
+                  [
+                    "xp"
+                  ]
+                ],
+                100
+              ],
+              [
+                "lt",
+                [
+                  "get",
+                  [
+                    "soul-class"
+                  ]
+                ],
+                9
+              ]
+            ],
+            "then": [
+              {
+                "op": "add",
+                "path": [
+                  "soul-class"
+                ],
+                "value": 1
+              },
+              {
+                "op": "add",
+                "path": [
+                  "xp"
+                ],
+                "value": -100
+              },
+              {
+                "op": "add",
+                "path": [
+                  "points"
+                ],
+                "value": 2,
+                "bounds": "clamp"
+              }
+            ]
+          },
+          {
+            "id": "top-class",
+            "when": [
+              "and",
+              [
+                "eq",
+                [
+                  "get",
+                  [
+                    "soul-class"
+                  ]
+                ],
+                9
+              ],
+              [
+                "gt",
+                [
+                  "get",
+                  [
+                    "xp"
+                  ]
+                ],
+                100
+              ]
+            ],
+            "then": [
+              {
+                "op": "set",
+                "path": [
+                  "xp"
+                ],
+                "value": 100
+              }
+            ]
+          }
+        ],
+        "exports": {
+          "sheet": {
+            "fields": [
+              "health",
+              "mana",
+              "stamina",
+              "soul-class",
+              "xp",
+              "stats"
+            ]
+          }
+        },
+        "screens": [
+          {
+            "id": "lean-rpg-sheet",
+            "title": "Sheet",
+            "icon": "fa-user",
+            "mounts": [
+              "tab"
+            ],
+            "data": {
+              "v": {
+                "query": "dataModules.view",
+                "args": {
+                  "module": "pack.lean-rpg/character"
+                }
+              }
+            },
+            "template": "<div class=\"lr\"><p class=\"lr-note\" data-if=\"len(q.v.characters) == 0\">Attach a character: Settings, Tabs &amp; Packs, Data modules.</p><section class=\"lr-card\" data-each=\"q.v.characters as c\"><h3>{{ c.name }}</h3><p class=\"lr-class\">Soul Class <span data-if=\"c['soul-class'] == 1\">I</span><span data-if=\"c['soul-class'] == 2\">II</span><span data-if=\"c['soul-class'] == 3\">III</span><span data-if=\"c['soul-class'] == 4\">IV</span><span data-if=\"c['soul-class'] == 5\">V</span><span data-if=\"c['soul-class'] == 6\">VI</span><span data-if=\"c['soul-class'] == 7\">VII</span><span data-if=\"c['soul-class'] == 8\">VIII</span><span data-if=\"c['soul-class'] == 9\">IX</span> · XP {{ c.xp }}/100</p><p>Health: <b>{{ c.health }}</b> · Mana: <b>{{ c.mana }}</b> · Stamina: <b>{{ c.stamina }}</b></p><p>Unspent points: <b>{{ c.points }}</b></p><table class=\"lr-stats\"><tbody><tr><th>STR</th><td>{{ c.stats.str }} (+{{ c.bonus.str }})</td><td><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"raise\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"str\",\"at\":{{ c.stats.str }}}}' title=\"Spend a point on STR\">+1</button><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"lower\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"str\",\"at\":{{ c.stats.str }}}}' title=\"Take a point back from STR\">−1</button></td></tr><tr><th>DEX</th><td>{{ c.stats.dex }} (+{{ c.bonus.dex }})</td><td><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"raise\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"dex\",\"at\":{{ c.stats.dex }}}}' title=\"Spend a point on DEX\">+1</button><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"lower\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"dex\",\"at\":{{ c.stats.dex }}}}' title=\"Take a point back from DEX\">−1</button></td></tr><tr><th>CON</th><td>{{ c.stats.con }} (+{{ c.bonus.con }})</td><td><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"raise\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"con\",\"at\":{{ c.stats.con }}}}' title=\"Spend a point on CON\">+1</button><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"lower\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"con\",\"at\":{{ c.stats.con }}}}' title=\"Take a point back from CON\">−1</button></td></tr><tr><th>INT</th><td>{{ c.stats.int }} (+{{ c.bonus.int }})</td><td><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"raise\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"int\",\"at\":{{ c.stats.int }}}}' title=\"Spend a point on INT\">+1</button><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"lower\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"int\",\"at\":{{ c.stats.int }}}}' title=\"Take a point back from INT\">−1</button></td></tr><tr><th>WIS</th><td>{{ c.stats.wis }} (+{{ c.bonus.wis }})</td><td><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"raise\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"wis\",\"at\":{{ c.stats.wis }}}}' title=\"Spend a point on WIS\">+1</button><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"lower\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"wis\",\"at\":{{ c.stats.wis }}}}' title=\"Take a point back from WIS\">−1</button></td></tr><tr><th>CHA</th><td>{{ c.stats.cha }} (+{{ c.bonus.cha }})</td><td><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"raise\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"cha\",\"at\":{{ c.stats.cha }}}}' title=\"Spend a point on CHA\">+1</button><button data-command=\"dm.act\" data-payload='{\"module\":\"pack.lean-rpg/character\",\"kind\":\"lower\",\"who\":\"{{ c.id }}\",\"labels\":{\"stat\":\"cha\",\"at\":{{ c.stats.cha }}}}' title=\"Take a point back from CHA\">−1</button></td></tr></tbody></table></section></div>",
+            "css": ".lr-card{margin:0 0 1em}.lr-card h3{margin:0 0 .25em}.lr-class{font-weight:600}.lr-stats th{text-align:left;padding-right:1em}.lr-stats td{padding-right:.75em}.lr-stats button{min-width:2.5em;margin-right:.25em}.lr-note{opacity:.8}"
+          }
+        ]
+      },
+      {
+        "slug": "skills",
+        "name": "Skills",
+        "schema": 1,
+        "stateVersion": 1,
+        "scope": "character",
+        "state": {
+          "rank": {
+            "type": "map",
+            "keys": [
+              "strike",
+              "guard",
+              "iron-breath",
+              "spark",
+              "archery",
+              "stealth",
+              "tracking",
+              "survival",
+              "first-aid",
+              "monster-lore",
+              "runes",
+              "alchemy",
+              "riding",
+              "haggling",
+              "locks",
+              "listening"
+            ],
+            "values": {
+              "type": "int",
+              "min": 0,
+              "max": 3,
+              "default": 0
+            }
+          },
+          "progress": {
+            "type": "map",
+            "keys": [
+              "strike",
+              "guard",
+              "iron-breath",
+              "spark",
+              "archery",
+              "stealth",
+              "tracking",
+              "survival",
+              "first-aid",
+              "monster-lore",
+              "runes",
+              "alchemy",
+              "riding",
+              "haggling",
+              "locks",
+              "listening"
+            ],
+            "values": {
+              "type": "int",
+              "min": 0,
+              "max": 20,
+              "default": 0
+            }
+          },
+          "ranked": {
+            "type": "int",
+            "min": 0,
+            "max": 1,
+            "default": 0
+          }
+        },
+        "kinds": {
+          "practice": {
+            "op": "+",
+            "labels": {
+              "skill": {
+                "type": "enum",
+                "values": [
+                  "strike",
+                  "guard",
+                  "iron-breath",
+                  "spark",
+                  "archery",
+                  "stealth",
+                  "tracking",
+                  "survival",
+                  "first-aid",
+                  "monster-lore",
+                  "runes",
+                  "alchemy",
+                  "riding",
+                  "haggling",
+                  "locks",
+                  "listening"
+                ]
+              },
+              "xp": {
+                "type": "int",
+                "min": 1,
+                "max": 5
+              }
+            },
+            "oncePerReply": [
+              "skill"
+            ],
+            "effects": [
+              {
+                "op": "set",
+                "path": [
+                  "ranked"
+                ],
+                "value": [
+                  "min",
+                  [
+                    "floorDiv",
+                    [
+                      "add",
+                      [
+                        "get",
+                        [
+                          "progress",
+                          [
+                            "arg",
+                            "skill"
+                          ]
+                        ]
+                      ],
+                      [
+                        "arg",
+                        "xp"
+                      ]
+                    ],
+                    20
+                  ],
+                  [
+                    "sub",
+                    3,
+                    [
+                      "get",
+                      [
+                        "rank",
+                        [
+                          "arg",
+                          "skill"
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              },
+              {
+                "op": "set",
+                "path": [
+                  "progress",
+                  [
+                    "arg",
+                    "skill"
+                  ]
+                ],
+                "value": [
+                  "clamp",
+                  [
+                    "sub",
+                    [
+                      "add",
+                      [
+                        "get",
+                        [
+                          "progress",
+                          [
+                            "arg",
+                            "skill"
+                          ]
+                        ]
+                      ],
+                      [
+                        "arg",
+                        "xp"
+                      ]
+                    ],
+                    [
+                      "mul",
+                      20,
+                      [
+                        "get",
+                        [
+                          "ranked"
+                        ]
+                      ]
+                    ]
+                  ],
+                  0,
+                  20
+                ]
+              },
+              {
+                "op": "add",
+                "path": [
+                  "rank",
+                  [
+                    "arg",
+                    "skill"
+                  ]
+                ],
+                "value": [
+                  "get",
+                  [
+                    "ranked"
+                  ]
+                ],
+                "bounds": "clamp"
+              }
+            ]
+          }
+        },
+        "exports": {
+          "skills": {
+            "fields": [
+              "rank",
+              "progress"
+            ]
+          }
+        },
+        "screens": [
+          {
+            "id": "lean-rpg-skills",
+            "title": "Skills",
+            "icon": "fa-book",
+            "mounts": [
+              "tab"
+            ],
+            "data": {
+              "v": {
+                "query": "dataModules.view",
+                "args": {
+                  "module": "pack.lean-rpg/skills"
+                }
+              }
+            },
+            "template": "<div class=\"lr\"><p class=\"lr-note\" data-if=\"len(q.v.characters) == 0\">Attach a character: Settings, Tabs &amp; Packs, Data modules.</p><section class=\"lr-card\" data-each=\"q.v.characters as c\"><h3>{{ c.name }}</h3><table class=\"lr-stats\"><tbody><tr><th>Strike</th><td><span data-if=\"c.rank['strike'] == 0\">novice</span><span data-if=\"c.rank['strike'] == 1\">adept</span><span data-if=\"c.rank['strike'] == 2\">expert</span><span data-if=\"c.rank['strike'] == 3\">master</span></td><td>{{ c.progress['strike'] }}/20</td></tr><tr><th>Guard</th><td><span data-if=\"c.rank['guard'] == 0\">novice</span><span data-if=\"c.rank['guard'] == 1\">adept</span><span data-if=\"c.rank['guard'] == 2\">expert</span><span data-if=\"c.rank['guard'] == 3\">master</span></td><td>{{ c.progress['guard'] }}/20</td></tr><tr><th>Iron Breath</th><td><span data-if=\"c.rank['iron-breath'] == 0\">novice</span><span data-if=\"c.rank['iron-breath'] == 1\">adept</span><span data-if=\"c.rank['iron-breath'] == 2\">expert</span><span data-if=\"c.rank['iron-breath'] == 3\">master</span></td><td>{{ c.progress['iron-breath'] }}/20</td></tr><tr><th>Spark</th><td><span data-if=\"c.rank['spark'] == 0\">novice</span><span data-if=\"c.rank['spark'] == 1\">adept</span><span data-if=\"c.rank['spark'] == 2\">expert</span><span data-if=\"c.rank['spark'] == 3\">master</span></td><td>{{ c.progress['spark'] }}/20</td></tr><tr><th>Archery</th><td><span data-if=\"c.rank['archery'] == 0\">novice</span><span data-if=\"c.rank['archery'] == 1\">adept</span><span data-if=\"c.rank['archery'] == 2\">expert</span><span data-if=\"c.rank['archery'] == 3\">master</span></td><td>{{ c.progress['archery'] }}/20</td></tr><tr><th>Stealth</th><td><span data-if=\"c.rank['stealth'] == 0\">novice</span><span data-if=\"c.rank['stealth'] == 1\">adept</span><span data-if=\"c.rank['stealth'] == 2\">expert</span><span data-if=\"c.rank['stealth'] == 3\">master</span></td><td>{{ c.progress['stealth'] }}/20</td></tr><tr><th>Tracking</th><td><span data-if=\"c.rank['tracking'] == 0\">novice</span><span data-if=\"c.rank['tracking'] == 1\">adept</span><span data-if=\"c.rank['tracking'] == 2\">expert</span><span data-if=\"c.rank['tracking'] == 3\">master</span></td><td>{{ c.progress['tracking'] }}/20</td></tr><tr><th>Survival</th><td><span data-if=\"c.rank['survival'] == 0\">novice</span><span data-if=\"c.rank['survival'] == 1\">adept</span><span data-if=\"c.rank['survival'] == 2\">expert</span><span data-if=\"c.rank['survival'] == 3\">master</span></td><td>{{ c.progress['survival'] }}/20</td></tr><tr><th>First Aid</th><td><span data-if=\"c.rank['first-aid'] == 0\">novice</span><span data-if=\"c.rank['first-aid'] == 1\">adept</span><span data-if=\"c.rank['first-aid'] == 2\">expert</span><span data-if=\"c.rank['first-aid'] == 3\">master</span></td><td>{{ c.progress['first-aid'] }}/20</td></tr><tr><th>Monster Lore</th><td><span data-if=\"c.rank['monster-lore'] == 0\">novice</span><span data-if=\"c.rank['monster-lore'] == 1\">adept</span><span data-if=\"c.rank['monster-lore'] == 2\">expert</span><span data-if=\"c.rank['monster-lore'] == 3\">master</span></td><td>{{ c.progress['monster-lore'] }}/20</td></tr><tr><th>Runes</th><td><span data-if=\"c.rank['runes'] == 0\">novice</span><span data-if=\"c.rank['runes'] == 1\">adept</span><span data-if=\"c.rank['runes'] == 2\">expert</span><span data-if=\"c.rank['runes'] == 3\">master</span></td><td>{{ c.progress['runes'] }}/20</td></tr><tr><th>Alchemy</th><td><span data-if=\"c.rank['alchemy'] == 0\">novice</span><span data-if=\"c.rank['alchemy'] == 1\">adept</span><span data-if=\"c.rank['alchemy'] == 2\">expert</span><span data-if=\"c.rank['alchemy'] == 3\">master</span></td><td>{{ c.progress['alchemy'] }}/20</td></tr><tr><th>Riding</th><td><span data-if=\"c.rank['riding'] == 0\">novice</span><span data-if=\"c.rank['riding'] == 1\">adept</span><span data-if=\"c.rank['riding'] == 2\">expert</span><span data-if=\"c.rank['riding'] == 3\">master</span></td><td>{{ c.progress['riding'] }}/20</td></tr><tr><th>Haggling</th><td><span data-if=\"c.rank['haggling'] == 0\">novice</span><span data-if=\"c.rank['haggling'] == 1\">adept</span><span data-if=\"c.rank['haggling'] == 2\">expert</span><span data-if=\"c.rank['haggling'] == 3\">master</span></td><td>{{ c.progress['haggling'] }}/20</td></tr><tr><th>Locks</th><td><span data-if=\"c.rank['locks'] == 0\">novice</span><span data-if=\"c.rank['locks'] == 1\">adept</span><span data-if=\"c.rank['locks'] == 2\">expert</span><span data-if=\"c.rank['locks'] == 3\">master</span></td><td>{{ c.progress['locks'] }}/20</td></tr><tr><th>Listening</th><td><span data-if=\"c.rank['listening'] == 0\">novice</span><span data-if=\"c.rank['listening'] == 1\">adept</span><span data-if=\"c.rank['listening'] == 2\">expert</span><span data-if=\"c.rank['listening'] == 3\">master</span></td><td>{{ c.progress['listening'] }}/20</td></tr></tbody></table></section></div>",
+            "css": ".lr-card{margin:0 0 1em}.lr-card h3{margin:0 0 .25em}.lr-class{font-weight:600}.lr-stats th{text-align:left;padding-right:1em}.lr-stats td{padding-right:.75em}.lr-stats button{min-width:2.5em;margin-right:.25em}.lr-note{opacity:.8}"
+          }
+        ]
+      }
+    ]
+  }
+}
