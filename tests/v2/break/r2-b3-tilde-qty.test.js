@@ -8,6 +8,7 @@ import { coreHost, qtyOf, reply } from './helpers/econ.js';
 
 test('"~ item … | qty:" cannot raise a count past what one reply may give', async () => {
     const host = await coreHost();
+    host.settings.set('story-block', 'storyCoinPerReply', 1000);
     try {
         await host.send('A torch.', reply('One torch.', ['+ item Torch']));
         await host.send('More.', reply('The crate was full.', ['~ item Torch | qty: 9999']));

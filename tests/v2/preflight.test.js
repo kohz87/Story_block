@@ -6,10 +6,12 @@ import assert from 'node:assert/strict';
 
 import { createHost } from '../../testkit/index.js';
 import { INIT_PREFIX, createRegistry } from '../../src/v2/registry.js';
-import { PREFLIGHT_CLASSES, SUITE_MODULES, createSdk, preflight } from '../../src/v2/sdk.js';
+import { PREFLIGHT_CLASSES, createSdk, preflight } from '../../src/v2/sdk.js';
 
 const PEER = 'story-director';
-const RB = { module: 'rpg-battle', rulesVersion: 2 };
+const DOMAINS = ['party', 'effects', 'creation', 'gear', 'combat', 'bestiary', 'trade', 'craft', 'rules', 'progress', 'training', 'death'];
+const RB = { module: 'sample-module', domains: DOMAINS, peers: [PEER], rulesVersion: 2 };
+const unversioned = { module: 'sample-module', domains: DOMAINS, peers: [PEER] };
 const mark = (rulesVersion, rulesHash = 'h-1') => ({ rulesVersion, rulesHash });
 
 // A chat as a seed module left it: its domains' initial slices, one reply saved.
@@ -68,7 +70,7 @@ test('current: the rules slice carries the generation asked for; other slices ar
     // Slices that repeat the mark agree with it.
     assert.equal((await read(await chatWith({ rules: { ...mark(2) }, party: { ...mark(2) }, combat: { ...mark(2) } }))).classification, 'current');
     // No generation asked: the rules slice's mark is read the same way.
-    const unasked = await read(await chatWith({ rules: { ...mark(2) }, party: { actors: {} } }), { module: 'rpg-battle' });
+    const unasked = await read(await chatWith({ rules: { ...mark(2) }, party: { actors: {} } }), unversioned);
     assert.deepEqual([unasked.classification, unasked.rulesVersion], ['current', 2]);
     // A module with no rules domain has no mark to look for: its slices are current.
     const plain = await read(await chatWith({ craft: { n: 1 } }), { module: 'someone-else', domains: ['craft'] });
@@ -80,7 +82,7 @@ test('legacy: the old party with no marked rules slice is legacy, never current 
     assert.equal(old.classification, 'legacy');
     assert.deepEqual([old.domains, old.rulesVersion, old.rulesHash], [['party', 'combat'], null, null]);
     // Asking for no generation changes nothing: unmarked slices are legacy.
-    assert.equal((await read(await chatWith({ party: { actors: {} } }), { module: 'rpg-battle' })).classification, 'legacy');
+    assert.equal((await read(await chatWith({ party: { actors: {} } }), unversioned)).classification, 'legacy');
     // A marked party is not a marked rules slice; a rules slice with no mark is none.
     assert.equal((await read(await chatWith({ party: { ...mark(2), actors: {} } }))).classification, 'legacy');
     assert.equal((await read(await chatWith({ rules: { classes: [] }, party: {} }))).classification, 'legacy');
@@ -96,7 +98,7 @@ test('mixed: another slice carries a mark that disagrees with the rules slice', 
     assert.deepEqual([twoHashes.classification, twoHashes.rulesHash], ['mixed', 'h-1']);
     const above = await read(await chatWith({ rules: { ...mark(2) }, party: { ...mark(3) } }));
     assert.equal(above.classification, 'mixed');
-    assert.equal((await read(await chatWith({ rules: { ...mark(1) }, party: { ...mark(2) } }), { module: 'rpg-battle' })).classification, 'mixed', 'also with no generation asked');
+    assert.equal((await read(await chatWith({ rules: { ...mark(1) }, party: { ...mark(2) } }), unversioned)).classification, 'mixed', 'also with no generation asked');
 });
 
 test('future: the rules mark above the one asked, and a newer store record', async () => {
@@ -191,23 +193,22 @@ test('peers: version and whether each is enabled; restore is the barrier\'s stat
     assert.equal(host.sdk.preflight(RB).restore, 'failed');
     host.registry.setRestore('idle');
     assert.equal(host.sdk.preflight(RB).restore, 'idle');
-    assert.deepEqual(SUITE_MODULES['rpg-battle'].peers, [PEER]);
     host.close();
 });
 
 test('the inputs are checked: a bad call throws, it does not say empty', async () => {
     const host = await createHost();
-    for (const bad of [undefined, null, 'rpg-battle', {}, { module: '' }, { module: 'Bad Id' }, { module: 7 }]) {
+    for (const bad of [undefined, null, 'sample-module', {}, { module: '' }, { module: 'Bad Id' }, { module: 7 }]) {
         assert.throws(() => host.sdk.preflight(bad), TypeError, JSON.stringify(bad));
     }
-    for (const rulesVersion of [0, -1, 1.5, '2', NaN]) assert.throws(() => host.sdk.preflight({ module: 'rpg-battle', rulesVersion }), TypeError, String(rulesVersion));
+    for (const rulesVersion of [0, -1, 1.5, '2', NaN]) assert.throws(() => host.sdk.preflight({ module: 'sample-module', rulesVersion }), TypeError, String(rulesVersion));
     // A list that is given is a list of valid names: nothing is dropped quietly, which would read as empty.
     for (const domains of ['party', {}, 5, ['Party'], ['bad name'], ['party', 7], [null], ['a/b']]) assert.throws(() => host.sdk.preflight({ module: 'zzz', domains }), TypeError, JSON.stringify(domains));
     for (const peers of ['story-director', {}, 5, ['Story Director'], [3], ['']]) assert.throws(() => host.sdk.preflight({ module: 'zzz', peers }), TypeError, JSON.stringify(peers));
     assert.doesNotThrow(() => host.sdk.preflight({ module: 'zzz', domains: [], peers: [] }));
     assert.doesNotThrow(() => host.sdk.preflight({ module: 'zzz', domains: null, peers: undefined }));
-    assert.doesNotThrow(() => host.sdk.preflight({ module: 'rpg-battle', rulesVersion: null }));
-    assert.doesNotThrow(() => host.sdk.preflight({ module: 'rpg-battle' }));
+    assert.doesNotThrow(() => host.sdk.preflight({ module: 'sample-module', rulesVersion: null }));
+    assert.doesNotThrow(() => host.sdk.preflight(unversioned));
     host.close();
 });
 
@@ -216,7 +217,7 @@ test('available before registration, and before the host is marked ready', () =>
     const { sdk } = createSdk({ store: { head: () => null, headIndex: () => -1 }, bus: {}, registry, settings: () => ({}) });
     assert.equal(typeof sdk.preflight, 'function');
     assert.equal(sdk.preflight(RB).classification, 'empty');
-    assert.equal(registry.has('rpg-battle'), false);
+    assert.equal(registry.has('sample-module'), false);
 });
 
 test('read-only: for every kind of store nothing is written, set up, repaired or saved', async () => {
@@ -264,12 +265,12 @@ test('an old party is untouched before registration, and registering a ready mod
     // The module registers (its peer is there): it sets up the slices the chat lacks and leaves the party.
     await host.sdk.registerModule({ id: PEER, name: 'Story Director', version: '2.0.0-beta.2' });
     await host.sdk.registerModule({
-        id: 'rpg-battle', name: 'RPG Battle', version: '2.0.0-beta.2', requires: { peers: { [PEER]: '^2' } },
+        id: 'sample-module', name: 'Sample module', version: '2.0.0-beta.2', requires: { peers: { [PEER]: '^2' } },
         domains: { party: { initial: () => ({ actors: {} }) }, effects: { initial: () => ({ list: {} }) }, rules: { initial: () => ({ ...mark(2), classes: [] }) } },
     });
     assert.deepEqual(host.head().domains.party, before, 'the old party is as it was');
     assert.ok(host.head().domains.effects, 'the missing slices are added');
-    const init = host.sdk.receipts().map(entry => entry.receipt).filter(receipt => receipt.type === `${INIT_PREFIX}rpg-battle`);
+    const init = host.sdk.receipts().map(entry => entry.receipt).filter(receipt => receipt.type === `${INIT_PREFIX}sample-module`);
     assert.deepEqual(init.map(receipt => receipt.data.domains), [['effects', 'rules']]);
     // The host does not stop it: the module asks first (above) and does not register on a legacy chat. Once its
     // rules slice is there the chat reads as current.
