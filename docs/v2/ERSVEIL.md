@@ -37,8 +37,10 @@ SillyTavern profile. With RPG Battle installed the pack still loads, but RPG Bat
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-Importing 2.0.0 replaces an installed Ersveil 1.0.0 (same id `ersveil`). Chats already started on 1.0.0,
-or on the old Bluewatch Starter, keep their pinned copy and play on unchanged.
+Importing 2.0.0 replaces an installed Ersveil 1.0.0 (same id `ersveil`). A chat started on 1.0.0 keeps its pinned
+rules, but it reads the installed pack for the rest, so after the import its shops, markets and price scale are gone.
+Start new chats for 2.0.0; to go on playing a 1.0.0 chat, keep 1.0.0 installed instead (it is in
+`tests/v2/packs/fixtures/ersveil-1.0.0.json`).
 
 ## 3. Import the lorebook
 
@@ -85,8 +87,8 @@ Once a module is enabled the narrator is told its `dm …` lines; a refused line
   narrator names, a beast from the lore's bestiary. Code still counts the bag and the purse.
 * **Map.** Story Director's Map and Region list show the 320 places; the story moves you with
   `~ place Bluewatch Village`. Places are kept as their names, routes give the distances.
-* **Events.** Seven world events (the Guild board at Bluewatch, the signal braziers, the Turning each
-  winter, the Ghost Fleet, the Wailing Battlefield). **Settings → Diagnostics → Events** lists them.
+* **Events.** Seven world events (the Guild board at Bluewatch, the signal braziers on the first evening, the Turning in
+  the winters of CY 611–613, the Ghost Fleet, the Wailing Battlefield). **Settings → Diagnostics → Events** lists them.
 
 ## 7. Updating the pack
 

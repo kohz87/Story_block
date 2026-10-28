@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { checkPack, report } from '../../../authoring-kit/check.mjs';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { findPackEntries } from '../../../src/v2/packs/lorebook.js';
+import { evaluateCondition } from '../../../src/v2/events/condition.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const packPath = new URL('../../../examples/packs/ersveil/pack.json', import.meta.url);
@@ -64,10 +65,14 @@ test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weat
     assert.deepEqual(value.start.inventory, { money: 40 }, 'four silver and no pack items');
     assert.deepEqual(value.calendar.start, { year: 611, month: 'Goldwane', day: 12, hour: 6, minute: 40 });
     assert.deepEqual(value.content.dataModules.map(module => module.slug), ['standing', 'fame', 'guild-membership']);
-    // The map, the calendar, the weather, the events and the data modules are the 1.0.0 fixture's, unchanged but for the places' market types.
+    // The map, the calendar, the weather, the events and the data modules are the 1.0.0 fixture's, unchanged but for the places'
+    // market types and the signal braziers' closing time (20:00 on the first evening).
     const before = JSON.parse(readFileSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url), 'utf8'));
     for (const key of ['currency', 'calendar', 'weather']) assert.deepEqual(value[key], before[key], key);
-    for (const kind of ['routes', 'events', 'dataModules']) assert.deepEqual(value.content[kind], before.content[kind], kind);
+    const closed = event => (event.id === 'bluewatch-signal-braziers'
+        ? { ...event, when: event.when.replace(' && time() < 316932240', '') } : event);
+    for (const kind of ['routes', 'dataModules']) assert.deepEqual(value.content[kind], before.content[kind], kind);
+    assert.deepEqual(value.content.events.map(closed), before.content.events, 'events');
     assert.deepEqual(value.content.places, before.content.places.map(({ market, ...rest }) => rest));
 });
 
@@ -115,4 +120,20 @@ test('the lorebook is written for the open world: no RPG Battle wording, classes
     assert.equal(callings.split('\n').filter(line => line.startsWith('- ')).length, 13, 'the thirteen class lines, as lore');
     assert.ok(callings.length < 1600, 'one lean entry');
     assert.match(byTitle('Peoples of Ersveil'), /Ten sapient peoples/);
+});
+
+test('the signal braziers fire only on the first evening at Bluewatch, not the next morning', () => {
+    const pack = JSON.parse(packText);
+    const event = pack.content.events.find(e => e.id === 'bluewatch-signal-braziers');
+    const at = minutes => ({
+        state: { domains: { director: { time: { minutes } } } },
+        query: name => (name === 'scene.place' ? { name: 'Bluewatch Village', region: 'River Confederacy: Bluewatch' } : null),
+    });
+    const met = minutes => evaluateCondition(event.when, at(minutes)).met;
+    assert.equal(met(316932159), false, 'before 18:40 on Goldwane 12');
+    assert.equal(met(316932160), true, 'at 18:40');
+    assert.equal(met(316932239), true, 'before 20:00');
+    assert.equal(met(316932240), false, 'at 20:00');
+    assert.equal(met(316932160 + 680), false, 'Goldwane 13, 06:00');
+    assert.equal(met(316932160 + 1040), false, 'Goldwane 13, 12:00');
 });

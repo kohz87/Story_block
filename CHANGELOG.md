@@ -21,7 +21,10 @@ and Story Director, with no RPG Battle.
   as lore. No item or shop lists.
 - **Ersveil 1.0.0 moved to the test fixtures** (`tests/v2/packs/fixtures/ersveil-1.0.0.json`, byte for byte), beside
   Bluewatch 1.6.0. The rules tests and the kit's checker test read it there. Importing 2.0.0 replaces an installed 1.0.0 (same
-  id); chats started on 1.0.0 keep their pinned copy and play on unchanged.
+  id): a chat started on 1.0.0 keeps its pinned rules but loses the pack's shops, markets and price scale, so start new chats
+  for 2.0.0, or keep 1.0.0 installed to go on playing an old one.
+- **The signal braziers event** at Bluewatch now only fires on the first evening (18:40 to 20:00 on Goldwane 12), not the next
+  morning when you were away at dusk.
 - Docs: `docs/v2/ERSVEIL.md` is rewritten (short) for the open world; the README's install and Packs paragraphs no longer
   point at an Ersveil rules pack; GUIDE, PACKS and the developer notes say which Ersveil is which.
 - Tests: `ersveil-pack.test.js` checks the open pack (it validates without RPG Battle, its rows, that what it kept equals
