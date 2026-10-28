@@ -1,6 +1,6 @@
-# Story Block 2.5.2
+# Story Block 2.5.3
 
-> Story Block 2.5.2 and RPG Battle 2.3.0 (they ship together); Story Director 2.1.1 (2.5.2 needs it: an older Map draws places in the wrong spot); NPC State Delta 1.3.0.
+> Story Block 2.5.3 and RPG Battle 2.3.0; Story Director 2.1.1 (Story Block 2.5.2 and later need it: an older Map draws places in the wrong spot); NPC State Delta 1.3.0.
 
 ## What it is
 
@@ -23,8 +23,9 @@ Tested with **SillyTavern 1.19**. In **Extensions → Install extension**, insta
 3. [RPG Battle](https://github.com/kohz87/rpg_battle)
 4. [NPC State Delta](https://github.com/kohz87/npc_state_delta)
 
-To start with the bundled **Ersveil 1.6.0** rules pack, open a fresh chat and follow **Setup → Pin Ersveil Rules → Create**,
-then choose your character's options. Existing chats load and rebuild unchanged; legacy chats stay unpinned.
+To start with the bundled **Ersveil 2.0.0** open-world pack, import `examples/packs/ersveil/pack.json` in **Settings → Tabs &
+Packs → Import pack file**, then open a fresh chat. It needs only Story Block and Story Director, no RPG Battle;
+[ERSVEIL.md](docs/v2/ERSVEIL.md) has the lorebook and the rest. Existing chats keep the pack they began with.
 
 Report bugs in [this repo's Issues](https://github.com/kohz87/Story_block/issues), with steps to reproduce.
 
@@ -70,9 +71,11 @@ is off is gone from the story; nothing it made is lost.
   Chronicle, other extensions' tabs, Director, and **Dossiers last**. Only installed extensions show. Move, hide or
   show them in Settings → **Tabs & Packs**.
 - **Packs** (Settings → Tabs & Packs): import a world pack (items, races, places, shops, recipes, events, ranks, calendar, weather…).
-  The bundled example is **Ersveil 1.0.0** (`examples/packs/ersveil/pack.json`): the whole world (320 places, 350 routes, 13 class
-  lines from one shared start), 49 open quest templates and 13 open trainer templates for generative offers, and three data
-  modules. Its lean lorebook is `examples/packs/ersveil/ersveil-lore.json`. It needs RPG Battle 2.3.0; [ERSVEIL.md](docs/v2/ERSVEIL.md) is the walk-through.
+  The bundled example is **Ersveil 2.0.0, the open world** (`examples/packs/ersveil/pack.json`): the map (320 places, 350 routes),
+  the calendar, the weather, world events and three data modules (standing, fame, Guild membership), for Story Block and
+  Story Director with **no RPG Battle**. It lists no items, shops, prices or foes: the story makes them up from the lore. Its lean
+  lorebook is `examples/packs/ersveil/ersveil-lore.json`; [ERSVEIL.md](docs/v2/ERSVEIL.md) is the walk-through. (Ersveil 1.0.0, with
+  RPG Battle's rules, is now a test fixture.)
 - **Settings → Diagnostics:** a report to paste into a bug report (no keys, no chat text), a **Model calls** line
   with the queue, and **Events**, a folded list of the packs' events and their conditions. Events can spoil the
   story, so it sits here.

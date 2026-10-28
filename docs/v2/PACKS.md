@@ -9,8 +9,9 @@ JSON file of plain data. Nothing in a pack runs as code. This page is the refere
 make packs; the contract behind it is [SPEC.md §9 and §13](SPEC.md) and [MODULES.md §E and §F](MODULES.md).
 
 A complete small example is [`examples/packs/riverside-starter/pack.json`](../../examples/packs/riverside-starter/pack.json);
-a large one, with a map, a calendar, a rules manifest and data modules, is the Ersveil example pack
-[`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json) ([ERSVEIL.md](ERSVEIL.md)).
+a large one, with a map, a calendar, weather, events and data modules and no rules (an open world), is the Ersveil example
+pack [`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json) ([ERSVEIL.md](ERSVEIL.md)). A large rules
+pack is the test fixture `tests/v2/packs/fixtures/ersveil-1.0.0.json` (Ersveil 1.0.0, for RPG Battle 2.3.0).
 
 ## Installing
 
@@ -503,7 +504,7 @@ by `src/v2/packs/rules-v2.js`; this page only says how Story Block's loader trea
   `aliases`, `offerWords`, `promotionMastery`, a rank's `xp`) needs RPG Battle 2.3.0; the two ship together. With RPG Battle
   2.2.0, opening an open quest template that carries count bounds or an `offerType` fails ("Invalid Quest extension"), and the
   other fields are ignored. Such a pack should require `"storyBlock": "^2.5"`. Packs that write none of them work with both
-  (the bundled Ersveil 1.0.0 writes them all and needs RPG Battle 2.3.0).
+  (the Ersveil 1.0.0 fixture writes them all and needs RPG Battle 2.3.0).
 * **Stored form.** The manifest becomes a record like any other, `pack.<id>/rules` with `slug` and `pack`; the host's
   `id`, `slug` and `pack` sit beside the manifest, not in it. Nested slugs are written as full IDs (`pack.<id>/<slug>`);
   creatures, quests, shops and recipes are kept as the checker resolved them (references as full IDs, a recipe's
@@ -604,7 +605,7 @@ scale says how many of its coins one of those defaults' coins is worth:
 The first enabled pack that has an `economy` sets it; scales aren't mixed. The reader can override it in
 Story Block's settings (**Money scale**, 0 or blank: the pack's). Modules read the result with the query
 `inventory.economy` → `{ scale, source: 'pack' | 'settings' | 'default' }`. Lorebooks carry flavour for the
-model only, never numbers code uses. Ersveil sets `scale: 8`: it counts in copper, small coin, and its F jobs top
+model only, never numbers code uses. The Bluewatch rules pack (a test fixture) sets `scale: 8`: it counts in copper, small coin, and its F jobs top
 out at 400 copper where the built-in F rank tops out at 50. (A world counting in copper where the built-in
 defaults are gold coins would say 100: a scale above 1 for a smaller coin, below 1 for a bigger one.)
 
@@ -613,7 +614,8 @@ defaults are gold coins would say 100: a scale above 1 for a smaller coin, below
 Item values, shop prices, rewards and the start purse are all whole numbers of the chat's **one**
 currency (MODULES §F1), so they have to be on one scale. Code compares them: RPG Battle sells and buys by
 value, Story Director holds a reward inside its rank's range, and inventory caps how much a reply can
-hand out by worth. An item that's worth fifty jobs breaks all three. Anchor the scale like this:
+hand out by worth. An item that's worth fifty jobs breaks all three. Anchor the scale like this (the Ersveil numbers are the Bluewatch rules
+fixture's; the open-world Ersveil 2.0.0 writes no prices):
 
 1. **Pick the smallest coin as 1.** Ersveil: copper is 1, silver 10, gold 100 (its `currency.coins`).
 2. **Everyday goods and gear keep the world's prices.** Bread, a meal, a bunk, rope, a spear and a
@@ -635,7 +637,7 @@ hand out by worth. An item that's worth fifty jobs breaks all three. Anchor the 
 9. **Event payouts are small.** An event's `wallet.receive` is a tip, not a job: at most the lowest
    rank's lowest reward.
 
-The Ersveil pack's tests (`tests/v2/packs/ersveil-values.test.js`) check its own numbers against these
+The Bluewatch fixture's tests (`tests/v2/packs/ersveil-values.test.js`) check its own numbers against these
 rules, and are a model for a pack's own checks.
 
 ## Calendar

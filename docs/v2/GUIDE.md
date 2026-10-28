@@ -283,8 +283,8 @@ back with story time*.
 
 ### Ranks, foes and companions
 
-Your character has a **rank** from their level: F to S by default, or the pack's own ladder (Ersveil's
-runs from F Registered to S Legend). Quests and the money a reply may give follow it.
+Your character has a **rank** from their level: F to S by default, or the pack's own ladder (Ersveil 1.0.0's
+ran from F Registered to S Legend). Quests and the money a reply may give follow it.
 
 **Your world's words.** One game says XP and Level, another Soul Growth and Soul Class; one ranks F to
 SSS, another Soul Class I to IX. Set them in RPG Battle's settings, under **Terms**: the **XP word**, the
@@ -522,8 +522,8 @@ How much things cost and how much the story may pay come from the **pack**, not 
   paid and the rest stay Ready for the next reply. A pack's own quests pay the reward the pack sets,
   outside this limit.
 * **Prices.** Each item in the pack has a value. Shops sell and buy by it.
-* **Money scale.** A pack can say how big its coin is next to the built-in amounts. Ersveil counts in
-  copper, small coin, so its scale is 8. The scale only changes the built-in numbers (the default rank ladder,
+* **Money scale.** A pack can say how big its coin is next to the built-in amounts. Ersveil's rules packs
+  (before the 2.0.0 open world) counted in copper, small coin, so their scale was 8. The scale only changes the built-in numbers (the default rank ladder,
   1000 per level), never the numbers the pack writes itself.
 * **Your own numbers.** In Story Block's settings, **Money one reply may give** replaces the budget
   from the ranks, and **Money scale** replaces the pack's scale (100 for a world that counts in
@@ -531,8 +531,8 @@ How much things cost and how much the story may pay come from the **pack**, not 
 * **Lorebooks** only give flavour to the model (what a coin looks like, who mints it). They never set
   prices or rewards. Keep the lorebook's money words close to the pack's coins so the story sounds right.
 
-Ersveil, for example, pays 50 to 400 copper (5 silver to 4 gold) for an F-rank job, so one reply may give
-at most 4 gold while your character is in that rank. A minor healing draught there is worth 3 silver.
+The Bluewatch rules pack, for example, paid 50 to 400 copper (5 silver to 4 gold) for an F-rank job, so one reply may give
+at most 4 gold while your character was in that rank. A minor healing draught there was worth 3 silver.
 
 **Key items.** Now and then the story hands you something special, worth more than one reply may
 normally give: the potion an old man presses into your hand, a sealed letter, a family blade. One reply
@@ -665,16 +665,16 @@ look for the screens. Packs are data only; nothing in them can run code.
 You can switch a pack off or remove it at any time (Remove asks first). A story already told keeps what it got from the
 pack. Each pack in the list says what it adds: its items and creatures, a currency, a calendar, weather tables, screens.
 
-**Trying Ersveil.** Story Block comes with the Ersveil example pack
+**Trying Ersveil.** Story Block comes with the Ersveil example pack 2.0.0, an open world
 (`examples/packs/ersveil/pack.json` in Story Block's folder, with its lorebook `ersveil-lore.json` beside it). Import the
 pack with **Import pack file** in the Packs section, like any pack, and the lorebook in SillyTavern's World Info. Switch off
-other packs that set a start or a currency. It needs RPG Battle 2.3.0. [ERSVEIL.md](ERSVEIL.md) walks through the rest:
-the lorebook, character creation, the start, currency, jobs and teachers, and the three data modules.
+other packs that set a start or a currency. It needs Story Director, not RPG Battle: the map, the calendar, the weather,
+events and three data modules are the pack's; items, shops, prices and foes are the story's. [ERSVEIL.md](ERSVEIL.md) walks through the rest.
 
 **Teachers you meet on the road.** A pack can list trainer *templates*: kinds of teaching (blade drills, hedge-magic
 lessons) with no place of their own. With RPG Battle 2.2.0 the story can introduce one wherever you are, and in
 RPG Battle's **Progress** screen you can use **Make this a trainer** on someone who is here. The fee is picked once from
-the template's range and written down with the teacher, who stays where they were met. Ersveil 1.0.0 has thirteen templates;
+the template's range and written down with the teacher, who stays where they were met. The Ersveil 1.0.0 rules pack (a test fixture since 2.5.3) had thirteen templates;
 a chat started on an earlier version of the pack (or on the old Bluewatch pack) keeps the pack it began with, so start a new character timeline to get them.
 
 ## Settings
