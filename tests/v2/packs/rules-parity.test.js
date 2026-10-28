@@ -21,9 +21,10 @@ const SLOTS = ['weapon', 'offhand', 'head', 'body', 'legs', 'feet', 'accessory-1
 /** Both ways in, for one pack. */
 const both = pack => ({ host: validatePack(clone(pack), { capabilities: null }), alone: R.validateRulesPack(clone(pack)) });
 
-/** Where a pack on file lives: the examples, and Bluewatch 1.6.0 (the old example pack) among the test fixtures. */
-const packUrl = name => name === 'ersveil-bluewatch'
-    ? new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)
+/** Where a pack on file lives: the examples, and among the test fixtures Bluewatch 1.6.0 and Ersveil 1.0.0 (the old example packs, with RPG Battle rules). */
+const FIXTURES = { 'ersveil-bluewatch': 'ersveil-bluewatch-1.6.0.json', 'ersveil-1.0.0': 'ersveil-1.0.0.json' };
+const packUrl = name => FIXTURES[name]
+    ? new URL(`./fixtures/${FIXTURES[name]}`, import.meta.url)
     : new URL(`../../../examples/packs/${name}/pack.json`, import.meta.url);
 
 /** A shipped example with a rules manifest added: the example's own items and places (no slug written), a rule for each item. */
@@ -61,15 +62,15 @@ test('the riverside example and the Bluewatch fixture plus a manifest are accept
     }
 });
 
-test('the Ersveil example, which writes its item slugs and derives its place slugs, plus a manifest is accepted by the host and the checker alone with the same ids', () => {
-    const pack = exampleWithManifest('ersveil');
+test('the Ersveil 1.0.0 fixture, which writes its item slugs and derives its place slugs, plus a manifest is accepted by the host and the checker alone with the same ids', () => {
+    const pack = exampleWithManifest('ersveil-1.0.0');
     assert.ok((pack.content.items ?? []).length > 0 && (pack.content.places ?? []).length > 0);
     assert.ok(pack.content.items.every(item => item.slug !== undefined), 'Ersveil writes its item slugs out');
     assert.ok(pack.content.places.every(place => place.slug === undefined), 'Ersveil leaves its place slugs to be derived');
     const { host, alone } = both(pack);
     assert.equal(host.ok, true, `through the host: ${JSON.stringify(codes(host))}`);
     assert.equal(alone.ok, true, `alone: ${JSON.stringify(codes(alone))}`);
-    const plain = validatePack(JSON.parse(readFileSync(packUrl('ersveil'), 'utf8')), { capabilities: null });
+    const plain = validatePack(JSON.parse(readFileSync(packUrl('ersveil-1.0.0'), 'utf8')), { capabilities: null });
     assert.deepEqual(host.pack.content.items.map(item => item.id), plain.pack.content.items.map(item => item.id));
     assert.deepEqual(host.pack.content.places.map(place => place.id), plain.pack.content.places.map(place => place.id));
     assert.deepEqual(alone.pack.content.items.map(item => item.slug), pack.content.items.map(item => item.slug));

@@ -33,8 +33,8 @@ function packsOnFile() {
     const out = [];
     const examples = new URL('../../../examples/packs/', import.meta.url);
     for (const name of readdirSync(examples)) out.push([`examples/packs/${name}`, JSON.parse(readFileSync(new URL(`${name}/pack.json`, examples), 'utf8'))]);
-    // Bluewatch 1.6.0, the old example pack, is kept as a test fixture and still compared.
-    out.push(['fixtures/ersveil-bluewatch-1.6.0.json', JSON.parse(readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8'))]);
+    // Bluewatch 1.6.0 and Ersveil 1.0.0, the old example packs, are kept as test fixtures and still compared.
+    for (const file of ['ersveil-bluewatch-1.6.0.json', 'ersveil-1.0.0.json']) out.push([`fixtures/${file}`, JSON.parse(readFileSync(new URL(`./fixtures/${file}`, import.meta.url), 'utf8'))]);
     out.push(['helpers sample', sample()]);
     for (const name of readdirSync(fixtureDir).filter(file => file.endsWith('.json'))) {
         const pack = JSON.parse(readFileSync(new URL(name, fixtureDir), 'utf8'));
@@ -65,8 +65,8 @@ test('old packs are unchanged: every pack on file validates to exactly what the 
             assert.deepEqual(got, expected, name);
         }
     }
-    // Also as text, and for the shipped examples (and the Bluewatch fixture) without options.
-    for (const [name, pack] of found.filter(([name]) => name.startsWith('examples/') || name === 'fixtures/ersveil-bluewatch-1.6.0.json')) {
+    // Also as text, and for the shipped examples (and the two old example fixtures) without options.
+    for (const [name, pack] of found.filter(([name]) => name.startsWith('examples/') || /^fixtures\/ersveil-[^/]+\.json$/.test(name))) {
         // Rules and data-module examples use kinds the old validator refused.
         if (pack.content?.rules || pack.content?.dataModules) assert.equal(oldValidatePack(JSON.stringify(pack)).ok, false, name);
         else assert.deepEqual(validatePack(JSON.stringify(pack)), oldValidatePack(JSON.stringify(pack)), name);
