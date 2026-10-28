@@ -9,10 +9,11 @@
   message box keep their size. The game view's and the story panel's windows keep their size too; what is inside them is smaller.
   Every screen inside follows, the modules' and the packs' included (CSS `zoom` on Story Suite's roots, `view/size.css`).
 - **Phones and touch screens keep 44px targets**: every button, tab, field and list inside Story Suite is at least 44 × 44 px on
-  the screen; the on/off switches keep their look and get a 44px tap area, a checkbox or radio is pressed through its 44 × 44
-  label (one with no label gets a 44px tap area in room of its own), sliders are 44px tall round their thin track, and a link in
-  running text is a 44 × 44 box of its own (the line grows where one sits). No tap area reaches over a neighbour's. A search box
-  keeps its 44px clear button clear of the typed text. In the settings window on a phone, Close no
+  the screen, fields 44px wide as well as tall (a colour well, a short select); the on/off switches keep their look and get a 44px
+  tap area, a checkbox or radio is pressed through its 44 × 44 label however deep it sits in it (one with no label gets a 44px tap
+  area in room of its own), sliders are 44px tall round their thin track, and every link, whatever its parent or role, and every
+  text element acting as a button or tab is a 44 × 44 box of its own (the line grows where one sits). No tap area reaches over a
+  neighbour's. A search box keeps its 44px clear button clear of the typed text. In the settings window on a phone, Close no
   longer covers the search box. The UI sample's dialog follows the new size too.
 - **The card header under a reply is one line on a phone**: the summary on the right ends in "…" instead of wrapping.
 - **Inventory: the actions sit beside the name**, on the right of the row and centred on it, on a desktop and on a phone. More

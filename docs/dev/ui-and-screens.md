@@ -543,10 +543,13 @@ their states, the plates, the class-level exceptions and their specificity), `te
   lines, whose SVG viewBox is the measured box).
 - A phone or a touch screen (`(max-width: 759.98px), (pointer: coarse)`): every button, tab, link, summary and field inside a root is
   at least 44px on the screen (`!important`, over screens' own 36–40px minimums; `role="button"` elements too, a text one such as a
-  module's "more" as a 44px inline block). A switch keeps its look with a 44px `::after` tap area inside a margin of its own; a checkbox or radio in a label is pressed through the label (44 × 44, no `::after`: it would reach the next label), one with
-  no label gets a 44px `::after` inside a margin of its own; a slider's box is 44px tall (another range keeps its bar in 44px of
-  padding, `background-clip: content-box`); a link in running text is an inline block of at least 44 × 44 with no negative margin
-  (the line grows where one sits); a search box's text stops short of its 44px clear button. No tap area may reach over a
+  module's "more" as a 44px inline block); fields are 44px wide too. A switch keeps its look with a 44px `::after` tap area
+  inside a margin of its own; a checkbox or radio in a label, at any depth, is pressed through the label (44 × 44, no `::after`:
+  it would reach the next label; an inline label becomes an inline block at no weight), one with no label gets a 44px `::after`
+  inside a margin of its own (the whole room above and below: stacked block checkboxes' margins collapse); a slider's box is 44px
+  tall (another range keeps its bar in 44px of padding, `background-clip: content-box`); every link (any parent, any role) and
+  every text element with `role="button"` or `role="tab"` is an inline block of at least 44 × 44 with real padding and no negative
+  margin, at no weight so a flex, grid or block control keeps its display (the line grows where one sits); a search box's text stops short of its 44px clear button. No tap area may reach over a
   neighbour's: no negative margins, no pseudo-element larger than the room around it. A control
   that draws its own tap area (a map marker) is left alone: `.ss-w-map-node`, or any control marked `data-ss-hit`.
 - The UI sample's dialog sits in a wrapper of its own on the page (`.ss-sample-dialog`), a root beside the sample, not inside it.
