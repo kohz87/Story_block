@@ -1,11 +1,12 @@
-// The example pack (examples/packs/ersveil, Ersveil 1.0.0) and its lorebook (ersveil-lore.json): the pack passes the
-// authoring-kit checker and Story Block's own validator and carries the shape docs/v2/ERSVEIL.md describes; the lorebook
-// is a SillyTavern World Info book of 170 entries with unique uids. (The former example pack, Bluewatch 1.6.0, is the
-// fixture fixtures/ersveil-bluewatch-1.6.0.json; ersveil.test.js and its neighbours test that.)
+// The example pack (examples/packs/ersveil, Ersveil 2.0.0, the open world) and its lorebook (ersveil-lore.json): the pack
+// passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
+// docs/v2/ERSVEIL.md describes; the lorebook is a SillyTavern World Info book of 170 entries with unique uids. (The former
+// example packs are fixtures: Ersveil 1.0.0 with RPG Battle's rules, ersveil-rules-fixture.test.js, and Bluewatch 1.6.0,
+// ersveil.test.js and its neighbours.)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { checkPack, report } from '../../../authoring-kit/check.mjs';
 import { validatePack } from '../../../src/v2/packs/validate.js';
@@ -17,10 +18,14 @@ const lorePath = new URL('../../../examples/packs/ersveil/ersveil-lore.json', im
 const packText = readFileSync(packPath, 'utf8');
 const pack = () => JSON.parse(packText);
 
-test('the example folder holds exactly the pack and its lorebook, and the old Bluewatch pack is not an example any more', () => {
+const OPEN = ['scene', 'inventory', 'data-modules-v1'];
+
+test('the example folder holds exactly the pack and its lorebook, and the old example packs are fixtures', () => {
     assert.ok(existsSync(packPath) && existsSync(lorePath));
+    assert.deepEqual(readdirSync(new URL('../../../examples/packs/ersveil/', import.meta.url)).sort(), ['ersveil-lore.json', 'pack.json']);
     assert.equal(existsSync(new URL('../../../examples/packs/ersveil-bluewatch/', import.meta.url)), false);
     assert.ok(existsSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)), 'Bluewatch 1.6.0 is kept as a fixture');
+    assert.ok(existsSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url)), 'Ersveil 1.0.0 with its rules is kept as a fixture');
 });
 
 test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code and on the command line', () => {
@@ -30,54 +35,51 @@ test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code
     assert.match(printed, /^OK examples\/packs\/ersveil\/pack\.json\n/);
 });
 
-test('Story Block\'s own validator accepts the pack with the suite\'s capabilities, and refuses it on a host older than 2.5', () => {
-    const capabilities = ['scene', 'inventory', 'rb-rules-v2', 'data-modules-v1'];
-    const good = validatePack(pack(), { capabilities });
+test('Story Block\'s own validator accepts the pack without RPG Battle (scene, inventory, data modules), and refuses it on a host older than 2.5', () => {
+    const good = validatePack(pack(), { capabilities: OPEN });
     assert.equal(good.ok, true, JSON.stringify(good.errors));
-    const old = validatePack(pack(), { capabilities, hostVersion: '2.4.0' });
+    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.4.0' });
     assert.equal(old.ok, false);
     assert.ok(old.errors.some(error => error.code === 'HOST_VERSION'));
+    // Without the data-modules capability it is refused for that alone.
+    const bare = validatePack(pack(), { capabilities: ['scene', 'inventory'] });
+    assert.equal(bare.ok, false);
 });
 
-test('the pack is Ersveil 1.0.0 with the contents ERSVEIL.md lists', () => {
+test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '1.0.0');
+    assert.equal(value.version, '2.0.0');
+    assert.equal(value.name, 'Ersveil (open world)');
+    assert.match(value.description, /Story Block and Story Director, no RPG Battle needed/);
     assert.equal(value.requires.storyBlock, '^2.5');
-    assert.deepEqual(value.requires.capabilities, ['scene', 'inventory', 'rb-rules-v2', 'data-modules-v1']);
+    assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
-    assert.deepEqual(counts, {
-        places: 320, routes: 350, markets: 31, terms: 1, ranks: 7, races: 10, talents: 8, items: 124, creatures: 69, crafts: 2,
-        recipes: 21, quests: 54, shops: 20, events: 7, meterPresets: 2, dataModules: 3, rules: 1,
-    });
+    assert.deepEqual(counts, { places: 320, routes: 350, events: 7, dataModules: 3 });
+    assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
+    assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);
-    assert.equal(value.presets, undefined, 'no ready-made characters');
-    assert.equal(value.content.presets, undefined);
     assert.deepEqual(value.currency.coins.map(coin => [coin.name, coin.value]), [['copper', 1], ['bronze', 1], ['silver', 10], ['gold', 100]]);
     assert.equal(value.start.scene.place.name, 'Bluewatch Village / Guild Office');
-    assert.equal(value.start.inventory.money, 40, 'four silver');
+    assert.deepEqual(value.start.inventory, { money: 40 }, 'four silver and no pack items');
     assert.deepEqual(value.calendar.start, { year: 611, month: 'Goldwane', day: 12, hour: 6, minute: 40 });
-    const rules = value.content.rules[0];
-    assert.deepEqual(rules.promotionMastery, [3, 5, 5]);
-    assert.equal(rules.classes.length, 40);
-    assert.equal(rules.skills.length, 120);
-    assert.deepEqual(rules.classes.filter(entry => entry.tier === 0).map(entry => entry.slug), ['awakened']);
-    assert.equal(rules.classes.filter(entry => entry.tier === 1 && entry.parent === 'awakened').length, 13, 'thirteen lines from the shared start');
     assert.deepEqual(value.content.dataModules.map(module => module.slug), ['standing', 'fame', 'guild-membership']);
-    assert.equal(value.content.quests.filter(quest => quest.open).length, 49);
-    assert.equal(rules.trainers.filter(trainer => trainer.open).length, 13);
+    // The map, the calendar, the weather, the events and the data modules are the 1.0.0 fixture's, unchanged but for the places' market types.
+    const before = JSON.parse(readFileSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url), 'utf8'));
+    for (const key of ['currency', 'calendar', 'weather']) assert.deepEqual(value[key], before[key], key);
+    for (const kind of ['routes', 'events', 'dataModules']) assert.deepEqual(value.content[kind], before.content[kind], kind);
+    assert.deepEqual(value.content.places, before.content.places.map(({ market, ...rest }) => rest));
 });
 
-test('the pack, once installed, reads back as 124 items, 69 creatures and the rest ERSVEIL.md quotes', async () => {
+test('the pack, once installed without RPG Battle, reads back as 320 places, 350 routes and the rest ERSVEIL.md quotes', async () => {
     const { createInstalled } = await import('../../../src/v2/packs/installed.js');
     const { addsLine } = await import('../../../src/v2/packs/panel.js');
     const store = {};
-    const installed = createInstalled({ settings: { read: () => store, save: async () => {} }, capabilities: () => ['scene', 'inventory', 'rb-rules-v2', 'data-modules-v1'] });
+    const installed = createInstalled({ settings: { read: () => store, save: async () => {} }, capabilities: () => OPEN });
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
-    assert.equal(result.name, 'Ersveil');
-    assert.equal(addsLine(installed.list()[0]),
-        '124 items, 69 creatures, 20 shops, 21 recipes, 7 events, 54 quests, 10 races, 8 talents, 320 places, 350 routes, 1 term set, 7 ranks, 2 crafts, 2 meter presets, 31 markets, 1 rules set, start state, 4 coins, a money scale, a calendar, 84 weather tables');
+    assert.equal(result.name, 'Ersveil (open world)');
+    assert.equal(addsLine(installed.list()[0]), '7 events, 320 places, 350 routes, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 170 entries with unique uids', () => {
