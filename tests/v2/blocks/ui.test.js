@@ -155,6 +155,24 @@ test('the template chooser returns keyboard focus when cancelled with Escape', a
     assert.equal(doc.activeElement, button(screen(), S.newBlock));
 });
 
+test('the first field validation message appears beside its invalid control', async t => {
+    const { doc, ui } = await page(t);
+    ui.mounts.screen.open('story-block/blocks');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    button(screen(), S.newBlock).click();
+    button(screen(), S.emptyBlock).click();
+    input(screen(), S.name).value = 'Gauge';
+    button(screen(), S.addField).click();
+    const type = input(screen(), S.fieldTypeLabel);
+    type.value = 'number'; type.dispatch('change');
+    input(screen(), S.max).value = '10';
+    const value = input(screen(), S.defaultValue);
+    value.value = '20';
+    button(screen(), S.save).click();
+    assert.match(value.closest('.ss-block-control').querySelector('[role="alert"]').textContent, /default.*bounds/i);
+    assert.ok(screen().querySelector('.ss-block-editor'));
+});
+
 test('editing a tab can move its block to Home and removes the old tab', async t => {
     const { doc, host, ui } = await page(t);
     const built = buildBlock({ name: 'Journey', fields: [{ name: 'Mood', type: 'text', max: 30, default: 'calm' }], functions: [], prompt: '',

@@ -77,7 +77,8 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
                 : match?.[3] !== undefined ? `function:${match[3]}` : kind ? `field:${draft.fields.findIndex(field => field.key === kind[1])}`
                     : rule ? `function:${functionIndex('rule', rule[1])}` : timer ? `function:${functionIndex('timer', timer[1])}`
                         : /\.show/.test(location) ? 'show' : /prompt/.test(location) ? 'prompt' : location === 'name' ? 'name' : 'form';
-            (spots.get(path) ?? spots.get('form')).textContent = error.message;
+            const part = /\.(min|max|default|values|type|every|when|effects)(?:\.|\[|$)/.exec(location)?.[1];
+            (spots.get(`${path}:${part}`) ?? spots.get(path) ?? spots.get('form')).textContent = error.message;
             return;
         }
         busy = true;
@@ -115,18 +116,18 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             const row = node('div', 'ss-block-field-editor ss-glass', '', fields);
             const fieldName = control(row, S.fieldNameLabel, field.name, { type: 'text', max: 60 }, value => renameField(field, value), `field:${index}`);
             fieldName.input.addEventListener('change', refresh);
-            const type = control(row, S.fieldTypeLabel, field.type, { type: 'choice', options: TYPES }, value => { field.type = value; }, null);
+            const type = control(row, S.fieldTypeLabel, field.type, { type: 'choice', options: TYPES }, value => { field.type = value; }, `field:${index}:type`);
             type.input.addEventListener('change', refresh);
             if (field.type === 'number') {
-                control(row, S.min, field.min ?? 0, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.min = value; }, null);
-                control(row, S.max, field.max ?? 10, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.max = value; }, null);
-                control(row, S.defaultValue, field.default ?? 0, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.default = value; }, null);
+                control(row, S.min, field.min ?? 0, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.min = value; }, `field:${index}:min`);
+                control(row, S.max, field.max ?? 10, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.max = value; }, `field:${index}:max`);
+                control(row, S.defaultValue, field.default ?? 0, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.default = value; }, `field:${index}:default`);
             } else if (field.type === 'choice') {
-                control(row, S.choices, Array.isArray(field.values) ? field.values.join(', ') : field.values ?? '', { type: 'text', max: 500 }, value => { field.values = String(value).split(',').map(part => part.trim()); }, null);
-                control(row, S.defaultValue, field.default ?? '', { type: 'text', max: 240 }, value => { field.default = value; }, null);
+                control(row, S.choices, Array.isArray(field.values) ? field.values.join(', ') : field.values ?? '', { type: 'text', max: 500 }, value => { field.values = String(value).split(',').map(part => part.trim()); }, `field:${index}:values`);
+                control(row, S.defaultValue, field.default ?? '', { type: 'text', max: 240 }, value => { field.default = value; }, `field:${index}:default`);
             } else {
-                if (field.type === 'text') control(row, S.max, field.max ?? 120, { type: 'int', min: 1, max: 240 }, value => { field.max = value; }, null);
-                control(row, S.defaultValue, field.default ?? '', { type: 'text', max: 240 }, value => { field.default = value; }, null);
+                if (field.type === 'text') control(row, S.max, field.max ?? 120, { type: 'int', min: 1, max: 240 }, value => { field.max = value; }, `field:${index}:max`);
+                control(row, S.defaultValue, field.default ?? '', { type: 'text', max: 240 }, value => { field.default = value; }, `field:${index}:default`);
             }
             const actions = node('div', 'ss-block-field-actions', '', row);
             const up = button(actions, S.up, () => { collect(); [draft.fields[index - 1], draft.fields[index]] = [draft.fields[index], draft.fields[index - 1]]; draw(); }); up.disabled = index === 0;
@@ -164,8 +165,8 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             if (fn.type === 'rule') {
                 control(row, S.whenField, fn.when.field, { type: 'choice', options: fieldOptions() }, value => { fn.when.field = value; }, null);
                 control(row, S.comparison, fn.when.op, { type: 'choice', options: COMPARISONS }, value => { fn.when.op = value; }, null);
-                control(row, S.whenValue, fn.when.value, { type: 'text', max: 240 }, value => { fn.when.value = value; }, null);
-            } else if (fn.type === 'timer') control(row, S.every, fn.every, { type: 'int', min: 1, max: 525600 }, value => { fn.every = value; }, null);
+                control(row, S.whenValue, fn.when.value, { type: 'text', max: 240 }, value => { fn.when.value = value; }, `function:${index}:when`);
+            } else if (fn.type === 'timer') control(row, S.every, fn.every, { type: 'int', min: 1, max: 525600 }, value => { fn.every = value; }, `function:${index}:every`);
             paintEffects(row, fn);
             button(row, S.remove, () => { collect(); draft.functions.splice(index, 1); draw(); });
         }
