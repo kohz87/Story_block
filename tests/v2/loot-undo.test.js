@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost } from '../../testkit/index.js';
+import { readRecord } from '../../src/v2/persist.js';
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 const qty = (host, name) => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
@@ -255,4 +256,78 @@ test('a chat saved by 2.6.0 with loot taken opens as it was; its takes replay as
     await host.st.deleteMessage(at(host, 'A bench.'));
     assert.deepEqual([qty(host, 'Hammer'), qty(host, 'Torch'), qty(host, 'Lantern')], [0, 2, 1]);
     await agrees(t, host, 'after the new take\'s offer went');
+});
+
+// The earliest replies deleted (B-b2-timeline-3): the first reply left starts from the state they ended with, but what a
+// deleted reply laid out goes with it, and a take of it does not stand, on the deleted reply or on a later one; the rest
+// of what the deleted replies did is carried as before.
+async function firstOffer(t, { later, checkpointEvery = null }) {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost(checkpointEvery ? { storeOptions: { checkpointEvery } } : {});
+    t.after(() => host.close());
+    await host.send('Search the crate.', reply('A crate.', ['+ item Rope', '? loot Torch x2, 5 gold — in the crate']));
+    const sid = headSid(host);
+    if (later) await host.send('Walk on.', reply('The road goes on.', ['+ item Apple']));
+    const taken = await take(host, sid, [0, 1]);
+    assert.equal(taken.ok, true, taken.message);
+    await host.send('More.', reply('Further on.', ['+ item Lamp']));
+    assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid), qty(host, 'Rope')], [2, 5, true, 1]);
+    return { host, sid };
+}
+// `rope`: the Rope the offering reply gave by its own line, carried when that reply was the first one left (1), gone with
+// it when it was deleted from the middle (0).
+function goneWithIt(host, sid, later, label, rope = 1) {
+    assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid)], [0, 0, false], `${label}: the take went with its offer`);
+    assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, sid), false, `${label}: the offer went with its reply`);
+    assert.equal(Object.hasOwn(host.head().domains.inventory.perReply ?? {}, sid), false, `${label}: so did the reply's tally`);
+    assert.deepEqual([qty(host, 'Rope'), qty(host, 'Lamp'), qty(host, 'Apple')], [rope, 1, later ? 1 : 0], `${label}: the rest is kept`);
+}
+
+for (const later of [false, true]) {
+    const where = later ? 'a later reply' : 'the offering reply';
+    for (const checkpointEvery of [null, 1]) {
+        const with_ = checkpointEvery ? ' (a checkpoint on every reply)' : '';
+        test(`a take on ${where}: the greeting deleted, then the offering reply: offer, take and claim go; the rest is carried${with_}`, async t => {
+            const { host, sid } = await firstOffer(t, { later, checkpointEvery });
+            await host.st.deleteMessage(0);
+            assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid)], [2, 5, true], 'the greeting alone changes nothing');
+            await host.st.deleteMessage(at(host, 'A crate.'));
+            goneWithIt(host, sid, later, 'after the delete');
+            if (checkpointEvery) assert.ok(readRecord(host.ctx.chat.find(message => !message.is_user && message.extra?.storySuite))?.checkpoint, 'the first reply left starts from a checkpoint');
+            await agrees(t, host, 'after the delete');
+        });
+    }
+
+    test(`a take on ${where}: the offering reply deleted, then the greeting (the other order)`, async t => {
+        const { host, sid } = await firstOffer(t, { later });
+        await host.st.deleteMessage(at(host, 'A crate.'));
+        await host.st.deleteMessage(0);
+        goneWithIt(host, sid, later, 'after the deletes', 0);
+        await agrees(t, host, 'after the deletes');
+    });
+
+    test(`a take on ${where}: the greeting, the reader's message and then the offering reply deleted`, async t => {
+        const { host, sid } = await firstOffer(t, { later });
+        await host.st.deleteMessage(0);
+        await host.st.deleteMessage(0);
+        await host.st.deleteMessage(at(host, 'A crate.'));
+        goneWithIt(host, sid, later, 'after the deletes');
+        await agrees(t, host, 'after the deletes');
+    });
+}
+
+test('the greeting deleted, the offering reply first and last: a swipe of it takes the offer and the take away', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Search the crate.', reply('A crate.', ['+ item Rope', '? loot Torch x2, 5 gold — in the crate']));
+    const sid = headSid(host);
+    assert.equal((await take(host, sid, [0, 1])).ok, true);
+    await host.st.deleteMessage(0);
+    await host.swipe(reply('An empty crate.', ['+ coin 1']));
+    assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid), qty(host, 'Rope')], [0, 1, false, 0]);
+    await agrees(t, host, 'on the other swipe');
+    await host.st.swipeTo(host.ctx.chat.length - 1, 0);
+    assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid), qty(host, 'Rope')], [2, 5, true, 1]);
+    await agrees(t, host, 'back on the first swipe');
 });

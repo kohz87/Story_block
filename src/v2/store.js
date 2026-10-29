@@ -121,6 +121,7 @@ export function createStore({
     let holding = 0;           // inside batch(): swipe_info copies wait until it ends
     const held = new Set();
     let known = null;          // the carriers (message objects) the last good head was built from
+    let carrying = null;       // while carriedTo replays the deleted earliest replies: the messages the chat still holds
     let writes = 0;
     const unsaved = new Map(); // message → { index, chatId, n }: records written since their chat was saved
     const reserved = new WeakMap();   // message → { swipe, sid }: a record ID handed out before the record
@@ -1101,6 +1102,8 @@ export function createStore({
         // done takes its place out of it), so the Problems below name the block as a full replay will number it.
         const firstProblem = problems.length;
         const placed = new Map();
+        // A deleted reply carried forward (carriedTo): its per-reply scratch does not outlive it, block by block.
+        const gone = carrying && message && !carrying.has(message) && typeof record.sid === 'string' ? record.sid : null;
         // Quarantine is decided on the record as it is stored, before any rebase, renumbering or filtering below can touch it:
         // it applies nothing and is never rewritten (so nothing renumbered can reattach the receipt that is detached).
         if (orphan) {
@@ -1115,6 +1118,7 @@ export function createStore({
             return { state, fields: null, running };
         }
         parts.forEach(({ ops, span: stored }, block) => {
+            if (gone) state = withoutReplyScratch(state, gone);
             let span = stored;
             // A block numbered at or below the rev the story is at (a swipe made before an earlier reply was read again, shown
             // now): a reconcile from here numbers it on (walkSuffix), so revs stay strictly increasing along the chat.
@@ -1186,6 +1190,7 @@ export function createStore({
                 keep();
             }
         });
+        if (gone) state = withoutReplyScratch(state, gone);
         if (!out?.changed) return { state, fields: null, running: out?.running ?? null };
         for (let at = firstProblem; at < problems.length; at += 1) {
             const entry = problems[at];
@@ -1577,11 +1582,36 @@ export function createStore({
 
     // B-b2-timeline-3: the state the first carrier starts from when the carriers before it were deleted:
     // what they ended with, as the store last saw them (their message objects still hold their records).
+    // What each deleted reply kept per reply (its domains' scratch fields keyed by its record ID: the inventory's loot on offer
+    // and story tally) is not carried: it is dropped before each of that reply's blocks and after its last one, so a block
+    // that needs it (a loot take, guarded on the offer) does not apply, there or on a later reply.
     function carriedTo(message) {
         const at = known ? known.indexOf(message) : -1;
         if (at <= 0) return null;
-        const { state } = replay(known, at - 1);
-        return state ? structuredClone(state) : null;
+        const outer = carrying;
+        carrying = new Set(list());
+        try {
+            const { state } = replay(known, at - 1);
+            return state ? structuredClone(state) : null;
+        } finally {
+            carrying = outer;
+        }
+    }
+
+    // `state` without the per-reply scratch entries of the reply whose record ID is `sid` (the same state when it has none).
+    function withoutReplyScratch(state, sid) {
+        if (typeof scratch !== 'function' || !isObject(state?.domains)) return state;
+        let next = state;
+        for (const [name, slice] of Object.entries(state.domains)) {
+            let fields = null;
+            try { fields = scratch(name); } catch { fields = null; }
+            for (const field of Array.isArray(fields) ? fields : []) {
+                if (!isObject(slice?.[field]) || !Object.hasOwn(slice[field], sid)) continue;
+                if (next === state) next = structuredClone(state);
+                delete next.domains[name][field][sid];
+            }
+        }
+        return next;
     }
 
     function spansOf(record) {
