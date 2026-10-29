@@ -99,4 +99,3 @@ test('packs.content({ kind: "ranks" }) gives the ladders, each pack\'s in order,
     assert.equal(query({ kind: 'ranks' })[0].levels[0], 1, 'copies');
     assert.deepEqual(packs.list().map(entry => entry.counts.ranks), [3, 2, undefined]);
 });
-

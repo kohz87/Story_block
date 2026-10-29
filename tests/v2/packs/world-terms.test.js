@@ -164,4 +164,3 @@ test('packs.markets: the lorebook\'s places first, then the packs\' own; types a
     assert.equal(await broken.refreshLore(), 0);
     assert.deepEqual(marketsOf([], []), { types: [], tags: [], places: [] });
 });
-

@@ -329,5 +329,3 @@ test('home and scene: the story time through the host\'s fmt.time (the calendar)
         assert.equal(text(el.querySelector('.time')), 'CY 3, Goldwane 12, 7:40 pm', screen.id);
     }
 });
-
-

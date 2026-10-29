@@ -14,4 +14,3 @@ test('normalized JSON and its hash match the literal vectors', () => {
     }
     assert.ok(NORMALIZED_JSON_CASES.length >= 5);
 });
-

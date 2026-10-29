@@ -51,4 +51,3 @@ test('inventory.definitions: sees a transaction\'s own drafts, makes nothing', (
     h.query('inventory.definitions');
     assert.equal(h.state, before);
 });
-

@@ -129,4 +129,3 @@ test('a pack carried in a lorebook brings its terms too', async () => {
     assert.equal(results[0].ok, true, JSON.stringify(results[0].errors));
     assert.deepEqual(contentOf(installed.packs(), 'terms').map(record => [record.pack, record.levelName, record.xpName]), [['riverside-starter', 'Soul Class', 'Soul Growth']]);
 });
-
