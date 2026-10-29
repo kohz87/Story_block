@@ -7,8 +7,7 @@
 //   with the values as they are, so a hole can take a template binding (`{{ it.qty }}`).
 // * `jsonText(text)`: a text inside a JSON string in a template attribute (`data-props='{"label":"…"}'`).
 //
-// Not here: messages written by the runtime (command refusals, problems) and by other parts (the mounts,
-// the settings overlay); those are their owners' texts.
+// Existing messages written by the runtime and other parts stay with their owners; inline-edit messages are below.
 
 function deepFreeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -22,6 +21,36 @@ export const STRINGS = deepFreeze({
     editable: {
         edit: 'Edit {label}', value: 'value', save: 'Save', cancel: 'Cancel', add: 'Add',
         remove: 'Remove {value}', wholeNumber: 'Enter a whole number.', failed: 'Could not save this change.',
+    },
+
+    editMessages: {
+        onlyReader: 'Only the reader can make this edit.', itemName: 'Give the item a name.',
+        itemNameLength: 'An item needs a name of 1 to 60 characters.',
+        itemAdded: 'You added {item}.', itemCount: '{name} to {qty}', itemNote: "{name}'s note",
+        itemSet: 'You set {detail}.', itemUnstackable: '{name} does not stack; each piece is kept separately.',
+        itemCannotMerge: '{name} cannot be combined with this stack.', itemQuantityLarge: 'That quantity is too large.',
+        purseAmount: 'The amount must be a whole number of at least 0.', purseSet: 'You set the purse to {amount}.',
+        moneyEmpty: 'Enter an amount of money.', moneyWhole: 'Enter whole amounts of the coins used here.',
+        moneyUnknown: '"{name}" is not a coin here.', moneyLarge: 'That amount is too large.',
+        presentReader: 'Only the reader can set the whole list.', presentList: 'Give the people present as a list.',
+        presentSummary: 'Present: {names}.', nobody: 'nobody',
+        fieldReader: 'Only the reader can set a field.', restorePending: 'A restore is pending.',
+        pinDamaged: 'Unsupported or damaged pin.', fieldDeclared: 'Choose a declared field.',
+        fieldLocked: 'This field cannot be edited.', mapKeyDeclared: 'Choose a declared map key.',
+        fieldNoKeys: 'This field has no map keys.', fieldShared: 'This field is shared by the chat.',
+        externalRules: 'This module has rules with external inputs; this field cannot be edited here.',
+        fieldRange: 'The value is outside this field’s allowed range.',
+        fieldSet: 'You set {module}: {field} {from} → {to}.', lockedSuffix: ' (cannot be edited)',
+        editBoolean: 'edit must be true or false.', textEffect: 'Text fields accept literal text or a text label within max.',
+        declaredSchema: 'Expected a declared {schema} schema.', labelSchema: 'int, bool, enum or text label',
+        fieldSchema: 'scalar field or fixed map',
+        editableCommand: 'An editable field may call only dm.set.',
+        editableField: 'An editable field must name this module and one declared field.',
+        editableLocked: 'This field is not editable.', scalarKey: 'A scalar field has no map key.',
+        chatCharacter: 'A chat field has no character.', noInventoryControl: 'A data module cannot use the Inventory add control.',
+        onlyEditableControl: 'A data module may use only the editable inline control.',
+        textComparison: 'Text may only be compared with a literal.', textNonempty: 'be nonempty text',
+        inlineControl: 'An inline control must be a supported built-in on a <span>.',
     },
 
     // The Story Suite bar above the message box, the story panel, the drawer and the wand menu.

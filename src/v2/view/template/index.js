@@ -30,6 +30,7 @@ import { compileExpr, isLoopName, parseInterpolation, parsePath, splitPairs } fr
 import { PURIFY_CONFIG, attrAllowed, markControlTypes, sanitizeNodes, strictSanitize } from './sanitize.js';
 import { MAX_JSON_DEPTH, compileJson, jsonDepth } from './json.js';
 import { destroyTemplate, renderTemplate } from './render.js';
+import { STRINGS } from '../../strings.js';
 
 export { PURIFY_CONFIG, strictSanitize, renderTemplate, destroyTemplate };
 
@@ -200,7 +201,7 @@ function compileElement(node, warnings) {
         take('data-props');
         warnings.push(`data-props belongs on <ss-widget>, not <${tag}>.`);
     }
-    if (inlineControl !== undefined && !(tag === 'span' && inlineControls.includes(inlineControl))) warnings.push('An inline control must be a supported built-in on a <span>.');
+    if (inlineControl !== undefined && !(tag === 'span' && inlineControls.includes(inlineControl))) warnings.push(STRINGS.editMessages.inlineControl);
 
     for (const name of BINDING_ATTRS) attrs.delete(name);
     for (const [name, value] of attrs) {

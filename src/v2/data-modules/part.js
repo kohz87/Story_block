@@ -9,6 +9,9 @@ import { diff } from '../ops.js';
 import { moduleGrammar, referenceOf } from './grammar.js';
 import { oneLine } from '../../text.js';
 import { editableLayout } from './editable-layout.js';
+import { STRINGS, fill } from '../strings.js';
+
+const E = STRINGS.editMessages;
 
 const initial = () => ({ pins: {}, active: {}, instances: {}, perReply: {} });
 // A frozen value (a branch of the state) never changes, so what is worked out from it is kept with it. No game state is cached:
@@ -336,27 +339,27 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         return answer;
     }
     function setField(ctx, payload, call = {}) {
-        if (ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', 'Only the reader can set a field.');
-        if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', 'A restore is pending.');
+        if (ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', E.fieldReader);
+        if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), module = resolveModule(prefix, payload.module), definition = activeDefinition(prefix, module);
         call.label = definition?.name ?? module;
-        if (!definition) refuse('DM_SCHEMA', '', 'Unsupported or damaged pin.');
+        if (!definition) refuse('DM_SCHEMA', '', E.pinDamaged);
         const schema = dmOwn(definition.state, payload.field) ? definition.state[payload.field] : null;
-        if (!schema) refuse('DM_SCHEMA', 'field', 'Choose a declared field.');
-        if (schema.edit === false) refuse('REFUSED', 'field', 'This field cannot be edited.');
+        if (!schema) refuse('DM_SCHEMA', 'field', E.fieldDeclared);
+        if (schema.edit === false) refuse('REFUSED', 'field', E.fieldLocked);
         const map = schema.type === 'map';
-        if (map && !schema.keys.includes(payload.key)) refuse('DM_SCHEMA', 'key', 'Choose a declared map key.');
-        if (!map && payload.key !== undefined) refuse('DM_SCHEMA', 'key', 'This field has no map keys.');
-        if (definition.scope === 'chat' && payload.who !== undefined) refuse('DM_LABEL', 'who', 'This field is shared by the chat.');
+        if (map && !schema.keys.includes(payload.key)) refuse('DM_SCHEMA', 'key', E.mapKeyDeclared);
+        if (!map && payload.key !== undefined) refuse('DM_SCHEMA', 'key', E.fieldNoKeys);
+        if (definition.scope === 'chat' && payload.who !== undefined) refuse('DM_LABEL', 'who', E.fieldShared);
         // A rule that may read an import cannot be guarded solely by this instance and its pin.
-        if (definition.rules.length && Object.keys(definition.imports).length) refuse('REFUSED', 'field', 'This module has rules with external inputs; this field cannot be edited here.');
+        if (definition.rules.length && Object.keys(definition.imports).length) refuse('REFUSED', 'field', E.externalRules);
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, payload.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
         const instance = atPath(draft, instancePath(module, subject));
         const field = map ? schema.values : schema, path = map ? [payload.field, payload.key] : [payload.field];
         let value = payload.value;
         if (field.type === 'text' && typeof value === 'string') value = oneLine(value, field.max);
-        if (!scalarHolds(field, value)) refuse('DM_BOUNDS', 'value', 'The value is outside this field’s allowed range.');
+        if (!scalarHolds(field, value)) refuse('DM_BOUNDS', 'value', E.fieldRange);
         const before = atPath(instance.fields, path);
         const evaluation = createEvaluation(definition, instance, { inputs: {}, source: ctx.source, cursor: ctx.cursor(), subject });
         evaluation.effects([{ op: 'set', path, value }]);
@@ -365,7 +368,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const recorded = guard(ctx, prefix, { kind: 'dm.set', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), decision: { conds: result.conds }, localOnly: true });
         const label = map ? `${payload.field} (${payload.key})` : payload.field;
-        const summary = `You set ${definition.name}: ${label} ${valueText(before)} → ${valueText(value)}.`;
+        const summary = fill(E.fieldSet, { module: definition.name, field: label, from: valueText(before), to: valueText(value) });
         const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes,
             result: { field: payload.field, ...(map ? { key: payload.key } : {}), subject, from: before, to: value, ...(result.fired.length ? { rules: result.fired } : {}) }, summary });
         answer.data.edit = true;

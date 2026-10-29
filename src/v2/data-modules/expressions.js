@@ -1,5 +1,6 @@
 // Static type and interval analysis; no evaluation, queries, state or code execution.
 import { DM_DESCRIPTORS as D, DM_LIMITS as L, dmObject, dmOwn, dmInt } from './schema.js';
+import { STRINGS } from '../strings.js';
 
 const BAD = Object.freeze({ type: 'invalid' });
 const bool = () => ({ type: 'bool' });
@@ -107,14 +108,14 @@ export function expressionType(expression, env, at, add) {
         const child = (v, i, allow = false) => visit(v, `${path}[${i}]`, depth + 1, allow);
         if (op === 'get') {
             const result = pathType(a, { ...env, writing: false }, `${path}[1]`, add, (v, p) => visit(v, p, depth + 1));
-            if (result.type === 'text' && !allowText) { add('DM_SCHEMA', path, 'Text may only be compared with a literal.'); return BAD; }
+            if (result.type === 'text' && !allowText) { add('DM_SCHEMA', path, STRINGS.editMessages.textComparison); return BAD; }
             return result;
         }
         if (op === 'arg' || op === 'bind' || op === 'reward') {
             const source = op === 'arg' ? env.args : op === 'bind' ? env.bindings : env.rewards;
             if (typeof a !== 'string' || !dmOwn(source, a)) { add('DM_SCHEMA', path, `Unknown ${op} reference in this expression context.`); return BAD; }
             const result = op === 'reward' ? source[a] : fieldType(source[a]);
-            if (result.type === 'text' && !allowText) { add('DM_SCHEMA', path, 'Text may only be compared with a literal.'); return BAD; }
+            if (result.type === 'text' && !allowText) { add('DM_SCHEMA', path, STRINGS.editMessages.textComparison); return BAD; }
             return result;
         }
         if (op === 'check') { add('DM_SCHEMA', path, 'SD checks inside a dm root need data-modules v1.1; this definition needs data-modules v1.1.'); return BAD; }

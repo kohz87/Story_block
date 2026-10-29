@@ -7,6 +7,9 @@ import { foldKey } from '../../text.js';
 import { lineBody } from '../capture.js';
 import { cutPoints, flatten } from '../extras.js';
 import { CORE_FEATURE } from '../features.js';
+import { STRINGS, fill } from '../strings.js';
+
+const E = STRINGS.editMessages;
 
 const MAX_NAME = 80;
 const MAX_PRESENT = 40;
@@ -202,13 +205,13 @@ function setWeather(ctx, { text, key } = {}) {
 // The list editor replaces the whole set of names with one reader command. Existing add/remove
 // actions keep their semantics for story lines and module calls.
 function setPresent(ctx, value) {
-    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', 'Only the reader can set the whole list.');
-    if (!Array.isArray(value)) ctx.fail('INVALID', 'Give the people present as a list.');
+    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', E.presentReader);
+    if (!Array.isArray(value)) ctx.fail('INVALID', E.presentList);
     const scene = ctx.draft('scene');
     const before = scene.present;
     const present = companions(ctx, value);
     scene.present = present;
-    return { summary: `Present: ${present.join(', ') || 'nobody'}.`,
+    return { summary: fill(E.presentSummary, { names: present.join(', ') || E.nobody }),
         data: { added: present.filter(name => !before.includes(name)), removed: before.filter(name => !present.includes(name)), present: [...present] }, narrate: true };
 }
 

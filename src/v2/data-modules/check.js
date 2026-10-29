@@ -8,6 +8,9 @@ import { validateScreen } from '../view/screens.js';
 import { parseHtml } from '../view/template/html.js';
 import { checkScreens } from '../packs/validate.js';
 import { sha256Hex as sha256 } from '../domains/digest.js';
+import { STRINGS, fill } from '../strings.js';
+
+const E = STRINGS.editMessages;
 
 export { DM_DESCRIPTORS, DM_LIMITS, DM_DIAGNOSTICS, DATA_MODULES_CAPABILITY } from './schema.js';
 export { expressionType, conditionType } from './expressions.js';
@@ -70,9 +73,9 @@ function normalizedKeys(value, path, add) {
 function scalar(schema, path, add, { label = false, map = true } = {}) {
     const schemas = label ? D.labels : D.fields;
     const descriptor = dmOwn(schemas, schema?.type) && schemas[schema.type];
-    if (!descriptor || (!map && schema.type === 'map')) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, `Expected a declared ${label ? 'int, bool, enum or text label' : 'scalar field or fixed map'} schema.`); return; }
+    if (!descriptor || (!map && schema.type === 'map')) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, fill(E.declaredSchema, { schema: label ? E.labelSchema : E.fieldSchema })); return; }
     if (!shape(schema, descriptor, path, add, label ? 'DM_LABEL' : 'DM_SCHEMA')) return;
-    if (!label && schema.edit !== undefined && typeof schema.edit !== 'boolean') add('DM_SCHEMA', `${path}.edit`, 'edit must be true or false.');
+    if (!label && schema.edit !== undefined && typeof schema.edit !== 'boolean') add('DM_SCHEMA', `${path}.edit`, E.editBoolean);
     if (schema.type === 'int') {
         if (!dmInt(schema.min) || !dmInt(schema.max) || schema.min > schema.max) add('DM_BOUNDS', path, 'Integer bounds must be ordered safe integers.');
         if (!label && !dmInt(schema.default, schema.min, schema.max)) add('DM_BOUNDS', `${path}.default`, 'The integer default must be inside its inclusive bounds.');
@@ -144,7 +147,7 @@ function effects(list, env, path, add, { timer = false, reward = false } = {}) {
                     const arg = typeof argName === 'string' ? env.args?.[argName] : null;
                     const literal = typeof effect.value === 'string' && effect.value.length <= target.max;
                     const textArg = arg?.type === 'text' && arg.max <= target.max;
-                    if (effect.op !== 'set' || !(literal || textArg)) add('DM_SCHEMA', `${at}.value`, 'Text fields accept literal text or a text label within max.');
+                    if (effect.op !== 'set' || !(literal || textArg)) add('DM_SCHEMA', `${at}.value`, E.textEffect);
                     else if (textArg && dmObject(effect.value)) effect.value = ['arg', argName];
                     return;
                 }
@@ -226,19 +229,19 @@ function migrations(definition, path, add) {
 // An editable in data-module presentation may address only this pin and an editable declared field.
 function editableProps(definition, props, at, add) {
     if (!dmObject(props) || props.command !== 'dm.set' || (props.valueKey !== undefined && props.valueKey !== 'value')) {
-        add('DM_SCHEMA', at, 'An editable field may call only dm.set.'); return;
+        add('DM_SCHEMA', at, E.editableCommand); return;
     }
     const payload = props.payload;
     if (!dmObject(payload) || Object.keys(payload).some(key => !['module', 'field', 'key', 'who'].includes(key))
         || payload.module !== definition.id || !dmOwn(definition.state, payload.field)) {
-        add('DM_SCHEMA', at, 'An editable field must name this module and one declared field.'); return;
+        add('DM_SCHEMA', at, E.editableField); return;
     }
     const field = definition.state[payload.field];
-    if (field.edit === false) add('DM_SCHEMA', at, 'This field is not editable.');
+    if (field.edit === false) add('DM_SCHEMA', at, E.editableLocked);
     if (field.type === 'map') {
-        if (typeof payload.key !== 'string' || (!field.keys.includes(payload.key) && !payload.key.startsWith('$item.'))) add('DM_SCHEMA', at, 'Choose a declared map key.');
-    } else if (payload.key !== undefined) add('DM_SCHEMA', at, 'A scalar field has no map key.');
-    if (definition.scope === 'chat' && payload.who !== undefined) add('DM_SCHEMA', at, 'A chat field has no character.');
+        if (typeof payload.key !== 'string' || (!field.keys.includes(payload.key) && !payload.key.startsWith('$item.'))) add('DM_SCHEMA', at, E.mapKeyDeclared);
+    } else if (payload.key !== undefined) add('DM_SCHEMA', at, E.scalarKey);
+    if (definition.scope === 'chat' && payload.who !== undefined) add('DM_SCHEMA', at, E.chatCharacter);
 }
 
 function presentation(definition, path, add) {
@@ -285,9 +288,9 @@ function presentation(definition, path, add) {
                 if (node.tag === 'ss-widget' && attrs.get('name') === 'ss.editable') {
                     editableProps(definition, templatePayload(attrs.get('data-props')), `${where}.data-props`, add);
                 }
-                if (node.tag === 'ss-widget' && attrs.get('name') === 'story-block.inventory-add') add('DM_SCHEMA', where, 'A data module cannot use the Inventory add control.');
+                if (node.tag === 'ss-widget' && attrs.get('name') === 'story-block.inventory-add') add('DM_SCHEMA', where, E.noInventoryControl);
                 if (attrs.has('data-inline-control')) {
-                    if (node.tag !== 'span' || attrs.get('data-inline-control') !== 'ss.editable') add('DM_SCHEMA', where, 'A data module may use only the editable inline control.');
+                    if (node.tag !== 'span' || attrs.get('data-inline-control') !== 'ss.editable') add('DM_SCHEMA', where, E.onlyEditableControl);
                     else editableProps(definition, templatePayload(attrs.get('data-props')), `${where}.data-props`, add);
                 }
                 if (attrs.has('data-submit')) add('DM_SCHEMA', where, 'A data module template button uses data-command="dm.act" with a closed data-payload; a form cannot carry one.');

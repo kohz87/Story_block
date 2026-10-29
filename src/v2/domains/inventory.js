@@ -12,6 +12,9 @@ import {
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { WALLET_KEY, coinValue, countedMoney, formatAmount, formatWallet, isCurrencyName, parseAmount, resolveCurrency } from './money.js';
 import { DEF_ID, isId } from '../check.js';
+import { STRINGS, fill } from '../strings.js';
+
+const E = STRINGS.editMessages;
 
 export const KINDS = Object.freeze(['goods', 'material', 'consumable', 'equipment', 'quest', 'money']);
 export const RARITIES = Object.freeze(['common', 'uncommon', 'rare', 'epic', 'legendary']);
@@ -969,7 +972,7 @@ function byModule(ctx, why) {
 
 // A reader edit is never a story line or a nested module call.
 function byReader(ctx) {
-    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', 'Only the reader can make this edit.');
+    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', E.onlyReader);
 }
 
 /** The inventory commands; `env` = { hooks: name => fn[], settings: () => this module's settings }. */
@@ -1006,16 +1009,16 @@ export function createInventoryCommands(env) {
         'inventory.add'(ctx, payload = {}) {
             byReader(ctx);
             const inv = ctx.draft('inventory');
-            if (typeof payload.name !== 'string') ctx.fail('INVALID', 'Give the item a name.');
+            if (typeof payload.name !== 'string') ctx.fail('INVALID', E.itemName);
             const name = cleanName(payload.name);
-            if (!name || [...name].length > 60) ctx.fail('INVALID', 'An item needs a name of 1 to 60 characters.');
+            if (!name || [...name].length > 60) ctx.fail('INVALID', E.itemNameLength);
             const qty = count(ctx, payload.qty, 1);
             const owner = receiverArg(ctx, payload.owner);
             const note = textArg(ctx, payload.note, MAX_NOTE, 'note');
             const { def, created } = defineByName(ctx, inv, name, env, { note, owner });
             readerCarry(ctx, [{ defId: def.id, qty }], owner);
             const stacks = grantInto(ctx, inv, def, qty, owner, note);
-            return { summary: `You added ${itemText(def.name, qty)}.`, data: { edit: true, def: def.id, qty, owner, stacks, created }, narrate: true };
+            return { summary: fill(E.itemAdded, { item: itemText(def.name, qty) }), data: { edit: true, def: def.id, qty, owner, stacks, created }, narrate: true };
         },
 
         'inventory.edit'(ctx, payload = {}) {
@@ -1026,7 +1029,7 @@ export function createInventoryCommands(env) {
             if (payload.qty !== undefined) {
                 const qty = count(ctx, payload.qty, undefined);
                 // A non-stacking item is one stack per piece (the domain's invariant).
-                if (!original.stack && qty !== 1) ctx.fail('REFUSED', `${original.name} does not stack; each piece is kept separately.`);
+                if (!original.stack && qty !== 1) ctx.fail('REFUSED', fill(E.itemUnstackable, { name: original.name }));
                 if (qty > stack.qty) readerCarry(ctx, [{ defId: original.id, qty: qty - stack.qty }], stack.owner);
                 stack.qty = qty;
             }
@@ -1034,9 +1037,9 @@ export function createInventoryCommands(env) {
             let name = original.name;
             let resultStack = stack.id;
             if (payload.name !== undefined) {
-                if (typeof payload.name !== 'string') ctx.fail('INVALID', 'Give the item a name.');
+                if (typeof payload.name !== 'string') ctx.fail('INVALID', E.itemName);
                 name = cleanName(payload.name);
-                if (!name || [...name].length > 60) ctx.fail('INVALID', 'An item needs a name of 1 to 60 characters.');
+                if (!name || [...name].length > 60) ctx.fail('INVALID', E.itemNameLength);
                 const found = resolveDef(inv, name);
                 if (found.status === 'ambiguous') ctx.fail('INVALID', ambiguous(inv, name, found.ids));
                 if (found.status === 'found' && found.id !== original.id) {
@@ -1044,8 +1047,8 @@ export function createInventoryCommands(env) {
                     const target = stacksOf(inv, found.id).find(other => targetDef.stack && stack.owner === other.owner
                         && stack.equipped === other.equipped && stack.note === other.note && condOf(stack, inv) === condOf(other, inv)
                         && (stack.key === true) === (other.key === true));
-                    if (!target) ctx.fail('REFUSED', `${name} cannot be combined with this stack.`);
-                    if (!Number.isSafeInteger(target.qty + stack.qty)) ctx.fail('INVALID', 'That quantity is too large.');
+                    if (!target) ctx.fail('REFUSED', fill(E.itemCannotMerge, { name }));
+                    if (!Number.isSafeInteger(target.qty + stack.qty)) ctx.fail('INVALID', E.itemQuantityLarge);
                     stack.def = targetDef.id;
                     ctx.call('inventory.merge', { stack: stack.id, into: target.id });
                     resultStack = target.id;
@@ -1066,8 +1069,8 @@ export function createInventoryCommands(env) {
                 }
             }
             const current = inv.stacks[resultStack];
-            const detail = payload.qty !== undefined ? `${name} to ${current.qty}` : payload.note !== undefined ? `${name}'s note` : name;
-            return { summary: `You set ${detail}.`, data: { edit: true, stack: resultStack }, narrate: true };
+            const detail = payload.qty !== undefined ? fill(E.itemCount, { name, qty: current.qty }) : payload.note !== undefined ? fill(E.itemNote, { name }) : name;
+            return { summary: fill(E.itemSet, { detail }), data: { edit: true, stack: resultStack }, narrate: true };
         },
 
         'inventory.consume'(ctx, payload = {}) {
@@ -1226,12 +1229,12 @@ export function createInventoryCommands(env) {
         'wallet.set'(ctx, payload = {}) {
             byReader(ctx);
             const owner = receiverArg(ctx, payload.owner);
-            if (!isCount(payload.amount, 0)) ctx.fail('INVALID', 'The amount must be a whole number of at least 0.');
+            if (!isCount(payload.amount, 0)) ctx.fail('INVALID', E.purseAmount);
             const inv = ctx.draft('inventory');
             const wallet = (inv.wallets[owner] ??= {});
             const from = wallet[WALLET_KEY] ?? 0;
             wallet[WALLET_KEY] = payload.amount;
-            return { summary: `You set the purse to ${formatAmount(payload.amount, currencyIn(ctx))}.`,
+            return { summary: fill(E.purseSet, { amount: formatAmount(payload.amount, currencyIn(ctx)) }),
                 data: { edit: true, from, to: payload.amount }, narrate: true };
         },
 
