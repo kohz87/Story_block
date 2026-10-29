@@ -1,0 +1,855 @@
+{
+  "note": "A chat saved by Story Block 2.6.0 (74ff72d): Torch x2 taken on the crate reply that offered it, and the Lantern of the shelf reply taken on the reply after it. `inventory` and `claims` are what 2.6.0 had.",
+  "chat": [
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "The story begins.",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "The story begins."
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {}
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_66fbeb75415f",
+          "checkpoint": {
+            "v": 2,
+            "meta": {
+              "rev": 0,
+              "claims": {}
+            },
+            "domains": {
+              "inventory": {
+                "defs": {},
+                "stacks": {},
+                "wallets": {},
+                "aliases": {}
+              },
+              "scene": {
+                "place": {
+                  "name": "",
+                  "kind": "",
+                  "region": ""
+                },
+                "present": []
+              }
+            }
+          },
+          "ops": [],
+          "receipts": [],
+          "narrated": [],
+          "spans": [],
+          "rev": 0,
+          "source": {
+            "logical": "sr_3uveofly",
+            "swipeKey": "sw_bws07t0y",
+            "evidence": "ev_1bp59vc7",
+            "next": 0
+          },
+          "swipe": 0,
+          "mark": {
+            "t": "ca1478b1:17",
+            "d": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "You",
+      "is_user": true,
+      "is_system": false,
+      "mes": "Hello.",
+      "send_date": "",
+      "extra": {}
+    },
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "The road.",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "The road."
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {}
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_4b888c3f2bda",
+          "ops": [],
+          "receipts": [],
+          "narrated": [],
+          "spans": [],
+          "source": {
+            "logical": "sr_675nm2fn",
+            "swipeKey": "sw_6eb8dqsw",
+            "evidence": "ev_dchlsta4",
+            "next": 0
+          },
+          "rev": 0,
+          "swipe": 0,
+          "mark": {
+            "t": "ebfb3744:9",
+            "d": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "You",
+      "is_user": true,
+      "is_system": false,
+      "mes": "Search the crate.",
+      "send_date": "",
+      "extra": {}
+    },
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "A crate.\n\n<!-- STORY_SUITE_V2\n<Changes>\n? loot Torch x2, Rope — in the crate\n</Changes>\n-->",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "A crate.\n\n<!-- STORY_SUITE_V2\n<Changes>\n? loot Torch x2, Rope — in the crate\n</Changes>\n-->"
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {}
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_bd1153f9ef5d",
+          "ops": [
+            {
+              "op": "add",
+              "path": "/domains/inventory/loot",
+              "value": {
+                "sw_bd1153f9ef5d": {
+                  "sid": "sw_bd1153f9ef5d",
+                  "n": 1,
+                  "where": "in the crate",
+                  "claim": "loot:sw_bd1153f9ef5d",
+                  "items": {
+                    "0": {
+                      "name": "Torch",
+                      "qty": 2
+                    },
+                    "1": {
+                      "name": "Rope",
+                      "qty": 1
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/perReply",
+              "value": {
+                "sw_bd1153f9ef5d": {
+                  "coin": 0,
+                  "worth": 0,
+                  "made": 2,
+                  "items": {
+                    "story/torch": 2,
+                    "story/rope": 1
+                  }
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/aliases/torch",
+              "value": "story/torch"
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/defs/story~1torch",
+              "value": {
+                "id": "story/torch",
+                "name": "Torch",
+                "kind": "goods",
+                "rarity": "common",
+                "value": 0,
+                "stack": true,
+                "slot": null,
+                "stats": {},
+                "effect": {},
+                "tags": [],
+                "note": ""
+              }
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/stacks/it_wfelkbg0",
+              "value": {
+                "id": "it_wfelkbg0",
+                "def": "story/torch",
+                "qty": 2,
+                "owner": "party",
+                "equipped": null,
+                "note": "",
+                "from": "rc_5lc72pgw",
+                "story": true
+              }
+            },
+            {
+              "op": "add",
+              "path": "/meta/claims/loot:sw_bd1153f9ef5d",
+              "value": true
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 2
+            }
+          ],
+          "receipts": [
+            {
+              "id": "rc_7zja6zcq",
+              "type": "capture.loot",
+              "module": "story-block",
+              "cause": "story",
+              "seed": 491083426,
+              "summary": "Loot to pick from (in the crate): Torch ×2, Rope. The reader picks what to take (this reply's card, or To pick up in the Inventory).",
+              "narrate": false,
+              "data": {
+                "sid": "sw_bd1153f9ef5d",
+                "where": "in the crate",
+                "items": [
+                  {
+                    "name": "Torch",
+                    "qty": 2
+                  },
+                  {
+                    "name": "Rope",
+                    "qty": 1
+                  }
+                ]
+              },
+              "rev": 1,
+              "line": "f4e0e661"
+            },
+            {
+              "id": "rc_5lc72pgw",
+              "type": "inventory.lootTake",
+              "module": "story-block",
+              "cause": "ui",
+              "seed": 3230206745,
+              "summary": "The party takes Torch ×2 (in the crate).",
+              "narrate": true,
+              "data": {
+                "sid": "sw_bd1153f9ef5d",
+                "taken": [
+                  {
+                    "def": "story/torch",
+                    "qty": 2
+                  }
+                ],
+                "coin": 0,
+                "skipped": [],
+                "stacks": [
+                  "it_wfelkbg0"
+                ]
+              },
+              "rev": 2
+            }
+          ],
+          "narrated": [],
+          "spans": [
+            {
+              "n": 3,
+              "story": true
+            },
+            {
+              "n": 5,
+              "story": false
+            }
+          ],
+          "source": {
+            "logical": "sr_ahpm56t8",
+            "swipeKey": "sw_0e6vtsdz",
+            "evidence": "ev_6cos8sza",
+            "next": 0
+          },
+          "rev": 2,
+          "swipe": 0,
+          "mark": {
+            "t": "126c304b:8",
+            "d": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "You",
+      "is_user": true,
+      "is_system": false,
+      "mes": "Look at the shelf.",
+      "send_date": "",
+      "extra": {}
+    },
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "A shelf.\n\n<!-- STORY_SUITE_V2\n<Changes>\n? loot Lantern, Map — on the shelf\n</Changes>\n-->",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "A shelf.\n\n<!-- STORY_SUITE_V2\n<Changes>\n? loot Lantern, Map — on the shelf\n</Changes>\n-->"
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {}
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_3fc3a4c331e8",
+          "ops": [
+            {
+              "op": "add",
+              "path": "/domains/inventory/loot/sw_3fc3a4c331e8",
+              "value": {
+                "sid": "sw_3fc3a4c331e8",
+                "n": 3,
+                "where": "on the shelf",
+                "claim": "loot:sw_3fc3a4c331e8",
+                "items": {
+                  "0": {
+                    "name": "Lantern",
+                    "qty": 1
+                  },
+                  "1": {
+                    "name": "Map",
+                    "qty": 1
+                  }
+                }
+              }
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/perReply/sw_3fc3a4c331e8",
+              "value": {
+                "coin": 0,
+                "worth": 0,
+                "made": 2,
+                "items": {
+                  "story/lantern": 1,
+                  "story/map": 1
+                }
+              }
+            },
+            {
+              "op": "remove",
+              "path": "/domains/inventory/perReply/sw_bd1153f9ef5d"
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 3
+            }
+          ],
+          "receipts": [
+            {
+              "id": "rc_fxntzawq",
+              "type": "capture.loot",
+              "module": "story-block",
+              "cause": "story",
+              "seed": 3737391868,
+              "summary": "Loot to pick from (on the shelf): Lantern, Map. The reader picks what to take (this reply's card, or To pick up in the Inventory).",
+              "narrate": false,
+              "data": {
+                "sid": "sw_3fc3a4c331e8",
+                "where": "on the shelf",
+                "items": [
+                  {
+                    "name": "Lantern",
+                    "qty": 1
+                  },
+                  {
+                    "name": "Map",
+                    "qty": 1
+                  }
+                ]
+              },
+              "rev": 3,
+              "line": "686f3696"
+            }
+          ],
+          "narrated": [
+            "rc_5lc72pgw"
+          ],
+          "spans": [
+            {
+              "n": 4,
+              "story": true
+            }
+          ],
+          "source": {
+            "logical": "sr_46me1ulo",
+            "swipeKey": "sw_87726qqk",
+            "evidence": "ev_6p4a2evg",
+            "next": 0
+          },
+          "rev": 3,
+          "swipe": 0,
+          "mark": {
+            "t": "05213632:8",
+            "d": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "You",
+      "is_user": true,
+      "is_system": false,
+      "mes": "Walk on.",
+      "send_date": "",
+      "extra": {}
+    },
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "The road goes on.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 1\n</Changes>\n-->",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "The road goes on.\n\n<!-- STORY_SUITE_V2\n<Changes>\n+ coin 1\n</Changes>\n-->"
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {
+            "storySuite": {
+              "v": 2,
+              "sid": "sw_612760f7573e",
+              "ops": [
+                {
+                  "op": "remove",
+                  "path": "/domains/inventory/perReply/sw_3fc3a4c331e8"
+                },
+                {
+                  "op": "add",
+                  "path": "/domains/inventory/perReply/sw_612760f7573e",
+                  "value": {
+                    "coin": 1,
+                    "worth": 0,
+                    "made": 0,
+                    "items": {}
+                  }
+                },
+                {
+                  "op": "add",
+                  "path": "/domains/inventory/wallets/party",
+                  "value": {
+                    "coin": 1
+                  }
+                },
+                {
+                  "op": "replace",
+                  "path": "/meta/rev",
+                  "value": 4
+                },
+                {
+                  "op": "add",
+                  "path": "/domains/inventory/aliases/lantern",
+                  "value": "story/lantern"
+                },
+                {
+                  "op": "add",
+                  "path": "/domains/inventory/defs/story~1lantern",
+                  "value": {
+                    "id": "story/lantern",
+                    "name": "Lantern",
+                    "kind": "goods",
+                    "rarity": "common",
+                    "value": 0,
+                    "stack": true,
+                    "slot": null,
+                    "stats": {},
+                    "effect": {},
+                    "tags": [],
+                    "note": ""
+                  }
+                },
+                {
+                  "op": "add",
+                  "path": "/domains/inventory/stacks/it_6jcgoq1p",
+                  "value": {
+                    "id": "it_6jcgoq1p",
+                    "def": "story/lantern",
+                    "qty": 1,
+                    "owner": "party",
+                    "equipped": null,
+                    "note": "",
+                    "from": "rc_wi8fpqb9",
+                    "story": true
+                  }
+                },
+                {
+                  "op": "add",
+                  "path": "/meta/claims/loot:sw_3fc3a4c331e8",
+                  "value": true
+                },
+                {
+                  "op": "replace",
+                  "path": "/meta/rev",
+                  "value": 5
+                }
+              ],
+              "receipts": [
+                {
+                  "id": "rc_ahwosskg",
+                  "type": "capture.coin",
+                  "module": "story-block",
+                  "cause": "story",
+                  "seed": 137072016,
+                  "summary": "The party receives 1 gold (now 1 gold).",
+                  "narrate": false,
+                  "data": {
+                    "owner": "party",
+                    "amount": 1,
+                    "now": 1,
+                    "note": ""
+                  },
+                  "rev": 4,
+                  "line": "7bb82436"
+                },
+                {
+                  "id": "rc_wi8fpqb9",
+                  "type": "inventory.lootTake",
+                  "module": "story-block",
+                  "cause": "ui",
+                  "seed": 2287689572,
+                  "summary": "The party takes Lantern (on the shelf).",
+                  "narrate": true,
+                  "data": {
+                    "sid": "sw_3fc3a4c331e8",
+                    "taken": [
+                      {
+                        "def": "story/lantern",
+                        "qty": 1
+                      }
+                    ],
+                    "coin": 0,
+                    "skipped": [],
+                    "stacks": [
+                      "it_6jcgoq1p"
+                    ]
+                  },
+                  "rev": 5
+                }
+              ],
+              "narrated": [],
+              "spans": [
+                {
+                  "n": 4,
+                  "story": true
+                },
+                {
+                  "n": 5,
+                  "story": false
+                }
+              ],
+              "source": {
+                "logical": "sr_1zhs357x",
+                "swipeKey": "sw_7qca01mr",
+                "evidence": "ev_dwveslw8",
+                "next": 0
+              },
+              "rev": 5,
+              "swipe": 0,
+              "mark": {
+                "t": "70d1ba95:17",
+                "d": ""
+              }
+            }
+          }
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_612760f7573e",
+          "ops": [
+            {
+              "op": "remove",
+              "path": "/domains/inventory/perReply/sw_3fc3a4c331e8"
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/perReply/sw_612760f7573e",
+              "value": {
+                "coin": 1,
+                "worth": 0,
+                "made": 0,
+                "items": {}
+              }
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/wallets/party",
+              "value": {
+                "coin": 1
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 4
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/aliases/lantern",
+              "value": "story/lantern"
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/defs/story~1lantern",
+              "value": {
+                "id": "story/lantern",
+                "name": "Lantern",
+                "kind": "goods",
+                "rarity": "common",
+                "value": 0,
+                "stack": true,
+                "slot": null,
+                "stats": {},
+                "effect": {},
+                "tags": [],
+                "note": ""
+              }
+            },
+            {
+              "op": "add",
+              "path": "/domains/inventory/stacks/it_6jcgoq1p",
+              "value": {
+                "id": "it_6jcgoq1p",
+                "def": "story/lantern",
+                "qty": 1,
+                "owner": "party",
+                "equipped": null,
+                "note": "",
+                "from": "rc_wi8fpqb9",
+                "story": true
+              }
+            },
+            {
+              "op": "add",
+              "path": "/meta/claims/loot:sw_3fc3a4c331e8",
+              "value": true
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 5
+            }
+          ],
+          "receipts": [
+            {
+              "id": "rc_ahwosskg",
+              "type": "capture.coin",
+              "module": "story-block",
+              "cause": "story",
+              "seed": 137072016,
+              "summary": "The party receives 1 gold (now 1 gold).",
+              "narrate": false,
+              "data": {
+                "owner": "party",
+                "amount": 1,
+                "now": 1,
+                "note": ""
+              },
+              "rev": 4,
+              "line": "7bb82436"
+            },
+            {
+              "id": "rc_wi8fpqb9",
+              "type": "inventory.lootTake",
+              "module": "story-block",
+              "cause": "ui",
+              "seed": 2287689572,
+              "summary": "The party takes Lantern (on the shelf).",
+              "narrate": true,
+              "data": {
+                "sid": "sw_3fc3a4c331e8",
+                "taken": [
+                  {
+                    "def": "story/lantern",
+                    "qty": 1
+                  }
+                ],
+                "coin": 0,
+                "skipped": [],
+                "stacks": [
+                  "it_6jcgoq1p"
+                ]
+              },
+              "rev": 5
+            }
+          ],
+          "narrated": [],
+          "spans": [
+            {
+              "n": 4,
+              "story": true
+            },
+            {
+              "n": 5,
+              "story": false
+            }
+          ],
+          "source": {
+            "logical": "sr_1zhs357x",
+            "swipeKey": "sw_7qca01mr",
+            "evidence": "ev_dwveslw8",
+            "next": 0
+          },
+          "rev": 5,
+          "swipe": 0,
+          "mark": {
+            "t": "70d1ba95:17",
+            "d": ""
+          }
+        }
+      }
+    }
+  ],
+  "inventory": {
+    "defs": {
+      "story/torch": {
+        "id": "story/torch",
+        "name": "Torch",
+        "kind": "goods",
+        "rarity": "common",
+        "value": 0,
+        "stack": true,
+        "slot": null,
+        "stats": {},
+        "effect": {},
+        "tags": [],
+        "note": ""
+      },
+      "story/lantern": {
+        "id": "story/lantern",
+        "name": "Lantern",
+        "kind": "goods",
+        "rarity": "common",
+        "value": 0,
+        "stack": true,
+        "slot": null,
+        "stats": {},
+        "effect": {},
+        "tags": [],
+        "note": ""
+      }
+    },
+    "stacks": {
+      "it_wfelkbg0": {
+        "id": "it_wfelkbg0",
+        "def": "story/torch",
+        "qty": 2,
+        "owner": "party",
+        "equipped": null,
+        "note": "",
+        "from": "rc_5lc72pgw",
+        "story": true
+      },
+      "it_6jcgoq1p": {
+        "id": "it_6jcgoq1p",
+        "def": "story/lantern",
+        "qty": 1,
+        "owner": "party",
+        "equipped": null,
+        "note": "",
+        "from": "rc_wi8fpqb9",
+        "story": true
+      }
+    },
+    "wallets": {
+      "party": {
+        "coin": 1
+      }
+    },
+    "aliases": {
+      "torch": "story/torch",
+      "lantern": "story/lantern"
+    },
+    "loot": {
+      "sw_bd1153f9ef5d": {
+        "sid": "sw_bd1153f9ef5d",
+        "n": 1,
+        "where": "in the crate",
+        "claim": "loot:sw_bd1153f9ef5d",
+        "items": {
+          "0": {
+            "name": "Torch",
+            "qty": 2
+          },
+          "1": {
+            "name": "Rope",
+            "qty": 1
+          }
+        }
+      },
+      "sw_3fc3a4c331e8": {
+        "sid": "sw_3fc3a4c331e8",
+        "n": 3,
+        "where": "on the shelf",
+        "claim": "loot:sw_3fc3a4c331e8",
+        "items": {
+          "0": {
+            "name": "Lantern",
+            "qty": 1
+          },
+          "1": {
+            "name": "Map",
+            "qty": 1
+          }
+        }
+      }
+    },
+    "perReply": {
+      "sw_612760f7573e": {
+        "coin": 1,
+        "worth": 0,
+        "made": 0,
+        "items": {}
+      }
+    }
+  },
+  "claims": {
+    "loot:sw_bd1153f9ef5d": true,
+    "loot:sw_3fc3a4c331e8": true
+  }
+}
