@@ -975,6 +975,44 @@ function byReader(ctx) {
     if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', E.onlyReader);
 }
 
+export const INVENTORY_EDIT_GUARD = 'inventory.reader-edit';
+const editStack = stack => ({ id: stack.id, def: stack.def, owner: stack.owner });
+const editPieces = (inventory, target) => Object.values(inventory?.stacks ?? {})
+    .filter(stack => stack.def === target.def && stack.owner === target.owner)
+    .map(stack => ({ id: stack.id, equipped: stack.equipped }));
+
+// A reader action is a guarded ordinary command. If a later Re-read makes its saved ops
+// invalid, the existing replay machinery can leave just this action off and report it.
+function guardReaderEdit(ctx, action, target = null, pieces = null) {
+    if (ctx.cause !== 'ui' || ctx.caller !== null || typeof ctx.replayGuard !== 'function') return;
+    const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces } : {}) };
+    ctx.replayGuard({ owner: 'story-block', version: 2, epoch: ctx.epoch, rulesHash: null,
+        inputHash: ctx.hash({ predicate, source: ctx.source }), predicate });
+}
+
+export function inventoryEditGuard({ state, hash }, { guard, source, operation }) {
+    const p = guard?.predicate;
+    const bad = { ok: false, reason: 'the saved item edit is damaged' };
+    if (guard?.owner !== 'story-block' || guard.version !== 2 || guard.rulesHash !== null
+        || !isPlainObject(p) || p.kind !== INVENTORY_EDIT_GUARD
+        || !['inventory.add', 'inventory.edit', 'inventory.drop'].includes(p.action)
+        || operation?.type !== p.action || Object.keys(p).some(key => !['kind', 'action', 'target', 'pieces'].includes(key))
+        || hash({ predicate: p, source }) !== guard.inputHash) return bad;
+    if (p.action === 'inventory.add') return p.target === undefined && p.pieces === undefined ? { ok: true } : bad;
+    if (!isPlainObject(p.target) || Object.keys(p.target).length !== 3
+        || typeof p.target.id !== 'string' || p.target.id !== operation?.payload?.stack
+        || typeof p.target.def !== 'string' || typeof p.target.owner !== 'string') return bad;
+    const inventory = state?.domains?.inventory, stack = inventory?.stacks?.[p.target.id];
+    if (!stack || stack.def !== p.target.def || stack.owner !== p.target.owner || !inventory?.defs?.[stack.def]) {
+        return { ok: false, reason: 'the item for this edit has changed or is gone' };
+    }
+    if (p.pieces !== undefined && (p.action !== 'inventory.edit' || operation?.payload?.group !== true || !Array.isArray(p.pieces))) return bad;
+    if (p.pieces !== undefined && hash(editPieces(inventory, p.target)) !== hash(p.pieces)) {
+        return { ok: false, reason: 'the separate pieces for this edit have changed' };
+    }
+    return { ok: true };
+}
+
 /** The inventory commands; `env` = { hooks: name => fn[], settings: () => this module's settings }. */
 export function createInventoryCommands(env) {
     return {
@@ -1008,6 +1046,7 @@ export function createInventoryCommands(env) {
         // The reader's own item, resolved just like a story item but without the story's grant command.
         'inventory.add'(ctx, payload = {}) {
             byReader(ctx);
+            guardReaderEdit(ctx, 'inventory.add');
             const inv = ctx.draft('inventory');
             if (typeof payload.name !== 'string') ctx.fail('INVALID', E.itemName);
             const name = cleanName(payload.name);
@@ -1032,6 +1071,7 @@ export function createInventoryCommands(env) {
                 if (qty > MAX_UNSTACKED) ctx.fail('INVALID', fill(E.itemGroupLimit, { max: MAX_UNSTACKED }));
                 if (payload.name !== undefined || payload.note !== undefined) ctx.fail('INVALID', E.itemGroupAlone);
                 const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
+                guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack));
                 const loose = pieces.filter(item => item.equipped === null).reverse();
                 const remove = pieces.length - qty;
                 if (remove > loose.length) ctx.fail('REFUSED', E.itemGroupEquipped);
@@ -1044,6 +1084,7 @@ export function createInventoryCommands(env) {
                 return { summary: fill(E.itemSet, { detail: fill(E.itemCount, { name: original.name, qty }) }),
                     data: { edit: true, stack: remaining.id }, narrate: true };
             }
+            guardReaderEdit(ctx, 'inventory.edit', editStack(stack));
             if (payload.qty !== undefined) {
                 const qty = count(ctx, payload.qty, undefined);
                 // A non-stacking item is one stack per piece (the domain's invariant).
@@ -1160,6 +1201,7 @@ export function createInventoryCommands(env) {
             const qty = count(ctx, payload.qty, stack.qty);
             if (qty > stack.qty) ctx.fail('NOT_ENOUGH', shortOf(def.name, stack.qty));
             const owner = stack.owner;
+            guardReaderEdit(ctx, 'inventory.drop', editStack(stack));
             take(inv, stack, qty);
             return {
                 summary: `${capitalize(ownerNameIn(ctx, owner))} drops ${itemText(def.name, qty)}.`,

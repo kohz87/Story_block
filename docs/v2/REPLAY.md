@@ -161,7 +161,9 @@ asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconc
 ## Reader edits
 
 Inventory, purse and scene edits are ordinary UI commands recorded on the current reply. Their saved
-ops follow the same rebuild, swipe, delete and Re-read rules as other reader actions. Wallet and stack
+ops follow the same rebuild, swipe, delete and Re-read rules as other reader actions. Reader item adds,
+edits and drops use a guard so that an item action whose saved changes no longer apply stays off with a
+Problem. Separate-piece counts also check that the same pieces remain available. Wallet and stack
 counts retain the existing counter differences on replay. `dm.set` uses a data-module guard for the
 pin generation, the instance paths read and applicable imported inputs; it does not claim a reply key. A changed prerequisite
 keeps the guarded block off and reports a Problem. The Changed card reads edit summaries from receipt

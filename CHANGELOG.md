@@ -6,6 +6,7 @@
 - Allow guarded data-module field edits and bounded free-text labels; Setup lists editable fields for the chat and attached characters.
 - Make the phone Story panel opaque, give authored inline controls larger touch targets, and remove the duplicate coin icon.
 - The count editor adds or removes separate non-stacking pieces without removing equipped items. Data-module edits run rules and guard the imported inputs they use.
+- Item edits and drops that no longer apply after a Re-read stay off and appear in Problems.
 - Add chat blocks with editable fields, story lines, buttons, rules, timers, tabs and Home cards. Their definitions follow the reply that saved them.
 - Save block definitions as templates or export them as packs; standalone Studio layouts can appear as tabs.
 
