@@ -3,8 +3,7 @@
 // "Purse", "Coins") whose quantity or note is written in the currency's coins. Pure.
 //
 // A currency is { mode: 'tiers' | 'single', tiers: [{ name, rate }], single }: tiers smallest
-// first, `rate` how many of the previous make one of this (RPG Battle's shape, so its currency
-// can be used as it is). { mode: 'off' } turns the purse line off.
+// first, `rate` how many of the previous make one of this. { mode: 'off' } turns the purse line off.
 
 export const DEFAULT_CURRENCY = Object.freeze({
     mode: 'tiers',

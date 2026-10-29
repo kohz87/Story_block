@@ -1,9 +1,4 @@
-// The combination matrix runner (testkit/matrix, scripts/matrix.mjs, docs/v2/MATRIX.md) on its own: the
-// rows are the contract's §2, a row whose module is not checked out is skipped, a module that does not load
-// fails its rows, Story Block's own row passes every case it can, a negative row passes with a module that
-// names its peers and fails with one that does not, the wrapper's exit codes, and the vendored copy runs the same rows. The
-// real modules are run by `npm run matrix` next to the other checkouts (the suite helpers' folder rule);
-// here a toy RPG Battle checkout (fixtures/) stands in only to test the runner's own handling.
+// The combination matrix runner and its command-line wrapper.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -19,8 +14,8 @@ const fixture = name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.
 const cell = (out, row, id) => out.results.find(result => result.row === row && result.id === id);
 
 test('the rows are the combination table of the contract, §2', () => {
-    assert.deepEqual(ROWS.map(row => row.name), ['SB', 'SB+SD', 'SB+NSD', 'SB+SD+NSD', 'SB+SD+RB', 'SB+SD+RB+NSD', 'SB+RB', 'SB+RB+NSD']);
-    assert.deepEqual(ROWS.filter(row => row.dormant.length).map(row => [row.name, row.dormant]), [['SB+RB', ['rb']], ['SB+RB+NSD', ['rb']]]);
+    assert.deepEqual(ROWS.map(row => row.name), ['SB', 'SB+SD', 'SB+NSD', 'SB+SD+NSD']);
+    assert.ok(ROWS.every(row => row.dormant.length === 0));
     for (const id of ['missing-query', 'malformed', 'feature-off', 'unset-clock', 'disabled-sd', 'late', 'duplicate', 'swipe', 're-read', 'delete']) {
         assert.ok(CASES.some(([key]) => key === id), `a column for ${id}`);
     }
@@ -33,7 +28,7 @@ test('Story Block alone: every applicable case passes, including n/a for SD disa
     for (const id of ['register', 'reply', 'action', 'replay', 'prompt', 'missing-query', 'malformed', 'feature-off', 'duplicate', 'swipe', 're-read', 'delete']) {
         assert.equal(marks[id], 'pass', `${id}: ${cell(out, 'SB', id).detail}`);
     }
-    for (const id of ['dormant', 'unset-clock', 'late']) assert.equal(marks[id], 'na', id);
+    for (const id of ['unset-clock', 'late']) assert.equal(marks[id], 'na', id);
     assert.equal(marks['disabled-sd'], 'na');
     // The peers' query names are unknown to the host when they are not there, and the stand-ins were asked or not.
     assert.match(cell(out, 'SB', 'malformed').detail, /SD, NSD stood in/);
@@ -47,56 +42,24 @@ test('a row whose module is not checked out is skipped with the reason; the othe
     assert.match(formatTable(out.results), /\| SB\+SD \| skip \|/);
 });
 
-test('loadModules: a missing folder or entry is missing, an entry that throws is broken and fails its rows', async () => {
+test('missing modules are skipped and broken modules fail their rows', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sb-matrix-'));
     try {
-        mkdirSync(join(dir, 'rpg_battle'));
-        const loaded = await loadModules({ rb: fixture('rpg_battle'), sd: join(dir, 'nowhere'), nsd: join(dir, 'rpg_battle') });
-        assert.deepEqual(Object.keys(loaded.loaded), ['rb']);
+        const loaded = await loadModules({ sd: join(dir, 'nowhere') });
         assert.match(loaded.missing.sd, /is not there/);
-        assert.match(loaded.missing.nsd, /is not there/);
-        const broken = await loadModules({ rb: fixture('broken') });
-        assert.deepEqual(Object.keys(broken.broken), ['rb']);
-        const out = await runMatrix({ ...broken, rows: ['SB+RB'] });
+        const broken = await loadModules({ sd: fixture('broken') });
+        assert.deepEqual(Object.keys(broken.broken), ['sd']);
+        const out = await runMatrix({ ...broken, rows: ['SB+SD'] });
         assert.equal(out.ok, false);
-        assert.ok(out.results.every(result => result.status === 'fail' && /RB does not load: this checkout is broken on purpose/.test(result.detail)));
-        assert.deepEqual(discoverRoots(dir), { rb: join(dir, 'rpg_battle') });
+        assert.ok(out.results.every(result => result.status === 'fail'));
         mkdirSync(join(dir, 'Story_director'));
         mkdirSync(join(dir, 'sb'));
-        assert.deepEqual(discoverRoots(dir), { sb: join(dir, 'sb'), rb: join(dir, 'rpg_battle'), sd: join(dir, 'Story_director') });
-    } finally {
-        rmSync(dir, { recursive: true, force: true });
-    }
+        assert.deepEqual(discoverRoots(dir), { sb: join(dir, 'sb'), sd: join(dir, 'Story_director') });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('a negative row with a module that names its peers: it is dormant without SD, the others work, --strict passes too', async () => {
-    const modules = await loadModules({ rb: fixture('rpg_battle') });
-    assert.deepEqual(Object.keys(modules.loaded), ['rb']);
-    const out = await runMatrix({ ...modules, rows: ['SB+RB'] });
-    assert.equal(out.ok, true, formatDetails(out.results));
-    assert.equal(cell(out, 'SB+RB', 'register').status, 'pass', 'RB is registered once');
-    assert.equal(cell(out, 'SB+RB', 'dormant').status, 'pass', cell(out, 'SB+RB', 'dormant').detail);
-    for (const id of ['reply', 'action', 'prompt', 'swipe', 're-read', 'delete', 'late', 'duplicate', 'feature-off']) {
-        assert.equal(cell(out, 'SB+RB', id).status, 'pass', `${id}: ${cell(out, 'SB+RB', id).detail}`);
-    }
-    assert.equal(cell(out, 'SB+RB', 'replay').status, 'pass');
-    const strict = await runMatrix({ ...modules, rows: ['SB+RB'], strict: true });
-    assert.equal(strict.ok, true, formatDetails(strict.results));
-    assert.match(summaryLine(strict), /^matrix ok: /);
-});
-
-test('a negative row with a module that does not name its peers: ready without SD, so the dormant case fails', async () => {
-    const modules = await loadModules({ rb: fixture('rpg_battle_old') });
-    assert.deepEqual(Object.keys(modules.loaded), ['rb']);
-    const out = await runMatrix({ ...modules, rows: ['SB+RB'] });
-    assert.equal(out.ok, false);
-    assert.equal(cell(out, 'SB+RB', 'dormant').status, 'fail');
-    assert.match(cell(out, 'SB+RB', 'dormant').detail, /RB should be dormant without SD/);
-    assert.match(summaryLine(out), /matrix FAILED/);
-});
-
-test('scripts/matrix.mjs: a table and exit 0; --json; unknown option exits 2; --strict exits 1 on a gap', () => {
-    const run = (...args) => spawnSync(process.execPath, [join(root, 'scripts', 'matrix.mjs'), ...args], { encoding: 'utf8', env: { ...process.env, STORY_SUITE_ROOT: '', MATRIX_RB: '', MATRIX_SD: '', MATRIX_NSD: '' } });
+test('scripts/matrix.mjs: a table and exit 0; --json; unknown option exits 2; --strict', () => {
+    const run = (...args) => spawnSync(process.execPath, [join(root, 'scripts', 'matrix.mjs'), ...args], { encoding: 'utf8', env: { ...process.env, STORY_SUITE_ROOT: '', MATRIX_SD: '', MATRIX_NSD: '' } });
     const empty = mkdtempSync(join(tmpdir(), 'sb-matrix-empty-'));
     try {
         const plain = run('--root', empty, '--rows', 'SB,SB+SD');
@@ -110,10 +73,7 @@ test('scripts/matrix.mjs: a table and exit 0; --json; unknown option exits 2; --
         const bad = run('--bogus', 'x');
         assert.equal(bad.status, 2);
         assert.match(bad.stderr, /Unknown option --bogus/);
-        const toy = run('--root', empty, '--rb', fixture('rpg_battle'), '--rows', 'SB+RB');
-        assert.equal(toy.status, 0, toy.stdout);
-        assert.equal(run('--root', empty, '--rb', fixture('rpg_battle'), '--rows', 'SB+RB', '--strict').status, 0);
-        assert.equal(run('--root', empty, '--rb', fixture('rpg_battle_old'), '--rows', 'SB+RB').status, 1);
+        assert.equal(run('--root', empty, '--rows', 'SB', '--strict').status, 0);
         assert.equal(run('--root', empty, '--rows', 'SB', '--cases', 'swipe').status, 0);
     } finally {
         rmSync(empty, { recursive: true, force: true });

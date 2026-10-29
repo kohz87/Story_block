@@ -250,7 +250,7 @@ test('Regenerate records replacement provenance before the host removes the sole
     const owner = sb.messageIdentity(2);
     const message = ctx.chat[2];
     assert.equal((await sb.commitBlocks({ id: 'old-fight', chatId: 'chat-1', messageIndex: 2,
-        expectedText: message.mes, namespace: 'rpgBattleEvidence', value: { owner, events: ['old-fight'] } })).status, 'durable');
+        expectedText: message.mes, namespace: 'storyDirectorState', value: { owner, events: ['old-fight'] } })).status, 'durable');
     const oldHead = ctx.chatMetadata.storyBlockJournal.head;
     await emit('GENERATION_AFTER_COMMANDS', 'regenerate', {}, false);
     ctx.chat.pop(); // SillyTavern removes the reply after GENERATION_AFTER_COMMANDS.
@@ -261,13 +261,13 @@ test('Regenerate records replacement provenance before the host removes the sole
     assert.notEqual(sb.messageIdentity(2), owner);
     assert.deepEqual(ctx.chat[2].extra.storyBlockIdentity.replaces, [owner]);
     assert.equal(sb.journal().availability, 'available');
-    assert.equal(sb.journal().entries.at(-1).extra.rpgBattleEvidence, undefined, 'discarded defeats cannot enter the new branch');
+    assert.equal(sb.journal().entries.at(-1).extra.storyDirectorState, undefined, 'discarded defeats cannot enter the new branch');
     assert.match(sb.getBlock('Inventory').text, /10 Gold/, 'the old hunt payout is excluded');
     const next = ctx.chat[2];
     assert.equal((await sb.commitBlocks({ id: 'new-fight', chatId: 'chat-1', messageIndex: 2,
-        expectedText: next.mes, namespace: 'rpgBattleEvidence', value: { owner: sb.messageIdentity(2), events: ['new-fight'] } })).status, 'durable');
+        expectedText: next.mes, namespace: 'storyDirectorState', value: { owner: sb.messageIdentity(2), events: ['new-fight'] } })).status, 'durable');
     ctx.chat = structuredClone(ctx.chat); ctx.chatMetadata = structuredClone(ctx.chatMetadata);
-    assert.deepEqual(sb.journal().entries.at(-1).extra.rpgBattleEvidence.events, ['new-fight']);
+    assert.deepEqual(sb.journal().entries.at(-1).extra.storyDirectorState.events, ['new-fight']);
 });
 
 test('existing swipes reconnect through their saved variant ownership without importing old battle proof', async t => {
@@ -286,10 +286,10 @@ test('existing swipes reconnect through their saved variant ownership without im
     assert.equal(sb.journal().availability, 'available');
     const message = ctx.chat[0];
     assert.equal((await sb.commitBlocks({ id: 'swiped-fight', chatId: 'chat-1', messageIndex: 0,
-        expectedText: message.mes, namespace: 'rpgBattleEvidence', value: { owner: 'already-swiped', events: ['new'] } })).status, 'durable');
+        expectedText: message.mes, namespace: 'storyDirectorState', value: { owner: 'already-swiped', events: ['new'] } })).status, 'durable');
     ctx.chat[0] = old;
     assert.equal(sb.journal().availability, 'available');
-    assert.equal(sb.journal().entries.at(-1).extra.rpgBattleEvidence, undefined);
+    assert.equal(sb.journal().entries.at(-1).extra.storyDirectorState, undefined);
 });
 
 test('Regenerate after prefix archival prompts and carries the archived parent state, excluding the discarded reply', async t => {
@@ -367,7 +367,7 @@ test('explicit recovery of a legacy regenerated root verifies readback and prese
         } else {
             assert.match(sb.journal().reason, /could not be verified/);
             assert.equal((await sb.commitBlocks({ id: 'must-wait', chatId: 'chat-1', messageIndex: 0,
-                expectedText: ctx.chat[0].mes, namespace: 'rpgBattleEvidence', value: {} })).status, 'failed');
+                expectedText: ctx.chat[0].mes, namespace: 'storyDirectorState', value: {} })).status, 'failed');
         }
     }
 });
@@ -479,8 +479,8 @@ test('new swipes drop copied transactions while preserving the old variant and u
         retained: true, storyBlockIdentity: { id: 'old-variant', swipe: 0 },
         storyDirectorQuest: { receipts: [{ id: 'payment' }] },
         storyDirectorState: { version: 1, tracker: {} },
-        rpgBattleEvidence: { events: [{ id: 'fight' }] },
-        storyBlockCommits: { payment: { namespace: 'storyDirectorQuest', extras: ['storyDirectorState'] }, fight: { namespace: 'rpgBattleEvidence' } },
+        otherModuleEvidence: { events: [{ id: 'fight' }] },
+        storyBlockCommits: { payment: { namespace: 'storyDirectorQuest', extras: ['storyDirectorState'] }, fight: { namespace: 'otherModuleEvidence' } },
     };
     ctx.chat = [{ is_user: false, mes: 'New telling', swipe_id: 1, swipes: ['Old telling', 'New telling'],
         swipe_info: [{ extra: structuredClone(oldExtra) }, { extra: {} }], extra: structuredClone(oldExtra) }];
@@ -491,7 +491,7 @@ test('new swipes drop copied transactions while preserving the old variant and u
     assert.equal(message.extra.retained, true);
     assert.equal(message.extra.storyDirectorQuest, undefined);
     assert.equal(message.extra.storyDirectorState, undefined);
-    assert.equal(message.extra.rpgBattleEvidence, undefined);
+    assert.equal(message.extra.otherModuleEvidence, undefined);
     assert.equal(message.extra.storyBlockCommits, undefined);
     assert.deepEqual(message.swipe_info[0].extra, oldExtra);
     assert.deepEqual(message.swipe_info[1].extra, message.extra);
@@ -828,16 +828,16 @@ test('suite: the settings section has a choice per area, saves it, and redraws w
     await emit('CHAT_CHANGED');
     const status = () => allElements(suiteSection()).filter(node => String(node.className).includes('story-suite-status')).map(node => node.textContent);
     assert.equal(status()[3], 'Now: Story Block');
-    globalThis.StorySuite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns: ['stats', 'items', 'rolls'] });
+    globalThis.StorySuite.announce({ id: 'example-module', name: 'Example Module', version: '1.0.0', owns: ['stats', 'items', 'rolls'] });
     try {
-        assert.equal(status()[3], 'Now: RPG Battle', 'redrawn on the suite\'s change');
+        assert.equal(status()[3], 'Now: Story Block', 'the host retains priority');
         const stats = allElements(suiteSection()).find(node => node.id === 'story_block_source_stats');
-        stats.value = 'mine';
+        stats.value = 'theirs';
         stats.listeners.change.forEach(fn => fn());
-        assert.equal(ctx.extensionSettings.storyBlock.sourceOfTruth.stats, 'mine');
-        assert.equal(status()[3], 'Now: Story Block');
+        assert.equal(ctx.extensionSettings.storyBlock.sourceOfTruth.stats, 'theirs');
+        assert.equal(status()[3], 'Now: Example Module');
     } finally {
-        globalThis.StorySuite.withdraw('rpg-battle');
+        globalThis.StorySuite.withdraw('example-module');
         delete ctx.extensionSettings.storyBlock;
         await emit('CHAT_CHANGED');
     }
@@ -927,14 +927,14 @@ test('suite: the Dice block takes a kept modifier unless the reader keeps rolls 
         assert.match(await promptContext(), modifier, 'alone, as in 0.7');
         ctx.extensionSettings.storyBlock.sourceOfTruth = { rolls: 'mine' };
         assert.match(await promptContext(), modifier, '"This extension" with nobody else offering rolls changes nothing');
-        globalThis.StorySuite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns: ['stats', 'rolls'] });
+        globalThis.StorySuite.announce({ id: 'example-module', name: 'Example Module', version: '1.0.0', owns: ['stats', 'rolls'] });
         const own = await promptContext();
         assert.doesNotMatch(own, modifier, 'the reader keeps Story Block\'s own modifier');
         assert.match(own, /### Character — <Character> \(kept by RPG Battle/, 'the sheet itself is still shown');
-        ctx.extensionSettings.storyBlock.sourceOfTruth = { rolls: 'auto' };
-        assert.match(await promptContext(), modifier, 'Automatic: RPG Battle owns rolls');
+        ctx.extensionSettings.storyBlock.sourceOfTruth = { rolls: 'theirs' };
+        assert.match(await promptContext(), modifier, 'the reader chose the other module');
     } finally {
-        globalThis.StorySuite.withdraw('rpg-battle');
+        globalThis.StorySuite.withdraw('example-module');
         sb.unregisterBlock('rpg-character');
         delete ctx.extensionSettings.storyBlock;
         await emit('CHAT_CHANGED');

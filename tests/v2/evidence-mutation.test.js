@@ -15,7 +15,7 @@ function chatWith(edit, { guard = false } = {}) {
     const mode = { value: 'normal' };
     const h = evidenceHarness({ mode });
     h.send();
-    const first = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
+    const first = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs[0];
     const at = h.send();
     const second = guard
         ? h.command('sd.guarded', { thread: T1, selection: 'take it' }).receipt.data.proof

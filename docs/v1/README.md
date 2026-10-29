@@ -2,8 +2,6 @@
 
 # Story Block v0.9.26
 
-> **Story Suite v2 beta (2.0.0-beta.2) is the current version.** It is a fresh start: the story's state is kept as JSON in the replies, code sets every number, and the screens are modular. It is for test play, not your real campaigns yet. To try it, install Story Block and the modules you want from their repo URLs (no branch to pick) in a separate SillyTavern profile (1.19 or newer). Player guide: [docs/v2/GUIDE.md](../v2/GUIDE.md). Release notes: [docs/v2/RELEASES.md](../v2/RELEASES.md). Status: [docs/v2/STATUS.md](../v2/STATUS.md). The rest of this README describes v1 until v2 is released.
-
 
 A SillyTavern extension that keeps story trackers — an inventory, a character sheet, scene
 notes, or any block you design — inside the chat itself, injects their current state into
@@ -41,13 +39,13 @@ Every block is a definition you can edit. The built-ins are only templates.
 
 ## Screenshots
 
-From a demo session with [Story Director](https://github.com/kohz87/Story_director), [NPC State Delta](https://github.com/kohz87/npc_state_delta) and [RPG Battle](https://github.com/kohz87/rpg_battle), whose tabs sit in the same sidebar.
+From a demo session with several modules in the same sidebar.
 
 | World State | Inventory | Choices | On a phone |
 | --- | --- | --- | --- |
 | <img src="../images/world-state.png" alt="World State: time, place and weather, Ren and the NPCs present with what changed this turn" width="200"> | <img src="../images/inventory.png" alt="Inventory: the Loot category with wolf pelts, fangs and a healing draught" width="200"> | <img src="../images/choices.png" alt="Choices: four numbered options; a click fills the message box" width="200"> | <img src="../images/phone.png" alt="The sidebar as a bottom sheet on a phone, World State open" width="180"> |
 
-**Story Suite**, with two or more of the four installed: one place to manage them all.
+**Story Suite**, with two or more installed: one place to manage them all.
 
 <img src="../images/story-suite.png" alt="The Story Suite overlay: the four extensions with their switches, and who keeps each shared area" width="720">
 
@@ -157,9 +155,7 @@ Inventory's part of the prompt ends with *Purse in all: 4 gold, 6 silver, 4 copp
 can be paid for (the seller refuses, haggles or takes goods in trade).* A purse kept in three coins
 is hard to add up mid-scene, and without the sum a model may let a shopkeeper take more than the
 party has. Choose the coins under **Settings → Money**: coins with rates (copper=1, silver=10,
-gold=10 by default), one coin, or off. With RPG Battle on, its currency is used instead, so the two
-never disagree, and only one purse line is ever sent: Story Block's while it keeps the items,
-RPG Battle's otherwise (see Source of truth).
+gold=10 by default), one coin, or off.
 
 ### World State and Choices
 
@@ -211,11 +207,6 @@ and says so — or names what went wrong. When a roll is not the die handed for 
 out of order, or made up), the card shows what that die says with the same modifier and DC, and
 its verdict is that one, not the story's: *The die said 2: 2 vs DC 10 → fail (the story told
 success)*. The story itself is not rewritten; swipe the reply if you want it told honestly.
-
-With **RPG Battle** installed and on, fights are its job, not the dice's (v0.9.4): both Dice
-blocks get one more line under their instructions, *Never roll a fight: when blows are about to
-land, stop there; RPG Battle runs it.*, so the story stops where the fight starts and RPG
-Battle offers it. Your stored instructions are not changed; turn RPG Battle off and the line goes.
 
 ### Writing a layout each display can draw
 
@@ -370,7 +361,7 @@ Delta and Story Director's mirror still read and write it.
 
 - An eligible disconnected reply from the earlier Regenerate bug reconnects automatically,
   including when later replies were already sent. The save is verified before resuming quest
-  choices or battle bookkeeping. Update RPG Battle to **0.5.51** for automatic battle recovery.
+  choices before resuming.
 - **Edit** on a tab edits that block's current content; it is checked by the block's own
   parser and saved into the latest reply. Long lines wrap. A World State block also gets
   **Time**, **Location** and **Weather** fields above the text, which write straight into its
@@ -382,37 +373,11 @@ Delta and Story Director's mirror still read and write it.
 
 ## Working with the other extensions
 
-Story Block works on its own. Installed next to **Story Director**, **NPC State Delta** or
-**RPG Battle**, the four find each other (the *Story Suite*) and agree on who is the source of
-truth for each area, so the model is not told the same thing twice. Story Block offers an area
-only while the block for it is on:
-
-| Area | Story Block offers it while | Owner when several offer it |
-|---|---|---|
-| Scene | World State is on | Story Block, then NPC State Delta |
-| Timeline | World State is on (its off-screen, threads and timers) | Story Director, then Story Block |
-| Items | Inventory is on | Story Block, then RPG Battle |
-| Stats | Character Sheet is on | RPG Battle, then Story Block |
-| Rolls | Dice (or Dice: Everyone) is on | RPG Battle, then Story Block |
-
-- **Stats.** While another extension owns stats, the Character Sheet's tab says so ("RPG Battle
-  owns stats"). The sheet keeps working; turn it off if you want one set of numbers.
-- **Rolls.** The Dice block takes RPG Battle's modifier from its sheet (since 0.7), unless you
-  keep rolls with Story Block (below).
-- **Timeline** (since 0.9.5). While another extension keeps it (Story Director, on
-  *Automatic*), the World State is asked for without **Unresolved Threads**, **Planted Seeds**,
-  **Consequence Timers** and **Arc Phase**: Story Director tracks hooks, clocks and the arc
-  itself, so the model gets them from one place instead of two. **Off-Screen** stays (Story
-  Director writes its agendas there, and NPC State Delta reads it), and so does **Scene Phase**.
-  Only what the model is shown changes: your saved layout, the block editor and older replies
-  stay as they are. Keep the timeline with Story Block (*This extension*) to have the full World
-  State asked for again.
-- **Settings → Source of truth:** for each area, **Automatic** (the table), **This extension**
-  or **The other one**, with who has it now. Alone, every choice works like Automatic.
+The Source of truth settings let the reader choose which extension tracks a shared area. Story Director and NPC State Delta can share scene, timeline and character context.
 
 ### Story Suite: one place to manage them all
 
-With two or more of the four installed, **Story Suite** opens one overlay for all of them: from
+With two or more installed, **Story Suite** opens one overlay for all of them: from
 the Extensions menu, the gear in the sidebar's header, or *Manage all in Story Suite* at the top
 of Story Block's settings. Alone, none of these appear.
 
@@ -420,7 +385,7 @@ Story Block's own settings end with **What's sent** (v0.9.18): the exact context
 reply gets (rules, each block's section and current state, the layout to write back), with its
 size and **Copy**, read when you open it. Its dice are a sample: the reply rolls its own.
 
-The four settings panels share one look (v0.9.1, `src/suite.css`, the same file in all four):
+The settings panels share one look (v0.9.1, `src/suite.css`, the shared file):
 the *Manage all* line, a box of main actions (Story Block: **Rescan chat**, its status line and
 version), then sections that fold with a summary, settings as rows with a hint, switches as
 *Enabled*/*Disabled* pills. The Overview looks the same.
@@ -437,7 +402,7 @@ version), then sections that fold with a summary, settings as rows with a hint, 
   - **Tokens per reply** (v0.9.1, *~3,400 in · ~650 out*): what each extension adds to an
     ordinary reply, the prompt it injects (*in*) and what it asks the model to write back
     (*out*), and the total. Open an extension's row for its parts: Story Block lists each block,
-    a kept block under its owner (*Party (kept by RPG Battle)*), and the rules and envelope they
+    a kept block under its owner (*Character (kept by an extension)*), and the rules and envelope they
     share. Estimates at about 4 characters a token, updated when the overlay opens and after
     each reply; quiet calls like summaries, planning and monster flavour are not counted. An
     extension that does not report says *not reported*.
@@ -477,17 +442,17 @@ card unchanged; to appear in the sidebar they need `registerTab`.
 
 ### Kept blocks
 
-A **kept block** (v0.7) is one your extension keeps and the model only reads: RPG Battle's
-Character and Party sheets, for example. Story Block shows its newest copy to the model in
+A **kept block** (v0.7) is one your extension keeps and the model only reads: another extension's
+character sheet, for example. Story Block shows its newest copy to the model in
 every reply's prompt, marked read-only, gives it a tab (meters and fields, or plain text)
 with a small *kept by …* note and no Edit button, and never asks the model to write it.
 
 ```js
 sb.registerBlock({
     kept: true,
-    id: 'rpg-character',          // lowercase id
+    id: 'example-character',          // lowercase id
     tag: 'Character',             // letters, numbers and _; not used by another block
-    owner: 'RPG Battle',          // your extension's name, shown to the model and on the tab
+    owner: 'Example Module',          // your extension's name, shown to the model and on the tab
     name: 'Character',            // tab label (default: the tag)
     icon: '⚔️',
     format: 'fields',             // 'fields' or 'text' (default: 'fields' when fields are given)
@@ -497,7 +462,7 @@ sb.registerBlock({
         { label: 'MP', type: 'meter', max: 30 },
         { label: 'Checks', type: 'text', hint: 'STAT +N' },
     ],
-    promptNote: 'The player character as RPG Battle tracks it.',  // optional: one line on how to read it
+    promptNote: 'The player character as the example module tracks it.',  // optional: one line on how to read it
     diceModifier: "Modifier: the matching stat's bonus from the <Character> block's Checks line (for example CHA +1); ignore the −3 to +3 guess.",  // optional
     tab: true,                    // optional: false = no tab of its own (v0.9.1)
 });                                // { ok: true } or { ok: false, error }
@@ -509,7 +474,7 @@ sb.getBlock('Character');          // { text, state, messageIndex }: state.entri
 |---|---|
 | `kept: true` | Makes the block kept instead of transport only. |
 | `id`, `tag` | As for any block. A tag the reader's own blocks use stays theirs; registering your own id again replaces your block. |
-| `owner` | Required. In the prompt the block is headed `### Character — <Character> (kept by RPG Battle: read it, never write it)`, and the tab says *kept by RPG Battle*. |
+| `owner` | Required. In the prompt the block is headed `### Character — <Character> (kept by Example Module: read it, never write it)`, and the tab says *kept by Example Module*. |
 | `name`, `icon`, `short` | Tab label, icon and short sidebar label. |
 | `format`, `display`, `fields` | `fields` (one `Label: value` line per field; several on one line with ` \| ` read too) or `text`; shown as `fields` (meters, numbers, text, list chips) or `plain`. Field types: `meter` (with `max`), `number`, `text`, `list`, each with an optional `hint`. |
 | `promptNote` | One line under the heading, telling the model how to read the block. |

@@ -1,10 +1,8 @@
 # Guarded replay: span metadata and the owner API
 
 How a module makes a block of changes depend on what came before it, and what the host stores and checks so
-that swipes, Re-reads, deletes and reloads give the same story. The frozen contract is
-[contract/RB_CONTRACT.md](contract/RB_CONTRACT.md) §4 (identity), §6 (replay recording) and §10 E (the host
-rows); this page says what the host does with them and how an owner uses it. Nothing here changes a module that
-does not call the new APIs: its blocks, its spans and its replay are what they were.
+that swipes, Re-reads, deletes and reloads give the same story. Modules that do not use these APIs retain their
+existing blocks, spans and replay.
 
 Code: `src/v2/replay.js` (hashes, ids, shapes), `store.js` (replay, source map, chains, Re-read, reconcile),
 `commands.js` (`ctx.replayGuard`, `ctx.source`, `ctx.hash`, the guard check), `persist.js` (`trimReceipts`),
@@ -25,7 +23,7 @@ export default {
     },
   },
   commands: {
-    'quest.settle'(ctx, payload) {
+    'my-rules.settle'(ctx, payload) {
       // ... draft the changes, claim once ...
       ctx.replayGuard({ owner: 'my-rules', version: 2, epoch, rulesHash, inputHash: ctx.hash(inputs), predicate }, recorded);
       return { summary, data: { v2: { key: 'settle:...', result: { ... } } } };
@@ -142,7 +140,7 @@ chat, replay does not apply the block, even when deleting the earliest replies w
 state forward (`carriedTo`); a replay that still lists the deleted reply fails the block's prerequisite ("its reply was deleted").
 A swipe away from the reply does the same as it does for any block of that swipe, and a Re-read of the reply takes the block
 and its receipt too (`replaceStory` does not keep it; a block built under it is replayed without it and stays off, as after a
-delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (RPG Battle's rules pin): taking the
+delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (a module's saved choice): taking the
 reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
 
 ## Data module guards

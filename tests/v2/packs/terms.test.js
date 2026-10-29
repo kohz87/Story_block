@@ -1,6 +1,6 @@
 // The `terms` content kind (MODULES §F25): the words a world uses for levels and XP, suggested by a
 // pack the way it suggests a currency. Validation (every field, every rejection, the record cap,
-// the safety walls), the packs.content query, lorebook packs, and RPG Battle's reader.
+// the safety walls), the packs.content query, and lorebook packs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -42,7 +42,7 @@ test('a terms record normalizes with its id, slug and pack, and only the fields 
     const [record] = ok(withTerms([SOUL])).content.terms;
     assert.deepEqual(record, { ...SOUL, id: 'pack.mini/terms', slug: 'terms', pack: 'mini' });
     assert.deepEqual(ok(withTerms([{ xpName: '  Power   Growth ' }])).content.terms[0], { xpName: 'Power Growth', id: 'pack.mini/terms', slug: 'terms', pack: 'mini' });
-    assert.equal(ok(withTerms([{ tiers: true }])).content.terms[0].tiers, true, 'tiers: true is kept (RPG Battle fills in size 10, roman)');
+    assert.equal(ok(withTerms([{ tiers: true }])).content.terms[0].tiers, true, 'tiers: true is kept');
     assert.deepEqual(ok(withTerms([{ tiers: {} }])).content.terms[0].tiers, {});
     assert.deepEqual(ok(withTerms([{ tiers: { enabled: false } }])).content.terms[0].tiers, { enabled: false });
     assert.deepEqual(ok(withTerms([{ levelName: 'Circle', tiers: { numerals: 'arabic', size: 1 } }])).content.terms[0].tiers, { numerals: 'arabic', size: 1 });
@@ -67,7 +67,7 @@ test('every bad field is refused with its own sentence', () => {
         refused(one({ levelName: value }), 'BAD_RECORD', 'content.terms[0].levelName');
         refused(one({ xpName: value }), 'BAD_RECORD', 'content.terms[0].xpName');
     }
-    // A term is a label in RPG Battle's blocks: no field separators, no line breaks.
+    // Term labels contain no field separators or line breaks.
     for (const value of ['Soul|Class', 'Soul: Class', '#1', 'Rank\nTwo', 'a > b']) refused(one({ levelName: value }), 'BAD_RECORD', 'content.terms[0].levelName');
     const hit = refused(one({ xpName: 'Growth:' }), 'BAD_RECORD', 'content.terms[0].xpName');
     assert.match(hit.message, /\| : # < >/);
@@ -128,25 +128,4 @@ test('a pack carried in a lorebook brings its terms too', async () => {
     const { results } = await installed.importLorebook([{ book: 'Mara lore', uid: 2, title: 'Riverside [storysuite:pack]', content: '```json\n' + JSON.stringify(value) + '\n```' }]);
     assert.equal(results[0].ok, true, JSON.stringify(results[0].errors));
     assert.deepEqual(contentOf(installed.packs(), 'terms').map(record => [record.pack, record.levelName, record.xpName]), [['riverside-starter', 'Soul Class', 'Soul Growth']]);
-});
-
-test('the Ersveil pack suggests the lore\'s own words: Soul Class in Roman-numeral tiers, Soul Growth', () => {
-    const text = readFileSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url), 'utf8');
-    const terms = contentOf([ok(text)], 'terms');
-    assert.deepEqual(terms, [{ name: 'Soul Class', ...SOUL, id: 'pack.ersveil-bluewatch/soul-class', slug: 'soul-class', pack: 'ersveil-bluewatch' }]);
-});
-
-// RPG Battle's own reader (src/terms.js packTerms), when a checkout is next to this one (it is not
-// in Story Block's CI). It takes the first record that has fields.
-const RPG = ['/home/user/_ro/rpg_battle', '/home/user/rpg_battle'].find(root => existsSync(`${root}/src/terms.js`) && existsSync(`${root}/src/rules.js`));
-test('RPG Battle reads the records as its terms, the reader\'s own over them', { skip: RPG ? false : 'No RPG Battle checkout with src/terms.js next to this repo.' }, async () => {
-    const { packTerms, mergeTerms, termsOf, levelText } = await import(`${RPG}/src/terms.js`);
-    const packs = [ok(withTerms([SOUL], { id: 'ersveil' })), ok(withTerms([{ levelName: 'Circle' }], { id: 'other' }))];
-    const query = (name, args) => (name === 'packs.content' ? contentOf(packs, args.kind) : null);
-    const suggested = packTerms(query);
-    assert.deepEqual(suggested, SOUL);
-    assert.equal(levelText(24, { terms: mergeTerms(undefined, suggested) }), 'Soul Class III (Lv 24)');
-    assert.equal(termsOf({ terms: mergeTerms({ levelName: 'Rank' }, suggested) }).levelName, 'Rank', 'the reader\'s setting wins');
-    const tiersOnly = [ok(withTerms([{ tiers: true }]))];
-    assert.deepEqual(packTerms((name, args) => contentOf(tiersOnly, args.kind)), { tiers: { size: 10, numerals: 'roman' } });
 });

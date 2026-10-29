@@ -1,5 +1,5 @@
 #!/bin/bash
-# Suite check (see SKILL.md): the four Story Suite repos side by side in one folder, each tested in turn.
+# Suite check (see SKILL.md): the three Story Suite repos side by side in one folder, each tested in turn.
 # Usage: suite-check.sh [folder] [branch]   (folder: default the parent of this Story Block checkout)
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -10,7 +10,7 @@ mkdir -p "$root"
 root=$(cd "$root" && pwd)
 logs=$(mktemp -d)
 status=0
-for repo in Story_block rpg_battle Story_director npc_state_delta; do
+for repo in Story_block Story_director npc_state_delta; do
     dir="$root/$repo"
     if [ ! -d "$dir/.git" ] && [ ! -f "$dir/.git" ]; then
         git clone -q -b "$branch" "https://github.com/kohz87/$repo.git" "$dir" || { echo "$repo: clone failed"; status=1; continue; }

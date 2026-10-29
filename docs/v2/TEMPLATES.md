@@ -7,7 +7,7 @@ complete screens close the page.
 
 ```js
 {
-  id: 'rpg-battle/hud', title: 'Hero', icon: 'fa-heart',
+  id: 'hero-sheet/hud', title: 'Hero', icon: 'fa-heart',
   mounts: ['hud', 'tab'],
   data: { pc: { query: 'party.pc' } },          // → q.pc in the template
   theme: { '--ss-accent': '#c9a227' },          // custom properties on the screen root
@@ -153,12 +153,12 @@ hold with or without DOMPurify).
 
 A screen shares the page with SillyTavern and with other screens, so a few things are renamed or refused:
 
-* **Ids** are drawn as `ss-t-<screen>-<id>` (`id="hp"` in `rpg-battle/party` becomes `ss-t-rpg-battle-party-hp`).
+* **Ids** are drawn as `ss-t-<screen>-<id>` (`id="hp"` in `hero-sheet/party` becomes `ss-t-hero-sheet-party-hp`).
   What points at an id is rewritten to match: `#id` selectors in the screen's CSS, `for`, `aria-*` id lists
   (`aria-labelledby`, `aria-describedby`, …), `href="#id"` and `url(#id)` in SVG paint. Attribute selectors
   such as `[id="hp"]` are **not** rewritten and match nothing: write `#hp`. A screen drawn more than once at
   a time (a card under every reply, a tab and a hud) gives each other copy its own ids and control names
-  (`ss-t-rpg-battle-party-hp--c2`), so a label or a radio group stays in its own copy; the screen's `#id`
+  (`ss-t-hero-sheet-party-hp--c2`), so a label or a radio group stays in its own copy; the screen's `#id`
   CSS reaches every copy.
 * **Form names**: a `<form name="…">` gets the same prefix, so it never takes over a `document.<name>`.
   Control names SillyTavern reads as its own radio groups (`character_names`, `continue_postfix`,
@@ -203,7 +203,7 @@ Every drop adds a plain sentence to the screen's warnings.
 ```
 
 * `name` is namespaced: Story Block's `ss.meter`, `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`,
-  `ss.badge`, `ss.timeline`, `ss.stepper`; modules' own use their id (`rpg-battle.battle-board`).
+  `ss.badge`, `ss.timeline`, `ss.stepper`; modules' own use their id (`hero-sheet.battle-board`).
 * `data-props` is JSON with holes, filled like a payload, nested at most 16 deep (as `data-payload`); a pack
   screen with deeper JSON is refused, and a deeper one drawn shows the widget's "failed" line. `"bind": "<path or expression>"` adds the bound
   data as `value` (a record's fields become the widget's props, e.g. `{ cur, max }` for a meter; see the
@@ -279,7 +279,7 @@ status badges with turns left, and the time and place. Mounts: `hud`, `tab`.
 
 ```js
 {
-  id: 'rpg-battle/hud', title: 'Hero', icon: 'fa-heart', mounts: ['hud', 'tab'],
+  id: 'hero-sheet/hud', title: 'Hero', icon: 'fa-heart', mounts: ['hud', 'tab'],
   data: {
     pc: { query: 'party.pc' },                               // the actor record (MODULES B1)
     xp: { query: 'party.xpToNext', args: { actor: '$pc.id' } },   // { have, need }: your rules' query
@@ -357,7 +357,7 @@ without one, `ss.portrait` draws initials.
 ## Example 2: inline status card under each reply
 
 A small card under each reply showing **that reply's** state: time, place, the next event, the current goal
-and its progress. Things that reply changed are marked; with the reader's "only what changed" setting the
+and where it stands. Things that reply changed are marked; with the reader's "only what changed" setting the
 card shows only those lines. Mount: `card`.
 
 ```js
@@ -366,7 +366,6 @@ card shows only those lines. Mount: `card`.
   data: {
     events: { query: 'director.threads', args: { kind: 'event', status: 'active' } },
     quests: { query: 'director.threads', args: { kind: 'quest', status: 'active' } },
-    progress: { query: 'quest.progress', args: { id: '$quests.0.id' } },   // { have, need, met }
   },
   theme: { '--ss-accent': '#7c5cff' },
   template: /* below */, css: /* below */,
@@ -388,14 +387,11 @@ card shows only those lines. Mount: `card`.
     <span class="k">Next</span>
     <span class="v">{{ q.events[0].summary }}<small data-if="q.events[0].fields.due != null"> — due {{ q.events[0].fields.due }}</small></span>
   </div>
-  <div class="row goal" data-if="len(q.quests) > 0 && (settings.onlyChanged != true || changed('state.director.threads'))"
-       data-bind-var="--done: ratio(q.progress.have, q.progress.need)"
-       data-class="met: q.progress.met == true">
+  <div class="row goal" data-if="len(q.quests) > 0 && (settings.onlyChanged != true || changed('state.director.threads'))">
     <span class="k">Goal</span>
     <span class="v">
       <b>{{ q.quests[0].key }}</b> — {{ q.quests[0].fields.goal }}
-      <span class="track" data-if="q.progress.need > 0"><i></i></span>
-      <small data-if="q.progress.need > 0">{{ q.progress.have }} / {{ q.progress.need }}</small>
+      <small data-if="q.quests[0].fields.step != null"> · now: {{ q.quests[0].fields.step }}</small>
     </span>
   </div>
 </div>
@@ -410,10 +406,6 @@ card shows only those lines. Mount: `card`.
 .v small { opacity: .7; }
 .new .v { color: var(--ss-accent); }
 .new .k::after { content: " •"; color: var(--ss-accent); }
-.track { display: inline-block; vertical-align: middle; width: 80px; height: 6px; margin: 0 4px;
-         border-radius: 3px; background: rgba(127, 127, 127, .25); overflow: hidden; }
-.track > i { display: block; height: 100%; width: calc(var(--done, 0) * 100%); background: var(--ss-accent); }
-.goal.met .track > i { background: #5cb85c; }
 ```
 
 `changed('state.director.time')` is true only on the reply whose changes moved the clock, so the card under
@@ -429,7 +421,7 @@ sends the whole draft to `party.create`. The steppers keep each stat between the
 
 ```js
 {
-  id: 'rpg-battle/create', title: 'New character', icon: 'fa-user-plus', mounts: ['dialog'],
+  id: 'hero-sheet/create', title: 'New character', icon: 'fa-user-plus', mounts: ['dialog'],
   data: { rules: { query: 'party.creation' } },
   // → { points: 12, min: 1, max: 8, stats: ['STR','VIT','AGI','DEX','INT','LUK','CHA'],
   //     races: [{ id, name, note }], talents: [{ id, name }] }
@@ -484,8 +476,8 @@ Each `ss.stepper` writes its stat into the draft (`api.onDraft('stats.STR', 5)`)
 again from the draft. Without the widget, a plain number field does the same job:
 `<input type="number" data-draft="stats[k]" data-bind-attr="min: q.rules.min; max: q.rules.max">`.
 
-**Points left.** When the draft keeps the points spent on each stat (`points: { STR: 0, VIT: 0, … }`,
-the way RPG Battle's creation wizard does), `sum(draft.points)` is what is spent so far. Give it to each
+**Points left.** When the draft keeps the points spent on each stat (`points: { STR: 0, VIT: 0, … }`),
+`sum(draft.points)` is what is spent so far. Give it to each
 stepper as `spent` with the budget as `pool`: the stepper shows "Points left: 5" and stops at the budget,
 and the legend gets the class `over` once more is spent than the budget. The rule itself still lives in `party.create`.
 

@@ -82,7 +82,7 @@ For a replay comparison, build a second store over a copy of the chat the way `t
   their source stays available. Outstanding offers and settlement claims remain local prefix reads. Condition answers do not
   replace any of these witnesses.
 - **Setup** is a "Data modules" card on Settings → Tabs & Packs, below Packs, drawn only when the library holds a definition or the
-  chat has a pin. RPG Battle's rules selection is RPG Battle's own screen; Setup here does not depend on it.
+  chat has a pin.
 - **A capture kind or query with `enabled: false` is not declared** (LIFECYCLE.md): a `dm` line in a chat with no pin is told as
   an unknown kind ("No module keeps "dm""), byte for byte as before the kind existed. It used to be told as "feature off".
 - **Ticks answer `NO_LONGER_DONE`** when the story before them leaves nothing to settle (the pin, the subject or the elapsed time

@@ -24,8 +24,7 @@ layout variant keeps the same head state). The harness is `tests/v2/bench/load.j
 ## What the benchmark does
 
 * A whole host from the testkit (`createHost`: registry, real store, real command bus, sdk, turn) with
-  Story Block's core module and a synthetic module, **Bench RPG**, shaped like RPG Battle and Story
-  Director: a party of 4 (HP, MP, stats, skills), 40 Director threads (stage, tension, summary, cast)
+  Story Block's core module and a synthetic module, **Bench RPG**, with party and Director-like state: a party of 4 (HP, MP, stats, skills), 40 Director threads (stage, tension, summary, cast)
   and a clock. The core inventory is stocked with 60 stacks by a `system` command at the start.
 * Every reply is about 1,200 characters of prose plus a `<Changes>` block of **5 lines**: an item gained
   or used, coins in or out, an HP change, a thread moving, the clock moving 20 minutes.

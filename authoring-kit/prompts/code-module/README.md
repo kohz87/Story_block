@@ -1,8 +1,7 @@
 # Code modules
 
 A **code module** is for an idea a data module cannot hold: its own logic, calculations, or screens that go beyond fields
-and rules. Use a rules pack (`prompts/rules-pack/`) or a data module (`prompts/data-module/`) whenever one of them does
-the job; they need no code and are checked by Story Block itself.
+and rules. Use a data module (`prompts/data-module/`) when it can do the job; it needs no code and is checked by Story Block itself.
 
 ## Where the scaffold comes from
 

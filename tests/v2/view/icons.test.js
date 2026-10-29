@@ -69,7 +69,7 @@ test('iconNode and icon: ph-* ids draw the SVG; an unknown ph-* id is the defaul
 test('the suite\'s screens have their own icons; a module\'s own icon wins on a screen that is not the suite\'s', () => {
     for (const id of [HOME_ID, ...SUITE_NAV]) assert.ok(hasIcon(tabIcon(id)), `${id} → ${tabIcon(id)}`);
     for (const value of Object.values(TAB_ICONS)) assert.ok(hasIcon(value), value);
-    assert.equal(iconFor('rpg-battle/party', 'fa-star'), 'ph-users-three', 'the suite\'s screen keeps its icon');
+    assert.equal(iconFor('story-director/world', 'fa-star'), tabIcon('story-director/world'), 'the suite\'s screen keeps its icon');
     assert.equal(iconFor('someone/party', 'fa-star'), 'fa-star', 'another module\'s screen keeps its own icon');
     assert.equal(iconFor('someone/party', ''), 'ph-users-three', 'with no icon of its own, the default for its name');
     assert.equal(iconFor('someone/odd', ''), '');

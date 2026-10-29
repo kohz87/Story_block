@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { RECORD_ID } from '../../src/v2/check.js';
 import { hashJson, isMetaSpan } from '../../src/v2/replay.js';
 import { KINDS, LIMITS, OWNERS } from '../../src/v2/evidence.js';
-import { CHECK, RB, SD, T1, T2, evidenceHarness } from './helpers/evidence.js';
+import { CHECK, SD, T1, T2, evidenceHarness } from './helpers/evidence.js';
 
 const ids = made => made.map(each => each.id);
 
@@ -15,18 +15,18 @@ test('accept and roll each succeed once in one root; the nested commands see the
     let h = null;
     h = evidenceHarness({ seen, peek: () => during.push(h.ask().length) });
     const at = h.send();
-    const result = h.command('rb.quest', { thread: T1, selection: 'take it', check: CHECK });
+    const result = h.command('demo.flow', { thread: T1, selection: 'take it', check: CHECK });
     assert.equal(result.ok, true, result.message);
     const { accepted, rolled, story } = result.receipt.data;
     assert.equal(new Set([accepted.id, rolled.id, story.id]).size, 3, 'three different proofs');
     for (const made of [accepted, rolled, story]) assert.match(made.id, /^pf_[0-9a-z]{8}$/);
     // The retry inside the root (the second sd.accept) gave the accept's id back, so the root holds each once.
     const stored = h.proofsOf(at);
-    assert.deepEqual(stored.map(proof => [proof.kind, proof.owner]), [['acceptance', SD], ['event', SD], ['story', RB]]);
+    assert.deepEqual(stored.map(proof => [proof.kind, proof.owner]), [['acceptance', SD], ['event', SD], ['event', SD]]);
     assert.deepEqual(ids(stored), [accepted.id, rolled.id, story.id]);
     assert.equal(h.spans(at).filter(isMetaSpan).length, 1, 'one root, one block');
     assert.equal(h.sdt().rolls[CHECK] >= 1, true, 'the roll was made once');
-    assert.equal(h.store.head().domains.rpgt.xp, 5, 'the payout was made once');
+    assert.equal(h.store.head().domains.demoState.xp, 5, 'the payout was made once');
     // Parents are the ids of the pending proofs; the pins in the state are written with the block.
     assert.deepEqual(stored[1].parents, [accepted.id]);
     assert.deepEqual(stored[2].parents, [accepted.id, rolled.id]);
@@ -48,7 +48,7 @@ test('accept and roll each succeed once in one root; the nested commands see the
     assert.equal(receipt.data.v2.guard, null);
     assert.deepEqual(h.problems(), []);
     // A second root is another block: its proof is new, and the first root's stays.
-    const second = h.command('rb.quest', { thread: T1, selection: 'again', check: 'ck_check002' });
+    const second = h.command('demo.flow', { thread: T1, selection: 'again', check: 'ck_check002' });
     assert.equal(second.ok, true, second.message);
     assert.equal(h.ask().length, 6);
     assert.equal(new Set(ids(h.ask())).size, 6, 'a new block, new ids');
@@ -60,7 +60,7 @@ test('a rolled-back root publishes nothing: no proof, no pin, no block', () => {
     const at = h.send();
     const before = JSON.stringify(h.store.head());
     const record = JSON.stringify(h.record(at) ?? null);
-    const failed = h.command('rb.quest', { thread: T1, selection: 'take it', check: CHECK, after: 'fail' });
+    const failed = h.command('demo.flow', { thread: T1, selection: 'take it', check: CHECK, after: 'fail' });
     assert.equal(failed.ok, false);
     assert.equal(failed.code, 'REFUSED');
     assert.deepEqual(h.ask(), []);
@@ -73,7 +73,7 @@ test('a rolled-back root publishes nothing: no proof, no pin, no block', () => {
     assert.equal(bad.ok, false);
     assert.deepEqual(h.ask(), []);
     // A preview publishes nothing either; its commit does.
-    const preview = h.bus.preview('rb.kill', { foe: 'wolf' });
+    const preview = h.bus.preview('demo.record', { foe: 'wolf' });
     assert.equal(preview.ok, true);
     assert.deepEqual(h.ask(), []);
     assert.equal(h.bus.commit(preview.token).ok, true);
@@ -95,16 +95,18 @@ test('only the owner of a kind may give it: the other owner, a module outside th
     };
     // Every kind of the table belongs to exactly the module the contract names.
     assert.deepEqual(KINDS.map(kind => [kind, OWNERS[kind]]), [
-        ['visit', SD], ['acceptance', SD], ['event', SD], ['kill', RB], ['use', RB], ['rescue', RB], ['story', RB]]);
-    for (const kind of ['kill', 'use', 'rescue', 'story']) refused('sd.many', { specs: [{ kind, payload: { foe: 'x' } }] }, /only rpg-battle does/);
-    for (const kind of ['visit', 'acceptance', 'event']) refused('rb.many', { specs: [{ kind, payload: { place: 'p' } }] }, /only story-director does/);
+        ['visit', SD], ['acceptance', SD], ['event', SD]]);
+    for (const kind of ['visit', 'acceptance', 'event']) refused('demo.refuse', { specs: [{ kind, payload: { place: 'p' } }] }, /only story-director does/);
     refused('zz.visit', {}, /zz-stranger cannot give "visit" proof: only story-director does/);
     refused('sd.many', { specs: [{ kind: 'bogus', payload: { a: 1 } }] }, /"bogus" is not a kind of proof/);
+    for (const kind of ['kill', 'use', 'rescue', 'story']) {
+        refused('sd.many', { specs: [{ kind, payload: { a: 1 } }] }, /not a kind of proof/);
+    }
     refused('sd.many', { specs: [{ kind: 'toString', payload: { a: 1 } }] }, /not a kind of proof/);
     assert.deepEqual(h.ask(), []);
     assert.equal(h.store.head().meta.proofs, undefined);
     // The refusal comes before the payload is looked at: a wrong owner is told so, whatever it sent.
-    refused('rb.many', { specs: [{ kind: 'acceptance', payload: 7 }] }, /only story-director does/);
+    refused('demo.refuse', { specs: [{ kind: 'acceptance', payload: 7 }] }, /only story-director does/);
 });
 
 test('the shape of the call and of each closed payload is checked: INVALID', () => {
@@ -212,11 +214,11 @@ test('a parent is a visible proof, stored or pending in the root; anything else 
     assert.deepEqual(h.ask({ ids: [b.id] })[0].parents, [a.id]);
     // A stored visible proof of an earlier block can be a parent, whoever owns it.
     h.send();
-    const kill = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [c.id] }] });
+    const kill = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' }, parents: [c.id] }] });
     assert.equal(kill.ok, true, kill.message);
     // An unknown id, and the id of a proof the root has not given yet, are not found.
     for (const parents of [['pf_00000000'], [kill.receipt.data.proofs[0].id.replace(/.$/, c => (c === 'a' ? 'b' : 'a'))]]) {
-        const out = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'bear' }, parents }] });
+        const out = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'bear' }, parents }] });
         assert.equal(out.ok, false);
         assert.equal(out.code, 'NOT_FOUND', out.message);
         assert.match(out.message, /no visible proof/);

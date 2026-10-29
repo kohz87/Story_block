@@ -1,5 +1,4 @@
-// Literal expected values for the two functions both sides of the rules seam compute (RB_CONTRACT §4 Hash; the
-// equip plan's inputHash, docs/v2/INVENTORY-SEAMS.md §3). Each case is the input, the exact normalized text and
+// Literal expected values for the two functions both sides of the rules seam compute (normalized JSON). Each case is the input, the exact normalized text and
 // the SHA-256 of that text, written out by hand from an independent implementation (Node's crypto), so a rules
 // module can run the same cases against its own code and prove it hashes the same bytes. Copy this file as is.
 

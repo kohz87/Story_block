@@ -96,7 +96,7 @@ function maybeQuery(ctx, name, args) {
     }
 }
 
-// Who is fishing: the party's main character when RPG Battle is there, else "The party".
+// Who is fishing: a main character supplied by another module, else "The party".
 export function anglerName(ctx) {
     let pc = maybeQuery(ctx, 'party.pc');
     if (typeof pc === 'string') pc = maybeQuery(ctx, 'party.actor', { id: pc });

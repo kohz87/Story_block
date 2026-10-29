@@ -10,17 +10,13 @@ The pack holds the world's structure: the map (320 places, 350 routes), the cale
 jobs, classes or rules**: the narrator makes those up in the story from the lore, and Story Block keeps
 what the story hands out (the bag, the purse, the place). The lorebook holds what only the narrator uses.
 
-The pack works with **Story Block 2.5 or newer and Story Director**; it needs **no RPG Battle** (it asks for
-`scene`, `inventory` and `data-modules-v1`). NPC State Delta is optional.
-
-Ersveil 1.0.0, the version with RPG Battle's rules (13 class lines, items, the bestiary, shops, Guild jobs),
-is no longer an example. It is kept in Story Block's tests as `tests/v2/packs/fixtures/ersveil-1.0.0.json`.
+The pack works with Story Block and Story Director. NPC State Delta is optional.
 
 ## 1. Extensions
 
 Install Story Block and Story Director (SillyTavern → Extensions → Install extension: paste the URL).
 NPC State Delta is optional. If you have the v1 versions installed, remove them first or use a separate
-SillyTavern profile. With RPG Battle installed the pack still loads, but RPG Battle has no rules from it.
+SillyTavern profile.
 
 | Extension | URL |
 |---|---|
@@ -37,10 +33,7 @@ SillyTavern profile. With RPG Battle installed the pack still loads, but RPG Bat
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-Importing 2.0.0 replaces an installed Ersveil 1.0.0 (same id `ersveil`). A chat started on 1.0.0 keeps its pinned
-rules, but it reads the installed pack for the rest, so after the import its shops, markets and price scale are gone.
-Start new chats for 2.0.0; to go on playing a 1.0.0 chat, keep 1.0.0 installed instead (it is in
-`tests/v2/packs/fixtures/ersveil-1.0.0.json`).
+Importing 2.0.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
 
 ## 3. Import the lorebook
 

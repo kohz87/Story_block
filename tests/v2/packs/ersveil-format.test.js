@@ -1,6 +1,6 @@
 // Pack format additions made for the Ersveil pack: `places` and `routes` (the map Story Director's
-// atlas reads), a top-level `calendar` (its clock), `skills` (RPG Battle skill templates) and
-// `presets` (ready-made characters for the creation wizard). Every rejection, and the queries.
+// atlas reads), a top-level `calendar` (its clock), plus optional `skills` and `presets` records.
+// Every rejection, and the queries.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPacksPart } from '../../../src/v2/packs/index.js';

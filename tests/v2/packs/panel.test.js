@@ -104,18 +104,17 @@ test('reading the character lorebook', async () => {
 test('each pack row carries its tag as plain text: which module it is for, or "Pack"', async () => {
     const { root, packs } = mount();
     await packs.install(pack({ id: 'world', name: 'Harbour <b>Calendar</b>', requires: { storyBlock: '^2', capabilities: ['story-director'] }, content: { places: [{ name: 'Harbour', x: 1, y: 2 }] } }));
-    await packs.install(pack({ id: 'rules', name: 'Iron Rules', requires: { storyBlock: '^2', capabilities: ['rpg-battle'] }, content: { races: [{ name: 'Dwarf' }] } }));
     await packs.install(pack({ id: 'plain', name: 'Plain Items', content: { items: [{ name: 'Rope', kind: 'goods', value: 3 }] } }));
-    await packs.install(pack({ id: 'unknown', name: 'Mystery', requires: { storyBlock: '^2', capabilities: ['director', 'party'] }, content: {} }));
+    await packs.install(pack({ id: 'unknown', name: 'Mystery', requires: { storyBlock: '^2', capabilities: ['unknown-module'] }, content: {} }));
     const panel = renderPacksPanel(root, { packs, readLorebook: async () => ({}), doc });
-    assert.deepEqual(texts(root, '.ss-packs-tag'), ['World pack · Story Director', 'Rules pack · RPG Battle', 'Story Block pack', 'Pack']);
+    assert.deepEqual(texts(root, '.ss-packs-tag'), ['World pack · Story Director', 'Story Block pack', 'Pack']);
     const tags = root.querySelectorAll('.ss-packs-tag');
     assert.ok(tags.every(tag => tag.tagName === 'SPAN' && tag.children.length === 0), 'a text node, no markup');
     // The name is still the name alone: the tag is its own element beside it, never inside the name.
-    assert.deepEqual(texts(root, '.ss-packs-name'), ['Harbour <b>Calendar</b> 1.0.0', 'Iron Rules 1.0.0', 'Plain Items 1.0.0', 'Mystery 1.0.0']);
+    assert.deepEqual(texts(root, '.ss-packs-name'), ['Harbour <b>Calendar</b> 1.0.0', 'Plain Items 1.0.0', 'Mystery 1.0.0']);
     assert.equal(root.querySelector('.ss-packs-name').querySelector('b'), null, 'a pack name is text, not markup');
     panel.refresh();
-    assert.equal(root.querySelectorAll('.ss-packs-tag').length, 4, 'a redraw keeps one tag a row');
+    assert.equal(root.querySelectorAll('.ss-packs-tag').length, 3, 'a redraw keeps one tag a row');
 });
 
 test('switching off, and removing after a question (Remove, then Remove or Cancel, the focus on Cancel)', async () => {

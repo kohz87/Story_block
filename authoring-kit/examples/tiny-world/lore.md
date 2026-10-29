@@ -1,7 +1,7 @@
 # Lanternfall (a tiny example world)
 
-This is the whole lore for the example. It is one page on purpose: `pack.json` next to it is what the kit's prompts
-produce from a page like this one. Write yours the same way: plain facts and names, nothing about numbers.
+These notes describe the example world in `pack.json` beside this file. Write your own notes as plain facts and names,
+then use them to draft a world or a data module.
 
 ## The place
 

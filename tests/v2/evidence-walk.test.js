@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { pinOf } from '../../src/v2/evidence.js';
-import { T1, director, evidenceHarness, fighter, hostModule } from './helpers/evidence.js';
+import { T1, director, evidenceHarness, sampleModule, hostModule } from './helpers/evidence.js';
 
 const ids = list => list.map(each => each.id);
 
@@ -25,7 +25,7 @@ test('a reconcile from before the head\'s checkpoint counts a parent once: the d
     // Replies on top, so the head replays from a checkpoint that is after the parent and the step.
     for (let n = 0; n < 6; n += 1) {
         h.send();
-        assert.equal(h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: `wolf ${n}` } }] }).ok, true);
+        assert.equal(h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: `wolf ${n}` } }] }).ok, true);
     }
     const checkpoints = h.chat.map((message, i) => (message.extra?.storySuite?.checkpoint ? i : -1)).filter(i => i > first);
     assert.ok(checkpoints.length >= 2, 'checkpoints stand after the parent');
@@ -40,14 +40,14 @@ test('a reconcile from before the head\'s checkpoint counts a parent once: the d
 
 test('a kept block that collides and is refused publishes nothing to the guards of a Re-read', async t => {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director(), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director(), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const text = lines => `Dawn.\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
     await host.send('Sure, I accept the job. Thanks a lot!', text([`! accept ${T1} | words: Sure, I accept the job`]));
     const first = host.ctx.chat.length - 1;
     const owner = host.sdk.query('story.evidence', {})[0];
-    const click = host.bus.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }, { cause: 'ui' });
+    const click = host.bus.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }, { cause: 'ui' });
     assert.equal(click.ok, true);
     // The click's proof takes the owner's id by hand, so it collides when the reply is read again.
     const record = structuredClone(host.ctx.chat[first].extra.storySuite);

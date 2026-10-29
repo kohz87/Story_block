@@ -19,6 +19,7 @@ const qtyOf = (host, name) => host.sdk.query('inventory.items').filter(item => i
 // for Superior Healing Potions in one click).
 test('~ item | qty cannot raise a stack past the per-reply story item budget', async t => {
     const host = await fresh(t);
+    host.settings.set('story-block', 'storyCoinPerReply', 1000);
     await host.send('I find a potion.', reply('A potion.', ['+ item Healing Draught', '~ item Healing Draught | qty: 999999']));
     assert.ok(qtyOf(host, 'Healing Draught') <= 20, `the party holds ${qtyOf(host, 'Healing Draught')} Healing Draughts`);
 });

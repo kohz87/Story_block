@@ -50,13 +50,11 @@ test('the prompt: head, the kinds\' grammar, then the reply; the answer keeps kn
     assert.deepEqual(parseExtractorAnswer('none', ['item']), { lines: [], dropped: 0, refused: [] });
     const many = Array.from({ length: 40 }, (_, i) => `- item Pebble ${i}`).join('\n');
     assert.equal(parseExtractorAnswer(many, ['item']).lines.length, MAX_LINES);
-    // The wall is not optional: with no allow-list, a new item, coin, a job and a teacher are still dropped and listed as refused.
-    const walled = parseExtractorAnswer('+ item Rope | qty: 1\n+ coin 30\n+ quest X | like: a\n+ trainer Y — blades\n~ place Mill', ['item', 'coin', 'quest', 'trainer', 'place']);
+    // The value wall still rejects new items and money.
+    const walled = parseExtractorAnswer('+ item Rope | qty: 1\n+ coin 30\n~ place Mill', ['item', 'coin', 'place']);
     assert.deepEqual(walled.lines, ['~ place Mill']);
-    assert.deepEqual(walled.refused.map(item => item.line.split(' | ')[0]), ['+ item Rope', '+ coin 30', '+ quest X', '+ trainer Y — blades']);
-    assert.equal(walled.dropped, 4);
-    assert.deepEqual(parseExtractorAnswer('+ quest X | like: a', ['quest']).lines, []);
-    assert.match(parseExtractorAnswer('+ quest X | like: a', ['quest']).refused[0].why, /never offers jobs or teachers/);
+    assert.deepEqual(walled.refused.map(item => item.line.split(' | ')[0]), ['+ item Rope', '+ coin 30']);
+    assert.equal(walled.dropped, 2);
 });
 
 test('off (the default): nothing, and no call', async () => {

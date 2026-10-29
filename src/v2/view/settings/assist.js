@@ -3,7 +3,7 @@
 //
 // * Extra calls: the Connection Manager profile both helpers use (a cheaper model, say) and Story Suite's "one call at a time per
 //   connection" switch (a host setting that used to sit in the Story Suite fold).
-// * Checks: the pre-roll, "Roll checks before the reply" (the strict mode): the check is rolled first, from the reader's message.
+// * Checks: the pre-roll, "Roll checks before the reply": the check is rolled first, from the reader's message.
 // * Safety net: reads the finished reply for change lines it forgot (time, place, who is here, weather, quest progress, wounds, an
 //   item handed over). Its own profile, and the kinds it may write as chips. The value wall is stated plainly: coin, new items,
 //   XP, loot and healing have no chip and are never written, whatever is stored; a line that arrives after the reader has already
@@ -46,7 +46,7 @@ export const ASSIST_TEXT = Object.freeze({
     netProfile: 'Connection for the safety net',
     kinds: 'The safety net may write',
     kindsHelp: 'Pick the kinds of line it may add.',
-    wall: 'Never coin, new items, XP, loot or healing. Those chips do not exist: the safety net never writes them, whatever is stored. It never offers jobs or teachers either.',
+    wall: 'Never coin, new items, XP, loot or healing. Those chips do not exist: the safety net never writes them, whatever is stored.',
     late: 'If it finishes after you have already sent your next message, its lines wait for the next reply and may not add anything new but someone arriving.',
     bothOff: 'Off while both helpers are off',
     netOff: 'Off while the safety net is off',

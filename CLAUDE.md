@@ -8,7 +8,6 @@ through Story Block's sdk (`globalThis.StoryBlock.sdk.registerModule`):
 | Repo | Module id | Role |
 |---|---|---|
 | kohz87/Story_block (this) | `story-block` | host + core domains |
-| kohz87/rpg_battle | `rpg-battle` | party, checks, items, combat, trade, crafting |
 | kohz87/Story_director | `story-director` | story clock, quests, threads, map, chronicle, World, arc |
 | kohz87/npc_state_delta | `npc-state-delta` | standalone NPC engine; registers queries, Cast/Dossiers, `npc` meters when hosted |
 
@@ -37,7 +36,7 @@ modules' `tryQuery` helpers, or an optional command; degrade to a sensible defau
 - `src/v2/rewind.js`, `reply-notes.js`, `diagnostics.js`: rewinds and save points, per-reply notes, Diagnostics fold.
 - `testkit/`: fake SillyTavern (`createFakeContext`) and a whole host on it (`createHost`); vendored by modules.
 - `scripts/`: `check.mjs` (syntax), `sync-testkit.mjs`, `bench-v2.mjs` / `bench-long.mjs` (PERFORMANCE.md).
-- `examples/packs/`: `ersveil` (Ersveil 2.0.0, the open-world example pack for SB + SD, plus its lorebook `ersveil-lore.json`), `riverside-starter` (small); the former examples with RPG Battle's rules are test fixtures: `tests/v2/packs/fixtures/ersveil-1.0.0.json` and `ersveil-bluewatch-1.6.0.json`. `examples/fishing/`: reference activity.
+- `examples/packs/`: `ersveil` (the open-world pack and lorebook) and `riverside-starter` (small). `examples/fishing/`: reference activity.
 - `tests/*.test.js`: v1 tests (still run). `tests/v2/`: v2 tests; `qa/` (fuzz, ownership, security, prompt layout),
   `break/` (one file per break finding, named after the finding id), `domains/`, `packs/`, `view/`, `screens/`, `ux/`.
 - `docs/v2/`: the specs (below). `docs/dev/`: short area notes for agents.
@@ -52,7 +51,6 @@ npm run test:dot                           # same files, one dot per test, failu
 npm run check                              # syntax check of index.js, src/, testkit/, examples/, scripts/
 node --test --test-reporter=dot tests/v2/capture.test.js            # one file
 node --test --test-name-pattern="Re-read" tests/v2/stray-reread.test.js  # tests whose name matches
-npm run sync-testkit -- ../rpg_battle      # copy testkit + src/v2 into a module's tests/vendor/story-block/
 git diff --check origin/main               # CI fails on trailing whitespace in what the PR adds
 ```
 
@@ -92,10 +90,10 @@ Full suite: about 2,100 tests, 1.5–3 minutes. Skills in `.claude/skills/`: `ru
 - `SPEC.md`, the contract: §0 principles; §2.2 storage, replay, counters, per-reply bookkeeping, rules a–d;
   §3.1–3.3 commands and saving; §4.1–4.4 the turn and the change-line grammar; §5 the prompt; §6 modules,
   `requires`, Features; §7 core domains; §10 testing; §12 internal interfaces; §13 UI.
-- `MODULES.md`: §A part layout, §B RPG Battle, §C Story Director, §D NSD, **§F decisions (override older text)**, §G `sdk.callModel`.
+- `MODULES.md`: §A part layout, §C Story Director, §D NSD, **§F decisions (override older text)**, §G `sdk.callModel`.
 - `PACKS.md` (pack format, safety, limits, module-author queries), `TEMPLATES.md`, `WIDGETS.md`, `LAYOUTS.md`.
 - `PERFORMANCE.md` (benchmarks, storage tuning, checkpoints, saves), `REVIEW.md` (where to start, risky parts).
-- `GUIDE.md` (reader's guide), `STATUS.md`, `RELEASES.md` (known issues per release), `ERSVEIL.md`.
+- `GUIDE.md` (reader's guide), `STATUS.md`, `ERSVEIL.md`.
 - History and decisions (F81+, user decisions, after-beta list): `suite-notes/` in kohz87/inventory-block,
   branch `claude/hopeful-babbage-tipaw8` (README.md, WAVE_BRIEF.md, V2_LOG.md newest at the end).
 
@@ -106,7 +104,7 @@ Area notes in `docs/dev/`: `capture-and-reread.md`, `saves-and-persist.md`, `pro
 
 - Suite tests (`tests/v2/break/helpers/suite.js`, `suite-final.js`, `packs/terms.test.js`,
   `packs/holidays-world.test.js`) need the four checkouts side by side in one folder, named exactly
-  `Story_block`, `rpg_battle`, `Story_director`, `npc_state_delta` (or `STORY_SUITE_ROOT=<folder>`).
+  `Story_block`, `Story_director`, `npc_state_delta` (or `STORY_SUITE_ROOT=<folder>`).
   Without them they **skip** (CI has only this repo), so a green CI does not cover them: run `suite-check`.
 - A `test.todo` that fails prints `X` / `⚠` in the dot output but does not fail the run; it is a known open problem.
 - The testkit has no chat file of its own, so saves there are immediate (`ctx.saveChat`); the 1.5 s / 8 s

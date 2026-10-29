@@ -96,10 +96,10 @@ and in places where nothing may change (a card showing the state at an older rep
 ### Widgets
 
 Installed modules can offer their own parts (an actor card, a battle board) under a lowercase name, usually
-with the module's id in front, like `rpg-battle.actor-card`. A layout places one like any node:
+with the module's id in front, like `hero-sheet.actor-card`. A layout places one like any node:
 
 ```json
-{ "type": "rpg-battle.actor-card", "props": { "actor": "$item.id" }, "bind": { "query": "party.pc" } }
+{ "type": "hero-sheet.actor-card", "props": { "actor": "$item.id" }, "bind": { "query": "party.pc" } }
 ```
 
 `props` is plain JSON (row references are filled in); a bound `bind` is passed to the widget as

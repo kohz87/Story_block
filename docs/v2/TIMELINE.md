@@ -3,12 +3,9 @@
 E6b implements active history, participant head selection and logical clock markers; see [HISTORY.md](HISTORY.md)
 for the current behavior and compatibility evidence.
 
-How the host keeps save points, installs one absolutely when a character dies and comes back, and lets a module with native state
-beside the story (NPC dossiers and their history) take part. The frozen contract is
-[contract/RB_CONTRACT.md](contract/RB_CONTRACT.md) §8 (death and return), §2 (lifecycle), §3 (receipt envelope), §6 (replay
-recording) and §10 E (the timeline row); this page describes E6a's primitive. E6b adds active history, participant head
-selection, `ctx.clockBoundary` and `savepoint.contract`; [HISTORY.md](HISTORY.md) documents those additions. Nothing here changes a module that does not use the timeline: its blocks, its spans, its
-replay, its domains and its saves are what they were.
+How the host keeps save points, installs one absolutely on a restore, and lets a module with native state
+beside the story take part. [HISTORY.md](HISTORY.md) documents active history and participant head selection.
+Modules that do not use the timeline keep their existing blocks, replay and saves.
 
 Code: `src/v2/timeline/` (`coordinator.js` the methods and the journal, `manifest.js` the all-domain payload and the restore plan,
 `archive.js` the host archive, `participants.js`, `host-block.js` the blocks the host stores itself, `gate.js` the epoch and rules

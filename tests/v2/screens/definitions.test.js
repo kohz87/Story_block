@@ -11,7 +11,7 @@ import {
 import { core, css, cssSkip, queries, sceneState } from './helpers.js';
 
 // Queries of other modules the screens may read (MODULES.md §B–D, §F11).
-const MODULE_QUERIES = new Set(['party.pc', 'combat.session', 'combat.offers', 'quest.board', 'npc.known']);
+const MODULE_QUERIES = new Set(['party.pc', 'quest.board', 'npc.known']);
 
 test('five default screens with the agreed ids and mounts', () => {
     assert.deepEqual(screens.map(screen => screen.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, INSPECTOR_SCREEN_ID]);
@@ -77,8 +77,8 @@ test('with Story Block alone, its queries answer and the modules\' come out null
     assert.equal(home.q.items.length, 6);
     // The lead is the game view's header now, so Home asks no `party.pc` (view/game-header.js).
     assert.equal(home.q.pc, undefined, 'Home has no lead query');
-    for (const alias of ['fight', 'offers', 'board']) assert.equal(home.q[alias], null, alias);
-    assert.equal(home.problems.length, 3);
+    for (const alias of ['board']) assert.equal(home.q[alias], null, alias);
+    assert.equal(home.problems.length, 1);
     const scene = resolveData(sceneScreen.data, query);
     assert.equal(scene.q.cast, null);
     // The quests are Story Director's board as it is: Home asks nothing else about them.

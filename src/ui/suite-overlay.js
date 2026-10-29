@@ -1,5 +1,4 @@
-// Story Suite overlay: one place to manage Story Block, Story Director, NPC State Delta and RPG
-// Battle together (docs/STORY_SUITE.md, "One place to manage them all").
+// Story Suite overlay: one place to manage Story Block, Story Director, NPC State Delta and other extensions.
 //
 // A full-screen dialog above SillyTavern and the sidebar, with an Overview tab (every announced
 // extension, its on/off switch, one Source of truth table and what each adds to a reply in
@@ -10,7 +9,7 @@
 // listeners and keeps working.
 //
 // Everything comes from the registry passed in (`suite`: providers(), owner(), offering()) and
-// each provider's `api.manage`; nothing here knows the four by anything but their ids. Names and
+// each provider's `api.manage`; nothing here depends on another extension being installed. Names and
 // versions are announcement text, so nodes are built with textContent only.
 
 import { AREAS, isSourceOfTruth } from '../suite.js';
@@ -25,7 +24,7 @@ const PLACEHOLDER = 'storySuitePlaceholder';
 const MOVED = 'storySuiteMoved';
 
 // Tabs and overview rows follow the suite's own order; anyone else comes after, as announced.
-export const SUITE_ORDER = Object.freeze(['story-block', 'story-director', 'npc-state-delta', 'rpg-battle']);
+export const SUITE_ORDER = Object.freeze(['story-block', 'story-director', 'npc-state-delta']);
 
 // The areas in plain words, in AREAS' order.
 export const AREA_NAMES = Object.freeze({
@@ -55,7 +54,7 @@ function attempt(fn, fallback, what) {
     }
 }
 
-/** Providers in suite order (Story Block, Story Director, NPC State Delta, RPG Battle, then others). */
+/** Providers in suite order (Story Block, Story Director, NPC State Delta, then others). */
 export function orderProviders(providers) {
     const rank = provider => {
         const index = SUITE_ORDER.indexOf(provider.id);

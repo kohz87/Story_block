@@ -1,8 +1,6 @@
 // The example pack (examples/packs/ersveil, Ersveil 2.0.0, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
-// docs/v2/ERSVEIL.md describes; the lorebook is a SillyTavern World Info book of 171 entries with unique uids. (The former
-// example packs are fixtures: Ersveil 1.0.0 with RPG Battle's rules, ersveil-rules-fixture.test.js, and Bluewatch 1.6.0,
-// ersveil.test.js and its neighbours.)
+// docs/v2/ERSVEIL.md describes; the lorebook has 171 entries with unique uids.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -25,8 +23,6 @@ test('the example folder holds exactly the pack and its lorebook, and the old ex
     assert.ok(existsSync(packPath) && existsSync(lorePath));
     assert.deepEqual(readdirSync(new URL('../../../examples/packs/ersveil/', import.meta.url)).sort(), ['ersveil-lore.json', 'pack.json']);
     assert.equal(existsSync(new URL('../../../examples/packs/ersveil-bluewatch/', import.meta.url)), false);
-    assert.ok(existsSync(new URL('./fixtures/ersveil-bluewatch-1.6.0.json', import.meta.url)), 'Bluewatch 1.6.0 is kept as a fixture');
-    assert.ok(existsSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url)), 'Ersveil 1.0.0 with its rules is kept as a fixture');
 });
 
 test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code and on the command line', () => {
@@ -52,7 +48,7 @@ test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weat
     assert.equal(value.id, 'ersveil');
     assert.equal(value.version, '2.0.0');
     assert.equal(value.name, 'Ersveil (open world)');
-    assert.match(value.description, /Story Block and Story Director, no RPG Battle needed/);
+    assert.match(value.description, /Story Block and Story Director:/);
     assert.equal(value.requires.storyBlock, '^2.5');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
@@ -65,15 +61,7 @@ test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weat
     assert.deepEqual(value.start.inventory, { money: 40 }, 'four silver and no pack items');
     assert.deepEqual(value.calendar.start, { year: 611, month: 'Goldwane', day: 12, hour: 6, minute: 40 });
     assert.deepEqual(value.content.dataModules.map(module => module.slug), ['standing', 'fame', 'guild-membership']);
-    // The map, the calendar, the weather, the events and the data modules are the 1.0.0 fixture's, unchanged but for the places'
-    // market types and the signal braziers' closing time (20:00 on the first evening).
-    const before = JSON.parse(readFileSync(new URL('./fixtures/ersveil-1.0.0.json', import.meta.url), 'utf8'));
-    for (const key of ['currency', 'calendar', 'weather']) assert.deepEqual(value[key], before[key], key);
-    const closed = event => (event.id === 'bluewatch-signal-braziers'
-        ? { ...event, when: event.when.replace(' && time() < 316932240', '') } : event);
-    for (const kind of ['routes', 'dataModules']) assert.deepEqual(value.content[kind], before.content[kind], kind);
-    assert.deepEqual(value.content.events.map(closed), before.content.events, 'events');
-    assert.deepEqual(value.content.places, before.content.places.map(({ market, ...rest }) => rest));
+
 });
 
 test('the pack, once installed without RPG Battle, reads back as 320 places, 350 routes and the rest ERSVEIL.md quotes', async () => {

@@ -4,13 +4,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
-import { director, fighter, hostModule, T1, T2 } from './helpers/evidence.js';
+import { director, sampleModule, hostModule, T1, T2 } from './helpers/evidence.js';
 
 const text = (narration, lines) => `${narration}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 
 async function open(t, options = {}) {
     const link = hostModule();
-    const host = await createHost({ modules: [link.def, director(options), fighter()], core: false });
+    const host = await createHost({ modules: [link.def, director(options), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     const turns = [];
@@ -56,9 +56,9 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     const at = host.ctx.chat.length - 1;
     const [old] = ask({});
     // The reader clicks something that builds on the proof.
-    const built = await host.bus.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [old.id] }] }, { cause: 'ui' });
+    const built = await host.bus.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' }, parents: [old.id] }] }, { cause: 'ui' });
     assert.equal(built.ok, true, built.message);
-    assert.deepEqual(ask({}).map(proof => proof.kind), ['acceptance', 'kill']);
+    assert.deepEqual(ask({}).map(proof => proof.kind), ['acceptance', 'event']);
     const boundary = host.ctx.chat[at].extra.storySuite.spans.find(span => span.evidence?.length).boundaries[0].payloadHash;
     // The reply is edited: its text, and so its payload hash, change. The proof is still the one given.
     host.ctx.chat[at].mes = text('The innkeeper nods slowly.', [`! accept ${T1} | words: Thanks a lot`]);
@@ -80,7 +80,7 @@ test('an edit alone leaves the proof; a Re-read gives it again from the new text
     assert.notEqual(fresh.source.ordinal, old.source.ordinal, 'in a block planned again');
     assert.deepEqual(ask({ ids: [old.id] }), [], 'the old id shows nothing');
     assert.deepEqual(now.map(proof => proof.kind), ['acceptance'], 'and the kill built on it is hidden, though its own changes stay');
-    assert.deepEqual(host.head().domains.rpgt.log, [1]);
+    assert.deepEqual(host.head().domains.demoState.log, [1]);
     assert.deepEqual(Object.keys(host.head().meta.proofs).length, 2, 'the new acceptance and the hidden kill; the old acceptance\'s pin left with its block');
     assert.deepEqual(host.store.boundaryProblems(), [], 'every block\'s recorded boundary is what the chat gives, proof included');
     // A Re-read that finds the same words gives the same proof again.
@@ -103,7 +103,7 @@ test('a reload shows the same proof, and a chat with proof loads without a probl
     const { host, ask } = await open(t);
     await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', [`! accept ${T1} | words: Sure, I accept the job`]));
     const [proof] = ask({});
-    await host.bus.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [proof.id] }] }, { cause: 'ui' });
+    await host.bus.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' }, parents: [proof.id] }] }, { cause: 'ui' });
     await host.send('On.', 'Further.');
     const before = JSON.stringify(ask({}));
     const state = JSON.stringify(host.head());
@@ -119,7 +119,7 @@ test('a line may build on the proof an earlier line of the same reply gave, live
     await host.send('Sure, I accept the job. Thanks a lot!', text('The innkeeper nods.', lines));
     const at = host.ctx.chat.length - 1;
     const shown = () => ask({}).map(proof => [proof.kind, proof.parents.length]);
-    assert.deepEqual(shown(), [['acceptance', 0], ['kill', 1]]);
+    assert.deepEqual(shown(), [['acceptance', 0], ['event', 1]]);
     assert.equal(ask({})[1].parents[0], ask({})[0].id);
     assert.deepEqual(turns.at(-1).problems, []);
     // A Re-read plans both lines again (nothing stored until they all are): the second still finds the first's proof.
@@ -127,7 +127,7 @@ test('a line may build on the proof an earlier line of the same reply gave, live
     const result = await host.turn.reread(at);
     assert.equal(result.ok, true, result.message);
     assert.deepEqual(turns.at(-1).problems, []);
-    assert.deepEqual(shown(), [['acceptance', 0], ['kill', 1]]);
+    assert.deepEqual(shown(), [['acceptance', 0], ['event', 1]]);
     assert.equal(ask({})[1].parents[0], ask({})[0].id);
     assert.deepEqual(ask({}).map(proof => proof.id), old, 'lines that read as they did keep their ids');
     assert.deepEqual(host.store.problems(), []);

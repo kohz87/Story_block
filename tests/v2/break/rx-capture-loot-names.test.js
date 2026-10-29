@@ -11,7 +11,7 @@ import { createHost } from '../../../testkit/index.js';
 
 test('rx-capture: a loot count is never part of a name, and money is a coin offer, never a thing', async t => {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost();
+    const host = await createHost({ settings: { modules: { 'story-block': { storyCoinPerReply: 1000 } } } });
     try {
         let turn = null;
         const off = host.events.on('turn', value => { turn = value; });

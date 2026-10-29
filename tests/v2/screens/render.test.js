@@ -10,15 +10,10 @@ import { core, foldOf, openFold, queries, recordingWidgets, renderSkip, sceneSta
 
 const skip = renderSkip;
 
-// RPG Battle installed: its item detail answers (the screen's probe for equipment) and draws the detail widget per row.
-const RPG = { query: { 'rpg-battle.itemDetail': () => null }, widgets: { 'rpg-battle.item-detail': { render: () => ({ update() {}, destroy() {} }) } } };
-
-// `rpg: true` draws it with RPG Battle installed (its item detail answers, equipment controls show).
-function inventoryView(state = null, { rpg = false, ...options } = {}) {
+function inventoryView(state = null, options = {}) {
     const module = core();
     const s = state ?? stocked(module);
-    const extra = rpg ? RPG.query : {};
-    return { module, state: s, ...show(inventoryScreen, { state: s, query: queries(module, s, extra), widgets: rpg ? RPG.widgets : {}, ...options }) };
+    return { module, state: s, ...show(inventoryScreen, { state: s, query: queries(module, s), ...options }) };
 }
 
 const visibleItems = el => el.querySelectorAll('.item').map(item => item.querySelector('.name').textContent);
@@ -27,7 +22,7 @@ test('inventory: grouped by kind, with qty, rarity, equipped marker and the wall
     const module = core();
     const state = stocked(module);
     state.domains.inventory.stacks.it_sword001.equipped = 'hand';
-    const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG.query), widgets: RPG.widgets });
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state) });
     assert.deepEqual(view.warnings, []);
     assert.equal(text(el.querySelector('.wallet')), '125 gold');
     const groups = el.querySelectorAll('.group').map(group => [group.getAttribute('data-kind'), group.querySelectorAll('.item').length]);
@@ -55,7 +50,7 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const store = fakeStore(state);
     const bus = createCommandBus({ store, registry: fakeRegistry([module]), id: counterIds(), seed: () => 42 });
     const { el, calls, results } = show(inventoryScreen, {
-        state, query: queries(module, state, RPG.query), widgets: RPG.widgets, draft: {},
+        state, query: queries(module, state), draft: {},
         command: (type, payload, options) => bus.command(type, payload, options),
     });
     const item = name => el.querySelectorAll('.item').find(row => row.querySelector('.name').textContent === name);
@@ -99,27 +94,21 @@ test('inventory: an action opens its fold below the action row; one fold per car
     const module = core();
     const state = stocked(module);
     state.domains.party = { pc: null, order: ['ac_ren00001', 'ac_mira0001'], actors: { ac_ren00001: { id: 'ac_ren00001', name: 'Ren' }, ac_mira0001: { id: 'ac_mira0001', name: 'Mira' } } };
-    const { el, view } = show(inventoryScreen, { state, query: queries(module, state, RPG.query), widgets: RPG.widgets, draft: {} });
+    const { el, view } = show(inventoryScreen, { state, query: queries(module, state), draft: {} });
     assert.deepEqual(view.warnings, []);
     const dagger = el.querySelectorAll('.item').find(item => item.querySelector('.name').textContent === 'Iron Sword');
     const actionsText = () => dagger.querySelector('.actions').querySelectorAll('button, label').map(node => text(node));
     const before = actionsText();
-    assert.deepEqual(before, ['Equip on…', 'Drop'], 'the action row, with Drop a plain action');
+    assert.deepEqual(before, ['Equip', 'Drop'], 'the action row, with Drop a plain action');
     assert.equal(dagger.querySelector('.actions').querySelector('.fold'), null, 'no fold inside the action row');
     assert.equal(dagger.querySelector('.actions label.ss-button.ss-button-danger'), null, 'no danger tone on the action');
     const radio = kind => dagger.querySelector(`button[value="${kind}"]`);
     assert.equal(radio('drop').getAttribute('aria-expanded'), 'false');
     assert.equal(foldOf(el, 'it_sword001'), null, 'closed to begin with');
 
-    openFold(el, 'it_sword001', 'equipOn');
-    assert.equal(foldOf(el, 'it_sword001').querySelectorAll('button:not(.fold-cancel)').map(b => text(b)).join('|'), 'Ren|Mira', 'the members, in the fold');
-    assert.equal(radio('equipOn').getAttribute('aria-expanded'), 'true');
-    assert.deepEqual(actionsText(), before, 'the action row did not move');
-
-    // A second action on the same card replaces the open fold: one fold per card.
+    // Drop opens below the actions without moving them.
     openFold(el, 'it_sword001', 'drop');
     assert.equal(text(foldOf(el, 'it_sword001').querySelector('.fold-q')), 'Drop Iron Sword?');
-    assert.equal(radio('equipOn').getAttribute('aria-expanded'), 'false', 'the other fold closed');
     assert.equal(radio('drop').getAttribute('aria-expanded'), 'true');
     assert.deepEqual(actionsText(), before, 'the action row did not move');
     const confirm = foldOf(el, 'it_sword001').querySelectorAll('button')[0];
@@ -137,7 +126,7 @@ test('inventory: an action opens its fold below the action row; one fold per car
 
 test('inventory: the filter box fills the draft and narrows the list', { skip }, () => {
     const draft = {};
-    const { el, view, state, calls } = inventoryView(null, { draft, rpg: true });
+    const { el, view, state, calls } = inventoryView(null, { draft });
     const filter = el.querySelector('.filter');
     const [kind, rarity] = filter.querySelectorAll('select');
     kind.value = 'equipment';
@@ -273,7 +262,7 @@ test('home: Story Block alone shows the place and the purse, and nothing else', 
     const { drawn, widgets } = recordingWidgets();
     const { el, view, problems } = show(homeScreen, { state, query: queries(module, state), widgets });
     assert.deepEqual(view.warnings, []);
-    assert.equal(problems.length, 3, 'the missing modules\' queries are reported to the mount, not drawn (the fight, the offers, the board)');
+    assert.equal(problems.length, 1, 'the missing quest board is reported to the mount, not drawn');
     assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel scene', 'panel purse']);
     assert.equal(text(el.querySelector('.place')), 'Bluewatch Village · Lakeshore');
     assert.equal(text(el.querySelector('.here')), 'Here: Fenna, Old Tam');
@@ -282,7 +271,7 @@ test('home: Story Block alone shows the place and the purse, and nothing else', 
     assert.deepEqual(drawn, { 'story-block.ready-hint': [{}], 'story-block.savepoints': [{}] }, 'only the "before you start" and save points slots (the host widgets draw or hide them)');
 });
 
-test('home: with RPG Battle and Story Director, their panels appear', { skip }, () => {
+test('home: with Story Director, its quest panel appears', { skip }, () => {
     const module = core();
     const state = sceneState(module);
     const ren = { id: 'ac_ren00001', name: 'Ren', level: 4, role: 'ranger', hp: { cur: 20, max: 82 }, mp: { cur: 3, max: 10 }, sp: { cur: 0, max: 0 }, conditions: [{ kind: 'poisoned', stacks: 1 }] };
@@ -306,16 +295,14 @@ test('home: with RPG Battle and Story Director, their panels appear', { skip }, 
     assert.deepEqual(view.warnings, []);
     assert.deepEqual(problems, []);
     // The lead's card is the game view's header now (view/game-header.js): Home does not repeat it.
-    assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel party', 'panel fight', 'panel scene', 'panel purse', 'panel quests']);
+    assert.deepEqual(el.querySelectorAll('section').map(section => section.className), ['panel scene', 'panel purse', 'panel quests']);
     assert.equal(el.querySelector('.hero'), null, 'no hero card on Home');
     assert.deepEqual(drawn['ss.meter'].map(props => [props.label, props.value]), [
-        ['Lyra', { cur: 30, max: 30 }], ['Progress', '2'],
+        ['Progress', '2'],
     ]);
-    assert.deepEqual(drawn['ss.meter'][1], { value: '2', max: '3', label: 'Progress', tone: 'accent' });
+    assert.deepEqual(drawn['ss.meter'][0], { value: '2', max: '3', label: 'Progress', tone: 'accent' });
     assert.equal(drawn['ss.badge'], undefined, 'the conditions are on the header, not on Home');
     assert.equal(drawn['ss.portrait'], undefined, 'the portrait is on the header, not on Home');
-    assert.equal(text(el.querySelector('.offer')), 'Ahead: 6 Cellar Rat, 1 Rat King to the death');
-    assert.equal(el.querySelectorAll('.fight .on').length, 0);
     assert.equal(text(el.querySelector('.time')), 'Day 1, 00:00');
     // No count limit now: every quest is in the card, and the card's list is capped with a "Show all" toggle (screens/show-more.js).
     assert.deepEqual(el.querySelectorAll('.quest b').map(b => b.textContent), ['Quest 1', 'Quest 2', 'Quest 3', 'Quest 4', 'Lost Ring']);
@@ -341,17 +328,4 @@ test('home and scene: the story time through the host\'s fmt.time (the calendar)
         const { el } = show(screen, { state, query: queries(module, state), widgets: recordingWidgets().widgets, extra: { formatters } });
         assert.equal(text(el.querySelector('.time')), 'CY 3, Goldwane 12, 7:40 pm', screen.id);
     }
-});
-
-test('home: a fight under way replaces the foes ahead', { skip }, () => {
-    const module = core();
-    const state = sceneState(module);
-    const query = queries(module, state, {
-        'combat.session': () => ({ id: 'cb_1', status: 'active' }),
-        'combat.offers': () => [{ id: 'of_1', foes: [{ name: 'Wolf', count: 2 }] }],
-    });
-    const { el, view } = show(homeScreen, { state, query, widgets: recordingWidgets().widgets });
-    assert.deepEqual(view.warnings, []);
-    assert.equal(text(el.querySelector('.fight .on')), 'A fight is under way. Open the Fight screen to act.');
-    assert.equal(el.querySelectorAll('.offer').length, 0);
 });

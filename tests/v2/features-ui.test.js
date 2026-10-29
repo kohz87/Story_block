@@ -376,7 +376,7 @@ test('the overlay: a feature whose needs are not met is drawn off and disabled, 
         const input = row.querySelector('input');
         assert.equal(input.disabled, true);
         assert.equal(input.checked, false);
-        assert.ok(texts(row, 'small').includes('Needs a module that keeps checks, like RPG Battle.'));
+        assert.ok(texts(row, 'small').includes('Needs a module that keeps checks, like Story Director.'));
     }
     host.close();
 });

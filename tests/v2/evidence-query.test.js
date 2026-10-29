@@ -17,7 +17,7 @@ function threeReplies(options = {}) {
     const accepted = h.command('sd.guarded', { thread: T1, selection: 'take it' });
     assert.equal(accepted.ok, true, accepted.message);
     const second = h.send();
-    const kill = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' }, parents: [accepted.receipt.data.proof.id] }] });
+    const kill = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' }, parents: [accepted.receipt.data.proof.id] }] });
     assert.equal(kill.ok, true, kill.message);
     return { h, mode, first, second, parent: accepted.receipt.data.proof.id, child: kill.receipt.data.proofs[0].id };
 }
@@ -27,7 +27,7 @@ test('story.evidence gives every visible proof in source order, or the ids asked
     h.send();
     const visits = h.command('sd.many', { specs: [{ kind: 'visit', payload: { place: 'a' } }, { kind: 'visit', payload: { place: 'b' } }] }).receipt.data.proofs;
     h.send();
-    const [kill] = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
+    const [kill] = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
     const all = [visits[0].id, visits[1].id, kill.id];
     assert.deepEqual(ids(h.ask()), all, 'default: all, in source order');
     assert.deepEqual(ids(h.ask({})), all);
@@ -56,12 +56,12 @@ test('a deleted parent hides its child; the block of the child stays applied; a 
     h.chat.splice(first - 1, 2);
     h.store.rebuild();
     assert.deepEqual(h.ask(), [], 'the parent is gone, and so is its child');
-    assert.deepEqual(h.store.head().domains.rpgt.log, [1], 'the child\'s own changes stand: it is only the proof that is hidden');
+    assert.deepEqual(h.store.head().domains.demoState.log, [1], 'the child\'s own changes stand: it is only the proof that is hidden');
     assert.deepEqual(Object.keys(h.store.head().meta.proofs), [child], 'its pin is there, behind a parent that is not');
     assert.deepEqual(h.problems(), []);
     // A proof whose first-proof block is gone is still pinned when its own block replays (the record of pins is made again).
     h.send();
-    const other = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'bear' } }] });
+    const other = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'bear' } }] });
     assert.equal(other.ok, true);
     assert.deepEqual(ids(h.ask()), [other.receipt.data.proofs[0].id]);
     h.store.rebuild();
@@ -100,7 +100,7 @@ test('a skipped parent block hides its child, and a skipped block publishes noth
 test('a guard asks story.evidence on the state before its block: a proof that is not shown holds a block back, and it is back with the proof', () => {
     const h = evidenceHarness();
     const first = h.send();
-    const [kill] = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
+    const [kill] = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
     h.send();
     const needs = h.command('sd.needs', { thread: T1, selection: 'take it', parent: kill.id });
     assert.equal(needs.ok, true, needs.message);
@@ -138,8 +138,8 @@ test('a stored proof the code cannot validate is not shown: edited payload, anot
     // The words changed, the hash kept; the hash changed too (the bytes now say something else); another owner.
     edit(record => { proofOf(record).payload.selection = 'something else'; }, true);
     edit(record => { const proof = proofOf(record); proof.payload.selection = 'other'; proof.payloadHash = hashJson(proof.payload); }, false);
-    edit(record => { proofOf(record).owner = 'rpg-battle'; }, true);
-    edit(record => { proofOf(record).kind = 'kill'; }, true);
+    edit(record => { proofOf(record).owner = 'sample-extension'; }, true);
+    edit(record => { proofOf(record).kind = 'unknown-kind'; }, true);
     edit(record => { proofOf(record).extra = true; }, true);
     // A proof listed that the block does not pin, or a pin with no proof listed: the block is not applied.
     edit(record => { record.spans.find(span => span.evidence?.length).evidence.push({ ...proofOf(record), id: 'pf_forged000' }); }, true);
@@ -161,7 +161,7 @@ test('the pin of a proof covers its parents: a parent given again with other byt
     const pins = { [parent.id]: pinOf(parent, {}) };
     pins[child.id] = pinOf(child, pins);
     assert.notEqual(pins[parent.id], parent.payloadHash, 'the pin covers the id, kind and owner as well as the payload');
-    assert.notEqual(pinOf({ ...parent, kind: 'kill', owner: 'rpg-battle' }, {}), pins[parent.id], 'a kind or an owner changed is another pin');
+    assert.notEqual(pinOf({ ...parent, kind: 'event', owner: 'sample-extension' }, {}), pins[parent.id], 'a kind or an owner changed is another pin');
     assert.notEqual(pinOf({ ...parent, id: 'pf_other001' }, {}), pins[parent.id]);
     assert.notEqual(pins[child.id], pinOf({ ...child, parents: [] }, {}), 'parents: covered too');
     const entries = [parent, child].map(each => ({ proof: each, block: 'bl_00000001' }));
@@ -314,7 +314,7 @@ test('a chain of ten thousand proofs is read without a stack, by id or all; a cy
 test('story.evidence refuses a list with a gap in it', () => {
     const h = evidenceHarness();
     h.send();
-    const [made] = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
+    const [made] = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: 'wolf' } }] }).receipt.data.proofs;
     const gap = [made.id, , ];
     assert.deepEqual(h.ask({ ids: gap }), []);
     assert.deepEqual(ids(h.ask({ ids: [made.id] })), [made.id]);
@@ -346,7 +346,7 @@ test('proof is kept by the record: trimmed receipts keep it, a checkpoint carrie
     const replies = [];
     for (let n = 0; n < 9; n += 1) {
         replies.push(h.send());
-        const out = h.command('rb.many', { specs: [{ kind: 'kill', payload: { foe: `wolf-${n}` } }] });
+        const out = h.command('demo.many', { specs: [{ kind: 'event', payload: { foe: `wolf-${n}` } }] });
         assert.equal(out.ok, true, out.message);
         given.push(out.receipt.data.proofs[0].id);
     }

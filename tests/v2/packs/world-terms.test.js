@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { itemDef } from '../../../src/v2/packs/content.js';
 import { createPacksPart, marketsOf } from '../../../src/v2/packs/index.js';
-import { firstPackRanks, rankLine, readerRanks } from '../../../src/v2/packs/ranks.js';
 import { marketEntries, readMarketLine } from '../../../src/v2/packs/lorebook.js';
 import { CONTENT_KINDS, OPTIONAL_KINDS, RANKS_LIMITS } from '../../../src/v2/packs/limits.js';
 import { createCoreModule } from '../../../src/v2/domains/index.js';
@@ -38,87 +37,6 @@ function refused(value, path) {
     assert.ok(hit, `no error at ${path}: ${JSON.stringify(result.errors)}`);
     assert.ok(hit.message.length > 20, 'a sentence the reader can act on');
 }
-
-// ---------- the rank ladder ----------
-
-test('the reader\'s ladder: one rank a line, lowest first, short ids the story can write', () => {
-    const soul = readerRanks(rows(SOUL));
-    assert.deepEqual(soul.map(rank => rank.id), ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']);
-    assert.deepEqual(soul.map(rank => rank.title), SOUL);
-    assert.ok(soul.every(rank => rank.pack === null && rank.reader === true && !rank.levels && !rank.reward));
-    assert.deepEqual(readerRanks(rows(LETTERS)).map(rank => [rank.id, rank.title]), LETTERS.map(id => [id, id]));
-    // A last word two ranks share, or a long one, is not an id: the place is.
-    assert.deepEqual(readerRanks(rows(['Iron Plate', 'Gold Plate', 'Grand Champion-of-Ages'])).map(rank => rank.id), ['R1', 'R2', 'R3']);
-    assert.deepEqual(readerRanks([]), []);
-    assert.deepEqual(readerRanks(null), []);
-    assert.deepEqual(readerRanks(rows(['', '  '])), []);
-});
-
-test('a line may give the first level of its rank; the levels are kept only when every line rises', () => {
-    assert.deepEqual(rankLine('Soul Class II: 11'), { title: 'Soul Class II', from: 11 });
-    assert.deepEqual(rankLine('Rank | <b>F</b>'), { title: 'Rank b F /b', from: null }, 'what separates fields in a block is cleaned out');
-    const banded = readerRanks(rows(['Soul Class I: 1', 'Soul Class II: 11', 'Soul Class III: 21']));
-    assert.deepEqual(banded.map(rank => rank.levels), [[1, 10], [11, 20], [21, 999]]);
-    assert.ok(readerRanks(rows(['A: 1', 'B: 20', 'C: 10'])).every(rank => !rank.levels), 'levels that fall are not kept');
-    assert.ok(readerRanks(rows(['A: 1', 'B'])).every(rank => !rank.levels), 'levels for some lines only are not kept');
-    assert.equal(readerRanks(rows(Array.from({ length: 20 }, (_, n) => `Circle ${n + 1}`))).length, RANKS_LIMITS.records);
-    assert.equal(readerRanks(rows(['F', 'f', 'E'])).length, 2, 'a rank named twice is one rank');
-    assert.ok(readerRanks(rows(['x'.repeat(60)]))[0].title.length <= RANKS_LIMITS.title);
-});
-
-test('renaming a pack\'s ladder keeps the pack\'s numbers at each place, so quests pay the same', () => {
-    const renamed = readerRanks(rows(['Copper', 'Silver', 'Gold']), PACK_LADDER);
-    assert.deepEqual(renamed, [
-        { id: 'Copper', title: 'Copper', levels: [1, 10], reward: [50, 400], pack: null, reader: true },
-        { id: 'Silver', title: 'Silver', levels: [11, 20], reward: [800, 3000], pack: null, reader: true },
-        { id: 'Gold', title: 'Gold', pack: null, reader: true },
-    ]);
-    // The reader's own first levels win over the pack's; the rewards are the pack's at each rank's first
-    // level (B-a2-1): Silver starts at 6, inside the pack's F, so it pays F, not E by its place.
-    assert.deepEqual(readerRanks(rows(['Copper: 1', 'Silver: 6']), PACK_LADDER).map(rank => [rank.levels, rank.reward]), [[[1, 5], [50, 400]], [[6, 999], [50, 400]]]);
-    assert.deepEqual(readerRanks(rows(['Copper: 1', 'Silver: 11']), PACK_LADDER).map(rank => rank.reward), [[50, 400], [800, 3000]], 'a rank that starts where the pack\'s E does pays E');
-    const twelve = readerRanks(rows(Array.from({ length: 12 }, (_, i) => `Circle ${i + 1}`)), PACK_LADDER, { perRank: 1 });
-    assert.deepEqual(twelve.map(rank => rank.reward[1]), [...Array(10).fill(400), 3000, 3000], 'twelve one-level ranks pay what the pack pays at those levels, not more by their places');
-    assert.deepEqual(firstPackRanks([...PACK_LADDER, { id: 'X', pack: 'other' }]).map(rank => rank.id), ['F', 'E']);
-});
-
-test('the ladder is no longer a Story Block setting: a module that bands levels gives it (ranks.reader)', () => {
-    const module = createCoreModule({ settings: () => ({}) });
-    assert.equal(module.settings.schema.ranks, undefined, 'moved to RPG Battle\'s Terms (MODULES §F105)');
-    assert.equal('ranks' in module.settings.defaults, false);
-    // An old stored value alone is no ladder: without a module that answers ranks.reader there is none.
-    const stale = createCoreModule({ settings: () => ({ ranks: rows(SOUL) }) });
-    assert.deepEqual(stale.queries['packs.content']({}, { kind: 'ranks' }), []);
-});
-
-// `settings.ranks` here is what a module's `ranks.reader` hook gives (RPG Battle's Rank ladder lines).
-async function coreWith(settings, packs = []) {
-    const part = createPacksPart({ settings: fakeSettings() });
-    for (const one of packs) assert.equal((await part.packs.install(one)).ok, true);
-    const hooks = name => (name === 'ranks.reader' ? [() => ({ lines: settings.ranks ?? [], perRank: settings.perRank ?? 0 })] : []);
-    return createCoreModule({ settings: () => settings, packs: part, hooks });
-}
-
-test('packs.content answers ranks with the reader\'s ladder, over the pack\'s; one pack\'s own stays its own', async () => {
-    const guild = pack({ id: 'guild', content: { ranks: PACK_LADDER.map(({ pack: _pack, ...rank }) => rank) } });
-    const set = await coreWith({ ranks: rows(SOUL) }, [guild]);
-    const asked = set.queries['packs.content']({}, { kind: 'ranks' });
-    assert.deepEqual(asked.map(rank => rank.title), SOUL);
-    assert.deepEqual(asked[0].reward, [50, 400], 'the pack\'s numbers at the place');
-    assert.deepEqual(set.queries['packs.content']({}, { kind: 'ranks', pack: 'guild' }).map(rank => rank.id), ['F', 'E']);
-    assert.ok(set.queries['packs.content']({}, { kind: 'items' }).length === 0, 'other kinds are as they were');
-    // Empty: the pack's ladder; no pack either: none (each module's built-in one).
-    const empty = await coreWith({ ranks: [] }, [guild]);
-    assert.deepEqual(empty.queries['packs.content']({}, { kind: 'ranks' }).map(rank => rank.id), ['F', 'E']);
-    assert.deepEqual((await coreWith({})).queries['packs.content']({}, { kind: 'ranks' }), []);
-    // Alone (no quest module, no pack): the reader's ladder carries no reward, so the coin budget is by level.
-    const alone = await coreWith({ ranks: rows(LETTERS) });
-    const h = createHarness([alone], { state: stocked(alone) });
-    assert.equal(h.query('inventory.storyBudget').budget, 1000);
-    // With the pack, the renamed ladder keeps its rewards: the budget is the pack's F top.
-    const renamed = await coreWith({ ranks: rows(SOUL) }, [guild]);
-    assert.equal(createHarness([renamed], { state: stocked(renamed) }).query('inventory.storyBudget').budget, 400);
-});
 
 // ---------- carry capacity ----------
 
@@ -245,20 +163,4 @@ test('packs.markets: the lorebook\'s places first, then the packs\' own; types a
     const broken = createPacksPart({ settings: fakeSettings(), readLorebook: async () => { throw new Error('offline'); } });
     assert.equal(await broken.refreshLore(), 0);
     assert.deepEqual(marketsOf([], []), { types: [], tags: [], places: [] });
-});
-
-// ---------- levels per rank (terms2, 2026-10-22) ----------
-
-test('Levels per rank bands lines with no levels: Soul Class I is 1-10, II 11-20; a line\'s own first level still wins', async () => {
-    const soul = readerRanks(rows(SOUL.slice(0, 3)), [], { perRank: 10 });
-    assert.deepEqual(soul.map(rank => rank.levels), [[1, 10], [11, 20], [21, 999]]);
-    const mixed = readerRanks(rows(['Soul Class I', 'Soul Class II: 15', 'Soul Class III']), [], { perRank: 10 });
-    assert.deepEqual(mixed.map(rank => rank.levels), [[1, 14], [15, 24], [25, 999]], 'the own first level wins, the next follows it');
-    const falling = readerRanks(rows(['A', 'B: 5', 'C: 3']), [], { perRank: 10 });
-    assert.deepEqual(falling.map(rank => rank.levels[0]), [1, 5, 15], 'a level that does not rise is set aside');
-    assert.deepEqual(readerRanks(rows(['Copper', 'Silver']), PACK_LADDER, { perRank: 5 }).map(rank => [rank.levels, rank.reward]), [[[1, 5], [50, 400]], [[6, 999], [50, 400]]], 'over the pack\'s levels; paid by level on the pack\'s ladder');
-    assert.ok(readerRanks(rows(['A', 'B']), [], { perRank: 0 }).every(rank => !rank.levels), 'none set: as before');
-    // Through packs.content, from the ranks.reader hook.
-    const core = await coreWith({ ranks: rows(SOUL.slice(0, 3)), perRank: 10 });
-    assert.deepEqual(core.queries['packs.content']({}, { kind: 'ranks' }).map(rank => rank.levels), [[1, 10], [11, 20], [21, 999]]);
 });

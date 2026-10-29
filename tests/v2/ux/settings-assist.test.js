@@ -101,7 +101,7 @@ test('pre-roll: drawn and locked, with the reason the feature gives, while no mo
     const row = field(without.page, CORE_FEATURE.preroll);
     assert.ok(row && !row.hidden);
     assert.equal(locked(row), true);
-    assert.equal(tag(row).textContent, 'Needs a module that keeps checks, like RPG Battle.');
+    assert.equal(tag(row).textContent, 'Needs a module that keeps checks, like Story Director.');
     assert.equal(control(row).disabled, true);
     without.host.close();
     const { page, host } = await open({ modules: [CHECKS] });

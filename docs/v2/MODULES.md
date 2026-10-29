@@ -38,99 +38,11 @@ Tests for a part use a fake ctx implementing SPEC §3.2 (`read`, `draft`, `call`
 `settings`, `time`, `fail`, `receiptId`) plus `query(name, args)`; keep it in `tests/v2/helpers/` of your part
 (`tests/v2/<part>/helpers/fake-ctx.js`).
 
-**Capabilities.** A module definition may declare `capabilities: ['rb-rules-v2', …]`: the names a pack can list in
+**Capabilities.** A module definition may declare `capabilities: ['example-capability', …]`: the names a pack can list in
 `requires.capabilities` that this module provides (PACKS.md). Each is a slug (lowercase words joined by `-`, at most 64
 characters), the list holds at most 32 names, and a malformed list is refused when the module registers. Duplicates are
 dropped. `sdk.modules()` shows the list on each entry as a frozen `capabilities` array (empty when the module declares
 none), also while the module is dormant: a pack is installed into the library whatever its peers are doing.
-
-## B. RPG Battle (module id `rpg-battle`)
-
-### B1. `party` (part **party**, agent RB-party)
-```js
-party = {
-  pc: 'ac_xxxxxxxx' | null,
-  order: ['ac_…'],                                  // display order, pc first
-  actors: { [id]: {
-    id, name, kind: 'pc' | 'companion', control: 'player' | 'auto', role: '',
-    level: 1, xp: 0, points: 0,
-    hp: { cur, max, lost? }, mp: { cur, max, lost? }, sp: { cur, max, lost? },  // lost: see below (RB #100)
-    stats: { STR, VIT, AGI, DEX, INT, LUK, CHA },     // base stats (ints); gear bonuses are derived, never stored
-    skills: [{ name, level, uses, active: true }],   // names from the skill library or party.custom
-    conditions: [{ kind: 'poisoned' | 'bleed' | …, stacks: 1 }],
-    npc: null | 'NSD name',                          // the NPC this companion is, if any
-  } },
-  custom: { [skillName]: skillDef },                 // story-taught skills, built by v1 skillFromTemplate
-}
-```
-A pool may hold `lost` (RPG Battle #100): how far it is below `max`, a count (Story Block's `counters`, SPEC
-§2.2), so a wound, heal, fight or level-up adds its own step on replay and a middle delete takes back only its
-reply's change. `cur` stays as written for readers of the raw state; the pool's number now is `max − lost`
-held to 0…max (no `lost`: `cur` held to its max, a full pool keeps none). Read pools through `party.actors` /
-`party.actor` (fitted), not the raw `cur`. Level, XP, points and stats are counts too (`PARTY_COUNTERS`).
-Commands: `party.create` (ui; v1 newSheet rules), `party.addCompanion` (from a `join` line or the join
-offer's button), `party.edit`, `party.spend`, `party.learnSkill`, `party.setSkillActive`, `party.forgetSkill`,
-`party.rest` ({ kind: 'short' | 'long' }), `party.applyResult` (internal, from combat.end), `party.grantXp`
-(internal; levels up with v1 growth rules), `party.heal` / `party.restore` (internal, from item.use),
-`check.resolve`.
-Kinds: `wound` (`~ wound Ren — fell into the weir | harm: scratch|wound|grave` and
-`~ wound Ren — a poultice | heal: scratch|wound|grave`, `~ wound Astra — cure poisoned`; v1 Wounds rules:
-one blow per person per reply, shares of max HP), `join` (`+ join Lyra — the archer | level: 3 | role: ranger`
-→ an offer the reader accepts, not an automatic member), `skill` (`+ skill Ren — Shadow Cut | taught by: Kael`
-→ offered, learned by the reader), `check` (`? check stealth — slipping past the guard | dc: hard`; the roll
-uses ctx.roll, the stat named or mapped from the skill word; result in the receipt summary), `rest`
-(`! rest long — a night at the inn`).
-Queries: `party.actors`, `party.actor({ id | name })`, `party.pc`, `party.combatNumbers({ id })` (stats
-with gear from `inventory.items({ owner: id })` equipped stacks).
-Tab: **Party** (actors with HP/MP/SP meters, stats, skills; spend points; set aside/swap skills).
-
-### B2. items (part **items**, agent RB-items)
-No domain of its own: items live in Story Block's `inventory`; their actors in `party`.
-Hooks: `item.define(def, { note, owner, scale })` (`scale`: the money scale, F104) → sets `kind`, `rarity`, `value` (smallest unit), `slot`,
-`stats`, `effect` (`{ heal, mp, cure: [] }`), `tags` (elements) using v1 describeRow / gear enrichment /
-effectByName / materialAffinity / capItem rules; `currency()` → `{ tiers: [{ name, rate }], single }` from
-the rules (v1 `rules.currency`).
-Commands: `item.use` ({ stack, target }; consumables only; full HP refuses without consuming; calls
-`inventory.consume` and `party.heal`/`party.restore`), `item.equip` / `item.unequip` (checks slot limits and
-level caps; calls `inventory.equip`), `item.give` (to a companion: `inventory.transfer`).
-Queries: `items.usable({ actor })`, `items.gear({ actor })` (equipped with capped stats).
-Tab page: **Items** (on the Party tab: Use / Equip / Give per row; several clicks = several doses).
-
-### B3. `combat` and `bestiary` (part **combat**, agent RB-combat)
-```js
-combat = {
-  offers:  [{ id, foes: [{ name, count, tier: 'weak'|'even'|'strong'|'deadly' }], stakes: 'normal'|'death',
-              place: '', rev }],                      // from `encounter` lines; dismissed or fought → removed
-  session: null | { id, setup, actions: [], status: 'active'|'won'|'lost'|'fled' },  // v1 startFight setup;
-                                                      // the fight itself is rebuilt with v1 replay(setup, actions)
-  beaten:  [{ rev, foes: [{ name, count }], won: true }],   // last 200; read by Story Director quests
-  last:    null | { summary, moments: [] },          // what the next reply narrates
-}
-bestiary = { creatures: { [slug]: template } }       // v1 templates.js, kept per chat
-```
-Commands: `combat.start` ({ offer }), `combat.act` ({ action }) — one player action; auto turns advance
-deterministically with the session seed —, `combat.flee`, `combat.end` (applies results: `party.applyResult`,
-loot via `inventory.grant` with the receipt as its cause, XP via `party.grantXp`, `beaten` entry, `last`),
-`combat.dismiss` ({ offer }).
-Kinds: `encounter` (`! encounter 6 Cellar Rat Swarm — boiling out of the bins | tier: even | stakes: normal`;
-v1 threat-word rules: a threat word is never a creature).
-Queries: `combat.offers`, `combat.session` (the rebuilt fight view), `combat.foesBeaten({ sinceRev })`.
-Tab: **Fight** (offer cards, the battle screen, result). Fight narration: `combat.end`'s receipt summary
-plus `last.moments`; the static instruction keeps v1's "stop at the first blow" rule.
-
-### B4. `trade` (part **trade**, agent RB-trade)
-```js
-trade = {
-  orders: { [id]: { id, piece: itemDef, materials: [{ def, qty }], fee, ready: minutes, crafter: '', place: '' } },
-  shops:  { [key]: { day, bought: [defId] } },        // v1 stock rules, per trader kind and place
-}
-```
-Commands: `trade.sell` ({ stack, qty }), `trade.buy` ({ shop, def, qty }), `craft.commission`
-({ piece, materials, crafter }), `craft.collect` ({ order }); all check the market rule (v1 marketHere on
-`scene.place` and `scene.present`), price with v1 pricing (`itemWorth`, place prices from settings), pay or
-receive with `wallet.pay` / `wallet.receive`, move goods with inventory commands.
-Queries: `trade.market`, `trade.stock({ kind })`, `trade.quote({ … })`, `trade.orders`.
-Tab page: **Trade** (on the Party tab, one-line rows, as v1 0.5.46).
 
 ## C. Story Director (module id `story-director`)
 
@@ -144,7 +56,7 @@ director = {
     status: 'active' | 'resolved',
     offer: false | true,                             // a job offered, not yet taken
     shown: null | { turn },                          // a held offer (F88) is shown from this Director turn
-    ready: false | true,                             // the story said a goal code cannot count is met (F83)
+    ready?: null | { rev },                          // older chats only: the story said a goal code could not count was met (F83)
     taken: null | { rev },                           // when the story (or the reader) took it on
     ended: null | { rev, reason, outcome: 'done'|'failed'|'abandoned'|'declined'|'superseded' },
     target: null | { noun, count, kind: 'foes'|'items' },
@@ -161,55 +73,10 @@ Kinds: `agenda`, `event`, `hook`, `quest`, `clock`, `beat`, `secret` (v1 grammar
 rules: due, relevant, checks), budget ~500. Queries: `director.time`, `director.threads({ kind, status })`,
 `director.thread({ key })`. Tab: **Director** (threads, problems).
 
-### C2. quests (part **quests**, agents SD-quests, SD-quests2)
-Same `director` domain (the module owns it; this part touches only `taken`, `ended`, `target` and `reward`,
-and an older chat's offers).
-**No offers (Story Director #99).** The story's `+ quest` is the acceptance: the quest is active and taken
-on from that reply. There is no Offered list, no Take on / Turn down step and no offer cooldown; a job the
-story only mentions stays in the story (a `+ hook` at most, an open thread). An older chat's offers
-(`offer: true`) still load, are shown nowhere, and become the quest when the story writes `+ quest` for one.
-**The story leads, code referees (F94, F95).** The reader accepts and turns in a quest in their own words;
-the story writes it (`~ quest Granary Rats | met: yes`, a turn-in closing it), and the tracker asks
-`quest.finish({ id | key, by: 'story' })` in the same reply. Code checks the target (foes from
-`combat.foesBeaten({ sinceRev: taken.rev })`, one fight per kill quest, F7; items from `inventory.items`; a
-goal code cannot count is met once `ready`) and the place rule (a settlement or the giver present), pays the
-parsed reward held inside its rank's range (F87) with `ctx.call('wallet.receive')` under claim
-`quest:<id>:paid`, takes fetch items with `inventory.consume`, gives XP through `party.grantXp` when that
-command exists, and records `by: 'story'` in the receipt; a refusal tells the story why. There are no
-Take, Finish or other quest buttons any more: `quest.take`, `quest.decline`, `quest.abandon` and
-`quest.finish` stay as commands for templates, packs and tests.
-Targets from `target:` / `reward:` labels, else from the goal text ("at least 3 wolves", "1 silver each");
-every quest needs a concrete goal (F82).
-Queries: `quest.progress({ id | key })` → `{ have, need, met, ready, source, noun, label, reason, finish:
-{ ok, reason } }`; `quest.details({ id | key })` → everything the details pop-up shows (goal, progress
-note, terms, giver, due, rank, status, history; F84, F85); `quest.ranks` → `[{ id, title, levels, reward }]`,
-lowest first (the first enabled pack's `ranks`, else RPG Battle's `party.ranks`, else F to S with its rewards
-times `inventory.economy`'s `scale`; F86, F104). A rank the story writes (`rank:`, or a `difficulty:`) is
-held to the party's own, whether code counts the goal or not, so it can only lower the reward; a pack's
-rank is kept. Every reward but a pack quest's own is the story's money (`wallet.receive { story: true }`),
-and one reply pays at most the party rank's top in such rewards, clicks after the reply included; a
-turn-in past that waits, open and unpaid, for the next reply (RX-E-1). The budget is Story Block's one
-per-reply tally (`inventory.storyBudget`, which honours the reader's `storyCoinPerReply` and counts the
-reply's own `+ coin` lines too), and Story Director's own tally only on a Story Block without that query
-(RX-E-2). One story-vouched turn-in a reply by default; Story Director's Quests setting **Story's-word
-turn-ins per reply** (`quests.wordTurnIns`, 1 to 5) allows more. Quests code counts are not limited by it.
-The story's own coin in the reply of a story or system turn-in (its `+ coin` lines: `inventory.storyBudget`
-paid less vouched), when it is the reward's amount or the giver is present, counts as the reward and is
-never paid on top of it (claim `storycoin:<sid>`); a `+ coin` written after the turn-in had paid is taken
-back by the afterCapture step (`wallet.pay`). A click's turn-in is not affected.
-A story turn-in refused only by the place waits until the end of the reply (`director.turn.now.pending`); a
-later Director line of the same reply, else the `quest.settle` step of the tracker's `afterCapture` hook
-(§F121: right after the reply's last line, in that reply), pays or refuses it on the scene after all the
-reply's lines. On a Story Block without that hook the same step runs before the next reply (beforeGenerate,
-replan; Story Director #112). A Continue is the same reply: a turn-in the place refused at the end of the
-first part stays retriable (`turn.now.refused`) and the Continue's afterCapture step pays it once the party
-reaches the giver, taking the refusal's Problem back (paid once; a later reply never pays it).
-**Safeguard** (Story Director #114): the afterCapture step also turns a ready quest in from where things
-stand (goal met by code or `met: yes`, never on the turn-in's word; the place rule holds at the reply's end)
-when the reply shows it was turned in: a `~`/`!` quest line in turn-in words that does not close it, or, with
-the giver present, the story's coin equal to the reward or the reward item given (`quest.autoTurnIns`).
-While a quest is ready, the tail names it, its giver and where ("Ready to turn in: …", at most two).
-Screen: **Quests** (status text per quest: Not yet / Ready / Ready to turn in here; finished quests kept).
+### C2. Story-told quests
+
+Quests are tracked as Director threads. The story tells their goals and rewards; older quest
+extensions remain visible but read-only. The Quests screen reads the Director's threads.
 
 ## D. NPC State Delta (agent NSD-hosted)
 No domain. When `globalThis.StoryBlock?.sdk` (v2) is present, NSD registers module `npc-state-delta` with
@@ -258,55 +125,32 @@ These settle questions agents raised; the host changes they need are made at int
    stays for malformed payloads and failed validators.
 5. **Command payloads** (callers use exactly these):
    `inventory.consume { stack, qty }`, `inventory.transfer { stack, to, qty }`, `inventory.equip { stack, slot }`,
-   `inventory.unequip { stack }`, `inventory.grant { def | defId, qty, owner, note? }`,
-   `party.heal { actor, hp, cure: [] }`, `party.restore { actor, mp?, sp? }`,
-   `party.grantXp { actor?, amount?, quest?, difficulty? }` (no actor: the whole party by v1 rules).
+   `inventory.unequip { stack }`, `inventory.grant { def | defId, qty, owner, note? }` (a module's command only,
+   never a button), `wallet.receive { owner, amount, note?, story? }`, `wallet.pay { owner, amount, note? }`.
    Queries: `inventory.items({ owner? })` → `[{ stack, def, name, kind, qty, owner, equipped, note }]`;
-   `combat.foesBeaten({ sinceRev })` → `[{ rev, foes: [{ name, count }], won }]`; `party.pc` → actor or null.
+   `inventory.wallet({ owner? })`; Story Director's `director.threads({ kind, status })` and `checks.policy`.
 6. **Equipment** defs have `stack: false`; `inventory.grant` of equipment makes one stack per piece (qty 1).
-7. **One fight pays one kill quest.** (User decision.) Among quests whose target counts foes, `quest.finish`
-   claims each `beaten` entry it counts (`beaten:<rev>`) and progress skips entries another kill quest
-   claimed. Item quests (pelts, tails) count the Inventory and are independent: the same fight can feed a
-   hunt quest and a pelt quest.
+7. **Quests are told by the story.** (User decision, Story Director 2.2.) A quest closes when the story says it
+   is done (`- quest`); no fight, count or turn-in pays it, and its reward is what the story gives.
 8. **Effects** may carry `damage` (combat items) besides `heal`, `mp`, `cure`.
-9. **Widget names are namespaced** `<module-id>.<name>`; Story Block's standard widgets are `ss.meter`,
-   `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`, `ss.badge`, `ss.timeline`, `ss.stepper`; modules use
-   their id (`rpg-battle.battle-board`, `fishing-activity.fishing`). Layout built-in node types (`meter`,
-   `badge`, …) never clash with a namespaced widget.
+9. **Widget names are namespaced** `<module-id>.<name>`; standard widgets use `ss.*`, while module widgets use their own id, such as `fishing-activity.fishing`.
+
 10. **Themes** use §13.3's CSS custom properties (`theme: { '--ss-accent': '#7c5cff' }`) for screens; the
    layout renderer's `tokens` are mapped onto them at integration.
 11. **Portraits.** The PC's portrait is the persona avatar; a companion or NPC's portrait comes from NSD
    (`npc.portrait({ name })` → URL or null, from its dossier/avatar data); packs may supply their own.
    No image generation.
-12. **Character creation is mandatory.** A chat without a PC (`party.pc` null) cannot generate: Story Block
-   asks the `canGenerate` hooks before each story generation; RPG Battle answers no until `party.create`
-   ran, and opens its creation wizard (dialog mount, §13.6). The greeting may show before that. Before the
-   first message the wizard is also one click away: Home's "Before you start" card (the module's reason and
-   `action` button, which runs its `onBlocked` hook), and RPG Battle's "Create your character" on the Party
-   tab, the status strip and the card under a reply.
+12. **Generation blockers.** A module may use `canGenerate` to block generation with a reason and an optional action handled by its `onBlocked` hook.
+
 13. **No model-written state blocks.** v2 never asks the model for World State, Inventory, Party or other
    state blocks; screens and the prompt's tail come from the state. The only block the model writes is
    `<Changes>`.
-14. **Creation content.** (User decision.) RPG Battle ships a small built-in set (6 races, about 12
-   talents) that packs replace or extend; with no race/talent content at all, creation is just a name and
-   stat points and still works.
 15. **Presets' own blocks** (World State, CYOA, Director…) are not read or handled by v2; presets that write
    them have their own switch to stop. Only `<Changes>` is v2's.
-16. **d20 for every uncertain action.** (User decision.) The static instruction tells the model: any action
-   whose outcome is uncertain gets a `? check <skill> — <what> | dc: …` line and the reply stops before the
-   outcome. The check waits as a **pending check** (RPG Battle's `checks` domain, part src/v2/checks): the reader
-   may add modifiers before rolling (a stat is applied automatically; the reader can add a skill or ability
-   that fits, an item, or a custom ±n with a reason), then presses Roll (`check.roll { id }`, d20 + modifiers,
-   seeded; party's `check.resolve` stays for direct rolls). If the reader sends the next message without rolling, the check is rolled with the automatic
-   modifiers before that generation (`beforeGenerate`). The result is a receipt the next reply narrates.
-   An optional setting (off) rolls before the reply via a cheap classifier call.
-17. **Death is a return in time.** (User decision.) When the PC dies, RPG Battle offers **Return**: the chat
-   goes back to the last point where the PC was alive before the fatal fight (the state just before
-   `combat.start`), as a SillyTavern branch so the old timeline is kept; the fight's actions are not on the
-   new branch. Story Block provides `sdk.rewind({ index, beforeRev })` (branch the chat at carrier `index`,
-   dropping that carrier's receipts from `beforeRev` on; it answers `{ ok: false, code, message }`, never
-   throws, also when the story cannot be saved first). A short cue tells the next reply the PC is back at
-   that moment, with no memory rules imposed.
+16. **Checks.** Story Director provides standalone evidence-backed checks. Assist can optionally classify a reader's attempt before generation and use the registered check kind.
+
+17. **Rewind.** Story Block provides `sdk.rewind({ index, beforeRev })` to branch at a carrier while preserving the old timeline.
+
 18. **Default look** follows the SillyTavern theme's colours (cards, meters, badges), restyled by packs/cards.
 19. **Merging.** (User decision.) PRs into `main` merge after green CI at the coordinator's discretion.
 20. **Ersveil currency** (user decision): the Ersveil pack's one currency is the **mark** (`mk`), 1 mark = the
@@ -431,30 +275,14 @@ These settle questions agents raised; the host changes they need are made at int
 ### User decisions, batch 4 (F81–F103)
 
 **Quests and the story**
-81. **NPC meters.** An NPC has several meters (NSD's trust, affection, desire, tension, −100..100) plus up to
-    about 6 the reader defines (name, min, max, start), each an `ss.meter` bar on the NPC card and the Cast
-    tab, changed by `~ npc Name | meter: +N` and clamped by code. Companions are NPCs (same dossier and
-    meters); RPG Battle keeps only their fight side, linked by name.
-82. Every quest needs a concrete goal; one without is refused or flagged.
-83. **Uncountable quests**: the tail lists up to 3 open quests code cannot count; the story writes
-    `~ quest X | met: yes`, the quest shows Ready, and code pays the parsed reward at turn-in. Finished
-    quests are kept, never deleted.
-84. A quest details pop-up: goal, progress, terms, giver, due, history (`quest.details`).
-85. A rolling one-line progress note per quest.
-86. **Rank ladder**: F, E, D, C, B, A, S by default; a pack's `ranks` content replaces it; a quest's
-    difficulty may name a rank; query `quest.ranks`.
-87. A quest's reward is held inside its rank's range by code; the receipt says when it was clamped. A
-    written rank reaches no higher than the party's rank, and one reply pays at most that rank's top in
-    rewards the story wrote (pack quests' own rewards aside).
+81. **NPC meters.** NPC State Delta offers meters, stages and hidden dossier entries to other modules.
+
 88. Pacing: Director prompt lines (no quest spam, a passerby is a passerby, the world doesn't send
     trouble). ~~And an offer cooldown setting (a held offer is shown later, never refused).~~ The cooldown
     went with the offers (Story Director #99).
 89. **Chronicle** (Story Director part): `world` and `faction` kinds, times from the clock, up to 3
     ongoing events picked into the tail per reply (seeded, stable on a swipe), a Chronicle screen.
 90. NSD: meter stages (named thresholds, moved by code) and hidden dossier entries unlocked at a threshold.
-91. RPG Battle: no second rank system: its level tiers are the ladder (uniform, or a named list with
-    uneven bands), query `party.ranks`; a foe line takes `rank: D` besides weak/even/strong/deadly;
-    companion stats by formula; a "points to spend" badge on the HUD.
 92. Story Block: a read-only state inspector tab (per-reply JSON, diff, receipts) for beta. As built: the
     screen `story-block/inspector` (screen and tab, feature `story-block.inspector`, off by default) over
     the host widget `story-block.inspector` (src/v2/screens/inspector.js, data in src/v2/inspect.js): a
@@ -472,23 +300,11 @@ These settle questions agents raised; the host changes they need are made at int
     taken back by the swipe, delete or rewind a reader wants to go back from, cost a receipt and a rev,
     and be inside the branch it names. Metadata stays through swipes and deletes, and nothing in the story
     (prompt, replay, rev) changes. A branch carries a copy of the list as it was when it was made.
-94. **Turn-in follows the story**; code referees in the same reply: it pays when the checks pass, and
-    refuses and tells the story when they fail (§C2).
-95. **No quest buttons** (Accept, Decline, Take, Finish, Abandon); screens show status text; the commands
-    stay for templates, Studio and tests; the `quests.turnIn` setting is dropped.
-96. **Using a consumable is story-driven**: `! use X | on: Y`, or `- item X` marked used (SPEC §7), runs
-    `item.use` by code in the same reply; a refusal keeps the item and tells the story. Equip, Take off and
-    Give stay as bag management. *Changed in beta.1 (live test: "use item is missing"):* the Inventory has
-    **Use on…** for a consumable too, bag management (rule 6): the members RPG Battle's `items.useOn` says a
-    dose would help now, none while a fight has the party (the Fight screen's Item does it then).
+96. **Using a consumable.** A module may answer `item.use`; the Inventory can offer eligible targets when a module answers `items.useOn`.
 
-**Screens and later work**
 97. The UI overhaul waits until the base structure is ready; polish now is functional fixes only.
 98. An interactive map: pan and zoom (wheel, drag, pinch, buttons, keys), search over places (undiscovered
     ones too, never hidden or secret ones), place details with code's travel time; the view is per reader.
-99. Equipment as in MVU: an "equip on…" picker, one step `inventory.equipOn { stack, actor }` (a full slot
-    sends its oldest piece back to that member's carry), a per-character Equipped list, accessories up to
-    3 (built: SPEC §7 "Equip on…"; the counts from RPG Battle's `items.slots`, eligibility from `items.canWear`).
 100. **Features**: optional mechanics are toggles in a Features subsection, declared by
     `registerModule({ features: [{ id, label, describe, default, prompt? }] })`; an off feature contributes
     no capture kind, context, command (`FEATURE_OFF`), screen or widget (after the freeze). Built as SPEC §6
@@ -508,8 +324,7 @@ These settle questions agents raised; the host changes they need are made at int
     * Replay is block by block; counts (`counters`, `was`) move when a middle reply is deleted; a
       checkpoint made over a deleted reply is passed over (SPEC §2.2).
     * `sdk.command` is the reader's action only; `sdk.reread` re-captures one reply (SPEC §3.1).
-    * Money and items from the story: at most `storyCoinPerReply` and 20 of one item per reply, clamped with
-      a Problem; signed amounts refused; owners must be in the party; the wallet caller rule (SPEC §7).
+    * Money and items from the story have no automatic per-reply limit; an explicit `storyCoinPerReply` sets the budget and associated item limits. Signed amounts are refused (SPEC §7).
     * Pack events fire from their definition only, a repeating one once per reply, nothing on a Continue
       or a dry run (SPEC §4.1).
     * Reading change lines: linear; at most 150 per reply; a close tag counts only at a line's start or
@@ -517,54 +332,16 @@ These settle questions agents raised; the host changes they need are made at int
       budget; names flattened before budgets (SPEC §4.3, §4.4).
     * Screens: control names prefixed like ids; templates nest at most 64 deep and @-rules 8 deep; text
       settings keep their `max`.
-104. **A pack sets the money scale** (the currency is only a name; lorebooks carry flavour for the model,
-    never numbers). The pack's own numbers (ranks' `reward`, item `value`, shop `price`) are used exactly as
-    written. Built-in defaults that come from no pack are gold-scale, so a pack may say `economy: { scale,
-    note? }` (0.001–1000, default 1; PACKS.md). Story Block's query `inventory.economy` → `{ scale, source:
-    'pack' | 'settings' | 'default' }`: the reader's `economyScale` setting (0 or blank: use the pack's), else
-    the first enabled pack's, else 1. Every built-in default money number is multiplied by `scale`, rounded,
-    at least 1: Story Block's 1000 × level story coin budget, Story Director's default ranks, RPG Battle's
-    default loot, coin and prices. Modules read it with `tryQuery('inventory.economy')` and a fallback of
-    `{ scale: 1 }`. Ersveil sets scale 8: its F rank tops at 400 marks against the built-in F top of 50, so
-    the built-in defaults land in marks about right; its own ranks, values and prices stay as written.
-    Crafting data in packs (F102): recipes' `craft`, `dc`, `station`, `stat`, `known`, `teaches`, the `crafts`
-    kind and query `packs.crafts`; NPC meter presets: the `meterPresets` kind (PACKS.md).
+104. **Money scale.** A pack may supply `economy.scale`, and the reader may override it. Automatic story money has no per-reply limit; an explicit setting caps it.
 
 ### User decisions from the live tests (2026-10-22, F105–F108)
 
 (F108 came with live test #4's terms2 work. F109–F114 are not used: the next decision is F115.)
 
-105. **The reader names the world's words again** (v1 had them; v2 lost the settings). RPG Battle's settings,
-    group Terms: **XP word** (`party.xpName`) and **Level word** (`party.levelName`), over a pack's `terms`,
-    over XP and Level. **Rank ladder** (`party.ranks`, a `form: 'lines'` list of `{ rank }`, lowest first, a
-    line optionally "Name: first level") and **Levels per rank** (`party.levelsPerRank`, 0–999: a rank with no
-    first level of its own starts that many levels after the one before; a line's own first level wins when it
-    rises), with a read-only preview of each rank's levels in the field's help (terms2, 2026-10-22: the ladder
-    moved here from Story Block's Terms, since a ladder bands levels; a stored Story Block `ranks` value moves
-    to RPG Battle once, when RPG Battle starts and has none). RPG Battle gives the lines to Story Block through
-    the hook `ranks.reader()` → `{ lines, perRank }`; `packs.content({ kind: 'ranks' })` answers with the
-    reader's ladder when a module gives one (records `{ id, title, levels?, reward?, pack: null, reader: true
-    }`, levels from the lines and Levels per rank, else the first pack's at each place; its rewards kept by
-    place), so Story Director's `quest.ranks`, RPG Battle's `party.ranks` (its level labels: "Soul Class III
-    (Lv 24)", a foe's rank and a fight's tier, "Weir Rat ×8 · Soul Class I · weak") and Story Block's coin
-    budget all use the same bands. Without such a module there is no reader's ladder: the pack's, then each
-    module's built-in (Story Director's F to S). Static prompt text that names XP, levels or ranks takes the words from the settings: a changed
-    setting may change the static part; otherwise it stays byte-identical reply to reply.
-106. **Items add carry capacity**: a pack item's `carry` (1–1000) adds to its owner's capacity while owned (a
-    member's thing to them, a shared-bag thing to the party), equipment only while worn; the reader may name
-    such items in RPG Battle's settings (`items.carryItems`, "Name: capacity"). RPG Battle's `items.carry` adds
-    it (`people[].bonus`, `bagBonus`, `bonuses: [{ stack, carry, owner }]`) and Story Block's Equip on… and loot
-    checks ask the same query; Inventory shows "+N carry" (`inventory.items` rows' `carry`). Only `pack.` defs
-    keep `carry`: the story never sets or raises it. Losing the item lowers capacity; nothing is dropped.
-107. **Prices by place, in layers** (replaces v1's guess from words in a place's name, now the RPG Battle
-    setting `trade.guessPrices`, off): a place's settlement type (hamlet, village, town, city, capital, outpost,
-    camp: buy and sell factors and stock size) and environment tags (coastal, river, port, mountain, mining,
-    forest, desert, farmland, frontier, swamp: a factor per item category, ±30 % per category in all) set its
-    prices. Built-in in RPG Battle; a pack's `markets` content defines or overrides types and tags and its
-    places' `market` and `tags` name them; a lorebook entry's `market: town; coastal, port` line names them for
-    its place (read by Story Block when a chat opens, `packs.markets`). Order for a place: lorebook, pack, the
-    scene's place kind, built-in; unknown means factor 1. The money scale (F104) multiplies the built-in prices
-    and worths (shop stock, a story-made thing's worth through `item.define`'s new `scale`), never a pack's own.
+106. **Carry capacity.** A pack item may add capacity; a module can answer `items.carry` for capacity checks and the Inventory display.
+
+107. **Markets.** Packs can provide market data through the generic `packs.markets` query.
+
 108. **Coins** (terms2, 2026-10-22; the live test's "currency is pennies but the story says copper and
     silver": the lorebook and card named three coins, Story Suite knew one name). The one currency may have
     coins: Story Block's setting **Coins** (`coins`, lines `name: worth`, a plural after a slash, smallest
@@ -635,7 +412,7 @@ These settle questions agents raised; the host changes they need are made at int
     is gone stays picked and is named, and the calls fail with a sentence (never another profile quietly). No
     profile, or Connection Profiles off: a plain note. One list for every picker: `listProfiles()` in
     `src/v2/model-call.js`.
-118. **Settings → Diagnostics** (last before Versions; v1's RPG Battle had one): **Copy report** and **Save
+118. **Settings → Diagnostics** (last before Versions): **Copy report** and **Save
     report** (a .txt) of one plain report, shown first. It holds SillyTavern's, Story Block's and each module's
     version; the features on and off; each module's settings with every key naming a key, token, password,
     secret, address or session left out (named) and secret-looking values replaced; the prompt size panel's
@@ -708,9 +485,8 @@ These settle questions agents raised; the host changes they need are made at int
     again after the new story lines, on the state as the Re-read has it, `ctx.reply` that reply, each new step
     at the seed of the old one of its type (SPEC §3.2), so a Re-read of unchanged text gives the live state.
     A swipe or delete of the reply takes its steps back; a rebuild applies their stored ops (§2.2). Hook
-    failures, a hook slower than 2.5 s and refused steps are Problems. Story Director settles its waiting
-    turn-ins there (`quest.settle`), and keeps its beforeGenerate `quest.settle` as the fallback on an older
-    Story Block, which never calls `afterCapture`.
+    failures, a hook slower than 2.5 s and refused steps are Problems. Story Director sets the day's weather
+    there (`scene.weather`, F122).
 
 ### User decisions from beta live test 5 (2026-10-22, F122)
 
@@ -742,9 +518,9 @@ These settle questions agents raised; the host changes they need are made at int
     *What it may write:* only the kinds of the setting `assistExtractorKinds` (default
     `! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item`), and under
     any setting never value (src/v2/assist/safety.js): no coin kind, no `+` of item, coin, loot, XP, reward,
-    join or skill, no `+ quest` or `+ trainer` (a job or a teacher: the narrator offers those, 2.5.0), no `?` line, no
-    `heal:`/`reward:`/`price:` label. A turn-in (`- quest`) is still checked by
-    its owner (goal, place, budget, F121); `- item` only moves or removes what the party holds (the owner
+    join or skill, no `?` line, no
+    `heal:`/`reward:`/`price:` label. A quest the story finished (`- quest`) is recorded by Story Director, which
+    pays nothing for it; `- item` only moves or removes what the party holds (the owner
     refuses the rest). *No duplicates:* a line the reply's lines already hold (C-1's matching, capture.js
     `sameChangeLine`, or the same op, kind and name) is dropped. *How it applies:* as story lines on that
     reply after its own (cause `story`, same capture rules, claims and the reply's `maxChangeLines` cap),
@@ -774,7 +550,7 @@ These settle questions agents raised; the host changes they need are made at int
 ### User decision from the beta live test (2026-10-22, F125)
 
 125. **A module's own lines on the "Changed this reply" card** (live test: "there's no way for us to know the
-    rolls?"; RPG Battle's checks were only on its own status card, which is off by default). A module's hook
+    rolls?"). A module's hook
     **`replyCard({ index, state, before, changes })`** answers that reply's lines, `[{ text, summary?, flag?,
     note?, icon? }]` (or plain strings), synchronously: `state` is the reply's state, `changes` the JSON
     Pointers its ops touched (as a card's `changed()`), so a module lists only what that reply did. Story Block
@@ -788,9 +564,7 @@ These settle questions agents raised; the host changes they need are made at int
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
-For a module's own call to a model, outside the story (Story Director's arc planner, RPG Battle's monster
-flavour, companion skills, What next?). Story Block makes the call and keeps the rules; the module writes the
-prompt and reads the text (src/v2/model-call.js).
+For a module's own call to a model outside the story, such as Story Director's arc planner, Story Block makes the call and keeps the rules; the module writes the prompt and reads the text (`src/v2/model-call.js`).
 
 ```js
 const result = await sdk.callModel({
@@ -853,19 +627,6 @@ const result = await sdk.callModel({
   ABORTED). `model.calls` → `[{ prompt, maxTokens, profile, system }]`; `model.pending()`, `model.aborted`,
   `model.push(...answers)`. The host's real rules run around it.
 
-### Lead decision after the beta live test (2026-10-22, F126)
+### Gathering module hooks
 
-126. **Other modules adjust RPG Battle's checks** (`ctx.gather` + hook `checkModifiers`). A command may ask
-    every other module's hook of a name with **`ctx.gather(name, args)`** → `[{ module, answer }]` (SPEC §3.2):
-    synchronous, on the state the command sees (a capture: the reply's, so a Re-read or a swipe asks the same
-    state), frozen copies, and null-safe (no answer, a promise or a throw is left out). RPG Battle asks
-    **`checkModifiers({ state, query }, { actor: { id, name }, skill, stat, target, dc })`** → `[{ mod, text }]`
-    (or one `{ mod, text }`) before a check is resolved; `target` is the person the check is against (its
-    `vs:` or `target:` label, else someone here whose name the line's text has). Each `mod` is held to −5…5,
-    the sum to ±5 (RPG Battle's setting *Other modules' check modifiers, at most*), at most 4 entries; they
-    show on the check's line with their module ("−2 Elula is wary (Delta)"). RPG Battle also asks NPC State
-    Delta's query `npc.socialModifier({ name, skill })` → `{ mod, name, skill, reasons: [{ text, value }] } | null`
-    (NSD #207; `mod` whole, ±5 by default, the reasons add up to it; null for a skill that is not social, an
-    unknown person, its feature `npc-state-delta.social` off or Delta off) for a social skill (persuade,
-    charm or seduce, intimidate, deceive, or a generic social one) against someone, on the check's reply
-    state; each reason is one entry on the line ("−2 Elula is wary (Delta)"), so Delta needs no hook of its own.
+A command may call `ctx.gather(name, args)` to ask other modules' hooks synchronously. The host supplies frozen state and arguments; absent answers, promises and errors are left out. The result identifies each responding module.

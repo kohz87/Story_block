@@ -36,7 +36,7 @@ import { JOURNAL_VERSION, journalKey, journalState } from './src/journal.js';
 import { randomId } from './src/id.js';
 import { previewParts, renderPreview } from './src/ui/preview.js';
 import { closeSuiteOverlay, openSuiteOverlay, refreshSuiteOverlay } from './src/ui/suite-overlay.js';
-import { AREA_LABELS, RPG_BATTLE_ID, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
+import { AREA_LABELS, SHARED_AREAS, SUITE_ID, SUITE_NAME, blockAreas, chatterNote, deferredTo, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from './src/handshake.js';
 import { DEFAULT_CURRENCY, normalizeCurrency, parseTiersText, purseLine, tiersText } from './src/money.js';
 
 const VERSION = '0.9.31';
@@ -277,15 +277,8 @@ function sessionParts(ctx, session) {
     return buildContextParts(session.entries, { substitute: substituter(ctx), ...(session.defs ?? promptDefs(ctx)) });
 }
 
-// (0.9.12) The currency the purse is counted in: RPG Battle's while it is here and on (money is
-// one of its rules, so the two never disagree), else the reader's own; null when it is off.
-function currencyNow(ctx = context(), suite = storySuite()) {
-    try {
-        const theirs = normalizeCurrency(suite?.api?.(RPG_BATTLE_ID)?.currency?.());
-        if (theirs) return theirs;
-    } catch {
-        // An older RPG Battle shares no currency: Story Block's own is used.
-    }
+// The currency the reader chose for the purse, or null when it is off.
+function currencyNow(ctx = context()) {
     const own = settings(ctx).currency;
     return own?.mode === 'off' ? null : normalizeCurrency(own);
 }
@@ -325,10 +318,7 @@ function generationEntries(ctx, chat, type) {
     // (0.9.5) With another extension keeping the timeline, the World State is asked for
     // without the threads, seeds, timers and arc phase it tracks.
     const keeper = timelineKeeper(settings(ctx).sourceOfTruth, suite);
-    // (0.9.11) The reply that tells a fight RPG Battle resolved gets no dice block: with fresh
-    // rolls in hand, a model fights the settled fight again.
-    const narrating = fightNarrated(suite, type);
-    const blocks = activeBlocks(enabledBlocks(ctx), chat, type).filter(def => !(narrating && def.display === 'dice'));
+    const blocks = activeBlocks(enabledBlocks(ctx), chat, type);
     return [...keptEntries(chat, type, { ownRolls }), ...blocks.map(def => {
         const state = def.kind === 'stateful' ? (generationSnapshot(chat, def, type) ?? archivedBlock(def.id))?.state ?? formatFor(def).empty(def) : null;
         const shown = timelineTrimmed(def, state, keeper, withoutSections);
@@ -336,10 +326,7 @@ function generationEntries(ctx, chat, type) {
             def: shown.def,
             state: shown.state,
             rolls: def.rolls?.count > 0 ? rollDice(def.rolls.count, def.rolls.sides) : null,
-            // Chatter points at NPC State Delta's cards while it is here (v0.9.1); dice leave
-            // fights to RPG Battle while it is here (v0.9.4); the Inventory says what the purse
-            // holds in all (v0.9.12).
-            note: chatterNote(def, suite) || diceNote(def, suite) || purseNote(def, shown.state, ctx, suite),
+            note: chatterNote(def, suite) || purseNote(def, shown.state, ctx, suite),
         };
     })];
 }
@@ -548,7 +535,7 @@ function ensureMessageIdentity(message, replaced = []) {
     return true;
 }
 
-const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'rpgBattleEvidence', 'rpgBattleAwards', 'storyBlockReplacement'];
+const JOURNAL_EXTRAS = ['storyDirectorQuest', 'storyDirectorState', 'storyBlockReplacement'];
 const chatMetadata = ctx => ctx?.chatMetadata ?? ctx?.chat_metadata ?? null;
 let uncertainJournalRepair = null;
 
@@ -1044,7 +1031,7 @@ function blockTab(view, uiKey) {
 // (0.9.20) Whose a tab is, so each extension's tabs sit together in the row: what it
 // registered as `group`, else the suite's own extensions by their tab ids, else the id's
 // first word.
-const KNOWN_TAB_OWNERS = [['rpg-', 'RPG Battle'], ['story-director', 'Story Director'], ['npc-state-delta', 'NPC State Delta']];
+const KNOWN_TAB_OWNERS = [['story-director', 'Story Director'], ['npc-state-delta', 'NPC State Delta']];
 function tabGroup(tab) {
     const given = String(tab?.group ?? '').trim();
     if (given) return given;
@@ -1250,13 +1237,6 @@ function blocksHint() {
 
 // (0.9.12) The Money fold's hint: the coins the purse is counted in, and whose they are.
 function moneyHint() {
-    let theirs = null;
-    try {
-        theirs = normalizeCurrency(storySuite()?.api?.(RPG_BATTLE_ID)?.currency?.());
-    } catch {
-        theirs = null;
-    }
-    if (theirs) return 'RPG Battle\'s currency';
     const own = settings().currency;
     if (own?.mode === 'off') return 'Off';
     return own?.mode === 'single' ? `One coin: ${own.single}` : tiersText(own).replace(/=\d+/g, '').replace(/, /g, ' / ');
@@ -1268,7 +1248,7 @@ function moneyRow(documentRef) {
     row.className = 'story-block-money';
     row.innerHTML = `
         <label class="story-suite-row" for="story_block_money">
-            <span><b>Purse total</b><small>The Inventory's money rows ("Coin Pouch | 1 | 1 Gold, 35 Silver") are added up and the story is told the sum, so it never lets anyone pay more. With RPG Battle on, its currency is used instead.</small></span>
+            <span><b>Purse total</b><small>The Inventory's money rows ("Coin Pouch | 1 | 1 Gold, 35 Silver") are added up and the story is told the sum, so it never lets anyone pay more.</small></span>
             <select id="story_block_money" class="text_pole">
                 <option value="tiers">Coins with rates</option>
                 <option value="single">One coin</option>
@@ -1442,7 +1422,7 @@ function renderSuiteSection() {
     const suite = storySuite();
     const offered = offeredAreas(blocks());
     const make = (tag, className = '', text = '') => el(tag, className, text, documentRef);
-    const intro = make('p', 'story-suite-muted', 'With Story Director, NPC State Delta or RPG Battle installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
+    const intro = make('p', 'story-suite-muted', 'With Story Director or NPC State Delta installed, who tracks what. Automatic lets the specialist for each area lead; alone, every choice works like Automatic.');
     const nodes = [intro];
     for (const area of SHARED_AREAS) {
         const { label, provider } = AREA_LABELS[area];

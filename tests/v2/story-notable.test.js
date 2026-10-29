@@ -27,7 +27,7 @@ const world = {
 
 async function fresh(t, more = []) {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost({ modules: [world, ...more] });
+    const host = await createHost({ modules: [world, ...more], settings: { modules: { 'story-block': { storyCoinPerReply: COIN } } } });
     t.after(() => host.close());
     await host.send('Hello.', 'The road.');
     return host;

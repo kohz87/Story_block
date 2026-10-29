@@ -81,8 +81,9 @@ for (const [label, evaluator] of LANGUAGES) {
         language = evaluator;
         const q = {
             events: [{ id: 'th_aaaaaaaa', kind: 'event', key: 'Dragon sighted', summary: 'Smoke over the eastern ridge', fields: { due: 'dusk' } }],
-            quests: [{ id: 'th_bbbbbbbb', kind: 'quest', key: 'Granary Rats', fields: { goal: 'clear the cellar' } }],
-            progress: { have: 2, need: 3, met: false },
+            // As director.threads answers: an older chat's quest may still carry ready: { rev }, which the card does not read.
+            quests: [{ id: 'th_bbbbbbbb', kind: 'quest', key: 'Granary Rats', summary: '', fields: { goal: 'clear the cellar', step: 'down the stairs' },
+                status: 'active', offer: false, ready: { rev: 11 }, taken: { rev: 9 }, ended: null, rev: 11 }],
         };
         const ops = [{ op: 'replace', path: '/domains/director/time/minutes', value: STATE.domains.director.time.minutes }];
         const rows = el => el.querySelectorAll('.row').map(row => [row.querySelector('.k').textContent, row.querySelector('.v').textContent.replace(/\s+/g, ' ').trim(), row.className]);
@@ -91,10 +92,10 @@ for (const [label, evaluator] of LANGUAGES) {
             ['Time', 'Day 3, 09:30', 'row new'],
             ['Place', 'Bluewatch Village · Lakeshore', 'row'],
             ['Next', 'Smoke over the eastern ridge — due dusk', 'row'],
-            ['Goal', 'Granary Rats — clear the cellar 2 / 3', 'row goal'],
+            ['Goal', 'Granary Rats — clear the cellar · now: down the stairs', 'row goal'],
         ]);
-        assert.deepEqual(all.el.querySelector('.goal').styleProps, { '--done': '0.6667' });
-        const only = show('status-card', { state: STATE, q: { ...q, progress: { have: 3, need: 3, met: true } }, ops, settings: { onlyChanged: true } });
+        assert.equal(all.el.querySelector('.goal').className, 'row goal');
+        const only = show('status-card', { state: STATE, q, ops, settings: { onlyChanged: true } });
         assert.deepEqual(rows(only.el), [['Time', 'Day 3, 09:30', 'row new']]);
         assert.equal(only.el.querySelector('.status-card').className, 'status-card quiet');
     });

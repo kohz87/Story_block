@@ -1,4 +1,4 @@
-// Module lifecycle (RB_CONTRACT §2 P22, docs/v2/LIFECYCLE.md): requires.peers, dormant / ready /
+// Module lifecycle (docs/v2/LIFECYCLE.md): requires.peers, dormant / ready /
 // ready→dormant / restore-pending, sdk.modules status and reason, and what a dormant module costs
 // the others (nothing). `mech` is the stand-in for a mechanics module that needs Story Director.
 import test from 'node:test';

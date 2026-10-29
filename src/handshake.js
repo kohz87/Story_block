@@ -76,8 +76,7 @@ export function statsNotice(def, choices, suite) {
 }
 
 /**
- * Whether the Dice block keeps its own modifier instead of a kept block's (RPG Battle's Checks
- * line, since 0.7). Only when the reader made Story Block the source of truth for rolls while
+ * Whether the Dice block keeps its own modifier instead of a kept block's. Only when the reader made Story Block the source of truth for rolls while
  * another extension offers them; alone, or with an extension that never announced, kept
  * modifiers are used exactly as before.
  */
@@ -160,30 +159,4 @@ export const CHATTER_NOTE = 'Voice each NPC as their NPC State Delta card descri
 export function chatterNote(def, suite) {
     if (def?.display !== 'chatter' || def.kept || def.plugin) return '';
     return suite?.has?.(NPC_STATE_DELTA_ID) ? CHATTER_NOTE : '';
-}
-
-export const RPG_BATTLE_ID = 'rpg-battle';
-export const FIGHT_NOTE = 'Never roll a fight: when blows are about to land, stop there; RPG Battle runs it.';
-
-/**
- * (0.9.11) Whether the reply a generation of `type` writes tells a fight RPG Battle resolved
- * (RPG Battle 0.5.22's narratesFight). That reply rolls no dice: the fight's numbers are
- * settled, and fresh rolls get used to fight it again. False without it, or if it throws.
- */
-export function fightNarrated(suite, type = 'normal') {
-    try {
-        return suite?.api?.(RPG_BATTLE_ID)?.narratesFight?.(type) === true;
-    } catch {
-        return false;
-    }
-}
-
-/**
- * The runtime line a dice-display block's prompt section gets while RPG Battle is announced
- * and enabled, or '' (v0.9.4). Without it a model given a fresh roll resolves the fight with
- * it ("natural 20, the beast goes down") and RPG Battle never offers the fight.
- */
-export function diceNote(def, suite) {
-    if (def?.display !== 'dice' || def.kept || def.plugin) return '';
-    return suite?.has?.(RPG_BATTLE_ID) ? FIGHT_NOTE : '';
 }

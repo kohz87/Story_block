@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../testkit/index.js';
 import { prng } from './qa/helpers/seeded.js';
-import { director, fighter, hostModule, T1, T2 } from './helpers/evidence.js';
+import { director, sampleModule, hostModule, T1, T2 } from './helpers/evidence.js';
 
 const SEEDS = process.env.QA_FUZZ_SEED ? [Number(process.env.QA_FUZZ_SEED)] : [1, 2, 3, 4, 5, 6];
 const STEPS = Number(process.env.QA_FUZZ_STEPS) || 36;
@@ -20,7 +20,7 @@ async function run(t, seed, steps) {
     const r = prng(seed);
     const link = hostModule();
     let host = null;
-    host = await createHost({ modules: [link.def, director({ after: 'accepted', checks: true, sidAt: index => host.store.carrierSid(index) }), fighter()], core: false });
+    host = await createHost({ modules: [link.def, director({ after: 'accepted', checks: true, sidAt: index => host.store.carrierSid(index) }), sampleModule()], core: false });
     t.after(() => host.close());
     link.link(host.store);
     t.mock.method(console, 'warn', () => {});
@@ -105,10 +105,10 @@ async function run(t, seed, steps) {
                     const proof = ask({ ids: [item[0]] })[0];
                     // (or a kill that was stored and hidden, its acceptance not shown, and is shown now that it is)
                     const hidden = storedBefore.get(item[0]);
-                    if (hidden && hidden.kind === 'kill' && hidden.parents.some(parent => !shownBefore.has(parent))) return false;
+                    if (hidden && hidden.kind === 'event' && hidden.parents.some(parent => !shownBefore.has(parent))) return false;
                     const parent = proof?.parents?.length === 1 ? ask({ ids: [proof.parents[0]] })[0] : null;
                     const key = proof && parent ? `${sid}|${proof.payload.foe}|${parent.payload.thread}` : null;
-                    return !(proof.kind === 'kill' && proof.source.sid === sid && parent?.kind === 'acceptance' && refused.delete(key));
+                    return !(proof.kind === 'event' && proof.source.sid === sid && parent?.kind === 'acceptance' && refused.delete(key));
                 });
                 if (lost.length || stray.length) log.push(`  lost ${lost.map(item => item[0]).join(' ; ')}`, `  added ${added.map(item => `${item[0]}:${item[1]}`).join(' ; ')}`);
                 assert.deepEqual(lost, [], `seed ${seed}, ${step}: an unchanged Re-read changed an id or lost a proof\n${log.join('\n')}`);
@@ -124,7 +124,7 @@ async function run(t, seed, steps) {
             // The reader's click that builds on a proof, if there is one.
             const parent = ask({}).filter(proof => proof.kind === 'acceptance').at(-1);
             log.push(`${step}: click${parent ? '' : ' (nothing to build on)'}`);
-            if (parent) host.bus.command(r.chance(0.5) ? 'sd.needs' : 'rb.many', r.chance(0.5) ? { thread: T2, selection: `pick ${step}`, parent: parent.id } : { specs: [{ kind: 'kill', payload: { foe: `foe ${step}` }, parents: [parent.id] }] });
+            if (parent) host.bus.command(r.chance(0.5) ? 'sd.needs' : 'demo.many', r.chance(0.5) ? { thread: T2, selection: `pick ${step}`, parent: parent.id } : { specs: [{ kind: 'event', payload: { foe: `foe ${step}` }, parents: [parent.id] }] });
         } else if (kind === 8 && host.ctx.chat.length > 3) {
             const pairs = host.ctx.chat.map((message, i) => (i > 1 && !message.is_user ? i : -1)).filter(i => i > 0);
             if (pairs.length > 1) {

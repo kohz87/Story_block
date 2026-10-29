@@ -133,8 +133,9 @@ test('a Continue reads only the block it adds, and the first block is not read t
 
 test('story coin: one reply pays at most the budget; the clamp is a LIMITED Problem; the next reply starts again', async t => {
     const host = await fresh(t);
+    host.settings.set('story-block', 'storyCoinPerReply', 1000);
     await host.send('Chest.', reply('Gold.', ['+ coin 700 | from: a chest', '+ coin 700 | from: the lid']));
-    assert.equal(coin(host), 1000, '1000 × level 1 with no quest ranks');
+    assert.equal(coin(host), 1000, "the reader's limit");
     assert.deepEqual(codes(host), ['LIMITED']);
     assert.match(host.turn.problems()[0].message, /700 gold was written, but one reply may give at most 1000 gold; 300 gold was paid/);
     await host.send('More.', reply('Gold.', ['+ coin 50']));
@@ -143,6 +144,7 @@ test('story coin: one reply pays at most the budget; the clamp is a LIMITED Prob
 
 test('story coin: a third line past the budget is refused; a swipe gets its own budget', async t => {
     const host = await fresh(t);
+    host.settings.set('story-block', 'storyCoinPerReply', 1000);
     await host.send('Chest.', reply('Gold.', ['+ coin 1000', '+ coin 1']));
     assert.equal(coin(host), 1000);
     assert.ok(host.turn.problems().some(problem => problem.code === 'REFUSED' && /all the money one reply may give/.test(problem.message)));
@@ -160,7 +162,7 @@ test('story coin: the setting storyCoinPerReply sets the budget; code payouts ar
     assert.equal(coin(host), 5030);
 });
 
-test('story coin: with quest ranks and a player character, the budget is the top reward of the PC\'s rank', async t => {
+test('automatic story coin ignores rank and level', async t => {
     const ranks = {
         id: 'ranks-probe', name: 'Ranks', version: '0.0.0',
         queries: {
@@ -170,11 +172,12 @@ test('story coin: with quest ranks and a player character, the budget is the top
     };
     const host = await fresh(t, { modules: [ranks] });
     await host.send('Chest.', reply('Gold.', ['+ coin 999']));
-    assert.equal(coin(host), 220);
+    assert.equal(coin(host), 999);
 });
 
 test('story items: at most STORY_ITEM_QTY of one item per reply, repeated lines counted together', async t => {
     const host = await fresh(t);
+    host.settings.set('story-block', 'storyCoinPerReply', 1000);
     await host.send('Arrows.', reply('Arrows.', ['+ item Arrow | qty: 12', '+ item Arrow | qty: 12', '+ item Arrow', '+ item Rope | qty: 30']));
     const qty = name => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
     assert.equal(qty('Arrow'), STORY_ITEM_QTY);

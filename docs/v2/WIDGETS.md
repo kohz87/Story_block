@@ -181,11 +181,12 @@ gives the same map. A state update keeps the reader's pan and zoom; changing the
 | `legend` | boolean | `true` | |
 
 ```html
-<ss-widget name="ss.map" data-props='{"bind":"q.places","onSelect":"scene.travel","fog":"unknown","kinds":{"town":{"label":"Town","icon":"fa-house"},"road":{"label":"Road"}}}'></ss-widget>
+<ss-widget name="ss.map" data-props='{"bind":"q.places","onSelect":"example-module.travel","fog":"unknown","kinds":{"town":{"label":"Town","icon":"fa-house"},"road":{"label":"Road"}}}'></ss-widget>
 ```
 
-where the screen's `data` has `places: { query: 'scene.map' }` returning
-`{ nodes, edges, layers, current, discovered }`.
+where the screen's `data` has `places: { query: 'example-module.map' }`, a query of the module that draws the map,
+returning `{ nodes, edges, layers, current, discovered }` (no suite module answers one under that name; Story Director's
+Map is its own widget).
 
 ## `ss.skill-tree`
 

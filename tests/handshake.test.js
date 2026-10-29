@@ -1,9 +1,9 @@
 // Story Block's side of the Story Suite: what its blocks offer, the reader's Source of truth
-// choices, the Character Sheet's "RPG Battle owns stats" notice and the dice modifier gate.
+// choices, the Character Sheet notice and the dice modifier gate.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { storySuite } from '../src/suite.js';
-import { CHATTER_NOTE, FIGHT_NOTE, SHARED_AREAS, TIMELINE_SECTIONS, blockAreas, chatterNote, deferredTo, diceNote, displaysShownElsewhere, fightNarrated, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from '../src/handshake.js';
+import { CHATTER_NOTE, SHARED_AREAS, TIMELINE_SECTIONS, blockAreas, chatterNote, deferredTo, displaysShownElsewhere, keepsOwnRolls, normalizeSourceChoices, offeredAreas, sourceStatus, statsNotice, timelineKeeper, timelineTrimmed } from '../src/handshake.js';
 import { withoutSections } from '../src/scene.js';
 import { pluginBlockDef } from '../src/plugin.js';
 import { defaultBlocks, templateById } from '../src/templates.js';
@@ -17,7 +17,7 @@ const on = id => ({ ...templateById(id), enabled: true });
 const sheet = on('character-sheet');
 const auto = normalizeSourceChoices(null);
 const announceBlock = (suite, owns) => suite.announce({ id: 'story-block', name: 'Story Block', version: '0.8.0', owns });
-const announceBattle = (suite, owns = ['stats', 'items', 'rolls']) => suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '1.0.0', owns });
+const announceOther = (suite, owns = ['stats', 'items', 'rolls']) => suite.announce({ id: 'example-module', name: 'Example Module', version: '1.0.0', owns });
 
 test('offeredAreas: each built-in offers its areas only while it is enabled', () => {
     assert.deepEqual(offeredAreas(defaultBlocks()), ['items'], 'a new install has only Inventory on');
@@ -58,17 +58,17 @@ test('statsNotice: alone, or with an extension that does not offer stats, the sh
     assert.equal(statsNotice(sheet, { stats: 'theirs' }, suite), '');
 });
 
-test('statsNotice: with RPG Battle offering stats, the sheet says so by its announced name, as the choice allows', () => {
+test('statsNotice: with another module offering stats, the sheet says so by its announced name, as the choice allows', () => {
     const suite = fresh();
     announceBlock(suite, ['stats']);
-    announceBattle(suite);
-    assert.match(statsNotice(sheet, auto, suite), /^RPG Battle owns stats\. This sheet keeps working/);
-    assert.match(statsNotice(sheet, { stats: 'theirs' }, suite), /^RPG Battle owns stats/);
+    announceOther(suite);
+    assert.equal(statsNotice(sheet, auto, suite), '', 'Story Block has priority');
+    assert.match(statsNotice(sheet, { stats: 'theirs' }, suite), /^Example Module owns stats/);
     assert.equal(statsNotice(sheet, { stats: 'mine' }, suite), '', 'the reader kept stats with Story Block');
     assert.equal(statsNotice(on('inventory'), auto, suite), '', 'only blocks that provide stats are marked');
-    suite.announce({ id: 'rpg-battle', name: 'Battle Engine', version: '1.1.0', owns: ['stats'] });
-    assert.match(statsNotice(sheet, auto, suite), /^Battle Engine owns stats/, 'the name as announced');
-    suite.withdraw('rpg-battle');
+    suite.announce({ id: 'example-module', name: 'Other Engine', version: '1.1.0', owns: ['stats'] });
+    assert.match(statsNotice(sheet, { stats: 'theirs' }, suite), /^Other Engine owns stats/, 'the name as announced');
+    suite.withdraw('example-module');
     assert.equal(statsNotice(sheet, auto, suite), '', 'gone again when it withdraws');
 });
 
@@ -88,8 +88,8 @@ test('keepsOwnRolls: kept dice modifiers stay on unless the reader keeps rolls w
     announceBlock(suite, ['rolls']);
     // RPG Battle 0.7-style: registers its sheet and modifier but never announces.
     assert.equal(keepsOwnRolls('mine', suite), false, 'an extension that never announced keeps the 0.7 behaviour');
-    announceBattle(suite);
-    assert.equal(keepsOwnRolls('auto', suite), false, 'RPG Battle owns rolls');
+    announceOther(suite);
+    assert.equal(keepsOwnRolls('auto', suite), true, 'Story Block has priority');
     assert.equal(keepsOwnRolls('theirs', suite), false);
     assert.equal(keepsOwnRolls('mine', suite), true, 'the reader chose Story Block\'s own guess');
 });
@@ -98,10 +98,11 @@ test('sourceStatus: who has each area now, or that its block is off', () => {
     const suite = fresh();
     announceBlock(suite, ['stats']);
     assert.equal(sourceStatus('stats', { choice: 'auto', suite, offered: true }), 'Now: Story Block');
-    announceBattle(suite);
-    assert.equal(sourceStatus('stats', { choice: 'auto', suite, offered: true }), 'Now: RPG Battle');
+    announceOther(suite);
+    assert.equal(sourceStatus('stats', { choice: 'auto', suite, offered: true }), 'Now: Story Block');
+    assert.equal(sourceStatus('stats', { choice: 'theirs', suite, offered: true }), 'Now: Example Module');
     assert.equal(sourceStatus('stats', { choice: 'mine', suite, offered: true }), 'Now: Story Block');
-    assert.equal(sourceStatus('items', { choice: 'auto', suite, offered: false }), 'Inventory is off · RPG Battle has it');
+    assert.equal(sourceStatus('items', { choice: 'auto', suite, offered: false }), 'Inventory is off · Example Module has it');
     assert.equal(sourceStatus('scene', { choice: 'auto', suite, offered: false }), 'World State is off');
 });
 
@@ -141,37 +142,6 @@ test('chatterNote: one runtime line for chatter-display blocks while NPC State D
     announceDelta(suite, { enabled: false });
     assert.equal(chatterNote(chatter, suite), '', 'switched off');
     assert.equal(chatterNote(null, suite), '');
-});
-
-test('diceNote: dice leave fights to RPG Battle while it is here and on', () => {
-    const suite = fresh();
-    const dice = templateById('dice');
-    const everyone = templateById('dice-everyone');
-    assert.equal(diceNote(dice, suite), '', 'alone');
-    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.4.2', owns: ['stats', 'rolls', 'items'], enabled: true });
-    assert.equal(diceNote(dice, suite), FIGHT_NOTE);
-    assert.equal(diceNote(everyone, suite), FIGHT_NOTE);
-    assert.equal(diceNote(templateById('inner-chatter'), suite), '', 'other displays');
-    assert.ok(FIGHT_NOTE.length <= 90, 'about twenty tokens');
-    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.4.2', owns: ['stats', 'rolls', 'items'], enabled: false });
-    assert.equal(diceNote(dice, suite), '', 'switched off');
-    assert.equal(diceNote(null, suite), '');
-});
-
-test('fightNarrated (0.9.11): the reply that tells a resolved fight is the one RPG Battle says so of', () => {
-    const suite = fresh();
-    assert.equal(fightNarrated(suite), false, 'alone');
-    let asked = null;
-    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.22', owns: ['stats', 'rolls'], enabled: true, api: { narratesFight: type => { asked = type; return type !== 'quiet'; } } });
-    assert.equal(fightNarrated(suite, 'swipe'), true);
-    assert.equal(asked, 'swipe', 'the generation type is passed on');
-    assert.equal(fightNarrated(suite, 'quiet'), false);
-    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.21', owns: ['stats', 'rolls'], enabled: true, api: {} });
-    assert.equal(fightNarrated(suite), false, 'an older RPG Battle');
-    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.22', owns: ['stats', 'rolls'], enabled: true, api: { narratesFight: () => { throw new Error('boom'); } } });
-    assert.equal(fightNarrated(suite), false, 'never throws');
-    suite.announce({ id: 'rpg-battle', name: 'RPG Battle', version: '0.5.22', owns: ['stats', 'rolls'], enabled: false, api: { narratesFight: () => true } });
-    assert.equal(fightNarrated(suite), false, 'switched off');
 });
 
 test('timeline (0.9.5): with Story Director keeping it, the World State is asked for without threads, seeds, timers and arc phase', () => {

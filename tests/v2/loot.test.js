@@ -25,6 +25,98 @@ async function fresh(t, options = {}) {
     return host;
 }
 
+test('automatic money allows a loot offer with more than twenty items', async t => {
+    const host = await fresh(t);
+    await host.send('Look.', reply('A crate.', ['? loot Arrows x30 — in the crate']));
+    assert.deepEqual(Object.values(offer(host).items), [{ name: 'Arrows', qty: 30 }]);
+    const taken = await take(host, [0]);
+    assert.equal(taken.ok, true, taken.message);
+    assert.equal(qty(host, 'Arrows'), 30);
+    host.store.rebuild();
+    assert.equal(qty(host, 'Arrows'), 30);
+});
+
+// With no limit (Automatic) the story decides how many; a thing that does not stack is one stack a piece, so one line (and
+// one offer) gives at most 50 of it, with a problem that says so, and the Take always fits the offer.
+test('automatic money: past 50 of a thing that does not stack, the offer and a + item line hold to 50 and say so', async t => {
+    const sample = JSON.parse(readFileSync(new URL('../../examples/packs/riverside-starter/pack.json', import.meta.url), 'utf8'));
+    sample.start.inventory = { items: [], money: 0 };
+    const host = await fresh(t, { settings: { packs: [{ id: sample.id, version: sample.version, enabled: true, source: 'file', origin: 'test', pack: sample }] } });
+    const pieces = name => host.sdk.query('inventory.items').filter(item => item.name === name).length;
+    await host.send('Look.', reply('A rack of rods.', ['? loot Willow Rod x51, Hemp Line x80 — on the rack']));
+    assert.deepEqual(Object.values(offer(host).items), [{ name: 'Willow Rod', qty: 50 }, { name: 'Hemp Line', qty: 80 }]);
+    assert.match(host.turn.problems().map(problem => problem.message).join(' '), /Willow Rod ×51 was written, but Willow Rod does not stack and at most 50 can be given at once; 50 were offered\./);
+    const taken = await take(host, [0, 1]);
+    assert.equal(taken.ok, true, taken.message);
+    assert.deepEqual([qty(host, 'Willow Rod'), pieces('Willow Rod'), qty(host, 'Hemp Line')], [50, 50, 80]);
+    await host.send('More.', reply('Another rack.', ['+ item Willow Rod | qty: 51']));
+    assert.equal(qty(host, 'Willow Rod'), 100, 'the line gives 50 rather than nothing');
+    assert.match(host.turn.problems().map(problem => problem.message).join(' '), /at most 50 can be given at once; 50 were given/);
+    const live = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, live, 'a rebuild equals live');
+    const loaded = await createHost({ st: { chat: structuredClone(host.ctx.chat), extensionSettings: structuredClone(host.ctx.extensionSettings) } });
+    t.after(() => loaded.close());
+    assert.deepEqual(loaded.head().domains.inventory, live, 'a reload equals live');
+    await host.swipe(reply('No rack after all.', ['+ coin 1']));
+    assert.equal(qty(host, 'Willow Rod'), 50);
+    await host.st.deleteMessage(host.ctx.chat.findIndex(message => /A rack of rods/.test(message.mes)));
+    assert.deepEqual([qty(host, 'Willow Rod'), qty(host, 'Hemp Line')], [0, 0], 'deleting the loot\'s reply takes the offer and the take back');
+    const after = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, after);
+    assert.deepEqual(host.store.problems(), []);
+});
+
+// The offer was read while the item still stacked (Riverside Starter switched off), or saved by an older Story Block
+// before offers were held to 50: on Take, a thing that does not stack is given 50 and the rest is left and said.
+async function takesFifty(t, host, offerText) {
+    const pieces = () => host.sdk.query('inventory.items').filter(item => item.name === 'Willow Rod').length;
+    assert.equal(Object.values(offer(host).items)[0].qty, 51);
+    const taken = await take(host, [0]);
+    assert.equal(taken.ok, true, taken.message);
+    assert.match(taken.receipt.summary, /^The party takes Willow Rod ×50 \(on the rack\)\. Willow Rod is left where it lay: a thing that does not stack is given at most 50 at once\.$/);
+    assert.deepEqual(taken.receipt.data.left, [{ name: 'Willow Rod', qty: 1 }]);
+    assert.deepEqual([qty(host, 'Willow Rod'), pieces()], [50, 50]);
+    const live = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, live, 'a rebuild equals live');
+    const loaded = await createHost({ st: { chat: structuredClone(host.ctx.chat), extensionSettings: structuredClone(host.ctx.extensionSettings) } });
+    t.after(() => loaded.close());
+    assert.deepEqual(loaded.head().domains.inventory, live, 'a reload equals live');
+    // A Re-read of the offer's reply as it stands keeps the take; a swipe or a delete takes it back.
+    const at = host.ctx.chat.findIndex(message => message.mes.startsWith(offerText));
+    assert.equal((await host.turn.reread(at)).ok, true);
+    assert.equal(qty(host, 'Willow Rod'), 50);
+    await host.send('On.', reply('The road.', ['+ coin 1']));
+    await host.st.deleteMessage(at);
+    assert.equal(qty(host, 'Willow Rod'), 0);
+    const after = structuredClone(host.head().domains.inventory);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains.inventory, after);
+    assert.deepEqual(host.store.problems(), []);
+}
+
+test('a take of more than 50 of a thing that does not stack: a pack enabled after the offer', async t => {
+    const sample = JSON.parse(readFileSync(new URL('../../examples/packs/riverside-starter/pack.json', import.meta.url), 'utf8'));
+    sample.start.inventory = { items: [], money: 0 };
+    const host = await fresh(t, { settings: { packs: [{ id: sample.id, version: sample.version, enabled: false, source: 'file', origin: 'test', pack: sample }] } });
+    await host.send('Look.', reply('A rack of rods.', ['? loot Willow Rod x51 — on the rack']));
+    assert.equal(await host.packs.packs.setEnabled(sample.id, true), true);
+    await takesFifty(t, host, 'A rack of rods.');
+});
+
+test('a take of more than 50 of a thing that does not stack: an offer saved by the previous Story Block', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const sample = JSON.parse(readFileSync(new URL('../../examples/packs/riverside-starter/pack.json', import.meta.url), 'utf8'));
+    sample.start.inventory = { items: [], money: 0 };
+    const saved = JSON.parse(readFileSync(new URL('./domains/fixtures/loot-2.6.0-f74bab2-chat.json', import.meta.url), 'utf8'));
+    const host = await createHost({ st: { chat: saved.chat }, settings: { packs: [{ id: sample.id, version: sample.version, enabled: true, source: 'file', origin: 'test', pack: sample }] } });
+    t.after(() => host.close());
+    assert.deepEqual(host.store.problems(), []);
+    await takesFifty(t, host, 'A rack of rods.');
+});
+
 test('? loot lays things out without giving them; the reader takes the ones ticked', async t => {
     const host = await fresh(t);
     await host.send('Search the cellar.', reply('Dusty shelves.', ['? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar shelf']));
@@ -79,14 +171,14 @@ test('the offer is held to the reply\'s story limits when it is read (worth, 20 
         queries: { 'quest.ranks': () => [{ id: 'F', levels: [1, 10], reward: [10, 50] }] },
         hooks: { 'item.define': def => (Object.hasOwn(PRICES, def.name) ? { value: PRICES[def.name] } : null) },
     };
-    const host = await fresh(t, { modules: [world] });
+    const host = await fresh(t, { modules: [world], settings: { modules: { 'story-block': { storyCoinPerReply: 50 } } } });
     // Goods worth at most 100 per reply: 2 Ruby Shards fit; the crown is never notable as loot.
     await host.send('The vault.', reply('Glitter.', ['? loot Ruby Shard x3, Royal Crown, Arrows x25 — in the vault']));
     assert.deepEqual(Object.values(offer(host).items), [{ name: 'Ruby Shard', qty: 2 }, { name: 'Arrows', qty: 20 }]);
     const messages = host.turn.problems().map(problem => problem.message).join(' | ');
-    assert.match(messages, /Ruby Shard ×3 was written, but one reply may give goods worth at most 100 gold in all; 2 were given/);
+    assert.match(messages, /Ruby Shard ×3 was written, but one reply may give goods worth at most 100 gold in all; 2 were offered/);
     assert.match(messages, /one Royal Crown is worth 600 gold/);
-    assert.match(messages, /Arrows ×25 was written, but one reply may give at most 20 of one item; 20 were given/);
+    assert.match(messages, /Arrows ×25 was written, but one reply may give at most 20 of one item; 20 were offered/);
     assert.equal(host.sdk.query('inventory.find', { name: 'Royal Crown' }).status, 'none', 'laying out makes no definition');
     // The same reply's later lines see the budget the loot holds.
     const tally = host.head().domains.inventory.perReply[sid(host)];
