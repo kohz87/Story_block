@@ -2,7 +2,8 @@
 
 Status: approved design, v1 implemented on `stage6/data-modules`. The shared importer/checker for
 `content.dataModules` and capability `data-modules-v1` (step 1), the runtime part merged into Story Block
-(deferred `dataModules` domain, the host kind `dm`, `dm.pin` / `dm.attach` / `dm.act` / `dm.set` / `dm.migrate`, timers,
+(deferred `dataModules` domain, the host kind `dm`, `dm.pin` / `dm.attach` / `dm.act` / `dm.set` / `dm.migrate` /
+`dm.define` / `dm.redefine` / `dm.remove`, timers,
 rewards, exports, budgets, Setup, screens) and the replay and lifecycle rules are delivered, with both complete
 examples below tested end to end. The [implementation notes](DATA_MODULES_IMPLEMENTATION.md) say where the code and
 tests are, the calls Story Studio's simulator makes and where the runtime differs from the wording below (for
@@ -121,12 +122,39 @@ budget. Rules can use imports; replay checks their prerequisites as it does for 
 A kind label may be `{ "type": "text", "max": 120 }` (max 1–240). Its value is made one line, cut
 to its limit and must not be empty. A text `set` accepts a literal or `{ "arg": "label" }` when
 the target's max is at least the label's max; the normalized expression is `["arg", "label"]`. Text
-in conditions is limited to `eq` or `ne` with a literal. Text fields retain their existing UTF-16
-length validation; this can cut a supplementary character earlier than a code-point limit would.
+in conditions is limited to `eq` or `ne` with a literal. Text limits count Unicode code points.
 
-For directly bound chat fields in layouts, the host adds an editor next to the field when the layout
-stays inside the renderer's limits. Character-scoped and other unbound layout fields are not augmented.
-Authored templates can use `ss.editable` with `dm.set` for a field of their own module.
+Setup's Data modules card lists every editable field of the pinned definition, including each map key
+and each attached character. For recognized directly bound fields in layouts, the host also adds an
+editor when the layout stays inside the renderer's limits. Authored templates can use `ss.editable`
+with `dm.set` for a field of their own module.
+
+### Chat blocks
+
+The Blocks page builds the same checked definitions as a pack, with chat scope and ids
+`pack.chat/<slug>`. The pack id `chat` is reserved; a pack with that id cannot be installed or supply
+content from an older installation. `dm.define { definition }` makes a reply-bound pin;
+`dm.redefine { module, definition }` replaces a chat block with a new generation; `dm.remove { module }`
+removes its active instance. All three are direct reader commands. Pack modules cannot be redefined or
+removed through these commands. A redefine carries a value when the field name and type match and the
+value fits the new schema; other fields start at their defaults. Unchanged timers keep their elapsed
+remainder, and existing offer and settlement keys are retained. A new block is refused once eight
+modules are already active. Existing pack pinning retains its earlier 16-pin limit.
+
+Definitions may include `prompt`, a one-line purpose of at most 600 Unicode code points, followed by
+the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may
+set `list: true`: it stores up to 12 entries joined with `; `, and the editor shows chips. Fields may
+carry a plain `label`, and a UI kind may carry a plain `title`, for display. Optional
+`show: { tab, card, tabName, icon }` chooses a block tab and/or Home card; `tabName` is at most 24
+characters and `icon` names an app icon. These keys can also be used by pack definitions.
+
+The editor generates a `set-<field>` story kind for each field, and `change-<field>` for numbers.
+Buttons, rules and timers use the existing effects and expression language. Timer additions aggregate
+the elapsed periods; a numeric timer set is represented as an additive change to the chosen value.
+The existing timer validator does not accept a timer set on a text or choice field. The existing
+16-kind limit also bounds how many generated story kinds fit in a definition. Templates store only
+definitions in `storySuite.blockTemplates` (at most 16); export validates a normal pack before saving.
+The form opens a definition only when it can reproduce it without discarding other data-module behavior.
 
 ## 3. Lines, checks, templates and time
 

@@ -163,9 +163,18 @@ asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconc
 Inventory, purse and scene edits are ordinary UI commands recorded on the current reply. Their saved
 ops follow the same rebuild, swipe, delete and Re-read rules as other reader actions. Wallet and stack
 counts retain the existing counter differences on replay. `dm.set` uses a data-module guard for the
-pin generation and its local instance reads; it does not claim a reply key. A changed prerequisite
+pin generation, the instance paths read and applicable imported inputs; it does not claim a reply key. A changed prerequisite
 keeps the guarded block off and reports a Problem. The Changed card reads edit summaries from receipt
 display data. That data is retained for the newest 200 carriers; older cards no longer list the edits.
+
+## Chat block definitions
+
+`dm.define`, `dm.redefine` and `dm.remove` are reply-bound guarded actions. Swiping or deleting the
+reply that made one retracts it. A definition is stored as a checked `pack.chat/<slug>` pin, without
+installing a pack. A redefine carries a field's value only when its name and type match and the value
+still fits; otherwise it uses the new default. Removed fields disappear. The guard witnesses the old
+generation and instance, so an earlier change that invalidates the decision leaves the later action
+off with a Problem. Removing a block drops its active instance but retains its historical pin for replay.
 
 ## Loot take guards
 

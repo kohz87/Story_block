@@ -9,6 +9,9 @@ import { parseHtml } from '../view/template/html.js';
 import { checkScreens } from '../packs/validate.js';
 import { sha256Hex as sha256 } from '../domains/digest.js';
 import { STRINGS, fill } from '../strings.js';
+import { oneLine } from '../../text.js';
+import { kindGrammar } from './grammar.js';
+import { hasIcon } from '../view/icons/index.js';
 
 const E = STRINGS.editMessages;
 
@@ -76,6 +79,10 @@ function scalar(schema, path, add, { label = false, map = true } = {}) {
     if (!descriptor || (!map && schema.type === 'map')) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, fill(E.declaredSchema, { schema: label ? E.labelSchema : E.fieldSchema })); return; }
     if (!shape(schema, descriptor, path, add, label ? 'DM_LABEL' : 'DM_SCHEMA')) return;
     if (!label && schema.edit !== undefined && typeof schema.edit !== 'boolean') add('DM_SCHEMA', `${path}.edit`, E.editBoolean);
+    if (!label && schema.label !== undefined) {
+        if (typeof schema.label !== 'string' || !oneLine(schema.label) || [...schema.label].length > 60) add('DM_SCHEMA', `${path}.label`, STRINGS.blocks.labelLimit);
+        else schema.label = oneLine(schema.label);
+    }
     if (schema.type === 'int') {
         if (!dmInt(schema.min) || !dmInt(schema.max) || schema.min > schema.max) add('DM_BOUNDS', path, 'Integer bounds must be ordered safe integers.');
         if (!label && !dmInt(schema.default, schema.min, schema.max)) add('DM_BOUNDS', `${path}.default`, 'The integer default must be inside its inclusive bounds.');
@@ -87,7 +94,9 @@ function scalar(schema, path, add, { label = false, map = true } = {}) {
     }
     if (schema.type === 'text') {
         if (!dmInt(schema.max, 1, L.text)) add('DM_BOUNDS', `${path}.max`, `Text max must be 1 to ${L.text}.`);
-        if (!label && (typeof schema.default !== 'string' || !dmInt(schema.max, 1, L.text) || schema.default.length > schema.max)) add('DM_BOUNDS', `${path}.default`, 'Text defaults must be literal text within max.');
+        if (!label && schema.list !== undefined && typeof schema.list !== 'boolean') add('DM_SCHEMA', `${path}.list`, STRINGS.blocks.listOnlyText);
+        if (!label && (typeof schema.default !== 'string' || !dmInt(schema.max, 1, L.text) || [...schema.default].length > schema.max
+            || (schema.list === true && schema.default && schema.default.split(';').length > 12))) add('DM_BOUNDS', `${path}.default`, 'Text defaults must be literal text within max.');
     }
     if (schema.type === 'map') {
         distinct(schema.keys, `${path}.keys`, add, { max: L.mapKeys, keys: true });
@@ -145,7 +154,8 @@ function effects(list, env, path, add, { timer = false, reward = false } = {}) {
                     const argName = Array.isArray(effect.value) && effect.value.length === 2 && effect.value[0] === 'arg' ? effect.value[1]
                         : dmObject(effect.value) && Object.keys(effect.value).length === 1 ? effect.value.arg : null;
                     const arg = typeof argName === 'string' ? env.args?.[argName] : null;
-                    const literal = typeof effect.value === 'string' && effect.value.length <= target.max;
+                    const literal = typeof effect.value === 'string' && [...effect.value].length <= target.max
+                        && (target.list !== true || !effect.value || effect.value.split(';').length <= 12);
                     const textArg = arg?.type === 'text' && arg.max <= target.max;
                     if (effect.op !== 'set' || !(literal || textArg)) add('DM_SCHEMA', `${at}.value`, E.textEffect);
                     else if (textArg && dmObject(effect.value)) effect.value = ['arg', argName];
@@ -396,6 +406,17 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
         if (!dmInt(given.stateVersion, 1, Number.MAX_SAFE_INTEGER)) add('DM_SCHEMA', `${at}.stateVersion`, 'stateVersion must be a positive safe integer.');
         if (!D.scope.includes(given.scope)) add('DM_SCHEMA', `${at}.scope`, 'scope must be chat or character.');
         const definition = { ...copy(D.defaults), ...copy(given), id: defId(packId, given.slug), pack: packId };
+        if (definition.prompt !== undefined) {
+            if (typeof definition.prompt !== 'string' || [...definition.prompt].length > 600) add('DM_BOUNDS', `${at}.prompt`, STRINGS.blocks.promptLimit);
+            else definition.prompt = oneLine(definition.prompt);
+        }
+        if (definition.show !== undefined) {
+            const show = definition.show;
+            if (!dmObject(show) || Object.keys(show).some(key => !['tab', 'card', 'tabName', 'icon'].includes(key))
+                || typeof show.tab !== 'boolean' || typeof show.card !== 'boolean' || (!show.tab && !show.card)
+                || typeof show.tabName !== 'string' || !show.tabName.trim() || [...show.tabName].length > 24 || !hasIcon(show.icon)) add('DM_SCHEMA', `${at}.show`, STRINGS.blocks.showOptions);
+            else show.tabName = oneLine(show.tabName);
+        }
         if (byteLength(JSON.stringify(definition)) > L.definitionBytes) add('DM_BUDGET', at, `A definition must fit ${L.definitionBytes} UTF-8 JSON bytes.`);
         for (const [key, schema] of named(definition.state, L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
         imports(definition, at, add); // forms first, linking before expression analysis below
@@ -441,6 +462,10 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
             if (kind.check !== undefined) add('DM_SCHEMA', `${path}.check`, 'SD checks inside a dm root need data-modules v1.1; this definition needs data-modules v1.1.');
             if (!D.ops.includes(kind.op)) add('DM_SCHEMA', `${path}.op`, `A kind op must be ${D.ops.join(', ')}.`);
             if (kind.ui !== undefined && typeof kind.ui !== 'boolean') add('DM_SCHEMA', `${path}.ui`, 'ui must be a boolean.');
+            if (kind.title !== undefined) {
+                if (typeof kind.title !== 'string' || !oneLine(kind.title) || [...kind.title].length > 60) add('DM_SCHEMA', `${path}.title`, STRINGS.blocks.labelLimit);
+                else kind.title = oneLine(kind.title);
+            }
             if (kind.refusal !== undefined && (typeof kind.refusal !== 'string' || !kind.refusal.trim() || kind.refusal.length > L.text || /[\u0000-\u001f\u007f]/.test(kind.refusal))) add('DM_SCHEMA', `${path}.refusal`, `A refusal is bounded safe text of at most ${L.text} characters.`);
             for (const [key, schema] of named(kind.labels, L.fields, `${path}.labels`, add, { label: true })) {
                 if (['kind', 'who'].includes(key)) add('DM_LABEL', `${path}.labels.${key}`, 'kind and who are host-reserved labels.');
@@ -454,6 +479,10 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
             kind.oncePerReply = claims;
             kind.when ??= true;
             kind.ui ??= false;
+        }
+        if (!errors.length && (definition.prompt !== undefined || definition.show !== undefined || packId === 'chat')) {
+            const lines = [definition.prompt ?? '', ...Object.keys(definition.kinds).map(name => kindGrammar(definition, name, definition.id))].filter(Boolean).join('\n');
+            if ([...lines].length > L.staticCharacters) add('DM_BUDGET', `${at}.prompt`, STRINGS.blocks.staticLimit);
         }
         const ids = new Set();
         if (sized(definition.rules, L.rules, `${at}.rules`, add, { list: true })) definition.rules.forEach((rule, j) => {

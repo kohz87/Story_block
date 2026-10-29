@@ -105,9 +105,9 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.deepEqual(foldsOf('features'), []);
     assert.ok(page('features').querySelector('.ss-features-group[data-fold="story-suite-features::story-block"]'), 'Story Block\'s group of tiles');
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
-    // Tabs & Packs is the form engine's: Tabs, Packs (the Import button is there) and Prompt, no fold.
+    // Tabs & Packs is the form engine's: Tabs, Packs, Block templates and Prompt, no fold.
     assert.deepEqual(foldsOf('tabs'), []);
-    assert.deepEqual(texts(page('tabs'), '.ss-section-title').filter(Boolean), ['Tabs', 'Packs', 'Prompt']);
+    assert.deepEqual(texts(page('tabs'), '.ss-section-title').filter(Boolean), ['Tabs', 'Packs', 'Block templates', 'Prompt']);
     assert.ok(page('tabs').querySelector('.ss-packs-card .ss-packs-import'), 'Import pack file in the Packs card');
     assert.ok(page('tabs').querySelector('.ss-prompt-card .story-suite-size, .ss-prompt-card .ss-field[data-field="tailBudget"]'), 'the budgets and the size in the Prompt card');
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));

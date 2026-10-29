@@ -8,7 +8,8 @@ For data-defined modules, use [DATA_MODULES.md](DATA_MODULES.md), with its appro
 decisions taking precedence, and the [implementation notes](DATA_MODULES_IMPLEMENTATION.md). Story Block
 owns a deferred `dataModules` domain (absent until a chat pins a module), the capture kind `dm` (`op dm
 <module> — reason | kind: … | label: value`, enabled only while the chat has a pin) and the commands
-`dm.pin`, `dm.attach`, `dm.act` and `dm.migrate`; a chat that pins nothing is byte for byte the chat it was.
+`dm.pin`, `dm.attach`, `dm.act`, `dm.set`, `dm.migrate`, `dm.define`, `dm.redefine` and `dm.remove`;
+a chat that pins nothing is byte for byte the chat it was.
 
 ## Reader edits
 
@@ -16,11 +17,20 @@ The reader may edit a stack's name, quantity or note, add an item, set the purse
 weather and people present. These are UI commands on the latest reply. Swiping or deleting that reply
 removes its commands; Re-read keeps a command when its recorded prerequisites still hold. The Changes
 card shows the receipt summaries while their display data is retained. Non-stacking items remain one
-piece per stack; add separate pieces instead of increasing one stack's quantity.
+piece per stack; the count editor adds or removes separate pieces for the same owner, without removing
+equipped pieces. The weather editor is available while the weather feature is on.
 
-Data-module fields may be set with `dm.set` unless their schema has `edit: false`. A data-module layout
-gets an editor beside a displayed, directly bound chat field; template authors can use `ss.editable`.
-Rules that depend on module imports cannot yet be edited this way: their replay needs external inputs.
+Data-module fields may be set with `dm.set` unless their schema has `edit: false`. Setup lists editable
+fields for the pinned chat or each attached character. Some directly bound layout fields get an editor;
+template authors can use `ss.editable`. Rules run after an edit, and replay checks their imported inputs.
+
+## Blocks made in a chat
+
+The Blocks page creates chat-scoped data modules under `pack.chat/<slug>`. Their checked definitions
+are pinned with the chat, and define, redefine and remove are reader actions on the latest reply.
+The editor generates the ordinary `dm` story kinds, buttons, rules and timers; fields may also be
+edited by the reader. A block can appear as its own tab, a Home card or both. Templates keep only
+definitions in the reader's settings, and export creates a checked pack.
 
 ## 0. Principles
 

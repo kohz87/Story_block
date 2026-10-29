@@ -39,8 +39,10 @@ const TEMPLATE = `
     <h4 class="ss-section-label"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${html(S.where)}</h4>
     <p class="place"><b data-if="q.place.name">{{ q.place.name }}</b><span class="muted" data-if="!q.place.name">${html(S.unnamed)}</span><span class="muted" data-if="q.place.region"> · {{ q.place.region }}</span><ss-widget name="ss.editable" data-props='{"value":"{{ q.place.name }}","displayValue":false,"options":{{ q.places }},"label":"${jsonText(STRINGS.scene.editPlace)}","command":"scene.place","valueKey":"name","payload":{"with":{{ q.present }}}}'></ss-widget></p>
     <p class="time muted" data-if="state.director.time.minutes != null"><i class="fa-regular fa-clock" aria-hidden="true"></i> {{ fmt.time(state.director.time.minutes) }}</p>
-    <p class="weather muted" data-if="q.weather.text"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}<ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
-    <p data-if="!q.weather.text"><ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
+    <div data-if="settings._weatherEnabled != false">
+      <p class="weather muted" data-if="q.weather.text"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}<ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
+      <p data-if="!q.weather.text"><ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
+    </div>
     <p class="here" data-if="len(q.present) > 0"><span class="muted">${html(S.here)}</span> {{ q.present }}<ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
     <p data-if="len(q.present) == 0"><ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
   </section>
@@ -75,6 +77,7 @@ const TEMPLATE = `
   </section>
 
   <ss-widget name="${SAVEPOINTS_WIDGET}" class="saves-slot"></ss-widget>
+  <ss-widget name="story-block.block-cards" class="blocks-slot"></ss-widget>
 </div>`;
 
 const CSS = `${BASE_CSS}
@@ -104,6 +107,7 @@ const CSS = `${BASE_CSS}
 .worn { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .progress { margin-top: 4px; }
 .saves-slot:empty { display: none; }
+.blocks-slot:empty { display: none; }
 .ready-slot { grid-column: 1 / -1; }
 .ready-slot:empty { display: none; }
 .ready-hint { display: grid; gap: 6px; border-color: color-mix(in srgb, var(--sb-accent) 55%, var(--sb-border)); }

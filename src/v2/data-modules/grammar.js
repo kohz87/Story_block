@@ -2,6 +2,7 @@
 // regex, never a second `<Changes>` parser): decision 6's short slug reference when it is unique among the
 // chat's active pins, the full `pack.<id>/<slug>` otherwise. Shared by the prompt's static part and Setup.
 import { DM_LIMITS as L } from './schema.js';
+import { oneLine } from '../../text.js';
 
 /** The name a `dm` line uses for module `id` among the active ids: the bare slug when unique, else the full ID. */
 export function referenceOf(ids, id) {
@@ -9,7 +10,7 @@ export function referenceOf(ids, id) {
     return ids.filter(other => String(other).split('/')[1] === slug).length === 1 ? slug : id;
 }
 
-const valuesOf = schema => schema.type === 'enum' ? schema.values.map(String).join('|')
+const valuesOf = schema => schema.type === 'enum' ? schema.values.map(value => oneLine(value)).join('|')
     : schema.type === 'int' ? `${schema.min}..${schema.max}` : schema.type === 'text' ? 'text' : 'true|false';
 
 /** One line of grammar for a kind: "+ dm reputation — reason | kind: gain | faction: guild|watch|compact". */
@@ -29,13 +30,15 @@ export function kindExample(definition, name, reference) {
 
 /** The lines a module adds to the static part, one per kind, within the module's character budget (whole lines only). */
 export function moduleGrammar(definition, reference) {
-    const lines = [];
-    let used = 0;
+    const prompt = definition.prompt ? [...oneLine(definition.prompt)].slice(0, 600).join('') : '';
+    const lines = prompt ? [prompt] : [];
+    let used = prompt ? [...prompt].length : 0;
     for (const name of Object.keys(definition.kinds)) {
         const line = kindGrammar(definition, name, reference);
-        if (used + line.length + 1 > L.staticCharacters) break;
+        const next = used + (lines.length ? 1 : 0) + [...line].length;
+        if (next > L.staticCharacters) break;
         lines.push(line);
-        used += line.length + 1;
+        used = next;
     }
     return lines.join('\n');
 }

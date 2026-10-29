@@ -17,7 +17,7 @@ export function fieldType(schema) {
         return { ...type, enumValues: values };
     }
     if (schema.type === 'bool') return bool();
-    if (schema.type === 'text') return { type: 'text', max: schema.max };
+    if (schema.type === 'text') return { type: 'text', max: schema.max, ...(schema.list === true ? { list: true } : {}) };
     return BAD;
 }
 

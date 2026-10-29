@@ -56,6 +56,8 @@ import { readRecord } from './persist.js';
 import { laterStore, replyEdits, replyRules, scanReplyCards } from './reply-cards.js';
 import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE } from './features.js';
+import { createBlockTemplates } from './data-modules/block-templates.js';
+import { BLOCKS_SCREEN_ID, createBlockWidgets } from './screens/blocks.js';
 import { createInspectorSource } from './inspect.js';
 import { createSavePoints } from './rewind.js';
 import { createInspectorWidget, INSPECTOR_WIDGET } from './screens/inspector.js';
@@ -159,6 +161,14 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     });
     // A feature of a module that is not here (a runtime without Story Block's core) counts as on.
     const coreOn = id => (registry.feature?.(id) ? registry.featureOn(id) : true);
+    const blockTemplates = createBlockTemplates({ read: () => {
+        const es = ctx.extensionSettings;
+        if (!es.storySuite || typeof es.storySuite !== 'object') es.storySuite = {};
+        return es.storySuite;
+    }, save: () => ctx.saveSettingsDebounced?.() });
+    const blockWidgets = createBlockWidgets({ templates: blockTemplates,
+        directorOn: () => registry.lifecycle?.('story-director')?.status === 'ready',
+        navigate: () => mounts.screen.open(BLOCKS_SCREEN_ID) });
     // The host's own widgets: the Inspector (over the store's replay) and the save points (over the chat).
     const liveCtx = () => globalThis.SillyTavern?.getContext?.() ?? ctx;
     const savePoints = createSavePoints({ ctx, store, live: liveCtx, ...(runtime.createBranch ? { createBranch: runtime.createBranch } : {}) });
@@ -169,6 +179,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         problems: index => inspectorProblems(index),
     });
     const hostWidgets = {
+        ...blockWidgets.widgets,
         [INSPECTOR_WIDGET]: createInspectorWidget(inspector, { enabled: () => coreOn(CORE_FEATURE.inspector) }),
         [SAVEPOINTS_WIDGET]: createSavePointsWidget({
             points: savePoints,
@@ -237,6 +248,11 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         }
         let packScreens = [];
         try { packScreens = sdk.query('packs.content', { kind: 'screens' }) ?? []; } catch { packScreens = []; }
+        try {
+            for (const { id, title, icon, pack, ...layout } of sdk.query('packs.content', { kind: 'layouts' }) ?? []) {
+                if (!packScreens.some(screen => screen.pack === pack && screen.id === id)) packScreens.push({ id, title, icon, mounts: ['tab'], layout, pack });
+            }
+        } catch { /* older host */ }
         try { packScreens.push(...(sdk.query('dataModules.presentation', { kind: 'screens' }) ?? [])); } catch { /* older host */ }
         const byPack = new Map();
         for (const screen of packScreens) {
@@ -465,7 +481,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         },
         settings: screenId => {
             const owner = String(screenId ?? '').split('/')[0];
-            return sdk.settings(registry.has(owner) ? owner : 'story-block');
+            const current = sdk.settings(registry.has(owner) ? owner : 'story-block');
+            return owner === 'story-block' ? { ...current, _weatherEnabled: coreOn(CORE_FEATURE.weather) } : current;
         },
         // Cards: the reader's switch per card screen, under Story Block's `story-block.cards` feature.
         enabled: (mount, screenId) => (mount === 'card' ? coreOn(CORE_FEATURE.cards) && screens.cardsOn(screenId) : true),
@@ -644,7 +661,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         const fold = typeof options?.fold === 'string' ? options.fold : null;
         overlay = openSettingsWindow({
             registry, settings, doc, sdk, features: runtime.features ?? null, fold, diagnostics,
-            promptParts, tabs: tabsControl, theme,
+            promptParts, tabs: tabsControl, theme, blockTemplates,
             countTokens: countTokens(),
             onClose: () => { overlay = null; },
         });

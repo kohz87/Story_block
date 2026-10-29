@@ -3,9 +3,11 @@
 ## 2.7.0
 
 - Add inline reader edits for inventory, the purse and the scene, with summaries on the latest reply's Changed card.
-- Allow guarded data-module field edits and bounded free-text labels; directly bound chat fields in layouts get editors.
+- Allow guarded data-module field edits and bounded free-text labels; Setup lists editable fields for the chat and attached characters.
 - Make the phone Story panel opaque, give authored inline controls larger touch targets, and remove the duplicate coin icon.
-- Non-stacking pieces remain separate, and data-module rules with imports are not editable through the local-only guard.
+- The count editor adds or removes separate non-stacking pieces without removing equipped items. Data-module edits run rules and guard the imported inputs they use.
+- Add chat blocks with editable fields, story lines, buttons, rules, timers, tabs and Home cards. Their definitions follow the reply that saved them.
+- Save block definitions as templates or export them as packs; standalone Studio layouts can appear as tabs.
 
 ## 2.6.1
 

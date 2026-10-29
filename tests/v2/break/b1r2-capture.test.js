@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
+import { assertCaptureTiming, plainCaptureBaseline, timedCapture } from './capture-timing.js';
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 
@@ -57,14 +58,14 @@ test('Re-read of an unchanged reply after the reader acted on what it gave succe
 // the slice; ctx.query clones the whole state), and nothing bounds how far the story grows a domain:
 // 150 new items per reply are allowed every reply. After 750 story items a 150-line reply takes
 // 6–30 s (maxChangeLines bounds the lines, not their cost).
-test('a 150-line reply after five such replies is captured within 3 s', async t => {
+test('a 150-line reply after five such replies stays near the plain-capture baseline', async t => {
+    const baseline = await plainCaptureBaseline();
     const host = await fresh(t);
     let k = 0;
     for (let r = 0; r < 5; r += 1) await host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`)));
-    const started = performance.now();
-    await host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`)));
-    const ms = performance.now() - started;
-    assert.ok(ms < 3000, `the sixth reply took ${Math.round(ms)} ms`);
+    const ms = await timedCapture(() => host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`))));
+    t.diagnostic(`plain baseline ${Math.round(baseline)} ms; sixth reply ${Math.round(ms)} ms`);
+    assertCaptureTiming(ms, baseline);
 });
 
 // B-b1r2-10: the story money tally is keyed by ctx.carrier.key ("index:swipe"), which moves when

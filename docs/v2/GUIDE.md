@@ -12,11 +12,26 @@ The narrator writes a hidden `<Changes>` block. Each module checks its lines and
 
 On Home and in Inventory, tap the pencil beside a value, change it, then choose **Save** or **Cancel**.
 Inventory also has **Add item** and its existing Drop action. The purse accepts a whole amount or mixed
-coins such as `3 silver 5 copper`. Place, weather and the people present can be edited on Home or Scene.
-Data-module layouts may show pencils next to editable fields. Edits ride on the latest reply, so a swipe
-or delete of that reply takes them back.
+coins such as `3 silver 5 copper`. Place, weather and the people present can be edited on Home or Scene;
+the weather pencil appears while the weather feature is on. In **Settings → Tabs & Packs**, a pinned
+data module lists its editable fields under **Fields**, including a set for each attached character.
+Data-module layouts may also show pencils. Edits ride on the latest reply, so a swipe or delete of that
+reply takes them back.
 
 Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
+
+## Making a block
+
+Open **Game view → Blocks**, choose **New block**, then **Empty block** or a saved template. Name it,
+add text, number, choice or list fields, and say what it is for. Choose a tab, a Home card or both.
+You can add buttons and rules; a timer needs Story Director's clock. Timers can add to a number or set
+a number to a value. Save with the latest reply, then use the pencils and buttons on the block. The
+narrator can update its fields with the story lines shown in Setup.
+
+The block's actions menu can edit it, save its definition as a template, export a pack, or remove it.
+Templates are shared across your chats, without the current values; manage them under **Settings →
+Tabs & Packs → Block templates**. Swipe or delete the reply that created, changed or removed a block
+to take that action back. Definitions and their generated story kinds must fit the data-module limits.
 
 In **Settings → Money**, Automatic means no limit: the story decides. Set a number to cap what one reply may give; the money scale is in the folded **Advanced** row. Names and values of coins are set on the same page.
 

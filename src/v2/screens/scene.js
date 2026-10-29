@@ -31,8 +31,10 @@ const TEMPLATE = `
         <span class="kind" data-if="q.place.kind">{{ q.place.kind }}</span>
         <span class="region" data-if="q.place.region">{{ q.place.region }}</span>
         <span class="time" data-if="state.director.time.minutes != null"><i class="fa-regular fa-clock" aria-hidden="true"></i> {{ fmt.time(state.director.time.minutes) }}</span>
-        <span class="weather" data-if="q.weather.text" title="${html(S.weather)}"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}<ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></span>
-        <span data-if="!q.weather.text"><ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></span>
+        <span data-if="settings._weatherEnabled != false">
+          <span class="weather" data-if="q.weather.text" title="${html(S.weather)}"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}<ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></span>
+          <span data-if="!q.weather.text"><ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></span>
+        </span>
       </p>
     </div>
   </header>

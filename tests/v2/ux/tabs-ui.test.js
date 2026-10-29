@@ -60,7 +60,7 @@ const saved = st => st.ctx.extensionSettings.storySuite?.tabs;
 // Settings → Tabs (DEFAULT_ROWS), not in the strip or the game view (DEFAULT_TABS, DEFAULT_NAV).
 const DEFAULT_TABS = ['Party', 'Inventory', 'Quests', 'World', 'Map', 'Fight', 'Crafting', 'Trade', 'Chronicle', 'Director', 'Dossiers'];
 const DEFAULT_ROWS = ['story-block/home', 'rpg-battle/party', 'story-block/inventory', 'story-director/quests', 'story-director/world', 'story-director/map',
-    'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'story-block/scene', 'story-director/chronicle', 'story-director/director', 'npc-state-delta/cast'];
+    'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'story-block/scene', 'story-director/chronicle', 'story-director/director', 'story-block/blocks', 'npc-state-delta/cast'];
 const DEFAULT_NAV = DEFAULT_ROWS.filter(id => id !== 'story-block/scene');
 
 test('the default order: Home, Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, (Scene), Chronicle, Director, Dossiers last', async t => {
@@ -118,7 +118,7 @@ test('Up / Down: one saved order moves the tab strip and the game view together;
     const want = ['Inventory', 'Quests', 'Party', 'World', 'Map', 'Fight', 'Crafting', 'Trade', 'Director', 'Chronicle', 'Dossiers'];
     assert.deepEqual(stripIds(doc), want, 'the strip follows at once');
     assert.deepEqual(navIds(doc), ['story-block/home', 'story-block/inventory', 'story-director/quests', 'rpg-battle/party', 'story-director/world', 'story-director/map',
-        'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'story-director/director', 'story-director/chronicle', 'npc-state-delta/cast']);
+        'rpg-battle/fight', 'rpg-battle/crafting', 'rpg-battle/trade', 'story-director/director', 'story-director/chronicle', 'story-block/blocks', 'npc-state-delta/cast']);
     assert.deepEqual(saved(st).order, rowIds(doc).slice(1), 'stored as an ordered list of ids (Home is not stored)');
     assert.match(doc.querySelector('.ss-tabrows-status').textContent, /Director moved up/);
     assert.equal(doc.querySelector('.ss-tabrows-reset').disabled, false);
@@ -238,7 +238,7 @@ test('any subset of modules; ids of modules not installed are ignored and kept; 
         assert.deepEqual(rowIds(doc), want, `with ${installed.join(', ') || 'Story Block alone'}`);
         ui.openPanel();
         // Scene is in the strip unless Story Director (its World) is installed.
-        const strip = want.slice(1).filter(id => id !== 'story-block/scene' || !installed.includes('story-director'));
+        const strip = want.slice(1).filter(id => id !== 'story-block/blocks' && (id !== 'story-block/scene' || !installed.includes('story-director')));
         assert.deepEqual(stripIds(doc), strip.map(id => row(doc, id).querySelector('b').textContent), 'the strip agrees');
         // Moving the last one up works whatever is installed.
         const last = want.at(-1);

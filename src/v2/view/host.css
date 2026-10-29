@@ -417,3 +417,13 @@ body.story-suite-open { overflow: hidden; }
 .ss-dm-actor { display: inline-flex; align-items: center; gap: 4px; }
 .ss-dm-preview { display: grid; gap: 4px; padding: 6px 0; }
 .ss-dm-result { margin: 2px 0; }
+.ss-block-page-head, .ss-block-card-head, .ss-block-actions, .ss-block-field-actions, .ss-block-function-actions, .ss-block-editor-actions, .ss-block-chips, .ss-block-icons, .ss-block-template-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; }
+.ss-block-card, .ss-block-editor, .ss-block-function, .ss-block-chooser { display: grid; gap: 8px; padding: 12px; min-width: 0; }
+.ss-block-card-head { position: relative; }
+.ss-block-menu { display: grid; gap: 4px; }
+.ss-block-menu[hidden] { display: none; }
+.ss-block-value { display: grid; grid-template-columns: minmax(8em, 1fr) 3fr; gap: 8px; align-items: center; overflow-wrap: anywhere; }
+.ss-block-control, .ss-block-field-editor, .ss-block-effect { display: grid; gap: 5px; min-width: 0; }
+.ss-block-field-editor { padding: 8px 0; border-bottom: 1px solid var(--story-suite-line); }
+.ss-block-control-error { color: var(--ss-bad-text); }
+.ss-block-hint { color: var(--ss-text); opacity: .75; }
