@@ -3,6 +3,7 @@
 // a preceding effect in this root has changed the draft.
 import { DM_LIMITS as L, dmInt, dmObject, dmOwn } from './schema.js';
 import { hashJson } from '../replay.js';
+import { oneLine } from '../../text.js';
 
 export const copy = value => structuredClone(value);
 export const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
@@ -28,7 +29,7 @@ export const orList = values => {
     return list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} or ${list.at(-1)}`;
 };
 const ruleOf = schema => (schema.type === 'enum' ? `be ${orList(schema.values)}`
-    : schema.type === 'int' ? `be a whole number from ${schema.min} to ${schema.max}` : 'be true or false');
+    : schema.type === 'int' ? `be a whole number from ${schema.min} to ${schema.max}` : schema.type === 'text' ? 'be nonempty text' : 'be true or false');
 
 // Each label of a line is one declared name with one value of its declared type; anything else is refused with a plain sentence
 // ("faction must be guild, watch or compact"), never guessed. `text`: a story line (its values are text); else typed (a reader action).
@@ -47,8 +48,10 @@ export function parseLabels(definition, kind, labels, { text = false } = {}) {
                 if (matches.length === 1) value = matches[0];
             }
         }
+        if (schema.type === 'text' && typeof value === 'string') value = [...oneLine(value)].slice(0, schema.max).join('');
         const valid = schema.type === 'int' ? dmInt(value, schema.min, schema.max)
-            : schema.type === 'bool' ? typeof value === 'boolean' : schema.values.includes(value);
+            : schema.type === 'bool' ? typeof value === 'boolean'
+                : schema.type === 'text' ? typeof value === 'string' && value.length > 0 : schema.values.includes(value);
         if (!valid) refuse('DM_LABEL', key, `${key} must ${ruleOf(schema)}`);
         args[key] = value;
     }

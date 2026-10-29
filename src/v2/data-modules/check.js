@@ -70,8 +70,9 @@ function normalizedKeys(value, path, add) {
 function scalar(schema, path, add, { label = false, map = true } = {}) {
     const schemas = label ? D.labels : D.fields;
     const descriptor = dmOwn(schemas, schema?.type) && schemas[schema.type];
-    if (!descriptor || (!map && schema.type === 'map')) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, `Expected a declared ${label ? 'int, bool or enum label' : 'scalar field or fixed map'} schema.`); return; }
+    if (!descriptor || (!map && schema.type === 'map')) { add(label ? 'DM_LABEL' : 'DM_SCHEMA', path, `Expected a declared ${label ? 'int, bool, enum or text label' : 'scalar field or fixed map'} schema.`); return; }
     if (!shape(schema, descriptor, path, add, label ? 'DM_LABEL' : 'DM_SCHEMA')) return;
+    if (!label && schema.edit !== undefined && typeof schema.edit !== 'boolean') add('DM_SCHEMA', `${path}.edit`, 'edit must be true or false.');
     if (schema.type === 'int') {
         if (!dmInt(schema.min) || !dmInt(schema.max) || schema.min > schema.max) add('DM_BOUNDS', path, 'Integer bounds must be ordered safe integers.');
         if (!label && !dmInt(schema.default, schema.min, schema.max)) add('DM_BOUNDS', `${path}.default`, 'The integer default must be inside its inclusive bounds.');
@@ -83,7 +84,7 @@ function scalar(schema, path, add, { label = false, map = true } = {}) {
     }
     if (schema.type === 'text') {
         if (!dmInt(schema.max, 1, L.text)) add('DM_BOUNDS', `${path}.max`, `Text max must be 1 to ${L.text}.`);
-        if (typeof schema.default !== 'string' || !dmInt(schema.max, 1, L.text) || schema.default.length > schema.max) add('DM_BOUNDS', `${path}.default`, 'Text defaults must be literal text within max.');
+        if (!label && (typeof schema.default !== 'string' || !dmInt(schema.max, 1, L.text) || schema.default.length > schema.max)) add('DM_BOUNDS', `${path}.default`, 'Text defaults must be literal text within max.');
     }
     if (schema.type === 'map') {
         distinct(schema.keys, `${path}.keys`, add, { max: L.mapKeys, keys: true });
@@ -138,7 +139,13 @@ function effects(list, env, path, add, { timer = false, reward = false } = {}) {
                 if (effect.bounds !== undefined && !['reject', 'clamp'].includes(effect.bounds)) add('DM_SCHEMA', `${at}.bounds`, 'bounds must be reject or clamp.');
                 if (effect.op === 'add') effect.bounds ??= 'reject';
                 if (target.type === 'text') {
-                    if (effect.op !== 'set' || typeof effect.value !== 'string' || effect.value.length > target.max) add('DM_SCHEMA', `${at}.value`, 'Text fields accept only literal display text within max.');
+                    const argName = Array.isArray(effect.value) && effect.value.length === 2 && effect.value[0] === 'arg' ? effect.value[1]
+                        : dmObject(effect.value) && Object.keys(effect.value).length === 1 ? effect.value.arg : null;
+                    const arg = typeof argName === 'string' ? env.args?.[argName] : null;
+                    const literal = typeof effect.value === 'string' && effect.value.length <= target.max;
+                    const textArg = arg?.type === 'text' && arg.max <= target.max;
+                    if (effect.op !== 'set' || !(literal || textArg)) add('DM_SCHEMA', `${at}.value`, 'Text fields accept literal text or a text label within max.');
+                    else if (textArg && dmObject(effect.value)) effect.value = ['arg', argName];
                     return;
                 }
                 let type = expressionType(effect.value, env, `${at}.value`, add);
@@ -216,6 +223,24 @@ function migrations(definition, path, add) {
     if (definition.migrations.length && definition.migrations.at(-1)?.to !== definition.stateVersion) add('DM_SCHEMA', `${path}.migrations`, 'The migration chain must end at this stateVersion.');
 }
 
+// An editable in data-module presentation may address only this pin and an editable declared field.
+function editableProps(definition, props, at, add) {
+    if (!dmObject(props) || props.command !== 'dm.set' || (props.valueKey !== undefined && props.valueKey !== 'value')) {
+        add('DM_SCHEMA', at, 'An editable field may call only dm.set.'); return;
+    }
+    const payload = props.payload;
+    if (!dmObject(payload) || Object.keys(payload).some(key => !['module', 'field', 'key', 'who'].includes(key))
+        || payload.module !== definition.id || !dmOwn(definition.state, payload.field)) {
+        add('DM_SCHEMA', at, 'An editable field must name this module and one declared field.'); return;
+    }
+    const field = definition.state[payload.field];
+    if (field.edit === false) add('DM_SCHEMA', at, 'This field is not editable.');
+    if (field.type === 'map') {
+        if (typeof payload.key !== 'string' || (!field.keys.includes(payload.key) && !payload.key.startsWith('$item.'))) add('DM_SCHEMA', at, 'Choose a declared map key.');
+    } else if (payload.key !== undefined) add('DM_SCHEMA', at, 'A scalar field has no map key.');
+    if (definition.scope === 'chat' && payload.who !== undefined) add('DM_SCHEMA', at, 'A chat field has no character.');
+}
+
 function presentation(definition, path, add) {
     // Reuse the shipped presentation validators. Ordinary packs keep their current acceptance.
     checkScreens(definition.screens, 'data-module', (code, at, message) => add('DM_SCHEMA', `${path}.${at}`, message));
@@ -257,6 +282,9 @@ function presentation(definition, path, add) {
             // Read the same HTML tree as the renderer, including decoded attributes.
             const visit = nodes => { for (const node of nodes) {
                 const attrs = new Map(node.attrs ?? []);
+                if (node.tag === 'ss-widget' && attrs.get('name') === 'ss.editable') {
+                    editableProps(definition, templatePayload(attrs.get('data-props')), `${where}.data-props`, add);
+                }
                 if (attrs.has('data-submit')) add('DM_SCHEMA', where, 'A data module template button uses data-command="dm.act" with a closed data-payload; a form cannot carry one.');
                 if (attrs.has('data-command')) {
                     if (attrs.get('data-command').trim() !== 'dm.act') add('DM_SCHEMA', where, 'Data module template actions may call only dm.act.');

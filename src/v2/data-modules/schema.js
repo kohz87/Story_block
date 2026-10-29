@@ -37,11 +37,11 @@ export const DM_DESCRIPTORS = freeze({
     defaults: { imports: {}, rules: [], timers: [], rewards: {}, exports: {}, screens: [], layouts: [], migrations: [] },
     scope: ['chat', 'character'],
     fields: {
-        int: ['type', 'min', 'max', 'default'], bool: ['type', 'default'],
-        enum: ['type', 'values', 'default'], text: ['type', 'max', 'default'],
-        map: ['type', 'keys', 'values'],
+        int: { required: ['type', 'min', 'max', 'default'], optional: ['edit'] }, bool: { required: ['type', 'default'], optional: ['edit'] },
+        enum: { required: ['type', 'values', 'default'], optional: ['edit'] }, text: { required: ['type', 'max', 'default'], optional: ['edit'] },
+        map: { required: ['type', 'keys', 'values'], optional: ['edit'] },
     },
-    labels: { int: ['type', 'min', 'max'], bool: ['type'], enum: ['type', 'values'] },
+    labels: { int: ['type', 'min', 'max'], bool: ['type'], enum: ['type', 'values'], text: ['type', 'max'] },
     kind: { required: ['op', 'labels', 'effects'], optional: ['when', 'refusal', 'oncePerReply', 'ui', 'check'] },
     ops: [...OPS],
     effects: {

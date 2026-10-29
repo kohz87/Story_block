@@ -22,7 +22,7 @@ export function describe(row) {
     const needs = [...new Set([...(definition.scope === 'character' || Object.values(definition.imports).some(entry => ['director.time', 'checks.policy'].includes(entry.query)) ? ['Story Director'] : []),
         ...Object.values(definition.imports).filter(entry => entry.query === 'dataModules.public').map(entry => `data module ${entry.args.module}`)])];
     return {
-        fields: Object.entries(definition.state).map(([name, schema]) => `${name}: ${boundsOf(schema)}`),
+        fields: Object.entries(definition.state).map(([name, schema]) => `${name}: ${boundsOf(schema)}${schema.edit === false ? ' (cannot be edited)' : ''}`),
         lines: Object.keys(definition.kinds).map(name => kindExample(definition, name, reference)),
         rewards: Object.entries(definition.rewards).map(([name, reward]) => `${name}: ${Object.entries(reward.values).map(([value, range]) => range.table ? `${value} by ${range.binding}` : `${value} ${range.min} to ${range.max} (${range.pick})`).join(', ')}`),
         checks: Object.entries(definition.kinds).filter(([, kind]) => kind.check).map(([name, kind]) => `${name}: ${kind.check.skill}/${kind.check.stat} DC ${kind.check.dc}`),

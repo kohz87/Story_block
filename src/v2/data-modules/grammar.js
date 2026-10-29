@@ -10,7 +10,7 @@ export function referenceOf(ids, id) {
 }
 
 const valuesOf = schema => schema.type === 'enum' ? schema.values.map(String).join('|')
-    : schema.type === 'int' ? `${schema.min}..${schema.max}` : 'true|false';
+    : schema.type === 'int' ? `${schema.min}..${schema.max}` : schema.type === 'text' ? 'text' : 'true|false';
 
 /** One line of grammar for a kind: "+ dm reputation — reason | kind: gain | faction: guild|watch|compact". */
 export function kindGrammar(definition, name, reference) {
@@ -22,7 +22,7 @@ export function kindGrammar(definition, name, reference) {
 /** A concrete example line for a kind, using each label's first legal value (Setup shows these). */
 export function kindExample(definition, name, reference) {
     const kind = definition.kinds[name];
-    const first = schema => schema.type === 'enum' ? schema.values[0] : schema.type === 'int' ? schema.min : true;
+    const first = schema => schema.type === 'enum' ? schema.values[0] : schema.type === 'int' ? schema.min : schema.type === 'text' ? 'text' : true;
     return `${kind.op} dm ${reference} — why it happens | kind: ${name}${definition.scope === 'character' ? ' | who: Name' : ''}`
         + Object.entries(kind.labels).map(([label, schema]) => ` | ${label}: ${first(schema)}`).join('');
 }
