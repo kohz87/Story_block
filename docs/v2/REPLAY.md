@@ -165,7 +165,7 @@ ops follow the same rebuild, swipe, delete and Re-read rules as other reader act
 counts retain the existing counter differences on replay. `dm.set` uses a data-module guard for the
 pin generation and its local instance reads; it does not claim a reply key. A changed prerequisite
 keeps the guarded block off and reports a Problem. The Changed card reads edit summaries from receipt
-display data, which is trimmed after the existing retention window.
+display data. That data is retained for the newest 200 carriers; older cards no longer list the edits.
 
 ## Loot take guards
 
