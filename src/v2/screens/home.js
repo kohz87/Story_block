@@ -43,8 +43,7 @@ const TEMPLATE = `
       <p class="weather muted" data-if="q.weather.text"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}<ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
       <p data-if="!q.weather.text"><ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
     </div>
-    <p class="here" data-if="len(q.present) > 0"><span class="muted">${html(S.here)}</span> {{ q.present }}<ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
-    <p data-if="len(q.present) == 0"><ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
+    <p class="here"><span class="muted">${html(S.here)}</span> <span data-if="len(q.present) > 0">{{ q.present }}</span><span data-if="len(q.present) == 0">—</span><ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
   </section>
 
   <section class="panel purse">

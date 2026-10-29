@@ -2,6 +2,8 @@
 
 ## 2.7.0
 
+- Preserve data-module pins and guarded history from 2.6.1 by keeping the interpreter-1 hash basis fixed.
+- Use one quiet inventory pencil for the name, count and note, and label the Home people-present row.
 - Add inline reader edits for inventory, the purse and the scene, with summaries on the latest reply's Changed card.
 - Allow guarded data-module field edits and bounded free-text labels; Setup lists editable fields for the chat and attached characters.
 - Make the phone Story panel opaque, give authored inline controls larger touch targets, and remove the duplicate coin icon.

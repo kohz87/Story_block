@@ -11,7 +11,9 @@ In **Settings → Tabs & Packs**, import a pack file. Start a fresh chat for its
 The narrator writes a hidden `<Changes>` block. Each module checks its lines and records accepted changes alongside the reply. Swipe or delete a reply to take back its changes; after editing a reply, press **Re-read**. **Problems** explains refused lines.
 
 On Home and in Inventory, tap the pencil beside a value, change it, then choose **Save** or **Cancel**.
-Inventory also has **Add item** and its existing Drop action. The purse accepts a whole amount or mixed
+Each inventory item's pencil opens its name, count and note together. Inventory also has **Add item**
+and its existing Drop action. For things kept as separate pieces, count changes the total of that
+kind for its owner; name and note change the selected piece. The purse accepts a whole amount or mixed
 coins such as `3 silver 5 copper`. Place, weather and the people present can be edited on Home or Scene;
 the weather pencil appears while the weather feature is on. In **Settings → Tabs & Packs**, a pinned
 data module lists its editable fields under **Fields**, including a set for each attached character.

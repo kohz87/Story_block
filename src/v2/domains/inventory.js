@@ -1067,14 +1067,17 @@ export function createInventoryCommands(env) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
             const original = inv.defs[stack.def];
+            const oldName = original.name;
+            let groupQty;
             // The screen counts separate pieces together without changing the one-piece stack invariant.
             if (payload.group === true && !original.stack && payload.qty !== undefined) {
                 const qty = count(ctx, payload.qty, undefined);
                 if (qty > MAX_UNSTACKED) ctx.fail('INVALID', fill(E.itemGroupLimit, { max: MAX_UNSTACKED }));
-                if (payload.name !== undefined || payload.note !== undefined) ctx.fail('INVALID', E.itemGroupAlone);
+                const editPiece = payload.name !== undefined || payload.note !== undefined;
                 const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
                 guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack));
-                const loose = pieces.filter(item => item.equipped === null).reverse();
+                // If this edit also changes the selected piece, keep that piece when reducing the group.
+                const loose = pieces.filter(item => item.equipped === null && (!editPiece || item.id !== stack.id)).reverse();
                 const remove = pieces.length - qty;
                 if (remove > loose.length) ctx.fail('REFUSED', E.itemGroupEquipped);
                 if (remove > 0) for (const item of loose.slice(0, remove)) delete inv.stacks[item.id];
@@ -1082,12 +1085,15 @@ export function createInventoryCommands(env) {
                     readerCarry(ctx, [{ defId: original.id, qty: -remove }], stack.owner);
                     grantInto(ctx, inv, original, -remove, stack.owner, stack.note);
                 }
-                const remaining = Object.values(inv.stacks).find(item => item.def === original.id && item.owner === stack.owner);
-                return { summary: fill(E.itemSet, { detail: fill(E.itemCount, { name: original.name, qty }) }),
-                    data: { edit: true, stack: remaining.id }, narrate: true };
+                if (!editPiece) {
+                    const remaining = Object.values(inv.stacks).find(item => item.def === original.id && item.owner === stack.owner);
+                    return { summary: fill(E.itemSet, { detail: fill(E.itemCount, { name: original.name, qty }) }),
+                        data: { edit: true, stack: remaining.id }, narrate: true };
+                }
+                groupQty = qty;
             }
-            guardReaderEdit(ctx, 'inventory.edit', editStack(stack));
-            if (payload.qty !== undefined) {
+            if (groupQty === undefined) guardReaderEdit(ctx, 'inventory.edit', editStack(stack));
+            if (payload.qty !== undefined && groupQty === undefined) {
                 const qty = count(ctx, payload.qty, undefined);
                 // A non-stacking item is one stack per piece (the domain's invariant).
                 if (!original.stack && qty !== 1) ctx.fail('REFUSED', fill(E.itemUnstackable, { name: original.name }));
@@ -1130,7 +1136,9 @@ export function createInventoryCommands(env) {
                 }
             }
             const current = inv.stacks[resultStack];
-            const detail = payload.qty !== undefined ? fill(E.itemCount, { name, qty: current.qty }) : payload.note !== undefined ? fill(E.itemNote, { name }) : name;
+            const detail = groupQty !== undefined && name !== oldName
+                ? fill(E.itemGroupRenamed, { name: oldName, qty: groupQty, renamed: name })
+                : payload.qty !== undefined ? fill(E.itemCount, { name, qty: groupQty ?? current.qty }) : payload.note !== undefined ? fill(E.itemNote, { name }) : name;
             return { summary: fill(E.itemSet, { detail }), data: { edit: true, stack: resultStack }, narrate: true };
         },
 

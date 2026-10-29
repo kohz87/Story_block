@@ -24,6 +24,8 @@ const props = {
     displayPill: { type: 'boolean', default: false },
     money: { type: 'boolean', default: false },
     currency: { type: 'object', default: Object.freeze({}) },
+    itemCount: { type: 'number', default: 1 },
+    itemNote: { type: 'string', default: '' },
 };
 const cut = (value, max) => [...oneLine(value)].slice(0, Math.max(0, Math.floor(max))).join('');
 
@@ -49,6 +51,8 @@ function render(el, input, api) {
         root.append(shown, pencil);
         let p = resolveProps(props, input);
         let field = null;
+        let itemCount = null;
+        let itemNote = null;
         let entries = [];
         let editing = false;
         let busy = false;
@@ -105,6 +109,35 @@ function render(el, input, api) {
             editing = true;
             error.textContent = '';
             entries = Array.isArray(p.value) ? p.value.map(String) : [];
+            if (p.kind === 'item') {
+                field = h(doc, 'input', 'ss-input');
+                itemCount = h(doc, 'input', 'ss-input');
+                itemNote = h(doc, 'input', 'ss-input');
+                field.setAttribute('aria-label', STRINGS.inventory.itemName);
+                itemCount.setAttribute('aria-label', STRINGS.inventory.itemCount);
+                itemNote.setAttribute('aria-label', STRINGS.inventory.itemNote);
+                itemCount.setAttribute('type', 'number');
+                itemCount.setAttribute('min', '1');
+                itemCount.setAttribute('step', '1');
+                field.value = String(p.value ?? '');
+                itemCount.value = String(p.itemCount);
+                itemNote.value = p.itemNote;
+                const label = (text, input) => {
+                    const node = h(doc, 'label', 'ss-w-editable-item-label');
+                    node.append(h(doc, 'span', '', text), input);
+                    return node;
+                };
+                fieldSlot.classList.add('ss-w-editable-item-fields');
+                fieldSlot.replaceChildren(label(STRINGS.inventory.itemName, field), label(STRINGS.inventory.itemCount, itemCount), label(STRINGS.inventory.itemNote, itemNote));
+                chips.hidden = true;
+                add.hidden = true;
+                form.classList.add('ss-w-editable-item-form');
+                draw();
+                field.focus?.();
+                return;
+            }
+            fieldSlot.classList.remove('ss-w-editable-item-fields');
+            form.classList.remove('ss-w-editable-item-form');
             const choice = p.kind === 'choice';
             field = h(doc, choice ? 'select' : 'input', choice ? 'ss-select' : 'ss-input');
             field.setAttribute('aria-label', p.label || E.value);
@@ -157,7 +190,17 @@ function render(el, input, api) {
         async function submit() {
             if (busy || !field) return;
             let value;
-            if (p.kind === 'number') {
+            let payload;
+            if (p.kind === 'item') {
+                const raw = String(itemCount.value).trim(), qty = Number(raw);
+                if (!/^\d+$/.test(raw) || !Number.isSafeInteger(qty) || qty < 1) { error.textContent = STRINGS.inventory.countError; return; }
+                payload = { ...p.payload };
+                const name = cut(field.value, 60), note = cut(itemNote.value, 300);
+                if (name !== p.value) payload.name = name;
+                if (qty !== p.itemCount) payload.qty = qty;
+                if (note !== p.itemNote) payload.note = note;
+                if (!('name' in payload) && !('qty' in payload) && !('note' in payload)) { close(); return; }
+            } else if (p.kind === 'number') {
                 const raw = String(field.value).trim();
                 if (!/^-?\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) { error.textContent = E.wholeNumber; return; }
                 value = Number(raw);
@@ -175,11 +218,14 @@ function render(el, input, api) {
                 const selected = p.options.find(item => String(typeof item === 'object' && item !== null ? item.value : item) === field.value);
                 value = typeof selected === 'object' && selected !== null ? selected.value : selected;
             } else value = cut(field.value, p.maxLength);
-            if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(p.valueKey) || ['constructor', 'prototype', '__proto__'].includes(p.valueKey)) return;
+            if (!payload) {
+                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(p.valueKey) || ['constructor', 'prototype', '__proto__'].includes(p.valueKey)) return;
+                payload = { ...p.payload, [p.valueKey]: value };
+            }
             busy = true;
             save.disabled = true;
             let result;
-            try { result = await api.command(p.command, { ...p.payload, [p.valueKey]: value }); }
+            try { result = await api.command(p.command, payload); }
             catch (failure) { result = { ok: false, message: String(failure?.message ?? failure) }; }
             busy = false;
             save.disabled = false;

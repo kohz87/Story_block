@@ -254,6 +254,9 @@ instance = { fields, timers, offers, settled }
 `pins` contains checked, detached definitions with their presentation and referenced reward defs.
 `definitionHash` covers normalized mechanics, local grammar, imports, presentation, interpreter
 semantics/limits and referenced defs; no installed-pack pointer is executable history.
+Interpreter 1 uses the frozen 2.6.1 descriptor and limit basis for this hash, even when the live
+authoring contract grows. A future interpreter needs its own basis; editing the interpreter-1 basis
+would invalidate saved pins and guards.
 `packHash` is a separate envelope/content identity, not a substitute for the definition hash.
 No timestamp or global random ID is needed. IDs/claims use host Source/cursor occurrences, never
 message indices. Subjects/offers are maps by canonical key, not positional list appends.

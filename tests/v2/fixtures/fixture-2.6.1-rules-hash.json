@@ -1,0 +1,1072 @@
+{
+  "chat": [
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "The story begins.",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "The story begins."
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {}
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_9e9a1bb1b4dc",
+          "checkpoint": {
+            "v": 2,
+            "meta": {
+              "rev": 0,
+              "claims": {}
+            },
+            "domains": {
+              "inventory": {
+                "defs": {},
+                "stacks": {},
+                "wallets": {},
+                "aliases": {}
+              },
+              "rules": {
+                "rulesVersion": 1,
+                "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "scene": {
+                "place": {
+                  "name": "",
+                  "kind": "",
+                  "region": ""
+                },
+                "present": []
+              }
+            }
+          },
+          "ops": [],
+          "receipts": [],
+          "narrated": [],
+          "spans": [],
+          "rev": 0,
+          "source": {
+            "logical": "sr_csb2a74o",
+            "swipeKey": "sw_dfrj4tzq",
+            "evidence": "ev_4c54ogej",
+            "next": 0
+          },
+          "swipe": 0,
+          "mark": {
+            "t": "ca1478b1:17",
+            "d": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "You",
+      "is_user": true,
+      "is_system": false,
+      "mes": "Begin",
+      "send_date": "",
+      "extra": {}
+    },
+    {
+      "name": "Narrator",
+      "is_user": false,
+      "is_system": false,
+      "mes": "A quiet room.",
+      "send_date": "",
+      "swipe_id": 0,
+      "swipes": [
+        "A quiet room."
+      ],
+      "swipe_info": [
+        {
+          "send_date": "",
+          "extra": {
+            "storySuite": {
+              "v": 2,
+              "sid": "sw_97b5f1bffaf2",
+              "ops": [
+                {
+                  "op": "add",
+                  "path": "/domains/dataModules",
+                  "value": {
+                    "pins": {
+                      "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee": {
+                        "definition": {
+                          "imports": {},
+                          "rules": [],
+                          "timers": [],
+                          "rewards": {},
+                          "exports": {},
+                          "screens": [],
+                          "layouts": [],
+                          "migrations": [],
+                          "slug": "counter",
+                          "name": "Counter",
+                          "schema": 1,
+                          "stateVersion": 1,
+                          "scope": "chat",
+                          "state": {
+                            "points": {
+                              "type": "int",
+                              "min": 0,
+                              "max": 100,
+                              "default": 0
+                            }
+                          },
+                          "kinds": {
+                            "gain": {
+                              "op": "+",
+                              "labels": {},
+                              "effects": [
+                                {
+                                  "op": "add",
+                                  "path": [
+                                    "points"
+                                  ],
+                                  "value": 1,
+                                  "bounds": "clamp"
+                                }
+                              ],
+                              "ui": true,
+                              "oncePerReply": [],
+                              "when": true
+                            }
+                          },
+                          "id": "pack.history/counter",
+                          "pack": "history"
+                        },
+                        "packId": "history",
+                        "packVersion": "1.0.0",
+                        "packHash": "ccbd291fcf2e58951e48c7b008d05964aa3ac1b260f42b245decf0cecd528187",
+                        "interpreter": 1
+                      }
+                    },
+                    "active": {
+                      "pack.history/counter": {
+                        "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                        "generation": 1,
+                        "subjects": [
+                          "chat"
+                        ]
+                      }
+                    },
+                    "instances": {
+                      "pack.history/counter": {
+                        "chat": {
+                          "fields": {
+                            "points": 0
+                          },
+                          "timers": {},
+                          "offers": {},
+                          "settled": {}
+                        }
+                      }
+                    },
+                    "perReply": {
+                      "sr_akjpqa29/sw_af3cpdo7": {
+                        "roots": 1,
+                        "visits": 0,
+                        "actions": {
+                          "bl_dembqbn5": {
+                            "visits": 0,
+                            "click": false
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "op": "replace",
+                  "path": "/meta/rev",
+                  "value": 1
+                },
+                {
+                  "op": "replace",
+                  "path": "/domains/dataModules/instances/pack.history~1counter/chat/fields/points",
+                  "value": 1
+                },
+                {
+                  "op": "add",
+                  "path": "/domains/dataModules/perReply/sr_akjpqa29~1sw_af3cpdo7/actions/bl_4mg28coj",
+                  "value": {
+                    "visits": 2,
+                    "click": true
+                  }
+                },
+                {
+                  "op": "replace",
+                  "path": "/domains/dataModules/perReply/sr_akjpqa29~1sw_af3cpdo7/roots",
+                  "value": 2
+                },
+                {
+                  "op": "replace",
+                  "path": "/domains/dataModules/perReply/sr_akjpqa29~1sw_af3cpdo7/visits",
+                  "value": 2
+                },
+                {
+                  "op": "add",
+                  "path": "/meta/claims/dm:sr_akjpqa29~1sw_af3cpdo7:pack.history~1counter:gain:chat:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                  "value": true
+                },
+                {
+                  "op": "replace",
+                  "path": "/meta/rev",
+                  "value": 2
+                }
+              ],
+              "receipts": [
+                {
+                  "id": "rc_dgzuaogj",
+                  "type": "dm.pin",
+                  "module": "story-block",
+                  "cause": "ui",
+                  "seed": 1640651003,
+                  "summary": "Counter: pinned for this chat.",
+                  "narrate": false,
+                  "data": {
+                    "v2": {
+                      "schema": 2,
+                      "result": {
+                        "subjects": [
+                          "chat"
+                        ],
+                        "generation": 1
+                      },
+                      "epoch": "ep_00000000",
+                      "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "source": {
+                        "sid": "sr_akjpqa29",
+                        "swipeKey": "sw_af3cpdo7",
+                        "evidence": "ev_2hn6zzu3",
+                        "ordinal": 0
+                      },
+                      "guard": {
+                        "owner": "story-block",
+                        "version": 2,
+                        "epoch": "ep_00000000",
+                        "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "predicate": {
+                          "kind": "dm.pin",
+                          "module": "pack.history/counter",
+                          "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                          "generation": 1,
+                          "subject": "chat"
+                        },
+                        "inputHash": "7ea78f3ced80bbfd9f4a2e06adc1beca1ec882ffc3ccbef00dd9e4da2ea3791c",
+                        "replyBound": true
+                      }
+                    }
+                  },
+                  "rev": 1,
+                  "guarded": true
+                },
+                {
+                  "id": "rc_oa2dzutc",
+                  "type": "dm.act",
+                  "module": "story-block",
+                  "cause": "ui",
+                  "seed": 2814956701,
+                  "summary": "Counter: gain.",
+                  "narrate": false,
+                  "data": {
+                    "v2": {
+                      "schema": 2,
+                      "result": {
+                        "kind": "gain",
+                        "subject": "chat",
+                        "decisions": [],
+                        "notes": []
+                      },
+                      "epoch": "ep_00000000",
+                      "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                      "source": {
+                        "sid": "sr_akjpqa29",
+                        "swipeKey": "sw_af3cpdo7",
+                        "evidence": "ev_2hn6zzu3",
+                        "ordinal": 1
+                      },
+                      "guard": {
+                        "owner": "story-block",
+                        "version": 2,
+                        "epoch": "ep_00000000",
+                        "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "predicate": {
+                          "kind": "dm.act",
+                          "module": "pack.history/counter",
+                          "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                          "generation": 1,
+                          "subject": "chat"
+                        },
+                        "inputHash": "6b99c6a8ee83a64cbf4015f2db9e6a7ce69938c8fec1f3b159fc7e6f415e75b0"
+                      }
+                    }
+                  },
+                  "rev": 2,
+                  "guarded": true
+                }
+              ],
+              "narrated": [],
+              "spans": [
+                {
+                  "n": 2,
+                  "story": false,
+                  "id": "bl_dembqbn5",
+                  "module": "story-block",
+                  "source": {
+                    "sid": "sr_akjpqa29",
+                    "swipeKey": "sw_af3cpdo7",
+                    "evidence": "ev_2hn6zzu3",
+                    "ordinal": 0
+                  },
+                  "guard": {
+                    "owner": "story-block",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "predicate": {
+                      "kind": "dm.pin",
+                      "module": "pack.history/counter",
+                      "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                      "generation": 1,
+                      "subject": "chat"
+                    },
+                    "inputHash": "7ea78f3ced80bbfd9f4a2e06adc1beca1ec882ffc3ccbef00dd9e4da2ea3791c",
+                    "replyBound": true
+                  },
+                  "claims": [],
+                  "evidence": [],
+                  "occurrence": 0,
+                  "boundaries": [
+                    {
+                      "cursor": {
+                        "sid": "sr_akjpqa29",
+                        "swipeKey": "sw_af3cpdo7",
+                        "block": "bl_dembqbn5",
+                        "op": 0,
+                        "rev": 0
+                      },
+                      "prefixHash": "0aa6e689eaf8d1157a3eddb890602a504ea9902d8a66e2a1e0d4fb81712d3107",
+                      "payloadHash": "a46af595ede15b3c5662caa8eab7836ebf5c0fbe5f346e19af3ec004c8545dfa"
+                    }
+                  ],
+                  "operation": {
+                    "type": "dm.pin",
+                    "payload": {
+                      "module": "pack.history/counter",
+                      "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                      "packHash": "ccbd291fcf2e58951e48c7b008d05964aa3ac1b260f42b245decf0cecd528187"
+                    }
+                  },
+                  "recorded": {
+                    "source": {
+                      "sid": "sr_akjpqa29",
+                      "swipeKey": "sw_af3cpdo7",
+                      "evidence": "ev_2hn6zzu3",
+                      "ordinal": 0
+                    },
+                    "selector": {
+                      "module": "pack.history/counter",
+                      "subject": "chat",
+                      "reads": [],
+                      "imports": [],
+                      "actor": false,
+                      "adapters": {},
+                      "subjects": [
+                        "chat"
+                      ]
+                    },
+                    "decision": {
+                      "subjects": [
+                        "chat"
+                      ],
+                      "inputs": {},
+                      "addition": null,
+                      "previous": null
+                    },
+                    "pin": {
+                      "definition": {
+                        "imports": {},
+                        "rules": [],
+                        "timers": [],
+                        "rewards": {},
+                        "exports": {},
+                        "screens": [],
+                        "layouts": [],
+                        "migrations": [],
+                        "slug": "counter",
+                        "name": "Counter",
+                        "schema": 1,
+                        "stateVersion": 1,
+                        "scope": "chat",
+                        "state": {
+                          "points": {
+                            "type": "int",
+                            "min": 0,
+                            "max": 100,
+                            "default": 0
+                          }
+                        },
+                        "kinds": {
+                          "gain": {
+                            "op": "+",
+                            "labels": {},
+                            "effects": [
+                              {
+                                "op": "add",
+                                "path": [
+                                  "points"
+                                ],
+                                "value": 1,
+                                "bounds": "clamp"
+                              }
+                            ],
+                            "ui": true,
+                            "oncePerReply": [],
+                            "when": true
+                          }
+                        },
+                        "id": "pack.history/counter",
+                        "pack": "history"
+                      },
+                      "packId": "history",
+                      "packVersion": "1.0.0",
+                      "packHash": "ccbd291fcf2e58951e48c7b008d05964aa3ac1b260f42b245decf0cecd528187",
+                      "interpreter": 1
+                    }
+                  },
+                  "result": {
+                    "subjects": [
+                      "chat"
+                    ],
+                    "generation": 1
+                  },
+                  "replan": null
+                },
+                {
+                  "n": 6,
+                  "story": false,
+                  "id": "bl_4mg28coj",
+                  "module": "story-block",
+                  "source": {
+                    "sid": "sr_akjpqa29",
+                    "swipeKey": "sw_af3cpdo7",
+                    "evidence": "ev_2hn6zzu3",
+                    "ordinal": 1
+                  },
+                  "guard": {
+                    "owner": "story-block",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "predicate": {
+                      "kind": "dm.act",
+                      "module": "pack.history/counter",
+                      "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                      "generation": 1,
+                      "subject": "chat"
+                    },
+                    "inputHash": "6b99c6a8ee83a64cbf4015f2db9e6a7ce69938c8fec1f3b159fc7e6f415e75b0"
+                  },
+                  "claims": [
+                    "dm:sr_akjpqa29/sw_af3cpdo7:pack.history/counter:gain:chat:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  ],
+                  "evidence": [],
+                  "occurrence": 0,
+                  "boundaries": [
+                    {
+                      "cursor": {
+                        "sid": "sr_akjpqa29",
+                        "swipeKey": "sw_af3cpdo7",
+                        "block": "bl_4mg28coj",
+                        "op": 2,
+                        "rev": 1
+                      },
+                      "prefixHash": "1bc2c52d1d0386ed2fa65b381d2cc90e2c910b9d5df46a6a35af36c5dcd6894b",
+                      "payloadHash": "a46af595ede15b3c5662caa8eab7836ebf5c0fbe5f346e19af3ec004c8545dfa"
+                    }
+                  ],
+                  "operation": {
+                    "type": "dm.act",
+                    "payload": {
+                      "module": "pack.history/counter",
+                      "kind": "gain"
+                    }
+                  },
+                  "recorded": {
+                    "source": {
+                      "sid": "sr_akjpqa29",
+                      "swipeKey": "sw_af3cpdo7",
+                      "evidence": "ev_2hn6zzu3",
+                      "ordinal": 1
+                    },
+                    "selector": {
+                      "module": "pack.history/counter",
+                      "subject": "chat",
+                      "reads": [
+                        [
+                          "fields",
+                          "points"
+                        ]
+                      ],
+                      "imports": [],
+                      "actor": false
+                    },
+                    "decision": {
+                      "args": {},
+                      "inputs": {},
+                      "decisions": [],
+                      "conds": []
+                    }
+                  },
+                  "result": {
+                    "kind": "gain",
+                    "subject": "chat",
+                    "decisions": [],
+                    "notes": []
+                  },
+                  "replan": null
+                }
+              ],
+              "source": {
+                "logical": "sr_akjpqa29",
+                "swipeKey": "sw_af3cpdo7",
+                "evidence": "ev_2hn6zzu3",
+                "next": 2,
+                "taken": {
+                  "1322d498e63f90ab": 1,
+                  "8474467bef6c3d0c": 1
+                }
+              },
+              "rev": 2,
+              "swipe": 0,
+              "mark": {
+                "t": "9f3c8733:13",
+                "d": ""
+              }
+            }
+          }
+        }
+      ],
+      "extra": {
+        "storySuite": {
+          "v": 2,
+          "sid": "sw_97b5f1bffaf2",
+          "ops": [
+            {
+              "op": "add",
+              "path": "/domains/dataModules",
+              "value": {
+                "pins": {
+                  "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee": {
+                    "definition": {
+                      "imports": {},
+                      "rules": [],
+                      "timers": [],
+                      "rewards": {},
+                      "exports": {},
+                      "screens": [],
+                      "layouts": [],
+                      "migrations": [],
+                      "slug": "counter",
+                      "name": "Counter",
+                      "schema": 1,
+                      "stateVersion": 1,
+                      "scope": "chat",
+                      "state": {
+                        "points": {
+                          "type": "int",
+                          "min": 0,
+                          "max": 100,
+                          "default": 0
+                        }
+                      },
+                      "kinds": {
+                        "gain": {
+                          "op": "+",
+                          "labels": {},
+                          "effects": [
+                            {
+                              "op": "add",
+                              "path": [
+                                "points"
+                              ],
+                              "value": 1,
+                              "bounds": "clamp"
+                            }
+                          ],
+                          "ui": true,
+                          "oncePerReply": [],
+                          "when": true
+                        }
+                      },
+                      "id": "pack.history/counter",
+                      "pack": "history"
+                    },
+                    "packId": "history",
+                    "packVersion": "1.0.0",
+                    "packHash": "ccbd291fcf2e58951e48c7b008d05964aa3ac1b260f42b245decf0cecd528187",
+                    "interpreter": 1
+                  }
+                },
+                "active": {
+                  "pack.history/counter": {
+                    "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                    "generation": 1,
+                    "subjects": [
+                      "chat"
+                    ]
+                  }
+                },
+                "instances": {
+                  "pack.history/counter": {
+                    "chat": {
+                      "fields": {
+                        "points": 0
+                      },
+                      "timers": {},
+                      "offers": {},
+                      "settled": {}
+                    }
+                  }
+                },
+                "perReply": {
+                  "sr_akjpqa29/sw_af3cpdo7": {
+                    "roots": 1,
+                    "visits": 0,
+                    "actions": {
+                      "bl_dembqbn5": {
+                        "visits": 0,
+                        "click": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 1
+            },
+            {
+              "op": "replace",
+              "path": "/domains/dataModules/instances/pack.history~1counter/chat/fields/points",
+              "value": 1
+            },
+            {
+              "op": "add",
+              "path": "/domains/dataModules/perReply/sr_akjpqa29~1sw_af3cpdo7/actions/bl_4mg28coj",
+              "value": {
+                "visits": 2,
+                "click": true
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/domains/dataModules/perReply/sr_akjpqa29~1sw_af3cpdo7/roots",
+              "value": 2
+            },
+            {
+              "op": "replace",
+              "path": "/domains/dataModules/perReply/sr_akjpqa29~1sw_af3cpdo7/visits",
+              "value": 2
+            },
+            {
+              "op": "add",
+              "path": "/meta/claims/dm:sr_akjpqa29~1sw_af3cpdo7:pack.history~1counter:gain:chat:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "value": true
+            },
+            {
+              "op": "replace",
+              "path": "/meta/rev",
+              "value": 2
+            }
+          ],
+          "receipts": [
+            {
+              "id": "rc_dgzuaogj",
+              "type": "dm.pin",
+              "module": "story-block",
+              "cause": "ui",
+              "seed": 1640651003,
+              "summary": "Counter: pinned for this chat.",
+              "narrate": false,
+              "data": {
+                "v2": {
+                  "schema": 2,
+                  "result": {
+                    "subjects": [
+                      "chat"
+                    ],
+                    "generation": 1
+                  },
+                  "epoch": "ep_00000000",
+                  "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "source": {
+                    "sid": "sr_akjpqa29",
+                    "swipeKey": "sw_af3cpdo7",
+                    "evidence": "ev_2hn6zzu3",
+                    "ordinal": 0
+                  },
+                  "guard": {
+                    "owner": "story-block",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "predicate": {
+                      "kind": "dm.pin",
+                      "module": "pack.history/counter",
+                      "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                      "generation": 1,
+                      "subject": "chat"
+                    },
+                    "inputHash": "7ea78f3ced80bbfd9f4a2e06adc1beca1ec882ffc3ccbef00dd9e4da2ea3791c",
+                    "replyBound": true
+                  }
+                }
+              },
+              "rev": 1,
+              "guarded": true
+            },
+            {
+              "id": "rc_oa2dzutc",
+              "type": "dm.act",
+              "module": "story-block",
+              "cause": "ui",
+              "seed": 2814956701,
+              "summary": "Counter: gain.",
+              "narrate": false,
+              "data": {
+                "v2": {
+                  "schema": 2,
+                  "result": {
+                    "kind": "gain",
+                    "subject": "chat",
+                    "decisions": [],
+                    "notes": []
+                  },
+                  "epoch": "ep_00000000",
+                  "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "source": {
+                    "sid": "sr_akjpqa29",
+                    "swipeKey": "sw_af3cpdo7",
+                    "evidence": "ev_2hn6zzu3",
+                    "ordinal": 1
+                  },
+                  "guard": {
+                    "owner": "story-block",
+                    "version": 2,
+                    "epoch": "ep_00000000",
+                    "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "predicate": {
+                      "kind": "dm.act",
+                      "module": "pack.history/counter",
+                      "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                      "generation": 1,
+                      "subject": "chat"
+                    },
+                    "inputHash": "6b99c6a8ee83a64cbf4015f2db9e6a7ce69938c8fec1f3b159fc7e6f415e75b0"
+                  }
+                }
+              },
+              "rev": 2,
+              "guarded": true
+            }
+          ],
+          "narrated": [],
+          "spans": [
+            {
+              "n": 2,
+              "story": false,
+              "id": "bl_dembqbn5",
+              "module": "story-block",
+              "source": {
+                "sid": "sr_akjpqa29",
+                "swipeKey": "sw_af3cpdo7",
+                "evidence": "ev_2hn6zzu3",
+                "ordinal": 0
+              },
+              "guard": {
+                "owner": "story-block",
+                "version": 2,
+                "epoch": "ep_00000000",
+                "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "predicate": {
+                  "kind": "dm.pin",
+                  "module": "pack.history/counter",
+                  "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                  "generation": 1,
+                  "subject": "chat"
+                },
+                "inputHash": "7ea78f3ced80bbfd9f4a2e06adc1beca1ec882ffc3ccbef00dd9e4da2ea3791c",
+                "replyBound": true
+              },
+              "claims": [],
+              "evidence": [],
+              "occurrence": 0,
+              "boundaries": [
+                {
+                  "cursor": {
+                    "sid": "sr_akjpqa29",
+                    "swipeKey": "sw_af3cpdo7",
+                    "block": "bl_dembqbn5",
+                    "op": 0,
+                    "rev": 0
+                  },
+                  "prefixHash": "0aa6e689eaf8d1157a3eddb890602a504ea9902d8a66e2a1e0d4fb81712d3107",
+                  "payloadHash": "a46af595ede15b3c5662caa8eab7836ebf5c0fbe5f346e19af3ec004c8545dfa"
+                }
+              ],
+              "operation": {
+                "type": "dm.pin",
+                "payload": {
+                  "module": "pack.history/counter",
+                  "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                  "packHash": "ccbd291fcf2e58951e48c7b008d05964aa3ac1b260f42b245decf0cecd528187"
+                }
+              },
+              "recorded": {
+                "source": {
+                  "sid": "sr_akjpqa29",
+                  "swipeKey": "sw_af3cpdo7",
+                  "evidence": "ev_2hn6zzu3",
+                  "ordinal": 0
+                },
+                "selector": {
+                  "module": "pack.history/counter",
+                  "subject": "chat",
+                  "reads": [],
+                  "imports": [],
+                  "actor": false,
+                  "adapters": {},
+                  "subjects": [
+                    "chat"
+                  ]
+                },
+                "decision": {
+                  "subjects": [
+                    "chat"
+                  ],
+                  "inputs": {},
+                  "addition": null,
+                  "previous": null
+                },
+                "pin": {
+                  "definition": {
+                    "imports": {},
+                    "rules": [],
+                    "timers": [],
+                    "rewards": {},
+                    "exports": {},
+                    "screens": [],
+                    "layouts": [],
+                    "migrations": [],
+                    "slug": "counter",
+                    "name": "Counter",
+                    "schema": 1,
+                    "stateVersion": 1,
+                    "scope": "chat",
+                    "state": {
+                      "points": {
+                        "type": "int",
+                        "min": 0,
+                        "max": 100,
+                        "default": 0
+                      }
+                    },
+                    "kinds": {
+                      "gain": {
+                        "op": "+",
+                        "labels": {},
+                        "effects": [
+                          {
+                            "op": "add",
+                            "path": [
+                              "points"
+                            ],
+                            "value": 1,
+                            "bounds": "clamp"
+                          }
+                        ],
+                        "ui": true,
+                        "oncePerReply": [],
+                        "when": true
+                      }
+                    },
+                    "id": "pack.history/counter",
+                    "pack": "history"
+                  },
+                  "packId": "history",
+                  "packVersion": "1.0.0",
+                  "packHash": "ccbd291fcf2e58951e48c7b008d05964aa3ac1b260f42b245decf0cecd528187",
+                  "interpreter": 1
+                }
+              },
+              "result": {
+                "subjects": [
+                  "chat"
+                ],
+                "generation": 1
+              },
+              "replan": null
+            },
+            {
+              "n": 6,
+              "story": false,
+              "id": "bl_4mg28coj",
+              "module": "story-block",
+              "source": {
+                "sid": "sr_akjpqa29",
+                "swipeKey": "sw_af3cpdo7",
+                "evidence": "ev_2hn6zzu3",
+                "ordinal": 1
+              },
+              "guard": {
+                "owner": "story-block",
+                "version": 2,
+                "epoch": "ep_00000000",
+                "rulesHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "predicate": {
+                  "kind": "dm.act",
+                  "module": "pack.history/counter",
+                  "hash": "2c257b2d20fbf6589343e316b5c0330733386fa127aeac673855ec2b753eb4ee",
+                  "generation": 1,
+                  "subject": "chat"
+                },
+                "inputHash": "6b99c6a8ee83a64cbf4015f2db9e6a7ce69938c8fec1f3b159fc7e6f415e75b0"
+              },
+              "claims": [
+                "dm:sr_akjpqa29/sw_af3cpdo7:pack.history/counter:gain:chat:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+              ],
+              "evidence": [],
+              "occurrence": 0,
+              "boundaries": [
+                {
+                  "cursor": {
+                    "sid": "sr_akjpqa29",
+                    "swipeKey": "sw_af3cpdo7",
+                    "block": "bl_4mg28coj",
+                    "op": 2,
+                    "rev": 1
+                  },
+                  "prefixHash": "1bc2c52d1d0386ed2fa65b381d2cc90e2c910b9d5df46a6a35af36c5dcd6894b",
+                  "payloadHash": "a46af595ede15b3c5662caa8eab7836ebf5c0fbe5f346e19af3ec004c8545dfa"
+                }
+              ],
+              "operation": {
+                "type": "dm.act",
+                "payload": {
+                  "module": "pack.history/counter",
+                  "kind": "gain"
+                }
+              },
+              "recorded": {
+                "source": {
+                  "sid": "sr_akjpqa29",
+                  "swipeKey": "sw_af3cpdo7",
+                  "evidence": "ev_2hn6zzu3",
+                  "ordinal": 1
+                },
+                "selector": {
+                  "module": "pack.history/counter",
+                  "subject": "chat",
+                  "reads": [
+                    [
+                      "fields",
+                      "points"
+                    ]
+                  ],
+                  "imports": [],
+                  "actor": false
+                },
+                "decision": {
+                  "args": {},
+                  "inputs": {},
+                  "decisions": [],
+                  "conds": []
+                }
+              },
+              "result": {
+                "kind": "gain",
+                "subject": "chat",
+                "decisions": [],
+                "notes": []
+              },
+              "replan": null
+            }
+          ],
+          "source": {
+            "logical": "sr_akjpqa29",
+            "swipeKey": "sw_af3cpdo7",
+            "evidence": "ev_2hn6zzu3",
+            "next": 2,
+            "taken": {
+              "1322d498e63f90ab": 1,
+              "8474467bef6c3d0c": 1
+            }
+          },
+          "rev": 2,
+          "swipe": 0,
+          "mark": {
+            "t": "9f3c8733:13",
+            "d": ""
+          }
+        }
+      }
+    }
+  ],
+  "pack": {
+    "id": "history",
+    "version": "1.0.0",
+    "requires": {
+      "storyBlock": "^2",
+      "capabilities": [
+        "data-modules-v1"
+      ]
+    },
+    "content": {
+      "dataModules": [
+        {
+          "slug": "counter",
+          "name": "Counter",
+          "schema": 1,
+          "stateVersion": 1,
+          "scope": "chat",
+          "state": {
+            "points": {
+              "type": "int",
+              "min": 0,
+              "max": 100,
+              "default": 0
+            }
+          },
+          "kinds": {
+            "gain": {
+              "op": "+",
+              "labels": {},
+              "effects": [
+                {
+                  "op": "add",
+                  "path": [
+                    "points"
+                  ],
+                  "value": 1,
+                  "bounds": "clamp"
+                }
+              ],
+              "ui": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

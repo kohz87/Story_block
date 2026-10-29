@@ -1,5 +1,6 @@
 // Pure data-modules-v1 checker. The pack validator and Studio share these entry points.
 import { DM_DESCRIPTORS as D, DM_LIMITS as L, DATA_MODULES_CAPABILITY, dmObject, dmOwn, dmSlug, dmInt, dmId } from './schema.js';
+import { HASH_BASIS_V1 } from './hash-basis-v1.js';
 import { fieldType, compatible, expressionType, conditionType, pathType } from './expressions.js';
 import { byteLength, checkPlain } from '../packs/safety.js';
 import { LIMITS as PACK_LIMITS } from '../packs/limits.js';
@@ -536,7 +537,7 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
 
 /** Hash checked normalized definitions only; envelope identity is deliberately separate. */
 export function dataModuleHash(definition) {
-    return sha256(JSON.stringify(stable({ definition, interpreter: 1, descriptors: D, limits: L })));
+    return sha256(JSON.stringify(stable({ definition, ...HASH_BASIS_V1 })));
 }
 
 /** Whole normalized pack identity; added only for packs containing dataModules. */
