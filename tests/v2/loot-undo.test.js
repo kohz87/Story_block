@@ -109,6 +109,11 @@ for (const later of [false, true]) {
         const index = at(host, 'A crate.');
         assert.equal((await host.turn.reread(index)).ok, true);
         assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid)], [2, 5, true]);
+        // A Re-read of the reply that holds a later take keeps it too.
+        if (later) {
+            assert.equal((await host.turn.reread(at(host, 'The road goes on.'))).ok, true);
+            assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid), qty(host, 'Apple')], [2, 5, true, 1]);
+        }
         // More of it, a thing added before it, another place, another way of writing the name: it still lays out what was taken.
         await host.st.editMessage(index, reply('A crate, now with a lamp.', ['? loot Lamp, torch x3, Rope, 9 gold — at the back of the crate']));
         assert.equal((await host.turn.reread(index)).ok, true);
