@@ -24,14 +24,17 @@ Use **Settings → Features** to enable optional features. Assist's safety net c
 
 Open **Game view → Blocks**, choose **New block**, then **Empty block** or a saved template. Name it,
 add text, number, choice or list fields, and say what it is for. Choose a tab, a Home card or both.
-You can add buttons and rules; a timer needs Story Director's clock. Timers can add to a number or set
-a number to a value. Save with the latest reply, then use the pencils and buttons on the block. The
-narrator can update its fields with the story lines shown in Setup.
+You can add buttons and rules; a timer needs Story Director's clock and can add to a number field.
+Each field and each button uses one of the 16 available slots; rules and timers do not use these
+slots. Save with the latest reply, then use the pencils and buttons on the block. The narrator can
+update its fields with the story lines shown in Setup.
 
 The block's actions menu can edit it, save its definition as a template, export a pack, or remove it.
 Templates are shared across your chats, without the current values; manage them under **Settings →
 Tabs & Packs → Block templates**. Swipe or delete the reply that created, changed or removed a block
-to take that action back. Definitions and their generated story kinds must fit the data-module limits.
+to take that action back. A chat can have up to eight blocks, and blocks and pack modules share the
+16-pin budget, including retained pins. Definitions and their generated story kinds must fit the
+data-module limits.
 
 In **Settings → Money**, Automatic means no limit: the story decides. Set a number to cap what one reply may give; the money scale is in the folded **Advanced** row. Names and values of coins are set on the same page.
 

@@ -38,7 +38,7 @@ test('generated kinds, a button, a rule and an elapsed timer use the existing in
     const id = 'pack.chat/wessel-s-notes';
     const defined = await host.sdk.command('dm.define', { definition: built.definition });
     assert.equal(defined.ok, true, defined.message);
-    await host.send('Tire.', reply('~ dm wessel-s-notes — walked | kind: change-fatigue | by: 6'));
+    await host.send('Tire.', reply('~ dm wessel-s-notes — walked | kind: set-fatigue | to: 6'));
     assert.equal(view(host, id).chat.fatigue, 6);
     assert.equal(view(host, id).chat.mood, 'tired');
     await host.send('Rest.', 'A quiet moment.');
@@ -68,10 +68,10 @@ test('each generated story kind updates its field through the normal parser', as
     await host.send('Go.', reply(
         '~ dm wessel-s-notes — mood | kind: set-mood | to: wary',
         '~ dm wessel-s-notes — tired | kind: set-fatigue | to: 7',
-        '~ dm wessel-s-notes — rest | kind: change-fatigue | by: -2',
         '~ dm wessel-s-notes — standing | kind: set-standing | to: trusted',
         '~ dm wessel-s-notes — contacts | kind: set-known-contacts | to: Mara; Teo',
     ));
+    await host.send('Rest.', reply('~ dm wessel-s-notes — rest | kind: set-fatigue | to: 5'));
     assert.deepEqual(view(host, 'pack.chat/wessel-s-notes').chat,
         { mood: 'wary', fatigue: 5, standing: 'trusted', 'known-contacts': 'Mara; Teo' });
     await reload(host);
@@ -99,27 +99,22 @@ test('a blank tab name uses the block name and blank numeric input is not zero',
     assert.equal(buildBlock(form).ok, false);
 });
 
-test('a generated numeric change uses the maximum field value for its symmetric label bounds', () => {
+test('a numeric set kind uses the field bounds and does not generate a change kind', () => {
     const form = draft();
     form.fields[1].min = -100;
     form.fields[1].max = 10;
     const built = buildBlock(form);
     assert.equal(built.ok, true, JSON.stringify(built.errors));
-    assert.deepEqual(built.definition.kinds['change-fatigue'].labels.by, { type: 'int', min: -10, max: 10 });
+    assert.deepEqual(built.definition.kinds['set-fatigue'].labels.to, { type: 'int', min: -100, max: 10 });
+    assert.equal(built.definition.kinds['change-fatigue'], undefined);
 });
 
-test('a numeric timer set uses the existing additive interpreter and runs once after elapsed periods', async t => {
+test('timer functions refuse set effects and additions to non-numeric fields', () => {
     const form = draft();
     form.functions = [{ type: 'timer', name: 'Reset', every: 60, effects: [{ field: 'fatigue', op: 'set', value: 4 }] }];
-    const built = buildBlock(form);
-    assert.equal(built.ok, true, JSON.stringify(built.errors));
-    assert.equal(blockDraft(built.checked).functions[0].effects[0].op, 'set');
-    const host = await createHost({ modules: [directorStub()] }); t.after(() => host.close());
-    await host.send('Begin.', 'Opening.');
-    assert.equal((await host.sdk.command('dm.define', { definition: built.definition })).ok, true);
-    await host.send('Wait.', reply('! time 180'));
-    assert.equal(view(host, 'pack.chat/wessel-s-notes').chat.fatigue, 4);
-    await reload(host);
+    assert.match(buildBlock(form).errors[0].message, /only add to a number field/);
+    form.functions[0].effects[0] = { field: 'mood', op: 'add', value: 4 };
+    assert.match(buildBlock(form).errors[0].message, /only add to a number field/);
 });
 
 test('an unchanged timer keeps its partially elapsed interval when a block is redefined', async t => {

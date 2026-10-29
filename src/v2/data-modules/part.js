@@ -31,9 +31,9 @@ const draftOf = ctx => { const draft = ctx.draft('dataModules'); for (const [key
 const stateOf = ctx => ({ domains: { dataModules: ctx.read('dataModules'), director: ctx.read('director'), checks: ctx.read('checks'), rules: ctx.read('rules') } });
 const pairKey = source => `${source.sid}/${source.swipeKey}`;
 const subjectsOf = (state, id) => state.domains.dataModules?.active?.[id]?.subjects ?? [];
-// Preserve older pack-only chats while keeping the shared block/pack limit once a chat block is present.
-const blockChatFull = domain => Object.keys(domain?.active ?? {}).length >= L.definitions
-    && Object.values(domain?.active ?? {}).some(active => domain?.pins?.[active.hash]?.packId === 'chat');
+const activeCount = domain => Object.keys(domain?.active ?? {}).length;
+const blockCount = domain => Object.values(domain?.active ?? {})
+    .filter(active => domain?.pins?.[active.hash]?.packId === 'chat').length;
 const instancePath = (id, subject) => ['instances', id, ...(subject === 'chat' ? ['chat'] : ['characters', subject])];
 const rawDefinition = definition => Object.fromEntries(Object.entries(definition).filter(([key]) => !['id', 'pack'].includes(key)));
 // Clock/actor identities and inputs used for eligibility are live prerequisites even when the
@@ -161,10 +161,10 @@ export function dataModuleGuard(view, info) {
         if (predicate.kind === 'dm.pin' || predicate.kind === 'dm.define') {
             if (domain?.active?.[predicate.module] || recorded.pin.interpreter !== 1 || recorded.pin.definition.id !== predicate.module
                 || hashOf(recorded.pin.definition) !== predicate.hash) return { ok: false, reason: 'Pin selection or checked definition changed.' };
-            if (predicate.kind === 'dm.pin' && blockChatFull(domain)) return { ok: false, reason: 'Block and module limit changed.' };
+            if (activeCount(domain) >= L.pins) return { ok: false, reason: 'Data module limit changed.' };
             if (predicate.kind === 'dm.define' && (recorded.pin.packId !== 'chat' || recorded.pin.packVersion !== '0' || recorded.pin.packHash !== null
                 || recorded.pin.definition.pack !== 'chat' || predicate.module !== `pack.chat/${recorded.pin.definition.slug}` || recorded.pin.definition.scope !== 'chat'
-                || Object.keys(domain?.active ?? {}).length >= L.definitions)) return { ok: false, reason: 'Block selection or chat limit changed.' };
+                || blockCount(domain) >= L.definitions)) return { ok: false, reason: 'Block selection or chat limit changed.' };
             checkedTarget(recorded.pin.definition, view.state);
         } else {
             const active = domain?.active?.[predicate.module];
@@ -281,7 +281,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const draft = draftOf(ctx);
         const old = draft.active[definition.id];
         if (migrate ? !old : Boolean(old)) refuse('DM_SCHEMA', '', migrate ? 'No pin to migrate.' : 'This module is already pinned.');
-        if (!migrate && blockChatFull(prefix.domains.dataModules)) refuse('DM_BUDGET', '', B.limit);
+        if (!migrate && activeCount(prefix.domains.dataModules) >= L.pins) refuse('DM_BUDGET', '', B.limit);
         const generation = (old?.generation ?? 0) + 1;
         const inputs = inputsOf(prefix, definition);
         if (payload.subjects !== undefined && !Array.isArray(payload.subjects)) refuse('DM_SCHEMA', 'subjects', 'Subjects must be a list of SD actor IDs.');
@@ -312,7 +312,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const old = domain?.active?.[module], previous = activeDefinition(prefix, module);
         if (action === 'define') {
             if (old) refuse('DM_SCHEMA', 'slug', B.exists);
-            if (Object.keys(domain?.active ?? {}).length >= L.definitions) refuse('DM_BUDGET', '', B.limit);
+            if (blockCount(domain) >= L.definitions) refuse('DM_BUDGET', '', B.blockLimit);
+            if (activeCount(domain) >= L.pins) refuse('DM_BUDGET', '', B.limit);
         } else if (!previous || previous.pack !== 'chat' || domain.pins[old.hash]?.packId !== 'chat') refuse('REFUSED', 'module', B.chatOnly);
         call.label = previous?.name ?? payload.definition?.name ?? module;
         if (action === 'remove') {
@@ -331,6 +332,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const definition = checked.definitions[0];
         if (definition.scope !== 'chat') refuse('DM_SCHEMA', 'scope', B.chatScope);
         if (action === 'redefine' && definition.id !== module) refuse('DM_SCHEMA', 'slug', B.sameSlug);
+        const slots = Object.keys(definition.state).length + Object.values(definition.kinds).filter(kind => kind.ui).length;
+        if (slots > L.kinds) refuse('DM_BUDGET', 'fields', B.kindLimit);
         dependency(definition, prefix);
         const inputs = inputsOf(prefix, definition), hash = dataModuleHash(definition);
         const generation = Math.max(ctx.rev, (old?.generation ?? 0) + 1);

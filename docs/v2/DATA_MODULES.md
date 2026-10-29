@@ -138,9 +138,8 @@ content from an older installation. `dm.define { definition }` makes a reply-bou
 removes its active instance. All three are direct reader commands. Pack modules cannot be redefined or
 removed through these commands. A redefine carries a value when the field name and type match and the
 value fits the new schema; other fields start at their defaults. Unchanged timers keep their elapsed
-remainder, and existing offer and settlement keys are retained. A new block is refused once eight
-modules are already active. While a chat block is active, a pack module cannot be added as the ninth;
-older pack-only chats retain their earlier 16-pin limit.
+remainder, and existing offer and settlement keys are retained. A chat can have at most eight active
+chat blocks. Pack modules and blocks share the existing 16-pin budget, including retained pins.
 
 Definitions may include `prompt`, a one-line purpose of at most 600 Unicode code points, followed by
 the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may
@@ -149,13 +148,15 @@ carry a plain `label`, and a UI kind may carry a plain `title`, for display. Opt
 `show: { tab, card, tabName, icon }` chooses a block tab and/or Home card; `tabName` is at most 24
 characters and `icon` names an app icon. These keys can also be used by pack definitions.
 
-The editor generates a `set-<field>` story kind for each field, and `change-<field>` for numbers.
-Buttons, rules and timers use the existing effects and expression language. Timer additions aggregate
-the elapsed periods; a numeric timer set is represented as an additive change to the chosen value.
-The existing timer validator does not accept a timer set on a text or choice field. The existing
-16-kind limit also bounds how many generated story kinds fit in a definition. Templates store only
+The editor generates one `set-<field>` story kind per field, including numbers; a numeric `to` label
+uses the field's bounds. A new or redefined block allows at most 16 fields and buttons combined, because
+each uses one kind of the existing 16-kind limit. Rules and timers do not count toward that total. The
+general data-module field ceiling remains 32. Buttons, rules and timers use the existing effects and expression
+language. Timer functions only add to number fields, aggregating the elapsed periods. Templates store only
 definitions in `storySuite.blockTemplates` (at most 16); export validates a normal pack before saving.
 The form opens a definition only when it can reproduce it without discarding other data-module behavior.
+It can also reopen the earlier editor's generated numeric change kinds; saving removes those extra kinds.
+Already pinned definitions and their recorded replies retain their historical behavior until redefined.
 
 ## 3. Lines, checks, templates and time
 

@@ -109,30 +109,6 @@ test('changing a field type uses the new default instead of carrying an incompat
     await reload(host);
 });
 
-test('a new block cannot be defined when eight data modules are already active', async t => {
-    const host = await world(t, pack(Array.from({ length: 8 }, (_, i) => ({ ...definition(), slug: `m${i}` }))));
-    for (let i = 0; i < 8; i++) await pin(host, [], i);
-    const before = structuredClone(host.head());
-    assert.equal((await host.sdk.command('dm.define', { definition: block() })).code, 'DM_BUDGET');
-    assert.deepEqual(host.head(), before);
-});
-
-test('a pack cannot become the ninth active module after a block was made', async t => {
-    const host = await world(t, pack(Array.from({ length: 8 }, (_, i) => ({ ...definition(), slug: `m${i}` }))));
-    await host.send('Begin.', 'Opening.');
-    for (let i = 0; i < 7; i++) await pin(host, [], i);
-    success(await host.sdk.command('dm.define', { definition: block() }));
-    const offer = host.sdk.query('dataModules.offers')[7];
-    const payload = { module: offer.module, hash: offer.hash, packHash: offer.packHash };
-    const before = structuredClone(host.head());
-    assert.equal((await host.sdk.command('dm.pin', payload)).code, 'DM_BUDGET');
-    assert.deepEqual(host.head(), before);
-    await reload(host);
-    success(await host.sdk.command('dm.remove', { module: id }));
-    success(await host.sdk.command('dm.pin', payload));
-    await reload(host);
-});
-
 test('each definition action follows its own reply on swipe and delete', async t => {
     for (const action of ['define', 'redefine', 'remove']) for (const removal of ['swipe', 'delete']) {
         const host = await createHost(); t.after(() => host.close());
@@ -152,16 +128,16 @@ test('each definition action follows its own reply on swipe and delete', async t
     }
 });
 
-test('field and purpose limits are enforced by the block commands', async t => {
+test('block field and purpose limits are enforced by the block commands', async t => {
     const host = await createHost(); t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
     const many = block();
-    many.state = Object.fromEntries(Array.from({ length: 32 }, (_, i) => [`f${i}`, int()]));
+    many.state = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`f${i}`, int()]));
     success(await host.sdk.command('dm.define', { definition: many }));
     const before = structuredClone(host.head());
-    many.state.f32 = int();
+    many.state.f16 = int();
     assert.equal((await host.sdk.command('dm.redefine', { module: id, definition: many })).code, 'DM_BUDGET');
-    delete many.state.f32;
+    delete many.state.f16;
     many.prompt = 'x'.repeat(601);
     assert.equal((await host.sdk.command('dm.redefine', { module: id, definition: many })).ok, false);
     assert.deepEqual(host.head(), before);

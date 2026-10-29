@@ -2,7 +2,7 @@
 import { textField, numberField, selectField } from '../view/form/fields.js';
 import { h, iconNode } from '../view/widgets/dom.js';
 import { hasIcon } from '../view/icons/index.js';
-import { buildBlock } from '../data-modules/block-builder.js';
+import { blockKindCount, buildBlock } from '../data-modules/block-builder.js';
 import { fullModuleGrammar } from '../data-modules/grammar.js';
 import { DM_LIMITS } from '../data-modules/schema.js';
 import { slugify } from '../packs/validate.js';
@@ -37,8 +37,13 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
     }
     const collect = () => { for (const entry of controls) entry.assign(entry.handle.get()); };
     const refresh = () => { collect(); draw(); };
-    function fieldOptions() { return draft.fields.map(field => ({ value: field.key, label: field.name || field.key })); }
-    function newEffect() { return { field: draft.fields[0]?.key ?? '', op: 'set', value: '' }; }
+    function fieldOptions(numbersOnly = false) {
+        return draft.fields.filter(field => !numbersOnly || field.type === 'number')
+            .map(field => ({ value: field.key, label: field.name || field.key }));
+    }
+    function newEffect(type) {
+        return { field: fieldOptions(type === 'timer')[0]?.value ?? '', op: type === 'timer' ? 'add' : 'set', value: '' };
+    }
     function renameField(field, name) {
         const old = field.key, next = slugify(name).slice(0, 32).replace(/-+$/, '');
         field.name = name;
@@ -50,14 +55,17 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         }
     }
     function paintEffects(parent, fn) {
+        const timer = fn.type === 'timer';
+        if (timer && !fieldOptions(true).length) node('p', 'ss-block-hint', S.timerNumber, parent);
         for (const [index, effect] of fn.effects.entries()) {
             const row = node('div', 'ss-block-effect', '', parent);
-            control(row, S.effectField, effect.field, { type: 'choice', options: fieldOptions() }, value => { effect.field = value; }, null);
-            control(row, S.effectAction, effect.op, { type: 'choice', options: [{ value: 'set', label: S.setTo }, { value: 'add', label: S.add }] }, value => { effect.op = value; }, null);
+            control(row, S.effectField, effect.field, { type: 'choice', options: fieldOptions(timer) }, value => { effect.field = value; }, null);
+            control(row, S.effectAction, effect.op, { type: 'choice', options: timer ? [{ value: 'add', label: S.add }]
+                : [{ value: 'set', label: S.setTo }, { value: 'add', label: S.add }] }, value => { effect.op = value; }, null);
             control(row, S.effectValue, effect.value, { type: 'text', max: 240 }, value => { effect.value = value; }, null);
             button(row, S.remove, () => { collect(); fn.effects.splice(index, 1); draw(); });
         }
-        button(parent, S.addStep, () => { collect(); fn.effects.push(newEffect()); draw(); });
+        button(parent, S.addStep, () => { collect(); fn.effects.push(newEffect(fn.type)); draw(); });
     }
     async function submit() {
         if (busy || !alive) return;
@@ -112,6 +120,14 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         }
         const fields = node('section', 'ss-block-fields-editor', '', form);
         node('h4', 'ss-section-label', S.fields, fields);
+        const kindCount = node('p', 'ss-block-kind-count', fill(S.kindCount, { n: blockKindCount(draft) }), fields);
+        kindCount.setAttribute('aria-live', 'polite');
+        const limitError = node('p', 'ss-block-control-error', '', fields); limitError.setAttribute('role', 'alert');
+        const hasKindRoom = () => {
+            if (blockKindCount(draft) < DM_LIMITS.kinds) return true;
+            limitError.textContent = S.kindLimit;
+            return false;
+        };
         for (const [index, field] of draft.fields.entries()) {
             const row = node('div', 'ss-block-field-editor ss-glass', '', fields);
             const fieldName = control(row, S.fieldNameLabel, field.name, { type: 'text', max: 60 }, value => renameField(field, value), `field:${index}`);
@@ -134,7 +150,8 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             const down = button(actions, S.down, () => { collect(); [draft.fields[index + 1], draft.fields[index]] = [draft.fields[index], draft.fields[index + 1]]; draw(); }); down.disabled = index === draft.fields.length - 1;
             button(actions, S.remove, () => { collect(); draft.fields.splice(index, 1); draw(); });
         }
-        button(fields, S.addField, () => { collect(); let n = draft.fields.length + 1; while (draft.fields.some(field => field.key === `field-${n}`)) n++;
+        button(fields, S.addField, () => { collect(); if (!hasKindRoom()) return;
+            let n = draft.fields.length + 1; while (draft.fields.some(field => field.key === `field-${n}`)) n++;
             draft.fields.push({ key: `field-${n}`, name: fill(S.newFieldName, { n }), type: 'text', max: 120, default: '' }); draw(); });
         const purpose = node('section', 'ss-block-purpose', '', form);
         const prompt = control(purpose, S.purpose, draft.prompt, { type: 'text', multiline: true, max: 600 }, value => { draft.prompt = value; }, 'prompt');
@@ -151,10 +168,11 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         node('h4', 'ss-section-label', S.functions, functions);
         const actions = node('div', 'ss-block-function-actions', '', functions);
         for (const [type, label] of [['button', S.addButton], ['rule', S.addRule], ['timer', S.addTimer]]) {
-            const add = button(actions, label, () => { collect(); const n = draft.functions.length + 1;
+            const add = button(actions, label, () => { collect(); if (type === 'button' && !hasKindRoom()) return;
+                const n = draft.functions.length + 1;
                 const kind = type === 'button' ? S.button : type === 'rule' ? S.rule : S.timer;
                 draft.functions.push({ type, name: fill(S.newFunctionName, { type: kind, n }), ...(type === 'rule' ? { when: { field: draft.fields[0]?.key ?? '', op: 'eq', value: '' } } : {}),
-                    ...(type === 'timer' ? { every: 60 } : {}), effects: [newEffect()] }); draw(); });
+                    ...(type === 'timer' ? { every: 60 } : {}), effects: [newEffect(type)] }); draw(); });
             add.disabled = draft.functions.length >= 8 || (type === 'timer' && !directorOn);
         }
         if (!directorOn) node('p', 'ss-block-hint', S.timerNeeds, functions);

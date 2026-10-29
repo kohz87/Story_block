@@ -12,6 +12,8 @@ const problem = (path, message) => ({ ok: false, errors: [{ code: 'DM_SCHEMA', p
 const keyFor = (name, max = 40) => slugify(name).slice(0, max).replace(/-+$/, '');
 const number = value => typeof value === 'number' ? value
     : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+export const blockKindCount = draft => (Array.isArray(draft?.fields) ? draft.fields.length : 0)
+    + (Array.isArray(draft?.functions) ? draft.functions.filter(fn => fn?.type === 'button').length : 0);
 
 export function uniqueBlockSlug(name, used = []) {
     const base = keyFor(name) || 'block';
@@ -42,6 +44,7 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
     const slug = draft.slug ? keyFor(draft.slug) : uniqueBlockSlug(name, used);
     if (!slug) return problem('name', B.blockName);
     if (!Array.isArray(draft.fields)) return problem('fields', B.fieldName);
+    if (blockKindCount(draft) > L.kinds) return problem('fields', B.kindLimit);
     const state = {}, kinds = {};
     for (const [index, field] of draft.fields.entries()) {
         const path = `fields.${index}`, label = oneLine(field?.name), key = keyFor(field?.key || label, 32);
@@ -62,17 +65,13 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         const labelSchema = schema.type === 'int' ? { type: 'int', min: schema.min, max: schema.max }
             : schema.type === 'enum' ? { type: 'enum', values: schema.values } : { type: 'text', max: schema.max };
         kinds[`set-${key}`] = { op: '~', labels: { to: labelSchema }, effects: [{ op: 'set', path: [key], value: ['arg', 'to'] }] };
-        if (schema.type === 'int') {
-            const extent = Math.abs(schema.max);
-            kinds[`change-${key}`] = { op: '~', labels: { by: { type: 'int', min: -extent, max: extent } },
-                effects: [{ op: 'add', path: [key], value: ['arg', 'by'], bounds: 'clamp' }] };
-        }
     }
     const functions = Array.isArray(draft.functions) ? draft.functions : [];
     if (functions.length > 8) return problem('functions', B.functionLimit);
     const rules = [], timers = [];
     for (const [index, fn] of functions.entries()) {
         const path = `functions.${index}`, effects = (Array.isArray(fn.effects) ? fn.effects : []).map(effect => effectOf(effect, state));
+        if (fn.type === 'timer' && effects.some(effect => !effect || effect.op !== 'add')) return problem(`${path}.effects`, B.timerNumber);
         if (!effects.length || effects.some(effect => !effect)) return problem(`${path}.effects`, B.chooseFunction);
         const key = keyFor(fn.name || `${fn.type}-${index + 1}`, 32);
         if (!key) return problem(`${path}.name`, B.chooseFunction);
@@ -85,12 +84,8 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
             if (!schema || !['eq', 'ne', 'lt', 'gt', 'le', 'ge'].includes(condition?.op)) return problem(`${path}.when`, B.chooseField);
             const value = schema.type === 'int' ? number(condition.value) : condition.value;
             rules.push({ id: key, when: [condition.op, ['get', [condition.field]], value], then: effects });
-        } else if (fn.type === 'timer') timers.push({ id: key, clock: 'clock', every: number(fn.every), effects: effects.map(effect => {
-            if (effect.op === 'add') return { ...effect, value: ['mul', ['timer', 'periods'], effect.value] };
-            if (effect.op === 'set' && state[effect.path[0]]?.type === 'int') return { op: 'add', path: effect.path,
-                value: ['sub', effect.value, ['get', effect.path]], bounds: 'clamp' };
-            return effect;
-        }) });
+        } else if (fn.type === 'timer') timers.push({ id: key, clock: 'clock', every: number(fn.every),
+            effects: effects.map(effect => ({ ...effect, value: ['mul', ['timer', 'periods'], effect.value] })) });
         else return problem(`${path}.type`, B.chooseFunction);
     }
     const show = draft.show ?? { tab: true, card: false, tabName: '', icon: 'ph-bookmark-simple' };
@@ -128,5 +123,16 @@ export function editableBlockDraft(definition) {
     const { id, pack, ...raw } = definition ?? {};
     const original = validateDataModules([raw], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'] });
     const draft = blockDraft(definition), rebuilt = buildBlock(draft);
-    return original.ok && rebuilt.ok && hashJson(rebuilt.checked) === hashJson(original.definitions[0]) ? draft : null;
+    if (!original.ok || !rebuilt.ok) return null;
+    if (hashJson(rebuilt.checked) === hashJson(original.definitions[0])) return draft;
+    // Earlier editor versions generated one additional numeric change kind. Recognize only that
+    // exact form, so opening an old block does not discard unrelated authored behavior.
+    const legacy = { ...rebuilt.definition, kinds: { ...rebuilt.definition.kinds } };
+    for (const [key, schema] of Object.entries(legacy.state)) if (schema.type === 'int') {
+        const extent = Math.abs(schema.max);
+        legacy.kinds[`change-${key}`] = { op: '~', labels: { by: { type: 'int', min: -extent, max: extent } },
+            effects: [{ op: 'add', path: [key], value: ['arg', 'by'], bounds: 'clamp' }] };
+    }
+    const checkedLegacy = validateDataModules([legacy], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'] });
+    return checkedLegacy.ok && hashJson(checkedLegacy.definitions[0]) === hashJson(original.definitions[0]) ? draft : null;
 }

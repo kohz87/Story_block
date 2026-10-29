@@ -8,6 +8,7 @@
 - The count editor adds or removes separate non-stacking pieces without removing equipped items. Data-module edits run rules and guard the imported inputs they use.
 - Item edits and drops that no longer apply after a Re-read stay off and appear in Problems.
 - Add chat blocks with editable fields, story lines, buttons, rules, timers, tabs and Home cards. Their definitions follow the reply that saved them.
+- Allow up to eight chat blocks within the shared 16-pin budget. Each block field has one set story line, fields and buttons share 16 slots, and timers add to number fields.
 - Save block definitions as templates or export them as packs; standalone Studio layouts can appear as tabs.
 
 ## 2.6.1
