@@ -58,8 +58,8 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const foldButtons = stack => (foldOf(el, stack)?.querySelectorAll('button:not(.fold-cancel)') ?? []).map(button => text(button));
 
     // The action row holds the plain actions; Drop's choices are a fold row under it, shown only once Drop is chosen.
-    assert.deepEqual(buttons(item('Dagger')), ['Unequip']);
-    assert.deepEqual(buttons(item('Iron Sword')), ['Equip']);
+    assert.deepEqual(buttons(item('Dagger')), ['', '', '', 'Unequip']);
+    assert.deepEqual(buttons(item('Iron Sword')), ['', '', '', 'Equip']);
     assert.deepEqual(foldButtons('it_rope0001'), [], 'closed until Drop is chosen');
     openFold(el, 'it_rope0001', 'drop');
     assert.deepEqual(foldButtons('it_rope0001'), ['Drop 1', 'Drop all 3']);

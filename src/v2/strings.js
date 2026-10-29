@@ -177,6 +177,9 @@ export const STRINGS = deepFreeze({
             common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary',
         },
         walletTitle: 'The party\'s money',
+        addItem: '+ Add item', itemName: 'Item name', itemCount: 'Count', itemNote: 'Note', save: 'Save',
+        countError: 'Enter a whole number of at least 1.', addError: 'Could not add this item.',
+        editName: 'item name', editCount: 'item count', editNote: 'item note', editPurse: 'purse',
         filterLabel: 'Filter the inventory',
         find: 'Filter…',
         findTitle: 'Show only things whose name has this text',
@@ -220,6 +223,7 @@ export const STRINGS = deepFreeze({
 
     // `story-block/scene`.
     scene: {
+        editPlace: 'place', editWeather: 'weather', editPresent: 'people present',
         title: 'Scene',
         unnamed: 'Somewhere not yet named',
         here: 'Here',

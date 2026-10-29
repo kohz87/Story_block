@@ -31,7 +31,7 @@ test('a number edit focuses, refuses empty or fractional input, clamps, and retu
     await settle();
     assert.deepEqual(calls, [['dm.set', { field: 'rank', value: 10 }]]);
     assert.equal(m.doc.activeElement, m.pencil);
-    assert.ok(m.el.querySelector('.ss-w-editable-form').hidden);
+    assert.equal(m.el.querySelector('.ss-w-editable-form'), null);
     m.handle.destroy();
 });
 
@@ -49,7 +49,7 @@ test('a refusal stays open, Escape cancels, and text is cut by code point', asyn
     assert.equal(m.el.querySelector('.ss-w-editable-form').hidden, false);
     input.dispatch('keydown', { key: 'Escape' });
     assert.equal(m.doc.activeElement, m.pencil);
-    assert.equal(m.el.querySelector('.ss-w-editable-form').hidden, true);
+    assert.equal(m.el.querySelector('.ss-w-editable-form'), null);
 });
 
 test('list chips remove and add entries; without a command the pencil is hidden', async () => {

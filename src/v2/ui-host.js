@@ -62,6 +62,7 @@ import { createInspectorWidget, INSPECTOR_WIDGET } from './screens/inspector.js'
 import { createSavePointsWidget, SAVEPOINTS_WIDGET } from './screens/savepoints.js';
 import { createReadyHintWidget, READY_HINT_WIDGET } from './screens/ready-hint.js';
 import { createShowMoreWidget, SHOW_MORE_WIDGET } from './screens/show-more.js';
+import { createInventoryAddWidget, INVENTORY_ADD_WIDGET } from './screens/inventory-add.js';
 import { buildReport, captureConsole, caughtSoFar, reportFileName } from './diagnostics.js';
 import { createThemeBridge } from './view/theme.js';
 import { activeNow } from './view/mounts/common.js';
@@ -177,6 +178,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         // Home's "Before you start" while a module's canGenerate holds the story back (MODULES §F12).
         // A long card's "Show all" / "Show less" (screens/show-more.js).
         [SHOW_MORE_WIDGET]: createShowMoreWidget(),
+        [INVENTORY_ADD_WIDGET]: createInventoryAddWidget(),
         [READY_HINT_WIDGET]: createReadyHintWidget({
             blockers: () => (typeof runtime.turn?.blockers === 'function' ? runtime.turn.blockers() : []),
             unblock: (moduleId, reason) => runtime.turn?.unblock?.(moduleId, reason) ?? false,

@@ -42,3 +42,19 @@ test('a purse edit is a counted difference and survives rebuild, reload and unch
     await host.swipe('Nothing.');
     assert.equal(host.sdk.query('inventory.wallet').coin ?? 0, 0);
 });
+
+test('the purse pencil parses mixed coins before sending the command', async () => {
+    const { homeScreen } = await import('../../../src/v2/screens/home.js');
+    const { queries, show, settle } = await import('../screens/helpers.js');
+    const module = core({}, { coins: [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }] });
+    const state = stocked(module);
+    const { el, calls } = show(homeScreen, { state, query: queries(module, state) });
+    const pencil = el.querySelector('.wallet .ss-w-editable-pencil');
+    pencil.click();
+    const input = el.querySelector('.wallet .ss-w-editable-form input');
+    input.value = '3 silver 5 copper';
+    el.querySelector('.wallet .ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls.at(-1).slice(0, 2), ['wallet.set', { amount: 35 }]);
+    assert.deepEqual(parseMixedAmount('0 gold'), { amount: 0 });
+});

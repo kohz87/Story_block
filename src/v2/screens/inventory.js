@@ -1,7 +1,8 @@
 // Inventory shows the wallet, items, loot and bag actions.
 
 import { KIND_ORDER, RARITIES } from '../domains/inventory.js';
-import { STRINGS, html } from '../strings.js';
+import { STRINGS, html, jsonText } from '../strings.js';
+import { INVENTORY_ADD_WIDGET } from './inventory-add.js';
 import { BASE_CSS, RARITY_THEME } from './style.js';
 
 export const INVENTORY_SCREEN_ID = 'story-block/inventory';
@@ -50,6 +51,9 @@ function group(kind) {
         <div class="body">
         <div class="line">
           <span class="name">{{ it.name }}</span>
+          <ss-widget name="ss.editable" data-props='{"value":"{{ it.name }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editName)}","command":"inventory.edit","valueKey":"name","payload":{"stack":"{{ it.stack }}"}}'></ss-widget>
+          <ss-widget name="ss.editable" data-props='{"value":{{ it.qty }},"displayValue":false,"kind":"number","min":1,"label":"${jsonText(S.editCount)}","command":"inventory.edit","valueKey":"qty","payload":{"stack":"{{ it.stack }}"}}'></ss-widget>
+          <ss-widget name="ss.editable" data-props='{"value":"{{ it.note }}","displayValue":false,"maxLength":300,"label":"${jsonText(S.editNote)}","command":"inventory.edit","valueKey":"note","payload":{"stack":"{{ it.stack }}"}}'></ss-widget>
           <span class="chip eq worn-by" data-if="it.equipped != null && it.owner == 'party'" title="${html(S.equippedTitle)}">${html(S.wornByParty)}</span>
           <span class="chip key" data-if="it.key" title="${html(S.keyTitle)}">${html(S.key)}</span>
           <span class="chip carry" data-if="it.carry" title="${html(S.carryTitle)}">+{{ it.carry }} ${html(S.carry)}</span>
@@ -89,6 +93,8 @@ const TEMPLATE = `
       <span><span data-if="q.wallet.coin == 1">{{ q.currency.name }}</span><span data-if="q.wallet.coin != 1">{{ q.currency.plural }}</span></span></span>
       <span data-if="len(q.currency.coins) > 0"><b data-if="q.wallet.coin">{{ fmt.money(q.wallet.coin) }}</b><b data-if="!q.wallet.coin">{{ fmt.money(0) }}</b></span>
     </div>
+    <ss-widget name="ss.editable" data-props='{"value":{{ q.wallet.coin }},"displayValue":false,"money":true,"currency":{{ q.currency }},"label":"${jsonText(S.editPurse)}","command":"wallet.set","valueKey":"amount"}'></ss-widget>
+    <ss-widget name="${INVENTORY_ADD_WIDGET}"></ss-widget>
     <div class="filter" role="search" aria-label="${html(S.filterLabel)}" data-if="len(q.items) > 0">
       <input type="search" class="find" data-draft="find" placeholder="${html(S.find)}" title="${html(S.findTitle)}"
              aria-label="${html(S.findTitle)}" autocomplete="off">
@@ -130,6 +136,9 @@ const CSS = `${BASE_CSS}
 .top { display: flex; flex-wrap: wrap; gap: var(--sb-gap); align-items: center; justify-content: space-between; }
 .wallet { display: inline-flex; gap: 6px; align-items: baseline; font-size: 1.05em; }
 .wallet i { color: var(--sb-accent); }
+.inv-add-form { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.inv-add-form input { width: 10em; max-width: 100%; }
+.inv-add-error { flex-basis: 100%; color: var(--ss-bad-text); }
 .filter { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 0.85em; }
 .filter label { display: inline-flex; gap: 4px; align-items: center; }
 .filter select, .filter .find { font: inherit; color: var(--sb-fg); background: var(--sb-surface); border: 1px solid var(--sb-border);

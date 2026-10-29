@@ -42,3 +42,23 @@ test('scene edits rebuild, reload and disappear on a swipe', async t => {
     assert.equal(host.head().domains.scene.place.name, '');
     assert.equal(host.head().domains.scene.weather, undefined);
 });
+
+test('scene pencils send a place, the weather and a list of people', async () => {
+    const { sceneScreen } = await import('../../../src/v2/screens/scene.js');
+    const { queries, sceneState, show, settle } = await import('../screens/helpers.js');
+    const module = core();
+    const state = sceneState(module);
+    const { el, calls } = show(sceneScreen, { state, query: queries(module, state) });
+    const place = el.querySelector('.place-title .ss-w-editable');
+    place.querySelector('button').click();
+    place.querySelector('input').value = 'Grey Shoals';
+    place.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls.at(-1).slice(0, 2), ['scene.place', { with: ['Fenna', 'Old Tam'], name: 'Grey Shoals' }]);
+    const people = el.querySelector('.present .ss-w-editable');
+    people.querySelector('button').click();
+    people.querySelector('input').value = 'Mira';
+    people.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.deepEqual(calls.at(-1).slice(0, 2), ['scene.present', { set: ['Fenna', 'Old Tam', 'Mira'] }]);
+});

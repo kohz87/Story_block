@@ -37,15 +37,17 @@ const TEMPLATE = `
 
   <section class="panel scene">
     <h4 class="ss-section-label"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> ${html(S.where)}</h4>
-    <p class="place"><b data-if="q.place.name">{{ q.place.name }}</b><span class="muted" data-if="!q.place.name">${html(S.unnamed)}</span><span class="muted" data-if="q.place.region"> · {{ q.place.region }}</span></p>
+    <p class="place"><b data-if="q.place.name">{{ q.place.name }}</b><span class="muted" data-if="!q.place.name">${html(S.unnamed)}</span><span class="muted" data-if="q.place.region"> · {{ q.place.region }}</span><ss-widget name="ss.editable" data-props='{"value":"{{ q.place.name }}","displayValue":false,"options":{{ q.places }},"label":"${jsonText(STRINGS.scene.editPlace)}","command":"scene.place","valueKey":"name","payload":{"with":{{ q.present }}}}'></ss-widget></p>
     <p class="time muted" data-if="state.director.time.minutes != null"><i class="fa-regular fa-clock" aria-hidden="true"></i> {{ fmt.time(state.director.time.minutes) }}</p>
-    <p class="weather muted" data-if="q.weather.text"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}</p>
-    <p class="here" data-if="len(q.present) > 0"><span class="muted">${html(S.here)}</span> {{ q.present }}</p>
+    <p class="weather muted" data-if="q.weather.text"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> {{ q.weather.text }}<ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
+    <p data-if="!q.weather.text"><ss-widget name="ss.editable" data-props='{"value":"{{ q.weather.text }}","displayValue":false,"maxLength":60,"label":"${jsonText(STRINGS.scene.editWeather)}","command":"scene.weather","valueKey":"text"}'></ss-widget></p>
+    <p class="here" data-if="len(q.present) > 0"><span class="muted">${html(S.here)}</span> {{ q.present }}<ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
+    <p data-if="len(q.present) == 0"><ss-widget name="ss.editable" data-props='{"value":{{ q.present }},"displayValue":false,"kind":"list","maxLength":80,"label":"${jsonText(STRINGS.scene.editPresent)}","command":"scene.present","valueKey":"set"}'></ss-widget></p>
   </section>
 
   <section class="panel purse">
     <h4 class="ss-section-label"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i> ${html(S.purse)}</h4>
-    <p class="wallet"><span data-if="len(q.currency.coins) == 0"><b data-if="q.wallet.coin">{{ q.wallet.coin }}</b><b data-if="!q.wallet.coin">0</b> <span data-if="q.wallet.coin == 1">{{ q.currency.name }}</span><span data-if="q.wallet.coin != 1">{{ q.currency.plural }}</span></span><span data-if="len(q.currency.coins) > 0"><b data-if="q.wallet.coin">{{ fmt.money(q.wallet.coin) }}</b><b data-if="!q.wallet.coin">{{ fmt.money(0) }}</b></span>
+    <p class="wallet"><span data-if="len(q.currency.coins) == 0"><b data-if="q.wallet.coin">{{ q.wallet.coin }}</b><b data-if="!q.wallet.coin">0</b> <span data-if="q.wallet.coin == 1">{{ q.currency.name }}</span><span data-if="q.wallet.coin != 1">{{ q.currency.plural }}</span></span><span data-if="len(q.currency.coins) > 0"><b data-if="q.wallet.coin">{{ fmt.money(q.wallet.coin) }}</b><b data-if="!q.wallet.coin">{{ fmt.money(0) }}</b></span><ss-widget name="ss.editable" data-props='{"value":{{ q.wallet.coin }},"displayValue":false,"money":true,"currency":{{ q.currency }},"label":"${jsonText(STRINGS.inventory.editPurse)}","command":"wallet.set","valueKey":"amount"}'></ss-widget>
       <span class="muted"> · {{ len(q.items) }} <span data-if="len(q.items) == 1">${html(S.thing)}</span><span data-if="len(q.items) != 1">${html(S.things)}</span> ${html(S.carried)}</span></p>
     <ul class="worn">
       <li data-each="q.items as it" data-if="it.equipped != null"><span class="chip"><i class="fa-solid fa-check" aria-hidden="true"></i> {{ it.name }}</span></li>
@@ -133,6 +135,7 @@ export const homeScreen = Object.freeze({
     mounts: Object.freeze(['screen']),
     data: Object.freeze({
         place: Object.freeze({ query: 'scene.place' }),
+        places: Object.freeze({ query: 'packs.content', args: Object.freeze({ kind: 'places' }) }),
         present: Object.freeze({ query: 'scene.present' }),
         weather: Object.freeze({ query: 'scene.weather' }),
         items: Object.freeze({ query: 'inventory.items' }),

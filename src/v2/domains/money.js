@@ -235,6 +235,8 @@ export function parseMixedAmount(text, currency = DEFAULT_CURRENCY) {
     const input = String(text ?? '').trim();
     if (!input) return { error: 'Enter an amount of money.' };
     if (/^0+$/.test(input)) return { amount: 0 };
+    const zero = /^0+\s+(.+)$/.exec(input);
+    if (zero && coinValue(zero[1], currency)) return { amount: 0 };
     if (!coinList(currency).length) return parseAmount(input, currency);
     if (/[^\p{L}\s0-9,'-]/u.test(input) || /[-']\s*\d/.test(input)) return { error: 'Enter whole amounts of the coins used here.' };
     const parts = [...input.matchAll(/(?:^|\s)(\d[\d,]*)(?:\s+)([^\d]+?)(?=\s+\d|$)/gu)];

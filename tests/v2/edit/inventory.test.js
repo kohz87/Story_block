@@ -79,3 +79,31 @@ test('an item edit agrees live, rebuilt, and reloaded and goes with a swipe', as
     await host.swipe('Nothing here.');
     assert.deepEqual(host.sdk.query('inventory.items'), []);
 });
+
+test('inventory pencils and Add item send reader commands from their inline forms', async () => {
+    const { inventoryScreen } = await import('../../../src/v2/screens/inventory.js');
+    const { queries, show, settle } = await import('../screens/helpers.js');
+    const module = core();
+    const state = stocked(module);
+    const { el, calls } = show(inventoryScreen, { state, query: queries(module, state) });
+    const rope = el.querySelectorAll('.item').find(row => row.querySelector('.name').textContent === 'Rope');
+    const pencils = rope.querySelectorAll('.ss-w-editable-pencil');
+    assert.equal(pencils.length, 3);
+    pencils[1].click();
+    const input = rope.querySelector('.ss-w-editable-form input');
+    input.value = '7';
+    input.dispatch('input');
+    rope.querySelector('.ss-w-editable-save').click();
+    await settle();
+    assert.equal(calls[0][0], 'inventory.edit');
+    assert.equal(calls[0][1].qty, 7);
+    const add = el.querySelector('.ss-w-inventory-add');
+    add.querySelector('button').click();
+    const inputs = add.querySelectorAll('input');
+    inputs[0].value = 'Tinder';
+    inputs[1].value = '2';
+    inputs[2].value = 'dry';
+    add.querySelector('.inv-add-form .ss-button-primary').click();
+    await settle();
+    assert.deepEqual(calls.at(-1).slice(0, 2), ['inventory.add', { name: 'Tinder', qty: 2, note: 'dry' }]);
+});

@@ -2,6 +2,8 @@
 // dynamically, so these tests skip with a reason on a tree that does not have it yet), the core module's
 // queries over a state, extra fake module queries, and a renderer for one screen.
 import { resolveData } from '../../../src/v2/view/screens.js';
+import { standardWidgets } from '../../../src/v2/view/widgets/index.js';
+import { createInventoryAddWidget, INVENTORY_ADD_WIDGET } from '../../../src/v2/screens/inventory-add.js';
 import { compile, evaluate } from '../../../src/v2/events/index.js';
 import { installFakeDom } from '../../ui-fake-dom.js';
 import { core, stocked } from '../domains/fixtures.js';
@@ -78,7 +80,7 @@ export function show(screen, { state, query, changes = [], draft = undefined, wi
     if (draft !== undefined) scope.draft = draft;
     const view = template.renderTemplate(el, compiled, scope, {
         evaluate: bind.conditionEvaluator({ compile, evaluate }),
-        widgets,
+        widgets: { ...standardWidgets, [INVENTORY_ADD_WIDGET]: createInventoryAddWidget(), ...widgets },
         command: async (type, payload, options) => {
             calls.push([type, payload, options]);
             return command ? command(type, payload, options) : { ok: true };

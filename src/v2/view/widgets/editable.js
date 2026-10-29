@@ -1,5 +1,6 @@
 // An inline reader edit. The value is displayed as text; saving sends one ordinary UI command.
 import { oneLine } from '../../../text.js';
+import { formatAmount, parseMixedAmount } from '../../domains/money.js';
 import { STRINGS, fill } from '../../strings.js';
 import { h, iconNode, shell } from './dom.js';
 import { defineWidget, resolveProps } from './props.js';
@@ -16,8 +17,13 @@ const props = {
     command: { type: 'string', default: '' },
     payload: { type: 'object', default: Object.freeze({}) },
     valueKey: { type: 'string', default: 'value' },
+    displayValue: { type: 'boolean', default: true },
+    money: { type: 'boolean', default: false },
+    currency: { type: 'object', default: Object.freeze({}) },
 };
 const cut = (value, max) => [...oneLine(value)].slice(0, Math.max(0, Math.floor(max))).join('');
+
+let nextOptions = 0;
 
 function render(el, input, api) {
     return shell(el, 'span', 'editable', ({ doc, root, listen }) => {
@@ -36,7 +42,7 @@ function render(el, input, api) {
         const error = h(doc, 'span', 'ss-w-editable-error');
         error.setAttribute('role', 'alert');
         form.append(chips, fieldSlot, add, save, cancel, error);
-        root.append(shown, pencil, form);
+        root.append(shown, pencil);
         let p = resolveProps(props, input);
         let field = null;
         let entries = [];
@@ -60,12 +66,13 @@ function render(el, input, api) {
         function draw() {
             const list = p.kind === 'list';
             const value = list && Array.isArray(p.value) ? p.value.join(', ') : String(p.value ?? '');
-            shown.textContent = value;
+            shown.textContent = p.displayValue ? value : '';
             pencil.hidden = editing || !p.command || typeof api?.command !== 'function';
             pencil.setAttribute('aria-label', fill(E.edit, { label: p.label || E.value }));
             pencil.setAttribute('title', fill(E.edit, { label: p.label || E.value }));
-            shown.hidden = editing;
-            form.hidden = !editing;
+            shown.hidden = editing || !p.displayValue;
+            if (editing && form.parentNode !== root) root.appendChild(form);
+            else if (!editing && form.parentNode === root) form.remove();
         }
 
         function open() {
@@ -91,8 +98,19 @@ function render(el, input, api) {
                 option.value = String(value ?? '');
                 field.appendChild(option);
             }
-            field.value = p.kind === 'list' ? '' : String(p.value ?? '');
-            fieldSlot.replaceChildren(field);
+            if (!choice && p.options.length) {
+                const suggestions = h(doc, 'datalist', 'ss-w-editable-options');
+                const id = `ss-editable-options-${++nextOptions}`;
+                suggestions.id = id;
+                field.setAttribute('list', id);
+                for (const item of p.options) {
+                    const option = h(doc, 'option');
+                    option.value = String(typeof item === 'object' && item !== null ? item.value ?? item.name ?? '' : item);
+                    suggestions.appendChild(option);
+                }
+                fieldSlot.replaceChildren(field, suggestions);
+            } else fieldSlot.replaceChildren(field);
+            field.value = p.kind === 'list' ? '' : p.money ? formatAmount(p.value ?? 0, p.currency) : String(p.value ?? '');
             chips.hidden = p.kind !== 'list';
             add.hidden = p.kind !== 'list';
             drawChips();
@@ -121,9 +139,16 @@ function render(el, input, api) {
                 if (p.min !== null) value = Math.max(p.min, value);
                 if (p.max !== null) value = Math.min(p.max, value);
                 field.value = String(value);
+            } else if (p.money) {
+                const parsed = parseMixedAmount(field.value, p.currency);
+                if (parsed.error) { error.textContent = parsed.error; return; }
+                value = parsed.amount;
             } else if (p.kind === 'list') {
                 addEntry();
                 value = [...entries];
+            } else if (p.kind === 'choice') {
+                const selected = p.options.find(item => String(typeof item === 'object' && item !== null ? item.value : item) === field.value);
+                value = typeof selected === 'object' && selected !== null ? selected.value : selected;
             } else value = cut(field.value, p.maxLength);
             if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(p.valueKey) || ['constructor', 'prototype', '__proto__'].includes(p.valueKey)) return;
             busy = true;
