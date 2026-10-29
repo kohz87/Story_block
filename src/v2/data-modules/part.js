@@ -8,6 +8,7 @@ import { hashJson } from '../replay.js';
 import { diff } from '../ops.js';
 import { moduleGrammar, referenceOf } from './grammar.js';
 import { oneLine } from '../../text.js';
+import { editableLayout } from './editable-layout.js';
 
 const initial = () => ({ pins: {}, active: {}, instances: {}, perReply: {} });
 // A frozen value (a branch of the state) never changes, so what is worked out from it is kept with it. No game state is cached:
@@ -84,9 +85,13 @@ export function moduleView(state, { module } = {}) {
 export function pinnedPresentation(state, kind = 'screens') {
     return Object.keys(state?.domains?.dataModules?.active ?? {}).flatMap(id => {
         const definition = activeDefinition(state, id);
-        const screens = (definition?.[kind] ?? []).map(entry => ({ ...copy(entry), pack: `dm:${id}` }));
+        const screens = (definition?.[kind] ?? []).map(entry => {
+            const screen = copy(entry);
+            if (kind === 'screens' && screen.layout) screen.layout = editableLayout(screen.layout, definition);
+            return { ...screen, pack: `dm:${id}` };
+        });
         if (kind === 'screens') for (const { id: layoutId, title, icon, ...layout } of definition?.layouts ?? []) {
-            if (!screens.some(screen => screen.id === layoutId)) screens.push({ id: layoutId, title, ...(icon ? { icon } : {}), mounts: ['tab'], layout: copy(layout), pack: `dm:${id}` });
+            if (!screens.some(screen => screen.id === layoutId)) screens.push({ id: layoutId, title, ...(icon ? { icon } : {}), mounts: ['tab'], layout: editableLayout(copy(layout), definition), pack: `dm:${id}` });
         }
         return screens;
     });

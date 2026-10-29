@@ -91,3 +91,31 @@ test('data-module template editables may address only their own editable fields'
         assert.equal(validatePack(pack([d])).ok, false, JSON.stringify(props));
     }
 });
+
+test('a pinned layout puts pencils beside displayed editable fields', async t => {
+    const { fixture } = await import('../data-modules/helpers.js');
+    const { renderLayout } = await import('../../../src/v2/layout/index.js');
+    const { standardWidgets } = await import('../../../src/v2/view/widgets/index.js');
+    const { setupDom } = await import('../view/mounts/helpers.js');
+    const host = await world(t, fixture('reputation'));
+    const offer = await pin(host);
+    const screen = host.sdk.query('dataModules.presentation', { kind: 'screens' })[0];
+    const doc = setupDom();
+    const el = doc.createElement('div');
+    doc.body.appendChild(el);
+    const calls = [];
+    const rendered = renderLayout(el, { id: screen.id, root: screen.layout.root }, {
+        query: (name, args) => host.sdk.query(name, args), widgets: standardWidgets,
+        command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; },
+    });
+    assert.deepEqual(rendered.problems, []);
+    const pencils = el.querySelectorAll('.ss-w-editable-pencil');
+    assert.ok(pencils.length >= 3);
+    pencils[0].click();
+    const input = el.querySelector('.ss-w-editable-form input');
+    input.value = '5';
+    el.querySelector('.ss-w-editable-save').click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls[0], ['dm.set', { module: offer.module, field: 'standing', key: 'guild', value: 5 }]);
+    rendered.dispose();
+});
