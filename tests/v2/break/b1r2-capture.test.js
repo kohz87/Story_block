@@ -66,6 +66,13 @@ test('a 150-line reply after five such replies stays near the plain-capture base
     const ms = await timedCapture(() => host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`))));
     t.diagnostic(`plain baseline ${Math.round(baseline)} ms; sixth reply ${Math.round(ms)} ms`);
     assertCaptureTiming(ms, baseline);
+    // Use the actual measurements from this run to prove the threshold catches a threefold
+    // slowdown. Advance a test clock rather than sleeping on already slow machines.
+    let clock = 0;
+    const slowed = await timedCapture(() => { clock += ms; }, {
+        now: () => clock, delayMs: 2 * ms, delay: async delay => { clock += delay; },
+    });
+    assert.throws(() => assertCaptureTiming(slowed, baseline), /baseline|backstop/);
 });
 
 // B-b1r2-10: the story money tally is keyed by ctx.carrier.key ("index:swipe"), which moves when
