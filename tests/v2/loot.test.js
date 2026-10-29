@@ -244,17 +244,19 @@ test('the reader cannot lay out loot from a button; the line wants ?; with the f
     const module = core();
     const h = createHarness([module], { state: stocked(module) });
     const carrier = { index: 3, swipe: 0, sid: 'sid-test-1', key: '3:0' };
-    const ok = h.capture(line('?', 'loot', 'Torch, Map'), { extra: { carrier } });
+    // (the offer and the take attach their guards: the harness has no store, so the guards are caught here)
+    const guards = [];
+    const guarded = { replayGuard: guard => guards.push(guard), epoch: 'ep_00000000', hash: value => JSON.stringify(value) };
+    const ok = h.capture(line('?', 'loot', 'Torch, Map'), { extra: { carrier, ...guarded } });
     assert.equal(ok.ok, true, ok.message);
+    assert.deepEqual(guards.map(guard => [guard.predicate, guard.replyBound]), [[{ kind: 'loot.offer', sid: 'sid-test-1' }, true]], 'the offer goes with its reply');
     assert.equal(h.capture(line('+', 'loot', 'Torch'), { extra: { carrier } }).code, 'INVALID');
     assert.equal(h.capture(line('?', 'loot', 'Torch')).code, 'REFUSED', 'no reply to keep it on');
     const off = h.capture(line('?', 'loot', 'Torch'), { extra: { carrier, feature: id => id !== 'story-block.loot' } });
     assert.deepEqual([off.ok, off.code], [false, 'FEATURE_OFF']);
     const taken = h.run('inventory.lootTake', { sid: 'sid-test-1', pick: [0] }, { extra: { feature: () => false } });
     assert.equal(taken.code, 'FEATURE_OFF');
-    // (the take attaches its guard: the harness has no store, so the guard is caught here)
-    const guards = [];
-    const guarded = { replayGuard: guard => guards.push(guard), epoch: 'ep_00000000', hash: value => JSON.stringify(value) };
+    guards.length = 0;
     assert.equal(h.run('inventory.lootTake', { sid: 'sid-test-1', pick: [0] }, { extra: guarded }).ok, true);
     assert.deepEqual(guards.map(guard => guard.predicate), [{ kind: 'loot.take', sid: 'sid-test-1', claim: 'loot:sid-test-1', items: [{ name: 'Torch', qty: 1 }], coin: 0 }]);
     assert.equal(typeof captureLoot, 'function');

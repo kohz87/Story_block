@@ -211,9 +211,11 @@ export function blocksOf(record) {
     return spannedBlocks(record).map(entry => entry.ops);
 }
 
-/** Whether a guarded block may apply on `state` (the state before it): a loot take whose offer still holds what it took (above). */
+/** Whether a guarded block may apply on `state` (the state before it): a loot offer (reply-bound, so it stands while its reply
+ * does, and the oracle reads only the replies there are), or a loot take whose offer still holds what it took (above). */
 export function guardHolds(state, guard) {
     const predicate = guard?.predicate;
+    if (predicate?.kind === 'loot.offer') return guard.replyBound === true;
     if (predicate?.kind !== 'loot.take') return false;
     const offer = at(state, ['domains', 'inventory', 'loot', String(predicate.sid)]);
     if (!record(offer) || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return false;
@@ -290,7 +292,9 @@ export function checkInvariants(host, label) {
         const validate = (state, names) => validateDomains(state, names);
         // And the inventory's per-reply tally and the scene's weather as the scratch they are declared to be (ops.js).
         const scratch = name => (name === 'inventory' ? ['perReply', 'loot', 'condLog'] : name === 'scene' ? ['weather'] : []);
-        const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate, scratch });
+        // (one copy, read as the same array every time, as SillyTavern's chat is: a reply-bound block is told by its message)
+        const copy = structuredClone(chat);
+        const fresh = createStore({ chat: () => copy, save: async () => {}, validate, scratch });
         fresh.attachGuard((state, { guard }) => (guardHolds(state, guard) ? { ok: true } : { ok: false, reason: 'its guard does not hold' }));
         assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
     }
