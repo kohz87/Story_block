@@ -90,3 +90,20 @@ test('a count of separate pieces stays off when that group changes on Re-read', 
     assert.ok(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE'));
     const live = structuredClone(host.head()); host.store.rebuild(); assert.deepEqual(host.head(), live);
 });
+
+test('a large existing group records a bounded guard when reduced to the cap', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    assert.equal((await host.packs.packs.install({ id: 'pieces', version: '1.0.0', requires: { storyBlock: '^2' },
+        content: { items: [{ name: 'Lantern', stack: false }] } })).ok, true);
+    await host.send('Begin.', 'A reply.');
+    for (let i = 0; i < 3; i++) {
+        const added = await host.sdk.command('inventory.add', { name: 'Lantern', qty: 50 });
+        assert.equal(added.ok, true, added.message);
+    }
+    const stack = host.sdk.query('inventory.items')[0].stack;
+    const result = await host.sdk.command('inventory.edit', { stack, group: true, qty: 50 });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(host.sdk.query('inventory.items').length, 50);
+    assert.match(result.receipt.data.v2.guard.predicate.pieces, /^[a-f0-9]{64}$/);
+    const live = structuredClone(host.head()); host.store.rebuild(); assert.deepEqual(host.head(), live);
+});

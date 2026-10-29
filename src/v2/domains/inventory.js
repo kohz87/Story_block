@@ -985,7 +985,7 @@ const editPieces = (inventory, target) => Object.values(inventory?.stacks ?? {})
 // invalid, the existing replay machinery can leave just this action off and report it.
 function guardReaderEdit(ctx, action, target = null, pieces = null) {
     if (ctx.cause !== 'ui' || ctx.caller !== null || typeof ctx.replayGuard !== 'function' || !ctx.source) return;
-    const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces } : {}) };
+    const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces: ctx.hash(pieces) } : {}) };
     ctx.replayGuard({ owner: 'story-block', version: 2, epoch: ctx.epoch, rulesHash: null,
         inputHash: ctx.hash({ predicate, source: ctx.source }), predicate });
 }
@@ -1006,8 +1006,10 @@ export function inventoryEditGuard({ state, hash }, { guard, source, operation }
     if (!stack || stack.def !== p.target.def || stack.owner !== p.target.owner || !inventory?.defs?.[stack.def]) {
         return { ok: false, reason: E.itemEditGone };
     }
-    if (p.pieces !== undefined && (p.action !== 'inventory.edit' || operation?.payload?.group !== true || !Array.isArray(p.pieces))) return bad;
-    if (p.pieces !== undefined && hash(editPieces(inventory, p.target)) !== hash(p.pieces)) {
+    if (p.pieces !== undefined && (p.action !== 'inventory.edit' || operation?.payload?.group !== true
+        || !(Array.isArray(p.pieces) || (typeof p.pieces === 'string' && /^[a-f0-9]{64}$/.test(p.pieces))))) return bad;
+    const piecesHash = Array.isArray(p.pieces) ? hash(p.pieces) : p.pieces;
+    if (p.pieces !== undefined && hash(editPieces(inventory, p.target)) !== piecesHash) {
         return { ok: false, reason: E.itemPiecesChanged };
     }
     return { ok: true };
