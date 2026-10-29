@@ -22,7 +22,10 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
     const listeners = new Set();
     const tell = () => { for (const listener of [...listeners]) listener(); };
     const ask = (api, name, args) => { try { return api?.query?.(name, args); } catch { return null; } };
-    const rowsOf = api => (ask(api, 'dataModules.setup') ?? []).filter(row => row.pinned && row.pinnedDefinition?.show);
+    // Every pinned chat block is listed (a block defined without `show` still needs its card and Remove); a pack module
+    // only when it asks to be shown. `show` decides the tab and the Home card, not the Blocks list.
+    const rowsOf = api => (ask(api, 'dataModules.setup') ?? []).filter(row => row.pinned && row.pinnedDefinition
+        && (row.packId === 'chat' || row.pinnedDefinition.show));
     const confirm = (doc, text) => {
         const win = doc.defaultView ?? globalThis;
         return typeof win.confirm === 'function' && win.confirm(text);
@@ -119,7 +122,8 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                 }
             }
             const actions = h(doc, 'div', 'ss-block-actions'); root.appendChild(actions);
-            for (const [kind, def] of Object.entries(definition.kinds).filter(([, value]) => value.ui)) {
+            // Only kinds that need no labels become buttons here; a kind that asks for values is used from the pack's own screens.
+            for (const [kind, def] of Object.entries(definition.kinds).filter(([, value]) => value.ui && !Object.keys(value.labels ?? {}).length)) {
                 button(doc, actions, def.title ?? kind, async () => {
                     const result = await api.command?.('dm.act', { module: row.module, kind, ...(who === null ? {} : { who }) });
                     if (!result?.ok) status.textContent = result?.message ?? STRINGS.editable.failed;

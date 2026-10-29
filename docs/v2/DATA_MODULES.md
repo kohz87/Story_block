@@ -148,7 +148,9 @@ carry a plain `label`, and a UI kind may carry a plain `title`, for display. Opt
 `show: { tab, card, tabName, icon }` chooses a block tab and/or Home card; `tabName` is at most 24
 characters and `icon` names an app icon. These keys can also be used by pack definitions: after a pack
 module is pinned, the shared renderer shows its fields and UI-kind buttons on its tab or Home card.
-Only chat blocks offer Edit fields, Save as template and Remove.
+It draws a button only for a UI kind with no labels; a kind that asks for values is used from the
+pack's own screens. Only chat blocks offer Edit fields, Save as template and Remove. Every pinned chat
+block is listed on the Blocks page, with or without `show`.
 
 The editor generates one `set-<field>` story kind per field, including numbers; a numeric `to` label
 uses the field's bounds. A new or redefined block allows at most 16 fields and buttons combined, because
