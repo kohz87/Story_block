@@ -162,12 +162,22 @@ predicate `{ kind: 'loot.take', sid, claim, items: [{ name, qty }], coin }` (the
 claim, the offer's names and how many of each were taken, the coin taken), `inputHash` the hash of the predicate, no
 `recorded`, `rulesHash: null`. The host-owned dispatcher in `domains/index.js` sends it to `lootTakeGuard`
 (`domains/inventory.js`), which reads only the state before the block: the take applies while `inventory.loot[sid]` is
-there under the same claim and lays out, by the tolerant name, at least as many of each taken thing as were taken, and
-at least the coin taken. Everything else the take did (which definitions, which stacks, the 50 cap of a thing that does
+there under the same claim and lays out at least as many of each taken thing as were taken, and at least the coin taken.
+A taken name means the one thing of the offer the inventory's own lookup finds for it (`names.js` `resolveDef` over the
+offer's things: the exact name first, then singular and plural, the name without portion words, then the word-order key),
+so a Re-read that writes "Torches" for the "Torch" taken keeps the take; a name that means none of the offer's things, or
+two of them, or the thing another taken name means, does not hold. Everything else the take did (which definitions, which stacks, the 50 cap of a thing that does
 not stack) was decided when the reader took and is replayed as stored. So a take on the offering reply or on a later
 one is off after that reply is deleted, or edited and Re-read without what was taken; an unchanged or still-authorizing
 Re-read keeps it; putting the offer back brings it back while its claim is free. A take stored before 2.6.1 is a legacy
 block and replays as before. Tests: `tests/v2/loot-undo.test.js`.
+
+When the earliest replies are deleted and the first reply left starts from the state they ended with (SPEC §2.2, the
+greeting), the store replays them (`carriedTo`) without what each kept per reply: before each of a deleted reply's blocks
+and after its last one, its domains' scratch fields lose the entry keyed by its record ID (the inventory's `loot[sid]`
+offer and `perReply[sid]` tally). So the deleted reply's offer is not carried, a take of it on that reply is not carried
+either, and a take of it on a later reply that is left finds no offer and is off; the rest of what the deleted replies did
+is carried as before.
 
 ## Source map and ids
 
