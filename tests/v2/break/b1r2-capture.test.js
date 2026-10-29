@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
-import { assertCaptureTiming, plainCaptureBaseline, timedCapture } from './capture-timing.js';
+import { assertCaptureTiming, TYPICAL_RATIO, plainCaptureBaseline, timedCapture } from './capture-timing.js';
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 
@@ -66,11 +66,12 @@ test('a 150-line reply after five such replies stays near the plain-capture base
     const ms = await timedCapture(() => host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`))));
     t.diagnostic(`plain baseline ${Math.round(baseline)} ms; sixth reply ${Math.round(ms)} ms`);
     assertCaptureTiming(ms, baseline);
-    // Use the actual measurements from this run to prove the threshold catches a threefold
-    // slowdown. Advance a test clock rather than sleeping on already slow machines.
+    // Prove the threshold catches a threefold slowdown of the usual history cost on this run's baseline.
+    // Advance a test clock rather than sleeping on already slow machines.
+    const usual = TYPICAL_RATIO * baseline;
     let clock = 0;
-    const slowed = await timedCapture(() => { clock += ms; }, {
-        now: () => clock, delayMs: 2 * ms, delay: async delay => { clock += delay; },
+    const slowed = await timedCapture(() => { clock += usual; }, {
+        now: () => clock, delayMs: 2 * usual, delay: async delay => { clock += delay; },
     });
     assert.throws(() => assertCaptureTiming(slowed, baseline), /baseline|backstop/);
 });

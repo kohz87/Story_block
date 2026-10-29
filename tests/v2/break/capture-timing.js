@@ -5,6 +5,9 @@ import { createHost } from '../../../testkit/index.js';
 // The history case has consistently cost about 11 times this baseline; 24 leaves room for noisy machines
 // while catching a threefold increase. Counted-work assertions remain the primary regression checks.
 const HISTORY_RATIO = 24;
+// The history case's usual cost against its baseline; the threefold-slowdown proof starts from it, not from
+// this run's measurement, so a run that happens to be quick does not weaken the proof.
+export const TYPICAL_RATIO = 11;
 const BACKSTOP_MS = 10_000;
 
 export async function timedCapture(capture, { delayMs = 0, now = () => performance.now(), delay = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
