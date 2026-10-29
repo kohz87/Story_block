@@ -22,12 +22,15 @@
 // scene's validator refuses, and that block is skipped.
 // A reader's loot take is a guarded block (docs/v2/REPLAY.md; inventory.js lootTakeGuard): it applies, with its claim,
 // only while the reply's offer it took from is in the state before it and lays out at least what it took, and its claim
-// is free. A guarded block of any other kind does not apply here (the QA chats make none).
+// is free. A taken name means the one thing of the offer the inventory's own name lookup finds for it (names.js resolveDef,
+// so the oracle folds names exactly as the inventory does); none, two, or one an earlier taken name took, and it does not
+// hold. A guarded block of any other kind does not apply here (the QA chats make none).
 
 import assert from 'node:assert/strict';
 import { readRecord } from '../../../../src/v2/persist.js';
 import { createStore } from '../../../../src/v2/store.js';
 import { validateInventory } from '../../../../src/v2/domains/inventory.js';
+import { aliasKey, resolveDef } from '../../../../src/v2/domains/names.js';
 import { validateScene } from '../../../../src/v2/domains/scene.js';
 import { probeModule } from './probe-module.js';
 
@@ -216,8 +219,20 @@ export function guardHolds(state, guard) {
     if (!record(offer) || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return false;
     if (Object.hasOwn(state?.meta?.claims ?? {}, predicate.claim)) return false;
     const things = Object.values(record(offer.items) ? offer.items : {});
-    const fold = name => String(name).trim().replace(/\s+/g, ' ').toLowerCase();
-    const items = predicate.items.every(want => things.some(item => item.coin === undefined && fold(item.name) === fold(want.name) && item.qty >= want.qty));
+    const defs = {};
+    const aliases = {};
+    things.forEach((item, n) => {
+        if (item.coin !== undefined) return;
+        defs[n] = { name: item.name };
+        aliases[aliasKey(item.name)] ??= String(n);
+    });
+    const took = new Set();
+    const items = predicate.items.every(want => {
+        const found = resolveDef({ defs, aliases }, want.name);
+        if (found.status !== 'found' || took.has(found.id)) return false;
+        took.add(found.id);
+        return things[Number(found.id)].qty >= want.qty;
+    });
     const purse = things.find(item => item.coin !== undefined)?.coin ?? 0;
     return items && purse >= predicate.coin;
 }
