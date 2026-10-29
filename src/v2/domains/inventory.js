@@ -1026,6 +1026,24 @@ export function createInventoryCommands(env) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
             const original = inv.defs[stack.def];
+            // The screen counts separate pieces together without changing the one-piece stack invariant.
+            if (payload.group === true && !original.stack && payload.qty !== undefined) {
+                const qty = count(ctx, payload.qty, undefined);
+                if (qty > MAX_UNSTACKED) ctx.fail('INVALID', fill(E.itemGroupLimit, { max: MAX_UNSTACKED }));
+                if (payload.name !== undefined || payload.note !== undefined) ctx.fail('INVALID', E.itemGroupAlone);
+                const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
+                const loose = pieces.filter(item => item.equipped === null).reverse();
+                const remove = pieces.length - qty;
+                if (remove > loose.length) ctx.fail('REFUSED', E.itemGroupEquipped);
+                if (remove > 0) for (const item of loose.slice(0, remove)) delete inv.stacks[item.id];
+                if (remove < 0) {
+                    readerCarry(ctx, [{ defId: original.id, qty: -remove }], stack.owner);
+                    grantInto(ctx, inv, original, -remove, stack.owner, stack.note);
+                }
+                const remaining = Object.values(inv.stacks).find(item => item.def === original.id && item.owner === stack.owner);
+                return { summary: fill(E.itemSet, { detail: fill(E.itemCount, { name: original.name, qty }) }),
+                    data: { edit: true, stack: remaining.id }, narrate: true };
+            }
             if (payload.qty !== undefined) {
                 const qty = count(ctx, payload.qty, undefined);
                 // A non-stacking item is one stack per piece (the domain's invariant).
@@ -1908,6 +1926,15 @@ export const createInventoryQueries = env => ({
     // a pack's item registered by the rules module stays here after the pack is removed.
     'inventory.definitions': (state, args) => definitionsOf(state?.domains?.inventory, args),
     'inventory.items': (state, args = {}, tools) => listItems(state?.domains?.inventory, args?.owner ?? null, carryBonuses(tools)),
+    'inventory.counts': state => {
+        const inventory = state?.domains?.inventory, stacks = Object.values(inventory?.stacks ?? {}), totals = new Map();
+        for (const stack of stacks) {
+            const key = JSON.stringify([stack.def, stack.owner]);
+            totals.set(key, (totals.get(key) ?? 0) + stack.qty);
+        }
+        return Object.fromEntries(stacks.map(stack => [stack.id, inventory.defs?.[stack.def]?.stack === false
+            ? totals.get(JSON.stringify([stack.def, stack.owner])) : stack.qty]));
+    },
     // { budget, paid, left, vouched }: the story money (`+ coin` lines and modules' `wallet.receive { story:
     // true }`) the current reply may give, has given and has left (RX-E-2); `vouched` is the part of
     // `paid` that modules' vouched payouts gave (quest rewards), so a module can tell a reply whose

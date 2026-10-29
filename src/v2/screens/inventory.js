@@ -52,7 +52,7 @@ function group(kind) {
         <div class="line">
           <span class="name">{{ it.name }}</span>
           <span data-inline-control="ss.editable" data-props='{"value":"{{ it.name }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editName)}","command":"inventory.edit","valueKey":"name","payload":{"stack":"{{ it.stack }}"}}'></span>
-          <span data-inline-control="ss.editable" data-props='{"value":{{ it.qty }},"displayValue":false,"kind":"number","min":1,"label":"${jsonText(S.editCount)}","command":"inventory.edit","valueKey":"qty","payload":{"stack":"{{ it.stack }}"}}'></span>
+          <span data-inline-control="ss.editable" data-props='{"value":{{ q.counts[it.stack] }},"displayValue":false,"kind":"number","min":1,"label":"${jsonText(S.editCount)}","command":"inventory.edit","valueKey":"qty","payload":{"stack":"{{ it.stack }}","group":true}}'></span>
           <span data-inline-control="ss.editable" data-props='{"value":"{{ it.note }}","displayValue":false,"maxLength":300,"label":"${jsonText(S.editNote)}","command":"inventory.edit","valueKey":"note","payload":{"stack":"{{ it.stack }}"}}'></span>
           <span class="chip eq worn-by" data-if="it.equipped != null && it.owner == 'party'" title="${html(S.equippedTitle)}">${html(S.wornByParty)}</span>
           <span class="chip key" data-if="it.key" title="${html(S.keyTitle)}">${html(S.key)}</span>
@@ -220,6 +220,7 @@ export const inventoryScreen = Object.freeze({
     mounts: Object.freeze(['tab', 'screen']),
     data: Object.freeze({
         items: Object.freeze({ query: 'inventory.items' }),
+        counts: Object.freeze({ query: 'inventory.counts' }),
         wallet: Object.freeze({ query: 'inventory.wallet', args: Object.freeze({ owner: 'party' }) }),
         currency: Object.freeze({ query: 'inventory.currency' }),
         // Who wears what, who may put each piece on, where Give may hand it (MODULES §F99).
