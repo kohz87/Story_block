@@ -45,7 +45,6 @@ const TEMPLATE = `
     <li class="tile line coin tone-warn" data-if="changed('state.inventory.wallets.party')">
       <span class="ico"><i class="fa-solid fa-coins" aria-hidden="true"></i></span>
       <span class="tx">
-      <i class="fa-solid fa-coins" aria-hidden="true"></i>
       <span class="main" data-if="len(q.currency.coins) == 0">${html(C.wallet, { coin: '<b>{{ state.inventory.wallets.party.coin }}</b>', money: '<span data-if="state.inventory.wallets.party.coin == 1">{{ q.currency.name }}</span><span data-if="state.inventory.wallets.party.coin != 1">{{ q.currency.plural }}</span>' })}</span>
       <span class="main" data-if="len(q.currency.coins) > 0" title="{{ fmt.money(state.inventory.wallets.party.coin) }}">${html(C.wallet, { coin: '<b>{{ fmt.money(state.inventory.wallets.party.coin) }}</b>', money: '' })}</span></span>
     </li>
