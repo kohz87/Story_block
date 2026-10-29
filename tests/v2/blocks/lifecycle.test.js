@@ -132,3 +132,38 @@ test('a pack cannot become the ninth active module after a block was made', asyn
     success(await host.sdk.command('dm.pin', payload));
     await reload(host);
 });
+
+test('each definition action follows its own reply on swipe and delete', async t => {
+    for (const action of ['define', 'redefine', 'remove']) for (const removal of ['swipe', 'delete']) {
+        const host = await createHost(); t.after(() => host.close());
+        await host.send('Begin.', 'Opening.');
+        if (action !== 'define') success(await host.sdk.command('dm.define', { definition: block() }));
+        await host.send('Change.', 'A reply.');
+        const before = structuredClone(view(host, id)), index = host.store.headIndex();
+        const changed = block(); changed.state.points = int(4);
+        const payload = action === 'define' ? { definition: block() } : action === 'redefine'
+            ? { module: id, definition: changed } : { module: id };
+        success(await host.sdk.command(`dm.${action}`, payload));
+        await reload(host);
+        if (removal === 'swipe') await host.swipe('A different reply.');
+        else await host.st.deleteMessage(index);
+        assert.deepEqual(view(host, id), before, `${action} on ${removal}`);
+        await reload(host);
+    }
+});
+
+test('field and purpose limits are enforced by the block commands', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    const many = block();
+    many.state = Object.fromEntries(Array.from({ length: 32 }, (_, i) => [`f${i}`, int()]));
+    success(await host.sdk.command('dm.define', { definition: many }));
+    const before = structuredClone(host.head());
+    many.state.f32 = int();
+    assert.equal((await host.sdk.command('dm.redefine', { module: id, definition: many })).code, 'DM_BUDGET');
+    delete many.state.f32;
+    many.prompt = 'x'.repeat(601);
+    assert.equal((await host.sdk.command('dm.redefine', { module: id, definition: many })).ok, false);
+    assert.deepEqual(host.head(), before);
+    await reload(host);
+});
