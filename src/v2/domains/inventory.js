@@ -967,6 +967,11 @@ function byModule(ctx, why) {
     if (!(ctx.caller || ctx.cause === 'story' || ctx.cause === 'system')) ctx.fail('REFUSED', why);
 }
 
+// A reader edit is never a story line or a nested module call.
+function byReader(ctx) {
+    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', 'Only the reader can make this edit.');
+}
+
 /** The inventory commands; `env` = { hooks: name => fn[], settings: () => this module's settings }. */
 export function createInventoryCommands(env) {
     return {
@@ -995,6 +1000,74 @@ export function createInventoryCommands(env) {
                 data: { def: def.id, qty, owner, stacks, created },
                 narrate: told(ctx),
             };
+        },
+
+        // The reader's own item, resolved just like a story item but without the story's grant command.
+        'inventory.add'(ctx, payload = {}) {
+            byReader(ctx);
+            const inv = ctx.draft('inventory');
+            if (typeof payload.name !== 'string') ctx.fail('INVALID', 'Give the item a name.');
+            const name = cleanName(payload.name);
+            if (!name || [...name].length > 60) ctx.fail('INVALID', 'An item needs a name of 1 to 60 characters.');
+            const qty = count(ctx, payload.qty, 1);
+            const owner = receiverArg(ctx, payload.owner);
+            const note = textArg(ctx, payload.note, MAX_NOTE, 'note');
+            const { def, created } = defineByName(ctx, inv, name, env, { note, owner });
+            readerCarry(ctx, [{ defId: def.id, qty }], owner);
+            const stacks = grantInto(ctx, inv, def, qty, owner, note);
+            return { summary: `You added ${itemText(def.name, qty)}.`, data: { edit: true, def: def.id, qty, owner, stacks, created }, narrate: true };
+        },
+
+        'inventory.edit'(ctx, payload = {}) {
+            byReader(ctx);
+            const inv = ctx.draft('inventory');
+            const stack = stackIn(ctx, inv, payload.stack);
+            const original = inv.defs[stack.def];
+            if (payload.qty !== undefined) {
+                const qty = count(ctx, payload.qty, undefined);
+                // A non-stacking item is one stack per piece (the domain's invariant).
+                if (!original.stack && qty !== 1) ctx.fail('REFUSED', `${original.name} does not stack; each piece is kept separately.`);
+                if (qty > stack.qty) readerCarry(ctx, [{ defId: original.id, qty: qty - stack.qty }], stack.owner);
+                stack.qty = qty;
+            }
+            if (payload.note !== undefined) stack.note = textArg(ctx, payload.note, MAX_NOTE, 'note');
+            let name = original.name;
+            let resultStack = stack.id;
+            if (payload.name !== undefined) {
+                if (typeof payload.name !== 'string') ctx.fail('INVALID', 'Give the item a name.');
+                name = cleanName(payload.name);
+                if (!name || [...name].length > 60) ctx.fail('INVALID', 'An item needs a name of 1 to 60 characters.');
+                const found = resolveDef(inv, name);
+                if (found.status === 'ambiguous') ctx.fail('INVALID', ambiguous(inv, name, found.ids));
+                if (found.status === 'found' && found.id !== original.id) {
+                    const targetDef = inv.defs[found.id];
+                    const target = stacksOf(inv, found.id).find(other => targetDef.stack && stack.owner === other.owner
+                        && stack.equipped === other.equipped && stack.note === other.note && condOf(stack, inv) === condOf(other, inv)
+                        && (stack.key === true) === (other.key === true));
+                    if (!target) ctx.fail('REFUSED', `${name} cannot be combined with this stack.`);
+                    if (!Number.isSafeInteger(target.qty + stack.qty)) ctx.fail('INVALID', 'That quantity is too large.');
+                    stack.def = targetDef.id;
+                    ctx.call('inventory.merge', { stack: stack.id, into: target.id });
+                    resultStack = target.id;
+                    name = targetDef.name;
+                } else if (name !== original.name) {
+                    const shared = Object.values(inv.stacks).some(other => other.id !== stack.id && other.def === original.id);
+                    if (shared || original.id.startsWith('pack.')) {
+                        const id = freeId(inv, `story/${slugify(name)}`);
+                        const copy = { ...clone(original), id, name };
+                        delete copy.carry;
+                        storeDef(inv, copy);
+                        stack.def = id;
+                    } else {
+                        for (const [key, id] of Object.entries(inv.aliases)) if (id === original.id) delete inv.aliases[key];
+                        original.name = name;
+                        inv.aliases[aliasKey(name)] = original.id;
+                    }
+                }
+            }
+            const current = inv.stacks[resultStack];
+            const detail = payload.qty !== undefined ? `${name} to ${current.qty}` : payload.note !== undefined ? `${name}'s note` : name;
+            return { summary: `You set ${detail}.`, data: { edit: true, stack: resultStack }, narrate: true };
         },
 
         'inventory.consume'(ctx, payload = {}) {
@@ -1069,7 +1142,7 @@ export function createInventoryCommands(env) {
             take(inv, stack, qty);
             return {
                 summary: `${capitalize(ownerNameIn(ctx, owner))} drops ${itemText(def.name, qty)}.`,
-                data: { def: def.id, qty, owner, stack: stack.id },
+                data: { def: def.id, qty, owner, stack: stack.id, ...(ctx.cause === 'ui' ? { edit: true } : {}) },
                 narrate: told(ctx),
             };
         },

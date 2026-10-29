@@ -15,7 +15,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(Object.keys(module.domains), ['scene', 'inventory', 'dataModules']);
     assert.equal(module.domains.dataModules.deferred, true);
     assert.deepEqual(Object.keys(module.commands).sort(), [
-        'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.migrate', 'dm.pin', 'dm.tick', 'events.fire', 'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
+        'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.migrate', 'dm.pin', 'dm.tick', 'events.fire', 'inventory.add', 'inventory.consume', 'inventory.drop', 'inventory.edit', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
         'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive',
     ]);
     assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
