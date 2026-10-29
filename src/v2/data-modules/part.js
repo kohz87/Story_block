@@ -344,6 +344,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const prefix = stateOf(ctx), module = resolveModule(prefix, payload.module), definition = activeDefinition(prefix, module);
         call.label = definition?.name ?? module;
         if (!definition) refuse('DM_SCHEMA', '', E.pinDamaged);
+        dependency(definition, prefix);
         const schema = dmOwn(definition.state, payload.field) ? definition.state[payload.field] : null;
         if (!schema) refuse('DM_SCHEMA', 'field', E.fieldDeclared);
         if (schema.edit === false) refuse('REFUSED', 'field', E.fieldLocked);
@@ -351,8 +352,6 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (map && !schema.keys.includes(payload.key)) refuse('DM_SCHEMA', 'key', E.mapKeyDeclared);
         if (!map && payload.key !== undefined) refuse('DM_SCHEMA', 'key', E.fieldNoKeys);
         if (definition.scope === 'chat' && payload.who !== undefined) refuse('DM_LABEL', 'who', E.fieldShared);
-        // A rule that may read an import cannot be guarded solely by this instance and its pin.
-        if (definition.rules.length && Object.keys(definition.imports).length) refuse('REFUSED', 'field', E.externalRules);
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, payload.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
         const instance = atPath(draft, instancePath(module, subject));
@@ -361,12 +360,14 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (field.type === 'text' && typeof value === 'string') value = oneLine(value, field.max);
         if (!scalarHolds(field, value)) refuse('DM_BOUNDS', 'value', E.fieldRange);
         const before = atPath(instance.fields, path);
-        const evaluation = createEvaluation(definition, instance, { inputs: {}, source: ctx.source, cursor: ctx.cursor(), subject });
+        const inputs = inputsOf(prefix, definition);
+        const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
         evaluation.effects([{ op: 'set', path, value }]);
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.set', module, hash: active.hash, generation: active.generation, subject,
-            reads: result.reads.map(read => read.path), decision: { conds: result.conds }, localOnly: true });
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat',
+            decision: { inputs, conds: result.conds } });
         const label = map ? `${payload.field} (${payload.key})` : payload.field;
         const summary = fill(E.fieldSet, { module: definition.name, field: label, from: valueText(before), to: valueText(value) });
         const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes,

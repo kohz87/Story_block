@@ -115,9 +115,8 @@ For an enduring title use a boolean/enum latch in the condition, as in example A
 A top-level state field may have `edit: false`; the default is editable. `dm.set { module, who?, field,
 key?, value }` is a direct reader action. A map needs one declared `key`; a scalar takes none. Values
 are checked against the field schema, and the module's rules run once after the set. The action is
-guarded by its pin generation and local reads, claims nothing, and uses the normal reply budget. When
-a module has both rules and imports, the field editor refuses the set because its rules may depend on
-external inputs that a local-only guard cannot witness.
+guarded by its pin generation, reads and imported inputs, claims nothing, and uses the normal reply
+budget. Rules can use imports; replay checks their prerequisites as it does for a button action.
 
 A kind label may be `{ "type": "text", "max": 120 }` (max 1–240). Its value is made one line, cut
 to its limit and must not be empty. A text `set` accepts a literal or `{ "arg": "label" }` when

@@ -40,7 +40,6 @@ export const STRINGS = deepFreeze({
         pinDamaged: 'Unsupported or damaged pin.', fieldDeclared: 'Choose a declared field.',
         fieldLocked: 'This field cannot be edited.', mapKeyDeclared: 'Choose a declared map key.',
         fieldNoKeys: 'This field has no map keys.', fieldShared: 'This field is shared by the chat.',
-        externalRules: 'This module has rules with external inputs; this field cannot be edited here.',
         fieldRange: 'The value is outside this field’s allowed range.',
         fieldSet: 'You set {module}: {field} {from} → {to}.', lockedSuffix: ' (cannot be edited)',
         editBoolean: 'edit must be true or false.', textEffect: 'Text fields accept literal text or a text label within max.',
