@@ -216,6 +216,20 @@ export function blocksOf(record) {
 export function guardHolds(state, guard) {
     const predicate = guard?.predicate;
     if (predicate?.kind === 'loot.offer') return guard.replyBound === true;
+    if (predicate?.kind === 'inventory.reader-edit') {
+        if (predicate.action === 'inventory.add') return !predicate.target && !predicate.pieces;
+        if (!['inventory.edit', 'inventory.drop'].includes(predicate.action)) return false;
+        const target = predicate.target, inventory = state?.domains?.inventory;
+        const stack = inventory?.stacks?.[target?.id];
+        if (!stack || stack.def !== target.def || stack.owner !== target.owner || !inventory.defs?.[stack.def]) return false;
+        if (predicate.pieces !== undefined) {
+            if (predicate.action !== 'inventory.edit' || !Array.isArray(predicate.pieces)) return false;
+            const pieces = Object.values(inventory.stacks).filter(item => item.def === target.def && item.owner === target.owner)
+                .map(item => ({ id: item.id, equipped: item.equipped }));
+            if (JSON.stringify(pieces) !== JSON.stringify(predicate.pieces)) return false;
+        }
+        return true;
+    }
     if (predicate?.kind !== 'loot.take') return false;
     const offer = at(state, ['domains', 'inventory', 'loot', String(predicate.sid)]);
     if (!record(offer) || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return false;

@@ -984,7 +984,7 @@ const editPieces = (inventory, target) => Object.values(inventory?.stacks ?? {})
 // A reader action is a guarded ordinary command. If a later Re-read makes its saved ops
 // invalid, the existing replay machinery can leave just this action off and report it.
 function guardReaderEdit(ctx, action, target = null, pieces = null) {
-    if (ctx.cause !== 'ui' || ctx.caller !== null || typeof ctx.replayGuard !== 'function') return;
+    if (ctx.cause !== 'ui' || ctx.caller !== null || typeof ctx.replayGuard !== 'function' || !ctx.source) return;
     const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces } : {}) };
     ctx.replayGuard({ owner: 'story-block', version: 2, epoch: ctx.epoch, rulesHash: null,
         inputHash: ctx.hash({ predicate, source: ctx.source }), predicate });
@@ -992,7 +992,7 @@ function guardReaderEdit(ctx, action, target = null, pieces = null) {
 
 export function inventoryEditGuard({ state, hash }, { guard, source, operation }) {
     const p = guard?.predicate;
-    const bad = { ok: false, reason: 'the saved item edit is damaged' };
+    const bad = { ok: false, reason: E.itemEditDamaged };
     if (guard?.owner !== 'story-block' || guard.version !== 2 || guard.rulesHash !== null
         || !isPlainObject(p) || p.kind !== INVENTORY_EDIT_GUARD
         || !['inventory.add', 'inventory.edit', 'inventory.drop'].includes(p.action)
@@ -1004,11 +1004,11 @@ export function inventoryEditGuard({ state, hash }, { guard, source, operation }
         || typeof p.target.def !== 'string' || typeof p.target.owner !== 'string') return bad;
     const inventory = state?.domains?.inventory, stack = inventory?.stacks?.[p.target.id];
     if (!stack || stack.def !== p.target.def || stack.owner !== p.target.owner || !inventory?.defs?.[stack.def]) {
-        return { ok: false, reason: 'the item for this edit has changed or is gone' };
+        return { ok: false, reason: E.itemEditGone };
     }
     if (p.pieces !== undefined && (p.action !== 'inventory.edit' || operation?.payload?.group !== true || !Array.isArray(p.pieces))) return bad;
     if (p.pieces !== undefined && hash(editPieces(inventory, p.target)) !== hash(p.pieces)) {
-        return { ok: false, reason: 'the separate pieces for this edit have changed' };
+        return { ok: false, reason: E.itemPiecesChanged };
     }
     return { ok: true };
 }

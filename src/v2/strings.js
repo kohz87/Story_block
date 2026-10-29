@@ -71,6 +71,8 @@ export const STRINGS = deepFreeze({
         itemNameLength: 'An item needs a name of 1 to 60 characters.',
         itemAdded: 'You added {item}.', itemCount: '{name} to {qty}', itemNote: "{name}'s note",
         itemSet: 'You set {detail}.', itemUnstackable: '{name} does not stack; each piece is kept separately.',
+        itemEditDamaged: 'The saved item edit is damaged.', itemEditGone: 'The item for this edit has changed or is gone.',
+        itemPiecesChanged: 'The separate pieces for this edit have changed.',
         itemGroupLimit: 'Keep at most {max} pieces of this item.', itemGroupAlone: 'Change the count on its own.',
         itemGroupEquipped: 'Unequip pieces before removing them.',
         itemCannotMerge: '{name} cannot be combined with this stack.', itemQuantityLarge: 'That quantity is too large.',
