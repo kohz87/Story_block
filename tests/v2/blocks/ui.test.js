@@ -143,6 +143,18 @@ test('an unfinished block draft closes when another chat opens', async t => {
     assert.match(screen().textContent, /No custom blocks/);
 });
 
+test('the template chooser returns keyboard focus when cancelled with Escape', async t => {
+    const { doc, ui } = await page(t);
+    ui.mounts.screen.open('story-block/blocks');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    button(screen(), S.newBlock).click();
+    const start = button(screen(), S.emptyBlock);
+    assert.equal(doc.activeElement, start);
+    start.dispatch('keydown', { key: 'Escape' });
+    assert.equal(screen().querySelector('.ss-block-chooser'), null);
+    assert.equal(doc.activeElement, button(screen(), S.newBlock));
+});
+
 test('editing a tab can move its block to Home and removes the old tab', async t => {
     const { doc, host, ui } = await page(t);
     const built = buildBlock({ name: 'Journey', fields: [{ name: 'Mood', type: 'text', max: 30, default: 'calm' }], functions: [], prompt: '',
