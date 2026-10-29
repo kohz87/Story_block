@@ -18,10 +18,19 @@ function made() {
 }
 
 test('dm.set validates fields, rules, bounds, map keys and non-editable fields', async t => {
-    const host = await world(t, pack([made()]));
+    const caller = { id: 'edit-probe', version: '1.0.0', commands: {
+        'edit-probe.set': (ctx, payload) => ctx.call('dm.set', payload),
+    } };
+    const host = await world(t, pack([made()]), [caller]);
     const offer = await pin(host);
     await host.send('Wait.', 'The road.');
     const set = payload => host.sdk.command('dm.set', { module: offer.module, ...payload });
+    for (const options of [{ cause: 'story' }, { cause: 'system' }]) {
+        const result = await host.bus.command('dm.set', { module: offer.module, field: 'points', value: 2 }, options);
+        assert.equal(result.code, 'REFUSED', JSON.stringify({ options, result }));
+    }
+    const nested = await host.bus.command('edit-probe.set', { module: offer.module, field: 'points', value: 2 }, { cause: 'ui' });
+    assert.equal(nested.code, 'REFUSED');
     for (const payload of [{ field: 'points', value: 101 }, { field: 'mode', value: 'other' }, { field: 'standing', key: 'other', value: 1 }, { field: 'locked', value: 2 }, { field: 'unknown', value: 1 }]) {
         const result = await set(payload);
         assert.equal(result.ok, false, JSON.stringify(payload));
