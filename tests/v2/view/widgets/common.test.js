@@ -39,8 +39,8 @@ export const SAMPLES = {
     'ss.dialog': { title: 'Rest?', text: 'Eight hours.', actions: [{ id: 'rest', label: 'Rest', kind: 'primary' }], onSelect: 'ui.dialog' },
 };
 
-test('standardWidgets: the eighteen namespaced widgets, each { props, render, validate }', () => {
-    assert.deepEqual(Object.keys(standardWidgets), ['ss.meter', 'ss.radar', 'ss.map', 'ss.skill-tree', 'ss.portrait', 'ss.badge', 'ss.timeline', 'ss.stepper', 'ss.tile', 'ss.bar', 'ss.status', 'ss.pill', 'ss.hero', 'ss.tiers', 'ss.listcard', 'ss.tabs', 'ss.navbar', 'ss.dialog']);
+test('standardWidgets: the nineteen namespaced widgets, each { props, render, validate }', () => {
+    assert.deepEqual(Object.keys(standardWidgets), ['ss.meter', 'ss.radar', 'ss.map', 'ss.skill-tree', 'ss.portrait', 'ss.badge', 'ss.timeline', 'ss.stepper', 'ss.tile', 'ss.bar', 'ss.status', 'ss.pill', 'ss.hero', 'ss.tiers', 'ss.listcard', 'ss.tabs', 'ss.navbar', 'ss.dialog', 'ss.editable']);
     for (const [name, widget] of Object.entries(standardWidgets)) {
         assert.equal(typeof widget.render, 'function', name);
         assert.equal(typeof widget.validate, 'function', name);

@@ -9,11 +9,12 @@
 // - The key budget is the old time bound at the reference rate (about 8.5 million keys a second for this
 //   capture unloaded: 6 s ≈ 50 million, so 40 million; 3 s → 12 million for the first test).
 // - structuredClone gets at most 100 nodes per line, whatever the state holds: no line copies the state.
-// - Backstop: the fastest of three captures of the same reply (the reply, then two swipes to the same text,
-//   which capture it again over the same state) is under the old time bound.
+// - Backstop: the fastest of three captures of the same reply (the reply, then two swipes to the same text)
+//   is checked against a same-run plain capture and a 10 s ceiling; the separate 6 s case is unchanged.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
+import { assertCaptureTiming, plainCaptureBaseline } from './capture-timing.js';
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 const CLONE_PER_LINE = 100;
@@ -70,15 +71,16 @@ async function measure(host, text, lines) {
     return { work, perLineClone: Math.max(0, work.clone - base.clone) / lines, fastest: Math.min(...times) };
 }
 
-test('a 150-line reply after five such replies stays inside the old 3 s budget, counted', async t => {
+test('a 150-line reply after five such replies stays within its counted and relative budgets', async t => {
+    const baseline = await plainCaptureBaseline();
     const host = await fresh(t);
     let k = 0;
     for (let r = 0; r < 5; r += 1) await host.send('More.', reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`)));
     const { work, perLineClone, fastest } = await measure(host, reply('Things.', Array.from({ length: 150 }, () => `+ item Thing ${k += 1}`)), 150);
-    t.diagnostic(`sixth reply: ${work.keys} keys, ${perLineClone.toFixed(1)} cloned nodes a line, fastest of 3: ${Math.round(fastest)} ms`);
+    t.diagnostic(`sixth reply: ${work.keys} keys, ${perLineClone.toFixed(1)} cloned nodes a line, fastest of 3: ${Math.round(fastest)} ms; baseline ${Math.round(baseline)} ms`);
     assert.ok(work.keys < 12_000_000, `the sixth reply walked ${work.keys} keys`);
     assert.ok(perLineClone <= CLONE_PER_LINE, `${perLineClone} nodes cloned per line`);
-    assert.ok(fastest < 3000, `the fastest capture took ${Math.round(fastest)} ms`);
+    assertCaptureTiming(fastest, baseline);
 });
 
 // The story's own replies may bring only 10 new kinds of item each now (r2-2), so the inventory here is

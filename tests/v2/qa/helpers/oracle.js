@@ -27,6 +27,7 @@
 // hold. A guarded block of any other kind does not apply here (the QA chats make none).
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readRecord } from '../../../../src/v2/persist.js';
 import { createStore } from '../../../../src/v2/store.js';
 import { validateInventory } from '../../../../src/v2/domains/inventory.js';
@@ -216,6 +217,22 @@ export function blocksOf(record) {
 export function guardHolds(state, guard) {
     const predicate = guard?.predicate;
     if (predicate?.kind === 'loot.offer') return guard.replyBound === true;
+    if (predicate?.kind === 'inventory.reader-edit') {
+        if (predicate.action === 'inventory.add') return !predicate.target && !predicate.pieces;
+        if (!['inventory.edit', 'inventory.drop'].includes(predicate.action)) return false;
+        const target = predicate.target, inventory = state?.domains?.inventory;
+        const stack = inventory?.stacks?.[target?.id];
+        if (!stack || stack.def !== target.def || stack.owner !== target.owner || !inventory.defs?.[stack.def]) return false;
+        if (predicate.pieces !== undefined) {
+            if (predicate.action !== 'inventory.edit') return false;
+            const pieces = Object.values(inventory.stacks).filter(item => item.def === target.def && item.owner === target.owner)
+                .map(item => ({ id: item.id, equipped: item.equipped }));
+            const canonical = JSON.stringify(pieces.map(item => ({ equipped: item.equipped, id: item.id })));
+            const digest = createHash('sha256').update(canonical).digest('hex');
+            if (Array.isArray(predicate.pieces) ? JSON.stringify(pieces) !== JSON.stringify(predicate.pieces) : digest !== predicate.pieces) return false;
+        }
+        return true;
+    }
     if (predicate?.kind !== 'loot.take') return false;
     const offer = at(state, ['domains', 'inventory', 'loot', String(predicate.sid)]);
     if (!record(offer) || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return false;

@@ -30,6 +30,7 @@ function hostileProps(name, url) {
         case 'ss.map': return { nodes: [node('a'), node(EVIL)], edges: [{ from: 'a', to: EVIL, kind: EVIL }], layers: [EVIL], layer: EVIL, current: 'a', discovered: ['a', EVIL], kinds: { [EVIL]: { label: EVIL, icon: url } }, onSelect: 'qa.do', label: EVIL };
         case 'ss.timeline': return { events: [node('e1'), node(EVIL)], current: 'e1', label: EVIL };
         case 'ss.skill-tree': return { tiers: [{ title: EVIL, skills: [{ ...node('s1'), active: true, locked: false, requires: [EVIL] }, node(EVIL)] }], onSelect: 'qa.do', label: EVIL };
+        case 'ss.editable': return { value: EVIL, label: EVIL, command: 'qa.do', payload: { value: EVIL } };
         case 'ss.stepper': return { name: EVIL, value: 1, max: 5, budget: 3, label: EVIL, budgetLabel: EVIL, tone: EVIL };
         case 'ss.radar': return { axes: [{ label: EVIL, value: 3, max: 5 }, { label: EVIL, value: 1 }, { label: 'c', value: 2 }], label: EVIL, tone: EVIL };
         case 'ss.meter': return { value: 3, max: 9, label: EVIL, tone: EVIL, icon: url, text: EVIL };
@@ -52,6 +53,7 @@ function hostileProps(name, url) {
 }
 
 function assertInert(root, attrs, label) {
+    const appClass = token => label.startsWith('ss.editable ') && /^(?:ss-iconbutton|ss-input|ss-select|ss-button|ss-button-primary|ss-chip)$/.test(token);
     for (const [tag, name, value] of attrs) {
         assert.doesNotMatch(name, /^on/i, `${label}: no event attribute (${tag} ${name}="${value}")`);
         assert.notEqual(name.toLowerCase(), 'style', `${label}: no style attribute`);
@@ -60,13 +62,13 @@ function assertInert(root, attrs, label) {
             assert.match(value, /^(?:https:\/\/[^/@\s]+\/|data:image\/(?:png|jpe?g|gif|webp|avif);base64,|\/(?![/\\]))/i, `${label}: image src ${value}`);
             assert.doesNotMatch(value, /^(?:javascript|data:image\/svg|http:)/i);
         }
-        if (name === 'class') for (const token of value.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|ss-icon-svg|ss-visually-hidden|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
+        if (name === 'class') for (const token of value.split(/\s+/).filter(Boolean)) assert.ok(appClass(token) || /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|ss-icon-svg|ss-visually-hidden|fa-[a-z0-9-]+|fa[srlbdt])$/.test(token), `${label}: class "${token}"`);
     }
     const walk = node => [node, ...(node.children ?? []).flatMap(walk)];
     for (const node of walk(root)) {
         assert.ok(!['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'FOREIGNOBJECT', 'A', 'STYLE', 'LINK'].includes(String(node.tagName).toUpperCase()), `${label}: no <${node.tagName}>`);
         const classes = typeof node.className === 'string' ? node.className : '';
-        for (const token of classes.split(/\s+/).filter(Boolean)) assert.match(token, /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|ss-icon-svg|ss-visually-hidden|fa-[a-z0-9-]+|fa[srlbdt])$/, `${label}: class "${token}"`);
+        for (const token of classes.split(/\s+/).filter(Boolean)) assert.ok(appClass(token) || /^(?:ss-w(?:-[a-z0-9-]+)?|ss-(?:tile|bar|status|pill|hero|tiers|listcard|tabs|navbar|modal|glass)(?:-[a-z0-9-]+)?|ss-tone-[a-z]+|ss-label|ss-icon-svg|ss-visually-hidden|fa-[a-z0-9-]+|fa[srlbdt])$/.test(token), `${label}: class "${token}"`);
         for (const [key, value] of Object.entries(node.styleProps ?? {})) {
             assert.match(key, /^--ss-w-[a-z0-9-]+$|^--ss-fill$|^--ss-cols$|^(?:left|top|width|height|transform|display)$/, `${label}: style property ${key}`);
             assert.doesNotMatch(String(value), /url\(|expression|javascript|;|[{}<>]/i, `${label}: style value ${value}`);

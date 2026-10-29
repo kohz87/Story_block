@@ -5,23 +5,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createScreens, resolveData, validateScreen, CSS_LIMIT } from '../../../src/v2/view/screens.js';
 import {
-    screens, inventoryScreen, sceneScreen, changesCardScreen, homeScreen, inspectorScreen,
-    INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, INSPECTOR_SCREEN_ID,
+    screens, inventoryScreen, sceneScreen, changesCardScreen, homeScreen, inspectorScreen, blocksScreen,
+    INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, INSPECTOR_SCREEN_ID, BLOCKS_SCREEN_ID,
 } from '../../../src/v2/screens/index.js';
 import { core, css, cssSkip, queries, sceneState } from './helpers.js';
 
 // Queries of other modules the screens may read (MODULES.md §B–D, §F11).
 const MODULE_QUERIES = new Set(['party.pc', 'quest.board', 'npc.known']);
 
-test('five default screens with the agreed ids and mounts', () => {
-    assert.deepEqual(screens.map(screen => screen.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, INSPECTOR_SCREEN_ID]);
-    assert.deepEqual(screens, [homeScreen, inventoryScreen, sceneScreen, changesCardScreen, inspectorScreen]);
+test('six default screens with the agreed ids and mounts', () => {
+    assert.deepEqual(screens.map(screen => screen.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, CHANGES_CARD_SCREEN_ID, INSPECTOR_SCREEN_ID, BLOCKS_SCREEN_ID]);
+    assert.deepEqual(screens, [homeScreen, inventoryScreen, sceneScreen, changesCardScreen, inspectorScreen, blocksScreen]);
     assert.deepEqual(inspectorScreen.mounts, ['screen', 'tab']);
     assert.equal(inspectorScreen.feature, 'story-block.inspector');
     assert.deepEqual(inventoryScreen.mounts, ['tab', 'screen']);
     assert.deepEqual(sceneScreen.mounts, ['tab', 'screen']);
     assert.deepEqual(changesCardScreen.mounts, ['card']);
     assert.deepEqual(homeScreen.mounts, ['screen']);
+    assert.deepEqual(blocksScreen.mounts, ['screen']);
     for (const screen of screens) {
         assert.match(screen.id, /^story-block\//);
         assert.equal(typeof screen.title, 'string');
@@ -43,7 +44,7 @@ test('the registry takes them as the core module\'s defaults', () => {
     assert.deepEqual(registry.problems(), []);
     // Navigation order: Home first, then Inventory before Scene (screens.js DEFAULT_ORDER).
     // The Inspector goes last (order 900); the host leaves it out while its feature is off (ui-host.js).
-    assert.deepEqual(registry.list('screen').map(entry => entry.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, INSPECTOR_SCREEN_ID]);
+    assert.deepEqual(registry.list('screen').map(entry => entry.id), [HOME_SCREEN_ID, INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, BLOCKS_SCREEN_ID, INSPECTOR_SCREEN_ID]);
     assert.deepEqual(registry.list('tab').map(entry => entry.id), [INVENTORY_SCREEN_ID, SCENE_SCREEN_ID, INSPECTOR_SCREEN_ID]);
     assert.deepEqual(registry.list('card').map(entry => entry.id), [CHANGES_CARD_SCREEN_ID]);
     assert.deepEqual(registry.list('hud'), []);

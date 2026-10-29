@@ -58,8 +58,8 @@ test('inventory: Equip, Unequip and Drop send the agreed payloads, which the bus
     const foldButtons = stack => (foldOf(el, stack)?.querySelectorAll('button:not(.fold-cancel)') ?? []).map(button => text(button));
 
     // The action row holds the plain actions; Drop's choices are a fold row under it, shown only once Drop is chosen.
-    assert.deepEqual(buttons(item('Dagger')), ['Unequip']);
-    assert.deepEqual(buttons(item('Iron Sword')), ['Equip']);
+    assert.deepEqual(buttons(item('Dagger')), ['', 'Unequip']);
+    assert.deepEqual(buttons(item('Iron Sword')), ['', 'Equip']);
     assert.deepEqual(foldButtons('it_rope0001'), [], 'closed until Drop is chosen');
     openFold(el, 'it_rope0001', 'drop');
     assert.deepEqual(foldButtons('it_rope0001'), ['Drop 1', 'Drop all 3']);
@@ -268,7 +268,7 @@ test('home: Story Block alone shows the place and the purse, and nothing else', 
     assert.equal(text(el.querySelector('.here')), 'Here: Fenna, Old Tam');
     assert.equal(text(el.querySelector('.wallet')), '125 gold · 6 things carried');
     assert.deepEqual(el.querySelectorAll('.worn li').map(li => text(li)), ['Iron Sword']);
-    assert.deepEqual(drawn, { 'story-block.ready-hint': [{}], 'story-block.savepoints': [{}] }, 'only the "before you start" and save points slots (the host widgets draw or hide them)');
+    assert.deepEqual(drawn, { 'story-block.ready-hint': [{}], 'story-block.savepoints': [{}], 'story-block.block-cards': [{}] }, 'the host widgets draw or hide their slots');
 });
 
 test('home: with Story Director, its quest panel appears', { skip }, () => {

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.7.0
+
+- Keep exported blocks' tabs, Home cards and buttons when imported and enabled as packs.
+- Recheck item name and stack compatibility when replaying reader adds and renames; report changed prerequisites.
+- Clarify that deleting the oldest remaining replies carries their reader edits forward with their state.
+- Preserve data-module pins and guarded history from 2.6.1 by keeping the interpreter-1 hash basis fixed.
+- Use one quiet inventory pencil for the name, count and note, and label the Home people-present row.
+- Add inline reader edits for inventory, the purse and the scene, with summaries on the latest reply's Changed card.
+- Allow guarded data-module field edits and bounded free-text labels; Setup lists editable fields for the chat and attached characters.
+- Make the phone Story panel opaque, give authored inline controls larger touch targets, and remove the duplicate coin icon.
+- The count editor adds or removes separate non-stacking pieces without removing equipped items. Data-module edits run rules and guard the imported inputs they use.
+- Item edits and drops that no longer apply after a Re-read stay off and appear in Problems.
+- Add chat blocks with editable fields, story lines, buttons, rules, timers, tabs and Home cards. Their definitions follow the reply that saved them.
+- Allow up to eight chat blocks within the shared 16-pin budget. Each block field has one set story line, fields and buttons share 16 slots, and timers add to number fields.
+- Save block definitions as templates or export them as packs; standalone Studio layouts can appear as tabs.
+
 ## 2.6.1
 
 **Fix release.** Loot you took now goes away with the reply that offered it.

@@ -15,10 +15,10 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(Object.keys(module.domains), ['scene', 'inventory', 'dataModules']);
     assert.equal(module.domains.dataModules.deferred, true);
     assert.deepEqual(Object.keys(module.commands).sort(), [
-        'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.migrate', 'dm.pin', 'dm.tick', 'events.fire', 'inventory.consume', 'inventory.drop', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
-        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive',
+        'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.define', 'dm.migrate', 'dm.pin', 'dm.redefine', 'dm.remove', 'dm.set', 'dm.tick', 'events.fire', 'inventory.add', 'inventory.consume', 'inventory.drop', 'inventory.edit', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
+        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
+    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.counts', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
         'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.start', 'packs.weather', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'story.evidence']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReply', 'beforeGenerate', 'item.resolve', 'replayGuard', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
@@ -37,7 +37,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
-    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector']);
+    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector', 'story-block/blocks']);
     assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0', coins: [], coinDisplay: 'mixed', chatterInPrompt: false, assistClassifier: false, assistExtractor: false, assistProfile: '', assistExtractorProfile: '', assistExtractorKinds: '! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item' });
     assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'storyCoinPerReply', 'economyScale', 'coins', 'coinDisplay', 'chatterInPrompt', 'assistProfile', 'assistExtractorProfile', 'assistExtractorKinds']);
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [

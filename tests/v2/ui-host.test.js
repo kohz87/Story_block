@@ -55,7 +55,7 @@ test('settings: the overlay counts the next reply\'s prompt (turn.preview) with 
     const root = doc.querySelector('#story_suite_v2_overlay');
     const tabsPage = root.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === 'tabs');
     assert.deepEqual(tabsPage.querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold), [], 'the Tabs & Packs page is the form engine\'s: no fold');
-    assert.deepEqual(tabsPage.querySelectorAll('.ss-section-title').map(node => node.textContent).filter(Boolean), ['Tabs', 'Packs', 'Prompt'], 'Packs from the live core module');
+    assert.deepEqual(tabsPage.querySelectorAll('.ss-section-title').map(node => node.textContent).filter(Boolean), ['Tabs', 'Packs', 'Block templates', 'Prompt'], 'Packs and templates from the live core module');
     assert.equal(runtime.registry.settingsDefs().find(def => def.moduleId === 'story-block').folds[0].id, 'packs');
     const size = root.querySelector('.story-suite-size');
     assert.equal(size.dataset.exact, 'false');
