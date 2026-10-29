@@ -105,9 +105,9 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
 
 * **The greeting** (first carrier) always holds a checkpoint: the initial state (§2.6). When the first
   carrier is deleted, the new first carrier gets the state the deleted ones ended with as its checkpoint and
-  keeps its own changes; a record already there is never replaced. What a deleted carrier kept per reply (a domain's
-  `scratch` entries under its record ID: the inventory's loot on offer and tally) is not carried, and neither is a
-  guarded block that needed it (a loot take; REPLAY.md "Loot take guards").
+  keeps its own changes; a record already there is never replaced. The deleted carriers are replayed whole for it, from
+  the first one's checkpoint (past any later checkpoint among them), so a reply-bound block of theirs (REPLAY.md), such as
+  a loot offer, is not carried, and neither is what needed it (a take of that loot).
 * A carrier gets a checkpoint when 100 carriers have passed since the last one, or the ops since then
   exceed 128 KB of JSON and twice the last checkpoint's own size, at least 10 carriers after it (one domain
   that rewrites a big list on every reply cannot bring a checkpoint every few replies). The checkpoint is

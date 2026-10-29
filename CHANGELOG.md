@@ -8,7 +8,7 @@
   longer offers what you took (or offers fewer of it, or less money), the take is undone: the items, the money and the
   "taken" mark go, and Problems says why. After such a Re-read you can take from the loot as it reads now. This holds
   whether you took the loot on that reply or on a later one, and stays so after a rebuild or a reload. It also holds when
-  the offering reply is the first one left (the greeting deleted before it): its loot and the take go, and what the deleted
+  you delete the first replies of a chat (one at a time or many at once): their loot and the takes of it go, and what those
   replies gave otherwise stays, as before.
 - **A Re-read that still offers what you took keeps it.** An unchanged Re-read, more of the same thing, another item added
   or the name written another way ("Torches" for "Torch", other capitals, "a handful of Torches") leaves the take as it

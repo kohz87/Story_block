@@ -142,6 +142,9 @@ A swipe away from the reply does the same as it does for any block of that swipe
 and its receipt too (`replaceStory` does not keep it; a block built under it is replayed without it and stays off, as after a
 delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (a module's saved choice): taking the
 reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
+When the earliest replies are deleted, the state they ended with is worked out by replaying them **whole**, from the first
+one's checkpoint and past any later checkpoint among them (a checkpoint holds what the blocks before it did without asking
+them again), so a reply-bound block of a deleted reply is left out however many replies one update removes.
 
 ## Data module guards
 
@@ -172,12 +175,10 @@ one is off after that reply is deleted, or edited and Re-read without what was t
 Re-read keeps it; putting the offer back brings it back while its claim is free. A take stored before 2.6.1 is a legacy
 block and replays as before. Tests: `tests/v2/loot-undo.test.js`.
 
-When the earliest replies are deleted and the first reply left starts from the state they ended with (SPEC §2.2, the
-greeting), the store replays them (`carriedTo`) without what each kept per reply: before each of a deleted reply's blocks
-and after its last one, its domains' scratch fields lose the entry keyed by its record ID (the inventory's `loot[sid]`
-offer and `perReply[sid]` tally). So the deleted reply's offer is not carried, a take of it on that reply is not carried
-either, and a take of it on a later reply that is left finds no offer and is off; the rest of what the deleted replies did
-is carried as before.
+The offer itself (`? loot`, `captureLoot`) is a reply-bound guarded block of Story Block's own (predicate
+`{ kind: 'loot.offer', sid }`, `replyBound: true`; its guard checks only its shape), so it goes with its reply in every
+case, also when deleting the earliest replies carries the rest of what they did forward (below). A take of it, on that reply
+or a later one, then finds no offer and is off. Offers stored before 2.6.1 are legacy blocks and are carried as before.
 
 ## Source map and ids
 
