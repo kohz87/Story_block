@@ -10,6 +10,18 @@ owns a deferred `dataModules` domain (absent until a chat pins a module), the ca
 <module> — reason | kind: … | label: value`, enabled only while the chat has a pin) and the commands
 `dm.pin`, `dm.attach`, `dm.act` and `dm.migrate`; a chat that pins nothing is byte for byte the chat it was.
 
+## Reader edits
+
+The reader may edit a stack's name, quantity or note, add an item, set the purse, and edit the place,
+weather and people present. These are UI commands on the latest reply. Swiping or deleting that reply
+removes its commands; Re-read keeps a command when its recorded prerequisites still hold. The Changes
+card shows the receipt summaries while their display data is retained. Non-stacking items remain one
+piece per stack; add separate pieces instead of increasing one stack's quantity.
+
+Data-module fields may be set with `dm.set` unless their schema has `edit: false`. A data-module layout
+gets an editor beside a displayed, directly bound chat field; template authors can use `ss.editable`.
+Rules that depend on module imports cannot yet be edited this way: their replay needs external inputs.
+
 ## 0. Principles
 
 1. **Code first, narration second.** Everything that is arithmetic, a lookup, a rule or a roll is done in

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.0
+
+- Add inline reader edits for inventory, the purse and the scene, with summaries on the latest reply's Changed card.
+- Allow guarded data-module field edits and bounded free-text labels; directly bound chat fields in layouts get editors.
+- Make the phone Story panel opaque, give authored inline controls larger touch targets, and remove the duplicate coin icon.
+- Non-stacking pieces remain separate, and data-module rules with imports are not editable through the local-only guard.
+
 ## 2.6.1
 
 **Fix release.** Loot you took now goes away with the reply that offered it.

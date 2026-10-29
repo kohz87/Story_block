@@ -10,6 +10,12 @@ In **Settings → Tabs & Packs**, import a pack file. Start a fresh chat for its
 
 The narrator writes a hidden `<Changes>` block. Each module checks its lines and records accepted changes alongside the reply. Swipe or delete a reply to take back its changes; after editing a reply, press **Re-read**. **Problems** explains refused lines.
 
+On Home and in Inventory, tap the pencil beside a value, change it, then choose **Save** or **Cancel**.
+Inventory also has **Add item** and its existing Drop action. The purse accepts a whole amount or mixed
+coins such as `3 silver 5 copper`. Place, weather and the people present can be edited on Home or Scene.
+Data-module layouts may show pencils next to editable fields. Edits ride on the latest reply, so a swipe
+or delete of that reply takes them back.
+
 Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
 
 In **Settings → Money**, Automatic means no limit: the story decides. Set a number to cap what one reply may give; the money scale is in the folded **Advanced** row. Names and values of coins are set on the same page.

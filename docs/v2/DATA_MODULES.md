@@ -2,7 +2,7 @@
 
 Status: approved design, v1 implemented on `stage6/data-modules`. The shared importer/checker for
 `content.dataModules` and capability `data-modules-v1` (step 1), the runtime part merged into Story Block
-(deferred `dataModules` domain, the host kind `dm`, `dm.pin` / `dm.attach` / `dm.act` / `dm.migrate`, timers,
+(deferred `dataModules` domain, the host kind `dm`, `dm.pin` / `dm.attach` / `dm.act` / `dm.set` / `dm.migrate`, timers,
 rewards, exports, budgets, Setup, screens) and the replay and lifecycle rules are delivered, with both complete
 examples below tested end to end. The [implementation notes](DATA_MODULES_IMPLEMENTATION.md) say where the code and
 tests are, the calls Story Studio's simulator makes and where the runtime differs from the wording below (for
@@ -33,7 +33,7 @@ Add a trusted SB part at `src/v2/data-modules/`, merged into **`story-block`**, 
 |---|---|
 | Domain | `dataModules`, `deferred: true`; absent until an explicit pin |
 | Capture | One host-owned kind `dm`, enabled only when this chat has pins |
-| Commands | `dm.pin`, `dm.attach`, `dm.act`, `dm.migrate`; internal `dm.capture`, `dm.tick` |
+| Commands | `dm.pin`, `dm.attach`, `dm.act`, `dm.set`, `dm.migrate`; internal `dm.capture`, `dm.tick` |
 | Queries | `dataModules.offers`, `.view`, `.public`, `.replayInputs` |
 | Context | Pinned grammar/static instructions; bounded state summaries in the tail |
 | Hooks | `afterCapture`, `beforeGenerate`, `replyCard`, replay guard dispatch for `dm.*` |
@@ -73,7 +73,7 @@ refuses a new action; its saved instance stays. No global persona state and no d
 | `int` | Inclusive safe-integer `min`, `max`, `default` within them |
 | `bool` | Boolean `default` |
 | `enum` | 1–32 distinct literal `values`, `default` among them |
-| `text` | `max` 1–240, literal `default`; display text only, never an expression |
+| `text` | `max` 1–240, literal `default`; text may be compared to a literal with `eq` or `ne` |
 | `map` | 1–16 fixed enum `keys`, scalar `values` schema; each key gets that default |
 
 No growing authored arrays/maps, nullable arithmetic, coercion, floats or implicit field creation.
@@ -97,7 +97,7 @@ has fixed arity. The checker resolves field paths, checks types and interval bou
 
 A path segment is a literal key or an enum expression whose entire range resolves to declared keys.
 No arbitrary property lookup, concatenated paths, query calls inside expressions, dynamic dispatch,
-or expression-valued text. An absent input, type mismatch, unsafe intermediate or division by zero
+or arbitrary expression-valued text. An absent input, type mismatch, unsafe intermediate or division by zero
 refuses the transaction. Arithmetic intermediates must fit ±1,000,000,000; literal clamps can prove
 a result fits a field. Import refuses a statically impossible range; runtime checks actual values.
 
@@ -109,6 +109,25 @@ Conditions do not mutate. A kind has optional `when` and `refusal`; false refuse
 Then its effects run, followed by `rules: [{id,when,then}]` **once in authored order**, each seeing
 the prior effects. Rules do not trigger more rules or re-enter kinds. A false rule is simply skipped.
 For an enduring title use a boolean/enum latch in the condition, as in example A.
+
+### Reader field edits and text labels
+
+A top-level state field may have `edit: false`; the default is editable. `dm.set { module, who?, field,
+key?, value }` is a direct reader action. A map needs one declared `key`; a scalar takes none. Values
+are checked against the field schema, and the module's rules run once after the set. The action is
+guarded by its pin generation and local reads, claims nothing, and uses the normal reply budget. When
+a module has both rules and imports, the field editor refuses the set because its rules may depend on
+external inputs that a local-only guard cannot witness.
+
+A kind label may be `{ "type": "text", "max": 120 }` (max 1–240). Its value is made one line, cut
+to its limit and must not be empty. A text `set` accepts a literal or `{ "arg": "label" }` when
+the target's max is at least the label's max; the normalized expression is `["arg", "label"]`. Text
+in conditions is limited to `eq` or `ne` with a literal. Text fields retain their existing UTF-16
+length validation; this can cut a supplementary character earlier than a code-point limit would.
+
+For directly bound chat fields in layouts, the host adds an editor next to the field when the layout
+stays inside the renderer's limits. Character-scoped and other unbound layout fields are not augmented.
+Authored templates can use `ss.editable` with `dm.set` for a field of their own module.
 
 ## 3. Lines, checks, templates and time
 

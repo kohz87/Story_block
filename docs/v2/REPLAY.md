@@ -158,6 +158,15 @@ it asks the pure condition expressions of the frozen definition again, and never
 A relevant earlier change makes the later action inactive (`REPLAY_PREREQUISITE`, Re-read to apply it again); a tick, which
 asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconcile instead.
 
+## Reader edits
+
+Inventory, purse and scene edits are ordinary UI commands recorded on the current reply. Their saved
+ops follow the same rebuild, swipe, delete and Re-read rules as other reader actions. Wallet and stack
+counts retain the existing counter differences on replay. `dm.set` uses a data-module guard for the
+pin generation and its local instance reads; it does not claim a reply key. A changed prerequisite
+keeps the guarded block off and reports a Problem. The Changed card reads edit summaries from receipt
+display data, which is trimmed after the existing retention window.
+
 ## Loot take guards
 
 A reader's loot take (`inventory.lootTake`, SPEC §7) is a guarded block of Story Block's own: `owner: 'story-block'`,
