@@ -155,6 +155,20 @@ it asks the pure condition expressions of the frozen definition again, and never
 A relevant earlier change makes the later action inactive (`REPLAY_PREREQUISITE`, Re-read to apply it again); a tick, which
 asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconcile instead.
 
+## Loot take guards
+
+A reader's loot take (`inventory.lootTake`, SPEC §7) is a guarded block of Story Block's own: `owner: 'story-block'`,
+predicate `{ kind: 'loot.take', sid, claim, items: [{ name, qty }], coin }` (the offering reply's record ID, the offer's
+claim, the offer's names and how many of each were taken, the coin taken), `inputHash` the hash of the predicate, no
+`recorded`, `rulesHash: null`. The host-owned dispatcher in `domains/index.js` sends it to `lootTakeGuard`
+(`domains/inventory.js`), which reads only the state before the block: the take applies while `inventory.loot[sid]` is
+there under the same claim and lays out, by the tolerant name, at least as many of each taken thing as were taken, and
+at least the coin taken. Everything else the take did (which definitions, which stacks, the 50 cap of a thing that does
+not stack) was decided when the reader took and is replayed as stored. So a take on the offering reply or on a later
+one is off after that reply is deleted, or edited and Re-read without what was taken; an unchanged or still-authorizing
+Re-read keeps it; putting the offer back brings it back while its claim is free. A take stored before 2.6.1 is a legacy
+block and replays as before. Tests: `tests/v2/loot-undo.test.js`.
+
 ## Source map and ids
 
 Every record carries `source: { logical, swipeKey, evidence, next }` (contract §4's source map). It is worked

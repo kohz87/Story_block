@@ -898,6 +898,12 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   (each reply's loot is taken once; a second take is `REFUSED`), skips what is carried by then, and puts the
   rest in the party's bag as the offer held it, making the definitions then; past the carry limit it is
   `REFUSED` and the claim stays free. An offer no longer there is `NOT_FOUND`; an empty or bad pick `INVALID`.
+  What a reply laid out goes away with it: the take is a guarded block (REPLAY.md "Loot take guards", predicate
+  `loot.take`) that applies, with its claim, only while the offering reply's offer lays out at least what was taken.
+  Deleting that reply, or editing it and Re-reading so the offer drops a taken thing or offers fewer of it (or less
+  money) than was taken, turns the take off, items, money and claim, with a `REPLAY_PREREQUISITE` Problem; the claim is
+  free again for the offer as it reads now. An unchanged Re-read, or one that still offers what was taken, keeps it.
+  A take saved by 2.6.0 or earlier has no guard and replays as it was stored.
 * **Encumbered** (`story-block.encumbrance`). A story `+ item`, or a `~ item | qty:` raise, past the carry
   limit (`items.carry … → { ok: false }`) is kept, and its receipt says the party is encumbered
   (`data.encumbered: true`). The condition is derived from the load, never stored: `inventory.encumbrance`
