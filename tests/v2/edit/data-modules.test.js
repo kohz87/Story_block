@@ -128,3 +128,28 @@ test('a pinned layout puts pencils beside displayed editable fields', async t =>
     assert.deepEqual(calls[0], ['dm.set', { module: offer.module, field: 'standing', key: 'guild', value: 5 }]);
     rendered.dispose();
 });
+
+test('character meters edit the field for the character shown in that row', async t => {
+    const { fixture, directorStub } = await import('../data-modules/helpers.js');
+    const { renderLayout } = await import('../../../src/v2/layout/index.js');
+    const { setupDom } = await import('../view/mounts/helpers.js');
+    const host = await world(t, fixture('survival'), [directorStub()]);
+    const offer = await pin(host, ['ca_wessel01']);
+    const screen = host.sdk.query('dataModules.presentation')[0];
+    const doc = setupDom();
+    const el = doc.createElement('div');
+    doc.body.appendChild(el);
+    const calls = [];
+    const rendered = renderLayout(el, screen.layout, {
+        query: (name, args) => host.sdk.query(name, args),
+        command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; },
+    });
+    assert.deepEqual(rendered.problems, []);
+    assert.equal(el.querySelectorAll('.ss-w-editable-pencil').length, 2);
+    el.querySelector('.ss-w-editable-pencil').click();
+    el.querySelector('.ss-w-editable-form input').value = '25';
+    el.querySelector('.ss-w-editable-save').click();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls[0], ['dm.set', { module: offer.module, field: 'hunger', who: 'ca_wessel01', value: 25 }]);
+    rendered.dispose();
+});
