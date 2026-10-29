@@ -20,11 +20,17 @@
 // problem its state did not have is skipped. So `+ present Fenna`, `- present Fenna`, `+ present Fenna`
 // with the middle reply deleted keeps Fenna once: the last append would list her twice, which the
 // scene's validator refuses, and that block is skipped.
+// A reader's loot take is a guarded block (docs/v2/REPLAY.md; inventory.js lootTakeGuard): it applies, with its claim,
+// only while the reply's offer it took from is in the state before it and lays out at least what it took, and its claim
+// is free. A taken name means the one thing of the offer the inventory's own name lookup finds for it (names.js resolveDef,
+// so the oracle folds names exactly as the inventory does); none, two, or one an earlier taken name took, and it does not
+// hold. A guarded block of any other kind does not apply here (the QA chats make none).
 
 import assert from 'node:assert/strict';
 import { readRecord } from '../../../../src/v2/persist.js';
 import { createStore } from '../../../../src/v2/store.js';
 import { validateInventory } from '../../../../src/v2/domains/inventory.js';
+import { aliasKey, resolveDef } from '../../../../src/v2/domains/names.js';
 import { validateScene } from '../../../../src/v2/domains/scene.js';
 import { probeModule } from './probe-module.js';
 
@@ -186,18 +192,51 @@ function startOf(chat, upTo) {
     return from >= 0 ? from : latest;
 }
 
-/** A record's ops as its stored blocks (`spans`), or one block when the spans do not add up. */
-export function blocksOf(record) {
+// A record's blocks with their spans ([{ ops, span }]); one block with no span when the spans do not add up.
+function spannedBlocks(record) {
     const spans = Array.isArray(record.spans) ? record.spans : null;
     const total = spans ? spans.reduce((sum, span) => sum + (Number.isInteger(span?.n) && span.n >= 0 ? span.n : NaN), 0) : NaN;
-    if (total !== record.ops.length) return record.ops.length ? [record.ops] : [];
+    if (total !== record.ops.length) return record.ops.length ? [{ ops: record.ops, span: null }] : [];
     const out = [];
     let at = 0;
     for (const span of spans) {
-        if (span.n) out.push(record.ops.slice(at, at + span.n));
+        if (span.n) out.push({ ops: record.ops.slice(at, at + span.n), span });
         at += span.n;
     }
     return out;
+}
+
+/** A record's ops as its stored blocks (`spans`), or one block when the spans do not add up. */
+export function blocksOf(record) {
+    return spannedBlocks(record).map(entry => entry.ops);
+}
+
+/** Whether a guarded block may apply on `state` (the state before it): a loot offer (reply-bound, so it stands while its reply
+ * does, and the oracle reads only the replies there are), or a loot take whose offer still holds what it took (above). */
+export function guardHolds(state, guard) {
+    const predicate = guard?.predicate;
+    if (predicate?.kind === 'loot.offer') return guard.replyBound === true;
+    if (predicate?.kind !== 'loot.take') return false;
+    const offer = at(state, ['domains', 'inventory', 'loot', String(predicate.sid)]);
+    if (!record(offer) || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return false;
+    if (Object.hasOwn(state?.meta?.claims ?? {}, predicate.claim)) return false;
+    const things = Object.values(record(offer.items) ? offer.items : {});
+    const defs = {};
+    const aliases = {};
+    things.forEach((item, n) => {
+        if (item.coin !== undefined) return;
+        defs[n] = { name: item.name };
+        aliases[aliasKey(item.name)] ??= String(n);
+    });
+    const took = new Set();
+    const items = predicate.items.every(want => {
+        const found = resolveDef({ defs, aliases }, want.name);
+        if (found.status !== 'found' || took.has(found.id)) return false;
+        took.add(found.id);
+        return things[Number(found.id)].qty >= want.qty;
+    });
+    const purse = things.find(item => item.coin !== undefined)?.coin ?? 0;
+    return items && purse >= predicate.coin;
 }
 
 /** { state, skipped: [{ index, block, revs }] } at carrier `upTo`, rebuilt from the chat alone; state null without a checkpoint. */
@@ -209,8 +248,9 @@ export function rebuildAt(chat, upTo) {
     for (let i = from; i <= upTo && i < chat.length; i++) {
         const record = readRecord(chat[i]);
         if (!record) continue;
-        blocksOf(record).forEach((ops, block) => {
+        spannedBlocks(record).forEach(({ ops, span }, block) => {
             try {
+                if (span?.id && span.guard && !guardHolds(state, span.guard)) throw new Error('its guard does not hold');
                 state = strictApply(state, ops);
             } catch {
                 const revs = ops.filter(op => op.path === '/meta/rev').map(op => op.value);
@@ -252,7 +292,10 @@ export function checkInvariants(host, label) {
         const validate = (state, names) => validateDomains(state, names);
         // And the inventory's per-reply tally and the scene's weather as the scratch they are declared to be (ops.js).
         const scratch = name => (name === 'inventory' ? ['perReply', 'loot', 'condLog'] : name === 'scene' ? ['weather'] : []);
-        const fresh = createStore({ chat: () => structuredClone(chat), save: async () => {}, validate, scratch });
+        // (one copy, read as the same array every time, as SillyTavern's chat is: a reply-bound block is told by its message)
+        const copy = structuredClone(chat);
+        const fresh = createStore({ chat: () => copy, save: async () => {}, validate, scratch });
+        fresh.attachGuard((state, { guard }) => (guardHolds(state, guard) ? { ok: true } : { ok: false, reason: 'its guard does not hold' }));
         assert.deepEqual(plain(fresh.head()), plain(store.head()), `${label}: a new store over a copy of the chat agrees with the cached head`);
     }
 

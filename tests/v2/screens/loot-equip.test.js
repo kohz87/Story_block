@@ -11,6 +11,18 @@ import { core, foldOf, openFold, queries, renderSkip, settle, show, stocked, tex
 const skip = renderSkip;
 const SID = 'sw_loot00000001';
 
+// A take is a guarded block (inventory.js lootTakeGuard), which needs a reply to hold it: the fake store's one carrier,
+// with the Source and occurrence the real store would give.
+function withReply(store) {
+    let next = 0;
+    return Object.assign(store, {
+        carrierSid: () => 'sw_reply0000001',
+        sourceAt: () => ({ sid: 'sr_reply001', swipeKey: 'sw_reply001', evidence: 'ev_reply001', ordinal: next }),
+        allocateOccurrence: () => next++,
+        opsAt: () => [],
+    });
+}
+
 function lootState(module, { taken = false } = {}) {
     const state = stocked(module);
     state.domains.inventory.loot = {
@@ -24,7 +36,7 @@ function lootState(module, { taken = false } = {}) {
 test('changes card: the reply\'s loot as chips; ticked ones go to inventory.lootTake; the bus takes them', { skip }, async () => {
     const module = core();
     const state = lootState(module);
-    const store = fakeStore(state);
+    const store = withReply(fakeStore(state));
     // The reader has the loot feature on (the default), as the real registry answers.
     const registry = Object.assign(fakeRegistry([module]), { featureOn: () => true });
     const bus = createCommandBus({ store, registry, id: counterIds(), seed: () => 7 });
@@ -67,7 +79,7 @@ test('inventory: "To pick up" lists the loot not yet taken, newest first, each w
     const state = lootState(module);
     state.meta.claims['loot:sw_taken000001'] = true;
     state.domains.inventory.loot.sw_taken000001 = { sid: 'sw_taken000001', n: 9, where: '', claim: 'loot:sw_taken000001', items: { 0: { name: 'Gone Thing', qty: 1 } } };
-    const store = fakeStore(state);
+    const store = withReply(fakeStore(state));
     const registry = Object.assign(fakeRegistry([module]), { featureOn: () => true });
     const bus = createCommandBus({ store, registry, id: counterIds(), seed: () => 11 });
     const { el, view, calls, results } = show(inventoryScreen, {

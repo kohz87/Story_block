@@ -1,4 +1,4 @@
-# Story Block 2.6.0
+# Story Block 2.6.1
 
 Story Block is the Story Suite host for SillyTavern. It keeps the inventory, purse and scene, reads the story's change lines and shows the result in tabs and cards. [Story Director](https://github.com/kohz87/Story_director) adds checks, quests, a clock, a map and story planning; [NPC State Delta](https://github.com/kohz87/npc_state_delta) adds NPC dossiers. Both are optional.
 

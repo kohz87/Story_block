@@ -105,7 +105,9 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
 
 * **The greeting** (first carrier) always holds a checkpoint: the initial state (§2.6). When the first
   carrier is deleted, the new first carrier gets the state the deleted ones ended with as its checkpoint and
-  keeps its own changes; a record already there is never replaced.
+  keeps its own changes; a record already there is never replaced. The deleted carriers are replayed whole for it, from
+  the first one's checkpoint (past any later checkpoint among them), so a reply-bound block of theirs (REPLAY.md), such as
+  a loot offer, is not carried, and neither is what needed it (a take of that loot).
 * A carrier gets a checkpoint when 100 carriers have passed since the last one, or the ops since then
   exceed 128 KB of JSON and twice the last checkpoint's own size, at least 10 carriers after it (one domain
   that rewrites a big list on every reply cannot bring a checkpoint every few replies). The checkpoint is
@@ -898,6 +900,13 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   (each reply's loot is taken once; a second take is `REFUSED`), skips what is carried by then, and puts the
   rest in the party's bag as the offer held it, making the definitions then; past the carry limit it is
   `REFUSED` and the claim stays free. An offer no longer there is `NOT_FOUND`; an empty or bad pick `INVALID`.
+  What a reply laid out goes away with it: the take is a guarded block (REPLAY.md "Loot take guards", predicate
+  `loot.take`) that applies, with its claim, only while the offering reply's offer lays out at least what was taken
+  (names matched by the inventory's tolerant lookup: "Torches" offers the "Torch" taken; none or two matches do not).
+  Deleting that reply, or editing it and Re-reading so the offer drops a taken thing or offers fewer of it (or less
+  money) than was taken, turns the take off, items, money and claim, with a `REPLAY_PREREQUISITE` Problem; the claim is
+  free again for the offer as it reads now. An unchanged Re-read, or one that still offers what was taken, keeps it.
+  A take saved by 2.6.0 or earlier has no guard and replays as it was stored.
 * **Encumbered** (`story-block.encumbrance`). A story `+ item`, or a `~ item | qty:` raise, past the carry
   limit (`items.carry … → { ok: false }`) is kept, and its receipt says the party is encumbered
   (`data.encumbered: true`). The condition is derived from the load, never stored: `inventory.encumbrance`

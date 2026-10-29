@@ -142,6 +142,9 @@ A swipe away from the reply does the same as it does for any block of that swipe
 and its receipt too (`replaceStory` does not keep it; a block built under it is replayed without it and stays off, as after a
 delete); a Re-read of any other reply leaves it alone. Use it for a choice the rest of the owner's state depends on (a module's saved choice): taking the
 reply away takes the choice and what was built on it, never one without the other. Tests: `tests/v2/reply-bound.test.js`.
+When the earliest replies are deleted, the state they ended with is worked out by replaying them **whole**, from the first
+one's checkpoint and past any later checkpoint among them (a checkpoint holds what the blocks before it did without asking
+them again), so a reply-bound block of a deleted reply is left out however many replies one update removes.
 
 ## Data module guards
 
@@ -154,6 +157,28 @@ The guard reads the state before the block, `recorded`, the Source and its one d
 it asks the pure condition expressions of the frozen definition again, and never settings, installed packs, wall time, RNG or `receipts()`.
 A relevant earlier change makes the later action inactive (`REPLAY_PREREQUISITE`, Re-read to apply it again); a tick, which
 asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconcile instead.
+
+## Loot take guards
+
+A reader's loot take (`inventory.lootTake`, SPEC §7) is a guarded block of Story Block's own: `owner: 'story-block'`,
+predicate `{ kind: 'loot.take', sid, claim, items: [{ name, qty }], coin }` (the offering reply's record ID, the offer's
+claim, the offer's names and how many of each were taken, the coin taken), `inputHash` the hash of the predicate, no
+`recorded`, `rulesHash: null`. The host-owned dispatcher in `domains/index.js` sends it to `lootTakeGuard`
+(`domains/inventory.js`), which reads only the state before the block: the take applies while `inventory.loot[sid]` is
+there under the same claim and lays out at least as many of each taken thing as were taken, and at least the coin taken.
+A taken name means the one thing of the offer the inventory's own lookup finds for it (`names.js` `resolveDef` over the
+offer's things: the exact name first, then singular and plural, the name without portion words, then the word-order key),
+so a Re-read that writes "Torches" for the "Torch" taken keeps the take; a name that means none of the offer's things, or
+two of them, or the thing another taken name means, does not hold. Everything else the take did (which definitions, which stacks, the 50 cap of a thing that does
+not stack) was decided when the reader took and is replayed as stored. So a take on the offering reply or on a later
+one is off after that reply is deleted, or edited and Re-read without what was taken; an unchanged or still-authorizing
+Re-read keeps it; putting the offer back brings it back while its claim is free. A take stored before 2.6.1 is a legacy
+block and replays as before. Tests: `tests/v2/loot-undo.test.js`.
+
+The offer itself (`? loot`, `captureLoot`) is a reply-bound guarded block of Story Block's own (predicate
+`{ kind: 'loot.offer', sid }`, `replyBound: true`; its guard checks only its shape), so it goes with its reply in every
+case, also when deleting the earliest replies carries the rest of what they did forward (below). A take of it, on that reply
+or a later one, then finds no offer and is off. Offers stored before 2.6.1 are legacy blocks and are carried as before.
 
 ## Source map and ids
 
