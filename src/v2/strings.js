@@ -105,6 +105,8 @@ export const STRINGS = deepFreeze({
     // `story-block/changes-card` and its one-line summary.
     card: {
         title: 'Changed this reply',
+        editHint: 'Your edits ride on this reply: swipe or delete it and they go too.',
+        rule: 'Rule: {name}',
         itemNow: 'now ×{qty}',
         equipped: 'equipped: {slot}',
         wallet: 'Wallet: now {coin} {money}',
@@ -155,6 +157,8 @@ export const STRINGS = deepFreeze({
         many: '{first} and {n} more',
         lootOne: '1 thing to pick up',
         lootMany: '{n} things to pick up',
+        editsOne: '1 edit of yours',
+        editsMany: '{n} edits of yours',
         assistedOne: '1 line from the safety net (assist)',
         assistedMany: '{n} lines from the safety net (assist)',
         refusedOne: '1 line not applied',

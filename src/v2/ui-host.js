@@ -53,7 +53,7 @@ import { createReplyExtras } from './extras-ui.js';
 import { displayLines } from './extras.js';
 import { STRINGS, fill } from './strings.js';
 import { readRecord } from './persist.js';
-import { laterStore, scanReplyCards } from './reply-cards.js';
+import { laterStore, replyEdits, replyRules, scanReplyCards } from './reply-cards.js';
 import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE } from './features.js';
 import { createInspectorSource } from './inspect.js';
@@ -321,7 +321,12 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     }
     // A card's scope also gets `refused`: that reply's change lines the code did not apply; the "Changed this
     // reply" card also `moduleLines`: the modules' own lines for that reply (hooks.replyCard, MODULES §F125).
-    const cardLines = (index, state, changes) => replyCardLines(registry.hookEntries?.('replyCard') ?? [], { index, state, changes });
+    const recordAt = index => readRecord(ctx.chat?.[index]);
+    const editsAt = index => replyEdits(recordAt(index), store.problems?.() ?? [], index);
+    const cardLines = (index, state, changes) => [
+        ...replyCardLines(registry.hookEntries?.('replyCard') ?? [], { index, state, changes }),
+        ...replyRules(recordAt(index), store.problems?.() ?? [], index),
+    ];
     const drawScreen = renderer.render;
     // …and `assisted`: the lines the Assist safety net applied on it (its receipts marked `assist`).
     const assistedAt = index => {
@@ -331,7 +336,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         } catch { return []; }
     };
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card'
-        ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes) } : {}) }
+        ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes), edits: editsAt(scope.index), editableHead: scope.index === store.headIndex() } : {}) }
         : scope);
     // The story head a dialog was opened on (mounts/dialog.js): the head's index and record. Which swipe is shown is not part of
     // it: a swipe that keeps the head record is not a move (the chat's id is checked on its own).
@@ -454,7 +459,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
             if (screen?.id !== CHANGES_CARD_SCREEN_ID) return null;
             let currency = null;
             try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
-            return changesSummary({ state, before, changes, currency, refused: notes.refusedAt(index).length, assisted: assistedAt(index).length, lines: cardLines(index, state, changes) });
+            return changesSummary({ state, before, changes, currency, refused: notes.refusedAt(index).length, assisted: assistedAt(index).length, lines: cardLines(index, state, changes), edits: editsAt(index).length });
         },
         settings: screenId => {
             const owner = String(screenId ?? '').split('/')[0];

@@ -325,7 +325,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             reads: result.reads.map(read => read.path), imports: prefixImports(definition),
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
-        const outcome = { kind: labels.kind, subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes };
+        const outcome = { kind: labels.kind, subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, summary: `${definition.name}: ${labels.kind}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
@@ -362,7 +362,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const label = map ? `${payload.field} (${payload.key})` : payload.field;
         const summary = `You set ${definition.name}: ${label} ${valueText(before)} → ${valueText(value)}.`;
         const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes,
-            result: { field: payload.field, ...(map ? { key: payload.key } : {}), subject, from: before, to: value }, summary });
+            result: { field: payload.field, ...(map ? { key: payload.key } : {}), subject, from: before, to: value, ...(result.fired.length ? { rules: result.fired } : {}) }, summary });
         answer.data.edit = true;
         return answer;
     }
@@ -389,7 +389,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const recorded = guard(ctx, prefix, { kind: 'dm.tick', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition),
             actor: subject !== 'chat', decision: { inputs, conds: result.conds } });
-        return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes }, summary: `${definition.name}: story time settled.` });
+        return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) }, summary: `${definition.name}: story time settled.` });
     }
     // The timers whose clock has moved past their cursor, as `dm.tick` steps (one per module and subject). Silent while a
     // peer is away or a restore is pending (Setup shows the reason; an explicit action is refused with it), and for a

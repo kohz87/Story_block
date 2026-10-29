@@ -59,7 +59,7 @@ export function parseLabels(definition, kind, labels, { text = false } = {}) {
 }
 
 export function createEvaluation(definition, instance, { inputs = {}, source, cursor, subject = 'chat', lookup = null } = {}) {
-    const original = copy(instance), reads = new Map(), notes = [], decisions = [], conds = [], written = new Set();
+    const original = copy(instance), reads = new Map(), notes = [], decisions = [], conds = [], fired = [], written = new Set();
     let visits = 0, frame = null;
     const charge = (n = 1) => {
         visits += n;
@@ -238,13 +238,13 @@ export function createEvaluation(definition, instance, { inputs = {}, source, cu
         }
     }
     function rules() {
-        for (const rule of definition.rules) { charge(); if (condition(['rule', rule.id], rule.when, {})) effects(rule.then); }
+        for (const rule of definition.rules) { charge(); if (condition(['rule', rule.id], rule.when, {})) { fired.push(rule.id); effects(rule.then); } }
     }
     return { evaluate, condition, effects, timers, rules, charge, read,
         finish() {
             for (const [key, schema] of Object.entries(definition.state)) if (!scalarHolds(schema, instance.fields[key])) refuse('DM_BOUNDS', key, 'Invalid instance field.');
             if (bytes(instance) > L.instanceBytes) refuse('DM_BUDGET', '', 'Instance storage exhausted.');
-            return { reads: [...reads.values()], visits, notes, decisions, conds };
+            return { reads: [...reads.values()], visits, notes, decisions, conds, fired };
         },
     };
 }
