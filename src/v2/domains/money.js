@@ -230,6 +230,28 @@ export function parseAmount(text, currency = null) {
     return { amount };
 }
 
+/** A reader's purse input: one amount or several named coins, summed in the smallest unit. */
+export function parseMixedAmount(text, currency = DEFAULT_CURRENCY) {
+    const input = String(text ?? '').trim();
+    if (!input) return { error: 'Enter an amount of money.' };
+    if (/^0+$/.test(input)) return { amount: 0 };
+    if (!coinList(currency).length) return parseAmount(input, currency);
+    if (/[^\p{L}\s0-9,'-]/u.test(input) || /[-']\s*\d/.test(input)) return { error: 'Enter whole amounts of the coins used here.' };
+    const parts = [...input.matchAll(/(?:^|\s)(\d[\d,]*)(?:\s+)([^\d]+?)(?=\s+\d|$)/gu)];
+    if (!parts.length) return parseAmount(input, currency);
+    if (parts.map(part => part[0]).join('').trim() !== input) return { error: 'Enter whole amounts of the coins used here.' };
+    let amount = 0;
+    for (const part of parts) {
+        if (!/^(?:\d{1,3}(?:,\d{3})+|\d+)$/.test(part[1])) return { error: 'Enter whole amounts of the coins used here.' };
+        const count = Number(part[1].replace(/,/g, ''));
+        const worth = coinValue(part[2], currency);
+        if (!worth) return { error: `"${tidy(part[2], 40)}" is not a coin here.` };
+        if (!Number.isSafeInteger(count) || !Number.isSafeInteger(count * worth) || !Number.isSafeInteger(amount + count * worth)) return { error: 'That amount is too large.' };
+        amount += count * worth;
+    }
+    return { amount };
+}
+
 // The number of an amount (parseAmount without coins): only plain whole digits, one number, no sign.
 function parseNumber(text) {
     const numbers = String(text ?? '').match(/\d[\d,.]*/g) ?? [];

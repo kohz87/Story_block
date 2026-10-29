@@ -1223,6 +1223,18 @@ export function createInventoryCommands(env) {
             };
         },
 
+        'wallet.set'(ctx, payload = {}) {
+            byReader(ctx);
+            const owner = receiverArg(ctx, payload.owner);
+            if (!isCount(payload.amount, 0)) ctx.fail('INVALID', 'The amount must be a whole number of at least 0.');
+            const inv = ctx.draft('inventory');
+            const wallet = (inv.wallets[owner] ??= {});
+            const from = wallet[WALLET_KEY] ?? 0;
+            wallet[WALLET_KEY] = payload.amount;
+            return { summary: `You set the purse to ${formatAmount(payload.amount, currencyIn(ctx))}.`,
+                data: { edit: true, from, to: payload.amount }, narrate: true };
+        },
+
         // { owner, amount, note? }, amount in whole units of the one currency. Like inventory.grant, not
         // from a button on its own: the story, the host, or another module's command through ctx.call
         // (a shop's trade.buy pays; a reward's quest.finish receives).
