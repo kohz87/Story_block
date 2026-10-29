@@ -199,13 +199,31 @@ function setWeather(ctx, { text, key } = {}) {
     return { summary: `The weather: ${clean}.`, data: { text: clean, key: mark }, narrate: false };
 }
 
+// The list editor replaces the whole set of names with one reader command. Existing add/remove
+// actions keep their semantics for story lines and module calls.
+function setPresent(ctx, value) {
+    if (ctx.cause !== 'ui' || ctx.caller !== null) ctx.fail('REFUSED', 'Only the reader can set the whole list.');
+    if (!Array.isArray(value)) ctx.fail('INVALID', 'Give the people present as a list.');
+    const scene = ctx.draft('scene');
+    const before = scene.present;
+    const present = companions(ctx, value);
+    scene.present = present;
+    return { summary: `Present: ${present.join(', ') || 'nobody'}.`,
+        data: { added: present.filter(name => !before.includes(name)), removed: before.filter(name => !present.includes(name)), present: [...present] }, narrate: true };
+}
+
+function markEdit(ctx, result) {
+    if (ctx.cause === 'ui') result.data = { ...result.data, edit: true };
+    return result;
+}
+
 export const sceneCommands = {
     // { name, kind?, region?, with?: name | name[] } (a move leaves behind everyone not named in `with`)
-    'scene.place': (ctx, payload = {}) => setPlace(ctx, payload),
+    'scene.place': (ctx, payload = {}) => markEdit(ctx, setPlace(ctx, payload)),
     // { add?: name | name[], remove?: name | name[] }
-    'scene.present': (ctx, payload = {}) => changePresent(ctx, payload),
+    'scene.present': (ctx, payload = {}) => markEdit(ctx, payload.set === undefined ? changePresent(ctx, payload) : setPresent(ctx, payload.set)),
     // { text?, key? } (a module's rule; the story writes `~ weather`)
-    'scene.weather': Object.assign((ctx, payload = {}) => setWeather(ctx, payload), { feature: WEATHER_FEATURE }),
+    'scene.weather': Object.assign((ctx, payload = {}) => markEdit(ctx, setWeather(ctx, payload)), { feature: WEATHER_FEATURE }),
 };
 
 /** `~ place Name | kind | region | with: who came along` (or `+ place`). */
