@@ -892,11 +892,35 @@ function lootTake(ctx, payload, env) {
 // The guard of a take, as the core module's replayGuard asks it (domains/index.js) on the state before the take's block,
 // on a rebuild, a reload, a delete, a swipe and a Re-read alike. Pure: the state before the block and the guard's own
 // predicate, nothing else. The take holds while the reply's offer is there under the same claim and lays out, by the
-// tolerant name, at least as many of each thing as was taken (and at least the coin taken): a Re-read that leaves the
+// tolerant name, at least as many of each thing as was taken (and at least the coin taken). The names are matched as the
+// inventory looks a name up (resolveDef over the offer's things: the exact name first, then singular and plural, the
+// name without portion words, then the word-order key), so "Torches" still offers what "Torch" took; a name that matches
+// none of them, or two, or the thing another taken name matches, does not hold. A Re-read that leaves the
 // offer as it was, or still offering what was taken, keeps the take; a deleted reply, or a Re-read that drops a taken
 // thing or lowers it below what was taken, turns the take off with its claim (the block stays stored, inactive, and the
 // Problems say why). The changes it made were decided when the reader took, and are replayed as they were.
 export const LOOT_GUARD = 'loot.take';
+
+// The taken things (`wanted`, [{ name, qty }]) the offer's things no longer lay out: for each, the one thing of the offer its
+// name means by the inventory's own lookup (an offer as a slice of defs keyed by position, each named and aliased by its own
+// name), with at least as many; a name that means none, or more than one, or a thing an earlier taken name took, is gone.
+function offeredFor(things, wanted) {
+    const defs = {};
+    const aliases = {};
+    things.forEach((item, at) => {
+        if (!isPlainObject(item) || item.coin !== undefined || !nonBlank(item.name)) return;
+        defs[String(at)] = { name: item.name };
+        aliases[aliasKey(item.name)] ??= String(at);
+    });
+    const used = new Set();
+    return wanted.filter(want => {
+        const found = resolveDef({ defs, aliases }, want.name);
+        if (found.status !== 'found' || used.has(found.id)) return true;
+        used.add(found.id);
+        const qty = things[Number(found.id)].qty;
+        return !(Number.isSafeInteger(qty) && qty >= want.qty);
+    });
+}
 const LOOT_OWNER = 'story-block';
 export function lootTakeGuard({ state, hash }, { guard }) {
     const predicate = guard?.predicate;
@@ -909,8 +933,7 @@ export function lootTakeGuard({ state, hash }, { guard }) {
     const offer = isPlainObject(loot) && Object.hasOwn(loot, predicate.sid) && isPlainObject(loot[predicate.sid]) ? loot[predicate.sid] : null;
     if (!offer || (offer.claim || `loot:${predicate.sid}`) !== predicate.claim) return { ok: false, reason: 'the loot it took is no longer on offer' };
     const things = lootItems(offer) ?? [];
-    const gone = predicate.items.filter(want => !things.some(item => isPlainObject(item) && item.coin === undefined
-        && aliasKey(String(item.name ?? '')) === aliasKey(want.name) && Number.isSafeInteger(item.qty) && item.qty >= want.qty));
+    const gone = offeredFor(things, predicate.items);
     const purse = things.find(item => isPlainObject(item) && item.coin !== undefined)?.coin;
     const short = predicate.coin > 0 && !(Number.isSafeInteger(purse) && purse >= predicate.coin);
     if (gone.length || short) {

@@ -8,6 +8,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost } from '../../testkit/index.js';
+import { lootTakeGuard } from '../../src/v2/domains/inventory.js';
+import { hashJson } from '../../src/v2/replay.js';
 import { readRecord } from '../../src/v2/persist.js';
 
 const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Changes>`;
@@ -330,4 +332,55 @@ test('the greeting deleted, the offering reply first and last: a swipe of it tak
     await host.st.swipeTo(host.ctx.chat.length - 1, 0);
     assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid), qty(host, 'Rope')], [2, 5, true, 1]);
     await agrees(t, host, 'back on the first swipe');
+});
+
+// The offer's names are matched as the inventory looks a name up (names.js resolveDef): a Re-read that writes the taken
+// thing another way still offers it; another thing, or a name that could mean two, does not.
+for (const [first, again, keeps] of [
+    ['Torch x2', 'Torches x2', true],
+    ['Torches x2', 'Torch x2', true],
+    ['Torch x2', 'TORCH   x2', true],
+    ['Torch x2', 'a handful of Torches x2', true],
+    ['Lantern Oil x2', 'Oil of Lantern x2', true],
+    ['Torch x2', 'Torch Stand x2', false],
+    ['Torch x2', 'Torches', false],
+]) {
+    test(`a take of "${first}" on a later reply, the offer Re-read as "${again}": ${keeps ? 'kept' : 'off'}`, async t => {
+        const host = await fresh(t);
+        await host.send('Search.', reply('A crate.', [`? loot ${first}, Rope — in the crate`]));
+        const sid = headSid(host);
+        await host.send('Walk on.', reply('The road goes on.', ['+ item Apple']));
+        const taken = await take(host, sid, [0]);
+        assert.equal(taken.ok, true, taken.message);
+        const name = host.sdk.query('inventory.items').find(item => item.qty === 2)?.name;
+        assert.ok(name);
+        const index = at(host, 'A crate.');
+        await host.st.editMessage(index, reply('A crate.', [`? loot ${again}, Rope — in the crate`]));
+        assert.equal((await host.turn.reread(index)).ok, true);
+        assert.deepEqual([qty(host, name), claimed(host, sid)], keeps ? [2, true] : [0, false]);
+        assert.equal(offPs(host).length, keeps ? 0 : 1);
+        await agrees(t, host, 'after the Re-read');
+    });
+}
+
+test('the guard: the exact name wins; a name two things could mean, or two taken names meaning one thing, do not hold', () => {
+    const guardOf = items => {
+        const predicate = { kind: 'loot.take', sid: 'sw_000000000001', claim: 'loot:sw_000000000001', items, coin: 0 };
+        return { owner: 'story-block', version: 2, epoch: 'ep_00000000', rulesHash: null, inputHash: hashJson(predicate), predicate };
+    };
+    const ask = (names, items) => {
+        const offered = Object.fromEntries(names.map((name, n) => [String(n), { name, qty: 2 }]));
+        const state = { v: 2, meta: { rev: 1, claims: {} }, domains: { inventory: { defs: {}, stacks: {}, wallets: {}, aliases: {},
+            loot: { sw_000000000001: { sid: 'sw_000000000001', n: 1, where: '', claim: 'loot:sw_000000000001', items: offered } } } } };
+        return lootTakeGuard({ state, hash: hashJson }, { guard: guardOf(items) });
+    };
+    assert.deepEqual(ask(['Torches', 'Torch'], [{ name: 'Torch', qty: 2 }]), { ok: true }, 'the exact name first');
+    assert.deepEqual(ask(['Oil Lantern', 'Lanterns Oil'], [{ name: 'Lantern Oil', qty: 2 }]),
+        { ok: false, reason: 'the loot on offer no longer holds Lantern Oil ×2 it took' }, 'two things the name could mean');
+    assert.deepEqual(ask(['Oil Lantern'], [{ name: 'Lantern Oil', qty: 2 }]), { ok: true }, 'one thing it means');
+    assert.equal(ask(['Torch'], [{ name: 'Torch', qty: 1 }, { name: 'Torches', qty: 1 }]).ok, false, 'one thing does not stand for two taken');
+    assert.equal(ask(['Torch Stand'], [{ name: 'Torch', qty: 2 }]).ok, false, 'another thing');
+    assert.equal(ask(['Torch'], [{ name: 'Torch', qty: 3 }]).ok, false, 'fewer than were taken');
+    const bad = guardOf([{ name: 'Torch', qty: 2 }]);
+    assert.deepEqual(lootTakeGuard({ state: {}, hash: hashJson }, { guard: { ...bad, inputHash: '0'.repeat(64) } }), { ok: false, reason: 'its loot guard is damaged' });
 });
