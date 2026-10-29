@@ -170,3 +170,15 @@ test('a screen whose css changed gets its new sheet on the next draw: one sheet,
     renderer.render(el, { ...screen, css: '' }, { state, api: {}, mount: 'tab' });
     assert.equal(sheets().length, 0, 'a screen with no css has no sheet');
 });
+
+test('a template editable has no pencil on older cards and becomes editable at the head', () => {
+    const { el, renderer } = setup(5);
+    const screen = { id: 'test/editable', template: `<ss-widget name="ss.editable" data-props='{"value":"old","command":"x.set"}'></ss-widget>` };
+    const api = { command: async () => ({ ok: true }) };
+    renderer.render(el, screen, { state, api, mount: 'card', index: 2 });
+    assert.equal(el.querySelector('.ss-w-editable-pencil').hidden, true);
+    renderer.render(el, screen, { state, api, mount: 'card', index: 5 });
+    assert.equal(el.querySelector('.ss-w-editable-pencil').hidden, false);
+    renderer.render(el, screen, { state, api, mount: 'card', index: 2 });
+    assert.equal(el.querySelector('.ss-w-editable-pencil').hidden, true);
+});

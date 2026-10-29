@@ -19,6 +19,11 @@ function deepFreeze(value) {
 }
 
 export const STRINGS = deepFreeze({
+    editable: {
+        edit: 'Edit {label}', value: 'value', save: 'Save', cancel: 'Cancel', add: 'Add',
+        remove: 'Remove {value}', wholeNumber: 'Enter a whole number.', failed: 'Could not save this change.',
+    },
+
     // The Story Suite bar above the message box, the story panel, the drawer and the wand menu.
     bar: {
         label: 'Story Suite',
