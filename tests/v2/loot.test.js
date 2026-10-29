@@ -252,7 +252,11 @@ test('the reader cannot lay out loot from a button; the line wants ?; with the f
     assert.deepEqual([off.ok, off.code], [false, 'FEATURE_OFF']);
     const taken = h.run('inventory.lootTake', { sid: 'sid-test-1', pick: [0] }, { extra: { feature: () => false } });
     assert.equal(taken.code, 'FEATURE_OFF');
-    assert.equal(h.run('inventory.lootTake', { sid: 'sid-test-1', pick: [0] }).ok, true);
+    // (the take attaches its guard: the harness has no store, so the guard is caught here)
+    const guards = [];
+    const guarded = { replayGuard: guard => guards.push(guard), epoch: 'ep_00000000', hash: value => JSON.stringify(value) };
+    assert.equal(h.run('inventory.lootTake', { sid: 'sid-test-1', pick: [0] }, { extra: guarded }).ok, true);
+    assert.deepEqual(guards.map(guard => guard.predicate), [{ kind: 'loot.take', sid: 'sid-test-1', claim: 'loot:sid-test-1', items: [{ name: 'Torch', qty: 1 }], coin: 0 }]);
     assert.equal(typeof captureLoot, 'function');
 });
 
