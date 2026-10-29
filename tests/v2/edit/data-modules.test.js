@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHost } from '../../../testkit/index.js';
 import { validatePack } from '../../../src/v2/packs/validate.js';
 import { parseLabels } from '../../../src/v2/data-modules/interpreter.js';
 import { moduleGrammar } from '../../../src/v2/data-modules/grammar.js';
@@ -43,6 +44,56 @@ test('dm.set validates fields, rules, bounds, map keys and non-editable fields',
     await host.swipe('Another road.');
     assert.equal(view(host, offer.module).chat.points, 0);
     assert.equal(view(host, offer.module).chat.mode, 'calm');
+});
+
+test('deleting a reply removes its inventory, purse, scene and data-module edits', async t => {
+    const host = await world(t, pack([made()]));
+    const offer = await pin(host);
+    await host.send('Find.', 'A torch.\n\n<Changes>\n+ item Torch | qty: 2\n</Changes>');
+    const before = structuredClone(host.head().domains);
+    const stack = host.sdk.query('inventory.items')[0].stack;
+    await host.send('Wait.', 'A quiet road.');
+    const edits = [
+        ['inventory.add', { name: 'Rope', qty: 2, note: 'dry' }],
+        ['inventory.edit', { stack, name: 'Lantern', qty: 3, note: 'lit' }],
+        ['wallet.set', { amount: 15 }],
+        ['scene.place', { name: 'Bluewatch' }],
+        ['scene.weather', { text: 'rain' }],
+        ['scene.present', { set: ['Ren'] }],
+        ['dm.set', { module: offer.module, field: 'points', value: 5 }],
+        ['inventory.drop', { stack, qty: 3 }],
+    ];
+    for (const [type, payload] of edits) {
+        const result = await host.sdk.command(type, payload);
+        assert.equal(result.ok, true, `${type}: ${result.message}`);
+        assert.equal(result.receipt.data.edit, true, type);
+    }
+    assert.equal(view(host, offer.module).chat.points, 5);
+    assert.equal(host.sdk.query('inventory.wallet').coin, 15);
+    await host.st.deleteMessage(host.ctx.chat.length - 1);
+    assert.deepEqual(host.head().domains, before);
+    host.store.rebuild();
+    assert.deepEqual(host.head().domains, before);
+    const loaded = await createHost({ st: { chat: structuredClone(host.ctx.chat), extensionSettings: structuredClone(host.ctx.extensionSettings) } });
+    t.after(() => loaded.close());
+    assert.deepEqual(loaded.head().domains, before);
+});
+
+test('a field edit with a changed earlier prerequisite stays off with a Problem', async t => {
+    const host = await world(t, pack([made()]));
+    const offer = await pin(host);
+    await host.send('Gain.', 'The story.\n<Changes>\n+ dm counter — gain | kind: gain\n</Changes>');
+    const earlier = host.store.headIndex();
+    await host.send('Wait.', 'The road.');
+    const result = await host.sdk.command('dm.set', { module: offer.module, field: 'points', value: 5 });
+    assert.equal(result.ok, true, result.message);
+    await host.st.editMessage(earlier, 'The story changes.');
+    assert.equal((await host.sdk.reread(earlier)).ok, true);
+    assert.equal(view(host, offer.module).chat.points, 0);
+    assert.ok(host.store.problems().some(problem => problem.code === 'REPLAY_PREREQUISITE'));
+    const live = structuredClone(host.head());
+    host.store.rebuild();
+    assert.deepEqual(host.head(), live);
 });
 
 test('text labels are bounded and nonempty; only equality with a literal is allowed in conditions', () => {
