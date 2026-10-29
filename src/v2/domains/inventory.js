@@ -981,11 +981,49 @@ const editPieces = (inventory, target) => Object.values(inventory?.stacks ?? {})
     .filter(stack => stack.def === target.def && stack.owner === target.owner)
     .map(stack => ({ id: stack.id, equipped: stack.equipped }));
 
+// Saved ops cannot choose a different stack on replay. Witness the same name lookup and
+// compatibility decision made when the reader added or renamed an item, without including
+// unrelated inventory or a destination count that counter replay can safely rebase.
+const editCompatibility = (inv, stack) => stack ? {
+    id: stack.id, def: stack.def, owner: stack.owner, note: stack.note,
+    equipped: stack.equipped, condition: condOf(stack, inv), key: stack.key === true,
+} : null;
+function addDecision(inv, payload, defId) {
+    const name = cleanName(payload.name), owner = payload.owner ?? 'party';
+    const note = payload.note == null ? '' : trimText(payload.note, MAX_NOTE);
+    const def = inv.defs[defId];
+    const destination = def?.stack ? looseMatch(inv, defId, owner, note) : null;
+    return { resolution: resolveDef(inv, name), def: def ? { id: def.id, stack: def.stack } : null,
+        destination: editCompatibility(inv, destination) };
+}
+function renameDecision(inv, stack, payload) {
+    const name = cleanName(payload.name), original = inv.defs[stack.def], found = resolveDef(inv, name);
+    const note = payload.note === undefined ? stack.note : payload.note == null ? '' : trimText(payload.note, MAX_NOTE);
+    const source = { ...editCompatibility(inv, stack), note };
+    if (found.status === 'found' && found.id !== original.id) {
+        const targetDef = inv.defs[found.id];
+        const target = stacksOf(inv, found.id).find(other => targetDef.stack && source.owner === other.owner
+            && source.equipped === other.equipped && source.note === other.note && source.condition === condOf(other, inv)
+            && source.key === (other.key === true));
+        return { resolution: found, original: { name: original.name, stack: original.stack }, source,
+            sourceQty: stack.qty, sourceStory: stack.story === true, targetStackable: targetDef.stack,
+            destination: editCompatibility(inv, target) };
+    }
+    if (name === original.name) return { resolution: found, original: { name: original.name, stack: original.stack } };
+    const shared = Object.values(inv.stacks).some(other => other.id !== stack.id && other.def === original.id);
+    if (shared || original.id.startsWith('pack.')) {
+        return { resolution: found, original, shared, newDef: freeId(inv, `story/${slugify(name)}`) };
+    }
+    const aliases = Object.keys(inv.aliases).filter(key => inv.aliases[key] === original.id).sort();
+    return { resolution: found, original: { name: original.name, stack: original.stack }, shared, aliases };
+}
+
 // A reader action is a guarded ordinary command. If a later Re-read makes its saved ops
 // invalid, the existing replay machinery can leave just this action off and report it.
-function guardReaderEdit(ctx, action, target = null, pieces = null) {
+function guardReaderEdit(ctx, action, target = null, pieces = null, decision = null) {
     if (ctx.cause !== 'ui' || ctx.caller !== null || typeof ctx.replayGuard !== 'function' || !ctx.source) return;
-    const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces: ctx.hash(pieces) } : {}) };
+    const predicate = { kind: INVENTORY_EDIT_GUARD, action, ...(target ? { target } : {}), ...(pieces ? { pieces: ctx.hash(pieces) } : {}),
+        ...(decision ? { decision: { ...decision, witness: ctx.hash(decision.witness) } } : {}) };
     ctx.replayGuard({ owner: 'story-block', version: 2, epoch: ctx.epoch, rulesHash: null,
         inputHash: ctx.hash({ predicate, source: ctx.source }), predicate });
 }
@@ -996,13 +1034,28 @@ export function inventoryEditGuard({ state, hash }, { guard, source, operation }
     if (guard?.owner !== 'story-block' || guard.version !== 2 || guard.rulesHash !== null
         || !isPlainObject(p) || p.kind !== INVENTORY_EDIT_GUARD
         || !['inventory.add', 'inventory.edit', 'inventory.drop'].includes(p.action)
-        || operation?.type !== p.action || Object.keys(p).some(key => !['kind', 'action', 'target', 'pieces'].includes(key))
+        || operation?.type !== p.action || Object.keys(p).some(key => !['kind', 'action', 'target', 'pieces', 'decision'].includes(key))
         || hash({ predicate: p, source }) !== guard.inputHash) return bad;
+    const inventory = state?.domains?.inventory;
+    if (p.decision !== undefined) {
+        const d = p.decision, payload = operation?.payload;
+        if (!isPlainObject(d) || !inventory || !isPlainObject(payload) || typeof payload.name !== 'string'
+            || typeof d.witness !== 'string' || !/^[a-f0-9]{64}$/.test(d.witness)) return bad;
+        let witness;
+        if (p.action === 'inventory.add' && Object.keys(d).length === 2 && typeof d.def === 'string') {
+            witness = addDecision(inventory, payload, d.def);
+        } else if (p.action === 'inventory.edit' && Object.keys(d).length === 1 && inventory.stacks?.[payload.stack]
+            && inventory.defs?.[inventory.stacks[payload.stack].def]) {
+            witness = renameDecision(inventory, inventory.stacks[payload.stack], payload);
+        } else return bad;
+        if (hash(witness) !== d.witness) return { ok: false, reason: E.itemDecisionChanged };
+    }
+    // Earlier saved guards did not have a decision witness; keep their existing replay behavior.
     if (p.action === 'inventory.add') return p.target === undefined && p.pieces === undefined ? { ok: true } : bad;
     if (!isPlainObject(p.target) || Object.keys(p.target).length !== 3
         || typeof p.target.id !== 'string' || p.target.id !== operation?.payload?.stack
         || typeof p.target.def !== 'string' || typeof p.target.owner !== 'string') return bad;
-    const inventory = state?.domains?.inventory, stack = inventory?.stacks?.[p.target.id];
+    const stack = inventory?.stacks?.[p.target.id];
     if (!stack || stack.def !== p.target.def || stack.owner !== p.target.owner || !inventory?.defs?.[stack.def]) {
         return { ok: false, reason: E.itemEditGone };
     }
@@ -1048,7 +1101,7 @@ export function createInventoryCommands(env) {
         // The reader's own item, resolved just like a story item but without the story's grant command.
         'inventory.add'(ctx, payload = {}) {
             byReader(ctx);
-            guardReaderEdit(ctx, 'inventory.add');
+            const prefix = ctx.read('inventory');
             const inv = ctx.draft('inventory');
             if (typeof payload.name !== 'string') ctx.fail('INVALID', E.itemName);
             const name = cleanName(payload.name);
@@ -1057,6 +1110,7 @@ export function createInventoryCommands(env) {
             const owner = receiverArg(ctx, payload.owner);
             const note = textArg(ctx, payload.note, MAX_NOTE, 'note');
             const { def, created } = defineByName(ctx, inv, name, env, { note, owner });
+            guardReaderEdit(ctx, 'inventory.add', null, null, { def: def.id, witness: addDecision(prefix, payload, def.id) });
             readerCarry(ctx, [{ defId: def.id, qty }], owner);
             const stacks = grantInto(ctx, inv, def, qty, owner, note);
             return { summary: fill(E.itemAdded, { item: itemText(def.name, qty) }), data: { edit: true, def: def.id, qty, owner, stacks, created }, narrate: true };
@@ -1068,6 +1122,7 @@ export function createInventoryCommands(env) {
             const stack = stackIn(ctx, inv, payload.stack);
             const original = inv.defs[stack.def];
             const oldName = original.name;
+            const decision = typeof payload.name === 'string' ? { witness: renameDecision(inv, stack, payload) } : null;
             let groupQty;
             // The screen counts separate pieces together without changing the one-piece stack invariant.
             if (payload.group === true && !original.stack && payload.qty !== undefined) {
@@ -1075,7 +1130,7 @@ export function createInventoryCommands(env) {
                 if (qty > MAX_UNSTACKED) ctx.fail('INVALID', fill(E.itemGroupLimit, { max: MAX_UNSTACKED }));
                 const editPiece = payload.name !== undefined || payload.note !== undefined;
                 const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
-                guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack));
+                guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack), decision);
                 // If this edit also changes the selected piece, keep that piece when reducing the group.
                 const loose = pieces.filter(item => item.equipped === null && (!editPiece || item.id !== stack.id)).reverse();
                 const remove = pieces.length - qty;
@@ -1092,7 +1147,7 @@ export function createInventoryCommands(env) {
                 }
                 groupQty = qty;
             }
-            if (groupQty === undefined) guardReaderEdit(ctx, 'inventory.edit', editStack(stack));
+            if (groupQty === undefined) guardReaderEdit(ctx, 'inventory.edit', editStack(stack), null, decision);
             if (payload.qty !== undefined && groupQty === undefined) {
                 const qty = count(ctx, payload.qty, undefined);
                 // A non-stacking item is one stack per piece (the domain's invariant).

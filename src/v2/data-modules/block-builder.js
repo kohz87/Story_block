@@ -32,7 +32,10 @@ const effectOf = (effect, state) => {
     if (effect.op === 'add') return schema.type === 'int' && Number.isSafeInteger(number(effect.value))
         ? { op: 'add', path: [effect.field], value: number(effect.value), bounds: 'clamp' } : null;
     let value = effect.value;
-    if (schema.type === 'int') value = number(value);
+    if (schema.type === 'int') {
+        value = number(value);
+        if (!Number.isSafeInteger(value)) return null;
+    }
     if (schema.list === true) { try { value = cleanList(value, schema.max); } catch { return null; } }
     return { op: 'set', path: [effect.field], value };
 };
@@ -71,8 +74,15 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
     const rules = [], timers = [];
     for (const [index, fn] of functions.entries()) {
         const path = `functions.${index}`, effects = (Array.isArray(fn.effects) ? fn.effects : []).map(effect => effectOf(effect, state));
-        if (fn.type === 'timer' && effects.some(effect => !effect || effect.op !== 'add')) return problem(`${path}.effects`, B.timerNumber);
-        if (!effects.length || effects.some(effect => !effect)) return problem(`${path}.effects`, B.chooseFunction);
+        if (!effects.length) return problem(`${path}.effects`, B.chooseFunction);
+        for (const [effectIndex, effect] of effects.entries()) {
+            const input = fn.effects[effectIndex];
+            if (fn.type === 'timer' && (!effect || effect.op !== 'add')) return problem(`${path}.effects.${effectIndex}.value`, B.timerNumber);
+            if (!effect) {
+                const part = !state[input?.field] ? 'field' : !['set', 'add'].includes(input?.op) ? 'op' : 'value';
+                return problem(`${path}.effects.${effectIndex}.${part}`, B.chooseFunction);
+            }
+        }
         const key = keyFor(fn.name || `${fn.type}-${index + 1}`, 32);
         if (!key) return problem(`${path}.name`, B.chooseFunction);
         if (fn.type === 'button') {

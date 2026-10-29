@@ -77,7 +77,7 @@ export const STRINGS = deepFreeze({
         itemGroupRenamed: '{name} to {qty}; one renamed {renamed}',
         itemSet: 'You set {detail}.', itemUnstackable: '{name} does not stack; each piece is kept separately.',
         itemEditDamaged: 'The saved item edit is damaged.', itemEditGone: 'The item for this edit has changed or is gone.',
-        itemPiecesChanged: 'The separate pieces for this edit have changed.',
+        itemPiecesChanged: 'The separate pieces for this edit have changed.', itemDecisionChanged: 'The item or stack chosen for this edit has changed.',
         itemGroupLimit: 'Keep at most {max} pieces of this item.',
         itemGroupEquipped: 'Unequip pieces before removing them.',
         itemCannotMerge: '{name} cannot be combined with this stack.', itemQuantityLarge: 'That quantity is too large.',
@@ -185,7 +185,7 @@ export const STRINGS = deepFreeze({
     // `story-block/changes-card` and its one-line summary.
     card: {
         title: 'Changed this reply',
-        editHint: 'Your edits ride on this reply: swipe or delete it and they go too.',
+        editHint: 'Your edits ride on this reply: swipe or delete it to undo them; deleting the oldest remaining reply carries them forward.',
         rule: 'Rule: {name}',
         itemNow: 'now ×{qty}',
         equipped: 'equipped: {slot}',

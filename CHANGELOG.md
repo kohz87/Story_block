@@ -2,6 +2,9 @@
 
 ## 2.7.0
 
+- Keep exported blocks' tabs, Home cards and buttons when imported and enabled as packs.
+- Recheck item name and stack compatibility when replaying reader adds and renames; report changed prerequisites.
+- Clarify that deleting the oldest remaining replies carries their reader edits forward with their state.
 - Preserve data-module pins and guarded history from 2.6.1 by keeping the interpreter-1 hash basis fixed.
 - Use one quiet inventory pencil for the name, count and note, and label the Home people-present row.
 - Add inline reader edits for inventory, the purse and the scene, with summaries on the latest reply's Changed card.

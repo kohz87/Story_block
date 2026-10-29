@@ -34,7 +34,7 @@ Add a trusted SB part at `src/v2/data-modules/`, merged into **`story-block`**, 
 |---|---|
 | Domain | `dataModules`, `deferred: true`; absent until an explicit pin |
 | Capture | One host-owned kind `dm`, enabled only when this chat has pins |
-| Commands | `dm.pin`, `dm.attach`, `dm.act`, `dm.set`, `dm.migrate`; internal `dm.capture`, `dm.tick` |
+| Commands | `dm.pin`, `dm.attach`, `dm.act`, `dm.set`, `dm.migrate`, `dm.define`, `dm.redefine`, `dm.remove`; internal `dm.capture`, `dm.tick` |
 | Queries | `dataModules.offers`, `.view`, `.public`, `.replayInputs` |
 | Context | Pinned grammar/static instructions; bounded state summaries in the tail |
 | Hooks | `afterCapture`, `beforeGenerate`, `replyCard`, replay guard dispatch for `dm.*` |
@@ -146,7 +146,9 @@ the generated grammar in the static prompt. The combined text fits 2,000 charact
 set `list: true`: it stores up to 12 entries joined with `; `, and the editor shows chips. Fields may
 carry a plain `label`, and a UI kind may carry a plain `title`, for display. Optional
 `show: { tab, card, tabName, icon }` chooses a block tab and/or Home card; `tabName` is at most 24
-characters and `icon` names an app icon. These keys can also be used by pack definitions.
+characters and `icon` names an app icon. These keys can also be used by pack definitions: after a pack
+module is pinned, the shared renderer shows its fields and UI-kind buttons on its tab or Home card.
+Only chat blocks offer Edit fields, Save as template and Remove.
 
 The editor generates one `set-<field>` story kind per field, including numbers; a numeric `to` label
 uses the field's bounds. A new or redefined block allows at most 16 fields and buttons combined, because

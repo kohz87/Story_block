@@ -148,10 +148,12 @@ them again), so a reply-bound block of a deleted reply is left out however many 
 
 ## Data module guards
 
-Story Block's data modules (DATA_MODULES.md) use this API as an owner: `owner: 'story-block'`, a `dm.pin` / `dm.attach` /
-`dm.migrate` / `dm.act` / `dm.tick` predicate, `replyBound: true` for the first three. Its replay guard is the host-owned dispatcher in
-`domains/index.js` (`hostOwned`, so no owner readiness enters a checkpoint's `guardEnv`): a predicate that starts with `dm.` goes to
-`dataModuleGuard`, every other predicate to the timeline guard exactly as before, and an unknown `dm.*` predicate fails closed.
+Story Block's data modules (DATA_MODULES.md) use this API as an owner: `owner: 'story-block'`, with predicates
+`dm.pin`, `dm.attach`, `dm.migrate`, `dm.act`, `dm.set`, `dm.tick`, `dm.define`, `dm.redefine` and `dm.remove`.
+Pin, attach, migrate and the three block-definition commands are reply-bound. Its replay guard is the host-owned dispatcher in
+`domains/index.js` (`hostOwned`, so no owner readiness enters a checkpoint's `guardEnv`): `dm.*` goes to
+`dataModuleGuard`, `inventory.reader-edit` to the inventory edit guard, loot predicates to the loot guard, and other
+predicates to the timeline guard. An unknown `dm.*` predicate fails closed.
 The guard reads the state before the block, `recorded`, the Source and its one declared replay query, `dataModules.replayInputs`
 (the pin, the generation, the attached subject, the paths the action read, the prefix projections of the clock and the actors);
 it asks the pure condition expressions of the frozen definition again, and never settings, installed packs, wall time, RNG or `receipts()`.
@@ -161,9 +163,12 @@ asks `NO_LONGER_DONE` when nothing is left to settle, is planned again by reconc
 ## Reader edits
 
 Inventory, purse and scene edits are ordinary UI commands recorded on the current reply. Their saved
-ops follow the same rebuild, swipe, delete and Re-read rules as other reader actions. Reader item adds,
+ops follow the same rebuild, swipe, delete and Re-read rules as other reader actions. Swiping or deleting
+a reply that is not the oldest remaining reply takes these edits back. Deleting the oldest remaining
+replies carries their state forward, including edits (see Leading history below). Reader item adds,
 edits and drops use a guard so that an item action whose saved changes no longer apply stays off with a
-Problem. Separate-piece counts also check that the same pieces remain available. Wallet and stack
+Problem. Adds and renames check name resolution and the chosen stack's compatibility; separate-piece
+counts also check that the same pieces remain available. Older saved guards keep their original checks. Wallet and stack
 counts retain the existing counter differences on replay. `dm.set` uses a data-module guard for the
 pin generation, the instance paths read and applicable imported inputs; it does not claim a reply key. A changed prerequisite
 keeps the guarded block off and reports a Problem. The Changed card reads edit summaries from receipt
@@ -255,7 +260,12 @@ A checkpoint also **carries the Problems of the blocks that are off in front of 
 block's position, why and its code), so a reload that starts from it still tells the reader that a block no longer applies;
 the message index is looked up again from the sid, so it follows a deleted user message. A Re-read or reconcile that rewrites
 a checkpoint rewrites what it carries. The Problems after a rebuild are those of a full replay.
-If the replies before the first reply that is left are gone and this session never saw them (a reload) and a checkpoint
+### Leading history
+
+When this session sees the oldest remaining replies deleted, it carries the state those replies ended
+with into the remaining history. Ordinary story changes and reader edits are carried alike. Reply-bound
+blocks are excluded, as described above. Deleting a later reply instead takes its ordinary changes and
+edits back. If the replies before the first reply that is left are gone and this session never saw them (a reload) and a checkpoint
 is left, that checkpoint cannot be checked: `ensureInitial` does **not** adopt it or reset the story. The saved history is
 kept as it is, the chat is read-only on an empty story (`store.readOnly().kind === 'unresolved'`) and a Problem offers
 two actions, each asked twice: "Keep the story state from the earliest saved point" (`keepEarliest`: that checkpoint is

@@ -22,7 +22,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
     const listeners = new Set();
     const tell = () => { for (const listener of [...listeners]) listener(); };
     const ask = (api, name, args) => { try { return api?.query?.(name, args); } catch { return null; } };
-    const rowsOf = api => (ask(api, 'dataModules.setup') ?? []).filter(row => row.packId === 'chat' && row.pinned && row.pinnedDefinition);
+    const rowsOf = api => (ask(api, 'dataModules.setup') ?? []).filter(row => row.pinned && row.pinnedDefinition?.show);
     const confirm = (doc, text) => {
         const win = doc.defaultView ?? globalThis;
         return typeof win.confirm === 'function' && win.confirm(text);
@@ -43,7 +43,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
     };
 
     function card(doc, parent, row, api, handles, { move = false } = {}) {
-        const definition = row.pinnedDefinition, view = ask(api, 'dataModules.view', { module: row.module })?.chat ?? {};
+        const definition = row.pinnedDefinition, view = ask(api, 'dataModules.view', { module: row.module }) ?? {};
         const root = h(doc, 'section', 'ss-block-card ss-glass'); parent.appendChild(root);
         const head = h(doc, 'div', 'ss-block-card-head'); root.appendChild(head);
         head.appendChild(h(doc, 'h3', '', definition.name));
@@ -56,65 +56,75 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
         });
         head.appendChild(menu);
         const status = h(doc, 'p', 'ss-block-status'); status.setAttribute('role', 'status'); root.appendChild(status);
-        button(doc, menu, S.editFields, () => { if (!open(row, move)) status.textContent = S.unsupportedEdit; });
-        button(doc, menu, S.saveTemplate, async () => {
-            let result = await templates?.put?.(definition);
-            if (result?.code === 'EXISTS' && confirm(doc, S.confirmReplace)) result = await templates.put(definition, { replace: true });
-            status.textContent = result?.ok ? S.templateSaved : result?.message ?? STRINGS.editable.failed;
-        });
+        if (row.packId === 'chat') {
+            button(doc, menu, S.editFields, () => { if (!open(row, move)) status.textContent = S.unsupportedEdit; });
+            button(doc, menu, S.saveTemplate, async () => {
+                let result = await templates?.put?.(definition);
+                if (result?.code === 'EXISTS' && confirm(doc, S.confirmReplace)) result = await templates.put(definition, { replace: true });
+                status.textContent = result?.ok ? S.templateSaved : result?.message ?? STRINGS.editable.failed;
+            });
+        }
         button(doc, menu, S.exportPack, () => {
             const result = exportBlockPack(definition);
             if (!result.ok) { status.textContent = result.errors?.[0]?.message ?? S.exportFailed; return; }
             try { saveTextFile(doc, result.text, result.filename, 'application/json;charset=utf-8'); }
             catch { status.textContent = S.exportFailed; }
         });
-        button(doc, menu, S.removeBlock, async () => {
+        if (row.packId === 'chat') button(doc, menu, S.removeBlock, async () => {
             if (!confirm(doc, S.confirmRemove)) return;
             const result = await api.command?.('dm.remove', { module: row.module });
             if (!result?.ok) status.textContent = result?.message ?? STRINGS.editable.failed;
         });
-        for (const [field, schema] of Object.entries(definition.state)) {
-            const scalar = schema.type === 'map' ? schema.values : schema;
-            for (const key of schema.type === 'map' ? schema.keys : [null]) {
-                const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
-                const label = [schema.label ?? field, key].filter(Boolean).join(' · ');
-                line.appendChild(h(doc, 'span', 'ss-block-value-name', label));
-                const slot = h(doc, 'span', 'ss-block-value-slot'); line.appendChild(slot);
-                const raw = key === null ? view[field] : view[field]?.[key];
-                const props = { value: raw, label, command: schema.edit === false ? '' : 'dm.set',
-                    payload: { module: row.module, field, ...(key === null ? {} : { key }) } };
-                if (scalar.type === 'int') Object.assign(props, { kind: 'number', min: scalar.min, max: scalar.max, displayMeter: true });
-                else if (scalar.type === 'enum') Object.assign(props, { kind: 'choice', options: scalar.values, displayPill: true });
-                else if (scalar.type === 'bool') Object.assign(props, { kind: 'choice', options: [true, false] });
-                else if (scalar.list === true) {
-                    const values = String(raw ?? '').split(';').map(value => value.trim()).filter(Boolean);
-                    Object.assign(props, { kind: 'list', maxLength: scalar.max, value: values, displayChips: true });
-                }
-                else Object.assign(props, { kind: 'text', maxLength: scalar.max });
-                const screen = parent.closest?.('[data-ss-screen]') ?? doc;
-                const run = typeof api.command === 'function' ? async (type, payload) => {
-                    const focused = slot.contains(doc.activeElement);
-                    const result = await api.command(type, payload);
-                    if (result?.ok && focused && (!doc.activeElement || doc.activeElement === doc.body || slot.contains(doc.activeElement))) {
-                        const pencil = [...screen.querySelectorAll('.ss-w-editable-pencil')].find(node => node.getAttribute('data-block-module') === row.module
-                            && node.getAttribute('data-block-field') === field && node.getAttribute('data-block-key') === String(key ?? ''));
-                        pencil?.focus?.();
+        const subjects = definition.scope === 'chat' ? [{ values: view.chat ?? {}, who: null }]
+            : (row.subjects ?? []).map((who, index) => ({ who, values: view.characters?.[index] ?? {},
+                name: row.actors?.find(actor => actor.id === who)?.name ?? who }));
+        for (const { values, who, name } of subjects) {
+            if (who !== null) root.appendChild(h(doc, 'h4', 'ss-block-subject', name));
+            for (const [field, schema] of Object.entries(definition.state)) {
+                const scalar = schema.type === 'map' ? schema.values : schema;
+                for (const key of schema.type === 'map' ? schema.keys : [null]) {
+                    const line = h(doc, 'div', 'ss-block-value'); root.appendChild(line);
+                    const label = [schema.label ?? field, key].filter(Boolean).join(' · ');
+                    line.appendChild(h(doc, 'span', 'ss-block-value-name', label));
+                    const slot = h(doc, 'span', 'ss-block-value-slot'); line.appendChild(slot);
+                    const raw = key === null ? values[field] : values[field]?.[key];
+                    const props = { value: raw, label, command: schema.edit === false ? '' : 'dm.set',
+                        payload: { module: row.module, field, ...(who === null ? {} : { who }), ...(key === null ? {} : { key }) } };
+                    if (scalar.type === 'int') Object.assign(props, { kind: 'number', min: scalar.min, max: scalar.max, displayMeter: true });
+                    else if (scalar.type === 'enum') Object.assign(props, { kind: 'choice', options: scalar.values, displayPill: true });
+                    else if (scalar.type === 'bool') Object.assign(props, { kind: 'choice', options: [true, false] });
+                    else if (scalar.list === true) {
+                        const values = String(raw ?? '').split(';').map(value => value.trim()).filter(Boolean);
+                        Object.assign(props, { kind: 'list', maxLength: scalar.max, value: values, displayChips: true });
                     }
-                    return result;
-                } : undefined;
-                handles.push(editable.render(slot, props, { command: run }));
-                const pencil = slot.querySelector('.ss-w-editable-pencil');
-                pencil?.setAttribute('data-block-module', row.module);
-                pencil?.setAttribute('data-block-field', field);
-                pencil?.setAttribute('data-block-key', String(key ?? ''));
+                    else Object.assign(props, { kind: 'text', maxLength: scalar.max });
+                    const screen = parent.closest?.('[data-ss-screen]') ?? doc;
+                    const run = typeof api.command === 'function' ? async (type, payload) => {
+                        const focused = slot.contains(doc.activeElement);
+                        const result = await api.command(type, payload);
+                        if (result?.ok && focused && (!doc.activeElement || doc.activeElement === doc.body || slot.contains(doc.activeElement))) {
+                            const pencil = [...screen.querySelectorAll('.ss-w-editable-pencil')].find(node => node.getAttribute('data-block-module') === row.module
+                                && node.getAttribute('data-block-field') === field && node.getAttribute('data-block-key') === String(key ?? '')
+                                && node.getAttribute('data-block-who') === String(who ?? ''));
+                            pencil?.focus?.();
+                        }
+                        return result;
+                    } : undefined;
+                    handles.push(editable.render(slot, props, { command: run }));
+                    const pencil = slot.querySelector('.ss-w-editable-pencil');
+                    pencil?.setAttribute('data-block-module', row.module);
+                    pencil?.setAttribute('data-block-field', field);
+                    pencil?.setAttribute('data-block-key', String(key ?? ''));
+                    pencil?.setAttribute('data-block-who', String(who ?? ''));
+                }
             }
-        }
-        const actions = h(doc, 'div', 'ss-block-actions'); root.appendChild(actions);
-        for (const [kind, def] of Object.entries(definition.kinds).filter(([, value]) => value.ui)) {
-            button(doc, actions, def.title ?? kind, async () => {
-                const result = await api.command?.('dm.act', { module: row.module, kind });
-                if (!result?.ok) status.textContent = result?.message ?? STRINGS.editable.failed;
-            });
+            const actions = h(doc, 'div', 'ss-block-actions'); root.appendChild(actions);
+            for (const [kind, def] of Object.entries(definition.kinds).filter(([, value]) => value.ui)) {
+                button(doc, actions, def.title ?? kind, async () => {
+                    const result = await api.command?.('dm.act', { module: row.module, kind, ...(who === null ? {} : { who }) });
+                    if (!result?.ok) status.textContent = result?.message ?? STRINGS.editable.failed;
+                });
+            }
         }
         return root;
     }
@@ -129,12 +139,12 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                         if (!alive) return;
                         clear();
                         root.classList.toggle('ss-glass', mode === 'list' && shared.mode !== 'editor');
-                        const rows = rowsOf(api);
+                        const presented = rowsOf(api), rows = presented.filter(row => row.packId === 'chat');
                         if (mode === 'single') {
-                            const row = rows.find(entry => entry.module === current.module);
+                            const row = presented.find(entry => entry.module === current.module);
                             if (row) card(doc, root, row, api, handles, { move: true });
                         } else if (mode === 'cards') {
-                            const shown = rows.filter(entry => entry.pinnedDefinition.show?.card);
+                            const shown = presented.filter(entry => entry.pinnedDefinition.show?.card);
                             el.hidden = shown.length === 0;
                             for (const row of shown) card(doc, root, row, api, handles, { move: true });
                         } else if (shared.mode === 'editor' && shared.draft) {

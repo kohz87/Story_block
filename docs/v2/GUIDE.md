@@ -8,7 +8,7 @@ In **Settings → Tabs & Packs**, import a pack file. Start a fresh chat for its
 
 ## Playing
 
-The narrator writes a hidden `<Changes>` block. Each module checks its lines and records accepted changes alongside the reply. Swipe or delete a reply to take back its changes; after editing a reply, press **Re-read**. **Problems** explains refused lines.
+The narrator writes a hidden `<Changes>` block. Each module checks its lines and records accepted changes alongside the reply. Swipe or delete a reply that is not the oldest remaining one to take back its changes; deleting the oldest remaining replies carries their state forward. After editing a reply, press **Re-read**. **Problems** explains refused lines.
 
 On Home and in Inventory, tap the pencil beside a value, change it, then choose **Save** or **Cancel**.
 Each inventory item's pencil opens its name, count and note together. Inventory also has **Add item**
@@ -17,8 +17,9 @@ kind for its owner; name and note change the selected piece. The purse accepts a
 coins such as `3 silver 5 copper`. Place, weather and the people present can be edited on Home or Scene;
 the weather pencil appears while the weather feature is on. In **Settings → Tabs & Packs**, a pinned
 data module lists its editable fields under **Fields**, including a set for each attached character.
-Data-module layouts may also show pencils. Edits ride on the latest reply, so a swipe or delete of that
-reply takes them back.
+Data-module layouts may also show pencils. Edits ride on the latest reply: swipe or delete that reply
+to take them back when it is not the oldest remaining reply. Deleting the oldest remaining reply carries
+its edits forward with the rest of its state.
 
 Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
 
@@ -37,6 +38,9 @@ Tabs & Packs → Block templates**. Swipe or delete the reply that created, chan
 to take that action back. A chat can have up to eight blocks, and blocks and pack modules share the
 16-pin budget, including retained pins. Definitions and their generated story kinds must fit the
 data-module limits.
+
+An exported block keeps its tab, Home card and buttons when its pack is imported and enabled. Edit
+fields, Save as template and Remove are available on blocks made in the current chat.
 
 In **Settings → Money**, Automatic means no limit: the story decides. Set a number to cap what one reply may give; the money scale is in the folded **Advanced** row. Names and values of coins are set on the same page.
 

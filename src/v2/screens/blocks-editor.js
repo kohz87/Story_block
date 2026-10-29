@@ -54,15 +54,15 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             for (const effect of fn.effects ?? []) if (effect.field === old) effect.field = next;
         }
     }
-    function paintEffects(parent, fn) {
+    function paintEffects(parent, fn, functionIndex) {
         const timer = fn.type === 'timer';
         if (timer && !fieldOptions(true).length) node('p', 'ss-block-hint', S.timerNumber, parent);
         for (const [index, effect] of fn.effects.entries()) {
             const row = node('div', 'ss-block-effect', '', parent);
-            control(row, S.effectField, effect.field, { type: 'choice', options: fieldOptions(timer) }, value => { effect.field = value; }, null);
+            control(row, S.effectField, effect.field, { type: 'choice', options: fieldOptions(timer) }, value => { effect.field = value; }, `function:${functionIndex}:effect:${index}:field`);
             control(row, S.effectAction, effect.op, { type: 'choice', options: timer ? [{ value: 'add', label: S.add }]
-                : [{ value: 'set', label: S.setTo }, { value: 'add', label: S.add }] }, value => { effect.op = value; }, null);
-            control(row, S.effectValue, effect.value, { type: 'text', max: 240 }, value => { effect.value = value; }, null);
+                : [{ value: 'set', label: S.setTo }, { value: 'add', label: S.add }] }, value => { effect.op = value; }, `function:${functionIndex}:effect:${index}:op`);
+            control(row, S.effectValue, effect.value, { type: 'text', max: 240 }, value => { effect.value = value; }, `function:${functionIndex}:effect:${index}:value`);
             button(row, S.remove, () => { collect(); fn.effects.splice(index, 1); draw(); });
         }
         button(parent, S.addStep, () => { collect(); fn.effects.push(newEffect(fn.type)); draw(); });
@@ -76,6 +76,7 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             const error = result.errors[0], location = error.path ?? '';
             const match = /(?:fields\.(\d+)|state\.([a-z0-9-]+)|functions\.(\d+)|\.show|\.prompt)/.exec(location);
             const kind = /\.kinds\.(?:set|change)-([a-z0-9-]+)/.exec(location);
+            const buttonKind = /\.kinds\.button-([a-z0-9-]+)/.exec(location);
             const rule = /\.rules\[(\d+)\]/.exec(location), timer = /\.timers\[(\d+)\]/.exec(location);
             const functionIndex = (type, index) => {
                 const selected = draft.functions.filter(fn => fn.type === type)[Number(index)];
@@ -83,10 +84,14 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
             };
             const path = match?.[1] !== undefined ? `field:${match[1]}` : match?.[2] ? `field:${draft.fields.findIndex(field => field.key === match[2])}`
                 : match?.[3] !== undefined ? `function:${match[3]}` : kind ? `field:${draft.fields.findIndex(field => field.key === kind[1])}`
-                    : rule ? `function:${functionIndex('rule', rule[1])}` : timer ? `function:${functionIndex('timer', timer[1])}`
+                    : buttonKind ? `function:${draft.functions.findIndex((fn, index) => fn.type === 'button'
+                        && slugify(fn.name || `button-${index + 1}`).slice(0, 32).replace(/-+$/, '') === buttonKind[1])}`
+                        : rule ? `function:${functionIndex('rule', rule[1])}` : timer ? `function:${functionIndex('timer', timer[1])}`
                         : /\.show/.test(location) ? 'show' : /prompt/.test(location) ? 'prompt' : location === 'name' ? 'name' : 'form';
             const part = /\.(min|max|default|values|type|every|when|effects)(?:\.|\[|$)/.exec(location)?.[1];
-            (spots.get(`${path}:${part}`) ?? spots.get(path) ?? spots.get('form')).textContent = error.message;
+            const effect = /\.(?:effects|then)(?:\.(\d+)|\[(\d+)\])(?:\.(field|op|value))?/.exec(location);
+            const effectSpot = effect ? spots.get(`${path}:effect:${effect[1] ?? effect[2]}:${effect[3] ?? 'value'}`) : null;
+            (effectSpot ?? spots.get(`${path}:${part}`) ?? spots.get(path) ?? spots.get('form')).textContent = error.message;
             return;
         }
         busy = true;
@@ -185,7 +190,7 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
                 control(row, S.comparison, fn.when.op, { type: 'choice', options: COMPARISONS }, value => { fn.when.op = value; }, null);
                 control(row, S.whenValue, fn.when.value, { type: 'text', max: 240 }, value => { fn.when.value = value; }, `function:${index}:when`);
             } else if (fn.type === 'timer') control(row, S.every, fn.every, { type: 'int', min: 1, max: 525600 }, value => { fn.every = value; }, `function:${index}:every`);
-            paintEffects(row, fn);
+            paintEffects(row, fn, index);
             button(row, S.remove, () => { collect(); draft.functions.splice(index, 1); draw(); });
         }
         const footer = node('div', 'ss-block-editor-actions', '', form);

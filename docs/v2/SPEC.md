@@ -14,8 +14,9 @@ a chat that pins nothing is byte for byte the chat it was.
 ## Reader edits
 
 The reader may edit a stack's name, quantity or note, add an item, set the purse, and edit the place,
-weather and people present. These are UI commands on the latest reply. Swiping or deleting that reply
-removes its commands; Re-read keeps a command when its recorded prerequisites still hold. The Changes
+weather and people present. These are UI commands on the latest reply. Swiping or deleting a reply that
+is not the oldest remaining reply removes its commands. Deleting the oldest remaining replies carries
+their state forward, including these edits. Re-read keeps a command when its prerequisites still hold. The Changes
 card shows the receipt summaries while their display data is retained. Non-stacking items remain one
 piece per stack; the count editor adds or removes separate pieces for the same owner, without removing
 equipped pieces. The weather editor is available while the weather feature is on.
@@ -30,7 +31,8 @@ The Blocks page creates chat-scoped data modules under `pack.chat/<slug>`. Their
 are pinned with the chat, and define, redefine and remove are reader actions on the latest reply.
 The editor generates the ordinary `dm` story kinds, buttons, rules and timers; fields may also be
 edited by the reader. A block can appear as its own tab, a Home card or both. Templates keep only
-definitions in the reader's settings, and export creates a checked pack.
+definitions in the reader's settings, and export creates a checked pack. After import and enabling,
+the pack's presentation and buttons remain available; chat-only block actions remain on chat blocks.
 
 ## 0. Principles
 
