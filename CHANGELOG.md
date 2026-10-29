@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.6.1
+
+**Fix release.** Loot you took now goes away with the reply that offered it.
+
+- **Taking loot follows its reply.** If you delete the reply that laid the loot out, or edit it and Re-read it so it no
+  longer offers what you took (or offers fewer of it, or less money), the take is undone: the items, the money and the
+  "taken" mark go, and Problems says why. After such a Re-read you can take from the loot as it reads now. This holds
+  whether you took the loot on that reply or on a later one, and stays so after a rebuild or a reload.
+- **A Re-read that still offers what you took keeps it.** An unchanged Re-read, more of the same thing, another item added
+  or the name written another way leaves the take as it was. If you put the offer back before taking from it again, the
+  take comes back.
+- Loot taken in 2.6.0 or earlier stays as it was saved.
+
 ## 2.6.0
 
 - RPG Battle is no longer supported. Its rules packs cannot be imported. Existing RPG Battle chats should stay on the previous versions.
