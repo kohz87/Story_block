@@ -4,6 +4,7 @@ import { formatAmount, parseMixedAmount } from '../../domains/money.js';
 import { STRINGS, fill } from '../../strings.js';
 import { h, iconNode, shell } from './dom.js';
 import { defineWidget, resolveProps } from './props.js';
+import { meterRatio } from './meter.js';
 
 const E = STRINGS.editable;
 const props = {
@@ -18,6 +19,9 @@ const props = {
     payload: { type: 'object', default: Object.freeze({}) },
     valueKey: { type: 'string', default: 'value' },
     displayValue: { type: 'boolean', default: true },
+    displayChips: { type: 'boolean', default: false },
+    displayMeter: { type: 'boolean', default: false },
+    displayPill: { type: 'boolean', default: false },
     money: { type: 'boolean', default: false },
     currency: { type: 'object', default: Object.freeze({}) },
 };
@@ -66,7 +70,28 @@ function render(el, input, api) {
         function draw() {
             const list = p.kind === 'list';
             const value = list && Array.isArray(p.value) ? p.value.join(', ') : String(p.value ?? '');
-            shown.textContent = p.displayValue ? value : '';
+            shown.classList.toggle('ss-w-editable-value-list', list && p.displayChips);
+            const meter = p.kind === 'number' && p.displayMeter && p.min !== null && p.max !== null;
+            shown.classList.toggle('ss-w-editable-meter', meter);
+            if (meter) {
+                shown.setAttribute('role', 'meter');
+                shown.setAttribute('aria-label', p.label || E.value);
+                shown.setAttribute('aria-valuemin', String(p.min));
+                shown.setAttribute('aria-valuemax', String(p.max));
+                shown.setAttribute('aria-valuenow', String(p.value));
+            } else for (const attr of ['role', 'aria-label', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow']) shown.removeAttribute(attr);
+            if (p.displayValue && list && p.displayChips && Array.isArray(p.value)) {
+                shown.replaceChildren(...p.value.map(entry => h(doc, 'span', 'ss-chip', String(entry))));
+            } else if (p.displayValue && meter) {
+                const track = h(doc, 'span', 'ss-w-editable-meter-track');
+                const fill = h(doc, 'span', 'ss-w-editable-meter-fill');
+                track.setAttribute('aria-hidden', 'true');
+                track.style.setProperty('--ss-w-ratio', String(meterRatio(Number(p.value), p.min, p.max)));
+                track.appendChild(fill);
+                shown.replaceChildren(h(doc, 'span', '', `${value}/${p.max}`), track);
+            } else if (p.displayValue && p.kind === 'choice' && p.displayPill) {
+                shown.replaceChildren(h(doc, 'span', 'ss-pill', value));
+            } else shown.textContent = p.displayValue ? value : '';
             pencil.hidden = editing || !p.command || typeof api?.command !== 'function';
             pencil.setAttribute('aria-label', fill(E.edit, { label: p.label || E.value }));
             pencil.setAttribute('title', fill(E.edit, { label: p.label || E.value }));

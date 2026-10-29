@@ -28,13 +28,17 @@ export function kindExample(definition, name, reference) {
         + Object.entries(kind.labels).map(([label, schema]) => ` | ${label}: ${first(schema)}`).join('');
 }
 
-/** The lines a module adds to the static part, one per kind, within the module's character budget (whole lines only). */
-export function moduleGrammar(definition, reference) {
+/** The complete text used to measure the static budget before accepting a definition. */
+export function fullModuleGrammar(definition, reference) {
     const prompt = definition.prompt ? [...oneLine(definition.prompt)].slice(0, 600).join('') : '';
-    const lines = prompt ? [prompt] : [];
-    let used = prompt ? [...prompt].length : 0;
-    for (const name of Object.keys(definition.kinds)) {
-        const line = kindGrammar(definition, name, reference);
+    return [prompt, ...Object.keys(definition.kinds).map(name => kindGrammar(definition, name, reference))].filter(Boolean).join('\n');
+}
+
+/** The lines a module adds to the static part, within its character budget (whole lines only). */
+export function moduleGrammar(definition, reference) {
+    const lines = [];
+    let used = 0;
+    for (const line of fullModuleGrammar(definition, reference).split('\n').filter(Boolean)) {
         const next = used + (lines.length ? 1 : 0) + [...line].length;
         if (next > L.staticCharacters) break;
         lines.push(line);

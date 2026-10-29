@@ -107,6 +107,42 @@ test('the editor disables timers without Story Director and counts purpose text 
     assert.match(screen().textContent, /No custom blocks/);
 });
 
+test('the editor keeps typed values on refresh and updates the complete static count', async t => {
+    const { doc, host, ui } = await page(t);
+    ui.mounts.screen.open('story-block/blocks');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    button(screen(), S.newBlock).click();
+    button(screen(), S.emptyBlock).click();
+    input(screen(), S.name).value = 'Journal';
+    button(screen(), S.addField).click();
+    const count = () => Number(screen().querySelector('.ss-block-static-count').textContent.match(/^\d+/)[0]);
+    const before = count();
+    const purpose = input(screen(), S.purpose);
+    purpose.value = 'Keep track'; purpose.dispatch('input');
+    assert.equal(count(), before + 11, 'the purpose and its separating newline are counted');
+    assert.ok(button(screen(), S.ownTab).classList.contains('ss-chip-on'));
+    input(screen(), S.defaultValue).value = 'unfinished';
+    await host.send('Wait.', 'A new reply.');
+    assert.equal(input(screen(), S.defaultValue).value, 'unfinished');
+    assert.equal(input(screen(), S.purpose).value, 'Keep track');
+    button(screen(), S.save).click();
+    await settle(); await settle();
+    assert.equal(host.sdk.query('dataModules.view', { module: 'pack.chat/journal' }).chat['field-1'], 'unfinished');
+    assert.equal(ui.screens.resolve('story-block/block/journal').screen.title, 'Journal');
+});
+
+test('an unfinished block draft closes when another chat opens', async t => {
+    const { doc, host, ui } = await page(t);
+    ui.mounts.screen.open('story-block/blocks');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    button(screen(), S.newBlock).click();
+    button(screen(), S.emptyBlock).click();
+    input(screen(), S.name).value = 'Old chat draft';
+    await host.st.loadChat([], 'another-chat');
+    assert.equal(screen().querySelector('.ss-block-editor'), null);
+    assert.match(screen().textContent, /No custom blocks/);
+});
+
 test('editing a tab can move its block to Home and removes the old tab', async t => {
     const { doc, host, ui } = await page(t);
     const built = buildBlock({ name: 'Journey', fields: [{ name: 'Mood', type: 'text', max: 30, default: 'calm' }], functions: [], prompt: '',
@@ -153,6 +189,37 @@ test('reader text in a block is drawn as text', async t => {
     assert.match(screen.textContent, /<b>bad<\/b>/);
     assert.equal(screen.querySelector('img'), null);
     assert.equal(screen.querySelector('b'), null);
+});
+
+test('list values appear as chips and remain editable', async t => {
+    const { doc, host, ui } = await page(t);
+    const built = buildBlock({ name: 'Contacts', fields: [{ name: 'People', type: 'list', default: 'Mara; Teo' }], functions: [], prompt: '',
+        show: { tab: true, card: false, tabName: 'Contacts', icon: 'ph-star' } });
+    assert.equal((await host.sdk.command('dm.define', { definition: built.definition })).ok, true);
+    ui.mounts.screen.open('story-block/blocks');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    assert.deepEqual(screen().querySelectorAll('.ss-w-editable-value-list .ss-chip').map(node => node.textContent), ['Mara', 'Teo']);
+    screen().querySelector('.ss-w-editable-pencil').click();
+    screen().querySelector('.ss-w-editable-form input').value = 'Ren';
+    screen().querySelector('.ss-w-editable-save').click();
+    await settle(); await settle();
+    assert.equal(host.sdk.query('dataModules.view', { module: 'pack.chat/contacts' }).chat.people, 'Mara; Teo; Ren');
+    assert.deepEqual(screen().querySelectorAll('.ss-w-editable-value-list .ss-chip').map(node => node.textContent), ['Mara', 'Teo', 'Ren']);
+});
+
+test('number and choice fields show a meter and a choice pill', async t => {
+    const { doc, host, ui } = await page(t);
+    const built = buildBlock({ name: 'Status', fields: [
+        { name: 'Fatigue', type: 'number', min: 0, max: 10, default: 6 },
+        { name: 'Mood', type: 'choice', values: ['calm', 'wary'], default: 'wary' },
+    ], functions: [], prompt: '', show: { tab: true, card: false, tabName: 'Status', icon: 'ph-star' } });
+    assert.equal((await host.sdk.command('dm.define', { definition: built.definition })).ok, true);
+    ui.mounts.screen.open('story-block/blocks');
+    const screen = doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    const meter = screen.querySelector('.ss-w-editable-meter');
+    assert.equal(meter.getAttribute('aria-valuenow'), '6');
+    assert.equal(meter.getAttribute('aria-valuemax'), '10');
+    assert.equal(screen.querySelector('.ss-w-editable-value .ss-pill').textContent, 'wary');
 });
 
 test('a block button can be pressed from its tab and its Home card on separate replies', async t => {

@@ -10,7 +10,7 @@ import { checkScreens } from '../packs/validate.js';
 import { sha256Hex as sha256 } from '../domains/digest.js';
 import { STRINGS, fill } from '../strings.js';
 import { oneLine } from '../../text.js';
-import { kindGrammar } from './grammar.js';
+import { fullModuleGrammar } from './grammar.js';
 import { hasIcon } from '../view/icons/index.js';
 
 const E = STRINGS.editMessages;
@@ -401,7 +401,7 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
         if (!dmSlug(given.slug)) add('DM_SCHEMA', `${at}.slug`, 'A module slug must be safe lowercase text of at most 40 characters.');
         if (seen.has(given.slug)) add('DM_SCHEMA', `${at}.slug`, 'Module slugs must be unique within a pack.');
         seen.add(given.slug);
-        if (typeof given.name !== 'string' || !given.name.trim() || given.name.length > PACK_LIMITS.name || /[\r\n\u0000-\u001f\u007f]/.test(given.name)) add('DM_SCHEMA', `${at}.name`, `A module name must be one line of 1 to ${PACK_LIMITS.name} safe characters.`);
+        if (typeof given.name !== 'string' || !given.name.trim() || [...given.name].length > PACK_LIMITS.name || /[\r\n\u0000-\u001f\u007f]/.test(given.name)) add('DM_SCHEMA', `${at}.name`, `A module name must be one line of 1 to ${PACK_LIMITS.name} safe characters.`);
         if (given.schema !== 1) add('DM_SCHEMA', `${at}.schema`, 'Only data module schema 1 is supported.');
         if (!dmInt(given.stateVersion, 1, Number.MAX_SAFE_INTEGER)) add('DM_SCHEMA', `${at}.stateVersion`, 'stateVersion must be a positive safe integer.');
         if (!D.scope.includes(given.scope)) add('DM_SCHEMA', `${at}.scope`, 'scope must be chat or character.');
@@ -481,7 +481,7 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
             kind.ui ??= false;
         }
         if (!errors.length && (definition.prompt !== undefined || definition.show !== undefined || packId === 'chat')) {
-            const lines = [definition.prompt ?? '', ...Object.keys(definition.kinds).map(name => kindGrammar(definition, name, definition.id))].filter(Boolean).join('\n');
+            const lines = fullModuleGrammar(definition, definition.id);
             if ([...lines].length > L.staticCharacters) add('DM_BUDGET', `${at}.prompt`, STRINGS.blocks.staticLimit);
         }
         const ids = new Set();

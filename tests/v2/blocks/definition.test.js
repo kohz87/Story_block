@@ -41,6 +41,14 @@ test('purpose, display settings and list fields are checked with the normal defi
     assert.equal(check(tooManyEntries).ok, false);
 });
 
+test('module names count Unicode code points', () => {
+    const d = block();
+    d.name = '😀'.repeat(80);
+    assert.equal(check(d).ok, true);
+    d.name += '😀';
+    assert.equal(check(d).ok, false);
+});
+
 test('the last grammar line is kept when purpose and grammar exactly fill the static budget', () => {
     const d = block(); d.state = {}; d.prompt = 'x'.repeat(600);
     d.kinds = { example: { op: '~', labels: { item: { type: 'enum', values: ['a'] } }, effects: [] } };

@@ -3,7 +3,8 @@ import { textField, numberField, selectField } from '../view/form/fields.js';
 import { h, iconNode } from '../view/widgets/dom.js';
 import { hasIcon } from '../view/icons/index.js';
 import { buildBlock } from '../data-modules/block-builder.js';
-import { moduleGrammar } from '../data-modules/grammar.js';
+import { fullModuleGrammar } from '../data-modules/grammar.js';
+import { DM_LIMITS } from '../data-modules/schema.js';
 import { slugify } from '../packs/validate.js';
 import { STRINGS, fill } from '../strings.js';
 
@@ -15,7 +16,7 @@ const ICONS = ['ph-bookmark-simple', 'ph-scroll', 'ph-heart', 'ph-lightning', 'p
 
 export function renderBlockEditor(root, { draft, used = [], directorOn = true, onSave, onCancel }) {
     const doc = root.ownerDocument ?? globalThis.document;
-    let controls = [], spots = new Map(), busy = false, alive = true;
+    let controls = [], spots = new Map(), busy = false, alive = true, updateCount = () => {};
     const node = (tag, cls = '', text = '', parent = null) => { const out = h(doc, tag, cls, text); parent?.appendChild(out); return out; };
     const button = (parent, label, action, cls = 'ss-button') => {
         const out = node('button', cls, label, parent); out.setAttribute('type', 'button'); out.addEventListener('click', action); return out;
@@ -27,6 +28,8 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         const ctx = { doc, field: field.type === 'text' ? { ...field, codepoints: true } : field, value, ariaLabel: label,
             onChange: assign, invalid: message => { error.textContent = message; }, note() {} };
         const handle = field.type === 'choice' ? selectField(ctx) : field.type === 'int' ? numberField(ctx) : textField(ctx);
+        handle.input.addEventListener('input', () => updateCount());
+        handle.input.addEventListener('change', () => updateCount());
         row.insertBefore(handle.el, error);
         controls.push({ handle, assign });
         if (path) spots.set(path, error);
@@ -84,6 +87,7 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         if (alive && !answer?.ok) spots.get('form').textContent = answer?.message ?? STRINGS.editable.failed;
     }
     function draw() {
+        updateCount = () => {};
         for (const entry of controls) entry.handle.destroy();
         controls = []; spots = new Map();
         root.replaceChildren();
@@ -94,7 +98,8 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         node('h4', 'ss-section-label', S.showAs, show);
         const group = node('div', 'ss-block-chips', '', show);
         for (const [label, tab, card] of [[S.ownTab, true, false], [S.card, false, true], [S.both, true, true]]) {
-            const item = button(group, label, () => { collect(); draft.show.tab = tab; draft.show.card = card; draw(); }, 'ss-button ss-chip');
+            const selected = draft.show.tab === tab && draft.show.card === card;
+            const item = button(group, label, () => { collect(); draft.show.tab = tab; draft.show.card = card; draw(); }, `ss-button ss-chip${selected ? ' ss-chip-on' : ''}`);
             item.setAttribute('aria-pressed', String(draft.show.tab === tab && draft.show.card === card));
         }
         control(show, S.tabName, draft.show.tabName, { type: 'text', max: 24 }, value => { draft.show.tabName = value; }, 'show');
@@ -107,15 +112,15 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         const fields = node('section', 'ss-block-fields-editor', '', form);
         node('h4', 'ss-section-label', S.fields, fields);
         for (const [index, field] of draft.fields.entries()) {
-            const row = node('div', 'ss-block-field-editor', '', fields);
+            const row = node('div', 'ss-block-field-editor ss-glass', '', fields);
             const fieldName = control(row, S.fieldNameLabel, field.name, { type: 'text', max: 60 }, value => renameField(field, value), `field:${index}`);
-            fieldName.input.addEventListener('change', draw);
+            fieldName.input.addEventListener('change', refresh);
             const type = control(row, S.fieldTypeLabel, field.type, { type: 'choice', options: TYPES }, value => { field.type = value; }, null);
             type.input.addEventListener('change', refresh);
             if (field.type === 'number') {
-                control(row, S.min, field.min ?? 0, { type: 'int', min: -1000000, max: 1000000 }, value => { field.min = value; }, null);
-                control(row, S.max, field.max ?? 10, { type: 'int', min: -1000000, max: 1000000 }, value => { field.max = value; }, null);
-                control(row, S.defaultValue, field.default ?? 0, { type: 'int', min: -1000000, max: 1000000 }, value => { field.default = value; }, null);
+                control(row, S.min, field.min ?? 0, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.min = value; }, null);
+                control(row, S.max, field.max ?? 10, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.max = value; }, null);
+                control(row, S.defaultValue, field.default ?? 0, { type: 'int', min: -DM_LIMITS.integer, max: DM_LIMITS.integer }, value => { field.default = value; }, null);
             } else if (field.type === 'choice') {
                 control(row, S.choices, Array.isArray(field.values) ? field.values.join(', ') : field.values ?? '', { type: 'text', max: 500 }, value => { field.values = String(value).split(',').map(part => part.trim()); }, null);
                 control(row, S.defaultValue, field.default ?? '', { type: 'text', max: 240 }, value => { field.default = value; }, null);
@@ -133,13 +138,14 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         const purpose = node('section', 'ss-block-purpose', '', form);
         const prompt = control(purpose, S.purpose, draft.prompt, { type: 'text', multiline: true, max: 600 }, value => { draft.prompt = value; }, 'prompt');
         const total = node('small', 'ss-block-static-count', '', purpose);
-        const count = () => {
-            draft.prompt = prompt.input.value;
+        updateCount = () => {
+            collect();
             const result = buildBlock(draft, { used });
-            const n = result.ok ? [...moduleGrammar(result.checked, result.checked.id)].length : [...draft.prompt].length;
+            const definition = result.definition;
+            const n = definition ? [...fullModuleGrammar(definition, `pack.chat/${definition.slug}`)].length : [...draft.prompt].length;
             total.textContent = fill(S.staticCount, { n });
         };
-        prompt.input.addEventListener('input', count); count();
+        updateCount();
         const functions = node('section', 'ss-block-functions', '', form);
         node('h4', 'ss-section-label', S.functions, functions);
         const actions = node('div', 'ss-block-function-actions', '', functions);
@@ -174,5 +180,5 @@ export function renderBlockEditor(root, { draft, used = [], directorOn = true, o
         });
     }
     draw();
-    return { destroy() { alive = false; for (const entry of controls) entry.handle.destroy(); controls = []; } };
+    return { collect, destroy() { alive = false; for (const entry of controls) entry.handle.destroy(); controls = []; } };
 }

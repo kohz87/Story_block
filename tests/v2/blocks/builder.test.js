@@ -58,6 +58,25 @@ test('generated kinds, a button, a rule and an elapsed timer use the existing in
     await reload(host);
 });
 
+test('each generated story kind updates its field through the normal parser', async t => {
+    const host = await createHost(); t.after(() => host.close());
+    const form = draft(); form.functions = [];
+    const built = buildBlock(form);
+    assert.equal(built.ok, true, JSON.stringify(built.errors));
+    await host.send('Begin.', 'Opening.');
+    assert.equal((await host.sdk.command('dm.define', { definition: built.definition })).ok, true);
+    await host.send('Go.', reply(
+        '~ dm wessel-s-notes — mood | kind: set-mood | to: wary',
+        '~ dm wessel-s-notes — tired | kind: set-fatigue | to: 7',
+        '~ dm wessel-s-notes — rest | kind: change-fatigue | by: -2',
+        '~ dm wessel-s-notes — standing | kind: set-standing | to: trusted',
+        '~ dm wessel-s-notes — contacts | kind: set-known-contacts | to: Mara; Teo',
+    ));
+    assert.deepEqual(view(host, 'pack.chat/wessel-s-notes').chat,
+        { mood: 'wary', fatigue: 5, standing: 'trusted', 'known-contacts': 'Mara; Teo' });
+    await reload(host);
+});
+
 test('the builder refuses invalid fields, functions and choices without weakening the data-module limits', () => {
     const badChoice = draft(); badChoice.fields[2].values = ['only'];
     assert.match(buildBlock(badChoice).errors[0].message, /2 to 32/);
@@ -65,6 +84,19 @@ test('the builder refuses invalid fields, functions and choices without weakenin
     assert.match(buildBlock(tooMany).errors[0].message, /8 functions/);
     const timerSet = draft(); timerSet.functions[2].effects = [{ field: 'mood', op: 'set', value: 'awake' }];
     assert.equal(buildBlock(timerSet).ok, false, 'the existing timer contract refuses set effects');
+});
+
+test('a blank tab name uses the block name and blank numeric input is not zero', () => {
+    const form = draft();
+    form.show.tabName = '';
+    const built = buildBlock(form);
+    assert.equal(built.ok, true, JSON.stringify(built.errors));
+    assert.equal(built.definition.show.tabName, form.name);
+    form.fields[1].default = '';
+    assert.equal(buildBlock(form).ok, false);
+    form.fields[1].default = 0;
+    form.functions[0].effects[0].value = '';
+    assert.equal(buildBlock(form).ok, false);
 });
 
 test('a generated numeric change uses the maximum field value for its symmetric label bounds', () => {

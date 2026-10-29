@@ -826,6 +826,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     // Story panel's More sheet.
     const chatTypes = ctx.eventTypes ?? ctx.event_types ?? {};
     const onChatChanged = () => {
+        blockWidgets.reset();
         mounts.dialog?.closeAll();
         mounts.screen?.closeMore?.();
         tabHost?.bar?.closeMore?.({ focus: false });

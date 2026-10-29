@@ -84,7 +84,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
     const packId = typeof id === 'string' && PACK_ID.test(id) ? id : 'invalid';
     if (typeof raw.version !== 'string' || !SEMVER.test(raw.version)) add('BAD_VERSION', 'version', 'version must look like 1.0.0.');
     for (const field of ['name', 'author']) {
-        if (raw[field] !== undefined && (typeof raw[field] !== 'string' || raw[field].length > limits.name)) add('BAD_FIELD', field, `${field} must be text of at most ${limits.name} characters.`);
+        if (raw[field] !== undefined && (typeof raw[field] !== 'string' || [...raw[field]].length > limits.name)) add('BAD_FIELD', field, `${field} must be text of at most ${limits.name} characters.`);
     }
     if (raw.description !== undefined && typeof raw.description !== 'string') add('BAD_FIELD', 'description', 'description must be text.');
 
@@ -154,8 +154,8 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
     return {
         id: packId,
         version: raw.version,
-        name: oneLine(raw.name || packId, limits.name),
-        author: oneLine(raw.author ?? '', limits.name),
+        name: [...oneLine(raw.name || packId)].slice(0, limits.name).join(''),
+        author: [...oneLine(raw.author ?? '')].slice(0, limits.name).join(''),
         description: String(raw.description ?? ''),
         requires,
         currency,

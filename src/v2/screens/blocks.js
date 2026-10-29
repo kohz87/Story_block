@@ -47,9 +47,9 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
         const root = h(doc, 'section', 'ss-block-card ss-glass'); parent.appendChild(root);
         const head = h(doc, 'div', 'ss-block-card-head'); root.appendChild(head);
         head.appendChild(h(doc, 'h3', '', definition.name));
-        const menu = h(doc, 'div', 'ss-block-menu'); menu.hidden = true;
+        const menu = h(doc, 'div', 'ss-block-menu ss-glass-strong'); menu.hidden = true;
         const toggle = button(doc, head, '⋯', () => { menu.hidden = !menu.hidden; }, 'ss-iconbutton');
-        toggle.setAttribute('aria-label', S.menu); toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', S.menu); toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-haspopup', 'true');
         toggle.addEventListener('click', () => toggle.setAttribute('aria-expanded', String(!menu.hidden)));
         menu.addEventListener('keydown', event => {
             if (event.key === 'Escape') { event.preventDefault?.(); menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.focus?.(); }
@@ -83,10 +83,13 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                 const raw = key === null ? view[field] : view[field]?.[key];
                 const props = { value: raw, label, command: schema.edit === false ? '' : 'dm.set',
                     payload: { module: row.module, field, ...(key === null ? {} : { key }) } };
-                if (scalar.type === 'int') Object.assign(props, { kind: 'number', min: scalar.min, max: scalar.max });
-                else if (scalar.type === 'enum') Object.assign(props, { kind: 'choice', options: scalar.values });
+                if (scalar.type === 'int') Object.assign(props, { kind: 'number', min: scalar.min, max: scalar.max, displayMeter: true });
+                else if (scalar.type === 'enum') Object.assign(props, { kind: 'choice', options: scalar.values, displayPill: true });
                 else if (scalar.type === 'bool') Object.assign(props, { kind: 'choice', options: [true, false] });
-                else if (scalar.list === true) Object.assign(props, { kind: 'list', maxLength: scalar.max, value: String(raw ?? '').split(';').map(value => value.trim()).filter(Boolean) });
+                else if (scalar.list === true) {
+                    const values = String(raw ?? '').split(';').map(value => value.trim()).filter(Boolean);
+                    Object.assign(props, { kind: 'list', maxLength: scalar.max, value: values, displayChips: true });
+                }
                 else Object.assign(props, { kind: 'text', maxLength: scalar.max });
                 const screen = parent.closest?.('[data-ss-screen]') ?? doc;
                 const run = typeof api.command === 'function' ? async (type, payload) => {
@@ -121,10 +124,11 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
             render(el, props, api) {
                 return shell(el, 'div', `blocks-${mode}`, ({ doc, root }) => {
                     let handles = [], editor = null, current = props, alive = true;
-                    const clear = () => { for (const handle of handles) handle.destroy(); handles = []; editor?.destroy(); editor = null; root.replaceChildren(); };
+                    const clear = () => { for (const handle of handles) handle.destroy(); handles = []; editor?.collect(); editor?.destroy(); editor = null; root.replaceChildren(); };
                     function draw() {
                         if (!alive) return;
                         clear();
+                        root.classList.toggle('ss-glass', mode === 'list' && shared.mode !== 'editor');
                         const rows = rowsOf(api);
                         if (mode === 'single') {
                             const row = rows.find(entry => entry.module === current.module);
@@ -145,9 +149,21 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                         } else {
                             const head = h(doc, 'div', 'ss-block-page-head'); root.appendChild(head);
                             head.appendChild(h(doc, 'h3', 'ss-section-label', S.custom));
-                            button(doc, head, S.newBlock, () => { shared.mode = 'chooser'; tell(); }, 'ss-button ss-button-primary');
+                            const chooserToggle = button(doc, head, S.newBlock, () => {
+                                shared.mode = shared.mode === 'chooser' ? 'list' : 'chooser';
+                                tell();
+                                root.querySelector(shared.mode === 'chooser' ? '.ss-block-chooser button' : '.ss-block-new')?.focus?.();
+                            }, 'ss-button ss-button-primary ss-block-new');
+                            chooserToggle.setAttribute('aria-haspopup', 'true');
+                            chooserToggle.setAttribute('aria-expanded', String(shared.mode === 'chooser'));
                             if (shared.mode === 'chooser') {
-                                const chooser = h(doc, 'div', 'ss-block-chooser ss-glass'); root.appendChild(chooser);
+                                const chooser = h(doc, 'div', 'ss-block-chooser ss-glass-strong'); head.appendChild(chooser);
+                                chooser.addEventListener('keydown', event => {
+                                    if (event.key === 'Escape') {
+                                        event.preventDefault?.(); event.stopPropagation?.(); shared.mode = 'list'; tell();
+                                        root.querySelector('.ss-block-new')?.focus?.();
+                                    }
+                                });
                                 const status = h(doc, 'p', 'ss-block-status'); status.setAttribute('role', 'status');
                                 button(doc, chooser, S.emptyBlock, () => open(null, false));
                                 for (const entry of templates?.list?.() ?? []) button(doc, chooser, fill(S.templateCounts, { name: entry.name,
@@ -171,5 +187,8 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                 });
             } };
     }
-    return { widgets: { [BLOCKS_WIDGET]: widget('list'), [BLOCK_WIDGET]: widget('single'), [BLOCK_CARDS_WIDGET]: widget('cards') } };
+    return {
+        widgets: { [BLOCKS_WIDGET]: widget('list'), [BLOCK_WIDGET]: widget('single'), [BLOCK_CARDS_WIDGET]: widget('cards') },
+        reset() { shared.mode = 'list'; shared.draft = null; shared.module = null; tell(); },
+    };
 }

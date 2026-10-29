@@ -10,6 +10,8 @@ import { hashJson } from '../replay.js';
 const B = STRINGS.blocks;
 const problem = (path, message) => ({ ok: false, errors: [{ code: 'DM_SCHEMA', path, message }] });
 const keyFor = (name, max = 40) => slugify(name).slice(0, max).replace(/-+$/, '');
+const number = value => typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() ? Number(value) : NaN;
 
 export function uniqueBlockSlug(name, used = []) {
     const base = keyFor(name) || 'block';
@@ -25,10 +27,10 @@ export function uniqueBlockSlug(name, used = []) {
 const effectOf = (effect, state) => {
     const schema = state[effect?.field];
     if (!schema || !['set', 'add'].includes(effect?.op)) return null;
-    if (effect.op === 'add') return schema.type === 'int' && Number.isSafeInteger(Number(effect.value))
-        ? { op: 'add', path: [effect.field], value: Number(effect.value), bounds: 'clamp' } : null;
+    if (effect.op === 'add') return schema.type === 'int' && Number.isSafeInteger(number(effect.value))
+        ? { op: 'add', path: [effect.field], value: number(effect.value), bounds: 'clamp' } : null;
     let value = effect.value;
-    if (schema.type === 'int') value = Number(value);
+    if (schema.type === 'int') value = number(value);
     if (schema.list === true) { try { value = cleanList(value, schema.max); } catch { return null; } }
     return { op: 'set', path: [effect.field], value };
 };
@@ -50,7 +52,7 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
             let value;
             try { value = cleanList(field.default ?? '', 240); } catch { return problem(`${path}.default`, B.listLimit); }
             schema = { type: 'text', max: 240, default: value, list: true, label };
-        } else if (field.type === 'number') schema = { type: 'int', min: Number(field.min), max: Number(field.max), default: Number(field.default), label };
+        } else if (field.type === 'number') schema = { type: 'int', min: number(field.min), max: number(field.max), default: number(field.default), label };
         else if (field.type === 'choice') {
             const values = Array.isArray(field.values) ? field.values.map(value => oneLine(value)) : String(field.values ?? '').split(',').map(value => oneLine(value));
             if (values.length < 2 || values.length > L.enumValues || values.some(value => !value) || new Set(values).size !== values.length) return problem(`${path}.values`, B.choiceLimit);
@@ -81,9 +83,9 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         } else if (fn.type === 'rule') {
             const condition = fn.when, schema = state[condition?.field];
             if (!schema || !['eq', 'ne', 'lt', 'gt', 'le', 'ge'].includes(condition?.op)) return problem(`${path}.when`, B.chooseField);
-            const value = schema.type === 'int' ? Number(condition.value) : condition.value;
+            const value = schema.type === 'int' ? number(condition.value) : condition.value;
             rules.push({ id: key, when: [condition.op, ['get', [condition.field]], value], then: effects });
-        } else if (fn.type === 'timer') timers.push({ id: key, clock: 'clock', every: Number(fn.every), effects: effects.map(effect => {
+        } else if (fn.type === 'timer') timers.push({ id: key, clock: 'clock', every: number(fn.every), effects: effects.map(effect => {
             if (effect.op === 'add') return { ...effect, value: ['mul', ['timer', 'periods'], effect.value] };
             if (effect.op === 'set' && state[effect.path[0]]?.type === 'int') return { op: 'add', path: effect.path,
                 value: ['sub', effect.value, ['get', effect.path]], bounds: 'clamp' };
@@ -91,11 +93,12 @@ export function buildBlock(draft, { used = [], definitions = [] } = {}) {
         }) });
         else return problem(`${path}.type`, B.chooseFunction);
     }
+    const show = draft.show ?? { tab: true, card: false, tabName: '', icon: 'ph-bookmark-simple' };
     const output = { slug, name, schema: 1, stateVersion: 1, scope: 'chat', state, kinds,
-        prompt: String(draft.prompt ?? ''), show: draft.show ?? { tab: true, card: false, tabName: name, icon: 'ph-bookmark-simple' },
+        prompt: String(draft.prompt ?? ''), show: { ...show, tabName: oneLine(show.tabName) || [...name].slice(0, 24).join('') },
         rules, timers, ...(timers.length ? { imports: { clock: { query: 'director.time', mode: 'prefix', projection: ['minutes'] } } } : {}) };
     const checked = validateDataModules([output], { packId: 'chat', capabilities: ['data-modules-v1', 'story-director'], definitions });
-    return checked.ok ? { ok: true, definition: output, checked: checked.definitions[0] } : checked;
+    return checked.ok ? { ok: true, definition: output, checked: checked.definitions[0] } : { ...checked, definition: output };
 }
 
 /** Reopens an editor-built definition without storing a second representation of the block. */
