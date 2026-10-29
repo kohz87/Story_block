@@ -139,7 +139,8 @@ removes its active instance. All three are direct reader commands. Pack modules 
 removed through these commands. A redefine carries a value when the field name and type match and the
 value fits the new schema; other fields start at their defaults. Unchanged timers keep their elapsed
 remainder, and existing offer and settlement keys are retained. A new block is refused once eight
-modules are already active. Existing pack pinning retains its earlier 16-pin limit.
+modules are already active. While a chat block is active, a pack module cannot be added as the ninth;
+older pack-only chats retain their earlier 16-pin limit.
 
 Definitions may include `prompt`, a one-line purpose of at most 600 Unicode code points, followed by
 the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may

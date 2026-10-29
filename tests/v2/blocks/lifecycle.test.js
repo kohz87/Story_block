@@ -116,3 +116,19 @@ test('a new block cannot be defined when eight data modules are already active',
     assert.equal((await host.sdk.command('dm.define', { definition: block() })).code, 'DM_BUDGET');
     assert.deepEqual(host.head(), before);
 });
+
+test('a pack cannot become the ninth active module after a block was made', async t => {
+    const host = await world(t, pack(Array.from({ length: 8 }, (_, i) => ({ ...definition(), slug: `m${i}` }))));
+    await host.send('Begin.', 'Opening.');
+    for (let i = 0; i < 7; i++) await pin(host, [], i);
+    success(await host.sdk.command('dm.define', { definition: block() }));
+    const offer = host.sdk.query('dataModules.offers')[7];
+    const payload = { module: offer.module, hash: offer.hash, packHash: offer.packHash };
+    const before = structuredClone(host.head());
+    assert.equal((await host.sdk.command('dm.pin', payload)).code, 'DM_BUDGET');
+    assert.deepEqual(host.head(), before);
+    await reload(host);
+    success(await host.sdk.command('dm.remove', { module: id }));
+    success(await host.sdk.command('dm.pin', payload));
+    await reload(host);
+});
