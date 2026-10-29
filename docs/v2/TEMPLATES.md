@@ -86,6 +86,7 @@ the Story Suite overlay shows.
 | `data-draft="name"` | An input fills the dialog's draft (§6). |
 | `data-submit="party.create"` | A form's submit (or this element's click) sends the draft as one command. |
 | `<ss-widget name="ss.meter" data-props='{"bind":"q.pc.hp"}'></ss-widget>` | A registered widget (§5). Always write the closing tag. |
+| `<span data-inline-control="ss.editable" data-props='…'></span>` | The built-in inline editor in a native span. |
 
 Separate several entries with `;`. A `:` or `;` inside quotes or brackets is part of the expression.
 

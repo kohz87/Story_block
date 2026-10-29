@@ -90,6 +90,15 @@ test('data-module template editables may address only their own editable fields'
         d.screens[0].template = screen(props);
         assert.equal(validatePack(pack([d])).ok, false, JSON.stringify(props));
     }
+    const inline = props => `<span data-inline-control="ss.editable" data-props='${JSON.stringify(props)}'></span>`;
+    d.screens[0].template = inline({ command: 'dm.set', payload: { module: 'pack.dm-test/counter', field: 'points' } });
+    assert.equal(validatePack(pack([d])).ok, true);
+    d.screens[0].template = inline({ command: 'inventory.add', payload: { name: 'Coin' } });
+    assert.equal(validatePack(pack([d])).ok, false);
+    for (const markup of ['<span data-inline-control="story-block.inventory-add"></span>', '<ss-widget name="story-block.inventory-add"></ss-widget>']) {
+        d.screens[0].template = markup;
+        assert.equal(validatePack(pack([d])).ok, false);
+    }
 });
 
 test('a pinned layout puts pencils beside displayed editable fields', async t => {

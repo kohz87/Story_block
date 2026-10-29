@@ -51,9 +51,9 @@ function group(kind) {
         <div class="body">
         <div class="line">
           <span class="name">{{ it.name }}</span>
-          <ss-widget name="ss.editable" data-props='{"value":"{{ it.name }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editName)}","command":"inventory.edit","valueKey":"name","payload":{"stack":"{{ it.stack }}"}}'></ss-widget>
-          <ss-widget name="ss.editable" data-props='{"value":{{ it.qty }},"displayValue":false,"kind":"number","min":1,"label":"${jsonText(S.editCount)}","command":"inventory.edit","valueKey":"qty","payload":{"stack":"{{ it.stack }}"}}'></ss-widget>
-          <ss-widget name="ss.editable" data-props='{"value":"{{ it.note }}","displayValue":false,"maxLength":300,"label":"${jsonText(S.editNote)}","command":"inventory.edit","valueKey":"note","payload":{"stack":"{{ it.stack }}"}}'></ss-widget>
+          <span data-inline-control="ss.editable" data-props='{"value":"{{ it.name }}","displayValue":false,"maxLength":60,"label":"${jsonText(S.editName)}","command":"inventory.edit","valueKey":"name","payload":{"stack":"{{ it.stack }}"}}'></span>
+          <span data-inline-control="ss.editable" data-props='{"value":{{ it.qty }},"displayValue":false,"kind":"number","min":1,"label":"${jsonText(S.editCount)}","command":"inventory.edit","valueKey":"qty","payload":{"stack":"{{ it.stack }}"}}'></span>
+          <span data-inline-control="ss.editable" data-props='{"value":"{{ it.note }}","displayValue":false,"maxLength":300,"label":"${jsonText(S.editNote)}","command":"inventory.edit","valueKey":"note","payload":{"stack":"{{ it.stack }}"}}'></span>
           <span class="chip eq worn-by" data-if="it.equipped != null && it.owner == 'party'" title="${html(S.equippedTitle)}">${html(S.wornByParty)}</span>
           <span class="chip key" data-if="it.key" title="${html(S.keyTitle)}">${html(S.key)}</span>
           <span class="chip carry" data-if="it.carry" title="${html(S.carryTitle)}">+{{ it.carry }} ${html(S.carry)}</span>
@@ -93,8 +93,8 @@ const TEMPLATE = `
       <span><span data-if="q.wallet.coin == 1">{{ q.currency.name }}</span><span data-if="q.wallet.coin != 1">{{ q.currency.plural }}</span></span></span>
       <span data-if="len(q.currency.coins) > 0"><b data-if="q.wallet.coin">{{ fmt.money(q.wallet.coin) }}</b><b data-if="!q.wallet.coin">{{ fmt.money(0) }}</b></span>
     </div>
-    <ss-widget name="ss.editable" data-props='{"value":{{ q.wallet.coin }},"displayValue":false,"money":true,"currency":{{ q.currency }},"label":"${jsonText(S.editPurse)}","command":"wallet.set","valueKey":"amount"}'></ss-widget>
-    <ss-widget name="${INVENTORY_ADD_WIDGET}"></ss-widget>
+    <span data-inline-control="ss.editable" data-props='{"value":{{ q.wallet.coin }},"displayValue":false,"money":true,"currency":{{ q.currency }},"label":"${jsonText(S.editPurse)}","command":"wallet.set","valueKey":"amount"}'></span>
+    <span data-inline-control="${INVENTORY_ADD_WIDGET}"></span>
     <div class="filter" role="search" aria-label="${html(S.filterLabel)}" data-if="len(q.items) > 0">
       <input type="search" class="find" data-draft="find" placeholder="${html(S.find)}" title="${html(S.findTitle)}"
              aria-label="${html(S.findTitle)}" autocomplete="off">

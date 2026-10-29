@@ -285,6 +285,11 @@ function presentation(definition, path, add) {
                 if (node.tag === 'ss-widget' && attrs.get('name') === 'ss.editable') {
                     editableProps(definition, templatePayload(attrs.get('data-props')), `${where}.data-props`, add);
                 }
+                if (node.tag === 'ss-widget' && attrs.get('name') === 'story-block.inventory-add') add('DM_SCHEMA', where, 'A data module cannot use the Inventory add control.');
+                if (attrs.has('data-inline-control')) {
+                    if (node.tag !== 'span' || attrs.get('data-inline-control') !== 'ss.editable') add('DM_SCHEMA', where, 'A data module may use only the editable inline control.');
+                    else editableProps(definition, templatePayload(attrs.get('data-props')), `${where}.data-props`, add);
+                }
                 if (attrs.has('data-submit')) add('DM_SCHEMA', where, 'A data module template button uses data-command="dm.act" with a closed data-payload; a form cannot carry one.');
                 if (attrs.has('data-command')) {
                     if (attrs.get('data-command').trim() !== 'dm.act') add('DM_SCHEMA', where, 'Data module template actions may call only dm.act.');
