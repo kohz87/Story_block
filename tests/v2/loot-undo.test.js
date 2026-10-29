@@ -281,7 +281,6 @@ async function firstOffer(t, { later, checkpointEvery = null }) {
 function goneWithIt(host, sid, later, label, rope = 1) {
     assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid)], [0, 0, false], `${label}: the take went with its offer`);
     assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, sid), false, `${label}: the offer went with its reply`);
-    assert.equal(Object.hasOwn(host.head().domains.inventory.perReply ?? {}, sid), false, `${label}: so did the reply's tally`);
     assert.deepEqual([qty(host, 'Rope'), qty(host, 'Lamp'), qty(host, 'Apple')], [rope, 1, later ? 1 : 0], `${label}: the rest is kept`);
 }
 
@@ -383,4 +382,93 @@ test('the guard: the exact name wins; a name two things could mean, or two taken
     assert.equal(ask(['Torch'], [{ name: 'Torch', qty: 3 }]).ok, false, 'fewer than were taken');
     const bad = guardOf([{ name: 'Torch', qty: 2 }]);
     assert.deepEqual(lootTakeGuard({ state: {}, hash: hashJson }, { guard: { ...bad, inputHash: '0'.repeat(64) } }), { ok: false, reason: 'its loot guard is damaged' });
+});
+
+// Several leading replies removed in one update (SillyTavern's "delete messages" of a range), with a checkpoint among them: the
+// first reply left starts from what they did, replayed whole from the first one's checkpoint, so the offer (reply-bound) and
+// any take of it go even where a later checkpoint held them. What the deleted replies did otherwise is carried.
+async function removeLeading(host, keep) {
+    host.ctx.chat.splice(0, host.ctx.chat.length - keep);
+    await host.st.eventSource.emit(host.st.ctx.eventTypes.MESSAGE_DELETED, host.ctx.chat.length);
+}
+async function bulk(t, { later, replies, checkpointEvery = null }) {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost(checkpointEvery ? { storeOptions: { checkpointEvery } } : {});
+    t.after(() => host.close());
+    await host.send('Search the crate.', reply('A crate.', ['+ item Rope', '? loot Torch x2, 5 gold — in the crate']));
+    const sid = headSid(host);
+    if (!later) assert.equal((await take(host, sid, [0, 1])).ok, true);
+    for (let n = 0; n < replies; n += 1) await host.send(`Step ${n}.`, reply(`Step ${n} goes on.`, ['+ coin 1']));
+    if (later) assert.equal((await take(host, sid, [0, 1])).ok, true);
+    await host.send('Last.', reply('The last reply.', ['+ item Lamp']));
+    const marks = host.ctx.chat.filter(message => !message.is_user && readRecord(message)?.checkpoint).length;
+    assert.ok(marks >= 2, `a checkpoint after the first one (${marks})`);
+    assert.deepEqual([qty(host, 'Torch'), coin(host), claimed(host, sid)], [2, 5 + replies, true]);
+    return { host, sid };
+}
+for (const later of [false, true]) {
+    const where = later ? 'a later reply that is left' : 'the offering reply';
+    test(`a take on ${where}: the leading replies removed in one update past a checkpoint: offer, take and claim go`, async t => {
+        const { host, sid } = await bulk(t, { later, replies: 6, checkpointEvery: 2 });
+        // Keep the reply that holds a later take (and its reader's message), and the last one; else the last two replies.
+        await removeLeading(host, 4);
+        assert.deepEqual([qty(host, 'Torch'), claimed(host, sid)], [0, false]);
+        assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, sid), false, 'the offer went with its reply');
+        assert.equal(qty(host, 'Rope'), 1, 'the deleted offering reply\'s own item is carried');
+        assert.equal(qty(host, 'Lamp'), 1);
+        assert.equal(coin(host), 6, 'the deleted replies\' coin is carried; the loot\'s 5 is not');
+        assert.equal(offPs(host).length, later ? 1 : 0);
+        await agrees(t, host, 'after the removal');
+    });
+}
+
+test('a take on a later reply, 102 replies after the offer (the default checkpoint among them), the leading ones removed at once', async t => {
+    const { host, sid } = await bulk(t, { later: true, replies: 102 });
+    await removeLeading(host, 4);
+    assert.deepEqual([qty(host, 'Torch'), claimed(host, sid), coin(host), qty(host, 'Rope')], [0, false, 102, 1]);
+    assert.equal(offPs(host).length, 1);
+    await agrees(t, host, 'after the removal');
+});
+
+// Another domain's scratch entry that happens to be keyed by a deleted reply's record ID is carried like any other state:
+// only the loot offer is the reply's own (its reply-bound guard), nothing is dropped by key.
+test('a scratch entry of another domain keyed by a deleted reply\'s record ID is carried, and a block built on it stays', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const shared = () => ({
+        id: 'zz-shared', name: 'Shared', version: '0.0.1',
+        domains: { shared: { initial: () => ({ entries: {}, used: false }), scratch: ['entries'] } },
+        commands: {
+            'shared.put'(ctx, { key }) {
+                ctx.draft('shared').entries[key] = { value: 7 };
+                return { summary: 'Put.', narrate: false };
+            },
+            'shared.use'(ctx, { key }) {
+                const draft = ctx.draft('shared');
+                if (!draft.entries[key]) ctx.fail('NOT_FOUND', 'Nothing to use.');
+                const predicate = { kind: 'use', key };
+                ctx.replayGuard({ owner: 'zz-shared', version: 2, epoch: ctx.epoch, rulesHash: null, inputHash: ctx.hash(predicate), predicate });
+                draft.used = true;
+                return { summary: 'Used.', narrate: false };
+            },
+        },
+        hooks: {
+            replayGuard: ({ state }, { guard }) => (state.domains.shared?.entries?.[guard.predicate.key]?.value === 7 ? { ok: true } : { ok: false, reason: 'the entry is gone' }),
+        },
+    });
+    const host = await createHost({ modules: [shared()] });
+    t.after(() => host.close());
+    const key = headSid(host);
+    assert.equal((await host.sdk.command('shared.put', { key })).ok, true, 'stored on the greeting, keyed by its record ID');
+    await host.send('Hello.', reply('The road.', ['+ coin 1']));
+    assert.equal((await host.sdk.command('shared.use', { key })).ok, true);
+    await host.send('On.', reply('Further.', ['+ coin 1']));
+    await host.st.deleteMessage(0);
+    assert.deepEqual(host.head().domains.shared, { entries: { [key]: { value: 7 } }, used: true });
+    assert.deepEqual(host.store.problems(), []);
+    const live = structuredClone(host.head());
+    host.store.rebuild();
+    assert.deepEqual(host.head(), live, 'a rebuild equals live');
+    const loaded = await createHost({ modules: [shared()], st: { chat: structuredClone(host.ctx.chat) } });
+    t.after(() => loaded.close());
+    assert.deepEqual(loaded.head(), live, 'a reload equals live');
 });

@@ -121,7 +121,6 @@ export function createStore({
     let holding = 0;           // inside batch(): swipe_info copies wait until it ends
     const held = new Set();
     let known = null;          // the carriers (message objects) the last good head was built from
-    let carrying = null;       // while carriedTo replays the deleted earliest replies: the messages the chat still holds
     let writes = 0;
     const unsaved = new Map(); // message → { index, chatId, n }: records written since their chat was saved
     const reserved = new WeakMap();   // message → { swipe, sid }: a record ID handed out before the record
@@ -1037,9 +1036,14 @@ export function createStore({
     // State after the last carrier at or before `upTo`, or null when no checkpoint precedes it. A block
     // of ops that no longer applies (a hand-edited chat, a middle reply deleted) is skipped and reported
     // on its own, so a bad change cannot take the rest of its carrier, or anything later, with it.
-    function replay(arr, upTo) {
+    // `whole`: from the first carrier's own checkpoint, past every later one (carriedTo, below).
+    function replay(arr, upTo, { whole = false } = {}) {
         counts.replays++;
-        const { from } = chain(arr, upTo);
+        let { from } = chain(arr, upTo);
+        if (whole) {
+            const first = carrierIndexes(arr)[0];
+            if (first !== undefined && first <= upTo && readRecord(arr[first])?.checkpoint) from = first;
+        }
         // A damaged record (B-b2-timeline-7) is skipped, and said so.
         const problems = from >= 0 ? unpackProblems(arr, from, readRecord(arr[from]).carried) : [];
         for (let i = Math.max(from, 0); i <= upTo && i < arr.length; i++) {
@@ -1102,8 +1106,6 @@ export function createStore({
         // done takes its place out of it), so the Problems below name the block as a full replay will number it.
         const firstProblem = problems.length;
         const placed = new Map();
-        // A deleted reply carried forward (carriedTo): its per-reply scratch does not outlive it, block by block.
-        const gone = carrying && message && !carrying.has(message) && typeof record.sid === 'string' ? record.sid : null;
         // Quarantine is decided on the record as it is stored, before any rebase, renumbering or filtering below can touch it:
         // it applies nothing and is never rewritten (so nothing renumbered can reattach the receipt that is detached).
         if (orphan) {
@@ -1118,7 +1120,6 @@ export function createStore({
             return { state, fields: null, running };
         }
         parts.forEach(({ ops, span: stored }, block) => {
-            if (gone) state = withoutReplyScratch(state, gone);
             let span = stored;
             // A block numbered at or below the rev the story is at (a swipe made before an earlier reply was read again, shown
             // now): a reconcile from here numbers it on (walkSuffix), so revs stay strictly increasing along the chat.
@@ -1190,7 +1191,6 @@ export function createStore({
                 keep();
             }
         });
-        if (gone) state = withoutReplyScratch(state, gone);
         if (!out?.changed) return { state, fields: null, running: out?.running ?? null };
         for (let at = firstProblem; at < problems.length; at += 1) {
             const entry = problems[at];
@@ -1582,36 +1582,13 @@ export function createStore({
 
     // B-b2-timeline-3: the state the first carrier starts from when the carriers before it were deleted:
     // what they ended with, as the store last saw them (their message objects still hold their records).
-    // What each deleted reply kept per reply (its domains' scratch fields keyed by its record ID: the inventory's loot on offer
-    // and story tally) is not carried: it is dropped before each of that reply's blocks and after its last one, so a block
-    // that needs it (a loot take, guarded on the offer) does not apply, there or on a later reply.
+    // The deleted replies are replayed whole, from the first one's checkpoint: a later checkpoint among them holds what their
+    // blocks did without asking them, and a block that must not outlive its reply (a reply-bound guard) is asked here again.
     function carriedTo(message) {
         const at = known ? known.indexOf(message) : -1;
         if (at <= 0) return null;
-        const outer = carrying;
-        carrying = new Set(list());
-        try {
-            const { state } = replay(known, at - 1);
-            return state ? structuredClone(state) : null;
-        } finally {
-            carrying = outer;
-        }
-    }
-
-    // `state` without the per-reply scratch entries of the reply whose record ID is `sid` (the same state when it has none).
-    function withoutReplyScratch(state, sid) {
-        if (typeof scratch !== 'function' || !isObject(state?.domains)) return state;
-        let next = state;
-        for (const [name, slice] of Object.entries(state.domains)) {
-            let fields = null;
-            try { fields = scratch(name); } catch { fields = null; }
-            for (const field of Array.isArray(fields) ? fields : []) {
-                if (!isObject(slice?.[field]) || !Object.hasOwn(slice[field], sid)) continue;
-                if (next === state) next = structuredClone(state);
-                delete next.domains[name][field][sid];
-            }
-        }
-        return next;
+        const { state } = replay(known, at - 1, { whole: true });
+        return state ? structuredClone(state) : null;
     }
 
     function spansOf(record) {
