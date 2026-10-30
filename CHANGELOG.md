@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.1
+
+- The block editor labels a function's name "Name" (was "Function name"), so Story Studio's offline page check accepts the vendored strings. Nothing else changes.
+
 ## 2.7.0
 
 - Keep exported blocks' tabs, Home cards and buttons when imported and enabled as packs.

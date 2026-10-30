@@ -55,7 +55,7 @@ export const STRINGS = deepFreeze({
         up: 'Move up', down: 'Move down', remove: 'Remove', purpose: 'What it is for',
         staticCount: '{n} of 2000 characters for purpose and story lines', showAs: 'Show as', ownTab: 'Own tab', card: 'Card on Home', both: 'Both',
         tabName: 'Tab name', icon: 'Tab icon', functions: 'Functions', addButton: 'Add button', addRule: 'Add rule', addTimer: 'Add timer',
-        timerNeeds: 'Timers need Story Director’s clock.', functionName: 'Function name', button: 'Button', rule: 'Rule', timer: 'Timer',
+        timerNeeds: 'Timers need Story Director’s clock.', functionName: 'Name', button: 'Button', rule: 'Rule', timer: 'Timer',
         every: 'Every N minutes', whenField: 'When field', comparison: 'Comparison', whenValue: 'Value',
         is: 'is', isNot: 'is not', below: 'below', above: 'above', atMost: 'at most', atLeast: 'at least',
         effectField: 'Field', effectAction: 'Do', setTo: 'Set to', add: 'Add', effectValue: 'Value', addStep: 'Add step',
