@@ -300,11 +300,11 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         ...(query ? { query } : {}),
     });
     const dataPart = createDataModulesPart({ packs: packs.packs, ...dataModules });
-    // The Lean RPG's pre-call and rolls (`leanRpg`: the runtime's queued model call, the chat and its metadata; src/v2/lean-rpg/).
+    // The RPG's pre-call and rolls (`leanRpg`: the runtime's queued model call, the chat and its metadata; src/v2/lean-rpg/).
     const rpg = createLeanRpgPart({ ...leanRpg, problem });
     const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), dataPart, rpg]);
     const timelineGuard = merged.hooks.replayGuard;
-    // One host-owned hook for the host's guarded blocks, by predicate: data modules (`dm.*`), the Lean RPG's rolls
+    // One host-owned hook for the host's guarded blocks, by predicate: data modules (`dm.*`), the RPG's rolls
     // (`rpg.resolve`), a loot offer or take (`loot.offer`, `loot.take`, inventory.js), else the timeline's.
     merged.hooks.replayGuard = Object.assign((view, info) => {
         const kind = String(info?.guard?.predicate?.kind ?? '');

@@ -1,4 +1,4 @@
-// The Lean RPG templates as the block engine runs them: made with dm.define as the chooser does, then played by
+// The RPG templates as the block engine runs them: made with dm.define as the chooser does, then played by
 // story lines. Class and rank rise by their rules, the death latch ends the story only for a character already
 // Down, the end card follows, and live = reload = rebuild.
 import test from 'node:test';

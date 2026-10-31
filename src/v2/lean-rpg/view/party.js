@@ -16,7 +16,7 @@ import { readParty } from './party-data.js';
 import { newSkillsSession, renderSkills } from './skills.js';
 
 const P = RPG_STRINGS.party;
-export const PARTY_WIDGET = 'lean-rpg.party';
+export const PARTY_WIDGET = 'rpg.party';
 /** The id ends in `party`, so the navigation puts the tab right after Home (screens.js DEFAULT_ORDER). */
 export const PARTY_SCREEN_ID = 'story-block/party';
 
@@ -37,7 +37,7 @@ const sameCharacter = (a, b) => a.module === b.module && a.subject === b.subject
  * its draft, is kept here, outside the widget (as the Blocks page keeps its editor): `shared.open` is the Spend points sheet's
  * session and `shared.skills` the Skills view's; at most one of them is open.
  */
-export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null } = {}) {
+export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null, rules = undefined } = {}) {
     const shared = { open: null, skills: null };
     const live = new Set();
     const tell = () => { for (const redraw of [...live]) redraw(); };
@@ -118,7 +118,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 if (shared.skills && !looking) shared.skills = null;
                 main.hidden = Boolean(open || looking);
                 if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended });
-                else if (looking) sheet = renderSkills(host, { character: looking, session: shared.skills, api, doc, onBack: closeSkills, onSaved: tell });
+                else if (looking) sheet = renderSkills(host, { character: looking, session: shared.skills, api, doc, onBack: closeSkills, onSaved: tell, ...(rules ? { rules } : {}) });
                 const head = h(doc, 'div', 'rpg-head');
                 head.appendChild(h(doc, 'h3', '', P.title));
                 const count = h(doc, 'div', 'rpg-pills');

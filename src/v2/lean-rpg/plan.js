@@ -196,7 +196,7 @@ export function parsePlanAnswer(answer, sheet) {
 
 // ---- the held plan ----------------------------------------------------------------------------------------------
 
-const HOLD = 'leanRpgPlan';
+const HOLD = 'rpgPlan';
 
 /**
  * The plan held for the next generation: { put(chat, key, plan | null), peek(chat, key) → { plan } | null, clear() } (a held

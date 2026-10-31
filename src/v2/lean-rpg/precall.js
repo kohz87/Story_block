@@ -1,6 +1,6 @@
 // The pre-call (SPEC_RPG §2R A3): before a reply, one short model call reads the reader's latest message and a compact
 // summary of the party and the foes, and answers a plan (plan.js) in a few fixed lines, or "none". Code then rolls it
-// (resolve.js). It is the only planner: on by default, off with Settings → Lean RPG → Rolls = off.
+// (resolve.js). It is the only planner: on by default, off with Settings → RPG → Rolls = off.
 //
 // It runs only when the feature is on, Rolls is automatic and the chat has a Character block; for a normal send, a
 // regenerate or a swipe (never a Continue, an impersonation, a quiet prompt or a dry run); with a message to read. A
@@ -11,11 +11,14 @@
 import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, withTimeout } from '../assist/common.js';
 import { stripBlock } from '../capture.js';
 import { CLASS_NAMES, LEAN_RPG_FEATURE, RANK_NAMES, RESOLVE, ROLLS_SETTING, STAGES, STATS } from './names.js';
+import { plannerNoteOf, rulesFromSettings } from './rules.js';
 import { NO_ROLLS_LINE } from './cue.js';
 import { parsePlanAnswer } from './plan.js';
 import { claimKey, prepare } from './resolve.js';
 import { readSheet } from './read.js';
 
+/** What the reader's instructions are called in the prompt. */
+export const NOTE_LABEL = 'Player\'s instructions:';
 export const ANSWER_TOKENS = 250;
 export const MESSAGE_LIMIT = 800;
 export const EXCERPT_LIMIT = 600;
@@ -54,10 +57,13 @@ export function sheetText(sheet) {
     return `Party:\n${party.join('\n')}\nFoes: ${foes.length ? `\n${foes.join('\n')}` : 'none'}`;
 }
 
-/** The pre-call's prompt: the static head, the sheet, the end of the last reply, then the reader's message. */
-export function precallPrompt({ sheet, message, excerpt = '' }) {
-    const tail = String(excerpt ?? '').trim();
-    return `${PRECALL_HEAD}\n\n${sheetText(sheet)}\n${tail ? `\nThe last reply ended:\n"""\n${tail.slice(-EXCERPT_LIMIT)}\n"""\n` : ''}\nThe reader's message:\n"""\n${clip(message, MESSAGE_LIMIT)}\n"""`;
+/**
+ * The pre-call's prompt: the static head, the reader's own instructions when they wrote any (`note`, Settings → RPG; after the
+ * fixed part, which they cannot change), the sheet, the end of the last reply, then the reader's message.
+ */
+export function precallPrompt({ sheet, message, excerpt = '', note = '' }) {
+    const tail = String(excerpt ?? '').trim(), extra = String(note ?? '').trim();
+    return `${PRECALL_HEAD}${extra ? `\n\n${NOTE_LABEL} ${extra}` : ''}\n\n${sheetText(sheet)}\n${tail ? `\nThe last reply ended:\n"""\n${tail.slice(-EXCERPT_LIMIT)}\n"""\n` : ''}\nThe reader's message:\n"""\n${clip(message, MESSAGE_LIMIT)}\n"""`;
 }
 
 const readSettings = (view, moduleId) => {
@@ -84,7 +90,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
 
     async function plan(view, sheet, message, excerpt) {
         const values = readSettings(view, moduleId);
-        const prompt = precallPrompt({ sheet, message, excerpt });
+        const prompt = precallPrompt({ sheet, message, excerpt, note: plannerNoteOf(values) });
         let answer;
         try {
             answer = await withTimeout(() => callModel(prompt, { maxTokens: ANSWER_TOKENS, profile: String(values[SETTING.profile] ?? ''), helper: 'rolls' }), timeoutMs, timer);
@@ -130,7 +136,9 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
             if (planned.failed) return skip(sheet, planned.failed);
             hold.put(where, key, planned.plan);
         }
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan } }] } : null;
+        // The numbers the dice are rolled with are fixed here, from the settings of this moment, and travel in the payload: the roll
+        // (and every Re-read of it) uses these, whatever the settings say later (rules.js).
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules: rulesFromSettings(readSettings(view, moduleId)) } }] } : null;
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway).

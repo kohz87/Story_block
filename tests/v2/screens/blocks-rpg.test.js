@@ -1,5 +1,5 @@
-// The block builder, the editor, the block card and the template chooser with the lean RPG's additions: names for numbers, hidden
-// fields, a role, cards and reply-end functions, and the "Lean RPG" templates under the chooser.
+// The block builder, the editor, the block card and the template chooser with the RPG's additions: names for numbers, hidden
+// fields, a role, cards and reply-end functions, and the "RPG" templates under the chooser.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
@@ -212,7 +212,7 @@ function widgetPage(t, { on = true, templates = [heroTemplate()] } = {}) {
     return { doc, el, rows, calls, loads: () => loads };
 }
 
-test('with the feature on, the chooser lists the Lean RPG templates under their own heading and makes the block as written', async t => {
+test('with the feature on, the chooser lists the RPG templates under their own heading and makes the block as written', async t => {
     const { el, rows, calls, loads } = widgetPage(t);
     button(el, S.newBlock).click();
     await settle(); await settle();

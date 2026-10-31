@@ -1,17 +1,17 @@
-# Lean RPG
+# RPG
 
-The Lean RPG is an optional part of Story Block for light combat and character growth. It keeps a party sheet
+The RPG is an optional part of Story Block for light combat and character growth. It keeps a party sheet
 for you and each companion, rolls the dice for fights and checks, and raises Soul Class and skill ranks as the
 story goes on. It is off by default, and with it off Story Block works exactly as before.
 
 ## Turning it on
 
-Open **Settings → Features** and switch on **Lean RPG**. Then open **Settings → Lean RPG** to choose how rolls
-work: **Rolls: automatic** (the default) or **off**. With rolls off, the narrator still tells the story, but no
-dice are rolled and no battle log is drawn.
+Open **Settings → Features** and switch on **RPG**. A page of its own, **Settings → RPG**, appears under Features
+(see [Settings → RPG](#settings--rpg)). With **Rolls: automatic** (the default) the dice are rolled for you; with
+rolls **off**, the narrator still tells the story, but no dice are rolled and no battle log is drawn.
 
 Make your characters with **New character** on the Party tab (see [Making a character](#making-a-character)). To build
-a sheet by hand instead, use **Game view → Blocks**: choose **New block**, then a template from the **Lean RPG** heading
+a sheet by hand instead, use **Game view → Blocks**: choose **New block**, then a template from the **RPG** heading
 (see [The four templates](#the-four-templates)). Make one Character block for each character in the party, and
 one Skills block for each of them that has skills. Foes is one block for the foe groups in a fight. Combat rules is
 one block for the whole chat and carries the combat text.
@@ -30,8 +30,8 @@ Edits made here ride on the latest reply, like any other pencil edit: swipe or d
 
 The Fight tab takes the place of the Foes block's own tab, and shows only while a foe slot is filled. The header reads
 **Fight · <place>** (the scene's place, when there is one) with two pills: **Exchange N**, from the latest rolls, and
-**N foes · M down**. Under it are a card for each foe (name, Class, a five-cell health bar, greyed when Down; the pencil
-fixes the name), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
+**N foes · M down**. Under it are a card for each foe (name, Class, a five-cell health bar, greyed when Down; tap the bar,
+or its pencil, to set the foe's health from Down to Unhurt, the same way as on the Party card), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
 reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
 
 ## Making a character
@@ -84,7 +84,8 @@ A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **
 
 **The roll rule.** A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
 the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
-plus 3) is what the situation earns, such as an ambush.
+plus 3) is what the situation earns, such as an ambush. That is the **Standard** difficulty; the numbers 5, 2 and
+"half" can be changed in [Settings → RPG](#settings--rpg).
 
 - **A skill brings its own stat and resource.** An action that uses a skill the character has rolls with that skill's stat
   and spends that skill's resource (stamina or mana), whatever the planning step wrote. If the resource is Empty the action
@@ -92,9 +93,37 @@ plus 3) is what the situation earns, such as an ambush.
 - An action with no skill rolls the stat the planning step picked, at rank 0. So does an action that names a skill the
   character does not have, and the log says so.
 
-- A **swipe** rolls again: the reply and its dice are new.
-- **Re-read** keeps the same dice.
+- A **swipe** rolls again: the reply and its dice are new, and made with the numbers the settings say then.
+- **Re-read** keeps the same dice, and the same numbers (see below).
 - Changes made by a roll, and any level-up, appear under **Changed this reply**.
+
+**Past rolls never change.** The numbers a roll was made with are recorded in the roll itself. A Re-read, a rebuild and
+a reload roll it again with those numbers, never with today's settings. Changing the difficulty, or anything else on the
+Settings page, only changes the rolls made after it.
+
+## Settings → RPG
+
+The page has four cards, and shows only while the RPG is on.
+
+- **Rolls.** **Automatic** or **Off**, as above.
+- **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. The presets change the foe's base and how far short
+  a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
+  above), Harsh 7 and 1. All three keep a Soul Class worth 2, half the stat, a decisive margin of 8 and at most 5 exchanges
+  a reply. **Custom** shows the six numbers: **Foe's base** (0 to 15), **Soul Class adds** (×1, ×2 or ×3, for both sides),
+  **Stat adds** (half the stat, or a third), **"At a cost" when short by** (0 to 5; 0 turns it off), **Decisive at a margin
+  of** (4 to 15, or a natural 1 or 20) and **Most exchanges per reply** (1 to 8). A number outside its range is held to
+  it. Under the numbers a bar shows the exact chances of success, success at a cost and fail for your own character (the
+  persona's name, else the first Character block) with their best skill, against a foe of their Soul Class, and it
+  changes as you type. A line under it gives the other presets for the same fight.
+- **What the narrator is told about combat.** The text of this chat's Combat rules block (up to 1200 characters, counted
+  as you type). It is saved when you leave the box, as an edit of that block on the latest reply: swipe or delete that
+  reply to take it back. **Reset to the default** puts the template's text back. Each chat has its own text; a new chat
+  starts from the default. A chat with no Combat rules block says so and offers **Add the Combat rules block**.
+- **Roll planner.** Your own instructions (up to 400 characters) for the short call that plans the dice, added after its
+  fixed part. **Show the planner's full prompt** shows exactly what that call is sent for this chat, read-only: the format
+  of its answer stays fixed so the dice can be read.
+
+With the RPG off none of this is read or sent.
 
 ## Soul Class and skill ranks
 
@@ -128,7 +157,7 @@ with the pencils on the block.
 | **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health. |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
-To read or change a template's rules or combat text, make a block from it, then use the block's actions menu to
+The combat text of this chat can be changed on [Settings → RPG](#settings--rpg). To read or change a template's rules, make a block from it, then use the block's actions menu to
 export it as a pack file. The pack file holds the definition as JSON; edit it and import the pack. A block made from
 a template is its own copy in the chat, so changing a template later does not change blocks already made.
 
@@ -152,11 +181,11 @@ slots left out, and a Foes block lists only the groups in the fight.
 
 ### Skill sets in a pack
 
-A pack can add skill sets to the New character window. They sit under `content.leanRpg.skillSets`, up to 12 sets, each with
+A pack can add skill sets to the New character window. They sit under `content.rpg.skillSets`, up to 12 sets, each with
 up to 5 skills, and show on the Skills step as "From the *pack name* pack":
 
 ```json
-{ "content": { "leanRpg": { "skillSets": [ {
+{ "content": { "rpg": { "skillSets": [ {
     "name": "Sealwarden recruit",
     "about": "Trained at the Depths gates to hold a line and read the seals.",
     "skills": [

@@ -1,4 +1,4 @@
-// The Lean RPG roll (src/v2/lean-rpg/resolve.js, cue.js): the formula and the odds, the outcome rule, the rounds and
+// The RPG roll (src/v2/lean-rpg/resolve.js, cue.js): the formula and the odds, the outcome rule, the rounds and
 // their stop rules, the cue and its budget, and what is refused. Pure: a sheet read from state, scripted dice.
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -46,7 +46,7 @@ export function exchangesOf(record, problems = []) {
  * The RPG's lines for one reply. `state` is the reply's state, `before` the one before it (null for the first reply: no
  * rises are told then), `record` the reply's record, `problems` the replay problems of that reply.
  */
-export function rpgReplyLines({ state, before = null, record = null, problems = [], roleOf } = {}) {
+export function rpgReplyLines({ state, before = null, record = null, problems = [], roleOf, rules = null } = {}) {
     const out = [];
     const rolled = exchangesOf(record, problems);
     if (rolled) {
@@ -59,7 +59,7 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
     for (const character of readParty(state, { roleOf })) {
         const old = then.get(`${character.module}|${character.subject}`);
         if (!old || !(character.soul > old.soul)) continue;
-        const bonus = FORMULA.classWeight * (character.soul - old.soul);
+        const bonus = (rules?.classWeight ?? FORMULA.classWeight) * (character.soul - old.soul);
         out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(C.classUp, { who: character.name, from: old.soulName, to: character.soulName }),
             summary: fill(C.classSummary, { to: character.soulName }),
             note: character.xp === 0 ? fill(C.classNote, { xp: character.xp, bonus }) : fill(C.classNoteShort, { bonus }) }));

@@ -1,4 +1,4 @@
-// The Lean RPG's screens on the page (ui-host.js): nothing is imported or mounted while the feature is off; on, the Party
+// The RPG's screens on the page (ui-host.js): nothing is imported or mounted while the feature is off; on, the Party
 // tab shows while the story has a Character block, the Spend points sheet saves through the real host, the settings fold
 // draws and the "Changed this reply" card carries the RPG lines.
 import test from 'node:test';
@@ -30,7 +30,7 @@ async function page(t, { feature = false } = {}) {
     await settle();
     return { doc, host, ui, loads, draw };
 }
-const hasLink = doc => doc.querySelectorAll('link[data-ss-lean-rpg]').length;
+const hasLink = doc => doc.querySelectorAll('link[data-ss-rpg]').length;
 const navIds = doc => {
     const view = doc.querySelector('.ss-gameview');
     return view ? [...view.querySelectorAll('.ss-screenbar-item[data-id]'), ...view.querySelectorAll('.ss-screenbar-tile[data-id]')].map(node => node.getAttribute('data-id')) : [];
@@ -51,7 +51,8 @@ test('feature off: nothing is imported, nothing is mounted, and the Party screen
     ui.mounts.screen.open();
     assert.ok(!navIds(doc).includes(PARTY));
     ui.openSettings();
-    assert.equal(doc.querySelectorAll('.rpg-settings').filter(node => !node.hidden).length, 0, 'no Lean RPG fold');
+    assert.equal(doc.querySelector('[data-ss-section="rpg"]'), null, 'no RPG page in the settings window');
+    assert.ok(!doc.querySelectorAll('.ss-tabs-label').some(node => node.textContent === 'RPG'), 'and no RPG entry in its rail');
 });
 
 test('turning the feature on mounts it once; turning it off takes it all away; on again mounts it again', async t => {
@@ -169,21 +170,43 @@ test('a bar tapped on a card saves through dm.set', async t => {
     assert.match(party(doc).querySelector('.rpg-card[data-character="Wessel"] .rpg-bar[data-bar="stamina"]').textContent, /Spent/);
 });
 
-test('Settings has the Lean RPG fold while the feature is on: Rolls automatic or off', async t => {
+const railLabels = doc => doc.querySelectorAll('.ss-settings .ss-tabs-label').map(node => node.textContent);
+const rpgPage = doc => doc.querySelector('[data-ss-section="rpg"]');
+
+test('Settings has an RPG page of its own after Features while the feature is on: Rolls automatic or off', async t => {
     const { doc, host, ui } = await page(t, { feature: true });
     ui.openSettings();
-    const fold = doc.querySelectorAll('.rpg-settings').find(node => !node.hidden);
-    assert.ok(fold, 'the fold is there');
-    assert.match(fold.querySelector('summary').textContent, /Lean RPG/);
-    assert.match(fold.textContent, /Rolls/);
-    const radios = fold.querySelectorAll('[role="radio"]');
-    assert.deepEqual(radios.map(node => node.textContent), ['Automatic', 'Off']);
-    assert.equal(radios[0].getAttribute('aria-checked'), 'true', 'automatic is the default');
-    radios[1].click();
+    assert.deepEqual(railLabels(doc).slice(0, 3), ['Look', 'Features', 'RPG'], 'its own rail entry, under Features');
+    const win = ui.openSettings();
+    win.select('rpg');
+    const rpg = rpgPage(doc);
+    assert.equal(rpg.hidden, false);
+    assert.equal(rpg.querySelector('.ss-settings-page-title').textContent, 'RPG');
+    const card = rpg.querySelector('[data-card="rolls"]');
+    assert.ok(card.textContent.includes('Rolls'));
+    const chips = card.querySelectorAll('.rpg-chip');
+    assert.deepEqual(chips.map(node => node.textContent), ['Automatic', 'Off']);
+    assert.equal(chips[0].getAttribute('aria-pressed'), 'true', 'automatic is the default');
+    chips[1].click();
     await settle();
-    assert.equal(host.settings('story-block').leanRpgRolls, 'off');
+    assert.equal(host.settings('story-block').rpgRolls, 'off');
+    assert.equal(rpgPage(doc).querySelector('[data-card="rolls"] .rpg-chip[data-value="off"]').getAttribute('aria-pressed'), 'true');
     host.features.set(CORE_FEATURE.leanRpg, false);
-    assert.ok(doc.querySelectorAll('.rpg-settings').every(node => node.hidden || !node.parentNode), 'off: the fold goes');
+    await settle();
+    assert.ok(!railLabels(doc).includes('RPG'), 'off: its rail entry goes');
+    assert.equal(rpgPage(doc).hidden, true, 'and its page');
+    assert.equal(win.section(), 'features', 'a window left on that page moves to Features');
+});
+
+test('the settings window opened just before the feature was switched on gets the RPG page once it loads', async t => {
+    const { doc, host, ui } = await page(t);
+    const win = ui.openSettings();
+    assert.ok(!railLabels(doc).includes('RPG'));
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    await settle();
+    assert.deepEqual(railLabels(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
+    assert.equal(ui.openSettings && doc.querySelectorAll('.ss-settings').length, 1, 'one window');
+    void win;
 });
 
 test('"Changed this reply" tells the rolls and the rises', async t => {

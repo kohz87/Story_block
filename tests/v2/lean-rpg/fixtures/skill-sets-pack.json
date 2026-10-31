@@ -3,10 +3,10 @@
     "version": "1.0.0",
     "name": "Ersveil",
     "author": "Test fixture",
-    "description": "A pack with one Lean RPG skill set, as the New character wizard offers it.",
+    "description": "A pack with one RPG skill set, as the New character wizard offers it.",
     "requires": { "storyBlock": "^2" },
     "content": {
-        "leanRpg": {
+        "rpg": {
             "skillSets": [
                 {
                     "name": "Sealwarden recruit",

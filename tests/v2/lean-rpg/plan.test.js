@@ -151,7 +151,7 @@ test('the held plan lives in the chat metadata, for that chat and that message o
     const hold = createPlanHold({ metadata: () => metadata });
     assert.equal(hold.peek('chat', '1-abc'), null);
     hold.put('chat', '1-abc', good());
-    assert.deepEqual(Object.keys(metadata), ['leanRpgPlan']);
+    assert.deepEqual(Object.keys(metadata), ['rpgPlan']);
     assert.deepEqual(hold.peek('chat', '1-abc'), { plan: good() });
     assert.deepEqual(hold.peek('chat', '1-abc'), { plan: good() }, 'peeking uses nothing up');
     assert.equal(hold.peek('chat', '2-abc'), null);
@@ -162,7 +162,7 @@ test('the held plan lives in the chat metadata, for that chat and that message o
     assert.deepEqual(metadata, {});
     assert.equal(hold.peek('chat', '3-abc'), null);
     // A hold that was damaged is not given.
-    metadata.leanRpgPlan = { chat: 'chat', key: '1-abc', plan: { pace: 'sideways' } };
+    metadata.rpgPlan = { chat: 'chat', key: '1-abc', plan: { pace: 'sideways' } };
     assert.equal(hold.peek('chat', '1-abc'), null);
 });
 

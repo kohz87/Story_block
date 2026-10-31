@@ -89,7 +89,7 @@ For a replay comparison, build a second store over a copy of the chat the way `t
   is gone), so the host takes the step back; a pin this build cannot read is a plain refusal and the old block stays.
 - **Problems keep a block's number** when a step planned again is taken out of its record (`store.js replayBlocks`), so the
   Problems after a reconcile are those of a full replay.
-- **Tail room**: 100 tokens for each pinned module (300 for a block with a `role`, the Lean RPG's sheets) on top of the core's own (`context.budget` is a getter); none without a pin.
+- **Tail room**: 100 tokens for each pinned module (300 for a block with a `role`, the RPG's sheets) on top of the core's own (`context.budget` is a getter); none without a pin.
 - **Refusal text** is "Module name: what was expected; nothing applied." (bounded, shown escaped). The `path` of `{code,path,message}`
   is in the sentence, not a separate field: `ctx.fail` carries a code and a message.
 - **Reader bare slug** is matched in lower case only; any other difference is refused.

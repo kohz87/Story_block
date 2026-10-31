@@ -1,8 +1,8 @@
-// The Lean RPG's shared names (re-exported by index.js, which is where the other pieces import them from).
+// The RPG's shared names (re-exported by index.js, which is where the other pieces import them from).
 // They live in a file of their own so the pieces that index.js imports can use them without an import cycle.
 
 /** The feature that switches all of it. */
-export const LEAN_RPG_FEATURE = 'story-block.lean-rpg';
+export const LEAN_RPG_FEATURE = 'story-block.rpg';
 
 /** The prelude command a planned reply's rolls are committed through (turn.js prelude list). */
 export const RESOLVE = 'rpg.resolve';
@@ -49,10 +49,10 @@ export const LIMITS = Object.freeze({
 });
 
 /**
- * The setting that decides whether the pre-call runs: `leanRpgRolls`, 'automatic' (default) or 'off'. It lives in
- * Story Block's own settings; the Lean RPG settings page draws it.
+ * The setting that decides whether the pre-call runs: `rpgRolls`, 'automatic' (default) or 'off'. It lives in
+ * Story Block's own settings; the RPG settings page draws it.
  */
-export const ROLLS_SETTING = 'leanRpgRolls';
+export const ROLLS_SETTING = 'rpgRolls';
 export const ROLLS = Object.freeze(['automatic', 'off']);
 
 /** The line the narrator writes where the fight is told (the battle log is drawn there). */

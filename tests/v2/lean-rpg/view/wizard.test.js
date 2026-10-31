@@ -128,7 +128,7 @@ test('the screen: a wide dialog with four steps, Who, Stats, Skills, Review, eac
     assert.deepEqual([screen.mounts, screen.width, screen.title], [['dialog'], 'wide', 'New character']);
     assert.deepEqual(screen.steps.map(step => [step.id, step.title]), [['who', 'Who'], ['stats', 'Stats'], ['skills', 'Skills'], ['review', 'Review']]);
     for (const step of screen.steps) assert.match(step.template, new RegExp(`name="${WIZARD_WIDGET}" data-props='\\{"step":"${step.id}"\\}'`));
-    assert.equal(WIZARD_WIDGET, 'lean-rpg.wizard');
+    assert.equal(WIZARD_WIDGET, 'rpg.wizard');
 });
 
 // ---- the dialog on the real page -------------------------------------------------------------------------------------------------
@@ -506,10 +506,10 @@ test('feature off: no wizard screen, no button, nothing of it loaded', async t =
     assert.equal(ctx.loads.length, 0);
     assert.equal(ctx.ui.screens.resolve(WIZARD_SCREEN_ID), null);
     assert.equal(ctx.ui.mounts.dialog.open(WIZARD_SCREEN_ID), null, 'a dialog for a screen that is not there opens nothing');
-    ctx.host.features.set('story-block.lean-rpg', true);
+    ctx.host.features.set('story-block.rpg', true);
     await settle();
     assert.ok(ctx.ui.screens.resolve(WIZARD_SCREEN_ID));
-    ctx.host.features.set('story-block.lean-rpg', false);
+    ctx.host.features.set('story-block.rpg', false);
     assert.equal(ctx.ui.screens.resolve(WIZARD_SCREEN_ID), null, 'switched off: the screen is gone again');
 });
 

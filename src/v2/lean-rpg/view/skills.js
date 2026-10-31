@@ -30,10 +30,10 @@ export function masteryOf(skill) {
  * The roll a skill makes from the live sheet: d20 + floor(stat / 2) + rank + 2 × Soul Class. → { total, stat, value, half, rank, bonus } with
  * `stat` the stat's label (null for a skill that names none: the story then picks the stat, so only the rank and class are known).
  */
-export function rollOf(skill, character) {
+export function rollOf(skill, character, rules = FORMULA) {
     const entry = character.stats.find(stat => stat.key === skill.stat) ?? null;
-    const half = entry ? Math.floor(entry.value / FORMULA.statDivisor) : 0;
-    const bonus = FORMULA.classWeight * character.soul;
+    const half = entry ? Math.floor(entry.value / rules.statDivisor) : 0;
+    const bonus = rules.classWeight * character.soul;
     return { total: half + skill.rank + bonus, stat: entry?.label ?? null, value: entry?.value ?? 0, half, rank: skill.rank, bonus };
 }
 
@@ -42,10 +42,10 @@ export const newSkillsSession = character => ({ module: character.module, subjec
 
 /**
  * Draws `character`'s skills (a readParty record) into `parent`. Options: `session` (newSkillsSession's record, kept by the caller),
- * `api` ({ command }; without one there are no pencils), `onBack()`, `onSaved()` (a save ended: the page draws the view again from the session,
+ * `api` ({ command }; without one there are no pencils), `onBack()`, `rules()` (the numbers a roll is made with now: the roll line follows them), `onSaved()` (a save ended: the page draws the view again from the session,
  * since it already drew itself once after the first write and this instance may be gone), `doc`. → { el, session, edit(slot), save(), destroy() }.
  */
-export function renderSkills(parent, { character, session = null, api = {}, onBack = () => {}, onSaved = () => {}, doc = parent.ownerDocument ?? globalThis.document } = {}) {
+export function renderSkills(parent, { character, session = null, api = {}, onBack = () => {}, onSaved = () => {}, rules = () => FORMULA, doc = parent.ownerDocument ?? globalThis.document } = {}) {
     const run = session ?? newSkillsSession(character);
     const block = character.skillsBlock;
     const root = h(doc, 'section', 'rpg-sheet rpg-skills-view ss-glass');
@@ -152,7 +152,7 @@ export function renderSkills(parent, { character, session = null, api = {}, onBa
     }
 
     function skillRow(list, skill) {
-        const roll = rollOf(skill, character), mastery = masteryOf(skill);
+        const roll = rollOf(skill, character, rules()), mastery = masteryOf(skill);
         const row = h(doc, 'article', 'rpg-skill');
         row.setAttribute('data-slot', String(skill.slot));
         const top = h(doc, 'div', 'rpg-skill-top');

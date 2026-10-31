@@ -1,5 +1,5 @@
-// The lean RPG (suite-notes/SPEC_RPG.md): an optional part of Story Block's core module, behind the feature
-// `story-block.lean-rpg` (off by default; off means fully off, features.js). It reads the chat's
+// The RPG (suite-notes/SPEC_RPG.md): an optional part of Story Block's core module, behind the feature
+// `story-block.rpg` (off by default; off means fully off, features.js). It reads the chat's
 // RPG blocks (custom blocks whose definition has a `role`, see ROLES) and adds:
 // - automatic rolls: a pre-call before the reply plans the actions, `rpg.resolve` rolls them as a
 //   prelude block on the generated reply (a swipe rolls again, a Re-read keeps the dice);
@@ -16,6 +16,7 @@ import { createPrecall } from './precall.js';
 import { leanRpgGuard, resolve, rollsOf } from './resolve.js';
 
 export * from './names.js';
+export { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_KEYS, RULE_RANGES, STANDARD, difficultyOf, normalizeRules, oddsFor, oddsSubject, plannerNoteOf, presetOf, rulesFromSettings, sameRules, subjectOdds } from './rules.js';
 export { createPlanHold, parsePlanAnswer, planIsEmpty, validatePlan } from './plan.js';
 export { characterOf, fold, matchCharacter, matchFoe, matchName, matchSkill, readSheet } from './read.js';
 export { NO_ROLLS_LINE, OUTCOME_WORD, cueText, lineText } from './cue.js';

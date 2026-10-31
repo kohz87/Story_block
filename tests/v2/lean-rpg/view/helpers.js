@@ -1,4 +1,4 @@
-// Shared pieces for the Lean RPG screen tests: block definitions as the templates will shape them (the `role` key is
+// Shared pieces for the RPG screen tests: block definitions as the templates will shape them (the `role` key is
 // read through `roleOf`, since the block engine's own key lands in another piece), a hand-built story state for the
 // pure readers, and the real host's blocks for the tests that save.
 import assert from 'node:assert/strict';

@@ -88,7 +88,7 @@ export function withSkillPatch(draft, index, patch) {
 export const withoutSkill = (draft, index) => ({ ...draft, skills: draft.skills.filter((_, at) => at !== index) });
 
 /**
- * The skill sets on offer: the built-in ones, then each pack's (`packSets` = the `packs.content` records of kind leanRpg, each with
+ * The skill sets on offer: the built-in ones, then each pack's (`packSets` = the `packs.content` records of kind rpg, each with
  * its pack id; `packNames` maps a pack id to its name). → [{ id, name, about, skills, source: 'Built in' | 'From the X pack', builtIn }]
  */
 export function skillSetsOf({ packSets = [], packNames = {} } = {}) {

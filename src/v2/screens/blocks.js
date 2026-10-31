@@ -28,7 +28,7 @@ const fullyNamed = scalar => {
 export function createBlockWidgets({ templates, directorOn = () => true, leanRpgOn = () => false, navigate = () => {},
     loadRpgTemplates = () => import('../lean-rpg/templates.js').then(loaded => loaded.LEAN_RPG_TEMPLATES) } = {}) {
     const shared = { mode: 'list', draft: null, module: null, note: '', focus: null };
-    // The Lean RPG templates are read (a dynamic import) only when the feature is on and the chooser is open.
+    // The RPG templates are read (a dynamic import) only when the feature is on and the chooser is open.
     let rpgTemplates = null, rpgLoading = false;
     const loadRpg = () => {
         if (rpgTemplates || rpgLoading) return;
@@ -158,7 +158,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         return root;
     }
 
-    // A Lean RPG template is a hand-written definition: it is made as it is, under a name and slug of its own when the chat has one already.
+    // An RPG template is a hand-written definition: it is made as it is, under a name and slug of its own when the chat has one already.
     async function addFromTemplate(api, rows, entry, status) {
         const definition = JSON.parse(JSON.stringify(entry.definition));
         delete definition.id; delete definition.pack;

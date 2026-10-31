@@ -1,4 +1,4 @@
-// The block engine additions for the lean RPG: `role`, the longer purpose, display names for numbers, cards, reply-end functions and
+// The block engine additions for the RPG: `role`, the longer purpose, display names for numbers, cards, reply-end functions and
 // hidden fields. Live = rebuild = reload for each of them, swipe and delete take them back, every new limit at its edge and one past it,
 // and a definition that uses none of the new keys is exactly what it was in 2.7.2.
 import test from 'node:test';
@@ -18,7 +18,7 @@ const RANKS = { 0: 'Novice', 1: 'Adept', 2: 'Expert', 3: 'Master' };
 const int = (min, max, value, extra = {}) => ({ type: 'int', min, max, default: value, ...extra });
 const setKind = (field, schema) => ({ op: '~', labels: { to: { type: 'int', min: schema.min, max: schema.max } }, effects: [{ op: 'set', path: [field], value: ['arg', 'to'] }] });
 
-// A small character sheet written the way the lean RPG's templates are: hand-made kinds, rules that raise class and rank, a hidden
+// A small character sheet written the way the RPG's templates are: hand-made kinds, rules that raise class and rank, a hidden
 // latch, a death latch of two reply-end functions and the cards that follow from it.
 const hero = () => {
     const state = {

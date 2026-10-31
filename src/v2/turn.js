@@ -77,7 +77,7 @@ export const MAX_NAME = 80;
 // Stripped history texts kept between prompts (each is read again for every later prompt).
 const STRIP_CACHE = 500;
 const HAS_BLOCK = /<changes/i;
-// The Lean RPG's battle-log marker: a line `[battle]` of its own in a reply (src/v2/lean-rpg/view/battle-log.js draws the panel there).
+// The RPG's battle-log marker: a line `[battle]` of its own in a reply (src/v2/lean-rpg/view/battle-log.js draws the panel there).
 // It is for the reader's eyes only, so it leaves the prompt history like the change blocks do: the narrator never sees its own old
 // markers. The line goes with one blank line after it, so no gap is left.
 const BATTLE_MARKER = /^[ \t]*\[battle\][ \t]*(?:\r?\n|$)(?:[ \t]*\r?\n)?/gim;
@@ -402,7 +402,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];
             if (lines.length) cues[moduleId] = lines.filter(line => typeof line === 'string');
             for (const command of commit && Array.isArray(out?.commands) ? out.commands : []) {
-                // A prelude (Assist's roll, the Lean RPG's rolls) is previewed for the prompt, without writing on the
+                // A prelude (Assist's roll, the RPG's rolls) is previewed for the prompt, without writing on the
                 // previous reply. Completion runs the same seed on the generated reply; only that transaction is stored.
                 if (isPrelude(command?.type)) {
                     requested.push({ moduleId, type: command.type, payload: command.payload ?? {} });
@@ -642,7 +642,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         }
         return out;
     }
-    // Only while the Lean RPG is on: with it off a reply's text goes into the prompt as it always did.
+    // Only while the RPG is on: with it off a reply's text goes into the prompt as it always did.
     const battleOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
     function stripHistory(chat) {
         const strip = battleOn() ? text => stripBattleMarker(strippedText(text)) : strippedText;

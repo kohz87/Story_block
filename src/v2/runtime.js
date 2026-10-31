@@ -403,7 +403,7 @@ export function createRuntime({
             version: VERSION,
             timeline: () => timeline,
             dataModules: { state: () => store.head(), lifecycle: id => registry.lifecycle(id), restore: () => registry.restore() },
-            // The Lean RPG's pre-call asks through the same queued call as Assist's helpers (assistCall, set below).
+            // The RPG's pre-call asks through the same queued call as Assist's helpers (assistCall, set below).
             leanRpg: { callModel: (prompt, options = {}) => assistCall(prompt, options), chat: () => ctx.chat, chatId: () => ctx.getCurrentChatId?.() ?? ctx.chatId ?? '', metadata: () => { try { return (live() ?? ctx)?.chatMetadata ?? null; } catch { return ctx?.chatMetadata ?? null; } } },
             packs: packPart,
             // Due events are the host's own system cues: straight to the bus (the public sdk only runs

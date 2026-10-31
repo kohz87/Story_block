@@ -4,9 +4,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { RESOLVE, ROLLS_QUERY, claimKey, leanRpgGuard, rollsOf } from '../../../src/v2/lean-rpg/index.js';
+import { CUSTOM_SETTING, DIFFICULTY_SETTING, PRESETS, RESOLVE, ROLLS_QUERY, STANDARD, claimKey, leanRpgGuard, prepare, readSheet, rollsOf } from '../../../src/v2/lean-rpg/index.js';
 import { hashJson as hashOf } from '../../../src/v2/replay.js';
-import { PLAN_ANSWER, rollReceipt, setup, tailOf } from './helpers.js';
+import { OWNER, PLAN_ANSWER, rollReceipt, setup, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -172,9 +172,147 @@ test('a Re-read of a reply whose rolls were made keeps them when the feature is 
     const { host } = await setup({ answers: [ONE] });
     await host.send('First.', 'One.');
     const first = rollReceipt(host, 2);
-    host.features.set('story-block.lean-rpg', false);
+    host.features.set('story-block.rpg', false);
     assert.equal((await host.turn.reread(2)).ok, true);
     assert.equal(rollReceipt(host, 2).seed, first.seed);
     assert.equal(rollReceipt(host, 2).summary, first.summary);
+    host.close();
+});
+
+// ---- the numbers a roll was made with (rules.js): the replay rule ---------------------------------------------------------------
+
+const baseOf = receipt => receipt.data.v2.result.rounds[0].lines.find(line => line.kind === 'act').foe.base;
+const setDifficulty = (host, name, custom) => {
+    host.settings.set(OWNER, DIFFICULTY_SETTING, name);
+    if (custom) host.settings.set(OWNER, CUSTOM_SETTING, custom);
+};
+
+test('REPLAY RULE: a roll records the numbers in force, and a Re-read, a rebuild and a reload roll again with those, never the current settings', { skip }, async () => {
+    const { host, callModel } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
+    await host.send('First.', 'One.');
+    const first = rollReceipt(host, 2);
+    assert.deepEqual(first.data.v2.result.rules, PRESETS.harsh, 'the numbers are in the result');
+    assert.equal(baseOf(first), 7);
+    const span = host.ctx.chat[2].extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === RESOLVE);
+    assert.deepEqual(span.recorded.rules, PRESETS.harsh, 'and in the replay inputs');
+    assert.equal(span.guard.predicate.rules, hashOf(PRESETS.harsh));
+    assert.deepEqual(rollReceipt(host, 2).replan.payload.rules, PRESETS.harsh, 'and in what a Re-read runs again');
+    const kept = JSON.stringify(first.data.v2.result), summary = first.summary;
+
+    // The reader changes the settings: Gentle, then Custom numbers nothing like Harsh.
+    setDifficulty(host, 'gentle');
+    const reread = await host.turn.reread(2);
+    assert.equal(reread.ok, true);
+    assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'a Re-read keeps the harsh numbers (the same dice, the same totals)');
+    assert.equal(rollReceipt(host, 2).summary, summary);
+    setDifficulty(host, 'custom', { foeBase: 0, classWeight: 3, statDivisor: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1 });
+    await host.turn.reread(2);
+    assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'and again under Custom');
+    same(host, 'a rebuild');
+    assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'a rebuild keeps them');
+    await reloads(host);
+    assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept, 'a reload keeps them');
+    assert.equal(callModel.calls.length, 1, 'none of it called the model');
+
+    // New rolls use the settings of their own moment, and the old one still keeps its own.
+    await host.send('Second.', 'Two.');
+    const second = rollReceipt(host, 4);
+    assert.deepEqual(second.data.v2.result.rules, { foeBase: 0, classWeight: 3, statDivisor: 3, costMargin: 5, decisiveMargin: 4, roundCap: 1 });
+    assert.equal(baseOf(second), 0);
+    assert.equal(second.data.v2.result.rounds.length, 1, 'a cap of one exchange');
+    assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept);
+    same(host);
+    await reloads(host);
+    assert.equal(JSON.stringify(rollReceipt(host, 2).data.v2.result), kept);
+    assert.deepEqual(rollReceipt(host, 4).data.v2.result.rules, second.data.v2.result.rules);
+    assert.deepEqual(host.store.problems(), []);
+    host.close();
+});
+
+test('REPLAY RULE: a roll planned again after an earlier reply goes keeps its own numbers, with the same dice, whatever the settings say now', { skip }, async () => {
+    const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'gentle' } });
+    await host.send('First.', 'One.');
+    setDifficulty(host, 'harsh');
+    await host.send('Second.', 'Two.');
+    // Wessel's STR changes on the first reply, so the second roll must be planned again when that reply goes.
+    assert.equal((await host.bus.command('test.set', { slug: 'wessel', field: 'str', value: 20 }, { cause: 'system' })).ok, true);
+    await host.send('Third.', 'Three.');
+    const third = rollReceipt(host, 6), seed = third.seed;
+    assert.deepEqual(third.data.v2.result.rules, PRESETS.harsh);
+    assert.equal(third.data.v2.result.rounds[0].lines[0].pc.statBonus, 10);
+    const dieAt = receipt => receipt.data.v2.result.rounds[0].lines[0].pc.die;
+    const die = dieAt(third);
+
+    setDifficulty(host, 'custom', { foeBase: 15, classWeight: 1, statDivisor: 2, costMargin: 0, decisiveMargin: 15, roundCap: 8 });
+    await host.st.deleteMessage(2);
+    const at = host.ctx.chat.findLastIndex(message => !message.is_user);
+    const planned = rollReceipt(host, at);
+    assert.equal(planned.seed, seed, 'the same dice');
+    assert.equal(dieAt(planned), die);
+    assert.deepEqual(planned.data.v2.result.rules, PRESETS.harsh, 'the numbers it was rolled with, not Custom\'s');
+    assert.equal(baseOf(planned), 7);
+    assert.equal(planned.data.v2.result.rounds[0].lines[0].pc.statBonus, 10);
+    // The reply before it was rolled Harsh too, and stays so.
+    const earlier = host.ctx.chat.findIndex((message, index) => index > 0 && !message.is_user);
+    assert.deepEqual(rollReceipt(host, earlier).data.v2.result.rules, PRESETS.harsh);
+    assert.deepEqual(host.store.problems(), [], 'nothing is left inactive');
+    same(host);
+    await reloads(host);
+    host.close();
+});
+
+test('a swipe is a new roll and takes the settings of that moment; the swiped-away roll is gone with its numbers', { skip }, async () => {
+    const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
+    await host.send('First.', 'One.');
+    assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, PRESETS.harsh);
+    setDifficulty(host, 'gentle');
+    await host.swipe('Another telling.');
+    assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, PRESETS.gentle, 'a swipe plans anew, with what the settings say now');
+    assert.equal(baseOf(rollReceipt(host, 2)), 3);
+    await host.turn.reread(2);
+    assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, PRESETS.gentle);
+    same(host);
+    host.close();
+});
+
+test('the numbers are in the prompt\'s cue: a harsher fight tells harsher totals', { skip }, async () => {
+    const { host } = await setup({ answers: [ONE], settings: { rpgDifficulty: 'harsh' } });
+    const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
+    const receipt = rollReceipt(host, 2);
+    assert.ok(tailOf(request).includes(receipt.summary));
+    const line = receipt.data.v2.result.rounds[0].lines[0];
+    assert.equal(line.foe.total, line.foe.die + 7 + 2);
+    host.close();
+});
+
+test('a roll recorded before the numbers were kept stands as it was made, with Standard\'s; damaged numbers do not', { skip }, async () => {
+    const { host } = await setup({ answers: [ONE] });
+    await host.send('First.', 'One.');
+    const span = host.ctx.chat[2].extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === RESOLVE);
+    const before = host.store.before(2);
+    const ask = (guard, recorded) => leanRpgGuard({ state: before, hash: hashOf }, { guard, source: span.source, recorded });
+    assert.deepEqual(ask(span.guard, span.recorded), { ok: true });
+    assert.deepEqual(span.recorded.rules, STANDARD, 'Standard is what the settings said');
+    // A roll from before the numbers were kept: no `rules` in the inputs or in the guard's predicate, its input hash made on Standard's.
+    const { rules: _a, ...plain } = span.recorded;
+    const { rules: _b, ...predicate } = span.guard.predicate;
+    const witness = prepare(plain.plan, readSheet(before), STANDARD).witness;
+    const oldOne = { ...span.guard, predicate, inputHash: hashOf({ source: span.source, predicate, witness }) };
+    assert.deepEqual(ask(oldOne, plain), { ok: true }, 'it stands, on Standard\'s numbers');
+    assert.equal(ask(oldOne, { ...plain, rules: { ...STANDARD, foeBase: 9 } }).ok, false, 'numbers added to an old roll are not believed');
+    // Damaged numbers: not the ones the predicate hashed, or not whole numbers in range.
+    assert.equal(ask(span.guard, { ...span.recorded, rules: { ...STANDARD, foeBase: 9 } }).ok, false);
+    assert.equal(ask(span.guard, { ...span.recorded, rules: { ...STANDARD, foeBase: 99 } }).ok, false);
+    assert.equal(ask(span.guard, { ...span.recorded, rules: null }).ok, false);
+    assert.equal(ask(span.guard, plain).ok, false, 'numbers taken away');
+    const swapped = { ...PRESETS.harsh };
+    assert.equal(ask({ ...span.guard, predicate: { ...span.guard.predicate, rules: hashOf(swapped) } }, { ...span.recorded, rules: swapped }).ok, false, 'a different set that still hashes: the input hash is for the numbers it was rolled with');
+    host.close();
+});
+
+test('with no Difficulty ever chosen a roll is made with Standard\'s numbers and says so', { skip }, async () => {
+    const { host } = await setup({ answers: [ONE] });
+    await host.send('First.', 'One.');
+    assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, STANDARD);
     host.close();
 });

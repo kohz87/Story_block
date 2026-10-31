@@ -40,7 +40,6 @@
 import { formatAmount } from './domains/money.js';
 import { PACKS_FOLD, TABS_TEXT, createTabHost } from './host-ui.js';
 import { openSettingsWindow } from './view/settings/window.js';
-import { SECTION_BODIES } from './view/settings/bodies.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
 import { TEMPLATES, applyScreenCss, createScreenRenderer } from './view/render-screen.js';
@@ -240,7 +239,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     // those screens and their stylesheets away, and a replaced pack's new stylesheets replace the old ones.
     const packScreenIds = new Map();
     const rpgOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
-    // The pinned blocks' screens. While Lean RPG is on, its character, skills and rules blocks get no tab (the Party tab draws them;
+    // The pinned blocks' screens. While RPG is on, its character, skills and rules blocks get no tab (the Party tab draws them;
     // they stay on the Blocks page); with the feature off every block with a tab keeps it.
     const blockPresentation = () => sdk.query('dataModules.presentation', { kind: 'screens', ...(rpgOn() ? { noTab: ROLES_WITHOUT_TAB } : {}) });
     function syncScreens() {
@@ -350,14 +349,14 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     // reply" card also `moduleLines`: the modules' own lines for that reply (hooks.replyCard, MODULES §F125).
     const recordAt = index => readRecord(ctx.chat?.[index]);
     const editsAt = index => replyEdits(recordAt(index), store.problems?.() ?? [], index);
-    // The Lean RPG's screens (src/v2/lean-rpg/view/): loaded by import() only while its feature is on, taken away when it goes off.
+    // The RPG's screens (src/v2/lean-rpg/view/): loaded by import() only while its feature is on, taken away when it goes off.
     let rpg = null, rpgLoading = false, rpgGone = false;
     const cardLines = (index, state, changes, before = null) => {
         const lines = [
             ...replyCardLines(registry.hookEntries?.('replyCard') ?? [], { index, state, changes }),
             ...replyRules(recordAt(index), store.problems?.() ?? [], index),
         ];
-        // The Lean RPG's own lines (rolls, class and rank rises), only while its screens are mounted.
+        // The RPG's own lines (rolls, class and rank rises), only while its screens are mounted.
         return rpg ? mergeRpgLines(lines, rpg.cardLines({ state, before, record: recordAt(index), problems: (store.problems?.() ?? []).filter(item => item?.index === index) })) : lines;
     };
     const drawScreen = renderer.render;
@@ -677,7 +676,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         overlay = openSettingsWindow({
             registry, settings, doc, sdk, features: runtime.features ?? null, fold, diagnostics,
             promptParts, tabs: tabsControl, theme, blockTemplates,
-            ...(rpg ? { bodies: rpg.settingsBodies(SECTION_BODIES) } : {}),
+            ...(rpg ? { extraSections: rpg.settingsSections() } : {}),
             countTokens: countTokens(),
             onClose: () => { overlay = null; },
         });
@@ -834,9 +833,12 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             rpgLoading = false;
             if (rpgGone || rpg || !rpgOn()) return;
             rpg = view.mountLeanRpg({ doc, ctx, store, events, screens, widgets: hostWidgets, headState: headStateNow, featureOn: rpgOn,
-                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openDialog: (id, opts) => api.dialog.open(id, opts), closeView: () => mounts.screen.close(), refresh: () => refresh() });
+                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openDialog: (id, opts) => api.dialog.open(id, opts), closeView: () => mounts.screen.close(), refresh: () => refresh(), command: (type, payload, options) => sdk.command(type, payload, options), values: () => settings('story-block') });
             mounts.card?.refreshAll?.({ force: true });
-        }).catch(error => { rpgLoading = false; console.warn('[Story Suite] the Lean RPG screens could not load', error?.message ?? error); });
+            // The settings window was opened before the screens loaded (the reader just switched the feature on): open it again on the same
+            // page, now with the RPG page in its rail.
+            if (overlay?.isOpen?.()) { const page = overlay.section(); openSettings(); overlay.select(page); }
+        }).catch(error => { rpgLoading = false; console.warn('[Story Suite] the RPG screens could not load', error?.message ?? error); });
     }
     const offs = [...replyOffs];
     // Story Suite's console errors, kept for Diagnostics (once per page; the console still prints them).

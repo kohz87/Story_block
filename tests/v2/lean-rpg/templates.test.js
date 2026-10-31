@@ -1,4 +1,4 @@
-// The Lean RPG block templates: the keys and ranges the RPG reads, the block limits, and the party fixture
+// The RPG block templates: the keys and ranges the RPG reads, the block limits, and the party fixture
 // (Wessel, Ren and Tamsin as in mockup v3) that the RPG tests share.
 import test from 'node:test';
 import assert from 'node:assert/strict';

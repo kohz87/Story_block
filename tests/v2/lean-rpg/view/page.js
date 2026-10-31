@@ -1,4 +1,4 @@
-// The real page for the Skills view and the wizard tests: the testkit host with Story Block's UI mounted on a fake DOM, the Lean RPG
+// The real page for the Skills view and the wizard tests: the testkit host with Story Block's UI mounted on a fake DOM, the RPG
 // feature on, and the real view loader (the definitions' own `role` key is read; nothing is faked about it).
 import assert from 'node:assert/strict';
 import { createHost } from '../../../../testkit/index.js';
@@ -12,7 +12,7 @@ export const settle = async () => { for (let n = 0; n < 8; n += 1) await new Pro
 export const PARTY = 'story-block/party';
 export const party = doc => doc.querySelector(`.ss-gameview [data-ss-screen="${PARTY}"]`);
 
-/** { doc, host, ui, loads, draw }; `feature` turns the Lean RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands. */
+/** { doc, host, ui, loads, draw }; `feature` turns the RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands. */
 export async function page(t, { feature = true, persona = null, wrap = null } = {}) {
     const doc = setupDom();
     const form = doc.createElement('div'); form.id = 'send_form'; doc.body.appendChild(form);
