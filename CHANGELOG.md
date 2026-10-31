@@ -4,7 +4,7 @@
 
 **Content release.** The bundled example pack is now **Ersveil 2.2.0**, and its lorebook has grown.
 
-- **The world has a hidden history** from CY 611 onward: 134 new world events on their own dates. They cover floods
+- **The world has a hidden history** from CY 611 onward: 129 new world events on their own dates. They cover floods
   out of the north, Highmark's succession, the underworld, and what follows. Where the story is when something
   happens, the narrator gets the scene; elsewhere the news arrives days or weeks later. Lasting changes go into
   Story Director's chronicle, so the pack now needs **Story Director 2.3.0** (`chronicle-lasting`).

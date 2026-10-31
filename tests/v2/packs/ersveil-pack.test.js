@@ -55,7 +55,7 @@ test('the pack is Ersveil 2.2.0, the open world: the map, the calendar, the weat
     assert.equal(value.requires.storyBlock, '^2.5');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
-    assert.deepEqual(counts, { places: 320, routes: 350, events: 141, dataModules: 4, rpg: undefined });
+    assert.deepEqual(counts, { places: 320, routes: 350, events: 136, dataModules: 4, rpg: undefined });
     assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
     assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);
@@ -76,7 +76,7 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.name, 'Ersveil (open world)');
-    assert.equal(addsLine(installed.list()[0]), '141 events, 320 places, 350 routes, 1 skill set, start state, 4 coins, a calendar, 84 weather tables');
+    assert.equal(addsLine(installed.list()[0]), '136 events, 320 places, 350 routes, 1 skill set, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {

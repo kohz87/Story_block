@@ -1,13 +1,16 @@
 // Ersveil 2.2.0's hidden timeline (examples/packs/ersveil/pack.json): the big-beat events from CY 611 on, the Court
 // favour module that decides Highmark's throne, and the Sealwarden recruit skill set. The events are checked as data
 // (every condition reads, every "after" and every delay names something that exists, every lasting change fits Story
-// Director's limits), and the story clock is walked from the start to CY 617 with a stand-in chronicle, so the beats come
-// in order, once each, and the throne follows the favour.
+// Director's limits), and the story clock is walked from the start to CY 617 with a stand-in chronicle that prunes
+// resolved entries like Story Director (30 kept), so the beats come in order, once each, the throne follows the favour,
+// and a decision once made stays made (review 169).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { evaluateCondition, parse } from '../../../src/v2/events/condition.js';
+import { createHost, hostAvailable } from '../../../testkit/index.js';
 
+const available = await hostAvailable();
 const pack = JSON.parse(readFileSync(new URL('../../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8'));
 const OWN = ['bluewatch-guild-board', 'bluewatch-signal-braziers', 'the-turning-611', 'the-turning-612', 'the-turning-613', 'ghost-fleet-waters', 'wailing-battlefield-nights'];
 const events = pack.content.events;
@@ -18,6 +21,14 @@ const START = T(611, 5, 12, 6) + 40;
 const lastingOf = event => (event.then ?? []).filter(step => step.command === 'chronicle.lasting').map(step => step.payload);
 const written = new Set(beats.flatMap(event => lastingOf(event).map(payload => payload.name)));
 const delays = event => [...event.when.matchAll(/chronicle\.passed', \{ name: "([^"]*)"/g)].map(match => match[1]);
+const MODULE = 'pack.ersveil/succession';
+
+// The Court favour fields the module's rules keep, worked out the same way (a least tie breaks against the later name in
+// Wendhild, Corvin, Hasse; a pair tie goes to the earlier).
+function court({ wendhild, corvin, hasse }) {
+    const least = hasse <= wendhild && hasse <= corvin ? 'hasse' : corvin < hasse && corvin <= wendhild ? 'corvin' : 'wendhild';
+    return { wendhild, corvin, hasse, least, wc: corvin > wendhild ? 'corvin' : 'wendhild', wh: hasse > wendhild ? 'hasse' : 'wendhild', ch: hasse > corvin ? 'hasse' : 'corvin' };
+}
 
 // The view a condition reads: the clock, the place, the stand-in chronicle and the Court favour (null: not enabled).
 function view({ minutes, place, chronicle = new Map(), favour = null }) {
@@ -25,15 +36,15 @@ function view({ minutes, place, chronicle = new Map(), favour = null }) {
         state: { domains: { director: { time: { minutes } } } },
         query(name, args) {
             if (name === 'scene.place') return place;
-            if (name === 'chronicle.passed') return chronicle.has(args.name) && minutes >= chronicle.get(args.name) + args.minutes;
-            if (name === 'dataModules.view') return args?.module === 'pack.ersveil/succession' && favour ? { chat: { ...favour } } : null;
+            if (name === 'chronicle.passed') return chronicle.has(args.name) && minutes >= chronicle.get(args.name).since + args.minutes;
+            if (name === 'dataModules.view') return args?.module === MODULE && favour ? { chat: court(favour) } : null;
             return null;
         },
     };
 }
 
 test('the timeline is data Story Block and Story Director accept: conditions read, links resolve, lasting changes fit', () => {
-    assert.equal(events.length, 141);
+    assert.equal(events.length, 136);
     assert.deepEqual(events.slice(0, 7).map(event => event.id), OWN, 'the 2.1.0 events come first, unchanged');
     const ids = new Set(events.map(event => event.id));
     assert.equal(ids.size, events.length, 'ids are unique');
@@ -50,8 +61,16 @@ test('the timeline is data Story Block and Story Director accept: conditions rea
             assert.ok(summary === undefined || summary.length <= 240, event.id);
             assert.ok(place === undefined || place.length <= 80, event.id);
             assert.ok(factions === undefined || (factions.length <= 4 && factions.every(faction => faction.length <= 80)), event.id);
-            assert.ok(keep === undefined || keep === true, event.id);
+            assert.ok(keep === undefined || (keep === true && state !== 'resolved'), `${event.id}: keep only on an open entry`);
         }
+    }
+    // Every entry a later event waits on for more than a few weeks is open (ongoing or looming): Story Director prunes
+    // resolved entries past 30, never open ones (review 169 B3).
+    const states = new Map();
+    for (const event of beats) for (const payload of lastingOf(event)) states.set(payload.name, [...(states.get(payload.name) ?? []), payload.state]);
+    for (const event of beats) for (const match of event.when.matchAll(/chronicle\.passed', \{ name: "([^"]*)", minutes: (\d+)/g)) {
+        if (Number(match[2]) <= 16 * DAY && !/^marrowbridge|^crown|^last-wall|^auvoth|^after-wall|^hasse|^corvin|^wendhild/.test(event.id)) continue;
+        assert.ok(states.get(match[1]).some(state => state !== 'resolved'), `${event.id} waits on "${match[1]}", which is open`);
     }
     assert.ok(pack.requires.capabilities.includes('chronicle-lasting'));
 });
@@ -64,54 +83,41 @@ test('nothing of the new timeline is told at the story start, wherever the story
     }
 });
 
-test('Marrowbridge breaks exactly one claimant for any favour, and the throne goes to exactly one of the other two', () => {
-    const variants = prefix => beats.filter(event => event.id.startsWith(prefix) && !event.id.endsWith('-scene') && !event.id.includes('-news'));
-    const marrow = variants('marrowbridge-');
-    const crowns = variants('crown-').filter(event => event.after);
-    assert.equal(marrow.length, 3);
-    assert.equal(crowns.length, 6);
-    const minutes = T(614, 2, 1, 12);
-    const values = [0, 25, 35, 40, 41, 100];
-    const cases = [null];
-    for (const wendhild of values) for (const corvin of values) for (const hasse of values) cases.push({ wendhild, corvin, hasse });
-    for (const favour of cases) {
-        const env = view({ minutes, place: null, favour });
-        const broken = marrow.filter(event => evaluateCondition(event.when, env).met);
-        assert.equal(broken.length, 1, `${JSON.stringify(favour)}: ${broken.map(event => event.id)}`);
-        const crowned = crowns.filter(event => event.after === broken[0].id && evaluateCondition(event.when, env).met);
-        assert.equal(crowned.length, 1, `${JSON.stringify(favour)} after ${broken[0].id}: ${crowned.map(event => event.id)}`);
-        const loser = broken[0].id.replace('marrowbridge-', '');
-        assert.ok(!crowned[0].id.startsWith(`crown-${loser}-`), 'the broken claimant is never crowned');
-    }
-    // No module (or its defaults, 40/35/25): Corvin falls at Marrowbridge and Wendhild is crowned.
-    for (const favour of [null, { wendhild: 40, hasse: 35, corvin: 25 }]) {
-        const env = view({ minutes, place: null, favour });
-        assert.equal(marrow.find(event => evaluateCondition(event.when, env).met).id, 'marrowbridge-corvin');
-        assert.equal(crowns.find(event => event.after === 'marrowbridge-corvin' && evaluateCondition(event.when, env).met).id, 'crown-wendhild-over-hasse');
-    }
+test('the Court favour module starts as approved (Wendhild 40, Corvin 35, Hasse 25) and keeps its result fields by rules', () => {
     const module = pack.content.dataModules.find(definition => definition.slug === 'succession');
-    assert.deepEqual(Object.fromEntries(Object.entries(module.state).map(([key, field]) => [key, field.default])), { wendhild: 40, hasse: 35, corvin: 25 });
+    const defaults = Object.fromEntries(Object.entries(module.state).map(([key, field]) => [key, field.default]));
+    assert.deepEqual(defaults, { wendhild: 40, corvin: 35, hasse: 25, ...court({ wendhild: 40, corvin: 35, hasse: 25 }) }, 'the result fields start as the rules would set them');
     assert.equal(module.screens, undefined, 'no screen: the favour is the narrator\'s to keep');
+    for (const field of ['least', 'wc', 'wh', 'ch']) assert.equal(module.state[field].edit, false, `${field} is never edited by hand`);
+    for (const kind of Object.values(module.kinds)) assert.ok(JSON.stringify(kind.effects).includes('"claimant"'), 'the story writes only the claimants');
 });
 
-// Walk the clock from the start to CY 617 at Bluewatch, one reply every six story hours, firing what is due like the
-// engine does (an event fires once; an "after" link moves at most one step a reply) and keeping the chronicle's
-// "since" stamps. Answers the ids fired, in order.
-function walk(favour, place = { name: 'Bluewatch Village', region: 'River Confederacy: Bluewatch' }) {
+// Walk the clock at Bluewatch (or `place`), one reply every `step` story minutes, firing what is due like the engine does
+// (an event fires once; an "after" link moves at most one step a reply), keeping the chronicle's "since" stamps and its
+// states, pruning the oldest resolved entries past 30 like Story Director. `favourAt(minutes)` is the favour then (null:
+// the module is off); `extra(minutes)` may add resolved entries of the story's own. Answers the ids fired, in order.
+function walk({ favourAt = () => null, place = { name: 'Bluewatch Village', region: 'River Confederacy: Bluewatch' }, step = 6 * 60, extra = () => [], until = T(617, 1, 1) } = {}) {
     const chronicle = new Map();
     const fired = [];
     const done = new Set();
-    for (let minutes = START; minutes < T(617, 1, 1); minutes += 6 * 60) {
+    const write = (name, state, minutes) => {
+        const was = chronicle.get(name);
+        chronicle.set(name, { since: was?.since ?? minutes, state, touched: minutes });
+        const resolved = [...chronicle].filter(([, entry]) => entry.state === 'resolved').sort((a, b) => a[1].touched - b[1].touched);
+        for (const [old] of resolved.slice(0, Math.max(0, resolved.length - 30))) chronicle.delete(old);
+    };
+    for (let minutes = START; minutes < until; minutes += step) {
         const before = new Set(done);
-        const env = view({ minutes, place, chronicle, favour });
+        const env = view({ minutes, place, chronicle, favour: favourAt(minutes) });
         for (const event of beats) {
             if (done.has(event.id) || (event.after && !before.has(event.after))) continue;
             const result = evaluateCondition(event.when, env);
             assert.equal(result.error, undefined, `${event.id}: ${JSON.stringify(result.error)}`);
             if (!result.met) continue;
             done.add(event.id); fired.push(event.id);
-            for (const payload of lastingOf(event)) if (!chronicle.has(payload.name)) chronicle.set(payload.name, minutes);
+            for (const payload of lastingOf(event)) write(payload.name, payload.state, minutes);
         }
+        for (const name of extra(minutes)) write(name, 'resolved', minutes);
     }
     return { fired, chronicle };
 }
@@ -120,33 +126,83 @@ const order = (fired, ids) => {
     for (const id of ids) assert.ok(fired.includes(id), `${id} fired`);
     assert.deepEqual(ids.map(id => fired.indexOf(id)), ids.map(id => fired.indexOf(id)).toSorted((a, b) => a - b), `in order: ${ids.join(' → ')}`);
 };
+const variants = (fired, prefix) => fired.filter(id => id.startsWith(prefix) && !id.endsWith('-scene') && !id.includes('-news'));
 
-test('with no favour recorded, the default history plays out in order: Corvin falls, Wendhild is crowned, Auvoth is lost, the Wall holds', () => {
-    const { fired, chronicle } = walk(null);
-    order(fired, ['flood-611', 'flood-611-scene', 'depths-611', 'who-pays-611', 'turning-611-harsh', 'ledger-611', 'sealwardens-612',
-        'emperor-612', 'ardelia-612', 'inquest-612', 'turning-612', 'cinder-613', 'succession-613', 'marrowbridge-corvin', 'turning-613',
-        'tide-613', 'chain-613', 'crown-wendhild-over-hasse', 'wendhild-north-614', 'troops-auvoth-614', 'auvoth-falls',
-        'auvoth-evacuation-scene', 'last-wall-wendhild', 'last-wall-scene', 'after-wall-616']);
-    for (const absent of ['marrowbridge-hasse', 'marrowbridge-wendhild', 'auvoth-falls-early', 'corvin-south-614', 'hasse-archive-614', 'last-wall-corvin', 'last-wall-hasse'])
-        assert.ok(!fired.includes(absent), absent);
-    assert.equal(new Set(fired).size, fired.length, 'each event fires once');
-    assert.ok(chronicle.get('The early flood') >= T(611, 6, 12, 8) && chronicle.get('The early flood') < T(611, 6, 13), 'the early flood comes a month in');
-    assert.ok(chronicle.get('The Last Wall holds') >= T(615, 9, 21, 4) && chronicle.get('The Last Wall holds') < T(615, 9, 22));
+test('with no favour recorded (or the defaults), Hasse is broken at Marrowbridge, Wendhild is crowned over Corvin, Auvoth is lost, the Wall holds', () => {
+    for (const favourAt of [() => null, () => ({ wendhild: 40, corvin: 35, hasse: 25 })]) {
+        const { fired } = walk({ favourAt });
+        order(fired, ['flood-611', 'flood-611-scene', 'depths-611', 'who-pays-611', 'turning-611-harsh', 'ledger-611', 'sealwardens-612',
+            'emperor-612', 'ardelia-612', 'inquest-612', 'turning-612', 'cinder-613', 'succession-613', 'marrowbridge-hasse', 'turning-613',
+            'tide-613', 'chain-613', 'crown-wendhild-over-corvin', 'crown-wendhild-news', 'wendhild-north-614', 'troops-auvoth-614', 'auvoth-falls',
+            'auvoth-evacuation-scene', 'last-wall-wendhild', 'last-wall-scene', 'after-wall-616']);
+        assert.deepEqual(variants(fired, 'marrowbridge-'), ['marrowbridge-hasse']);
+        assert.deepEqual(variants(fired, 'crown-'), ['crown-wendhild-over-corvin']);
+        for (const absent of ['auvoth-falls-early', 'corvin-south-614', 'hasse-archive-614', 'last-wall-corvin', 'last-wall-hasse']) assert.ok(!fired.includes(absent), absent);
+        assert.equal(new Set(fired).size, fired.length, 'each event fires once');
+    }
 });
 
 test('the favour changes the history: Corvin crowned loses Auvoth early; Hasse crowned threatens the Iron Archive', () => {
-    const corvin = walk({ wendhild: 10, hasse: 30, corvin: 60 }).fired;
+    const corvin = walk({ favourAt: () => ({ wendhild: 10, corvin: 60, hasse: 30 }) }).fired;
     order(corvin, ['marrowbridge-wendhild', 'crown-corvin-over-hasse', 'corvin-south-614', 'auvoth-falls-early', 'last-wall-corvin']);
     assert.ok(!corvin.includes('auvoth-falls'), 'Auvoth is lost once');
-    const hasse = walk({ wendhild: 50, hasse: 60, corvin: 20 }).fired;
+    const hasse = walk({ favourAt: () => ({ wendhild: 50, corvin: 20, hasse: 60 }) }).fired;
     order(hasse, ['marrowbridge-corvin', 'crown-hasse-over-wendhild', 'hasse-archive-614', 'auvoth-falls', 'last-wall-hasse']);
 });
 
+test('review 169 B2: favour that changes after Marrowbridge or the crowning never decides them a second time', () => {
+    const MB = T(613, 6, 20, 12), CR = T(614, 2, 1, 12);
+    // Hasse is broken at the defaults; afterwards the story undermines him again and backs Corvin past Wendhild.
+    const favourAt = minutes => (minutes < MB ? { wendhild: 40, corvin: 35, hasse: 25 } : minutes < CR ? { wendhild: 40, corvin: 35, hasse: 5 } : { wendhild: 40, corvin: 70, hasse: 90 });
+    const { fired } = walk({ favourAt });
+    assert.deepEqual(variants(fired, 'marrowbridge-'), ['marrowbridge-hasse']);
+    assert.equal(variants(fired, 'crown-').length, 1, variants(fired, 'crown-').join(', '));
+    // Crowned at the crown date with Corvin ahead: Corvin; a later swing to Wendhild crowns no one else.
+    const swing = minutes => (minutes < T(614, 2, 2) ? { wendhild: 40, corvin: 60, hasse: 20 } : { wendhild: 99, corvin: 0, hasse: 0 });
+    const crowned = walk({ favourAt: swing }).fired;
+    assert.deepEqual(variants(crowned, 'crown-'), ['crown-corvin-over-wendhild']);
+    assert.ok(crowned.includes('auvoth-falls-early') && !crowned.includes('auvoth-falls'));
+});
+
+test('review 169 B3: the story\'s own resolved entries pruning the chronicle never stop the Wall or let Auvoth fall twice', () => {
+    // Two resolved world events a month from the crowning on: far past the 30 the chronicle keeps.
+    const extra = minutes => (minutes > T(614, 2, 1) && minutes % (15 * DAY) < 6 * 60 ? [`Regional crisis ${minutes}`] : []);
+    const plain = walk({ extra }).fired;
+    order(plain, ['crown-wendhild-over-corvin', 'auvoth-falls', 'last-wall-wendhild', 'after-wall-616']);
+    const early = walk({ extra, favourAt: () => ({ wendhild: 4, corvin: 43, hasse: 35 }) }).fired;
+    assert.ok(early.includes('auvoth-falls-early') && !early.includes('auvoth-falls'), 'Auvoth falls once');
+    assert.ok(early.includes('last-wall-corvin'));
+});
+
+test('review 169 B4: a reply that jumps days past the flood still gets the flood scene when the story is there', () => {
+    // From the start, a reply every day; the reply at the flood shelters five days.
+    const { fired } = walk({ step: 5 * DAY, until: T(611, 7, 1) });
+    assert.ok(fired.includes('flood-611') && fired.includes('flood-611-scene'));
+    assert.equal(fired.indexOf('flood-611-scene'), fired.indexOf('flood-611') + 1, 'in the same reply as the flood');
+});
+
 test('away from the north the player hears of the beats as news, later, and sees no northern scenes', () => {
-    const { fired } = walk(null, { name: 'Osterhal', region: 'Ardelian Empire and Southmarch' });
+    const { fired } = walk({ place: { name: 'Osterhal', region: 'Ardelian Empire and Southmarch' } });
     assert.ok(fired.includes('ardelia-612-scene'));
     assert.ok(fired.includes('emperor-612-news-far'));
     for (const id of ['flood-611-scene', 'depths-611-scene', 'turning-611-scene', 'emperor-612-news-north']) assert.ok(!fired.includes(id), id);
+});
+
+test('the Court favour module, pinned in a real host: story lines move the claimants and its rules keep the result fields', { skip: available.ok ? false : available.reason }, async t => {
+    const host = await createHost({ modules: [{ id: 'chronicle-stand-in', version: '1.0.0', capabilities: ['chronicle-lasting'] }] });
+    t.after(() => host.close());
+    assert.equal((await host.packs.packs.install(pack)).ok, true);
+    await host.send('Begin.', 'The story begins.');
+    const offer = host.sdk.query('dataModules.offers').find(row => row.module === MODULE);
+    assert.equal((await host.sdk.command('dm.pin', { module: MODULE, hash: offer.hash, packHash: offer.packHash, subjects: [] })).ok, true);
+    const now = () => host.sdk.query('dataModules.view', { module: MODULE }).chat;
+    assert.deepEqual(now(), court({ wendhild: 40, corvin: 35, hasse: 25 }));
+    const line = (op, kind, who) => `The story.\n<Changes>\n${op} dm succession — our deeds | kind: ${kind} | claimant: ${who} | size: great\n</Changes>`;
+    await host.send('We help Hasse.', line('+', 'back', 'hasse'));
+    await host.send('We shame Wendhild.', line('-', 'undermine', 'wendhild'));
+    const after = now();
+    assert.deepEqual(after, court({ wendhild: after.wendhild, corvin: after.corvin, hasse: after.hasse }), 'the result fields follow the claimants');
+    assert.ok(after.hasse > 25 && after.wendhild < 40);
 });
 
 test('the Sealwarden recruit skill set fits the pack format: five skills, each with a stat', () => {

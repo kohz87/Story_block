@@ -30,7 +30,7 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
 - `src/v2/packs/content.js`: `itemDef`, `contentOf`, `calendarOf`, `economyOf`, `craftsOf`, `resolveItemIn`,
   `mergeStart`, `applyStart`.
 - `src/v2/packs/installed.js` (where packs are kept), `panel.js` (the Packs fold), `st-adapter.js`, `lorebook.js`.
-- `examples/packs/ersveil/pack.json` (Ersveil 2.0.0, the open world, with its lorebook `ersveil-lore.json`),
+- `examples/packs/ersveil/pack.json` (Ersveil 2.2.0, the open world, with its lorebook `ersveil-lore.json`),
   `examples/packs/riverside-starter/pack.json`.
 
 ## Tests that guard it

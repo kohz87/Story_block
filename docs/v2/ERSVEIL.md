@@ -6,7 +6,7 @@ This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
 
 The pack holds the world's structure: the map (320 places, 350 routes), the calendar, 84 weather tables,
-141 world events (a hidden history from CY 611 onward), the coins, the start, four data modules and an RPG skill set. It has **no items, shops, prices, foes,
+136 world events (a hidden history from CY 611 onward), the coins, the start, four data modules and an RPG skill set. It has **no items, shops, prices, foes,
 jobs, classes or rules**: the narrator makes those up in the story from the lore, and Story Block keeps
 what the story hands out (the bag, the purse, the place). The lorebook holds what only the narrator uses.
 
@@ -27,7 +27,7 @@ SillyTavern profile.
 ## 2. Import the pack
 
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil/pack.json`.
-   The message says "Installed Ersveil (open world)." and the list shows "141 events, 320 places, 350 routes,
+   The message says "Installed Ersveil (open world)." and the list shows "136 events, 320 places, 350 routes,
    1 skill set, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
@@ -90,7 +90,7 @@ Once a module is enabled the narrator is told its `dm …` lines; a refused line
 * **Events.** The world has a hidden history from CY 611 onward: floods out of the north, politics, war and the
   underworld, on their own dates whether or not you are there. When something happens where you are, the narrator
   gets the scene; elsewhere, word reaches you days or weeks later as news. Lasting changes go into Story Director's
-  chronicle (World → News and the Journal), and a few are kept in mind on every reply. What you do can change who
+  chronicle (World → News and the Journal); the big ongoing ones (a new reign, Auvoth under the Tide, the Tide held at the Last Wall) are kept in mind on every reply. What you do can change who
   wins Highmark's throne (with Court favour on), and the throne changes what follows. Nothing in this page or the
   lorebook spoils it. **Settings → Diagnostics → Events** lists every event, and does spoil it.
 * **RPG.** With the RPG on (Settings → RPG), the New character window offers the pack's **Sealwarden recruit** skill
