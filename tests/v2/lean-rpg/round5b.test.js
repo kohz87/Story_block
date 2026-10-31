@@ -197,8 +197,47 @@ test('review 164 c: a check whose hidden skill stat is missing from the sheet is
     success(await host.sdk.command('dm.define', { definition: skills }));
     const sent = await host.send('I attempt both.', 'A reply.');
     const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
-    assert.match(roll.summary, /Silent Trick: not rolled \(Wessel has no stat on the sheet for this skill\)/);
+    assert.match(roll.summary, /Silent Trick: not rolled \(Wessel lacks the skill's stat\)/);
     assert.ok(!/DEX/.test(JSON.stringify(sent.request)), 'DEX is not named anywhere the narrator reads');
+});
+
+// --- review 166: a refusal said without a hidden stat or resource never changes how many rounds are told ----------------
+
+test('review 166: hidden refusal wordings are measured as the shown ones, and never longer', { skip }, async t => {
+    const { prepare, readSheet } = await import('../../../src/v2/lean-rpg/index.js');
+    const { fitCue } = await import('../../../src/v2/lean-rpg/cue.js');
+    const plan = { acts: [], foes: [], checks: ['Silent Trick', 'Spark', 'Lockpicking'].map(skill => ({ who: 'Wessel', skill, difficulty: 'normal' })) };
+    const sheetOf = async hide => {
+        const { host } = await game(t, { who: [], foes: [['Rat', 0]] });
+        const hero = template('Character');
+        hero.slug = 'wessel'; hero.name = 'Wessel'; hero.state.who.default = 'Wessel'; hero.kinds = {}; hero.cards = [];
+        delete hero.state.dex; hero.state.str.default = 17; hero.state.mana.default = 0; if (hide) hero.state.str.prompt = false;
+        success(await host.sdk.command('dm.define', { definition: hero }));
+        const skills = template('Skills');
+        skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.kinds = {};
+        skills.state.skill1.default = 'Silent Trick'; skills.state.stat1.default = 'dex';
+        skills.state.skill2.default = 'Spark'; skills.state.stat2.default = 'int'; skills.state.uses2.default = 'mana';
+        if (hide) { skills.state.stat1.prompt = false; skills.state.uses2.prompt = false; }
+        success(await host.sdk.command('dm.define', { definition: skills }));
+        return prepare(plan, readSheet(host.head()));
+    };
+    const shown = await sheetOf(false), hidden = await sheetOf(true);
+    const texts = prepared => prepared.refused.map(entry => entry.text);
+    assert.equal(hidden.refused.length, 3, texts(hidden).join(' | '));
+    assert.ok(!/DEX|STR|Mana/.test(texts(hidden).join(' ')), texts(hidden).join(' | '));
+    assert.deepEqual(hidden.plainRefused, texts(shown), 'measured as the shown wording');
+    for (const [n, text] of texts(hidden).entries()) assert.ok(text.length <= texts(shown)[n].length, `${text} is not longer than ${texts(shown)[n]}`);
+    assert.ok(!JSON.stringify(hidden.witness).includes('DEX'), 'the plain wording is never saved');
+    // the same rounds and shape at every budget, hidden or shown
+    const line = { kind: 'check', skill: 'Sneak', difficulty: 'normal', dc: 12, outcome: 'success', pc: { who: 'Wessel', stat: 'str', die: 10, total: 18, statBonus: 8, classBonus: 0, classValue: 1, rank: 0, edge: 0 } };
+    const parts = prepared => ({ checks: [line], rounds: [1, 2, 3, 4, 5, 6].map(n => ({ n, decisive: false, lines: [line, line] })), refused: texts(prepared), plainRefused: prepared.plainRefused, decisive: false });
+    const differ = [];
+    for (let budget = 40; budget <= 500; budget += 1) {
+        const a = fitCue(parts(hidden), budget), b = fitCue(parts(shown), budget);
+        if (a.count !== b.count || a.shape !== b.shape) differ.push(budget);
+        assert.ok(cueTokens(a.text) <= cueTokens(b.text));
+    }
+    assert.deepEqual(differ, []);
 });
 
 // --- B7: the used plan is let go whatever the switch says now ---------------------------------------------------------------

@@ -61,11 +61,11 @@ const shortRefusal = text => cut(String(text).replace(/\s*\([^)]*\)/g, '').repla
 
 /**
  * The cue for `rounds` (the first `count` of them) and the checks: `{ checks: [line], rounds: [{ n, decisive, lines }],
- * refused: [text], decisive }`. `decisive`: whether the last round told is the one that settles the fight. `shape` (0 to 3)
+ * refused: [text], plainRefused?: [text], decisive }` (`plainRefused`: the refusals as if nothing were hidden, used only when `plain`). `decisive`: whether the last round told is the one that settles the fight. `shape` (0 to 3)
  * is how much it is shortened to fit the budget: 0 as written; 1 checks without their skill and refusals without their
  * reasons; 2 the refusals as one count; 3 names cut as well.
  */
-export function cueText({ checks, rounds, refused, decisive }, shape = 0, { plain = false } = {}) {
+export function cueText({ checks, rounds, refused, plainRefused, decisive }, shape = 0, { plain = false } = {}) {
     const fight = rounds.length > 0;
     const head = fight
         ? `[Rolls] Code rolled these. Tell them in this order and as given, and never invent a roll; write ${BATTLE_MARKER} on its own line where the fight is told.`
@@ -80,8 +80,10 @@ export function cueText({ checks, rounds, refused, decisive }, shape = 0, { plai
     const lines = [head];
     for (const line of checks) lines.push(lineText(line, options));
     for (const round of rounds) for (const line of round.lines) lines.push(`Round ${round.n}: ${lineText(line, options)}`);
-    if (shape >= 2 && refused.length) lines.push(`${refused.length} more ${refused.length === 1 ? 'action was' : 'actions were'} not rolled as planned.`);
-    else for (const text of refused) lines.push(shape >= 1 ? shortRefusal(text) : text);
+    // measuring (`plain`), each refusal as if nothing were hidden (`plainRefused`, the same count; review 166)
+    const notes = plain && plainRefused?.length === refused.length ? plainRefused : refused;
+    if (shape >= 2 && notes.length) lines.push(`${notes.length} more ${notes.length === 1 ? 'action was' : 'actions were'} not rolled as planned.`);
+    else for (const text of notes) lines.push(shape >= 1 ? shortRefusal(text) : text);
     if (fight) lines.push(`Round ${rounds.at(-1).n} is ${decisive ? 'decisive' : 'the last rolled'}: stop there at the latest. ${STOP_POINTS}`);
     return lines.join('\n');
 }

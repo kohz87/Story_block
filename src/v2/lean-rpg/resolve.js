@@ -87,23 +87,28 @@ function side(character, stat, rank, edge, rules, hidden = false) {
 // (rank 0, no skill named), the first with the plan's stat and the second with the skill's. With no stat anywhere (a skill the
 // character lacks and none given, or a skill of an old Skills block that has no stat and none given) the roll is untrained with
 // the character's best stat, and the cue says so.
+//
+// A refusal that would name something the pack hides is said without it (review 163); `refusedPlain` is the wording as if nothing
+// were hidden, which only measures the cue (fitCue), so hiding never changes how many rounds are told (review 166). The hidden
+// wording is never longer than the plain one.
 function skillFor(character, phrase, planned) {
     if (!phrase) return { skill: null, rank: 0, stat: planned.stat, uses: null };
     const found = matchSkill(character, phrase);
     const best = () => strongestStat(character);
-    // a stat the character's block hides is not named (review 163)
-    const bestly = stat => (stat ? '' : (character.hidden ?? []).includes(best()) ? ' with their best stat' : ` with ${best()?.toUpperCase()}, their best stat`);
+    const named = stat => ` with ${stat?.toUpperCase()}, their best stat`;
+    const bestly = (stat, plain = false) => (stat ? '' : !plain && (character.hidden ?? []).includes(best()) ? ' with their best stat' : named(best()));
+    const say = (fields, text) => ({ ...fields, refused: text(false), refusedPlain: text(true) });
     if (!found) {
         const stat = planned.stat ?? best();
-        return { skill: null, rank: 0, stat, uses: null, refused: `${character.who} has no skill called ${phrase}: rolled untrained${bestly(planned.stat)}.` };
+        return say({ skill: null, rank: 0, stat, uses: null }, plain => `${character.who} has no skill called ${phrase}: rolled untrained${bestly(planned.stat, plain)}.`);
     }
-    if (!found.stat && !planned.stat) return { skill: null, rank: 0, stat: best(), uses: null, refused: `${character.who}'s ${found.name} has no stat of its own: rolled untrained${bestly(null)}.` };
+    if (!found.stat && !planned.stat) return say({ skill: null, rank: 0, stat: best(), uses: null }, plain => `${character.who}'s ${found.name} has no stat of its own: rolled untrained${bestly(null, plain)}.`);
     const stat = found.stat ?? planned.stat, resource = found.uses ?? (planned.uses === 'mana' ? 'mana' : 'stamina');
     // A skill's stat or resource the pack hides still counts for the rules; the cue and the refusal leave it out (review 163).
     const hiddenStat = found.stat && (found.hidden ?? []).includes('stat') ? { statHidden: true } : {};
     if (character[resource] === 0) {
-        const why = found.uses && (found.hidden ?? []).includes('uses') ? ' now' : ` (${cap(resource)} ${STAGES[resource][0]})`;
-        return { skill: null, rank: 0, stat, uses: resource, ...hiddenStat, refused: `${character.who} cannot use ${found.name}${why}: rolled without it.` };
+        const hidden = Boolean(found.uses) && (found.hidden ?? []).includes('uses');
+        return say({ skill: null, rank: 0, stat, uses: resource, ...hiddenStat }, plain => `${character.who} cannot use ${found.name}${hidden && !plain ? '' : ` (${cap(resource)} ${STAGES[resource][0]})`}: rolled without it.`);
     }
     return { skill: found.name, rank: found.rank, stat, uses: resource, ...hiddenStat };
 }
@@ -114,8 +119,9 @@ function skillFor(character, phrase, planned) {
  * → { acts, foes, checks, refused: [{ who, text }], witness }
  */
 export function prepare(plan, sheet, rules = STANDARD) {
-    const out = { acts: [], foes: [], checks: [], refused: [] };
-    const refuse = (who, text) => out.refused.push({ who, text });
+    // `plainRefused`: each refusal as if nothing were hidden, to measure the cue only (never saved, never told; review 166).
+    const out = { acts: [], foes: [], checks: [], refused: [], plainRefused: [] };
+    const refuse = (who, text, plain = text) => { out.refused.push({ who, text }); out.plainRefused.push(plain); };
     const ready = who => {
         const character = matchCharacter(sheet, who);
         if (!character) return { refusal: `no character called ${who}` };
@@ -123,10 +129,11 @@ export function prepare(plan, sheet, rules = STANDARD) {
         return { character };
     };
     // The stat the act rolls with, once the skill has had its say: it must be on the sheet.
-    // `hidden`: the stat is a skill's hidden one, so the refusal does not name it (review 164).
+    // `hidden`: the stat is a skill's hidden one, so the refusal does not name it (review 164); `plain` names it, to measure.
     const statOf = (character, stat, hidden = false) => {
         if (!stat) return { refusal: `${character.who} has no stat to roll with` };
-        if (!Number.isInteger(character.stats[stat])) return { refusal: hidden ? `${character.who} has no stat on the sheet for this skill` : `${character.who} has no ${stat.toUpperCase()} on the sheet` };
+        const plain = `${character.who} has no ${stat.toUpperCase()} on the sheet`;
+        if (!Number.isInteger(character.stats[stat])) return { refusal: hidden ? `${character.who} lacks the skill's stat` : plain, plain };
         return {};
     };
     for (const [at, act] of (plan.acts ?? []).entries()) {
@@ -137,8 +144,8 @@ export function prepare(plan, sheet, rules = STANDARD) {
         if (!foe) { refuse(act.who, `${label}: not rolled (no foe called ${act.target}).`); continue; }
         const skill = skillFor(actor.character, act.skill, act);
         const stat = statOf(actor.character, skill.stat, skill.statHidden);
-        if (stat.refusal) { refuse(act.who, `${label}: not rolled (${stat.refusal}).`); continue; }
-        if (skill.refused) refuse(act.who, skill.refused);
+        if (stat.refusal) { refuse(act.who, `${label}: not rolled (${stat.refusal}).`, `${label}: not rolled (${stat.plain ?? stat.refusal}).`); continue; }
+        if (skill.refused) refuse(act.who, skill.refused, skill.refusedPlain);
         const edge = Math.max(-FORMULA.edgeMax, Math.min(FORMULA.edgeMax, act.edge ?? 0));
         out.acts.push({ at, kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, skill.stat, skill.rank, edge, rules, skill.statHidden), foe });
     }
@@ -158,8 +165,8 @@ export function prepare(plan, sheet, rules = STANDARD) {
         if (actor.refusal) { refuse(check.who, `${label}: not rolled (${actor.refusal}).`); continue; }
         const skill = skillFor(actor.character, check.skill, check);
         const stat = statOf(actor.character, skill.stat, skill.statHidden);
-        if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`); continue; }
-        if (skill.refused) refuse(check.who, skill.refused);
+        if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`, `${label}: not rolled (${stat.plain ?? stat.refusal}).`); continue; }
+        if (skill.refused) refuse(check.who, skill.refused, skill.refusedPlain);
         out.checks.push({ at, kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
     }
     const foeSide = foe => ({ slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.classWeight * foe.class });
@@ -218,7 +225,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier
         if (decisive) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, decisive: all.length > 0 && all.at(-1).decisive }, undefined, { earlier });
+    const cue = fitCue({ checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && all.at(-1).decisive }, undefined, { earlier });
     const fits = cue.count;
     const rounds = all.slice(0, fits);
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
