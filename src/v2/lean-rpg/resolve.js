@@ -8,7 +8,10 @@
 //
 // Dice. From the receipt's seed, in a fixed order: the checks first (one d20 each), then round by round, the party's
 // actions in plan order and the foes' after them, each as two d20s (the party member's, then the foe's). A party
-// member's total is d20 + stat/2 + 2×class + skill rank + edge; a foe's is d20 + 5 + 2×class (names.js FORMULA). The
+// member's total is d20 + floor(stat/2) + 2×Soul Class + skill rank + edge; a foe's is d20 + 5 + 2×class (names.js
+// FORMULA). A skilled act or check rolls with the skill's own stat and spends the skill's own resource (the Skills block's
+// `statN` and `usesN`; the plan's `stat` and `uses` are not read for it); an act with no skill, or with one the character
+// lacks, rolls the plan's stat at rank 0. The
 // outcome is the party member's: a natural 20 succeeds, a natural 1 fails, a total that reaches the other side
 // succeeds, one within FORMULA.costMargin short is "success at a cost", anything else fails. A foe's attack is
 // the same roll seen from the defender, who rolls with the `defend` stat and no skill. Rounds = the smallest of the
@@ -16,9 +19,9 @@
 // margin of LIMITS.decisiveMargin either way) and what fits the cue budget (LIMITS.cueTokens); at least one.
 //
 // Refusals (plain sentences, in the cue and in `refused`): a character the sheet does not have, a stat the character
-// lacks, a foe that is not there or whose slot is empty, a character who is Down: that action is not rolled. A skill the
-// character does not have is rolled untrained (rank 0, no skill named); so is one whose resource is Empty (`uses: mana`,
-// else stamina), and the cue says so.
+// lacks (or none to roll with), a foe that is not there or whose slot is empty, a character who is Down: that action is
+// not rolled. A skill the character does not have is rolled untrained (rank 0, no skill named); so is one whose resource
+// (the skill's `uses`) is Empty, with the skill's stat, and the cue says so.
 //
 // Replay. Guarded (docs/v2/REPLAY.md) and `replan`: the guard asks that the sheet inputs this roll used are still what
 // the prefix holds; when an earlier reply is deleted or swiped and they changed, the roll is planned again with the same
@@ -69,14 +72,16 @@ function side(character, stat, rank, edge) {
     };
 }
 
-// A skill phrase on a character's sheet: { skill, rank, refused } or { refusal } (a sentence).
-function skillFor(character, phrase, uses) {
-    if (!phrase) return { skill: null, rank: 0 };
+// A skill phrase on a character's sheet, and what the act rolls with: { skill, rank, stat, uses, refused? }. The skill's own
+// stat and resource win over the plan's; a character without the skill, or with the skill's resource Empty, rolls untrained
+// (rank 0, no skill named), the first with the plan's stat and the second with the skill's.
+function skillFor(character, phrase, planned) {
+    if (!phrase) return { skill: null, rank: 0, stat: planned.stat, uses: null };
     const found = matchSkill(character, phrase);
-    if (!found) return { skill: null, rank: 0, refused: `${character.who} has no skill called ${phrase}: rolled untrained.` };
-    const resource = uses === 'mana' ? 'mana' : 'stamina';
-    if (character[resource] === 0) return { skill: null, rank: 0, refused: `${character.who} cannot use ${found.name} (${cap(resource)} ${STAGES[resource][0]}): rolled without it.` };
-    return { skill: found.name, rank: found.rank };
+    if (!found) return { skill: null, rank: 0, stat: planned.stat, uses: null, refused: `${character.who} has no skill called ${phrase}: rolled untrained.` };
+    const stat = found.stat ?? planned.stat, resource = found.uses ?? (planned.uses === 'mana' ? 'mana' : 'stamina');
+    if (character[resource] === 0) return { skill: null, rank: 0, stat, uses: resource, refused: `${character.who} cannot use ${found.name} (${cap(resource)} ${STAGES[resource][0]}): rolled without it.` };
+    return { skill: found.name, rank: found.rank, stat, uses: resource };
 }
 
 /**
@@ -86,42 +91,50 @@ function skillFor(character, phrase, uses) {
 export function prepare(plan, sheet) {
     const out = { acts: [], foes: [], checks: [], refused: [] };
     const refuse = (who, text) => out.refused.push({ who, text });
-    const ready = (who, stat) => {
+    const ready = who => {
         const character = matchCharacter(sheet, who);
         if (!character) return { refusal: `no character called ${who}` };
         if (character.alive === false || character.health === 0) return { refusal: `${character.who} is Down` };
-        if (!Number.isInteger(character.stats[stat])) return { refusal: `${character.who} has no ${stat.toUpperCase()} on the sheet` };
         return { character };
+    };
+    // The stat the act rolls with, once the skill has had its say: it must be on the sheet.
+    const statOf = (character, stat) => {
+        if (!stat) return { refusal: `${character.who} has no stat to roll with` };
+        if (!Number.isInteger(character.stats[stat])) return { refusal: `${character.who} has no ${stat.toUpperCase()} on the sheet` };
+        return {};
     };
     for (const act of plan.acts ?? []) {
         const foe = matchFoe(sheet, act.target);
-        const actor = ready(act.who, act.stat);
+        const actor = ready(act.who);
         const label = `${act.who} → ${act.target}`;
         if (actor.refusal) { refuse(act.who, `${label}: not rolled (${actor.refusal}).`); continue; }
         if (!foe) { refuse(act.who, `${label}: not rolled (no foe called ${act.target}).`); continue; }
-        const skill = skillFor(actor.character, act.skill, act.uses);
-        if (skill.refusal) { refuse(act.who, `${label}: not rolled (${skill.refusal}).`); continue; }
+        const skill = skillFor(actor.character, act.skill, act);
+        const stat = statOf(actor.character, skill.stat);
+        if (stat.refusal) { refuse(act.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(act.who, skill.refused);
         const edge = Math.max(-FORMULA.edgeMax, Math.min(FORMULA.edgeMax, act.edge ?? 0));
-        out.acts.push({ kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, act.stat, skill.rank, edge), foe });
+        out.acts.push({ kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, skill.stat, skill.rank, edge), foe });
     }
     for (const entry of plan.foes ?? []) {
         if (entry.hold) continue;
         const foe = (sheet.foes ?? []).find(slot => slot.slot === entry.slot && slot.filled);
         const label = `${foe?.name ?? `Foe ${entry.slot}`} attacks ${entry.target}`;
         if (!foe) { refuse(`foe${entry.slot}`, `${label}: not rolled (that foe slot is empty).`); continue; }
-        const defender = ready(entry.target, entry.defend);
-        if (defender.refusal) { refuse(entry.target, `${label}: not rolled (${defender.refusal}).`); continue; }
+        const defender = ready(entry.target);
+        const stat = defender.refusal ? defender : statOf(defender.character, entry.defend);
+        if (stat.refusal) { refuse(entry.target, `${label}: not rolled (${stat.refusal}).`); continue; }
         out.foes.push({ kind: 'foe', skill: null, pc: side(defender.character, entry.defend, 0, 0), foe });
     }
     for (const check of plan.checks ?? []) {
-        const actor = ready(check.who, check.stat);
-        const label = `${check.who} — ${check.skill ?? check.stat.toUpperCase()}`;
+        const actor = ready(check.who);
+        const label = `${check.who} — ${check.skill ?? check.stat?.toUpperCase() ?? 'check'}`;
         if (actor.refusal) { refuse(check.who, `${label}: not rolled (${actor.refusal}).`); continue; }
-        const skill = skillFor(actor.character, check.skill, check.uses);
-        if (skill.refusal) { refuse(check.who, `${label}: not rolled (${skill.refusal}).`); continue; }
+        const skill = skillFor(actor.character, check.skill, check);
+        const stat = statOf(actor.character, skill.stat);
+        if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(check.who, skill.refused);
-        out.checks.push({ kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, check.stat, skill.rank, 0) });
+        out.checks.push({ kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0) });
     }
     const foeSide = foe => ({ slot: foe.slot, name: foe.name, base: FORMULA.foeBase, classValue: foe.class, classBonus: FORMULA.classWeight * foe.class });
     for (const entry of [...out.acts, ...out.foes]) entry.foe = foeSide(entry.foe);

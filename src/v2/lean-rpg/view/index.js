@@ -1,7 +1,7 @@
 // The Lean RPG's screens, mounted by ui-host.js only while the feature `story-block.lean-rpg` is on (a dynamic import(),
 // so with the feature off none of this file or its siblings is ever loaded). One call wires everything:
 //   * the stylesheet (lean-rpg.css), added to the page's head;
-//   * the Party tab (a screen that shows while the chat has a Character block) and its widget, with the Spend points sheet;
+//   * the Party tab and its widget, with the Spend points sheet, the Skills view and the New character wizard (a dialog);
 //   * the battle log in the replies (at the narrator's `[battle]` marker, else a card under the reply);
 //   * the "Changed this reply" lines (`cardLines`) and the Lean RPG fold on the Features settings page (`settingsBodies`).
 // `destroy()` takes all of it away again (the feature was switched off).
@@ -10,8 +10,10 @@ import { createBattleLog } from './battle-log.js';
 import { rpgReplyLines } from './changes-lines.js';
 import { PARTY_WIDGET, createPartyScreen, createPartyWidget } from './party.js';
 import { withLeanRpgSettings } from './settings.js';
+import { WIZARD_WIDGET, createWizard } from './wizard.js';
 
 export { PARTY_SCREEN_ID, PARTY_WIDGET } from './party.js';
+export { WIZARD_SCREEN_ID, WIZARD_WIDGET } from './wizard.js';
 export { rpgReplyLines } from './changes-lines.js';
 export const PACK = 'lean-rpg';
 const STYLE_ATTR = 'data-ss-lean-rpg';
@@ -32,27 +34,32 @@ function addStyle(doc) {
 }
 
 /**
- * mountLeanRpg({ doc, ctx, store, events, screens, widgets, headState, readerName, roleOf, featureOn, openScreen, openBlock, refresh })
- * → { cardLines({ index, state, before, record, problems }), settingsBodies(bodies), battleLog, destroy() }.
- * `screens` is the screen registry (`setPack`, `removePack`); `widgets` the host's own widget table (the Party widget is added
- * to it); `headState()` the head state; `featureOn()` whether the feature is on now; `openBlock(module)` opens the Blocks page at that
- * block; `refresh()` redraws the tabs.
+ * mountLeanRpg({ doc, ctx, store, events, screens, widgets, headState, readerName, roleOf, featureOn, openDialog, refresh })
+ * → { cardLines({ index, state, before, record, problems }), settingsBodies(bodies), battleLog, wizard, destroy() }.
+ * `screens` is the screen registry (`setPack`, `removePack`); `widgets` the host's own widget table (the Party and wizard widgets are
+ * added to it); `headState()` the head state; `featureOn()` whether the feature is on now; `openDialog(screenId, { draft, onClose })` the
+ * host's dialog mount (the New character wizard opens through it; without it the Party tab has no button for it); `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', roleOf, featureOn = () => true, openScreen = null, openBlock = null, refresh = () => {} }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', roleOf, featureOn = () => true, openDialog = null, refresh = () => {} }) {
     const link = addStyle(doc);
-    widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openScreen, openBlock });
-    screens.setPack(PACK, [createPartyScreen({ roleOf })]);
+    const wizard = createWizard({ headState, readerName, roleOf, openDialog });
+    widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null });
+    widgets[WIZARD_WIDGET] = wizard.widget;
+    screens.setPack(PACK, [createPartyScreen(), wizard.screen]);
     const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf });
     battleLog.refreshAll();
     refresh();
     return {
         battleLog,
+        wizard,
         cardLines: info => { try { return rpgReplyLines({ ...info, roleOf }); } catch { return []; } },
         settingsBodies: bodies => withLeanRpgSettings(bodies, { featureOn }),
         destroy() {
             battleLog.destroy();
+            wizard.destroy();
             screens.removePack(PACK);
             delete widgets[PARTY_WIDGET];
+            delete widgets[WIZARD_WIDGET];
             link?.remove();
             refresh();
         },

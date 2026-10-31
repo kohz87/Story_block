@@ -3,8 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
-import { ROLES, STATS, STAGES } from '../../../src/v2/lean-rpg/index.js';
+import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
+import { CREATION, ROLES, STATS, STAGES, USES } from '../../../src/v2/lean-rpg/index.js';
 import { validateDataModules, DM_LIMITS as L } from '../../../src/v2/data-modules/check.js';
 
 const party = JSON.parse(readFileSync(new URL('fixtures/party.json', import.meta.url), 'utf8'));
@@ -32,8 +32,9 @@ test('each template is a chat-scoped data module with a unique slug, schema 1 an
 
 test('every block stays inside the field, kind and text limits', () => {
     for (const { definition } of LEAN_RPG_TEMPLATES) {
-        assert.ok(Object.keys(definition.state).length <= 16, `${definition.slug} fields`);
-        assert.ok(Object.keys(definition.kinds).length <= 16, `${definition.slug} kinds`);
+        // The block engine's limit is DM_LIMITS.fields (32), not 16: the Skills block's five slots of six fields and its `who` are 31.
+        assert.ok(Object.keys(definition.state).length <= L.fields, `${definition.slug} fields`);
+        assert.ok(Object.keys(definition.kinds).length <= L.kinds, `${definition.slug} kinds`);
         for (const field of Object.values(definition.state)) if (field.type === 'text') assert.ok(field.max <= L.text);
         for (const kind of Object.values(definition.kinds)) for (const label of Object.values(kind.labels)) {
             if (label.type === 'text') assert.ok(label.max <= L.text);
@@ -43,8 +44,11 @@ test('every block stays inside the field, kind and text limits', () => {
 
 test('the Character block has the keys the RPG reads, with their ranges and stage names', () => {
     const { state, kinds } = template('Character');
-    assert.deepEqual(Object.keys(state), ['who', 'health', 'mana', 'stamina', ...STATS, 'points', 'soul', 'xp', 'down', 'alive']);
+    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'soul', 'xp', 'down', 'alive']);
     assert.equal(state.who.type, 'text');
+    assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
+    assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
+    assert.equal(state.about.edit, undefined, 'and the reader can edit it');
     assert.deepEqual([state.health.min, state.health.max], [0, 5]);
     assert.deepEqual([state.mana.min, state.mana.max], [0, 4]);
     assert.deepEqual([state.stamina.min, state.stamina.max], [0, 4]);
@@ -66,15 +70,26 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     for (const field of [...STATS, 'points']) assert.ok(!touched.includes(field), field);
 });
 
-test('the Skills block has five slots of name, rank and practice, with rank names', () => {
+test('the Skills block has five slots of name, description, stat, resource, rank and practice: 31 fields, 10 kinds', () => {
     const { state, kinds, rules } = template('Skills');
+    assert.equal(Object.keys(state).length, 31);
+    assert.equal(Object.keys(kinds).length, 10);
     assert.equal(state.who.type, 'text');
     for (let n = 1; n <= 5; n++) {
-        assert.equal(state[`skill${n}`].type, 'text');
+        assert.deepEqual([state[`skill${n}`].type, state[`skill${n}`].max], ['text', 40]);
+        assert.deepEqual([state[`about${n}`].type, state[`about${n}`].max], ['text', 120]);
+        assert.notEqual(state[`about${n}`].prompt, false, 'what a skill does is read by the AI');
+        assert.deepEqual([state[`stat${n}`].type, state[`stat${n}`].values], ['enum', [...STATS]]);
+        assert.deepEqual([state[`uses${n}`].type, state[`uses${n}`].values, state[`uses${n}`].default], ['enum', ['stamina', 'mana'], 'stamina']);
         assert.deepEqual([state[`rank${n}`].min, state[`rank${n}`].max], [0, 3]);
         assert.deepEqual(Object.values(state[`rank${n}`].names), ['Novice', 'Adept', 'Expert', 'Master']);
         assert.deepEqual([state[`practice${n}`].min, state[`practice${n}`].max], [0, 100]);
+        assert.equal(state[`rank${n}`].edit, false, `rank ${n} only moves through play`);
+        assert.equal(state[`practice${n}`].edit, false, `practice ${n} only moves through play`);
+        for (const key of ['skill', 'about', 'stat', 'uses']) assert.notEqual(state[`${key}${n}`].edit, false, `${key}${n} is the reader's to fix`);
         assert.ok(kinds[`learn-${n}`] && kinds[`practice-${n}`], `kinds for slot ${n}`);
+        assert.deepEqual(Object.keys(kinds[`learn-${n}`].labels), ['name', 'about', 'stat', 'uses']);
+        assert.deepEqual(kinds[`learn-${n}`].effects.map(effect => effect.path[0]), [`skill${n}`, `about${n}`, `stat${n}`, `uses${n}`], 'a learn line sets the four and nothing else');
         assert.ok(rules.some(rule => rule.id === `rank-up-${n}`), `rank rule for slot ${n}`);
     }
 });
@@ -165,6 +180,8 @@ test('the party fixture gives every block all of its template fields, inside the
                 assert.ok(Number.isSafeInteger(value) && value >= field.min && value <= field.max, `${block.slug}.${key}`);
             } else if (field.type === 'bool') {
                 assert.equal(typeof value, 'boolean', `${block.slug}.${key}`);
+            } else if (field.type === 'enum') {
+                assert.ok(field.values.includes(value), `${block.slug}.${key}`);
             } else {
                 assert.equal(typeof value, 'string', `${block.slug}.${key}`);
                 assert.ok([...value].length <= field.max, `${block.slug}.${key}`);
@@ -187,4 +204,35 @@ test('the party fixture reads as mockup v3: Wessel is Soul II with 3 points, Hur
     const iron = party.blocks.find(block => block.slug === 'wessel-skills');
     assert.equal(iron.fields.skill1, 'Iron Breath');
     assert.equal(template('Skills').state.rank1.names[String(iron.fields.rank1)], 'Expert');
+});
+
+test('the built-in skill sets are five, three skills each, every one with what it does, a stat and a resource within the Skills limits', () => {
+    assert.deepEqual(SKILL_SETS.map(set => set.name), ['Guild fighter', 'River scout', 'Hedge mage', 'Field medic', 'Silver tongue']);
+    assert.equal(new Set(SKILL_SETS.map(set => set.id)).size, 5);
+    const { state } = template('Skills');
+    for (const set of SKILL_SETS) {
+        assert.equal(set.skills.length, 3, set.name);
+        assert.ok(set.about.length > 0 && [...set.about].length <= 160, set.name);
+        for (const skill of set.skills) {
+            assert.ok(skill.name && [...skill.name].length <= state.skill1.max, `${set.name}: ${skill.name}`);
+            assert.ok(skill.about && [...skill.about].length <= state.about1.max, `${set.name}: ${skill.name} about`);
+            assert.ok(state.stat1.values.includes(skill.stat), `${skill.name} stat`);
+            assert.ok(USES.includes(skill.uses), `${skill.name} uses`);
+        }
+    }
+    const mage = SKILL_SETS.find(set => set.id === 'hedge-mage');
+    assert.deepEqual(mage.skills.map(skill => [skill.name, skill.stat, skill.uses]), [['Spark', 'int', 'mana'], ['Ward', 'int', 'mana'], ['Lore', 'int', 'stamina']]);
+    assert.deepEqual(SKILL_SETS.find(set => set.id === 'guild-fighter').skills.map(skill => [skill.name, skill.stat]), [['Short blade', 'agi'], ['Iron Breath', 'vit'], ['Shield work', 'str']]);
+    assert.ok(Object.isFrozen(SKILL_SETS));
+});
+
+test('the creation budget is named constants: stats start at 10, 6 points, 8 to 15, up to five skills, one at Adept', () => {
+    assert.deepEqual({ start: CREATION.start, budget: CREATION.budget, min: CREATION.min, max: CREATION.max, skills: CREATION.skills, adept: CREATION.adept },
+        { start: 10, budget: 6, min: 8, max: 15, skills: 5, adept: 1 });
+    const { state } = template('Character');
+    assert.equal(CREATION.about, state.about.max);
+    assert.equal(CREATION.name, state.who.max);
+    assert.equal(CREATION.skillName, template('Skills').state.skill1.max);
+    assert.equal(CREATION.skillAbout, template('Skills').state.about1.max);
+    assert.ok(Object.isFrozen(CREATION));
 });

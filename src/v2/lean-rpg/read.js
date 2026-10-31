@@ -4,12 +4,13 @@
 // (suite-notes/rpg-briefs/COMMON.md):
 //   character: who, health, mana, stamina (stage indexes, 0 = empty), str vit agi dex int luk cha, points, soul (1–9),
 //              xp, down (the death latch, hidden), alive
-//   skills:    who, then skill1…skill5 (text), rank1…rank5 (0–3), practice1…practice5 (0–100)
+//   skills:    who, then per slot 1…5: skillN (name), aboutN (what it does), statN (one of the seven stats), usesN (stamina |
+//              mana), rankN (0–3), practiceN (0–100)
 //   foes:      foe1…foe4 (text), count1…count4, class1…class4 (1–9), hurt1…hurt4 (0–5)
 // Pure and read-only: it takes a state (or anything shaped `{ domains: { dataModules } }`) and answers plain data. It
 // never validates the definitions (the data-module checker did when they were pinned); a block it cannot read is left
 // out, with a plain `problems` line.
-import { FOE_SLOTS, SKILL_SLOTS, STATS } from './names.js';
+import { FOE_SLOTS, SKILL_SLOTS, STATS, USES } from './names.js';
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const int = value => (Number.isSafeInteger(value) ? value : null);
@@ -85,7 +86,13 @@ function skillsOf(fields) {
     const out = [];
     for (let n = 1; n <= SKILL_SLOTS; n += 1) {
         const name = text(fields[`skill${n}`]);
-        if (name) out.push({ slot: n, name, rank: int(fields[`rank${n}`]) ?? 0, practice: int(fields[`practice${n}`]) ?? 0 });
+        if (!name) continue;
+        // A Skills block made before the stat and the resource were fields has neither: null, and the plan's stat is used.
+        const stat = text(fields[`stat${n}`]).toLowerCase(), uses = text(fields[`uses${n}`]).toLowerCase();
+        out.push({
+            slot: n, name, about: text(fields[`about${n}`]), rank: int(fields[`rank${n}`]) ?? 0, practice: int(fields[`practice${n}`]) ?? 0,
+            stat: STATS.includes(stat) ? stat : null, uses: USES.includes(uses) ? uses : null,
+        });
     }
     return out;
 }
@@ -103,7 +110,8 @@ function foesOf(id, fields) {
 /**
  * The chat's RPG blocks: `{ characters, foes, problems }`.
  *   characters: [{ module, who, key, health, mana, stamina, stats: { str…cha }, soul, xp, points, down, alive,
- *                  skills: [{ slot, name, rank, practice }] }]   (a Skills block joins the character its `who` names)
+ *                  skills: [{ slot, name, about, rank, practice, stat, uses }] }]   (a Skills block joins the character its `who` names;
+ *                  stat is one of STATS and uses 'stamina' | 'mana', or null for a block that has neither)
  *   foes: the four slots of the first Foes block, [{ slot, module, name, count, class, hurt, filled }] ([] without one)
  *   problems: plain sentences for blocks left out (no `who`, two characters of one name)
  */

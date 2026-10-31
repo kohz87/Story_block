@@ -10,7 +10,8 @@ Open **Settings → Features** and switch on **Lean RPG**. Then open **Settings 
 work: **Rolls: automatic** (the default) or **off**. With rolls off, the narrator still tells the story, but no
 dice are rolled and no battle log is drawn.
 
-Build the sheets in **Game view → Blocks**: choose **New block**, then a template from the **Lean RPG** heading
+Make your characters with **New character** on the Party tab (see [Making a character](#making-a-character)). To build
+a sheet by hand instead, use **Game view → Blocks**: choose **New block**, then a template from the **Lean RPG** heading
 (see [The four templates](#the-four-templates)). Make one Character block for each character in the party, and
 one Skills block for each of them that has skills. Foes is one block for the foe groups in a fight. Combat rules is
 one block for the whole chat and carries the combat text.
@@ -20,9 +21,39 @@ one block for the whole chat and carries the combat text.
 With the feature on, the **Party** tab shows one card for each Character block: the name, the Soul Class and XP,
 the three stage bars, the seven stats in a row and the skills with their ranks. When a character has unspent
 points, the card offers **Spend points**, which opens the stat view with steppers under the point budget. **Stats**
-opens the same view for the stats alone, and **Skills** opens the list of skills.
+opens the same view for the stats alone, and **Skills** opens the character's [Skills view](#the-skills-view). **+ New
+character** in the header opens the wizard; with no character yet the tab says so and offers **Create your character**.
 
 Edits made here ride on the latest reply, like any other pencil edit: swipe or delete that reply to take them back.
+
+## Making a character
+
+**+ New character** opens a window with four steps and a summary of the character so far on top.
+
+1. **Who.** The name (your persona's by default), whether this character is **You** or **A companion**, and who they
+   are (up to 240 characters, which the narrator reads on every reply). A story has one You: the party shows you as the
+   character named like your persona, so You takes that name and a companion cannot.
+2. **Stats.** The same steppers and radar as Spend points. Every stat starts at 10 and you have 6 points to spend. A
+   stat can go down to 8 to free a point and up to 15. Points you leave unspent stay on the character for Spend points.
+3. **Skills.** Start from a template (Guild fighter, River scout, Hedge mage, Field medic, Silver tongue, and the sets a
+   pack adds) or write your own. Up to five skills, each with a name, what it does (up to 120 characters, which the
+   narrator reads), the **Stat** it rolls with, what it **Uses** (stamina or mana) and what it **Starts at**: Novice, or
+   Adept for one skill at most. Rank and practice are never typed in.
+4. **Review.** Everything in one place. **Create** makes two blocks, the Character block (named for the character) and the
+   Skills block ("Wessel's skills"), each with one action, so a creation costs two of the reply's changes. If the second
+   cannot be made the first is taken back and nothing is left half made. The window says what is in the way in plain
+   words, for example a name that is taken or a story that already has eight blocks.
+
+## The Skills view
+
+**Skills** on a character's card opens that character's skills in place of the cards (**Back to the party** returns). Each skill
+shows its name, its rank, the stat and resource it uses, what it does, a mastery bar and the roll it makes now:
+`Rolls with it: d20 +12 = VIT 12 → +6 · Expert +2 · Soul Class II +4`. The bar has four cells, one more lit for each rank, with
+the next one filling as practice grows; its colour follows the rank (Novice grey, Adept blue, Expert purple, Master green).
+Empty slots show a dashed line and are filled when the story has the character learn a skill.
+
+The pencil on a skill fixes its name or what it does, and nothing else: rank and practice only move through play (a swipe takes
+them back), and a skill's stat and resource are fixed by its Skills block.
 
 ## Stage bars
 
@@ -40,6 +71,16 @@ to Fresh. Health only goes back up when the story heals it.
 With rolls on, the narrator's next reply is planned first. The planning step reads what you wrote, picks the actions
 and checks for the reply, and the dice are rolled for them. The result is drawn as a battle log in the reply, with
 one short line per action, for example `Wessel → Sluice rat A: SUCCESS (26 vs 16)`. Tap a line to see the numbers.
+
+**The roll rule.** A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
+the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
+plus 3) is what the situation earns, such as an ambush.
+
+- **A skill brings its own stat and resource.** An action that uses a skill the character has rolls with that skill's stat
+  and spends that skill's resource (stamina or mana), whatever the planning step wrote. If the resource is Empty the action
+  is rolled without the skill: same stat, rank 0.
+- An action with no skill rolls the stat the planning step picked, at rank 0. So does an action that names a skill the
+  character does not have, and the log says so.
 
 - A **swipe** rolls again: the reply and its dice are new.
 - **Re-read** keeps the same dice.
@@ -72,8 +113,8 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, Health, Mana, Stamina, the seven stats (1 to 20), points, Soul Class, XP, Alive. The narrator sets Health, Mana, Stamina, XP and Alive; the reader sets stats and points. Rest refills Stamina and Mana. |
-| **Skills** | The name, rank and practice of up to five skills. The narrator names a skill with a learn line and adds practice. |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points, Soul Class, XP, Alive. The narrator sets Health, Mana, Stamina, XP and Alive; the reader sets stats and points. Rest refills Stamina and Mana. |
+| **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
 | **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health. |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
@@ -92,4 +133,27 @@ The templates are in `src/v2/lean-rpg/templates.js`. They use these keys, which 
 - `functions`: `card` for a card under the reply (tone `info`, `warn` or `end`, a title of up to 60 characters and
   text of up to 240), and `reply-end` for effects settled once at the end of each reply.
 
-Keep to the block limits: 16 fields and 16 kinds in one block, and text of up to 240 characters.
+- `edit: false` on a field: the reader cannot change it with a pencil (the Skills block's rank and practice).
+
+Keep to the block limits: 32 fields and 16 kinds in one block (a block with a `role` counts only its kinds against the 16),
+and text of up to 240 characters. The narrator is told up to 100 tokens of each block, 300 for a block with a `role`.
+
+### Skill sets in a pack
+
+A pack can add skill sets to the New character window. They sit under `content.leanRpg.skillSets`, up to 12 sets, each with
+up to 5 skills, and show on the Skills step as "From the *pack name* pack":
+
+```json
+{ "content": { "leanRpg": { "skillSets": [ {
+    "name": "Sealwarden recruit",
+    "about": "Trained at the Depths gates to hold a line and read the seals.",
+    "skills": [
+        { "name": "Spear", "about": "Holding a line with a long spear.", "stat": "str" },
+        { "name": "Ward-reading", "about": "Reading the seals on a door.", "stat": "int", "uses": "mana" }
+    ] } ] } } }
+```
+
+A set has a name (up to 40 characters, unique in the pack), an optional `about` (up to 160) and 1 to 5 skills. A skill has a
+name (up to 40, unique in its set), `about` (1 to 120, what it does: the narrator reads it), `stat` (`str`, `vit`, `agi`,
+`dex`, `int`, `luk` or `cha`) and `uses` (`stamina`, the default, or `mana`). Sets never carry ranks: every skill starts at
+Novice, and the reader may start one at Adept.

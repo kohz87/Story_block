@@ -79,14 +79,11 @@ test('on at page load: it mounts when the page does', async t => {
     assert.ok(ui.screens.resolve(PARTY));
 });
 
-test('the Party tab shows only while there is a Character block, right after Home', async t => {
+test('the Party tab shows while the feature is on, with or without a Character block, right after Home', async t => {
     const { doc, host, ui } = await page(t, { feature: true });
     await host.send('Begin.', 'Opening.');
     ui.mounts.screen.open();
-    assert.ok(!navIds(doc).includes(PARTY), 'no Character block: no tab');
-    await defineAll(host, [skillsDefinition('wessel-skills', 'Wessel'), foesDefinition()]);
-    ui.mounts.screen.update();
-    assert.ok(!navIds(doc).includes(PARTY), 'a Skills or Foes block alone is no party');
+    assert.equal(navIds(doc)[1], PARTY, 'no Character block yet: the tab is there, to make one');
     await defineAll(host, [characterDefinition('wessel', 'Wessel')]);
     await settle();
     ui.mounts.screen.update();
@@ -138,15 +135,21 @@ test('the reader\'s own character, by the persona\'s name, is the first card', a
     assert.equal(party(doc).querySelector('.rpg-card .rpg-sub').textContent, 'you');
 });
 
-test('the Skills button opens the Skills block\'s own tab', async t => {
+test('the Skills button opens the Skills view over the cards, and Back to the party closes it', async t => {
     const { doc, host, ui } = await page(t, { feature: true });
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [characterDefinition('wessel', 'Wessel'), skillsDefinition('wessel-skills', 'Wessel', { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' })]);
+    await setField(host, 'wessel-skills', 'skill1', 'Iron Breath');
     await host.send('Go.', 'The quay.');
     ui.mounts.screen.open(PARTY);
     await settle();
     party(doc).querySelector('.rpg-skills-open').click();
-    assert.ok(doc.querySelector('.ss-gameview [data-ss-screen="story-block/block/wessel-skills"]'), 'the block\'s own view');
+    assert.ok(party(doc).querySelector('.rpg-skills-view'), 'the Skills view');
+    assert.equal(party(doc).querySelector('.rpg-main').hidden, true);
+    assert.equal(doc.querySelector('.ss-gameview [data-ss-screen="story-block/block/wessel-skills"]'), null, 'no other screen is opened');
+    party(doc).querySelector('.rpg-skills-back').click();
+    assert.equal(party(doc).querySelector('.rpg-skills-view'), null);
+    assert.equal(party(doc).querySelector('.rpg-main').hidden, false);
 });
 
 test('a bar tapped on a card saves through dm.set', async t => {
@@ -308,26 +311,4 @@ test('the tabs follow the switch: on takes the role blocks\' tabs away, off give
     await settle();
     ids = tabsOf(doc, ui);
     for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules', 'notes']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: back`);
-});
-
-test('the Skills button opens the Blocks page at that character\'s Skills block, scrolled to and focused', async t => {
-    const { doc, host, ui } = await page(t, { feature: true });
-    await host.send('Begin.', 'Opening.');
-    await defineAll(host, party3());
-    await host.send('Go.', 'The quay.');
-    ui.mounts.screen.open(PARTY);
-    await settle();
-    // (a view opened from the keyboard hands its focus to the close button one task later: let that pass first)
-    await new Promise(resolve => setTimeout(resolve, 20));
-    const scrolled = [];
-    const original = doc.createElement;
-    doc.createElement = (...args) => { const node = original.apply(doc, args); node.scrollIntoView = () => scrolled.push(node.getAttribute('data-block-card')); return node; };
-    party(doc).querySelector('.rpg-card[data-character="Ren"] .rpg-skills-open').click();
-    await settle();
-    doc.createElement = original;
-    assert.ok(doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]'), 'the Blocks page is open');
-    const target = doc.querySelector('.ss-gameview [data-block-card="pack.chat/ren-skills"]');
-    assert.ok(target);
-    assert.ok(doc.activeElement === target, 'focused');
-    assert.deepEqual(scrolled, ['pack.chat/ren-skills'], 'and scrolled to');
 });

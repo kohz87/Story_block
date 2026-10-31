@@ -24,15 +24,17 @@ export const EXCERPT_LIMIT = 600;
 export const PRECALL_HEAD = [
     'You plan the dice for one message in an interactive story. Answer with these fixed lines only, no other words:',
     'pace: careful | normal | all',
-    `act <who> | skill: <skill>? | uses: mana|stamina? | stat: ${STATS.map(stat => stat.toUpperCase()).join('|')} | target: <foe> | edge: <-3 to +3 and a short reason>?`,
+    'act <who> | skill: <skill> | target: <foe> | edge: <-3 to +3 and a short reason>?',
+    `act <who> | stat: ${STATS.map(stat => stat.toUpperCase()).join('|')} | target: <foe> | edge: <-3 to +3 and a short reason>?`,
     'foe <foe> | target: <who> | defend: <stat>',
     'foe <foe> | hold',
-    'check <who> | skill: <skill>? | stat: <stat> | difficulty: easy|normal|hard|very hard',
+    'check <who> | skill: <skill> | difficulty: easy|normal|hard|very hard',
+    'check <who> | stat: <stat> | difficulty: easy|normal|hard|very hard',
     'none',
     'Rules:',
     '- Roll only what is uncertain. Talk, questions, plans and safe actions: answer none.',
     '- In a fight, give every party member who is not Down an act (companions act on their own) and every foe a target or hold.',
-    '- Use only the names listed. Use a skill only if the character has it; leave it out otherwise. Write uses: mana for spells and the like, else leave it out.',
+    '- Use only the names listed. Use a skill only if the character has it. A skill brings its own stat and what it uses, so write no stat for it; with no skill, write the stat.',
     '- pace: careful when the reader moves slowly or carefully, all when they fight it out, else normal.',
     '- An edge is a small bonus or penalty the situation earns (an ambush +2, a trap -2).',
     '- Outside a fight a risky attempt (sneaking, persuading, climbing, lying) is a check with a difficulty.',
@@ -44,7 +46,7 @@ const word = (list, at) => (Number.isInteger(at) && at >= 0 && at < list.length 
 export function sheetText(sheet) {
     const party = sheet.characters.map(entry => {
         const stats = STATS.map(stat => `${stat.toUpperCase()} ${entry.stats[stat] ?? '?'}`).join(' ');
-        const skills = entry.skills.length ? entry.skills.map(skill => `${skill.name} (${word(RANK_NAMES, skill.rank)})`).join(', ') : 'none';
+        const skills = entry.skills.length ? entry.skills.map(skill => `${skill.name} (${word(RANK_NAMES, skill.rank)}${skill.stat ? `, ${skill.stat.toUpperCase()}` : ''}${skill.uses === 'mana' ? ', mana' : ''})`).join(', ') : 'none';
         const down = entry.alive === false || entry.health === 0 ? ' DOWN' : '';
         return `${entry.who} (class ${word(CLASS_NAMES, entry.soul - 1)}${down}): ${stats}; Health ${word(STAGES.health, entry.health)}, Mana ${word(STAGES.mana, entry.mana)}, Stamina ${word(STAGES.stamina, entry.stamina)}; skills: ${skills}`;
     });

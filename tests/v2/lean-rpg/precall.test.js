@@ -21,7 +21,7 @@ test('a message in a fight: one call, the plan is rolled before the reply and to
     assert.deepEqual([call.options.maxTokens, call.options.profile, call.options.helper], [ANSWER_TOKENS, 'cheap', 'rolls'], 'Assist\'s connection profile');
     assert.ok(call.prompt.startsWith(PRECALL_HEAD), 'the same head for every message, first');
     assert.ok(call.prompt.endsWith(`The reader's message:\n"""\n${MESSAGE}\n"""`));
-    assert.match(call.prompt, /Wessel \(class II\): STR 14 VIT 12 AGI 12 DEX 10 INT 8 LUK 9 CHA 10; Health Unhurt, Mana Fresh, Stamina Fresh; skills: Iron Breath \(Adept\), Spark \(Novice\)/);
+    assert.match(call.prompt, /Wessel \(class II\): STR 14 VIT 12 AGI 12 DEX 10 INT 8 LUK 9 CHA 10; Health Unhurt, Mana Fresh, Stamina Fresh; skills: Iron Breath \(Adept, STR\), Spark \(Novice, INT, mana\)/);
     assert.match(call.prompt, /Foes: \n1\. Sluice Rats x6 \(class I, Unhurt\)/);
     const [receipt] = rolled(host);
     assert.ok(receipt);
@@ -44,6 +44,21 @@ test('the prompt holds only the end of the last reply (without its change block)
     const quoted = prompt.slice(prompt.indexOf('The last reply ended:'), prompt.indexOf("The reader's message"));
     assert.ok(quoted.length < 700);
     assert.match(precallPrompt({ sheet: { characters: sheet.characters, foes: [] }, message: 'hi' }), /Foes: none/);
+});
+
+test('the grammar asks for a stat only when there is no skill, and the sheet shows each skill\'s stat and resource', () => {
+    const lines = PRECALL_HEAD.split('\n');
+    const acts = lines.filter(line => line.startsWith('act <who>')), checks = lines.filter(line => line.startsWith('check <who>'));
+    assert.equal(acts.length, 2);
+    assert.equal(checks.length, 2);
+    assert.ok(acts[0].includes('skill: <skill>') && !/stat|uses/i.test(acts[0]), `a skill act has no stat or uses: ${acts[0]}`);
+    assert.ok(acts[1].includes('stat: STR|VIT|AGI|DEX|INT|LUK|CHA') && !acts[1].includes('skill:'), acts[1]);
+    assert.ok(checks[0].includes('skill: <skill>') && !/stat|uses/i.test(checks[0]), checks[0]);
+    assert.ok(checks[1].includes('stat: <stat>') && !checks[1].includes('skill:'), checks[1]);
+    assert.ok(!PRECALL_HEAD.includes('uses:'), 'the pre-call is not asked for what a skill uses');
+    assert.match(PRECALL_HEAD, /A skill brings its own stat and what it uses, so write no stat for it; with no skill, write the stat\./);
+    const text = precallPrompt({ sheet: readSheet({ domains: { dataModules: sheetDomain(PARTY()) } }), message: 'hi' });
+    assert.match(text, /Ren \(class II\)[^\n]*skills: Spark \(Novice, INT, mana\)/);
 });
 
 test('no call at all with the feature off, with Rolls off, or with no Character block', { skip }, async () => {

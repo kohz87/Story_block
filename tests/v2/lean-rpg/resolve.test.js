@@ -56,6 +56,57 @@ test('the formula in the numbers: d20 + stat/2 + 2×class + rank + edge against 
     assert.equal(prepare({ pace: 'normal', acts: [{ ...wessel(), edge: 9 }] }, odd).acts[0].pc.edge, FORMULA.edgeMax);
 });
 
+test('the formula is pinned for every stat, Soul Class, rank and edge: d20 + floor(stat/2) + rank + 2×Soul Class + edge', () => {
+    for (const stat of [1, 2, 7, 10, 15, 19, 20]) for (const soul of [1, 2, 5, 9]) for (const rank of [0, 1, 2, 3]) for (const edge of [-3, 0, 3]) {
+        const party = PARTY();
+        party.wessel.fields = character('Wessel', { str: stat, soul });
+        party['wessel-skills'].fields = skillBlock('Wessel', [['Iron Breath', rank, 'str']]);
+        const body = plan({ pace: 'careful', acts: [wessel({ edge })] });
+        const [line] = rollPrepared(body, prepare(body, sheetOf(party)), dice(11, 4)).rounds[0].lines;
+        assert.equal(line.pc.total, 11 + Math.floor(stat / 2) + rank + 2 * soul + edge, `STR ${stat}, class ${soul}, rank ${rank}, edge ${edge}`);
+        assert.deepEqual([line.pc.statBonus, line.pc.classBonus, line.pc.rank, line.pc.edge], [Math.floor(stat / 2), 2 * soul, rank, edge]);
+    }
+});
+
+test('a skilled act or check rolls with the skill\'s own stat; the plan\'s stat is ignored, and so is its uses', () => {
+    const party = PARTY();
+    party['wessel-skills'].fields = skillBlock('Wessel', [['Iron Breath', 2, 'vit', 'stamina'], ['Spark', 0, 'int', 'mana']]);
+    const sheet = sheetOf(party);
+    const body = plan({ acts: [wessel({ stat: 'str', uses: 'mana' }), { who: 'Wessel', skill: 'Spark', target: 'Sluice Rats' }],
+        checks: [{ who: 'Wessel', skill: 'Iron Breath', stat: 'cha', difficulty: 'normal' }] });
+    const prepared = prepare(body, sheet);
+    assert.deepEqual(prepared.acts.map(entry => [entry.skill, entry.pc.stat, entry.pc.statBonus, entry.pc.rank]), [['Iron Breath', 'vit', 6, 2], ['Spark', 'int', 4, 0]], 'VIT 12 and INT 8, not the STR 14 the plan said');
+    assert.deepEqual([prepared.checks[0].pc.stat, prepared.checks[0].pc.statBonus], ['vit', 6]);
+    assert.deepEqual(prepared.refused, []);
+    // The skill's resource is the one that is checked: Iron Breath spends stamina however the plan's `uses` reads.
+    party.wessel.fields = character('Wessel', { stamina: 0 });
+    const spent = prepare(plan({ acts: [wessel({ stat: 'str', uses: 'mana' })] }), sheetOf(party));
+    assert.deepEqual([spent.acts[0].skill, spent.acts[0].pc.stat, spent.acts[0].pc.rank, spent.refused.length], [null, 'vit', 0, 1], 'rolled without the skill, with its stat');
+    // The line names the stat that was rolled: Iron Breath is STR on the default sheet.
+    const skilled = plan({ pace: 'careful', acts: [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }] });
+    assert.equal(rollPrepared(skilled, prepare(skilled, sheetOf()), calm()).rounds[0].lines[0].pc.stat, 'str');
+});
+
+test('an act with no skill, or a skill the character lacks, rolls the plan\'s stat at rank 0; with no stat to roll with it is refused in plain words', () => {
+    const sheet = sheetOf();
+    const plain = prepare(plan({ acts: [{ who: 'Wessel', stat: 'dex', target: 'Sluice Rats' }], checks: [{ who: 'Ren', stat: 'cha', difficulty: 'easy' }] }), sheet);
+    assert.deepEqual([plain.acts[0].skill, plain.acts[0].pc.stat, plain.acts[0].pc.rank, plain.acts[0].pc.statBonus], [null, 'dex', 0, 5]);
+    assert.deepEqual([plain.checks[0].pc.stat, plain.checks[0].pc.rank], ['cha', 0]);
+    const lacking = prepare(plan({ acts: [wessel({ skill: 'Lockpicking', stat: 'dex' })] }), sheet);
+    assert.deepEqual([lacking.acts[0].skill, lacking.acts[0].pc.stat, lacking.acts[0].pc.rank], [null, 'dex', 0]);
+    const none = prepare({ pace: 'normal', acts: [{ who: 'Wessel', skill: 'Lockpicking', target: 'Sluice Rats' }], checks: [{ who: 'Wessel', skill: 'Lockpicking', difficulty: 'easy' }] }, sheet);
+    assert.deepEqual([none.acts.length, none.checks.length], [0, 0]);
+    assert.deepEqual(none.refused.map(entry => entry.text), [
+        'Wessel → Sluice Rats: not rolled (Wessel has no stat to roll with).',
+        'Wessel — Lockpicking: not rolled (Wessel has no stat to roll with).',
+    ]);
+    // A Skills block with no stat on its skills (made before they were fields) takes the plan's stat.
+    const party = PARTY();
+    party['wessel-skills'].fields = { who: 'Wessel', skill1: 'Iron Breath', rank1: 1, practice1: 0 };
+    const old = prepare(plan({ acts: [wessel({ stat: 'agi' })] }), sheetOf(party));
+    assert.deepEqual([old.acts[0].skill, old.acts[0].pc.stat, old.acts[0].pc.rank], ['Iron Breath', 'agi', 1]);
+});
+
 test('a foe attacks: the defender rolls with the defend stat, no skill, and the line reads for the defender', () => {
     const body = plan({ pace: 'careful', acts: [], foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }] });
     const result = rollPrepared(body, prepare(body, sheetOf()), dice(6, 15));
@@ -144,19 +195,23 @@ test('what is refused, in plain words: an unknown name or foe, an empty slot, a 
     assert.match(rollPrepared(body, prepare(body, empty), calm()).text, /Foe 2 attacks Wessel: not rolled \(that foe slot is empty\)\./);
 });
 
-test('a skill whose mana or stamina is Empty is refused and the action is rolled without it; stamina unless it says mana', () => {
+test('a skill whose mana or stamina is Empty is refused and the action is rolled without it; the resource is the skill\'s own', () => {
     const party = PARTY();
     party.wessel.fields = character('Wessel', { stamina: 0 });
     party.ren.fields = character('Ren', { mana: 0, str: 8, int: 16 });
     const sheet = sheetOf(party);
     const stamina = prepare(plan({ acts: [wessel()] }), sheet);
-    assert.deepEqual([stamina.acts[0].skill, stamina.acts[0].pc.rank], [null, 0]);
+    assert.deepEqual([stamina.acts[0].skill, stamina.acts[0].pc.rank, stamina.acts[0].pc.stat], [null, 0, 'str'], 'rolled without the skill, with its stat');
     assert.deepEqual(stamina.refused.map(entry => entry.text), ['Wessel cannot use Iron Breath (Stamina Empty): rolled without it.']);
-    // Mana only when the plan says the skill uses mana; Ren has stamina to spare.
-    const plain = prepare(plan({ acts: [{ who: 'Ren', skill: 'Spark', stat: 'int', target: 'Sluice Rats' }] }), sheet);
-    assert.equal(plain.acts[0].skill, 'Spark');
-    const mana = prepare(plan({ acts: [{ who: 'Ren', skill: 'Spark', uses: 'mana', stat: 'int', target: 'Sluice Rats' }] }), sheet);
-    assert.deepEqual([mana.acts[0].skill, mana.refused[0].text], [null, 'Ren cannot use Spark (Mana Empty): rolled without it.']);
+    // Spark uses mana on Ren's sheet, so Empty mana refuses it whatever the plan says; a plan's `uses` is not read for a skill she has.
+    for (const uses of [undefined, 'stamina', 'mana']) {
+        const spark = prepare(plan({ acts: [{ who: 'Ren', skill: 'Spark', ...(uses ? { uses } : {}), target: 'Sluice Rats' }] }), sheet);
+        assert.deepEqual([spark.acts[0].skill, spark.refused[0].text], [null, 'Ren cannot use Spark (Mana Empty): rolled without it.'], String(uses));
+    }
+    // With the mana back, and Ren's stamina Empty instead, Spark is fine: it never touches stamina.
+    party.ren.fields = character('Ren', { stamina: 0, str: 8, int: 16 });
+    const fine = prepare(plan({ acts: [{ who: 'Ren', skill: 'Spark', uses: 'stamina', target: 'Sluice Rats' }] }), sheetOf(party));
+    assert.deepEqual([fine.acts[0].skill, fine.refused.length], ['Spark', 0]);
     const result = rollPrepared(plan(), stamina, calm());
     assert.match(result.text, /Wessel cannot use Iron Breath \(Stamina Empty\): rolled without it\./);
     assert.match(result.text, /Wessel → Sluice Rats: SUCCESS/, 'no skill is named on the line');
