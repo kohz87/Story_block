@@ -357,7 +357,7 @@ Proposed limits are exported host constants and are part of interpreter version 
 | Eval visits per root / data roots per reply / visits per reply | 2048 / 32 / 16384 |
 | Emitted patch ops / durable span data per action root | 128 / 8 KiB, foreign adapter writes included |
 | Pin/migration span data | 128 KiB, including the recorded frozen definition; no gameplay effects |
-| Module static / tail | 2000 characters / 100 tokens each; normal host fit rules apply |
+| Module static / tail | 2000 characters / 100 tokens each (300 for a block with a `role`); normal host fit rules apply |
 
 Charge every AST visit, rule test, subject/timer visit and adapter cost before its work; count
 generated patch ops and serialized data before append. Reply budgets include Continues; use

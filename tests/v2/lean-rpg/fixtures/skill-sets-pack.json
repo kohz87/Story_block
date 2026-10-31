@@ -1,0 +1,23 @@
+{
+    "id": "ersveil-sets",
+    "version": "1.0.0",
+    "name": "Ersveil",
+    "author": "Test fixture",
+    "description": "A pack with one Lean RPG skill set, as the New character wizard offers it.",
+    "requires": { "storyBlock": "^2" },
+    "content": {
+        "leanRpg": {
+            "skillSets": [
+                {
+                    "name": "Sealwarden recruit",
+                    "about": "Ersveil: trained at the Depths gates to hold a line and read Veyr's seals.",
+                    "skills": [
+                        { "name": "Spear", "about": "Holding a line with a long spear at the gate.", "stat": "str" },
+                        { "name": "Ward-reading", "about": "Reading the seals on a door to know what sleeps behind it.", "stat": "INT", "uses": "mana" },
+                        { "name": "Gatecraft", "about": "Opening, bracing and barring the heavy gates of the Depths.", "stat": "vit", "uses": "stamina" }
+                    ]
+                }
+            ]
+        }
+    }
+}

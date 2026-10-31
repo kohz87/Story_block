@@ -24,6 +24,8 @@ export const DM_LIMITS = freeze({
     // Added with the lean RPG (the frozen interpreter-1 basis in hash-basis-v1.js keeps its own copy): the block prompt cap,
     // the display names of a number field, and the card and reply-end functions of a block.
     prompt: 1200, names: 32, nameText: 40, cards: 4, replyEnd: 4, cardTitle: 60, cardText: 240,
+    // A block with a `role` (a Character or Skills sheet) says more in the tail: five skills with what each does, or a character with who they are.
+    roleTailTokens: 300,
 });
 
 export const DM_DIAGNOSTICS = freeze({

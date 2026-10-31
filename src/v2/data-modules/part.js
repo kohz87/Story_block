@@ -212,7 +212,10 @@ const fieldsText = (definition, fields) => Object.entries(fields).filter(([key])
 const namedChanges = (definition, before, after) => Object.entries(definition.state).filter(([key, schema]) => schema.names && before[key] !== after[key])
     .map(([key, schema]) => `${schema.label ?? key} ${shownText(schema, before[key])} → ${shownText(schema, after[key])}`);
 
-/** One module's state in plain words for the prompt's tail, at most 100 tokens: "Survival — Wessel: hunger 12; fatigue 6." */
+// What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the lean RPG's sheets carry text the story reads).
+const tailRoom = definition => (definition?.role ? L.roleTailTokens : L.tailTokens);
+
+/** One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role): "Survival — Wessel: hunger 12; fatigue 6." */
 export function summaryOf(state, module) {
     const definition = activeDefinition(state, module);
     if (!definition) return `${module} — unavailable (damaged or unknown pin).`;
@@ -222,7 +225,7 @@ export function summaryOf(state, module) {
     const body = definition.scope === 'chat' ? fieldsText(definition, view.chat)
         : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields)}`).join(' | ') || 'no one attached';
     // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget.
-    return cutAt(`${definition.name} — ${body}.${waiting}`, L.tailTokens * 4);
+    return cutAt(`${definition.name} — ${body}.${waiting}`, tailRoom(definition) * 4);
 }
 // A timer whose clock has moved past its cursor.
 const timerDue = (timer, inputs, instance) => {
@@ -679,8 +682,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         context: {
             static: () => grammarFor(state()),
             tail: view => ({ lines: tailLines(view.state), optional: [] }),
-            // Tail room for the lines above: 100 tokens for each pinned module, on top of the core's own; none without a pin.
-            extra: () => Math.min(Object.keys(state()?.domains?.dataModules?.active ?? {}).length, L.pins) * L.tailTokens,
+            // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
+            extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id)), 0),
         },
     };
 }

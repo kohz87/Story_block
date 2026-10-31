@@ -27,10 +27,11 @@ const slots = (prefix, list, size) => Object.fromEntries(Array.from({ length: si
 export const character = (who, over = {}) => ({
     who, health: 5, mana: 4, stamina: 4, str: 14, vit: 12, agi: 12, dex: 10, int: 8, luk: 9, cha: 10, points: 0, soul: 2, xp: 0, down: false, alive: true, ...over,
 });
-/** Field values of a Skills block: skills = [[name, rank], …]. */
+/** Field values of a Skills block: skills = [[name, rank, stat, uses, about], …] (stat 'str' and uses 'stamina' unless given). */
 export const skillBlock = (who, skills = []) => ({
     who, ...slots('skill', skills.map(skill => skill[0]), 5), ...slots('rank', skills.map(skill => skill[1] ?? 0), 5),
-    ...slots('practice', skills.map(() => 0), 5),
+    ...slots('practice', skills.map(() => 0), 5), ...slots('stat', skills.map(skill => skill[2] ?? 'str'), 5),
+    ...slots('uses', skills.map(skill => skill[3] ?? 'stamina'), 5), ...slots('about', skills.map(skill => skill[4] ?? ''), 5),
 });
 /** Field values of a Foes block: foes = [[name, count, class, hurt], …]. */
 export const foeBlock = (foes = []) => ({
@@ -52,9 +53,9 @@ export function sheetDomain(blocks) {
 
 export const PARTY = () => ({
     wessel: { role: 'character', fields: character('Wessel') },
-    'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Iron Breath', 1], ['Spark', 0]]) },
+    'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Iron Breath', 1, 'str'], ['Spark', 0, 'int', 'mana']]) },
     ren: { role: 'character', fields: character('Ren', { str: 8, int: 16, soul: 2 }) },
-    'ren-skills': { role: 'skills', fields: skillBlock('Ren', [['Spark', 0]]) },
+    'ren-skills': { role: 'skills', fields: skillBlock('Ren', [['Spark', 0, 'int', 'mana']]) },
     foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 1, 5]]) },
 });
 

@@ -51,8 +51,9 @@ test('the full answer is read into the plan', () => {
     assert.deepEqual(plan, {
         pace: 'normal',
         acts: [
-            { who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats', edge: 2, why: 'ambush from the drain lip' },
-            { who: 'Ren', skill: 'Spark', uses: 'mana', stat: 'int', target: 'Sluice Rats' },
+            // a skill the character has brings its own stat and resource: the lines' STR, INT and mana are not kept
+            { who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats', edge: 2, why: 'ambush from the drain lip' },
+            { who: 'Ren', skill: 'Spark', target: 'Sluice Rats' },
         ],
         foes: [{ slot: 1, target: 'Wessel', defend: 'agi' }],
         checks: [],
@@ -95,6 +96,42 @@ test('the edge is clamped to ±3, a bare reason is no edge, and a skill of none 
         'act Wessel | stat: str | target: foe1 | edge: from the ledge',
     ].join('\n'), sheet).plan.acts;
     assert.deepEqual(acts.map(act => [act.edge, act.why, act.skill]), [[3, 'a huge advantage', undefined], [-3, undefined, undefined], [undefined, undefined, undefined]]);
+});
+
+test('a plan act or check with a skill needs no stat of its own; without a skill it must have one', () => {
+    const plan = body => ({ pace: 'normal', ...body });
+    const act = extra => plan({ acts: [{ who: 'Wessel', target: 'Sluice Rats', ...extra }] });
+    assert.deepEqual(validatePlan(act({ skill: 'Iron Breath' })), { ok: true, errors: [] });
+    assert.deepEqual(validatePlan(act({ skill: 'Iron Breath', stat: 'vit', uses: 'stamina' })), { ok: true, errors: [] }, 'carried but not read');
+    assert.deepEqual(validatePlan(act({ stat: 'str' })), { ok: true, errors: [] });
+    assert.match(validatePlan(act({})).errors[0], /act 1 needs stat to be one of/, 'no skill, no stat');
+    assert.match(validatePlan(act({ skill: 'Iron Breath', stat: 'wil' })).errors[0], /act 1 needs stat to be one of/, 'a stat that is given must be one of the seven');
+    const check = extra => plan({ checks: [{ who: 'Ren', difficulty: 'hard', ...extra }] });
+    assert.equal(validatePlan(check({ skill: 'Spark' })).ok, true);
+    assert.equal(validatePlan(check({ stat: 'dex' })).ok, true);
+    assert.match(validatePlan(check({})).errors[0], /check 1 needs stat/);
+});
+
+test('a skill the character has brings its own stat and resource: the line\'s stat and uses are not read for it', () => {
+    const read = answer => parsePlanAnswer(answer, sheet).plan;
+    // Wessel's Iron Breath is STR on his sheet, Ren's Spark is INT and mana: whatever the line says.
+    assert.deepEqual(read('act Wessel | skill: Iron Breath | stat: DEX | uses: mana | target: foe1').acts, [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }]);
+    assert.deepEqual(read('act Ren | skill: Spark | target: foe1').acts, [{ who: 'Ren', skill: 'Spark', target: 'Sluice Rats' }], 'a skill line needs no stat');
+    assert.deepEqual(read('check Ren | skill: Spark | stat: STR | difficulty: hard').checks, [{ who: 'Ren', skill: 'Spark', difficulty: 'hard' }]);
+    // No skill: the line's stat, and its resource when it says one. A skill the character lacks is rolled untrained with the line's stat.
+    assert.deepEqual(read('act Wessel | stat: DEX | target: foe1').acts, [{ who: 'Wessel', stat: 'dex', target: 'Sluice Rats' }]);
+    assert.deepEqual(read('act Wessel | skill: Lockpicking | stat: DEX | uses: mana | target: foe1').acts, [{ who: 'Wessel', skill: 'Lockpicking', uses: 'mana', stat: 'dex', target: 'Sluice Rats' }]);
+    assert.deepEqual(read('check Wessel | stat: cha | difficulty: easy').checks, [{ who: 'Wessel', stat: 'cha', difficulty: 'easy' }]);
+    // No skill the character has, and no stat: nothing to roll with, so the line is dropped by itself.
+    assert.deepEqual(parsePlanAnswer('act Wessel | skill: Lockpicking | target: foe1', sheet), { none: true, dropped: 1 });
+    assert.deepEqual(parsePlanAnswer('act Wessel | target: foe1', sheet), { none: true, dropped: 1 });
+    assert.deepEqual(parsePlanAnswer('check Wessel | difficulty: easy', sheet), { none: true, dropped: 1 });
+});
+
+test('a Skills block with no stat on its skills (made before they were fields) still takes the line\'s stat', () => {
+    const old = readSheet({ domains: { dataModules: sheetDomain({ ...PARTY(), 'wessel-skills': { role: 'skills', fields: { who: 'Wessel', skill1: 'Iron Breath', rank1: 1, practice1: 0 } } }) } });
+    assert.deepEqual(parsePlanAnswer('act Wessel | skill: Iron Breath | stat: STR | target: foe1', old).plan.acts, [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }]);
+    assert.deepEqual(parsePlanAnswer('act Wessel | skill: Iron Breath | target: foe1', old), { none: true, dropped: 1 });
 });
 
 test('the pace word is read from a line; garbage is ignored; stats may be named in full', () => {

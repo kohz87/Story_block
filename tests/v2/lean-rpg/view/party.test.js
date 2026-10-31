@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setupDom } from '../../view/mounts/helpers.js';
-import { createPartyScreen, createPartyWidget, PARTY_SCREEN_ID, PARTY_WIDGET, skillsScreenOf } from '../../../../src/v2/lean-rpg/view/party.js';
+import { createPartyScreen, createPartyWidget, PARTY_SCREEN_ID, PARTY_WIDGET } from '../../../../src/v2/lean-rpg/view/party.js';
 import { hasCharacters, readParty, stageTone, stageWord } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { activeNow } from '../../../../src/v2/view/mounts/common.js';
 import { characterDefinition, fakeState, foesDefinition, roleOf, skillsDefinition } from './helpers.js';
@@ -12,10 +12,10 @@ const ren = { definition: characterDefinition('ren', 'Ren'), fields: { health: 5
 const skills = { definition: skillsDefinition('wessel-skills', 'Wessel', { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' }), fields: { skill1: 'Iron Breath', rank1: 2, skill2: 'Short blade', rank2: 0 } };
 const party = () => fakeState([ren, wessel, skills]);
 
-function draw(state, { api = {}, own = 'Wessel', open = () => {}, openBlock = null } = {}) {
+function draw(state, { api = {}, own = 'Wessel', openWizard = null } = {}) {
     const doc = setupDom(), el = doc.createElement('div');
     doc.body.appendChild(el);
-    const widget = createPartyWidget({ headState: () => state, readerName: () => own, roleOf, openScreen: open, openBlock });
+    const widget = createPartyWidget({ headState: () => state, readerName: () => own, roleOf, openWizard });
     const handle = widget.render(el, {}, api);
     return { doc, el, handle, widget };
 }
@@ -43,14 +43,13 @@ test('stage bars: one cell per stage, the stage word, a tone by stage', () => {
     assert.equal(stageWord('health', { names: { 3: 'Battered' } }, 3), 'Battered', 'the field\'s own names win');
 });
 
-test('the Party screen is on only while the story has a Character block', () => {
-    const screen = createPartyScreen({ roleOf });
+test('the Party screen is a tab and a screen that is on whenever the feature is, so a story with no character can make one', () => {
+    const screen = createPartyScreen();
     assert.equal(screen.id, PARTY_SCREEN_ID);
     assert.deepEqual(screen.mounts, ['screen', 'tab']);
-    assert.equal(activeNow(screen, party(), () => null).on, true);
-    assert.equal(activeNow(screen, fakeState([{ definition: foesDefinition() }]), () => null).on, false, 'a Foes block alone is no party');
-    assert.equal(activeNow(screen, null, () => null).on, false, 'no story yet');
-    assert.equal(hasCharacters(fakeState([skills]), { roleOf }), false);
+    for (const state of [party(), fakeState([{ definition: foesDefinition() }]), null]) assert.equal(activeNow(screen, state, () => null).on, true);
+    assert.equal(hasCharacters(fakeState([skills]), { roleOf }), false, 'a Skills block alone is still no party');
+    assert.equal(hasCharacters(party(), { roleOf }), true);
 });
 
 test('a card per character: name, role line, Soul Class, XP, three bars, seven stats, skills, two buttons', () => {
@@ -90,28 +89,6 @@ test('a fallen character is greyed and says Fallen', () => {
     assert.ok(card(el, 'Wessel').classList.contains('rpg-fallen'));
     assert.match(card(el, 'Wessel').textContent, /Fallen/);
     assert.ok(!card(el, 'Ren').classList.contains('rpg-fallen'));
-});
-
-test('Skills opens the Skills block\'s tab, else the Blocks page', () => {
-    const opened = [];
-    const { el } = draw(party(), { open: id => opened.push(id) });
-    buttons(card(el, 'Wessel'), 'Skills')[0].click();
-    assert.deepEqual(opened, ['story-block/block/wessel-skills']);
-    assert.equal(skillsScreenOf({ definition: { ...skills.definition, show: { tab: false, card: true, tabName: 'x', icon: 'ph-star' } } }), 'story-block/blocks');
-    assert.equal(skillsScreenOf(null), 'story-block/blocks');
-});
-
-test('Skills on a block with a role (it has no tab while the feature is on) opens the Blocks page at that block', () => {
-    const roled = { ...skills, definition: { ...skills.definition, role: 'skills' } };
-    assert.equal(skillsScreenOf({ module: 'pack.chat/wessel-skills', definition: roled.definition }), 'story-block/blocks');
-    const opened = [], blocks = [];
-    const { el } = draw(fakeState([ren, wessel, roled]), { open: id => opened.push(id), openBlock: module => blocks.push(module) });
-    buttons(card(el, 'Wessel'), 'Skills')[0].click();
-    assert.deepEqual(blocks, ['pack.chat/wessel-skills'], 'the Blocks page, at the Skills block');
-    assert.deepEqual(opened, []);
-    const plain = draw(fakeState([ren, wessel, roled]), { open: id => opened.push(id) });
-    buttons(card(plain.el, 'Wessel'), 'Skills')[0].click();
-    assert.deepEqual(opened, ['story-block/blocks'], 'with no way to focus a block, just the page');
 });
 
 test('a bar is tapped to edit: a pencil over it saves through dm.set', async () => {

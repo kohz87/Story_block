@@ -2,52 +2,43 @@
 // stacked on a phone. Each card has the name and role line, Soul Class, the XP bar, the three stage bars, the seven
 // stats in a row and the skills from that character's Skills block. A character with points to spend shows
 // "N points to spend" and a Spend points button; any other shows Stats. Both open the Spend points sheet (distribute.js)
-// over the cards. Skills opens the Blocks page at the character's Skills block (its tab, when it still has one). A fallen character
-// (`alive` false) is greyed and says "Fallen". The tab shows while the feature is on and the chat has a Character block.
+// over the cards; Skills opens the character's Skills view (skills.js) the same way. A fallen character (`alive` false) is greyed
+// and says "Fallen". The header's "+ New character" (and "Create your character" when there is none) opens the New character
+// wizard (wizard.js). The tab shows while the feature is on, with or without a Character block.
 // Every node is built with createElement and textContent.
 
 import { shell, h } from '../../view/widgets/dom.js';
 import { meter } from '../../view/widgets/meter.js';
-import { blockTabScreen } from '../../data-modules/block-screen.js';
-import { BLOCKS_SCREEN_ID } from '../../screens/blocks.js';
-import { ROLES_WITHOUT_TAB } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { drawStageBars } from './bars.js';
 import { newSession, renderDistribute } from './distribute.js';
-import { hasCharacters, readParty } from './party-data.js';
+import { readParty } from './party-data.js';
+import { newSkillsSession, renderSkills } from './skills.js';
 
 const P = RPG_STRINGS.party;
 export const PARTY_WIDGET = 'lean-rpg.party';
 /** The id ends in `party`, so the navigation puts the tab right after Home (screens.js DEFAULT_ORDER). */
 export const PARTY_SCREEN_ID = 'story-block/party';
 
-/** The Party screen: a tab and a game-view screen, on while the state has a Character block. */
-export function createPartyScreen({ roleOf } = {}) {
+/** The Party screen: a tab and a game-view screen. It is on while the feature is (the screen is only added then), so a story with no character yet can make one. */
+export function createPartyScreen() {
     return Object.freeze({
         id: PARTY_SCREEN_ID, title: P.title, icon: 'fa-users', mounts: Object.freeze(['screen', 'tab']),
         template: `<ss-widget name="${PARTY_WIDGET}"></ss-widget>`,
-        active: state => ({ on: hasCharacters(state, { roleOf }) }),
-        activeNote: 'Shown while the story has a Character block.',
     });
 }
 
 const sameCharacter = (a, b) => a.module === b.module && a.subject === b.subject;
 
-/** The screen id that shows a Skills block: its own tab when it has one (a block with a role has none while the feature is on), else the Blocks page. */
-export function skillsScreenOf(skillsBlock) {
-    const tab = skillsBlock && !ROLES_WITHOUT_TAB.includes(skillsBlock.definition?.role) ? blockTabScreen(skillsBlock.definition) : null;
-    return tab?.id ?? BLOCKS_SCREEN_ID;
-}
-
 /**
  * The Party widget. `deps`: `headState()` (the head state or null), `readerName()` (the reader's persona name),
- * `roleOf(definition)` (default: the definition's `role`), `openScreen(id)` (default: the api's), `openBlock(module)` (the Blocks
- * page scrolled to that block; default: just the Blocks page).
+ * `roleOf(definition)` (default: the definition's `role`), `openWizard()` (opens the New character dialog; without it there is no button).
  * The page draws a screen again from nothing on every change of the story, so what must outlive that, the open sheet and
- * its draft, is kept here, outside the widget (as the Blocks page keeps its editor): `shared.open` is the sheet's session.
+ * its draft, is kept here, outside the widget (as the Blocks page keeps its editor): `shared.open` is the Spend points sheet's
+ * session and `shared.skills` the Skills view's; at most one of them is open.
  */
-export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openScreen = null, openBlock = null } = {}) {
-    const shared = { open: null };
+export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null } = {}) {
+    const shared = { open: null, skills: null };
     const live = new Set();
     const tell = () => { for (const redraw of [...live]) redraw(); };
     return {
@@ -76,16 +67,12 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
             };
 
             // A sheet opened, closed or ended in any instance is drawn in every one that is on a page.
-            const openSheet = character => { shared.open = newSession(character); tell(); };
+            const openSheet = character => { shared.open = newSession(character); shared.skills = null; tell(); };
             const closeSheet = () => { shared.open = null; tell(); };
             const ended = ({ ok }) => { if (ok) shared.open = null; tell(); };
-            function skills(character) {
-                const id = skillsScreenOf(character.skillsBlock);
-                try {
-                    if (id === BLOCKS_SCREEN_ID && openBlock) openBlock(character.skillsBlock.module);
-                    else (openScreen ?? api?.openScreen)?.(id);
-                } catch { /* the screen may not be open-able here */ }
-            }
+            const openSkills = character => { shared.skills = newSkillsSession(character); shared.open = null; tell(); };
+            const closeSkills = () => { shared.skills = null; tell(); };
+            const newCharacter = () => { try { openWizard?.(); } catch { /* the dialog may not open here */ } };
 
             function card(parent, character) {
                 const node = h(doc, 'article', `rpg-card ss-glass${character.alive ? '' : ' rpg-fallen'}`);
@@ -117,7 +104,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 const actions = h(doc, 'div', 'rpg-card-actions');
                 const spend = character.points > 0;
                 button(actions, spend ? P.spend : P.stats, `ss-button${spend ? ' ss-button-primary' : ''} rpg-open`, () => openSheet(character));
-                if (character.skillsBlock) button(actions, P.skills, 'ss-button rpg-skills-open', () => skills(character));
+                if (character.skillsBlock) button(actions, P.skills, 'ss-button rpg-skills-open', () => openSkills(character));
                 node.appendChild(actions);
             }
 
@@ -127,13 +114,23 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 const party = read();
                 const open = shared.open ? party.find(character => sameCharacter(character, shared.open)) : null;
                 if (shared.open && !open) shared.open = null;
-                main.hidden = Boolean(open);
+                const looking = shared.skills ? party.find(character => sameCharacter(character, shared.skills) && character.skillsBlock) : null;
+                if (shared.skills && !looking) shared.skills = null;
+                main.hidden = Boolean(open || looking);
                 if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended });
+                else if (looking) sheet = renderSkills(host, { character: looking, session: shared.skills, api, doc, onBack: closeSkills, onSaved: tell });
                 const head = h(doc, 'div', 'rpg-head');
                 head.appendChild(h(doc, 'h3', '', P.title));
-                head.appendChild(h(doc, 'span', 'ss-pill', party.length === 1 ? P.countOne : fill(P.count, { n: party.length })));
+                const count = h(doc, 'div', 'rpg-pills');
+                count.appendChild(h(doc, 'span', 'ss-pill', party.length === 1 ? P.countOne : fill(P.count, { n: party.length })));
+                if (party.length && openWizard) button(count, P.newCharacter, 'ss-button rpg-new', newCharacter);
+                head.appendChild(count);
                 main.appendChild(head);
-                if (!party.length) { main.appendChild(h(doc, 'p', 'rpg-empty', P.empty)); return; }
+                if (!party.length) {
+                    main.appendChild(h(doc, 'p', 'rpg-empty', P.empty));
+                    if (openWizard) button(main, P.createFirst, 'ss-button ss-button-primary rpg-create', newCharacter);
+                    return;
+                }
                 const grid = h(doc, 'div', 'rpg-cards');
                 main.appendChild(grid);
                 for (const character of party) card(grid, character);

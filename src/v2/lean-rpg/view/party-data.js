@@ -69,14 +69,19 @@ export function rpgBlocks(state, { roleOf = definition => definition?.role } = {
 
 const textOf = value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '');
 
-/** The skills a Skills block holds: `[{ slot, name, rank, rankName, practice }]`, empty slots left out. */
+/**
+ * The skills a Skills block holds: `[{ slot, name, about, stat, uses, rank, rankName, practice }]`, empty slots left out. `stat` is
+ * one of the seven stat keys and `uses` 'stamina' | 'mana' (null for a block made before they were fields).
+ */
 export function skillsOf(block) {
     const out = [];
     for (let slot = 1; slot <= SKILL_SLOTS; slot += 1) {
         const name = textOf(block.fields[`skill${slot}`]);
         if (!name) continue;
         const rank = whole(block.fields[`rank${slot}`]);
-        out.push({ slot, name, rank, rankName: rankName(block.definition.state?.[`rank${slot}`], rank), practice: whole(block.fields[`practice${slot}`]) });
+        const stat = textOf(block.fields[`stat${slot}`]).toLowerCase(), uses = textOf(block.fields[`uses${slot}`]).toLowerCase();
+        out.push({ slot, name, about: textOf(block.fields[`about${slot}`]), stat: STATS.includes(stat) ? stat : null, uses: uses === 'mana' || uses === 'stamina' ? uses : null,
+            rank, rankName: rankName(block.definition.state?.[`rank${slot}`], rank), practice: whole(block.fields[`practice${slot}`]) });
     }
     return out;
 }

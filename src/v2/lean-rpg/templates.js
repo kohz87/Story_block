@@ -2,8 +2,9 @@
 // chooser offers while the Lean RPG feature is on (Blocks → New block → from a template). Each carries a `role`
 // (see ROLES in index.js) and keeps the field keys the RPG reads. Stage fields are indexes (0 = empty) with
 // `names` from STAGES; Soul Class and ranks are numbers with names. The block engine adds three things these
-// use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists.
-import { STATS, STAGES } from './index.js';
+// use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists. The Skills block's rank and practice
+// are `edit: false` (they only move through play); SKILL_SETS are the New character wizard's built-in skill sets.
+import { CREATION, STATS, STAGES, USES } from './index.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));
 const HEALTH = names(STAGES.health);
@@ -14,7 +15,7 @@ const RANK = names(['Novice', 'Adept', 'Expert', 'Master']);
 const SKILLS = [1, 2, 3, 4, 5];
 const SLOTS = [1, 2, 3, 4];
 
-const text = (label, max = 40) => ({ type: 'text', max, default: '', label });
+const text = (label, max = CREATION.skillName) => ({ type: 'text', max, default: '', label });
 const int = (label, min, max, value, extra = {}) => ({ type: 'int', min, max, default: value, label, ...extra });
 const range = (min, max) => ({ type: 'int', min, max });
 const get = field => ['get', [field]];
@@ -30,10 +31,11 @@ const COMBAT = [
 
 const character = {
     slug: 'character', name: 'Character', role: 'character', schema: 1, stateVersion: 1, scope: 'chat',
-    prompt: 'One character: health, mana and stamina (words, shown as bars), seven stats from 1 to 20, unspent points, Soul Class I to IX and XP to 100. The narrator sets health, mana, stamina, XP and whether the character is alive. The reader sets stats and points. XP at 100 raises the Soul Class by one, up to IX.',
+    prompt: 'One character: who they are, health, mana and stamina (words, shown as bars), seven stats from 1 to 20, unspent points, Soul Class I to IX and XP to 100. The narrator sets health, mana, stamina, XP and whether the character is alive. The reader sets stats and points. XP at 100 raises the Soul Class by one, up to IX.',
     show: { tab: true, card: false, tabName: 'Character', icon: 'ph-user' },
     state: {
         who: text('Name'),
+        about: text('Who they are', CREATION.about),
         health: int('Health', 0, 5, 5, { names: HEALTH }),
         mana: int('Mana', 0, 4, 4, { names: MANA }),
         stamina: int('Stamina', 0, 4, 4, { names: STAMINA }),
@@ -68,19 +70,23 @@ const character = {
 
 const skills = {
     slug: 'skills', name: 'Skills', role: 'skills', schema: 1, stateVersion: 1, scope: 'chat',
-    prompt: 'Up to five skills for one character. Each has a rank (Novice, Adept, Expert, Master) and practice from 0 to 100. The narrator names a skill with a learn line and adds practice. At 100 practice the rank rises by one and practice starts again at 0; a Master stays at 100.',
+    prompt: 'Up to five skills for one character. Each has a description, the stat it rolls with, what it uses (stamina or mana), a rank (Novice, Adept, Expert, Master) and practice from 0 to 100. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. At 100 practice the rank rises by one and practice starts again at 0; a Master stays at 100.',
     show: { tab: true, card: false, tabName: 'Skills', icon: 'ph-book-open' },
     state: {
         who: text('Name'),
         ...Object.fromEntries(SKILLS.flatMap(n => [
             [`skill${n}`, text(`Skill ${n}`)],
-            [`rank${n}`, int(`Rank ${n}`, 0, 3, 0, { names: RANK })],
-            [`practice${n}`, int(`Practice ${n}`, 0, 100, 0)],
+            [`about${n}`, text(`About ${n}`, CREATION.skillAbout)],
+            [`stat${n}`, { type: 'enum', values: [...STATS], default: STATS[0], label: `Stat ${n}` }],
+            [`uses${n}`, { type: 'enum', values: [...USES], default: USES[0], label: `Uses ${n}` }],
+            [`rank${n}`, int(`Rank ${n}`, 0, 3, 0, { names: RANK, edit: false })],
+            [`practice${n}`, int(`Practice ${n}`, 0, 100, 0, { edit: false })],
         ])),
     },
     kinds: Object.fromEntries(SKILLS.flatMap(n => [
-        [`learn-${n}`, { op: '~', labels: { name: { type: 'text', max: 40 } },
-            effects: [{ op: 'set', path: [`skill${n}`], value: ['arg', 'name'] }] }],
+        [`learn-${n}`, { op: '~', labels: { name: { type: 'text', max: CREATION.skillName }, about: { type: 'text', max: CREATION.skillAbout }, stat: { type: 'enum', values: [...STATS] }, uses: { type: 'enum', values: [...USES] } },
+            effects: [{ op: 'set', path: [`skill${n}`], value: ['arg', 'name'] }, { op: 'set', path: [`about${n}`], value: ['arg', 'about'] },
+                { op: 'set', path: [`stat${n}`], value: ['arg', 'stat'] }, { op: 'set', path: [`uses${n}`], value: ['arg', 'uses'] }] }],
         [`practice-${n}`, { op: '+', labels: { amount: range(1, 20) },
             when: ['ne', get(`skill${n}`), ''], refusal: 'Name the skill before it can be practised.',
             effects: [{ op: 'add', path: [`practice${n}`], value: ['arg', 'amount'], bounds: 'clamp' }] }],
@@ -123,4 +129,34 @@ export const LEAN_RPG_TEMPLATES = Object.freeze([
     { name: 'Skills', definition: skills },
     { name: 'Foes', definition: foes },
     { name: 'Combat rules', definition: combat },
+]);
+
+const skill = (name, stat, about, uses = 'stamina') => ({ name, about, stat, uses });
+
+/**
+ * The New character wizard's built-in skill sets (mockup section 4): three skills each, with what the skill does, the stat it
+ * rolls with and what it uses. A pack adds more through `content.leanRpg.skillSets` (same shape, plus its pack id).
+ * Ranks are not part of a set: the wizard starts every skill at Novice, one of them at Adept if the reader says so.
+ */
+export const SKILL_SETS = Object.freeze([
+    { id: 'guild-fighter', name: 'Guild fighter', about: 'Drill-yard basics: a blade, the breathing drill that keeps you standing, a shield.', skills: [
+        skill('Short blade', 'agi', 'Quick cuts and guards with a long knife or short sword.'),
+        skill('Iron Breath', 'vit', 'The drill-yard breathing that keeps you on your feet when you are spent.'),
+        skill('Shield work', 'str', 'Holding a line behind a shield: blocking, bracing and shoving back.')] },
+    { id: 'river-scout', name: 'River scout', about: 'At home on barges and banks: ropes, cold water, reading tracks in mud.', skills: [
+        skill('Rope work', 'dex', 'Knots, climbing, hauling, and throwing a line true.'),
+        skill('Swimming', 'vit', 'Cold water, currents, and getting a crewmate out alive.'),
+        skill('Tracking', 'int', 'Reading prints, broken reeds and old fires to know who passed and when.')] },
+    { id: 'hedge-mage', name: 'Hedge mage', about: 'Self-taught small magic: a spark, a ward, and what the old books say.', skills: [
+        skill('Spark', 'int', 'A small bright burst of magic that startles, lights and singes.', 'mana'),
+        skill('Ward', 'int', 'A shimmer of force that turns a blow aside for a moment.', 'mana'),
+        skill('Lore', 'int', 'What the old books say about creatures, places and odd magic.')] },
+    { id: 'field-medic', name: 'Field medic', about: 'Keeps the party alive: bandages, herbs, a steady voice.', skills: [
+        skill('Mending', 'dex', 'Bandaging, splinting and stitching a wound fast and clean.'),
+        skill('Herbs', 'int', 'Knowing which plants heal, which poison and where they grow.'),
+        skill('Calm', 'cha', 'A steady voice that settles the frightened and the hurt.')] },
+    { id: 'silver-tongue', name: 'Silver tongue', about: 'Talks the party in and out of things, and pays less for it.', skills: [
+        skill('Persuade', 'cha', 'Winning someone round with a good argument and a warm manner.'),
+        skill('Read people', 'int', 'Spotting a lie, a worry or a hidden rank from small signs.'),
+        skill('Haggle', 'cha', 'Bargaining a price down, or a favour up.')] },
 ]);

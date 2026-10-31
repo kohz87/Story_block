@@ -11,7 +11,7 @@ test('characters come from the blocks whose role is character, skills join the c
     assert.deepEqual(sheet.characters.map(entry => entry.who), ['Ren', 'Wessel'], 'in block order (by module id)');
     const wessel = sheet.characters.find(entry => entry.who === 'Wessel');
     assert.deepEqual([wessel.health, wessel.mana, wessel.stamina, wessel.soul, wessel.stats.str, wessel.stats.cha, wessel.alive], [5, 4, 4, 2, 14, 10, true]);
-    assert.deepEqual(wessel.skills, [{ slot: 1, name: 'Iron Breath', rank: 1, practice: 0 }, { slot: 2, name: 'Spark', rank: 0, practice: 0 }]);
+    assert.deepEqual(wessel.skills, [{ slot: 1, name: 'Iron Breath', about: '', rank: 1, practice: 0, stat: 'str', uses: 'stamina' }, { slot: 2, name: 'Spark', about: '', rank: 0, practice: 0, stat: 'int', uses: 'mana' }]);
     assert.deepEqual(sheet.characters[0].skills.map(skill => skill.name), ['Spark']);
     assert.equal(sheet.foes.length, 4);
     assert.deepEqual(sheet.foes[0], { slot: 1, module: 'pack.chat/foes', name: 'Sluice Rats', count: 6, class: 1, hurt: 5, filled: true });
@@ -37,7 +37,15 @@ test('a missing number reads as null (a stat) or a plain default (soul 1, rank 0
     const sheet = read({ a: { role: 'character', fields: { who: 'Pip', str: 12, alive: false } }, s: { role: 'skills', fields: { who: 'Pip', skill1: 'Hide' } } });
     const [pip] = sheet.characters;
     assert.deepEqual([pip.stats.str, pip.stats.dex, pip.soul, pip.health, pip.alive], [12, null, 1, null, false]);
-    assert.deepEqual(pip.skills, [{ slot: 1, name: 'Hide', rank: 0, practice: 0 }]);
+    assert.deepEqual(pip.skills, [{ slot: 1, name: 'Hide', about: '', rank: 0, practice: 0, stat: null, uses: null }], 'a Skills block with no stat or uses fields reads them as null');
+});
+
+test('a skill carries its description, its own stat and what it uses; a word that is not a stat or a resource reads as null', () => {
+    const sheet = read({
+        a: { role: 'character', fields: character('Pip') },
+        s: { role: 'skills', fields: { ...skillBlock('Pip', [['Hide', 2, 'dex', 'stamina', 'Staying unseen in shadow.'], ['Spark', 0, 'int', 'mana', '  A small   burst. ']]), stat3: 'wis', skill3: 'Odd', uses3: 'rage' } } });
+    assert.deepEqual(sheet.characters[0].skills.map(skill => [skill.name, skill.about, skill.stat, skill.uses, skill.rank]),
+        [['Hide', 'Staying unseen in shadow.', 'dex', 'stamina', 2], ['Spark', 'A small burst.', 'int', 'mana', 0], ['Odd', '', null, null, 0]]);
 });
 
 test('fold: lower case, spaces and hyphens gone', () => {
