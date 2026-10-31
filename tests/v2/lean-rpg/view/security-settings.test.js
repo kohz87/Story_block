@@ -36,7 +36,7 @@ test('names from the story are text on the cards and in the battle log', () => {
     assert.ok(el.textContent.includes(MARK), 'shown as text');
     assert.equal(el.querySelectorAll('img, script, iframe, style, a').length, 0);
     assert.equal(el.querySelectorAll('b').filter(node => node.children.length).length, 0, 'a <b> holds only text');
-    const model = panelModel({ resolve: readResolve({ rounds: [{ actions: [{ who: MARK, target: MARK, skill: MARK, outcome: 'success', total: 1, vs: 1 }] }] }), state, before: state, roleOf });
+    const model = panelModel({ resolve: readResolve({ rounds: [{ n: 1, lines: [{ kind: 'act', outcome: 'success', skill: MARK, why: MARK, pc: { who: MARK, die: 1, stat: 'str', statBonus: 1, classValue: 1, classBonus: 2, rank: 0, edge: 0, total: 4 }, foe: { slot: 1, name: MARK, die: 1, base: 5, classValue: 1, classBonus: 2, total: 8 } }] }] }), state, before: state, roleOf });
     const panel = buildPanel(doc, model);
     assert.ok(panel.textContent.includes(MARK));
     assert.equal(panel.querySelectorAll('img, script, iframe, style, a').length, 0);
@@ -44,14 +44,14 @@ test('names from the story are text on the cards and in the battle log', () => {
 });
 
 test('the Lean RPG fold: Rolls is automatic until the reader says off; it hides with the feature', () => {
-    const store = { rolls: undefined };
-    const settings = Object.assign(id => (id === 'story-block' ? { ...(store.rolls ? { rolls: store.rolls } : {}) } : {}), {
+    const store = { leanRpgRolls: undefined };
+    const settings = Object.assign(id => (id === 'story-block' ? { ...(store.leanRpgRolls ? { leanRpgRolls: store.leanRpgRolls } : {}) } : {}), {
         set: (id, key, value) => { store[key] = value; return value; }, stored: () => store,
     });
     assert.equal(rollsOf(settings), ROLLS_DEFAULT);
-    assert.equal(rollsOf(() => ({ rolls: 'off' })), 'off');
-    assert.equal(rollsOf(() => ({ rolls: 'maybe' })), 'automatic', 'an unknown value is the default');
-    assert.deepEqual(LEAN_RPG_SCHEMA.rolls.options.map(option => option.value), ['automatic', 'off']);
+    assert.equal(rollsOf(() => ({ leanRpgRolls: 'off' })), 'off');
+    assert.equal(rollsOf(() => ({ leanRpgRolls: 'maybe' })), 'automatic', 'an unknown value is the default');
+    assert.deepEqual(LEAN_RPG_SCHEMA.leanRpgRolls.options.map(option => option.value), ['automatic', 'off']);
     const doc = setupDom(), pane = doc.createElement('div');
     doc.body.appendChild(pane);
     let on = true;
@@ -59,7 +59,8 @@ test('the Lean RPG fold: Rolls is automatic until the reader says off; it hides 
     const radios = pane.querySelectorAll('[role="radio"]');
     assert.equal(radios[0].getAttribute('aria-checked'), 'true');
     radios[1].click();
-    assert.equal(store.rolls, 'off');
+    assert.equal(store.leanRpgRolls, 'off');
+    assert.equal(rollsOf(settings), 'off');
     assert.equal(body.filter('rolls'), 1);
     assert.equal(body.filter('nothing like it'), 0);
     assert.equal(body.el.hidden, true, 'a search that does not match hides it');

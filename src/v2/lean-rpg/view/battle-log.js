@@ -8,12 +8,12 @@
 // Nothing the panel shows is stored in the chat text: it is read from the record and the state each time, so a swipe,
 // a delete, a Re-read and a reload agree. Every node is built with createElement and textContent.
 //
-// A's result record, as this file reads it (`readResolve`, one small adapter; A's field names are matched loosely):
-//   { exchanges?, order?: [name], ended?: 'Victory',
-//     rounds: [{ n, actions: [{ who, target, skill?, stat?, foe?, outcome: 'success'|'cost'|'fail', total, vs,
-//                               mine?: { d20, parts: [{ label, value }], total }, theirs?: { … }, breakdown? }] }],
-//     checks: [{ who, skill?, stat, what?, total, vs, outcome, mine?, theirs?, breakdown? }],
-//     refused: [{ who, reason }] }
+// A's result record (`data.v2.result` of the `rpg.resolve` receipt; see the header of lean-rpg/resolve.js), as `readResolve` reads it:
+//   { v: 1, key, pace, stop, checks: [Line], rounds: [{ n, decisive, lines: [Line] }], refused: [{ who, text }], summary: { exchanges, acts, refused } }
+//   Line = { kind: 'act' | 'foe' | 'check', outcome: 'success' | 'cost' | 'fail', skill: string | null, why?,
+//            pc: { who, die, stat, statBonus, classValue, classBonus, rank, edge, total },
+//            foe?: { slot, name, die, base, classValue, classBonus, total }, difficulty?, dc? }
+// For a 'foe' line `pc` is the defender. The numbers read the party's total against the foe's total (or the DC).
 
 import { RESOLVE } from '../index.js';
 import { readRecord } from '../../persist.js';
@@ -21,6 +21,9 @@ import { RPG_STRINGS, fill } from '../strings.js';
 import { BARS, readFoes, readParty } from './party-data.js';
 
 const B = RPG_STRINGS.battle;
+// The names the rolls piece exports (lean-rpg/names.js); kept here so this file stands on its own until the pieces are merged.
+const RANK_NAMES = ['Novice', 'Adept', 'Expert', 'Master'];
+const CLASS_NAMES = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 export const BATTLE_ROOT = 'rpg-battle';
 export const BATTLE_ID = 'lean-rpg/battle-log';
 /** The narrator's marker: a line of its own. (turn.js strips the same line from the prompt history.) */
@@ -31,60 +34,57 @@ const RECENT_MESSAGES = 30;
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const list = value => (Array.isArray(value) ? value : []);
 const words = (value, max = 80) => (typeof value === 'string' || typeof value === 'number' ? String(value).replace(/\s+/g, ' ').trim().slice(0, max) : '');
-const total = value => {
-    const n = isRecord(value) ? value.total : value;
-    return Number.isFinite(n) ? n : null;
-};
 
-/** 'success' | 'cost' | 'fail' | '' for the words A may use for an outcome. */
-export function outcomeOf(raw) {
-    const text = words(raw).toLowerCase();
-    if (!text) return '';
-    if (/cost/.test(text)) return 'cost';
-    if (/fail|miss/.test(text)) return 'fail';
-    if (/succ|hit/.test(text)) return 'success';
-    return '';
-}
+/** 'success' | 'cost' | 'fail' | '' for an outcome. */
+export const outcomeOf = raw => (raw === 'success' || raw === 'cost' || raw === 'fail' ? raw : '');
 
 /** "d20 14 + STR 7 + Class II 4 + Adept 1 = 26" from a roll `{ d20, parts, total }`; '' when there is nothing to show. */
 export function rollText(roll) {
     if (!isRecord(roll)) return '';
-    const d20 = Number.isFinite(roll.d20) ? `d20 ${roll.d20}` : '';
-    const parts = list(roll.parts).filter(part => isRecord(part) && Number.isFinite(part.value) && part.value !== 0)
-        .map(part => `${words(part.label, 24)} ${Math.abs(part.value)}`.trim());
-    const signs = list(roll.parts).filter(part => isRecord(part) && Number.isFinite(part.value) && part.value !== 0).map(part => (part.value < 0 ? '−' : '+'));
-    const body = [d20, ...parts.map((part, at) => (d20 || at ? `${signs[at]} ${part}` : part))].filter(Boolean).join(' ');
+    const parts = list(roll.parts).filter(part => isRecord(part) && Number.isFinite(part.value) && part.value !== 0);
+    const terms = parts.map(part => `${words(part.label, 24)} ${Math.abs(part.value)}`.trim());
+    const body = [Number.isFinite(roll.d20) ? `d20 ${roll.d20}` : '', ...terms.map((term, at) => (Number.isFinite(roll.d20) || at ? `${parts[at].value < 0 ? '−' : '+'} ${term}` : term))].filter(Boolean).join(' ');
     const sum = Number.isFinite(roll.total) ? ` = ${roll.total}` : '';
     return body ? `${body}${sum}` : '';
 }
 
-function actionOf(raw) {
-    if (!isRecord(raw)) return null;
-    const who = words(raw.who ?? raw.actor ?? raw.attacker, 40);
-    if (!who) return null;
-    const mine = raw.mine ?? raw.roll, theirs = raw.theirs ?? raw.opposed;
-    const breakdown = words(raw.breakdown, 240) || [rollText(mine), rollText(theirs)].filter(Boolean).join(' vs ');
-    return {
-        who, target: words(raw.target ?? raw.defender, 40), skill: words(raw.skill, 40), stat: words(raw.stat, 12).toUpperCase(),
-        foe: raw.foe === true || raw.side === 'foe', outcome: outcomeOf(raw.outcome ?? raw.result),
-        total: total(raw.total ?? mine), vs: total(raw.vs ?? raw.against ?? theirs), breakdown, arrows: [],
-    };
+// The party side of a Line: the die, the stat, the class, the skill's rank and the edge.
+const pcRoll = (pc, skill) => ({ d20: pc.die, total: pc.total, parts: [
+    { label: words(pc.stat, 12).toUpperCase(), value: pc.statBonus }, { label: `Class ${CLASS_NAMES[pc.classValue - 1] ?? pc.classValue}`, value: pc.classBonus },
+    { label: skill ? RANK_NAMES[pc.rank] ?? `Rank ${pc.rank}` : '', value: pc.rank }, { label: 'Edge', value: pc.edge }] });
+const foeRoll = foe => ({ d20: foe.die, total: foe.total, parts: [{ label: '', value: foe.base }, { label: `Class ${CLASS_NAMES[foe.classValue - 1] ?? foe.classValue}`, value: foe.classBonus }] });
+
+// One Line as the panel draws it: who acts, on whom, the party's total against the other side's, and the roll behind it.
+function lineOf(raw) {
+    if (!isRecord(raw) || !isRecord(raw.pc) || !Number.isFinite(raw.pc.total)) return null;
+    const outcome = outcomeOf(raw.outcome);
+    const foeSide = isRecord(raw.foe) && Number.isFinite(raw.foe.total) ? raw.foe : null;
+    const skill = words(raw.skill, 40), why = words(raw.why, 120);
+    const mine = pcRoll(raw.pc, skill && raw.kind !== 'foe');
+    const against = raw.kind === 'check' ? (Number.isFinite(raw.dc) ? raw.dc : null) : foeSide?.total ?? null;
+    const detail = [rollText(mine), foeSide ? rollText(foeRoll(foeSide)) : against !== null ? `DC ${against}` : ''].filter(Boolean).join(' vs ');
+    const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: why ? `${detail} · ${why}` : detail, arrows: [] };
+    if (raw.kind === 'foe') return { ...base, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
+    if (raw.kind === 'check') return { ...base, who: words(raw.pc.who, 40), target: '', stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, what: skill || words(raw.pc.stat, 12).toUpperCase() };
+    return { ...base, who: words(raw.pc.who, 40), target: words(foeSide?.name, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false };
 }
 
 /**
  * A's result record as the panel draws it: `{ rounds: [{ n, lines }], checks, order, ended, refused }` or null when the
- * record holds nothing to show. Anything unreadable is left out, never thrown.
+ * record holds nothing to show. A Line that is not whole is left out, never thrown on.
  */
 export function readResolve(result) {
     if (!isRecord(result)) return null;
     const rounds = list(result.rounds).map((round, at) => ({
-        n: Number.isSafeInteger(round?.n ?? round?.round) ? round.n ?? round.round : at + 1,
-        lines: list(round?.actions ?? round?.lines ?? round?.acts).map(actionOf).filter(Boolean),
+        n: Number.isSafeInteger(round?.n) ? round.n : at + 1,
+        lines: list(round?.lines).map(lineOf).filter(line => line?.who),
     })).filter(round => round.lines.length);
-    const checks = list(result.checks).map(actionOf).filter(Boolean).map(check => ({ ...check, what: check.skill || check.stat }));
-    const refused = list(result.refused).filter(isRecord).map(item => ({ who: words(item.who, 40), why: words(item.reason ?? item.why, 120) })).filter(item => item.who);
+    const checks = list(result.checks).map(lineOf).filter(line => line?.who);
+    const refused = list(result.refused).filter(isRecord).map(item => ({ who: words(item.who, 40), why: words(item.text, 160) })).filter(item => item.why);
     if (!rounds.length && !checks.length) return null;
-    return { rounds, checks, refused, order: list(result.order).map(name => words(name, 40)).filter(Boolean), ended: words(result.ended, 40) };
+    // The order they act in: the names of the first round, each once.
+    const order = [...new Set(rounds[0]?.lines.map(line => line.who) ?? [])];
+    return { rounds, checks, refused, order, ended: '' };
 }
 
 /** The recorded rolls of a reply's record: the result of its `rpg.resolve` receipt that the replay kept, or null. */
@@ -240,7 +240,7 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
         for (const line of round.lines) box.appendChild(lineNode(doc, line));
         body.appendChild(box);
     }
-    for (const item of model.refused) body.appendChild(el(doc, 'p', 'rpg-bl-note', fill(B.refused, { who: item.who, why: item.why })));
+    for (const item of model.refused) body.appendChild(el(doc, 'p', 'rpg-bl-note', fill(B.refused, { why: item.why })));
     if (model.ended) body.appendChild(el(doc, 'p', 'rpg-bl-ended', fill(B.ended, { how: model.ended })));
     if (model.rounds.length && model.status.length) {
         const status = el(doc, 'div', 'rpg-bl-status');

@@ -1,6 +1,6 @@
 // Settings → Lean RPG: a small fold on the Features page with "Rolls: Automatic / Off". It shows only while the feature
-// `story-block.lean-rpg` is on. The value is `rolls` in Story Block's own settings (`settings.set('story-block', 'rolls', …)`);
-// the rolls piece owns what it means ('automatic' is the default). The fold is drawn by the form engine, so the field
+// `story-block.lean-rpg` is on. The value is `leanRpgRolls` in Story Block's own settings (`settings.set('story-block',
+// 'leanRpgRolls', …)`, ROLLS_SETTING in lean-rpg/names.js); the rolls piece owns what it means ('automatic' is the default). The fold is drawn by the form engine, so the field
 // has its label, help, a radio group and the same save path as every other setting. Every node is built with createElement.
 
 import { renderSettingsForm } from '../../view/form/form.js';
@@ -8,19 +8,21 @@ import { RPG_STRINGS } from '../strings.js';
 
 const S = RPG_STRINGS.settings;
 export const ROLLS_DEFAULT = 'automatic';
+/** The setting's key (the rolls piece's ROLLS_SETTING). */
+export const ROLLS_KEY = 'leanRpgRolls';
 export const SETTINGS_MODULE = 'story-block';
 export const SETTINGS_FOLD = 'lean-rpg';
 
 /** The one field the fold draws. */
 export const LEAN_RPG_SCHEMA = Object.freeze({
-    rolls: Object.freeze({
+    [ROLLS_KEY]: Object.freeze({
         type: 'choice', form: 'chips', label: S.rolls, help: S.rollsHelp,
         options: Object.freeze([Object.freeze({ value: 'automatic', label: S.automatic }), Object.freeze({ value: 'off', label: S.off })]),
     }),
 });
 
 /** The reader's choice: 'automatic' or 'off'. */
-export const rollsOf = settings => (settings?.(SETTINGS_MODULE)?.rolls === 'off' ? 'off' : ROLLS_DEFAULT);
+export const rollsOf = settings => (settings?.(SETTINGS_MODULE)?.[ROLLS_KEY] === 'off' ? 'off' : ROLLS_DEFAULT);
 
 /**
  * Draws the fold into `parent`. Options: `settings` (the store: `settings(id)`, `settings.set(id, key, value)`), `doc`,
@@ -39,8 +41,8 @@ export function renderLeanRpgSettings(parent, { settings, doc = parent.ownerDocu
     const body = doc.createElement('div');
     el.append(summary, hint, body);
     parent.appendChild(el);
-    // The store as the form reads it: `rolls` is 'automatic' until the reader says otherwise.
-    const read = Object.assign(id => ({ ...(id === SETTINGS_MODULE ? { rolls: ROLLS_DEFAULT } : {}), ...settings(id) }), { set: settings.set, stored: settings.stored });
+    // The store as the form reads it: `leanRpgRolls` is 'automatic' until the reader says otherwise.
+    const read = Object.assign(id => ({ ...(id === SETTINGS_MODULE ? { [ROLLS_KEY]: ROLLS_DEFAULT } : {}), ...settings(id) }), { set: settings.set, stored: settings.stored });
     const form = renderSettingsForm(body, { moduleId: SETTINGS_MODULE, schema: LEAN_RPG_SCHEMA, settings: read, doc, quiet: true, onChange: () => onChange() });
     const place = () => { el.hidden = !featureOn(); };
     place();

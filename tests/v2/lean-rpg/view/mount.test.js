@@ -178,7 +178,7 @@ test('Settings has the Lean RPG fold while the feature is on: Rolls automatic or
     assert.equal(radios[0].getAttribute('aria-checked'), 'true', 'automatic is the default');
     radios[1].click();
     await settle();
-    assert.equal(host.settings('story-block').rolls, 'off');
+    assert.equal(host.settings('story-block').leanRpgRolls, 'off');
     host.features.set(CORE_FEATURE.leanRpg, false);
     assert.ok(doc.querySelectorAll('.rpg-settings').every(node => node.hidden || !node.parentNode), 'off: the fold goes');
 });
@@ -195,7 +195,7 @@ test('"Changed this reply" tells the rolls and the rises', async t => {
     await setField(host, 'wessel', 'soul', 3);
     await setField(host, 'wessel-skills', 'rank1', 2);
     host.ctx.chat[head].extra.storySuite.receipts.push({ id: 'rc_rpg0001', type: RESOLVE, module: 'story-block', cause: 'system', summary: '', narrate: false, rev: 99,
-        data: { v2: { result: { summary: { exchanges: 3, acts: [{ who: 'Wessel', target: 'Sluice Rat A' }] }, rounds: [] } } } });
+        data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [{ kind: 'act', who: 'Wessel', target: 'Sluice Rat A', skill: null, stat: 'str', outcomes: ['success'] }], refused: 0 }, rounds: [] } } } });
     draw();
     ui.mounts.card.refresh(head, { force: true });
     const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
@@ -215,7 +215,7 @@ test('with the feature off the card is as it always was', async t => {
     await host.send('Begin.', 'Opening.');
     await host.send('Go.', 'The quay.');
     const head = host.store.headIndex();
-    host.ctx.chat[head].extra.storySuite.receipts.push({ id: 'rc_rpg0001', type: RESOLVE, module: 'story-block', cause: 'system', summary: '', narrate: false, rev: 99, data: { v2: { result: { exchanges: 3 } } } });
+    host.ctx.chat[head].extra.storySuite.receipts.push({ id: 'rc_rpg0001', type: RESOLVE, module: 'story-block', cause: 'system', summary: '', narrate: false, rev: 99, data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [], refused: 0 }, rounds: [] } } } });
     draw();
     ui.mounts.card.refresh(head, { force: true });
     assert.doesNotMatch(doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`).textContent, /Rolled for you|exchanges/);

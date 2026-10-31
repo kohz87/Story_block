@@ -16,7 +16,8 @@ const line = fields => ({ module: 'story-block', icon: 'fa-circle-info', text: '
 
 /**
  * What the reply's `rpg.resolve` receipt says it rolled: `{ exchanges, pairs }` ("Wessel vs Sluice Rat A") or null.
- * The rolls piece's summary is `{ exchanges, acts }`; a result with `rounds` is counted when it gives no summary.
+ * The rolls piece's summary is `result.summary = { exchanges, acts: [{ kind, who, target, … }] }` (`exchanges` = rounds told); a record
+ * without it is counted by its rounds.
  */
 export function exchangesOf(record, problems = []) {
     const skipped = new Set(list(problems).flatMap(problem => list(problem?.receipts)));
@@ -28,10 +29,10 @@ export function exchangesOf(record, problems = []) {
         const rounds = list(result.rounds);
         const exchanges = Number.isSafeInteger(summary.exchanges) ? summary.exchanges : rounds.length;
         if (!(exchanges > 0)) continue;
-        const acts = list(summary.acts).length ? list(summary.acts) : rounds.flatMap(round => list(round?.actions ?? round?.lines));
+        const acts = list(summary.acts);
         const pairs = [];
         for (const act of acts) {
-            if (!isRecord(act) || act.foe === true || act.side === 'foe') continue;
+            if (!isRecord(act) || act.kind !== 'act') continue;
             const who = words(act.who), target = words(act.target);
             const pair = who && target ? `${who} vs ${target}` : '';
             if (pair && !pairs.includes(pair)) pairs.push(pair);

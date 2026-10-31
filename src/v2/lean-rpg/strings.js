@@ -70,7 +70,7 @@ export const RPG_STRINGS = Object.freeze({
         down: 'Down',
         count: '×{n}',
         details: 'Show the roll behind {line}',
-        refused: '{who} could not act: {why}',
+        refused: '{why}',
         check: '{who} — {what}: {total} vs {against} — {outcome}',
     }),
     changes: Object.freeze({

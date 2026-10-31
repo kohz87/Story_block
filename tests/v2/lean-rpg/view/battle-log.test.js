@@ -13,16 +13,17 @@ import { characterDefinition, defineAll, fakeState, foesDefinition, roleOf, setF
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-// What the rolls piece records for a reply (see the adapter's note at the top of battle-log.js).
+// What the rolls piece records for a reply (data.v2.result, see lean-rpg/resolve.js).
+const pc = (who, stat, extra = {}) => ({ who, die: 10, stat, statBonus: 5, classValue: 2, classBonus: 4, rank: 0, edge: 0, total: 19, ...extra });
+const foe = (name, extra = {}) => ({ slot: 1, name, die: 9, base: 5, classValue: 1, classBonus: 2, total: 16, ...extra });
 const result = () => ({
-    order: ['Sluice Rat A', 'Wessel', 'Ren'],
-    rounds: [{ n: 2, actions: [
-        { who: 'Sluice Rat A', target: 'Wessel', foe: true, outcome: 'fail', total: 12, vs: 15 },
-        { who: 'Wessel', target: 'Sluice Rat A', skill: 'Iron Breath', stat: 'str', outcome: 'success', total: 26, vs: 16,
-            mine: { d20: 14, parts: [{ label: 'STR', value: 7 }, { label: 'Class II', value: 4 }, { label: 'Adept', value: 1 }], total: 26 },
-            theirs: { d20: 9, parts: [{ label: '', value: 5 }, { label: 'Class I', value: 2 }], total: 16 } },
-        { who: 'Ren', target: 'Sluice Rat B', skill: 'Spark', outcome: 'success at a cost', total: 17, vs: 18 },
+    v: 1, key: '3-abc', pace: 'normal', stop: 'pace', checks: [],
+    rounds: [{ n: 2, decisive: false, lines: [
+        { kind: 'foe', outcome: 'fail', skill: null, pc: pc('Wessel', 'agi', { die: 6, total: 12 }), foe: foe('Sluice Rat A', { die: 11, total: 15 }) },
+        { kind: 'act', outcome: 'success', skill: 'Iron Breath', pc: pc('Wessel', 'str', { die: 14, statBonus: 7, rank: 1, total: 26 }), foe: foe('Sluice Rat A', { total: 16 }) },
+        { kind: 'act', outcome: 'cost', skill: 'Spark', why: 'cornered', pc: pc('Ren', 'int', { total: 17, edge: -2 }), foe: foe('Sluice Rat B', { slot: 2, total: 18 }) },
     ] }],
+    refused: [], summary: { exchanges: 1, acts: [], refused: 0 },
 });
 const state = fields => fakeState([
     { definition: characterDefinition('wessel', 'Wessel'), fields: { health: 4, mana: 3, stamina: 2, ...fields.wessel } },
@@ -32,19 +33,22 @@ const state = fields => fakeState([
 const before = state({ wessel: { health: 5, mana: 3 }, ren: { stamina: 3 }, foes: { hurt1: 5, hurt2: 5 } });
 const after = state({ wessel: { health: 4 }, ren: { stamina: 2 }, foes: { hurt1: 2, hurt2: 3 } });
 
-test('the adapter reads A\'s record loosely and drops what it cannot read', () => {
+test('the adapter reads A\'s record: party total against foe total, who acts on whom, the roll behind each line', () => {
     const read = readResolve(result());
     assert.equal(read.rounds.length, 1);
     assert.deepEqual(read.rounds[0].lines.map(line => [line.who, line.target, line.outcome, line.total, line.vs, line.foe]),
         [['Sluice Rat A', 'Wessel', 'fail', 12, 15, true], ['Wessel', 'Sluice Rat A', 'success', 26, 16, false], ['Ren', 'Sluice Rat B', 'cost', 17, 18, false]]);
     assert.equal(read.rounds[0].lines[1].breakdown, 'd20 14 + STR 7 + Class II 4 + Adept 1 = 26 vs d20 9 + 5 + Class I 2 = 16');
-    assert.deepEqual(read.order, ['Sluice Rat A', 'Wessel', 'Ren']);
+    assert.equal(read.rounds[0].lines[2].breakdown, 'd20 10 + INT 5 + Class II 4 − Edge 2 = 17 vs d20 9 + 5 + Class I 2 = 18 · cornered');
+    assert.deepEqual(read.order, ['Sluice Rat A', 'Wessel', 'Ren'], 'the order of the first round');
     assert.equal(readResolve(null), null);
-    assert.equal(readResolve({ rounds: [{ actions: [{ nothing: true }] }] }), null);
-    const odd = readResolve({ rounds: [{ round: 3, lines: [{ actor: 'Wessel', defender: 'Rat', result: 'HIT', vs: { total: 9 }, roll: { total: 20 } }] }], checks: [{ who: 'Ren', stat: 'dex', skill: 'Stealth', outcome: 'Fail', total: 8, vs: 12 }] });
-    assert.deepEqual(odd.rounds[0], { n: 3, lines: [{ who: 'Wessel', target: 'Rat', skill: '', stat: '', foe: false, outcome: 'success', total: 20, vs: 9, breakdown: '', arrows: [] }] });
-    assert.equal(odd.checks[0].what, 'Stealth');
-    assert.deepEqual(['SUCCESS', 'Success at a cost', 'SUCCESS AT A COST', 'Fail', 'miss', 'maybe', ''].map(outcomeOf), ['success', 'cost', 'cost', 'fail', 'fail', '', '']);
+    assert.equal(readResolve({ rounds: [{ n: 1, lines: [{ kind: 'act', outcome: 'success' }] }] }), null, 'a line without its roll is left out');
+    assert.equal(readResolve({ rounds: [], checks: [] }), null);
+    const checked = readResolve({ checks: [{ kind: 'check', outcome: 'fail', skill: 'Stealth', difficulty: 'hard', dc: 20, pc: pc('Ren', 'dex', { total: 8 }) }], rounds: [], refused: [{ who: 'Ren', text: 'Ren is Down.' }] });
+    assert.deepEqual([checked.checks[0].who, checked.checks[0].what, checked.checks[0].total, checked.checks[0].vs, checked.checks[0].outcome], ['Ren', 'Stealth', 8, 20, 'fail']);
+    assert.match(checked.checks[0].breakdown, /vs DC 20$/);
+    assert.deepEqual(checked.refused, [{ who: 'Ren', why: 'Ren is Down.' }]);
+    assert.deepEqual(['success', 'cost', 'fail', 'SUCCESS', 'maybe', undefined].map(outcomeOf), ['success', 'cost', 'fail', '', '', '']);
 });
 
 test('the breakdown text: the d20 and each term, then the other side', () => {
@@ -54,7 +58,7 @@ test('the breakdown text: the d20 and each term, then the other side', () => {
 });
 
 test('resolveOf takes the rpg.resolve receipt the replay kept, not one it skipped', () => {
-    const record = { receipts: [{ id: 'a', type: 'inventory.add' }, { id: 'b', type: RESOLVE, data: { v2: { result: result() } } }] };
+    const record = { receipts: [{ id: 'a', type: 'inventory.add' }, { id: 'b', type: RESOLVE, summary: '[Rolls] cue', data: { v2: { result: result() } } }] };
     assert.equal(resolveOf(record).rounds.length, 1);
     assert.equal(resolveOf(record, [{ receipts: ['b'] }]), null);
     assert.equal(resolveOf({ receipts: [] }), null);
@@ -101,7 +105,7 @@ test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, a
     assert.equal(node.querySelector('.rpg-bl-foes').textContent, 'FoesSluice Rat A: Wounded · Sluice Rat B: Hurt · Sluice Rats ×4: Unhurt');
 });
 
-test('the breakdown is on tap; a line with none is not a toggle', () => {
+test('the breakdown is on tap, for every line', () => {
     const { node } = panel();
     const [rat, wessel, ren] = node.querySelectorAll('.rpg-act');
     const line = wessel.querySelector('.rpg-act-line'), why = wessel.querySelector('.rpg-why');
@@ -113,8 +117,8 @@ test('the breakdown is on tap; a line with none is not a toggle', () => {
     assert.equal(line.getAttribute('aria-expanded'), 'true');
     line.click();
     assert.equal(why.hidden, true);
-    assert.equal(rat.querySelector('.rpg-why'), null);
-    assert.equal(ren.querySelector('.rpg-why'), null);
+    assert.match(rat.querySelector('.rpg-why').textContent, /^d20 6 \+ AGI 5 \+ Class II 4 = 12 vs d20 11 \+ 5 \+ Class I 2 = 15$/, 'a foe\'s attack: the defender\'s roll first');
+    assert.match(ren.querySelector('.rpg-why').textContent, / · cornered$/);
 });
 
 test('the header folds the panel and says so', () => {
@@ -134,11 +138,13 @@ test('the header folds the panel and says so', () => {
 
 test('a check is one line, the breakdown on tap', () => {
     const doc = setupDom();
-    const model = panelModel({ resolve: readResolve({ checks: [{ who: 'Wessel', skill: 'Stealth', stat: 'dex', outcome: 'success', total: 19, vs: 15, breakdown: 'd20 12 + DEX 5 + 2 = 19' }] }), state: after, before, roleOf });
+    const model = panelModel({ resolve: readResolve({ checks: [{ kind: 'check', outcome: 'success', skill: 'Stealth', difficulty: 'normal', dc: 15, pc: pc('Wessel', 'dex', { die: 12, statBonus: 5, classBonus: 2, total: 19 }) }], rounds: [] }), state: after, before, roleOf });
     const node = buildPanel(doc, model);
     assert.equal(node.querySelector('.rpg-bl-title').textContent, 'Check');
     assert.equal(node.querySelector('.rpg-act-text').textContent, 'Wessel — Stealth: 19 vs 15 — Success');
     assert.equal(node.querySelectorAll('.rpg-bl-status').length, 0, 'no fight, no status');
+    node.querySelector('.rpg-act-line').click();
+    assert.match(node.querySelector('.rpg-why').textContent, /d20 12 \+ DEX 5 \+ Class II 2 = 19 vs DC 15/);
 });
 
 // ---- the marker in a drawn message ----
@@ -297,6 +303,8 @@ test('the marker line leaves the prompt history; the text around it stays', () =
     assert.equal(stripBattleMarker('A.\n[battle]'), 'A.\n');
     assert.equal(stripBattleMarker('He loved a [battle] cry.\nNo marker here.'), 'He loved a [battle] cry.\nNo marker here.');
     assert.equal(stripBattleMarker('Plain.'), 'Plain.');
+    const cue = '[Rolls] Code rolled these. Tell them in this order and as given, and never invent a roll; write [battle] on its own line where the fight is told.';
+    assert.equal(stripBattleMarker(`${cue}\nRound 1: Wessel hits.`), `${cue}\nRound 1: Wessel hits.`, 'the cue mentions the marker mid-sentence: not touched');
     assert.equal(stripBattleMarker(7), 7);
 });
 

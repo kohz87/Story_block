@@ -15,7 +15,8 @@ const record = (...receipts) => ({ receipts });
 const rolled = result => ({ id: 'r1', type: RESOLVE, data: { v2: { result } } });
 
 test('"Rolled for you": the exchanges from the reply summary, who fought whom, and where it is told', () => {
-    const summary = record(rolled({ summary: { exchanges: 3, acts: [{ who: 'Wessel', target: 'Sluice Rat A' }, { who: 'Sluice Rat A', target: 'Wessel', foe: true }, { who: 'Wessel', target: 'Sluice Rat A' }] } }));
+    const act = (kind, who, target) => ({ kind, who, target, skill: null, stat: 'str', outcomes: ['success'] });
+    const summary = record(rolled({ v: 1, summary: { exchanges: 3, refused: 0, acts: [act('act', 'Wessel', 'Sluice Rat A'), act('foe', 'Sluice Rat A', 'Wessel'), act('act', 'Wessel', 'Sluice Rat A'), act('check', 'Ren', undefined)] } }));
     assert.deepEqual(exchangesOf(summary), { exchanges: 3, pairs: ['Wessel vs Sluice Rat A'] });
     const lines = rpgReplyLines({ state: world(), before: world(), record: summary, roleOf });
     assert.equal(lines.length, 1);
@@ -24,14 +25,14 @@ test('"Rolled for you": the exchanges from the reply summary, who fought whom, a
     assert.equal(lines[0].note, 'Wessel vs Sluice Rat A · told in the battle log');
     assert.equal(lines[0].tone, 'info');
     assert.equal(lines[0].kind, 'line');
-    assert.equal(rpgReplyLines({ state: world(), before: null, record: record(rolled({ exchanges: 1 })), roleOf })[0].text, 'Rolled for you: 1 exchange', 'the first reply says it too, with no rises');
+    assert.equal(rpgReplyLines({ state: world(), before: null, record: record(rolled({ summary: { exchanges: 1, acts: [], refused: 0 } })), roleOf })[0].text, 'Rolled for you: 1 exchange', 'the first reply says it too, with no rises');
 });
 
-test('a result that only lists its rounds is counted; one with nothing, or a skipped one, says nothing', () => {
-    assert.equal(exchangesOf(record(rolled({ rounds: [{ actions: [{ who: 'A', target: 'B' }] }, { actions: [] }] }))).exchanges, 2);
+test('a result with no summary is counted by its rounds; one with nothing, or a skipped one, says nothing', () => {
+    assert.equal(exchangesOf(record(rolled({ rounds: [{ n: 1, lines: [] }, { n: 2, lines: [] }] }))).exchanges, 2);
     assert.equal(exchangesOf(record(rolled({ rounds: [] }))), null);
     assert.equal(exchangesOf(record({ id: 'x', type: 'inventory.add' })), null);
-    assert.equal(exchangesOf(record(rolled({ exchanges: 2 })), [{ receipts: ['r1'] }]), null);
+    assert.equal(exchangesOf(record(rolled({ summary: { exchanges: 2, acts: [], refused: 0 } })), [{ receipts: ['r1'] }]), null);
     assert.equal(exchangesOf(null), null);
 });
 
@@ -54,12 +55,12 @@ test('the rank rise reads "Iron Breath: Adept → Expert"; a character who did n
 });
 
 test('rolls, then class, then rank: the order of the mockup', () => {
-    const lines = rpgReplyLines({ state: world({ soul: 3, xp: 0, rank: 2 }), before: world(), record: record(rolled({ exchanges: 3 })), roleOf });
+    const lines = rpgReplyLines({ state: world({ soul: 3, xp: 0, rank: 2 }), before: world(), record: record(rolled({ summary: { exchanges: 3, acts: [], refused: 0 } })), roleOf });
     assert.deepEqual(lines.map(line => line.text), ['Rolled for you: 3 exchanges', 'Wessel: Soul Class II → III', 'Iron Breath: Adept → Expert']);
 });
 
 test('the lines have the shape the card draws, and the header line takes their summaries', () => {
-    const lines = rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world(), record: record(rolled({ exchanges: 3 })), roleOf });
+    const lines = rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world(), record: record(rolled({ summary: { exchanges: 3, acts: [], refused: 0 } })), roleOf });
     for (const item of lines) assert.deepEqual(Object.keys(item).sort(), ['check', 'flag', 'icon', 'kind', 'module', 'note', 'summary', 'text', 'tone']);
     assert.match(changesSummary({ state: null, lines }), /3 exchanges rolled · Soul Class III/);
 });
@@ -68,7 +69,7 @@ test('mergeRpgLines puts them first and drops the plain rule line a rise leaves;
     const rule = name => ({ text: `Rule: ${name}`, summary: `Rule: ${name}`, kind: 'line', tone: 'accent', icon: 'fa-bolt', flag: '', note: '', check: null });
     const rise = rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world(), record: record(), roleOf });
     assert.deepEqual(mergeRpgLines([rule('class-up'), rule('down-latch')], rise).map(line => line.text), ['Wessel: Soul Class II → III', 'Rule: down-latch']);
-    const rolls = rpgReplyLines({ state: world(), before: world(), record: record(rolled({ exchanges: 2 })), roleOf });
+    const rolls = rpgReplyLines({ state: world(), before: world(), record: record(rolled({ summary: { exchanges: 2, acts: [], refused: 0 } })), roleOf });
     assert.deepEqual(mergeRpgLines([rule('class-up')], rolls).map(line => line.text), ['Rolled for you: 2 exchanges', 'Rule: class-up'], 'no rise told: the rule line stays');
     const plain = [rule('a')];
     assert.equal(mergeRpgLines(plain, []), plain, 'no RPG lines: untouched');
