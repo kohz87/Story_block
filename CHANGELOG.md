@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.7.2
+
+**Content release: no code change.** The bundled example pack is now **Ersveil 2.1.0**, with its lorebook updated.
+
+- **Auvoth is the Guild's city.** Veyr the Unbound sealed the Auvoth Depths in CY 384, the same winter the Guild was
+  chartered. They are the only mega-dungeon ever sealed by human hand, and the Auvoth Compact gave the Guild the city
+  and the Depths. The Guild governs both, with one representative for every signatory realm on the Compact Council.
+  The old CY 391 treaty-city history is gone. The Seventh Seal Terrace is the tower over the seventh, uppermost seal.
+- **The Depths are a world**, with its own light, weather, plants, prey and predators in every band.
+- **No separate Delvers.** The Delver calling is dropped (the Callings are now twelve lines), and the lore says
+  adventurers throughout.
+- **Renamed places.** The Guild Grand Hall ward is **Sealcrown** (was Delver's Crown), and Rimeglass Delve is the
+  **Rimeglass Galleries**. The old names stay as aliases, so a chat already at either place still finds it.
+- Data modules and their pins are unchanged. Re-import the pack and the lorebook to get the new text.
+
 ## 2.7.1
 
 - The block editor labels a function's name "Name" (was "Function name"), so Story Studio's offline page check accepts the vendored strings. Nothing else changes.

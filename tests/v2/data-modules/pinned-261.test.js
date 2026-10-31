@@ -8,7 +8,9 @@ import { installFakeDom } from '../../ui-fake-dom.js';
 
 const chat = () => readFileSync(new URL('../fixtures/fixture-2.6.1-pinned-ersveil.jsonl', import.meta.url), 'utf8')
     .trim().split('\n').slice(1).map(line => JSON.parse(line));
-const pack = () => JSON.parse(readFileSync(new URL('../../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8'));
+// The chat was saved with Ersveil 2.0.0; 2.1.0 (the example pack now) changed only lore and place names.
+const pack = () => JSON.parse(readFileSync(new URL('../fixtures/ersveil-2.0.0-pack.json', import.meta.url), 'utf8'));
+const current = () => JSON.parse(readFileSync(new URL('../../../examples/packs/ersveil/pack.json', import.meta.url), 'utf8'));
 const hashes = {
     'pack.ersveil/standing': '208561d9520010fca4d537a520be3ab4b735711a12614846e7dd201050e0a627',
     'pack.ersveil/fame': '208a5fa654a78c475a7820154bc8630f5ccd643ac1cbdd41a7d9dec99b3a9d8a',
@@ -21,7 +23,7 @@ const expected = {
     'pack.ersveil/guild-membership': { registered: true, letter: 'F', standing: 'probation', dues: 50, 'unpaid-years': 0, 'idle-years': 0, 'member-years': 0 },
 };
 
-function assertPinned(host) {
+function assertPinned(host, offerPackHash = packHash) {
     const domain = host.head().domains.dataModules;
     for (const [module, hash] of Object.entries(hashes)) {
         assert.equal(domain.active[module].hash, hash, module);
@@ -29,7 +31,7 @@ function assertPinned(host) {
         assert.deepEqual(host.sdk.query('dataModules.view', { module }), { chat: expected[module] }, module);
         const offer = host.sdk.query('dataModules.offers').find(row => row.module === module);
         assert.equal(offer.hash, hash, `fresh offer for ${module}`);
-        assert.equal(offer.packHash, packHash, `fresh pack identity for ${module}`);
+        assert.equal(offer.packHash, offerPackHash, `fresh pack identity for ${module}`);
         const row = host.sdk.query('dataModules.setup').find(row => row.module === module);
         assert.equal(row.status, 'Pinned', module);
     }
@@ -109,4 +111,19 @@ test('a 2.6.1 chat with a rules hash keeps its pin and guarded action', async t 
     check();
     await host.st.loadChat(structuredClone(host.ctx.chat));
     check();
+});
+
+test('re-importing the example pack as 2.1.0 keeps the 2.6.1 pins, values and status', async t => {
+    const host = await createHost({ st: { chat: chat() } });
+    t.after(() => host.close());
+    assert.equal((await host.packs.packs.install(pack())).ok, true);
+    const updated = current();
+    assert.equal(updated.version, '2.1.0');
+    const installed = await host.packs.packs.install(updated);
+    assert.equal(installed.ok, true, installed.message);
+    const fresh = host.sdk.query('dataModules.offers').find(row => row.module === 'pack.ersveil/standing').packHash;
+    assert.notEqual(fresh, packHash);
+    assertPinned(host, fresh);
+    host.store.rebuild();
+    assertPinned(host, fresh);
 });

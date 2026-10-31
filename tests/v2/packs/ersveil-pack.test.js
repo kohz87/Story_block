@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.0.0, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.1.0, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 171 entries with unique uids.
 import test from 'node:test';
@@ -43,10 +43,10 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(bare.ok, false);
 });
 
-test('the pack is Ersveil 2.0.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.1.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.0.0');
+    assert.equal(value.version, '2.1.0');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
     assert.equal(value.requires.storyBlock, '^2.5');
@@ -104,8 +104,8 @@ test('the lorebook is written for the open world: no RPG Battle wording, classes
     assert.match(byTitle('[CORE] Authority and Generation'), /Open world: the pack lists no items, shops, prices, foes or jobs/);
     assert.match(byTitle('[CORE] Classification'), /Soul Class \(I-IX\)/);
     assert.match(byTitle('Adventurer Guild'), /F Registered, E Journeyman, D Proven, C Veteran, B Elite, A Paragon, S Legend/);
-    const callings = byTitle('Callings: the Thirteen Lines');
-    assert.equal(callings.split('\n').filter(line => line.startsWith('- ')).length, 13, 'the thirteen class lines, as lore');
+    const callings = byTitle('Callings: the Twelve Lines');
+    assert.equal(callings.split('\n').filter(line => line.startsWith('- ')).length, 12, 'the twelve class lines, as lore');
     assert.ok(callings.length < 1600, 'one lean entry');
     assert.match(byTitle('Peoples of Ersveil'), /Ten sapient peoples/);
 });
@@ -124,4 +124,16 @@ test('the signal braziers fire only on the first evening at Bluewatch, not the n
     assert.equal(met(316932240), false, 'at 20:00');
     assert.equal(met(316932160 + 680), false, 'Goldwane 13, 06:00');
     assert.equal(met(316932160 + 1040), false, 'Goldwane 13, 12:00');
+});
+
+test('2.1.0 renames keep the old place names as aliases, so a chat already there still finds its place', () => {
+    const value = JSON.parse(readFileSync(packPath, 'utf8'));
+    const named = name => value.content.places.find(place => place.name === name);
+    assert.deepEqual(named('Auvoth / Sealcrown').aliases, ['Sealcrown', "Delver's Crown", 'Delver’s Crown']);
+    assert.deepEqual(named('Rimeglass Galleries').aliases, ['Rimeglass Delve']);
+    for (const old of ["Auvoth / Delver's Crown", 'Rimeglass Delve']) assert.equal(named(old), undefined);
+    for (const route of value.content.routes) for (const end of [route.from, route.to]) assert.ok(value.content.places.some(place => place.name === end), end);
+    const lore = JSON.stringify(JSON.parse(readFileSync(lorePath, 'utf8')));
+    assert.doesNotMatch(lore, /\bdelv/i, 'the lore has no separate delvers');
+    assert.match(lore, /only mega-dungeon ever sealed by human hand/);
 });
