@@ -1,6 +1,6 @@
 // A plain Story Block flow (the core module, no data module pinned) and its fingerprint: every prompt it builds, the
 // size of every draw of randomness in order, the model calls it makes and the receipts it stores. The RPG being
-// off must leave all of that as it was in 2.7.2 (fixtures/off-2.7.2.json was made from the code before the RPG).
+// off must leave all of that as it was in 2.7.2 (fixtures/off-2.9.4.json: 2.7.2's fingerprint with 2.9.4's one-clause `present` grammar change).
 import { createHash } from 'node:crypto';
 
 const sha = text => createHash('sha256').update(text).digest('hex');
