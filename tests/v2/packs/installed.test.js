@@ -2,6 +2,8 @@
 // remove, and nothing saved when a pack is refused.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { normalizeEvents } from '../../../src/v2/events/engine.js';
 import { createInstalled } from '../../../src/v2/packs/installed.js';
 import { resolveItemIn, contentOf } from '../../../src/v2/packs/content.js';
 import { fakeSettings } from './helpers/fake-settings.js';
@@ -154,4 +156,56 @@ test('listeners hear every change', async () => {
     stop();
     await installed.install(pack());
     assert.equal(heard, 3, 'a switch to the same value is no change');
+});
+
+// ---- 2.11.3: a stored pack is not held to the strict `when` check of install ----
+// A pack installed before the check existed, with one event whose condition the events part cannot read, must keep working.
+const unreadable = () => {
+    const modules = JSON.parse(readFileSync(new URL('../../../authoring-kit/reference/data-modules/faction-standing.pack.json', import.meta.url), 'utf8'));
+    return pack({
+        id: modules.id, name: 'Gate Pack', requires: modules.requires,
+        content: {
+            ...modules.content,
+            items: [{ name: 'Rope', kind: 'goods' }],
+            events: [
+                { id: 'fine', when: 'true', cue: 'The gate opens.' },
+                { id: 'quoted', when: "has('Smith's key')", cue: 'Never closed.' },
+                { id: 'bare', when: 'hp > 3', cue: 'A bare name.' },
+            ],
+        },
+        start: { scene: { place: { name: 'Harbor' } }, inventory: { items: ['Rope'], money: 7 } },
+    });
+};
+
+test('a stored pack with an unreadable event condition stays usable; that one event alone is invalid', () => {
+    const stored = unreadable();
+    const { installed } = setup({}, { packs: [{ id: 'faction-standing', version: '1.0.0', enabled: true, source: 'file', origin: '', pack: stored }] });
+    const [row] = installed.list();
+    assert.equal(row.problem, '', 'listed without a problem');
+    assert.equal(row.name, 'Gate Pack');
+    assert.equal(row.counts.items, 1);
+    assert.equal(row.counts.events, 3);
+    assert.equal(row.counts.dataModules, stored.content.dataModules.length, 'its data-module offers are still counted');
+    assert.equal(row.hasStart, true);
+    const [usable] = installed.packs();
+    assert.equal(usable.id, 'faction-standing', 'the pack is read');
+    assert.equal(resolveItemIn(installed.packs(), 'Rope')?.name, 'Rope', 'its item resolves');
+    assert.equal(usable.start.inventory.money, 7, 'its start state is there');
+    assert.equal(contentOf(installed.packs(), 'dataModules').length, stored.content.dataModules.length, 'its data modules are offered');
+    const events = normalizeEvents(contentOf(installed.packs(), 'events'));
+    assert.deepEqual(events.defs.map(def => def.id), ['pack.faction-standing/fine'], 'the readable event works');
+    assert.equal(events.invalid.length, 2, 'the two unreadable ones are invalid, as the events part always treated them');
+});
+
+test('installing or importing the same pack is still refused, with the plain message naming the event', async () => {
+    const { settings, installed } = setup();
+    const result = await installed.install(unreadable());
+    assert.equal(result.ok, false);
+    assert.match(result.errors[0].message, /^Event "quoted": the condition can't be read: .*double quotes/);
+    assert.equal(settings.saves, 0, 'nothing saved');
+    assert.deepEqual(installed.list(), []);
+    const lore = await installed.importLorebook([{ book: 'Gate lore', uid: 1, title: 'Gate [storysuite:pack]', content: '```json\n' + JSON.stringify(unreadable()) + '\n```' }]);
+    assert.equal(lore.found, 1);
+    assert.equal(lore.results[0].ok, false, 'a lorebook import of it is refused too');
+    assert.match(lore.results[0].errors[0].message, /^Event "quoted": the condition can't be read/);
 });
