@@ -12,6 +12,7 @@ import { editableLayout } from './editable-layout.js';
 import { STRINGS, fill } from '../strings.js';
 import { blockTabScreen } from './block-screen.js';
 import { roleTail } from '../lean-rpg/tail.js';
+import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
@@ -215,26 +216,30 @@ const namedChanges = (definition, before, after) => Object.entries(definition.st
     .map(([key, schema]) => `${schema.label ?? key} ${shownText(schema, before[key])} → ${shownText(schema, after[key])}`);
 
 // What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the RPG's sheets carry text the story reads).
-const tailRoom = definition => (definition?.role ? L.roleTailTokens : L.tailTokens);
+// `rpg` is whether the RPG feature is on: a block with a role is the RPG's to write only then; with it off the block is told like any other.
+const tailRoom = (definition, rpg = true) => (rpg && definition?.role ? L.roleTailTokens : L.tailTokens);
 
-/** One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6." */
-export function summaryOf(state, module) {
+/**
+ * One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6."
+ * `rpg` (default on) is the RPG feature: with it off a block with a role gets the ordinary line, which leaves out its hidden fields as well.
+ */
+export function summaryOf(state, module, { rpg = true } = {}) {
     const definition = activeDefinition(state, module);
     if (!definition) return `${module} — unavailable (damaged or unknown pin).`;
     const view = moduleView(state, { module });
     let waiting = '';
     try { const inputs = inputsOf(state, definition); if (definition.timers.some(timer => inputs[timer.clock]?.minutes == null)) waiting = ' Waiting for story time.'; } catch { waiting = ' Waiting.'; }
     // A block with a role is written compact (lean-rpg/tail.js): defaults and empty slots left out, one line per skill; nothing to say, no line.
-    if (definition.role) {
+    if (rpg && definition.role) {
         const people = definition.scope === 'chat' ? [{ name: definition.name, fields: view.chat }] : view.characters.map(({ id, name, ...fields }) => ({ name, fields }));
         const line = roleTail(definition, people, { hidden: key => dmHidden(definition.state[key]), text: (key, value) => fieldText(definition, key, value),
             named: (key, value) => shownText(definition.state[key], value) });
-        return line && cutAt(`${line}${waiting}`, tailRoom(definition) * 4);
+        return line && cutAt(`${line}${waiting}`, tailRoom(definition, rpg) * 4);
     }
     const body = definition.scope === 'chat' ? fieldsText(definition, view.chat)
         : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields)}`).join(' | ') || 'no one attached';
     // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget.
-    return cutAt(`${definition.name} — ${body}.${waiting}`, tailRoom(definition) * 4);
+    return cutAt(`${definition.name} — ${body}.${waiting}`, tailRoom(definition, rpg) * 4);
 }
 // A timer whose clock has moved past its cursor.
 const timerDue = (timer, inputs, instance) => {
@@ -243,7 +248,10 @@ const timerDue = (timer, inputs, instance) => {
 };
 // A reply's lines are settled by the reply-end functions on these generations only (not a Continue's, nor the extractor's late lines).
 const SETTLED_TYPES = Object.freeze(['normal', 'swipe', 'regenerate', 'reread']);
-const tailLines = state => Object.keys(state?.domains?.dataModules?.active ?? {}).map(module => summaryOf(state, module));
+// How many `dm.settle` steps a reply of this state will record: one for each subject of each pinned block that has reply-end functions.
+const settleSteps = state => Object.keys(state?.domains?.dataModules?.active ?? {}).reduce((sum, module) => sum
+    + (activeDefinition(state, module)?.replyEnd?.length ? subjectsOf(state, module).length : 0), 0);
+const tailLines = (state, rpg) => Object.keys(state?.domains?.dataModules?.active ?? {}).map(module => summaryOf(state, module, { rpg }));
 
 // --- Cards under the head reply -------------------------------------------------------------------------------------------------
 // A block's `cards` are derived from the head reply's state each time the cards are asked for, never stored. They reach the reply-cards
@@ -254,7 +262,13 @@ export const CARD_SLOTS = 8;
 const CARD_LOOK = Object.freeze({ info: { tone: 'info', icon: 'ph-info' }, warn: { tone: 'accent', icon: 'ph-warning' }, end: { tone: 'bad', icon: 'ph-skull' } });
 const cardLists = new WeakMap();
 
-/** The cards the head state shows: [{ module, card }] with card in reply-cards.js's shape. A card whose condition cannot be asked is left out. */
+const CARD_RANK = Object.freeze({ end: 0, warn: 1, info: 2 });
+
+/**
+ * The cards the head state shows: [{ module, card }] with card in reply-cards.js's shape. A card whose condition cannot be asked is left out.
+ * They are ordered end first, then warn, then info (pin order, then written order, within a tone) before the slots are filled, so an `end`
+ * card (the death notice) always has a slot, however many other cards are showing.
+ */
 export function blockCards(state) {
     const active = state?.domains?.dataModules?.active;
     if (!active || !Object.keys(active).length) return [];
@@ -266,11 +280,11 @@ export function blockCards(state) {
                 if (!createEvaluation(definition, instance).condition(['card', at], entry.when, {})) return [];
             } catch { return []; }
             const look = CARD_LOOK[entry.tone] ?? CARD_LOOK.info, kind = entry.button ? definition.kinds[entry.button] : null;
-            return [{ module, card: { ...look, title: entry.title, text: entry.text,
+            return [{ module, rank: CARD_RANK[entry.tone] ?? CARD_RANK.info, card: { ...look, title: entry.title, text: entry.text,
                 actions: kind ? [{ id: entry.button, label: oneLine(kind.title ?? entry.button.replace(/^button-/, '')), primary: true,
                     command: 'dm.act', payload: { module, kind: entry.button } }] : [] } }];
         });
-    }));
+    }).sort((a, b) => a.rank - b.rank).map(({ module, card }) => ({ module, card })));
 }
 const blockCardSlots = Object.fromEntries(Array.from({ length: CARD_SLOTS }, (_, at) => [`block-card-${at + 1}`, { for: state => blockCards(state)[at]?.card ?? null }]));
 
@@ -320,6 +334,12 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         actions[ctx.cursor().block] = { visits, click: ctx.cause === 'ui' && !pin };
         const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions };
         if (next.roots > L.replyRoots || next.visits > L.replyVisits) refuse('DM_BUDGET', '', 'Data module reply budget exhausted.');
+        // The story's lines leave room for the steps that settle the reply (one for each block with reply-end functions): without it a full
+        // reply would take its last action and the settling that decides a death would be refused.
+        if (ctx.cause === 'story') {
+            const kept = settleSteps(prefix);
+            if (next.roots > L.replyRoots - kept || next.visits > L.replyVisits - kept * L.rootVisits) refuse('DM_BUDGET', '', B.replyFull);
+        }
         // Scratch from earlier replies is pruned only by a successful data root.
         draft.perReply = { [key]: next };
         // (The bus counts the patch's ops and the span's bytes for every data root; this is the data's own share, and the pins.)
@@ -413,6 +433,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         draft.pins[hash] = copy(pin);
         draft.active[module] = { hash, generation, subjects: ['chat'] };
         draft.instances[module] = { chat: instance };
+        // The definition this one replaces is not kept (every block that used it carries its own recorded pin, and a swipe or delete of this
+        // reply brings the old pin back with the state before it): the pins would otherwise fill up, one for each edit, until 16 refused all blocks.
+        if (old && old.hash !== hash && !Object.values(draft.active).some(entry => entry.hash === old.hash)) delete draft.pins[old.hash];
         const recorded = guard(ctx, prefix, { kind: `dm.${action}`, module, hash, generation,
             reads: previous ? [['fields'], ['timers'], ['offers'], ['settled']] : [], imports: Object.keys(definition.imports),
             decision: { subjects: ['chat'], inputs, previous: old?.hash ?? null }, pin, bound: true });
@@ -566,8 +589,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             actor: subject !== 'chat', decision: { inputs, conds: result.conds } });
         return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) }, summary: `${definition.name}: story time settled.` });
     }
-    // The block's reply-end functions, settled once at the end of a reply as a system step (a timer's twin: planned again by a swipe, a
-    // delete or an edit before it, NO_LONGER_DONE when the story before it leaves nothing to settle).
+    // The block's reply-end functions, settled once at the end of every reply that has accepted lines, as a system step (a timer's twin:
+    // planned again by a swipe, a delete or an edit before it). It is recorded even when it changes nothing, so that a change before this
+    // reply (a Re-read of an earlier one) has a step here to plan again; NO_LONGER_DONE only when the pin or the subject is gone.
     function settle(ctx, payload, call = {}) {
         if (ctx.cause !== 'system' || ctx.caller !== null) refuse('REFUSED', '', 'Reply-end functions run only as host system steps.');
         const prefix = stateOf(ctx), module = payload.module, subject = payload.subject;
@@ -579,10 +603,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         dependency(definition, prefix);
         if (subject !== 'chat') resolveActor(prefix, subject, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx), instance = atPath(draft, instancePath(module, subject));
-        const inputs = inputsOf(prefix, definition), before = hashJson(instance);
+        const inputs = inputsOf(prefix, definition);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
         evaluation.charge(); evaluation.replyEnd();
-        if (hashJson(instance) === before) refuse('NO_LONGER_DONE', '', 'Nothing is left to settle at the end of this reply.');
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.settle', module, hash: active.hash, generation: active.generation, subject,
@@ -590,22 +613,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             actor: subject !== 'chat', decision: { inputs, conds: result.conds } });
         return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) }, summary: `${definition.name}: settled at the end of the reply.` });
     }
-    // Whether settling now would change this subject: the same work on a copy, after a timer that is due in the same step (it goes first).
-    function wouldSettle(definition, instance, inputs) {
-        try {
-            const work = copy(instance), evaluation = createEvaluation(definition, work, { inputs });
-            if (definition.timers.some(timer => timerDue(timer, inputs, work))) {
-                const before = hashJson(work);
-                evaluation.timers();
-                if (hashJson(work) !== before) evaluation.rules();
-            }
-            const before = hashJson(work);
-            evaluation.replyEnd();
-            return hashJson(work) !== before;
-        } catch { return false; }
-    }
-    // The settle steps due once a reply's lines are in: one per block (and subject) that has reply-end functions and would change. Not for a
-    // Continue or the extractor's late lines, which add to a reply already settled: a reply is settled once, so a latch cannot fire twice in it.
+    // The settle steps due once a reply's lines are in: one per block (and subject) that has reply-end functions, whether or not they would
+    // change anything now (see `settle`). Not for a Continue or the extractor's late lines, which add to a reply already settled: a reply
+    // is settled once, so a latch cannot fire twice in it.
     function settleDue(view, info) {
         const prefix = view?.state, commands = [];
         if (!prefix?.domains?.dataModules?.active || !SETTLED_TYPES.includes(info?.type ?? 'normal')) return commands;
@@ -613,12 +623,11 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         for (const module of Object.keys(prefix.domains.dataModules.active)) {
             const definition = activeDefinition(prefix, module);
             if (!definition?.replyEnd?.length) continue;
-            let inputs;
-            try { dependency(definition, prefix); inputs = inputsOf(prefix, definition); } catch { continue; }
+            try { dependency(definition, prefix); } catch { continue; }
             for (const subject of subjectsOf(prefix, module)) {
                 if (subject !== 'chat') { try { resolveActor(prefix, subject, subjectsOf(prefix, module)); } catch { continue; } }
                 const instance = instanceOf(prefix, module, subject);
-                if (instance && wouldSettle(definition, instance, inputs)) commands.push({ type: 'dm.settle', payload: { module, subject } });
+                if (instance) commands.push({ type: 'dm.settle', payload: { module, subject } });
             }
         }
         return commands;
@@ -690,7 +699,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         cards: blockCardSlots,
         context: {
             static: () => grammarFor(state()),
-            tail: view => ({ lines: tailLines(view.state), optional: [] }),
+            tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
             extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id)), 0),
         },

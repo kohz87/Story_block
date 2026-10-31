@@ -48,6 +48,8 @@ export const STRINGS = deepFreeze({
         exportFailed: 'Could not export this block.',
         unsupportedEdit: 'This block has details the editor cannot change safely.',
         madeFromTemplate: 'Made from a template: edit its fields here, its rules in the pack file.',
+        replyFull: 'This reply has used all the block actions it can take, and the last place is kept for settling it; this line was not applied.',
+        stagesLimit: 'A bar field (health, mana, stamina, a foe\'s health) has at most {max} stages, counted up from 0.',
         roleInvalid: 'A block role is character, skills, foes or rules.',
         hiddenFlag: 'Hiding a field from the story is prompt: false on a field of its own.',
         hiddenKind: 'A field hidden from the story can only be changed by a button.',

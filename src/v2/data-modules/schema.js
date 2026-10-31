@@ -26,6 +26,8 @@ export const DM_LIMITS = freeze({
     prompt: 1200, names: 32, nameText: 40, cards: 4, replyEnd: 4, cardTitle: 60, cardText: 240,
     // A block with a `role` (a Character or Skills sheet) says more in the tail: five skills with what each does, or a character with who they are.
     roleTailTokens: 300,
+    // The most stages a role block's bar field (health, mana, stamina, a foe's health) may have, counted up from 0.
+    stages: 10,
 });
 
 export const DM_DIAGNOSTICS = freeze({

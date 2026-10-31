@@ -252,7 +252,8 @@ test('the death latch: only a character already Down when the reply began, and s
 test('a delete or an edit before the death plans the latch again, and nothing is left when nothing is left to settle', async t => {
     const host = await story(t);
     await host.send('Quiet.', reply('~ place Camp'));
-    assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.some(receipt => receipt.type === 'dm.settle'), false, 'nothing to settle: no step');
+    assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.settle').length, 1, 'a reply with accepted lines is settled even when nothing changes, so a later change before it can plan it again');
+    assert.deepEqual([sheet(host).down, sheet(host).alive], [false, true]);
     await host.send('Hit.', reply(line('set-health', ' | to: 0')));
     assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.settle').length, 1);
     const hit = host.store.headIndex();
@@ -261,7 +262,7 @@ test('a delete or an edit before the death plans the latch again, and nothing is
     assert.deepEqual(host.turn.problems().filter(problem => /settle/.test(problem.message)), [], 'a step that settles nothing is never asked');
     await host.st.deleteMessage(hit);
     assert.deepEqual([sheet(host).health, sheet(host).down, sheet(host).alive, sheet(host).practice], [5, false, true, 5]);
-    assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.some(receipt => receipt.type === 'dm.settle'), false, 'the settle step went with what it settled');
+    assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.settle').length, 1, 'the later reply still has its (now empty) settle step');
     assert.deepEqual(host.store.problems().filter(problem => problem.code === 'REPLAY_PREREQUISITE'), []);
     await reload(host);
     rebuilt(host);

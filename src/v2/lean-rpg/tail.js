@@ -32,27 +32,29 @@ function sheetBody(definition, fields, { hidden, text }) {
     return parts.map(part => (Array.isArray(part) ? part.join(' ') : part)).join('; ');
 }
 
-function skillsBody(definition, fields, { named }) {
+function skillsBody(definition, fields, { hidden, named }) {
     const lines = [];
+    const say = key => (hidden(key) ? '' : word(fields[key]));
     for (let slot = 1; slot <= SLOTS.skills; slot += 1) {
-        const name = word(fields[`skill${slot}`]);
+        const name = say(`skill${slot}`);
         if (!name) continue;
-        const bits = [named(`rank${slot}`, fields[`rank${slot}`]), word(fields[`stat${slot}`]), word(fields[`uses${slot}`])].filter(Boolean);
-        const about = word(fields[`about${slot}`]);
-        lines.push(`- ${name} (${bits.join(', ')})${about ? `: ${about}` : ''}`);
+        const bits = [hidden(`rank${slot}`) ? '' : named(`rank${slot}`, fields[`rank${slot}`]), say(`stat${slot}`), say(`uses${slot}`)].filter(Boolean);
+        const about = say(`about${slot}`);
+        lines.push(`- ${name}${bits.length ? ` (${bits.join(', ')})` : ''}${about ? `: ${about}` : ''}`);
     }
     return lines;
 }
 
-function foesBody(definition, fields, { named }) {
+function foesBody(definition, fields, { hidden, named }) {
     const out = [];
     for (let slot = 1; slot <= SLOTS.foes; slot += 1) {
-        const name = word(fields[`foe${slot}`]);
+        const name = hidden(`foe${slot}`) ? '' : word(fields[`foe${slot}`]);
         if (!name) continue;
-        const count = fields[`count${slot}`], hurt = fields[`hurt${slot}`];
-        const bits = [`Class ${named(`class${slot}`, fields[`class${slot}`])}`];
-        if (hurt !== definition.state[`hurt${slot}`]?.default) bits.push(named(`hurt${slot}`, hurt));
-        out.push(`${name}${Number.isSafeInteger(count) && count > 1 ? ` ×${count}` : ''} (${bits.join(', ')})`);
+        const count = hidden(`count${slot}`) ? null : fields[`count${slot}`], hurt = fields[`hurt${slot}`];
+        const bits = [];
+        if (!hidden(`class${slot}`)) bits.push(`Class ${named(`class${slot}`, fields[`class${slot}`])}`);
+        if (!hidden(`hurt${slot}`) && hurt !== definition.state[`hurt${slot}`]?.default) bits.push(named(`hurt${slot}`, hurt));
+        out.push(`${name}${Number.isSafeInteger(count) && count > 1 ? ` ×${count}` : ''}${bits.length ? ` (${bits.join(', ')})` : ''}`);
     }
     return out;
 }
@@ -65,12 +67,13 @@ function foesBody(definition, fields, { named }) {
 export function roleTail(definition, people, { hidden, text, named }) {
     const lines = [];
     for (const { name, fields } of people) {
-        const who = word(fields.who) || name;
+        // A hidden `who` is not sent either: the block's (or the attached character's) own name stands in.
+        const given = hidden('who') ? '' : word(fields.who), who = given || name;
         if (definition.role === 'skills') {
-            const skills = skillsBody(definition, fields, { named });
-            if (skills.length) lines.push(`${word(fields.who) ? `${word(fields.who)} skills` : name}:`, ...skills);
+            const skills = skillsBody(definition, fields, { hidden, named });
+            if (skills.length) lines.push(`${given ? `${given} skills` : name}:`, ...skills);
         } else if (definition.role === 'foes') {
-            const foes = foesBody(definition, fields, { named });
+            const foes = foesBody(definition, fields, { hidden, named });
             if (foes.length) lines.push(`${definition.name}: ${foes.join('; ')}.`);
         } else {
             const body = sheetBody(definition, fields, { hidden, text });
