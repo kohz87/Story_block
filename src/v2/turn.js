@@ -362,6 +362,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         }
     }
 
+    // The commands run as preludes: Assist's pre-roll, and any command a module marks `prelude` (registry.isPrelude).
+    const isPrelude = type => type === PRECHECK || registry.isPrelude?.(type) === true;
+
     // beforeGenerate (§4.1 step 3): each hook may return lines for the tail, or commands to
     // commit now as `system` receipts: string[] | { lines?: string[], commands?: [{ type, payload }] }.
     // A Continue (the same reply goes on) commits nothing (B3-9): hooks are told `{ type, dryRun,
@@ -374,9 +377,11 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const prechecks = [];
         const requested = [];
         const commit = !dryRun && type !== 'continue';
+        // `again`: an earlier attempt at this reply was never captured (a retried interceptor), so a hook may reuse its work.
+        const again = session !== null;
         for (const { moduleId, fn } of registry.hookEntries('beforeGenerate')) {
             let out;
-            try { out = await within(fn(view(), { type, dryRun, commit }), HOOK_TIMEOUT_MS); } catch (error) {
+            try { out = await within(fn(view(), { type, dryRun, commit, again }), HOOK_TIMEOUT_MS); } catch (error) {
                 problem({ module: moduleId, code: 'FAILED', message: `beforeGenerate failed: ${error?.message ?? error}` });
                 continue;
             }
@@ -387,10 +392,10 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];
             if (lines.length) cues[moduleId] = lines.filter(line => typeof line === 'string');
             for (const command of commit && Array.isArray(out?.commands) ? out.commands : []) {
-                // Assist's roll is previewed for the prompt, without writing on the previous reply.
-                // Completion runs the same seed on the generated reply; only that transaction is stored.
-                if (command?.type === PRECHECK) {
-                    requested.push({ moduleId, payload: command.payload ?? {} });
+                // A prelude (Assist's roll, the Lean RPG's rolls) is previewed for the prompt, without writing on the
+                // previous reply. Completion runs the same seed on the generated reply; only that transaction is stored.
+                if (isPrelude(command?.type)) {
+                    requested.push({ moduleId, type: command.type, payload: command.payload ?? {} });
                     continue;
                 }
                 const result = await bus.command(command?.type, command?.payload ?? {}, { cause: 'system' });
@@ -402,13 +407,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         }
         // Other cues may settle a fight or change a modifier. Preview on the state they leave,
         // which is also the state the generated reply's prelude will start from.
-        for (const { moduleId, payload } of requested) {
-            const prior = session?.prechecks?.find(step => JSON.stringify(step.payload) === JSON.stringify(payload));
-            const result = bus.run(PRECHECK, payload, { cause: 'system', ...(prior ? { seed: prior.seed } : {}) });
+        for (const { moduleId, type: preludeType, payload } of requested) {
+            const prior = session?.prechecks?.find(step => step.type === preludeType && JSON.stringify(step.payload) === JSON.stringify(payload));
+            const result = bus.run(preludeType, payload, { cause: 'system', ...(prior ? { seed: prior.seed } : {}) });
             if (result?.ok) {
-                prechecks.push({ type: PRECHECK, payload, seed: result.receipt.seed });
+                prechecks.push({ type: preludeType, payload, seed: result.receipt.seed });
                 cues[moduleId] = [...(cues[moduleId] ?? []), `[Happened]\n${result.receipt.summary}`];
-            } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${PRECHECK}" was not prepared: ${result?.message ?? 'unknown error'}` });
+            } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
         }
         // Saved with the reply (MESSAGE_RECEIVED), not now: each save writes the whole chat file, and the
         // reply's save comes moments later with these cues in it. A reply that never comes still has them
@@ -1076,8 +1081,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                     && record?.spans?.some(span => span.boundaries?.[0]?.payloadHash === store.payloadHashAt(index));
                 plan = { blocks: [], pending: 0, replacing: replacedProofs(record), reuse: reusePlan(record, retire), preserveSources };
                 const prechecks = (record?.receipts ?? [])
-                    .filter(receipt => receipt.beforeGenerate === true && receipt.type === PRECHECK)
-                    .map(receipt => ({ type: PRECHECK, payload: receipt.replan?.payload ?? {}, seed: receipt.seed }));
+                    .filter(receipt => receipt.beforeGenerate === true && isPrelude(receipt.type))
+                    .map(receipt => ({ type: receipt.type, payload: receipt.replan?.payload ?? {}, seed: receipt.seed }));
                 const prepared = prechecks.length ? await afterCapture(index, { type: 'reread', problems, state: base, reply, plan, prechecks, onlyPrechecks: true }) : [];
                 plan.blocks.push(...prepared.map(step => ({ n: step.ops.length, receipt: step.receipt, ...(step.block ? { block: step.block } : {}) })));
                 receipts.push(...prepared.map(step => step.receipt));
