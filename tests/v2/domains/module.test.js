@@ -16,13 +16,13 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.equal(module.domains.dataModules.deferred, true);
     assert.deepEqual(Object.keys(module.commands).sort(), [
         'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.define', 'dm.join', 'dm.migrate', 'dm.pin', 'dm.redefine', 'dm.remove', 'dm.set', 'dm.settle', 'dm.tick', 'events.fire', 'inventory.add', 'inventory.consume', 'inventory.drop', 'inventory.edit', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
-        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'rpg.joinNo', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set',
+        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'mounts.edit', 'rpg.joinNo', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set',
     ]);
-    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.counts', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
+    assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.counts', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'mounts.list', 'mounts.pace', 'packs.calendar',
         'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.start', 'packs.weather', 'rpg.joins', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'story.evidence']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReceive', 'afterReply', 'beforeGenerate', 'item.resolve', 'replayGuard', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
-    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'loot', 'choice', 'chatter', 'dm', 'party']);
+    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'mount', 'loot', 'choice', 'chatter', 'dm', 'party']);
     // Choices and Inner chatter are display kinds under their features (MODULES §F115): no command runs for them.
     assert.deepEqual(['choice', 'chatter'].map(kind => [module.capture.kinds[kind].feature, Boolean(module.capture.kinds[kind].display)]), [['story-block.choices', true], ['story-block.chatter', true]]);
     assert.equal(module.capture.kinds.loot.feature, 'story-block.loot');
@@ -33,7 +33,11 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     // The weather (MODULES §F120): a kind and a query under its feature, on by default.
     assert.equal(module.capture.kinds.weather.feature, 'story-block.weather');
     assert.equal(module.queries['scene.weather'].feature, 'story-block.weather');
-    assert.deepEqual(module.domains.scene.scratch, ['weather']);
+    assert.deepEqual(module.domains.scene.scratch, ['weather', 'mounts']);
+    // The mounts: a kind, two queries and the pencil's command under their feature, on by default.
+    assert.equal(module.capture.kinds.mount.feature, 'story-block.mounts');
+    for (const name of ['mounts.list', 'mounts.pace']) assert.equal(module.queries[name].feature, 'story-block.mounts', name);
+    assert.equal(module.commands['mounts.edit'].feature, 'story-block.mounts');
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
@@ -43,7 +47,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
         ['story-block.hud', true], ['story-block.cards', true], ['story-block.preroll', false], ['story-block.extractor', false],
         ['story-block.inspector', false], ['story-block.savepoints', true], ['story-block.choices', false], ['story-block.chatter', false],
-        ['story-block.weather', true], ['story-block.rpg', false], ['story-block.loot', true], ['story-block.encumbrance', true],
+        ['story-block.weather', true], ['story-block.mounts', true], ['story-block.rpg', false], ['story-block.loot', true], ['story-block.encumbrance', true],
     ]);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));

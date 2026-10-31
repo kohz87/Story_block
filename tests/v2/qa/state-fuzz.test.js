@@ -38,6 +38,7 @@ const ITEMS = ['Rope', 'Lamp', 'Moonveil Trout', 'Iron Key', 'Apple', 'Torch'];
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
 const PEOPLE = ['Fenna', 'Kael', 'Lyra'];
 const WORDS = ['ember', 'frost', 'gale', 'stone', 'tide'];
+const MOUNTS = ['Grey Mare', 'Burr', 'Old Flea', 'Pia', 'Tansy', 'Rook', 'Dune', 'Wren'];
 
 const plain = value => (value === null || value === undefined ? value : JSON.parse(JSON.stringify(value)));
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -64,6 +65,8 @@ function replyText(r, step) {
     const lines = Array.from({ length: r.int(1, 5) }, () => changeLine(r));
     // The weather (MODULES §F120), by step so the seeds draw the same chats.
     if (step % 6 === 4) lines.push(`~ weather ${WORDS[step % WORDS.length]} and rain`);
+    // The party's mounts (story-block.mounts), by step too: a few rows come, change and go, and the cap of six is reached now and then.
+    if (step % 5 === 2) lines.push(`${['+', '+', '~', '-'][step % 4]} mount ${MOUNTS[step % MOUNTS.length]} | kind: ${['horse', 'mule', 'cart'][step % 3]} | condition: ${WORDS[step % WORDS.length]}`);
     if (r.chance(0.1)) return `${story}\n<Changes>\n${lines[0]}\n</Changes>\nMore story.\n<Changes>\n${lines.slice(1).join('\n')}\n</Changes>`;
     return `${story}\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 }

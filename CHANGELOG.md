@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased: mounts
+
+- **Mounts.** The narrator can keep the party's horses, mules and carts: `+ mount Grey Mare | kind: horse | count: 1 | pace: 35
+  | where: ridden by Wessel`, `~ mount Burr | condition: lame`, `- mount Burr`. Up to six rows (a group is one row with a
+  count); a missing pace is the kind's usual one (horse 35, pony 30, camel 30, mule 25, donkey 20, ox 15, cart 18, wagon 18,
+  else 30 km a day); a seventh row is refused with a plain Problem. While there is a mount the narrator is told one line
+  ("Mounts: Grey Mare (horse, 35 km/day, ridden by Wessel); …").
+- **A Mounts card on Home**, beside Save points: a row per mount (name with its pencil, kind, condition, where, pace) and
+  "The party travels at the slowest: N km/day riding." or, when there are fewer mounts than riders, "Not enough mounts for
+  everyone: the party walks (20 km/day)." The pencil edits all six fields. It shows only while the party has a mount.
+- A new feature, **Mounts** (Settings → Features, on by default). Off: no grammar line, no narrator line, nothing shown, and the
+  prompts are as before. With it on, the narrator's fixed instructions gain one line, so the AI service's prompt cache starts
+  over once. Story Director reads the pace through two new queries, `mounts.list` and `mounts.pace`.
+- Swipes, Re-read and deleting a reply take mounts back like any other change; a change to a mount whose reply was deleted is
+  passed over and the rest of that reply still applies.
+
 ## 2.9.4
 
 - When someone already present is first named ("Name's Nelje"), the narrator is told to write `- present` for the old

@@ -7,6 +7,7 @@ import { foldKey } from '../../text.js';
 import { lineBody } from '../capture.js';
 import { cutPoints, flatten } from '../extras.js';
 import { CORE_FEATURE } from '../features.js';
+import { validateMounts } from './mounts.js';
 import { STRINGS, fill } from '../strings.js';
 
 const E = STRINGS.editMessages;
@@ -62,6 +63,7 @@ export function validateScene(slice) {
             if (weather.key !== undefined && (typeof weather.key !== 'string' || !weather.key || Array.from(weather.key).length > WEATHER_KEY_CHARS)) errors.push(`The weather's key is not text of at most ${WEATHER_KEY_CHARS} characters.`);
         }
     }
+    errors.push(...validateMounts(slice));
     return errors;
 }
 

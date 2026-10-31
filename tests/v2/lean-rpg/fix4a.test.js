@@ -183,7 +183,7 @@ test('B10: with the RPG off, role blocks in the chat produce no hook output, no 
     const names = Object.keys(createCoreModule().commands).sort();
     assert.deepEqual(names.filter(name => name.startsWith('rpg.')), ['rpg.joinNo', 'rpg.resolve'], 'the pinned RPG commands (inert while the feature is off: rpg.resolve only runs as a prelude the hook asks for, rpg.joinNo is the reader\'s No on a companion\'s card, and both are refused by the feature gate)');
     assert.deepEqual(names, ['assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.define', 'dm.join', 'dm.migrate', 'dm.pin', 'dm.redefine', 'dm.remove', 'dm.set', 'dm.settle', 'dm.tick', 'events.fire', 'inventory.add', 'inventory.consume', 'inventory.drop', 'inventory.edit', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
-        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'rpg.joinNo', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set']);
+        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'mounts.edit', 'rpg.joinNo', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set']);
 });
 
 // --- B12: an end card always has a slot ------------------------------------------------------------------------------------------------

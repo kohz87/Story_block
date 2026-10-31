@@ -13,6 +13,7 @@ import {
     featureOn, initialInventory, inventoryTail, validateInventory, LOOT_KINDS, lootTakeGuard, INVENTORY_EDIT_GUARD, inventoryEditGuard,
 } from './inventory.js';
 import { WEATHER_CHARS, capturePlace, capturePresent, captureWeather, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
+import { MOUNTS_FEATURE, captureMount, createMountsQueries, mountsCommands, mountsTail } from './mounts.js';
 import { DEFAULT_CURRENCY, MAX_COIN_VALUE, moneyLine, resolveCurrency } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
 import { renderSceneTab } from '../ui/scene-tab.js';
@@ -27,7 +28,7 @@ import { screens as defaultScreens } from '../screens/index.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
-import { RESOLVE as RPG_RESOLVE, createLeanRpgPart } from '../lean-rpg/index.js';
+import { RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
 import { hookTimeout } from '../turn.js';
 
 const TIMED_OUT = Symbol('timed out');
@@ -62,6 +63,8 @@ export const CORE_KINDS = Object.freeze({
     present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave; when someone already here is first named, - present the old word and + present the name (- present clerk, + present Nelje)' }),
     // MODULES §F120: the weather, descriptive only; its grammar line only while `story-block.weather` is on.
     weather: Object.freeze({ grammar: `~ weather cold drizzle, low fog (only when the weather changes, not every reply; a few words, at most ${WEATHER_CHARS} characters)`, feature: CORE_FEATURE.weather }),
+    // The party's mounts (src/v2/domains/mounts.js): their grammar line only while `story-block.mounts` is on.
+    mount: Object.freeze({ grammar: '+ mount Name | kind: horse|mule|cart|… | count: 1 | pace: km/day | where: who rides or where it is (~ mount Name | condition: lame; - mount Name when lost or sold; at most 6)', feature: CORE_FEATURE.mounts }),
     // MODULES §F100: off, the kind and its grammar line are left out (a host without Features keeps it).
     loot: Object.freeze({ grammar: '? loot Thing, Other Thing x2 — where it lies (things the party could pick up; the reader chooses what to take)', feature: FEATURE.loot }),
     // MODULES §F115: display kinds, read for the reader alone (src/v2/extras.js); each under its feature.
@@ -86,6 +89,8 @@ export const CORE_FEATURES = Object.freeze([
     Object.freeze({ id: CORE_FEATURE.chatter, label: STRINGS.features.chatter, describe: STRINGS.features.chatterDescribe, default: false }),
     // The weather (MODULES §F120): on; its grammar line is in the static part while it is on.
     Object.freeze({ id: CORE_FEATURE.weather, label: STRINGS.features.weather, describe: STRINGS.features.weatherDescribe, default: true }),
+    // The mounts: on; the grammar line and the narrator's line are there only while it is on.
+    Object.freeze({ id: CORE_FEATURE.mounts, label: STRINGS.features.mounts, describe: STRINGS.features.mountsDescribe, default: true }),
     Object.freeze({ id: CORE_FEATURE.leanRpg, label: STRINGS.features.leanRpg, describe: STRINGS.features.leanRpgDescribe, default: false }),
 ]);
 
@@ -126,7 +131,7 @@ export const CORE_SETTINGS = Object.freeze({
  * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
  * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, query = null } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, query = null, rpgOn = () => false } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
@@ -151,18 +156,21 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
     return {
         domains: {
             // `weather` is scratch: a later reply's `~ weather` replays whole after the first one's reply is deleted.
-            scene: { initial: initialScene, validate: slice => validateScene(slice), scratch: ['weather'] },
+            // `mounts` is scratch too: a row added after the reply that first wrote the field was deleted still finds its place (mounts.js).
+            scene: { initial: initialScene, validate: slice => validateScene(slice), scratch: ['weather', 'mounts'] },
             // Coin and stack sizes are counts: a replay after a deleted reply adds each change to them.
             inventory: { initial: initialInventory, validate: slice => validateInventory(slice), counters: ['wallets/*/coin', 'stacks/*/qty'], scratch: ['perReply', 'storyClicks', 'loot', 'condLog'] },
         },
-        commands: { ...createInventoryCommands(env), ...sceneCommands },
-        queries: { ...createInventoryQueries(env), ...sceneQueries },
+        commands: { ...createInventoryCommands(env), ...sceneCommands, ...mountsCommands },
+        // The party's riders for `mounts.pace`: the RPG's characters who have not left, else the one reader.
+        queries: { ...createInventoryQueries(env), ...sceneQueries, ...createMountsQueries({ riders: state => (rpgOn() ? Math.max(1, partyOf(state).filter(person => !person.left).length) : 1) }) },
         kinds: {
             item: kind(CORE_KINDS.item.grammar, (ctx, line) => captureItem(ctx, line, env)),
             coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
             place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
             present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
             weather: { ...kind(CORE_KINDS.weather.grammar, (ctx, line) => captureWeather(ctx, line)), feature: CORE_FEATURE.weather },
+            mount: { ...kind(CORE_KINDS.mount.grammar, (ctx, line) => captureMount(ctx, line)), feature: MOUNTS_FEATURE },
             loot: { ...kind(CORE_KINDS.loot.grammar, (ctx, line) => captureLoot(ctx, line, env)), feature: FEATURE.loot },
         },
         context: {
@@ -171,7 +179,8 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
             // Half the budget for the lines that always go, half for the optional overflow.
             tail(view) {
                 const chars = CORE_BUDGET * 4;
-                const scene = sceneTail(view?.state, { weather: featureOn(view, CORE_FEATURE.weather) });
+                const mounts = featureOn(view, MOUNTS_FEATURE) ? mountsTail(view?.state) : null;
+                const scene = [...sceneTail(view?.state, { weather: featureOn(view, CORE_FEATURE.weather) }), ...(mounts ? [mounts] : [])];
                 // The encumbered condition, when the carry module reports it (one short line).
                 // Asked through the query, which a host with Features answers with null while it is off.
                 let found = null;
@@ -315,7 +324,7 @@ export function headMoved(tools, headIndex) {
  * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
 export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null, dataModules = {}, leanRpg = {} } = {}) {
-    const core = createCorePart({ hooks, settings, hookEntries, problem, query, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null) });
+    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null) });
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),

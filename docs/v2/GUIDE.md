@@ -21,6 +21,13 @@ Data-module layouts may also show pencils. Edits ride on the latest reply: swipe
 to take them back when it is not the oldest remaining reply. Deleting the oldest remaining reply carries
 its edits forward with the rest of its state.
 
+The narrator also keeps the party's **mounts** (horses, mules, carts: up to six rows, a group such as "Guild remounts ×4" is one
+row). While there is one, Home shows a **Mounts** card with each row's kind, condition and where it is, its pace in km a day,
+and how fast the party travels: the slowest mount's pace, or 20 km a day on foot when there are fewer mounts than riders (with the
+RPG on, every party member who has not left counts as a rider). The pencil beside a mount edits its name, kind, how many,
+pace, condition and where; like other pencils it rides on the latest reply. Switch it off in **Settings → Features → Mounts**:
+the narrator is then not told about mounts and the card is hidden.
+
 Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
 
 ## Making a block
