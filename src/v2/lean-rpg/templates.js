@@ -1,5 +1,5 @@
 // The RPG block templates (Character, Skills, Foes, Combat rules): data-module definitions that the block
-// chooser offers while the RPG feature is on (Blocks → New block → from a template). Each carries a `role`
+// chooser offers while the RPG feature is on (Settings → Blocks → From a template). Each carries a `role`
 // (see ROLES in index.js) and keeps the field keys the RPG reads. Stage fields are indexes (0 = empty) with
 // `names` from STAGES; Soul Class and ranks are numbers with names. The block engine adds three things these
 // use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists. The Skills block's rank and practice

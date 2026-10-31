@@ -58,7 +58,7 @@ import { laterStore, replyEdits, replyRules, scanReplyCards } from './reply-card
 import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE } from './features.js';
 import { createBlockTemplates } from './data-modules/block-templates.js';
-import { BLOCKS_SCREEN_ID, createBlockWidgets } from './screens/blocks.js';
+import { createBlockWidgets } from './screens/blocks.js';
 import { ROLES_WITHOUT_TAB } from './lean-rpg/names.js';
 import { createInspectorSource } from './inspect.js';
 import { createSavePoints } from './rewind.js';
@@ -172,7 +172,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         directorOn: () => registry.lifecycle?.('story-director')?.status === 'ready',
         // Off unless Story Block's core is there to own the switch (unlike coreOn, which counts a missing feature as on).
         leanRpgOn: () => (registry.feature?.(CORE_FEATURE.leanRpg) ? registry.featureOn(CORE_FEATURE.leanRpg) : false),
-        navigate: () => mounts.screen.open(BLOCKS_SCREEN_ID) });
+        // A block card's "Edit fields": the editor is on Settings → Blocks.
+        navigate: () => { openSettings().select('blocks'); return true; } });
     // The host's own widgets: the Inspector (over the store's replay) and the save points (over the chat).
     const liveCtx = () => globalThis.SillyTavern?.getContext?.() ?? ctx;
     const savePoints = createSavePoints({ ctx, store, live: liveCtx, ...(runtime.createBranch ? { createBranch: runtime.createBranch } : {}) });
@@ -240,7 +241,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     const packScreenIds = new Map();
     const rpgOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
     // The pinned blocks' screens. While RPG is on, its character, skills and rules blocks get no tab (the Party tab draws them;
-    // they stay on the Blocks page); with the feature off every block with a tab keeps it.
+    // they stay in Settings → Blocks); with the feature off every block with a tab keeps it.
     const blockPresentation = () => sdk.query('dataModules.presentation', { kind: 'screens', ...(rpgOn() ? { noTab: ROLES_WITHOUT_TAB } : {}) });
     function syncScreens() {
         const byModule = new Map();
@@ -675,7 +676,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         const fold = typeof options?.fold === 'string' ? options.fold : null;
         overlay = openSettingsWindow({
             registry, settings, doc, sdk, features: runtime.features ?? null, fold, diagnostics,
-            promptParts, tabs: tabsControl, theme, blockTemplates,
+            promptParts, tabs: tabsControl, theme, blockTemplates, blocks: blockWidgets,
+            chatOpen: () => Boolean(liveCtx()?.getCurrentChatId?.() ?? liveCtx()?.chatId),
             ...(rpg ? { extraSections: rpg.settingsSections() } : {}),
             countTokens: countTokens(),
             onClose: () => { overlay = null; },

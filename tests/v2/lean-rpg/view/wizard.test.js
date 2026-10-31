@@ -82,7 +82,7 @@ test('what holds Create up, in plain words', () => {
     assert.deepEqual(problemsOf({ ...ok, skills: [{ ...ok.skills[0], name: '' }] }, world), ['Every skill needs a name.']);
     assert.deepEqual(problemsOf({ ...ok, skills: [ok.skills[0], { ...ok.skills[0], name: 'spark' }] }, world), ['Two skills are called spark.']);
     assert.deepEqual(problemsOf({ ...ok, skills: [{ ...ok.skills[0], about: '' }] }, world), ['Spark needs a line about what it does.']);
-    assert.deepEqual(problemsOf(ok, { ...world, room: false }), ['This story has no room for two more blocks (at most 8). Remove one from Blocks first.']);
+    assert.deepEqual(problemsOf(ok, { ...world, room: false }), ['This story has no room for two more blocks (at most 8). Remove one in Settings → Blocks first.']);
     assert.deepEqual(problemsOf(ok, { ...world, hasYou: true }), ['You already have a character in this story.']);
     assert.match(problemsOf({ ...ok, name: 'Wess' }, world)[0], /You are shown as the character named like your persona \(Wessel\)/);
     assert.match(problemsOf({ ...ok, kind: 'companion' }, world)[0], /A companion cannot have your persona's name \(Wessel\)/);
@@ -423,7 +423,7 @@ test('nothing half made: if the second define fails the first block is taken bac
     await goTo(dialog, 'review');
     wizardOf(dialog).querySelector('.rpg-wiz-create').click();
     await settle();
-    assert.match(wizardOf(ctx.ui.mounts.dialog.current()).querySelector('.rpg-wiz-status').textContent, /Could not make the skills \(No skills today\.\) and could not take the character back\. Remove "Wessel" from Blocks\./);
+    assert.match(wizardOf(ctx.ui.mounts.dialog.current()).querySelector('.rpg-wiz-status').textContent, /Could not make the skills \(No skills today\.\) and could not take the character back\. Remove "Wessel" in Settings → Blocks\./);
     ctx.ui.mounts.dialog.closeAll();
 });
 
@@ -483,7 +483,7 @@ test('no room for two more blocks: the Review says so and Create stays off', asy
     assert.equal(hasRoom(ctx.host.head()), false);
     const dialog = await openFrom(ctx);
     const review = await goTo(dialog, 'review');
-    assert.match(review.textContent, /This story has no room for two more blocks \(at most 8\)\. Remove one from Blocks first\./);
+    assert.match(review.textContent, /This story has no room for two more blocks \(at most 8\)\. Remove one in Settings → Blocks first\./);
     assert.ok(review.querySelector('.rpg-wiz-create').disabled);
     dialog.close();
 });

@@ -98,7 +98,7 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.ok(overlay);
     const page = id => overlay.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === id);
     const foldsOf = id => page(id).querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Blocks', 'Modules', 'Diagnostics']);
     // Look and Features are the form engine's: no folds. The Story Suite fold has the budgets, not the look.
     assert.deepEqual(foldsOf('look'), []);
     assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font']);

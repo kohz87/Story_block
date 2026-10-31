@@ -211,7 +211,7 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 
 `src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
 `openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
-Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs, step 3f Modules, step 3g Diagnostics** (below): every section has a body, and the legacy fold host (`renderSettingsHost`) is only used by tests.
+Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs, Blocks (`view/settings/blocks.js`: the page itself is `screens/blocks.js` `page`, shared with the block cards' Edit fields; the game view has no Blocks tab), step 3f Modules, step 3g Diagnostics** (below): every section has a body, and the legacy fold host (`renderSettingsHost`) is only used by tests.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
@@ -222,7 +222,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   side stacked above the page (title row with Close, the search, then the rail as a row that scrolls sideways; no horizontal
   overflow at 390px: checked live). A page: a heading (`h3`, 22/26px, 800) and a line under it, then the body's pane; from 760px the
   heading row leaves room for Close.
-- **Sections** (`sections.js`): `SETTINGS_SECTIONS`: **Look**, Features, Money, Assist, Tabs & Packs, Modules, Diagnostics (id,
+- **Sections** (`sections.js`): `SETTINGS_SECTIONS`: **Look**, Features, Money, Assist, Tabs & Packs, Blocks, Modules, Diagnostics (id,
   label, Font Awesome icon, title, sub). Look is first in the rail; the window opens on Features (`DEFAULT_SECTION`). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
   command that selects): a `nav` of buttons, `aria-current="page"` on the chosen one, roving tabindex (one Tab stop, arrows, Home,
   End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
