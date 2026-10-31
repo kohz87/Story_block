@@ -200,11 +200,12 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   deleted) and no earlier op of the block put it there, those ops are passed over and the rest of the
   block applies; an `add` of the thing itself is never passed over. An older Story Block ignores
   `within` (the block fails as before).
-  (e) A command whose appends to a list are a set's (the scene's `+ present`) calls `ctx.unique(domain, path)`
+  (e) A command whose appends to a list are a set's (the scene's `+ present`, `~ place ... | with:` and the reader's set of who is present) calls `ctx.unique(domain, path)`
   (`path` the list, like `/present`): its `add <path>/-` ops are stored with `unique: true`. On replay
   (never for a live command), when the list already holds that item (text compared without regard to case)
   and no earlier op of the block wrote the list, the append is passed over, so deleting the reply in
-  between does not list someone twice. Ops stored without the mark replay as written.
+  between does not list someone twice. Ops stored without the mark replay as written, except appends to the scene's present list, which are
+  treated as marked (2.11.2: that list never holds a name twice, so the old outcome was a skipped block).
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,

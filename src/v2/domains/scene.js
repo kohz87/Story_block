@@ -130,6 +130,8 @@ function setPlace(ctx, { name, kind, region, with: along }) {
     if (!placeName) ctx.fail('INVALID', 'A place needs a name.');
     const moved = placeName.toLowerCase() !== scene.place.name.toLowerCase();
     const came = companions(ctx, along);
+    // Whoever comes along is added once: replayed after a reply that took them out was deleted, the add is passed over.
+    ctx.unique('scene', '/present');
     scene.place = {
         name: placeName,
         kind: field(ctx, kind, 'kind') ?? (moved ? field(ctx, packPlaceKind(ctx, placeName), 'kind') ?? '' : scene.place.kind),
@@ -230,6 +232,8 @@ function setPresent(ctx, value) {
     const scene = ctx.draft('scene');
     const before = scene.present;
     const present = companions(ctx, value);
+    // The names the reader adds are there once: replayed after a reply that took one out was deleted, that add is passed over.
+    ctx.unique('scene', '/present');
     scene.present = present;
     return { summary: fill(E.presentSummary, { names: present.join(', ') || E.nobody }),
         data: { added: present.filter(name => !before.includes(name)), removed: before.filter(name => !present.includes(name)), present: [...present] }, narrate: true };

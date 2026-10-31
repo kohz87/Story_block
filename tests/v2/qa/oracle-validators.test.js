@@ -39,7 +39,8 @@ test('a middle delete that would list someone present twice: the add is passed o
 
 test('the oracle refuses a block that brings a problem to any domain it touches, not only the inventory', () => {
     const state = { v: 2, meta: { rev: 1 }, domains: { scene: { ...initialScene(), present: ['Fenna'] }, probe: { n: 0, seen: [] } } };
-    assert.throws(() => strictApply(state, [{ op: 'add', path: '/domains/scene/present/-', value: 'Fenna' }]), /break a domain/, 'scene: a name listed twice');
+    // (A bare append of a name the list holds is passed over since 2.11.2, marked or not; a whole list written twice-over is not.)
+    assert.throws(() => strictApply(state, [{ op: 'replace', path: '/domains/scene/present', value: ['Fenna', 'Fenna'] }]), /break a domain/, 'scene: a name listed twice');
     assert.throws(() => strictApply(state, [{ op: 'replace', path: '/domains/probe/n', value: -1 }]), /break a domain/, 'the probe domain\'s own validator');
     assert.deepEqual(strictApply(state, [{ op: 'add', path: '/domains/scene/present/-', value: 'Kael' }]).domains.scene.present, ['Fenna', 'Kael']);
     // A problem the state had before the block is not the block's: it still applies.

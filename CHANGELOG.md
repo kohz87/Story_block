@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.11.2
+
+- Deleting a reply no longer costs a later reply its other changes when that reply moves the scene with someone (`~ place Road | with: Fenna`) who left in between and is there again after the delete, nor when the reader's own edit of who is present (the pencil) adds a name that way. Both now record their adds as a set's, like `+ present`: replayed onto a story where the name is already present they leave one entry, instead of a "listed as present twice" Problem that skipped the whole block (its place move, items and coins with it). The same rule now covers chats saved before: an add to the scene's present list that the list holds already is passed over when replayed, so such a block that used to be skipped is kept. Live play and receipts are unchanged.
+- Internal: the delete fuzz now counts a change line the story repeats outside the block once, as the reader does, and runs seeds 6, 9, 22 and 27 as well.
+
 ## 2.11.1
 
 - A `~ you rank: … | wearing: … | condition: …` line in a story with no pack that gives a Rank no longer loses its wearing and condition: they are kept, and only the rank part is left out, with one plain Problem ("This story has no rank…"). The same holds for a Re-read after the pack was turned off. A line that names the rank alone is still refused whole, and the reader's pencil and the `scene.you` command still refuse a rank there.
