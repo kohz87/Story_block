@@ -180,6 +180,8 @@
 .rpg-act-mark { flex: none; width: 1em; color: var(--ss-muted); }
 .rpg-act-text { min-width: 0; overflow-wrap: anywhere; }
 .rpg-skill { color: var(--ss-accent-text, var(--ss-accent)); }
+/* The Skills view's card shares this class; inside a battle line it is only a coloured word, so the line reads on one run. */
+.rpg-act-text .rpg-skill { display: inline; padding: 0; gap: 0; border-radius: 0; background: none; }
 .rpg-out { font-weight: 400; }
 .rpg-out-success { color: var(--ss-good); }
 .rpg-out-fail { color: var(--ss-bad-text, var(--ss-bad)); }

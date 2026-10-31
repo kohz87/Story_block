@@ -10,6 +10,14 @@
 - A `- party` line that names your own character is refused; companions only.
 - The wizard's Stats step lines up like Spend points: padded, an even grid of steppers beside the radar (two columns on
   a phone), and no repeated "Points left" under each stat.
+- **A skill can count when you defend.** The roll planner may name one of the defender's skills on a foe's attack (a parry,
+  a dodge, a shield). It brings its own stat and rank, an Empty resource rolls without it, and the cue and the battle log name
+  it ("Rat attacks Astra (Iaijutsu): Blocked"). Rolls made before this read as they did.
+- **Stat adds: full above 10.** A third choice beside half and a third of the stat (Settings → RPG → Custom): the stat minus 5.
+  Rolls already made keep the numbers they were rolled with. The presets are unchanged.
+- **The Soul Class field's own name.** If the Character block's field is renamed (for example "Level", names 1 to 9), the
+  Party card, the Skills roll line, "Changed this reply", the New character window, the companion card, Settings → RPG, the
+  battle log and the roll planner use that label and those names. The default is unchanged.
 
 ## 2.9.0
 

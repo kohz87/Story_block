@@ -1,5 +1,5 @@
 // The RPG's lines in "Changed this reply" (mockup 12-auto-lines): "Rolled for you: 3 exchanges" from the reply's recorded
-// rolls, and the automatic rises, "Wessel: Soul Class II → III" and "Iron Breath: Adept → Expert", worked out from the
+// rolls, and the automatic rises, "Wessel: Soul Class II → III" (the field's own label and names when a pack renamed it) and "Iron Breath: Adept → Expert", worked out from the
 // state before the reply and the reply's own (the class and rank rules raise them; the display names come from the
 // fields' `names`). They come in the shape `replyCardLines` gives (ui-host.js adds them to the card's `moduleLines`).
 // Pure: no DOM.
@@ -100,8 +100,8 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
         // A character made from 2.9.1 on gets 3 points to spend with each rise (the template's class-up rule): said when the points went up.
         const gained = character.points - old.points;
         const base = character.xp === 0 ? fill(C.classNote, { xp: character.xp, bonus }) : fill(C.classNoteShort, { bonus });
-        out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(C.classUp, { who: character.name, from: old.soulName, to: character.soulName }),
-            summary: fill(gained > 0 ? C.classSummaryPoints : C.classSummary, { to: character.soulName, n: gained }),
+        out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(C.classUp, { who: character.name, label: character.soulLabel, from: old.soulName, to: character.soulName }),
+            summary: fill(gained > 0 ? C.classSummaryPoints : C.classSummary, { label: character.soulLabel, to: character.soulName, n: gained }),
             note: gained > 0 ? `${base} · ${fill(C.classPoints, { n: gained })}` : base }));
     }
     const skillsThen = new Map(rpgBlocks(before, { roleOf }).filter(block => block.role === 'skills').map(block => [`${block.module}|${block.subject}`, block]));

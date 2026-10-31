@@ -13,7 +13,7 @@ import { STRINGS, fill } from '../strings.js';
 import { blockTabScreen } from './block-screen.js';
 import { roleTail } from '../lean-rpg/tail.js';
 import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
-import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin } from '../lean-rpg/join.js';
+import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold } from '../lean-rpg/read.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
@@ -514,10 +514,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     }
     function party(ctx, line, call = {}) {
         if (ctx.cause !== 'story' || ctx.caller !== null) refuse('REFUSED', '', J.storyOnly);
-        const read = readJoin(line);
+        const prefix = stateOf(ctx);
+        const read = readJoin(line, soulNaming(prefix));
         call.label = 'Party';
         if (read.error) refuse('DM_LABEL', '', read.error);
-        const prefix = stateOf(ctx);
         if (read.op === '-') {
             const person = partyOf(prefix).find(entry => fold(entry.name) === fold(read.name));
             if (!person || person.left) refuse('DM_SCHEMA', '', fill(J.nothing, { name: read.name }));
@@ -548,7 +548,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function addParty(ctx, payload, call = {}) {
         if (ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', J.cardOnly);
         const soul = payload?.soul === undefined ? 1 : payload.soul;
-        const request = readJoin({ op: '+', name: payload?.name, labels: { about: payload?.about, class: Number.isSafeInteger(soul) ? CLASS_NAMES[soul - 1] ?? 'X' : 'X', best: payload?.best ?? '' } });
+        const request = readJoin({ op: '+', name: payload?.name, labels: { about: payload?.about, class: Number.isSafeInteger(soul) ? CLASS_NAMES[soul - 1] ?? 'X' : 'X', best: payload?.best ?? '' } }, soulNaming(stateOf(ctx)));
         call.label = 'Party';
         if (request.error) refuse('DM_LABEL', '', request.error);
         const check = checkJoin(stateOf(ctx), request);

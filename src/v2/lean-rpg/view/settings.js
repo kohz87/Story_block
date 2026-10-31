@@ -14,9 +14,10 @@ import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
 import { JOIN_SETTING, ROLLS_SETTING } from '../names.js';
 import { joinMode } from '../join.js';
-import { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, difficultyOf, normalizeRules, plannerNoteOf, rulesFromSettings } from '../rules.js';
+import { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, STAT_ABOVE, difficultyOf, normalizeRules, plannerNoteOf, rulesFromSettings } from '../rules.js';
 import { RPG_STRINGS, fill } from '../strings.js';
-import { COMBAT_DEFAULT, COMBAT_MAX, combatBlock, combatTemplate, customOf, oddsView, plannerPrompt, withPrompt } from './settings-data.js';
+import { COMBAT_DEFAULT, COMBAT_MAX, combatBlock, combatTemplate, customOf, oddsView, plannerPrompt, soulLabelFor, withPrompt } from './settings-data.js';
+import { SOUL_LABEL } from '../soul.js';
 import { oneLine } from '../../../text.js';
 
 const S = RPG_STRINGS.settings;
@@ -41,7 +42,7 @@ export function rpgSection({ featureOn = () => true, ...deps } = {}) {
 const NUMBER_FIELDS = Object.freeze([
     Object.freeze({ key: 'foeBase', label: S.foeBase, help: S.foeBaseHelp }),
     Object.freeze({ key: 'classWeight', label: S.classWeight, help: S.classWeightHelp, options: Object.freeze([[1, '×1'], [2, '×2'], [3, '×3']]) }),
-    Object.freeze({ key: 'statDivisor', label: S.statDivisor, help: S.statDivisorHelp, options: Object.freeze([[2, S.statHalf], [3, S.statThird]]) }),
+    Object.freeze({ key: 'statDivisor', label: S.statDivisor, help: S.statDivisorHelp, options: Object.freeze([[2, S.statHalf], [3, S.statThird], [STAT_ABOVE, S.statAbove]]) }),
     Object.freeze({ key: 'costMargin', label: S.costMargin, help: S.costMarginHelp }),
     Object.freeze({ key: 'decisiveMargin', label: S.decisiveMargin, help: S.decisiveMarginHelp }),
     Object.freeze({ key: 'roundCap', label: S.roundCap, help: S.roundCapHelp }),
@@ -50,7 +51,7 @@ const NUMBER_FIELDS = Object.freeze([
 const words = (...parts) => parts.join(' ').toLowerCase();
 const CARD_WORDS = Object.freeze({
     rolls: words(S.rolls, S.rollsHelp, S.automatic, S.off),
-    difficulty: words(S.difficulty, S.gentle, S.standard, S.harsh, S.custom, NUMBER_FIELDS.map(field => `${field.label} ${field.help}`).join(' '), S.replayNote),
+    difficulty: words(S.difficulty, S.gentle, S.standard, S.harsh, S.custom, NUMBER_FIELDS.map(field => `${fill(field.label, { label: SOUL_LABEL })} ${field.help}`).join(' '), S.replayNote),
     combat: words(S.combat, S.combatHelp, S.combatLabel, S.combatReset),
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
     join: words(S.join, S.joinHelp, S.joinAsk, S.joinAuto, S.joinOff),
@@ -135,8 +136,10 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         if (now === 'custom') {
             const grid = h(doc, 'div', 'rpg-set-nums');
             const custom = customOf(values());
+            const soulLabel = soulLabelFor(headState(), readerName());
             for (const entry of NUMBER_FIELDS) {
-                const range = RULE_RANGES[entry.key], slot = field(grid, entry.label, entry.help);
+                const label = fill(entry.label, { label: soulLabel });
+                const range = RULE_RANGES[entry.key], slot = field(grid, label, entry.help);
                 let input;
                 if (entry.options) {
                     input = doc.createElement('select');
@@ -157,12 +160,14 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                     input.value = String(custom[entry.key]);
                 }
                 input.setAttribute('data-rule', entry.key);
-                input.setAttribute('aria-label', entry.label);
+                input.setAttribute('aria-label', label);
                 input.className = 'rpg-set-input';
                 input.addEventListener('change', () => {
                     const have = customOf(values()), typed = Number(String(input.value).trim());
                     // A number outside its range is held to it; something that is not a number is put back.
-                    const next = Number.isFinite(typed) && String(input.value).trim() !== '' ? Math.min(range.max, Math.max(range.min, Math.round(typed))) : have[entry.key];
+                    // (A choice is one of its options, kept as it is.)
+                    const next = entry.options ? (entry.options.some(([value]) => value === typed) ? typed : have[entry.key])
+                        : Number.isFinite(typed) && String(input.value).trim() !== '' ? Math.min(range.max, Math.max(range.min, Math.round(typed))) : have[entry.key];
                     input.value = String(next);
                     put(CUSTOM_SETTING, normalizeRules({ ...have, [entry.key]: next }));
                     live();

@@ -160,7 +160,9 @@ A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **
 **The roll rule.** A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
 the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
 plus 3) is what the situation earns, such as an ambush. That is the **Standard** difficulty; the numbers 5, 2 and
-"half" can be changed in [Settings → RPG](#settings--rpg).
+"half" can be changed in [Settings → RPG](#settings--rpg). "Half the stat" can also be "a third of the stat", or
+**full above 10**: the stat minus 5 (a stat of 10 adds 5, 14 adds 9, 20 adds 15, 8 adds 3). Whichever is chosen is the stat's
+bonus everywhere: checks, attacks and defence.
 
 - **A skill brings its own stat and resource.** An action that uses a skill the character has rolls with that skill's stat
   and spends that skill's resource (stamina or mana), whatever the planning step wrote. If the resource is Empty the action
@@ -168,6 +170,13 @@ plus 3) is what the situation earns, such as an ambush. That is the **Standard**
 - An action with no skill rolls the stat the planning step picked, at rank 0. So does an action that names a skill the
   character does not have, and the log says so. If there is no stat at all (a skill the character lacks and none given, or a
   skill from an old Skills block that has no stat of its own) the roll uses the character's best stat, untrained, and says so.
+- **A skill can count when you defend.** When a foe attacks, the planning step may name one of the defender's skills if it
+  plausibly fits (a parry, a dodge, a shield, a counter-draw): `foe Sluice Rat A | target: Astra | defend: AGI | skill: Iaijutsu`.
+  It is resolved like an action's skill: the skill's own stat wins over `defend`, its rank adds, an Empty resource rolls without
+  it (with the same plain note), and a skill the defender does not have is rolled untrained with the `defend` stat. The cue and
+  the battle log name it (`Sluice Rat A attacks Astra (Iaijutsu) — Blocked (24 vs 18)`). With no skill the defender rolls the `defend`
+  stat at rank 0, as before; a roll made before this existed reads and tells exactly as it did. A stat or resource the pack hides
+  still counts and is not named.
 - **Each action has dice of its own.** The dice belong to the action's place in the plan, so an action that is refused (a
   character who is Down) or comes back later never moves another action's dice. A plan whose every line names nobody on the
   sheet counts as a failed plan, not as "no rolls": the narrator is told to keep the fight undecided.
@@ -195,7 +204,7 @@ The page has five cards, and shows only while the RPG is on.
   a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
   above), Harsh 7 and 1. All three keep a Soul Class worth 2, half the stat, a decisive margin of 8 and at most 5 exchanges
   a reply. **Custom** shows the six numbers: **Foe's base** (0 to 15), **Soul Class adds** (×1, ×2 or ×3, for both sides),
-  **Stat adds** (half the stat, or a third), **"At a cost" when short by** (0 to 5; 0 turns it off), **Decisive at a margin
+  **Stat adds** (half the stat, a third of the stat, or full above 10), **"At a cost" when short by** (0 to 5; 0 turns it off), **Decisive at a margin
   of** (4 to 15, or a natural 1 or 20) and **Most exchanges per reply** (1 to 8). A number outside its range is held to
   it. Under the numbers a bar shows the exact chances of success, success at a cost and fail for your own character (the
   persona's name, else the first Character block) with their best skill, against a foe of their Soul Class, and it
@@ -214,6 +223,14 @@ The page has five cards, and shows only while the RPG is on.
 With the RPG off none of this is read or sent.
 
 ## Soul Class and skill ranks
+
+**Renaming it.** The Character block's Soul Class field can be renamed (Settings → Blocks → Edit, or a pack's template): a different
+label such as "Level" and different names such as 1 to 9. Everywhere the RPG shows it, it uses the field's own label and names from
+that character's Character block, and falls back to "Soul Class" and I to IX: the Party card, the Skills roll line, "Changed this reply",
+the New character window, the companion card and its refusals, Settings → RPG (the odds line and "Soul Class adds" use your own
+character's block), the battle log and the roll planner's party list (`Wessel (Level 3)`). A new character made by the window or by a
+`+ party` line copies the template, so it keeps "Soul Class" unless a pack's template renamed it. With the default names nothing is
+different from before, in the screens or in what the narrator and the planner are sent.
 
 These rise on their own, with no confirm step.
 

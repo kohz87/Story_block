@@ -13,7 +13,8 @@ import { oneLine } from '../../text.js';
 import { CLASS_NAMES, CREATION, JOINS, JOIN_SETTING, PARTY_MAX, STATS } from './names.js';
 import { fold } from './read.js';
 import { RPG_STRINGS, fill } from './strings.js';
-import { buildDefinitions, hasRoom, newDraft, readDraft } from './view/wizard-data.js';
+import { buildDefinitions, hasRoom, newDraft, newSoul, readDraft } from './view/wizard-data.js';
+import { soulReading } from './soul.js';
 
 const J = RPG_STRINGS.join;
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -28,19 +29,24 @@ export const joinGrammar = () => J.grammar;
 export const JOIN_NO = 'rpg.joinNo';
 export const JOIN_ADD = 'dm.join';
 
-/** A Soul Class written as I to IX or 1 to 9 → 1..9, or 0 when it is not one. */
-export function soulOf(text) {
+/**
+ * A Soul Class written as I to IX or 1 to 9 → 1..9, or 0 when it is not one. `soul` (soul.js soulReading): the field's own names are
+ * understood too, when a pack renamed them ("Level" 1–9, or words).
+ */
+export function soulOf(text, soul = null) {
     const word = oneLine(text).toUpperCase();
     if (/^[1-9]$/.test(word)) return Number(word);
     const at = CLASS_NAMES.indexOf(word);
-    return at >= 0 ? at + 1 : 0;
+    if (at >= 0) return at + 1;
+    const own = typeof soul?.word === 'function' ? CLASS_NAMES.findIndex((_, n) => oneLine(soul.word(n + 1)).toUpperCase() === word) : -1;
+    return own >= 0 ? own + 1 : 0;
 }
 
 /**
  * A party line read: `{ op: '+' | '-', name, about, soul, best }` or `{ error }` (plain words). `about` is cut at 240 characters (whole
  * characters), `soul` is 1 when the line has no class, `best` is one of the seven stats or '' when the line names none.
  */
-export function readJoin(line) {
+export function readJoin(line, naming = null) {
     const op = line?.op;
     if (op !== '+' && op !== '-') return { error: fill(J.wrongOp, { op: op ?? '' }) };
     const name = oneLine(line?.name);
@@ -51,8 +57,8 @@ export function readJoin(line) {
     const about = [...oneLine(labels.about ?? line?.text)].slice(0, CREATION.about).join('');
     let soul = 1;
     if (oneLine(labels.class)) {
-        soul = soulOf(labels.class);
-        if (!soul) return { error: J.badClass };
+        soul = soulOf(labels.class, naming);
+        if (!soul) return { error: fill(J.badClass, soulWords(naming)) };
     }
     let best = '';
     if (oneLine(labels.best)) {
@@ -60,6 +66,22 @@ export function readJoin(line) {
         if (!STATS.includes(best)) return { error: fill(J.badBest, { stats: STATS.join(', ') }) };
     }
     return { op, name, about, soul, best };
+}
+
+/** What the Soul Class is called, as the refusal and the card say it: { label, first, last, word } (soul.js). The default is the template's. */
+const soulWords = naming => {
+    const own = naming ?? newSoul();
+    return { label: own.label, first: own.word(1), last: own.word(CLASS_NAMES.length), word: own.word };
+};
+
+/** What this story's party calls the Soul Class: the first Character block's own field (companions who left too), else the template's. */
+export function soulNaming(state) {
+    const domain = state?.domains?.dataModules;
+    for (const module of Object.keys(isRecord(domain?.active) ? domain.active : {})) {
+        const definition = activeDefinition(state, module);
+        if (definition?.role === 'character' && definition.scope === 'chat' && isRecord(definition.state?.soul)) return soulReading(definition.state.soul);
+    }
+    return newSoul();
 }
 
 /** The characters of the story's party, from a state: `[{ module, name, soul, left, canLeave }]` in block order (the ones who left too). */
@@ -134,11 +156,12 @@ export function joinOffers(entries, index, party = []) {
 }
 
 /** The card under the reply for the first offer, in reply-cards.js's shape, or null. */
-export function joinCard(offers) {
+export function joinCard(offers, state = null) {
     const offer = offers[0];
     if (!offer) return null;
+    const naming = soulNaming(state);
     const payload = { name: offer.name, about: offer.about, soul: offer.soul, best: offer.best };
-    const rows = [{ icon: 'fa-star', text: fill(J.rowSoul, { name: CLASS_NAMES[offer.soul - 1] ?? 'I' }) }];
+    const rows = [{ icon: 'fa-star', text: fill(J.rowSoul, { label: naming.label, name: CLASS_NAMES[offer.soul - 1] ? naming.word(offer.soul) : naming.word(1) }) }];
     if (offer.best) rows.push({ icon: 'fa-arrow-up', text: fill(J.rowBest, { stat: offer.best.toUpperCase() }) });
     return {
         tone: 'accent', icon: 'fa-user-plus', title: fill(J.title, { name: offer.name }), text: offer.about, rows,

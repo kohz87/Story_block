@@ -25,12 +25,13 @@ import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
-import { CLASS_NAMES } from '../names.js';
 import { joinDraft } from '../join.js';
-import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
+import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newSoul, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
     START_RANKS, statsLine, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
 const W = RPG_STRINGS.wizard;
+// What the characters the wizard makes call their Soul Class (the Character template's own label and names).
+const soulWords = newSoul();
 export const WIZARD_SCREEN_ID = 'story-block/new-character';
 export const WIZARD_WIDGET = 'rpg.wizard';
 
@@ -154,7 +155,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 who.appendChild(h(doc, 'span', 'rpg-wiz-ava', [...now.name][0]?.toUpperCase() ?? '?'));
                 const k = h(doc, 'div', 'rpg-wiz-k');
                 k.appendChild(h(doc, 'span', 'rpg-wiz-name', now.name || W.title));
-                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { name: CLASS_NAMES[(now.soul ?? 1) - 1] ?? 'I' })}`));
+                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { label: soulWords.label, name: soulWords.word(now.soul ?? 1) })}`));
                 who.appendChild(k);
                 summary.appendChild(who);
                 const part = (label, text) => {
@@ -220,7 +221,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 showPersona();
                 about.addEventListener('input', () => { put({ ...draft(), about: about.value }); count.textContent = fill(W.aboutCount, { n: [...about.value].length, max: CREATION.about }); showPersona(); });
                 form.appendChild(fromPersona);
-                form.appendChild(h(doc, 'p', 'rpg-wiz-note', draft().soul > 1 ? fill(W.whoNoteSoul, { name: CLASS_NAMES[snap().soul - 1] }) : W.whoNote));
+                form.appendChild(h(doc, 'p', 'rpg-wiz-note', draft().soul > 1 ? fill(W.whoNoteSoul, { label: soulWords.label, name: soulWords.word(snap().soul) }) : fill(W.whoNote, { label: soulWords.label, first: soulWords.word(1) })));
             }
 
             // ---- Stats ----
@@ -255,7 +256,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 card.appendChild(sheet);
                 const actions = h(doc, 'div', 'rpg-actions rpg-wiz-stats-actions');
                 button(actions, W.statsReset, 'ss-button rpg-wiz-reset', () => { put({ ...draft(), stats: Object.fromEntries(STATS.map(stat => [stat, CREATION.start])) }); redraw(); });
-                actions.appendChild(h(doc, 'p', 'rpg-sheet-note', fill(W.statsNote, CREATION)));
+                actions.appendChild(h(doc, 'p', 'rpg-sheet-note', fill(W.statsNote, { ...CREATION, label: soulWords.label })));
                 card.appendChild(actions);
                 body.appendChild(card);
             }
@@ -344,7 +345,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 for (const skill of now.skills) skills.appendChild(h(doc, 'li', '', `${skill.name || '—'} · ${skill.stat.toUpperCase()} · ${W[skill.uses]} · ${W.startsAt} ${RANK_NAMES[skill.start]}`));
                 if (!now.skills.length) skills.appendChild(h(doc, 'li', '', W.noSkills));
                 list.appendChild(skills);
-                list.appendChild(h(doc, 'p', 'rpg-wiz-note', now.soul > 1 ? fill(W.reviewStartSoul, { name: CLASS_NAMES[now.soul - 1] }) : W.reviewStart));
+                list.appendChild(h(doc, 'p', 'rpg-wiz-note', now.soul > 1 ? fill(W.reviewStartSoul, { label: soulWords.label, name: soulWords.word(now.soul) }) : fill(W.reviewStart, { label: soulWords.label, first: soulWords.word(1) })));
                 const left = Math.max(0, pointsLeft(now));
                 if (left > 0) list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(left === 1 ? W.reviewLeftOne : W.reviewLeft, { n: left })));
                 list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(W.reviewBlocks, { character: names.character, skills: names.skills })));

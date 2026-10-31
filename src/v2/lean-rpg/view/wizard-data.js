@@ -13,6 +13,7 @@ import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
 import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../templates.js';
+import { soulReading } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 
 const W = RPG_STRINGS.wizard;
@@ -182,6 +183,9 @@ export function extrasPlan(state, { roleOf, free = Infinity } = {}) {
 }
 
 const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+
+/** What a character the wizard makes calls its Soul Class (soul.js): the Character template's own label and names. */
+export const newSoul = () => soulReading(template('character').state.soul);
 
 /** The block each extra role is made from, by its name: "Combat rules" and "Foes" (the stock templates, as Settings → Blocks offers them). */
 export const extraName = role => LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role)?.name ?? role;
