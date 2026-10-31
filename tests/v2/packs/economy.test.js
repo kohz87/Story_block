@@ -99,12 +99,12 @@ async function fresh(t) {
     return host;
 }
 
-test('money scale does not set the story budget', async t => {
+test('money scale and an old saved cap set no limit on what the story pays', async t => {
     const host = await fresh(t);
     assert.equal((await host.packs.packs.install(pack({ id: 'copper', economy: { scale: 0.01 } }))).ok, true);
     await host.send('Chest.', reply('Coins.', ['+ coin 500']));
     assert.equal(coin(host), 500);
-    host.settings.set('story-block', 'storyCoinPerReply', 7);
+    host.settings.set('story-block', 'storyCoinPerReply', 7);   // the removed cap: ignored
     await host.send('A purse.', reply('Coins.', ['+ coin 500']));
-    assert.equal(coin(host), 507);
+    assert.equal(coin(host), 1000);
 });

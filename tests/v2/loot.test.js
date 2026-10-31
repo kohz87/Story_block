@@ -1,6 +1,6 @@
 // "Pick what you take" (`story-block.loot`): `? loot A, B x2, C — where` lays things out on the reply; its
 // card shows them as chips and "Take selected" (`inventory.lootTake { sid, pick }`) puts the ticked ones in
-// the party's bag. The offer is held to the reply's story limits when it is read; things already carried
+// the party's bag. The offer is not held to a per-reply limit; things already carried
 // (tolerant names) are left out; each reply's loot is taken once (claim `loot:<sid>`); swipes and deletes
 // take it back with the reply.
 import test from 'node:test';
@@ -164,27 +164,20 @@ test('things already carried are not offered, and are skipped at the take (toler
     assert.deepEqual([qty(host, 'Sulfur Alloy'), qty(host, 'alloy of sulfur (piece)')], [0, 1], 'the story\'s own piece, nothing more');
 });
 
-test('the offer is held to the reply\'s story limits when it is read (worth, 20 of one item, new kinds)', async t => {
+test('the offer is not held to a per-reply limit: valuable goods, a big count and a new kind are all offered and taken', async t => {
     const PRICES = { 'Ruby Shard': 40, 'Royal Crown': 600 };
     const world = {
         id: 'zz-world', name: 'World',
-        queries: { 'quest.ranks': () => [{ id: 'F', levels: [1, 10], reward: [10, 50] }] },
         hooks: { 'item.define': def => (Object.hasOwn(PRICES, def.name) ? { value: PRICES[def.name] } : null) },
     };
+    // An old saved value of the removed cap changes nothing.
     const host = await fresh(t, { modules: [world], settings: { modules: { 'story-block': { storyCoinPerReply: 50 } } } });
-    // Goods worth at most 100 per reply: 2 Ruby Shards fit; the crown is never notable as loot.
-    await host.send('The vault.', reply('Glitter.', ['? loot Ruby Shard x3, Royal Crown, Arrows x25 — in the vault']));
-    assert.deepEqual(Object.values(offer(host).items), [{ name: 'Ruby Shard', qty: 2 }, { name: 'Arrows', qty: 20 }]);
-    const messages = host.turn.problems().map(problem => problem.message).join(' | ');
-    assert.match(messages, /Ruby Shard ×3 was written, but one reply may give goods worth at most 100 gold in all; 2 were offered/);
-    assert.match(messages, /one Royal Crown is worth 600 gold/);
-    assert.match(messages, /Arrows ×25 was written, but one reply may give at most 20 of one item; 20 were offered/);
+    await host.send('The vault.', reply('Glitter.', ['? loot Ruby Shard x3, Royal Crown, Arrows x250 — in the vault']));
+    assert.deepEqual(Object.values(offer(host).items), [{ name: 'Ruby Shard', qty: 3 }, { name: 'Royal Crown', qty: 1 }, { name: 'Arrows', qty: 250 }]);
+    assert.deepEqual(host.turn.problems(), []);
     assert.equal(host.sdk.query('inventory.find', { name: 'Royal Crown' }).status, 'none', 'laying out makes no definition');
-    // The same reply's later lines see the budget the loot holds.
-    const tally = host.head().domains.inventory.perReply[sid(host)];
-    assert.equal(tally.worth, 80);
-    assert.equal((await take(host, [0, 1])).ok, true);
-    assert.deepEqual([qty(host, 'Ruby Shard'), qty(host, 'Arrows')], [2, 20]);
+    assert.equal((await take(host, [0, 1, 2])).ok, true);
+    assert.deepEqual([qty(host, 'Ruby Shard'), qty(host, 'Royal Crown'), qty(host, 'Arrows')], [3, 1, 250]);
 });
 
 test('the reader\'s take is refused past the carry limit (nothing taken, the loot still there)', async t => {

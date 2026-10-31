@@ -832,7 +832,7 @@ chatter under each present person, for the Scene screen while Story Director's W
                          note: '', from: '' /* receipt id */, cond?: 0–100 /* older chats only: where the condition starts */ } },
   wallets:{ [owner]: { coin: 0 } },                // one currency, smallest unit (MODULES §F1)
   aliases:{ [lowercase name]: defId },
-  perReply?: { [sid]: { coin, worth, made, items, notable? } },   // scratch: a reply's story tally
+  perReply?: { [sid]: { coin, vouched?, debit? } },   // scratch: a reply's story tally (older chats also hold worth, made, items, notable: ignored)
   condLog?: { [stackId]: { ['<sid>#<n>']: { d, n } } },          // scratch: gear condition events
   loot?:   { [sid]: { sid, n, where, claim, items: { "0": { name, qty }, … } } },   // scratch: loot on offer
 }
@@ -857,25 +857,25 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
   `party.actors` (or the `party` domain) does not list is `REFUSED`.
 * **Money-named items.** An item named exactly the currency, singular or plural (`+ item Marks | qty: 44`,
   `- item mark`), is money: it goes to or from the party's wallet like `+ coin` / `- coin`.
-* **Story limits.** `storyCoinPerReply` is the reader's per-reply coin cap. Automatic (0) leaves story money and items without a per-reply coin, worth, quantity or new-kind limit; only a thing that does not stack (a stack per piece) is held to 50 per line or loot offer, with a problem that says so. A Take gives at most 50 of such a thing too (an offer read while the item still stacked, or saved by an older version): the rest is left, and the receipt says so. With an explicit coin cap, the associated item limits apply. Receipts and Problems explain limits and refusals; per-reply bookkeeping follows swipes and deletions.
+* **Story limits.** There is no per-reply cap on story money, items or goods: the story decides what it pays. (Older
+  versions had a reader setting, `storyCoinPerReply`; a saved value is ignored: never an error, never a cap.) Only a thing
+  that does not stack (a stack per piece) is held to 50 per line or loot offer, with a problem that says so. A Take gives at
+  most 50 of such a thing too (an offer read while the item still stacked, or saved by an older version): the rest is
+  left, and the receipt says so. A reply captured under an older cap replays as it was written (its ops hold what it gave).
+  Receipts and Problems explain refusals; per-reply bookkeeping follows swipes and deletions.
 * **Story-vouched payouts.** `wallet.receive { owner, amount, note?, story: true }`, called by a module
   (`ctx.call`) while a reply is captured, is money the story alone vouched for (a quest the story closed
-  that no code could count). It counts against the same per-reply coin budget as the story's coin lines and
-  is never refused for it: over the budget what is left is paid, which may be 0; the receipt data's
-  `amount` is what was paid, and the result's `problem` says why (a `LIMITED` note when the module passes
-  it on). Called outside a capture (a quest Finish click after the reply), it counts against the reply the
-  click is stored on (`ctx.reply`, the head carrier) in the same budget, so one reply's `+ coin` lines and
-  the clicks after it (a Continue's lines too) give at most one budget (RX-E-2). A click keeps what it paid
-  as its own key, `storyClicks[<sid>][<receipt id>]` (scratch, add-only), and never writes the reply's
-  tally; a Re-read counts the kept clicks from `ctx.standing`, so its lines are paid only what the clicks
-  left, live, on replay and on a cold rebuild alike (a2-3). Without the flag, or with
-  no module caller, a payout is not counted. `story` that is not true or false is `INVALID`.
+  that no code could count). It is paid in full and counted for the reply: during a capture, the reply being
+  read; called outside a capture (a quest Finish click after the reply), the reply the click is stored on
+  (`ctx.reply`, the head carrier) (RX-E-2). A click keeps what it paid as its own key,
+  `storyClicks[<sid>][<receipt id>]` (scratch, add-only), and never writes the reply's tally. Without the
+  flag, or with no module caller, a payout is not counted. `story` that is not true or false is `INVALID`.
 * **`inventory.storyBudget`** → `{ budget, paid, left, vouched }`: the story money the current reply
-  (`tools.reply`: the asking command's reply, else the head carrier) may give, has given (`+ coin` lines and
-  vouched payouts, clicks included) and has left; `vouched` is the part of `paid` that vouched payouts gave
-  (kept in the tally as `vouched` once there is some). `budget` is the coin budget above, so it honours the
-  reader's `storyCoinPerReply`. A module that holds its own story payouts to the budget (Story Director's quest
-  turn-ins) reads it with `tryQuery`, falling back to its own tally on an older Story Block.
+  (`tools.reply`: the asking command's reply, else the head carrier) has given (`+ coin` lines and
+  vouched payouts, clicks included); `vouched` is the part of `paid` that vouched payouts gave
+  (kept in the tally as `vouched` once there is some). There is no per-reply limit, so `budget` and `left` are
+  always `null`; they stay in the answer for modules written when a limit could be set (Story Director's quest
+  turn-ins read it with `tryQuery`, and treat a null budget as no limit).
 * **A used consumable** (`- item Draught | used: yes`, or a used-word such as drank or applied, and no
   lost/sold/given word) goes to `item.use { name, on, qty, story: true }` when a module answers it.
 * **Gear condition**: a whole number 0 (broken) … 100 (as new), **derived, never stored as the truth**.
@@ -909,12 +909,10 @@ writes are never scaled. Modules read it with `tryQuery('inventory.economy')`, f
 * **Equipment.** `inventory.equip` and `inventory.unequip` manage the party's equipment. Optional modules may provide item use and carry queries; the screen only offers actions they support.
 * **Loot to pick from** (`story-block.loot`). `? loot Rusty Key, Lantern Oil x2, Torn Map — on the cellar
   shelf | qty: 1` lays things out without giving them (a count per thing as `Name x2`, of any length, else `qty:`, else 1; a count is never part of a name).
-  The offer is held to the reply's story limits when it is read, each thing as a `+ item` line would be but
-  never the notable one (so the chips show what can be taken); things the party already carries (tolerant
+  The offer is read as a `+ item` line would be (so the chips show what can be taken); things the party already carries (tolerant
   names) are left out with a `LIMITED` note; at most 8 things per reply. It makes no definition. Money in the
   line ("1000 gold", "Gold x500", the chat's currency) is one coin offer in that loot (`{ name, qty: 1, coin }`),
-  held to the reply's coin budget like a `+ coin` line (`LIMITED` past it) and paid into the party's wallet on
-  Take; never an item.
+  counted for the reply like a `+ coin` line and paid into the party's wallet on Take; never an item.
   One offer per reply, `inventory.loot[<sid>] = { sid, n, where, claim, items: { "0": { name, qty }, … } }`
   (a record keyed by position, not a list, so a second loot line of the reply adds keys); `loot` is scratch
   like `perReply`, and a reply keeps the 5 newest offers. The reply's card shows them as chips with **Take

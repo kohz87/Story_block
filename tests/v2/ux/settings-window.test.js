@@ -199,7 +199,7 @@ test('each section holds what it should: every section is the form engine\'s', a
     assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row').length, 0, 'the Modules page draws no old rows');
     assert.deepEqual(cardOf(root, 'rpg-battle').querySelectorAll('.ss-field').map(row => row.dataset.field), ['hardMode', 'level', 'title']);
     assert.equal(page(root, 'money').querySelectorAll('.story-suite-row').length, 0);
-    assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'storyCoinPerReply', 'currency', 'currencyPlural', 'currencyShort', 'economyScale']);
+    assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'currency', 'currencyPlural', 'currencyShort', 'economyScale']);
     host.close();
 });
 
@@ -495,10 +495,10 @@ test('search words: one match says "1 setting shown", none says so with the text
     search(root, 'rpg battle');
     assert.deepEqual(shownPages(root), ['features', 'modules'], 'the module, and the RPG feature (its battle log)');
     assert.equal(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden && !row.parentNode.hidden).length, 3, 'its three settings (the module\'s name shows them all)');
-    // What it says finds it ("money" → "Money one reply may give", "Money scale" and the "Money words" card), not the section's own name.
+    // What it says finds it ("money" → "Money scale" and the "Money words" card), not the section's own name.
     search(root, 'money');
     assert.ok(shownPages(root).includes('money'));
-    assert.equal(page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'storyCoinPerReply,currency,currencyPlural,currencyShort,economyScale');
+    assert.equal(page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'currency,currencyPlural,currencyShort,economyScale');
     // Words are all needed, in any order, any case.
     search(root, 'SHOP trade');
     assert.deepEqual(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field), ['title']);

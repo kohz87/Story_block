@@ -42,7 +42,7 @@ data-module limits.
 An exported block keeps its tab, Home card and buttons when its pack is imported and enabled. Edit
 fields, Save as template and Remove are available on blocks made in the current chat.
 
-In **Settings → Money**, Automatic means no limit: the story decides. Set a number to cap what one reply may give; the money scale is in the folded **Advanced** row. Names and values of coins are set on the same page.
+The story decides how much money and how many items a reply gives; there is no per-reply cap. In **Settings → Money** you set the names and values of coins and the money words; the money scale is in the folded **Advanced** row.
 
 ## RPG
 

@@ -216,7 +216,7 @@ test('Story Block\'s card has what the other pages do not: no money, no Assist, 
     assert.equal(core.querySelector('.story-suite-section'), null, 'its Assist panel is the Assist page\'s');
     assert.equal(core.querySelector('.ss-packs-import'), null, 'its Packs are the Tabs & Packs page\'s');
     assert.equal(core.querySelector('.ss-events'), null, 'its Events are in Diagnostics');
-    for (const key of ['coins', 'currency', 'assistProfile', 'storyCoinPerReply']) assert.equal(core.querySelector(`.ss-field[data-field="${key}"]`), null, key);
+    for (const key of ['coins', 'currency', 'assistProfile']) assert.equal(core.querySelector(`.ss-field[data-field="${key}"]`), null, key);
     const split = moduleSchema('story-block', { coins: field('text', 'General thing'), a: { type: 'bool', label: 'Inner chatter: On' }, b: { type: 'bool', label: 'Assist: Safety net', group: 'Assist' } });
     assert.deepEqual(Object.keys(split.schema), ['a'], 'the General and Assist groups go to their pages');
     assert.deepEqual(split.groups, ['Inner chatter']);

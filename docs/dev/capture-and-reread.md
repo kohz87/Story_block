@@ -11,7 +11,7 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
 - The kind picks the owner module (`capture.kinds` in its definition). Unknown kinds are a Problem, never guessed.
 - Each line runs **as a command** with cause `story` (`ctx.carrier = { index, swipe, sid, key }`, `ctx.chat`),
   in reply order, on the state the previous line left. A refused line is a Problem entry, never a throw.
-- Code sets every number: a capture clamps, caps per reply and claims once (`meta.claims`). Model text never
+- Code sets every number: a capture clamps and claims once (it caps nothing per reply: the story decides what it pays) (`meta.claims`). Model text never
   mints value. Per-reply tallies are keyed by `ctx.carrier.sid` (SPEC §2.2 "Per-reply bookkeeping").
 - **afterCapture** (SPEC §4.2 step 3, MODULES §F121): once a capture kept a story line, each module's
   `afterCapture(view, { index, type })` hook may ask for `system` steps, run right after the reply's last
@@ -56,7 +56,7 @@ reply), §4.4 (grammar, display kinds), §4.5 (free-text actions), §2.2 (spans,
 
 - `tests/v2/capture.test.js`, `story-change-lines.test.js`, `continue-capture.test.js`, `after-capture.test.js`, `stray-reread.test.js`
   (random replies, stops and Continues: Re-read reads what the live capture read), `story-limits.test.js`,
-  `story-budget.test.js`, `story-notable.test.js`, `extras.test.js`, `tests/v2/domains/capture.test.js`.
+  `story-budget.test.js`, `old-cap-chats.test.js`, `extras.test.js`, `tests/v2/domains/capture.test.js`.
 - Break findings: `tests/v2/break/a1-stray-*`, `a1-reread-double-dash`, `a2-reread-after-vouched-click`,
   `b1-capture-*`, `b1r2-capture*`, `c2-continue-split-block`, `c2-cut-mid-reasoning`, `c2-spoof-marker-reread`,
   `c4-slow-reread`, `confirm-stray-echo-twice`, `confirm-close-tag-in-line-leaks`, `fix-reread-vouched`.

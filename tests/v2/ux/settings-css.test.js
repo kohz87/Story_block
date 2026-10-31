@@ -333,7 +333,7 @@ test('a light scheme\'s slider track is a light token: the unfilled part is a fa
     // SillyTavern paints a range with a body-coloured bar, a thumb in its tick colour and a hover filter (`input[type="range"]`,
     // one class and an element heavy): the block's rules weigh more, and clear them.
     const input = glass.slice(glass.indexOf(`${ROOT_SELECTOR} .ss-slider .ss-slider-input {`), glass.indexOf('}', glass.indexOf(`${ROOT_SELECTOR} .ss-slider .ss-slider-input {`)));
-    assert.match(input, /background: transparent;\s*box-shadow: none;\s*filter: none;/);
+    assert.match(input, /background: transparent !important;\s*box-shadow: none !important;\s*filter: none !important;/);
     assert.ok(weight(`${ROOT_SELECTOR} .ss-slider .ss-slider-input::-webkit-slider-thumb`) > weight('input[type="range"]::-webkit-slider-thumb'));
     assert.ok(weight(`${ROOT_SELECTOR} .ss-slider .ss-slider-input`) > weight('input[type="range"]'));
 });

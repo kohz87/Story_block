@@ -218,7 +218,7 @@ test('widget: the search draws only the hits and the way to them, opened; a hit 
     box.dispatch('input');
     assert.equal(source.memory.search, 'Lantern');
     // The definition's name, its id (a key and a value), its stack's def, and the alias (key and value).
-    assert.equal(q('.sb-insp-count').textContent, '6 found');
+    assert.equal(q('.sb-insp-count').textContent, '5 found');
     const leaf = q('.sb-insp-leaf[data-path="/domains/inventory/defs/story~1lantern/name"]');
     assert.ok(leaf.classList.contains('sb-insp-hit'));
     assert.equal(leaf.querySelector('.sb-insp-str').textContent, '"Lantern"');

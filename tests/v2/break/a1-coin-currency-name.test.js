@@ -11,7 +11,7 @@ const coin = host => host.sdk.query('inventory.wallet', { owner: 'party' }).coin
 
 test('"+ coin 2 gold" is not read as 2 copper when gold is not a coin of this world', async t => {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost({ settings: { modules: { 'story-block': { coins: [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }], storyCoinPerReply: 500 } } } });
+    const host = await createHost({ settings: { modules: { 'story-block': { coins: [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }] } } } });
     t.after(() => host.close());
     await host.send('Hello.', 'The road.');
     await host.send('Paid.', 'He pays.\n\n<Changes>\n+ coin 3 silver\n</Changes>');

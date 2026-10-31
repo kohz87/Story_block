@@ -18,7 +18,7 @@ const CORE_ID = 'story-block';
 export const SETTINGS_SECTIONS = Object.freeze([
     Object.freeze({ id: 'look', label: 'Look', icon: 'fa-palette', title: 'Look', sub: 'How Story Suite\'s panels and text look.' }),
     Object.freeze({ id: 'features', label: 'Features', icon: 'fa-toggle-on', title: 'Features', sub: 'Switch parts of the game on or off.' }),
-    Object.freeze({ id: 'money', label: 'Money', icon: 'fa-coins', title: 'Money', sub: 'Your world\'s coins, and how much the story may pay.' }),
+    Object.freeze({ id: 'money', label: 'Money', icon: 'fa-coins', title: 'Money', sub: 'Your world\'s coins and money words.' }),
     Object.freeze({ id: 'assist', label: 'Assist', icon: 'fa-wand-magic-sparkles', title: 'Assist', sub: 'Optional cheap model calls that help a fast narrator.' }),
     Object.freeze({ id: 'tabs', label: 'Tabs & Packs', icon: 'fa-table-columns', title: 'Tabs & Packs', sub: 'The look of the panels, which tabs show and in what order, and your content packs.' }),
     Object.freeze({ id: 'modules', label: 'Modules', icon: 'fa-puzzle-piece', title: 'Modules', sub: 'The settings of each installed module, and which versions are installed.' }),
