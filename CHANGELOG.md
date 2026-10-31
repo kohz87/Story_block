@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.9.0
+
+- **A new chat with the RPG.**
+  - While the RPG is on and the story has no character for you, Home shows a **Your character** card, with
+    **Create your character** and **Not now**.
+  - The New character wizard fills **Who they are** from your persona's description, as it already fills the name.
+  - The first **Send** without a character is held, never lost. You can **create your character, then send**, or
+    **send without the RPG for now**. It asks once per chat.
+- **Companions who join.**
+  - When someone joins the party, the narrator writes `+ party <Name> | about | class | best`. Code makes their
+    Character and Skills blocks: stats 10, the best stat 14, Soul Class no higher than the party's.
+  - Settings → RPG → **Companions who join**:
+    - **Ask** (default): a card on the reply with Add to party, Edit first or No.
+    - **Automatically:** the character is made at once, and a swipe takes it back.
+    - **Off.**
+  - `- party <Name>` marks a companion as having left. They are kept, never deleted.
+- **Blocks move to Story Suite settings.**
+  - The Game view's Blocks tab is gone. **Settings → Blocks** lists the story's blocks, with New block, From a
+    template, Edit, and ⋯ (Save as template, Export as pack, Remove).
+  - **Show as:** its own tab, a card on Home, both, or the new **Hidden**: the block keeps working, with no tab or
+    card.
+- **No more per-reply cap on what the story pays.** The Money page's "What the story may pay" card and every
+  per-reply limit on coins and goods are gone; the story decides. Old chats replay exactly as they were.
+- Story Suite's sliders keep their own look even under a theme that forces a style on every range input.
+
 ## 2.8.1
 
 **Content release.** The bundled example pack is now **Ersveil 2.2.0**, and its lorebook has grown.
