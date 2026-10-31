@@ -312,3 +312,45 @@ test('rebaseOps rule d: only on replay, only inside the marked thing, never the 
     const there = { domains: { notes: { items: { n_x: { open: true } }, n: 1 } } };
     assert.deepEqual(rebaseOps(there, ops, { replayed: true }).ops, ops, 'there: as written');
 });
+
+// ---- a set's append (ctx.unique, SPEC §2.2 rule e): `+ present` after the reply that dropped them is deleted ---
+
+test('ctx.unique: a later `+ present` of someone still present is passed over on replay; the rest of its block applies', async t => {
+    t.mock.method(console, 'warn', () => {});
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('1', reply('Text.', ['~ place Inn | kind: town', '+ present Fenna']));
+    await host.send('2', reply('Text.', ['~ place Ridge Fort | kind: town']));
+    await host.send('3', reply('Text.', ['+ present Fenna', '+ item Rope | qty: 1']));
+    const third = host.ctx.chat.length - 1;
+    const ops = host.store.opsAt(third);
+    assert.deepEqual(ops.filter(op => op.unique).map(op => [op.op, op.path, op.value]), [['add', '/domains/scene/present/-', 'Fenna']]);
+    assert.deepEqual(host.head().domains.scene.present, ['Fenna']);
+    const user = host.ctx.chat.findIndex((m, i) => m.is_user && /^2$/.test(m.mes));
+    await host.st.deleteMessage(user + 1);
+    await host.st.deleteMessage(user);
+    assert.deepEqual(host.store.problems(), [], 'no block is skipped');
+    assert.deepEqual(host.head().domains.scene.present, ['Fenna'], 'Fenna is present once');
+    assert.equal(host.sdk.query('inventory.items').filter(item => item.name === 'Rope').length, 1, 'the rest of the block applied');
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'rebuild == live');
+    const image = { chat: JSON.parse(JSON.stringify(host.ctx.chat)), metadata: JSON.parse(JSON.stringify(host.ctx.chatMetadata)) };
+    const again = await createHost({ st: { chat: image.chat } });
+    t.after(() => again.close());
+    again.ctx.chatMetadata = image.metadata;
+    await again.turn.onChatChanged();
+    assert.equal(JSON.stringify(again.head()), live, 'reload == live');
+    assert.deepEqual(again.store.problems(), []);
+});
+
+test('rebaseOps rule e: only on replay, only a marked append of an item the list holds; unmarked ops stay as written', () => {
+    const state = { domains: { scene: { present: ['Fenna'] } } };
+    const add = (value, extra = {}) => ({ op: 'add', path: '/domains/scene/present/-', value, ...extra });
+    assert.deepEqual(rebaseOps(state, [add('fenna', { unique: true })], { replayed: true }).ops, [], 'held (any case): passed over');
+    assert.deepEqual(rebaseOps(state, [add('Wessel', { unique: true })], { replayed: true }).ops, [add('Wessel', { unique: true })], 'not held: kept');
+    assert.deepEqual(rebaseOps(state, [add('Fenna', { unique: true })]).ops, [add('Fenna', { unique: true })], 'a live command is never fitted');
+    assert.deepEqual(rebaseOps(state, [add('Fenna')], { replayed: true }).ops, [add('Fenna')], 'an op stored without the mark replays as written');
+    const wrote = [{ op: 'replace', path: '/domains/scene/present', value: ['Fenna'] }, add('Fenna', { unique: true })];
+    assert.deepEqual(rebaseOps(state, wrote, { replayed: true }).ops, wrote, 'the list written earlier in the block: as written');
+});

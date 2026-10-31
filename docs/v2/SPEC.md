@@ -200,6 +200,11 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   deleted) and no earlier op of the block put it there, those ops are passed over and the rest of the
   block applies; an `add` of the thing itself is never passed over. An older Story Block ignores
   `within` (the block fails as before).
+  (e) A command whose appends to a list are a set's (the scene's `+ present`) calls `ctx.unique(domain, path)`
+  (`path` the list, like `/present`): its `add <path>/-` ops are stored with `unique: true`. On replay
+  (never for a live command), when the list already holds that item (text compared without regard to case)
+  and no earlier op of the block wrote the list, the append is passed over, so deleting the reply in
+  between does not list someone twice. Ops stored without the mark replay as written.
 * **Head state** = state at the last carrier. Actions taken after reply N are appended to reply N's `ops`
   (so deleting or swiping reply N takes them back too).
 * Story Block caches the head state and the most recent checkpoint in memory and rebuilds on chat change,
@@ -300,7 +305,8 @@ commands: {
 * `ctx.claim(key)` → false if already claimed on this line of history, else claims it.
 * `ctx.absolute(domain, path)`: this command's write of the counter at `path` is a set, not a move (§2.2);
   `ctx.ifThere(domain, path)`: its writes inside the thing at `path` are passed over on replay when that
-  thing is gone (§2.2 rule d). Both only for a domain the module owns (`NOT_OWNER`), `path` a pointer
+  thing is gone (§2.2 rule d); `ctx.unique(domain, path)`: its appends to the list at `path` are passed over
+  on replay when the list holds the item already (§2.2 rule e). All three only for a domain the module owns (`NOT_OWNER`), `path` a pointer
   inside it (`INVALID`).
 * `ctx.query(name, args)` runs a registered query against the transaction's current state (drafts included).
 * `ctx.proof({ kind, payload, parents? })` → `{ id, payloadHash }`: the owner of `kind` (Story Director: visit, acceptance,

@@ -15,6 +15,7 @@ checkpoints, replay rules a–d, counters), §2.4 receipts, §3.3 saving; PERFOR
 - **Counters** (`counters` paths, e.g. `wallets/*/coin`, `stacks/*/qty`) keep `was`; on replay a moved count
   adds its change. `ctx.absolute(domain, path)` stores a set without `was` (`~ time <date>`).
   `ctx.ifThere(domain, path)` stores writes `within` a thing, passed over when it is gone (rule d).
+  `ctx.unique(domain, path)` stores appends to a list as `unique`, passed over when the list holds the item (rule e).
 - Per-reply bookkeeping under `ctx.carrier.sid` with `add`; domains may name `scratch` fields. Never a
   positional append or a `replace` of a field another reply created.
 - Receipt `data` older than `RECEIPT_KEEP` (200) carriers is dropped, except `data.v2` (a guarded block's guard,

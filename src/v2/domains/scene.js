@@ -157,6 +157,8 @@ function changePresent(ctx, { add, remove }) {
     const added = [];
     const removed = [];
     const missing = [];
+    // Who arrives is there once: replayed after a reply that took them out was deleted, the add is passed over.
+    ctx.unique('scene', '/present');
     for (const raw of nameList(remove)) {
         const name = typeof raw === 'string' ? cleanName(raw) : '';
         if (!name) ctx.fail('INVALID', 'Say who leaves.');

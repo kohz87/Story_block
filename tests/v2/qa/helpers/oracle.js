@@ -78,6 +78,13 @@ export function strictApply(state, ops) {
             const put = wrote.some(path => op.within === path || op.within.startsWith(`${path}/`));
             if (!(op.op === 'add' && op.path === op.within) && !put && at(root, inside) === undefined) continue;
         }
+        // Rule (e): an append marked `unique` of an item the list holds already (no earlier op wrote the list) is passed over.
+        if (op?.unique === true && op.op === 'add' && typeof op.path === 'string' && op.path.endsWith('/-')) {
+            const list = op.path.slice(0, -2);
+            const held = at(root, list.slice(1).split('/').map(unescape));
+            const same = item => (typeof op.value === 'string' ? typeof item === 'string' && item.toLowerCase() === op.value.toLowerCase() : JSON.stringify(item) === JSON.stringify(op.value));
+            if (!wrote.some(path => list === path || list.startsWith(`${path}/`)) && Array.isArray(held) && held.some(same)) continue;
+        }
         if ((op?.op === 'add' || op?.op === 'replace') && typeof op.path === 'string') wrote.push(op.path);
         // The inventory's per-reply tally (scratch): a drop of something already gone is passed over;
         // anything else is put in place, making the objects on the way.

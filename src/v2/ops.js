@@ -443,7 +443,7 @@ function throughList(value, keys) {
  * object key inside a domain that is not there, in an object that is, becomes an `add`: only a deleted reply had added
  * the key, and the value is the one this later reply set. Counted ops (`was`) keep the counter rules
  * above. And (rule d) an op marked `within` a thing (ctx.ifThere) is passed over when that thing is not
- * there. Ops are not changed in place.
+ * there. And (rule e) an append marked `unique` (ctx.unique) of an item the list holds already is passed over. Ops are not changed in place.
  */
 export function rebaseOps(state, ops, { scratch = null, replayed = false } = {}) {
     const rebased = new Set();
@@ -458,6 +458,8 @@ export function rebaseOps(state, ops, { scratch = null, replayed = false } = {})
     for (const op of scratch ? scratchOps(state, ops, scratch) : ops) {
         // Rule (d): an op marked `within` a thing (ctx.ifThere) whose thing is gone is passed over.
         if (replayed && goneHolder(op)) continue;
+        // Rule (e): an append marked `unique` of an item the list holds already is passed over.
+        if (replayed && heldAlready(op)) continue;
         if (!(replayed && goneKey(op))) out.push(replayed && newKey(op) ? { op: 'add', path: op.path, value: op.value } : fit(op));
         if ((op?.op === 'add' || op?.op === 'replace') && typeof op.path === 'string') written.push(op.path);
     }
@@ -471,6 +473,21 @@ export function rebaseOps(state, ops, { scratch = null, replayed = false } = {})
         if (op.path !== within && !op.path.startsWith(`${within}/`)) return false;
         if (op.op === 'add' && op.path === within) return false;   // the thing made here
         return !writtenAbove(within) && valueAt(state, within) === undefined;
+    }
+
+    // Rule (e): an append (`add <list>/-`) marked `unique` (ctx.unique) of an item the list already holds,
+    // when no earlier op of the block wrote the list: the reply that took it out was deleted. Text is
+    // the same name whatever its case, as the scene's validator takes it.
+    function heldAlready(op) {
+        if (op?.unique !== true || op.op !== 'add' || typeof op.path !== 'string' || !op.path.endsWith('/-')) return false;
+        const at = op.path.slice(0, -2);
+        if (writtenAbove(at)) return false;
+        const list = valueAt(state, at);
+        if (!Array.isArray(list)) return false;
+        const same = typeof op.value === 'string'
+            ? item => typeof item === 'string' && item.toLowerCase() === op.value.toLowerCase()
+            : item => equal(item, op.value);
+        return list.some(same);
     }
 
     // A `remove` (no counted `was`) of an object key that is not there, nor put there earlier in the list.
