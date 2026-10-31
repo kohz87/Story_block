@@ -54,3 +54,16 @@ test('Skills: a named skill is practised to 100 and rises a rank; an unnamed one
     assert.deepEqual([sheet(host, 'skills').skill1, sheet(host, 'skills').rank1, sheet(host, 'skills').practice1], ['Iron Breath', 1, 0]);
     rebuilt(host);
 });
+
+test('the rolls read a sheet made from the templates: the character by its Who, its skills by theirs', async t => {
+    const { readSheet } = await import('../../../src/v2/lean-rpg/read.js');
+    const host = await story(t, 'Character', 'Skills');
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', field: 'who', value: 'Wessel' }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/skills', field: 'who', value: 'Wessel' }));
+    await host.send('Learn.', reply(line('skills', 'learn-1', ' | name: Iron Breath')));
+    const sheet = readSheet(host.head());
+    assert.deepEqual(sheet.problems, []);
+    assert.equal(sheet.characters.length, 1);
+    assert.equal(sheet.characters[0].who, 'Wessel');
+    assert.equal(sheet.characters[0].skills[0]?.name, 'Iron Breath');
+});
