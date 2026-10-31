@@ -370,3 +370,35 @@ test('F1: the page going out of sight saves what is typed, once; leaving the box
     assert.equal(host.ctx.chat[host.store.headIndex()].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 1, 'saved once, not once per event');
     assert.ok(root);
 });
+
+// Fix round 5, B8: the Combat text's saves are serialised, and the last action the reader took is the one that is kept.
+test('B8: Reset clicked while the first Combat save is still running is saved after it, and the default wins', async t => {
+    const slow = { on: true };
+    const wrap = async (type, payload, options, run) => {
+        // the host holds a save before it answers (the SDK can wait on one before it applies it), so the page does not know yet
+        if (type === 'dm.redefine' && slow.on) await new Promise(resolve => setTimeout(resolve, 150));
+        return run(type, payload, options);
+    };
+    const { host, root, card } = await open(t, { rules: true, wrap });
+    const area = card('combat').querySelector('textarea');
+    area.value = 'Unsaved edit';
+    area.dispatch('focusout');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(promptOf(host), COMBAT_DEFAULT, 'the first save is still waiting');
+    root.querySelector('[data-act="combat-reset"]').click();
+    await new Promise(resolve => setTimeout(resolve, 600));
+    await settle();
+    assert.equal(promptOf(host), COMBAT_DEFAULT, 'the default is what the story holds');
+    assert.equal(root.querySelector('[data-field="combat"]').value, COMBAT_DEFAULT, 'and what the box shows');
+    const head = host.store.headIndex();
+    assert.equal(host.ctx.chat[head].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 2, 'two saves, one after the other');
+    // and the other way round: the same text asked twice while it is being saved is saved once
+    const again = root.querySelector('[data-field="combat"]');
+    again.value = 'Second edit';
+    again.dispatch('focusout');
+    again.dispatch('change');
+    await new Promise(resolve => setTimeout(resolve, 600));
+    await settle();
+    assert.equal(promptOf(host), 'Second edit');
+    assert.equal(host.ctx.chat[head].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 3);
+});

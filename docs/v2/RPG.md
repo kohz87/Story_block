@@ -97,7 +97,9 @@ plus 3) is what the situation earns, such as an ambush. That is the **Standard**
   character who is Down) or comes back later never moves another action's dice. A plan whose every line names nobody on the
   sheet counts as a failed plan, not as "no rolls": the narrator is told to keep the fight undecided.
 - **The narrator always gets the rolls.** The roll cue is kept whole when the notes are trimmed to fit, and is shortened to
-  stay under 600 tokens (fewer exchanges first, then shorter check and refusal lines, then shorter names).
+  stay under 600 tokens (fewer exchanges first, then shorter check and refusal lines, then shorter names). Shortened names
+  stay different from each other (a cut name keeps the end of the name when its beginning is the same as another's). A roll made
+  by an older build, whose record has no dice version, is shortened the way it was then, so a Re-read tells what it told.
 - **Foes.** A foe slot counts as filled with a name and a count above 0, in the Fight tab and for the planning step alike, and
   every Foes block in the story is read.
 
@@ -188,7 +190,8 @@ A block with a `role` is held to these rules, and is told like any other block w
 - A field drawn as a bar (`health`, `mana`, `stamina`, a foe's `hurt1` to `hurt4`) has at most 10 stages, counted up from 0; a
   longer one is refused when the block is made.
 - `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
-  Soul Class, and `who`.
+  Soul Class, and `who`. The same holds for the roll planning step and the rolls: a hidden foe name is "Foe 2" (its slot) there,
+  a hidden stat or skill is not offered, and a hidden `who` is the block's own name.
 - Cards are shown in the order end, warn, info (at most 8 at a time), so the death notice always has a place.
 - The story cannot kill a character directly: the stock Character has no line that sets `alive`. A character dies only through
   the reply-end latch, in a reply after the one that made them Down. The latch is settled by a `dm.settle` step that every

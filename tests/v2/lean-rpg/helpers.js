@@ -69,9 +69,9 @@ export const PLAN_ANSWER = [
 /**
  * A host with the RPG part on a module of its own (core module off): the sheet domain, the feature declared, the
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
- * `options`: { blocks, answers, feature (default on), settings, timer, hold }
+ * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
@@ -91,7 +91,11 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
             },
         },
         queries: part.queries,
-        hooks: { ...part.hooks, replayGuard: part.guard },
+        // `earlier`: the rolls are asked for as they were before the dice version, a payload with no `dice` (a chat made on an older build).
+        hooks: { ...part.hooks, ...(earlier ? { beforeGenerate: Object.assign(async (view, info) => {
+            const out = await part.hooks.beforeGenerate(view, info);
+            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice: _, ...payload }, ...command }) => ({ ...command, payload })) } : out;
+        }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };
     host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: settings } } });

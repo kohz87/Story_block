@@ -141,9 +141,11 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules: rulesFromSettings(readSettings(view, moduleId)), dice: DICE_VERSION } }] } : null;
     }
 
-    // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway).
-    function afterCapture(view) {
-        if (view?.feature?.(LEAN_RPG_FEATURE) === true) hold.clear();
+    // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether
+    // the feature is still on does not matter: a reader may switch it off while the reply is on its way, and clearing a hold that is
+    // not there writes nothing.
+    function afterCapture() {
+        hold.clear();
     }
 
     return { beforeGenerate, afterCapture };
