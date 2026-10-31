@@ -21,7 +21,7 @@ export const DM_LIMITS = freeze({
     staticCharacters: 2000, tailTokens: 100,
     slug: 40, enumValues: 32, mapKeys: 16, text: 240, migrations: 4,
     elapsedMinutes: 525600, integer: 1000000000, errors: 20,
-    // Added with the lean RPG (the frozen interpreter-1 basis in hash-basis-v1.js keeps its own copy): the block prompt cap,
+    // Added with the RPG (the frozen interpreter-1 basis in hash-basis-v1.js keeps its own copy): the block prompt cap,
     // the display names of a number field, and the card and reply-end functions of a block.
     prompt: 1200, names: 32, nameText: 40, cards: 4, replyEnd: 4, cardTitle: 60, cardText: 240,
     // A block with a `role` (a Character or Skills sheet) says more in the tail: five skills with what each does, or a character with who they are.
@@ -89,7 +89,7 @@ export const dmInt = (value, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAF
     && Number.isSafeInteger(min) && Number.isSafeInteger(max) && value >= min && value <= max;
 export const dmId = value => typeof value === 'string' && /^pack\.[a-z0-9][a-z0-9-]{0,39}\/[a-z0-9][a-z0-9-]{0,39}$/.test(value);
 
-// --- Display names and hidden fields (the lean RPG's number names and `prompt: false`) -----------------------------------------
+// --- Display names and hidden fields (the RPG's number names and `prompt: false`) -----------------------------------------
 const foldName = text => String(text ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
 
 /** The display name of an int field's value: its `names` entry, or null. Stored values stay numbers. */

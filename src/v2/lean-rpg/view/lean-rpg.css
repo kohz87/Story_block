@@ -1,5 +1,5 @@
-/* Lean RPG screens: the Party tab, the Spend points sheet, the battle log and the settings fold.
-   Loaded only while the feature `story-block.lean-rpg` is on (view/index.js adds the <link>). Colours are the theme's
+/* RPG screens: the Party tab, the Spend points sheet, the battle log and the Settings → RPG page.
+   Loaded only while the feature `story-block.rpg` is on (view/index.js adds the <link>). Colours are the theme's
    tokens (--ss-*, set by view/theme.js on every Story Suite root); nothing here sets a colour of its own. Layout follows the
    container's width (container queries), so a phone, a narrow chat column and a wide game view each get the layout that fits.
    No fixed positioning anywhere: a phone's sheet is in the flow, anchored at the top (SillyTavern's html has a transform). */
@@ -197,7 +197,32 @@
     .rpg-bl-foes { grid-template-columns: 1fr; gap: 2px; }
 }
 
-/* ---- "Changed this reply" lines and the settings fold ---- */
-.rpg-settings { margin-top: 12px; }
-.rpg-settings > summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
-.rpg-settings-hint { margin: 0 0 8px; color: var(--ss-muted); font-size: 12px; }
+/* ---- Settings → RPG ---- */
+.rpg-set { display: grid; gap: 16px; }
+.rpg-set-card { display: grid; gap: 10px; padding: 14px; border-radius: 12px; background: var(--ss-tile); min-width: 0; }
+.rpg-set-title { margin: 0; font-size: 15px; }
+.rpg-set-help { margin: 0; font-size: 12.5px; color: var(--ss-muted); }
+.rpg-set-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.rpg-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--ss-text) 20%, transparent); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; min-height: 32px; }
+.rpg-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--ss-accent) 25%, transparent); border-color: var(--ss-accent); font-weight: 700; }
+.rpg-set-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
+.rpg-set-num { display: grid; gap: 4px; font-size: 13px; align-content: start; min-width: 0; }
+.rpg-set-num small { color: var(--ss-muted); font-size: 11.5px; }
+.rpg-set-input, .rpg-set-area { box-sizing: border-box; width: 100%; padding: 7px 9px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--ss-text) 20%, transparent); background: var(--ss-field); color: inherit; font: inherit; font-size: 13px; }
+.rpg-set-area { font: 12.5px/1.45 ui-monospace, Menlo, monospace; resize: vertical; }
+.rpg-odds { display: grid; gap: 6px; }
+.rpg-odds-title { font-size: 13px; }
+.rpg-odds-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
+.rpg-odds-bar span { display: block; flex: 0 0 calc(var(--rpg-odds, 0) * 1%); }
+.rpg-odds-success { background: var(--ss-good); }
+.rpg-odds-cost { background: var(--ss-warn); }
+.rpg-odds-fail { background: var(--ss-bad); }
+.rpg-odds-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+.rpg-odds-key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.rpg-set-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rpg-set-button { white-space: nowrap; flex: 0 0 auto; }
+.rpg-set-count { font-size: 11.5px; color: var(--ss-muted); margin-left: auto; }
+.rpg-set-count.rpg-over { color: var(--ss-bad); font-weight: 700; }
+.rpg-set-fold > summary { cursor: pointer; font-size: 13px; }
+.rpg-set-pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace; padding: 10px; border-radius: 8px; background: color-mix(in srgb, black 25%, transparent); max-height: 220px; overflow: auto; margin: 8px 0; }
+@media (max-width: 600px) { .rpg-set-nums { grid-template-columns: 1fr 1fr; } }

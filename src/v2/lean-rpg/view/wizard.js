@@ -3,7 +3,7 @@
 // "Create your character" when there is none).
 //   Who     the name (the persona's by default), You or A companion (one You to a story), who they are (the AI reads it)
 //   Stats   the Spend points view's steppers and radar, under the creation budget (names.js CREATION)
-//   Skills  skill sets (built in, and a pack's `content.leanRpg.skillSets`) and up to five rows: name, what it does, Stat, Uses,
+//   Skills  skill sets (built in, and a pack's `content.rpg.skillSets`) and up to five rows: name, what it does, Stat, Uses,
 //           Starts at (Novice; Adept for at most one skill). Rank and practice are never typed.
 //   Review  everything; Create makes the Character block and the Skills block with ONE `dm.define` each, the wizard's values
 //           written as the new definitions' field defaults (wizard-data.js buildDefinitions): no `dm.set`, so a skill's rank stays a
@@ -25,7 +25,7 @@ import { WIZARD_STEPS, blockNames, buildDefinitions, hasRoom, mayStartAdept, new
 
 const W = RPG_STRINGS.wizard;
 export const WIZARD_SCREEN_ID = 'story-block/new-character';
-export const WIZARD_WIDGET = 'lean-rpg.wizard';
+export const WIZARD_WIDGET = 'rpg.wizard';
 
 const cap = word => (word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : '');
 
@@ -227,7 +227,7 @@ export function createWizard({ headState = () => null, readerName = () => '', ro
             // ---- Skills ----
             function drawSkills() {
                 const now = snap(), sets = skillSetsOf({
-                    packSets: safe(() => api?.query?.('packs.content', { kind: 'leanRpg' }), []),
+                    packSets: safe(() => api?.query?.('packs.content', { kind: 'rpg' }), []),
                     packNames: Object.fromEntries(safe(() => api?.query?.('packs.list'), []).map(pack => [pack.id, pack.name])),
                 });
                 body.appendChild(h(doc, 'p', 'rpg-wiz-p', fill(W.skillsIntro, { max: SKILL_SLOTS })));

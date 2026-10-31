@@ -1,4 +1,4 @@
-// `rpg.resolve`, the Lean RPG's prelude (SPEC_RPG §2R A3/A5, SPEC_RPG_v1 §4.5.3 and §5).
+// `rpg.resolve`, the RPG's prelude (SPEC_RPG §2R A3/A5, SPEC_RPG_v1 §4.5.3 and §5).
 //
 // What it is. The pre-call (precall.js) turns the reader's message into a plan (plan.js). beforeGenerate asks for
 // `rpg.resolve { key, plan }`; turn.js previews it for the prompt (the [Rolls] cue under [Happened]) and, once the
@@ -9,7 +9,7 @@
 // Dice. From the receipt's seed, in a fixed order: the checks first (one d20 each), then round by round, the party's
 // actions in plan order and the foes' after them, each as two d20s (the party member's, then the foe's). A party
 // member's total is d20 + floor(stat/2) + 2×Soul Class + skill rank + edge; a foe's is d20 + 5 + 2×class (names.js
-// FORMULA). A skilled act or check rolls with the skill's own stat and spends the skill's own resource (the Skills block's
+// FORMULA; those are Standard's numbers, and the roll is made with the numbers its payload carries, rules.js: the replay rule). A skilled act or check rolls with the skill's own stat and spends the skill's own resource (the Skills block's
 // `statN` and `usesN`; the plan's `stat` and `uses` are not read for it); an act with no skill, or with one the character
 // lacks, rolls the plan's stat at rank 0. The
 // outcome is the party member's: a natural 20 succeeds, a natural 1 fails, a total that reaches the other side
@@ -45,6 +45,7 @@
 // stat and `pc` the defender (outcome 'fail' means the defender failed). `summary.exchanges` = rounds.length is the
 // number B shows as "Rolled for you: N exchanges". The told count is not recorded: the narrator is not asked to count.
 import { FORMULA, LIMITS, PACE, RESOLVE, STAGES } from './names.js';
+import { normalizeRules, STANDARD } from './rules.js';
 import { cueText, roundsThatFit } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet } from './read.js';
 import { validatePlan } from './plan.js';
@@ -55,20 +56,20 @@ export const claimKey = key => `rpg:resolve:${key}`;
 const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-/** The outcome for the party member's die and total against `against` (see the top). */
-export function outcomeOf(die, total, against) {
+/** The outcome for the party member's die and total against `against` (see the top); `rules` are the numbers in force (default: Standard). */
+export function outcomeOf(die, total, against, rules = STANDARD) {
     if (die === FORMULA.die) return 'success';
     if (die === 1) return 'fail';
     if (total >= against) return 'success';
-    return total >= against - FORMULA.costMargin ? 'cost' : 'fail';
+    return total >= against - rules.costMargin ? 'cost' : 'fail';
 }
 
 // The party member's side of a roll as the sheet gives it (no die yet).
-function side(character, stat, rank, edge) {
+function side(character, stat, rank, edge, rules) {
     const value = character.stats[stat];
     return {
-        who: character.who, stat, statBonus: Math.floor(value / FORMULA.statDivisor),
-        classValue: character.soul, classBonus: FORMULA.classWeight * character.soul, rank, edge,
+        who: character.who, stat, statBonus: Math.floor(value / rules.statDivisor),
+        classValue: character.soul, classBonus: rules.classWeight * character.soul, rank, edge,
     };
 }
 
@@ -86,9 +87,10 @@ function skillFor(character, phrase, planned) {
 
 /**
  * The plan against the sheet: what can be rolled, what is refused and why, and the witness (every sheet number the
- * roll depends on, which the replay guard asks again). → { acts, foes, checks, refused: [{ who, text }], witness }
+ * roll depends on, which the replay guard asks again). `rules` are the numbers in force (rules.js; default: Standard).
+ * → { acts, foes, checks, refused: [{ who, text }], witness }
  */
-export function prepare(plan, sheet) {
+export function prepare(plan, sheet, rules = STANDARD) {
     const out = { acts: [], foes: [], checks: [], refused: [] };
     const refuse = (who, text) => out.refused.push({ who, text });
     const ready = who => {
@@ -114,7 +116,7 @@ export function prepare(plan, sheet) {
         if (stat.refusal) { refuse(act.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(act.who, skill.refused);
         const edge = Math.max(-FORMULA.edgeMax, Math.min(FORMULA.edgeMax, act.edge ?? 0));
-        out.acts.push({ kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, skill.stat, skill.rank, edge), foe });
+        out.acts.push({ kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, skill.stat, skill.rank, edge, rules), foe });
     }
     for (const entry of plan.foes ?? []) {
         if (entry.hold) continue;
@@ -124,7 +126,7 @@ export function prepare(plan, sheet) {
         const defender = ready(entry.target);
         const stat = defender.refusal ? defender : statOf(defender.character, entry.defend);
         if (stat.refusal) { refuse(entry.target, `${label}: not rolled (${stat.refusal}).`); continue; }
-        out.foes.push({ kind: 'foe', skill: null, pc: side(defender.character, entry.defend, 0, 0), foe });
+        out.foes.push({ kind: 'foe', skill: null, pc: side(defender.character, entry.defend, 0, 0, rules), foe });
     }
     for (const check of plan.checks ?? []) {
         const actor = ready(check.who);
@@ -134,34 +136,35 @@ export function prepare(plan, sheet) {
         const stat = statOf(actor.character, skill.stat);
         if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(check.who, skill.refused);
-        out.checks.push({ kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0) });
+        out.checks.push({ kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules) });
     }
-    const foeSide = foe => ({ slot: foe.slot, name: foe.name, base: FORMULA.foeBase, classValue: foe.class, classBonus: FORMULA.classWeight * foe.class });
+    const foeSide = foe => ({ slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.classWeight * foe.class });
     for (const entry of [...out.acts, ...out.foes]) entry.foe = foeSide(entry.foe);
     out.witness = { acts: out.acts, foes: out.foes, checks: out.checks, refused: out.refused };
     return out;
 }
 
-const rolled = (entry, pcDie, foeDie) => {
+const rolled = (entry, pcDie, foeDie, rules) => {
     const pcTotal = pcDie + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
     const line = { kind: entry.kind, skill: entry.skill, ...(entry.why ? { why: entry.why } : {}), pc: { ...entry.pc, die: pcDie, total: pcTotal } };
-    if (entry.kind === 'check') return { ...line, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeOf(pcDie, pcTotal, entry.dc) };
+    if (entry.kind === 'check') return { ...line, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeOf(pcDie, pcTotal, entry.dc, rules) };
     const foeTotal = foeDie + entry.foe.base + entry.foe.classBonus;
-    const decisive = [pcDie, foeDie].some(die => die === 1 || die === FORMULA.die) || Math.abs(pcTotal - foeTotal) >= LIMITS.decisiveMargin;
-    return { ...line, foe: { ...entry.foe, die: foeDie, total: foeTotal }, outcome: outcomeOf(pcDie, pcTotal, foeTotal), decisive };
+    const decisive = [pcDie, foeDie].some(die => die === 1 || die === FORMULA.die) || Math.abs(pcTotal - foeTotal) >= rules.decisiveMargin;
+    return { ...line, foe: { ...entry.foe, die: foeDie, total: foeTotal }, outcome: outcomeOf(pcDie, pcTotal, foeTotal, rules), decisive };
 };
 
 /**
  * Rolls a prepared plan: `roll()` gives one d20 (1–20) from the receipt's seed. → { checks, rounds, stop, text, summary }
  * with the rounds already cut to the stop and the cue budget (the dice of rounds that are cut were drawn and are dropped).
+ * `rules` are the numbers in force (default: Standard); the most rounds is `rules.roundCap`.
  */
-export function rollPrepared(plan, prepared, roll) {
-    const checks = prepared.checks.map(entry => rolled(entry, roll(), 0));
+export function rollPrepared(plan, prepared, roll, rules = STANDARD) {
+    const checks = prepared.checks.map(entry => rolled(entry, roll(), 0, rules));
     const fight = [...prepared.acts, ...prepared.foes];
-    const most = fight.length ? Math.min(PACE[plan.pace], LIMITS.roundCap) : 0;
+    const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
     const all = [];
     for (let n = 1; n <= most; n += 1) {
-        const lines = fight.map(entry => rolled(entry, roll(), roll()));
+        const lines = fight.map(entry => rolled(entry, roll(), roll(), rules));
         const decisive = lines.some(line => line.decisive);
         all.push({ n, decisive, lines: lines.map(({ decisive: _, ...line }) => line) });
         if (decisive) break;
@@ -201,15 +204,18 @@ export function resolve(ctx, payload = {}) {
     const checked = validatePlan(payload?.plan);
     if (!checked.ok) ctx.fail('INVALID', `That is not a plan: ${checked.errors[0]}`);
     const plan = payload.plan;
+    // The numbers this roll is made with are the ones the payload carries (chosen when it was planned, from the settings of that
+    // moment); a Re-read, a rebuild and a reload run the same payload, so they roll with them again. The settings are never read here.
+    const rules = normalizeRules(payload.rules);
     const sheet = readSheet({ domains: { dataModules: ctx.read('dataModules') } });
-    const prepared = prepare(plan, sheet);
+    const prepared = prepare(plan, sheet, rules);
     if (!prepared.acts.length && !prepared.foes.length && !prepared.checks.length) ctx.fail('NO_LONGER_DONE', 'Nothing is left to roll on this sheet.');
     if (!ctx.claim(claimKey(key))) ctx.fail('CLAIMED', 'This message has already been rolled for.');
-    const dice = rollPrepared(plan, prepared, () => ctx.roll(`d${FORMULA.die}`).total);
-    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan) };
-    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan });
+    const dice = rollPrepared(plan, prepared, () => ctx.roll(`d${FORMULA.die}`).total, rules);
+    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules) };
+    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules });
     const result = {
-        v: RESULT_VERSION, key, pace: plan.pace, stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
+        v: RESULT_VERSION, key, pace: plan.pace, rules, stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary,
     };
     return { summary: dice.text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result } } };
@@ -225,7 +231,12 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         const predicate = guard?.predicate;
         if (guard?.version !== 2 || guard.rulesHash !== null || !isObject(predicate) || predicate.kind !== RESOLVE) return bad('Malformed roll guard.');
         if (!isObject(recorded) || !validatePlan(recorded.plan).ok || hash(recorded.plan) !== predicate.plan || recorded.key !== predicate.key) return bad('The roll\'s plan was damaged.');
-        const witness = prepare(recorded.plan, readSheet(state)).witness;
+        // The numbers are the ones recorded with the roll, not today's settings; damaged numbers are not guessed at.
+        // A roll recorded before the numbers were kept has none: it was made with Standard's.
+        const rules = normalizeRules(recorded.rules);
+        const kept = recorded.rules !== undefined || predicate.rules !== undefined;
+        if (kept && (hash(recorded.rules ?? null) !== hash(rules) || hash(rules) !== predicate.rules)) return bad('The roll\'s numbers were damaged.');
+        const witness = prepare(recorded.plan, readSheet(state), rules).witness;
         if (hash({ source, predicate, witness }) !== guard.inputHash) return bad('The sheet before this roll changed; Re-read this reply.');
         return { ok: true };
     } catch { return bad('Damaged roll record.'); }

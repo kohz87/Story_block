@@ -51,6 +51,8 @@ test('the roll: d20 + half the stat + rank + 2 × Soul Class, worked out from th
     assert.deepEqual(rollOf(iron, wessel()), { total: 12, stat: 'VIT', value: 12, half: 6, rank: 2, bonus: 4 });
     assert.equal(rollOf(blade, wessel()).total, 9, 'AGI 11 → +5, Novice +0, class II +4');
     assert.equal(rollOf(rope, wessel()).total, 10);
+    // Under other numbers (Settings → RPG): a third of the stat, a Soul Class worth three.
+    assert.deepEqual(rollOf(iron, wessel(), { statDivisor: 3, classWeight: 3 }), { total: 4 + 2 + 6, stat: 'VIT', value: 12, half: 4, rank: 2, bonus: 6 });
     assert.equal(rollOf(swim, wessel()).total, 13);
     const none = rollOf({ ...iron, stat: null }, wessel());
     assert.deepEqual([none.stat, none.total], [null, 6], 'a skill with no stat of its own: rank and class only');

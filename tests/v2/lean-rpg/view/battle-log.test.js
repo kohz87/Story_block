@@ -87,7 +87,7 @@ function panel(options = {}) {
 
 test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, aligned bars and the foes line', () => {
     const { node } = panel({ index: 4 });
-    assert.equal(node.getAttribute('data-ss-screen'), 'lean-rpg/battle-log', 'a root of the look, so the tokens reach it');
+    assert.equal(node.getAttribute('data-ss-screen'), 'rpg/battle-log', 'a root of the look, so the tokens reach it');
     assert.equal(node.querySelector('.rpg-bl-title').textContent, 'Combat · Exchange 2');
     assert.equal(node.querySelector('.rpg-bl-order').textContent, 'Turn order: Sluice Rat A > Wessel > Ren');
     assert.equal(node.querySelector('.rpg-bl-round-title').textContent, 'Round 2');
@@ -361,7 +361,7 @@ test('the history strip runs only while the feature is on: chat completion and t
     for (const mainApi of ['openai', 'textgenerationwebui']) {
         const on = await createHost({ st: { mainApi } });
         t.after(() => on.close());
-        on.features.set('story-block.lean-rpg', true);
+        on.features.set('story-block.rpg', true);
         await on.send('One.', 'The quay.\n\n[battle]\n\nAfter.');
         const second = await on.send('Two.', 'Reply two.');
         const seen = mainApi === 'openai' ? second.request.chat.filter(item => item.role === 'assistant').map(item => item.content).join('\n') : second.request.prompt;

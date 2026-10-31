@@ -1,6 +1,7 @@
 // The Fight tab (approved mockup, section 5): the Foes block's own tab while the feature is on. It shows only while any foe slot
 // is filled. A header "Fight · <place>" with the note about automatic rolls and two pills ("Exchange N" from the latest rolls,
-// "N foes · M down"), a card per foe (name, Class pill, five-cell health bar, greyed when Down, a pencil for the name), a card per
+// "N foes · M down"), a card per foe (name, Class pill, five-cell health bar, greyed when Down; a tap on the bar or its pencil edits
+// the foe's health, a choice of the stage words saved through `dm.set`, as on the Party card; names are edited on the Blocks page), a card per
 // character with the three stage bars, and "Last exchange": the latest reply's battle-log panel with a button that scrolls the chat to
 // that reply and closes the game view. Wide screen a grid, phone a stack.
 // Every node is built with createElement and textContent.
@@ -12,21 +13,20 @@ import { CLASS_NAMES } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { buildPanel } from './battle-log.js';
 import { drawStageBars } from './bars.js';
-import { foesOf, readParty, rpgBlocks, soulName, stageMax, stageTone } from './party-data.js';
+import { foesOf, readParty, rpgBlocks, soulName, stageMax, stageTone, stageWord } from './party-data.js';
 
 const F = RPG_STRINGS.fight;
-export const FIGHT_WIDGET = 'lean-rpg.fight';
+export const FIGHT_WIDGET = 'rpg.fight';
 /** The id ends in `fight`, so the navigation puts the tab at Fight's place (screens.js DEFAULT_ORDER). */
 export const FIGHT_SCREEN_ID = 'story-block/fight';
 
-/** The foes of every Foes block, filled slots only: `foesOf`'s records with where each one is kept (for the pencil) and its health bar. */
+/** The foes of every Foes block, filled slots only: `foesOf`'s records with where each one is kept (for the pencil), its health bar and the words of its stages. */
 export function readFight(state, { roleOf } = {}) {
     return rpgBlocks(state, { roleOf }).filter(block => block.role === 'foes').flatMap(block => foesOf(block).map(foe => {
         const schema = block.definition.state?.[`hurt${foe.slot}`], max = stageMax('health', schema);
-        const nameSchema = block.definition.state?.[`foe${foe.slot}`];
         return { ...foe, module: block.module, subject: block.subject, max, tone: stageTone(Math.min(foe.hurt, max), max), down: foe.hurt <= 0,
             className: soulName(block.definition.state?.[`class${foe.slot}`], foe.class) || CLASS_NAMES[foe.class - 1] || String(foe.class),
-            nameMax: Number.isSafeInteger(nameSchema?.max) ? nameSchema.max : 40, locked: nameSchema?.edit === false };
+            stages: Array.from({ length: max + 1 }, (_, value) => ({ value, label: stageWord('health', schema, value) })), locked: schema?.edit === false };
     }));
 }
 
@@ -72,15 +72,20 @@ export function createFightWidget({ headState = () => null, readerName = () => '
                 parent.appendChild(node);
                 const top = h(doc, 'div', 'rpg-foe-top');
                 top.appendChild(h(doc, 'p', 'rpg-name', foe.count > 1 ? `${foe.name} ${fill(RPG_STRINGS.battle.count, { n: foe.count })}` : foe.name));
-                const side = h(doc, 'span', 'rpg-foe-side'), edit = h(doc, 'span', 'rpg-foe-edit');
-                side.append(h(doc, 'span', 'ss-pill', fill(F.class, { name: foe.className })), edit);
+                const side = h(doc, 'span', 'rpg-foe-side');
+                side.appendChild(h(doc, 'span', 'ss-pill', fill(F.class, { name: foe.className })));
                 top.appendChild(side);
                 node.appendChild(top);
-                handles.push(editable.render(edit, { value: foe.name, kind: 'text', maxLength: foe.nameMax, label: fill(F.edit, { name: foe.name }), displayValue: false,
-                    command: foe.locked ? '' : 'dm.set', payload: { module: foe.module, field: `foe${foe.slot}`, ...(foe.subject ? { who: foe.subject } : {}) } }, { command: api?.command }));
-                const bar = h(doc, 'div', 'rpg-foe-bar');
+                // The health bar is the edit: a tap on it (or its pencil) opens the choice of stage words for this slot's `hurtN`.
+                const bar = h(doc, 'div', 'rpg-foe-bar rpg-bar'), slot = h(doc, 'div', 'rpg-bar-meter'), edit = h(doc, 'div', 'rpg-bar-edit');
+                bar.setAttribute('data-foe-health', String(foe.slot));
+                bar.append(slot, edit);
                 node.appendChild(bar);
-                handles.push(meter.render(bar, { label: F.health, value: Math.min(foe.hurt, foe.max), max: foe.max, tone: foe.tone, text: foe.down ? F.down : foe.word, segments: foe.max, icon: 'fa-heart' }, {}));
+                handles.push(meter.render(slot, { label: F.health, value: Math.min(foe.hurt, foe.max), max: foe.max, tone: foe.tone, text: foe.down ? F.down : foe.word, segments: foe.max, icon: 'fa-heart' }, {}));
+                if (typeof api?.command !== 'function' || foe.locked) return;
+                handles.push(editable.render(edit, { value: Math.min(foe.hurt, foe.max), kind: 'choice', options: foe.stages, label: fill(F.editHealth, { name: foe.name }), displayValue: false,
+                    command: 'dm.set', payload: { module: foe.module, field: `hurt${foe.slot}`, ...(foe.subject ? { who: foe.subject } : {}) } }, { command: api.command }));
+                edit.querySelector('.ss-w-editable-pencil')?.setAttribute('title', fill(F.editHealth, { name: foe.name }));
             }
 
             function draw() {

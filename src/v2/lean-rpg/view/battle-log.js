@@ -25,10 +25,10 @@ const B = RPG_STRINGS.battle;
 // The result word of a foe's attack, by the recorded outcome (the party's): the colour stays the outcome's (fail red, cost amber, success green).
 const FOE_WORDS = Object.freeze({ fail: B.foeHit, cost: B.foeGrazed, success: B.foeBlocked });
 export const BATTLE_ROOT = 'rpg-battle';
-export const BATTLE_ID = 'lean-rpg/battle-log';
+export const BATTLE_ID = 'rpg/battle-log';
 /** The narrator's marker: a line of its own. (turn.js strips the same line from the prompt history.) */
 export const MARKER_LINE = /^[ \t]*\[battle\][ \t]*$/i;
-const FOLD_KEY = 'story-block.lean-rpg.battle.folded';
+const FOLD_KEY = 'story-block.rpg.battle.folded';
 const RECENT_MESSAGES = 30;
 
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);

@@ -36,6 +36,13 @@ test('a result with no summary is counted by its rounds; one with nothing, or a 
     assert.equal(exchangesOf(null), null);
 });
 
+test('the class rise says what a Soul Class adds under the numbers in force (Settings → RPG)', () => {
+    const rise = rules => rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world({ soul: 2, xp: 85 }), record: record(), roleOf, rules })[0].note;
+    assert.equal(rise(undefined), 'XP reached 100 · back to 0 · +2 to every roll');
+    assert.equal(rise({ classWeight: 3 }), 'XP reached 100 · back to 0 · +3 to every roll');
+    assert.equal(rise({ classWeight: 1 }), 'XP reached 100 · back to 0 · +1 to every roll');
+});
+
 test('the class rise reads "Soul Class II → III" with the display names, and says what it brings', () => {
     const lines = rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world({ soul: 2, xp: 85 }), record: record(), roleOf });
     assert.equal(lines.length, 1);

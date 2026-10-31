@@ -93,7 +93,7 @@ export function moduleView(state, { module } = {}) {
     return { characters: subjectsOf(state, module).map(id => ({ id, name: actors[id]?.name ?? id, ...copy(instanceOf(state, module, id)?.fields ?? {}) })) };
 }
 
-// `noTab`: block roles whose block gets no tab of its own (the Lean RPG's Party tab draws them while its feature is on).
+// `noTab`: block roles whose block gets no tab of its own (the RPG's Party tab draws them while its feature is on).
 export function pinnedPresentation(state, kind = 'screens', noTab = []) {
     return Object.keys(state?.domains?.dataModules?.active ?? {}).flatMap(id => {
         const definition = activeDefinition(state, id);
@@ -214,7 +214,7 @@ const fieldsText = (definition, fields) => Object.entries(fields).filter(([key])
 const namedChanges = (definition, before, after) => Object.entries(definition.state).filter(([key, schema]) => schema.names && before[key] !== after[key])
     .map(([key, schema]) => `${schema.label ?? key} ${shownText(schema, before[key])} → ${shownText(schema, after[key])}`);
 
-// What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the lean RPG's sheets carry text the story reads).
+// What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the RPG's sheets carry text the story reads).
 const tailRoom = definition => (definition?.role ? L.roleTailTokens : L.tailTokens);
 
 /** One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6." */

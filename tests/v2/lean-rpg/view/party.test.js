@@ -124,9 +124,9 @@ test('with no character the widget says so; update redraws from the head', () =>
     assert.equal(el.querySelectorAll('.rpg-card').length, 0);
 });
 
-test('the widget is named lean-rpg.party and the screen draws it', () => {
-    assert.equal(PARTY_WIDGET, 'lean-rpg.party');
-    assert.match(createPartyScreen().template, /lean-rpg\.party/);
+test('the widget is named rpg.party and the screen draws it', () => {
+    assert.equal(PARTY_WIDGET, 'rpg.party');
+    assert.match(createPartyScreen().template, /rpg\.party/);
 });
 
 test('the stylesheet: cards side by side on a wide screen, stacked on a phone, theme tokens only, nothing fixed', () => {

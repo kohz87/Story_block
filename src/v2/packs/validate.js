@@ -141,7 +141,7 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
         if (Array.isArray(given.meterPresets) && given.meterPresets.length > METER_LIMITS.presets) add('BAD_CONTENT', 'content.meterPresets', `content.meterPresets holds at most ${METER_LIMITS.presets} presets.`);
         else content.meterPresets = records(given.meterPresets, 'meterPresets', { add, packId, check: (record, path) => checkMeterPreset(record, path, add), slugField: 'id', named: false });
     }
-    if (given.leanRpg !== undefined) content.leanRpg = checkLeanRpg(given.leanRpg, packId, add);
+    if (given.rpg !== undefined) content.rpg = checkRpg(given.rpg, packId, add);
 
     const start = raw.start === undefined ? null : checkStart(raw.start, add, ref);
     let layouts = [];
@@ -409,17 +409,17 @@ function checkCrafts(list, packId, add) {
     } });
 }
 
-// The Lean RPG's skill sets (`content.leanRpg.skillSets`): ready-made skills the New character wizard offers, each with what the
+// The RPG's skill sets (`content.rpg.skillSets`): ready-made skills the New character wizard offers, each with what the
 // skill does, the stat it rolls with and what it uses (stamina unless it says mana). A set is 1 to 5 skills; a pack has up to 12 sets.
 // Normalized to the list of sets, each `{ id, slug, pack, name, about, skills: [{ name, about, stat, uses }] }`.
-function checkLeanRpg(value, packId, add) {
-    if (!isObject(value)) { add('BAD_CONTENT', 'content.leanRpg', 'content.leanRpg must be an object: { "skillSets": [ … ] }.'); return []; }
-    for (const key of Object.keys(value)) if (!LEAN_RPG_FIELDS.includes(key)) add('UNKNOWN_FIELD', `content.leanRpg.${key}`, `"${key}" is not a content.leanRpg field (expected ${LEAN_RPG_FIELDS.join(', ')}).`);
+function checkRpg(value, packId, add) {
+    if (!isObject(value)) { add('BAD_CONTENT', 'content.rpg', 'content.rpg must be an object: { "skillSets": [ … ] }.'); return []; }
+    for (const key of Object.keys(value)) if (!LEAN_RPG_FIELDS.includes(key)) add('UNKNOWN_FIELD', `content.rpg.${key}`, `"${key}" is not a content.rpg field (expected ${LEAN_RPG_FIELDS.join(', ')}).`);
     if (Array.isArray(value.skillSets) && value.skillSets.length > LEAN_RPG_LIMITS.sets) {
-        add('BAD_CONTENT', 'content.leanRpg.skillSets', `content.leanRpg.skillSets holds at most ${LEAN_RPG_LIMITS.sets} sets.`);
+        add('BAD_CONTENT', 'content.rpg.skillSets', `content.rpg.skillSets holds at most ${LEAN_RPG_LIMITS.sets} sets.`);
         return [];
     }
-    return records(value.skillSets, 'leanRpg.skillSets', { add, packId, check: (record, path, label) => checkSkillSet(record, path, label, add) });
+    return records(value.skillSets, 'rpg.skillSets', { add, packId, check: (record, path, label) => checkSkillSet(record, path, label, add) });
 }
 
 function checkSkillSet(record, path, label, add) {

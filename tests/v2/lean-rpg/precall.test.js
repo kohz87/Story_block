@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hostAvailable } from '../../../testkit/index.js';
-import { NO_ROLLS_LINE, ROLLS_SETTING, createLeanRpgPart, precallPrompt, readSheet } from '../../../src/v2/lean-rpg/index.js';
+import { NO_ROLLS_LINE, NOTE_SETTING, ROLLS_SETTING, createLeanRpgPart, createPlanHold, createPrecall, precallPrompt, readSheet } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD, ANSWER_TOKENS, MESSAGE_LIMIT } from '../../../src/v2/lean-rpg/precall.js';
 import { manualTimer } from '../assist/helpers/fakes.js';
 import { NEVER, PARTY, PLAN_ANSWER, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
@@ -159,7 +159,7 @@ test('a retried interceptor keeps the plan (one call); a new generation plans an
     const seed = host.turn.session().prechecks[0].seed;
     await host.turn.interceptor([], 8192, () => {}, 'normal');
     assert.equal(callModel.calls.length, 1, 'the second attempt reused the plan');
-    assert.deepEqual(Object.keys(host.ctx.chatMetadata.leanRpgPlan).sort(), ['chat', 'key', 'plan'], 'held in the chat\'s metadata while the reply is awaited');
+    assert.deepEqual(Object.keys(host.ctx.chatMetadata.rpgPlan).sort(), ['chat', 'key', 'plan'], 'held in the chat\'s metadata while the reply is awaited');
     assert.equal(host.turn.session().prechecks[0].seed, seed, 'and its dice');
     host.turn.onGenerationEnded();
     await host.turn.onChatChanged();
@@ -183,11 +183,11 @@ test('the held plan is let go once the reply is captured: the chat metadata keep
     const { host } = await setup({ answers: [PLAN_ANSWER] });
     await host.send(MESSAGE, 'The rats scatter.');
     assert.equal(rolled(host).length, 1);
-    assert.equal(host.ctx.chatMetadata?.leanRpgPlan, undefined);
+    assert.equal(host.ctx.chatMetadata?.rpgPlan, undefined);
     host.close();
 });
 
-test('Assist\'s pre-roll steps aside while the Lean RPG is on and the chat has a Character block, and not otherwise', async () => {
+test('Assist\'s pre-roll steps aside while the RPG is on and the chat has a Character block, and not otherwise', async () => {
     const { createClassifier } = await import('../../../src/v2/assist/classifier.js');
     const { SETTING } = await import('../../../src/v2/assist/common.js');
     const { fakeModel } = await import('../assist/helpers/fakes.js');
@@ -198,10 +198,31 @@ test('Assist\'s pre-roll steps aside while the Lean RPG is on and the chat has a
             callModel, settings: () => ({ [SETTING.classifier]: true, [SETTING.profile]: '' }), chat: () => [{ is_user: false, mes: 'Hello.' }, { is_user: true, mes: 'I sneak past the guard.' }],
             chatId: () => 'c', hasKind: () => true, log: { add: entry => entry }, warn: () => {},
         });
-        await classifier.beforeGenerate({ state: sheetState(blocks), feature: id => feature && id === 'story-block.lean-rpg', chat: { length: 2, lastUser: '' } }, { type: 'normal' });
+        await classifier.beforeGenerate({ state: sheetState(blocks), feature: id => feature && id === 'story-block.rpg', chat: { length: 2, lastUser: '' } }, { type: 'normal' });
         return callModel.calls.length;
     };
     assert.equal(await ask({ feature: true, blocks: PARTY() }), 0, 'on, with a Character block: no call');
     assert.equal(await ask({ feature: false, blocks: PARTY() }), 1, 'feature off: Assist as before');
     assert.equal(await ask({ feature: true, blocks: { foes: PARTY().foes } }), 1, 'on, but no Character block: Assist as before');
+});
+
+test('the reader\'s planner note goes after the fixed part of the pre-call, and is cut at 400 characters', { skip }, async () => {
+    const { host, callModel } = await setup({ settings: { [NOTE_SETTING]: `Companions play it safe unless I say otherwise.${' x'.repeat(300)}` } });
+    await host.send(MESSAGE, 'The rats scatter.');
+    const [{ prompt }] = callModel.calls;
+    assert.ok(prompt.startsWith(`${PRECALL_HEAD}\n\nPlayer's instructions: Companions play it safe unless I say otherwise.`), 'right after the head, before the party');
+    const note = prompt.slice(prompt.indexOf('Player\'s instructions: ') + 'Player\'s instructions: '.length, prompt.indexOf('\n\nParty:'));
+    assert.ok([...note].length >= 399 && [...note].length <= 400, 'cut at 400 (and tidied)');
+    host.close();
+    const plain = await setup();
+    await plain.host.send(MESSAGE, 'The rats scatter.');
+    assert.ok(!plain.callModel.calls[0].prompt.includes('Player\'s instructions'), 'no note, no line');
+    plain.host.close();
+});
+
+test('with the feature off none of the RPG settings is read: no note, no numbers, no call', async () => {
+    const boom = () => { throw new Error('read'); };
+    const precall = createPrecall({ callModel: boom, chat: boom, chatId: boom, hold: createPlanHold() });
+    const view = { feature: () => false, settings: boom, state: {} };
+    assert.equal(await precall.beforeGenerate(view, { type: 'normal' }), null);
 });

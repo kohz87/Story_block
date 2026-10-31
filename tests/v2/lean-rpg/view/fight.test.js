@@ -83,16 +83,32 @@ test('a card per filled foe slot: name (× count), Class pill, five-cell health 
     assert.deepEqual(readFight(state, { roleOf }).map(item => [item.name, item.tone, item.down]), [['Sluice Rat A', 'warn', false], ['Sluice Rat B', 'good', false], ['Sluice Rat C', 'bad', true], ['Rat Swarm', 'good', false]]);
 });
 
-test('the pencil is the existing inline edit for the slot, saved through dm.set', async () => {
+test('the health bar (or its pencil) edits the foe\'s health: a choice of the stage words, saved through dm.set on that slot\'s hurt field', async () => {
     const calls = [];
     const { el } = draw(fight(), { api: { command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; } } });
     const card = foeCard(el, 'Sluice Rat B');
-    card.querySelector('.ss-w-editable-pencil').click();
-    card.querySelector('input').value = 'Sluice Rat Bruiser';
-    card.querySelector('.ss-w-editable-save').click();
+    const bar = card.querySelector('.rpg-foe-bar[data-foe-health="2"]');
+    assert.ok(bar, 'the bar carries the edit');
+    assert.equal(card.querySelectorAll('.ss-w-editable-pencil').length, 1, 'one pencil, over the bar');
+    assert.ok(bar.querySelector('.ss-w-editable-pencil'));
+    bar.querySelector('.ss-w-editable-pencil').click();
+    const select = bar.querySelector('select');
+    assert.deepEqual(select.querySelectorAll('option').map(node => node.textContent), ['Down', 'Badly wounded', 'Wounded', 'Hurt', 'Scratched', 'Unhurt']);
+    assert.equal(card.querySelector('input'), null, 'no name edit on the Fight tab');
+    select.value = '1';
+    bar.querySelector('.ss-w-editable-save').click();
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(calls, [['dm.set', { module: 'pack.chat/foes', field: 'foe2', value: 'Sluice Rat Bruiser' }]]);
+    assert.deepEqual(calls, [['dm.set', { module: 'pack.chat/foes', field: 'hurt2', value: 1 }]]);
     assert.equal(draw(fight()).el.querySelectorAll('.ss-w-editable-pencil').filter(node => !node.hidden).length, 0, 'no command, no pencil');
+});
+
+test('a foe\'s health field that the block locks (edit: false) has no pencil; the stage words come from the field', () => {
+    const locked = foes();
+    locked.definition = { ...locked.definition, state: { ...locked.definition.state, hurt1: { ...locked.definition.state.hurt1, edit: false } } };
+    const { el } = draw(fakeState([locked]), { api: { command: async () => ({ ok: true }) } });
+    assert.equal(foeCard(el, 'Sluice Rat A').querySelectorAll('.ss-w-editable-pencil').length, 0, 'locked');
+    assert.equal(foeCard(el, 'Sluice Rat B').querySelectorAll('.ss-w-editable-pencil').length, 1, 'the others are not');
+    assert.deepEqual(readFight(fight(), { roleOf })[0].stages.map(stage => stage.label), ['Down', 'Badly wounded', 'Wounded', 'Hurt', 'Scratched', 'Unhurt']);
 });
 
 test('a card per character with the three stage bars', () => {

@@ -1,6 +1,6 @@
-// Off means fully off: with the Lean RPG off (the default), and also on in a chat that has no Character block, a plain
+// Off means fully off: with the RPG off (the default), and also on in a chat that has no Character block, a plain
 // Story Block chat builds the same prompts, draws the same randomness, makes no model call and stores the same receipts
-// as 2.7.2 (fixtures/off-2.7.2.json is the fingerprint of off-flow.js made from the code before the Lean RPG).
+// as 2.7.2 (fixtures/off-2.7.2.json is the fingerprint of off-flow.js made from the code before the RPG).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,11 +12,11 @@ const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
 const baseline = JSON.parse(readFileSync(new URL('fixtures/off-2.7.2.json', import.meta.url), 'utf8'));
 
-test('the Lean RPG off: the prompts, the draws of randomness and the receipts are those of 2.7.2', { skip }, async () => {
+test('the RPG off: the prompts, the draws of randomness and the receipts are those of 2.7.2', { skip }, async () => {
     assert.deepEqual(await fingerprint(createHost), baseline);
 });
 
-test('the Lean RPG on but no Character block in the chat: the same, and no model call', { skip }, async () => {
+test('the RPG on but no Character block in the chat: the same, and no model call', { skip }, async () => {
     const on = await fingerprint(createHost, host => host.features.set(LEAN_RPG_FEATURE, true));
     assert.equal(on.calls, 0);
     assert.deepEqual(on, baseline);

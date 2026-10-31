@@ -1,5 +1,5 @@
-// Stand-ins for the Lean RPG tests: a party sheet written straight into the data-module state (the Character, Skills
-// and Foes blocks as the RPG reads them), a scripted pre-call model, and a host that has the Lean RPG part on it.
+// Stand-ins for the RPG tests: a party sheet written straight into the data-module state (the Character, Skills
+// and Foes blocks as the RPG reads them), a scripted pre-call model, and a host that has the RPG part on it.
 import { createHost } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, ROLLS_SETTING, createLeanRpgPart } from '../../../src/v2/lean-rpg/index.js';
 
@@ -67,7 +67,7 @@ export const PLAN_ANSWER = [
 ].join('\n');
 
 /**
- * A host with the Lean RPG part on a module of its own (core module off): the sheet domain, the feature declared, the
+ * A host with the RPG part on a module of its own (core module off): the sheet domain, the feature declared, the
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold }
  */
@@ -80,8 +80,8 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         problem: entry => problems.push(entry), moduleId: OWNER, timer, timeoutMs,
     });
     const module = {
-        id: OWNER, name: 'Story Block (Lean RPG test)', version: '0.0.1',
-        features: [{ id: LEAN_RPG_FEATURE, label: 'Lean RPG', describe: 'Test.', default: false }],
+        id: OWNER, name: 'Story Block (RPG test)', version: '0.0.1',
+        features: [{ id: LEAN_RPG_FEATURE, label: 'RPG', describe: 'Test.', default: false }],
         domains: { dataModules: { initial: () => sheetDomain(blocks) } },
         commands: {
             ...part.commands,

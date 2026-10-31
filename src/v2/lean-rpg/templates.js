@@ -1,5 +1,5 @@
-// The Lean RPG block templates (Character, Skills, Foes, Combat rules): data-module definitions that the block
-// chooser offers while the Lean RPG feature is on (Blocks → New block → from a template). Each carries a `role`
+// The RPG block templates (Character, Skills, Foes, Combat rules): data-module definitions that the block
+// chooser offers while the RPG feature is on (Blocks → New block → from a template). Each carries a `role`
 // (see ROLES in index.js) and keeps the field keys the RPG reads. Stage fields are indexes (0 = empty) with
 // `names` from STAGES; Soul Class and ranks are numbers with names. The block engine adds three things these
 // use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists. The Skills block's rank and practice
@@ -20,7 +20,7 @@ const int = (label, min, max, value, extra = {}) => ({ type: 'int', min, max, de
 const range = (min, max) => ({ type: 'int', min, max });
 const get = field => ['get', [field]];
 
-const COMBAT = [
+export const COMBAT_PROMPT = [
     '[COMBAT SYSTEM]',
     'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Soul Class all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
     'Exchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short; one exchange may be the whole fight. Never skip the moment that decides it.',
@@ -119,7 +119,7 @@ const foes = {
 
 const combat = {
     slug: 'combat-rules', name: 'Combat rules', role: 'rules', schema: 1, stateVersion: 1, scope: 'chat',
-    prompt: COMBAT,
+    prompt: COMBAT_PROMPT,
     state: {},
     kinds: {},
 };
@@ -135,7 +135,7 @@ const skill = (name, stat, about, uses = 'stamina') => ({ name, about, stat, use
 
 /**
  * The New character wizard's built-in skill sets (mockup section 4): three skills each, with what the skill does, the stat it
- * rolls with and what it uses. A pack adds more through `content.leanRpg.skillSets` (same shape, plus its pack id).
+ * rolls with and what it uses. A pack adds more through `content.rpg.skillSets` (same shape, plus its pack id).
  * Ranks are not part of a set: the wizard starts every skill at Novice, one of them at Adept if the reader says so.
  */
 export const SKILL_SETS = Object.freeze([
