@@ -113,13 +113,13 @@ test('a 2.6.1 chat with a rules hash keeps its pin and guarded action', async t 
     check();
 });
 
-test('re-importing the example pack as 2.2.0 keeps the 2.6.1 pins, values and status', async t => {
-    // 2.2.0's world events record lasting changes in Story Director's chronicle: a stand-in gives the capability.
+test('re-importing the example pack as 2.2.1 keeps the 2.6.1 pins, values and status', async t => {
+    // 2.2.x's world events record lasting changes in Story Director's chronicle: a stand-in gives the capability.
     const host = await createHost({ st: { chat: chat() }, modules: [{ id: 'chronicle-stand-in', version: '1.0.0', capabilities: ['chronicle-lasting'] }] });
     t.after(() => host.close());
     assert.equal((await host.packs.packs.install(pack())).ok, true);
     const updated = current();
-    assert.equal(updated.version, '2.2.0');
+    assert.equal(updated.version, '2.2.1');
     const installed = await host.packs.packs.install(updated);
     assert.equal(installed.ok, true, installed.message);
     const fresh = host.sdk.query('dataModules.offers').find(row => row.module === 'pack.ersveil/standing').packHash;

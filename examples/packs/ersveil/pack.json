@@ -1,11 +1,11 @@
 {
   "id": "ersveil",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "name": "Ersveil (open world)",
   "author": "Story Suite examples",
   "description": "The world of Ersveil as an open world for Story Block and Story Director: the calendar, the weather, a map of 320 towns, districts, dungeons and sites joined by 350 routes, world events, and data modules for standing with the powers, fame by region and Guild membership. It lists no items, shops, prices or foes: the story makes them up from the lore as it goes. A new story begins at the Adventurer Guild office in Bluewatch Village.",
   "requires": {
-    "storyBlock": "^2.5",
+    "storyBlock": "^2.10",
     "capabilities": ["scene", "inventory", "data-modules-v1", "chronicle-lasting"]
   },
   "currency": {

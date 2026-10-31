@@ -7,6 +7,8 @@
 - The narrator's instructions gain one line (Your look is on by default), so the AI service's prompt cache starts over once. With Your look off, the instructions are exactly as in 2.9.4.
 - Settings can now draw a choice as a joined row of buttons (`form: 'segmented'`), which Text size uses; a module's own settings may use it too.
 - Chats saved before this load and read as they did; they simply have no look yet.
+- Ersveil 2.2.1: declares the Guild rank (`content.you.rank`), so it now needs Story Block 2.10 (an older Story Block
+  refuses the pack with a plain message instead of half-loading it).
 
 ## 2.9.4
 
