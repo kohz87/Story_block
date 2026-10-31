@@ -32,6 +32,7 @@ import { CAPTURE_PREFIX, HOST_MODULE } from './registry.js';
 import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt.js';
 import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
+import { CORE_FEATURE } from './features.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -76,6 +77,15 @@ export const MAX_NAME = 80;
 // Stripped history texts kept between prompts (each is read again for every later prompt).
 const STRIP_CACHE = 500;
 const HAS_BLOCK = /<changes/i;
+// The Lean RPG's battle-log marker: a line `[battle]` of its own in a reply (src/v2/lean-rpg/view/battle-log.js draws the panel there).
+// It is for the reader's eyes only, so it leaves the prompt history like the change blocks do: the narrator never sees its own old
+// markers. The line goes with one blank line after it, so no gap is left.
+const BATTLE_MARKER = /^[ \t]*\[battle\][ \t]*(?:\r?\n|$)(?:[ \t]*\r?\n)?/gim;
+const HAS_BATTLE = /\[battle\]/i;
+/** `text` without its `[battle]` marker lines. */
+export function stripBattleMarker(text) {
+    return typeof text === 'string' && HAS_BATTLE.test(text) ? text.replace(BATTLE_MARKER, '') : text;
+}
 
 const defaultNotify = reason => globalThis.toastr?.warning?.(reason, 'Story Suite');
 
@@ -632,10 +642,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         }
         return out;
     }
+    // Only while the Lean RPG is on: with it off a reply's text goes into the prompt as it always did.
+    const battleOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
     function stripHistory(chat) {
+        const strip = battleOn() ? text => stripBattleMarker(strippedText(text)) : strippedText;
         for (const message of chat) {
             if (message?.role !== 'assistant') continue;
-            const content = mapContent(message.content, strippedText);
+            const content = mapContent(message.content, strip);
             if (content !== message.content) message.content = content;
         }
     }
@@ -664,6 +677,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // Only the hidden form: the static text's own example block must stay.
         const hidden = new RegExp(`\\s*<!--\\s*STORY_SUITE_V2\\b[\\s\\S]*?-->`, 'g');
         eventData.prompt = eventData.prompt.replace(hidden, '');
+        if (battleOn()) eventData.prompt = stripBattleMarker(eventData.prompt);
         if (backgroundPrompt() || !session || session.prompted) return;
         session.prompted = true;
         const missing = [session.staticText, session.tailText].filter(text => text && !eventData.prompt.includes(firstLine(text)));
