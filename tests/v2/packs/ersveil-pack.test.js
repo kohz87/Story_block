@@ -1,6 +1,6 @@
 // The example pack (examples/packs/ersveil, Ersveil 2.1.0, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
-// docs/v2/ERSVEIL.md describes; the lorebook has 171 entries with unique uids.
+// docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -75,15 +75,15 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     assert.equal(addsLine(installed.list()[0]), '7 events, 320 places, 350 routes, start state, 4 coins, a calendar, 84 weather tables');
 });
 
-test('ersveil-lore.json is a SillyTavern World Info book of 171 entries with unique uids', () => {
+test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {
     const book = JSON.parse(readFileSync(lorePath, 'utf8'));
     assert.equal(book.name, 'Ersveil Lore');
     assert.ok(book.entries && typeof book.entries === 'object' && !Array.isArray(book.entries), 'entries is an object keyed by uid, as SillyTavern exports it');
     const entries = Object.values(book.entries);
-    assert.equal(entries.length, 171);
+    assert.equal(entries.length, 227);
     const uids = entries.map(entry => entry.uid);
     assert.ok(uids.every(uid => Number.isInteger(uid)));
-    assert.equal(new Set(uids).size, 171, 'every uid is unique');
+    assert.equal(new Set(uids).size, 227, 'every uid is unique');
     for (const [key, entry] of Object.entries(book.entries)) {
         assert.equal(String(entry.uid), key, `entry ${key}: the key is the uid`);
         assert.ok(Array.isArray(entry.key), `entry ${key} lists its trigger words`);
