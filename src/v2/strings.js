@@ -154,6 +154,8 @@ export const STRINGS = deepFreeze({
         inspectorDescribe: 'A read-only Inspector screen: any reply\'s story state as a tree you can search, what changed since the reply before, its receipts and its problems.',
         savepoints: 'Save points',
         savepointsDescribe: 'A Save point button on Home keeps the moment as a named branch of the chat, listed with Return here.',
+        leanRpg: 'Lean RPG',
+        leanRpgDescribe: 'Party cards with stage bars, automatic dice for fights and checks, and a battle log in the reply. Uses the RPG block templates.',
         choices: 'Choices',
         choicesDescribe: 'The story offers 2 to 4 short next moves as buttons under the latest reply. A click only puts the words in your message box; you still send, edit or ignore them.',
         chatter: 'Inner chatter',

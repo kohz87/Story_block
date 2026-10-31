@@ -27,6 +27,7 @@ import { screens as defaultScreens } from '../screens/index.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
+import { createLeanRpgPart } from '../lean-rpg/index.js';
 
 // The packs part bound to SillyTavern (src/v2/packs/index.js), in createPacksPart()'s shape.
 const livePacks = Object.freeze({ part: livePart, packs: liveInstalled, resolveItem: liveResolve, startState: liveStart });
@@ -72,6 +73,7 @@ export const CORE_FEATURES = Object.freeze([
     Object.freeze({ id: CORE_FEATURE.chatter, label: STRINGS.features.chatter, describe: STRINGS.features.chatterDescribe, default: false }),
     // The weather (MODULES §F120): on; its grammar line is in the static part while it is on.
     Object.freeze({ id: CORE_FEATURE.weather, label: STRINGS.features.weather, describe: STRINGS.features.weatherDescribe, default: true }),
+    Object.freeze({ id: CORE_FEATURE.leanRpg, label: STRINGS.features.leanRpg, describe: STRINGS.features.leanRpgDescribe, default: false }),
 ]);
 
 // The chat's one currency (MODULES.md F1): its name (singular) and plural, renamable by the reader,
@@ -297,7 +299,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         ...(query ? { query } : {}),
     });
     const dataPart = createDataModulesPart({ packs: packs.packs, ...dataModules });
-    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), dataPart]);
+    const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), dataPart, createLeanRpgPart()]);
     const timelineGuard = merged.hooks.replayGuard;
     // One host-owned hook for the host's guarded blocks, by predicate: data modules (`dm.*`), a loot offer or take
     // (`loot.offer`, `loot.take`, inventory.js), else the timeline's.

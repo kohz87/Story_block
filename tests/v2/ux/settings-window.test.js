@@ -493,7 +493,7 @@ test('search words: one match says "1 setting shown", none says so with the text
     assert.equal(page(root, 'tabs').querySelector('.ss-packs-card').hidden, false);
     assert.equal(page(root, 'tabs').querySelector('.ss-prompt-card').hidden, true, 'a card with no match is out');
     search(root, 'rpg battle');
-    assert.deepEqual(shownPages(root), ['modules']);
+    assert.deepEqual(shownPages(root), ['features', 'modules'], 'the module, and the Lean RPG feature (its battle log)');
     assert.equal(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden && !row.parentNode.hidden).length, 3, 'its three settings (the module\'s name shows them all)');
     // What it says finds it ("money" → "Money one reply may give", "Money scale" and the "Money words" card), not the section's own name.
     search(root, 'money');

@@ -43,7 +43,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
         ['story-block.hud', true], ['story-block.cards', true], ['story-block.preroll', false], ['story-block.extractor', false],
         ['story-block.inspector', false], ['story-block.savepoints', true], ['story-block.choices', false], ['story-block.chatter', false],
-        ['story-block.weather', true], ['story-block.loot', true], ['story-block.encumbrance', true],
+        ['story-block.weather', true], ['story-block.lean-rpg', false], ['story-block.loot', true], ['story-block.encumbrance', true],
     ]);
     assert.doesNotThrow(() => JSON.stringify(initialState([module])));
     assert.doesNotThrow(() => createCoreModule({ hooks: () => 'not a list' }).context.tail(view(initialState([module]))));

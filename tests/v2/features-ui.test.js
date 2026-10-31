@@ -73,7 +73,7 @@ test('the overlay: Features has a sub-fold per module ("N of M on"); a module\'s
     assert.deepEqual(texts(weight, 'small'), ['Items weigh something.', PROMPT_HINT]);
     assert.equal(PROMPT_HINT, 'Changes the fixed prompt once (one slower reply).');
     assert.equal(weight.querySelector('input').checked, false);
-    assert.deepEqual(texts(subOf(root, 'story-block'), '.story-suite-feature > span > b'), ['Status strip', 'Cards under replies', 'Roll checks before the reply', 'Safety net: read changes the reply forgot', 'State inspector', 'Save points', 'Choices', 'Inner chatter', 'Weather', 'Pick what you take', 'Encumbered']);
+    assert.deepEqual(texts(subOf(root, 'story-block'), '.story-suite-feature > span > b'), ['Status strip', 'Cards under replies', 'Roll checks before the reply', 'Safety net: read changes the reply forgot', 'State inspector', 'Save points', 'Choices', 'Inner chatter', 'Weather', 'Lean RPG', 'Pick what you take', 'Encumbered']);
     // A module's fold: no switches, one line saying how many are on; it opens Features at that module.
     const sbFold = foldOf(root, 'story-block');
     assert.equal(sbFold.querySelector('.story-suite-feature'), null);
