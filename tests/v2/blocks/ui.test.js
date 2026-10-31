@@ -89,7 +89,7 @@ test('a button, field pencil, template save and deletion work from a block card'
     assert.equal(host.ctx.extensionSettings.storySuite.blockTemplates[0].name, 'Notes');
     const settings = blocksPage(ui);
     button(settings(), P.fromTemplate).click();
-    const template = settings().querySelectorAll('button').find(node => node.textContent.includes('Notes · 1 fields, 1 buttons'));
+    const template = settings().querySelectorAll('button').find(node => node.textContent.includes('Notes · 1 field, 1 button'));
     assert.ok(template); template.click();
     button(settings(), S.save).click();
     await settle(); await settle();

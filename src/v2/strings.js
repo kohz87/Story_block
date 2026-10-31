@@ -107,7 +107,7 @@ export const STRINGS = deepFreeze({
         templateSaved: 'Template saved.', templateDeleted: 'Template deleted.', templates: 'Block templates', noTemplates: 'No block templates saved.',
         deleteTemplate: 'Delete template', timerUnavailable: 'Timers need Story Director’s clock.',
         newFieldName: 'Field {n}', newFunctionName: '{type} {n}',
-        templateCounts: '{name} · {fields} fields, {buttons} buttons, {rules} rules, {timers} timers',
+        templateCounts: '{name} · {fields}, {buttons}, {rules}, {timers}',
         icons: { 'ph-bookmark-simple': 'Bookmark', 'ph-scroll': 'Scroll', 'ph-heart': 'Heart', 'ph-lightning': 'Lightning',
             'ph-star': 'Star', 'ph-sparkle': 'Sparkle', 'ph-sword': 'Sword', 'ph-skull': 'Skull' },
     },

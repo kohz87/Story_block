@@ -292,3 +292,15 @@ test('the real chooser reads the real list only once the feature is on', async t
     await settle(); await settle();
     assert.ok(screen().querySelector('.ss-block-chooser'));
 });
+
+test('the chooser counts in the singular for one and the plural for the rest ("1 button", never "1 buttons")', async t => {
+    const one = { name: 'One', definition: { slug: 'one', name: 'One', schema: 1, stateVersion: 1, scope: 'chat', state: { n: { type: 'int', min: 0, max: 5, default: 0 } },
+        kinds: { go: { op: '~', ui: { label: 'Go' }, effects: [] } }, rules: [{ id: 'r', when: true, effects: [] }], timers: [{ id: 't', every: 5, effects: [] }] } };
+    const many = { name: 'Many', definition: { slug: 'many', name: 'Many', schema: 1, stateVersion: 1, scope: 'chat', state: { a: { type: 'int', min: 0, max: 5, default: 0 }, b: { type: 'int', min: 0, max: 5, default: 0 } },
+        kinds: { x: { op: '~', ui: { label: 'X' }, effects: [] }, y: { op: '~', ui: { label: 'Y' }, effects: [] } }, rules: [], timers: [] } };
+    const { el } = widgetPage(t, { templates: [one, many] });
+    button(el, P.fromTemplate).click();
+    await settle(); await settle();
+    const names = el.querySelector('.ss-block-chooser').querySelectorAll('button').map(node => node.textContent);
+    assert.deepEqual(names, ['One · 1 field, 1 button, 1 rule, 1 timer', 'Many · 2 fields, 2 buttons, 0 rules, 0 timers', S.cancel]);
+});

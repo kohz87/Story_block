@@ -127,7 +127,7 @@ test('no script HTML, event attributes or script links anywhere', () => {
     refused(pack({ name: '<svg onload=alert(1)>' }), 'UNSAFE_HTML');
     assert.equal(validatePack(withItem({ name: 'Rope', note: '<svg viewBox="0 0 1 1"><circle r="1"/></svg> <form><input></form>' })).ok, true, 'inline SVG and plain forms are allowed (SPEC §13.2)');
     // Plain text with angle brackets is fine: conditions compare with < and >.
-    const events = pack({ content: { events: [{ id: 'dusk', when: "query('party.pc').level < 30 && online == 1 && a<b", cue: 'Dusk <falls> & the bells ring.' }] } });
+    const events = pack({ content: { events: [{ id: 'dusk', when: "query('party.pc').level < 30 && query('net.online') == 1 && query('a').x<query('b').x", cue: 'Dusk <falls> & the bells ring.' }] } });
     assert.equal(validatePack(events).ok, true, JSON.stringify(validatePack(events).errors));
     assert.equal(validatePack(withItem({ name: 'Rope', note: 'tied <b>tight</b>' })).ok, true, 'harmless markup is text');
 });
@@ -356,4 +356,16 @@ test('races and talents for character creation', () => {
     refused(choices([{ name: 'Elf', note: 4 }]), 'BAD_RECORD');
     refused(choices([{ name: 'Elf', hp: 10 }]), 'UNKNOWN_FIELD');
     refused(choices([], [{ name: 'Keen Eye' }, { id: 'keen-eye', name: 'Sharp Eye' }]), 'DUPLICATE');
+});
+
+test('events: a condition the runtime cannot parse is refused at check time, naming the event', () => {
+    const event = when => pack({ content: { events: [{ id: 'gate', when, cue: 'The gate opens.' }] } });
+    const result = validatePack(event("has('Smith's key')"));
+    assert.equal(result.ok, false);
+    const error = result.errors.find(each => each.path.endsWith('.when'));
+    assert.ok(error, 'the error is on the when field');
+    assert.match(error.message, /^Event "gate": the condition can't be read: .*never closed\. A name with an apostrophe in it needs double quotes around it\.$/);
+    assert.equal(validatePack(event('hp >')).ok, false, 'a condition cut short');
+    assert.equal(validatePack(event('has("Smith\'s key")')).ok, true, 'the same name in double quotes reads');
+    assert.equal(validatePack(event("query('party.pc').level < 30 && true")).ok, true);
 });

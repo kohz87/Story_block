@@ -24,8 +24,9 @@ import { MAX_AT_DEPTH, cssDepth, sheetEscape } from '../view/css.js';
 import { MAX_COINS, MAX_COIN_VALUE, coinsOf } from '../domains/money.js';
 import { validateDataModules, dataModulesPackHash } from '../data-modules/check.js';
 import { STRINGS } from '../strings.js';
+import { compile } from '../events/condition.js';
 
-export const HOST_VERSION = '2.11.2';
+export const HOST_VERSION = '2.11.3';
 
 /** A slug for a display name: "Iron Sword (old)" → "iron-sword-old". */
 export function slugify(name) {
@@ -583,6 +584,11 @@ function checkEvent(record, path, add) {
     const say = (field, message, code = 'BAD_RECORD') => { ok = false; add(code, `${path}.${field}`, `${label}: ${message}`); };
     for (const key of Object.keys(record)) if (!EVENT_FIELDS.includes(key)) say(key, `"${key}" is not an event field (expected ${EVENT_FIELDS.join(', ')}).`, 'UNKNOWN_FIELD');
     if (typeof record.when !== 'string' || !record.when.trim() || record.when.length > EVENT_LIMITS.when) say('when', `when must be a condition of 1 to ${EVENT_LIMITS.when} characters.`);
+    else {
+        // The parser the events use while the story plays: a condition it cannot read would only fail at play time.
+        const parsed = compile(record.when);
+        if (!parsed.ok) say('when', `the condition can't be read: ${parsed.error.message}${/never closed/.test(parsed.error.message) ? ' A name with an apostrophe in it needs double quotes around it.' : ''}`);
+    }
     if (typeof record.cue !== 'string' || !record.cue.trim() || record.cue.trim().length > EVENT_LIMITS.cue) say('cue', `cue must be text of 1 to ${EVENT_LIMITS.cue} characters.`);
     if (record.once !== undefined && typeof record.once !== 'boolean') say('once', 'once must be true or false.');
     if (record.after !== undefined && (typeof record.after !== 'string' || !SLUG.test(record.after))) say('after', 'after must be the id of another event in this pack.');
