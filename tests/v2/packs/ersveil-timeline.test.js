@@ -181,6 +181,14 @@ test('review 169 B4: a reply that jumps days past the flood still gets the flood
     assert.equal(fired.indexOf('flood-611-scene'), fired.indexOf('flood-611') + 1, 'in the same reply as the flood');
 });
 
+test('review 170: in Highmark with a month a reply, the battle, crown, evacuation and Wall scenes still play', () => {
+    // A scene that waits on a chronicle entry fires one reply after its world event; its window outlasts a 30-day reply.
+    const highmark = walk({ step: 30 * DAY, place: { name: 'Thornwall Redoubt', region: 'Highmark Empire' } }).fired;
+    for (const id of ['marrowbridge-hasse-scene', 'crown-wendhild-scene', 'last-wall-scene']) assert.ok(highmark.includes(id), id);
+    const north = walk({ step: 30 * DAY }).fired;
+    assert.ok(north.includes('auvoth-evacuation-scene'));
+});
+
 test('away from the north the player hears of the beats as news, later, and sees no northern scenes', () => {
     const { fired } = walk({ place: { name: 'Osterhal', region: 'Ardelian Empire and Southmarch' } });
     assert.ok(fired.includes('ardelia-612-scene'));
