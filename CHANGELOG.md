@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.8.1
+
+**Content release.** The bundled example pack is now **Ersveil 2.2.0**, and its lorebook has grown.
+
+- **The world has a hidden history** from CY 611 onward: 129 new world events on their own dates. They cover floods
+  out of the north, Highmark's succession, the underworld, and what follows. Where the story is when something
+  happens, the narrator gets the scene; elsewhere the news arrives days or weeks later. Lasting changes go into
+  Story Director's chronicle, so the pack now needs **Story Director 2.3.0** (`chronicle-lasting`).
+- **Court favour**, a new data module with no screen, decides Highmark's throne. The narrator moves it only when the
+  player's own deeds clearly help or hurt a claimant. Without it, the throne goes as the law expects.
+- **The Sealwarden recruit** skill set for the RPG's New character window.
+- **56 notable people** in the lorebook: rulers, champions, saints, the Nightingale's Sparrow, famous adventurers.
+  Each is told to the narrator only when named, as they stand at the story's start.
+- The authoring kit knows Story Director's `chronicle-lasting` capability.
+
 ## 2.8.0
 
 **New: RPG** (off by default; Settings → RPG). Turn it on and Story Block keeps a party, skills and foes as blocks and rolls

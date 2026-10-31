@@ -6,7 +6,7 @@ import { SB_V2 } from './scripts/sb-root.mjs';
 const { validatePack } = await import(new URL('packs/validate.js', SB_V2));
 const { HOST_CAPABILITIES } = await import(new URL('packs/limits.js', SB_V2));
 export const SUITE_CAPABILITIES = Object.freeze([...new Set([...HOST_CAPABILITIES,
-    'story-block', 'story-director', 'npc-state-delta', 'inventory', 'scene', 'director', 'quests', 'npc'])]);
+    'story-block', 'story-director', 'npc-state-delta', 'inventory', 'scene', 'director', 'quests', 'npc', 'chronicle-lasting'])]);
 
 export function hintFor(error) {
     if (error?.code === 'MISSING_CAPABILITY') return 'Check the capability name, or use --with-capability <name> for an installed module.';
