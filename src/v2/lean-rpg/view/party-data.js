@@ -86,14 +86,15 @@ export function skillsOf(block) {
     return out;
 }
 
-/** The foes a Foes block holds: `[{ slot, name, count, class, hurt, word }]`, empty slots left out. */
+/** The foes a Foes block holds: `[{ slot, name, count, class, hurt, word }]`, empty slots left out (a slot is filled with a name and a count above 0, as the roll planner reads it). */
 export function foesOf(block) {
     const out = [];
     for (let slot = 1; slot <= FOE_SLOTS; slot += 1) {
         const name = textOf(block.fields[`foe${slot}`]);
-        if (!name) continue;
+        const count = whole(block.fields[`count${slot}`], 0);
+        if (!name || count <= 0) continue;
         const hurt = whole(block.fields[`hurt${slot}`], stageMax('health', block.definition.state?.[`hurt${slot}`]));
-        out.push({ slot, name, count: Math.max(1, whole(block.fields[`count${slot}`], 1)), class: whole(block.fields[`class${slot}`], 1), hurt,
+        out.push({ slot, name, count, class: whole(block.fields[`class${slot}`], 1), hurt,
             word: stageWord('health', block.definition.state?.[`hurt${slot}`] ?? block.definition.state?.health, hurt) });
     }
     return out;

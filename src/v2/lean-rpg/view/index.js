@@ -14,6 +14,7 @@ import { PARTY_WIDGET, createPartyScreen, createPartyWidget } from './party.js';
 import { rulesFromSettings } from '../rules.js';
 import { rpgSection } from './settings.js';
 import { WIZARD_WIDGET, createWizard } from './wizard.js';
+import { readRecord } from '../../persist.js';
 
 export { PARTY_SCREEN_ID, PARTY_WIDGET } from './party.js';
 export { WIZARD_SCREEN_ID, WIZARD_WIDGET } from './wizard.js';
@@ -50,7 +51,12 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     const link = addStyle(doc);
     // The numbers a roll would be made with now (Settings → RPG): the roll line on a skill and a class-up note state them.
     const rules = () => rulesFromSettings(values());
-    const wizard = createWizard({ headState, readerName, roleOf, openDialog });
+    // The head reply's key in the blocks' per-reply action count (data-modules/part.js pairKey): the wizard asks it for room before Create.
+    const replyKey = () => {
+        const source = readRecord(ctx?.chat?.[store?.headIndex?.()])?.source;
+        return source?.logical && source?.swipeKey ? `${source.logical}/${source.swipeKey}` : '';
+    };
+    const wizard = createWizard({ headState, readerName, roleOf, openDialog, replyKey });
     widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null, rules });
     widgets[WIZARD_WIDGET] = wizard.widget;
     const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf });

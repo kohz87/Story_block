@@ -28,6 +28,19 @@ import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem 
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
 import { RESOLVE as RPG_RESOLVE, createLeanRpgPart } from '../lean-rpg/index.js';
+import { hookTimeout } from '../turn.js';
+
+const TIMED_OUT = Symbol('timed out');
+// `value`, or TIMED_OUT when it is a promise that has not settled within `ms`.
+async function withinLimit(value, ms) {
+    if (!value || typeof value.then !== 'function') return value;
+    let timer;
+    try {
+        return await Promise.race([value, new Promise(resolve => { timer = setTimeout(resolve, ms, TIMED_OUT); })]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 // The packs part bound to SillyTavern (src/v2/packs/index.js), in createPacksPart()'s shape.
 const livePacks = Object.freeze({ part: livePart, packs: liveInstalled, resolveItem: liveResolve, startState: liveStart });
@@ -227,19 +240,31 @@ export function mergeParts(parts) {
     }
     for (const [name, fns] of Object.entries(hookLists)) {
         out.hooks[name] = fns.length === 1 ? fns[0] : name === 'beforeGenerate'
-            ? async (...args) => {
+            ? Object.assign(async (...args) => {
                 const lines = [];
                 const commands = [];
+                const problems = [];
+                // Each part has its own time limit (turn.js hookTimeout): a part that fails or is too slow is reported, and the
+                // answers of the parts that did answer are kept.
                 for (const fn of fns) {
-                    const answer = await fn(...args);
+                    const limit = hookTimeout(fn);
+                    let answer;
+                    try { answer = await withinLimit(fn(...args), limit); } catch (error) {
+                        problems.push({ code: 'FAILED', message: `beforeGenerate failed: ${error?.message ?? error}` });
+                        continue;
+                    }
+                    if (answer === TIMED_OUT) {
+                        problems.push({ code: 'TIMEOUT', message: `beforeGenerate did not answer within ${limit / 1000} s; the reply went on without its notes.` });
+                        continue;
+                    }
                     if (Array.isArray(answer)) lines.push(...answer);
                     else {
                         lines.push(...(Array.isArray(answer?.lines) ? answer.lines : []));
                         commands.push(...(Array.isArray(answer?.commands) ? answer.commands : []));
                     }
                 }
-                return { lines, commands };
-            }
+                return { lines, commands, ...(problems.length ? { problems } : {}) };
+            }, { timeoutMs: fns.reduce((sum, fn) => sum + hookTimeout(fn), 500) })
             : (...args) => {
                 for (const fn of fns) {
                     const answer = fn(...args);

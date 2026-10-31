@@ -5,6 +5,7 @@
 // Pure: no DOM.
 
 import { FORMULA, RESOLVE } from '../index.js';
+import { STANDARD, normalizeRules } from '../rules.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { rpgBlocks, readParty, skillsOf } from './party-data.js';
 
@@ -43,11 +44,27 @@ export function exchangesOf(record, problems = []) {
 }
 
 /**
+ * The numbers the reply's own roll was made with (`result.rules`, recorded with it), else null when the reply has no roll. A roll
+ * recorded before the numbers were kept was made with Standard's. A display for that reply uses these, never today's settings.
+ */
+export function rulesOfReply(record, problems = []) {
+    const skipped = new Set(list(problems).flatMap(problem => list(problem?.receipts)));
+    for (const receipt of list(record?.receipts)) {
+        if (receipt?.type !== RESOLVE || skipped.has(receipt.id)) continue;
+        const result = receipt.data?.v2?.result;
+        if (isRecord(result)) return result.rules === undefined ? STANDARD : normalizeRules(result.rules);
+    }
+    return null;
+}
+
+/**
  * The RPG's lines for one reply. `state` is the reply's state, `before` the one before it (null for the first reply: no
- * rises are told then), `record` the reply's record, `problems` the replay problems of that reply.
+ * rises are told then), `record` the reply's record, `problems` the replay problems of that reply. `rules`: the numbers in force
+ * now, used only for a reply that has no roll of its own (its roll's recorded numbers win).
  */
 export function rpgReplyLines({ state, before = null, record = null, problems = [], roleOf, rules = null } = {}) {
     const out = [];
+    rules = rulesOfReply(record, problems) ?? rules;
     const rolled = exchangesOf(record, problems);
     if (rolled) {
         const note = [rolled.pairs.slice(0, 2).join(' · '), C.rolledNote].filter(Boolean).join(' · ');

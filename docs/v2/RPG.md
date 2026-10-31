@@ -91,7 +91,15 @@ plus 3) is what the situation earns, such as an ambush. That is the **Standard**
   and spends that skill's resource (stamina or mana), whatever the planning step wrote. If the resource is Empty the action
   is rolled without the skill: same stat, rank 0.
 - An action with no skill rolls the stat the planning step picked, at rank 0. So does an action that names a skill the
-  character does not have, and the log says so.
+  character does not have, and the log says so. If there is no stat at all (a skill the character lacks and none given, or a
+  skill from an old Skills block that has no stat of its own) the roll uses the character's best stat, untrained, and says so.
+- **Each action has dice of its own.** The dice belong to the action's place in the plan, so an action that is refused (a
+  character who is Down) or comes back later never moves another action's dice. A plan whose every line names nobody on the
+  sheet counts as a failed plan, not as "no rolls": the narrator is told to keep the fight undecided.
+- **The narrator always gets the rolls.** The roll cue is kept whole when the notes are trimmed to fit, and is shortened to
+  stay under 600 tokens (fewer exchanges first, then shorter check and refusal lines, then shorter names).
+- **Foes.** A foe slot counts as filled with a name and a count above 0, in the Fight tab and for the planning step alike, and
+  every Foes block in the story is read.
 
 - A **swipe** rolls again: the reply and its dice are new, and made with the numbers the settings say then.
 - **Re-read** keeps the same dice, and the same numbers (see below).
@@ -116,8 +124,9 @@ The page has four cards, and shows only while the RPG is on.
   persona's name, else the first Character block) with their best skill, against a foe of their Soul Class, and it
   changes as you type. A line under it gives the other presets for the same fight.
 - **What the narrator is told about combat.** The text of this chat's Combat rules block (up to 1200 characters, counted
-  as you type). It is saved when you leave the box, as an edit of that block on the latest reply: swipe or delete that
-  reply to take it back. **Reset to the default** puts the template's text back. Each chat has its own text; a new chat
+  as you type). It is saved when you leave the box (or close the settings window with text still in it), as an edit of that
+  block on the latest reply: swipe or delete that reply to take it back. A chat keeps a limited number of block versions;
+  when it has kept as many as it can, the box says so in plain words. **Reset to the default** puts the template's text back. Each chat has its own text; a new chat
   starts from the default. A chat with no Combat rules block says so and offers **Add the Combat rules block**.
 - **Roll planner.** Your own instructions (up to 400 characters) for the short call that plans the dice, added after its
   fixed part. **Show the planner's full prompt** shows exactly what that call is sent for this chat, read-only: the format

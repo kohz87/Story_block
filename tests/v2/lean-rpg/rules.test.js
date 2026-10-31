@@ -149,8 +149,8 @@ test('the planner\'s extra instructions: tidied, at most 400 characters, after t
     const sheet = sheetOf();
     const without = precallPrompt({ sheet, message: 'hi' });
     const withNote = precallPrompt({ sheet, message: 'hi', note: 'Companions play it safe.' });
-    assert.ok(!without.includes('Player\'s instructions'));
-    assert.ok(withNote.includes('\n\nPlayer\'s instructions: Companions play it safe.\n\nParty:'));
+    assert.ok(!without.includes('Reader\'s instructions'));
+    assert.ok(withNote.includes('\n\nReader\'s instructions: Companions play it safe.\n\nParty:'));
     assert.ok(withNote.startsWith(without.slice(0, without.indexOf('\n\nParty:'))), 'the fixed part comes first, unchanged');
     assert.equal(precallPrompt({ sheet, message: 'hi', note: '   ' }), without, 'a blank note adds nothing');
 });

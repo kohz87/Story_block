@@ -293,6 +293,24 @@ export function markerNodes(root) {
     return out;
 }
 
+// The marker text a panel took out of the story (placeAtMarker), kept on the panel itself.
+const CONSUMED = Symbol('consumed marker');
+
+/**
+ * Takes a panel out of the message. An inline panel that stood in the place of a marker line leaves that line behind, so the place
+ * is kept for the next time (switching the RPG off and on again draws the panel where the narrator wrote it).
+ */
+export function releasePanel(doc, panel) {
+    const marker = panel?.[CONSUMED];
+    const parent = panel?.parentNode;
+    if (marker && parent) {
+        const line = doc.createElement('p');
+        line.textContent = marker;
+        parent.insertBefore(line, panel);
+    }
+    panel?.remove?.();
+}
+
 const blank = node => (node.nodeType === 3 ? !String(node.data ?? node.textContent ?? '').trim() : node.tagName === 'BR');
 const textOf = node => String(node.data ?? node.textContent ?? '');
 
@@ -307,6 +325,8 @@ export function placeAtMarker(doc, root, panel) {
     const [first, ...extra] = found;
     for (const node of extra) node.data = textOf(node).split(/\r?\n/).filter(line => !MARKER_LINE.test(line)).join('\n');
     const lines = textOf(first).split(/\r?\n/), at = lines.findIndex(line => MARKER_LINE.test(line));
+    // The marker line is kept on the panel, so taking the panel away can put it back (releasePanel).
+    panel[CONSUMED] = lines[at].trim();
     const parent = first.parentNode, siblings = nodesOf(parent), spot = siblings.indexOf(first);
     const before = siblings.slice(0, spot), after = siblings.slice(spot + 1);
     const tail = lines.slice(at + 1).join('\n'), tailNode = tail.trim() ? doc.createTextNode(tail) : null;
@@ -386,9 +406,9 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         return { key: `${chatKey()}|${record.sid ?? index}`, model: panelModel({ resolve, state, before: beforeOf(index), roleOf }) };
     }
 
-    /** The latest reply (of the last RECENT_MESSAGES) with recorded rolls: { index, key, model } or null. */
+    /** The latest reply with recorded rolls, searching the whole chat from the newest back: { index, key, model } or null. */
     function latest() {
-        for (let index = chat().length - 1; index >= Math.max(0, chat().length - RECENT_MESSAGES); index -= 1) {
+        for (let index = chat().length - 1; index >= 0; index -= 1) {
             const shown = modelAt(index);
             if (shown) return { index, ...shown };
         }
@@ -410,7 +430,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         const old = panelsIn(message);
         const shown = modelAt(index);
         if (!shown) {
-            for (const node of old) node.remove();
+            for (const node of old) releasePanel(doc, node);
             return null;
         }
         const text = message.querySelector('.mes_text');
@@ -431,6 +451,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
             placeAtMarker(doc, text, node);
         } else if (variant === 'inline' && kept) {
             kept.parentNode.insertBefore(node, kept);
+            if (kept[CONSUMED]) node[CONSUMED] = kept[CONSUMED];
             for (const item of old) item.remove();
         } else {
             for (const item of old) item.remove();
@@ -472,7 +493,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         refresh, refreshAll, modelAt, latest,
         destroy() {
             offs.splice(0).forEach(off => off());
-            for (const node of doc.querySelectorAll(`.${BATTLE_ROOT}`)) node.remove();
+            for (const node of doc.querySelectorAll(`.${BATTLE_ROOT}`)) releasePanel(doc, node);
         },
     };
 }

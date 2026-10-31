@@ -31,7 +31,7 @@ test('validatePlan accepts the shape and says what is wrong in plain words', () 
     bad(plan => { plan.acts[0].edge = 1.5; }, /edge must be a whole number/);
     bad(plan => { plan.acts[0].uses = 'rage'; }, /uses must be mana or stamina/);
     bad(plan => { plan.acts[0].damage = 9; }, /"damage", which a plan does not use/);
-    bad(plan => { plan.foes[0].slot = 5; }, /foe 1 needs a slot from 1 to 4/);
+    bad(plan => { plan.foes[0].slot = 65; }, /foe 1 needs a slot from 1 to 64/);   // (slots count on across the chat's Foes blocks, four a block: B13)
     bad(plan => { plan.foes[1].hold = false; }, /hold must be true/);
     bad(plan => { delete plan.foes[0].defend; }, /foe 1 needs defend/);
     bad(plan => { plan.checks[0].difficulty = 'trivial'; }, /difficulty to be one of easy, normal, hard, very hard/);
@@ -122,16 +122,19 @@ test('a skill the character has brings its own stat and resource: the line\'s st
     assert.deepEqual(read('act Wessel | stat: DEX | target: foe1').acts, [{ who: 'Wessel', stat: 'dex', target: 'Sluice Rats' }]);
     assert.deepEqual(read('act Wessel | skill: Lockpicking | stat: DEX | uses: mana | target: foe1').acts, [{ who: 'Wessel', skill: 'Lockpicking', uses: 'mana', stat: 'dex', target: 'Sluice Rats' }]);
     assert.deepEqual(read('check Wessel | stat: cha | difficulty: easy').checks, [{ who: 'Wessel', stat: 'cha', difficulty: 'easy' }]);
-    // No skill the character has, and no stat: nothing to roll with, so the line is dropped by itself.
-    assert.deepEqual(parsePlanAnswer('act Wessel | skill: Lockpicking | target: foe1', sheet), { none: true, dropped: 1 });
-    assert.deepEqual(parsePlanAnswer('act Wessel | target: foe1', sheet), { none: true, dropped: 1 });
-    assert.deepEqual(parsePlanAnswer('check Wessel | difficulty: easy', sheet), { none: true, dropped: 1 });
+    // A skill the character lacks, and no stat: the line stands (B5), and the roll takes their best stat untrained (resolve.js).
+    assert.deepEqual(read('act Wessel | skill: Lockpicking | target: foe1').acts, [{ who: 'Wessel', skill: 'Lockpicking', target: 'Sluice Rats' }]);
+    assert.deepEqual(read('check Wessel | skill: Lockpicking | difficulty: easy').checks, [{ who: 'Wessel', skill: 'Lockpicking', difficulty: 'easy' }]);
+    // No skill and no stat: nothing to roll with, so the line is dropped by itself, and an answer of nothing else is a failed plan, not "none".
+    assert.match(parsePlanAnswer('act Wessel | target: foe1', sheet).error, /none of its line named/);
+    assert.match(parsePlanAnswer('check Wessel | difficulty: easy', sheet).error, /none of its line named/);
 });
 
 test('a Skills block with no stat on its skills (made before they were fields) still takes the line\'s stat', () => {
     const old = readSheet({ domains: { dataModules: sheetDomain({ ...PARTY(), 'wessel-skills': { role: 'skills', fields: { who: 'Wessel', skill1: 'Iron Breath', rank1: 1, practice1: 0 } } }) } });
     assert.deepEqual(parsePlanAnswer('act Wessel | skill: Iron Breath | stat: STR | target: foe1', old).plan.acts, [{ who: 'Wessel', skill: 'Iron Breath', stat: 'str', target: 'Sluice Rats' }]);
-    assert.deepEqual(parsePlanAnswer('act Wessel | skill: Iron Breath | target: foe1', old), { none: true, dropped: 1 });
+    // ... and with no stat from the line either, the line stands: the roll takes the character's best stat untrained.
+    assert.deepEqual(parsePlanAnswer('act Wessel | skill: Iron Breath | target: foe1', old).plan.acts, [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }]);
 });
 
 test('the pace word is read from a line; garbage is ignored; stats may be named in full', () => {
@@ -143,7 +146,9 @@ test('the pace word is read from a line; garbage is ignored; stats may be named 
 
 test('a plan of lines that name nothing rollable is no plan', () => {
     assert.deepEqual(parsePlanAnswer('pace: normal\nfoe Sluice Rats | hold', sheet), { none: true, dropped: 0 });
-    assert.deepEqual(parsePlanAnswer('act Nobody | stat: STR | target: Sluice Rats', sheet), { none: true, dropped: 1 });
+    // Lines that were all dropped are a failed plan, which gets the failure cue, not "no rolls".
+    assert.match(parsePlanAnswer('act Nobody | stat: STR | target: Sluice Rats', sheet).error, /none of its line named anyone or anything on the sheet/);
+    assert.match(parsePlanAnswer('act Nobody | stat: STR | target: Rat\nfoe Dragon | hold', sheet).error, /none of its lines named/);
 });
 
 test('the held plan lives in the chat metadata, for that chat and that message only, and is cleared by clear()', () => {

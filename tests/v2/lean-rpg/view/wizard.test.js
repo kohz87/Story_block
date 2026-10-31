@@ -528,3 +528,65 @@ test('the stylesheet: the summary row, the template cards in three columns, rows
     assert.doesNotMatch(css, /\brgba?\(/);
     assert.equal(CREATION.skills, 5);
 });
+
+// ---- fix round 4, B9: Create asks the reply for room first -------------------------------------------------------------------------
+
+// A reply with `used` block actions on it: the Character and Skills blocks (two defines) and then sets of one field.
+async function usedReply(t, used) {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    await makeBlocks(ctx.host);
+    for (let n = 0; n < used - 2; n += 1) {
+        const set = await ctx.host.sdk.command('dm.set', { module: 'pack.chat/wessel', field: 'str', value: 12 + (n % 2) });
+        assert.equal(set.ok, true, set.message);
+    }
+    assert.equal(Object.values(ctx.host.head().domains.dataModules.perReply)[0].roots, used);
+    return ctx;
+}
+async function companion(ctx, name) {
+    const dialog = await openFrom(ctx);
+    click(wizardOf(dialog), 'A companion');
+    type(wizardOf(dialog).querySelector('[data-wiz="name"]'), name);
+    await goTo(dialog, 'review');
+    return dialog;
+}
+
+test('B9: with 31 of the reply\'s 32 block actions used, Create says so plainly and makes nothing (no half-made character)', async t => {
+    const ctx = await usedReply(t, 31);
+    const before = names(ctx.host);
+    const dialog = await companion(ctx, 'Ren');
+    const shown = wizardOf(dialog).querySelectorAll('.rpg-wiz-problems li').map(node => node.textContent);
+    assert.deepEqual(shown, ['Fix this first:', 'This reply has already used 31 of its 32 block actions, and a new character needs 3. Send your next message, then try again.']);
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-create').disabled, true);
+    wizardOf(dialog).querySelector('.rpg-wiz-create').click();
+    await settle();
+    assert.deepEqual(names(ctx.host), before, 'nothing was made, not even the Character');
+    assert.equal(Object.values(ctx.host.head().domains.dataModules.perReply)[0].roots, 31, 'and no action was spent');
+    dialog.close();
+});
+
+test('B9: the edge: 29 used leaves exactly the three Create may need, 30 does not; a new reply has room again', async t => {
+    const tight = await usedReply(t, 30);
+    let dialog = await companion(tight, 'Ren');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-create').disabled, true, '30 used');
+    dialog.close();
+    const edge = await usedReply(t, 29);
+    dialog = await companion(edge, 'Ren');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-create').disabled, false, '29 used');
+    wizardOf(dialog).querySelector('.rpg-wiz-create').click();
+    await settle();
+    assert.ok(names(edge.host).includes('pack.chat/ren') && names(edge.host).includes('pack.chat/ren-skills'));
+    // A new reply is a fresh count.
+    await tight.host.send('Onward.', 'The next reply.');
+    dialog = await companion(tight, 'Ren');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-create').disabled, false, 'the next reply');
+    dialog.close();
+});
+
+test('B9: problemsOf says it when the free actions are fewer than three, and only then', () => {
+    const ok = { ...newDraft({ persona: 'Wessel' }) };
+    const world = { persona: 'Wessel', names: [], room: true, hasYou: false };
+    assert.deepEqual(problemsOf(ok, { ...world, free: 3 }), []);
+    assert.equal(problemsOf(ok, { ...world, free: 2 }).length, 1);
+    assert.deepEqual(problemsOf(ok, world), [], 'without the count nothing is asked');
+});

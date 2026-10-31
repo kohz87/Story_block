@@ -17,6 +17,8 @@ import { matchCharacter, matchFoe, matchSkill } from './read.js';
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const TEXT = 60;
+// A slot number counts on across the chat's Foes blocks (read.js): four a block, and a chat holds at most sixteen blocks.
+const MAX_FOE_SLOT = FOE_SLOTS * 16;
 const DIFFICULTIES = Object.freeze(Object.keys(LIMITS.dc));
 
 const oneLine = (value, max = TEXT) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -56,7 +58,7 @@ export function validatePlan(plan) {
     (Array.isArray(plan.foes) ? plan.foes : []).forEach((foe, n) => {
         const where = `foe ${n + 1}`;
         if (!isObject(foe)) { errors.push(`${where} must be an object.`); return; }
-        if (!Number.isInteger(foe.slot) || foe.slot < 1 || foe.slot > FOE_SLOTS) errors.push(`${where} needs a slot from 1 to ${FOE_SLOTS}.`);
+        if (!Number.isInteger(foe.slot) || foe.slot < 1 || foe.slot > MAX_FOE_SLOT) errors.push(`${where} needs a slot from 1 to ${MAX_FOE_SLOT}.`);
         if (foe.hold !== undefined) {
             known(foe, ['slot', 'hold'], where);
             if (foe.hold !== true) errors.push(`${where} hold must be true.`);
@@ -130,19 +132,20 @@ const usesOf = value => {
 
 // The skill a line names and what it rolls with: a skill the character has brings its own stat and resource (the line's `stat`
 // and `uses` are not read); no skill, or one the character lacks (rolled untrained), takes the line's stat. `stat` is null when
-// there is nothing to roll with. `entry` is what goes into the plan.
+// the line has none: with a skill named the line still stands (the roll uses the character's best stat, untrained, and says so,
+// resolve.js); with no skill there is nothing to roll with. `entry` is what goes into the plan.
 function skillOf(character, labels) {
     const named = oneLine(labels.skill);
     const phrase = named && !/^(none|no|-|—)$/i.test(named) ? named : '';
     const found = phrase ? matchSkill(character, phrase) : null;
     const stat = found?.stat ?? statOf(labels.stat);
     const uses = found?.uses ? null : usesOf(labels.uses);
-    return { stat, entry: { ...(phrase ? { skill: found?.name ?? phrase } : {}), ...(found?.uses || !uses ? {} : { uses }), ...(found?.stat ? {} : { stat }) } };
+    return { stat, entry: { ...(phrase ? { skill: found?.name ?? phrase } : {}), ...(found?.uses || !uses ? {} : { uses }), ...(found?.stat || !stat ? {} : { stat }) }, named: Boolean(phrase) };
 }
 
 /**
  * The pre-call's answer read against the sheet: { plan } (at least one thing to roll), { none: true } (the model said
- * no rolls, or nothing it said could be placed) or { error } (a plain sentence) for an answer with no line in it.
+ * no rolls) or { error } (a plain sentence) for an answer with no line in it, or none of whose lines could be placed.
  * A line that names someone or a foe the sheet does not have, a stat that is not one of the seven, or a difficulty
  * that is not a word is dropped by itself; the rest stands. `dropped` counts them.
  */
@@ -169,7 +172,7 @@ export function parsePlanAnswer(answer, sheet) {
             const skill = skillOf(who, labels);
             const stat = skill.stat;
             const target = matchFoe(sheet, labels.target);
-            if (!who || !stat || !target || plan.acts.length >= LIMITS.acts) { dropped += 1; continue; }
+            if (!who || !(stat || skill.named) || !target || plan.acts.length >= LIMITS.acts) { dropped += 1; continue; }
             plan.acts.push({ who: who.who, ...skill.entry, target: target.name, ...edgeOf(labels.edge) });
         } else if (head === 'foe') {
             const foe = matchFoe(sheet, name);
@@ -183,14 +186,15 @@ export function parsePlanAnswer(answer, sheet) {
             const who = matchCharacter(sheet, name);
             const skill = skillOf(who, labels);
             const difficulty = difficultyOf(labels.difficulty ?? labels.dc);
-            if (!who || !skill.stat || !difficulty || plan.checks.length >= LIMITS.checks) { dropped += 1; continue; }
+            if (!who || !(skill.stat || skill.named) || !difficulty || plan.checks.length >= LIMITS.checks) { dropped += 1; continue; }
             plan.checks.push({ who: who.who, ...skill.entry, difficulty });
         }
     }
     if (none && !read) return { none: true };
     if (!read && !none) return { error: `"${oneLine(text, 80)}" has no pace, act, foe or check line and is not "none"` };
     if (!validatePlan(plan).ok) return { error: validatePlan(plan).errors[0] };
-    if (planIsEmpty(plan)) return { none: true, dropped };
+    // Lines that were all dropped are a failed plan, not "no rolls": the narrator is told to keep the fight undecided.
+    if (planIsEmpty(plan)) return dropped ? { error: `none of its ${dropped === 1 ? 'line' : 'lines'} named anyone or anything on the sheet` } : { none: true, dropped };
     return { plan, dropped };
 }
 

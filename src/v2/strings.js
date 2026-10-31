@@ -114,6 +114,7 @@ export const STRINGS = deepFreeze({
         fieldsSet: 'You set {module}: {changes}.', fieldsAlone: 'Give either one field or a set of fields, not both.',
         fieldsCount: 'Give between 1 and 16 fields to set.', fieldsNoMaps: 'Set a field with map keys on its own.',
         replyFull: 'This reply already holds as many changes as one reply can. Send your next message, then try again.',
+        pinsFull: 'This chat has kept as many block versions as it can. Try again after your next message.',
         editBoolean: 'edit must be true or false.', textEffect: 'Text fields accept literal text or a text label within max.',
         declaredSchema: 'Expected a declared {schema} schema.', labelSchema: 'int, bool, enum or text label',
         fieldSchema: 'scalar field or fixed map',
@@ -429,9 +430,10 @@ export function fill(text, values = {}) {
     return String(text ?? '').replace(HOLE, (hole, name) => (Object.hasOwn(values, name) && values[name] !== undefined && values[name] !== null ? String(values[name]) : hole));
 }
 
-/** What a reader sees when a command was refused: a full reply budget in plain words, else the refusal's own sentence (or `fallback`). */
-export function refusalText(result, fallback = '') {
-    return result?.code === 'DM_BUDGET' ? STRINGS.editMessages.replyFull : result?.message || fallback;
+/** What a reader sees when a command was refused: a full reply budget or a chat that holds as many block versions as it can, in plain words (`pinsFull` words the second), else the refusal's own sentence (or `fallback`). */
+export function refusalText(result, fallback = '', { pinsFull = STRINGS.editMessages.pinsFull } = {}) {
+    if (result?.code === 'DM_BUDGET') return /Retained pin budget exhausted/.test(String(result.message ?? '')) ? pinsFull : STRINGS.editMessages.replyFull;
+    return result?.message || fallback;
 }
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' };

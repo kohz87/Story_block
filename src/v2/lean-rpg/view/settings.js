@@ -9,6 +9,7 @@
 // nothing on this page can change a roll already made. Every node is built with createElement and textContent.
 
 import { h } from '../../view/widgets/dom.js';
+import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
 import { ROLLS_SETTING } from '../names.js';
 import { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, difficultyOf, normalizeRules, plannerNoteOf, rulesFromSettings } from '../rules.js';
@@ -65,7 +66,12 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
     const values = () => settings(SETTINGS_MODULE) ?? {};
     const put = (key, value) => { settings.set(SETTINGS_MODULE, key, value); onChange(); };
     const cards = {};
-    let alive = true, combatNote = '', oddsParts = null, previewParts = null, combatShown = null;
+    let alive = true, combatNote = '', oddsParts = null, previewParts = null, combatShown = null, flushCombat = null;
+    // The page going out of sight (a tab switch, the window closing) keeps what was typed in the Combat box.
+    const hidden = () => { if (doc.visibilityState === 'hidden') flush(); };
+    const flush = () => { try { flushCombat?.(); } catch { /* the box is saved when it is next left */ } };
+    doc.addEventListener?.('visibilitychange', hidden);
+    doc.defaultView?.addEventListener?.('pagehide', flush);
 
     // ---- small builders
     function card(key, title, help) {
@@ -191,6 +197,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
     function drawCombat() {
         const box = card('combat', S.combat, S.combatHelp);
         const block = combatBlock(headState(), { roleOf });
+        flushCombat = null;
         combatShown = block ? `${block.module}\n${block.prompt}` : '';
         if (!block) {
             box.appendChild(h(doc, 'p', 'rpg-set-help rpg-combat-none', S.combatNone));
@@ -201,7 +208,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                 add.addEventListener('click', async () => {
                     const definition = combatTemplate(LEAN_RPG_TEMPLATES);
                     const result = definition ? await command('dm.define', { definition }) : null;
-                    combatNote = result?.ok ? S.combatAdded : (result?.message ?? S.combatFailed);
+                    combatNote = result?.ok ? S.combatAdded : refusalText(result, S.combatFailed, { pinsFull: S.combatPinsFull });
                     if (alive) redraw('[data-act="combat-add"]');
                 });
                 box.appendChild(add);
@@ -226,20 +233,26 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                 count.classList.toggle('rpg-over', n > COMBAT_MAX);
                 return n;
             };
-            // Saved when the box is left (not on every key: each save is an edit of the block on the latest reply).
+            // Saved when the box is left (not on every key: each save is an edit of the block on the latest reply), and when the
+            // window closes or the page is hidden while the box still has what was typed (no `change` comes when a box is taken away).
+            let saving = null;
             async function save() {
                 const text = oneLine(area.value);
-                if (text === block.prompt || typeof command !== 'function') return;
+                if (text === block.prompt || text === saving || typeof command !== 'function') return;
                 if (tally() > COMBAT_MAX) { combatNote = fill(S.combatTooLong, { max: COMBAT_MAX }); status.textContent = combatNote; return; }
-                const result = await command('dm.redefine', { module: block.module, definition: withPrompt(block.definition, text) });
-                combatNote = result?.ok ? S.combatSaved : (result?.message ?? S.combatFailed);
+                saving = text;
+                let result;
+                try { result = await command('dm.redefine', { module: block.module, definition: withPrompt(block.definition, text) }); } finally { saving = null; }
+                combatNote = result?.ok ? S.combatSaved : refusalText(result, S.combatFailed, { pinsFull: S.combatPinsFull });
                 // The box may have been drawn again while the command ran (the story moved): the note goes on the one that is there now.
                 const shown = root.querySelector('.rpg-set-status');
                 if (shown) shown.textContent = combatNote;
                 if (result?.ok) { block.prompt = text; combatShown = `${block.module}\n${text}`; onChange(); }
             }
+            flushCombat = save;
             area.addEventListener('input', tally);
             area.addEventListener('change', save);
+            area.addEventListener('focusout', save);
             reset.addEventListener('click', () => { area.value = COMBAT_DEFAULT; tally(); save(); });
             row.append(reset, count);
             box.append(area, row, status);
@@ -329,6 +342,12 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
             const block = combatBlock(headState(), { roleOf });
             if ((block ? `${block.module}\n${block.prompt}` : '') !== combatShown && !typing()) redraw();
         },
-        destroy() { alive = false; root.remove(); },
+        destroy() {
+            flush();
+            alive = false;
+            doc.removeEventListener?.('visibilitychange', hidden);
+            doc.defaultView?.removeEventListener?.('pagehide', flush);
+            root.remove();
+        },
     };
 }
