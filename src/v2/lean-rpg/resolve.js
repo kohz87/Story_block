@@ -15,9 +15,10 @@
 // pace (careful 1, normal 5, all 8), LIMITS.roundCap, the first decisive round (a natural 1 or 20 on any die, or a
 // margin of LIMITS.decisiveMargin either way) and what fits the cue budget (LIMITS.cueTokens); at least one.
 //
-// Refusals (plain sentences, in the cue and in `refused`): a name the sheet does not have, a skill it does not list, a
-// stat the character lacks, a foe slot that is empty, a character who is Down. A skill whose resource is Empty
-// (`uses: mana`, else stamina) is refused and the action is rolled without it.
+// Refusals (plain sentences, in the cue and in `refused`): a character the sheet does not have, a stat the character
+// lacks, a foe that is not there or whose slot is empty, a character who is Down: that action is not rolled. A skill the
+// character does not have is rolled untrained (rank 0, no skill named); so is one whose resource is Empty (`uses: mana`,
+// else stamina), and the cue says so.
 //
 // Replay. Guarded (docs/v2/REPLAY.md) and `replan`: the guard asks that the sheet inputs this roll used are still what
 // the prefix holds; when an earlier reply is deleted or swiped and they changed, the roll is planned again with the same
@@ -72,7 +73,7 @@ function side(character, stat, rank, edge) {
 function skillFor(character, phrase, uses) {
     if (!phrase) return { skill: null, rank: 0 };
     const found = matchSkill(character, phrase);
-    if (!found) return { refusal: `no skill called ${phrase}` };
+    if (!found) return { skill: null, rank: 0, refused: `${character.who} has no skill called ${phrase}: rolled untrained.` };
     const resource = uses === 'mana' ? 'mana' : 'stamina';
     if (character[resource] === 0) return { skill: null, rank: 0, refused: `${character.who} cannot use ${found.name} (${cap(resource)} ${STAGES[resource][0]}): rolled without it.` };
     return { skill: found.name, rank: found.rank };

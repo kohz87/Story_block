@@ -171,3 +171,22 @@ test('the held plan is let go once the reply is captured: the chat metadata keep
     assert.equal(host.ctx.chatMetadata?.leanRpgPlan, undefined);
     host.close();
 });
+
+test('Assist\'s pre-roll steps aside while the Lean RPG is on and the chat has a Character block, and not otherwise', async () => {
+    const { createClassifier } = await import('../../../src/v2/assist/classifier.js');
+    const { SETTING } = await import('../../../src/v2/assist/common.js');
+    const { fakeModel } = await import('../assist/helpers/fakes.js');
+    const sheetState = blocks => ({ v: 2, meta: { rev: 0, claims: {} }, domains: { dataModules: sheetDomain(blocks) } });
+    const ask = async ({ feature, blocks }) => {
+        const callModel = fakeModel('none');
+        const classifier = createClassifier({
+            callModel, settings: () => ({ [SETTING.classifier]: true, [SETTING.profile]: '' }), chat: () => [{ is_user: false, mes: 'Hello.' }, { is_user: true, mes: 'I sneak past the guard.' }],
+            chatId: () => 'c', hasKind: () => true, log: { add: entry => entry }, warn: () => {},
+        });
+        await classifier.beforeGenerate({ state: sheetState(blocks), feature: id => feature && id === 'story-block.lean-rpg', chat: { length: 2, lastUser: '' } }, { type: 'normal' });
+        return callModel.calls.length;
+    };
+    assert.equal(await ask({ feature: true, blocks: PARTY() }), 0, 'on, with a Character block: no call');
+    assert.equal(await ask({ feature: false, blocks: PARTY() }), 1, 'feature off: Assist as before');
+    assert.equal(await ask({ feature: true, blocks: { foes: PARTY().foes } }), 1, 'on, but no Character block: Assist as before');
+});

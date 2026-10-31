@@ -38,8 +38,6 @@ test('the odds of the formula: a Class II hero with STR 14 and an Adept skill (+
     };
     const table = { 1: [72.25, 6.25], 2: [65, 7.25], 4: [47.75, 9], 6: [31.25, 7.75], 8: [18.75, 5.75] };
     for (const [foeClass, expected] of Object.entries(table)) assert.deepEqual(odds(Number(foeClass)), expected, `class ${foeClass}`);
-    // The 28 Oct figures of the design (about 70, 62, 43, 26 and 14 per cent) are the same curve within a few points.
-    for (const [foeClass, figure] of [[1, 70], [2, 62], [4, 43], [6, 26], [8, 14]]) assert.ok(Math.abs(odds(foeClass)[0] - figure) <= 6, `class ${foeClass} near ${figure}`);
 });
 
 test('the formula in the numbers: d20 + stat/2 + 2×class + rank + edge against d20 + 5 + 2×class', () => {
@@ -122,14 +120,13 @@ test('the cue stays within its budget: rounds are cut to fit, never below one', 
     assert.match(result.text, /is the last rolled/);
 });
 
-test('what is refused, in plain words: an unknown name, skill or foe, an empty slot, a stat the sheet lacks, someone who is Down', () => {
+test('what is refused, in plain words: an unknown name or foe, an empty slot, a stat the sheet lacks, someone who is Down', () => {
     const party = PARTY();
     party.moss = { role: 'character', fields: character('Moss', { health: 0 }) };
     party.dull = { role: 'character', fields: character('Dull', { str: null }) };
     const sheet = sheetOf(party);
     const cases = [
         [wessel({ who: 'Nobody' }), /Nobody → Sluice Rats: not rolled \(no character called Nobody\)\./],
-        [wessel({ skill: 'Iron Breth' }), /Wessel → Sluice Rats: not rolled \(no skill called Iron Breth\)\./],
         [wessel({ target: 'Dragon' }), /Wessel → Dragon: not rolled \(no foe called Dragon\)\./],
         [wessel({ who: 'Moss', skill: undefined }), /Moss → Sluice Rats: not rolled \(Moss is Down\)\./],
         [wessel({ who: 'Dull', skill: undefined }), /Dull → Sluice Rats: not rolled \(Dull has no STR on the sheet\)\./],
@@ -183,4 +180,15 @@ test('the summary for the reply: exchanges, and each action with what happened i
         ],
         refused: 0,
     });
+});
+
+test('a skill the character does not have is rolled untrained, and the cue says so', () => {
+    const body = plan({ acts: [wessel({ skill: 'Iron Breth' })], checks: [{ who: 'Ren', skill: 'Lockpicking', stat: 'dex', difficulty: 'easy' }] });
+    const prepared = prepare(body, sheetOf());
+    assert.deepEqual([prepared.acts[0].skill, prepared.acts[0].pc.rank, prepared.checks[0].skill, prepared.checks[0].pc.rank], [null, 0, null, 0]);
+    const result = rollPrepared(body, prepared, calm());
+    assert.match(result.text, /Wessel has no skill called Iron Breth: rolled untrained\./);
+    assert.match(result.text, /Ren has no skill called Lockpicking: rolled untrained\./);
+    assert.match(result.text, /Wessel → Sluice Rats: SUCCESS/);
+    assert.equal(result.summary.refused, 2);
 });
