@@ -186,9 +186,10 @@ export function positionalDice(base) {
  * Rolls a prepared plan: `source` is positionalDice's answer (each action draws from its own stream), or, for a roll of the earlier
  * scheme, one `roll()` that gives every d20 in turn (the checks first, then each round's actions in order). → { checks, rounds,
  * stop, text, summary } with the rounds already cut to the stop and the cue budget (the dice of rounds that are cut were drawn and
- * are dropped). `rules` are the numbers in force (default: Standard); the most rounds is `rules.roundCap`.
+ * are dropped). `rules` are the numbers in force (default: Standard); the most rounds is `rules.roundCap`. `earlier`: the cue is fitted as it
+ * was for a roll of the earlier scheme (cue.js fitCue), so that its rounds and stop never change.
  */
-export function rollPrepared(plan, prepared, source, rules = STANDARD) {
+export function rollPrepared(plan, prepared, source, rules = STANDARD, { earlier = false } = {}) {
     const own = new Map();
     const diceOf = entry => {
         if (source.positional !== true) return source;
@@ -206,7 +207,7 @@ export function rollPrepared(plan, prepared, source, rules = STANDARD) {
         if (decisive) break;
     }
     const refused = prepared.refused.map(entry => entry.text);
-    const cue = fitCue({ checks, rounds: all, refused, decisive: all.length > 0 && all.at(-1).decisive });
+    const cue = fitCue({ checks, rounds: all, refused, decisive: all.length > 0 && all.at(-1).decisive }, undefined, { earlier });
     const fits = cue.count;
     const rounds = all.slice(0, fits);
     const decisive = rounds.length > 0 && rounds.at(-1).decisive;
@@ -251,7 +252,7 @@ export function resolve(ctx, payload = {}) {
     // A roll that asks for the dice version draws one number from the seed, and each action's dice come from that and its place in
     // the plan; one made before has no version and draws its dice in one sequence, as it did.
     const source = payload.dice === DICE_VERSION ? positionalDice(Math.floor(ctx.rng() * 4294967296) >>> 0) : () => ctx.roll(`d${FORMULA.die}`).total;
-    const dice = rollPrepared(plan, prepared, source, rules);
+    const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION });
     const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules) };
     ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules });
     const result = {
