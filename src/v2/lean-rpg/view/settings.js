@@ -5,11 +5,12 @@
 
 import { renderSettingsForm } from '../../view/form/form.js';
 import { RPG_STRINGS } from '../strings.js';
+import { ROLLS_SETTING } from '../names.js';
 
 const S = RPG_STRINGS.settings;
 export const ROLLS_DEFAULT = 'automatic';
 /** The setting's key (the rolls piece's ROLLS_SETTING). */
-export const ROLLS_KEY = 'leanRpgRolls';
+export const ROLLS_KEY = ROLLS_SETTING;
 export const SETTINGS_MODULE = 'story-block';
 export const SETTINGS_FOLD = 'lean-rpg';
 

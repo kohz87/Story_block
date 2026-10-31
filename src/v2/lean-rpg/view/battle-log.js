@@ -16,14 +16,12 @@
 // For a 'foe' line `pc` is the defender. The numbers read the party's total against the foe's total (or the DC).
 
 import { RESOLVE } from '../index.js';
+import { CLASS_NAMES, RANK_NAMES } from '../names.js';
 import { readRecord } from '../../persist.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { BARS, readFoes, readParty } from './party-data.js';
 
 const B = RPG_STRINGS.battle;
-// The names the rolls piece exports (lean-rpg/names.js); kept here so this file stands on its own until the pieces are merged.
-const RANK_NAMES = ['Novice', 'Adept', 'Expert', 'Master'];
-const CLASS_NAMES = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
 export const BATTLE_ROOT = 'rpg-battle';
 export const BATTLE_ID = 'lean-rpg/battle-log';
 /** The narrator's marker: a line of its own. (turn.js strips the same line from the prompt history.) */
