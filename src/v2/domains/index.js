@@ -12,7 +12,7 @@ import {
     FEATURE, INVENTORY_FEATURES, createInventoryCommands, createInventoryQueries, captureCoin, captureItem, captureLoot, encumbranceTail,
     featureOn, initialInventory, inventoryTail, validateInventory, LOOT_KINDS, lootTakeGuard, INVENTORY_EDIT_GUARD, inventoryEditGuard,
 } from './inventory.js';
-import { WEATHER_CHARS, capturePlace, capturePresent, captureWeather, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
+import { WEATHER_CHARS, YOU_CHARS, capturePlace, capturePresent, captureWeather, captureYou, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
 import { MOUNTS_FEATURE, captureMount, createMountsQueries, mountsCommands, mountsTail } from './mounts.js';
 import { DEFAULT_CURRENCY, MAX_COIN_VALUE, moneyLine, resolveCurrency } from './money.js';
 import { renderInventoryTab } from '../ui/inventory-tab.js';
@@ -25,11 +25,17 @@ import { STRINGS } from '../strings.js';
 import { createEventsPart } from '../events/index.js';
 import { standardWidgets } from '../view/widgets/index.js';
 import { screens as defaultScreens } from '../screens/index.js';
+import { youRankOf } from '../packs/content.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
 import { RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
 import { hookTimeout } from '../turn.js';
+
+// The Rank's label for the tail: asked through the view's query (null while no pack gives one).
+function youRankLabel(view) {
+    try { return view.query('packs.youRank')?.label ?? ''; } catch { return ''; }
+}
 
 const TIMED_OUT = Symbol('timed out');
 // `value`, or TIMED_OUT when it is a promise that has not settled within `ms`.
@@ -56,6 +62,11 @@ export const CORE_BUDGET = 400;
 export const CORE_STATIC = 'Code keeps the inventory, the wallet, the place and who is present: use or pay only what the '
     + 'lists below hold, and write a change line for every item or coin gained, used or lost and every arrival, departure or move.';
 
+/** The `~ you` grammar line: wearing and condition, and a rank under the pack's own word for it (`label`) when a pack gives one. */
+export function youGrammar(label = '') {
+    return `~ you ${label ? `rank: ${label} | ` : ''}wearing: what {{user}} has on | condition: how {{user}} is (only when one changes; each at most ${YOU_CHARS} characters)`;
+}
+
 export const CORE_KINDS = Object.freeze({
     item: Object.freeze({ grammar: '+ item Name | qty: 1 | note: short detail (- item Name | qty: 1 when used up or lost; ~ item Name | note: … when it changes)' }),
     coin: Object.freeze({ grammar: '+ coin 30 | from: who (- coin 5 | to: who when paid; one number, in the wallet\'s currency)' }),
@@ -63,6 +74,9 @@ export const CORE_KINDS = Object.freeze({
     present: Object.freeze({ grammar: '+ present Name when someone arrives, - present Name when they leave; when someone already here is first named, - present the old word and + present the name (- present clerk, + present Nelje)' }),
     // MODULES §F120: the weather, descriptive only; its grammar line only while `story-block.weather` is on.
     weather: Object.freeze({ grammar: `~ weather cold drizzle, low fog (only when the weather changes, not every reply; a few words, at most ${WEATHER_CHARS} characters)`, feature: CORE_FEATURE.weather }),
+    // MODULES §F126: {{user}}'s rank, what they wear and how they are, descriptive only; its grammar line only while `story-block.you` is on.
+    // Without a pack that gives a Rank (`content.you.rank`) the line names wearing and condition only; with one, `youGrammar(label)`.
+    you: Object.freeze({ grammar: youGrammar(''), feature: CORE_FEATURE.you }),
     // The party's mounts (src/v2/domains/mounts.js): their grammar line only while `story-block.mounts` is on.
     mount: Object.freeze({ grammar: '+ mount Name | kind: horse|mule|cart|… | count: 1 | pace: km/day | where: who rides or where it is (~ mount Name | condition: lame; - mount Name when lost or sold; at most 6)', feature: CORE_FEATURE.mounts }),
     // MODULES §F100: off, the kind and its grammar line are left out (a host without Features keeps it).
@@ -89,6 +103,8 @@ export const CORE_FEATURES = Object.freeze([
     Object.freeze({ id: CORE_FEATURE.chatter, label: STRINGS.features.chatter, describe: STRINGS.features.chatterDescribe, default: false }),
     // The weather (MODULES §F120): on; its grammar line is in the static part while it is on.
     Object.freeze({ id: CORE_FEATURE.weather, label: STRINGS.features.weather, describe: STRINGS.features.weatherDescribe, default: true }),
+    // Your look (MODULES §F126): on; its grammar line is in the static part while it is on.
+    Object.freeze({ id: CORE_FEATURE.you, label: STRINGS.features.you, describe: STRINGS.features.youDescribe, default: true }),
     // The mounts: on; the grammar line and the narrator's line are there only while it is on.
     Object.freeze({ id: CORE_FEATURE.mounts, label: STRINGS.features.mounts, describe: STRINGS.features.mountsDescribe, default: true }),
     Object.freeze({ id: CORE_FEATURE.leanRpg, label: STRINGS.features.leanRpg, describe: STRINGS.features.leanRpgDescribe, default: false }),
@@ -131,7 +147,7 @@ export const CORE_SETTINGS = Object.freeze({
  * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
  * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, query = null, rpgOn = () => false } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, youRank = () => null, query = null, rpgOn = () => false } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
@@ -148,6 +164,8 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         settings: () => settings() ?? {},
         // The enabled pack's money scale ({ scale } or null) for inventory.economy.
         economy,
+        // The Rank an enabled pack gives {{user}}'s look, `{ label }`, or null (no Rank in this story).
+        youRank: () => { try { return youRank() ?? null; } catch { return null; } },
         problem: entry => { try { problem?.(entry); } catch { /* the Problems list is not essential */ } },
     };
     // The chat's currency comes from the reader's settings or the pack.
@@ -155,9 +173,9 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
     const kind = (grammar, apply) => ({ grammar, apply });
     return {
         domains: {
-            // `weather` is scratch: a later reply's `~ weather` replays whole after the first one's reply is deleted.
-            // `mounts` is scratch too: a row added after the reply that first wrote the field was deleted still finds its place (mounts.js).
-            scene: { initial: initialScene, validate: slice => validateScene(slice), scratch: ['weather', 'mounts'] },
+            // `weather`, `you` and `mounts` are scratch: a later reply's `~ weather` (or the part of `~ you` it writes) replays after the first one's reply is deleted;
+            // a mount row added after the reply that first wrote the field was deleted still finds its place (mounts.js).
+            scene: { initial: initialScene, validate: slice => validateScene(slice), scratch: ['weather', 'you', 'mounts'] },
             // Coin and stack sizes are counts: a replay after a deleted reply adds each change to them.
             inventory: { initial: initialInventory, validate: slice => validateInventory(slice), counters: ['wallets/*/coin', 'stacks/*/qty'], scratch: ['perReply', 'storyClicks', 'loot', 'condLog'] },
         },
@@ -170,6 +188,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
             place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
             present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
             weather: { ...kind(CORE_KINDS.weather.grammar, (ctx, line) => captureWeather(ctx, line)), feature: CORE_FEATURE.weather },
+            you: { ...kind(() => youGrammar(env.youRank()?.label ?? ''), (ctx, line) => captureYou(ctx, line)), feature: CORE_FEATURE.you },
             mount: { ...kind(CORE_KINDS.mount.grammar, (ctx, line) => captureMount(ctx, line)), feature: MOUNTS_FEATURE },
             loot: { ...kind(CORE_KINDS.loot.grammar, (ctx, line) => captureLoot(ctx, line, env)), feature: FEATURE.loot },
         },
@@ -180,7 +199,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
             tail(view) {
                 const chars = CORE_BUDGET * 4;
                 const mounts = featureOn(view, MOUNTS_FEATURE) ? mountsTail(view?.state) : null;
-                const scene = [...sceneTail(view?.state, { weather: featureOn(view, CORE_FEATURE.weather) }), ...(mounts ? [mounts] : [])];
+                const scene = [...sceneTail(view?.state, { weather: featureOn(view, CORE_FEATURE.weather), you: featureOn(view, CORE_FEATURE.you), rankLabel: featureOn(view, CORE_FEATURE.you) ? youRankLabel(view) : '' }), ...(mounts ? [mounts] : [])];
                 // The encumbered condition, when the carry module reports it (one short line).
                 // Asked through the query, which a host with Features answers with null while it is off.
                 let found = null;
@@ -324,7 +343,7 @@ export function headMoved(tools, headIndex) {
  * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
 export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null, dataModules = {}, leanRpg = {} } = {}) {
-    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null) });
+    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null), youRank: () => youRankOf(typeof packs.packs?.packs === 'function' ? packs.packs.packs() : []) });
     const events = createEventsPart({
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),
@@ -369,7 +388,8 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
             'story.evidence': createEvidenceQuery({ stored: () => extras?.proofs?.() ?? [] }),
         },
         capture: {
-            kinds: { ...CORE_KINDS, dm: merged.kinds.dm, party: merged.kinds.party },
+            // `you`'s grammar line is the part's function: it names a Rank only while an enabled pack gives one (youGrammar).
+            kinds: { ...CORE_KINDS, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);

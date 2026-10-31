@@ -67,6 +67,11 @@ function replyText(r, step) {
     if (step % 6 === 4) lines.push(`~ weather ${WORDS[step % WORDS.length]} and rain`);
     // The party's mounts (story-block.mounts), by step too: a few rows come, change and go, and the cap of six is reached now and then.
     if (step % 5 === 2) lines.push(`${['+', '+', '~', '-'][step % 4]} mount ${MOUNTS[step % MOUNTS.length]} | kind: ${['horse', 'mule', 'cart'][step % 3]} | condition: ${WORDS[step % WORDS.length]}`);
+    // Your look (MODULES §F126), by step too: all three parts, one part, or a part cleared.
+    if (step % 7 === 2) lines.push(`~ you rank: ${WORDS[(step + 1) % WORDS.length]} rank | wearing: ${WORDS[step % WORDS.length]} cloak | condition: ${WORDS[(step + 2) % WORDS.length]}-worn`);
+    else if (step % 5 === 3) lines.push(`~ you condition: step ${step} chilled`);
+    else if (step % 9 === 4) lines.push(step % 2 ? '~ you rank:' : `~ you rank: step ${step} novice`);
+    else if (step % 11 === 6) lines.push(step % 2 ? '~ you wearing:' : `~ you wearing: step ${step} boots | condition:`);
     if (r.chance(0.1)) return `${story}\n<Changes>\n${lines[0]}\n</Changes>\nMore story.\n<Changes>\n${lines.slice(1).join('\n')}\n</Changes>`;
     return `${story}\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 }
@@ -124,6 +129,8 @@ async function fuzz(t, seed, steps) {
     t.mock.method(console, 'warn', () => {});
     const r = prng(seed);
     const host = await createHost({ modules: [probeModule({ cues: true })] });
+    // A pack that gives Your look a Rank, so the fuzz's `~ you rank:` lines are read (without one they are refused).
+    await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } });
     t.after(() => host.close());
     const { st, ctx, store } = host;
     let committed = new Set();

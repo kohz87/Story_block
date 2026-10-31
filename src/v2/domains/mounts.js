@@ -190,6 +190,8 @@ function apply(ctx, { match, rename: to = null, kind, count, pace, condition, wh
 function remove(ctx, name) {
     const scene = ctx.draft('scene');
     const [key, row] = rowOf(scene, name);
+    // The story often takes away a mount the party never had (or already lost): nothing to undo, as with `- present`.
+    if (!row && ctx.cause === 'story') return { summary: fill(M.notWith, { name }), data: { name, missing: true }, narrate: false };
     if (!row) return ctx.fail('NOT_FOUND', fill(M.none, { name }));
     ctx.ifThere('scene', `/mounts/${escapeKey(key)}`);
     delete scene.mounts[key];

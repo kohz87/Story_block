@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased: mounts
+## 2.11.0
 
 - **Mounts.** The narrator can keep the party's horses, mules and carts: `+ mount Grey Mare | kind: horse | count: 1 | pace: 35
   | where: ridden by Wessel`, `~ mount Burr | condition: lame`, `- mount Burr`. Up to six rows (a group is one row with a
@@ -10,11 +10,26 @@
 - **A Mounts card on Home**, beside Save points: a row per mount (name with its pencil, kind, condition, where, pace) and
   "The party travels at the slowest: N km/day riding." or, when there are fewer mounts than riders, "Not enough mounts for
   everyone: the party walks (20 km/day)." The pencil edits all six fields. It shows only while the party has a mount.
+- `- mount Burr` for a mount the party does not have is quiet, like `- present`: the receipt says "Burr is not with the party.", it is
+  not a Problem and nothing changes (`~ mount` of a mount the party does not have is still one).
+- **A Travel line in Home's header**, under Rank, Wearing and Condition, while Story Director 2.5's trip is on ("Travel: riding,
+  25 km/day (Burr sets the pace) · leg 1 of 2 · arrive …"). It is hidden with no trip, with Trips off, and with an older Story
+  Director, which has no `atlas.trip` query.
 - A new feature, **Mounts** (Settings → Features, on by default). Off: no grammar line, no narrator line, nothing shown, and the
   prompts are as before. With it on, the narrator's fixed instructions gain one line, so the AI service's prompt cache starts
   over once. Story Director reads the pace through two new queries, `mounts.list` and `mounts.pace`.
 - Swipes, Re-read and deleting a reply take mounts back like any other change; a change to a mount whose reply was deleted is
   passed over and the rest of that reply still applies.
+
+## 2.10.0
+
+- **Text size** (Settings → Look, after Font): Normal, 110% or 120%. It makes Story Suite's own text bigger at once, no reload: the Game view, the cards under replies (Changed this reply, Status and the others), the dialogs (the New character wizard, the item and field editors) and the settings window. The windows keep their size and their content grows and reflows; SillyTavern's chat text is not touched. Normal changes nothing.
+- **Your look** (a new feature, on by default, under Settings → Features): the story can now say what you are wearing and how you are, with one line, `~ you wearing: … | condition: …` (either part alone; each at most 120 characters, cut if longer; an empty one clears it). A pack can also give your character a rank (`content.you.rank` with a label such as "Guild rank"; the Ersveil example does): then the line has a `rank:` part and Home shows it first under that label. A game with no such pack has no rank anywhere. Home's header shows **Wearing** and **Condition** (and the Rank) under the place, time and weather, each with a pencil so you can set or clear it yourself; Story Director 2.4.0's Status card shows them under each reply. While something is set, the narrator is told in one short line each reply (`Wessel: wears …; condition …`). Swipes, Re-read and deleting a reply take a change back like the weather. It is descriptive only: nothing in the rules reads it. Turn it off and the instruction, the narrator's line and the rows all go.
+- The narrator's instructions gain one line (Your look is on by default), so the AI service's prompt cache starts over once. With Your look off, the instructions are exactly as in 2.9.4.
+- Settings can now draw a choice as a joined row of buttons (`form: 'segmented'`), which Text size uses; a module's own settings may use it too.
+- Chats saved before this load and read as they did; they simply have no look yet.
+- Ersveil 2.2.1: declares the Guild rank (`content.you.rank`), so it now needs Story Block 2.10 (an older Story Block
+  refuses the pack with a plain message instead of half-loading it).
 
 ## 2.9.4
 

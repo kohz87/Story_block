@@ -14,12 +14,12 @@ a chat that pins nothing is byte for byte the chat it was.
 ## Reader edits
 
 The reader may edit a stack's name, quantity or note, add an item, set the purse, and edit the place,
-weather and people present. These are UI commands on the latest reply. Swiping or deleting a reply that
+weather, your rank, what you wear and your condition (Your look) and people present. These are UI commands on the latest reply. Swiping or deleting a reply that
 is not the oldest remaining reply removes its commands. Deleting the oldest remaining replies carries
 their state forward, including these edits. Re-read keeps a command when its prerequisites still hold. The Changes
 card shows the receipt summaries while their display data is retained. Non-stacking items remain one
 piece per stack; the count editor adds or removes separate pieces for the same owner, without removing
-equipped pieces. The weather editor is available while the weather feature is on.
+equipped pieces. The weather editor is available while the weather feature is on, and the Wearing and Condition pencils while Your look is on.
 
 Data-module fields may be set with `dm.set` unless their schema has `edit: false`. Setup lists editable
 fields for the pinned chat or each attached character. Some directly bound layout fields get an editor;
@@ -579,9 +579,14 @@ One hidden block at the end of the reply:
 * **`~ weather cold drizzle, low fog`** (Story Block's `story-block.weather`, on; MODULES §F120): the weather
   now, a few words kept in the scene (§7), descriptive only. Its grammar line asks for it only when the weather
   changes, not every reply.
+* **`~ you wearing: oilskin coat, boots | condition: tired and cold`** (Story Block's `story-block.you`, "Your look", on; MODULES
+  §F126): what {{user}} has on and how they are, and, only in a story with a pack that gives one (`content.you.rank`), a
+  `rank: F-rank, Adventurer Guild` part; each at most 120 characters, any part alone, an empty one clears it; kept in the scene (§7), descriptive only. Its grammar line asks for it only when one of them changes.
 * **`+ mount Name | kind: horse | count: 1 | pace: 35 | where: ridden by Wessel`**, `~ mount Name | condition: lame |
   where: stabled at the Stray Oar`, `- mount Name` (Story Block's `story-block.mounts`, on; §7): the party's
-  horses, mules and carts, which set how fast it travels. One grammar line.
+  horses, mules and carts, which set how fast it travels. One grammar line. `- mount Name` for a mount the party does not have
+  is quiet, like `- present` (a plain receipt, no Problem). The game view's header shows the Travel line of Story Director's
+  `atlas.trip` query (its `row`) under the Wearing and Condition rows, hidden when the query answers null or is not there.
 * The Director's v1 grammar (agenda, event, hook, quest, clock, beat, secret, labels, `—` reasons) is
   kept as is under this envelope.
 * Each module contributes its kinds' one-line grammar to the static instruction (§5).
@@ -768,7 +773,8 @@ sdk.registerModule({
     (the display kinds `choice` and `chatter`, off; §4.4, MODULES §F115; the read-only query `chatter.head`
     gives the newest reply's chatter, `[{ name, text }]`, `null` while it is off, §F119; `scene.chatter` the
     same under each present person for the Scene screen), `story-block.weather` (the capture kind `weather`
-    and the query `scene.weather`, on; §7, MODULES §F120), `story-block.mounts` (the capture kind `mount`, the
+    and the query `scene.weather`, on; §7, MODULES §F120), `story-block.you` ("Your look": the capture kind `you`, the command
+    and the query `scene.you`, on; §7, MODULES §F126), `story-block.mounts` (the capture kind `mount`, the
     queries `mounts.list` and `mounts.pace` and the command `mounts.edit`, on; §7). The older switches (`storySuite.hud`, the
     `assistClassifier` and `assistExtractor` settings) are the choice until the reader sets the feature.
   * A module without `features` behaves as before. On a host older than features, `features` and the
@@ -810,6 +816,7 @@ sdk.registerModule({
 ```js
 { place: { name: '', kind: '' /* settlement|wild|dungeon|… */, region: '' }, present: [ /* names */ ],
   weather: { text: 'cold drizzle, low fog', rev: 12, key: 'day 3|lowmere' /* key: set by a module's rule */ } /* absent until one is set */,
+  you: { rank: 'F-rank', wearing: 'oilskin coat, boots', condition: 'tired, cold' } /* {{user}}'s look; absent until one is set, a part may be missing */,
   mounts: { 'm:grey mare': { name: 'Grey Mare', kind: 'horse', count: 1, pace: 35, condition: '', where: 'ridden by Wessel' } } /* absent until one is written */ }
 ```
 Capture kinds `place` (`~ place Bluewatch Village | kind: settlement`) and `present`
@@ -825,7 +832,16 @@ the same text again changes nothing. Descriptive only: no mechanic reads it. `we
 (§2.2). Command `scene.weather({ text?, key? })` (same feature; `system` or `ui`, never the story; MODULES
 §F122): a module's rule sets the weather with `text`, marked with `key` (at most 80 code points), or marks the
 weather as it stands with `key` alone; the story's `~ weather` writes no key. Query `scene.weather` → `{ text } | null` (null while the feature is off). The tail's Place line ends
-with it (cut to 26 code points) while the feature is on. Query `scene.chatter` → the newest reply's Inner
+with it (cut to 26 code points) while the feature is on. Capture kind `you` (`~ you rank: … | wearing: … | condition: …`, feature
+`story-block.you`, on; MODULES §F126): each part is plain text on one line, cut at 120 code points (not refused), an empty
+part clears it, a part that is left out stays, the same words again change nothing; a line naming neither part is
+refused (`INVALID`). Each part is written on its own (`scene.you.rank`, `scene.you.wearing`, `scene.you.condition`), and `you` is a `scratch`
+field (§2.2): after the reply that first wrote a part is deleted, a later reply's part still replays and the deleted
+reply's other part is gone with it. Command `scene.you({ rank?, wearing?, condition? })` (same feature; the reader or a module,
+never the story): a part given replaces it, `''` clears it, the Home header's pencils run it as an edit on the latest reply.
+Query `scene.you` → `{ wearing, condition }`, with `rank` and `rankLabel` when a pack gives a Rank (`packs.youRank`) (`''` for a part nobody set; `null` while the feature is off); Story Director's
+Status card reads it on each reply's state. One line in the tail, after Place and Present, while the feature is on and
+something is set: `{{user}}: wears …; condition …` (a Rank word first with a pack that gives one; only the parts that are set). Query `scene.chatter` → the newest reply's Inner
 chatter under each present person, for the Scene screen while Story Director's World is not there (MODULES
 §F115).
 

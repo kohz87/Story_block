@@ -207,6 +207,8 @@ export const STRINGS = deepFreeze({
         chatter: 'Inner chatter',
         weather: 'Weather',
         weatherDescribe: 'The story notes the weather in a few words when it changes; shown on Scene, Home and the reply\'s Status card. Descriptive only: nothing in the rules reads it.',
+        you: 'Your look',
+        youDescribe: 'The story notes what you wear and how you are (tired, hurt, cold), and your rank where the game has one, when that changes; shown on Home and the reply\'s Status card. Descriptive only: nothing in the rules reads it.',
         mounts: 'Mounts',
         mountsDescribe: 'The story notes the party\'s horses, mules and carts, and how fast they travel; shown as a card on Home and read by the story\'s trip line. Off: the narrator is not told about them.',
         chatterDescribe: 'Short unspoken thoughts of the people in the scene, shown next to each person on the World screen (on the Scene screen without Story Director). Kept out of the story text and, unless you say so, out of later prompts.',
@@ -222,6 +224,7 @@ export const STRINGS = deepFreeze({
         notText: 'The mount\'s {what} must be text.',
         held: 'The {what} was held to {n}.',
         none: 'The party has no mount called {name}.',
+        notWith: '{name} is not with the party.',
         full: 'The party can keep at most {max} mounts, so {name} was not added.',
         taken: '"{name}" is already the name of another mount.',
         added: 'The party gets {name}{n}: {about}.',
@@ -380,12 +383,16 @@ export const STRINGS = deepFreeze({
 
     // `story-block/scene`.
     scene: {
-        editPlace: 'place', editWeather: 'weather', editPresent: 'people present',
+        editPlace: 'place', editWeather: 'weather', editPresent: 'people present', editRank: 'your rank', editWearing: 'what you wear', editCondition: 'your condition',
         title: 'Scene',
         unnamed: 'Somewhere not yet named',
         here: 'Here',
         nobody: 'No one else is here.',
         weather: 'Weather',
+        rank: 'Rank',
+        wearing: 'Wearing',
+        condition: 'Condition',
+        travel: 'Travel',
     },
 
     // `story-block/home`.

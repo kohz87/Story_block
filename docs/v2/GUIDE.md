@@ -15,7 +15,7 @@ Each inventory item's pencil opens its name, count and note together. Inventory 
 and its existing Drop action. For things kept as separate pieces, count changes the total of that
 kind for its owner; name and note change the selected piece. The purse accepts a whole amount or mixed
 coins such as `3 silver 5 copper`. Place, weather and the people present can be edited on Home or Scene;
-the weather pencil appears while the weather feature is on. In **Settings → Tabs & Packs**, a pinned
+the weather pencil appears while the weather feature is on. What you are wearing and your condition (and, in a game whose pack gives you one such as Ersveil's "Guild rank", your rank) (**Your look**, on under **Settings → Features**) are under the place on Home's header, each with its own pencil: the story sets them when they change (`~ you rank: … | wearing: … | condition: …`), you can set or clear them yourself, and Story Director's Status card under each reply shows them (Story Director 2.4.0). In **Settings → Tabs & Packs**, a pinned
 data module lists its editable fields under **Fields**, including a set for each attached character.
 Data-module layouts may also show pencils. Edits ride on the latest reply: swipe or delete that reply
 to take them back when it is not the oldest remaining reply. Deleting the oldest remaining reply carries
@@ -26,9 +26,11 @@ row). While there is one, Home shows a **Mounts** card with each row's kind, con
 and how fast the party travels: the slowest mount's pace, or 20 km a day on foot when there are fewer mounts than riders (with the
 RPG on, every party member who has not left counts as a rider). The pencil beside a mount edits its name, kind, how many,
 pace, condition and where; like other pencils it rides on the latest reply. Switch it off in **Settings → Features → Mounts**:
-the narrator is then not told about mounts and the card is hidden.
+the narrator is then not told about mounts and the card is hidden. With Story Director 2.5's **Trips**, the header above
+every screen of the game view also gets a **Travel** line (the mode, the pace and the mount that sets it, the leg and the
+arrival) under Wearing and Condition while a trip is on.
 
-Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
+**Settings → Look** sets the panel style, glass strength, font and **Text size** (Normal, 110% or 120%): the larger sizes make the Game view, the cards under replies, the dialogs and the settings window bigger at once; SillyTavern's own chat text keeps its size (use its Font scale for that). Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
 
 ## Making a block
 

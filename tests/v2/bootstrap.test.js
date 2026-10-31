@@ -26,9 +26,9 @@ await import('../../index.js');
 const sdk = await globalThis.StoryBlock.ready;
 const texts = (root, selector) => root.querySelectorAll(selector).map(node => node.textContent);
 
-test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.9.4', () => {
+test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.11.0', () => {
     const manifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '2.9.4');
+    assert.equal(manifest.version, '2.11.0');
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
     assert.equal(pkg.version, manifest.version);
     assert.equal(globalThis.StoryBlock.version, manifest.version);
@@ -48,7 +48,7 @@ test('the bar sits right above the message box; the drawer and the wand menu are
     assert.ok(next === sendForm || (next.classList.contains('ss-hud') && next.nextElementSibling === sendForm), 'the bar, then the hud strip, then the message box');
     assert.ok(doc.querySelector('#story_suite_v2_drawer'));
     assert.ok(doc.querySelector('#story_suite_v2_menu'));
-    assert.match(doc.querySelector('#story_suite_v2_drawer').textContent, /Story Block 2\.9\.4 \(v2\)/);
+    assert.match(doc.querySelector('#story_suite_v2_drawer').textContent, /Story Block 2\.11\.0 \(v2\)/);
 });
 
 test('a reply\'s change lines reach the Inventory tab of the story panel', async () => {
@@ -101,7 +101,7 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Blocks', 'Modules', 'Diagnostics']);
     // Look and Features are the form engine's: no folds. The Story Suite fold has the budgets, not the look.
     assert.deepEqual(foldsOf('look'), []);
-    assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font']);
+    assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font', 'Text size']);
     assert.deepEqual(foldsOf('features'), []);
     assert.ok(page('features').querySelector('.ss-features-group[data-fold="story-suite-features::story-block"]'), 'Story Block\'s group of tiles');
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));

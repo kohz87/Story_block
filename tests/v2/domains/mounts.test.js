@@ -139,6 +139,25 @@ test('hostile or odd lines: plain Problems, nothing saved on a refusal, numbers 
     assert.deepEqual(validateScene(host.head().domains.scene), []);
 });
 
+test('- mount for a mount the party does not have is quiet, like - present: said plainly, ok, nothing changed, not a Problem (~ mount still is one)', async t => {
+    const host = await fresh(t);
+    await host.send('Saddle up.', block('The yard.', [MARE]));
+    const before = JSON.stringify(host.head().domains.scene);
+    await host.send('Gone.', block('Gone.', ['- mount Burr', '- mount Old Flea']));
+    assert.deepEqual(problems(host), [], 'no Problem');
+    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.receipts.map(receipt => [receipt.summary, receipt.narrate, receipt.data.missing]), [['Burr is not with the party.', false, true], ['Old Flea is not with the party.', false, true]]);
+    assert.equal(JSON.stringify(host.head().domains.scene), before, 'nothing changed');
+    assert.deepEqual(names(host), ['Grey Mare']);
+    // One that is there still goes, in the same reply as one that is not.
+    await host.send('Sold.', block('Sold.', ['- mount Burr', '- mount  grey mare ']));
+    assert.deepEqual(problems(host), []);
+    assert.deepEqual(host.ctx.chat.at(-1).extra.storySuite.receipts.map(receipt => receipt.summary), ['Burr is not with the party.', 'The party no longer has Grey Mare.']);
+    assert.deepEqual(names(host), []);
+    await host.send('Odd.', block('Odd.', ['~ mount Burr | condition: lame']));
+    assert.match(problems(host).join('\n'), /no mount called Burr/, 'a change to a mount the party does not have is still a Problem');
+    checkInvariants(host, 'after the quiet lines');
+});
+
 test('a seventh row is refused with a plain Problem; the six stay', async t => {
     const host = await fresh(t);
     await host.send('Many.', block('Many.', ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(name => `+ mount ${name} | kind: pony`)));
