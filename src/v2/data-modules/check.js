@@ -498,6 +498,7 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
             else definition.prompt = oneLine(definition.prompt);
         }
         if (definition.role !== undefined && !ROLES.includes(definition.role)) add('DM_SCHEMA', `${at}.role`, STRINGS.blocks.roleInvalid);
+        else if (definition.role !== undefined && definition.scope === 'character') add('DM_SCHEMA', `${at}.role`, STRINGS.blocks.roleChat);
         if (definition.show !== undefined) {
             const show = definition.show;
             if (!dmObject(show) || Object.keys(show).some(key => !['tab', 'card', 'tabName', 'icon'].includes(key))
