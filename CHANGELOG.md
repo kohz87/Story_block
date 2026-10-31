@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.2
+
+- The New character wizard's Stats step no longer brings back "Points left" under every stat after a + or a −; the
+  count shows once, in the pill at the top.
+
 ## 2.9.1
 
 - **Making your character sets up the RPG for the chat.** If the chat has no Combat rules or Foes block yet, the New

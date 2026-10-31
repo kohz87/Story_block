@@ -729,6 +729,30 @@ test('2.9.1: the Stats step is one card with an even grid of label-over-stepper 
     dialog.close();
 });
 
+test('2.9.2: after a + or a − the Stats step still shows no "Points left" under a stat; Reset and Back/Next keep it out too', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    const dialog = await openFrom(ctx, { empty: true });
+    let stats = await goTo(dialog, 'stats');
+    const notes = () => wizardOf(dialog).querySelectorAll('.rpg-stat-step .ss-w-stepper-budget');
+    const noneShown = why => {
+        assert.equal(notes().length, STATS.length, why);
+        for (const note of notes()) { assert.equal(note.hidden, true, why); assert.equal(note.textContent, '', why); }
+    };
+    wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="agi"] .ss-w-stepper-inc').click();
+    noneShown('after a +');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-push').textContent, 'Points left: 5', 'the pill still counts');
+    wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="luk"] .ss-w-stepper-dec').click();
+    noneShown('after a −');
+    stats = await goTo(dialog, 'skills');
+    stats = await goTo(dialog, 'stats');
+    noneShown('after Back and Next');
+    click(stats, 'Reset');
+    wizardOf(dialog).querySelector('.rpg-stat-step[data-stat="str"] .ss-w-stepper-inc').click();
+    noneShown('after Reset and a +');
+    dialog.close();
+});
+
 test('2.9.1: the Stats card\'s stylesheet: padding in the card, an even grid beside the radar centred, two columns then the radar below on a phone; the Spend points view is untouched', () => {
     const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
     assert.match(css, /\.rpg-wiz-stats-card \{[^}]*padding: 14px 16px;[^}]*background: var\(--ss-tile\)/);
