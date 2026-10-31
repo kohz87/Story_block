@@ -123,9 +123,10 @@ export function prepare(plan, sheet, rules = STANDARD) {
         return { character };
     };
     // The stat the act rolls with, once the skill has had its say: it must be on the sheet.
-    const statOf = (character, stat) => {
+    // `hidden`: the stat is a skill's hidden one, so the refusal does not name it (review 164).
+    const statOf = (character, stat, hidden = false) => {
         if (!stat) return { refusal: `${character.who} has no stat to roll with` };
-        if (!Number.isInteger(character.stats[stat])) return { refusal: `${character.who} has no ${stat.toUpperCase()} on the sheet` };
+        if (!Number.isInteger(character.stats[stat])) return { refusal: hidden ? `${character.who} has no stat on the sheet for this skill` : `${character.who} has no ${stat.toUpperCase()} on the sheet` };
         return {};
     };
     for (const [at, act] of (plan.acts ?? []).entries()) {
@@ -135,7 +136,7 @@ export function prepare(plan, sheet, rules = STANDARD) {
         if (actor.refusal) { refuse(act.who, `${label}: not rolled (${actor.refusal}).`); continue; }
         if (!foe) { refuse(act.who, `${label}: not rolled (no foe called ${act.target}).`); continue; }
         const skill = skillFor(actor.character, act.skill, act);
-        const stat = statOf(actor.character, skill.stat);
+        const stat = statOf(actor.character, skill.stat, skill.statHidden);
         if (stat.refusal) { refuse(act.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(act.who, skill.refused);
         const edge = Math.max(-FORMULA.edgeMax, Math.min(FORMULA.edgeMax, act.edge ?? 0));
@@ -156,7 +157,7 @@ export function prepare(plan, sheet, rules = STANDARD) {
         const label = `${check.who} — ${check.skill ?? check.stat?.toUpperCase() ?? 'check'}`;
         if (actor.refusal) { refuse(check.who, `${label}: not rolled (${actor.refusal}).`); continue; }
         const skill = skillFor(actor.character, check.skill, check);
-        const stat = statOf(actor.character, skill.stat);
+        const stat = statOf(actor.character, skill.stat, skill.statHidden);
         if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(check.who, skill.refused);
         out.checks.push({ at, kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
@@ -164,7 +165,8 @@ export function prepare(plan, sheet, rules = STANDARD) {
     const foeSide = foe => ({ slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.classWeight * foe.class });
     for (const entry of [...out.acts, ...out.foes]) entry.foe = foeSide(entry.foe);
     // (Where an action stands in the plan is for its dice; the witness is the sheet numbers only, as it always was.)
-    const bare = list => list.map(({ at: _, ...entry }) => entry);
+    // Whether a stat is hidden is not a sheet number: it changes what the cue says, never the dice (review 164).
+    const bare = list => list.map(({ at: _, ...entry }) => ({ ...entry, pc: (({ statHidden: _hidden, ...pc }) => pc)(entry.pc) }));
     out.witness = { acts: bare(out.acts), foes: bare(out.foes), checks: bare(out.checks), refused: out.refused };
     return out;
 }

@@ -38,15 +38,16 @@ export function shortNames(names, max = NAME_CUT) {
 
 /**
  * One roll as one line: "Wessel → Sluice Rat A (Iron Breath): SUCCESS (26 vs 16)". `compact`: a check without its skill and stat;
- * `names`: the longest a skill's name may be (0: as written); `shown`: how a character's or a foe's name is written (shortNames; as given).
+ * `names`: the longest a skill's name may be (0: as written); `shown`: how a character's or a foe's name is written (shortNames; as given);
+ * `plain`: name a hidden stat all the same (only to measure the cue, fitCue).
  */
-export function lineText(line, { compact = false, names = 0, shown = name => name } = {}) {
+export function lineText(line, { compact = false, names = 0, shown = name => name, plain = false } = {}) {
     const word = OUTCOME_WORD[line.outcome];
     const who = shown(line.pc.who);
     if (line.kind === 'check') {
         if (compact) return `${who} — ${line.difficulty} check: ${word} ${numbers(line)}`;
         // a stat the pack hides is not named (review 163)
-        if (line.pc.statHidden) return `${who} — ${line.skill ? cut(line.skill, names) : 'check'}, ${line.difficulty}: ${word} ${numbers(line)}`;
+        if (line.pc.statHidden && !plain) return `${who} — ${line.skill ? cut(line.skill, names) : 'check'}, ${line.difficulty}: ${word} ${numbers(line)}`;
         return `${who} — ${cut(line.skill ?? line.pc.stat.toUpperCase(), names)} (${line.pc.stat.toUpperCase()}), ${line.difficulty}: ${word} ${numbers(line)}`;
     }
     if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}: ${word} for ${who} ${numbers(line)}`;
@@ -64,13 +65,13 @@ const shortRefusal = text => cut(String(text).replace(/\s*\([^)]*\)/g, '').repla
  * is how much it is shortened to fit the budget: 0 as written; 1 checks without their skill and refusals without their
  * reasons; 2 the refusals as one count; 3 names cut as well.
  */
-export function cueText({ checks, rounds, refused, decisive }, shape = 0) {
+export function cueText({ checks, rounds, refused, decisive }, shape = 0, { plain = false } = {}) {
     const fight = rounds.length > 0;
     const head = fight
         ? `[Rolls] Code rolled these. Tell them in this order and as given, and never invent a roll; write ${BATTLE_MARKER} on its own line where the fight is told.`
         : '[Rolls] Code rolled these. Tell them as given, and never invent a roll.';
     // Shape 3 cuts every name, and each stays different from the others, so the narrator can tell who earned which result.
-    const options = { compact: shape >= 1, names: shape >= 3 ? NAME_CUT : 0 };
+    const options = { compact: shape >= 1, names: shape >= 3 ? NAME_CUT : 0, plain };
     if (shape >= 3) {
         const told = [...checks, ...rounds.flatMap(round => round.lines)];
         const map = shortNames(told.flatMap(line => [line.pc.who, ...(line.foe ? [line.foe.name] : [])]));
@@ -101,7 +102,9 @@ export function fitCue(parts, budget = LIMITS.cueTokens, { earlier = false } = {
         for (let count = total; count >= Math.min(1, total); count -= 1) {
             const told = { ...parts, rounds: parts.rounds.slice(0, count), decisive: parts.decisive && count === total };
             last = { count, shape, text: cueText(told, shape) };
-            if (cueTokens(last.text) <= budget) return last;
+            // Measured as if no stat were hidden, so whether a stat is hidden never changes how many rounds are told (review
+            // 164); the text that is sent is never longer than the one measured.
+            if (cueTokens(cueText(told, shape, { plain: true })) <= budget) return last;
         }
     }
     return last;

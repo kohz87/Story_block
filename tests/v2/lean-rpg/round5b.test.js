@@ -119,7 +119,7 @@ async function sneak(t, { hide, mana = 4 }) {
     success(await host.sdk.command('dm.define', { definition: skills }));
     const sent = await host.send('I slip past.', 'He slips past.');
     const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
-    return { sent, roll, asked, line: roll?.data?.v2?.result?.checks?.[0] };
+    return { host, sent, roll, asked, line: roll?.data?.v2?.result?.checks?.[0] };
 }
 
 test('review 163 a: a skill whose stat is hidden rolls with that stat and the cue does not name it', { skip }, async t => {
@@ -156,6 +156,49 @@ test('review 163 c: an untrained check on a hidden best stat neither names it no
     assert.match(request, /Wessel — check, normal: /);
     assert.match(request, /rolled untrained with their best stat/);
     assert.ok(!/STR/.test(request), 'STR is not named anywhere the narrator reads');
+});
+
+// --- review 164: whether a stat is hidden never changes the dice, the witness or the rounds told; a refusal never names it --
+
+test('review 164 a: the witness of a roll on a hidden skill stat has no visibility flag', { skip }, async t => {
+    const { prepare, readSheet } = await import('../../../src/v2/lean-rpg/index.js');
+    const { host } = await sneak(t, { hide: 'stat1' });
+    const prepared = prepare({ checks: [{ who: 'Wessel', skill: 'Silent Trick', difficulty: 'normal' }] }, readSheet(host.head()));
+    assert.equal(prepared.checks[0].pc.statHidden, true, 'the cue is told the stat is hidden');
+    assert.equal('statHidden' in prepared.witness.checks[0].pc, false, 'the witness holds the sheet numbers only');
+    assert.equal(prepared.witness.checks[0].pc.stat, 'dex');
+});
+
+test('review 164 b: a hidden stat never changes how many rounds or which shape the cue fits', { skip }, async t => {
+    const { fitCue } = await import('../../../src/v2/lean-rpg/cue.js');
+    const { line } = await sneak(t, { hide: 'stat1' });
+    assert.equal(line?.pc.statHidden, true);
+    const plainLine = { ...line, pc: { ...line.pc } };
+    delete plainLine.pc.statHidden;
+    const parts = one => ({ checks: [one, one, one, one], rounds: [1, 2, 3, 4, 5, 6].map(n => ({ n, decisive: false, lines: [one, one] })), refused: [], decisive: false });
+    const differ = [];
+    for (let budget = 40; budget <= 400; budget += 1) {
+        const hidden = fitCue(parts(line), budget), shown = fitCue(parts(plainLine), budget);
+        if (hidden.count !== shown.count || hidden.shape !== shown.shape) differ.push(budget);
+        assert.ok(!/\(DEX\)/.test(hidden.text), 'the text sent still leaves the stat out');
+        assert.ok(cueTokens(hidden.text) <= cueTokens(shown.text));
+    }
+    assert.deepEqual(differ, [], 'the same rounds and shape at every budget');
+});
+
+test('review 164 c: a check whose hidden skill stat is missing from the sheet is refused without naming it', { skip }, async t => {
+    const { host } = await game(t, { who: [], foes: [['Rat', 0]], answers: ['check Wessel | skill: Silent Trick | difficulty: normal\ncheck Wessel | stat: STR | difficulty: normal'] });
+    const hero = template('Character');
+    hero.slug = 'wessel'; hero.name = 'Wessel'; hero.state.who.default = 'Wessel'; hero.kinds = {}; hero.cards = []; delete hero.state.dex;
+    success(await host.sdk.command('dm.define', { definition: hero }));
+    const skills = template('Skills');
+    skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.kinds = {};
+    skills.state.skill1.default = 'Silent Trick'; skills.state.stat1.default = 'dex'; skills.state.stat1.prompt = false;
+    success(await host.sdk.command('dm.define', { definition: skills }));
+    const sent = await host.send('I attempt both.', 'A reply.');
+    const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
+    assert.match(roll.summary, /Silent Trick: not rolled \(Wessel has no stat on the sheet for this skill\)/);
+    assert.ok(!/DEX/.test(JSON.stringify(sent.request)), 'DEX is not named anywhere the narrator reads');
 });
 
 // --- B7: the used plan is let go whatever the switch says now ---------------------------------------------------------------
