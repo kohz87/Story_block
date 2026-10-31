@@ -1,0 +1,159 @@
+{
+    "description": "Mockup v3 party (Wessel, Ren, Tamsin) as chat state: field values per block, with a Sluice rat group in the foes block. Wessel is Soul II with 3 points, Hurt, Fresh and Spent.",
+    "blocks": [
+        {
+            "template": "Character",
+            "slug": "wessel",
+            "fields": {
+                "who": "Wessel",
+                "health": 3,
+                "mana": 4,
+                "stamina": 1,
+                "str": 14,
+                "vit": 12,
+                "agi": 11,
+                "dex": 10,
+                "int": 8,
+                "luk": 9,
+                "cha": 10,
+                "points": 3,
+                "soul": 2,
+                "xp": 40,
+                "down": false,
+                "alive": true
+            }
+        },
+        {
+            "template": "Character",
+            "slug": "ren",
+            "fields": {
+                "who": "Ren",
+                "health": 5,
+                "mana": 2,
+                "stamina": 3,
+                "str": 7,
+                "vit": 9,
+                "agi": 10,
+                "dex": 11,
+                "int": 15,
+                "luk": 10,
+                "cha": 12,
+                "points": 0,
+                "soul": 1,
+                "xp": 85,
+                "down": false,
+                "alive": true
+            }
+        },
+        {
+            "template": "Character",
+            "slug": "tamsin",
+            "fields": {
+                "who": "Tamsin",
+                "health": 1,
+                "mana": 4,
+                "stamina": 2,
+                "str": 11,
+                "vit": 13,
+                "agi": 12,
+                "dex": 13,
+                "int": 9,
+                "luk": 11,
+                "cha": 8,
+                "points": 0,
+                "soul": 1,
+                "xp": 20,
+                "down": false,
+                "alive": true
+            }
+        },
+        {
+            "template": "Skills",
+            "slug": "wessel-skills",
+            "fields": {
+                "who": "Wessel",
+                "skill1": "Iron Breath",
+                "rank1": 2,
+                "practice1": 60,
+                "skill2": "Short blade",
+                "rank2": 0,
+                "practice2": 15,
+                "skill3": "",
+                "rank3": 0,
+                "practice3": 0,
+                "skill4": "",
+                "rank4": 0,
+                "practice4": 0,
+                "skill5": "",
+                "rank5": 0,
+                "practice5": 0
+            }
+        },
+        {
+            "template": "Skills",
+            "slug": "ren-skills",
+            "fields": {
+                "who": "Ren",
+                "skill1": "Spark",
+                "rank1": 1,
+                "practice1": 30,
+                "skill2": "Ward",
+                "rank2": 0,
+                "practice2": 45,
+                "skill3": "",
+                "rank3": 0,
+                "practice3": 0,
+                "skill4": "",
+                "rank4": 0,
+                "practice4": 0,
+                "skill5": "",
+                "rank5": 0,
+                "practice5": 0
+            }
+        },
+        {
+            "template": "Skills",
+            "slug": "tamsin-skills",
+            "fields": {
+                "who": "Tamsin",
+                "skill1": "Pole-fighting",
+                "rank1": 1,
+                "practice1": 50,
+                "skill2": "River lore",
+                "rank2": 2,
+                "practice2": 10,
+                "skill3": "",
+                "rank3": 0,
+                "practice3": 0,
+                "skill4": "",
+                "rank4": 0,
+                "practice4": 0,
+                "skill5": "",
+                "rank5": 0,
+                "practice5": 0
+            }
+        },
+        {
+            "template": "Foes",
+            "slug": "sluice-rats",
+            "fields": {
+                "foe1": "Sluice rat",
+                "count1": 2,
+                "class1": 1,
+                "hurt1": 2,
+                "foe2": "",
+                "count2": 0,
+                "class2": 1,
+                "hurt2": 5,
+                "foe3": "",
+                "count3": 0,
+                "class3": 1,
+                "hurt3": 5,
+                "foe4": "",
+                "count4": 0,
+                "class4": 1,
+                "hurt4": 5
+            }
+        }
+    ]
+}
