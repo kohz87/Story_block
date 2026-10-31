@@ -75,8 +75,7 @@ Once a module is enabled the narrator is told its `dm …` lines; a refused line
   until the story clock is set.
 * **Coins.** Copper (1, also called bronze), silver (10) and gold (100). The wallet counts copper and the
   narrator may write `+ coin 3 silver`. Prices are the story's, from the lore's wages and prices; there is
-  no money scale. One reply may give at most Story Block's default (1000 copper per level), unless you set
-  **Money one reply may give** in Story Block's settings.
+  no money scale. The story decides what a reply pays.
 * **Items, shops and foes** are made in the story: `+ item Rope | qty: 1`, `- item Rope`, a merchant the
   narrator names, a beast from the lore's bestiary. Code still counts the bag and the purse.
 * **Map.** Story Director's Map and Region list show the 320 places; the story moves you with

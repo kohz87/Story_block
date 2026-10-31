@@ -50,7 +50,7 @@ test('no Coins setting: "- item Coins | qty: 2" pays 2; a coin purse stays an it
 });
 
 test('with Coins: "+ item Coins | qty: 5" is 5 of the smallest coin; "? loot 3 coins" too', async t => {
-    const host = await fresh(t, { modules: { 'story-block': { coins: COINS, storyCoinPerReply: 500 } } });
+    const host = await fresh(t, { modules: { 'story-block': { coins: COINS } } });
     await host.send('Found.', 'A purse.\n\n<Changes>\n+ item Coins | qty: 5\n</Changes>');
     assert.deepEqual([items(host), coin(host)], [[], 5]);
     await host.send('Look.', 'A crate.\n\n<Changes>\n? loot 3 coins, Rope\n</Changes>');

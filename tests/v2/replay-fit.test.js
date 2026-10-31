@@ -26,7 +26,7 @@ test('the story tally is kept under the reply\'s record ID, one entry at a time'
     await host.send('A.', reply('A.', ['+ coin 10']));
     await host.send('B.', reply('B.', ['+ coin 20', '+ item Rope']));
     const sid = host.store.carrierSid(host.store.headIndex());
-    assert.deepEqual(host.head().domains.inventory.perReply, { [sid]: { coin: 20, worth: 0, made: 1, items: { 'story/rope': 1 } } });
+    assert.deepEqual(host.head().domains.inventory.perReply, { [sid]: { coin: 20 } });
 });
 
 test('deleting the reply that made the wallet and the tally keeps a later reply\'s money and items', async t => {

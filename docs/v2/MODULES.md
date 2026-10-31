@@ -324,7 +324,7 @@ These settle questions agents raised; the host changes they need are made at int
     * Replay is block by block; counts (`counters`, `was`) move when a middle reply is deleted; a
       checkpoint made over a deleted reply is passed over (SPEC §2.2).
     * `sdk.command` is the reader's action only; `sdk.reread` re-captures one reply (SPEC §3.1).
-    * Money and items from the story have no automatic per-reply limit; an explicit `storyCoinPerReply` sets the budget and associated item limits. Signed amounts are refused (SPEC §7).
+    * Money and items from the story have no per-reply limit (an older `storyCoinPerReply` setting is ignored). Signed amounts are refused (SPEC §7).
     * Pack events fire from their definition only, a repeating one once per reply, nothing on a Continue
       or a dry run (SPEC §4.1).
     * Reading change lines: linear; at most 150 per reply; a close tag counts only at a line's start or
@@ -332,7 +332,7 @@ These settle questions agents raised; the host changes they need are made at int
       budget; names flattened before budgets (SPEC §4.3, §4.4).
     * Screens: control names prefixed like ids; templates nest at most 64 deep and @-rules 8 deep; text
       settings keep their `max`.
-104. **Money scale.** A pack may supply `economy.scale`, and the reader may override it. Automatic story money has no per-reply limit; an explicit setting caps it.
+104. **Money scale.** A pack may supply `economy.scale`, and the reader may override it. Story money has no per-reply limit.
 
 ### User decisions from the live tests (2026-10-22, F105–F108)
 

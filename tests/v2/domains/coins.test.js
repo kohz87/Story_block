@@ -95,20 +95,20 @@ async function hostWith(t, own) {
 const coin = host => host.sdk.query('inventory.wallet', { owner: 'party' }).coin ?? 0;
 const staticPart = host => host.st.requests.at(-1).chat.find(message => message.role === 'system').content;
 
-test('capture: + coin 3 silver pays 30, + item Silver | qty: 3 too, loot in coins; the budget holds after conversion', async t => {
-    const host = await hostWith(t, { currency: 'penny', currencyPlural: 'pennies', coins: COINS, storyCoinPerReply: 50 });
+test('capture: + coin 3 silver pays 30, + item Silver | qty: 3 too, loot in coins; a big amount is paid whole', async t => {
+    const host = await hostWith(t, { currency: 'penny', currencyPlural: 'pennies', coins: COINS });
     await host.send('I sell the pelt.', 'He pays.\n<Changes>\n+ coin 3 silver | from: the trader\n</Changes>');
     assert.equal(coin(host), 30);
     await host.send('More.', 'She tips.\n<Changes>\n+ item Silver | qty: 2\n</Changes>');
     assert.equal(coin(host), 50);
     await host.send('Rich.', 'A purse.\n<Changes>\n+ coin 2 gold\n</Changes>');
-    assert.equal(coin(host), 100, '2 gold is 200 pennies: held to the reply\'s 50');
+    assert.equal(coin(host), 250, '2 gold is 200 pennies: all of it is paid, there is no per-reply cap');
     await host.send('Copper?', 'Odd coin.\n<Changes>\n+ coin 15 copper\n</Changes>');
-    assert.equal(coin(host), 100, 'an unknown coin is refused, not paid as pennies');
+    assert.equal(coin(host), 250, 'an unknown coin is refused, not paid as pennies');
     await host.send('Two coins.', 'Change.\n<Changes>\n+ coin 3 silver 5 pennies\n</Changes>');
-    assert.equal(coin(host), 100, 'two coins in one line are refused');
+    assert.equal(coin(host), 250, 'two coins in one line are refused');
     await host.send('Pay.', 'You pay.\n<Changes>\n- coin 1 silver | to: the inn\n</Changes>');
-    assert.equal(coin(host), 90);
+    assert.equal(coin(host), 240);
     await host.send('Loot.', 'A chest.\n<Changes>\n? loot 4 silver, Rope — in the chest\n</Changes>');
     const purse = host.sdk.query('inventory.loot')?.[0]?.items?.find(item => item.coin !== undefined);
     assert.equal(purse?.coin, 40, JSON.stringify(host.sdk.query('inventory.loot')));

@@ -186,7 +186,7 @@ test('the form engine\'s rules are in glass.css: rows, switch, inputs, slider, c
     assert.ok(all.filter(rule => rule.selectors.some(s => /::-webkit-slider-runnable-track$/.test(s))).every(rule => rule.selectors.length === 1));
     // One class heavier than `.ss-slider-input` alone: SillyTavern paints every range with a body-coloured bar and a thumb of its own.
     assert.match(block('.ss-slider .ss-slider-input::-webkit-slider-runnable-track'), /var\(--ss-fill, 0\)/);
-    assert.match(block('.ss-slider .ss-slider-input'), /background: transparent;\s*box-shadow: none;\s*filter: none;/);
+    assert.match(block('.ss-slider .ss-slider-input'), /background: transparent !important;\s*box-shadow: none !important;\s*filter: none !important;/);
     assert.ok(!selectors.some(s => /\.ss-slider-input/.test(s) && !/\.ss-slider \.ss-slider-input/.test(s)), 'every slider rule is under .ss-slider');
     assert.ok(/min-height: 40px/.test(block('.ss-lines-add')) && /width: 40px/.test(block('.ss-lines-remove')));
     assert.ok(block('.ss-chip-on').includes('var(--ss-accent-soft)'));
@@ -201,4 +201,35 @@ test('the form engine\'s rules are in glass.css: rows, switch, inputs, slider, c
     // No literal colour anywhere in the form rules.
     const form = css.slice(css.indexOf('The form engine'), css.indexOf('the UI sample'));
     assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(form.replace(/\/\*[\s\S]*?\*\//g, '')), 'colours come from the tokens');
+});
+
+// The slider's own box: SillyTavern paints a range with a bar in the body colour, a shadow, a brightness filter and a box outline on
+// keyboard focus (public/style.css, 1.19: `input[type="range"]` 0,1,1; `:hover` and `:focus-visible` 0,2,1; `.neo-range-slider` with
+// `!important`). A theme's custom CSS may add its own, often `!important`. The input itself must stay a clear, borderless box in
+// every state whatever those say: only the thin track the pseudo-elements draw is seen.
+test('a slider\'s input has no background, box, border, shadow, filter or outline of its own: those rules beat SillyTavern\'s and a lighter !important rule', () => {
+    const own = /\.ss-slider \.ss-slider-input(?::(?:hover|active|focus|focus-visible))?$/;
+    const inputRules = all.filter(rule => rule.selectors.every(s => own.test(s)));
+    assert.ok(inputRules.length >= 2, 'a base rule and a rule for the states');
+    const valuesOf = (hit, prop) => hit.flatMap(rule => [...rule.block.matchAll(new RegExp(`(?:^|[;\\s])${prop}:\\s*([^;]+);`, 'g'))].map(m => m[1].trim()));
+    const BOX = { background: 'transparent !important', border: '0 !important', 'box-shadow': 'none !important', filter: 'none !important', outline: 'none !important' };
+    for (const state of ['', ':hover', ':active', ':focus', ':focus-visible']) {
+        const hit = inputRules.filter(rule => rule.selectors.some(s => s.endsWith(`.ss-slider-input${state}`)));
+        assert.ok(hit.length, `a rule for the input${state}`);
+        for (const [prop, value] of Object.entries(BOX)) assert.ok(valuesOf(hit, prop).includes(value), `${state || 'idle'}: ${prop}: ${value} (has ${JSON.stringify(valuesOf(hit, prop))})`);
+    }
+    assert.ok(valuesOf(inputRules, 'appearance').includes('none !important'));
+    // The weight: more than SillyTavern's range rules in every state, and more than a bare `!important` rule on `input[type="range"]` or `.neo-range-slider`.
+    const ours = state => Math.min(...inputRules.flatMap(rule => rule.selectors).filter(s => s.endsWith(`.ss-slider-input${state}`)).map(weight));
+    assert.ok(ours('') > weight('input[type="range"]'), `${ours('')} beats 0,1,1`);
+    assert.ok(ours('') > weight('.neo-range-slider'));
+    for (const state of [':hover', ':focus-visible']) assert.ok(ours(state) > weight(`input[type="range"]${state}`), `${state}: ${ours(state)} beats 0,2,1`);
+    // No rule for the input sets a colour, an edge or a shadow: only the track and the thumb (the pseudo-elements) are painted.
+    for (const rule of inputRules) {
+        for (const [, prop, value] of rule.block.replace(/!important/g, '').matchAll(/(?:^|[;\s])(background|background-color|box-shadow|border|outline)\s*:\s*([^;]+);/g)) {
+            assert.ok(['none', 'transparent', '0'].includes(value.trim()), `${rule.selectors[0].slice(-40)}: ${prop}: ${value}`);
+        }
+    }
+    // The Firefox progress part is clear too (the fill is the track's own gradient).
+    assert.ok(all.some(rule => rule.selectors.length === 1 && rule.selectors[0].endsWith('.ss-slider-input::-moz-range-progress') && /background: transparent;/.test(rule.block)));
 });

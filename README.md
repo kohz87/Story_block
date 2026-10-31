@@ -14,7 +14,7 @@ RPG Battle is no longer supported; its rules packs cannot be imported. Existing 
 
 The story can propose items, coins, scene changes and other facts in a hidden `<Changes>` block. Story Block checks and records them with the reply, so swipes and deletes take their changes back. After editing a reply, use **Re-read**.
 
-In **Settings → Money**, Automatic means no limit: the story decides how much to give. Set a number to cap what one reply can give. Currency and coin names are also configured there; money scale is in the folded **Advanced** row.
+The story decides how much money and how many items a reply gives: there is no per-reply cap. In **Settings → Money** you set the coins and the money words; the money scale is in the folded **Advanced** row.
 
 The optional Assist safety net can read missed changes, and its pre-roll helper can prepare checks when a module such as Story Director provides them. Turn features on in **Settings → Features**.
 

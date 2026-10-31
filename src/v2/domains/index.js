@@ -93,15 +93,11 @@ export const CORE_FEATURES = Object.freeze([
 // never a second one.
 export const CORE_SETTINGS = Object.freeze({
     section: 'Story Block',
-    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0', coins: Object.freeze([]), coinDisplay: 'mixed', chatterInPrompt: false }),
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', economyScale: '0', coins: Object.freeze([]), coinDisplay: 'mixed', chatterInPrompt: false }),
     schema: Object.freeze({
         currency: Object.freeze({ type: 'text', label: 'Currency (one coin: mark, crown, gold)', max: 24 }),
         currencyPlural: Object.freeze({ type: 'text', label: 'Currency, plural (blank: the name with an s)', max: 24 }),
         currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
-        storyCoinPerReply: Object.freeze({
-            type: 'int', min: 0, max: 1000000000, label: 'Money one reply may give',
-            help: 'The most one reply may give, in whole coins. 0: no limit; the story decides. A number also limits the items and goods one reply may give.',
-        }),
         // A number from 0.001 to 1000, kept as text so it can hold a fraction (MODULES §F104).
         economyScale: Object.freeze({
             type: 'text', max: 12, label: 'Money scale (0: the pack\'s)',
