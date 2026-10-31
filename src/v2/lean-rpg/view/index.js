@@ -2,11 +2,13 @@
 // so with the feature off none of this file or its siblings is ever loaded). One call wires everything:
 //   * the stylesheet (lean-rpg.css), added to the page's head;
 //   * the Party tab and its widget, with the Spend points sheet, the Skills view and the New character wizard (a dialog);
+//   * the Fight tab (the Foes block's tab, on while a foe slot is filled);
 //   * the battle log in the replies (at the narrator's `[battle]` marker, else a card under the reply);
 //   * the "Changed this reply" lines (`cardLines`) and the Lean RPG fold on the Features settings page (`settingsBodies`).
 // `destroy()` takes all of it away again (the feature was switched off).
 
 import { createBattleLog } from './battle-log.js';
+import { FIGHT_WIDGET, createFightScreen, createFightWidget } from './fight.js';
 import { rpgReplyLines } from './changes-lines.js';
 import { PARTY_WIDGET, createPartyScreen, createPartyWidget } from './party.js';
 import { withLeanRpgSettings } from './settings.js';
@@ -14,6 +16,7 @@ import { WIZARD_WIDGET, createWizard } from './wizard.js';
 
 export { PARTY_SCREEN_ID, PARTY_WIDGET } from './party.js';
 export { WIZARD_SCREEN_ID, WIZARD_WIDGET } from './wizard.js';
+export { FIGHT_SCREEN_ID, FIGHT_WIDGET } from './fight.js';
 export { rpgReplyLines } from './changes-lines.js';
 export const PACK = 'lean-rpg';
 const STYLE_ATTR = 'data-ss-lean-rpg';
@@ -34,19 +37,21 @@ function addStyle(doc) {
 }
 
 /**
- * mountLeanRpg({ doc, ctx, store, events, screens, widgets, headState, readerName, roleOf, featureOn, openDialog, refresh })
+ * mountLeanRpg({ doc, ctx, store, events, screens, widgets, headState, readerName, roleOf, featureOn, openDialog, closeView, refresh })
  * → { cardLines({ index, state, before, record, problems }), settingsBodies(bodies), battleLog, wizard, destroy() }.
  * `screens` is the screen registry (`setPack`, `removePack`); `widgets` the host's own widget table (the Party and wizard widgets are
  * added to it); `headState()` the head state; `featureOn()` whether the feature is on now; `openDialog(screenId, { draft, onClose })` the
- * host's dialog mount (the New character wizard opens through it; without it the Party tab has no button for it); `refresh()` redraws the tabs.
+ * host's dialog mount (the New character wizard opens through it; without it the Party tab has no button for it); `closeView()` closes the game view
+ * ("See it in the story" on the Fight tab); `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', roleOf, featureOn = () => true, openDialog = null, refresh = () => {} }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', roleOf, featureOn = () => true, openDialog = null, closeView = () => {}, refresh = () => {} }) {
     const link = addStyle(doc);
     const wizard = createWizard({ headState, readerName, roleOf, openDialog });
     widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null });
     widgets[WIZARD_WIDGET] = wizard.widget;
-    screens.setPack(PACK, [createPartyScreen(), wizard.screen]);
     const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf });
+    widgets[FIGHT_WIDGET] = createFightWidget({ headState, readerName, roleOf, battleLog, closeView });
+    screens.setPack(PACK, [createPartyScreen(), createFightScreen({ roleOf }), wizard.screen]);
     battleLog.refreshAll();
     refresh();
     return {
@@ -60,6 +65,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
             screens.removePack(PACK);
             delete widgets[PARTY_WIDGET];
             delete widgets[WIZARD_WIDGET];
+            delete widgets[FIGHT_WIDGET];
             link?.remove();
             refresh();
         },

@@ -26,6 +26,14 @@ character** in the header opens the wizard; with no character yet the tab says s
 
 Edits made here ride on the latest reply, like any other pencil edit: swipe or delete that reply to take them back.
 
+## The Fight tab
+
+The Fight tab takes the place of the Foes block's own tab, and shows only while a foe slot is filled. The header reads
+**Fight · <place>** (the scene's place, when there is one) with two pills: **Exchange N**, from the latest rolls, and
+**N foes · M down**. Under it are a card for each foe (name, Class, a five-cell health bar, greyed when Down; the pencil
+fixes the name), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
+reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
+
 ## Making a character
 
 **+ New character** opens a window with four steps and a summary of the character so far on top.
@@ -70,7 +78,9 @@ to Fresh. Health only goes back up when the story heals it.
 
 With rolls on, the narrator's next reply is planned first. The planning step reads what you wrote, picks the actions
 and checks for the reply, and the dice are rolled for them. The result is drawn as a battle log in the reply, with
-one short line per action, for example `Wessel → Sluice rat A: SUCCESS (26 vs 16)`. Tap a line to see the numbers.
+one short line per action, for example `Wessel uses Short blade on Sluice Rat A — Success (26 vs 16)`. Tap a line to see the numbers.
+A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **Grazed** (amber) when it costs you, **Blocked**
+(green) when you stop it, with the foe's total first. The Status bars are coloured by stage, like the Party tab's.
 
 **The roll rule.** A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
 the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
@@ -136,7 +146,9 @@ The templates are in `src/v2/lean-rpg/templates.js`. They use these keys, which 
 - `edit: false` on a field: the reader cannot change it with a pencil (the Skills block's rank and practice).
 
 Keep to the block limits: 32 fields and 16 kinds in one block (a block with a `role` counts only its kinds against the 16),
-and text of up to 240 characters. The narrator is told up to 100 tokens of each block, 300 for a block with a `role`.
+and text of up to 240 characters. The narrator is told up to 100 tokens of each block, 300 for a block with a `role`. A block
+with a `role` is told compactly: a value at its default is left out, a Skills block is one line per skill with the empty
+slots left out, and a Foes block lists only the groups in the fight.
 
 ### Skill sets in a pack
 

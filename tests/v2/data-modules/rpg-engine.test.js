@@ -151,7 +151,9 @@ test('a hidden field is left out of the tail; names are shown instead of numbers
     const state = fields => ({ domains: { dataModules: { pins: { h: { interpreter: 1, definition } }, active: { [definition.id]: { hash: 'h', generation: 1, subjects: ['chat'] } },
         instances: { [definition.id]: { chat: { fields: { health: 3, soul: 2, xp: 40, rank: 1, practice: 10, down: true, alive: true, ...fields }, timers: {}, offers: {}, settled: {} } } } } } });
     const tail = summaryOf(state(), definition.id);
-    assert.equal(tail, 'Hero — health Hurt; soul II; xp 40; rank Adept; practice 10; alive true.');
+    // a block with a role is written compact (lean-rpg/tail.js): a value at its default (alive true) is left out
+    assert.equal(tail, 'Hero — health Hurt; soul II; xp 40; rank Adept; practice 10.');
+    assert.match(summaryOf(state({ alive: false }), definition.id), /; alive false\.$/, 'a value that is not the default is told');
     assert.doesNotMatch(tail, /down/);
     assert.match(summaryOf(state({ health: 0, rank: 3 }), definition.id), /health Down; soul II; xp 40; rank Master/);
     assert.match(summaryOf(state({ xp: 41 }), definition.id), /xp 41/, 'a value with no name stays a number');

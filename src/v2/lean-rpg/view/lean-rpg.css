@@ -36,6 +36,21 @@
 .rpg-skills { font-size: 12.5px; color: var(--ss-muted); overflow-wrap: anywhere; }
 .rpg-card-actions, .rpg-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
+/* ---- Fight tab (mockup section 5): a grid on a wide screen, a stack on a phone ---- */
+.ss-w-rpg-fight { display: grid; gap: 14px; align-content: start; min-width: 0; container-type: inline-size; }
+.rpg-fight-title h3 { margin: 0; font-size: 18px; }
+.rpg-fight-note { margin: 2px 0 0; font-size: 12.5px; color: var(--ss-muted); }
+.rpg-fight-h { margin: 4px 0 0; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ss-muted); }
+.rpg-foes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
+.rpg-fight-party { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.rpg-foe, .rpg-pc { display: grid; gap: 8px; padding: 12px; border-radius: 14px; min-width: 0; }
+.rpg-foe-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rpg-foe-side { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.rpg-down { opacity: 0.5; filter: grayscale(0.7); }
+.rpg-fight-lasthead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rpg-fight-last { min-width: 0; }
+.rpg-fight-last .rpg-battle { margin: 0; }
+
 /* ---- Spend points / Stats sheet (mockup 11-stats-bars) ---- */
 .rpg-sheet { display: grid; gap: 12px; padding: 14px; border-radius: var(--ss-radius-l, 16px); min-width: 0; }
 .rpg-sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -171,9 +186,10 @@
 .rpg-bl-label { color: var(--ss-muted); }
 .rpg-bl-track { display: block; height: 6px; border-radius: 3px; background: var(--ss-track); overflow: hidden; }
 .rpg-bl-fill { display: block; height: 100%; width: calc(var(--rpg-fill, 0) * 100%); border-radius: 3px; background: var(--ss-text); }
-.rpg-bl-health .rpg-bl-fill { background: var(--ss-hp, var(--ss-bad)); }
-.rpg-bl-mana .rpg-bl-fill { background: var(--ss-mp, var(--ss-info)); }
-.rpg-bl-stamina .rpg-bl-fill { background: var(--ss-sp, var(--ss-warn)); }
+/* The bars are coloured by stage (good near full, warn in the middle, bad near empty), like the Party tab's, not by resource. */
+.rpg-bl-tone-good .rpg-bl-fill { background: var(--ss-good); }
+.rpg-bl-tone-warn .rpg-bl-fill { background: var(--ss-warn); }
+.rpg-bl-tone-bad .rpg-bl-fill { background: var(--ss-bad); }
 .rpg-bl-foes { grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; }
 .rpg-bl-foe-list { overflow-wrap: anywhere; }
 @media (max-width: 600px) {

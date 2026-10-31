@@ -264,7 +264,7 @@ const tabsOf = (doc, ui) => {
     return navIds(doc);
 };
 
-test('feature on: a three-character party shows the Party tab and the Foes tab; character, skills and rules blocks get none', async t => {
+test('feature on: a three-character party shows the Party tab; character, skills, foes and rules blocks get no tab of their own', async t => {
     const { doc, host, ui } = await page(t, { feature: true });
     await host.send('Begin.', 'Opening.');
     await defineAll(host, party3());
@@ -272,8 +272,7 @@ test('feature on: a three-character party shows the Party tab and the Foes tab; 
     await settle();
     const ids = tabsOf(doc, ui);
     assert.ok(ids.includes(PARTY));
-    assert.ok(ids.includes(BLOCK_TAB('foes')), 'Foes keeps its tab');
-    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'combat-rules']) {
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) {
         assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: no tab of its own`);
         assert.equal(ui.screens.resolve(BLOCK_TAB(slug)), null, `${slug}: no screen either`);
     }
@@ -306,9 +305,58 @@ test('the tabs follow the switch: on takes the role blocks\' tabs away, off give
     let ids = tabsOf(doc, ui);
     assert.ok(!ids.includes(BLOCK_TAB('wessel')) && !ids.includes(BLOCK_TAB('combat-rules')));
     assert.ok(ids.includes(BLOCK_TAB('notes')), 'a block with no role keeps its tab');
-    assert.ok(ids.includes(BLOCK_TAB('foes')));
+    assert.ok(!ids.includes(BLOCK_TAB('foes')), 'Foes: the Fight tab draws it');
     host.features.set(CORE_FEATURE.leanRpg, false);
     await settle();
     ids = tabsOf(doc, ui);
     for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules', 'notes']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: back`);
+});
+
+const FIGHT = 'story-block/fight';
+
+test('the Fight tab replaces the Foes tab, shows only while a foe slot is filled, and goes with the switch', async t => {
+    const { doc, host, ui } = await page(t, { feature: true });
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, party3());
+    await host.send('Go.', 'The quay.');
+    await settle();
+    let ids = tabsOf(doc, ui);
+    assert.ok(!ids.includes(FIGHT), 'no foe yet: no Fight tab');
+    assert.ok(!ids.includes(BLOCK_TAB('foes')));
+    await setField(host, 'foes', 'foe1', 'Sluice Rat A');
+    await setField(host, 'foes', 'hurt1', 2);
+    await host.send('To arms.', 'Rats.');
+    await settle();
+    ui.mounts.screen.update();
+    ids = navIds(doc);
+    assert.ok(ids.includes(FIGHT), 'a foe: the Fight tab');
+    assert.ok(ids.indexOf(PARTY) < ids.indexOf(FIGHT), 'after the Party tab');
+    assert.ok(!ids.includes(BLOCK_TAB('foes')), 'and the Foes block has no tab of its own');
+    ui.mounts.screen.open(FIGHT);
+    await settle();
+    const view = doc.querySelector(`.ss-gameview [data-ss-screen="${FIGHT}"]`);
+    assert.ok(view, 'the screen draws');
+    assert.equal(view.querySelectorAll('.rpg-foe').length, 1);
+    assert.equal(view.querySelectorAll('.rpg-pc').length, 2, 'the party: Wessel and Ren (the test\'s roleOf knows only those slugs)');
+    await setField(host, 'foes', 'foe1', '');
+    await host.send('Done.', 'Quiet.');
+    await settle();
+    ui.mounts.screen.update();
+    assert.ok(!navIds(doc).includes(FIGHT), 'the foe is gone: so is the tab');
+    host.features.set(CORE_FEATURE.leanRpg, false);
+    await settle();
+    assert.equal(ui.screens.resolve(FIGHT), null);
+});
+
+test('feature off: no Fight tab, the Foes block keeps its own', async t => {
+    const { doc, host, ui } = await page(t);
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, party3());
+    await setField(host, 'foes', 'foe1', 'Sluice Rat A');
+    await host.send('Go.', 'The quay.');
+    await settle();
+    const ids = tabsOf(doc, ui);
+    assert.ok(!ids.includes(FIGHT));
+    assert.equal(ui.screens.resolve(FIGHT), null);
+    assert.ok(ids.includes(BLOCK_TAB('foes')));
 });

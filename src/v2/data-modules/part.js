@@ -11,6 +11,7 @@ import { cutAt, oneLine } from '../../text.js';
 import { editableLayout } from './editable-layout.js';
 import { STRINGS, fill } from '../strings.js';
 import { blockTabScreen } from './block-screen.js';
+import { roleTail } from '../lean-rpg/tail.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
@@ -206,8 +207,9 @@ const valueText = value => (typeof value === 'string' ? JSON.stringify(oneLine(v
 // A number whose field has display names is shown (to a person and to the story) by its name; stored, it stays the number.
 const shownText = (schema, value) => dmNameOf(schema, value) ?? valueText(value);
 // A hidden field (`prompt: false`) is left out: the story is never told it.
-const fieldsText = (definition, fields) => Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key])).map(([key, value]) => (value !== null && typeof value === 'object'
-    ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${shownText(definition.state[key], value)}`)).join('; ');
+const fieldText = (definition, key, value) => (value !== null && typeof value === 'object'
+    ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${shownText(definition.state[key], value)}`);
+const fieldsText = (definition, fields) => Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key])).map(([key, value]) => fieldText(definition, key, value)).join('; ');
 // The named fields a root changed, for its summary: "Soul Class II → III". Empty for a block with no display names.
 const namedChanges = (definition, before, after) => Object.entries(definition.state).filter(([key, schema]) => schema.names && before[key] !== after[key])
     .map(([key, schema]) => `${schema.label ?? key} ${shownText(schema, before[key])} → ${shownText(schema, after[key])}`);
@@ -215,13 +217,20 @@ const namedChanges = (definition, before, after) => Object.entries(definition.st
 // What a module may take of the prompt's tail: 100 tokens, 300 for a block with a `role` (the lean RPG's sheets carry text the story reads).
 const tailRoom = definition => (definition?.role ? L.roleTailTokens : L.tailTokens);
 
-/** One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role): "Survival — Wessel: hunger 12; fatigue 6." */
+/** One module's state in plain words for the prompt's tail, at most 100 tokens (300 for a block with a role, written compact): "Survival — Wessel: hunger 12; fatigue 6." */
 export function summaryOf(state, module) {
     const definition = activeDefinition(state, module);
     if (!definition) return `${module} — unavailable (damaged or unknown pin).`;
     const view = moduleView(state, { module });
     let waiting = '';
     try { const inputs = inputsOf(state, definition); if (definition.timers.some(timer => inputs[timer.clock]?.minutes == null)) waiting = ' Waiting for story time.'; } catch { waiting = ' Waiting.'; }
+    // A block with a role is written compact (lean-rpg/tail.js): defaults and empty slots left out, one line per skill; nothing to say, no line.
+    if (definition.role) {
+        const people = definition.scope === 'chat' ? [{ name: definition.name, fields: view.chat }] : view.characters.map(({ id, name, ...fields }) => ({ name, fields }));
+        const line = roleTail(definition, people, { hidden: key => dmHidden(definition.state[key]), text: (key, value) => fieldText(definition, key, value),
+            named: (key, value) => shownText(definition.state[key], value) });
+        return line && cutAt(`${line}${waiting}`, tailRoom(definition) * 4);
+    }
     const body = definition.scope === 'chat' ? fieldsText(definition, view.chat)
         : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields)}`).join(' | ') || 'no one attached';
     // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget.

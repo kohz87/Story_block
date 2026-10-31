@@ -834,7 +834,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             rpgLoading = false;
             if (rpgGone || rpg || !rpgOn()) return;
             rpg = view.mountLeanRpg({ doc, ctx, store, events, screens, widgets: hostWidgets, headState: headStateNow, featureOn: rpgOn,
-                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openDialog: (id, opts) => api.dialog.open(id, opts), refresh: () => refresh() });
+                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openDialog: (id, opts) => api.dialog.open(id, opts), closeView: () => mounts.screen.close(), refresh: () => refresh() });
             mounts.card?.refreshAll?.({ force: true });
         }).catch(error => { rpgLoading = false; console.warn('[Story Suite] the Lean RPG screens could not load', error?.message ?? error); });
     }
