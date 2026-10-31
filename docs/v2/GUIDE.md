@@ -44,6 +44,10 @@ fields, Save as template and Remove are available on blocks made in the current 
 
 In **Settings → Money**, Automatic means no limit: the story decides. Set a number to cap what one reply may give; the money scale is in the folded **Advanced** row. Names and values of coins are set on the same page.
 
+## RPG
+
+The optional RPG adds a party sheet, automatic dice for fights and checks, and Soul Class and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
+
 ## Removing Story Block from a chat
 
 Story Block keeps change lists inside hidden reply comments and removes them from prompts while it runs. To continue a chat with Story Block switched off, add a SillyTavern regex script under **Extensions → Regex → New global script**:

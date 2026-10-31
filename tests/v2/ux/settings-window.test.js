@@ -493,7 +493,7 @@ test('search words: one match says "1 setting shown", none says so with the text
     assert.equal(page(root, 'tabs').querySelector('.ss-packs-card').hidden, false);
     assert.equal(page(root, 'tabs').querySelector('.ss-prompt-card').hidden, true, 'a card with no match is out');
     search(root, 'rpg battle');
-    assert.deepEqual(shownPages(root), ['modules']);
+    assert.deepEqual(shownPages(root), ['features', 'modules'], 'the module, and the RPG feature (its battle log)');
     assert.equal(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden && !row.parentNode.hidden).length, 3, 'its three settings (the module\'s name shows them all)');
     // What it says finds it ("money" → "Money one reply may give", "Money scale" and the "Money words" card), not the section's own name.
     search(root, 'money');
@@ -551,6 +551,50 @@ test('a section can take another body: it gets its own pane, the shared host doe
     win.close();
     assert.ok(calls.some(call => call[0] === 'destroy'));
     host.close();
+});
+
+test('an extra section (a module that is on only sometimes) goes in the rail after the one it names, and comes and goes with visible()', async () => {
+    const calls = [];
+    let on = true;
+    const extra = {
+        id: 'extra', label: 'Extra', icon: 'fa-dice-d20', title: 'Extra', sub: 'An extra page.', after: 'features', visible: () => on,
+        body: (pane, ctx) => {
+            const own = ctx.doc.createElement('p');
+            own.className = 'own-extra';
+            pane.appendChild(own);
+            return { filter: text => (text.includes('zebra') ? 2 : 0), refresh: () => calls.push('refresh'), destroy: () => calls.push('destroy') };
+        },
+    };
+    const { root, win, host } = await open({ window: { extraSections: [extra] } });
+    assert.deepEqual(texts(root, '.ss-tabs-label'), ['Look', 'Features', 'Extra', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    assert.deepEqual(root.querySelectorAll('.ss-settings-page').map(node => node.dataset.ssSection), [...SECTION_IDS.slice(0, 2), 'extra', ...SECTION_IDS.slice(2)]);
+    assert.equal(page(root, 'extra').querySelector('.ss-settings-page-title').textContent, 'Extra');
+    assert.ok(page(root, 'extra').querySelector('.own-extra'));
+    assert.equal(win.select('extra'), 'extra');
+    assert.deepEqual(shownPages(root), ['extra']);
+    search(root, 'zebra');
+    assert.deepEqual(shownPages(root), ['extra'], 'found by its own filter');
+    search(root, '');
+    on = false;
+    win.refresh();
+    assert.deepEqual(texts(root, '.ss-tabs-label').slice(0, 3), ['Look', 'Features', 'Money'], 'gone from the rail');
+    assert.equal(win.section(), 'features', 'a window left on it moves to the default page');
+    assert.equal(page(root, 'extra').hidden, true);
+    search(root, 'zebra');
+    assert.ok(!shownPages(root).includes('extra'), 'and out of a search');
+    search(root, '');
+    assert.equal(win.select('extra'), 'features', 'it cannot be chosen while it is off');
+    on = true;
+    win.refresh();
+    assert.equal(win.select('extra'), 'extra');
+    // An extra section with an unknown `after` goes last.
+    win.close();
+    assert.ok(calls.includes('destroy'));
+    const last = await open({ window: { extraSections: [{ ...extra, after: 'nowhere' }] } });
+    assert.equal(texts(last.root, '.ss-tabs-label').at(-1), 'Extra');
+    last.win.close();
+    host.close();
+    last.host.close();
 });
 
 test('a body that is missing leaves that section\'s page empty, and a body that counts nothing is left out of a search', async () => {

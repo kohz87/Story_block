@@ -119,6 +119,13 @@ are checked against the field schema, and the module's rules run once after the 
 guarded by its pin generation, reads and imported inputs, claims nothing, and uses the normal reply
 budget. Rules can use imports; replay checks their prerequisites as it does for a button action.
 
+`dm.set { module, who?, fields: { name: value, … } }` sets 1–16 non-map fields of one block as ONE action: one
+root of the reply's budget, one receipt ("You set Character: STR 14 → 16, Points 3 → 0."), each value checked as
+the single form checks it, all or nothing, and the rules run once after all the sets. Its result record is
+`fields: { name: { from, to } }` (the single form keeps `field`, `from`, `to`); it takes none of `field`,
+`key` and `value`. A refusal because the reply holds as many actions as one reply can (`DM_BUDGET`) reaches the
+reader as "This reply already holds as many changes as one reply can. Send your next message, then try again."
+
 A kind label may be `{ "type": "text", "max": 120 }` (max 1–240). Its value is made one line, cut
 to its limit and must not be empty. A text `set` accepts a literal or `{ "arg": "label" }` when
 the target's max is at least the label's max; the normalized expression is `["arg", "label"]`. Text
@@ -141,7 +148,7 @@ value fits the new schema; other fields start at their defaults. Unchanged timer
 remainder, and existing offer and settlement keys are retained. A chat can have at most eight active
 chat blocks. Pack modules and blocks share the existing 16-pin budget, including retained pins.
 
-Definitions may include `prompt`, a one-line purpose of at most 600 Unicode code points, followed by
+Definitions may include `prompt`, a one-line purpose of at most 1,200 Unicode code points, followed by
 the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may
 set `list: true`: it stores up to 12 entries joined with `; `, and the editor shows chips. Fields may
 carry a plain `label`, and a UI kind may carry a plain `title`, for display. Optional
@@ -350,7 +357,7 @@ Proposed limits are exported host constants and are part of interpreter version 
 | Eval visits per root / data roots per reply / visits per reply | 2048 / 32 / 16384 |
 | Emitted patch ops / durable span data per action root | 128 / 8 KiB, foreign adapter writes included |
 | Pin/migration span data | 128 KiB, including the recorded frozen definition; no gameplay effects |
-| Module static / tail | 2000 characters / 100 tokens each; normal host fit rules apply |
+| Module static / tail | 2000 characters / 100 tokens each (300 for a block with a `role`); normal host fit rules apply |
 
 Charge every AST visit, rule test, subject/timer visit and adapter cost before its work; count
 generated patch ops and serialized data before append. Reply budgets include Continues; use

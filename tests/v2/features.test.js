@@ -391,7 +391,7 @@ test('Story Block\'s own features: the status strip, the cards, the two assist h
     assert.deepEqual(host.sdk.features().map(feature => [feature.id, feature.on, feature.prompt, feature.available]), [
         [CORE_FEATURE.hud, true, false, true], [CORE_FEATURE.cards, true, false, true], [CORE_FEATURE.preroll, false, false, false], [CORE_FEATURE.extractor, false, false, true],
         [CORE_FEATURE.inspector, false, false, true], [CORE_FEATURE.savepoints, true, false, true],
-        [CORE_FEATURE.choices, false, true, true], [CORE_FEATURE.chatter, false, true, true], [CORE_FEATURE.weather, true, true, true],
+        [CORE_FEATURE.choices, false, true, true], [CORE_FEATURE.chatter, false, true, true], [CORE_FEATURE.weather, true, true, true], [CORE_FEATURE.leanRpg, false, false, true],
         ['story-block.loot', true, true, true], ['story-block.encumbrance', true, false, true],
     ]);
     host.close();

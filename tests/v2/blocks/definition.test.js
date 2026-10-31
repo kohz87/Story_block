@@ -20,7 +20,7 @@ test('purpose, display settings and list fields are checked with the normal defi
     assert.equal(good.ok, true, JSON.stringify(good.errors));
     assert.equal(good.definitions[0].prompt, 'Keep track of these notes.');
     for (const change of [
-        d => { d.prompt = '😀'.repeat(601); },
+        d => { d.prompt = '😀'.repeat(1201); },
         d => { d.show.icon = 'not-an-icon'; },
         d => { d.show.tab = false; d.show.card = false; },
         d => { d.show.tabName = 'a'.repeat(25); },

@@ -138,7 +138,7 @@ test('block field and purpose limits are enforced by the block commands', async 
     many.state.f16 = int();
     assert.equal((await host.sdk.command('dm.redefine', { module: id, definition: many })).code, 'DM_BUDGET');
     delete many.state.f16;
-    many.prompt = 'x'.repeat(601);
+    many.prompt = 'x'.repeat(1201);
     assert.equal((await host.sdk.command('dm.redefine', { module: id, definition: many })).ok, false);
     assert.deepEqual(host.head(), before);
     await reload(host);
