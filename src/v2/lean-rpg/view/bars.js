@@ -14,6 +14,9 @@ const ICONS = Object.freeze({ health: 'fa-heart', mana: 'fa-droplet', stamina: '
 /** The `dm.set` payload for one of a character's fields. */
 export const fieldPayload = (character, field) => ({ module: character.module, field, ...(character.subject ? { who: character.subject } : {}) });
 
+/** The `dm.set` payload for several of a character's fields at once (`fields`: { name: value }). */
+export const fieldsPayload = (character, fields) => ({ module: character.module, fields, ...(character.subject ? { who: character.subject } : {}) });
+
 /**
  * Draws the three bars of `character` (a readParty record) into `parent`, pushing each widget handle on `handles`.
  * `api.command` (when there is one) makes the bars editable; a field the block locks (`edit: false`) stays read-only.

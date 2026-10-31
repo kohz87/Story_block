@@ -60,6 +60,7 @@ import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE } from './features.js';
 import { createBlockTemplates } from './data-modules/block-templates.js';
 import { BLOCKS_SCREEN_ID, createBlockWidgets } from './screens/blocks.js';
+import { ROLES_WITHOUT_TAB } from './lean-rpg/names.js';
 import { createInspectorSource } from './inspect.js';
 import { createSavePoints } from './rewind.js';
 import { createInspectorWidget, INSPECTOR_WIDGET } from './screens/inspector.js';
@@ -238,6 +239,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     // The screen ids each pack gave at the last sync, by pack: a pack that is disabled, removed or no longer has a screen takes
     // those screens and their stylesheets away, and a replaced pack's new stylesheets replace the old ones.
     const packScreenIds = new Map();
+    const rpgOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
+    // The pinned blocks' screens. While Lean RPG is on, its character, skills and rules blocks get no tab (the Party tab draws them;
+    // they stay on the Blocks page); with the feature off every block with a tab keeps it.
+    const blockPresentation = () => sdk.query('dataModules.presentation', { kind: 'screens', ...(rpgOn() ? { noTab: ROLES_WITHOUT_TAB } : {}) });
     function syncScreens() {
         const byModule = new Map();
         // Every module with screens, even one whose screens are all off just now (its list is then empty).
@@ -257,7 +262,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
                 if (!packScreens.some(screen => screen.pack === pack && screen.id === id)) packScreens.push({ id, title, icon, mounts: ['tab'], layout, pack });
             }
         } catch { /* older host */ }
-        try { packScreens.push(...(sdk.query('dataModules.presentation', { kind: 'screens' }) ?? [])); } catch { /* older host */ }
+        try { packScreens.push(...(blockPresentation() ?? [])); } catch { /* older host */ }
         const byPack = new Map();
         for (const screen of packScreens) {
             const { pack, ...def } = screen ?? {};
@@ -821,7 +826,6 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         refresh();
         return Boolean(on);
     }
-    const rpgOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
     function syncLeanRpg() {
         if (!rpgOn()) { rpg?.destroy(); rpg = null; return; }
         if (rpg || rpgLoading) return;
@@ -830,7 +834,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             rpgLoading = false;
             if (rpgGone || rpg || !rpgOn()) return;
             rpg = view.mountLeanRpg({ doc, ctx, store, events, screens, widgets: hostWidgets, headState: headStateNow, featureOn: rpgOn,
-                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openScreen: id => api.openScreen(id), refresh: () => refresh() });
+                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openScreen: id => api.openScreen(id), openBlock: module => blockWidgets.openBlock(module), refresh: () => refresh() });
             mounts.card?.refreshAll?.({ force: true });
         }).catch(error => { rpgLoading = false; console.warn('[Story Suite] the Lean RPG screens could not load', error?.message ?? error); });
     }
@@ -840,7 +844,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     let dataPresentation = '';
     for (const name of ['head', 'committed']) offs.push(events.on(name, () => {
         let next = '';
-        try { const pinned = sdk.query('dataModules.presentation', { kind: 'screens' }) ?? []; if (pinned.length) next = JSON.stringify(pinned); } catch { /* older host */ }
+        try { const pinned = blockPresentation() ?? []; if (pinned.length) next = JSON.stringify(pinned); } catch { /* older host */ }
         if (next !== dataPresentation) { dataPresentation = next; syncScreens(); }
         mounts.tab.register(); if (!panel.hidden) tabHost?.refresh();
     }));

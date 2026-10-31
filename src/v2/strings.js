@@ -111,6 +111,9 @@ export const STRINGS = deepFreeze({
         fieldNoKeys: 'This field has no map keys.', fieldShared: 'This field is shared by the chat.',
         fieldRange: 'The value is outside this field’s allowed range.', fields: 'Fields',
         fieldSet: 'You set {module}: {field} {from} → {to}.', lockedSuffix: ' (cannot be edited)',
+        fieldsSet: 'You set {module}: {changes}.', fieldsAlone: 'Give either one field or a set of fields, not both.',
+        fieldsCount: 'Give between 1 and 16 fields to set.', fieldsNoMaps: 'Set a field with map keys on its own.',
+        replyFull: 'This reply already holds as many changes as one reply can. Send your next message, then try again.',
         editBoolean: 'edit must be true or false.', textEffect: 'Text fields accept literal text or a text label within max.',
         declaredSchema: 'Expected a declared {schema} schema.', labelSchema: 'int, bool, enum or text label',
         fieldSchema: 'scalar field or fixed map',
@@ -424,6 +427,11 @@ const HOLE = /\{(\w+)\}/g;
 /** `text` with each `{name}` replaced by `values[name]` (a hole without a value stays as written). */
 export function fill(text, values = {}) {
     return String(text ?? '').replace(HOLE, (hole, name) => (Object.hasOwn(values, name) && values[name] !== undefined && values[name] !== null ? String(values[name]) : hole));
+}
+
+/** What a reader sees when a command was refused: a full reply budget in plain words, else the refusal's own sentence (or `fallback`). */
+export function refusalText(result, fallback = '') {
+    return result?.code === 'DM_BUDGET' ? STRINGS.editMessages.replyFull : result?.message || fallback;
 }
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' };

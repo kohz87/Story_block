@@ -6,7 +6,7 @@ import { editableBlockDraft, uniqueBlockSlug } from '../data-modules/block-build
 import { dmNameOf } from '../data-modules/schema.js';
 import { exportBlockPack } from '../data-modules/block-templates.js';
 import { saveTextFile } from '../view/download.js';
-import { STRINGS, fill } from '../strings.js';
+import { STRINGS, fill, refusalText } from '../strings.js';
 import { BASE_CSS } from './style.js';
 
 const S = STRINGS.blocks;
@@ -27,7 +27,7 @@ const fullyNamed = scalar => {
 // (`loadRpgTemplates` reads the list the first time the chooser needs it; a test hands in its own)
 export function createBlockWidgets({ templates, directorOn = () => true, leanRpgOn = () => false, navigate = () => {},
     loadRpgTemplates = () => import('../lean-rpg/templates.js').then(loaded => loaded.LEAN_RPG_TEMPLATES) } = {}) {
-    const shared = { mode: 'list', draft: null, module: null, note: '' };
+    const shared = { mode: 'list', draft: null, module: null, note: '', focus: null };
     // The Lean RPG templates are read (a dynamic import) only when the feature is on and the chooser is open.
     let rpgTemplates = null, rpgLoading = false;
     const loadRpg = () => {
@@ -64,6 +64,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
     function card(doc, parent, row, api, handles, { move = false } = {}) {
         const definition = row.pinnedDefinition, view = ask(api, 'dataModules.view', { module: row.module }) ?? {};
         const root = h(doc, 'section', 'ss-block-card ss-glass'); parent.appendChild(root);
+        root.setAttribute('data-block-card', row.module); root.setAttribute('tabindex', '-1');
         const head = h(doc, 'div', 'ss-block-card-head'); root.appendChild(head);
         head.appendChild(h(doc, 'h3', '', definition.name));
         const menu = h(doc, 'div', 'ss-block-menu ss-glass-strong'); menu.hidden = true;
@@ -92,7 +93,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         if (row.packId === 'chat') button(doc, menu, S.removeBlock, async () => {
             if (!confirm(doc, S.confirmRemove)) return;
             const result = await api.command?.('dm.remove', { module: row.module });
-            if (!result?.ok) status.textContent = result?.message ?? STRINGS.editable.failed;
+            if (!result?.ok) status.textContent = refusalText(result, STRINGS.editable.failed);
         });
         const subjects = definition.scope === 'chat' ? [{ values: view.chat ?? {}, who: null }]
             : (row.subjects ?? []).map((who, index) => ({ who, values: view.characters?.[index] ?? {},
@@ -150,7 +151,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             for (const [kind, def] of Object.entries(definition.kinds).filter(([, value]) => value.ui && !Object.keys(value.labels ?? {}).length)) {
                 button(doc, actions, def.title ?? kind, async () => {
                     const result = await api.command?.('dm.act', { module: row.module, kind, ...(who === null ? {} : { who }) });
-                    if (!result?.ok) status.textContent = result?.message ?? STRINGS.editable.failed;
+                    if (!result?.ok) status.textContent = refusalText(result, STRINGS.editable.failed);
                 });
             }
         }
@@ -170,7 +171,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
             if (definition.show?.tabName) definition.show.tabName = `${[...definition.show.tabName].slice(0, 24 - suffix.length).join('')}${suffix}`;
         }
         const result = await api.command?.('dm.define', { definition });
-        if (!result?.ok) { status.textContent = result?.message ?? STRINGS.editable.failed; return; }
+        if (!result?.ok) { status.textContent = refusalText(result, STRINGS.editable.failed); return; }
         shared.mode = 'list'; shared.draft = null; shared.module = null; shared.note = fill(S.templateAdded, { name: definition.name });
         tell();
     }
@@ -247,6 +248,11 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
                             if (shared.note) { const note = h(doc, 'p', 'ss-block-status', shared.note); note.setAttribute('role', 'status'); root.appendChild(note); shared.note = ''; }
                             if (!rows.length) root.appendChild(h(doc, 'p', 'ss-block-empty', S.empty));
                             else for (const row of rows) card(doc, root, row, api, handles);
+                            // A request to show one block (the Party card's Skills button): scrolled to and focused once, when its card is there.
+                            if (shared.focus) {
+                                const wanted = [...root.querySelectorAll('[data-block-card]')].find(node => node.getAttribute('data-block-card') === shared.focus);
+                                if (wanted) { shared.focus = null; wanted.scrollIntoView?.({ block: 'start' }); wanted.focus?.(); }
+                            }
                         }
                     }
                     listeners.add(draw); draw();
@@ -256,6 +262,12 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
     }
     return {
         widgets: { [BLOCKS_WIDGET]: widget('list'), [BLOCK_WIDGET]: widget('single'), [BLOCK_CARDS_WIDGET]: widget('cards') },
-        reset() { shared.mode = 'list'; shared.draft = null; shared.module = null; shared.note = ''; tell(); },
+        reset() { shared.mode = 'list'; shared.draft = null; shared.module = null; shared.note = ''; shared.focus = null; tell(); },
+        // The Blocks page at one block: the page is opened first, then the block is scrolled to and focused (an open editor is left alone).
+        openBlock(module) {
+            const opened = navigate();
+            if (shared.mode !== 'editor') { shared.mode = 'list'; shared.focus = String(module ?? '') || null; tell(); }
+            return opened;
+        },
     };
 }
