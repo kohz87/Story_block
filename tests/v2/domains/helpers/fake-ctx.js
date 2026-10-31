@@ -95,6 +95,8 @@ export function createHarness(modules, { state, settings = {} } = {}) {
                 if (!entry) throw failure('UNKNOWN_COMMAND', `There is no command ${type}.`);
                 return entry.fn(makeCtx(entry.module, self.id), payload);
             },
+            // Appends to a list that are a set's (SPEC §2.2 rule e): the fake bus stores whole domains, so nothing to mark.
+            unique: () => {},
             claim: key => {
                 if (working.meta.claims[key]) return false;
                 working.meta.claims[key] = true;

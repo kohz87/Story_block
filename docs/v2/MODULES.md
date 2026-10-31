@@ -589,7 +589,7 @@ These settle questions agents raised; the host changes they need are made at int
     answering the line when the static part is built, so the instructions change once when such a pack is turned on or off), `scene.you`
     also answers `rank` and `rankLabel`, Home shows the label ("GUILD RANK …") with its pencil first, the tail line is `{{user}}: Guild rank …;
     wears …; condition …`, and Story Director's Status card has a row under the label. Without one: no Rank anywhere (the grammar line, the
-    answer, the tail and Home leave it out), `~ you rank:` is refused as a whole line with the Problem "This story has no rank…", and `scene.you`
+    answer, the tail and Home leave it out), `~ you rank:` leaves the rank part out with the Problem "This story has no rank…" (the line's wearing and condition still apply; a line with the rank alone is refused), and `scene.you`
     refuses a `rank`; a value already stored is kept and comes back when a pack gives a Rank again. Ersveil declares "Guild rank".
 127. **Text size** (Settings → Look, after Font): Normal, 110% or 120% (host setting `textSize`, stored as `'100'`, `'110'`, `'120'`;
     default Normal). It makes Story Suite's own text bigger: the Game view's content, the cards under replies, Story Suite's dialogs
@@ -598,6 +598,10 @@ These settle questions agents raised; the host changes they need are made at int
     to 0.88 or 0.96, which every Story Suite root already follows. It applies at once, with no reload. The setting is drawn as a
     joined row of buttons: a choice field with `form: 'segmented'` (one of the chips, as a radio group), which any module's
     settings schema may use for a few short options.
+128. **A kind that runs after others** (`capture.kinds.<kind>.after: ['place', 'mount']`, 2.11.1): the lines of that kind in a reply run behind the
+    reply's last line of the kinds it names, whatever order the narrator wrote them in, so it reads what those lines set up (Story Director's
+    `~ trip` plans from the place and the mount pace the same reply sets). Every other line keeps its written order, and so do the moved ones.
+    Words that are no kind are left out, and a reply with none of the named kinds runs as written. A Re-read runs the same order.
 
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 

@@ -5,6 +5,7 @@
 // `+ present Fenna`, then the middle reply deleted. The last reply's append (`add /present/-`, rule b)
 // lands on a list that holds Fenna already; the scene's validator refuses a name listed twice, so the
 // store skips that one block (and only it), and Fenna is there once. The old oracle listed her twice.
+// Since 2.11.1 that append is stored `unique` (rule e) and passed over on replay instead: the block is kept.
 // It also lacked two replay rules the store has (SPEC §2.2): a counted remove of a stack that now holds
 // more takes `was` from it (seeds 7, 25, 36 there, 16 on ff96802), and rule (c).
 import test from 'node:test';
@@ -16,7 +17,7 @@ import { initialScene } from '../../../src/v2/domains/scene.js';
 
 const reply = (text, lines) => `${text}\n<Changes>\n${lines.join('\n')}\n</Changes>`;
 
-test('a middle delete that would list someone present twice: that block alone is skipped, live equals a rebuild', async t => {
+test('a middle delete that would list someone present twice: the add is passed over (rule e), the rest of the block applies, live equals a rebuild', async t => {
     t.mock.method(console, 'warn', () => {});
     const h = await createHost({ modules: [probeModule()] });
     t.after(() => h.close());
@@ -30,11 +31,9 @@ test('a middle delete that would list someone present twice: that block alone is
     const head = h.head();
     assert.deepEqual(head.domains.scene.present, ['Fenna'], 'Fenna is present once, not twice');
     assert.equal(Object.values(head.domains.inventory.stacks).reduce((sum, stack) => sum + stack.qty, 0), 2, 'the same reply\'s other block (the rope) still applies');
-    const problems = h.store.problems();
-    assert.equal(problems.length, 1, 'one block skipped');
-    assert.match(problems[0].why, /Fenna is listed as present twice/);
+    assert.deepEqual(h.store.problems(), [], 'no block is skipped');
     const last = carriers(h.ctx.chat).at(-1);
-    assert.deepEqual(rebuildAt(h.ctx.chat, last).skipped.map(entry => entry.index), [last], 'the oracle skips that same block');
+    assert.deepEqual(rebuildAt(h.ctx.chat, last).skipped, [], 'the oracle skips nothing either');
     checkInvariants(h, 'after the middle delete');
 });
 

@@ -674,7 +674,10 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         // `enabled: false` (a kind of an API not in use, MODULES / LIFECYCLE "Deferred domains"): acts as if it were not declared, so a
         // line of it is told as an unknown kind, exactly as in a host that never had the kind.
         if (spec.enabled === false) return null;
-        return { moduleId: def.id, kind, grammar: grammarOf(spec), apply: def.capture.apply, feature: featureOf(spec), off: off(spec), display: displayOf(spec) };
+        // `after: ['place', 'mount']` (a kind that reads what other kinds' lines of the same reply set up, such as Story Director's trip): its
+        // lines run after the reply's lines of those kinds, whatever order the narrator wrote them in. Words that are no kind are left out.
+        const after = Array.isArray(spec.after) ? [...new Set(spec.after.map(word => canonical.get(String(word ?? '').toLowerCase())).filter(Boolean))] : [];
+        return { moduleId: def.id, kind, grammar: grammarOf(spec), apply: def.capture.apply, feature: featureOf(spec), off: off(spec), display: displayOf(spec), ...(after.length ? { after } : {}) };
     }
 
     // The feature a command belongs to (a capture.<kind> command: its kind's), or null.

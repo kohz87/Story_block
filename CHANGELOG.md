@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.11.1
+
+- A `~ you rank: … | wearing: … | condition: …` line in a story with no pack that gives a Rank no longer loses its wearing and condition: they are kept, and only the rank part is left out, with one plain Problem ("This story has no rank…"). The same holds for a Re-read after the pack was turned off. A line that names the rank alone is still refused whole, and the reader's pencil and the `scene.you` command still refuse a rank there.
+- A module's change-line kind can now say it runs `after` other kinds (`after: ['place', 'mount']`): its lines of a reply run behind the reply's lines of those kinds, so the order the narrator wrote them in does not matter. Story Director 2.5.1's `~ trip` uses it, to plan from the place and mounts the same reply sets. Every other line keeps its order, and nothing changes for a module that does not ask.
+- Deleting a reply no longer costs a later reply its other changes when it writes `+ present Fenna` for someone who left in between and is there again after the delete. The add is now recorded as a set's: replayed onto a story where she is already present, it leaves one entry instead of a "listed as present twice" Problem that skipped the whole block (its items and coins with it). Live play and receipts are unchanged; chats saved before replay as they did.
+
 ## 2.11.0
 
 - **Mounts.** The narrator can keep the party's horses, mules and carts: `+ mount Grey Mare | kind: horse | count: 1 | pace: 35
