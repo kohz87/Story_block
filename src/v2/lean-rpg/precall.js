@@ -93,9 +93,9 @@ export const claimed = (state, key) => state?.meta?.claims?.[claimKey(key)] === 
 /**
  * The pre-call. `deps`: { callModel(prompt, { maxTokens, profile, helper }) → text, chat() → SillyTavern's chat array,
  * chatId() → the open chat's id, hold (plan.js createPlanHold), problem(entry) (the turn's Problems list), moduleId,
- * timeoutMs, timer }. Returns { beforeGenerate(view, info) → { commands, lines? } | { lines } | null, afterCapture(view) }.
+ * timeoutMs, timer, skip { peek() → whether the next reply is to go out with no dice, clear() } (start.js: "Send without the RPG for now") }. Returns { beforeGenerate(view, info) → { commands, lines? } | { lines } | null, afterCapture(view) }.
  */
-export function createPrecall({ callModel, chat, chatId, hold, problem = null, moduleId = 'story-block', timeoutMs = TIMEOUT_MS, timer }) {
+export function createPrecall({ callModel, chat, chatId, hold, problem = null, moduleId = 'story-block', timeoutMs = TIMEOUT_MS, timer, skip: noDice = { peek: () => false, clear: () => {} } }) {
     const skip = (sheet, message) => {
         try { problem?.({ module: moduleId, code: 'ROLLS_SKIPPED', quiet: true, message: `Rolls skipped for this reply: ${message} Swipe to try again.` }); } catch { /* the Problems list is optional */ }
         // While a fight is on the narrator is told to keep it undecided; outside one there is nothing to hold back.
@@ -124,6 +124,8 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         if (view?.feature?.(LEAN_RPG_FEATURE) !== true) return null;
         if (info?.commit === false) return null;
         if (!['normal', 'regenerate', 'swipe'].includes(normalizeType(info?.type))) return null;
+        // The reader chose to send the first message without the RPG: that reply has no dice (the flag goes when the reply is captured).
+        if (normalizeType(info?.type) === 'normal' && noDice.peek()) return null;
         if (readSettings(view, moduleId)[ROLLS_SETTING] === 'off') return null;
         const sheet = readSheet(view.state);
         if (!sheet.characters.length) return null;
@@ -160,6 +162,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
     // not there writes nothing.
     function afterCapture() {
         hold.clear();
+        noDice.clear();
     }
 
     return { beforeGenerate, afterCapture };

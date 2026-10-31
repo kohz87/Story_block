@@ -293,3 +293,38 @@ test('B3: merged beforeGenerate hooks each keep their own limit: a slow part is 
     assert.deepEqual(out.problems.map(entry => entry.code), ['TIMEOUT', 'FAILED']);
     assert.ok(merged.hooks.beforeGenerate.timeoutMs > 4 * 2500);
 });
+
+test('"Send without the RPG for now": the next reply is sent with no pre-call and no dice, then the flag goes and the one after is planned as usual', { skip }, async () => {
+    const { host, callModel } = await setup({ answers: [PLAN_ANSWER] });
+    host.ctx.chatMetadata = { storySuite: { rpgStart: { asked: true, skip: true } } };
+    const { request } = await host.send(MESSAGE, 'The rats scatter.');
+    assert.equal(callModel.calls.length, 0, 'no model call');
+    assert.deepEqual(rolled(host), [], 'no dice');
+    assert.equal(tailOf(request).includes('[Rolls]'), false);
+    assert.deepEqual(host.ctx.chatMetadata.storySuite, { rpgStart: { asked: true } }, 'the flag is let go once the reply is captured; the choice stays');
+    await host.send(MESSAGE, 'The rats scatter again.');
+    assert.equal(callModel.calls.length, 1, 'planned as usual');
+    assert.equal(rolled(host).length, 1);
+    host.close();
+});
+
+test('the no-dice flag is only for a normal send, and a chat that never used it gets nothing written for it, with the feature on or off', { skip }, async () => {
+    for (const feature of [true, false]) {
+        const { host } = await setup({ answers: [PLAN_ANSWER], feature });
+        host.ctx.chatMetadata = { storySuite: { other: 1 }, keep: true };
+        const before = JSON.stringify(host.ctx.chatMetadata);
+        await host.send(MESSAGE, 'The rats scatter.');
+        await host.swipe('Again.');
+        assert.equal(JSON.stringify(host.ctx.chatMetadata).includes('rpgStart'), false, `feature ${feature}: nothing written`);
+        assert.deepEqual(host.ctx.chatMetadata.storySuite, JSON.parse(before).storySuite, `feature ${feature}: the chat's own notes are as they were`);
+        host.close();
+    }
+    // A swipe is planned even while the flag is still set (it is for the send that follows the choice).
+    const { host, callModel } = await setup({ answers: [PLAN_ANSWER] });
+    await host.send(MESSAGE, 'The rats scatter.');
+    host.ctx.chatMetadata = { storySuite: { rpgStart: { skip: true } } };
+    const calls = callModel.calls.length;
+    await host.swipe('Swiped.');
+    assert.equal(callModel.calls.length, calls + 1, 'a swipe plans');
+    host.close();
+});

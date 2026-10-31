@@ -34,11 +34,11 @@ async function open(t, { blocks = true, rules = false, wrap = null } = {}) {
 const oddsText = card => card.querySelector('.rpg-odds-legend').textContent;
 const typeInto = (node, value, event = 'change') => { node.value = value; node.dispatch(event); };
 
-test('the page is its own rail entry after Features, with four cards in order and the words of the mockup', async t => {
+test('the page is its own rail entry after Features, with five cards in order and the words of the mockup', async t => {
     const { doc, root, card } = await open(t);
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator and the roll planner are told.');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: before each reply a short AI call plans the actions and code rolls the dice\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);
@@ -57,6 +57,21 @@ test('Rolls: Automatic or Off, through the existing setting', async t => {
     assert.equal(root.querySelector('[data-card="rolls"] [aria-pressed="true"]').textContent, 'Off');
     root.querySelector('[data-card="rolls"] .rpg-chip[data-value="automatic"]').click();
     assert.equal(stored().rpgRolls, 'automatic');
+});
+
+test('Companions who join: Ask by default, then Automatically or Off, through the rpgJoin setting', async t => {
+    const { card, stored, root } = await open(t);
+    assert.deepEqual(card('join').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Ask', 'Automatically', 'Off']);
+    assert.equal(card('join').querySelector('[aria-pressed="true"]').textContent, 'Ask', 'the default');
+    assert.equal(stored().rpgJoin, undefined, 'nothing is stored until the reader chooses');
+    assert.match(card('join').textContent, /When the story says someone joins the party for good, the RPG can make their character\./);
+    card('join').querySelector('.rpg-chip[data-value="auto"]').click();
+    assert.equal(stored().rpgJoin, 'auto');
+    assert.equal(root.querySelector('[data-card="join"] [aria-pressed="true"]').textContent, 'Automatically');
+    root.querySelector('[data-card="join"] .rpg-chip[data-value="off"]').click();
+    assert.equal(stored().rpgJoin, 'off');
+    root.querySelector('[data-card="join"] .rpg-chip[data-value="ask"]').click();
+    assert.equal(root.querySelector('[data-card="join"] [aria-pressed="true"]').textContent, 'Ask');
 });
 
 test('Difficulty: a preset is one tap and the odds follow it live; the others are compared on a line', async t => {
@@ -237,10 +252,11 @@ test('searching finds the page by what it says; the page is hidden when nothing 
     assert.equal(body.filter('planner'), 1);
     assert.equal(body.filter('combat rules'), 1);
     assert.equal(body.filter('gentle harsh'), 1);
-    assert.equal(body.filter('automatic'), 1);
+    assert.equal(body.filter('automatic'), 2, 'Rolls, and Companions who join (Automatically)');
+    assert.equal(body.filter('companions'), 1);
     assert.equal(body.filter('nothing like it'), 0);
     assert.equal(body.el.querySelectorAll('.rpg-set-card').filter(node => !node.hidden).length, 0);
-    assert.equal(body.filter(''), 4);
+    assert.equal(body.filter(''), 5);
     body.destroy();
     host.features.set(CORE_FEATURE.leanRpg, false);
     await settle();

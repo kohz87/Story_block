@@ -145,6 +145,8 @@ export function readSheet(state) {
         if (!raw || typeof role !== 'string') continue;
         const hidden = hiddenOf(definition), fields = shownFields(raw, hidden);
         if (role === 'character') {
+            // A companion who left the party (`left`) is kept on the Party tab but is not on the sheet the dice are rolled for.
+            if (fields.left === true) continue;
             const found = character(id, fields, hidden.has('who') ? definition.name : '', hidden);
             if (!found) sheet.problems.push(`The Character block "${id}" has no name in its Who field, so it is left out.`);
             else if (sheet.characters.some(other => other.key === found.key)) sheet.problems.push(`Two Character blocks are called ${found.who}; only the first is used.`);
