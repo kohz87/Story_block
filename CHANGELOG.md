@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.8.0
+
+**New: RPG** (off by default; Settings → RPG). Turn it on and Story Block keeps a party, skills and foes as blocks and rolls
+the dice for the story. With it off, prompts, saves, dice draws and receipts are exactly as in 2.7.2.
+
+- **Party, Skills and Fight tabs** from four stock blocks (Character, Skills, Foes, Rules): health, mana and stamina as
+  coloured stage bars, seven stats, Soul Class I–IX with XP, up to five skills per character with coloured mastery bars
+  (Novice to Master), and up to four foe groups. The foe pencil edits a group's health.
+- **New character wizard**: name and stats, then skills from a template or written by hand (stat and resource fixed per
+  skill, rank from a list). **Spend points** raises stats in one save.
+- **Automatic rolls.** Before each reply a short planning call reads the sheet and the reader's message and says what to
+  roll; the code rolls d20 + stat bonus + rank + Soul Class + edge against the foe or the difficulty, and the narrator is
+  told the results in a `[Rolls]` cue it must follow (Hit / Grazed / Blocked, rounds until a decisive one or the budget).
+  Each roll records the numbers it used, so a Re-read tells the same fight.
+- **Battle log** under the reply: each round with its dice, totals and stage-coloured bars.
+- **Adjustable rules**: Gentle, Standard or Harsh presets, or your own numbers, plus a note for the planner. Saved rolls
+  keep the rules they were made with.
+- **Death is a rule, not a line**: a character dies only when they were already Down before a reply and are still Down
+  after it.
+- A field a pack hides (`prompt: false`) still counts for the rules but is never told to the planner or the narrator.
+- Block engine additions for packs: `role`, `cards`, `replyEnd`, named numbers (`names`), hidden fields, multi-field
+  `dm.set`, and pin pruning when a block is redefined. Definitions that use none of them are unchanged.
+
 ## 2.7.2
 
 **Content release: no code change.** The bundled example pack is now **Ersveil 2.1.0**, with its lorebook updated.
