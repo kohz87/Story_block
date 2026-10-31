@@ -1,6 +1,7 @@
 // Off means fully off: with the RPG off (the default), and also on in a chat that has no Character block, a plain
 // Story Block chat builds the same prompts, draws the same randomness, makes no model call and stores the same receipts
-// as 2.7.2 (fixtures/off-2.7.2.json is the fingerprint of off-flow.js made from the code before the RPG).
+// as before the RPG (fixtures/off-2.9.4.json is the fingerprint of off-flow.js: 2.7.2's, made from the code before the
+// RPG, until 2.9.4 added one clause to the `present` grammar line; with the old clause the code still gives 2.7.2's exactly).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,9 +11,9 @@ import { fingerprint } from './off-flow.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
-const baseline = JSON.parse(readFileSync(new URL('fixtures/off-2.7.2.json', import.meta.url), 'utf8'));
+const baseline = JSON.parse(readFileSync(new URL('fixtures/off-2.9.4.json', import.meta.url), 'utf8'));
 
-test('the RPG off: the prompts, the draws of randomness and the receipts are those of 2.7.2', { skip }, async () => {
+test('the RPG off: the prompts, the draws of randomness and the receipts are those from before the RPG (2.9.4 grammar)', { skip }, async () => {
     assert.deepEqual(await fingerprint(createHost), baseline);
 });
 

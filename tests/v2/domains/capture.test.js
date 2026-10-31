@@ -290,6 +290,19 @@ test('+ present / - present', () => {
     rejected(h, line('+', 'present', ' , '), 'INVALID', /needs a name/);
 });
 
+test('2.9.4: the present grammar tells the narrator to swap the old word for a newly learned name, and the swap works on one reply', async () => {
+    const { CORE_KINDS } = await import('../../../src/v2/domains/index.js');
+    assert.match(CORE_KINDS.present.grammar, /^\+ present Name when someone arrives, - present Name when they leave; when someone already here is first named, - present the old word and \+ present the name \(- present clerk, \+ present Nelje\)$/);
+    assert.ok(!CORE_KINDS.present.grammar.includes('\n'), 'one line');
+    const h = setup();
+    h.capture(line('+', 'present', 'clerk, Watch-Captain Rorke'));
+    const out = h.capture(line('-', 'present', 'clerk'));
+    assert.equal(out.ok, true, out.message);
+    const named = h.capture(line('+', 'present', 'Nelje'));
+    assert.equal(named.ok, true, named.message);
+    assert.deepEqual(h.state.domains.scene.present, ['Watch-Captain Rorke', 'Nelje']);
+});
+
 test('a move leaves everyone behind but who came along (| with:); the same place keeps them', () => {
     const h = setup();
     h.capture(line('~', 'place', 'Inspection Quay', { kind: 'dock' }));

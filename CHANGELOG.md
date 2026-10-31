@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.4
+
+- When someone already present is first named ("Name's Nelje"), the narrator is told to write `- present` for the old
+  word and `+ present` for the name, so World's Here and Home stop showing "clerk" or "receptionist". The narrator's
+  instructions change by one clause, so the AI service's prompt cache starts over once.
+
 ## 2.9.3
 
 - The New character wizard has its space back between the summary row (name, stats, points left) and the step below
