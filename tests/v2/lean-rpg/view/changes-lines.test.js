@@ -6,8 +6,8 @@ import { RESOLVE } from '../../../../src/v2/lean-rpg/index.js';
 import { characterDefinition, fakeState, roleOf, skillsDefinition } from './helpers.js';
 
 const skillsShow = { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' };
-const world = ({ soul = 2, xp = 40, rank = 1, ren = 1 } = {}) => fakeState([
-    { definition: characterDefinition('wessel', 'Wessel'), fields: { soul, xp } },
+const world = ({ soul = 2, xp = 40, rank = 1, ren = 1, points = 0 } = {}) => fakeState([
+    { definition: characterDefinition('wessel', 'Wessel'), fields: { soul, xp, points } },
     { definition: characterDefinition('ren', 'Ren'), fields: { soul: ren } },
     { definition: skillsDefinition('wessel-skills', 'Wessel', skillsShow), fields: { skill1: 'Iron Breath', rank1: rank } },
 ]);
@@ -51,6 +51,17 @@ test('the class rise reads "Soul Class II → III" with the display names, and s
     assert.equal(lines[0].note, 'XP reached 100 · back to 0 · +2 to every roll');
     assert.equal(lines[0].tone, 'good');
     assert.equal(lines[0].icon, 'fa-arrow-up');
+});
+
+test('a rise that gave points says so in plain words (+3 points to spend); one that gave none says what it did before', () => {
+    const rise = (before, after) => rpgReplyLines({ state: world(after), before: world(before), record: record(), roleOf })[0];
+    const gave = rise({ soul: 2, xp: 85, points: 0 }, { soul: 3, xp: 0, points: 3 });
+    assert.equal(gave.text, 'Wessel: Soul Class II → III');
+    assert.equal(gave.summary, 'Soul Class III (+3 points)');
+    assert.equal(gave.note, 'XP reached 100 · back to 0 · +2 to every roll · +3 points to spend');
+    const none = rise({ soul: 2, xp: 85, points: 4 }, { soul: 3, xp: 0, points: 4 });
+    assert.equal(none.summary, 'Soul Class III');
+    assert.equal(none.note, 'XP reached 100 · back to 0 · +2 to every roll');
 });
 
 test('the rank rise reads "Iron Breath: Adept → Expert"; a character who did not rise says nothing', () => {

@@ -58,7 +58,17 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
 4. **Review.** Everything in one place. **Create** makes two blocks, the Character block (named for the character) and the
    Skills block ("Wessel's skills"), each with one action, so a creation costs two of the reply's changes. If the second
    cannot be made the first is taken back and nothing is left half made. The window says what is in the way in plain
-   words, for example a name that is taken or a story that already has eight blocks.
+   words, for example a name that is taken or a story that already has eight blocks. When the chat has no
+   [Combat rules](#the-four-templates) block and/or no Foes block, Create also makes the missing ones from the stock
+   templates (one more action each, on the same reply, so one swipe takes everything back), and the Review says
+   "Also adds: Combat rules, Foes" (only the ones missing). A chat that has them already adds nothing. If the chat has no
+   room (the eight-block limit) or the reply has no actions left, the character is still made; the Review says which block
+   will not be added, and after Create the window stays to say which one was not added and where to add it later
+   (**Settings → RPG → Add the Combat rules block**, or **Settings → Blocks**). A chat that was already started is left as
+   it is until you make a character in it.
+
+The Stats step is one card: the steppers in an even grid (the stat above, its stepper below) with the radar beside it, or
+two columns of steppers and the radar below on a phone. The points left show once, in the summary row at the top.
 
 ## A new chat
 
@@ -77,6 +87,10 @@ one, in two places. Neither is there with the RPG off, and neither changes anyth
   close the window instead, the text is still in the box and the next Send asks again. Closing the dialog also leaves the text
   in the box. On a phone the dialog is a bottom sheet. Only a normal Send is held: a swipe, a regenerate, a continue, an
   impersonation, a quiet or dry run, an empty box and a slash command are not.
+
+A new chat that has no Combat rules block or Foes block gets them when its first character is made: by **Create** in the
+wizard, or by Add to party when that is the story's first character (see [Companions who join](#companions-who-join)).
+Nothing is added to a chat before that.
 
 ## Companions who join
 
@@ -102,7 +116,10 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
   is kept in the game for it.
 - **Automatically.** They are made at once and listed in "Changed this reply" ("Mara joined the party"). Like every other line of
   the reply it is taken back by a swipe or a delete, and a Re-read makes it the same way.
-- **`- party Mara`.** Marks that companion as **Left**: kept on the Party tab, greyed, no longer rolled for, never deleted. A later
+- **The first character.** Normally the wizard has made yours first. When Add to party (or an automatic join) makes the story's very
+  first character, the Combat rules and Foes blocks the chat lacks are made in the same action, as far as they fit.
+- **`- party Mara`.** Marks that companion as **Left**: kept on the Party tab, greyed, no longer rolled for, never deleted. A line that names
+  your own character (the one named like your persona) is refused with one line in the Problems list: only companions leave. A later
   `+ party Mara` brings the same person back (with the sheet they left with), whatever the setting says. A sheet made before the
   **Left** field existed cannot be marked, and the line says so.
 - **Refused plainly**, with one line in the Problems list and nothing made: the name is already in the party, the party is full
@@ -200,7 +217,11 @@ With the RPG off none of this is read or sent.
 
 These rise on their own, with no confirm step.
 
-- **Soul Class** runs I to IX. At 100 XP the Soul Class goes up by one and XP starts again at 0. At IX, XP stops at 100.
+- **Soul Class** runs I to IX. At 100 XP the Soul Class goes up by one, XP starts again at 0 and the character gets **3 points to spend**
+  on stats (the points never go above 60). "Changed this reply" says so ("+3 points to spend"), and the Party card offers **Spend points**.
+  At IX, XP stops at 100 and nothing more is given. The 3 points are part of the Character template's rise rule, so they apply to
+  characters made from 2.9.1 on, including companions who join. A block carries its own copy of its rules, so a character made earlier
+  keeps the rule it has and gets no points with a rise; give an older character points with the pencil on **Points** in its Character block.
 - **Skill ranks** run Novice, Adept, Expert, Master. At 100 practice a skill's rank goes up by one and practice starts
   again at 0. A Master keeps practice at 100.
 
@@ -223,12 +244,13 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points, Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (3 more with each Soul Class rise), Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. |
 | **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
 | **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health. |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
-The combat text of this chat can be changed on [Settings → RPG](#settings--rpg). To read or change a template's rules, make a block from it, then use the block's actions menu to
+A new chat gets a Combat rules block and a Foes block when you make its first character (see [A new chat](#a-new-chat)),
+so the Fight tab and the combat text work without adding them by hand. The combat text of this chat can be changed on [Settings → RPG](#settings--rpg). To read or change a template's rules, make a block from it, then use the block's actions menu to
 export it as a pack file. The pack file holds the definition as JSON; edit it and import the pack. A block made from
 a template is its own copy in the chat, so changing a template later does not change blocks already made.
 

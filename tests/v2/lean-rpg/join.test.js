@@ -406,3 +406,53 @@ test('when the blocks a companion joined are gone (the reply that made them was 
     host.store.rebuild();
     assert.equal(JSON.stringify(host.head()), live);
 });
+
+// ---- 2.9.1 ---------------------------------------------------------------------------------------------------------------------------
+
+test('2.9.1: a - party line that names the player\'s own character is refused with one plain Problems line; companions can still leave', { skip }, async t => {
+    const host = await world({ mode: 'ask' });
+    t.after(() => host.close());
+    host.ctx.name1 = 'Wessel';
+    await make(host, 'Mara', 2);
+    await host.send('They argue.', reply('- party Wessel', '- party mara'));
+    assert.equal(fields(host, 'wessel').left, false, 'the player\'s own character stays');
+    assert.equal(fields(host, 'mara').left, true, 'a companion leaves as before');
+    const refused = problems(host).filter(message => /Wessel is you/.test(message));
+    assert.equal(refused.length, 1);
+    assert.match(refused[0], /Wessel is you, so they cannot leave the party; a "- party" line is for companions only/);
+    assert.equal(problems(host).length, 1, 'nothing else was said');
+    await rebuilt(host, 'after a refused leave');
+    // The name is matched the way the Party tab does (case and spacing); with no persona name known nothing is held back.
+    await host.send('Again.', reply('- party  WESSEL '));
+    assert.equal(fields(host, 'wessel').left, false);
+    host.ctx.name1 = '';
+    await host.send('And again.', reply('- party Wessel'));
+    assert.equal(fields(host, 'wessel').left, true, 'no persona name: the line works as it did');
+});
+
+test('2.9.1: the first character a story gets through Add to party also brings the Combat rules and Foes blocks it lacks, in the same action', { skip }, async t => {
+    const host = await world({ mode: 'ask', wessel: false });
+    t.after(() => host.close());
+    assert.deepEqual(blocks(host), []);
+    const added = await host.sdk.command(JOIN_ADD, { name: 'Mara', about: 'a hedge-witch', soul: 1, best: 'int' });
+    assert.equal(added.ok, true, added.message);
+    assert.deepEqual(blocks(host), ['pack.chat/combat-rules', 'pack.chat/foes', 'pack.chat/mara', 'pack.chat/mara-skills']);
+    const perReply = host.head().domains.dataModules.perReply;
+    assert.equal(perReply[Object.keys(perReply).at(-1)].roots, 1, 'one action');
+    const made = host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type.startsWith('dm.'));
+    assert.deepEqual(made.map(receipt => receipt.type), ['dm.join']);
+    await rebuilt(host, 'after the first join');
+    // A later companion brings nothing extra.
+    const second = await host.sdk.command(JOIN_ADD, { name: 'Ren', about: '', soul: 1, best: '' });
+    assert.equal(second.ok, true, second.message);
+    assert.deepEqual(blocks(host), ['pack.chat/combat-rules', 'pack.chat/foes', 'pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/ren', 'pack.chat/ren-skills']);
+    await host.swipe('Nobody comes.');
+    assert.deepEqual(blocks(host), [], 'a swipe takes all of it');
+    await rebuilt(host, 'after the swipe');
+});
+
+test('2.9.1: a companion made by a party line or Add to party has the same class-up rule as any new character: 3 points with each rise', () => {
+    const { character } = joinDefinitions({ name: 'Mara', about: '', soul: 1, best: '' });
+    const rule = character.rules.find(item => item.id === 'class-up');
+    assert.deepEqual(rule.then.find(effect => effect.path[0] === 'points'), { op: 'add', path: ['points'], value: 3, bounds: 'clamp' });
+});

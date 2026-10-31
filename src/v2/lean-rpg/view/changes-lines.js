@@ -97,9 +97,12 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
         const old = then.get(`${character.module}|${character.subject}`);
         if (!old || !(character.soul > old.soul)) continue;
         const bonus = (rules?.classWeight ?? FORMULA.classWeight) * (character.soul - old.soul);
+        // A character made from 2.9.1 on gets 3 points to spend with each rise (the template's class-up rule): said when the points went up.
+        const gained = character.points - old.points;
+        const base = character.xp === 0 ? fill(C.classNote, { xp: character.xp, bonus }) : fill(C.classNoteShort, { bonus });
         out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(C.classUp, { who: character.name, from: old.soulName, to: character.soulName }),
-            summary: fill(C.classSummary, { to: character.soulName }),
-            note: character.xp === 0 ? fill(C.classNote, { xp: character.xp, bonus }) : fill(C.classNoteShort, { bonus }) }));
+            summary: fill(gained > 0 ? C.classSummaryPoints : C.classSummary, { to: character.soulName, n: gained }),
+            note: gained > 0 ? `${base} · ${fill(C.classPoints, { n: gained })}` : base }));
     }
     const skillsThen = new Map(rpgBlocks(before, { roleOf }).filter(block => block.role === 'skills').map(block => [`${block.module}|${block.subject}`, block]));
     const skillBlocks = rpgBlocks(state, { roleOf }).filter(block => block.role === 'skills');
