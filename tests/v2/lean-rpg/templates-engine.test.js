@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../../../src/v2/lean-rpg/templates.js';
+import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/index.js';
 import { summaryOf } from '../../../src/v2/data-modules/part.js';
 import { DM_LIMITS } from '../../../src/v2/data-modules/schema.js';
 import { estimateTokens } from '../../../src/v2/assist/common.js';
@@ -144,7 +145,8 @@ test('the tail leaves out empty slots and defaults, and says only what is there:
     assert.match(summaryOf(host.head(), 'pack.chat/character'), /health Down; /);
     await host.send('Hit again.', reply(line('character', 'set-health', ' | to: Down')));
     assert.match(summaryOf(host.head(), 'pack.chat/character'), /; alive false\.$/, 'a fallen character is told');
-    // the prompt really carries these lines, none of the others
+    // the prompt really carries these lines, none of the others (a role block is written compact while the RPG is on; with it off it is told like any block)
+    host.features.set(LEAN_RPG_FEATURE, true);
     const sent = (await host.send('Next.', 'On.')).request;
     assert.ok(JSON.stringify(sent).includes('Iron Breath (Novice, vit, stamina)'));
     assert.ok(!JSON.stringify(sent).includes('skill1'));

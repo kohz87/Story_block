@@ -406,6 +406,16 @@ function viewPath(definition, path, at, add) {
     if (!field || parts.length > (field.type === 'map' ? 2 : 1) || (parts.length === 2 && !array(field.keys).includes(parts[1]))) add('DM_SCHEMA', at, 'Unknown module view field or fixed map key.');
 }
 
+// The RPG draws a role block's health, mana, stamina and foe-health fields as stage bars, one cell and one choice for each stage, so
+// those fields stay small: at most ten stages counted up from empty (0), whatever else the block holds.
+const STAGE_FIELD = /^(health|mana|stamina|hurt[1-4])$/;
+function stageFields(definition, at, add) {
+    for (const [key, schema] of entries(definition.state)) {
+        if (!STAGE_FIELD.test(key) || !dmObject(schema) || schema.type !== 'int' || !dmInt(schema.min) || !dmInt(schema.max)) continue;
+        if (schema.max - schema.min >= L.stages || schema.max > L.stages) add('DM_BOUNDS', `${at}.state.${key}`, fill(STRINGS.blocks.stagesLimit, { max: L.stages }));
+    }
+}
+
 // The cards a block draws under the head reply, the rules it settles once at the end of each reply, and the hidden fields only
 // a Button may write. All three are declarations: a card is derived from the state, never stored.
 function blockFunctions(definition, env, at, add) {
@@ -497,6 +507,7 @@ export function validateDataModules(value, { packId, capabilities = [], definiti
         }
         if (byteLength(JSON.stringify(definition)) > L.definitionBytes) add('DM_BUDGET', at, `A definition must fit ${L.definitionBytes} UTF-8 JSON bytes.`);
         for (const [key, schema] of named(definition.state, L.fields, `${at}.state`, add)) scalar(schema, `${at}.state.${key}`, add);
+        if (definition.role !== undefined) stageFields(definition, at, add);
         imports(definition, at, add); // forms first, linking before expression analysis below
         migrations(definition, at, add);
         normalized.push(definition);

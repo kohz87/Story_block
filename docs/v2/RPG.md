@@ -174,6 +174,18 @@ The templates are in `src/v2/lean-rpg/templates.js`. They use these keys, which 
 
 - `edit: false` on a field: the reader cannot change it with a pencil (the Skills block's rank and practice).
 
+A block with a `role` is held to these rules, and is told like any other block while the RPG is switched off:
+
+- A field drawn as a bar (`health`, `mana`, `stamina`, a foe's `hurt1` to `hurt4`) has at most 10 stages, counted up from 0; a
+  longer one is refused when the block is made.
+- `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
+  Soul Class, and `who`.
+- Cards are shown in the order end, warn, info (at most 8 at a time), so the death notice always has a place.
+- The story cannot kill a character directly: the stock Character has no line that sets `alive`. A character dies only through
+  the reply-end latch, in a reply after the one that made them Down. The latch is settled by a `dm.settle` step that every
+  reply with accepted lines records (it may change nothing), so a Re-read of an earlier reply plans it again. The last of
+  the 32 actions a reply may hold is kept for it: the story's 32nd action is refused with a plain sentence.
+
 Keep to the block limits: 32 fields and 16 kinds in one block (a block with a `role` counts only its kinds against the 16),
 and text of up to 240 characters. The narrator is told up to 100 tokens of each block, 300 for a block with a `role`. A block
 with a `role` is told compactly: a value at its default is left out, a Skills block is one line per skill with the empty
