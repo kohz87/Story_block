@@ -2,7 +2,7 @@
 // their stop rules, the cue and its budget, and what is refused. Pure: a sheet read from state, scripted dice.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FORMULA, LIMITS, PACE, outcomeOf, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
+import { FORMULA, LIMITS, PACE, outcomeOf, positionalDice, prepare, readSheet, rollPrepared } from '../../../src/v2/lean-rpg/index.js';
 import { cueTokens } from '../../../src/v2/lean-rpg/cue.js';
 import { PARTY, character, foeBlock, sheetDomain, skillBlock } from './helpers.js';
 
@@ -94,11 +94,13 @@ test('an act with no skill, or a skill the character lacks, rolls the plan\'s st
     assert.deepEqual([plain.checks[0].pc.stat, plain.checks[0].pc.rank], ['cha', 0]);
     const lacking = prepare(plan({ acts: [wessel({ skill: 'Lockpicking', stat: 'dex' })] }), sheet);
     assert.deepEqual([lacking.acts[0].skill, lacking.acts[0].pc.stat, lacking.acts[0].pc.rank], [null, 'dex', 0]);
+    // B5: with no stat from the plan either, the character's best stat is used, untrained, and the cue says so.
     const none = prepare({ pace: 'normal', acts: [{ who: 'Wessel', skill: 'Lockpicking', target: 'Sluice Rats' }], checks: [{ who: 'Wessel', skill: 'Lockpicking', difficulty: 'easy' }] }, sheet);
-    assert.deepEqual([none.acts.length, none.checks.length], [0, 0]);
+    assert.deepEqual([none.acts.length, none.checks.length], [1, 1]);
+    assert.deepEqual([none.acts[0].skill, none.acts[0].pc.stat, none.acts[0].pc.rank], [null, 'str', 0], 'Wessel\'s best is STR 14');
     assert.deepEqual(none.refused.map(entry => entry.text), [
-        'Wessel → Sluice Rats: not rolled (Wessel has no stat to roll with).',
-        'Wessel — Lockpicking: not rolled (Wessel has no stat to roll with).',
+        'Wessel has no skill called Lockpicking: rolled untrained with STR, their best stat.',
+        'Wessel has no skill called Lockpicking: rolled untrained with STR, their best stat.',
     ]);
     // A Skills block with no stat on its skills (made before they were fields) takes the plan's stat.
     const party = PARTY();
@@ -246,4 +248,35 @@ test('a skill the character does not have is rolled untrained, and the cue says 
     assert.match(result.text, /Ren has no skill called Lockpicking: rolled untrained\./);
     assert.match(result.text, /Wessel → Sluice Rats: SUCCESS/);
     assert.equal(result.summary.refused, 2);
+});
+
+test('B5: an old Skills block (no stat on its skills) and no stat from the plan: untrained with the best stat, said in the cue', () => {
+    const party = PARTY();
+    party['wessel-skills'].fields = { who: 'Wessel', skill1: 'Iron Breath', rank1: 2, practice1: 0 };
+    const body = plan({ pace: 'careful', acts: [{ who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' }] });
+    const prepared = prepare(body, sheetOf(party));
+    assert.deepEqual([prepared.acts[0].skill, prepared.acts[0].pc.stat, prepared.acts[0].pc.rank], [null, 'str', 0]);
+    assert.deepEqual(prepared.refused.map(entry => entry.text), ['Wessel\'s Iron Breath has no stat of its own: rolled untrained with STR, their best stat.']);
+    const rolled = rollPrepared(body, prepared, calm());
+    assert.ok(rolled.text.includes('rolled untrained with STR, their best stat'));
+    assert.deepEqual(rolled.rounds[0].lines.map(line => line.kind), ['act']);
+});
+
+test('B16: each action\'s dice come from its place in the plan: refusing, adding or removing another action moves nothing', () => {
+    const sheet = sheetOf();
+    const body = { pace: 'normal', acts: [wessel({ skill: undefined }), { who: 'Ren', stat: 'int', target: 'Sluice Rats' }], foes: [{ slot: 1, target: 'Ren', defend: 'agi' }], checks: [{ who: 'Ren', stat: 'cha', difficulty: 'hard' }] };
+    const diceOfRen = (down, base = 123456789) => {
+        const party = PARTY();
+        if (down) party.wessel.fields.health = 0;
+        const result = rollPrepared(body, prepare(body, sheetOf(party)), positionalDice(base));
+        return { check: result.checks[0].pc.die, rounds: result.rounds.map(round => round.lines.filter(line => line.pc.who === 'Ren').map(line => [line.kind, line.pc.die, line.foe.die])) };
+    };
+    const up = diceOfRen(false), down = diceOfRen(true);
+    assert.equal(down.check, up.check);
+    assert.deepEqual(down.rounds[0], up.rounds[0], 'Wessel is Down: Ren, and the foe\'s attack on Ren, have the same dice');
+    assert.notDeepEqual(diceOfRen(false, 7).rounds[0], up.rounds[0], 'another seed, other dice');
+    const dice = positionalDice(42);
+    assert.deepEqual([dice('act', 0)(), dice('act', 0)()], [dice('act', 0)(), dice('act', 0)()], 'a stream is reproducible');
+    assert.notDeepEqual(Array.from({ length: 6 }, (_, n) => dice('act', n)()), Array.from({ length: 6 }, (_, n) => dice('foe', n)()), 'and the kinds differ');
+    for (let n = 0; n < 40; n += 1) { const die = dice('check', n % 4)(); assert.ok(die >= 1 && die <= FORMULA.die); }
 });

@@ -33,6 +33,8 @@ import { STATIC_MARKER, assemble, contextNotice, estimateTokens } from './prompt
 import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
 import { CORE_FEATURE } from './features.js';
+import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
+import { NO_ROLLS_LINE } from './lean-rpg/cue.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -54,6 +56,8 @@ const ROLE_SYSTEM = 0;
 const MAX_PROBLEMS = 200;
 // How long a canGenerate or beforeGenerate hook may take before the reply goes on without it.
 export const HOOK_TIMEOUT_MS = 2500;
+// A hook may declare its own, longer limit (`fn.timeoutMs`): the RPG's planner makes a model call of up to 20 s.
+export const hookTimeout = fn => (Number.isFinite(fn?.timeoutMs) && fn.timeoutMs > HOOK_TIMEOUT_MS ? fn.timeoutMs : HOOK_TIMEOUT_MS);
 // A reply that never ends (no MESSAGE_RECEIVED, GENERATION_ENDED or STOPPED) stops counting as in progress
 // after this long, so Story Suite's own model calls on the chat's connection are not held up for good.
 export const REPLY_BUSY_MAX_MS = 5 * 60_000;
@@ -391,16 +395,20 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const again = session !== null;
         for (const { moduleId, fn } of registry.hookEntries('beforeGenerate')) {
             let out;
-            try { out = await within(fn(view(), { type, dryRun, commit, again }), HOOK_TIMEOUT_MS); } catch (error) {
+            const limit = hookTimeout(fn);
+            try { out = await within(fn(view(), { type, dryRun, commit, again }), limit); } catch (error) {
                 problem({ module: moduleId, code: 'FAILED', message: `beforeGenerate failed: ${error?.message ?? error}` });
                 continue;
             }
             if (out === TIMED_OUT) {
-                problem({ module: moduleId, code: 'TIMEOUT', message: `beforeGenerate did not answer within ${HOOK_TIMEOUT_MS / 1000} s; the reply went on without its notes.` });
+                problem({ module: moduleId, code: 'TIMEOUT', message: `beforeGenerate did not answer within ${limit / 1000} s; the reply went on without its notes.` });
                 continue;
             }
+            // A merged hook (domains/index.js mergeParts) keeps the answers of the parts that did answer and reports the others.
+            for (const entry of Array.isArray(out?.problems) ? out.problems : []) problem({ module: moduleId, code: entry.code, message: entry.message });
             const lines = Array.isArray(out) ? out : Array.isArray(out?.lines) ? out.lines : [];
-            if (lines.length) cues[moduleId] = lines.filter(line => typeof line === 'string');
+            // The RPG's rolls and its "no rolls" line outrank ordinary tail notes when the tail is trimmed (prompt.js).
+            if (lines.length) cues[moduleId] = lines.filter(line => typeof line === 'string').map(line => (line === NO_ROLLS_LINE ? { text: line, keep: true } : line));
             for (const command of commit && Array.isArray(out?.commands) ? out.commands : []) {
                 // A prelude (Assist's roll, the RPG's rolls) is previewed for the prompt, without writing on the
                 // previous reply. Completion runs the same seed on the generated reply; only that transaction is stored.
@@ -422,7 +430,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             const result = bus.run(preludeType, payload, { cause: 'system', ...(prior ? { seed: prior.seed } : {}) });
             if (result?.ok) {
                 prechecks.push({ type: preludeType, payload, seed: result.receipt.seed });
-                cues[moduleId] = [...(cues[moduleId] ?? []), `[Happened]\n${result.receipt.summary}`];
+                const told = `[Happened]\n${result.receipt.summary}`;
+                cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true } : told];
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
         }
         // Saved with the reply (MESSAGE_RECEIVED), not now: each save writes the whole chat file, and the
@@ -1207,6 +1216,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             const late = current.type === 'continue' ? [] : lateLines(id, parsed.lines.map(line => line.raw));
             const result = await captureLines(id, parsed.lines, at ? current.base : null, current.type, { late, prechecks: current.prechecks });
             problems.push(...result.problems);
+            receivedHooks(id, current.type);
 
             // What this reply was told; a Continue keeps what the reply was told before.
             // (B-b2-timeline-9: read through readRecord, and only receipt IDs, whatever the chat holds.)
@@ -1264,6 +1274,16 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         if (!runs.length) return;
         const all = Promise.allSettled(runs).then(() => { if (assistPending === all) assistPending = null; });
         assistPending = all;
+    }
+
+    // afterReceive: every reply that arrives, with or without change lines, once its lines have been read and before it is
+    // saved (the RPG lets go of the plan it held for the reply). Nothing is asked of it; a failure is a Problem.
+    function receivedHooks(index, type) {
+        for (const { moduleId, fn } of registry.hookEntries('afterReceive')) {
+            try { fn(view(), { index, type }); } catch (error) {
+                problem({ module: moduleId, index, code: 'FAILED', message: `afterReceive failed: ${error?.message ?? error}` });
+            }
+        }
     }
 
     /** Change lines found after the reply (afterReply): captured on it and kept in its hidden block. */

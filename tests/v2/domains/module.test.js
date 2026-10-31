@@ -20,7 +20,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     ]);
     assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.counts', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
         'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.start', 'packs.weather', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'story.evidence']);
-    assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReply', 'beforeGenerate', 'item.resolve', 'replayGuard', 'start']);
+    assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReceive', 'afterReply', 'beforeGenerate', 'item.resolve', 'replayGuard', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'loot', 'choice', 'chatter', 'dm']);
     // Choices and Inner chatter are display kinds under their features (MODULES §F115): no command runs for them.

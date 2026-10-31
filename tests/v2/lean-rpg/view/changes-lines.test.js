@@ -82,3 +82,15 @@ test('mergeRpgLines puts them first and drops the plain rule line a rise leaves;
     assert.equal(mergeRpgLines(plain, []), plain, 'no RPG lines: untouched');
     assert.equal(replyCardLines([{ moduleId: 'x', fn: () => [{ text: 'ok' }] }], {}).length, 1);
 });
+
+test('F2: a reply with a roll of its own states the class bonus with the numbers recorded with that roll, not today\'s settings', () => {
+    const rise = (recorded, now) => rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world({ soul: 2, xp: 85 }), roleOf, rules: now,
+        record: record(rolled({ v: 1, ...(recorded ? { rules: recorded } : {}), summary: { exchanges: 1, acts: [], refused: 0 } })) }).find(line => line.text.includes('Soul Class')).note;
+    const harsh = { foeBase: 7, classWeight: 3, statDivisor: 3, costMargin: 1, decisiveMargin: 6, roundCap: 4 };
+    assert.equal(rise(harsh, { classWeight: 1 }), 'XP reached 100 · back to 0 · +3 to every roll', 'the roll was made with ×3; today\'s ×1 is not used');
+    assert.equal(rise(undefined, { classWeight: 3 }), 'XP reached 100 · back to 0 · +2 to every roll', 'a roll with no numbers kept was made with Standard\'s ×2');
+    assert.equal(rise({ classWeight: 99 }, { classWeight: 1 }), 'XP reached 100 · back to 0 · +2 to every roll', 'damaged numbers are held to range, as the roll holds them');
+    // A reply with no roll has none of its own: the current settings tell it.
+    const none = rpgReplyLines({ state: world({ soul: 3, xp: 0 }), before: world({ soul: 2, xp: 85 }), roleOf, rules: { classWeight: 1 }, record: record() })[0].note;
+    assert.equal(none, 'XP reached 100 · back to 0 · +1 to every roll');
+});

@@ -44,7 +44,7 @@ export function matchName(entries, phrase, name, { either = false } = {}) {
     return null;
 }
 
-const FOE_NUMBER = /^(?:foe|slot|#)?\s*([1-9])$/i;
+const FOE_NUMBER = /^(?:foe|slot|#)?\s*(\d{1,2})$/i;
 
 /** The character a phrase names (by `who`), or null. */
 export const matchCharacter = (sheet, phrase) => matchName(sheet?.characters ?? [], phrase, entry => entry.who, { either: true });
@@ -97,12 +97,14 @@ function skillsOf(fields) {
     return out;
 }
 
-function foesOf(id, fields) {
+// A block's four slots. `offset`: where its numbering starts (the first Foes block is 1…4, the next 5…8, and so on), so every
+// slot of every Foes block has a number of its own in the plan.
+function foesOf(id, fields, offset = 0) {
     const out = [];
     for (let n = 1; n <= FOE_SLOTS; n += 1) {
         const name = text(fields[`foe${n}`]);
         const count = int(fields[`count${n}`]) ?? 0;
-        out.push({ slot: n, module: id, name, count, class: int(fields[`class${n}`]) ?? 1, hurt: int(fields[`hurt${n}`]) ?? 0, filled: Boolean(name) && count > 0 });
+        out.push({ slot: offset + n, module: id, name, count, class: int(fields[`class${n}`]) ?? 1, hurt: int(fields[`hurt${n}`]) ?? 0, filled: Boolean(name) && count > 0 });
     }
     return out;
 }
@@ -112,7 +114,8 @@ function foesOf(id, fields) {
  *   characters: [{ module, who, key, health, mana, stamina, stats: { str…cha }, soul, xp, points, down, alive,
  *                  skills: [{ slot, name, about, rank, practice, stat, uses }] }]   (a Skills block joins the character its `who` names;
  *                  stat is one of STATS and uses 'stamina' | 'mana', or null for a block that has neither)
- *   foes: the four slots of the first Foes block, [{ slot, module, name, count, class, hurt, filled }] ([] without one)
+ *   foes: the four slots of every Foes block in block order, [{ slot, module, name, count, class, hurt, filled }] ([] without one); `slot`
+ *         counts on across blocks (1–4, then 5–8, …), `filled` = a name and a count above 0
  *   problems: plain sentences for blocks left out (no `who`, two characters of one name)
  */
 export function readSheet(state) {
@@ -134,7 +137,9 @@ export function readSheet(state) {
             const who = text(fields.who);
             if (who) skills.push({ who, list: skillsOf(fields) });
             else sheet.problems.push(`The Skills block "${id}" has no name in its Who field, so it is left out.`);
-        } else if (role === 'foes' && !sheet.foes.length) sheet.foes = foesOf(id, fields);
+        } else if (role === 'foes') {
+            sheet.foes.push(...foesOf(id, fields, sheet.foes.length));
+        }
     }
     for (const block of skills) {
         const owner = sheet.characters.find(entry => entry.key === fold(block.who));
@@ -145,3 +150,13 @@ export function readSheet(state) {
 
 /** The character `who` names (exact, folded), or null. */
 export const characterOf = (sheet, who) => sheet?.characters?.find(entry => entry.key === fold(who)) ?? null;
+
+/** The stat `character` is best at (the first on a tie), or null when the sheet holds none of the seven. */
+export function strongestStat(character) {
+    let best = null;
+    for (const stat of STATS) {
+        const value = character?.stats?.[stat];
+        if (Number.isInteger(value) && (best === null || value > character.stats[best])) best = stat;
+    }
+    return best;
+}

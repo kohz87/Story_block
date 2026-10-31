@@ -316,3 +316,43 @@ test('with no Difficulty ever chosen a roll is made with Standard\'s numbers and
     assert.deepEqual(rollReceipt(host, 2).data.v2.result.rules, STANDARD);
     host.close();
 });
+
+// ---- fix round 4, B16: dice belong to the action's place in the plan ------------------------------------------------------
+
+const TWO = 'act Wessel | stat: STR | target: Sluice Rats\nact Ren | stat: INT | target: Sluice Rats\nfoe Sluice Rats | target: Ren | defend: AGI';
+const renDice = receipt => receipt.data.v2.result.rounds.map(round => round.lines.filter(line => line.pc.who === 'Ren').map(line => [line.pc.die, line.foe?.die]));
+
+test('B16: refusing one action never moves another action\'s dice; deleting the reply that made Wessel Down keeps Ren\'s dice', { skip }, async () => {
+    const { host } = await setup({ answers: ['none', TWO] });
+    await host.send('First.', 'One.');
+    // Wessel goes Down on the first reply, so the second reply's plan refuses his action and Ren acts first in the rounds.
+    assert.equal((await host.bus.command('test.set', { slug: 'wessel', field: 'health', value: 0 }, { cause: 'system' })).ok, true);
+    await host.send('Second.', 'Two.');
+    const down = rollReceipt(host, 4);
+    assert.ok(down.data.v2.result.refused.some(entry => entry.who === 'Wessel'), 'Wessel is refused');
+    const before = renDice(down);
+    assert.ok(before[0].length >= 1);
+    const seed = down.seed;
+
+    await host.st.deleteMessage(2);
+    const at = host.ctx.chat.findIndex((message, index) => index > 0 && !message.is_user);
+    const planned = rollReceipt(host, at);
+    assert.equal(planned.seed, seed);
+    assert.ok(planned.data.v2.result.rounds[0].lines.some(line => line.pc.who === 'Wessel'), 'Wessel acts now');
+    assert.deepEqual(renDice(planned).slice(0, before.length), before.slice(0, planned.data.v2.result.rounds.length), 'Ren\'s dice are the same');
+    assert.deepEqual(host.store.problems(), []);
+    same(host);
+    await reloads(host);
+    host.close();
+});
+
+test('B16: a roll of the earlier scheme (no dice version in its payload) is still drawn in one sequence, so old records re-read as they were', async () => {
+    const { prepare, rollPrepared, readSheet } = await import('../../../src/v2/lean-rpg/index.js');
+    const { PARTY, sheetDomain } = await import('./helpers.js');
+    const sheet = readSheet({ domains: { dataModules: sheetDomain(PARTY()) } });
+    const plan = { pace: 'careful', acts: [{ who: 'Wessel', stat: 'str', target: 'Sluice Rats' }, { who: 'Ren', stat: 'int', target: 'Sluice Rats' }], foes: [], checks: [] };
+    const drawn = [];
+    const sequence = () => { const die = (drawn.length * 7) % 20 + 1; drawn.push(die); return die; };
+    const rolled = rollPrepared(plan, prepare(plan, sheet), sequence);
+    assert.deepEqual(rolled.rounds[0].lines.flatMap(line => [line.pc.die, line.foe.die]), drawn.slice(0, 4));
+});

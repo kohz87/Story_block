@@ -19,8 +19,8 @@ const combat = () => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name
 const promptOf = host => combatBlock(host.head(), {})?.prompt;
 
 // The page, opened on its section, with Wessel (STR 12, Soul Class I, Adept) made from the real templates.
-async function open(t, { blocks = true, rules = false } = {}) {
-    const ctx = await page(t, { feature: true, persona: 'Wessel' });
+async function open(t, { blocks = true, rules = false, wrap = null } = {}) {
+    const ctx = await page(t, { feature: true, persona: 'Wessel', wrap });
     await begin(ctx.host);
     if (blocks) await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 12, soul: 1 }, skills: { skill1: 'Iron Breath', stat1: 'str', rank1: 1 } });
     if (rules) assert.equal((await ctx.host.sdk.command('dm.define', { definition: combat() })).ok, true);
@@ -214,12 +214,12 @@ test('Roll planner: the note is kept as it is typed, counted to 400, and the rea
     assert.equal(card('planner').querySelector('.rpg-set-count').textContent, '0 / 400');
     const pre = () => root.querySelector('[data-card="planner"] .rpg-set-pre');
     assert.ok(pre().textContent.startsWith(PRECALL_HEAD), 'the fixed part first');
-    assert.ok(!pre().textContent.includes('Player\'s instructions'), 'no note yet');
+    assert.ok(!pre().textContent.includes('Reader\'s instructions'), 'no note yet');
     assert.match(pre().textContent, /Party:\nWessel \(class I\): STR 12/, 'the real party of this chat');
     typeInto(area, 'Companions play it safe unless I say otherwise.', 'input');
     assert.equal(stored()[NOTE_SETTING], 'Companions play it safe unless I say otherwise.');
     assert.equal(root.querySelector('[data-card="planner"] .rpg-set-count').textContent, '47 / 400');
-    assert.ok(pre().textContent.includes(`${PRECALL_HEAD}\n\nPlayer's instructions: Companions play it safe unless I say otherwise.\n\nParty:`));
+    assert.ok(pre().textContent.includes(`${PRECALL_HEAD}\n\nReader's instructions: Companions play it safe unless I say otherwise.\n\nParty:`));
     assert.match(card('planner').textContent, /The format stays fixed so the dice can be read; that is why this part can be seen but not changed\./);
     assert.equal(root.querySelector('[data-card="planner"] .rpg-set-pre').parentNode.tagName, 'DETAILS');
     assert.equal(root.querySelector('[data-card="planner"] summary').textContent, 'Show the planner\'s full prompt (read-only)');
@@ -321,4 +321,52 @@ test('the page\'s stylesheet: the odds bar is solid, three tones; the numbers wr
     assert.match(css, /\.rpg-odds-success \{ background: var\(--ss-good\)/);
     assert.match(css, /\.rpg-odds-cost \{ background: var\(--ss-warn\)/);
     assert.match(css, /\.rpg-odds-fail \{ background: var\(--ss-bad\)/);
+});
+
+test('B17 (views): a refused save because the chat holds as many block versions as it can is said in plain words, and Reset still works', async t => {
+    let refuse = true;
+    const wrap = (type, payload, options, run) => (refuse && type === 'dm.redefine' && payload.definition.prompt !== COMBAT_DEFAULT
+        ? { ok: false, code: 'DM_BUDGET', message: 'Combat rules: Retained pin budget exhausted; nothing applied.' }
+        : run(type, payload, options));
+    const { host, root, card } = await open(t, { rules: true, wrap });
+    typeInto(card('combat').querySelector('textarea'), 'A new text.');
+    await settle();
+    assert.equal(root.querySelector('.rpg-set-status').textContent, 'This chat has kept as many block versions as it can. Reset to the default, or try again after your next message.');
+    assert.equal(promptOf(host), COMBAT_DEFAULT, 'nothing changed');
+    // The words are the helper's, so the other screens say it too (the wizard's Create, a block edit).
+    const { refusalText } = await import('../../../../src/v2/strings.js');
+    assert.equal(refusalText({ ok: false, code: 'DM_BUDGET', message: 'x: Retained pin budget exhausted; nothing applied.' }), 'This chat has kept as many block versions as it can. Try again after your next message.');
+    assert.match(refusalText({ ok: false, code: 'DM_BUDGET', message: 'Data module reply budget exhausted.' }), /^This reply already holds as many changes/);
+    // Reset to the default is the text already pinned, and goes through.
+    refuse = false;
+    typeInto(card('combat').querySelector('textarea'), 'Another.');
+    await settle();
+    assert.equal(promptOf(host), 'Another.');
+});
+
+test('F1: text typed in the Combat box is saved when the settings window is closed with the box still holding it (no change event comes)', async t => {
+    const { host, card, win } = await open(t, { rules: true });
+    const area = card('combat').querySelector('textarea');
+    typeInto(area, 'Typed, then Escape.', 'input');
+    assert.equal(promptOf(host), COMBAT_DEFAULT, 'nothing saved yet: only typed');
+    win.close();
+    await settle();
+    assert.equal(promptOf(host), 'Typed, then Escape.');
+    assert.equal(host.ctx.chat[host.store.headIndex()].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 1, 'one edit');
+});
+
+test('F1: the page going out of sight saves what is typed, once; leaving the box after that does not save it again', async t => {
+    const { host, doc, card, root } = await open(t, { rules: true });
+    const area = card('combat').querySelector('textarea');
+    typeInto(area, 'Typed, then the tab is hidden.', 'input');
+    doc.visibilityState = 'hidden';
+    const hide = doc.listeners.filter(entry => entry.type === 'visibilitychange');
+    assert.ok(hide.length >= 1, 'the page listens');
+    for (const entry of hide) entry.fn();
+    area.dispatch('focusout');
+    area.dispatch('change');
+    await settle();
+    assert.equal(promptOf(host), 'Typed, then the tab is hidden.');
+    assert.equal(host.ctx.chat[host.store.headIndex()].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 1, 'saved once, not once per event');
+    assert.ok(root);
 });

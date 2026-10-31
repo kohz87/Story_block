@@ -20,7 +20,7 @@ import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
-import { WIZARD_STEPS, blockNames, buildDefinitions, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
+import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
     START_RANKS, statsLine, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
 const W = RPG_STRINGS.wizard;
@@ -40,9 +40,9 @@ export function createWizardScreen() {
 }
 
 // What the story has now that the wizard needs: the persona's name, the characters' names, whether one is already you, room for two blocks.
-function worldOf(state, persona, roleOf) {
+function worldOf(state, persona, roleOf, replyKey = '') {
     const party = readParty(state, { own: persona, roleOf });
-    return { persona, names: party.map(character => character.name), hasYou: party.some(character => character.own), room: hasRoom(state),
+    return { persona, names: party.map(character => character.name), hasYou: party.some(character => character.own), room: hasRoom(state), free: actionsFree(state, replyKey),
         used: Object.keys(state?.domains?.dataModules?.active ?? {}) };
 }
 
@@ -50,12 +50,13 @@ const safe = (fn, fallback) => { try { return fn() ?? fallback; } catch { return
 
 /**
  * The wizard. `deps`: `headState()` (the head state or null), `readerName()` (the persona's name), `roleOf(definition)`, `openDialog(id,
- * { draft, onClose })` (the host's dialog mount; without it there is no way to open). → { screen, widget, open(), session(), destroy() }.
+ * { draft, onClose })` (the host's dialog mount; without it there is no way to open), `replyKey()` (the head reply's key in the blocks' per-reply
+ * count, `${sid}/${swipeKey}`: Create asks the reply for three block actions before it starts). → { screen, widget, open(), session(), destroy() }.
  * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes.
  */
-export function createWizard({ headState = () => null, readerName = () => '', roleOf, openDialog = null } = {}) {
+export function createWizard({ headState = () => null, readerName = () => '', roleOf, openDialog = null, replyKey = () => '' } = {}) {
     let session = null;
-    const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf);
+    const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf, safe(replyKey, ''));
     const fresh = () => {
         const now = world();
         return { draft: newDraft({ persona: now.persona, hasYou: now.hasYou }), handle: null, busy: false, message: '' };

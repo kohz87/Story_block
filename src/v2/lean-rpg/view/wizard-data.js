@@ -102,8 +102,17 @@ export function skillSetsOf({ packSets = [], packNames = {} } = {}) {
 /** "Short blade (AGI) · Iron Breath (VIT) · Spark (INT, mana)" for a set's card. */
 export const setLine = set => set.skills.map(skill => `${skill.name} (${skill.stat.toUpperCase()}${skill.uses === 'mana' ? ', mana' : ''})`).join(' · ');
 
-/** What Create is held up by, as plain sentences ([] when it may go). `world`: { persona, names (the characters' names now), room (whether two more blocks fit), hasYou }. */
-export function problemsOf(draft, { persona = '', names = [], room = true, hasYou = false } = {}) {
+/** The block actions Create may need on one reply: the Character's define, the Skills' define, and taking the Character back if the second fails. */
+export const CREATE_ACTIONS = 3;
+
+/** How many block actions the reply keeps for (`key` is the head reply's, `${sid}/${swipeKey}`); all of them when the key is not known. */
+export function actionsFree(state, key) {
+    const used = key ? state?.domains?.dataModules?.perReply?.[key]?.roots : 0;
+    return DM_LIMITS.replyRoots - (Number.isSafeInteger(used) ? used : 0);
+}
+
+/** What Create is held up by, as plain sentences ([] when it may go). `world`: { persona, names (the characters' names now), room (whether two more blocks fit), hasYou, free (block actions the reply has left) }. */
+export function problemsOf(draft, { persona = '', names = [], room = true, hasYou = false, free = DM_LIMITS.replyRoots } = {}) {
     const out = [];
     const name = draft.name;
     if (!name) out.push(W.needName);
@@ -122,6 +131,7 @@ export function problemsOf(draft, { persona = '', names = [], room = true, hasYo
         if (!skill.about) out.push(fill(W.needAbout, { name: skill.name }));
     }
     if (!room) out.push(fill(W.noRoom, { max: DM_LIMITS.definitions }));
+    else if (free < CREATE_ACTIONS) out.push(fill(W.noActions, { used: DM_LIMITS.replyRoots - free, max: DM_LIMITS.replyRoots, need: CREATE_ACTIONS }));
     return [...new Set(out)];
 }
 

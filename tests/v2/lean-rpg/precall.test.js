@@ -6,7 +6,7 @@ import { hostAvailable } from '../../../testkit/index.js';
 import { NO_ROLLS_LINE, NOTE_SETTING, ROLLS_SETTING, createLeanRpgPart, createPlanHold, createPrecall, precallPrompt, readSheet } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD, ANSWER_TOKENS, MESSAGE_LIMIT } from '../../../src/v2/lean-rpg/precall.js';
 import { manualTimer } from '../assist/helpers/fakes.js';
-import { NEVER, PARTY, PLAN_ANSWER, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
+import { NEVER, OWNER, PARTY, PLAN_ANSWER, foeBlock, rollReceipt, setup, sheetDomain, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -46,17 +46,17 @@ test('the prompt holds only the end of the last reply (without its change block)
     assert.match(precallPrompt({ sheet: { characters: sheet.characters, foes: [] }, message: 'hi' }), /Foes: none/);
 });
 
-test('the grammar asks for a stat only when there is no skill, and the sheet shows each skill\'s stat and resource', () => {
+test('the grammar asks for a stat only for a skill the character lacks or no skill, and the sheet shows each skill\'s stat and resource', () => {
     const lines = PRECALL_HEAD.split('\n');
     const acts = lines.filter(line => line.startsWith('act <who>')), checks = lines.filter(line => line.startsWith('check <who>'));
     assert.equal(acts.length, 2);
     assert.equal(checks.length, 2);
-    assert.ok(acts[0].includes('skill: <skill>') && !/stat|uses/i.test(acts[0]), `a skill act has no stat or uses: ${acts[0]}`);
+    assert.ok(acts[0].includes('skill: <skill>') && /stat: STR\|VIT\|AGI\|DEX\|INT\|LUK\|CHA\?/.test(acts[0]) && !/uses/i.test(acts[0]), `a skill act may carry a stat (B5): ${acts[0]}`);
     assert.ok(acts[1].includes('stat: STR|VIT|AGI|DEX|INT|LUK|CHA') && !acts[1].includes('skill:'), acts[1]);
-    assert.ok(checks[0].includes('skill: <skill>') && !/stat|uses/i.test(checks[0]), checks[0]);
+    assert.ok(checks[0].includes('skill: <skill>') && checks[0].includes('stat: <stat>?') && !/uses/i.test(checks[0]), checks[0]);
     assert.ok(checks[1].includes('stat: <stat>') && !checks[1].includes('skill:'), checks[1]);
     assert.ok(!PRECALL_HEAD.includes('uses:'), 'the pre-call is not asked for what a skill uses');
-    assert.match(PRECALL_HEAD, /A skill brings its own stat and what it uses, so write no stat for it; with no skill, write the stat\./);
+    assert.match(PRECALL_HEAD, /A skill brings its own stat and what it uses, so write no stat for a skill the character has; for a skill they lack, or with no skill, write the stat\./);
     const text = precallPrompt({ sheet: readSheet({ domains: { dataModules: sheetDomain(PARTY()) } }), message: 'hi' });
     assert.match(text, /Ren \(class II\)[^\n]*skills: Spark \(Novice, INT, mana\)/);
 });
@@ -102,11 +102,27 @@ test('an answer of none: the reply goes out without rolls and without a held-bac
     host.close();
 });
 
-test('a plan that names nothing this sheet can roll is the same as none', { skip }, async () => {
+test('B5: lines that all name nothing on this sheet are a failed plan: the quiet line and, in a fight, the no-rolls cue', { skip }, async () => {
     const { host, problems } = await setup({ answers: ['act Nobody | stat: STR | target: Sluice Rats'] });
     const { request } = await host.send(MESSAGE, 'The rats scatter.');
     assert.deepEqual(rolled(host), []);
-    assert.ok(!tailOf(request).includes(NO_ROLLS_LINE));
+    assert.deepEqual(problems.map(entry => entry.code), ['ROLLS_SKIPPED']);
+    assert.match(problems[0].message, /none of its line named anyone or anything on the sheet/);
+    assert.ok(tailOf(request).includes(NO_ROLLS_LINE));
+    host.close();
+});
+
+test('B5: a skill the character lacks, and an old Skills block with no stat on its skills, still roll: untrained, with the best stat', { skip }, async () => {
+    const blocks = PARTY();
+    blocks['ren-skills'].fields = { who: 'Ren', skill1: 'Spark', rank1: 1, practice1: 0 };
+    const { host, problems } = await setup({ blocks, answers: ['act Wessel | skill: Sword | target: Sluice Rats\nact Ren | skill: Spark | target: Sluice Rats'] });
+    const { request } = await host.send(MESSAGE, 'The rats scatter.');
+    const [receipt] = rolled(host);
+    assert.ok(receipt, 'both are rolled');
+    const lines = receipt.data.v2.result.rounds[0].lines;
+    assert.deepEqual(lines.map(line => [line.pc.who, line.skill, line.pc.stat, line.pc.rank]), [['Wessel', null, 'str', 0], ['Ren', null, 'int', 0]]);
+    assert.match(tailOf(request), /Wessel has no skill called Sword: rolled untrained with STR, their best stat\./);
+    assert.match(tailOf(request), /Ren's Spark has no stat of its own: rolled untrained with INT, their best stat\./);
     assert.deepEqual(problems, []);
     host.close();
 });
@@ -210,13 +226,13 @@ test('the reader\'s planner note goes after the fixed part of the pre-call, and 
     const { host, callModel } = await setup({ settings: { [NOTE_SETTING]: `Companions play it safe unless I say otherwise.${' x'.repeat(300)}` } });
     await host.send(MESSAGE, 'The rats scatter.');
     const [{ prompt }] = callModel.calls;
-    assert.ok(prompt.startsWith(`${PRECALL_HEAD}\n\nPlayer's instructions: Companions play it safe unless I say otherwise.`), 'right after the head, before the party');
-    const note = prompt.slice(prompt.indexOf('Player\'s instructions: ') + 'Player\'s instructions: '.length, prompt.indexOf('\n\nParty:'));
+    assert.ok(prompt.startsWith(`${PRECALL_HEAD}\n\nReader's instructions: Companions play it safe unless I say otherwise.`), 'right after the head, before the party');
+    const note = prompt.slice(prompt.indexOf('Reader\'s instructions: ') + 'Reader\'s instructions: '.length, prompt.indexOf('\n\nParty:'));
     assert.ok([...note].length >= 399 && [...note].length <= 400, 'cut at 400 (and tidied)');
     host.close();
     const plain = await setup();
     await plain.host.send(MESSAGE, 'The rats scatter.');
-    assert.ok(!plain.callModel.calls[0].prompt.includes('Player\'s instructions'), 'no note, no line');
+    assert.ok(!plain.callModel.calls[0].prompt.includes('Reader\'s instructions'), 'no note, no line');
     plain.host.close();
 });
 
@@ -225,4 +241,55 @@ test('with the feature off none of the RPG settings is read: no note, no numbers
     const precall = createPrecall({ callModel: boom, chat: boom, chatId: boom, hold: createPlanHold() });
     const view = { feature: () => false, settings: boom, state: {} };
     assert.equal(await precall.beforeGenerate(view, { type: 'normal' }), null);
+});
+
+// ---- fix round 4: B3, the planner has its own time limit -------------------------------------------------------------
+
+const later = (ms, value) => () => new Promise(resolve => setTimeout(resolve, ms, value));
+
+test('B3: a planner that answers after three seconds is not cut off by the generic hook limit: the dice are rolled', { skip }, async () => {
+    const { host, problems } = await setup({ answers: [later(3000, PLAN_ANSWER)] });
+    const started = Date.now();
+    const { request } = await host.send(MESSAGE, 'The rats scatter.');
+    assert.ok(Date.now() - started >= 2900, 'the send waited for the planner');
+    assert.equal(rolled(host).length, 1, 'rpg.resolve is recorded');
+    assert.ok(tailOf(request).includes('[Rolls]'));
+    assert.deepEqual(problems, []);
+    assert.deepEqual(host.turn.problems(OWNER).filter(entry => entry.code === 'TIMEOUT'), [], 'no generic timeout');
+    host.close();
+});
+
+test('B3: the planner\'s own limit still applies: past it the skip path runs (quiet ROLLS_SKIPPED, the no-rolls cue), not a generic TIMEOUT', { skip }, async () => {
+    const { host, problems } = await setup({ answers: [NEVER], timeoutMs: 3000 });
+    const { request } = await host.send(MESSAGE, 'The rats scatter.');
+    assert.deepEqual(rolled(host), []);
+    assert.deepEqual(problems.map(entry => entry.code), ['ROLLS_SKIPPED']);
+    assert.ok(tailOf(request).includes(NO_ROLLS_LINE), 'the narrator is told to keep the fight undecided');
+    assert.deepEqual(host.turn.problems(OWNER).filter(entry => entry.code === 'TIMEOUT'), [], 'no generic timeout');
+    host.close();
+});
+
+test('B3: the part declares a limit above its call limit, and every hook keeps its own', () => {
+    assert.ok(createLeanRpgPart().hooks.beforeGenerate.timeoutMs > 20000);
+    assert.ok(createLeanRpgPart({ timeoutMs: 30000 }).hooks.beforeGenerate.timeoutMs > 30000);
+});
+
+test('B3: merged beforeGenerate hooks each keep their own limit: a slow part is reported and the others\' lines and commands stay', async () => {
+    const { mergeParts } = await import('../../../src/v2/domains/index.js');
+    const slow = Object.assign(() => new Promise(() => {}), { timeoutMs: 60 });
+    const merged = mergeParts([
+        { hooks: { beforeGenerate: () => ['first'] } },
+        { hooks: { beforeGenerate: slow } },
+        { hooks: { beforeGenerate: () => { throw new Error('bad'); } } },
+        { hooks: { beforeGenerate: () => ({ lines: ['last'], commands: [{ type: 'x.y' }] }) } },
+    ]);
+    // (A declared limit below the generic one is not used: hookTimeout never shortens a hook.)
+    const started = Date.now();
+    const out = await Promise.race([merged.hooks.beforeGenerate({}), new Promise(resolve => setTimeout(resolve, 4000, 'late'))]);
+    assert.notEqual(out, 'late');
+    assert.ok(Date.now() - started >= 2400, 'the slow part got the generic 2.5 s');
+    assert.deepEqual(out.lines, ['first', 'last']);
+    assert.deepEqual(out.commands, [{ type: 'x.y' }]);
+    assert.deepEqual(out.problems.map(entry => entry.code), ['TIMEOUT', 'FAILED']);
+    assert.ok(merged.hooks.beforeGenerate.timeoutMs > 4 * 2500);
 });

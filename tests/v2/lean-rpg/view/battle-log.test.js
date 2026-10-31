@@ -5,7 +5,7 @@ import { createHost } from '../../../../testkit/index.js';
 import { makeMessage } from '../../../ui-fake-dom.js';
 import { setupDom } from '../../view/mounts/helpers.js';
 import {
-    BATTLE_ROOT, buildPanel, createBattleLog, createFoldStore, headerText, outcomeOf, panelModel, placeAtMarker, readResolve, resolveOf, rollText,
+    BATTLE_ROOT, buildPanel, createBattleLog, createFoldStore, headerText, markerNodes, outcomeOf, panelModel, placeAtMarker, readResolve, resolveOf, rollText,
 } from '../../../../src/v2/lean-rpg/view/battle-log.js';
 import { stripBattleMarker } from '../../../../src/v2/turn.js';
 import { RESOLVE } from '../../../../src/v2/lean-rpg/index.js';
@@ -382,4 +382,40 @@ test('the stylesheet: a dark monospace panel from tokens, the status bars aligne
     assert.match(css, /\.rpg-bl-head \{[^}]*min-height: 44px/);
     assert.match(css, /\.rpg-bl-stat \{[^}]*grid-template-columns: 4\.6em minmax\(36px, 1fr\) 8\.5em/, 'label, bar and word in fixed columns, so the bars line up');
     assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.rpg-bl-stats \{ grid-template-columns: 1fr/, 'one row per bar on a phone');
+});
+
+test('B14: destroying the panel gives back the marker line it took, so switching off and on keeps the inline place', async t => {
+    const { host, doc, log, head } = await world(t);
+    const el = message(doc, head, prose('The quay.', '[battle]', 'After.'));
+    const first = log.refresh(head, el);
+    assert.equal(first.getAttribute('data-variant'), 'inline');
+    const text = el.querySelector('.mes_text');
+    assert.equal(markerNodes(text).length, 0, 'the marker line is consumed while the panel is there');
+    log.destroy();
+    assert.equal(el.querySelectorAll(`.${BATTLE_ROOT}`).length, 0, 'the panel is gone');
+    assert.deepEqual(kids(text).map(item => item.split(':')[0]), ['p', 'p', 'p'], 'and the marker line is back between the paragraphs');
+    assert.equal(markerNodes(text).length, 1);
+    // The feature comes back: a new panel finds the marker again and is inline, not the fallback card.
+    const again = createBattleLog({ ctx: host.ctx, doc, store: host.store, featureOn: () => true, roleOf, events: host.events });
+    t.after(() => again.destroy());
+    const second = again.refresh(head, el);
+    assert.equal(second.getAttribute('data-variant'), 'inline');
+    assert.deepEqual(kids(text).map(item => item.split(':')[0]), ['p', 'div', 'p']);
+    // A card (no marker) leaves nothing behind.
+    again.destroy();
+    const plain = message(doc, head, prose('The quay.', 'After.'));
+    const log2 = createBattleLog({ ctx: host.ctx, doc, store: host.store, featureOn: () => true, roleOf, events: host.events });
+    t.after(() => log2.destroy());
+    assert.equal(log2.refresh(head, plain).getAttribute('data-variant'), 'card');
+    log2.destroy();
+    assert.equal(markerNodes(plain.querySelector('.mes_text')).length, 0);
+});
+
+test('B15: latest() still finds the last rolled reply after fifteen quiet exchanges', async t => {
+    const { host, log, head } = await world(t);
+    for (let n = 0; n < 15; n += 1) await host.send(`Quiet ${n}.`, `Nothing happens ${n}.`);
+    assert.ok(host.ctx.chat.length - head > 30, 'more than the last thirty messages lie between');
+    const found = log.latest();
+    assert.ok(found, 'the roll is still in the chat');
+    assert.equal(found.index, head);
 });
