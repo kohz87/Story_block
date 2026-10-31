@@ -119,6 +119,13 @@ are checked against the field schema, and the module's rules run once after the 
 guarded by its pin generation, reads and imported inputs, claims nothing, and uses the normal reply
 budget. Rules can use imports; replay checks their prerequisites as it does for a button action.
 
+`dm.set { module, who?, fields: { name: value, … } }` sets 1–16 non-map fields of one block as ONE action: one
+root of the reply's budget, one receipt ("You set Character: STR 14 → 16, Points 3 → 0."), each value checked as
+the single form checks it, all or nothing, and the rules run once after all the sets. Its result record is
+`fields: { name: { from, to } }` (the single form keeps `field`, `from`, `to`); it takes none of `field`,
+`key` and `value`. A refusal because the reply holds as many actions as one reply can (`DM_BUDGET`) reaches the
+reader as "This reply already holds as many changes as one reply can. Send your next message, then try again."
+
 A kind label may be `{ "type": "text", "max": 120 }` (max 1–240). Its value is made one line, cut
 to its limit and must not be empty. A text `set` accepts a literal or `{ "arg": "label" }` when
 the target's max is at least the label's max; the normalized expression is `["arg", "label"]`. Text

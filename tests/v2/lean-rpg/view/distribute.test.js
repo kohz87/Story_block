@@ -6,6 +6,7 @@ import { newSession, renderDistribute, spentOf } from '../../../../src/v2/lean-r
 import { readParty } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { replyEdits } from '../../../../src/v2/reply-cards.js';
 import { readRecord } from '../../../../src/v2/persist.js';
+import { DM_LIMITS } from '../../../../src/v2/data-modules/schema.js';
 import { characterDefinition, defineAll, fakeState, fieldsOf, roleOf, setField } from './helpers.js';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -90,7 +91,7 @@ test('Reset puts every stat back; Cancel writes nothing and closes', async () =>
     assert.deepEqual(closed, [{ saved: false }]);
 });
 
-test('Save writes the changed stats, then the points, one dm.set each, then closes', async () => {
+test('Save writes the changed stats and the points as ONE multi-field dm.set, then closes', async () => {
     const calls = [], done = [];
     const { root } = sheet({ api: { command: async (type, payload) => { calls.push([type, payload]); return { ok: true }; } }, onDone: result => done.push(result) });
     step(root, 'str').up().click();
@@ -98,25 +99,32 @@ test('Save writes the changed stats, then the points, one dm.set each, then clos
     step(root, 'cha').up().click();
     button(root, 'rpg-save').click();
     await settle(); await settle();
-    assert.deepEqual(calls, [
-        ['dm.set', { module: 'pack.chat/wessel', field: 'str', value: 16 }],
-        ['dm.set', { module: 'pack.chat/wessel', field: 'cha', value: 11 }],
-        ['dm.set', { module: 'pack.chat/wessel', field: 'points', value: 0 }],
-    ]);
+    assert.deepEqual(calls, [['dm.set', { module: 'pack.chat/wessel', fields: { str: 16, cha: 11, points: 0 } }]]);
     assert.deepEqual(done, [{ ok: true }]);
 });
 
-test('a refused write stops the save, says why and keeps the sheet open', async () => {
+test('a refused save says why and keeps the sheet open', async () => {
     const calls = [], done = [];
-    const { root } = sheet({ api: { command: async (type, payload) => { calls.push(payload.field); return payload.field === 'cha' ? { ok: false, message: 'Not now.' } : { ok: true }; } }, onDone: result => done.push(result) });
+    const { root } = sheet({ api: { command: async (type, payload) => { calls.push(payload); return { ok: false, message: 'Not now.' }; } }, onDone: result => done.push(result) });
     step(root, 'str').up().click();
     step(root, 'cha').up().click();
     button(root, 'rpg-save').click();
     await settle(); await settle();
-    assert.deepEqual(calls, ['str', 'cha'], 'the points are not written after a refusal');
+    assert.equal(calls.length, 1, 'one write, so nothing is half saved');
     assert.deepEqual(done, [{ ok: false }]);
     assert.equal(root.querySelector('.rpg-sheet-note').textContent, 'Not now.');
     assert.equal(button(root, 'rpg-save').disabled, false, 'the reader can try again');
+});
+
+test('a full reply budget is told in plain words and keeps the sheet open', async () => {
+    const done = [];
+    const { root } = sheet({ api: { command: async () => ({ ok: false, code: 'DM_BUDGET', message: 'Character: Data module reply budget exhausted; nothing applied.' }) }, onDone: result => done.push(result) });
+    step(root, 'str').up().click();
+    button(root, 'rpg-save').click();
+    await settle(); await settle();
+    assert.equal(root.querySelector('.rpg-sheet-note').textContent, 'This reply already holds as many changes as one reply can. Send your next message, then try again.');
+    assert.deepEqual(done, [{ ok: false }]);
+    assert.equal(button(root, 'rpg-save').disabled, false);
 });
 
 test('a character with no points sees the stats but cannot raise them', () => {
@@ -165,7 +173,7 @@ test('a save that outlives its sheet (the page redrew after the first write) sti
     assert.equal(handle.session.busy, false);
 });
 
-test('on the real host Save is one edit set on the latest reply: each stat and the points, as "You set" lines', async t => {
+test('on the real host Save is ONE action on the latest reply: one "You set" line naming each stat and the points', async t => {
     const host = await createHost();
     t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
@@ -188,9 +196,43 @@ test('on the real host Save is one edit set on the latest reply: each stat and t
     const now = fieldsOf(host, 'wessel');
     assert.deepEqual([now.str, now.vit, now.points], [16, 13, 0]);
     const record = readRecord(host.ctx.chat[head]);
-    assert.equal(record.receipts.length - before, 3, 'three writes, all on the latest reply');
-    assert.deepEqual(replyEdits(record, [], head).map(row => row.text), ['You set Wessel: STR 14 → 16.', 'You set Wessel: VIT 12 → 13.', 'You set Wessel: points 3 → 0.']);
+    assert.equal(record.receipts.length - before, 1, 'one write, on the latest reply');
+    assert.deepEqual(replyEdits(record, [], head).map(row => row.text).slice(-1), ['You set Wessel: STR 14 → 16, VIT 12 → 13, points 3 → 0.']);
     const live = structuredClone(host.head());
     host.store.rebuild();
     assert.deepEqual(host.head(), live, 'a cold rebuild gives the same stats');
+});
+
+test('on the real host Save still fits a reply that already holds thirty-one other changes, and a full reply says so in plain words', async t => {
+    const host = await createHost();
+    t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, [characterDefinition('wessel', 'Wessel')]);
+    for (const [field, value] of Object.entries({ str: 14, vit: 12, points: 3, soul: 2 })) await setField(host, 'wessel', field, value);
+    await host.send('Look around.', 'A wet quay.');
+    const room = DM_LIMITS.replyRoots - 1;
+    for (let at = 0; at < room; at += 1) await setField(host, 'wessel', 'xp', at % 2 ? 10 : 20);
+    const doc = setupDom(), parent = doc.createElement('div');
+    doc.body.appendChild(parent);
+    const done = [];
+    const api = { command: (type, payload) => host.sdk.command(type, payload) };
+    const open = () => {
+        const handle = renderDistribute(parent, { character: character(host.head()), api, doc, onDone: result => done.push(result) });
+        return handle.el;
+    };
+    let root = open();
+    step(root, 'str').up().click();
+    step(root, 'vit').up().click();
+    button(root, 'rpg-save').click();
+    for (let n = 0; n < 8; n += 1) await settle();
+    assert.deepEqual(done, [{ ok: true }], 'the last free action of the reply is enough');
+    assert.deepEqual([fieldsOf(host, 'wessel').str, fieldsOf(host, 'wessel').vit, fieldsOf(host, 'wessel').points], [15, 13, 1]);
+    parent.replaceChildren();
+    root = open();
+    step(root, 'str').up().click();
+    button(root, 'rpg-save').click();
+    for (let n = 0; n < 8; n += 1) await settle();
+    assert.deepEqual(done, [{ ok: true }, { ok: false }]);
+    assert.equal(root.querySelector('.rpg-sheet-note').textContent, 'This reply already holds as many changes as one reply can. Send your next message, then try again.');
+    assert.equal(fieldsOf(host, 'wessel').str, 15, 'nothing was half saved');
 });

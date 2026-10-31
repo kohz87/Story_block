@@ -1,14 +1,15 @@
 // The Spend points / Stats sheet (RB's Stats step reborn): the three stage bars on top, an `ss.stepper` per stat
 // (1 to 20) spending the character's shared `points`, the points-left pill and an `ss.radar` with the new shape over
-// the old one. Save writes every changed stat and then `points` through `dm.set`, one after the other, as one edit set
-// on the latest reply (each shows as a "You set" line in "Changed this reply"); Cancel writes nothing. The Party tab
+// the old one. Save writes every changed stat and `points` in ONE multi-field `dm.set` (one action on the latest reply,
+// so it counts once against the reply's budget, and one "You set" line in "Changed this reply"); Cancel writes nothing. The Party tab
 // opens it in place over its cards. Every node is built with createElement and textContent.
 
 import { h } from '../../view/widgets/dom.js';
 import { radar } from '../../view/widgets/radar.js';
 import { stepper } from '../../view/widgets/stepper.js';
 import { RPG_STRINGS, fill } from '../strings.js';
-import { drawStageBars, fieldPayload } from './bars.js';
+import { refusalText } from '../../strings.js';
+import { drawStageBars, fieldsPayload } from './bars.js';
 
 const S = RPG_STRINGS.sheet;
 
@@ -118,7 +119,7 @@ export function renderDistribute(parent, { character, session = null, api = {}, 
         refresh();
     }
 
-    // One `dm.set` per changed stat, then the points left: all ride on the latest reply, so they are one edit set there.
+    // The changed stats and the points left go as one `dm.set` with `fields`: one action, all or nothing.
     async function save() {
         if (run.busy || !alive) return { ok: false };
         const changed = changedStats();
@@ -130,19 +131,14 @@ export function renderDistribute(parent, { character, session = null, api = {}, 
         refresh();
         let failure = null;
         try {
-            for (const stat of changed) {
-                const result = await api.command('dm.set', { ...fieldPayload(character, stat.key), value: run.draft[stat.key] });
-                if (!result?.ok) { failure = result ?? { ok: false }; break; }
-            }
-            if (!failure) {
-                const result = await api.command('dm.set', { ...fieldPayload(character, 'points'), value: left });
-                if (!result?.ok) failure = result ?? { ok: false };
-            }
+            const fields = Object.fromEntries([...changed.map(stat => [stat.key, run.draft[stat.key]]), ['points', left]]);
+            const result = await api.command('dm.set', fieldsPayload(character, fields));
+            if (!result?.ok) failure = result ?? { ok: false };
         } catch (error) {
             failure = { ok: false, message: String(error?.message ?? error) };
         }
         run.busy = false;
-        run.message = failure ? failure.message || S.failed : '';
+        run.message = failure ? refusalText(failure, S.failed) : '';
         if (alive) refresh();
         onDone({ ok: !failure });
         return { ok: !failure };

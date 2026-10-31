@@ -32,14 +32,15 @@ function addStyle(doc) {
 }
 
 /**
- * mountLeanRpg({ doc, ctx, store, events, screens, widgets, headState, readerName, roleOf, featureOn, openScreen, refresh })
+ * mountLeanRpg({ doc, ctx, store, events, screens, widgets, headState, readerName, roleOf, featureOn, openScreen, openBlock, refresh })
  * → { cardLines({ index, state, before, record, problems }), settingsBodies(bodies), battleLog, destroy() }.
  * `screens` is the screen registry (`setPack`, `removePack`); `widgets` the host's own widget table (the Party widget is added
- * to it); `headState()` the head state; `featureOn()` whether the feature is on now; `refresh()` redraws the tabs.
+ * to it); `headState()` the head state; `featureOn()` whether the feature is on now; `openBlock(module)` opens the Blocks page at that
+ * block; `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', roleOf, featureOn = () => true, openScreen = null, refresh = () => {} }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', roleOf, featureOn = () => true, openScreen = null, openBlock = null, refresh = () => {} }) {
     const link = addStyle(doc);
-    widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openScreen });
+    widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openScreen, openBlock });
     screens.setPack(PACK, [createPartyScreen({ roleOf })]);
     const battleLog = createBattleLog({ ctx, doc, store, events, featureOn, roleOf });
     battleLog.refreshAll();

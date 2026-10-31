@@ -2,7 +2,7 @@
 // stacked on a phone. Each card has the name and role line, Soul Class, the XP bar, the three stage bars, the seven
 // stats in a row and the skills from that character's Skills block. A character with points to spend shows
 // "N points to spend" and a Spend points button; any other shows Stats. Both open the Spend points sheet (distribute.js)
-// over the cards. Skills opens the character's Skills block (its tab, else the Blocks page). A fallen character
+// over the cards. Skills opens the Blocks page at the character's Skills block (its tab, when it still has one). A fallen character
 // (`alive` false) is greyed and says "Fallen". The tab shows while the feature is on and the chat has a Character block.
 // Every node is built with createElement and textContent.
 
@@ -10,6 +10,7 @@ import { shell, h } from '../../view/widgets/dom.js';
 import { meter } from '../../view/widgets/meter.js';
 import { blockTabScreen } from '../../data-modules/block-screen.js';
 import { BLOCKS_SCREEN_ID } from '../../screens/blocks.js';
+import { ROLES_WITHOUT_TAB } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { drawStageBars } from './bars.js';
 import { newSession, renderDistribute } from './distribute.js';
@@ -32,19 +33,20 @@ export function createPartyScreen({ roleOf } = {}) {
 
 const sameCharacter = (a, b) => a.module === b.module && a.subject === b.subject;
 
-/** The screen id that shows a Skills block: its own tab when it has one, else the Blocks page. */
+/** The screen id that shows a Skills block: its own tab when it has one (a block with a role has none while the feature is on), else the Blocks page. */
 export function skillsScreenOf(skillsBlock) {
-    const tab = skillsBlock ? blockTabScreen(skillsBlock.definition) : null;
+    const tab = skillsBlock && !ROLES_WITHOUT_TAB.includes(skillsBlock.definition?.role) ? blockTabScreen(skillsBlock.definition) : null;
     return tab?.id ?? BLOCKS_SCREEN_ID;
 }
 
 /**
  * The Party widget. `deps`: `headState()` (the head state or null), `readerName()` (the reader's persona name),
- * `roleOf(definition)` (default: the definition's `role`), `openScreen(id)` (default: the api's).
+ * `roleOf(definition)` (default: the definition's `role`), `openScreen(id)` (default: the api's), `openBlock(module)` (the Blocks
+ * page scrolled to that block; default: just the Blocks page).
  * The page draws a screen again from nothing on every change of the story, so what must outlive that, the open sheet and
  * its draft, is kept here, outside the widget (as the Blocks page keeps its editor): `shared.open` is the sheet's session.
  */
-export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openScreen = null } = {}) {
+export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openScreen = null, openBlock = null } = {}) {
     const shared = { open: null };
     const live = new Set();
     const tell = () => { for (const redraw of [...live]) redraw(); };
@@ -79,7 +81,10 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
             const ended = ({ ok }) => { if (ok) shared.open = null; tell(); };
             function skills(character) {
                 const id = skillsScreenOf(character.skillsBlock);
-                try { (openScreen ?? api?.openScreen)?.(id); } catch { /* the screen may not be open-able here */ }
+                try {
+                    if (id === BLOCKS_SCREEN_ID && openBlock) openBlock(character.skillsBlock.module);
+                    else (openScreen ?? api?.openScreen)?.(id);
+                } catch { /* the screen may not be open-able here */ }
             }
 
             function card(parent, character) {

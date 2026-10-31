@@ -14,6 +14,8 @@ import { blockTabScreen } from './block-screen.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
+// The most fields one multi-field `dm.set` takes (a sheet's seven stats and its points fit with room to spare).
+const SET_FIELDS = 16;
 
 const initial = () => ({ pins: {}, active: {}, instances: {}, perReply: {} });
 // A frozen value (a branch of the state) never changes, so what is worked out from it is kept with it. No game state is cached:
@@ -90,7 +92,8 @@ export function moduleView(state, { module } = {}) {
     return { characters: subjectsOf(state, module).map(id => ({ id, name: actors[id]?.name ?? id, ...copy(instanceOf(state, module, id)?.fields ?? {}) })) };
 }
 
-export function pinnedPresentation(state, kind = 'screens') {
+// `noTab`: block roles whose block gets no tab of its own (the Lean RPG's Party tab draws them while its feature is on).
+export function pinnedPresentation(state, kind = 'screens', noTab = []) {
     return Object.keys(state?.domains?.dataModules?.active ?? {}).flatMap(id => {
         const definition = activeDefinition(state, id);
         const screens = (definition?.[kind] ?? []).map(entry => {
@@ -102,7 +105,7 @@ export function pinnedPresentation(state, kind = 'screens') {
             if (!screens.some(screen => screen.id === layoutId)) screens.push({ id: layoutId, title, ...(icon ? { icon } : {}), mounts: ['tab'], layout: editableLayout(copy(layout), definition), pack: `dm:${id}` });
         }
         if (kind === 'screens') {
-            const block = blockTabScreen(definition);
+            const block = noTab.includes(definition?.role) ? null : blockTabScreen(definition);
             if (block) screens.push(block);
         }
         return screens;
@@ -467,6 +470,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }
+    // `dm.set` writes one field (`field`, `key?`, `value`) or, as ONE action, several non-map fields of one block (`fields`: { name: value }).
+    // Either way each value is checked the same, the rules run once after all the sets, and nothing applies unless every one holds.
     function setField(ctx, payload, call = {}) {
         if (ctx.cause !== 'ui' || ctx.caller !== null) refuse('REFUSED', '', E.fieldReader);
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
@@ -474,34 +479,53 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         call.label = definition?.name ?? module;
         if (!definition) refuse('DM_SCHEMA', '', E.pinDamaged);
         dependency(definition, prefix);
-        const schema = dmOwn(definition.state, payload.field) ? definition.state[payload.field] : null;
-        if (!schema) refuse('DM_SCHEMA', 'field', E.fieldDeclared);
-        if (schema.edit === false) refuse('REFUSED', 'field', E.fieldLocked);
-        const map = schema.type === 'map';
-        if (map && !schema.keys.includes(payload.key)) refuse('DM_SCHEMA', 'key', E.mapKeyDeclared);
-        if (!map && payload.key !== undefined) refuse('DM_SCHEMA', 'key', E.fieldNoKeys);
+        const multi = payload.fields !== undefined;
+        if (multi && ['field', 'key', 'value'].some(name => payload[name] !== undefined)) refuse('DM_SCHEMA', 'fields', E.fieldsAlone);
+        if (multi && (!dmObject(payload.fields) || Object.keys(payload.fields).length < 1 || Object.keys(payload.fields).length > SET_FIELDS)) refuse('DM_SCHEMA', 'fields', E.fieldsCount);
+        // One entry per field to set: its name, map key (the single form only) and value.
+        const entries = multi ? Object.entries(payload.fields).map(([name, value]) => ({ name, key: undefined, value })) : [{ name: payload.field, key: payload.key, value: payload.value }];
+        for (const entry of entries) {
+            const schema = dmOwn(definition.state, entry.name) ? definition.state[entry.name] : null;
+            if (!schema) refuse('DM_SCHEMA', multi ? entry.name : 'field', E.fieldDeclared);
+            if (schema.edit === false) refuse('REFUSED', multi ? entry.name : 'field', E.fieldLocked);
+            entry.map = schema.type === 'map';
+            if (entry.map && multi) refuse('DM_SCHEMA', entry.name, E.fieldsNoMaps);
+            if (entry.map && !schema.keys.includes(entry.key)) refuse('DM_SCHEMA', 'key', E.mapKeyDeclared);
+            if (!entry.map && entry.key !== undefined) refuse('DM_SCHEMA', 'key', E.fieldNoKeys);
+            entry.schema = schema;
+        }
         if (definition.scope === 'chat' && payload.who !== undefined) refuse('DM_LABEL', 'who', E.fieldShared);
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, payload.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
         const instance = atPath(draft, instancePath(module, subject));
-        const field = map ? schema.values : schema, path = map ? [payload.field, payload.key] : [payload.field];
-        let value = payload.value;
-        if (field.list === true) value = cleanList(value, field.max);
-        else if (field.type === 'text' && typeof value === 'string') value = [...oneLine(value)].slice(0, field.max).join('');
-        if (!scalarHolds(field, value)) refuse('DM_BOUNDS', 'value', E.fieldRange);
-        const before = atPath(instance.fields, path);
+        for (const entry of entries) {
+            const { schema } = entry;
+            entry.field = entry.map ? schema.values : schema;
+            entry.path = entry.map ? [entry.name, entry.key] : [entry.name];
+            let { value } = entry;
+            if (entry.field.list === true) value = cleanList(value, entry.field.max);
+            else if (entry.field.type === 'text' && typeof value === 'string') value = [...oneLine(value)].slice(0, entry.field.max).join('');
+            if (!scalarHolds(entry.field, value)) refuse('DM_BOUNDS', multi ? entry.name : 'value', E.fieldRange);
+            entry.value = value;
+            entry.before = atPath(instance.fields, entry.path);
+        }
         const inputs = inputsOf(prefix, definition);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
-        evaluation.effects([{ op: 'set', path, value }]);
+        evaluation.effects(entries.map(entry => ({ op: 'set', path: entry.path, value: entry.value })));
         evaluation.rules();
         const result = evaluation.finish();
         const recorded = guard(ctx, prefix, { kind: 'dm.set', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat',
             decision: { inputs, conds: result.conds } });
-        const label = map ? `${schema.label ?? payload.field} (${payload.key})` : schema.label ?? payload.field;
-        const summary = fill(E.fieldSet, { module: definition.name, field: label, from: shownText(field, before), to: shownText(field, value) });
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes,
-            result: { field: payload.field, ...(map ? { key: payload.key } : {}), subject, from: before, to: value, ...(result.fired.length ? { rules: result.fired } : {}) }, summary });
+        const labelOf = entry => (entry.map ? `${entry.schema.label ?? entry.name} (${entry.key})` : entry.schema.label ?? entry.name);
+        const change = entry => `${labelOf(entry)} ${shownText(entry.field, entry.before)} → ${shownText(entry.field, entry.value)}`;
+        const [only] = entries;
+        const summary = multi ? fill(E.fieldsSet, { module: definition.name, changes: entries.map(change).join(', ') })
+            : fill(E.fieldSet, { module: definition.name, field: labelOf(only), from: shownText(only.field, only.before), to: shownText(only.field, only.value) });
+        const rules = result.fired.length ? { rules: result.fired } : {};
+        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, summary,
+            result: multi ? { fields: Object.fromEntries(entries.map(entry => [entry.name, { from: entry.before, to: entry.value }])), subject, ...rules }
+                : { field: only.name, ...(only.map ? { key: only.key } : {}), subject, from: only.before, to: only.value, ...rules } });
         answer.data.edit = true;
         return answer;
     }
@@ -649,7 +673,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
                         actors: Object.values(actorsOf(prefix)), baseline: inputs, budgets: L };
                 });
             },
-            'dataModules.presentation': (prefix, { kind: name = 'screens' } = {}) => pinnedPresentation(prefix, name) },
+            'dataModules.presentation': (prefix, { kind: name = 'screens', noTab = [] } = {}) => pinnedPresentation(prefix, name, Array.isArray(noTab) ? noTab : []) },
         hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
         cards: blockCardSlots,
         context: {

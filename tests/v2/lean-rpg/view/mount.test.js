@@ -246,3 +246,88 @@ test('an open sheet and its draft survive the page drawing itself again (a bar e
     assert.ok(sheet(), 'a new reply does not close it either');
     assert.equal(fieldsOf(host, 'wessel').str, 14, 'nothing is written until Save');
 });
+
+// ---- the tab bar: one Party tab, not one tab per RPG block ----------------------------------------------------------------
+const TAB = { tab: true, card: false, icon: 'ph-star' };
+const withRole = (definition, role, tabName) => ({ ...definition, ...(role ? { role } : {}), show: { ...TAB, tabName: tabName ?? definition.name.slice(0, 24) } });
+const party3 = () => [
+    withRole(characterDefinition('wessel', 'Wessel'), 'character'), withRole(characterDefinition('ren', 'Ren'), 'character'), withRole(characterDefinition('mira', 'Mira'), 'character'),
+    withRole(skillsDefinition('wessel-skills', 'Wessel'), 'skills'), withRole(skillsDefinition('ren-skills', 'Ren'), 'skills'),
+    withRole(foesDefinition('foes'), 'foes'), withRole(skillsDefinition('combat-rules', 'Combat rules'), 'rules', 'Combat rules'),
+];
+const BLOCK_TAB = slug => `story-block/block/${slug}`;
+const tabsOf = (doc, ui) => {
+    ui.mounts.screen.open();
+    return navIds(doc);
+};
+
+test('feature on: a three-character party shows the Party tab and the Foes tab; character, skills and rules blocks get none', async t => {
+    const { doc, host, ui } = await page(t, { feature: true });
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, party3());
+    await host.send('Go.', 'The quay.');
+    await settle();
+    const ids = tabsOf(doc, ui);
+    assert.ok(ids.includes(PARTY));
+    assert.ok(ids.includes(BLOCK_TAB('foes')), 'Foes keeps its tab');
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'combat-rules']) {
+        assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: no tab of its own`);
+        assert.equal(ui.screens.resolve(BLOCK_TAB(slug)), null, `${slug}: no screen either`);
+    }
+    // They stay in Blocks.
+    ui.mounts.screen.open('story-block/blocks');
+    await settle();
+    const listed = doc.querySelectorAll('.ss-gameview [data-block-card]').map(node => node.getAttribute('data-block-card'));
+    assert.deepEqual(listed.sort(), ['combat-rules', 'foes', 'mira', 'ren', 'ren-skills', 'wessel', 'wessel-skills'].map(slug => `pack.chat/${slug}`).sort());
+});
+
+test('feature off: every block with a tab keeps it, whatever its role', async t => {
+    const { doc, host, ui } = await page(t);
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, party3());
+    await host.send('Go.', 'The quay.');
+    await settle();
+    const ids = tabsOf(doc, ui);
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: its tab`);
+    assert.ok(!ids.includes(PARTY));
+});
+
+test('the tabs follow the switch: on takes the role blocks\' tabs away, off gives them back', async t => {
+    const { doc, host, ui } = await page(t);
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, [...party3(), { ...skillsDefinition('notes', 'Notes'), show: { ...TAB, tabName: 'Notes' } }]);
+    await host.send('Go.', 'The quay.');
+    assert.ok(tabsOf(doc, ui).includes(BLOCK_TAB('wessel')));
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    await settle();
+    let ids = tabsOf(doc, ui);
+    assert.ok(!ids.includes(BLOCK_TAB('wessel')) && !ids.includes(BLOCK_TAB('combat-rules')));
+    assert.ok(ids.includes(BLOCK_TAB('notes')), 'a block with no role keeps its tab');
+    assert.ok(ids.includes(BLOCK_TAB('foes')));
+    host.features.set(CORE_FEATURE.leanRpg, false);
+    await settle();
+    ids = tabsOf(doc, ui);
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules', 'notes']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: back`);
+});
+
+test('the Skills button opens the Blocks page at that character\'s Skills block, scrolled to and focused', async t => {
+    const { doc, host, ui } = await page(t, { feature: true });
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, party3());
+    await host.send('Go.', 'The quay.');
+    ui.mounts.screen.open(PARTY);
+    await settle();
+    // (a view opened from the keyboard hands its focus to the close button one task later: let that pass first)
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const scrolled = [];
+    const original = doc.createElement;
+    doc.createElement = (...args) => { const node = original.apply(doc, args); node.scrollIntoView = () => scrolled.push(node.getAttribute('data-block-card')); return node; };
+    party(doc).querySelector('.rpg-card[data-character="Ren"] .rpg-skills-open').click();
+    await settle();
+    doc.createElement = original;
+    assert.ok(doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]'), 'the Blocks page is open');
+    const target = doc.querySelector('.ss-gameview [data-block-card="pack.chat/ren-skills"]');
+    assert.ok(target);
+    assert.ok(doc.activeElement === target, 'focused');
+    assert.deepEqual(scrolled, ['pack.chat/ren-skills'], 'and scrolled to');
+});

@@ -12,10 +12,10 @@ const ren = { definition: characterDefinition('ren', 'Ren'), fields: { health: 5
 const skills = { definition: skillsDefinition('wessel-skills', 'Wessel', { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' }), fields: { skill1: 'Iron Breath', rank1: 2, skill2: 'Short blade', rank2: 0 } };
 const party = () => fakeState([ren, wessel, skills]);
 
-function draw(state, { api = {}, own = 'Wessel', open = () => {} } = {}) {
+function draw(state, { api = {}, own = 'Wessel', open = () => {}, openBlock = null } = {}) {
     const doc = setupDom(), el = doc.createElement('div');
     doc.body.appendChild(el);
-    const widget = createPartyWidget({ headState: () => state, readerName: () => own, roleOf, openScreen: open });
+    const widget = createPartyWidget({ headState: () => state, readerName: () => own, roleOf, openScreen: open, openBlock });
     const handle = widget.render(el, {}, api);
     return { doc, el, handle, widget };
 }
@@ -99,6 +99,19 @@ test('Skills opens the Skills block\'s tab, else the Blocks page', () => {
     assert.deepEqual(opened, ['story-block/block/wessel-skills']);
     assert.equal(skillsScreenOf({ definition: { ...skills.definition, show: { tab: false, card: true, tabName: 'x', icon: 'ph-star' } } }), 'story-block/blocks');
     assert.equal(skillsScreenOf(null), 'story-block/blocks');
+});
+
+test('Skills on a block with a role (it has no tab while the feature is on) opens the Blocks page at that block', () => {
+    const roled = { ...skills, definition: { ...skills.definition, role: 'skills' } };
+    assert.equal(skillsScreenOf({ module: 'pack.chat/wessel-skills', definition: roled.definition }), 'story-block/blocks');
+    const opened = [], blocks = [];
+    const { el } = draw(fakeState([ren, wessel, roled]), { open: id => opened.push(id), openBlock: module => blocks.push(module) });
+    buttons(card(el, 'Wessel'), 'Skills')[0].click();
+    assert.deepEqual(blocks, ['pack.chat/wessel-skills'], 'the Blocks page, at the Skills block');
+    assert.deepEqual(opened, []);
+    const plain = draw(fakeState([ren, wessel, roled]), { open: id => opened.push(id) });
+    buttons(card(plain.el, 'Wessel'), 'Skills')[0].click();
+    assert.deepEqual(opened, ['story-block/blocks'], 'with no way to focus a block, just the page');
 });
 
 test('a bar is tapped to edit: a pencil over it saves through dm.set', async () => {
