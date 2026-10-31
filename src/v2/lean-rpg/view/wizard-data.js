@@ -8,10 +8,12 @@
 //   Soul Class a companion who joins the story arrives with, 2 to 9: left out it is I, which is every character the reader makes)
 
 import { DM_LIMITS } from '../../data-modules/schema.js';
+import { activeDefinition } from '../../data-modules/adapters.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
 import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../templates.js';
+import { soulReading } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 
 const W = RPG_STRINGS.wizard;
@@ -137,15 +139,67 @@ export function problemsOf(draft, { persona = '', names = [], room = true, hasYo
     return [...new Set(out)];
 }
 
-/** Whether two more blocks fit in the story (the chat holds at most `DM_LIMITS.definitions` of its own blocks). */
-export function hasRoom(state) {
+// How many blocks the story has: its own (chat) blocks, which the story limit counts, and every active block, which the pin limit counts.
+function blockCounts(state) {
     const domain = state?.domains?.dataModules;
     const active = isRecord(domain?.active) ? Object.values(domain.active) : [];
-    const own = active.filter(entry => domain.pins?.[entry.hash]?.packId === 'chat').length;
-    return own + 2 <= DM_LIMITS.definitions && active.length + 2 <= DM_LIMITS.pins;
+    return { own: active.filter(entry => domain.pins?.[entry.hash]?.packId === 'chat').length, all: active.length };
+}
+
+/** Whether two more blocks fit in the story (the chat holds at most `DM_LIMITS.definitions` of its own blocks). */
+export function hasRoom(state) {
+    const { own, all } = blockCounts(state);
+    return own + 2 <= DM_LIMITS.definitions && all + 2 <= DM_LIMITS.pins;
+}
+
+/** The chat blocks the RPG's fights need besides the characters, in the order Create adds them. */
+export const RPG_EXTRAS = Object.freeze(['rules', 'foes']);
+
+/** Which of the Combat rules (role rules) and Foes (role foes) blocks the story does not have yet, in `RPG_EXTRAS` order. `roleOf(definition)` is what a block is read as. */
+export function missingBlocks(state, { roleOf = definition => definition?.role } = {}) {
+    const domain = state?.domains?.dataModules;
+    const roles = new Set(Object.keys(isRecord(domain?.active) ? domain.active : {}).map(id => {
+        const definition = activeDefinition(state, id);
+        return definition ? roleOf(definition) : null;
+    }));
+    return RPG_EXTRAS.filter(role => !roles.has(role));
+}
+
+/**
+ * Which missing blocks fit beside the two a character is made of: `{ add: [roles that fit], skipped: [{ role, why: 'room' | 'actions' }] }`.
+ * They go in the order of `RPG_EXTRAS`, so when only one fits it is the Combat rules. `free` is the block actions the reply has left; the
+ * character and its skills take two of them.
+ */
+export function extrasPlan(state, { roleOf, free = Infinity } = {}) {
+    const { own, all } = blockCounts(state);
+    const space = Math.min(DM_LIMITS.definitions - own, DM_LIMITS.pins - all) - 2;
+    const actions = free - 2;
+    const add = [], skipped = [];
+    for (const role of missingBlocks(state, { roleOf })) {
+        if (add.length < space && add.length < actions) add.push(role);
+        else skipped.push({ role, why: add.length >= space ? 'room' : 'actions' });
+    }
+    return { add, skipped };
 }
 
 const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+
+/** What a character the wizard makes calls its Soul Class (soul.js): the Character template's own label and names. */
+export const newSoul = () => soulReading(template('character').state.soul);
+
+/** The block each extra role is made from, by its name: "Combat rules" and "Foes" (the stock templates, as Settings → Blocks offers them). */
+export const extraName = role => LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role)?.name ?? role;
+
+/** The stock definitions for some of the extras (`roles`), their slugs free among `used` (the ids of the story's blocks and of the ones made with them). */
+export function extraDefinitions(roles, { used = [] } = {}) {
+    const taken = [...used];
+    return roles.map(role => {
+        const definition = template(role);
+        definition.slug = uniqueBlockSlug(definition.name, taken);
+        taken.push(definition.slug);
+        return definition;
+    });
+}
 
 /** The block names Create gives: "Wessel" and "Wessel's skills". */
 export const blockNames = name => ({ character: name, skills: `${name}'s skills` });

@@ -143,13 +143,23 @@
 .rpg-wiz-problems-head { font-weight: 700; }
 .rpg-wiz-status { margin: 0; font-size: 12px; color: var(--ss-muted); flex: 1 1 220px; }
 .rpg-wiz-status:empty { display: none; }
-.rpg-wiz-stats { max-width: 760px; }
+/* The Stats step: a card like the Spend points view's, an even grid of steppers (label over stepper) with the radar beside it, centred. */
+.rpg-wiz-stats-card { display: grid; gap: 14px; padding: 14px 16px; border-radius: 12px; background: var(--ss-tile); min-width: 0; }
+.rpg-wiz-stats-body { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 16px 24px; align-items: center; }
+.rpg-wiz-steppers { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 14px; align-items: start; }
+.rpg-wiz-steppers .ss-w-stepper, .rpg-wiz-steppers .ss-w-stepper-row { display: flex; width: 100%; }
+.rpg-wiz-steppers .ss-w-stepper { flex-direction: column; gap: 4px; }
+.rpg-wiz-steppers .ss-w-stepper-input { flex: 1 1 auto; width: 100%; }
+.rpg-wiz-stats-actions { justify-content: flex-start; }
 @media (max-width: 600px) {
     .rpg-wiz-grid { grid-template-columns: 1fr; }
     .rpg-wiz-row { grid-template-columns: repeat(3, minmax(0, 1fr)) 36px; padding-bottom: 10px; border-bottom: 1px solid color-mix(in srgb, var(--ss-text) 12%, transparent); }
     .rpg-wiz-row .rpg-wiz-n { grid-column: 1 / 4; }
     .rpg-wiz-row .rpg-wiz-d { grid-column: 1 / -1; }
     .rpg-wiz-headrow { display: none; }
+    .rpg-wiz-stats-body { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+    .rpg-wiz-steppers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rpg-wiz-stats-card .rpg-radar { justify-self: center; }
 }
 
 /* ---- Battle log (display D) ---- */
@@ -170,6 +180,8 @@
 .rpg-act-mark { flex: none; width: 1em; color: var(--ss-muted); }
 .rpg-act-text { min-width: 0; overflow-wrap: anywhere; }
 .rpg-skill { color: var(--ss-accent-text, var(--ss-accent)); }
+/* The Skills view's card shares this class; inside a battle line it is only a coloured word, so the line reads on one run. */
+.rpg-act-text .rpg-skill { display: inline; padding: 0; gap: 0; border-radius: 0; background: none; }
 .rpg-out { font-weight: 400; }
 .rpg-out-success { color: var(--ss-good); }
 .rpg-out-fail { color: var(--ss-bad-text, var(--ss-bad)); }

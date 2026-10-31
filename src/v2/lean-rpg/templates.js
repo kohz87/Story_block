@@ -31,7 +31,7 @@ export const COMBAT_PROMPT = [
 
 const character = {
     slug: 'character', name: 'Character', role: 'character', schema: 1, stateVersion: 1, scope: 'chat',
-    prompt: 'One character: who they are, health, mana and stamina (words, shown as bars), seven stats from 1 to 20, unspent points, Soul Class I to IX and XP to 100. The narrator sets health, mana, stamina and XP; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Soul Class by one, up to IX.',
+    prompt: 'One character: who they are, health, mana and stamina (words, shown as bars), seven stats from 1 to 20, unspent points, Soul Class I to IX and XP to 100. The narrator sets health, mana, stamina and XP; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Soul Class by one, up to IX, and gives 3 points to spend on stats.',
     show: { tab: true, card: false, tabName: 'Character', icon: 'ph-user' },
     state: {
         who: text('Name'),
@@ -56,7 +56,7 @@ const character = {
         'button-rest': { op: '!', ui: true, title: 'Rest', labels: {}, effects: [{ op: 'set', path: ['stamina'], value: 4 }, { op: 'set', path: ['mana'], value: 4 }] },
     },
     rules: [{ id: 'class-up', when: ['and', ['ge', get('xp'), 100], ['lt', get('soul'), 9]],
-        then: [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 }] }],
+        then: [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 }, { op: 'add', path: ['points'], value: 3, bounds: 'clamp' }] }],
     // The story has no kind that sets `alive`: death comes only through this latch. (The reader may still fix `alive` with the pencil.)
     // Death is a latch over two reply-end functions, run in this order: the first ends the story only when the
     // character was already Down when the reply started; the second then records whether they are Down now.

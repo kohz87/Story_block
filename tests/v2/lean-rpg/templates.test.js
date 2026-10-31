@@ -107,11 +107,11 @@ test('the Foes block has four slots of name, count, class and health stage', () 
     }
 });
 
-test('a rise is a plain rule: XP at 100 raises the Soul Class and resets XP, practice at 100 raises the rank', () => {
+test('a rise is a plain rule: XP at 100 raises the Soul Class, resets XP and gives 3 points, practice at 100 raises the rank', () => {
     const character = template('Character');
     const classUp = character.rules.find(rule => rule.id === 'class-up');
     assert.deepEqual(classUp.when, ['and', ['ge', ['get', ['xp']], 100], ['lt', ['get', ['soul']], 9]]);
-    assert.deepEqual(classUp.then, [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 }]);
+    assert.deepEqual(classUp.then, [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 }, { op: 'add', path: ['points'], value: 3, bounds: 'clamp' }], 'each rise also gives 3 points to spend (2.9.1)');
     for (const rule of template('Skills').rules) {
         const n = rule.id.at(-1);
         assert.deepEqual(rule.when, ['and', ['ge', ['get', [`practice${n}`]], 100], ['lt', ['get', [`rank${n}`]], 3]]);

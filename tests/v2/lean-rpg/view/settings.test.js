@@ -103,7 +103,7 @@ test('Custom: six fields with their ranges, started from the numbers in force; t
     const input = key => root.querySelector(`[data-rule="${key}"]`);
     assert.deepEqual(['foeBase', 'costMargin', 'decisiveMargin', 'roundCap'].map(key => [input(key).getAttribute('min'), input(key).getAttribute('max')]), [['0', '15'], ['0', '5'], ['4', '15'], ['1', '8']]);
     assert.deepEqual(input('classWeight').querySelectorAll('option').map(node => node.textContent), ['×1', '×2', '×3']);
-    assert.deepEqual(input('statDivisor').querySelectorAll('option').map(node => node.textContent), ['half the stat', 'a third of the stat']);
+    assert.deepEqual(input('statDivisor').querySelectorAll('option').map(node => node.textContent), ['half the stat', 'a third of the stat', 'full above 10']);
     assert.equal(oddsText(root), 'Success 52%At a cost 5%Fail 43%', 'Harsh\'s numbers, so Harsh\'s odds');
     typeInto(input('foeBase'), '3');
     typeInto(input('costMargin'), '3');

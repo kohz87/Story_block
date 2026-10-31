@@ -38,6 +38,40 @@ test('Character: 100 XP raises the Soul Class by one and starts XP again; a swip
     rebuilt(host);
 });
 
+test('Character: each Soul Class rise gives 3 points to spend, clamped at the points field\'s 60; at Soul Class IX there is no rise and no points; a swipe takes them back', async t => {
+    const host = await story(t, 'Character');
+    await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 60')));
+    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').xp, sheet(host, 'character').points], [1, 60, 0]);
+    await host.send('Fight on.', reply(line('character', 'add-xp', ' | amount: 50')));
+    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').xp, sheet(host, 'character').points], [2, 0, 3], 'class +1, XP 0, points +3');
+    rebuilt(host);
+    await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
+    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [1, 0], 'the swipe takes the points back with the rise');
+    rebuilt(host);
+    // A second rise adds three more.
+    await host.send('More.', reply(line('character', 'add-xp', ' | amount: 100')));
+    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [2, 3]);
+    await host.send('And more.', reply(line('character', 'add-xp', ' | amount: 100')));
+    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [3, 6]);
+    rebuilt(host);
+});
+
+test('Character: the points stay within their 60 (clamp), and Soul Class IX gets nothing more from XP', async t => {
+    const nearly = definition('Character');
+    nearly.state.points.default = 59;
+    const top = definition('Character');
+    top.slug = 'top'; top.name = 'Top';
+    top.state.soul.default = 9; top.state.points.default = 5;
+    const host = await createHost(); t.after(() => host.close());
+    await host.send('Begin.', 'Opening.');
+    success(await host.sdk.command('dm.define', { definition: nearly }));
+    success(await host.sdk.command('dm.define', { definition: top }));
+    await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 100'), line('top', 'add-xp', ' | amount: 100')));
+    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [2, 60], '59 + 3 stays at 60');
+    assert.deepEqual([sheet(host, 'top').soul, sheet(host, 'top').xp, sheet(host, 'top').points], [9, 100, 5], 'at IX: no class-up, XP stays, no points');
+    rebuilt(host);
+});
+
 test('Character: the death latch, by stage name, and the end card', async t => {
     const host = await story(t, 'Character');
     await host.send('Hit.', reply(line('character', 'set-health', ' | to: Down')));

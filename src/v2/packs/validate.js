@@ -25,7 +25,7 @@ import { MAX_COINS, MAX_COIN_VALUE, coinsOf } from '../domains/money.js';
 import { validateDataModules, dataModulesPackHash } from '../data-modules/check.js';
 import { STRINGS } from '../strings.js';
 
-export const HOST_VERSION = '2.9.0';
+export const HOST_VERSION = '2.9.1';
 
 /** A slug for a display name: "Iron Sword (old)" → "iron-sword-old". */
 export function slugify(name) {

@@ -10,10 +10,13 @@
 //   Review  everything; Create makes the Character block and the Skills block with ONE `dm.define` each, the wizard's values
 //           written as the new definitions' field defaults (wizard-data.js buildDefinitions): no `dm.set`, so a skill's rank stays a
 //           field only play can move, and the reply's budget is spent twice. If the second define fails the first block is removed
-//           again: nothing is left half made.
+//           again: nothing is left half made. When the chat has no Combat rules block and/or no Foes block, Create also defines the missing
+//           ones from the stock templates (one more define each, after the character, so one swipe takes everything back); if they do not
+//           fit (the block limit, the reply's actions) or one is refused, the character stays and the dialog says which block was not added.
 // The draft lives here, in the wizard's session (the dialog's own draft is not used); each step is a widget of this file drawing from
 // it, so Back and Next keep what was typed. Every node is built with createElement and textContent.
 
+import { DM_LIMITS } from '../../data-modules/schema.js';
 import { h, shell } from '../../view/widgets/dom.js';
 import { radar } from '../../view/widgets/radar.js';
 import { stepper } from '../../view/widgets/stepper.js';
@@ -22,12 +25,13 @@ import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
-import { CLASS_NAMES } from '../names.js';
 import { joinDraft } from '../join.js';
-import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
+import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newSoul, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
     START_RANKS, statsLine, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
 const W = RPG_STRINGS.wizard;
+// What the characters the wizard makes call their Soul Class (the Character template's own label and names).
+const soulWords = newSoul();
 export const WIZARD_SCREEN_ID = 'story-block/new-character';
 export const WIZARD_WIDGET = 'rpg.wizard';
 
@@ -46,7 +50,8 @@ export function createWizardScreen() {
 // What the story has now that the wizard needs: the persona's name, the characters' names, whether one is already you, room for two blocks.
 function worldOf(state, persona, roleOf, replyKey = '') {
     const party = readParty(state, { own: persona, roleOf });
-    return { persona, names: party.map(character => character.name), hasYou: party.some(character => character.own), room: hasRoom(state), free: actionsFree(state, replyKey),
+    const free = actionsFree(state, replyKey);
+    return { persona, names: party.map(character => character.name), hasYou: party.some(character => character.own), room: hasRoom(state), free, extras: extrasPlan(state, { roleOf, free }),
         used: Object.keys(state?.domains?.dataModules?.active ?? {}) };
 }
 
@@ -70,7 +75,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
         const draft = prefill ? joinDraft(prefill) : { ...newDraft({ persona: now.persona, hasYou: now.hasYou }) };
         // Only a You starts with the persona's description, and only into an empty box: a companion starts empty.
         if (!prefill && draft.kind === 'you' && about) draft.about = about;
-        return { draft, handle: null, busy: false, message: '', created: false, about: prefill ? '' : about, onEnd: null };
+        return { draft, handle: null, busy: false, message: '', created: false, finished: '', about: prefill ? '' : about, onEnd: null };
     };
     const current = () => { session ??= fresh(); return session; };
 
@@ -150,7 +155,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 who.appendChild(h(doc, 'span', 'rpg-wiz-ava', [...now.name][0]?.toUpperCase() ?? '?'));
                 const k = h(doc, 'div', 'rpg-wiz-k');
                 k.appendChild(h(doc, 'span', 'rpg-wiz-name', now.name || W.title));
-                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { name: CLASS_NAMES[(now.soul ?? 1) - 1] ?? 'I' })}`));
+                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { label: soulWords.label, name: soulWords.word(now.soul ?? 1) })}`));
                 who.appendChild(k);
                 summary.appendChild(who);
                 const part = (label, text) => {
@@ -216,7 +221,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 showPersona();
                 about.addEventListener('input', () => { put({ ...draft(), about: about.value }); count.textContent = fill(W.aboutCount, { n: [...about.value].length, max: CREATION.about }); showPersona(); });
                 form.appendChild(fromPersona);
-                form.appendChild(h(doc, 'p', 'rpg-wiz-note', draft().soul > 1 ? fill(W.whoNoteSoul, { name: CLASS_NAMES[snap().soul - 1] }) : W.whoNote));
+                form.appendChild(h(doc, 'p', 'rpg-wiz-note', draft().soul > 1 ? fill(W.whoNoteSoul, { label: soulWords.label, name: soulWords.word(snap().soul) }) : fill(W.whoNote, { label: soulWords.label, first: soulWords.word(1) })));
             }
 
             // ---- Stats ----
@@ -229,14 +234,17 @@ export function createWizard({ headState = () => null, readerName = () => '', re
             }
             function drawStats() {
                 const now = snap(), left = pointsLeft(now);
-                const sheet = h(doc, 'div', 'rpg-sheet-body rpg-wiz-stats');
-                const grid = h(doc, 'div', 'rpg-steppers');
+                // One card (the Spend points view's): an even grid of label-over-stepper cells with the radar beside it, then Reset and the help
+                // under the grid's left edge. The points left show once, in the summary row above, so the steppers leave their own line out.
+                const card = h(doc, 'div', 'rpg-wiz-stats-card');
+                const sheet = h(doc, 'div', 'rpg-sheet-body rpg-wiz-stats-body');
+                const grid = h(doc, 'div', 'rpg-steppers rpg-wiz-steppers');
                 sheet.appendChild(grid);
                 for (const stat of STATS) {
                     const slot = h(doc, 'div', 'rpg-stat-step');
                     slot.setAttribute('data-stat', stat);
                     grid.appendChild(slot);
-                    const handle = stepper.render(slot, { name: stat, value: now.stats[stat], min: CREATION.min, max: CREATION.max, budget: left, label: stat.toUpperCase(), budgetLabel: RPG_STRINGS.sheet.budgetLabel },
+                    const handle = stepper.render(slot, { name: stat, value: now.stats[stat], min: CREATION.min, max: CREATION.max, budget: left, label: stat.toUpperCase(), showBudget: false },
                         { onDraft: (name, value) => { if (STATS.includes(name) && Number.isSafeInteger(value)) put({ ...draft(), stats: { ...snap().stats, [name]: value } }); refreshStats(); } });
                     handles.push(handle);
                     steppers.push(handle);
@@ -245,11 +253,12 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 radarHandle = radar.render(chart, { axes: axes(now), max: 20, label: fill(W.radar, { name: now.name || W.title }), tone: 'accent' }, {});
                 handles.push(radarHandle);
                 sheet.appendChild(chart);
-                body.appendChild(sheet);
-                const actions = h(doc, 'div', 'rpg-actions');
+                card.appendChild(sheet);
+                const actions = h(doc, 'div', 'rpg-actions rpg-wiz-stats-actions');
                 button(actions, W.statsReset, 'ss-button rpg-wiz-reset', () => { put({ ...draft(), stats: Object.fromEntries(STATS.map(stat => [stat, CREATION.start])) }); redraw(); });
-                actions.appendChild(h(doc, 'p', 'rpg-sheet-note', fill(W.statsNote, CREATION)));
-                body.appendChild(actions);
+                actions.appendChild(h(doc, 'p', 'rpg-sheet-note', fill(W.statsNote, { ...CREATION, label: soulWords.label })));
+                card.appendChild(actions);
+                body.appendChild(card);
             }
 
             // ---- Skills ----
@@ -318,7 +327,9 @@ export function createWizard({ headState = () => null, readerName = () => '', re
             }
 
             // ---- Review ----
+            const whyNot = skipped => fill(skipped.some(item => item.why === 'room') ? W.extraRoom : W.extraActions, { max: DM_LIMITS.definitions });
             function drawReview() {
+                if (current().finished) { drawFinished(); return; }
                 const now = snap(), where = world();
                 const problems = problemsOf(now, where);
                 const names = blockNames(now.name || '…');
@@ -334,10 +345,21 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 for (const skill of now.skills) skills.appendChild(h(doc, 'li', '', `${skill.name || '—'} · ${skill.stat.toUpperCase()} · ${W[skill.uses]} · ${W.startsAt} ${RANK_NAMES[skill.start]}`));
                 if (!now.skills.length) skills.appendChild(h(doc, 'li', '', W.noSkills));
                 list.appendChild(skills);
-                list.appendChild(h(doc, 'p', 'rpg-wiz-note', now.soul > 1 ? fill(W.reviewStartSoul, { name: CLASS_NAMES[now.soul - 1] }) : W.reviewStart));
+                list.appendChild(h(doc, 'p', 'rpg-wiz-note', now.soul > 1 ? fill(W.reviewStartSoul, { label: soulWords.label, name: soulWords.word(now.soul) }) : fill(W.reviewStart, { label: soulWords.label, first: soulWords.word(1) })));
                 const left = Math.max(0, pointsLeft(now));
                 if (left > 0) list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(left === 1 ? W.reviewLeftOne : W.reviewLeft, { n: left })));
                 list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(W.reviewBlocks, { character: names.character, skills: names.skills })));
+                const { add, skipped } = where.extras;
+                if (add.length) {
+                    const also = h(doc, 'p', 'rpg-wiz-note', fill(W.reviewAlso, { list: add.map(extraName).join(', ') }));
+                    also.setAttribute('data-review', 'also');
+                    list.appendChild(also);
+                }
+                if (skipped.length && where.room) {
+                    const not = h(doc, 'p', 'rpg-wiz-note', fill(W.reviewNotAdded, { list: skipped.map(item => extraName(item.role)).join(', '), why: whyNot(skipped) }));
+                    not.setAttribute('data-review', 'not-added');
+                    list.appendChild(not);
+                }
                 const bad = h(doc, 'ul', 'rpg-wiz-problems');
                 bad.setAttribute('role', 'alert');
                 bad.hidden = problems.length === 0;
@@ -351,6 +373,17 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 status.setAttribute('role', 'status');
                 actions.appendChild(status);
                 body.appendChild(actions);
+            }
+
+            // The character is made but a block the fights need was not: the window stays to say so, and Done closes it.
+            function drawFinished() {
+                const box = h(doc, 'div', 'rpg-wiz-review');
+                const status = h(doc, 'p', 'rpg-wiz-status', current().finished);
+                status.setAttribute('role', 'status');
+                box.appendChild(status);
+                const actions = h(doc, 'div', 'rpg-actions');
+                button(actions, W.finish, 'ss-button ss-button-primary rpg-wiz-done', () => { current().handle?.close?.(); });
+                body.append(box, actions);
             }
 
             // Create: two defines, the Character first; if the second fails the first is taken back, so nothing is left half made.
@@ -380,8 +413,24 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                         failure = undone.ok ? fill(W.failedSecond, { why }) : fill(W.failedBoth, { why, name: definitions.character.name });
                     }
                 }
+                // The blocks the fights need that the story lacks (best effort: the character is made whatever happens here).
+                let unadded = [];
+                if (!failure) {
+                    unadded = where.extras.skipped.map(item => ({ role: item.role, why: whyNot([item]) }));
+                    const used = [...where.used, `pack.chat/${definitions.character.slug}`, `pack.chat/${definitions.skills.slug}`];
+                    for (const definition of extraDefinitions(where.extras.add, { used })) {
+                        const made = await call('dm.define', { definition });
+                        if (!made.ok) unadded.push({ role: definition.role, why: refusalText(made, W.generic) });
+                    }
+                }
                 run.busy = false;
                 run.message = failure;
+                if (!failure && unadded.length) {
+                    run.created = true;
+                    run.finished = fill(W.madeButNot, { name: now.name, list: unadded.map(item => extraName(item.role)).join(', '), why: [...new Set(unadded.map(item => item.why))].join(' '), hint: W.extraHint });
+                    if (alive) redraw();
+                    return { ok: true };
+                }
                 if (!failure) { run.created = true; run.handle?.close?.(); return { ok: true }; }
                 if (alive) { make.disabled = false; make.textContent = W.create; status.textContent = failure; }
                 return { ok: false };

@@ -85,7 +85,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 const pills = h(doc, 'div', 'rpg-pills');
                 if (character.left) pills.appendChild(h(doc, 'span', 'ss-pill rpg-fallen-pill rpg-left-pill', P.left));
                 else if (!character.alive) pills.appendChild(h(doc, 'span', 'ss-pill rpg-fallen-pill', P.fallen));
-                pills.appendChild(h(doc, 'span', 'ss-pill', fill(P.soul, { name: character.soulName })));
+                pills.appendChild(h(doc, 'span', 'ss-pill', fill(P.soul, { label: character.soulLabel, name: character.soulName })));
                 if (character.points > 0) pills.appendChild(h(doc, 'span', 'ss-pill rpg-points', fill(character.points === 1 ? P.pointsOne : P.points, { n: character.points })));
                 top.append(who, pills);
                 node.appendChild(top);
