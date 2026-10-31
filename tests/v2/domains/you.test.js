@@ -355,7 +355,7 @@ test('the game view\'s header: props from the query (none while the feature is o
 // ---------------------------------------------------------------------------------------------------
 // Rank comes from a pack (`content.you.rank`): other kinds of game have none
 
-test('no pack gives a Rank: none anywhere (no grammar word, no answer, no tail word, no Home line); `~ you rank:` is refused; the rest works', async t => {
+test('no pack gives a Rank: none anywhere (no grammar word, no answer, no tail word, no Home line); `~ you rank:` drops only the rank part; the rest works', async t => {
     const host = await fresh(t, { rank: false });
     assert.equal(host.sdk.query('packs.youRank'), null);
     const line = staticText(host).split('\n').find(item => item.startsWith('~ you '));
@@ -364,11 +364,21 @@ test('no pack gives a Rank: none anywhere (no grammar word, no answer, no tail w
     assert.deepEqual(host.sdk.query('scene.you'), { wearing: '', condition: '' }, 'no rank, no label in the answer');
     await host.send('We walk.', block('Rain.', ['~ you rank: F-rank | wearing: a coat']));
     const told = host.turn.problems().filter(item => item.index === lastIndex(host));
-    assert.deepEqual(told.map(item => item.code), ['INVALID']);
+    assert.equal(told.length, 1, 'one plain Problem');
     assert.match(told[0].message, /This story has no rank/);
-    assert.equal(host.head().domains.scene.you, undefined, 'the whole line was refused: nothing saved');
+    assert.deepEqual(host.sdk.query('scene.you'), { wearing: 'a coat', condition: '' }, 'only the rank part was left out: the wearing is kept');
+    assert.equal(host.head().domains.scene.you.rank, '', 'no rank saved');
+    // The rank alone is still refused whole (nothing to keep).
+    await host.send('Rain.', block('Rain.', ['~ you rank: F-rank']));
+    assert.equal(host.turn.problems().filter(item => item.index === lastIndex(host)).length, 1);
+    assert.deepEqual(host.sdk.query('scene.you'), { wearing: 'a coat', condition: '' });
     await host.send('On.', block('Rain.', ['~ you wearing: a coat | condition: wet']));
     assert.deepEqual(host.sdk.query('scene.you'), { wearing: 'a coat', condition: 'wet' });
+    // An empty rank part, wearing and condition: wearing and condition apply, the rank part is one Problem.
+    await host.send('On.', block('Rain.', ['~ you rank: | wearing: a hat | condition: dry']));
+    assert.equal(host.turn.problems().filter(item => item.index === lastIndex(host)).length, 1);
+    assert.deepEqual(host.sdk.query('scene.you'), { wearing: 'a hat', condition: 'dry' });
+    await host.send('On.', block('Rain.', ['~ you wearing: a coat | condition: wet']));
     await host.send('On.', 'On.');
     assert.match(tailText(host), /^You: wears a coat; condition wet$/m);
     assert.doesNotMatch(tailText(host), /rank/i);
