@@ -3,7 +3,7 @@
 // no marker the same panel is a card under the reply, above "Changed this reply". It has a one-line header that folds
 // (the fold is the viewer's: localStorage, per chat and reply), the turn order, one short line per action with the
 // coloured result word and "(26 vs 16)", the breakdown on tap, the consequence arrow ("→ Sluice Rat A Wounded", from
-// the reply's word changes), a Status grid with aligned solid bars and a Foes line. A check shows as one line.
+// the reply's word changes), a Status grid with aligned solid bars (coloured by stage, like the Party tab's) and a Foes line. A check shows as one line.
 //
 // Nothing the panel shows is stored in the chat text: it is read from the record and the state each time, so a swipe,
 // a delete, a Re-read and a reload agree. Every node is built with createElement and textContent.
@@ -22,6 +22,8 @@ import { RPG_STRINGS, fill } from '../strings.js';
 import { BARS, readFoes, readParty } from './party-data.js';
 
 const B = RPG_STRINGS.battle;
+// The result word of a foe's attack, by the recorded outcome (the party's): the colour stays the outcome's (fail red, cost amber, success green).
+const FOE_WORDS = Object.freeze({ fail: B.foeHit, cost: B.foeGrazed, success: B.foeBlocked });
 export const BATTLE_ROOT = 'rpg-battle';
 export const BATTLE_ID = 'lean-rpg/battle-log';
 /** The narrator's marker: a line of its own. (turn.js strips the same line from the prompt history.) */
@@ -52,7 +54,8 @@ const pcRoll = (pc, skill) => ({ d20: pc.die, total: pc.total, parts: [
     { label: skill ? RANK_NAMES[pc.rank] ?? `Rank ${pc.rank}` : '', value: pc.rank }, { label: 'Edge', value: pc.edge }] });
 const foeRoll = foe => ({ d20: foe.die, total: foe.total, parts: [{ label: '', value: foe.base }, { label: `Class ${CLASS_NAMES[foe.classValue - 1] ?? foe.classValue}`, value: foe.classBonus }] });
 
-// One Line as the panel draws it: who acts, on whom, the party's total against the other side's, and the roll behind it.
+// One Line as the panel draws it: who acts, on whom, the acting side's total against the other's, and the roll behind it. A party
+// act or check reads the party's total first; a foe's attack reads from the attacker's side, so the foe's total and roll come first.
 function lineOf(raw) {
     if (!isRecord(raw) || !isRecord(raw.pc) || !Number.isFinite(raw.pc.total)) return null;
     const outcome = outcomeOf(raw.outcome);
@@ -60,9 +63,10 @@ function lineOf(raw) {
     const skill = words(raw.skill, 40), why = words(raw.why, 120);
     const mine = pcRoll(raw.pc, skill && raw.kind !== 'foe');
     const against = raw.kind === 'check' ? (Number.isFinite(raw.dc) ? raw.dc : null) : foeSide?.total ?? null;
-    const detail = [rollText(mine), foeSide ? rollText(foeRoll(foeSide)) : against !== null ? `DC ${against}` : ''].filter(Boolean).join(' vs ');
+    const theirs = foeSide ? rollText(foeRoll(foeSide)) : against !== null ? `DC ${against}` : '';
+    const detail = (raw.kind === 'foe' ? [theirs, rollText(mine)] : [rollText(mine), theirs]).filter(Boolean).join(' vs ');
     const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown: why ? `${detail} · ${why}` : detail, arrows: [] };
-    if (raw.kind === 'foe') return { ...base, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
+    if (raw.kind === 'foe') return { ...base, total: foeSide?.total ?? null, vs: raw.pc.total, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
     if (raw.kind === 'check') return { ...base, who: words(raw.pc.who, 40), target: '', stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, what: skill || words(raw.pc.stat, 12).toUpperCase() };
     return { ...base, who: words(raw.pc.who, 40), target: words(foeSide?.name, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false };
 }
@@ -168,7 +172,7 @@ function lineNode(doc, line, { check = false } = {}) {
     const mark = el(doc, 'span', 'rpg-act-mark', line.breakdown ? '▸' : '');
     mark.setAttribute('aria-hidden', 'true');
     const text = el(doc, 'span', 'rpg-act-text');
-    const outcome = line.outcome ? B[line.outcome] : '';
+    const outcome = line.outcome ? (line.foe ? FOE_WORDS[line.outcome] : B[line.outcome]) : '';
     if (check) text.append(fill(B.check, { who: line.who, what: line.what, total: line.total ?? '?', against: line.vs ?? '?', outcome }));
     else {
         text.append(`${line.who} ${line.skill ? B.uses : B.attacks} `);
@@ -250,7 +254,7 @@ export function buildPanel(doc, model, { folded = false, onFold = () => {}, vari
             const cells = el(doc, 'div', 'rpg-bl-stats');
             row.appendChild(cells);
             for (const bar of who.rows) {
-                const cell = el(doc, 'span', `rpg-bl-stat rpg-bl-${bar.key}`);
+                const cell = el(doc, 'span', `rpg-bl-stat rpg-bl-${bar.key} rpg-bl-tone-${bar.tone ?? 'neutral'}`);
                 const track = el(doc, 'span', 'rpg-bl-track');
                 track.setAttribute('aria-hidden', 'true');
                 track.style.setProperty('--rpg-fill', String(bar.max > 0 ? Math.round((bar.value / bar.max) * 1000) / 1000 : 0));
@@ -355,7 +359,7 @@ export function createFoldStore(doc) {
 
 /**
  * createBattleLog({ ctx, doc, store, events, featureOn, roleOf, messageElement? })
- * → { refresh(index, element?), refreshAll({ recent }), modelAt(index), destroy() }.
+ * → { refresh(index, element?), refreshAll({ recent }), modelAt(index), latest(), destroy() }.
  * Draws, redraws or removes the panel of every drawn reply that has recorded rolls; `featureOn()` false removes them all.
  */
 export function createBattleLog({ ctx, doc = globalThis.document, store, events = null, featureOn = () => true, roleOf, messageElement = null } = {}) {
@@ -380,6 +384,15 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
         const state = resolve ? stateAt(index) : null;
         if (!state) return null;
         return { key: `${chatKey()}|${record.sid ?? index}`, model: panelModel({ resolve, state, before: beforeOf(index), roleOf }) };
+    }
+
+    /** The latest reply (of the last RECENT_MESSAGES) with recorded rolls: { index, key, model } or null. */
+    function latest() {
+        for (let index = chat().length - 1; index >= Math.max(0, chat().length - RECENT_MESSAGES); index -= 1) {
+            const shown = modelAt(index);
+            if (shown) return { index, ...shown };
+        }
+        return null;
     }
 
     const panelsIn = message => Array.from(message.querySelectorAll(`.${BATTLE_ROOT}`));
@@ -456,7 +469,7 @@ export function createBattleLog({ ctx, doc = globalThis.document, store, events 
     }
 
     return {
-        refresh, refreshAll, modelAt,
+        refresh, refreshAll, modelAt, latest,
         destroy() {
             offs.splice(0).forEach(off => off());
             for (const node of doc.querySelectorAll(`.${BATTLE_ROOT}`)) node.remove();

@@ -33,11 +33,11 @@ const state = fields => fakeState([
 const before = state({ wessel: { health: 5, mana: 3 }, ren: { stamina: 3 }, foes: { hurt1: 5, hurt2: 5 } });
 const after = state({ wessel: { health: 4 }, ren: { stamina: 2 }, foes: { hurt1: 2, hurt2: 3 } });
 
-test('the adapter reads A\'s record: party total against foe total, who acts on whom, the roll behind each line', () => {
+test('the adapter reads A\'s record: the acting side\'s total first, who acts on whom, the roll behind each line', () => {
     const read = readResolve(result());
     assert.equal(read.rounds.length, 1);
     assert.deepEqual(read.rounds[0].lines.map(line => [line.who, line.target, line.outcome, line.total, line.vs, line.foe]),
-        [['Sluice Rat A', 'Wessel', 'fail', 12, 15, true], ['Wessel', 'Sluice Rat A', 'success', 26, 16, false], ['Ren', 'Sluice Rat B', 'cost', 17, 18, false]]);
+        [['Sluice Rat A', 'Wessel', 'fail', 15, 12, true], ['Wessel', 'Sluice Rat A', 'success', 26, 16, false], ['Ren', 'Sluice Rat B', 'cost', 17, 18, false]]);
     assert.equal(read.rounds[0].lines[1].breakdown, 'd20 14 + STR 7 + Class II 4 + Adept 1 = 26 vs d20 9 + 5 + Class I 2 = 16');
     assert.equal(read.rounds[0].lines[2].breakdown, 'd20 10 + INT 5 + Class II 4 − Edge 2 = 17 vs d20 9 + 5 + Class I 2 = 18 · cornered');
     assert.deepEqual(read.order, ['Sluice Rat A', 'Wessel', 'Ren'], 'the order of the first round');
@@ -92,7 +92,7 @@ test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, a
     assert.equal(node.querySelector('.rpg-bl-order').textContent, 'Turn order: Sluice Rat A > Wessel > Ren');
     assert.equal(node.querySelector('.rpg-bl-round-title').textContent, 'Round 2');
     assert.deepEqual(node.querySelectorAll('.rpg-act-text').map(line => line.textContent), [
-        'Sluice Rat A attacks Wessel — Fail (12 vs 15) → Wessel Scratched',
+        'Sluice Rat A attacks Wessel — Hit (15 vs 12) → Wessel Scratched',
         'Wessel uses Iron Breath on Sluice Rat A — Success (26 vs 16) → Sluice Rat A Wounded',
         'Ren uses Spark on Sluice Rat B — Success at a cost (17 vs 18) → Sluice Rat B Hurt, Ren Tired',
     ]);
@@ -103,6 +103,43 @@ test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, a
     assert.equal(wessel.querySelector('.rpg-bl-health .rpg-bl-track').style.getPropertyValue('--rpg-fill'), '0.8');
     assert.equal(wessel.querySelector('.rpg-bl-mana .rpg-bl-track').style.getPropertyValue('--rpg-fill'), '0.75');
     assert.equal(node.querySelector('.rpg-bl-foes').textContent, 'FoesSluice Rat A: Wounded · Sluice Rat B: Hurt · Sluice Rats ×4: Unhurt');
+});
+
+// A foe's attack read from the attacker's side: the recorded outcome is the party's, so a party fail is a Hit, a cost a Graze, a success a Block.
+test('a foe\'s attack says Hit, Grazed or Blocked in the outcome\'s colour, the foe\'s total first; the party\'s acts and checks are as they were', () => {
+    const doc = setupDom();
+    const line = (outcome, foeTotal, pcTotal) => ({ kind: 'foe', outcome, skill: null, pc: pc('Wessel', 'agi', { total: pcTotal }), foe: foe('Sluice Rat A', { total: foeTotal }) });
+    const model = panelModel({ resolve: readResolve({ rounds: [{ n: 1, lines: [line('fail', 19, 12), line('cost', 15, 14), line('success', 15, 23),
+        { kind: 'act', outcome: 'fail', skill: 'Iron Breath', pc: pc('Wessel', 'str', { total: 9 }), foe: foe('Sluice Rat A', { total: 14 }) }] }],
+        checks: [{ kind: 'check', outcome: 'fail', skill: 'Stealth', dc: 15, pc: pc('Ren', 'dex', { total: 8 }) }] }), state: after, before, roleOf });
+    const node = buildPanel(doc, model);
+    assert.deepEqual(node.querySelectorAll('.rpg-act-text').map(item => item.textContent.replace(/ → .*$/, '')), [
+        'Ren — Stealth: 8 vs 15 — Fail',
+        'Sluice Rat A attacks Wessel — Hit (19 vs 12)',
+        'Sluice Rat A attacks Wessel — Grazed (15 vs 14)',
+        'Sluice Rat A attacks Wessel — Blocked (15 vs 23)',
+        'Wessel uses Iron Breath on Sluice Rat A — Fail (9 vs 14)',
+    ]);
+    assert.deepEqual(node.querySelectorAll('.rpg-out').map(word => word.className), ['rpg-out rpg-out-fail', 'rpg-out rpg-out-cost', 'rpg-out rpg-out-success', 'rpg-out rpg-out-fail']);
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
+    assert.match(css, /\.rpg-out-fail \{[^}]*--ss-bad/);
+    assert.match(css, /\.rpg-out-cost \{[^}]*--ss-warn/);
+    assert.match(css, /\.rpg-out-success \{[^}]*--ss-good/);
+});
+
+test('the Status bars are coloured by stage, as the Party tab\'s are, not by resource', () => {
+    const { node, model } = panel();
+    const tones = rows => rows.map(row => [row.key, row.tone]);
+    // Wessel: Scratched 4/5, Steady 3/4, Tired 2/4. Ren: Hurt 3/5, Drained-ish 2/4, Tired 2/4.
+    assert.deepEqual(tones(model.status[0].rows), [['health', 'good'], ['mana', 'good'], ['stamina', 'warn']]);
+    assert.deepEqual(tones(model.status[1].rows), [['health', 'warn'], ['mana', 'warn'], ['stamina', 'warn']]);
+    const cells = who => node.querySelectorAll(`.rpg-bl-who[data-who="${who}"] .rpg-bl-stat`);
+    assert.deepEqual(cells('Wessel').map(cell => cell.className.split(' ').filter(name => name.startsWith('rpg-bl-tone-'))), [['rpg-bl-tone-good'], ['rpg-bl-tone-good'], ['rpg-bl-tone-warn']]);
+    const bad = panelModel({ resolve: readResolve(result()), state: state({ wessel: { health: 1, mana: 0, stamina: 4 } }), before, roleOf });
+    assert.deepEqual(tones(bad.status[0].rows), [['health', 'bad'], ['mana', 'bad'], ['stamina', 'good']]);
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
+    for (const tone of ['good', 'warn', 'bad']) assert.match(css, new RegExp(`\\.rpg-bl-tone-${tone} \\.rpg-bl-fill \\{[^}]*--ss-${tone}`));
+    assert.doesNotMatch(css, /\.rpg-bl-(health|mana|stamina) \.rpg-bl-fill/, 'no colour by resource');
 });
 
 test('the breakdown is on tap, for every line', () => {
@@ -117,7 +154,7 @@ test('the breakdown is on tap, for every line', () => {
     assert.equal(line.getAttribute('aria-expanded'), 'true');
     line.click();
     assert.equal(why.hidden, true);
-    assert.match(rat.querySelector('.rpg-why').textContent, /^d20 6 \+ AGI 5 \+ Class II 4 = 12 vs d20 11 \+ 5 \+ Class I 2 = 15$/, 'a foe\'s attack: the defender\'s roll first');
+    assert.match(rat.querySelector('.rpg-why').textContent, /^d20 11 \+ 5 \+ Class I 2 = 15 vs d20 6 \+ AGI 5 \+ Class II 4 = 12$/, 'a foe\'s attack: the attacker\'s roll first');
     assert.match(ren.querySelector('.rpg-why').textContent, / · cornered$/);
 });
 
@@ -283,6 +320,18 @@ test('the fold is the viewer\'s: kept per chat and reply, not in the story', asy
     assert.notEqual(again, node);
     assert.ok(!JSON.stringify(host.ctx.chat).includes('rpg-bl'), 'nothing of the panel is in the chat');
     assert.equal(createFoldStore(setupDom()).has('x'), false, 'a page with no storage still works');
+});
+
+test('latest() is the newest reply with recorded rolls, with its model; none when the feature is off or nothing was rolled', async t => {
+    const { host, log, head } = await world(t);
+    const found = log.latest();
+    assert.equal(found.index, head);
+    assert.equal(found.model.rounds[0].n, 2);
+    await host.send('Later.', 'A quiet reply.');
+    assert.equal(log.latest().index, head, 'a later reply without rolls does not hide the last exchange');
+    const off = createBattleLog({ ctx: host.ctx, doc: setupDom(), store: host.store, featureOn: () => false, roleOf });
+    assert.equal(off.latest(), null);
+    off.destroy();
 });
 
 test('refreshAll goes over every drawn reply', async t => {
