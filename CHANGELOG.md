@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.9.1
+
+- **Making your character sets up the RPG for the chat.** If the chat has no Combat rules or Foes block yet, the New
+  character wizard's Create adds them too, and its Review step says "Also adds: Combat rules, Foes". A first companion
+  who joins brings them in the same way. Chats that already have characters are unchanged.
+- **Each Soul Class rise gives 3 stat points**, shown in "Changed this reply" as "+3 points to spend". This applies to
+  characters made from 2.9.1 on. An older character can be given points with the Points pencil.
+- A `- party` line that names your own character is refused; companions only.
+- The wizard's Stats step lines up like Spend points: padded, an even grid of steppers beside the radar (two columns on
+  a phone), and no repeated "Points left" under each stat.
+
 ## 2.9.0
 
 - **A new chat with the RPG.**
