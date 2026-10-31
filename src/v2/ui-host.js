@@ -168,6 +168,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     }, save: () => ctx.saveSettingsDebounced?.() });
     const blockWidgets = createBlockWidgets({ templates: blockTemplates,
         directorOn: () => registry.lifecycle?.('story-director')?.status === 'ready',
+        // Off unless Story Block's core is there to own the switch (unlike coreOn, which counts a missing feature as on).
+        leanRpgOn: () => (registry.feature?.(CORE_FEATURE.leanRpg) ? registry.featureOn(CORE_FEATURE.leanRpg) : false),
         navigate: () => mounts.screen.open(BLOCKS_SCREEN_ID) });
     // The host's own widgets: the Inspector (over the store's replay) and the save points (over the chat).
     const liveCtx = () => globalThis.SillyTavern?.getContext?.() ?? ctx;

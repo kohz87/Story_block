@@ -2,7 +2,8 @@
 import { h, shell } from '../view/widgets/dom.js';
 import { editable } from '../view/widgets/editable.js';
 import { renderBlockEditor } from './blocks-editor.js';
-import { editableBlockDraft } from '../data-modules/block-builder.js';
+import { editableBlockDraft, uniqueBlockSlug } from '../data-modules/block-builder.js';
+import { dmNameOf } from '../data-modules/schema.js';
 import { exportBlockPack } from '../data-modules/block-templates.js';
 import { saveTextFile } from '../view/download.js';
 import { STRINGS, fill } from '../strings.js';
@@ -17,8 +18,23 @@ export const BLOCK_CARDS_WIDGET = 'story-block.block-cards';
 export const blocksScreen = Object.freeze({ id: BLOCKS_SCREEN_ID, title: S.title, icon: 'fa-cubes',
     mounts: Object.freeze(['screen']), template: `<ss-widget name="${BLOCKS_WIDGET}"></ss-widget>`, css: BASE_CSS });
 
-export function createBlockWidgets({ templates, directorOn = () => true, navigate = () => {} } = {}) {
-    const shared = { mode: 'list', draft: null, module: null };
+// Whole values min..max all named (a choice can list them): else the number is typed and shown by its name where it has one.
+const fullyNamed = scalar => {
+    const count = scalar.max - scalar.min + 1;
+    return count >= 1 && count <= 32 && Array.from({ length: count }, (_, at) => dmNameOf(scalar, scalar.min + at)).every(name => name !== null);
+};
+
+// (`loadRpgTemplates` reads the list the first time the chooser needs it; a test hands in its own)
+export function createBlockWidgets({ templates, directorOn = () => true, leanRpgOn = () => false, navigate = () => {},
+    loadRpgTemplates = () => import('../lean-rpg/templates.js').then(loaded => loaded.LEAN_RPG_TEMPLATES) } = {}) {
+    const shared = { mode: 'list', draft: null, module: null, note: '' };
+    // The Lean RPG templates are read (a dynamic import) only when the feature is on and the chooser is open.
+    let rpgTemplates = null, rpgLoading = false;
+    const loadRpg = () => {
+        if (rpgTemplates || rpgLoading) return;
+        rpgLoading = true;
+        Promise.resolve().then(loadRpgTemplates).then(list => { rpgTemplates = Array.isArray(list) ? list : []; tell(); }, () => { rpgTemplates = []; });
+    };
     const listeners = new Set();
     const tell = () => { for (const listener of [...listeners]) listener(); };
     const ask = (api, name, args) => { try { return api?.query?.(name, args); } catch { return null; } };
@@ -60,7 +76,7 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
         head.appendChild(menu);
         const status = h(doc, 'p', 'ss-block-status'); status.setAttribute('role', 'status'); root.appendChild(status);
         if (row.packId === 'chat') {
-            button(doc, menu, S.editFields, () => { if (!open(row, move)) status.textContent = S.unsupportedEdit; });
+            button(doc, menu, S.editFields, () => { if (!open(row, move)) status.textContent = definition.role ? S.madeFromTemplate : S.unsupportedEdit; });
             button(doc, menu, S.saveTemplate, async () => {
                 let result = await templates?.put?.(definition);
                 if (result?.code === 'EXISTS' && confirm(doc, S.confirmReplace)) result = await templates.put(definition, { replace: true });
@@ -93,7 +109,15 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                     const raw = key === null ? values[field] : values[field]?.[key];
                     const props = { value: raw, label, command: schema.edit === false ? '' : 'dm.set',
                         payload: { module: row.module, field, ...(who === null ? {} : { who }), ...(key === null ? {} : { key }) } };
-                    if (scalar.type === 'int') Object.assign(props, { kind: 'number', min: scalar.min, max: scalar.max, displayMeter: true });
+                    if (scalar.type === 'int' && scalar.names) {
+                        // A number with display names shows its name (else the number); stored, it stays the number.
+                        Object.assign(props, fullyNamed(scalar)
+                            ? { kind: 'choice', options: Array.from({ length: scalar.max - scalar.min + 1 }, (_, at) => ({ value: scalar.min + at, label: scalar.names[String(scalar.min + at)] })) }
+                            : { kind: 'number', min: scalar.min, max: scalar.max }, { displayValue: false });
+                        const named = h(doc, 'span', 'ss-block-value-shown', dmNameOf(scalar, raw) ?? String(raw ?? ''));
+                        named.setAttribute('title', `${raw}/${scalar.max}`);
+                        line.insertBefore(named, slot);
+                    } else if (scalar.type === 'int') Object.assign(props, { kind: 'number', min: scalar.min, max: scalar.max, displayMeter: true });
                     else if (scalar.type === 'enum') Object.assign(props, { kind: 'choice', options: scalar.values, displayPill: true });
                     else if (scalar.type === 'bool') Object.assign(props, { kind: 'choice', options: [true, false] });
                     else if (scalar.list === true) {
@@ -131,6 +155,24 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
             }
         }
         return root;
+    }
+
+    // A Lean RPG template is a hand-written definition: it is made as it is, under a name and slug of its own when the chat has one already.
+    async function addFromTemplate(api, rows, entry, status) {
+        const definition = JSON.parse(JSON.stringify(entry.definition));
+        delete definition.id; delete definition.pack;
+        const used = rows.map(row => row.module), base = uniqueBlockSlug(definition.name, []), slug = uniqueBlockSlug(definition.name, used);
+        if (!slug) { status.textContent = S.blockName; return; }
+        const suffix = slug === base ? '' : ` ${/-(\d+)$/.exec(slug)?.[1] ?? ''}`.trimEnd();
+        definition.slug = slug;
+        if (suffix) {
+            definition.name = `${[...definition.name].slice(0, 60 - suffix.length).join('')}${suffix}`;
+            if (definition.show?.tabName) definition.show.tabName = `${[...definition.show.tabName].slice(0, 24 - suffix.length).join('')}${suffix}`;
+        }
+        const result = await api.command?.('dm.define', { definition });
+        if (!result?.ok) { status.textContent = result?.message ?? STRINGS.editable.failed; return; }
+        shared.mode = 'list'; shared.draft = null; shared.module = null; shared.note = fill(S.templateAdded, { name: definition.name });
+        tell();
     }
 
     function widget(mode) {
@@ -189,9 +231,20 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
                                     shared.draft = draft; delete shared.draft.slug;
                                     shared.module = null; shared.mode = 'editor'; tell();
                                 });
+                                if (leanRpgOn()) {
+                                    loadRpg();
+                                    if (rpgTemplates?.length) {
+                                        chooser.appendChild(h(doc, 'h4', 'ss-block-chooser-heading', S.leanRpg));
+                                        for (const entry of rpgTemplates) button(doc, chooser, fill(S.templateCounts, { name: entry.name,
+                                            fields: Object.keys(entry.definition.state ?? {}).length,
+                                            buttons: Object.values(entry.definition.kinds ?? {}).filter(kind => kind.ui).length,
+                                            rules: entry.definition.rules?.length ?? 0, timers: entry.definition.timers?.length ?? 0 }), () => addFromTemplate(api, rows, entry, status));
+                                    }
+                                }
                                 button(doc, chooser, S.cancel, () => { shared.mode = 'list'; tell(); });
                                 chooser.appendChild(status);
                             }
+                            if (shared.note) { const note = h(doc, 'p', 'ss-block-status', shared.note); note.setAttribute('role', 'status'); root.appendChild(note); shared.note = ''; }
                             if (!rows.length) root.appendChild(h(doc, 'p', 'ss-block-empty', S.empty));
                             else for (const row of rows) card(doc, root, row, api, handles);
                         }
@@ -203,6 +256,6 @@ export function createBlockWidgets({ templates, directorOn = () => true, navigat
     }
     return {
         widgets: { [BLOCKS_WIDGET]: widget('list'), [BLOCK_WIDGET]: widget('single'), [BLOCK_CARDS_WIDGET]: widget('cards') },
-        reset() { shared.mode = 'list'; shared.draft = null; shared.module = null; tell(); },
+        reset() { shared.mode = 'list'; shared.draft = null; shared.module = null; shared.note = ''; tell(); },
     };
 }
