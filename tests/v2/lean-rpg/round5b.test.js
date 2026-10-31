@@ -104,6 +104,60 @@ test('review 160 b: a hidden foe count of 0 is still an empty slot', { skip }, a
     assert.equal(rolled, false, 'no roll against an empty slot');
 });
 
+// --- review 163: a skill's hidden stat or resource still counts for the rules and is not named ------------------------------
+
+async function sneak(t, { hide, mana = 4 }) {
+    const { host, asked } = await game(t, { who: [], foes: [['Rat', 0]], answers: ['check Wessel | skill: Silent Trick | difficulty: normal'] });
+    const hero = template('Character');
+    hero.slug = 'wessel'; hero.name = 'Wessel'; hero.state.who.default = 'Wessel';
+    hero.state.str.default = 17; hero.state.dex.default = 8; hero.state.mana.default = mana;
+    success(await host.sdk.command('dm.define', { definition: hero }));
+    const skills = template('Skills');
+    skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.kinds = {};
+    skills.state.skill1.default = 'Silent Trick'; skills.state.stat1.default = 'dex'; skills.state.uses1.default = 'mana';
+    skills.state[hide].prompt = false;
+    success(await host.sdk.command('dm.define', { definition: skills }));
+    const sent = await host.send('I slip past.', 'He slips past.');
+    const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
+    return { sent, roll, asked, line: roll?.data?.v2?.result?.checks?.[0] };
+}
+
+test('review 163 a: a skill whose stat is hidden rolls with that stat and the cue does not name it', { skip }, async t => {
+    const { sent, roll, asked, line } = await sneak(t, { hide: 'stat1' });
+    assert.ok(roll && line, 'the check is rolled');
+    assert.deepEqual([line.skill, line.pc.stat, line.pc.statBonus], ['Silent Trick', 'dex', 4], 'the rules use the hidden DEX 8, not STR 17');
+    const request = JSON.stringify(sent.request);
+    assert.match(request, /Wessel — Silent Trick, normal: /, 'the cue names the skill');
+    assert.ok(!/\(DEX\)|Silent Trick \([^)]*dex/i.test(request), 'and not its hidden stat');
+    assert.ok(!/\(DEX\)/.test(roll.summary ?? ''), 'nor does the saved summary');
+    assert.ok(asked.some(prompt => prompt.includes('Silent Trick (Novice, mana)')), 'the planner sees the skill without its stat');
+});
+
+test('review 163 b: a skill whose resource is hidden and Empty is refused without naming the resource', { skip }, async t => {
+    const { sent, roll, line } = await sneak(t, { hide: 'uses1', mana: 0 });
+    assert.ok(roll && line, 'the check is still rolled, untrained');
+    assert.deepEqual([line.skill, line.pc.stat, line.pc.rank], [null, 'dex', 0], 'with the skill\'s DEX and without the skill');
+    const request = JSON.stringify(sent.request);
+    assert.match(request, /cannot use Silent Trick/, 'the refusal is told');
+    assert.ok(!/Mana Empty|\(Mana/.test(request), 'without the hidden resource');
+    assert.ok(!/Mana Empty/.test(JSON.stringify(roll)), 'nor in the saved roll');
+});
+
+test('review 163 c: an untrained check on a hidden best stat neither names it nor says it is the best', { skip }, async t => {
+    const { host } = await game(t, { who: [], foes: [['Rat', 0]], answers: ['check Wessel | skill: Lockpicking | difficulty: normal'] });
+    const hero = template('Character');
+    hero.slug = 'wessel'; hero.name = 'Wessel'; hero.state.who.default = 'Wessel'; hero.kinds = {};
+    hero.state.str.default = 17; hero.state.str.prompt = false;
+    success(await host.sdk.command('dm.define', { definition: hero }));
+    const sent = await host.send('I pick the lock.', 'It opens.');
+    const line = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve')?.data?.v2?.result?.checks?.[0];
+    assert.deepEqual([line?.pc.stat, line?.pc.statBonus], ['str', 8], 'the rules use the hidden STR 17');
+    const request = JSON.stringify(sent.request);
+    assert.match(request, /Wessel — check, normal: /);
+    assert.match(request, /rolled untrained with their best stat/);
+    assert.ok(!/STR/.test(request), 'STR is not named anywhere the narrator reads');
+});
+
 // --- B7: the used plan is let go whatever the switch says now ---------------------------------------------------------------
 
 test('B7: turning the RPG off while the reply is generated still clears the used plan', { skip }, async t => {

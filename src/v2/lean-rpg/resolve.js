@@ -71,11 +71,14 @@ export function outcomeOf(die, total, against, rules = STANDARD) {
 }
 
 // The party member's side of a roll as the sheet gives it (no die yet).
-function side(character, stat, rank, edge, rules) {
+// `hidden`: the stat came from a skill whose stat the pack hides; that, or a stat the character's block hides, is used by the
+// rules and not named by the cue (review 163).
+function side(character, stat, rank, edge, rules, hidden = false) {
     const value = character.stats[stat];
     return {
         who: character.who, stat, statBonus: Math.floor(value / rules.statDivisor),
         classValue: character.soul, classBonus: rules.classWeight * character.soul, rank, edge,
+        ...(hidden || (character.hidden ?? []).includes(stat) ? { statHidden: true } : {}),
     };
 }
 
@@ -88,15 +91,21 @@ function skillFor(character, phrase, planned) {
     if (!phrase) return { skill: null, rank: 0, stat: planned.stat, uses: null };
     const found = matchSkill(character, phrase);
     const best = () => strongestStat(character);
-    const bestly = stat => (stat ? '' : ` with ${best()?.toUpperCase()}, their best stat`);
+    // a stat the character's block hides is not named (review 163)
+    const bestly = stat => (stat ? '' : (character.hidden ?? []).includes(best()) ? ' with their best stat' : ` with ${best()?.toUpperCase()}, their best stat`);
     if (!found) {
         const stat = planned.stat ?? best();
         return { skill: null, rank: 0, stat, uses: null, refused: `${character.who} has no skill called ${phrase}: rolled untrained${bestly(planned.stat)}.` };
     }
     if (!found.stat && !planned.stat) return { skill: null, rank: 0, stat: best(), uses: null, refused: `${character.who}'s ${found.name} has no stat of its own: rolled untrained${bestly(null)}.` };
     const stat = found.stat ?? planned.stat, resource = found.uses ?? (planned.uses === 'mana' ? 'mana' : 'stamina');
-    if (character[resource] === 0) return { skill: null, rank: 0, stat, uses: resource, refused: `${character.who} cannot use ${found.name} (${cap(resource)} ${STAGES[resource][0]}): rolled without it.` };
-    return { skill: found.name, rank: found.rank, stat, uses: resource };
+    // A skill's stat or resource the pack hides still counts for the rules; the cue and the refusal leave it out (review 163).
+    const hiddenStat = found.stat && (found.hidden ?? []).includes('stat') ? { statHidden: true } : {};
+    if (character[resource] === 0) {
+        const why = found.uses && (found.hidden ?? []).includes('uses') ? ' now' : ` (${cap(resource)} ${STAGES[resource][0]})`;
+        return { skill: null, rank: 0, stat, uses: resource, ...hiddenStat, refused: `${character.who} cannot use ${found.name}${why}: rolled without it.` };
+    }
+    return { skill: found.name, rank: found.rank, stat, uses: resource, ...hiddenStat };
 }
 
 /**
@@ -130,7 +139,7 @@ export function prepare(plan, sheet, rules = STANDARD) {
         if (stat.refusal) { refuse(act.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(act.who, skill.refused);
         const edge = Math.max(-FORMULA.edgeMax, Math.min(FORMULA.edgeMax, act.edge ?? 0));
-        out.acts.push({ at, kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, skill.stat, skill.rank, edge, rules), foe });
+        out.acts.push({ at, kind: 'act', skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side(actor.character, skill.stat, skill.rank, edge, rules, skill.statHidden), foe });
     }
     for (const [at, entry] of (plan.foes ?? []).entries()) {
         if (entry.hold) continue;
@@ -150,7 +159,7 @@ export function prepare(plan, sheet, rules = STANDARD) {
         const stat = statOf(actor.character, skill.stat);
         if (stat.refusal) { refuse(check.who, `${label}: not rolled (${stat.refusal}).`); continue; }
         if (skill.refused) refuse(check.who, skill.refused);
-        out.checks.push({ at, kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules) });
+        out.checks.push({ at, kind: 'check', skill: skill.skill, difficulty: check.difficulty, dc: LIMITS.dc[check.difficulty], pc: side(actor.character, skill.stat, skill.rank, 0, rules, skill.statHidden) });
     }
     const foeSide = foe => ({ slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.classWeight * foe.class });
     for (const entry of [...out.acts, ...out.foes]) entry.foe = foeSide(entry.foe);

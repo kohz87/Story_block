@@ -45,6 +45,8 @@ export function lineText(line, { compact = false, names = 0, shown = name => nam
     const who = shown(line.pc.who);
     if (line.kind === 'check') {
         if (compact) return `${who} — ${line.difficulty} check: ${word} ${numbers(line)}`;
+        // a stat the pack hides is not named (review 163)
+        if (line.pc.statHidden) return `${who} — ${line.skill ? cut(line.skill, names) : 'check'}, ${line.difficulty}: ${word} ${numbers(line)}`;
         return `${who} — ${cut(line.skill ?? line.pc.stat.toUpperCase(), names)} (${line.pc.stat.toUpperCase()}), ${line.difficulty}: ${word} ${numbers(line)}`;
     }
     if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}: ${word} for ${who} ${numbers(line)}`;

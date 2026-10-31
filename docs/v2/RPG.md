@@ -192,7 +192,9 @@ A block with a `role` is held to these rules, and is told like any other block w
 - `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
   Soul Class, and `who`. The same holds for the roll planning step and the rolls: a hidden foe name is "Foe 2" (its slot) there,
   a hidden skill name is not offered, and a hidden `who` is the block's own name. A hidden number (health, a stat, Soul Class, a
-  rank, a foe's count, class or health) still counts for the dice; it is only left out of what the planner is told.
+  rank, a foe's count, class or health, a skill's stat or resource) still counts for the dice; it is only left out of what the
+  planner and the narrator are told: a check on a hidden stat reads "Wessel — Silent Trick, normal" (or "Wessel — check") with no
+  stat named, and a skill whose hidden resource is Empty is "cannot use Silent Trick now".
 - A block with a `role` is made for the chat (`scope: chat`, one block for each person); a `role` on a block for a character is
   refused when the block is made, so the Party and Fight views and the roll planner always read the same blocks.
 - Cards are shown in the order death notice (an `end` card of a `character` block), other end cards, warn, info (at most 8 at a
