@@ -46,14 +46,28 @@ export const PRECALL_HEAD = [
 const word = (list, at) => (Number.isInteger(at) && at >= 0 && at < list.length ? list[at] : '?');
 
 /** The party and foes in a few short lines for the pre-call. */
+// A value the pack hides (`hidden` on an entry, review 160) still counts for the dice but is left out of these lines.
 export function sheetText(sheet) {
     const party = sheet.characters.map(entry => {
-        const stats = STATS.map(stat => `${stat.toUpperCase()} ${entry.stats[stat] ?? '?'}`).join(' ');
-        const skills = entry.skills.length ? entry.skills.map(skill => `${skill.name} (${word(RANK_NAMES, skill.rank)}${skill.stat ? `, ${skill.stat.toUpperCase()}` : ''}${skill.uses === 'mana' ? ', mana' : ''})`).join(', ') : 'none';
-        const down = entry.alive === false || entry.health === 0 ? ' DOWN' : '';
-        return `${entry.who} (class ${word(CLASS_NAMES, entry.soul - 1)}${down}): ${stats}; Health ${word(STAGES.health, entry.health)}, Mana ${word(STAGES.mana, entry.mana)}, Stamina ${word(STAGES.stamina, entry.stamina)}; skills: ${skills}`;
+        const shown = key => !(entry.hidden ?? []).includes(key);
+        const stats = STATS.filter(shown).map(stat => `${stat.toUpperCase()} ${entry.stats[stat] ?? '?'}`).join(' ');
+        const skillText = skill => {
+            const open = part => !(skill.hidden ?? []).includes(part);
+            const parts = [open('rank') ? word(RANK_NAMES, skill.rank) : '', skill.stat && open('stat') ? skill.stat.toUpperCase() : '', skill.uses === 'mana' && open('uses') ? 'mana' : ''].filter(Boolean);
+            return parts.length ? `${skill.name} (${parts.join(', ')})` : skill.name;
+        };
+        const skills = entry.skills.length ? entry.skills.map(skillText).join(', ') : 'none';
+        const down = entry.alive === false || (entry.health === 0 && shown('health')) ? ' DOWN' : '';
+        const head = [shown('soul') ? `class ${word(CLASS_NAMES, entry.soul - 1)}` : ''].filter(Boolean).join('');
+        const bars = [['health', 'Health', STAGES.health], ['mana', 'Mana', STAGES.mana], ['stamina', 'Stamina', STAGES.stamina]]
+            .filter(([key]) => shown(key)).map(([key, label, words]) => `${label} ${word(words, entry[key])}`).join(', ');
+        return `${entry.who}${head || down ? ` (${head}${down})` : ''}: ${[stats, bars].filter(Boolean).join('; ')}; skills: ${skills}`;
     });
-    const foes = sheet.foes.filter(foe => foe.filled).map(foe => `${foe.slot}. ${foe.name}${foe.count > 1 ? ` x${foe.count}` : ''} (class ${word(CLASS_NAMES, foe.class - 1)}, ${word(STAGES.health, foe.hurt)})`);
+    const foes = sheet.foes.filter(foe => foe.filled).map(foe => {
+        const shown = part => !(foe.hidden ?? []).includes(part);
+        const about = [shown('class') ? `class ${word(CLASS_NAMES, foe.class - 1)}` : '', shown('hurt') ? word(STAGES.health, foe.hurt) : ''].filter(Boolean).join(', ');
+        return `${foe.slot}. ${foe.name}${foe.count > 1 && shown('count') ? ` x${foe.count}` : ''}${about ? ` (${about})` : ''}`;
+    });
     return `Party:\n${party.join('\n')}\nFoes: ${foes.length ? `\n${foes.join('\n')}` : 'none'}`;
 }
 

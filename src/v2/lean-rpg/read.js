@@ -70,13 +70,16 @@ const fieldsOf = (domain, id) => {
     return isObject(instance?.fields) ? instance.fields : null;
 };
 
-// A field the pack hides (`prompt: false`) is not read: the sheet feeds the planner, the plan and the cue, and what is hidden from the
-// story is hidden there too. The death flag is the one exception, since rolling for the dead is a rule and not a line of text.
+// A field the pack hides (`prompt: false`) is hidden from the story, not from the rules (review 160). A hidden text (a name, Who, an
+// About) is not read at all: it would reach the planner, the plan and the cue. A hidden number or choice (health, a stat, Soul Class,
+// a rank, a foe's count, class or health, a skill's stat or resource) still counts for the dice; the entry lists it in `hidden`, and
+// the planner's sheet text leaves it out.
+const TEXT_KEY = /^(who|about\d*|skill\d+|foe\d+)$/;
 const hiddenOf = definition => new Set(Object.entries(isObject(definition?.state) ? definition.state : {}).filter(([key, schema]) => key !== 'alive' && dmHidden(schema)).map(([key]) => key));
-const shownFields = (fields, hidden) => (hidden.size ? Object.fromEntries(Object.entries(fields).filter(([key]) => !hidden.has(key))) : fields);
+const shownFields = (fields, hidden) => (hidden.size ? Object.fromEntries(Object.entries(fields).filter(([key]) => !(hidden.has(key) && TEXT_KEY.test(key)))) : fields);
 
 // `own`: the block's name, which stands in for a hidden Who (as the tail does).
-function character(id, fields, own = '') {
+function character(id, fields, own = '', hidden = new Set()) {
     const who = text(fields.who) || text(own);
     if (!who) return null;
     const stats = Object.fromEntries(STATS.map(stat => [stat, int(fields[stat])]));
@@ -86,10 +89,11 @@ function character(id, fields, own = '') {
         stats, soul: int(fields.soul) ?? 1, xp: int(fields.xp), points: int(fields.points),
         alive: fields.alive !== false,
         skills: [],
+        hidden: [...hidden].filter(key => !TEXT_KEY.test(key)),
     };
 }
 
-function skillsOf(fields) {
+function skillsOf(fields, hidden = new Set()) {
     const out = [];
     for (let n = 1; n <= SKILL_SLOTS; n += 1) {
         const name = text(fields[`skill${n}`]);
@@ -99,6 +103,7 @@ function skillsOf(fields) {
         out.push({
             slot: n, name, about: text(fields[`about${n}`]), rank: int(fields[`rank${n}`]) ?? 0, practice: int(fields[`practice${n}`]) ?? 0,
             stat: STATS.includes(stat) ? stat : null, uses: USES.includes(uses) ? uses : null,
+            hidden: ['rank', 'practice', 'stat', 'uses'].filter(part => hidden.has(`${part}${n}`)),
         });
     }
     return out;
@@ -106,13 +111,14 @@ function skillsOf(fields) {
 
 // A block's four slots. `offset`: where its numbering starts (the first Foes block is 1…4, the next 5…8, and so on), so every
 // slot of every Foes block has a number of its own in the plan.
-// A hidden foe name is the slot's ("Foe 2"), a hidden count counts as one, a hidden class is 1 and a hidden health is unhurt.
+// A hidden foe name is the slot's ("Foe 2"); a hidden count, class or health still counts for the rules and is listed in `hidden`.
 function foesOf(id, fields, offset = 0, hidden = new Set()) {
     const out = [];
     for (let n = 1; n <= FOE_SLOTS; n += 1) {
         const name = hidden.has(`foe${n}`) ? (text(fields[`foe${n}`]) ? `Foe ${offset + n}` : '') : text(fields[`foe${n}`]);
-        const count = hidden.has(`count${n}`) ? 1 : int(fields[`count${n}`]) ?? 0;
-        out.push({ slot: offset + n, module: id, name, count, class: hidden.has(`class${n}`) ? 1 : int(fields[`class${n}`]) ?? 1, hurt: hidden.has(`hurt${n}`) ? STAGES.health.length - 1 : int(fields[`hurt${n}`]) ?? 0, filled: Boolean(name) && count > 0 });
+        const count = int(fields[`count${n}`]) ?? 0;
+        out.push({ slot: offset + n, module: id, name, count, class: int(fields[`class${n}`]) ?? 1, hurt: int(fields[`hurt${n}`]) ?? 0, filled: Boolean(name) && count > 0,
+            hidden: ['count', 'class', 'hurt'].filter(part => hidden.has(`${part}${n}`)) });
     }
     return out;
 }
@@ -139,13 +145,13 @@ export function readSheet(state) {
         if (!raw || typeof role !== 'string') continue;
         const hidden = hiddenOf(definition), fields = shownFields(raw, hidden);
         if (role === 'character') {
-            const found = character(id, fields, hidden.has('who') ? definition.name : '');
+            const found = character(id, fields, hidden.has('who') ? definition.name : '', hidden);
             if (!found) sheet.problems.push(`The Character block "${id}" has no name in its Who field, so it is left out.`);
             else if (sheet.characters.some(other => other.key === found.key)) sheet.problems.push(`Two Character blocks are called ${found.who}; only the first is used.`);
             else sheet.characters.push(found);
         } else if (role === 'skills') {
             const who = text(fields.who) || (hidden.has('who') ? text(definition.name) : '');
-            if (who) skills.push({ who, list: skillsOf(fields) });
+            if (who) skills.push({ who, list: skillsOf(fields, hidden) });
             else sheet.problems.push(`The Skills block "${id}" has no name in its Who field, so it is left out.`);
         } else if (role === 'foes') {
             sheet.foes.push(...foesOf(id, raw, sheet.foes.length, hidden));

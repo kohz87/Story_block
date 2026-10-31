@@ -90,7 +90,7 @@ test('the rolls read a sheet made from the templates: the character by its Who, 
     assert.deepEqual(sheet.problems, []);
     assert.equal(sheet.characters.length, 1);
     assert.equal(sheet.characters[0].who, 'Wessel');
-    assert.deepEqual(sheet.characters[0].skills[0], { slot: 1, name: 'Iron Breath', about: 'Drill-yard breathing.', rank: 0, practice: 0, stat: 'vit', uses: 'stamina' });
+    assert.deepEqual(sheet.characters[0].skills[0], { slot: 1, name: 'Iron Breath', about: 'Drill-yard breathing.', rank: 0, practice: 0, stat: 'vit', uses: 'stamina', hidden: [] });
 });
 
 test('the story reads all of a full sheet in the tail: five skills with what each does, and who a character is', async t => {

@@ -62,8 +62,46 @@ test('B1: a hidden skill name, stat and who are not offered by the sheet; the de
     const sheet = readSheet(host.head());
     const shy = sheet.characters.find(entry => entry.module === 'pack.chat/shy');
     assert.equal(shy.who, 'Shy hero', 'the block\'s own name stands in for a hidden Who');
-    assert.equal(shy.stats.str, null, 'a hidden stat is not offered');
+    assert.equal(shy.stats.str, 10, 'a hidden stat still counts for the dice (review 160)');
+    assert.ok(shy.hidden.includes('str'), 'and is listed as hidden');
+    const { sheetText } = await import('../../../src/v2/lean-rpg/precall.js');
+    const line = sheetText(sheet).split('\n').find(text => text.startsWith('Shy hero'));
+    assert.ok(line && !/STR/.test(line), `a hidden stat is not offered to the planner: ${line}`);
     assert.equal(sheet.characters.find(entry => entry.who === 'Wessel').stats.str, 10, 'the others are untouched');
+});
+
+// --- review 160: hidden numbers still count for the rules ---------------------------------------------------------------
+
+test('review 160 a: a hidden health of 0 is still Down and a hidden Soul Class still counts; neither is written for the planner', { skip }, async t => {
+    const { readSheet } = await import('../../../src/v2/lean-rpg/index.js');
+    const { sheetText } = await import('../../../src/v2/lean-rpg/precall.js');
+    const { host, asked } = await game(t, { who: [] });
+    const hero = template('Character');
+    hero.slug = 'wessel'; hero.name = 'Wessel'; hero.state.who.default = 'Wessel'; hero.kinds = {};
+    hero.state.health.default = 0; hero.state.health.prompt = false;
+    hero.state.soul.default = 5; hero.state.soul.prompt = false;
+    success(await host.sdk.command('dm.define', { definition: hero }));
+    const sheet = readSheet(host.head());
+    const wessel = sheet.characters.find(entry => entry.who === 'Wessel');
+    assert.deepEqual([wessel.health, wessel.soul], [0, 5], 'the rules read the real values');
+    const text = sheetText(sheet);
+    assert.ok(!/Health|class V|DOWN/.test(text.split('\n').find(line => line.startsWith('Wessel'))), text);
+    await host.send('I strike.', 'The rat bites.');
+    const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
+    const acted = (roll?.data?.v2?.result?.rounds ?? []).flatMap(round => round.lines).some(line => line.kind === 'act' && line.pc?.who === 'Wessel');
+    assert.equal(acted, false, 'a Down character does not act, hidden health or not');
+    assert.ok(asked.length >= 1);
+});
+
+test('review 160 b: a hidden foe count of 0 is still an empty slot', { skip }, async t => {
+    const { readSheet } = await import('../../../src/v2/lean-rpg/index.js');
+    const { host } = await game(t, { foes: [['Rat', 0]], hide: ['count1'] });
+    const sheet = readSheet(host.head());
+    assert.equal(sheet.foes[0].filled, false, 'count 0 is empty even when the count is hidden');
+    await host.send('I strike.', 'Nothing there.');
+    const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
+    const rolled = (roll?.data?.v2?.result?.rounds ?? []).flatMap(round => round.lines).some(line => line.foe?.name === 'Rat');
+    assert.equal(rolled, false, 'no roll against an empty slot');
 });
 
 // --- B7: the used plan is let go whatever the switch says now ---------------------------------------------------------------
