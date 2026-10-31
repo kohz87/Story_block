@@ -35,3 +35,11 @@ test('the limits reference is generated from the host exports', () => {
     const output = execFileSync(process.execPath, ['authoring-kit/scripts/limits.mjs'], { cwd: root, encoding: 'utf8' });
     assert.equal(output, readFileSync(new URL('../../../authoring-kit/reference/LIMITS.md', import.meta.url), 'utf8'));
 });
+
+test('the checker reports an event condition that cannot be read, naming the event', () => {
+    const input = JSON.parse(readFileSync(new URL('../../../authoring-kit/examples/tiny-world/pack.json', import.meta.url), 'utf8'));
+    input.content = { ...(input.content ?? {}), events: [{ id: 'gate', when: "has('Smith's key')", cue: 'The gate opens.' }] };
+    const result = checkPack(input);
+    assert.equal(result.ok, false);
+    assert.match(report('pack.json', result), /Event "gate": the condition can't be read/);
+});

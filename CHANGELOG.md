@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.11.3
+
+- The pack checker now reads each event's `when` condition with the same parser the story uses while it plays. A condition it cannot read (for example a name with an apostrophe inside single quotes, `has('Smith's key')`) is reported as "Event "gate": the condition can't be read: …" with the reason, instead of passing and only failing at play time. The same check runs when a pack is installed or imported. A pack that is already installed is not held to it: if one of its events has an unreadable condition, only that event stays invalid (as before) and the rest of the pack keeps working. The bundled Ersveil packs and the starter pack still pass.
+- The block chooser (Settings -> Blocks -> From a template) counts in the singular for one: "1 field, 1 button", not "1 fields, 1 buttons".
+- Internal: the timeline-release fuzz (seeds 13 and 20) no longer expects the wrong place for the participant after a held restore is met by deleting the last reply. Two restores made one after the other on the same reply hang on it together, so deleting it takes both back and the participant returns to where it stood before the first, which the product did; the fuzz model had expected the place between the two.
+
 ## 2.11.2
 
 - Deleting a reply no longer costs a later reply its other changes when that reply moves the scene with someone (`~ place Road | with: Fenna`) who left in between and is there again after the delete, nor when the reader's own edit of who is present (the pencil) adds a name that way. Both now record their adds as a set's, like `+ present`: replayed onto a story where the name is already present they leave one entry, instead of a "listed as present twice" Problem that skipped the whole block (its place move, items and coins with it). The same rule now covers chats saved before: an add to the scene's present list that the list holds already is passed over when replayed, so such a block that used to be skipped is kept. Live play and receipts are unchanged.

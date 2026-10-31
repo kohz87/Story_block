@@ -287,9 +287,10 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         function chooserNode(parent, rows) {
             const chooser = h(doc, 'div', 'ss-block-chooser ss-glass-strong'); parent.appendChild(chooser);
             const status = h(doc, 'p', 'ss-block-status'); status.setAttribute('role', 'status');
-            const counts = entry => fill(S.templateCounts, { name: entry.name, fields: Object.keys(entry.definition.state ?? {}).length,
-                buttons: Object.values(entry.definition.kinds ?? {}).filter(kind => kind.ui).length,
-                rules: entry.definition.rules?.length ?? 0, timers: entry.definition.timers?.length ?? 0 });
+            // (one word per count: "1 field, 1 button", never "1 buttons")
+            const counts = entry => fill(S.templateCounts, { name: entry.name, fields: plural(Object.keys(entry.definition.state ?? {}).length, P.fields),
+                buttons: plural(Object.values(entry.definition.kinds ?? {}).filter(kind => kind.ui).length, P.buttons),
+                rules: plural(entry.definition.rules?.length ?? 0, P.rules), timers: plural(entry.definition.timers?.length ?? 0, P.timers) });
             const saved = templates?.list?.() ?? [];
             for (const entry of saved) button(doc, chooser, counts(entry), () => {
                 const draft = editableBlockDraft(entry.definition);

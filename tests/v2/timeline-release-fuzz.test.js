@@ -51,6 +51,7 @@ async function run(t, seed, steps) {
     const heard = [];
     const mine = new WeakSet();   // the messages the reader hid themselves
     const shown = new WeakSet();  // the faded messages the reader showed again (their choice: not hidden again)
+    const placed = new Map();     // restore return -> where the participant stood just before it began (in the order the restores were made)
     const open = async image => {
         host = image ? await reload(createHost, image, modules(), { st: { mainApi } }) : await createHost({ modules: modules(), st: { mainApi } });
         t.after(() => host.close());
@@ -123,13 +124,18 @@ async function run(t, seed, steps) {
         const prepared = await host.timeline.host.prepare({ snapshot: point.id, deathEvents: [`ev_fz${String(batch).padStart(6, '0')}`], batchResult: batchFor(id), expectedHead: head.headHash });
         assert.equal(prepared.ok, true, fail(`prepare: ${prepared.message}`));
         const start = () => host.timeline.host.activate({ prepared: prepared.prepared, expectedHead: head.headHash });
-        const before = hashJson(native.native.store);
         const carrier = host.store.sourceAt(host.store.headIndex());
+        // Restores made one after another on the same reply all hang on it: when that reply goes, they all go, so the participant is
+        // back where it stood before the first of them that still stands on it, not before this one.
+        const standing = Object.entries(host.head().domains.savepoints?.returns ?? {}).filter(([, each]) => each.restoreAt?.sid === carrier.sid).map(([id]) => id);
+        const first = [...placed.keys()].find(id => standing.includes(id));
+        const before = first === undefined ? hashJson(native.native.store) : placed.get(first);
+        placed.set(prepared.return, before);
         outcome.how = null;
         if (r.chance(0.3)) { log.push('restore'); await start(); } else await held(activate, 'restore', start);
         // A restore the story does not hold any more (its reply went while the participant switched) must leave the participant where
         // the selected head puts it. When the reply deleted held only the restore (no native change and no earlier return stands on it),
-        // that is where the participant was before the restore began.
+        // that is where the participant was before the restore began (or before the first restore on the same reply).
         await within(host.timeline.host.recover(), 'recovery');
         const returns = host.head().domains.savepoints?.returns ?? {};
         const alone = !host.timeline.host.journal().some(entry => ['native-mutation', 'native-event'].includes(entry.kind) && entry.boundary?.cursor?.sid === carrier.sid)
