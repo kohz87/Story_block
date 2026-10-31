@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../../../ui-fake-dom.js';
-import { RENDERERS, chipsField, chipsetField, linesField, newId, numberField, profileField, searchField, sectionBlock, selectField, sliderField, switchField, textField } from '../../../../src/v2/view/form/fields.js';
+import { RENDERERS, chipsField, chipsetField, linesField, newId, numberField, profileField, searchField, sectionBlock, segmentedField, selectField, sliderField, switchField, textField } from '../../../../src/v2/view/form/fields.js';
 import { FIELD_KINDS, changeNote, fieldKind, labelOf, matchesSearch, optionsOf } from '../../../../src/v2/view/form/schema.js';
 import { PROFILE_TEXT } from '../../../../src/v2/profile-field.js';
 
@@ -255,6 +255,29 @@ test('chipset: several chips over a comma-separated text; entries the options do
     const plain = make(chipsetField, { type: 'text', form: 'chips', options: ['red', 'green'] }, 'Green; blue\nRED');
     assert.deepEqual(plain.el.querySelectorAll('.ss-chip').map(c => c.getAttribute('aria-pressed')), ['true', 'true']);
     assert.equal(plain.handle.get(), 'red, green, blue');
+});
+
+test('segmented: a choice with form "segmented" is the one-of chips drawn as one joined row (Text size), with the same value, keys and reports', () => {
+    const field = { type: 'choice', form: 'segmented', options: [{ value: '100', label: 'Normal' }, { value: '110', label: '110%' }, { value: '120', label: '120%' }] };
+    assert.equal(fieldKind(field), 'segmented');
+    assert.equal(fieldKind({ ...field, form: 'chips' }), 'chips', 'chips are as they were');
+    assert.equal(fieldKind({ type: 'choice', options: ['a'] }), 'select');
+    assert.equal(RENDERERS.segmented, segmentedField);
+    const m = make(segmentedField, field, '110');
+    assert.ok(classes(m.el).includes('ss-chips') && classes(m.el).includes('ss-segmented'));
+    assert.equal(m.input.getAttribute('role'), 'radiogroup');
+    const buttons = () => m.el.querySelectorAll('.ss-chip');
+    assert.deepEqual(buttons().map(c => c.textContent), ['Normal', '110%', '120%']);
+    assert.deepEqual(buttons().map(c => c.getAttribute('aria-checked')), ['false', 'true', 'false']);
+    buttons()[2].click();
+    assert.deepEqual(m.calls, [['120', { typed: '120' }]]);
+    assert.equal(m.handle.get(), '120');
+    buttons()[2].dispatch('keydown', { key: 'Home' });
+    assert.equal(m.handle.get(), '100');
+    m.handle.set('110');
+    assert.deepEqual(buttons().map(c => c.getAttribute('aria-checked')), ['false', 'true', 'false']);
+    m.handle.setReadOnly(true);
+    assert.ok(buttons().every(c => c.disabled));
 });
 
 test('chips, one of: a radio group with aria-checked, one Tab stop, the arrow keys move and choose (wrapping), Home and End', () => {

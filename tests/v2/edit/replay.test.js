@@ -10,6 +10,7 @@ const edits = [
     ['wallet.set', () => ({ amount: 25 })],
     ['scene.place', () => ({ name: 'Bluewatch' })],
     ['scene.weather', () => ({ text: 'rain' })],
+    ['scene.you', () => ({ rank: 'F-rank', wearing: 'a grey coat', condition: 'tired' })],
     ['scene.present', () => ({ set: ['Ren', 'Mira'] })],
     ['dm.set', (_, module) => ({ module, field: 'points', value: 5 })],
 ];
@@ -17,6 +18,7 @@ for (const [type, payload] of edits) for (const removal of ['swipe', 'delete']) 
     test(`${type} survives replay and leaves with ${removal}`, async t => {
         const host = await createHost(); t.after(() => host.close());
         assert.equal((await host.packs.packs.install(pack([definition()]))).ok, true);
+        assert.equal((await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } })).ok, true);
         await host.send('Prepare.', 'Found.\n<Changes>\n+ item Torch | qty: 2\n+ coin 10\n</Changes>');
         const offer = host.sdk.query('dataModules.offers')[0];
         const pin = await host.sdk.command('dm.pin', { module: offer.module, hash: offer.hash, packHash: offer.packHash });

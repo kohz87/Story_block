@@ -60,6 +60,19 @@ function replyLines(r, step) {
 const extraLines = step => (step % 3 === 0 ? [`? choice Step ${step} onward`, `~ chatter Walker: step ${step} thought`] : []);
 // The weather (MODULES §F120), by step too: the latest remaining reply that wrote one is the weather.
 const weatherLines = step => (step % 5 === 2 ? [`~ weather step ${step} rain`] : []);
+// Your look (MODULES §F126), by step too: each part is the latest remaining reply's that wrote it ('' when that reply cleared it). The
+// values carry the step, so no two replies write the same words (the same words again are no change, so no op).
+const youOf = step => {
+    const made = {};
+    if (step % 9 === 4) made.rank = `step ${step} novice`;
+    else if (step % 17 === 10) made.rank = '';
+    if (step % 4 === 3) made.wearing = `step ${step} coat`;
+    else if (step % 11 === 6) made.wearing = '';
+    if (step % 5 === 1) made.condition = `step ${step} tired`;
+    else if (step % 13 === 8) made.condition = '';
+    return made;
+};
+const youLines = made => [...(made.rank !== undefined ? [`~ you rank: ${made.rank}`] : []), ...(made.wearing !== undefined ? [`~ you wearing: ${made.wearing}`] : []), ...(made.condition !== undefined ? [`~ you condition: ${made.condition}`] : [])];
 const shownAt = (host, at) => displayLines(host.ctx.chat[at].mes, { entryOf: word => host.registry.capture(word) });
 
 function validators(host) {
@@ -75,6 +88,8 @@ for (const seed of SEEDS) {
         t.mock.method(console, 'warn', () => {});
         const restore = seedCrypto(seed);
         const host = await createHost({ settings: { features: { 'story-block.choices': true, 'story-block.chatter': true } } });
+        // A pack that gives Your look a Rank, so the `~ you rank:` lines are read (without one they are refused).
+        await host.packs.packs.install({ id: 'guild', version: '1.0.0', requires: { storyBlock: '^2' }, content: { you: { rank: { label: 'Guild rank' } } } });
         t.after(() => { host.close(); restore(); });
         const r = prng(seed);
         await host.send('Hello.', 'The road.');
@@ -87,7 +102,8 @@ for (const seed of SEEDS) {
             const made = replyLines(r, step);
             made.extras = extraLines(step);
             made.weather = weatherLines(step);
-            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.weather, ...made.lines, ...made.extras]));
+            made.you = youOf(step);
+            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.weather, ...youLines(made.you), ...made.lines, ...made.extras]));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);
@@ -128,6 +144,9 @@ for (const seed of SEEDS) {
             assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, goneSid), false, `${label}: the deleted reply's loot went with it`);
             const sky = host.ctx.chat.map((message, at) => (message.is_user ? null : done.get(host.store.carrierSid(at)))).filter(made => made?.weather.length).at(-1);
             assert.deepEqual(host.sdk.query('scene.weather'), sky ? { text: sky.weather[0].slice('~ weather '.length) } : null, `${label}: the weather`);
+            const remaining = host.ctx.chat.map((message, at) => (message.is_user ? null : done.get(host.store.carrierSid(at)))).filter(Boolean);
+            const look = part => remaining.filter(made => made.you[part] !== undefined).at(-1)?.you[part] ?? '';
+            assert.deepEqual(host.sdk.query('scene.you'), { rank: look('rank'), rankLabel: 'Guild rank', wearing: look('wearing'), condition: look('condition') }, `${label}: your look, each part from the latest reply still there that wrote it`);
         }
     });
 }

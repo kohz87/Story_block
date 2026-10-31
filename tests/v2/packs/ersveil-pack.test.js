@@ -55,7 +55,8 @@ test('the pack is Ersveil 2.2.0, the open world: the map, the calendar, the weat
     assert.equal(value.requires.storyBlock, '^2.5');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
-    assert.deepEqual(counts, { places: 320, routes: 350, events: 136, dataModules: 4, rpg: undefined });
+    // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
+    assert.deepEqual(counts, { you: undefined, places: 320, routes: 350, events: 136, dataModules: 4, rpg: undefined });
     assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
     assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.10.0
+
+- **Text size** (Settings → Look, after Font): Normal, 110% or 120%. It makes Story Suite's own text bigger at once, no reload: the Game view, the cards under replies (Changed this reply, Status and the others), the dialogs (the New character wizard, the item and field editors) and the settings window. The windows keep their size and their content grows and reflows; SillyTavern's chat text is not touched. Normal changes nothing.
+- **Your look** (a new feature, on by default, under Settings → Features): the story can now say what you are wearing and how you are, with one line, `~ you wearing: … | condition: …` (either part alone; each at most 120 characters, cut if longer; an empty one clears it). A pack can also give your character a rank (`content.you.rank` with a label such as "Guild rank"; the Ersveil example does): then the line has a `rank:` part and Home shows it first under that label. A game with no such pack has no rank anywhere. Home's header shows **Wearing** and **Condition** (and the Rank) under the place, time and weather, each with a pencil so you can set or clear it yourself; Story Director 2.4.0's Status card shows them under each reply. While something is set, the narrator is told in one short line each reply (`Wessel: wears …; condition …`). Swipes, Re-read and deleting a reply take a change back like the weather. It is descriptive only: nothing in the rules reads it. Turn it off and the instruction, the narrator's line and the rows all go.
+- The narrator's instructions gain one line (Your look is on by default), so the AI service's prompt cache starts over once. With Your look off, the instructions are exactly as in 2.9.4.
+- Settings can now draw a choice as a joined row of buttons (`form: 'segmented'`), which Text size uses; a module's own settings may use it too.
+- Chats saved before this load and read as they did; they simply have no look yet.
+
 ## 2.9.4
 
 - When someone already present is first named ("Name's Nelje"), the narrator is told to write `- present` for the old

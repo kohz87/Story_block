@@ -562,6 +562,43 @@ These settle questions agents raised; the host changes they need are made at int
     list adds nothing. The card's scope has them as `moduleLines`, so a restyled card can draw them too. An
     older Story Block never calls the hook (the module's own screens still show the same).
 
+### User decisions from the Text size and Your look request (2026-10-31, F126–F127)
+
+126. **Your look: what {{user}} wears and how they are, and a rank where the game has one** (the persona's own character; "Wearing", "Condition" and the Rank on Home and
+    on the reply's Status card). Feature `story-block.you` (label "Your look", **on** by default; F100): its grammar line `~ you
+    wearing: what {{user}} has on | condition: how {{user}} is (only when one changes; each at most 120 characters)` is in the static
+    part only while it is on, so the static part changes once when it is turned on or off, as the weather. A `~ you` (or `+ you`)
+    line keeps **`scene.you = { rank, wearing, condition }`** in the scene domain (the Rank exists only in a story with a pack that gives one, below): each part is the words after its label (`rank`,
+    `wearing`, `condition`; a few other words are read as these) with markdown, tags and anything inside `<…>` taken out, flattened to one
+    line and cut at 120 code points (cut, not refused); a part that is left out stays, an empty one clears it. Each part is a
+    write of its own, and `you` is one of the scene's `scratch` fields (SPEC §2.2), so after the reply that first wrote a part is
+    deleted a later reply's part still replays and the other part goes with the deleted reply; swipes, Re-read and a reload give
+    what a rebuild gives. A chat that was saved before this has no `you` in its scene and reads empty. Read-only query
+    **`scene.you`** → `{ wearing, condition }`, and `rank` and `rankLabel` with a Rank (below), on the state it is given (so each reply's card shows that reply's), `null` while the
+    feature is off. Command **`scene.you({ rank?, wearing?, condition? })`** (same feature; the reader or a module, never the story): the
+    Home header's pencils (an edit on the latest reply, like the weather's). It is **descriptive only**: no mechanic reads it.
+    The tail has one line while it is on and something is set (`{{user}}: wears …; condition …`, only the parts that are set), after
+    the Place and Present lines. Home's header shows "Wearing" and "Condition" (and the Rank, first) under the place, time and weather, each with a pencil
+    (a dash when nothing is set, so it can be set), and nothing at all while the feature is off. Story Director 2.4.0's Status card
+    adds the rows Wearing and Condition (and the Rank, under its label, first) after Coordinates from `scene.you`, a row with no value left out; an older Story Block
+    has no such query and the card is as it was.
+    **The Rank comes from a pack** (so other kinds of game have none): a pack opts in with `content.you.rank: { label: "Guild rank" }`
+    (label 1 to 30 plain characters, no `< > { }`; unknown keys under `content.you` are refused by the validator and the authoring-kit
+    checker). The first enabled pack (in list order) that declares one wins (query **`packs.youRank`** → `{ pack, label }` or null).
+    With one: the grammar line becomes `~ you rank: Guild rank | wearing: … | condition: …` (a registry kind's `grammar` may be a function
+    answering the line when the static part is built, so the instructions change once when such a pack is turned on or off), `scene.you`
+    also answers `rank` and `rankLabel`, Home shows the label ("GUILD RANK …") with its pencil first, the tail line is `{{user}}: Guild rank …;
+    wears …; condition …`, and Story Director's Status card has a row under the label. Without one: no Rank anywhere (the grammar line, the
+    answer, the tail and Home leave it out), `~ you rank:` is refused as a whole line with the Problem "This story has no rank…", and `scene.you`
+    refuses a `rank`; a value already stored is kept and comes back when a pack gives a Rank again. Ersveil declares "Guild rank".
+127. **Text size** (Settings → Look, after Font): Normal, 110% or 120% (host setting `textSize`, stored as `'100'`, `'110'`, `'120'`;
+    default Normal). It makes Story Suite's own text bigger: the Game view's content, the cards under replies, Story Suite's dialogs
+    and the settings window; the window frames keep their size and the content reflows. SillyTavern's own chat text is not touched.
+    Normal adds nothing (the theme sheet is the bytes it was); the others add one rule setting size.css's `--ss-zoom` (0.8 at Normal)
+    to 0.88 or 0.96, which every Story Suite root already follows. It applies at once, with no reload. The setting is drawn as a
+    joined row of buttons: a choice field with `form: 'segmented'` (one of the chips, as a radio group), which any module's
+    settings schema may use for a few short options.
+
 ## G. Model calls for modules (`sdk.callModel`, the `profile` settings field)
 
 For a module's own call to a model outside the story, such as Story Director's arc planner, Story Block makes the call and keeps the rules; the module writes the prompt and reads the text (`src/v2/model-call.js`).

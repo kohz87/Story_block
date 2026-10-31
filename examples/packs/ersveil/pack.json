@@ -132,6 +132,7 @@
     ]
   },
   "content": {
+    "you": { "rank": { "label": "Guild rank" } },
     "places": [
       {"name":"Highmark Capital","aliases":["Highmark"],"region":"Highmark Empire","kind":"capital","x":15,"y":-5,"tags":["river"],"note":"Imperial throne city of walled districts; seals, legal services and arms contracts."},
       {"name":"Highmark Capital / Crown Keep","aliases":["Crown Keep"],"region":"Highmark Empire","kind":"district","x":15,"y":-5,"note":"Palace, Diet and War Office; imperial warrants and sealed petitions."},
