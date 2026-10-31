@@ -207,6 +207,8 @@ export const STRINGS = deepFreeze({
         chatter: 'Inner chatter',
         weather: 'Weather',
         weatherDescribe: 'The story notes the weather in a few words when it changes; shown on Scene, Home and the reply\'s Status card. Descriptive only: nothing in the rules reads it.',
+        you: 'Your look',
+        youDescribe: 'The story notes what you wear and how you are (tired, hurt, cold), and your rank where the game has one, when that changes; shown on Home and the reply\'s Status card. Descriptive only: nothing in the rules reads it.',
         chatterDescribe: 'Short unspoken thoughts of the people in the scene, shown next to each person on the World screen (on the Scene screen without Story Director). Kept out of the story text and, unless you say so, out of later prompts.',
     },
 
@@ -351,12 +353,15 @@ export const STRINGS = deepFreeze({
 
     // `story-block/scene`.
     scene: {
-        editPlace: 'place', editWeather: 'weather', editPresent: 'people present',
+        editPlace: 'place', editWeather: 'weather', editPresent: 'people present', editRank: 'your rank', editWearing: 'what you wear', editCondition: 'your condition',
         title: 'Scene',
         unnamed: 'Somewhere not yet named',
         here: 'Here',
         nobody: 'No one else is here.',
         weather: 'Weather',
+        rank: 'Rank',
+        wearing: 'Wearing',
+        condition: 'Condition',
     },
 
     // `story-block/home`.

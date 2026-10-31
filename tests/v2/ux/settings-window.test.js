@@ -668,7 +668,7 @@ test('Look: Panel style, Glass strength and Font come from the host schema, are 
     const { root, host } = await open({ window: { theme: { apply: () => applied.push(host.settings().panelStyle) } } });
     const look = page(root, 'look');
     assert.deepEqual(look.querySelectorAll('.ss-field').map(row => row.dataset.field), LOOK_KEYS);
-    assert.deepEqual(texts(look, '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font']);
+    assert.deepEqual(texts(look, '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font', 'Text size']);
     assert.equal(look.querySelectorAll('details').length, 0, 'no folds');
     // The budgets are the Prompt card's (Tabs & Packs), the call queue the Assist page's; the Story Suite fold is gone.
     assert.deepEqual(page(root, 'tabs').querySelectorAll('.ss-prompt-card .ss-field').map(row => row.dataset.field), ['tailBudget', 'contextShare', 'maxChangeLines']);
@@ -692,6 +692,32 @@ test('Look: Panel style, Glass strength and Font come from the host schema, are 
     host.close();
 });
 
+test('Look: Text size is a three-button row (Normal, 110%, 120%) under Font; a press stores it, the look follows at once, and Normal is the default', async () => {
+    const applied = [];
+    const { root, host } = await open({ window: { theme: { apply: () => applied.push(host.settings().textSize) } } });
+    const look = page(root, 'look');
+    const row = look.querySelector('.ss-field[data-field="textSize"]');
+    assert.equal(row.dataset.kind, 'segmented');
+    assert.equal(look.querySelectorAll('.ss-field')[3], row, 'after Font');
+    assert.equal(host.settings().textSize, '100', 'Normal by default');
+    const group = row.querySelector('.ss-segmented');
+    assert.equal(group.getAttribute('role'), 'radiogroup');
+    const buttons = () => row.querySelectorAll('.ss-chip');
+    assert.deepEqual(buttons().map(button => button.textContent), ['Normal', '110%', '120%']);
+    assert.deepEqual(buttons().map(button => button.getAttribute('aria-checked')), ['true', 'false', 'false']);
+    buttons()[2].click();
+    assert.equal(host.settings().textSize, '120');
+    assert.deepEqual(applied, ['120']);
+    assert.deepEqual(buttons().map(button => button.getAttribute('aria-checked')), ['false', 'false', 'true']);
+    buttons()[1].click();
+    assert.equal(host.settings().textSize, '110');
+    buttons()[0].click();
+    assert.equal(host.settings().textSize, '100');
+    assert.deepEqual(applied, ['120', '110', '100']);
+    assert.match(texts(row, '.ss-field-help').join(' '), /SillyTavern chat text keeps its own size/);
+    host.close();
+});
+
 test('Look is searched with the rest: "glass" finds its rows and says how many', async () => {
     const { root, host } = await open();
     search(root, 'glass');
@@ -699,7 +725,7 @@ test('Look is searched with the rest: "glass" finds its rows and says how many',
     assert.deepEqual(page(root, 'look').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field), ['panelStyle', 'glassStrength']);
     assert.equal(railItems(root)[0].querySelector('.ss-tabs-count').textContent, '2');
     search(root, 'font');
-    assert.deepEqual(page(root, 'look').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field), ['font']);
+    assert.deepEqual(page(root, 'look').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field), ['font', 'textSize'], 'Text size\'s help names the font scale too');
     search(root, '');
     assert.equal(page(root, 'look').querySelectorAll('.ss-field').filter(row => row.hidden).length, 0);
     host.close();

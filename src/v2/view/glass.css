@@ -596,6 +596,57 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+/* Wearing and Condition under the place line (`you`, game view header): a label, the words (they wrap) and a quiet pencil; the
+   pencil's touch area reaches into the row's gap, so a row stays a line high */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    align-items: baseline;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 13px;
+    color: var(--ss-text);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you[hidden] {
+    display: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-part {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0 6px;
+    align-items: baseline;
+    min-width: 0;
+    max-width: 100%;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-part[hidden] {
+    display: none;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-label {
+    flex: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ss-muted);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-empty {
+    color: var(--ss-muted);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-pencil {
+    display: inline-flex;
+    align-self: center;
+    margin: -9px 0;
+}
+@media (max-width: 600px) {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-you-pencil {
+        margin: -15px 0;
+    }
+}
 /* compact: the one-row strip under a reply */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-compact {
     padding: var(--ss-space-2) var(--ss-space-3);
@@ -1762,6 +1813,35 @@
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-chip:focus-visible {
     outline: 2px solid var(--ss-accent);
     outline-offset: 2px;
+}
+
+/* ---- segmented: a choice as one joined row of buttons (Text size) ---- */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-chips.ss-segmented {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    max-width: 100%;
+    border: 1px solid color-mix(in srgb, var(--ss-muted) 55%, var(--ss-border));
+    border-radius: var(--ss-radius-s);
+    overflow: hidden;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-segmented .ss-chip {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    border-right: 1px solid color-mix(in srgb, var(--ss-muted) 40%, var(--ss-border));
+    padding: 0 16px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-segmented .ss-chip:last-child {
+    border-right: 0;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-segmented .ss-chip-on {
+    background: linear-gradient(var(--ss-accent-soft), var(--ss-accent-soft)), var(--ss-glass-strong);
+    box-shadow: inset 0 0 0 2px var(--ss-accent);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-segmented .ss-chip:focus-visible {
+    outline-offset: -3px;
 }
 
 /* ---- lines: an editable list of records ---- */

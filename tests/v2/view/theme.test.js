@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     ACCENT, DEFAULT_GLASS, FONT_STACKS, GLASS_MAX, GLASS_MIN, PALETTES, PANEL_STYLES, ROOT_SELECTOR, THEME_ROOTS, createThemeBridge, decideScheme, glassAlphas,
-    luminance, parseColor, schemeTokens, themeChoice, themeCss, themeTokens,
+    luminance, parseColor, schemeTokens, TEXT_SIZES, textSizeOf, themeChoice, themeCss, themeTokens,
 } from '../../../src/v2/view/theme.js';
 import { HOST_SETTINGS_DEFAULTS, HOST_SETTINGS_SCHEMA, createSettings } from '../../../src/v2/sdk.js';
 import { installDom } from './widgets/fake-dom.js';
@@ -261,7 +261,62 @@ test('Glass strength: 30–90%, the concept\'s alphas at 50%; the tint gives the
     assert.equal(HOST_SETTINGS_DEFAULTS.glassStrength, 50);
     const field = HOST_SETTINGS_SCHEMA.glassStrength;
     assert.deepEqual([field.type, field.min, field.max, field.form], ['int', 30, 90, 'slider']);
-    assert.deepEqual(Object.keys(HOST_SETTINGS_SCHEMA).slice(-3), ['panelStyle', 'glassStrength', 'font'], 'under Panel style');
+    assert.deepEqual(Object.keys(HOST_SETTINGS_SCHEMA).slice(-4), ['panelStyle', 'glassStrength', 'font', 'textSize'], 'under Panel style');
+});
+
+test('Text size: Normal adds nothing (the same bytes as before the setting); 110% and 120% set the zoom every root follows, in the sheet only', () => {
+    assert.equal(HOST_SETTINGS_DEFAULTS.textSize, '100', 'Normal by default');
+    const field = HOST_SETTINGS_SCHEMA.textSize;
+    assert.deepEqual([field.type, field.form, field.label], ['choice', 'segmented', 'Text size']);
+    assert.deepEqual(field.options, [{ value: '100', label: 'Normal' }, { value: '110', label: '110%' }, { value: '120', label: '120%' }]);
+    assert.deepEqual(Object.keys(TEXT_SIZES), ['100', '110', '120']);
+    assert.equal(textSizeOf({}), '100');
+    assert.equal(textSizeOf(null), '100');
+    for (const value of ['110', 110, ' 120 ']) assert.equal(textSizeOf({ textSize: value }), String(value).trim());
+    for (const value of ['130', 'big', '', '__proto__', 'constructor', null, undefined, {}]) assert.equal(textSizeOf({ textSize: value }), '100', `${String(value)}: Normal`);
+    for (const panel of ['glass', 'solid', 'sillytavern']) {
+        const normal = themeCss({ scheme: 'dark', panel });
+        assert.equal(themeCss({ scheme: 'dark', panel, textSize: '100' }), normal, `${panel}: Normal is the sheet as it was`);
+        assert.equal(themeCss({ scheme: 'dark', panel, textSize: 'huge' }), normal);
+        assert.doesNotMatch(normal, /--ss-zoom|Text size/);
+        for (const [size, zoom] of [['110', '0.88'], ['120', '0.96']]) {
+            const css = themeCss({ scheme: 'dark', panel, textSize: size });
+            assert.ok(css.startsWith(normal), `${panel} ${size}: everything else is the same, the rule is added at the end`);
+            assert.equal(css.slice(normal.length), `/* Text size ${size}% */\nhtml:root {\n    --ss-zoom: ${zoom};\n}\n`);
+        }
+    }
+    // The bridge applies a change at once, writes nothing for Normal, and takes the rule away again.
+    const p = page({});
+    const touched = [p.snapshot(p.doc.documentElement), p.snapshot(p.doc.body)];
+    let values = {};
+    const bridge = createThemeBridge({ doc: p.doc, settings: () => values, readVar: p.readVar });
+    const sheet = () => p.doc.head.querySelector('style[data-ss-theme]').textContent;
+    const before = sheet();
+    assert.doesNotMatch(before, /--ss-zoom/);
+    values = { textSize: '120' };
+    bridge.apply();
+    assert.match(sheet(), /html:root \{\n    --ss-zoom: 0\.96;\n\}/);
+    assert.deepEqual(bridge.current(), { scheme: 'dark', panel: 'glass', font: 'nunito', strength: 50 }, 'what the bridge reports is as it was');
+    values = { textSize: '110' };
+    bridge.apply();
+    assert.match(sheet(), /--ss-zoom: 0\.88;/);
+    values = { textSize: '100' };
+    bridge.apply();
+    assert.equal(sheet(), before, 'back to Normal: the same bytes');
+    assert.deepEqual([p.snapshot(p.doc.documentElement), p.snapshot(p.doc.body)], touched, 'no attribute or style on SillyTavern\'s elements, at any size');
+    bridge.destroy();
+    // size.css's own default is 0.8, which the rule is relative to (110% of it, 120% of it).
+    const sizeCss = readFileSync(new URL('../../../src/v2/view/size.css', import.meta.url), 'utf8');
+    assert.match(sizeCss, /:root \{\s*--ss-zoom: 0\.8;/);
+    assert.equal(TEXT_SIZES['110'], Math.round(0.8 * 1.1 * 100) / 100);
+    assert.equal(TEXT_SIZES['120'], Math.round(0.8 * 1.2 * 100) / 100);
+    // It is a host setting: stored as one of its options, anything else is refused.
+    const es = {};
+    const settings = createSettings({ root: () => es, registry: { module: () => null } });
+    assert.equal(settings().textSize, '100');
+    assert.equal(settings.set(null, 'textSize', '120'), '120');
+    assert.equal(settings.set(null, 'textSize', 130), undefined, 'not an option: not stored');
+    assert.equal(settings().textSize, '120');
 });
 
 test('the legacy surfaces (the side sheet, the game view) get glass tokens under Glass only; Solid and Follow SillyTavern leave them unset', () => {

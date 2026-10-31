@@ -148,7 +148,7 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 
 - **Kinds** (`fieldKind(field)`): `bool` → switch; `int` → number, or slider with `form: 'slider'` and whole-number
   `min` < `max` (a `unit` text is shown after the value; a `format(n)` function says the value in words instead, and
-  `sliderMax` < `max` is the range the slider offers, which grows to a larger stored value so it is never shown wrong); `choice` → select, or chips (one of them) with `form: 'chips'`;
+  `sliderMax` < `max` is the range the slider offers, which grows to a larger stored value so it is never shown wrong); `choice` → select, chips (one of them) with `form: 'chips'`, or one joined row of buttons (the same radio group) with `form: 'segmented'` (Text size);
   `text` → text box (`multiline`: a text area with a character count when it has a `max`); `profile` → the Connection
   Manager select (`profileChoices`: "Same as chat", the profiles, a gone one kept as "(not found)", the note under the
   label; with nothing to pick but "Same as chat" the select is disabled and the note says why); `text` with `form: 'chips'` and `options`
@@ -528,6 +528,10 @@ their states, the plates, the class-level exceptions and their specificity), `te
   (`.story-suite-sheet > *`, `.ss-gameview-main > *`: the frames keep their size), the settings window, the dialog mount and the UI
   sample's contents. SillyTavern's chat text, top bar and message box are not touched. `zoom` and not a scale on every length,
   because it reaches every screen inside the roots, the modules' and the packs' CSS included, without any of them taking part.
+- Text size (2.10.0, Settings → Look, host setting `textSize`): Normal leaves everything as it is. 110% and 120% add one rule to the
+  theme sheet (`view/theme.js` `TEXT_SIZES`): `html:root { --ss-zoom: 0.88 }` or `0.96` (0.8 times the size), which every root above
+  already follows, so the content grows and reflows with the frames unchanged, in every screen and dialog, with no attribute or style
+  on any element. `--ss-zoomed` follows, so the 44px tap areas and the full-screen layers stay right.
 - A zoomed root also sets `--ss-zoomed`; outside one it is unset. Inside a root, vw, vh and px are all zoomed, so a length that must
   stay the screen's divides by it: `calc(100vw / var(--ss-zoomed, 1))` for ss.dialog's full-screen layer, `calc(44px / var(--ss-zoomed, 1))`
   for a tap area. A root must never sit inside another root (the zoom would multiply).
