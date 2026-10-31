@@ -40,6 +40,7 @@
 import { formatAmount } from './domains/money.js';
 import { PACKS_FOLD, TABS_TEXT, createTabHost } from './host-ui.js';
 import { openSettingsWindow } from './view/settings/window.js';
+import { SECTION_BODIES } from './view/settings/bodies.js';
 import { mountQuery } from './sdk.js';
 import { createMounts } from './view/mounts/index.js';
 import { TEMPLATES, applyScreenCss, createScreenRenderer } from './view/render-screen.js';
@@ -48,6 +49,7 @@ import { gameHeroProps, readHeroContext } from './view/game-header.js';
 import { HOME_ID, createScreens } from './view/screens.js';
 import { createTabOrderStore, isDefaultChoice, isHiddenNav, moveNav, navKey, orderNav, setNavHidden, visibleNav } from './view/tab-order.js';
 import { CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, changesSummary, replyCardLines } from './screens/index.js';
+import { mergeRpgLines } from './screens/changes-card.js';
 import { createReplyNotes } from './reply-notes.js';
 import { createReplyExtras } from './extras-ui.js';
 import { displayLines } from './extras.js';
@@ -136,13 +138,13 @@ function readerStore(ctx) {
 }
 
 /**
- * mountUi({ runtime, ctx, doc?, version? }) → { refresh(), blocked(reason, moduleId), clearBlocked(),
+ * mountUi({ runtime, ctx, doc?, version?, loadLeanRpg? }) → { refresh(), blocked(reason, moduleId), clearBlocked(),
  * openPanel(), closePanel(), openSettings(), toggleGameView(), setHud(on), hudOn(), screens, mounts,
  * renderer, notes, extras, savePoints, inspector, tabs (Settings → Tabs: rows(), move(id, delta),
  * setHidden(id, hidden), reset(), isDefault()), syncScreens(), destroy() }.
  * Re-read uses `sdk.reread(index)` (or `runtime.turn.reread(index)`) when the runtime has one.
  */
-export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' }) {
+export function mountUi({ runtime, ctx, doc = globalThis.document, version = '', loadLeanRpg = () => import('./lean-rpg/view/index.js') }) {
     const { registry, store, sdk, settings, events } = runtime;
     // A screen asking a query no module answers (an optional module that is not installed, like NSD's
     // npc.portrait) gets null, not a problem line.
@@ -341,10 +343,16 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     // reply" card also `moduleLines`: the modules' own lines for that reply (hooks.replyCard, MODULES §F125).
     const recordAt = index => readRecord(ctx.chat?.[index]);
     const editsAt = index => replyEdits(recordAt(index), store.problems?.() ?? [], index);
-    const cardLines = (index, state, changes) => [
-        ...replyCardLines(registry.hookEntries?.('replyCard') ?? [], { index, state, changes }),
-        ...replyRules(recordAt(index), store.problems?.() ?? [], index),
-    ];
+    // The Lean RPG's screens (src/v2/lean-rpg/view/): loaded by import() only while its feature is on, taken away when it goes off.
+    let rpg = null, rpgLoading = false, rpgGone = false;
+    const cardLines = (index, state, changes, before = null) => {
+        const lines = [
+            ...replyCardLines(registry.hookEntries?.('replyCard') ?? [], { index, state, changes }),
+            ...replyRules(recordAt(index), store.problems?.() ?? [], index),
+        ];
+        // The Lean RPG's own lines (rolls, class and rank rises), only while its screens are mounted.
+        return rpg ? mergeRpgLines(lines, rpg.cardLines({ state, before, record: recordAt(index), problems: (store.problems?.() ?? []).filter(item => item?.index === index) })) : lines;
+    };
     const drawScreen = renderer.render;
     // …and `assisted`: the lines the Assist safety net applied on it (its receipts marked `assist`).
     const assistedAt = index => {
@@ -354,7 +362,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         } catch { return []; }
     };
     renderer.render = (el, screen, scope) => drawScreen(el, screen, scope?.mount === 'card'
-        ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes), edits: editsAt(scope.index), editableHead: scope.index === store.headIndex() } : {}) }
+        ? { ...scope, refused: notes.refusedAt(scope.index), assisted: assistedAt(scope.index), ...(screen?.id === CHANGES_CARD_SCREEN_ID ? { moduleLines: cardLines(scope.index, scope.state, scope.changes, scope.before), edits: editsAt(scope.index), editableHead: scope.index === store.headIndex() } : {}) }
         : scope);
     // The story head a dialog was opened on (mounts/dialog.js): the head's index and record. Which swipe is shown is not part of
     // it: a swipe that keeps the head record is not a move (the chat's id is checked on its own).
@@ -477,7 +485,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
             if (screen?.id !== CHANGES_CARD_SCREEN_ID) return null;
             let currency = null;
             try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
-            return changesSummary({ state, before, changes, currency, refused: notes.refusedAt(index).length, assisted: assistedAt(index).length, lines: cardLines(index, state, changes), edits: editsAt(index).length });
+            return changesSummary({ state, before, changes, currency, refused: notes.refusedAt(index).length, assisted: assistedAt(index).length, lines: cardLines(index, state, changes, before), edits: editsAt(index).length });
         },
         settings: screenId => {
             const owner = String(screenId ?? '').split('/')[0];
@@ -662,6 +670,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         overlay = openSettingsWindow({
             registry, settings, doc, sdk, features: runtime.features ?? null, fold, diagnostics,
             promptParts, tabs: tabsControl, theme, blockTemplates,
+            ...(rpg ? { bodies: rpg.settingsBodies(SECTION_BODIES) } : {}),
             countTokens: countTokens(),
             onClose: () => { overlay = null; },
         });
@@ -810,6 +819,19 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         refresh();
         return Boolean(on);
     }
+    const rpgOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
+    function syncLeanRpg() {
+        if (!rpgOn()) { rpg?.destroy(); rpg = null; return; }
+        if (rpg || rpgLoading) return;
+        rpgLoading = true;
+        Promise.resolve().then(() => loadLeanRpg()).then(view => {
+            rpgLoading = false;
+            if (rpgGone || rpg || !rpgOn()) return;
+            rpg = view.mountLeanRpg({ doc, ctx, store, events, screens, widgets: hostWidgets, headState: headStateNow, featureOn: rpgOn,
+                readerName: () => String(liveCtx()?.name1 ?? ctx.name1 ?? ''), openScreen: id => api.openScreen(id), refresh: () => refresh() });
+            mounts.card?.refreshAll?.({ force: true });
+        }).catch(error => { rpgLoading = false; console.warn('[Story Suite] the Lean RPG screens could not load', error?.message ?? error); });
+    }
     const offs = [...replyOffs];
     // Story Suite's console errors, kept for Diagnostics (once per page; the console still prints them).
     offs.push(captureConsole());
@@ -843,6 +865,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         mounts.card?.refreshAll?.({ force: true });
     }) ?? (() => {}));
     offs.push(events.on('feature', () => {
+        syncLeanRpg();
         // The overlay draws the switch and the fields of that feature again, and the prompt size.
         overlay?.refresh?.();
         syncScreens();
@@ -867,6 +890,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
     }));
 
     syncScreens();
+    syncLeanRpg();
     refresh();
     mounts.card?.attachAll?.();
 
@@ -891,6 +915,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '' 
         inspector,
         theme,
         destroy() {
+            rpgGone = true;
+            rpg?.destroy();
+            rpg = null;
             overlay?.close?.();
             mounts.dialog?.closeAll?.();
             tabHost?.destroy?.();

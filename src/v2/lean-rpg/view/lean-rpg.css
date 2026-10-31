@@ -1,0 +1,104 @@
+/* Lean RPG screens: the Party tab, the Spend points sheet, the battle log and the settings fold.
+   Loaded only while the feature `story-block.lean-rpg` is on (view/index.js adds the <link>). Colours are the theme's
+   tokens (--ss-*, set by view/theme.js on every Story Suite root); nothing here sets a colour of its own. Layout follows the
+   container's width (container queries), so a phone, a narrow chat column and a wide game view each get the layout that fits.
+   No fixed positioning anywhere: a phone's sheet is in the flow, anchored at the top (SillyTavern's html has a transform). */
+
+/* ---- Party tab (mockup 21-party) ---- */
+.ss-w-rpg-party { display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
+.rpg-main { display: grid; gap: 12px; }
+.rpg-main[hidden], .rpg-sheet-host:empty { display: none; }
+.rpg-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rpg-head h3 { margin: 0; font-size: 18px; }
+.rpg-empty { margin: 0; color: var(--ss-muted); }
+.rpg-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.rpg-card { display: grid; gap: 10px; padding: 14px; border-radius: var(--ss-radius-l, 16px); min-width: 0; }
+.rpg-fallen { opacity: 0.55; filter: grayscale(0.7); }
+.rpg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.rpg-who { min-width: 0; display: grid; gap: 2px; }
+.rpg-name { margin: 0; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.rpg-sub { font-size: 12px; color: var(--ss-muted); }
+.rpg-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.rpg-points { font-weight: 700; }
+.rpg-fallen-pill { font-weight: 700; }
+
+/* The stage bars: one aligned row each, the same on a card and on the sheet. The pencil covers the bar, so a tap on it opens the edit. */
+.rpg-bars { display: grid; gap: 8px; }
+.rpg-bar { position: relative; min-width: 0; }
+.rpg-bar-edit, .rpg-bar .ss-w-editable { display: block; }
+.rpg-bar .ss-w-editable-pencil { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; opacity: 0; cursor: pointer; padding: 0; margin: 0; }
+.rpg-bar .ss-w-editable-pencil:focus-visible { opacity: 1; outline: 2px solid var(--ss-accent); outline-offset: 2px; background: transparent; }
+.rpg-bar .ss-w-editable-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; position: relative; z-index: 1; }
+
+.rpg-stats { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; font-size: 11px; text-align: center; font-variant-numeric: tabular-nums; }
+.rpg-stat { display: grid; gap: 2px; padding: 4px 0; border-radius: 8px; background: var(--ss-tile); }
+.rpg-stat b { font-size: 14px; }
+.rpg-skills { font-size: 12.5px; color: var(--ss-muted); overflow-wrap: anywhere; }
+.rpg-card-actions, .rpg-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---- Spend points / Stats sheet (mockup 11-stats-bars) ---- */
+.rpg-sheet { display: grid; gap: 12px; padding: 14px; border-radius: var(--ss-radius-l, 16px); min-width: 0; }
+.rpg-sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rpg-sheet-name { margin: 0; font-size: 18px; }
+.rpg-points-left { font-weight: 700; }
+.rpg-sheet .rpg-bars { grid-template-columns: 1fr; }
+.rpg-sheet-body { display: grid; gap: 12px; align-items: start; }
+.rpg-steppers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.rpg-stat-step { min-width: 0; }
+.rpg-radar { display: grid; justify-items: center; min-width: 0; }
+.rpg-radar .ss-w-radar { width: min(100%, 360px); }
+.rpg-sheet-note { margin: 0; font-size: 12px; color: var(--ss-muted); flex: 1 1 220px; }
+@container (min-width: 700px) {
+    .rpg-sheet .rpg-bars { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .rpg-sheet-body { grid-template-columns: minmax(0, 1fr) minmax(0, 340px); }
+    .rpg-steppers { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* ---- Battle log (display D) ---- */
+.rpg-battle { --rpg-panel: color-mix(in srgb, var(--ss-text) 6%, var(--ss-glass-strong, var(--ss-glass)));
+    margin: 10px 0; border: 1px solid var(--ss-border); border-radius: 6px; background: var(--rpg-panel); color: var(--ss-text);
+    font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 13px; line-height: 1.5; text-align: left; overflow: hidden; }
+.rpg-battle-card { margin: 8px 0; }
+.rpg-battle button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
+.rpg-bl-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; border-bottom: 1px solid var(--ss-border); }
+.rpg-bl-folded .rpg-bl-head { border-bottom: 0; }
+.rpg-bl-title { flex: 1 1 auto; }
+.rpg-bl-chevron { margin-left: auto; color: var(--ss-muted); }
+.rpg-bl-body { padding: 8px 12px 12px; display: grid; gap: 6px; }
+.rpg-bl-order { margin: 0; color: var(--ss-muted); }
+.rpg-bl-round { display: grid; gap: 2px; }
+.rpg-bl-round-title { margin: 6px 0 2px; font-weight: 700; }
+.rpg-act-line { display: flex; gap: 6px; align-items: baseline; width: 100%; min-height: 28px; padding-left: 4px; }
+.rpg-act-mark { flex: none; width: 1em; color: var(--ss-muted); }
+.rpg-act-text { min-width: 0; overflow-wrap: anywhere; }
+.rpg-skill { color: var(--ss-accent-text, var(--ss-accent)); }
+.rpg-out { font-weight: 400; }
+.rpg-out-success { color: var(--ss-good); }
+.rpg-out-fail { color: var(--ss-bad-text, var(--ss-bad)); }
+.rpg-out-cost { color: var(--ss-warn-text, var(--ss-warn)); }
+.rpg-arrow { color: var(--ss-text); }
+.rpg-why { margin: 0 0 2px 22px; color: var(--ss-muted); overflow-wrap: anywhere; }
+.rpg-bl-note, .rpg-bl-ended { margin: 4px 0 0; }
+.rpg-bl-ended { font-weight: 700; }
+.rpg-bl-status { display: grid; gap: 4px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--ss-border); }
+.rpg-bl-status-title { margin: 0; font-weight: 700; }
+.rpg-bl-who { display: grid; gap: 2px; }
+.rpg-bl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 2px 16px; }
+.rpg-bl-stat { display: grid; grid-template-columns: 4.6em minmax(36px, 1fr) 8.5em; gap: 8px; align-items: center; min-width: 0; }
+.rpg-bl-label { color: var(--ss-muted); }
+.rpg-bl-track { display: block; height: 6px; border-radius: 3px; background: var(--ss-track); overflow: hidden; }
+.rpg-bl-fill { display: block; height: 100%; width: calc(var(--rpg-fill, 0) * 100%); border-radius: 3px; background: var(--ss-text); }
+.rpg-bl-health .rpg-bl-fill { background: var(--ss-hp, var(--ss-bad)); }
+.rpg-bl-mana .rpg-bl-fill { background: var(--ss-mp, var(--ss-info)); }
+.rpg-bl-stamina .rpg-bl-fill { background: var(--ss-sp, var(--ss-warn)); }
+.rpg-bl-foes { grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; }
+.rpg-bl-foe-list { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+    .rpg-bl-stats { grid-template-columns: 1fr; }
+    .rpg-bl-foes { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* ---- "Changed this reply" lines and the settings fold ---- */
+.rpg-settings { margin-top: 12px; }
+.rpg-settings > summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+.rpg-settings-hint { margin: 0 0 8px; color: var(--ss-muted); font-size: 12px; }
