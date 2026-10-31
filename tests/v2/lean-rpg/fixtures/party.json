@@ -21,7 +21,8 @@
                 "soul": 2,
                 "xp": 40,
                 "down": false,
-                "alive": true
+                "alive": true,
+                "left": false
             }
         },
         {
@@ -44,7 +45,8 @@
                 "soul": 1,
                 "xp": 85,
                 "down": false,
-                "alive": true
+                "alive": true,
+                "left": false
             }
         },
         {
@@ -67,7 +69,8 @@
                 "soul": 1,
                 "xp": 20,
                 "down": false,
-                "alive": true
+                "alive": true,
+                "left": false
             }
         },
         {

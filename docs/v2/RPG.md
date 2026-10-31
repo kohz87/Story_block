@@ -10,7 +10,8 @@ Open **Settings → Features** and switch on **RPG**. A page of its own, **Setti
 (see [Settings → RPG](#settings--rpg)). With **Rolls: automatic** (the default) the dice are rolled for you; with
 rolls **off**, the narrator still tells the story, but no dice are rolled and no battle log is drawn.
 
-Make your characters with **New character** on the Party tab (see [Making a character](#making-a-character)). To build
+Make your characters with **New character** on the Party tab (see [Making a character](#making-a-character)); in a new
+chat Home and the first Send ask you to make yours (see [A new chat](#a-new-chat)). To build
 a sheet by hand instead, use **Game view → Blocks**: choose **New block**, then a template from the **RPG** heading
 (see [The four templates](#the-four-templates)). Make one Character block for each character in the party, and
 one Skills block for each of them that has skills. Foes is one block for the foe groups in a fight. Combat rules is
@@ -23,6 +24,8 @@ the three stage bars, the seven stats in a row and the skills with their ranks. 
 points, the card offers **Spend points**, which opens the stat view with steppers under the point budget. **Stats**
 opens the same view for the stats alone, and **Skills** opens the character's [Skills view](#the-skills-view). **+ New
 character** in the header opens the wizard; with no character yet the tab says so and offers **Create your character**.
+
+A companion who left the party (see [Companions who join](#companions-who-join)) keeps their card, greyed, with a **Left** tag.
 
 Edits made here ride on the latest reply, like any other pencil edit: swipe or delete that reply to take them back.
 
@@ -40,7 +43,12 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
 
 1. **Who.** The name (your persona's by default), whether this character is **You** or **A companion**, and who they
    are (up to 240 characters, which the narrator reads on every reply). A story has one You: the party shows you as the
-   character named like your persona, so You takes that name and a companion cannot.
+   character named like your persona, so You takes that name and a companion cannot. A You also starts with your active
+   persona's description in **Who they are** (its first 240 characters, never splitting a character), with the note
+   "From your persona's description (the first 240 characters). Change it freely: this is what the AI reads." Only the
+   active persona's description is read, never another persona or any other setting. It is only a start: a companion's
+   box starts empty, switching to **A companion** empties it again while it is still the persona's text, and anything
+   you type is yours.
 2. **Stats.** The same steppers and radar as Spend points. Every stat starts at 10 and you have 6 points to spend. A
    stat can go down to 8 to free a point and up to 15. Points you leave unspent stay on the character for Spend points.
 3. **Skills.** Start from a template (Guild fighter, River scout, Hedge mage, Field medic, Silver tongue, and the sets a
@@ -51,6 +59,56 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
    Skills block ("Wessel's skills"), each with one action, so a creation costs two of the reply's changes. If the second
    cannot be made the first is taken back and nothing is left half made. The window says what is in the way in plain
    words, for example a name that is taken or a story that already has eight blocks.
+
+## A new chat
+
+With the RPG on and no character for you in the story (a character named like your persona), Story Block asks you to make
+one, in two places. Neither is there with the RPG off, and neither changes anything a reply is told.
+
+- **Home** shows a **Your character** card at the top: "The RPG is on, and this story has no character yet. Make yours to roll
+  for what you do; your persona fills in the name and who you are." **Create your character** opens the New character window.
+  **Not now** hides the card for this chat (kept in the chat's own metadata, not in the game, so a swipe or a rewind does not
+  touch it); the Party tab's own **Create your character** stays. The card is gone as soon as you have a character, and a
+  story that has only companions still shows it.
+- **The first Send** is held. When you press Send (or Enter, where SillyTavern sends on Enter) with a message in the box, the
+  message stays in the box and **Make your character first** opens, with your message quoted. **Send without the RPG for now**
+  sends it as usual, with no dice for that reply, and the chat is never asked again (the Home card still reminds you).
+  **Create your character, then send** opens the New character window and sends the message when you press Create; if you
+  close the window instead, the text is still in the box and the next Send asks again. Closing the dialog also leaves the text
+  in the box. On a phone the dialog is a bottom sheet. Only a normal Send is held: a swipe, a regenerate, a continue, an
+  impersonation, a quiet or dry run, an empty box and a slash command are not.
+
+## Companions who join
+
+When the story says someone joins the party for good, the narrator writes one line, and Story Block can make their character.
+**Settings → RPG → Companions who join** says what it does with it: **Ask** (the default), **Automatically** or **Off**.
+
+```
++ party Mara | about: a hedge-witch from Kvildal | class: I | best: int
+- party Mara
+```
+
+`about` is up to 240 characters, `class` is a Soul Class from I to IX and `best` is one of str, vit, agi, dex, int, luk, cha;
+the last two are optional. The line is in the narrator's instructions only while the RPG is on, the story has a Character block
+and the setting is not Off; with the RPG off, nothing is told and nothing changes.
+
+- **What is made.** A Character block (a companion) and an empty Skills block for that name, as one action of the reply: every
+  stat 10 with the named best stat 14, no unspent points, Health, Mana and Stamina full, and the Soul Class as written but never
+  above the highest Soul Class among those in the party. The skills fill in when the story has them learn something, as for
+  anyone.
+- **Ask.** The line makes nothing. The reply gets a card, "Mara joins the party", with **Add to party** (makes them as above),
+  **Edit first** (opens the New character window filled in: name, about, Soul Class, the best stat raised to 14; you spend the
+  rest) and **No** (dismisses it). The card is read from the reply's own record, so a swipe or a delete takes it away and nothing
+  is kept in the game for it.
+- **Automatically.** They are made at once and listed in "Changed this reply" ("Mara joined the party"). Like every other line of
+  the reply it is taken back by a swipe or a delete, and a Re-read makes it the same way.
+- **`- party Mara`.** Marks that companion as **Left**: kept on the Party tab, greyed, no longer rolled for, never deleted. A later
+  `+ party Mara` brings the same person back (with the sheet they left with), whatever the setting says. A sheet made before the
+  **Left** field existed cannot be marked, and the line says so.
+- **Refused plainly**, with one line in the Problems list and nothing made: the name is already in the party, the party is full
+  (8 characters, counting those who left; a story holds at most 8 blocks of its own, and a companion takes two, so the blocks
+  usually run out first), there is no room for two more blocks, or the reply has used all the block actions it can take. A class
+  that is not I to IX, a `best` that is not a stat and a line with no name are refused the same way.
 
 ## The Skills view
 
@@ -113,7 +171,7 @@ Settings page, only changes the rolls made after it.
 
 ## Settings → RPG
 
-The page has four cards, and shows only while the RPG is on.
+The page has five cards, and shows only while the RPG is on.
 
 - **Rolls.** **Automatic** or **Off**, as above.
 - **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. The presets change the foe's base and how far short
@@ -133,6 +191,8 @@ The page has four cards, and shows only while the RPG is on.
 - **Roll planner.** Your own instructions (up to 400 characters) for the short call that plans the dice, added after its
   fixed part. **Show the planner's full prompt** shows exactly what that call is sent for this chat, read-only: the format
   of its answer stays fixed so the dice can be read.
+
+- **Companions who join.** **Ask**, **Automatically** or **Off**, as in [Companions who join](#companions-who-join).
 
 With the RPG off none of this is read or sent.
 
@@ -163,7 +223,7 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points, Soul Class, XP, Alive. The narrator sets Health, Mana, Stamina, XP and Alive; the reader sets stats and points. Rest refills Stamina and Mana. |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points, Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. |
 | **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
 | **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health. |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |

@@ -1,17 +1,19 @@
 // Settings → RPG (mockup section 6): a page of its own in the rail under Features, shown while the feature `story-block.rpg`
-// is on. Four cards:
+// is on. Five cards:
 //   Rolls       Automatic / Off (`rpgRolls`, ROLLS_SETTING in lean-rpg/names.js)
 //   Difficulty  Gentle / Standard / Harsh / Custom (`rpgDifficulty`), the six Custom numbers (`rpgCustom`) and the exact odds for
 //               the reader's own character under the numbers chosen, drawn again as they change
 //   Combat      the chat's Combat rules block's text (≤1200), saved as an edit of that block's definition, with Reset to the default
 //   Planner     the reader's own instructions for the roll planner (`rpgPlannerNote`, ≤400) and the planner's full prompt, read-only
+//   Companions  who join: Ask (the default) / Automatically / Off (`rpgJoin`, JOIN_SETTING): what the story's `+ party` line does (join.js)
 // The numbers are only *chosen* here: a roll takes the numbers in force when it is planned and records them (rules.js), so
 // nothing on this page can change a roll already made. Every node is built with createElement and textContent.
 
 import { h } from '../../view/widgets/dom.js';
 import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
-import { ROLLS_SETTING } from '../names.js';
+import { JOIN_SETTING, ROLLS_SETTING } from '../names.js';
+import { joinMode } from '../join.js';
 import { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, difficultyOf, normalizeRules, plannerNoteOf, rulesFromSettings } from '../rules.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { COMBAT_DEFAULT, COMBAT_MAX, combatBlock, combatTemplate, customOf, oddsView, plannerPrompt, withPrompt } from './settings-data.js';
@@ -51,6 +53,7 @@ const CARD_WORDS = Object.freeze({
     difficulty: words(S.difficulty, S.gentle, S.standard, S.harsh, S.custom, NUMBER_FIELDS.map(field => `${field.label} ${field.help}`).join(' '), S.replayNote),
     combat: words(S.combat, S.combatHelp, S.combatLabel, S.combatReset),
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
+    join: words(S.join, S.joinHelp, S.joinAsk, S.joinAuto, S.joinOff),
 });
 
 /**
@@ -111,6 +114,13 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('rolls', S.rolls);
         chips(box, S.rolls, [['automatic', S.automatic], ['off', S.off]], rollsOf(settings), value => put(ROLLS_KEY, value));
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.rollsHelp));
+    }
+
+    // ---- Companions who join
+    function drawJoin() {
+        const box = card('join', S.join);
+        chips(box, S.join, [['ask', S.joinAsk], ['auto', S.joinAuto], ['off', S.joinOff]], joinMode(values()), value => put(JOIN_SETTING, value));
+        box.appendChild(h(doc, 'p', 'rpg-set-help', S.joinHelp));
     }
 
     // ---- Difficulty and the odds
@@ -313,6 +323,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         drawDifficulty();
         drawCombat();
         drawPlanner();
+        drawJoin();
         live();
         place();
     }

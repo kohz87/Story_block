@@ -14,7 +14,7 @@ const MARK = '<img src=x onerror="globalThis.pwned=1"><b>bold</b>';
 test('the view sources use no markup, script or random APIs; only the stylesheet link sets an address', () => {
     const dir = new URL('../../../../src/v2/lean-rpg/view/', import.meta.url);
     const files = readdirSync(dir).filter(file => file.endsWith('.js'));
-    assert.deepEqual(files.sort(), ['bars.js', 'battle-log.js', 'changes-lines.js', 'distribute.js', 'fight.js', 'index.js', 'party-data.js', 'party.js', 'settings-data.js', 'settings.js', 'skills.js', 'wizard-data.js', 'wizard.js']);
+    assert.deepEqual(files.sort(), ['bars.js', 'battle-log.js', 'changes-lines.js', 'distribute.js', 'fight.js', 'index.js', 'party-data.js', 'party.js', 'settings-data.js', 'settings.js', 'skills.js', 'start.js', 'wizard-data.js', 'wizard.js']);
     for (const file of [...files, '../strings.js']) {
         const source = readFileSync(new URL(file, dir), 'utf8');
         assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Math\.random|Date\.now/, file);

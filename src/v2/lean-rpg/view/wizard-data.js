@@ -3,8 +3,9 @@
 // definitions Create makes. The draft lives in the dialog (`api.draft`), so this reads it as plain data and never trusts it:
 // `readDraft` clamps whatever it finds. Field names are the ones the Character and Skills templates use (templates.js).
 //
-//   draft = { name, kind: 'you' | 'companion', about, stats: { str…cha }, skills: [{ name, about, stat, uses, start: 0 | 1 }], set }
-//   (start is the rank a skill begins at: 0 Novice, 1 Adept; `set` is the id of the skill set last put in, '' for none)
+//   draft = { name, kind: 'you' | 'companion', about, stats: { str…cha }, skills: [{ name, about, stat, uses, start: 0 | 1 }], set, soul? }
+//   (start is the rank a skill begins at: 0 Novice, 1 Adept; `set` is the id of the skill set last put in, '' for none; `soul` is the
+//   Soul Class a companion who joins the story arrives with, 2 to 9: left out it is I, which is every character the reader makes)
 
 import { DM_LIMITS } from '../../data-modules/schema.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
@@ -49,7 +50,8 @@ export function readDraft(raw) {
         };
     });
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
-        about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '' };
+        about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
+        ...(Number.isSafeInteger(given.soul) && given.soul > 1 ? { soul: clamp(given.soul, 1, 9) } : {}) };
 }
 
 /** Points left: the budget minus what the stats cost (a stat above its start costs a point a step; below it gives one back). */
@@ -151,9 +153,10 @@ export const blockNames = name => ({ character: name, skills: `${name}'s skills`
 /**
  * The two definitions Create makes, from the templates with the wizard's values written as the fields' defaults (so one `dm.define`
  * each makes the whole block, and the Skills block's `rankN` stays a field only play can move). `used` is the ids of the blocks
- * the chat has, so the slugs are free. → { character, skills } (definitions, the Character first)
+ * the chat has, so the slugs are free; `points` sets the Character's unspent points (a companion who joins starts with none, the
+ * wizard's the budget left). → { character, skills } (definitions, the Character first)
  */
-export function buildDefinitions(draft, { used = [] } = {}) {
+export function buildDefinitions(draft, { used = [], points = null } = {}) {
     const names = blockNames(draft.name);
     const character = template('character');
     character.slug = uniqueBlockSlug(names.character, used);
@@ -162,7 +165,8 @@ export function buildDefinitions(draft, { used = [] } = {}) {
     state.who.default = draft.name;
     state.about.default = draft.about;
     for (const stat of STATS) state[stat].default = draft.stats[stat];
-    state.points.default = Math.max(0, pointsLeft(draft));
+    state.points.default = Number.isSafeInteger(points) ? Math.max(0, points) : Math.max(0, pointsLeft(draft));
+    if (draft.soul > 1) state.soul.default = draft.soul;
     const skills = template('skills');
     skills.slug = uniqueBlockSlug(`${draft.name} skills`, [...used, character.slug]);
     skills.name = names.skills;

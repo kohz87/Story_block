@@ -24,6 +24,8 @@ import { SHOW_MORE_WIDGET } from './show-more.js';
 const SAVEPOINTS_WIDGET = 'story-block.savepoints';
 // "Before you start" while a module holds the story back (screens/ready-hint.js), also a host widget.
 const READY_HINT_WIDGET = 'story-block.ready-hint';
+// The RPG's "Your character" card while the story has no character (lean-rpg/view/start.js): a host widget that draws nothing unless the RPG is on.
+export const RPG_START_WIDGET = 'story-block.rpg-start';
 
 const S = STRINGS.home;
 
@@ -33,6 +35,7 @@ export const HOME_SCREEN_ID = 'story-block/home';
 
 const TEMPLATE = `
 <div class="home">
+  <ss-widget name="${RPG_START_WIDGET}" class="rpg-start-slot"></ss-widget>
   <ss-widget name="${READY_HINT_WIDGET}" class="ready-slot"></ss-widget>
 
   <section class="panel scene">
@@ -107,7 +110,8 @@ const CSS = `${BASE_CSS}
 .progress { margin-top: 4px; }
 .saves-slot:empty { display: none; }
 .blocks-slot:empty { display: none; }
-.ready-slot { grid-column: 1 / -1; }
+.ready-slot, .rpg-start-slot { grid-column: 1 / -1; }
+.rpg-start-slot:empty, .rpg-start-slot[hidden] { display: none; }
 .ready-slot:empty { display: none; }
 .ready-hint { display: grid; gap: 6px; border-color: color-mix(in srgb, var(--sb-accent) 55%, var(--sb-border)); }
 .ready-hint > h4 { margin: 0; }

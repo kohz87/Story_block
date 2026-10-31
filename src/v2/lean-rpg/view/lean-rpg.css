@@ -226,3 +226,17 @@
 .rpg-set-fold > summary { cursor: pointer; font-size: 13px; }
 .rpg-set-pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace; padding: 10px; border-radius: 8px; background: color-mix(in srgb, black 25%, transparent); max-height: 220px; overflow: auto; margin: 8px 0; }
 @media (max-width: 600px) { .rpg-set-nums { grid-template-columns: 1fr 1fr; } }
+
+/* ---- A new chat with no character (mockup sections 7 and 7b): Home's card, and the dialog that holds the first Send ---- */
+.ss-w-rpg-start-host { display: contents; }
+.rpg-start { display: grid; gap: 8px; align-content: start; }
+.rpg-start > h4 { margin: 0; }
+.rpg-start-text { margin: 0; }
+.rpg-start-actions, .rpg-hold-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ss-w-rpg-hold { display: grid; gap: 12px; min-width: 0; }
+.rpg-hold-text { margin: 0; }
+.rpg-hold-quote { margin: 0; padding: 4px 0 4px 12px; border-left: 3px solid var(--ss-accent); overflow-wrap: anywhere; white-space: pre-wrap; max-height: 9em; overflow-y: auto; }
+.rpg-hold-actions { justify-content: flex-end; }
+@media (max-width: 600px) { .rpg-hold-actions { justify-content: stretch; } .rpg-hold-actions .ss-button { flex: 1 1 100%; } }
+.rpg-left-pill { font-style: italic; }
+.rpg-wiz-persona[hidden] { display: none; }
