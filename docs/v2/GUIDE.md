@@ -21,6 +21,15 @@ Data-module layouts may also show pencils. Edits ride on the latest reply: swipe
 to take them back when it is not the oldest remaining reply. Deleting the oldest remaining reply carries
 its edits forward with the rest of its state.
 
+The narrator also keeps the party's **mounts** (horses, mules, carts: up to six rows, a group such as "Guild remounts ×4" is one
+row). While there is one, Home shows a **Mounts** card with each row's kind, condition and where it is, its pace in km a day,
+and how fast the party travels: the slowest mount's pace, or 20 km a day on foot when there are fewer mounts than riders (with the
+RPG on, every party member who has not left counts as a rider). The pencil beside a mount edits its name, kind, how many,
+pace, condition and where; like other pencils it rides on the latest reply. Switch it off in **Settings → Features → Mounts**:
+the narrator is then not told about mounts and the card is hidden. With Story Director 2.5's **Trips**, the header above
+every screen of the game view also gets a **Travel** line (the mode, the pace and the mount that sets it, the leg and the
+arrival) under Wearing and Condition while a trip is on.
+
 **Settings → Look** sets the panel style, glass strength, font and **Text size** (Normal, 110% or 120%): the larger sizes make the Game view, the cards under replies, the dialogs and the settings window bigger at once; SillyTavern's own chat text keeps its size (use its Font scale for that). Use **Settings → Features** to enable optional features. Assist's safety net can recover missed changes. Its pre-roll helper works with a module that supplies checks, such as Story Director.
 
 ## Making a block

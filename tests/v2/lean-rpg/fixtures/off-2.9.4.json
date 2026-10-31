@@ -1,0 +1,36 @@
+{
+ "prompts": [
+  "e5f193e16c87cf3be8b7adb5227982d4c9fcb4b7621ab867880f9a601f66e7c7",
+  "5622416df57bfa5658426f7a463e02bdb09d2ff0349487bff2c3ef9d9e91fe39",
+  "5622416df57bfa5658426f7a463e02bdb09d2ff0349487bff2c3ef9d9e91fe39",
+  "5622416df57bfa5658426f7a463e02bdb09d2ff0349487bff2c3ef9d9e91fe39"
+ ],
+ "draws": 6,
+ "drawn": "d2e913cd577b811059bd255fe4e28891cd74852699f74c25bd856131e65c2104",
+ "calls": 0,
+ "receipts": [
+  [],
+  [],
+  [
+   [
+    "capture.place",
+    "story",
+    false,
+    "The scene moves to Drain."
+   ],
+   [
+    "capture.present",
+    "story",
+    false,
+    "Ren is here."
+   ]
+  ],
+  [],
+  []
+ ],
+ "domains": [
+  "inventory",
+  "scene"
+ ],
+ "rev": 2
+}

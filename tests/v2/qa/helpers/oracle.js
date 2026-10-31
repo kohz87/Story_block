@@ -45,7 +45,7 @@ const unescape = segment => segment.replace(/~1/g, '/').replace(/~0/g, '~');
 // The inventory's scratch fields (its domain's `scratch`): the tally, the loot on offer, the condition events;
 // and the scene's weather (one record a later reply writes whole, MODULES §F120) and your look (each part written on its own,
 // MODULES §F126).
-const SCRATCH = ['/domains/inventory/perReply', '/domains/inventory/loot', '/domains/inventory/condLog', '/domains/scene/weather', '/domains/scene/you'];
+const SCRATCH = ['/domains/inventory/perReply', '/domains/inventory/loot', '/domains/inventory/condLog', '/domains/scene/weather', '/domains/scene/you', '/domains/scene/mounts'];
 const at = (root, keys) => keys.reduce((node, key) => (node !== null && typeof node === 'object' && Object.hasOwn(node, key) ? node[key] : undefined), root);
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -69,13 +69,21 @@ export function strictApply(state, ops) {
         if (name !== null) touched.add(name);
     }
     const startProblems = new Set(validateDomains(root, [...touched]));
+    // Paths earlier ops of the block wrote, for rule (d): an op marked `within` a thing is passed over when the thing is not there.
+    const wrote = [];
     for (const original of ops) {
         let op = original;
+        if (typeof op?.within === 'string') {
+            const inside = op.within.slice(1).split('/').map(unescape);
+            const put = wrote.some(path => op.within === path || op.within.startsWith(`${path}/`));
+            if (!(op.op === 'add' && op.path === op.within) && !put && at(root, inside) === undefined) continue;
+        }
+        if ((op?.op === 'add' || op?.op === 'replace') && typeof op.path === 'string') wrote.push(op.path);
         // The inventory's per-reply tally (scratch): a drop of something already gone is passed over;
         // anything else is put in place, making the objects on the way.
         // A list inside one (an append `/-`, a position) is not fitted: it applies as written below.
         const inList = keys => keys.at(-1) === '-' || keys.slice(0, -1).some((_, n) => Array.isArray(at(root, keys.slice(0, n + 1))));
-        if (typeof op?.path === 'string' && SCRATCH.some(root => op.path.startsWith(`${root}/`)) && !inList(op.path.slice(1).split('/').map(unescape))) {
+        if (typeof op?.within !== 'string' && typeof op?.path === 'string' && SCRATCH.some(root => op.path.startsWith(`${root}/`)) && !inList(op.path.slice(1).split('/').map(unescape))) {
             const keys = op.path.slice(1).split('/').map(unescape);
             if (op.op === 'remove') {
                 if (at(root, keys) === undefined) continue;
@@ -309,7 +317,7 @@ export function checkInvariants(host, label) {
         // With the validators the host passes (runtime.js): a replay that moves counts, or any replayed block, is checked by them.
         const validate = (state, names) => validateDomains(state, names);
         // And the inventory's per-reply tally and the scene's weather and look as the scratch they are declared to be (ops.js).
-        const scratch = name => (name === 'inventory' ? ['perReply', 'loot', 'condLog'] : name === 'scene' ? ['weather', 'you'] : []);
+        const scratch = name => (name === 'inventory' ? ['perReply', 'loot', 'condLog'] : name === 'scene' ? ['weather', 'you', 'mounts'] : []);
         // (one copy, read as the same array every time, as SillyTavern's chat is: a reply-bound block is told by its message)
         const copy = structuredClone(chat);
         const fresh = createStore({ chat: () => copy, save: async () => {}, validate, scratch });

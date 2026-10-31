@@ -209,7 +209,37 @@ export const STRINGS = deepFreeze({
         weatherDescribe: 'The story notes the weather in a few words when it changes; shown on Scene, Home and the reply\'s Status card. Descriptive only: nothing in the rules reads it.',
         you: 'Your look',
         youDescribe: 'The story notes what you wear and how you are (tired, hurt, cold), and your rank where the game has one, when that changes; shown on Home and the reply\'s Status card. Descriptive only: nothing in the rules reads it.',
+        mounts: 'Mounts',
+        mountsDescribe: 'The story notes the party\'s horses, mules and carts, and how fast they travel; shown as a card on Home and read by the story\'s trip line. Off: the narrator is not told about them.',
         chatterDescribe: 'Short unspoken thoughts of the people in the scene, shown next to each person on the World screen (on the Scene screen without Story Director). Kept out of the story text and, unless you say so, out of later prompts.',
+    },
+
+    // The party's mounts (src/v2/domains/mounts.js): refusals and summaries, and the Home card.
+    mounts: {
+        title: 'Mounts',
+        needName: 'A mount line needs the mount\'s name.',
+        longName: 'A mount\'s name is at most {max} characters.',
+        badOp: '"{op} mount" is not a change the party\'s mounts understand; use + mount, ~ mount or - mount.',
+        notNumber: 'The mount\'s {what} must be a whole number.',
+        notText: 'The mount\'s {what} must be text.',
+        held: 'The {what} was held to {n}.',
+        none: 'The party has no mount called {name}.',
+        notWith: '{name} is not with the party.',
+        full: 'The party can keep at most {max} mounts, so {name} was not added.',
+        taken: '"{name}" is already the name of another mount.',
+        added: 'The party gets {name}{n}: {about}.',
+        removed: 'The party no longer has {name}.',
+        renamed: '{old} is now called {name}',
+        same: '{name} stays as it was.',
+        cleared: 'no {field}',
+        readerOnly: 'Only the reader changes a mount by hand.',
+        which: 'Which mount?',
+        edit: 'mount',
+        editName: 'Name', editKind: 'Kind', editCount: 'How many', editPace: 'Pace (km/day)', editCondition: 'Condition', editWhere: 'Where',
+        perDay: 'km/day',
+        // The two notes under the Home card, round the number they show (the template binds it).
+        noteBefore: 'The party travels at the slowest: ', noteAfter: ' km/day riding.',
+        noteShortBefore: 'Not enough mounts for everyone: the party walks (', noteShortAfter: ' km/day).',
     },
 
     // Choices under a reply and the Inner chatter setting (src/v2/extras.js, MODULES §F115).
@@ -362,6 +392,7 @@ export const STRINGS = deepFreeze({
         rank: 'Rank',
         wearing: 'Wearing',
         condition: 'Condition',
+        travel: 'Travel',
     },
 
     // `story-block/home`.

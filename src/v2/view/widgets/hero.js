@@ -4,7 +4,7 @@
 // Terms' own word ("Soul growth"), a place / time / weather corner, and a row of status badges. `compact`
 // is the one-row variant for the strip under a reply. With `you` (the game view's header while `story-block.you` is
 // on), a Rank, a Wearing and a Condition row under the place line, each with a pencil (an `ss.editable` that runs the `command`
-// it names through the widget api); without `you` the card draws no such row.
+// it names through the widget api); without `you` the card draws no such row. With `travel` (Story Director's trip line) a Travel row follows them.
 //
 // The bars are ss.bar and the badges ss.status (glass.js), so each speaks as it does there. The picture is
 // taken only from a safe URL (https, a base64 raster image or a same-origin path, widgets/dom.js); a
@@ -41,6 +41,7 @@ const heroProps = {
     weather: { type: 'string', default: '' },
     statuses: { type: 'array', default: Object.freeze([]) }, // [{ id, label, icon, left, unit, tone }]
     you: { type: 'object', default: null },             // { rank?, rankLabel?, wearing, condition, command }: the rows under the place line, each with a pencil
+    travel: { type: 'string', default: '' },            // the trip's line (Story Director's `atlas.trip` row): a Travel row under the `you` rows
     compact: { type: 'boolean', default: false },
 };
 
@@ -149,6 +150,7 @@ function renderHero(el, input, api) {
         // The Rank, Wearing and Condition rows (`you`): made when first asked for, so a card without them has no trace of them. Each
         // pencil is made once and only updated, so a redraw never closes an edit that is open.
         let youRow = null;
+        let travelRow = null;
         const youParts = [];
         const S = STRINGS.scene;
         function drawYou() {
@@ -169,7 +171,7 @@ function renderHero(el, input, api) {
                     youRow.appendChild(item);
                     youParts.push({ part, said, item, name, text, pencil, handle: null });
                 }
-                text.insertBefore(youRow, statuses);
+                text.insertBefore(youRow, travelRow ?? statuses);
             }
             youRow.hidden = false;
             for (const entry of youParts) {
@@ -185,6 +187,23 @@ function renderHero(el, input, api) {
                 if (entry.handle) entry.handle.update(props);
                 else entry.handle = editable.render(entry.pencil, props, api);
             }
+        }
+        // The Travel row (`travel`): made when first asked for, hidden while there is no trip.
+        let travelText = null;
+        function drawTravel() {
+            const said = short(p.travel, 200);
+            if (!said) {
+                if (travelRow) travelRow.hidden = true;
+                return;
+            }
+            if (!travelRow) {
+                travelRow = h(doc, 'div', 'ss-hero-travel');
+                travelText = h(doc, 'span', 'ss-hero-travel-text');
+                travelRow.append(h(doc, 'b', 'ss-hero-you-label', STRINGS.scene.travel), travelText);
+                text.insertBefore(travelRow, statuses);
+            }
+            travelRow.hidden = false;
+            travelText.textContent = said;
         }
         cleanup(() => { for (const entry of youParts) entry.handle?.destroy(); });
         // the text block: the name, the class line, the place and weather, the statuses: one stacked group, which the portrait is
@@ -259,6 +278,7 @@ function renderHero(el, input, api) {
             }
             corner.hidden = !corner.children.length;
             drawYou();
+            drawTravel();
             const bars = heroBars(p.bars);
             const pools = bars.filter(b => b.kind !== 'exp');
             const growth = bars.filter(b => b.kind === 'exp');

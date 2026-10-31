@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.11.0
+
+- **Mounts.** The narrator can keep the party's horses, mules and carts: `+ mount Grey Mare | kind: horse | count: 1 | pace: 35
+  | where: ridden by Wessel`, `~ mount Burr | condition: lame`, `- mount Burr`. Up to six rows (a group is one row with a
+  count); a missing pace is the kind's usual one (horse 35, pony 30, camel 30, mule 25, donkey 20, ox 15, cart 18, wagon 18,
+  else 30 km a day); a seventh row is refused with a plain Problem. While there is a mount the narrator is told one line
+  ("Mounts: Grey Mare (horse, 35 km/day, ridden by Wessel); …").
+- **A Mounts card on Home**, beside Save points: a row per mount (name with its pencil, kind, condition, where, pace) and
+  "The party travels at the slowest: N km/day riding." or, when there are fewer mounts than riders, "Not enough mounts for
+  everyone: the party walks (20 km/day)." The pencil edits all six fields. It shows only while the party has a mount.
+- `- mount Burr` for a mount the party does not have is quiet, like `- present`: the receipt says "Burr is not with the party.", it is
+  not a Problem and nothing changes (`~ mount` of a mount the party does not have is still one).
+- **A Travel line in Home's header**, under Rank, Wearing and Condition, while Story Director 2.5's trip is on ("Travel: riding,
+  25 km/day (Burr sets the pace) · leg 1 of 2 · arrive …"). It is hidden with no trip, with Trips off, and with an older Story
+  Director, which has no `atlas.trip` query.
+- A new feature, **Mounts** (Settings → Features, on by default). Off: no grammar line, no narrator line, nothing shown, and the
+  prompts are as before. With it on, the narrator's fixed instructions gain one line, so the AI service's prompt cache starts
+  over once. Story Director reads the pace through two new queries, `mounts.list` and `mounts.pace`.
+- Swipes, Re-read and deleting a reply take mounts back like any other change; a change to a mount whose reply was deleted is
+  passed over and the rest of that reply still applies.
+
 ## 2.10.0
 
 - **Text size** (Settings → Look, after Font): Normal, 110% or 120%. It makes Story Suite's own text bigger at once, no reload: the Game view, the cards under replies (Changed this reply, Status and the others), the dialogs (the New character wizard, the item and field editors) and the settings window. The windows keep their size and their content grows and reflows; SillyTavern's chat text is not touched. Normal changes nothing.

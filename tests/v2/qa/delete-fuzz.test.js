@@ -60,6 +60,28 @@ function replyLines(r, step) {
 const extraLines = step => (step % 3 === 0 ? [`? choice Step ${step} onward`, `~ chatter Walker: step ${step} thought`] : []);
 // The weather (MODULES §F120), by step too: the latest remaining reply that wrote one is the weather.
 const weatherLines = step => (step % 5 === 2 ? [`~ weather step ${step} rain`] : []);
+// The party's mounts, by step too: a reply at step 3, 8, 13, 18 gets a mount of its own, the next one tires it and the one after
+// that sells it (only while the story still has that mount), so a later delete of the first leaves replies changing a mount that
+// is gone: passed over on replay, never skipped.
+const mountLines = (step, done) => {
+    const has = n => [...done.values()].some(made => made.mounts.some(line => line.startsWith(`+ mount Mare ${n} `)));
+    if (step % 5 === 3) return [`+ mount Mare ${step} | kind: horse | where: led`];
+    if (step % 5 === 4 && has(step - 1)) return [`~ mount Mare ${step - 1} | condition: tired ${step}`];
+    return step % 5 === 0 && step > 0 && has(step - 2) ? [`- mount Mare ${step - 2}`] : [];
+};
+// What the mounts are after the replies kept (in chat order): each line acts only on a mount that is there.
+function mountsAfter(kept) {
+    const rows = new Map();
+    for (const made of kept) {
+        for (const line of made.mounts) {
+            const [, op, name] = /^([+~-]) mount (Mare \d+)/.exec(line);
+            if (op === '+') rows.set(name, '');
+            else if (op === '-') rows.delete(name);
+            else if (rows.has(name)) rows.set(name, /condition: (.*)$/.exec(line)[1]);
+        }
+    }
+    return [...rows].map(([name, condition]) => [name, condition]);
+}
 // Your look (MODULES §F126), by step too: each part is the latest remaining reply's that wrote it ('' when that reply cleared it). The
 // values carry the step, so no two replies write the same words (the same words again are no change, so no op).
 const youOf = step => {
@@ -102,8 +124,9 @@ for (const seed of SEEDS) {
             const made = replyLines(r, step);
             made.extras = extraLines(step);
             made.weather = weatherLines(step);
+            made.mounts = mountLines(step, done);
             made.you = youOf(step);
-            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.weather, ...youLines(made.you), ...made.lines, ...made.extras]));
+            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.weather, ...youLines(made.you), ...made.mounts, ...made.lines, ...made.extras]));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);
@@ -142,6 +165,8 @@ for (const seed of SEEDS) {
                 assert.equal((shown.chatter ?? []).length, made.extras.length ? 1 : 0, `${label}: reply ${at}'s chatter`);
             }
             assert.equal(Object.hasOwn(host.head().domains.inventory.loot ?? {}, goneSid), false, `${label}: the deleted reply's loot went with it`);
+            const inOrder = host.ctx.chat.map((message, at) => (message.is_user ? null : done.get(host.store.carrierSid(at)))).filter(Boolean);
+            assert.deepEqual(host.sdk.query('mounts.list').map(row => [row.name, row.condition]), mountsAfter(inOrder), `${label}: the mounts`);
             const sky = host.ctx.chat.map((message, at) => (message.is_user ? null : done.get(host.store.carrierSid(at)))).filter(made => made?.weather.length).at(-1);
             assert.deepEqual(host.sdk.query('scene.weather'), sky ? { text: sky.weather[0].slice('~ weather '.length) } : null, `${label}: the weather`);
             const remaining = host.ctx.chat.map((message, at) => (message.is_user ? null : done.get(host.store.carrierSid(at)))).filter(Boolean);

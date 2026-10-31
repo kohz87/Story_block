@@ -212,3 +212,13 @@ test('a condition badge has its kind\'s icon, its label, and the time left in th
     assert.deepEqual([slow.left, slow.unit], [10, 'minutes'], 'an until on the story clock is the minutes left');
     assert.deepEqual([daze.label, daze.icon, daze.left], ['Dazed', 'ph-lightning', null], 'a name instead of a kind; no time left, so none shown');
 });
+
+test('Travel: the trip\'s one-line row from `atlas.trip` (Story Director 2.5), nothing without a trip, with the query absent or when it throws', () => {
+    const props = extra => gameHeroProps({ state: STATE, query: answers(extra), formatTime: fmt, context: {} });
+    const ROW = 'riding, 25 km/day (Burr sets the pace) · leg 1 of 2 · arrive Wolfmere Outpost Goldwane 19';
+    assert.equal(props({ 'atlas.trip': { on: true, row: ` ${ROW} ` } }).travel, ROW);
+    assert.equal(props({ 'atlas.trip': { on: true, row: 'x'.repeat(300) } }).travel.length, 200);
+    for (const none of [null, {}, { row: '' }, { row: 5 }]) assert.equal('travel' in props({ 'atlas.trip': none }), false, JSON.stringify(none));
+    assert.equal('travel' in props({}), false, 'a Story Director older than 2.5 has no such query');
+    assert.equal('travel' in gameHeroProps({ state: STATE, query: name => { if (name === 'atlas.trip') throw new Error('no query'); return answers()(name); }, context: {} }), false);
+});

@@ -90,3 +90,23 @@ test('a header that throws is no header (the screen still opens)', () => {
     assert.equal(env.doc.querySelector('.ss-gameview-hero').hidden, true);
     env.close();
 });
+
+test('a Travel row under the header while there is a trip line, gone when it ends, and none without one', () => {
+    let travel = 'riding, 25 km/day (Burr sets the pace) · leg 1 of 2';
+    const env = setup({ heroOf: () => ({ ...LEAD, ...(travel ? { travel } : {}), you: { wearing: 'a coat', condition: '', command: '' } }), head: stateWith(3) });
+    env.mount.open('test/one');
+    const row = () => env.doc.querySelector('.ss-gameview-hero .ss-hero-travel');
+    assert.equal(row().hidden, false);
+    assert.equal(row().querySelector('.ss-hero-you-label').textContent, 'Travel');
+    assert.equal(row().querySelector('.ss-hero-travel-text').textContent, 'riding, 25 km/day (Burr sets the pace) · leg 1 of 2');
+    const kids = [...env.doc.querySelector('.ss-hero-text').children].map(node => node.className.split(' ')[0]);
+    assert.ok(kids.indexOf('ss-hero-travel') === kids.indexOf('ss-hero-you') + 1, 'under the Wearing and Condition rows');
+    travel = '';
+    env.mount.update();
+    assert.equal(row().hidden, true);
+    env.close();
+    const bare = setup({ heroOf: () => LEAD, head: stateWith(3) });
+    bare.mount.open('test/one');
+    assert.equal(bare.doc.querySelector('.ss-gameview-hero .ss-hero-travel'), null, 'no trace without a trip');
+    bare.close();
+});
