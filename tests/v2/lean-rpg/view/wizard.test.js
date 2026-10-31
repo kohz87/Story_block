@@ -753,6 +753,20 @@ test('2.9.2: after a + or a − the Stats step still shows no "Points left" unde
     dialog.close();
 });
 
+test('2.9.3: the wizard\'s own root gets the grid and the 12px gap, so the summary row and the step below are spaced apart', async t => {
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
+    assert.match(css, /(^|\n)\.ss-w-rpg-wizard \{ display: grid; gap: 12px; min-width: 0; \}/, 'the rule names the class the root really has');
+    assert.doesNotMatch(css, /(^|\n)\.rpg-wizard \{/, 'no rule for a class nothing carries');
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    const dialog = await openFrom(ctx, { empty: true });
+    await goTo(dialog, 'stats');
+    const root = wizardOf(dialog);
+    assert.ok(root.classList.contains('ss-w-rpg-wizard'));
+    assert.deepEqual([...root.children].map(node => String(node.className).split(' ')[0]), ['rpg-wiz-sum', 'rpg-wiz-body'], 'the summary row, then the step, both children of that root');
+    dialog.close();
+});
+
 test('2.9.1: the Stats card\'s stylesheet: padding in the card, an even grid beside the radar centred, two columns then the radar below on a phone; the Spend points view is untouched', () => {
     const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
     assert.match(css, /\.rpg-wiz-stats-card \{[^}]*padding: 14px 16px;[^}]*background: var\(--ss-tile\)/);

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.3
+
+- The New character wizard has its space back between the summary row (name, stats, points left) and the step below
+  it: the spacing rule named a class the wizard doesn't carry.
+
 ## 2.9.2
 
 - The New character wizard's Stats step no longer brings back "Points left" under every stat after a + or a −; the

@@ -99,7 +99,7 @@
 }
 
 /* ---- New character wizard (mockup 41-wizard): a dialog, so the layout follows the window ---- */
-.rpg-wizard { display: grid; gap: 12px; min-width: 0; }
+.ss-w-rpg-wizard { display: grid; gap: 12px; min-width: 0; }
 .rpg-wiz-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; padding: 12px 16px; border-radius: 12px; background: var(--ss-tile); }
 .rpg-wiz-who { display: flex; align-items: center; gap: 12px; min-width: 170px; }
 .rpg-wiz-ava { width: 44px; height: 44px; border-radius: 50%; border: 2px solid currentColor; display: grid; place-items: center; font-weight: 700; font-size: 20px; flex: none; }
