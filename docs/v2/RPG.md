@@ -189,11 +189,15 @@ A block with a `role` is held to these rules, and is told like any other block w
   longer one is refused when the block is made.
 - `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
   Soul Class, and `who`.
-- Cards are shown in the order end, warn, info (at most 8 at a time), so the death notice always has a place.
+- A block with a `role` is made for the chat (`scope: chat`, one block for each person); a `role` on a block for a character is
+  refused when the block is made, so the Party and Fight views and the roll planner always read the same blocks.
+- Cards are shown in the order death notice (an `end` card of a `character` block), other end cards, warn, info (at most 8 at a
+  time), so the death notice always has a place.
 - The story cannot kill a character directly: the stock Character has no line that sets `alive`. A character dies only through
   the reply-end latch, in a reply after the one that made them Down. The latch is settled by a `dm.settle` step that every
-  reply with accepted lines records (it may change nothing), so a Re-read of an earlier reply plans it again. The last of
-  the 32 actions a reply may hold is kept for it: the story's 32nd action is refused with a plain sentence.
+  reply with accepted lines records (it may change nothing), so a Re-read of an earlier reply plans it again. Room is kept
+  for these steps: one action of the 32 and the evaluation visits the blocks' own reply-end functions can take, for each
+  character, so eight Characters leave the story its normal room; past that, the story's last action is refused with a plain sentence.
 
 Keep to the block limits: 32 fields and 16 kinds in one block (a block with a `role` counts only its kinds against the 16),
 and text of up to 240 characters. The narrator is told up to 100 tokens of each block, 300 for a block with a `role`. A block

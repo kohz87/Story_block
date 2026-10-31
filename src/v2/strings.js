@@ -51,6 +51,7 @@ export const STRINGS = deepFreeze({
         replyFull: 'This reply has used all the block actions it can take, and the last place is kept for settling it; this line was not applied.',
         stagesLimit: 'A bar field (health, mana, stamina, a foe\'s health) has at most {max} stages, counted up from 0.',
         roleInvalid: 'A block role is character, skills, foes or rules.',
+        roleChat: 'A block with a role belongs to the chat: give it scope chat, one block for each person.',
         hiddenFlag: 'Hiding a field from the story is prompt: false on a field of its own.',
         hiddenKind: 'A field hidden from the story can only be changed by a button.',
         hiddenLine: 'The story cannot change this.',

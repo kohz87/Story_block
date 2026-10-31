@@ -248,9 +248,23 @@ const timerDue = (timer, inputs, instance) => {
 };
 // A reply's lines are settled by the reply-end functions on these generations only (not a Continue's, nor the extractor's late lines).
 const SETTLED_TYPES = Object.freeze(['normal', 'swipe', 'regenerate', 'reread']);
-// How many `dm.settle` steps a reply of this state will record: one for each subject of each pinned block that has reply-end functions.
-const settleSteps = state => Object.keys(state?.domains?.dataModules?.active ?? {}).reduce((sum, module) => sum
-    + (activeDefinition(state, module)?.replyEnd?.length ? subjectsOf(state, module).length : 0), 0);
+// Every node an evaluation could visit in this piece of a definition (each list, each leaf): the most its visits can come to.
+const nodesOf = value => Array.isArray(value) ? 1 + value.reduce((sum, item) => sum + nodesOf(item), 0)
+    : value && typeof value === 'object' ? Object.values(value).reduce((sum, item) => sum + nodesOf(item), 0) : 1;
+// What the settle steps of a reply can cost: one root for each subject of each pinned block that has reply-end functions, and for the
+// visits, what that block's own reply-end functions, rules and reward templates can come to (counted, not a flat share), at most one
+// root's worth for a subject.
+export function settleReserve(state) {
+    const total = { roots: 0, visits: 0 };
+    for (const module of Object.keys(state?.domains?.dataModules?.active ?? {})) {
+        const definition = activeDefinition(state, module);
+        if (!definition?.replyEnd?.length) continue;
+        const subjects = subjectsOf(state, module).length;
+        total.roots += subjects;
+        total.visits += subjects * Math.min(L.rootVisits, 1 + nodesOf(definition.replyEnd) + nodesOf(definition.rules ?? []) + nodesOf(definition.rewards ?? {}));
+    }
+    return total;
+}
 const tailLines = (state, rpg) => Object.keys(state?.domains?.dataModules?.active ?? {}).map(module => summaryOf(state, module, { rpg }));
 
 // --- Cards under the head reply -------------------------------------------------------------------------------------------------
@@ -262,12 +276,12 @@ export const CARD_SLOTS = 8;
 const CARD_LOOK = Object.freeze({ info: { tone: 'info', icon: 'ph-info' }, warn: { tone: 'accent', icon: 'ph-warning' }, end: { tone: 'bad', icon: 'ph-skull' } });
 const cardLists = new WeakMap();
 
-const CARD_RANK = Object.freeze({ end: 0, warn: 1, info: 2 });
+const CARD_RANK = Object.freeze({ end: 1, warn: 2, info: 3 });
 
 /**
  * The cards the head state shows: [{ module, card }] with card in reply-cards.js's shape. A card whose condition cannot be asked is left out.
- * They are ordered end first, then warn, then info (pin order, then written order, within a tone) before the slots are filled, so an `end`
- * card (the death notice) always has a slot, however many other cards are showing.
+ * They are ordered the end cards of a role `character` block first (the death notice), then any other end card, then warn, then info (pin
+ * order, then written order, within each) before the slots are filled, so a death notice always has a slot, however many other cards show.
  */
 export function blockCards(state) {
     const active = state?.domains?.dataModules?.active;
@@ -280,7 +294,7 @@ export function blockCards(state) {
                 if (!createEvaluation(definition, instance).condition(['card', at], entry.when, {})) return [];
             } catch { return []; }
             const look = CARD_LOOK[entry.tone] ?? CARD_LOOK.info, kind = entry.button ? definition.kinds[entry.button] : null;
-            return [{ module, rank: CARD_RANK[entry.tone] ?? CARD_RANK.info, card: { ...look, title: entry.title, text: entry.text,
+            return [{ module, rank: entry.tone === 'end' && definition.role === 'character' ? 0 : CARD_RANK[entry.tone] ?? CARD_RANK.info, card: { ...look, title: entry.title, text: entry.text,
                 actions: kind ? [{ id: entry.button, label: oneLine(kind.title ?? entry.button.replace(/^button-/, '')), primary: true,
                     command: 'dm.act', payload: { module, kind: entry.button } }] : [] } }];
         });
@@ -334,11 +348,11 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         actions[ctx.cursor().block] = { visits, click: ctx.cause === 'ui' && !pin };
         const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions };
         if (next.roots > L.replyRoots || next.visits > L.replyVisits) refuse('DM_BUDGET', '', 'Data module reply budget exhausted.');
-        // The story's lines leave room for the steps that settle the reply (one for each block with reply-end functions): without it a full
+        // The story's lines leave room for the steps that settle the reply (what each block with reply-end functions can really cost): without it a full
         // reply would take its last action and the settling that decides a death would be refused.
         if (ctx.cause === 'story') {
-            const kept = settleSteps(prefix);
-            if (next.roots > L.replyRoots - kept || next.visits > L.replyVisits - kept * L.rootVisits) refuse('DM_BUDGET', '', B.replyFull);
+            const kept = settleReserve(prefix);
+            if (next.roots > L.replyRoots - kept.roots || next.visits > L.replyVisits - kept.visits) refuse('DM_BUDGET', '', B.replyFull);
         }
         // Scratch from earlier replies is pruned only by a successful data root.
         draft.perReply = { [key]: next };
