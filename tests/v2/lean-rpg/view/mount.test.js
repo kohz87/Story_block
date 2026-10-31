@@ -299,11 +299,20 @@ test('feature on: a three-character party shows the Party tab; character, skills
         assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: no tab of its own`);
         assert.equal(ui.screens.resolve(BLOCK_TAB(slug)), null, `${slug}: no screen either`);
     }
-    // They stay in Blocks.
-    ui.mounts.screen.open('story-block/blocks');
+    // They stay in Settings → Blocks, each with its role and the RPG's own place (the Show as choice is locked while the RPG is on).
+    const win = ui.openSettings();
+    win.select('blocks');
     await settle();
-    const listed = doc.querySelectorAll('.ss-gameview [data-block-card]').map(node => node.getAttribute('data-block-card'));
-    assert.deepEqual(listed.sort(), ['combat-rules', 'foes', 'mira', 'ren', 'ren-skills', 'wessel', 'wessel-skills'].map(slug => `pack.chat/${slug}`).sort());
+    const rows = win.root.querySelectorAll('[data-ss-section="blocks"] .ss-blockrow');
+    assert.deepEqual(rows.map(node => node.getAttribute('data-block-row')).sort(), ['combat-rules', 'foes', 'mira', 'ren', 'ren-skills', 'wessel', 'wessel-skills'].map(slug => `pack.chat/${slug}`).sort());
+    const row = slug => rows.find(node => node.getAttribute('data-block-row') === `pack.chat/${slug}`);
+    assert.equal(row('wessel').querySelector('.ss-blockrow-role').textContent, 'RPG · Character');
+    assert.equal(row('wessel-skills').querySelector('.ss-blockrow-role').textContent, 'RPG · Skills');
+    assert.equal(row('foes').querySelector('.ss-blockrow-role').textContent, 'RPG · Foes');
+    assert.equal(row('foes').querySelector('.ss-blockrow-meta').textContent, 'Shown by the RPG in the Fight tab');
+    assert.equal(row('wessel').querySelector('.ss-blockrow-meta').textContent, 'Shown by the RPG in the Party tab');
+    assert.equal(row('wessel').querySelector('select').disabled, true);
+    assert.equal(win.root.querySelector('[data-ss-section="blocks"] .ss-blocks-count').textContent, '7 blocks in this story · none shown', 'the RPG\'s blocks are not counted as tabs or cards');
 });
 
 test('feature off: every block with a tab keeps it, whatever its role', async t => {

@@ -22,7 +22,7 @@ test('purpose, display settings and list fields are checked with the normal defi
     for (const change of [
         d => { d.prompt = '😀'.repeat(1201); },
         d => { d.show.icon = 'not-an-icon'; },
-        d => { d.show.tab = false; d.show.card = false; },
+        d => { d.show.tab = 'no'; },
         d => { d.show.tabName = 'a'.repeat(25); },
         d => { d.state.mood.list = 'yes'; },
         d => { d.state.points = { type: 'int', min: 0, max: 1, default: 0, list: true }; },

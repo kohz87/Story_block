@@ -11,7 +11,7 @@ Open **Settings → Features** and switch on **RPG**. A page of its own, **Setti
 rolls **off**, the narrator still tells the story, but no dice are rolled and no battle log is drawn.
 
 Make your characters with **New character** on the Party tab (see [Making a character](#making-a-character)). To build
-a sheet by hand instead, use **Game view → Blocks**: choose **New block**, then a template from the **RPG** heading
+a sheet by hand instead, use **Settings → Blocks**: choose **From a template**, then a template from the **RPG** heading
 (see [The four templates](#the-four-templates)). Make one Character block for each character in the party, and
 one Skills block for each of them that has skills. Foes is one block for the foe groups in a fight. Combat rules is
 one block for the whole chat and carries the combat text.

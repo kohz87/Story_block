@@ -5,16 +5,23 @@ import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { mountUi } from '../../../src/v2/ui-host.js';
 import { buildBlock, blockDraft, blockKindCount, editableBlockDraft, parseNames } from '../../../src/v2/data-modules/block-builder.js';
-import { createBlockWidgets, BLOCKS_WIDGET } from '../../../src/v2/screens/blocks.js';
-import { STRINGS } from '../../../src/v2/strings.js';
+import { createBlockWidgets } from '../../../src/v2/screens/blocks.js';
+import { STRINGS, fill } from '../../../src/v2/strings.js';
 import { LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/index.js';
 import { setupDom } from '../view/mounts/helpers.js';
 import { success } from '../data-modules/helpers.js';
 
 const S = STRINGS.blocks;
+const P = S.page;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const button = (root, text) => root.querySelectorAll('button').find(node => node.textContent === text);
 const input = (root, name) => root.querySelector(`[aria-label="${name}"]`);
+// Settings → Blocks: the window opened on that page (the pane is found again each time, the window being drawn once).
+const blocksPage = ui => {
+    const win = ui.openSettings();
+    win.select('blocks');
+    return () => win.root.querySelector('[data-ss-section="blocks"]');
+};
 
 async function page(t) {
     const doc = setupDom(), form = doc.createElement('div'); form.id = 'send_form'; doc.body.appendChild(form);
@@ -82,12 +89,10 @@ test('a definition written by hand is opened read-only with a plain note; the fo
     hand.replyEnd[0].when = true;
     hand.replyEnd[0].type = 'reply-end';
     assert.equal(editableBlockDraft(hand), null);
-    const { doc, host, ui } = await page(t);
+    const { host, ui } = await page(t);
     success(await host.sdk.command('dm.define', { definition: written }));
-    ui.mounts.screen.open('story-block/blocks');
-    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
-    input(screen(), S.menu).click();
-    button(screen(), S.editFields).click();
+    const screen = blocksPage(ui);
+    input(screen(), fill(P.editFor, { name: 'Gauge' })).click();
     assert.equal(screen().querySelector('.ss-block-editor'), null);
     assert.match(screen().textContent, /Made from a template: edit its fields here, its rules in the pack file\./);
     // a block with no role keeps the older sentence
@@ -95,18 +100,14 @@ test('a definition written by hand is opened read-only with a plain note; the fo
     other.slug = 'other'; other.name = 'Other'; delete other.role; other.kinds.practice.effects.push({ op: 'set', path: ['strain'], value: 0 });
     success(await host.sdk.command('dm.define', { definition: other }));
     await settle();
-    const menus = screen().querySelectorAll('[aria-label="' + S.menu + '"]');
-    menus[1].click();
-    screen().querySelectorAll('button').filter(node => node.textContent === S.editFields)[1].click();
+    input(screen(), fill(P.editFor, { name: 'Other' })).click();
     assert.match(screen().textContent, /details the editor cannot change safely/);
 });
 
 test('the editor offers Names for a number, keeps what a block already has, and saves it', async t => {
     const { doc, host, ui } = await page(t);
-    ui.mounts.screen.open('story-block/blocks');
-    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    let screen = blocksPage(ui);
     button(screen(), S.newBlock).click();
-    button(screen(), S.emptyBlock).click();
     input(screen(), S.name).value = 'Gauge';
     button(screen(), S.addField).click();
     assert.equal(input(screen(), S.names), null, 'only a number has names');
@@ -121,8 +122,11 @@ test('the editor offers Names for a number, keeps what a block already has, and 
     const definition = host.sdk.query('dataModules.setup').find(row => row.module === 'pack.chat/gauge').pinnedDefinition;
     assert.deepEqual(definition.state['field-1'].names, { 0: 'Low', 1: 'Mid', 2: 'High', 3: 'Full' });
     assert.deepEqual(host.sdk.query('dataModules.view', { module: 'pack.chat/gauge' }).chat, { 'field-1': 0 }, 'the value is the number');
-    // the card shows the name; a full set of names is a choice
-    const card = () => screen().querySelector('.ss-block-card');
+    // the block's tab shows the name; a full set of names is a choice
+    ui.openSettings().close();
+    ui.mounts.screen.open('story-block/block/gauge');
+    const tab = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/block/gauge"]');
+    const card = () => tab().querySelector('.ss-block-card');
     assert.equal(card().querySelector('.ss-block-value-shown').textContent, 'Low');
     card().querySelector('.ss-w-editable-pencil').click();
     const select = card().querySelector('.ss-w-editable-form select');
@@ -135,8 +139,9 @@ test('the editor offers Names for a number, keeps what a block already has, and 
     assert.equal(host.ctx.chat.at(-1).extra.storySuite.receipts.at(-1).summary, 'You set Gauge: Field 1 Low → High.');
     assert.equal(card().querySelector('.ss-block-value-shown').textContent, 'High');
     // opened again, the names are still there and can be changed
-    input(screen(), S.menu).click();
-    button(screen(), S.editFields).click();
+    input(tab(), S.menu).click();
+    button(tab(), S.editFields).click();
+    screen = () => doc.querySelector('.story-suite-overlay [data-ss-section="blocks"]');
     assert.equal(input(screen(), S.names).value, '0 = Low\n1 = Mid\n2 = High\n3 = Full');
     input(screen(), S.names).value = '0 = Low\n1 = Mid\n2 = High\n9 = Beyond';
     button(screen(), S.save).click();
@@ -150,8 +155,8 @@ test('a number with names for only some values is typed and shown by its name wh
     const built = buildBlock({ name: 'Marks', fields: [{ name: 'Score', type: 'number', min: 0, max: 100, default: 0, names: '100 = Perfect' }], functions: [], prompt: '',
         show: { tab: true, card: false, tabName: 'Marks', icon: 'ph-star' } });
     success(await host.sdk.command('dm.define', { definition: built.definition }));
-    ui.mounts.screen.open('story-block/blocks');
-    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
+    ui.mounts.screen.open('story-block/block/marks');
+    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/block/marks"]');
     assert.equal(screen().querySelector('.ss-block-value-shown').textContent, '0');
     screen().querySelector('.ss-w-editable-pencil').click();
     screen().querySelector('.ss-w-editable-form input').value = '100';
@@ -165,10 +170,8 @@ test('the editor shows a card and a reply-end function, keeps them on save, and 
     const { doc, host, ui } = await page(t);
     const built = buildBlock(draft());
     success(await host.sdk.command('dm.define', { definition: built.definition }));
-    ui.mounts.screen.open('story-block/blocks');
-    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
-    input(screen(), S.menu).click();
-    button(screen(), S.editFields).click();
+    const screen = blocksPage(ui);
+    input(screen(), fill(P.editFor, { name: 'Gauge' })).click();
     const pills = screen().querySelectorAll('.ss-block-function .ss-pill').map(node => node.textContent);
     assert.deepEqual(pills, [S.button, S.rule, S.replyEnd, S.card]);
     assert.equal(input(screen(), S.cardTitleLabel).value, 'Strained');
@@ -205,21 +208,21 @@ function widgetPage(t, { on = true, templates = [heroTemplate()] } = {}) {
         },
     };
     let loads = 0;
-    const widgets = createBlockWidgets({ templates: { list: () => [], put: async () => ({ ok: true }) }, leanRpgOn: () => on, loadRpgTemplates: async () => { loads++; return templates; } }).widgets;
+    const blocks = createBlockWidgets({ templates: { list: () => [], put: async () => ({ ok: true }) }, leanRpgOn: () => on, loadRpgTemplates: async () => { loads++; return templates; } });
     const el = doc.createElement('div'); doc.body.appendChild(el);
-    const handle = widgets[BLOCKS_WIDGET].render(el, {}, api);
+    const handle = blocks.page({ doc, parent: el, api });
     t.after(() => handle?.destroy?.());
     return { doc, el, rows, calls, loads: () => loads };
 }
 
 test('with the feature on, the chooser lists the RPG templates under their own heading and makes the block as written', async t => {
     const { el, rows, calls, loads } = widgetPage(t);
-    button(el, S.newBlock).click();
+    button(el, P.fromTemplate).click();
     await settle(); await settle();
     assert.equal(loads(), 1);
     assert.equal(el.querySelector('.ss-block-chooser-heading').textContent, S.leanRpg);
     const names = el.querySelector('.ss-block-chooser').querySelectorAll('button').map(node => node.textContent);
-    assert.deepEqual(names, [S.emptyBlock, 'Hero · 2 fields, 0 buttons, 0 rules, 0 timers', S.cancel], 'the template sits between Empty block and Cancel, under its heading');
+    assert.deepEqual(names, ['Hero · 2 fields, 0 buttons, 0 rules, 0 timers', S.cancel], 'the template sits before Cancel, under its heading');
     button(el, 'Hero · 2 fields, 0 buttons, 0 rules, 0 timers').click();
     await settle(); await settle();
     assert.equal(calls.length, 1);
@@ -231,7 +234,7 @@ test('with the feature on, the chooser lists the RPG templates under their own h
     assert.match(el.textContent, /Added Hero\./);
     assert.equal(el.querySelector('.ss-block-chooser'), null, 'back to the list');
     // a second one gets a name and an identifier of its own
-    button(el, S.newBlock).click();
+    button(el, P.fromTemplate).click();
     await settle();
     button(el, 'Hero · 2 fields, 0 buttons, 0 rules, 0 timers').click();
     await settle(); await settle();
@@ -248,7 +251,7 @@ test('with the feature on, the chooser lists the RPG templates under their own h
 
 test('with the feature off, the templates are not even read', async t => {
     const { el, loads } = widgetPage(t, { on: false });
-    button(el, S.newBlock).click();
+    button(el, P.fromTemplate).click();
     await settle(); await settle();
     assert.equal(loads(), 0);
     assert.equal(el.querySelector('.ss-block-chooser-heading'), null);
@@ -256,18 +259,18 @@ test('with the feature off, the templates are not even read', async t => {
 
 test('a refused template says why and stays in the chooser; the list may be empty', async t => {
     const empty = widgetPage(t, { templates: [] });
-    button(empty.el, S.newBlock).click();
+    button(empty.el, P.fromTemplate).click();
     await settle(); await settle();
     assert.equal(empty.el.querySelector('.ss-block-chooser-heading'), null, 'no heading for no templates');
     const { el } = widgetPage(t);
-    button(el, S.newBlock).click();
+    button(el, P.fromTemplate).click();
     await settle(); await settle();
-    const refusing = createBlockWidgets({ templates: { list: () => [] }, leanRpgOn: () => true, loadRpgTemplates: async () => [heroTemplate()] }).widgets;
+    const refusing = createBlockWidgets({ templates: { list: () => [] }, leanRpgOn: () => true, loadRpgTemplates: async () => [heroTemplate()] });
     const doc = setupDom(), host = doc.createElement('div'); doc.body.appendChild(host);
     const api = { query: () => [], command: async () => ({ ok: false, message: 'This chat can have at most 8 blocks.' }) };
-    const handle = refusing[BLOCKS_WIDGET].render(host, {}, api);
+    const handle = refusing.page({ doc, parent: host, api });
     t.after(() => handle?.destroy?.());
-    button(host, S.newBlock).click();
+    button(host, P.fromTemplate).click();
     await settle(); await settle();
     button(host, 'Hero · 2 fields, 0 buttons, 0 rules, 0 timers').click();
     await settle(); await settle();
@@ -277,13 +280,15 @@ test('a refused template says why and stays in the chooser; the list may be empt
 
 test('the real chooser reads the real list only once the feature is on', async t => {
     const { doc, host, ui } = await page(t);
-    ui.mounts.screen.open('story-block/blocks');
-    const screen = () => doc.querySelector('.ss-gameview [data-ss-screen="story-block/blocks"]');
-    button(screen(), S.newBlock).click();
+    let screen = blocksPage(ui);
+    button(screen(), P.fromTemplate).click();
     assert.equal(screen().querySelector('.ss-block-chooser-heading'), null, 'off by default');
     button(screen(), S.cancel).click();
     host.features.set(LEAN_RPG_FEATURE, true);
-    button(screen(), S.newBlock).click();
+    await settle(); await settle();
+    // (the settings window is opened again, on the same page, with the RPG page in its rail)
+    screen = () => doc.querySelector('.story-suite-overlay [data-ss-section="blocks"]');
+    button(screen(), P.fromTemplate).click();
     await settle(); await settle();
     assert.ok(screen().querySelector('.ss-block-chooser'));
 });

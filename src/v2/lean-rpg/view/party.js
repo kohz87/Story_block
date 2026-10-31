@@ -34,7 +34,7 @@ const sameCharacter = (a, b) => a.module === b.module && a.subject === b.subject
  * The Party widget. `deps`: `headState()` (the head state or null), `readerName()` (the reader's persona name),
  * `roleOf(definition)` (default: the definition's `role`), `openWizard()` (opens the New character dialog; without it there is no button).
  * The page draws a screen again from nothing on every change of the story, so what must outlive that, the open sheet and
- * its draft, is kept here, outside the widget (as the Blocks page keeps its editor): `shared.open` is the Spend points sheet's
+ * its draft, is kept here, outside the widget (as Settings → Blocks keeps its editor): `shared.open` is the Spend points sheet's
  * session and `shared.skills` the Skills view's; at most one of them is open.
  */
 export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null, rules = undefined } = {}) {

@@ -27,10 +27,10 @@ template authors can use `ss.editable`. Rules run after an edit, and replay chec
 
 ## Blocks made in a chat
 
-The Blocks page creates chat-scoped data modules under `pack.chat/<slug>`. Their checked definitions
+Settings → Blocks creates chat-scoped data modules under `pack.chat/<slug>`. Their checked definitions
 are pinned with the chat, and define, redefine and remove are reader actions on the latest reply.
 The editor generates the ordinary `dm` story kinds, buttons, rules and timers; fields may also be
-edited by the reader. A block can appear as its own tab, a Home card or both. Templates keep only
+edited by the reader. A block can appear as its own tab, a Home card, both, or neither (Hidden: it still works for the story). Templates keep only
 definitions in the reader's settings, and export creates a checked pack. After import and enabling,
 the pack's presentation and buttons remain available; chat-only block actions remain on chat blocks.
 

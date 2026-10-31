@@ -37,7 +37,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
-    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector', 'story-block/blocks']);
+    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector']);
     assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', economyScale: '0', coins: [], coinDisplay: 'mixed', chatterInPrompt: false, assistClassifier: false, assistExtractor: false, assistProfile: '', assistExtractorProfile: '', assistExtractorKinds: '! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item', rpgRolls: 'automatic' });
     assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'economyScale', 'coins', 'coinDisplay', 'chatterInPrompt', 'assistProfile', 'assistExtractorProfile', 'assistExtractorKinds']);
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
