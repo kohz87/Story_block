@@ -79,7 +79,8 @@ export function strictApply(state, ops) {
             if (!(op.op === 'add' && op.path === op.within) && !put && at(root, inside) === undefined) continue;
         }
         // Rule (e): an append marked `unique` of an item the list holds already (no earlier op wrote the list) is passed over.
-        if (op?.unique === true && op.op === 'add' && typeof op.path === 'string' && op.path.endsWith('/-')) {
+        // Ops stored before the mark existed (2.11.1 and earlier) get the scene's present list the same way.
+        if ((op?.unique === true || op?.path === '/domains/scene/present/-') && op.op === 'add' && typeof op.path === 'string' && op.path.endsWith('/-')) {
             const list = op.path.slice(0, -2);
             const held = at(root, list.slice(1).split('/').map(unescape));
             const same = item => (typeof op.value === 'string' ? typeof item === 'string' && item.toLowerCase() === op.value.toLowerCase() : JSON.stringify(item) === JSON.stringify(op.value));

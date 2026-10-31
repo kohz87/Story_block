@@ -15,7 +15,7 @@ import { prng, seedCrypto } from './helpers/seeded.js';
 import { checkInvariants } from './helpers/oracle.js';
 import { displayLines } from '../../../src/v2/extras.js';
 
-const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 11, 19, 29, 101];
+const SEEDS = process.env.QA_DELETE_SEED ? [Number(process.env.QA_DELETE_SEED)] : [3, 6, 9, 11, 19, 22, 27, 29, 101];
 const REPLIES = 20;
 const PLACES = ['Bluewatch Village', 'The Weir', 'Old Mill'];
 
@@ -24,6 +24,19 @@ const reply = (text, lines) => `${text}\n\n<Changes>\n${lines.join('\n')}\n</Cha
 // block; it is read with the block (capture.js strayLines). Every fourth reply does (by step, so the
 // seeds draw the same chats).
 const strayReply = (text, lines) => (lines.length > 1 ? `${text}\n\n${lines.at(-1)}\n\n<Changes>\n${lines.slice(0, -1).join('\n')}\n</Changes>` : reply(text, lines));
+// A line the story writes twice, once in the block and once in the story, is one change (capture.js splitEchoes): the
+// stray copy of an earlier line is not read. strayReply moves the last line out, so when it repeats an earlier line of
+// the reply its effect counts once (seeds 6, 9, 22 and 27 counted it twice).
+function dropEcho(out, all) {
+    const last = all.at(-1);
+    if (all.length < 2 || !all.slice(0, -1).includes(last)) return;
+    const sum = (/^\+ coin (\d+)$/.exec(last) ?? [])[1], take = (/^- coin (\d+) \| to: the ferryman$/.exec(last) ?? [])[1];
+    const torch = (/^\+ item Torch \| qty: (\d+)$/.exec(last) ?? [])[1];
+    if (sum) out.coin -= Number(sum);
+    else if (take) out.coin += Number(take);
+    else if (torch) out.torches -= Number(torch);
+    else if (last === '- item Torch') out.torches += 1;
+}
 const coin = host => host.head().domains.inventory.wallets.party?.coin ?? 0;
 const qty = (host, name) => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
 
@@ -126,7 +139,9 @@ for (const seed of SEEDS) {
             made.weather = weatherLines(step);
             made.mounts = mountLines(step, done);
             made.you = youOf(step);
-            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, [...made.weather, ...youLines(made.you), ...made.mounts, ...made.lines, ...made.extras]));
+            const all = [...made.weather, ...youLines(made.you), ...made.mounts, ...made.lines, ...made.extras];
+            if (step % 4 === 1) dropEcho(made, all);
+            await host.send(`Step ${step}.`, (step % 4 === 1 ? strayReply : reply)(`Step ${step} goes on.`, all));
             const index = host.store.headIndex();
             assert.deepEqual(host.turn.problems().filter(problem => problem.index === index), [], `seed ${seed} step ${step}: the lines are clean`);
             done.set(host.store.carrierSid(index), made);

@@ -432,6 +432,9 @@ function throughList(value, keys) {
     return false;
 }
 
+// The list rule (e) also covers for ops stored without the mark (see heldAlready).
+const UNIQUE_BEFORE_MARK = '/domains/scene/present';
+
 /**
  * `ops` with each counter op (`replace` with a numeric `was`) moved onto the value `state` holds
  * there, and each `remove` of a thing holding a counter (`was`, `count`) that now holds another
@@ -479,8 +482,11 @@ export function rebaseOps(state, ops, { scratch = null, replayed = false } = {})
     // when no earlier op of the block wrote the list: the reply that took it out was deleted. Text is
     // the same name whatever its case, as the scene's validator takes it.
     function heldAlready(op) {
-        if (op?.unique !== true || op.op !== 'add' || typeof op.path !== 'string' || !op.path.endsWith('/-')) return false;
+        if (op?.op !== 'add' || typeof op.path !== 'string' || !op.path.endsWith('/-')) return false;
         const at = op.path.slice(0, -2);
+        // Ops stored before the mark existed (2.11.1 and earlier wrote `~ place ... | with:` and the reader's
+        // set of who is present without it) get the scene's list the same way: that list never holds a name twice.
+        if (op.unique !== true && at !== UNIQUE_BEFORE_MARK) return false;
         if (writtenAbove(at)) return false;
         const list = valueAt(state, at);
         if (!Array.isArray(list)) return false;
