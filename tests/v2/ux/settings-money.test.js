@@ -1,12 +1,12 @@
 // The Money section (src/v2/view/settings/money.js, UI stage step 3c): Story Block's General settings on the form engine in the
-// concept's Money page: the coins as rows with "+ Add" and "Edit as text", the budget as a slider named in the smallest coin,
+// concept's Money page: the coins as rows with "+ Add" and "Edit as text", the cards (Coins, Money words, Advanced; no card for what the story may pay: the story decides),
 // what the store moved or refused said under the field, and the story's money paying as before after edits made here.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost } from '../../../testkit/index.js';
 import { setupDom } from '../view/mounts/helpers.js';
 import { openSettingsWindow } from '../../../src/v2/view/settings/window.js';
-import { BUDGET_SLIDER_MAX, MONEY_CARDS, MONEY_FOLD, budgetText, budgetUnit, coinProblems, moneySchema } from '../../../src/v2/view/settings/money.js';
+import { MONEY_CARDS, MONEY_FOLD, coinProblems, moneySchema } from '../../../src/v2/view/settings/money.js';
 import { SETTINGS_TEXT } from '../../../src/v2/host-ui.js';
 
 const COINS = [{ name: 'penny/pennies', value: 1 }, { name: 'silver', value: 10 }, { name: 'gold', value: 100 }];
@@ -24,9 +24,6 @@ const stored = host => host.settings('story-block');
 // A coin row's box: its name or its worth.
 const cell = (page, at, key) => field(page, 'coins').querySelectorAll('.ss-lines-row')[at].querySelector(`.ss-lines-cell[data-field="${key}"] input`);
 const type = (input, value) => { input.value = String(value); input.dispatch('change'); };
-const budget = page => field(page, 'storyCoinPerReply');
-const budgetSlider = page => budget(page).querySelector('.ss-slider-input');
-const say = page => budget(page).querySelector('.ss-slider-value').textContent;
 const err = (page, key) => field(page, key).querySelector('.ss-field-error');
 
 test('the page groups the money settings and folds the advanced scale', async () => {
@@ -45,6 +42,31 @@ test('the page groups the money settings and folds the advanced scale', async ()
     // No "N settings shown" line of its own: the window says it once.
     assert.equal(page.querySelector('.ss-form-status').hidden, true);
     host.close();
+});
+
+test('there is no card for what the story may pay: the story decides, so no per-reply money setting is on the page', async () => {
+    const { page, host, root } = await open({ coins: COINS });
+    assert.deepEqual(MONEY_CARDS.map(card => card.title), ['Coins', 'Money words', 'Advanced']);
+    assert.deepEqual(page.querySelectorAll('.ss-section-title').map(node => node.textContent), ['Coins', 'Money words', 'Advanced']);
+    assert.equal(field(page, 'storyCoinPerReply'), null);
+    assert.equal(page.querySelectorAll('.ss-slider').length, 0, 'no slider on the Money page');
+    for (const gone of ['What the story may pay', 'Money one reply may give', 'Automatic: no limit', 'one reply may give']) {
+        assert.equal(page.textContent.includes(gone), false, gone);
+        assert.equal(root.textContent.includes(gone), false, `${gone} (anywhere in the window)`);
+    }
+    host.close();
+});
+
+test('an old stored storyCoinPerReply is ignored: nothing is drawn for it, it is not an error, and it caps nothing', async () => {
+    for (const old of [60, 5000, 0, 'lots', -3, null]) {
+        const { page, host } = await open({ coins: COINS, storyCoinPerReply: old });
+        assert.equal(field(page, 'storyCoinPerReply'), null, String(old));
+        assert.deepEqual(page.querySelectorAll('.ss-section-title').map(node => node.textContent), ['Coins', 'Money words', 'Advanced']);
+        assert.equal(page.querySelectorAll('.ss-field-error').filter(node => !node.hidden).length, 0, 'no error shown');
+        await host.send('A hoard.', 'Gold.\n<Changes>\n+ coin 3 gold\n+ coin 5000\n</Changes>');
+        assert.equal(wallet(host), 5300, `paid whole with an old value of ${String(old)}`);
+        host.close();
+    }
 });
 
 test('Coins: name and worth rows with "+ Add" and "Edit as text", written to the same setting as before', async () => {
@@ -77,66 +99,6 @@ test('Coins: name and worth rows with "+ Add" and "Edit as text", written to the
     host.close();
 });
 
-test('the budget is a slider; its words are the smallest coin\'s, and follow a change to the coins or the money word', async () => {
-    const { page, host } = await open({ coins: COINS, storyCoinPerReply: 60 });
-    const slider = budgetSlider(page);
-    assert.equal(slider.min, '0');
-    assert.equal(slider.max, String(BUDGET_SLIDER_MAX));
-    assert.equal(slider.value, '60');
-    assert.equal(say(page), '60 pennies', 'named after the coin worth 1');
-    assert.equal(slider.getAttribute('aria-valuetext'), '60 pennies');
-    // Moving it stores it, in whole coins.
-    slider.value = '1';
-    slider.dispatch('change');
-    assert.equal(stored(host).storyCoinPerReply, 1);
-    assert.equal(say(page), '1 penny');
-    slider.value = '0';
-    slider.dispatch('change');
-    assert.equal(say(page), 'Automatic: no limit — the story decides');
-    slider.value = '60';
-    slider.dispatch('change');
-    // The coin is renamed: the unit follows, plural as written after the slash.
-    type(cell(page, 0, 'name'), 'farthing/farthings');
-    assert.equal(say(page), '60 farthings');
-    // Its worth changed to 2: no coin is worth 1, so the money word (Currency) is the unit.
-    type(cell(page, 0, 'value'), 2);
-    assert.equal(say(page), '60 gold', 'the default money word');
-    type(field(page, 'currency').querySelector('input'), 'mark');
-    assert.equal(say(page), '60 marks');
-    // No coins at all: the money word still.
-    const coins = field(page, 'coins');
-    while (coins.querySelectorAll('.ss-lines-remove').length) coins.querySelectorAll('.ss-lines-remove')[0].click();
-    assert.deepEqual(stored(host).coins, []);
-    assert.equal(say(page), '60 marks');
-    type(field(page, 'currencyPlural').querySelector('input'), 'marken');
-    assert.equal(say(page), '60 marken');
-    host.close();
-});
-
-test('a budget past the slider\'s range is shown whole, not cut to the end', async () => {
-    const { page, host } = await open({ storyCoinPerReply: 5000 });
-    const slider = budgetSlider(page);
-    assert.equal(slider.value, '5000');
-    assert.equal(slider.max, '5000');
-    assert.equal(say(page), '5,000 gold');
-    slider.value = '70';
-    slider.dispatch('change');
-    assert.equal(stored(host).storyCoinPerReply, 70);
-    assert.equal(slider.max, String(BUDGET_SLIDER_MAX), 'back to the usual range');
-    host.close();
-});
-
-test('budgetUnit and budgetText: the coin worth 1, else the money word; 0 is Automatic', () => {
-    assert.deepEqual(budgetUnit({ coins: COINS }), { one: 'penny', many: 'pennies' });
-    assert.deepEqual(budgetUnit({ coins: [{ name: 'silver', value: 10 }], currency: 'mark' }), { one: 'mark', many: 'marks' }, 'no coin worth 1');
-    assert.deepEqual(budgetUnit({}), { one: 'gold', many: 'gold' });
-    assert.equal(budgetText(60, { currency: 'mark' }), '60 marks');
-    assert.equal(budgetText(1, { currency: 'mark' }), '1 mark');
-    assert.equal(budgetText(1234, { coins: COINS }), '1,234 pennies');
-    assert.equal(budgetText(0, {}), 'Automatic: no limit — the story decides');
-    assert.equal(budgetText(Number.NaN, {}), 'Automatic: no limit — the story decides');
-});
-
 test('a bad Coins line is named, and the list is kept as it was', async () => {
     const { page, host } = await open({ coins: COINS });
     const coins = field(page, 'coins');
@@ -159,7 +121,7 @@ test('a bad Coins line is named, and the list is kept as it was', async () => {
     host.close();
 });
 
-test('what the store moved or refused is said under the field: a worth moved into its range, a name cut, a budget moved', async () => {
+test('what the store moved or refused is said under the field: a worth moved into its range, a name cut', async () => {
     const { page, host } = await open({ coins: COINS });
     // A worth past the most a coin may be worth is moved, and the row is named.
     type(cell(page, 2, 'value'), 5_000_000);
@@ -215,16 +177,13 @@ test('moneySchema: the General group regrouped into the cards; a field the cards
         storyCoinPerReply: { type: 'int', min: 0, max: 1_000_000_000, label: 'Budget' }, tip: { type: 'bool', label: 'Tip' },
         other: { type: 'text', label: 'Trade: Other', group: 'Trade' },
     };
-    const schema = moneySchema(base, () => ({}));
-    assert.deepEqual(Object.keys(schema), ['coins', 'storyCoinPerReply', 'currency', 'tip'], 'cards in order, then the rest; another group\'s field is not here');
-    assert.deepEqual(Object.values(schema).map(field => field.group), ['Coins', 'What the story may pay', 'Money words', 'More']);
+    const schema = moneySchema(base);
+    assert.deepEqual(Object.keys(schema), ['coins', 'currency', 'storyCoinPerReply', 'tip'], 'cards in order, then the rest (a field the cards no longer name, such as an old per-reply budget, goes to the end); another group\'s field is not here');
+    assert.deepEqual(Object.values(schema).map(field => field.group), ['Coins', 'Money words', 'More', 'More']);
     assert.equal(schema.coins.form, undefined, 'rows first: the text form is a button away');
-    assert.equal(schema.storyCoinPerReply.form, 'slider');
-    assert.equal(schema.storyCoinPerReply.sliderMax, BUDGET_SLIDER_MAX);
-    assert.equal(schema.storyCoinPerReply.max, 1_000_000_000, 'the store\'s limit is untouched');
-    assert.equal(schema.storyCoinPerReply.format(0), 'Automatic: no limit — the story decides');
+    assert.equal(schema.storyCoinPerReply.form, undefined, 'not a slider any more');
     assert.equal(base.coins.form, 'lines', 'the registry\'s own schema is not changed');
-    assert.deepEqual(moneySchema(undefined, () => ({})), {});
+    assert.deepEqual(moneySchema(undefined), {});
 });
 
 test('the General group\'s fold key still opens the Money page, the first field focused', async () => {
@@ -240,7 +199,7 @@ test('the General group\'s fold key still opens the Money page, the first field 
 
 test('the story still pays: a + coin line after edits made here is worth what the page says', async () => {
     const { page, host } = await open({ coins: [{ name: 'penny/pennies', value: 1 }] });
-    // Edit the coins here: add silver at 10 and gold at 100, and set the budget.
+    // Edit the coins here: add silver at 10 and gold at 100.
     const coins = field(page, 'coins');
     for (const [name, worth] of [['silver', 10], ['gold', 100]]) {
         coins.querySelector('.ss-lines-add').click();
@@ -248,8 +207,6 @@ test('the story still pays: a + coin line after edits made here is worth what th
         type(cell(page, at, 'name'), name);
         type(cell(page, at, 'value'), worth);
     }
-    budgetSlider(page).value = '500';
-    budgetSlider(page).dispatch('change');
     assert.equal(wallet(host), 0);
     await host.send('I sell the pelt.', 'He pays.\n<Changes>\n+ coin 3 silver | from: the trader\n</Changes>');
     assert.equal(wallet(host), 30, '3 silver at 10 each');
@@ -259,10 +216,8 @@ test('the story still pays: a + coin line after edits made here is worth what th
     type(cell(page, 1, 'value'), 20);
     await host.send('Again.', 'He pays.\n<Changes>\n+ coin 2 silver\n</Changes>');
     assert.equal(wallet(host), 270, '2 silver at 20 each');
-    // And the budget set here holds: a reply pays at most that much, whatever its lines say.
-    budgetSlider(page).value = '50';
-    budgetSlider(page).dispatch('change');
+    // Nothing limits what a reply pays: 3 gold is 300.
     await host.send('Rich.', 'A fortune.\n<Changes>\n+ coin 3 gold\n</Changes>');
-    assert.equal(wallet(host), 320, 'the budget is 50 and 3 gold is 300: 50 paid');
+    assert.equal(wallet(host), 570, 'all 300 is paid');
     host.close();
 });

@@ -58,6 +58,25 @@ export function rulesOfReply(record, problems = []) {
 }
 
 /**
+ * Companions who joined or left on this reply (a `+ party` or `- party` line, or the reader's Add to party), from the reply's own receipts
+ * (`data.join`, join.js): a swipe or a delete takes the receipt and so the line away, and a block the replay skipped is not told.
+ */
+export function partyLines(record, problems = []) {
+    const skipped = new Set(list(problems).flatMap(problem => list(problem?.receipts)));
+    const out = [];
+    for (const receipt of list(record?.receipts)) {
+        const join = receipt?.data?.join;
+        if (!isRecord(join) || skipped.has(receipt.id)) continue;
+        const who = words(join.name);
+        if (!who) continue;
+        if (join.op === 'added') out.push(line({ icon: 'fa-user-plus', tone: 'good', text: fill(C.joined, { who }), summary: fill(C.joinedSummary, { who }), note: C.joinedNote }));
+        else if (join.op === 'back') out.push(line({ icon: 'fa-user-plus', tone: 'good', text: fill(C.returned, { who }), summary: fill(C.joinedSummary, { who }) }));
+        else if (join.op === 'left') out.push(line({ icon: 'fa-user-minus', tone: 'info', text: fill(C.left, { who }), summary: fill(C.leftSummary, { who }), note: C.leftNote }));
+    }
+    return out;
+}
+
+/**
  * The RPG's lines for one reply. `state` is the reply's state, `before` the one before it (null for the first reply: no
  * rises are told then), `record` the reply's record, `problems` the replay problems of that reply. `rules`: the numbers in force
  * now, used only for a reply that has no roll of its own (its roll's recorded numbers win).
@@ -71,6 +90,7 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
         out.push(line({ icon: 'fa-dice-d20', tone: 'info', text: fill(rolled.exchanges === 1 ? C.rolledOne : C.rolled, { n: rolled.exchanges }),
             summary: fill(rolled.exchanges === 1 ? C.rolledSummaryOne : C.rolledSummary, { n: rolled.exchanges }), note }));
     }
+    out.push(...partyLines(record, problems));
     if (!before) return out;
     const then = new Map(readParty(before, { roleOf }).map(character => [`${character.module}|${character.subject}`, character]));
     for (const character of readParty(state, { roleOf })) {

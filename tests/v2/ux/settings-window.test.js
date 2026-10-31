@@ -63,8 +63,8 @@ const search = (root, text) => {
 const status = root => root.querySelector('.ss-settings-status');
 
 test('the sections, in the concept\'s order, each with an icon, a title and a line under it', () => {
-    assert.deepEqual(SECTION_IDS, ['look', 'features', 'money', 'assist', 'tabs', 'modules', 'diagnostics']);
-    assert.deepEqual(SETTINGS_SECTIONS.map(section => section.label), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    assert.deepEqual(SECTION_IDS, ['look', 'features', 'money', 'assist', 'tabs', 'blocks', 'modules', 'diagnostics']);
+    assert.deepEqual(SETTINGS_SECTIONS.map(section => section.label), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Blocks', 'Modules', 'Diagnostics']);
     assert.equal(DEFAULT_SECTION, 'features', 'opens on Features though Look is first in the rail');
     for (const section of SETTINGS_SECTIONS) {
         assert.match(section.icon, /^fa-[a-z-]+$/);
@@ -140,9 +140,9 @@ test('the frame: a dialog with the title, the search and the rail in its side, C
 test('the rail: aria-current on the chosen section, one Tab stop, arrow keys move along it, a click or Enter shows the page', async () => {
     const { root, win, host, doc } = await open();
     const items = () => railItems(root);
-    assert.equal(items().length, 7);
-    assert.deepEqual(items().map(node => node.getAttribute('aria-current')), [null, 'page', null, null, null, null, null]);
-    assert.deepEqual(items().map(node => node.getAttribute('tabindex')), ['-1', '0', '-1', '-1', '-1', '-1', '-1'], 'roving tabindex');
+    assert.equal(items().length, 8);
+    assert.deepEqual(items().map(node => node.getAttribute('aria-current')), [null, 'page', null, null, null, null, null, null]);
+    assert.deepEqual(items().map(node => node.getAttribute('tabindex')), ['-1', '0', '-1', '-1', '-1', '-1', '-1', '-1'], 'roving tabindex');
     assert.ok(doc.activeElement === items()[1], 'the window opens with the focus on the rail\'s chosen item');
     // Arrow keys move the focus (and the Tab stop), not the choice.
     items()[1].dispatch('keydown', { key: 'ArrowDown' });
@@ -151,15 +151,15 @@ test('the rail: aria-current on the chosen section, one Tab stop, arrow keys mov
     assert.equal(items()[1].getAttribute('tabindex'), '-1');
     assert.deepEqual(shownPages(root), ['features']);
     items()[2].dispatch('keydown', { key: 'End' });
-    assert.ok(doc.activeElement === items()[6]);
-    items()[6].dispatch('keydown', { key: 'ArrowRight' });
+    assert.ok(doc.activeElement === items()[7]);
+    items()[7].dispatch('keydown', { key: 'ArrowRight' });
     assert.ok(doc.activeElement === items()[0], 'wraps to Look, the first');
     // Choosing: the page, aria-current and the stop follow.
     items()[4].focus();
     items()[4].click();
     assert.deepEqual(shownPages(root), ['tabs']);
     assert.equal(win.section(), 'tabs');
-    assert.deepEqual(items().map(node => node.getAttribute('aria-current')), [null, null, null, null, 'page', null, null]);
+    assert.deepEqual(items().map(node => node.getAttribute('aria-current')), [null, null, null, null, 'page', null, null, null]);
     assert.equal(items()[4].getAttribute('tabindex'), '0');
     items()[0].focus();
     items()[0].click();
@@ -199,7 +199,7 @@ test('each section holds what it should: every section is the form engine\'s', a
     assert.equal(page(root, 'modules').querySelectorAll('.story-suite-row').length, 0, 'the Modules page draws no old rows');
     assert.deepEqual(cardOf(root, 'rpg-battle').querySelectorAll('.ss-field').map(row => row.dataset.field), ['hardMode', 'level', 'title']);
     assert.equal(page(root, 'money').querySelectorAll('.story-suite-row').length, 0);
-    assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'storyCoinPerReply', 'currency', 'currencyPlural', 'currencyShort', 'economyScale']);
+    assert.deepEqual(page(root, 'money').querySelectorAll('.ss-field').map(row => row.dataset.field), ['coins', 'coinDisplay', 'currency', 'currencyPlural', 'currencyShort', 'economyScale']);
     host.close();
 });
 
@@ -495,10 +495,10 @@ test('search words: one match says "1 setting shown", none says so with the text
     search(root, 'rpg battle');
     assert.deepEqual(shownPages(root), ['features', 'modules'], 'the module, and the RPG feature (its battle log)');
     assert.equal(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden && !row.parentNode.hidden).length, 3, 'its three settings (the module\'s name shows them all)');
-    // What it says finds it ("money" → "Money one reply may give", "Money scale" and the "Money words" card), not the section's own name.
+    // What it says finds it ("money" → "Money scale" and the "Money words" card), not the section's own name.
     search(root, 'money');
     assert.ok(shownPages(root).includes('money'));
-    assert.equal(page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'storyCoinPerReply,currency,currencyPlural,currencyShort,economyScale');
+    assert.equal(page(root, 'money').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field).join(), 'currency,currencyPlural,currencyShort,economyScale');
     // Words are all needed, in any order, any case.
     search(root, 'SHOP trade');
     assert.deepEqual(page(root, 'modules').querySelectorAll('.ss-field').filter(row => !row.hidden).map(row => row.dataset.field), ['title']);
@@ -566,7 +566,7 @@ test('an extra section (a module that is on only sometimes) goes in the rail aft
         },
     };
     const { root, win, host } = await open({ window: { extraSections: [extra] } });
-    assert.deepEqual(texts(root, '.ss-tabs-label'), ['Look', 'Features', 'Extra', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    assert.deepEqual(texts(root, '.ss-tabs-label'), ['Look', 'Features', 'Extra', 'Money', 'Assist', 'Tabs & Packs', 'Blocks', 'Modules', 'Diagnostics']);
     assert.deepEqual(root.querySelectorAll('.ss-settings-page').map(node => node.dataset.ssSection), [...SECTION_IDS.slice(0, 2), 'extra', ...SECTION_IDS.slice(2)]);
     assert.equal(page(root, 'extra').querySelector('.ss-settings-page-title').textContent, 'Extra');
     assert.ok(page(root, 'extra').querySelector('.own-extra'));

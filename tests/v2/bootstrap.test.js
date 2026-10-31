@@ -26,9 +26,9 @@ await import('../../index.js');
 const sdk = await globalThis.StoryBlock.ready;
 const texts = (root, selector) => root.querySelectorAll(selector).map(node => node.textContent);
 
-test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.8.1', () => {
+test('the global host and the manifest agree: v2, the interceptor, the CSS, 2.9.0', () => {
     const manifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '2.8.1');
+    assert.equal(manifest.version, '2.9.0');
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
     assert.equal(pkg.version, manifest.version);
     assert.equal(globalThis.StoryBlock.version, manifest.version);
@@ -48,7 +48,7 @@ test('the bar sits right above the message box; the drawer and the wand menu are
     assert.ok(next === sendForm || (next.classList.contains('ss-hud') && next.nextElementSibling === sendForm), 'the bar, then the hud strip, then the message box');
     assert.ok(doc.querySelector('#story_suite_v2_drawer'));
     assert.ok(doc.querySelector('#story_suite_v2_menu'));
-    assert.match(doc.querySelector('#story_suite_v2_drawer').textContent, /Story Block 2\.8\.1 \(v2\)/);
+    assert.match(doc.querySelector('#story_suite_v2_drawer').textContent, /Story Block 2\.9\.0 \(v2\)/);
 });
 
 test('a reply\'s change lines reach the Inventory tab of the story panel', async () => {
@@ -98,7 +98,7 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.ok(overlay);
     const page = id => overlay.querySelectorAll('.ss-settings-page').find(node => node.dataset.ssSection === id);
     const foldsOf = id => page(id).querySelectorAll('details.story-suite-fold').map(node => node.dataset.fold);
-    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Modules', 'Diagnostics']);
+    assert.deepEqual(texts(overlay, '.ss-tabs-item .ss-tabs-label'), ['Look', 'Features', 'Money', 'Assist', 'Tabs & Packs', 'Blocks', 'Modules', 'Diagnostics']);
     // Look and Features are the form engine's: no folds. The Story Suite fold has the budgets, not the look.
     assert.deepEqual(foldsOf('look'), []);
     assert.deepEqual(texts(page('look'), '.ss-field-label'), ['Panel style', 'Glass strength (%)', 'Font']);
@@ -113,7 +113,7 @@ test('the settings window opens from the bar: Packs and the prompt size under Ta
     assert.ok(!page('tabs').querySelector('[data-field="panelStyle"]'));
     assert.ok(overlay.querySelector('.ss-settings-foot'), 'the footer bar: what is sent each reply');
     // Story Block's money settings include a folded Advanced row.
-    assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'What the story may pay', 'Money words', 'Advanced']);
+    assert.deepEqual(texts(page('money'), '.ss-section-title'), ['Coins', 'Money words', 'Advanced']);
     assert.equal(page('money').querySelectorAll('details').length, 1);
     // Its Assist settings are the form engine's Assist page: Extra calls, Checks, Safety net, then the old panel as Recent runs.
     assert.equal(page('assist').querySelectorAll('details').length, 0);

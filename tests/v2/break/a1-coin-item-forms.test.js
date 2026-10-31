@@ -13,7 +13,7 @@ const names = host => host.sdk.query('inventory.items').map(item => item.name);
 
 async function fresh(t) {
     t.mock.method(console, 'warn', () => {});
-    const host = await createHost({ settings: { modules: { 'story-block': { coins: COINS, storyCoinPerReply: 500 } } } });
+    const host = await createHost({ settings: { modules: { 'story-block': { coins: COINS } } } });
     t.after(() => host.close());
     await host.send('Hello.', 'The road.');
     return host;

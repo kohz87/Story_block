@@ -763,10 +763,7 @@
                 "path": "/domains/inventory/perReply",
                 "value": {
                   "sw_06e59052a986": {
-                    "coin": 7,
-                    "worth": 0,
-                    "made": 0,
-                    "items": {}
+                    "coin": 7
                   }
                 }
               },
@@ -859,10 +856,7 @@
                     "op": "add",
                     "path": "/domains/inventory/perReply/sw_8f48fd4cdf77",
                     "value": {
-                      "coin": 3,
-                      "worth": 0,
-                      "made": 0,
-                      "items": {}
+                      "coin": 3
                     }
                   },
                   {
@@ -933,10 +927,7 @@
                     "op": "add",
                     "path": "/domains/inventory/perReply/sw_c4ee62c8e4ec",
                     "value": {
-                      "coin": 2,
-                      "worth": 0,
-                      "made": 0,
-                      "items": {}
+                      "coin": 2
                     }
                   },
                   {
@@ -1006,10 +997,7 @@
                 "op": "add",
                 "path": "/domains/inventory/perReply/sw_8f48fd4cdf77",
                 "value": {
-                  "coin": 3,
-                  "worth": 0,
-                  "made": 0,
-                  "items": {}
+                  "coin": 3
                 }
               },
               {
@@ -1101,10 +1089,7 @@
           "aliases": {},
           "perReply": {
             "sw_8f48fd4cdf77": {
-              "coin": 3,
-              "worth": 0,
-              "made": 0,
-              "items": {}
+              "coin": 3
             }
           }
         },
@@ -1277,10 +1262,7 @@
                 "path": "/domains/inventory/perReply",
                 "value": {
                   "sw_06e59052a986": {
-                    "coin": 7,
-                    "worth": 0,
-                    "made": 0,
-                    "items": {}
+                    "coin": 7
                   }
                 }
               },
@@ -1400,7 +1382,7 @@
                       "op": 3,
                       "rev": 1
                     },
-                    "prefixHash": "59ffd387b3899a1175cca8d9c0cac0f832c412f8f74393c0fb6acff10f605ccc",
+                    "prefixHash": "7fe0c7b116a574aa3430593a6d7422a30f29721bedd6b90a76cd5db13d602d88",
                     "payloadHash": "21365a87660d3daebd26cc12f5f5361deb6c6a302d868387b894c001177b24a0"
                   }
                 ],
@@ -1490,10 +1472,7 @@
                     "op": "add",
                     "path": "/domains/inventory/perReply/sw_2444452140e1",
                     "value": {
-                      "coin": 3,
-                      "worth": 0,
-                      "made": 0,
-                      "items": {}
+                      "coin": 3
                     }
                   },
                   {
@@ -1564,10 +1543,7 @@
                     "op": "add",
                     "path": "/domains/inventory/perReply/sw_67bb3c5a6731",
                     "value": {
-                      "coin": 2,
-                      "worth": 0,
-                      "made": 0,
-                      "items": {}
+                      "coin": 2
                     }
                   },
                   {
@@ -1637,10 +1613,7 @@
                 "op": "add",
                 "path": "/domains/inventory/perReply/sw_2444452140e1",
                 "value": {
-                  "coin": 3,
-                  "worth": 0,
-                  "made": 0,
-                  "items": {}
+                  "coin": 3
                 }
               },
               {
@@ -1732,10 +1705,7 @@
           "aliases": {},
           "perReply": {
             "sw_2444452140e1": {
-              "coin": 3,
-              "worth": 0,
-              "made": 0,
-              "items": {}
+              "coin": 3
             }
           }
         },

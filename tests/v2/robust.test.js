@@ -6,7 +6,6 @@ import { MAX_LINE, cutLine, extractBlock, hideBlock, parseChanges, stripBlock, w
 import { HAPPENED, MIN_HAPPENED, assemble } from '../../src/v2/prompt.js';
 import { createRegistry } from '../../src/v2/registry.js';
 import { MAX_CHANGE_LINES, createSettings, settingValue } from '../../src/v2/sdk.js';
-import { STORY_ITEM_QTY } from '../../src/v2/domains/inventory.js';
 import { parseAmount } from '../../src/v2/domains/money.js';
 import { cleanName } from '../../src/v2/domains/names.js';
 import { MAX_DEPTH, parseHtml, tooDeep } from '../../src/v2/view/template/html.js';
@@ -131,35 +130,26 @@ test('a Continue reads only the block it adds, and the first block is not read t
     assert.deepEqual(parseChanges(extractBlock(host.ctx.chat.at(-1).mes)).lines.map(line => line.name), ['Rope', '5', 'Torch']);
 });
 
-test('story coin: one reply pays at most the budget; the clamp is a LIMITED Problem; the next reply starts again', async t => {
+test('story coin: one reply pays all it wrote, whatever an old saved cap says; a swipe starts again', async t => {
     const host = await fresh(t);
     host.settings.set('story-block', 'storyCoinPerReply', 1000);
-    await host.send('Chest.', reply('Gold.', ['+ coin 700 | from: a chest', '+ coin 700 | from: the lid']));
-    assert.equal(coin(host), 1000, "the reader's limit");
-    assert.deepEqual(codes(host), ['LIMITED']);
-    assert.match(host.turn.problems()[0].message, /700 gold was written, but one reply may give at most 1000 gold; 300 gold was paid/);
+    await host.send('Chest.', reply('Gold.', ['+ coin 700 | from: a chest', '+ coin 700 | from: the lid', '+ coin 1']));
+    assert.equal(coin(host), 1401, 'no per-reply cap');
+    assert.deepEqual(codes(host), []);
     await host.send('More.', reply('Gold.', ['+ coin 50']));
-    assert.equal(coin(host), 1050);
-});
-
-test('story coin: a third line past the budget is refused; a swipe gets its own budget', async t => {
-    const host = await fresh(t);
-    host.settings.set('story-block', 'storyCoinPerReply', 1000);
-    await host.send('Chest.', reply('Gold.', ['+ coin 1000', '+ coin 1']));
-    assert.equal(coin(host), 1000);
-    assert.ok(host.turn.problems().some(problem => problem.code === 'REFUSED' && /all the money one reply may give/.test(problem.message)));
+    assert.equal(coin(host), 1451);
     await host.swipe(reply('Less gold.', ['+ coin 600', '+ item Gold | qty: 600']));
-    assert.equal(coin(host), 1000, 'the currency-named item counts against the same budget');
+    assert.equal(coin(host), 2601, 'the swipe replaced the 50 with 600 + 600: the currency-named item is money, paid whole');
 });
 
-test('story coin: the setting storyCoinPerReply sets the budget; code payouts are not counted', async t => {
+test('story coin: code payouts are paid like the story\'s', async t => {
     const host = await fresh(t);
     host.settings.set('story-block', 'storyCoinPerReply', 30);
     await host.send('Chest.', reply('Gold.', ['+ coin 40']));
-    assert.equal(coin(host), 30);
+    assert.equal(coin(host), 40);
     const paid = await host.bus.command('wallet.receive', { owner: 'party', amount: 5000 }, { cause: 'system' });
     assert.equal(paid.ok, true);
-    assert.equal(coin(host), 5030);
+    assert.equal(coin(host), 5040);
 });
 
 test('automatic story coin ignores rank and level', async t => {
@@ -175,16 +165,16 @@ test('automatic story coin ignores rank and level', async t => {
     assert.equal(coin(host), 999);
 });
 
-test('story items: at most STORY_ITEM_QTY of one item per reply, repeated lines counted together', async t => {
+test('story items: no per-reply count limit, repeated lines add up', async t => {
     const host = await fresh(t);
     host.settings.set('story-block', 'storyCoinPerReply', 1000);
     await host.send('Arrows.', reply('Arrows.', ['+ item Arrow | qty: 12', '+ item Arrow | qty: 12', '+ item Arrow', '+ item Rope | qty: 30']));
     const qty = name => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
-    assert.equal(qty('Arrow'), STORY_ITEM_QTY);
-    assert.equal(qty('Rope'), STORY_ITEM_QTY);
-    assert.deepEqual(codes(host), ['LIMITED', 'REFUSED', 'LIMITED']);
+    assert.equal(qty('Arrow'), 25);
+    assert.equal(qty('Rope'), 30);
+    assert.deepEqual(codes(host), []);
     const granted = await host.bus.command('inventory.grant', { name: 'Arrow', qty: 40 }, { cause: 'system' });
-    assert.equal(granted.ok, true, 'a grant by code is not held to the story limit');
+    assert.equal(granted.ok, true);
 });
 
 test('B3-5: an amount with a sign is refused; the op is the only sign', () => {

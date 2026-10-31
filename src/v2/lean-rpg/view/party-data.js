@@ -105,7 +105,7 @@ export function foesOf(block) {
 
 /**
  * The party: one record per Character block (per attached character for a character-scope block), the reader's own
- * character first (`own` is their name), then block order. Each: `{ module, subject, name, own, alive, points, soul,
+ * character first (`own` is their name), then block order. Each: `{ module, subject, name, own, alive, left (a companion who left the party), points, soul,
  * soulName, xp, bars: { health, mana, stamina: { value, max, word, tone } }, stats: [{ key, label, value, min, max }],
  * skills, skillsBlock, definition, fields }`.
  */
@@ -128,7 +128,7 @@ export function readParty(state, { own = '', roleOf } = {}) {
         const soul = whole(fields.soul, 1);
         const mine = skillBlocks.find(item => textOf(item.fields.who) && fold(item.fields.who) === fold(name))
             ?? (skillBlocks.length === 1 && !textOf(skillBlocks[0].fields.who) ? skillBlocks[0] : null);
-        return { module: block.module, subject: block.subject, name, own: false, alive: fields.alive !== false, points: Math.max(0, whole(fields.points)),
+        return { module: block.module, subject: block.subject, name, own: false, alive: fields.alive !== false, left: fields.left === true, points: Math.max(0, whole(fields.points)),
             soul, soulName: soulName(definition.state?.soul, soul), xp: Math.min(100, Math.max(0, whole(fields.xp))), bars, stats,
             skills: mine ? skillsOf(mine) : [], skillsBlock: mine ? { module: mine.module, definition: mine.definition } : null, definition, fields, order: block.order };
     });

@@ -93,15 +93,11 @@ export const CORE_FEATURES = Object.freeze([
 // never a second one.
 export const CORE_SETTINGS = Object.freeze({
     section: 'Story Block',
-    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0', coins: Object.freeze([]), coinDisplay: 'mixed', chatterInPrompt: false }),
+    defaults: Object.freeze({ currency: DEFAULT_CURRENCY.name, currencyPlural: '', currencyShort: '', economyScale: '0', coins: Object.freeze([]), coinDisplay: 'mixed', chatterInPrompt: false }),
     schema: Object.freeze({
         currency: Object.freeze({ type: 'text', label: 'Currency (one coin: mark, crown, gold)', max: 24 }),
         currencyPlural: Object.freeze({ type: 'text', label: 'Currency, plural (blank: the name with an s)', max: 24 }),
         currencyShort: Object.freeze({ type: 'text', label: 'Currency, short form (blank: its first letter)', max: 6 }),
-        storyCoinPerReply: Object.freeze({
-            type: 'int', min: 0, max: 1000000000, label: 'Money one reply may give',
-            help: 'The most one reply may give, in whole coins. 0: no limit; the story decides. A number also limits the items and goods one reply may give.',
-        }),
         // A number from 0.001 to 1000, kept as text so it can hold a fraction (MODULES §F104).
         economyScale: Object.freeze({
             type: 'text', max: 12, label: 'Money scale (0: the pack\'s)',
@@ -324,7 +320,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         ...(command ? { command } : {}),
         ...(query ? { query } : {}),
     });
-    const dataPart = createDataModulesPart({ packs: packs.packs, ...dataModules });
+    const dataPart = createDataModulesPart({ packs: packs.packs, settings: () => settings(), ...dataModules });
     // The RPG's pre-call and rolls (`leanRpg`: the runtime's queued model call, the chat and its metadata; src/v2/lean-rpg/).
     const rpg = createLeanRpgPart({ ...leanRpg, problem });
     const merged = mergeParts([core, packs.part, events, assist ?? createAssistPart({ settings: () => settings() }), createTimelinePart({ timeline }), dataPart, rpg]);
@@ -364,7 +360,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
             'story.evidence': createEvidenceQuery({ stored: () => extras?.proofs?.() ?? [] }),
         },
         capture: {
-            kinds: { ...CORE_KINDS, dm: merged.kinds.dm },
+            kinds: { ...CORE_KINDS, dm: merged.kinds.dm, party: merged.kinds.party },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);

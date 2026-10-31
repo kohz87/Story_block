@@ -15,14 +15,14 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     assert.deepEqual(Object.keys(module.domains), ['scene', 'inventory', 'dataModules']);
     assert.equal(module.domains.dataModules.deferred, true);
     assert.deepEqual(Object.keys(module.commands).sort(), [
-        'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.define', 'dm.migrate', 'dm.pin', 'dm.redefine', 'dm.remove', 'dm.set', 'dm.settle', 'dm.tick', 'events.fire', 'inventory.add', 'inventory.consume', 'inventory.drop', 'inventory.edit', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
-        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set',
+        'assist.precheck', 'dm.act', 'dm.attach', 'dm.capture', 'dm.define', 'dm.join', 'dm.migrate', 'dm.pin', 'dm.redefine', 'dm.remove', 'dm.set', 'dm.settle', 'dm.tick', 'events.fire', 'inventory.add', 'inventory.consume', 'inventory.drop', 'inventory.edit', 'inventory.equip', 'inventory.grant', 'inventory.lootTake',
+        'inventory.merge', 'inventory.repair', 'inventory.split', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'rpg.joinNo', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'wallet.pay', 'wallet.receive', 'wallet.set',
     ]);
     assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'inventory.condition', 'inventory.counts', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.items', 'inventory.loot', 'inventory.storyBudget', 'inventory.wallet', 'packs.calendar',
-        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.start', 'packs.weather', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'story.evidence']);
+        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.start', 'packs.weather', 'rpg.joins', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'story.evidence']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReceive', 'afterReply', 'beforeGenerate', 'item.resolve', 'replayGuard', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
-    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'loot', 'choice', 'chatter', 'dm']);
+    assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'loot', 'choice', 'chatter', 'dm', 'party']);
     // Choices and Inner chatter are display kinds under their features (MODULES §F115): no command runs for them.
     assert.deepEqual(['choice', 'chatter'].map(kind => [module.capture.kinds[kind].feature, Boolean(module.capture.kinds[kind].display)]), [['story-block.choices', true], ['story-block.chatter', true]]);
     assert.equal(module.capture.kinds.loot.feature, 'story-block.loot');
@@ -37,9 +37,9 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
     for (const kind of Object.values(CORE_KINDS)) assert.ok(kind.grammar && !kind.grammar.includes('\n'));
     assert.equal(module.context.budget, CORE_BUDGET);
     assert.deepEqual(module.tabs.map(tab => tab.id), [], 'the default screens replace the code tabs');
-    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector', 'story-block/blocks']);
-    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', storyCoinPerReply: 0, economyScale: '0', coins: [], coinDisplay: 'mixed', chatterInPrompt: false, assistClassifier: false, assistExtractor: false, assistProfile: '', assistExtractorProfile: '', assistExtractorKinds: '! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item', rpgRolls: 'automatic' });
-    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'storyCoinPerReply', 'economyScale', 'coins', 'coinDisplay', 'chatterInPrompt', 'assistProfile', 'assistExtractorProfile', 'assistExtractorKinds']);
+    assert.deepEqual(module.screens.map(screen => screen.id), ['story-block/home', 'story-block/inventory', 'story-block/scene', 'story-block/changes-card', 'story-block/inspector']);
+    assert.deepEqual(module.settings.defaults, { currency: 'gold', currencyPlural: '', currencyShort: '', economyScale: '0', coins: [], coinDisplay: 'mixed', chatterInPrompt: false, assistClassifier: false, assistExtractor: false, assistProfile: '', assistExtractorProfile: '', assistExtractorKinds: '! time, ~ time, ~ place, + present, - present, ~ weather, ~ quest, - quest, ~ wound, - item', rpgRolls: 'automatic' });
+    assert.deepEqual(Object.keys(module.settings.schema), ['currency', 'currencyPlural', 'currencyShort', 'economyScale', 'coins', 'coinDisplay', 'chatterInPrompt', 'assistProfile', 'assistExtractorProfile', 'assistExtractorKinds']);
     assert.deepEqual(module.features.map(feature => [feature.id, feature.default]), [
         ['story-block.hud', true], ['story-block.cards', true], ['story-block.preroll', false], ['story-block.extractor', false],
         ['story-block.inspector', false], ['story-block.savepoints', true], ['story-block.choices', false], ['story-block.chatter', false],
@@ -140,7 +140,7 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
     const part = createCorePart({ hooks: () => [] });
     const module = createCoreModule();
     // (The display kinds, Choices and Inner chatter, run no command, so the part has no handler for them.)
-    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds).filter(kind => kind !== 'dm' && !module.capture.kinds[kind].display));
+    assert.deepEqual(Object.keys(part.kinds), Object.keys(module.capture.kinds).filter(kind => kind !== 'dm' && kind !== 'party' && !module.capture.kinds[kind].display));
     for (const [name, kind] of Object.entries(part.kinds)) {
         assert.equal(kind.grammar, CORE_KINDS[name].grammar);
         assert.equal(typeof kind.apply, 'function');

@@ -138,7 +138,7 @@ with `dm.set` for a field of their own module.
 
 ### Chat blocks
 
-The Blocks page builds the same checked definitions as a pack, with chat scope and ids
+Settings → Blocks builds the same checked definitions as a pack, with chat scope and ids
 `pack.chat/<slug>`. The pack id `chat` is reserved; a pack with that id cannot be installed or supply
 content from an older installation. `dm.define { definition }` makes a reply-bound pin;
 `dm.redefine { module, definition }` replaces a chat block with a new generation; `dm.remove { module }`
@@ -152,12 +152,15 @@ Definitions may include `prompt`, a one-line purpose of at most 1,200 Unicode co
 the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may
 set `list: true`: it stores up to 12 entries joined with `; `, and the editor shows chips. Fields may
 carry a plain `label`, and a UI kind may carry a plain `title`, for display. Optional
-`show: { tab, card, tabName, icon }` chooses a block tab and/or Home card; `tabName` is at most 24
+`show: { tab, card, tabName, icon }` chooses a block tab and/or Home card (both false: the block is hidden,
+still pinned and working, with no tab and no card); `tabName` is at most 24
 characters and `icon` names an app icon. These keys can also be used by pack definitions: after a pack
 module is pinned, the shared renderer shows its fields and UI-kind buttons on its tab or Home card.
 It draws a button only for a UI kind with no labels; a kind that asks for values is used from the
 pack's own screens. Only chat blocks offer Edit fields, Save as template and Remove. Every pinned chat
-block is listed on the Blocks page, with or without `show`.
+block is listed on Settings → Blocks, with or without `show`. Its **Show as** choice (its own tab, a card on Home, both,
+or Hidden) redefines the block with a new `show`, keeping its tab name and icon; the RPG's role blocks are marked and
+shown by the RPG's tabs while the feature is on.
 
 The editor generates one `set-<field>` story kind per field, including numbers; a numeric `to` label
 uses the field's bounds. A new or redefined block allows at most 16 fields and buttons combined, because

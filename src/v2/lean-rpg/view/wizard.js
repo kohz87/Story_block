@@ -1,7 +1,9 @@
 // The New character wizard (mockup section 4): Story Block's own dialog (`width: 'wide'`) with four steps, Who · Stats · Skills ·
 // Review, and a summary row of the character so far on top of each. It is opened from the Party tab ("+ New character", and
-// "Create your character" when there is none).
-//   Who     the name (the persona's by default), You or A companion (one You to a story), who they are (the AI reads it)
+// "Create your character" when there is none, and the Home card and the first-send dialog, start.js). `open(prefill, { onEnd })` opens it with a
+// companion's name, about, Soul Class and best stat filled in (the card under a reply that asks to add someone, join.js), and `onEnd(created)`
+// hears whether Create made the character or the dialog was closed without.
+//   Who     the name and who they are (the persona's name and description by default, for You), You or A companion (one You to a story)
 //   Stats   the Spend points view's steppers and radar, under the creation budget (names.js CREATION)
 //   Skills  skill sets (built in, and a pack's `content.rpg.skillSets`) and up to five rows: name, what it does, Stat, Uses,
 //           Starts at (Novice; Adept for at most one skill). Rank and practice are never typed.
@@ -20,6 +22,8 @@ import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
+import { CLASS_NAMES } from '../names.js';
+import { joinDraft } from '../join.js';
 import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, hasRoom, mayStartAdept, newDraft, pointsLeft, problemsOf, readDraft, setLine, skillSetsOf,
     START_RANKS, statsLine, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
@@ -51,23 +55,36 @@ const safe = (fn, fallback) => { try { return fn() ?? fallback; } catch { return
 /**
  * The wizard. `deps`: `headState()` (the head state or null), `readerName()` (the persona's name), `roleOf(definition)`, `openDialog(id,
  * { draft, onClose })` (the host's dialog mount; without it there is no way to open), `replyKey()` (the head reply's key in the blocks' per-reply
- * count, `${sid}/${swipeKey}`: Create asks the reply for three block actions before it starts). → { screen, widget, open(), session(), destroy() }.
- * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes.
+ * count, `${sid}/${swipeKey}`: Create asks the reply for three block actions before it starts), `readerAbout()` (the active persona's description,
+ * which a You starts with as Who they are). → { screen, widget, open(prefill?, { onEnd }?), session(), destroy() }.
+ * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes. `prefill` is { name, about, soul, best }: a companion
+ * the story brought in (join.js joinDraft); `onEnd(created)` is told once when the dialog closes, `created` true when Create made the character.
  */
-export function createWizard({ headState = () => null, readerName = () => '', roleOf, openDialog = null, replyKey = () => '' } = {}) {
+export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '' } = {}) {
     let session = null;
     const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf, safe(replyKey, ''));
-    const fresh = () => {
-        const now = world();
-        return { draft: newDraft({ persona: now.persona, hasYou: now.hasYou }), handle: null, busy: false, message: '' };
+    // The persona's description as Who they are starts: one line, the first 240 characters (whole characters), '' when there is none.
+    const personaAbout = () => [...String(safe(readerAbout, '') ?? '').replace(/\s+/g, ' ').trim()].slice(0, CREATION.about).join('');
+    const fresh = (prefill = null) => {
+        const now = world(), about = personaAbout();
+        const draft = prefill ? joinDraft(prefill) : { ...newDraft({ persona: now.persona, hasYou: now.hasYou }) };
+        // Only a You starts with the persona's description, and only into an empty box: a companion starts empty.
+        if (!prefill && draft.kind === 'you' && about) draft.about = about;
+        return { draft, handle: null, busy: false, message: '', created: false, about: prefill ? '' : about, onEnd: null };
     };
     const current = () => { session ??= fresh(); return session; };
 
-    function open() {
+    function open(prefill = null, { onEnd = null } = {}) {
         if (typeof openDialog !== 'function' || session?.handle?.isOpen?.()) return null;
-        const own = fresh();
+        const own = fresh(prefill && typeof prefill === 'object' ? prefill : null);
+        own.onEnd = typeof onEnd === 'function' ? onEnd : null;
         session = own;
-        const handle = openDialog(WIZARD_SCREEN_ID, { draft: {}, onClose: () => { if (session === own) session = null; } });
+        const handle = openDialog(WIZARD_SCREEN_ID, { draft: {}, onClose: () => {
+            if (session === own) session = null;
+            const end = own.onEnd;
+            own.onEnd = null;
+            try { end?.(own.created); } catch { /* the caller's follow-up never breaks closing */ }
+        } });
         if (!handle) { if (session === own) session = null; return null; }
         own.handle = handle;
         return handle;
@@ -133,7 +150,7 @@ export function createWizard({ headState = () => null, readerName = () => '', ro
                 who.appendChild(h(doc, 'span', 'rpg-wiz-ava', [...now.name][0]?.toUpperCase() ?? '?'));
                 const k = h(doc, 'div', 'rpg-wiz-k');
                 k.appendChild(h(doc, 'span', 'rpg-wiz-name', now.name || W.title));
-                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${W.soulOne}`));
+                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { name: CLASS_NAMES[(now.soul ?? 1) - 1] ?? 'I' })}`));
                 who.appendChild(k);
                 summary.appendChild(who);
                 const part = (label, text) => {
@@ -170,6 +187,10 @@ export function createWizard({ headState = () => null, readerName = () => '', ro
                     let next = { ...was, kind: to };
                     if (to === 'you' && now.persona) next = { ...next, name: now.persona };
                     else if (to === 'companion' && now.persona && fold(was.name) === fold(now.persona)) next = { ...next, name: '' };
+                    // The persona's description goes with You: into an empty box on You, and out again on a companion while it is still untouched.
+                    const from = current().about;
+                    if (to === 'you' && from && !was.about) next = { ...next, about: from };
+                    else if (to === 'companion' && from && fold(was.about) === fold(from)) next = { ...next, about: '' };
                     put(next);
                     drawSummary();
                     redraw();
@@ -188,8 +209,14 @@ export function createWizard({ headState = () => null, readerName = () => '', ro
                 about.value = draft().about;
                 const count = h(doc, 'span', 'rpg-wiz-count', fill(W.aboutCount, { n: [...draft().about].length, max: CREATION.about }));
                 field(form, W.about, about, count);
-                about.addEventListener('input', () => { put({ ...draft(), about: about.value }); count.textContent = fill(W.aboutCount, { n: [...about.value].length, max: CREATION.about }); });
-                form.appendChild(h(doc, 'p', 'rpg-wiz-note', W.whoNote));
+                // Where the text came from, while it is still the persona's (a note under the box; typing over it takes the note away).
+                const fromPersona = h(doc, 'p', 'rpg-wiz-note rpg-wiz-persona', W.aboutPersona);
+                fromPersona.setAttribute('data-wiz', 'persona-note');
+                const showPersona = () => { fromPersona.hidden = !(draft().kind === 'you' && current().about && fold(draft().about) === fold(current().about)); };
+                showPersona();
+                about.addEventListener('input', () => { put({ ...draft(), about: about.value }); count.textContent = fill(W.aboutCount, { n: [...about.value].length, max: CREATION.about }); showPersona(); });
+                form.appendChild(fromPersona);
+                form.appendChild(h(doc, 'p', 'rpg-wiz-note', draft().soul > 1 ? fill(W.whoNoteSoul, { name: CLASS_NAMES[snap().soul - 1] }) : W.whoNote));
             }
 
             // ---- Stats ----
@@ -307,7 +334,7 @@ export function createWizard({ headState = () => null, readerName = () => '', ro
                 for (const skill of now.skills) skills.appendChild(h(doc, 'li', '', `${skill.name || '—'} · ${skill.stat.toUpperCase()} · ${W[skill.uses]} · ${W.startsAt} ${RANK_NAMES[skill.start]}`));
                 if (!now.skills.length) skills.appendChild(h(doc, 'li', '', W.noSkills));
                 list.appendChild(skills);
-                list.appendChild(h(doc, 'p', 'rpg-wiz-note', W.reviewStart));
+                list.appendChild(h(doc, 'p', 'rpg-wiz-note', now.soul > 1 ? fill(W.reviewStartSoul, { name: CLASS_NAMES[now.soul - 1] }) : W.reviewStart));
                 const left = Math.max(0, pointsLeft(now));
                 if (left > 0) list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(left === 1 ? W.reviewLeftOne : W.reviewLeft, { n: left })));
                 list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(W.reviewBlocks, { character: names.character, skills: names.skills })));
@@ -355,7 +382,7 @@ export function createWizard({ headState = () => null, readerName = () => '', ro
                 }
                 run.busy = false;
                 run.message = failure;
-                if (!failure) { run.handle?.close?.(); return { ok: true }; }
+                if (!failure) { run.created = true; run.handle?.close?.(); return { ok: true }; }
                 if (alive) { make.disabled = false; make.textContent = W.create; status.textContent = failure; }
                 return { ok: false };
             }

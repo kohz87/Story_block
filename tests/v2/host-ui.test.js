@@ -456,7 +456,7 @@ test('the settings window: a side with the rail and a page; Escape closes it and
     assert.equal(win.getAttribute('aria-labelledby'), 'story_suite_v2_overlay_title');
     assert.equal(overlay.root.querySelector('#story_suite_v2_overlay_title').textContent, 'Story Suite');
     assert.deepEqual(win.children.map(node => node.className), ['ss-settings-close story-suite-close', 'ss-settings-side', 'ss-settings-content', 'ss-settings-foot']);
-    assert.deepEqual(overlay.root.querySelectorAll('.ss-settings-pane').map(node => node.parentNode.dataset.ssSection), ['look', 'features', 'money', 'assist', 'tabs', 'modules', 'diagnostics']);
+    assert.deepEqual(overlay.root.querySelectorAll('.ss-settings-pane').map(node => node.parentNode.dataset.ssSection), ['look', 'features', 'money', 'assist', 'tabs', 'blocks', 'modules', 'diagnostics']);
     assert.ok(doc.activeElement === overlay.root.querySelector('.ss-tabs-item[aria-current="page"]'), 'the focus starts on the rail');
     // The page behind cannot take the focus while it is open.
     opener.focus();

@@ -196,7 +196,7 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   (+ `-text`, `-name`, `-help`, `-cost`, `-why`, `-unavailable`). `sectionBlock` takes `level` (the heading's, default 3).
 - **Looks that SillyTavern would spoil** (glass.css): every slider rule is `.ss-slider .ss-slider-input…` (a class heavier), because SillyTavern
   paints every `input[type="range"]` with a bar in its body colour (black on a light theme), a thumb in its tick colour and a hover filter,
-  which beat a one-class rule; the unfilled track is the `--ss-track` token (a faint tint of the text colour in a light scheme). A select
+  which beat a one-class rule. What clears the input's own box (background, border, box-shadow, filter, outline) is also `!important`, so a theme's lighter `!important` rule on `input[type="range"]` cannot paint a coloured box behind the track (`tests/v2/ux/glass-css.test.js`). The unfilled track is the `--ss-track` token (a faint tint of the text colour in a light scheme). A select
   ends in an ellipsis instead of clipping (`.ss-select`); the Look choices are short words ("Glass", "Solid", "Follow SillyTavern") whose
   help says what each is.
 - **Classes** (glass.css): `ss-form`, `ss-section` (+ `-head`, `-title`, `-hint`, `-body`), `ss-field` (+ `-inline`,
@@ -211,7 +211,7 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
 
 `src/v2/view/settings/` is the settings window; `ui-host.js` `openSettings({ fold })` calls `openSettingsWindow`. It replaced
 `openSettingsOverlay` (host-ui.js). Step 3a was the shell, with every section still drawing today's folds and rows; **step 3b made
-Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs, step 3f Modules, step 3g Diagnostics** (below): every section has a body, and the legacy fold host (`renderSettingsHost`) is only used by tests.
+Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs & Packs, Blocks (`view/settings/blocks.js`: the page itself is `screens/blocks.js` `page`, shared with the block cards' Edit fields; the game view has no Blocks tab), step 3f Modules, step 3g Diagnostics** (below): every section has a body, and the legacy fold host (`renderSettingsHost`) is only used by tests.
 
 - **Frame** (`window.js`; `settings.css`, imported by host.css after glass.css, every rule under `:where(<roots>)`): the layer
   `.story-suite-overlay#story_suite_v2_overlay` (a see-through scrim, **no** filter or background of its own, so the page reaches
@@ -222,7 +222,7 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   side stacked above the page (title row with Close, the search, then the rail as a row that scrolls sideways; no horizontal
   overflow at 390px: checked live). A page: a heading (`h3`, 22/26px, 800) and a line under it, then the body's pane; from 760px the
   heading row leaves room for Close.
-- **Sections** (`sections.js`): `SETTINGS_SECTIONS`: **Look**, Features, Money, Assist, Tabs & Packs, Modules, Diagnostics (id,
+- **Sections** (`sections.js`): `SETTINGS_SECTIONS`: **Look**, Features, Money, Assist, Tabs & Packs, Blocks, Modules, Diagnostics (id,
   label, Font Awesome icon, title, sub). Look is first in the rail; the window opens on Features (`DEFAULT_SECTION`). The **rail** is the `ss.tabs` block (`view/widgets/nav.js`, rendered with a
   command that selects): a `nav` of buttons, `aria-current="page"` on the chosen one, roving tabindex (one Tab stop, arrows, Home,
   End), `revealItem` on a phone. While a search is on, its count badge shows each page's matches.
@@ -251,18 +251,15 @@ Look and Features the form engine's, step 3c Money, step 3d Assist, step 3e Tabs
   null`, so `settings.set(null, key, value)` as the Story Suite fold wrote), and a change calls `theme.apply()` so the look follows at
   once. **Features** (`featuresBody`): `renderFeaturesForm` (view/form/features.js) over the feature store. Both are searched with the
   engine's own `filter`.
-- **Money** (`money.js`, step 3c): Story Block's General group (the world's coins, how much the story may pay, the money words) in the
-  concept's Money page: `moneySchema(schema, values)` takes the registry's General fields and regroups them into cards (`MONEY_CARDS`:
-  **Coins** (the coins list, the coin display), **What the story may pay** (the budget, the money scale), **Money words** (the three
-  currency words); a General field the cards do not name goes in a card of its own at the end), then `renderSettingsForm` draws them
+- **Money** (`money.js`, step 3c): Story Block's General group (the world's coins, the money words) in the
+  concept's Money page: `moneySchema(schema)` takes the registry's General fields and regroups them into cards (`MONEY_CARDS`:
+  **Coins** (the coins list, the coin display), **Money words** (the three
+  currency words), **Advanced** (the money scale, folded); a General field the cards do not name goes in a card of its own at the end), then `renderSettingsForm` draws them
   (`quiet`, `className: 'ss-money'`; two columns from 900px with the Coins card down the left, one column below; fields stacked in
   the cards) and writes through `settings.set('story-block', key, value)`, so what the story pays does not change with where the setting
   is drawn. **Coins** are name and worth rows (`form: 'lines'` is dropped so rows come first) with "+ Add" and "Edit as text" (a bad
   line is named: `Line 2 ("silver: lots"): …`); `coinProblems(rows)` is its `check` and says what the story will not use (no name, a number
-  in a name, a worth outside 1–1,000,000, a name an earlier coin has, a coin past the eighth). **The budget** (`storyCoinPerReply`, in
-  whole coins, up to a billion in the store) is a slider over 0–1000 that grows to a larger value (`BUDGET_SLIDER_MAX`), its words from
-  `budgetText(n, values)`: "60 pennies", "1 penny", **"Automatic: no limit" for 0**; the unit is
-  `baseUnit(currencyOf(values))`: the coin worth 1, else the money word, the **Currency** setting ("gold" by default). It follows the coins and the Currency box after any change. The General group's fold key
+  in a name, a worth outside 1–1,000,000, a name an earlier coin has, a coin past the eighth). There is no card for how much the story may pay: the story decides, and an old saved `storyCoinPerReply` is not in the schema (it is neither drawn nor used). The General group's fold key
   (`MONEY_FOLD`, `story-block::group:General`) opens the Money page with its first field focused (`has`/`open` on the body).
 - **Assist** (`assist.js`, step 3d): Story Block's two optional helpers in the concept's Assist page, four cards: **Extra calls** (the Connection
   Manager profile both helpers use, `assistProfile`, and the host's "one call at a time per connection" switch `callQueue`, which moved here

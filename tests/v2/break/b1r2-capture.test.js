@@ -15,16 +15,6 @@ async function fresh(t) {
 }
 const qtyOf = (host, name) => host.sdk.query('inventory.items').filter(item => item.name === name).reduce((sum, item) => sum + item.qty, 0);
 
-// B-b1r2-1: `~ item X | qty: N` sets a stack's count with no story budget (STORY_ITEM_QTY is applied
-// to `+ item` only), so one line turns 1 of anything into 999999 (RB then sells them: 62,999,937 gold
-// for Superior Healing Potions in one click).
-test('~ item | qty cannot raise a stack past the per-reply story item budget', async t => {
-    const host = await fresh(t);
-    host.settings.set('story-block', 'storyCoinPerReply', 1000);
-    await host.send('I find a potion.', reply('A potion.', ['+ item Healing Draught', '~ item Healing Draught | qty: 999999']));
-    assert.ok(qtyOf(host, 'Healing Draught') <= 20, `the party holds ${qtyOf(host, 'Healing Draught')} Healing Draughts`);
-});
-
 // B-b1r2-2: an unclosed block's last line is always dropped as CUT_OFF when the reply ends without a
 // line break, and SillyTavern trims every reply (power_user.trim_spaces, default on: cleanUpMessage
 // ends with getMessage.trim()), so a block the model forgot to close always loses its last line.

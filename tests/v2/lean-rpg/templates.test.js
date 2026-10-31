@@ -44,7 +44,7 @@ test('every block stays inside the field, kind and text limits', () => {
 
 test('the Character block has the keys the RPG reads, with their ranges and stage names', () => {
     const { state, kinds } = template('Character');
-    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'soul', 'xp', 'down', 'alive']);
+    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'soul', 'xp', 'down', 'alive', 'left']);
     assert.equal(state.who.type, 'text');
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');

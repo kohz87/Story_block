@@ -1,10 +1,10 @@
 // The RPG block templates (Character, Skills, Foes, Combat rules): data-module definitions that the block
-// chooser offers while the RPG feature is on (Blocks → New block → from a template). Each carries a `role`
+// chooser offers while the RPG feature is on (Settings → Blocks → From a template). Each carries a `role`
 // (see ROLES in index.js) and keeps the field keys the RPG reads. Stage fields are indexes (0 = empty) with
 // `names` from STAGES; Soul Class and ranks are numbers with names. The block engine adds three things these
 // use: `names` and `prompt: false` on fields, and the `replyEnd` and `cards` lists. The Skills block's rank and practice
 // are `edit: false` (they only move through play); SKILL_SETS are the New character wizard's built-in skill sets.
-import { CREATION, STATS, STAGES, USES } from './index.js';
+import { CREATION, STATS, STAGES, USES } from './names.js';
 
 const names = (words, first = 0) => Object.fromEntries(words.map((word, index) => [String(index + first), word]));
 const HEALTH = names(STAGES.health);
@@ -45,6 +45,8 @@ const character = {
         xp: int('XP', 0, 100, 0),
         down: { type: 'bool', default: false, label: 'Down', prompt: false },
         alive: { type: 'bool', default: true, label: 'Alive' },
+        // A companion who left the party (a `- party Name` line, join.js): kept on the Party tab, greyed, and no longer rolled for.
+        left: { type: 'bool', default: false, label: 'Left' },
     },
     kinds: {
         'set-health': { op: '~', labels: { to: range(0, 5) }, effects: [{ op: 'set', path: ['health'], value: ['arg', 'to'] }] },
