@@ -193,7 +193,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
  * in lowercase: the Events).
  */
 export function mergeParts(parts) {
-    const out = { domains: {}, commands: {}, queries: {}, kinds: {}, hooks: {}, tabs: [], statics: [], tails: [], budget: 0, sections: [], folds: [], defaults: {}, schema: {} };
+    const out = { domains: {}, commands: {}, queries: {}, kinds: {}, cards: {}, hooks: {}, tabs: [], statics: [], tails: [], budget: 0, sections: [], folds: [], defaults: {}, schema: {} };
     const put = (table, name, value, what) => {
         if (Object.hasOwn(out[table], name)) throw new Error(`Story Block: two parts both define the ${what} "${name}".`);
         out[table][name] = value;
@@ -204,6 +204,7 @@ export function mergeParts(parts) {
         for (const [name, value] of Object.entries(part.commands ?? {})) put('commands', name, value, 'command');
         for (const [name, value] of Object.entries(part.queries ?? {})) put('queries', name, value, 'query');
         for (const [name, value] of Object.entries(part.kinds ?? {})) put('kinds', name, value, 'change-line kind');
+        for (const [name, value] of Object.entries(part.cards ?? {})) put('cards', name, value, 'card under replies');
         for (const [name, fn] of Object.entries(part.hooks ?? {})) if (typeof fn === 'function') (hookLists[name] ??= []).push(fn);
         if (typeof part.context?.static === 'function') out.statics.push(part.context.static);
         if (typeof part.context?.tail === 'function') out.tails.push(part.context.tail);
@@ -317,6 +318,8 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         domains: merged.domains,
         commands: merged.commands,
         replayQueries: ['dataModules.replayInputs'],
+        // The cards under the head reply that blocks declare (data-modules/part.js blockCards).
+        cards: merged.cards,
         // The newest reply's Inner chatter, [{ name, text }] (MODULES §F115; null while the feature is off), the
         // same under each present person for the Scene screen while Story Director's World is not there, and
         // whether the head reply moved the scene to another place (Story Director's World → Here, §F119).

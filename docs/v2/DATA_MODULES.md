@@ -141,7 +141,7 @@ value fits the new schema; other fields start at their defaults. Unchanged timer
 remainder, and existing offer and settlement keys are retained. A chat can have at most eight active
 chat blocks. Pack modules and blocks share the existing 16-pin budget, including retained pins.
 
-Definitions may include `prompt`, a one-line purpose of at most 600 Unicode code points, followed by
+Definitions may include `prompt`, a one-line purpose of at most 1,200 Unicode code points, followed by
 the generated grammar in the static prompt. The combined text fits 2,000 characters. A text field may
 set `list: true`: it stores up to 12 entries joined with `; `, and the editor shows chips. Fields may
 carry a plain `label`, and a UI kind may carry a plain `title`, for display. Optional

@@ -99,10 +99,10 @@ test('the editor disables timers without Story Director and counts purpose text 
     assert.equal(button(screen(), S.addTimer).disabled, true);
     assert.match(screen().textContent, /Timers need Story Director/);
     const purpose = input(screen(), S.purpose);
-    purpose.value = '😀'.repeat(601);
+    purpose.value = '😀'.repeat(1201);
     purpose.dispatch('input');
-    assert.equal([...purpose.value].length, 600);
-    assert.match(screen().textContent, /600 of 600 characters/);
+    assert.equal([...purpose.value].length, 1200);
+    assert.match(screen().textContent, /1200 of 1200 characters/);
     purpose.dispatch('keydown', { key: 'Escape' });
     assert.match(screen().textContent, /No custom blocks/);
 });

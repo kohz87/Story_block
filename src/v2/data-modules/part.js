@@ -1,6 +1,6 @@
 // Trusted host glue for checked data, merged into story-block. Library discovery is read-only;
 // every game-state write is a bus transaction, using detached pins and prefix witnesses.
-import { DM_LIMITS as L, dmOwn, dmObject } from './schema.js';
+import { DM_LIMITS as L, dmOwn, dmObject, dmHidden, dmKindWritesHidden, dmNameOf } from './schema.js';
 import { validateDataModules, validateDataMigration, dataModuleDefaults, dataModuleHash, dataModulesPackHash } from './check.js';
 import { copy, bytes, refuse, DataModuleError, createEvaluation, parseLabels, atPath, scalarHolds, cleanList, orList, conditionHolds } from './interpreter.js';
 import { activeDefinition, actorsOf, inputsOf, instanceOf, publicView, projectImport, resolveActor } from './adapters.js';
@@ -155,7 +155,7 @@ export function replayInputs(state, { module, subject = 'chat', reads = [], impo
 export function dataModuleGuard(view, info) {
     try {
         const { guard, recorded, source } = info, predicate = guard?.predicate;
-        if (guard?.owner !== 'story-block' || guard.version !== 2 || !['dm.pin', 'dm.attach', 'dm.migrate', 'dm.act', 'dm.set', 'dm.tick', 'dm.define', 'dm.redefine', 'dm.remove'].includes(predicate?.kind)
+        if (guard?.owner !== 'story-block' || guard.version !== 2 || !['dm.pin', 'dm.attach', 'dm.migrate', 'dm.act', 'dm.set', 'dm.tick', 'dm.settle', 'dm.define', 'dm.redefine', 'dm.remove'].includes(predicate?.kind)
             || !dmObject(recorded) || hashJson(recorded.source) !== hashJson(source)) return { ok: false, reason: 'Malformed data module guard.' };
         const domain = view.state.domains?.dataModules;
         if (predicate.kind === 'dm.pin' || predicate.kind === 'dm.define') {
@@ -200,8 +200,14 @@ export function dataModuleGuard(view, info) {
 }
 
 const valueText = value => (typeof value === 'string' ? JSON.stringify(oneLine(value)) : String(value));
-const fieldsText = fields => Object.entries(fields).map(([key, value]) => (value !== null && typeof value === 'object'
-    ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${valueText(value)}`)).join('; ');
+// A number whose field has display names is shown (to a person and to the story) by its name; stored, it stays the number.
+const shownText = (schema, value) => dmNameOf(schema, value) ?? valueText(value);
+// A hidden field (`prompt: false`) is left out: the story is never told it.
+const fieldsText = (definition, fields) => Object.entries(fields).filter(([key]) => !dmHidden(definition.state[key])).map(([key, value]) => (value !== null && typeof value === 'object'
+    ? `${key}: ${Object.entries(value).map(([name, item]) => `${name} ${valueText(item)}`).join(', ')}` : `${key} ${shownText(definition.state[key], value)}`)).join('; ');
+// The named fields a root changed, for its summary: "Soul Class II → III". Empty for a block with no display names.
+const namedChanges = (definition, before, after) => Object.entries(definition.state).filter(([key, schema]) => schema.names && before[key] !== after[key])
+    .map(([key, schema]) => `${schema.label ?? key} ${shownText(schema, before[key])} → ${shownText(schema, after[key])}`);
 
 /** One module's state in plain words for the prompt's tail, at most 100 tokens: "Survival — Wessel: hunger 12; fatigue 6." */
 export function summaryOf(state, module) {
@@ -210,12 +216,48 @@ export function summaryOf(state, module) {
     const view = moduleView(state, { module });
     let waiting = '';
     try { const inputs = inputsOf(state, definition); if (definition.timers.some(timer => inputs[timer.clock]?.minutes == null)) waiting = ' Waiting for story time.'; } catch { waiting = ' Waiting.'; }
-    const body = definition.scope === 'chat' ? fieldsText(view.chat)
-        : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(fields)}`).join(' | ') || 'no one attached';
+    const body = definition.scope === 'chat' ? fieldsText(definition, view.chat)
+        : view.characters.map(({ id, name, ...fields }) => `${name}: ${fieldsText(definition, fields)}`).join(' | ') || 'no one attached';
     // The host estimates tokens from UTF-16 length; cut on a character boundary within that budget.
     return cutAt(`${definition.name} — ${body}.${waiting}`, L.tailTokens * 4);
 }
+// A timer whose clock has moved past its cursor.
+const timerDue = (timer, inputs, instance) => {
+    const minute = inputs[timer.clock]?.minutes, last = instance?.timers?.[timer.id]?.lastMinute;
+    return minute !== null && minute !== undefined && (last === null || last === undefined || minute > last);
+};
+// A reply's lines are settled by the reply-end functions on these generations only (not a Continue's, nor the extractor's late lines).
+const SETTLED_TYPES = Object.freeze(['normal', 'swipe', 'regenerate', 'reread']);
 const tailLines = state => Object.keys(state?.domains?.dataModules?.active ?? {}).map(module => summaryOf(state, module));
+
+// --- Cards under the head reply -------------------------------------------------------------------------------------------------
+// A block's `cards` are derived from the head reply's state each time the cards are asked for, never stored. They reach the reply-cards
+// socket (src/v2/reply-cards.js) through a few fixed slots, because that socket takes one named card per entry: slot n answers with the
+// nth card of the active blocks, in pin order and, within a block, in the order written. A card with a button runs that Button of the
+// same block as a reader command on the latest reply.
+export const CARD_SLOTS = 8;
+const CARD_LOOK = Object.freeze({ info: { tone: 'info', icon: 'ph-info' }, warn: { tone: 'accent', icon: 'ph-warning' }, end: { tone: 'bad', icon: 'ph-skull' } });
+const cardLists = new WeakMap();
+
+/** The cards the head state shows: [{ module, card }] with card in reply-cards.js's shape. A card whose condition cannot be asked is left out. */
+export function blockCards(state) {
+    const active = state?.domains?.dataModules?.active;
+    if (!active || !Object.keys(active).length) return [];
+    return kept(cardLists, state, () => Object.keys(active).flatMap(module => {
+        const definition = activeDefinition(state, module), instance = instanceOf(state, module);
+        if (!definition?.cards?.length || !instance) return [];
+        return definition.cards.flatMap((entry, at) => {
+            try {
+                if (!createEvaluation(definition, instance).condition(['card', at], entry.when, {})) return [];
+            } catch { return []; }
+            const look = CARD_LOOK[entry.tone] ?? CARD_LOOK.info, kind = entry.button ? definition.kinds[entry.button] : null;
+            return [{ module, card: { ...look, title: entry.title, text: entry.text,
+                actions: kind ? [{ id: entry.button, label: oneLine(kind.title ?? entry.button.replace(/^button-/, '')), primary: true,
+                    command: 'dm.act', payload: { module, kind: entry.button } }] : [] } }];
+        });
+    }));
+}
+const blockCardSlots = Object.fromEntries(Array.from({ length: CARD_SLOTS }, (_, at) => [`block-card-${at + 1}`, { for: state => blockCards(state)[at]?.card ?? null }]));
 
 export function createDataModulesPart({ packs, state: head = () => null, lifecycle = () => null, restore = () => ({ state: 'idle' }) } = {}) {
     // The runtime's late-bound readers may not exist yet while the definition registers: read as "no state" until they do.
@@ -332,7 +374,9 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const definition = checked.definitions[0];
         if (definition.scope !== 'chat') refuse('DM_SCHEMA', 'scope', B.chatScope);
         if (action === 'redefine' && definition.id !== module) refuse('DM_SCHEMA', 'slug', B.sameSlug);
-        const slots = Object.keys(definition.state).length + Object.values(definition.kinds).filter(kind => kind.ui).length;
+        // Each field and each button is a slot the form uses. A block with a role is a template written by hand, whose stats and latches are
+        // fields no kind sets: only its kinds count.
+        const slots = definition.role ? Object.keys(definition.kinds).length : Object.keys(definition.state).length + Object.values(definition.kinds).filter(kind => kind.ui).length;
         if (slots > L.kinds) refuse('DM_BUDGET', 'fields', B.kindLimit);
         dependency(definition, prefix);
         const inputs = inputsOf(prefix, definition), hash = dataModuleHash(definition);
@@ -400,6 +444,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const kind = dmOwn(definition.kinds, labels.kind) && definition.kinds[labels.kind];
         if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(definition.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
+        if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, labels.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
@@ -407,16 +452,18 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const claim = `dm:${pairKey(ctx.source)}:${module}:${labels.kind}:${subject}:${hashJson(kind.oncePerReply.map(key => args[key]))}`;
         if (!ctx.claim(claim)) refuse('CLAIMED', '', `${labels.kind} was already applied for this in this reply`);
         const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
+        const fieldsBefore = copy(instance.fields);
         evaluation.timers();
         if (!evaluation.condition(['kind', labels.kind], kind.when, { arg: args })) refuse('DM_CONDITION', '', kind.refusal ?? 'Kind condition is not met.');
         evaluation.effects(kind.effects, { arg: args }); evaluation.rules();
         const result = evaluation.finish();
+        const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition),
             actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, summary: `${definition.name}: ${kind.title ?? labels.kind}.` });
+        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, summary: `${definition.name}: ${kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }
@@ -452,7 +499,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             reads: result.reads.map(read => read.path), imports: prefixImports(definition), actor: subject !== 'chat',
             decision: { inputs, conds: result.conds } });
         const label = map ? `${schema.label ?? payload.field} (${payload.key})` : schema.label ?? payload.field;
-        const summary = fill(E.fieldSet, { module: definition.name, field: label, from: valueText(before), to: valueText(value) });
+        const summary = fill(E.fieldSet, { module: definition.name, field: label, from: shownText(field, before), to: shownText(field, value) });
         const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes,
             result: { field: payload.field, ...(map ? { key: payload.key } : {}), subject, from: before, to: value, ...(result.fired.length ? { rules: result.fired } : {}) }, summary });
         answer.data.edit = true;
@@ -483,6 +530,63 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             actor: subject !== 'chat', decision: { inputs, conds: result.conds } });
         return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) }, summary: `${definition.name}: story time settled.` });
     }
+    // The block's reply-end functions, settled once at the end of a reply as a system step (a timer's twin: planned again by a swipe, a
+    // delete or an edit before it, NO_LONGER_DONE when the story before it leaves nothing to settle).
+    function settle(ctx, payload, call = {}) {
+        if (ctx.cause !== 'system' || ctx.caller !== null) refuse('REFUSED', '', 'Reply-end functions run only as host system steps.');
+        const prefix = stateOf(ctx), module = payload.module, subject = payload.subject;
+        if (!prefix.domains.dataModules?.active?.[module] || !subjectsOf(prefix, module).includes(subject)) refuse('NO_LONGER_DONE', 'who', 'This module or subject is no longer pinned and attached.');
+        const definition = activeDefinition(prefix, module);
+        call.label = definition?.name ?? module;
+        if (!definition) refuse('DM_SCHEMA', module, 'Unsupported or damaged pin; inspect it in Setup.');
+        if (!definition.replyEnd?.length) refuse('NO_LONGER_DONE', '', 'This block has nothing to settle at the end of a reply.');
+        dependency(definition, prefix);
+        if (subject !== 'chat') resolveActor(prefix, subject, subjectsOf(prefix, module));
+        const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx), instance = atPath(draft, instancePath(module, subject));
+        const inputs = inputsOf(prefix, definition), before = hashJson(instance);
+        const evaluation = createEvaluation(definition, instance, { inputs, source: ctx.source, cursor: ctx.cursor(), subject });
+        evaluation.charge(); evaluation.replyEnd();
+        if (hashJson(instance) === before) refuse('NO_LONGER_DONE', '', 'Nothing is left to settle at the end of this reply.');
+        evaluation.rules();
+        const result = evaluation.finish();
+        const recorded = guard(ctx, prefix, { kind: 'dm.settle', module, hash: active.hash, generation: active.generation, subject,
+            reads: result.reads.map(read => read.path), imports: prefixImports(definition),
+            actor: subject !== 'chat', decision: { inputs, conds: result.conds } });
+        return finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, replan: true, result: { subject, notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) }, summary: `${definition.name}: settled at the end of the reply.` });
+    }
+    // Whether settling now would change this subject: the same work on a copy, after a timer that is due in the same step (it goes first).
+    function wouldSettle(definition, instance, inputs) {
+        try {
+            const work = copy(instance), evaluation = createEvaluation(definition, work, { inputs });
+            if (definition.timers.some(timer => timerDue(timer, inputs, work))) {
+                const before = hashJson(work);
+                evaluation.timers();
+                if (hashJson(work) !== before) evaluation.rules();
+            }
+            const before = hashJson(work);
+            evaluation.replyEnd();
+            return hashJson(work) !== before;
+        } catch { return false; }
+    }
+    // The settle steps due once a reply's lines are in: one per block (and subject) that has reply-end functions and would change. Not for a
+    // Continue or the extractor's late lines, which add to a reply already settled: a reply is settled once, so a latch cannot fire twice in it.
+    function settleDue(view, info) {
+        const prefix = view?.state, commands = [];
+        if (!prefix?.domains?.dataModules?.active || !SETTLED_TYPES.includes(info?.type ?? 'normal')) return commands;
+        if (restore()?.state === 'pending') return commands;
+        for (const module of Object.keys(prefix.domains.dataModules.active)) {
+            const definition = activeDefinition(prefix, module);
+            if (!definition?.replyEnd?.length) continue;
+            let inputs;
+            try { dependency(definition, prefix); inputs = inputsOf(prefix, definition); } catch { continue; }
+            for (const subject of subjectsOf(prefix, module)) {
+                if (subject !== 'chat') { try { resolveActor(prefix, subject, subjectsOf(prefix, module)); } catch { continue; } }
+                const instance = instanceOf(prefix, module, subject);
+                if (instance && wouldSettle(definition, instance, inputs)) commands.push({ type: 'dm.settle', payload: { module, subject } });
+            }
+        }
+        return commands;
+    }
     // The timers whose clock has moved past their cursor, as `dm.tick` steps (one per module and subject). Silent while a
     // peer is away or a restore is pending (Setup shows the reason; an explicit action is refused with it), and for a
     // subject whose actor is gone. Nothing due: nothing returned, nothing consumed.
@@ -499,12 +603,14 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             for (const subject of subjectsOf(prefix, module)) {
                 if (subject !== 'chat') { try { resolveActor(prefix, subject, subjectsOf(prefix, module)); } catch { continue; } }
                 const instance = instanceOf(prefix, module, subject);
-                if (definition.timers.some(timer => {
-                    const minute = inputs[timer.clock]?.minutes, last = instance?.timers?.[timer.id]?.lastMinute;
-                    return minute !== null && minute !== undefined && (last === null || last === undefined || minute > last);
-                })) commands.push({ type: 'dm.tick', payload: { module, subject } });
+                if (definition.timers.some(timer => timerDue(timer, inputs, instance))) commands.push({ type: 'dm.tick', payload: { module, subject } });
             }
         }
+        return commands.length ? { commands } : undefined;
+    }
+    // Timers first, then the reply-end functions of the blocks that would change (they see the state the ticks leave).
+    function afterCapture(view, info) {
+        const commands = [...(due(view)?.commands ?? []), ...settleDue(view, info)];
         return commands.length ? { commands } : undefined;
     }
     const kind = { get enabled() { return Boolean(Object.keys(state()?.domains?.dataModules?.active ?? {}).length); },
@@ -516,7 +622,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             'dm.redefine': wrap((ctx, payload, call) => changeBlock(ctx, payload, 'redefine', call)),
             'dm.remove': wrap((ctx, payload, call) => changeBlock(ctx, payload, 'remove', call)),
             'dm.attach': wrap(attach), 'dm.set': wrap(setField), 'dm.act': wrap((ctx, payload, call) => act(ctx, payload, null, call)), 'dm.capture': { internal: true, handler: wrap((ctx, line, call) => act(ctx, {}, line, call)) },
-            'dm.tick': { internal: true, handler: wrap(tick) } },
+            'dm.tick': { internal: true, handler: wrap(tick) }, 'dm.settle': { internal: true, handler: wrap(settle) } },
         kinds: { dm: kind },
         queries: { 'dataModules.offers': offers, 'dataModules.view': moduleView, 'dataModules.public': publicView,
             'dataModules.replayInputs': replayInputs, 'dataModules.actors': actorsOf,
@@ -544,7 +650,8 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
                 });
             },
             'dataModules.presentation': (prefix, { kind: name = 'screens' } = {}) => pinnedPresentation(prefix, name) },
-        hooks: { afterCapture: due, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
+        hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
+        cards: blockCardSlots,
         context: {
             static: () => grammarFor(state()),
             tail: view => ({ lines: tailLines(view.state), optional: [] }),
