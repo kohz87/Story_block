@@ -228,7 +228,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
             const axes = now => STATS.map(stat => ({ label: stat.toUpperCase(), value: now.stats[stat], max: 20, before: CREATION.start }));
             function refreshStats() {
                 const now = snap(), left = pointsLeft(now);
-                STATS.forEach((stat, at) => steppers[at]?.update({ name: stat, value: now.stats[stat], min: CREATION.min, max: CREATION.max, budget: left, label: stat.toUpperCase(), budgetLabel: RPG_STRINGS.sheet.budgetLabel }));
+                STATS.forEach((stat, at) => steppers[at]?.update({ name: stat, value: now.stats[stat], min: CREATION.min, max: CREATION.max, budget: left, label: stat.toUpperCase(), budgetLabel: RPG_STRINGS.sheet.budgetLabel, showBudget: false }));
                 radarHandle?.update({ axes: axes(now), max: 20, label: fill(W.radar, { name: now.name || W.title }), tone: 'accent' });
                 drawSummary();
             }
