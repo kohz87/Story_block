@@ -1,6 +1,6 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.2.1, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.3.0, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
@@ -28,14 +28,14 @@ SillyTavern profile.
 
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil/pack.json`.
    The message says "Installed Ersveil (open world)." and the list shows "136 events, 320 places, 350 routes,
-   1 skill set, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
+   1 skill set, 2 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-Importing 2.2.1 replaces an installed pack with the same id. Start a new chat to use its starting state.
-2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
+Importing 2.3.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
+2.3.0 adds two sample cast entries, Fenna the ferrywoman and Sera the river scout (`content.cast`, see PACKS.md "The cast"); a Story Block that knows the cast kind (after 2.14) reads them, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
 

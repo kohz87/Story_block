@@ -268,6 +268,7 @@ test('segmented: a choice with form "segmented" is the one-of chips drawn as one
     assert.equal(m.input.getAttribute('role'), 'radiogroup');
     const buttons = () => m.el.querySelectorAll('.ss-chip');
     assert.deepEqual(buttons().map(c => c.textContent), ['Normal', '110%', '120%']);
+    assert.ok(buttons().every(c => classes(c).includes('ss-tap-pill')), 'its chips opt in to the compact pill (size.css)');
     assert.deepEqual(buttons().map(c => c.getAttribute('aria-checked')), ['false', 'true', 'false']);
     buttons()[2].click();
     assert.deepEqual(m.calls, [['120', { typed: '120' }]]);

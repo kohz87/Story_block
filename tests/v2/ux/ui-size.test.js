@@ -51,7 +51,7 @@ test('a phone or a touch screen: every button, tab, link, summary and field in a
     const block = size.slice(at);
     const buttons = block.match(/([^{}]+:is\(button, \[role="button"\], \[role="tab"\], a\[href\], summary\)[^{}]*)\{([^}]*)\}/);
     assert.ok(buttons, 'the controls rule');
-    assert.match(buttons[1], /:not\(\.ss-switch, \.ss-w-map-node, \[data-ss-hit\]\)/, 'switches and map markers draw their own tap area');
+    assert.match(buttons[1], /:not\(\.ss-switch, \.ss-w-map-node, \.ss-tap-pill, \[data-ss-hit\]\)/, 'switches, map markers and compact pills draw their own tap area');
     assert.match(buttons[2], /min-width: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
     assert.match(buttons[2], /min-height: calc\(44px \/ var\(--ss-zoomed, 1\)\) !important;/);
     const fields = block.match(/([^{}]+:is\(select, textarea, input:not\(\[type="checkbox"\], \[type="radio"\], \[type="range"\], \[type="hidden"\]\)\))\s*\{([^}]*)\}/);
@@ -107,7 +107,7 @@ test('a phone or a touch screen: checkboxes, radios, sliders, links in running t
     // A link anywhere (any parent, any role) and a text element acting as a button or tab are inline blocks with real padding, at no
     // weight (a flex/grid/block control keeps its display), and no negative margin anywhere (nothing reaches over its neighbours).
     const inl = 'span, i, b, em, strong, small, abbr, code, kbd, label, img';
-    const link = decl(`:where(${scope} :is(a[href], :is(${inl})[role="button"], :is(${inl})[role="tab"]):not([data-ss-hit]))`);
+    const link = decl(`:where(${scope} :is(a[href], :is(${inl})[role="button"], :is(${inl})[role="tab"]):not(.ss-tap-pill, [data-ss-hit]))`);
     for (const part of ['display: inline-block;', 'box-sizing: border-box;', 'max-width: 100%;', 'padding: max(0px, calc((44px / var(--ss-zoomed, 1) - 1lh) / 2)) calc(4px / var(--ss-zoomed, 1));']) assert.ok(link.includes(part), part);
     assert.doesNotMatch(link, /margin/);
     assert.doesNotMatch(size, /margin[^;]*:\s*(min\(|calc\(-|-)/, 'no negative margins anywhere in the size rules');
@@ -176,4 +176,30 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     // The template keeps its order: name line, note, detail, actions, folds.
     const order = ['class="line"', 'class="note', 'class="actions"', 'class="fold '].map(part => inventoryScreen.template.indexOf(part));
     assert.deepEqual([...order].sort((a, b) => a - b), order);
+});
+
+test('compact pills (ss-tap-pill): on a phone about 30px on the screen with a 44px-tall invisible tap area, the room for it made, never a neighbour overlapped', () => {
+    const block = size.slice(size.indexOf(PHONE));
+    const scope = ':is(.ss-cards, .story-suite-extras, .story-suite-reply-note, .story-suite-bar, .ss-hud, .story-suite-sheet, .ss-gameview, .story-suite-overlay, .ss-dialog, .ss-sample, .ss-sample-dialog)';
+    const decl = selector => {
+        const at = block.indexOf(`${selector} {`);
+        assert.ok(at >= 0, selector);
+        return block.slice(at, block.indexOf('}', at));
+    };
+    // the 44 x 44 minimum leaves them out (buttons, role=button, links and text elements acting as buttons)
+    assert.equal((block.match(/\.ss-tap-pill, \[data-ss-hit\]/g) ?? []).length, 3, 'all three minimum rules leave a pill out');
+    const pill = decl(`${scope} .ss-tap-pill`);
+    for (const part of ['position: relative;', 'min-width: 0;', 'min-height: calc(30px / var(--ss-zoomed, 1));']) assert.ok(pill.includes(part), part);
+    const hit = decl(`${scope} .ss-tap-pill::after`);
+    for (const part of ['content: "";', 'position: absolute;', 'left: 0;', 'right: 0;', 'height: calc(44px / var(--ss-zoomed, 1));', 'transform: translateY(-50%);']) assert.ok(hit.includes(part), part);
+    // the area reaches (44 - 30) / 2 = 7px above and below: 7px of margin on the row, 14px between wrapped rows (>= 12px, and two areas never meet)
+    const row = decl(`${scope} .ss-chips:has(> .ss-tap-pill)`);
+    assert.ok(row.includes('row-gap: calc(14px / var(--ss-zoomed, 1));') && row.includes('margin-block: calc(7px / var(--ss-zoomed, 1));'));
+    // a joined row would clip the area outside its 30px: it shows it, and its ends keep the corners
+    assert.ok(decl(`${scope} .ss-chips.ss-segmented:has(> .ss-tap-pill)`).includes('overflow: visible;'));
+    assert.ok(decl(`${scope} .ss-segmented > .ss-tap-pill:first-child`).includes('border-start-start-radius'));
+    assert.ok(decl(`${scope} .ss-segmented > .ss-tap-pill:last-child`).includes('border-end-end-radius'));
+    // nothing of it applies off a phone, and nothing reaches over a neighbour sideways or by a negative margin
+    assert.ok(size.indexOf('.ss-tap-pill {') > size.indexOf(PHONE), 'only inside the phone block');
+    assert.doesNotMatch(hit, /left: -|right: -|top: -/);
 });

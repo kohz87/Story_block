@@ -46,17 +46,17 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.2.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.3.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.2.1');
+    assert.equal(value.version, '2.3.0');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
     assert.equal(value.requires.storyBlock, '^2.10', 'content.you needs 2.10');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
-    assert.deepEqual(counts, { you: undefined, places: 320, routes: 350, events: 136, dataModules: 4, rpg: undefined });
+    assert.deepEqual(counts, { you: undefined, places: 320, routes: 350, events: 136, dataModules: 4, rpg: undefined, cast: 2 });
     assert.equal(value.economy, undefined, 'no money scale: prices are the story\'s');
     assert.ok(value.content.places.every(place => place.market === undefined), 'no market types: there are no market records to name');
     assert.equal(value.weather.tables.length, 84);
@@ -77,7 +77,7 @@ test('the pack, once installed without RPG Battle, reads back as 320 places, 350
     const result = await installed.install(packText, { source: 'file', origin: 'pack.json' });
     assert.equal(result.ok, true, JSON.stringify(result.errors));
     assert.equal(result.name, 'Ersveil (open world)');
-    assert.equal(addsLine(installed.list()[0]), '136 events, 320 places, 350 routes, 1 skill set, start state, 4 coins, a calendar, 84 weather tables');
+    assert.equal(addsLine(installed.list()[0]), '136 events, 320 places, 350 routes, 1 skill set, 2 cast members, start state, 4 coins, a calendar, 84 weather tables');
 });
 
 test('ersveil-lore.json is a SillyTavern World Info book of 227 entries with unique uids', () => {

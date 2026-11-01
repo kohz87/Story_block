@@ -28,6 +28,7 @@ import { MAX_COINS, MAX_COIN_VALUE, coinsOf } from '../domains/money.js';
 import { validateDataModules, dataModulesPackHash } from '../data-modules/check.js';
 import { STRINGS } from '../strings.js';
 import { compile } from '../events/condition.js';
+import { checkCast } from './cast.js';
 
 export const HOST_VERSION = '2.14.0';
 
@@ -146,6 +147,8 @@ function normalize(raw, { add, hostVersion, capabilities, limits, dataModuleDefi
         else content.meterPresets = records(given.meterPresets, 'meterPresets', { add, packId, check: (record, path) => checkMeterPreset(record, path, add), slugField: 'id', named: false });
     }
     if (given.rpg !== undefined) content.rpg = checkRpg(given.rpg, packId, add);
+    // The cast (cast.js): kept only when given, so older packs normalize as they always did.
+    if (given.cast !== undefined) content.cast = checkCast(given.cast, packId, add);
     // Not a list: kept only when given (so older packs' bytes and hashes stay), and only when it checks.
     if (given.you !== undefined) {
         const you = checkYou(given.you, add);

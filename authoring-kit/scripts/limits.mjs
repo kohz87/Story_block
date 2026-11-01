@@ -1,7 +1,7 @@
 // Prints the host's limits for packs and data modules.
 import { SB_V2 } from './sb-root.mjs';
 
-const { LIMITS, RECORD_LIMITS } = await import(new URL('packs/limits.js', SB_V2));
+const { LIMITS, RECORD_LIMITS, CAST_LIMITS, PORTRAIT_LIMITS, ZIP_LIMITS } = await import(new URL('packs/limits.js', SB_V2));
 const { DM_LIMITS } = await import(new URL('data-modules/schema.js', SB_V2));
 const group = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const table = (head, rows) => [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map(row => `| ${row.join(' | ')} |`)].join('\n');
@@ -13,6 +13,17 @@ say('## A pack file', table(['What', 'Limit'], [
     ['Nesting', LIMITS.depth], ['Object keys', LIMITS.keys], ['List entries', LIMITS.array],
     ['String length', LIMITS.string], ['Display name', LIMITS.name], ['Slug length', RECORD_LIMITS.slug],
     ['Reported problems', LIMITS.errors],
+]));
+
+say('## The cast and its portraits', table(['What', 'Limit'], [
+    ['People in one pack', CAST_LIMITS.entries],
+    ['About, look, voice, personality, history', `${CAST_LIMITS.about}, ${CAST_LIMITS.look}, ${CAST_LIMITS.voice}, ${CAST_LIMITS.personality}, ${CAST_LIMITS.history} characters`],
+    ['Name, place, goal and routine, drawn-to phrase', `${CAST_LIMITS.name}, ${CAST_LIMITS.place}, ${CAST_LIMITS.goal}, ${CAST_LIMITS.phrase} characters`],
+    ['Aliases, drawn-to phrases, fields, secrets per person', `${CAST_LIMITS.aliases}, ${CAST_LIMITS.drawnTo}, ${CAST_LIMITS.fields}, ${CAST_LIMITS.secrets}`],
+    ['Secret title, text, event', `${CAST_LIMITS.secretTitle}, ${CAST_LIMITS.secretText}, ${CAST_LIMITS.secretWhen} characters`],
+    ['One portrait', `WebP, PNG or JPEG, ${PORTRAIT_LIMITS.bytes / 1024} KB at most`],
+    ['Portrait files in one pack', PORTRAIT_LIMITS.perPack],
+    ['A pack zip: the zip, unpacked in all, entries', `${ZIP_LIMITS.archive / 1048576} MB, ${ZIP_LIMITS.unpacked / 1048576} MB, ${ZIP_LIMITS.entries}`],
 ]));
 
 say('## Data modules (interpreter 1)', table(['What', 'Limit'], [

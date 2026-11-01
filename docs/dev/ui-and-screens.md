@@ -580,6 +580,12 @@ their states, the plates, the class-level exceptions and their specificity), `te
   margin, at no weight so a flex, grid or block control keeps its display (the line grows where one sits); a search box's text stops short of its 44px clear button. No tap area may reach over a
   neighbour's: no negative margins, no pseudo-element larger than the room around it. A control
   that draws its own tap area (a map marker) is left alone: `.ss-w-map-node`, or any control marked `data-ss-hit`.
+- Compact pills: a segmented choice or a small pill action opts in with the class `ss-tap-pill` (on the button itself; a module
+  adds it to its own pill buttons). On a phone it is drawn about 30px tall (`30px / --ss-zoomed`) with an invisible 44px-tall tap area
+  (`::after`, as wide as the pill) instead of the 44 × 44 minimum. Room for the area is made by margin: 7px on the row (`.ss-chips`
+  holding pills), 14px between rows when they wrap, so two areas never meet; a joined `.ss-segmented` row shows the area outside it
+  (`overflow: visible`) and its end pills round their own corners. A pill must sit in such a row (or have the room: 7px above and below
+  it) and never overlap a neighbour. Story Block's chips (`chipsField`, `segmentedField`) opt in; off a phone nothing changes.
 - The UI sample's dialog sits in a wrapper of its own on the page (`.ss-sample-dialog`), a root beside the sample, not inside it.
 - Checked live (ST 1.19, Chromium) at 1280 × 900 and 390 × 844: no control under 44px on a phone but the switches and map dots
   (their tap areas are 44px), the Map's drag, wheel and clicks land on the right place, the settings window's Close has its own row.
