@@ -10,7 +10,8 @@ import { stepper } from '../../view/widgets/stepper.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { refusalText } from '../../strings.js';
 import { drawStageBars, fieldsPayload } from './bars.js';
-import { growthLine } from '../growth.js';
+import { growthOf } from '../blocks.js';
+import { growthText } from './party-data.js';
 import { isStandard } from '../rules.js';
 
 const S = RPG_STRINGS.sheet;
@@ -65,7 +66,7 @@ export function renderDistribute(parent, { character, session = null, api = {}, 
         if (saveButton) saveButton.disabled = run.busy || !changed;
         if (resetButton) resetButton.disabled = run.busy || !changed;
         if (note) note.textContent = words();
-        if (growth) growth.textContent = growthLine(run.draft, RPG_STRINGS.growth, standard()?.statMax);
+        if (growth) growth.textContent = growthText(growthOf(run.draft, { statMax: standard()?.statMax }));
     }
 
     function draw() {

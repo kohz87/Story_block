@@ -1,3 +1,5 @@
+import { spreadWord } from './blocks.js';
+
 // The RPG's shared names (re-exported by index.js, which is where the other pieces import them from).
 // They live in a file of their own so the pieces that index.js imports can use them without an import cycle.
 
@@ -24,17 +26,11 @@ export const STAGES = Object.freeze({
 });
 
 /**
- * The stage word of a bar that holds `value` blocks of `size` (the Standard formula, formula.js blocksFor): 0 is the first word (Down, Empty),
- * a full bar the last, and the words between are spread over the blocks in between. `words` is one of STAGES. A Classic bar is the
- * stage index itself, so it never comes here.
+ * The stage word of a bar that holds `value` blocks of `size` (the Standard formula): the first word for none, the last for a full bar, every other
+ * count the nearest word in between (blocks.js spreadWord, which the Party tab and the tail use too, so the planner's sheet, the cue and the story
+ * all say the same word). `words` is one of STAGES.
  */
-export function stageWord(words, value, size) {
-    const top = words.length - 1;
-    const blocks = Number.isFinite(value) ? Math.trunc(value) : 0;
-    if (!(size > 0) || blocks <= 0) return words[0];
-    if (blocks >= size) return words[top];
-    return words[Math.max(1, Math.min(top - 1, 1 + Math.floor(((blocks - 1) * (top - 1)) / Math.max(1, size - 1))))];
-}
+export const stageWord = (words, value, size) => spreadWord(words, Number.isFinite(value) ? Math.trunc(value) : 0, size);
 
 /** The formula (SPEC_RPG §0): PC d20 + stat/2 + 2×class + skill rank vs foe d20 + 5 + 2×class. */
 export const FORMULA = Object.freeze({ die: 20, statDivisor: 2, classWeight: 2, foeBase: 5, edgeMax: 3, costMargin: 2 });

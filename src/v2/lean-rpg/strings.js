@@ -6,29 +6,31 @@ import { fill } from '../strings.js';
 
 export { fill };
 
-/**
- * The Combat rules text for a chat on the Standard formula (the Classic text is templates.js COMBAT_PROMPT, unchanged): the same guidance, plus
- * what the roll types are and that code moves the Health bars for rolled hits and heals. A block's "What it is for" holds at most 1200 characters.
- */
-export const COMBAT_PROMPT_STANDARD = [
-    '[COMBAT SYSTEM]',
-    'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Soul Class all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison.',
-    'Rolls: code rolls the dice and lists them under [Rolls]; tell them in that order and never invent one. Physical is blades and force, magic is spells, defence a dodge or block (a spell is warded), social talk and bluff, checks the rest. A hit takes a block of Health, a decisive hit two, a heal gives one or two back. Code has already moved those bars: never set Health for a rolled hit or heal.',
-    'Turn order is rolled once at the start of a fight and kept. Someone beaten before their turn does not act; a quick start is an opening action before round one.',
-    'Exchanges: tell a fight exchange by exchange, each with cause, cost and consequence. Injury, fatigue and fear carry into the next scene.',
-    'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned.',
-    'XP guide: a small fight 5 to 15, a hard fight 20 to 40, a boss 50 or more. Practice a skill 5 to 20 for each use.',
-].join('\n');
-
 export const RPG_STRINGS = Object.freeze({
-    // The Standard formula's bar line (growth.js): what the next point of VIT, AGI, INT and LUK buys.
-    growth: Object.freeze({
-        health: 'Health {n} blocks {next}',
-        stamina: 'Stamina {n} {next}',
-        mana: 'Mana {n} {next}',
-        luck: 'Luck {n} {next}',
-        next: '(next at {stat} {n})',
-        top: '(at the top)',
+    // The Standard formula's bars (a row of blocks) and what the Party and Fight tabs and the battle log say about them and the turn order.
+    blocks: Object.freeze({
+        of: '{word} · {n} of {max}',
+        growthHealth: 'Health {n} blocks (VIT {stat}, next at {next})',
+        growthStamina: 'Stamina {n} (AGI {stat}, next at {next})',
+        growthMana: 'Mana {n} (INT {stat}, next at {next})',
+        growthHealthTop: 'Health {n} blocks (VIT {stat})',
+        growthStaminaTop: 'Stamina {n} (AGI {stat})',
+        growthManaTop: 'Mana {n} (INT {stat})',
+        luck: 'Luck {value} (next at LUK {next})',
+        luckTop: 'Luck {value}',
+        orderHead: 'Turn order',
+        orderEntry: '{n} {name}',
+        orderNote: 'Rolled at the start of this fight (d20 + class + AGI/2; foes d20 + 2 × class). A swipe rolls it again.',
+        orderLine: 'Turn order: {list}',
+        quickStart: '{who} gets an opening action against {against}: 10 or more ahead in the turn order.',
+        quickStartLine: 'Quick start: {who} acts first against {against}.',
+        // Why a group or character does not act (the record's `idle`).
+        idle: Object.freeze({
+            beaten: '{who} does not act: beaten before its turn.',
+            down: '{who} does not act: down.',
+            'no-target': '{who} does not act: nothing left to act on.',
+        }),
+        foeNote: 'Foe Health grows with class: 4 + class/2 blocks. A hit takes 1 block, a Decisive hit 2.',
     }),
     party: Object.freeze({
         title: 'Party',
@@ -347,6 +349,15 @@ export const RPG_STRINGS = Object.freeze({
         details: 'Show the roll behind {line}',
         refused: '{why}',
         check: '{who} — {what}: {total} vs {against} — {outcome}',
+        decisive: 'Decisive',
+        foeDecisiveHit: 'Decisive hit',
+        foeDecisiveBlock: 'Decisive block',
+        area: 'area',
+        opening: 'Opening action',
+        loses: '{who} loses {n} {blocks} ({to} of {size})',
+        heals: '{who} heals {n} {blocks} ({to} of {size})',
+        blockOne: 'block',
+        blockMany: 'blocks',
     }),
     fight: Object.freeze({
         title: 'Fight',

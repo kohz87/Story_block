@@ -201,9 +201,9 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     assert.ok(precallPrompt({ ...input, standard: true }).startsWith(PRECALL_HEAD_STANDARD));
     assert.ok(precallPrompt(input).startsWith(PRECALL_HEAD));
     assert.equal(precallPrompt({ ...input, standard: false }), precallPrompt(input));
-    // The sheet in blocks: Health 6 of 6 is Unhurt, 3 of 6 Wounded, and the rats' 5 blocks read the same way.
+    // The sheet in blocks (the words are spread over the bar like the Party tab's): Health 6 of 6 is Unhurt, 3 of 6 Hurt, and the rats' 5 blocks read the same way.
     const hurt = sheetOf(party({ wessel: { health: 3 }, foes: [['Sluice Rats', 6, 2, 3]] }));
-    assert.match(sheetText(hurt, { standard: true }), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 9 CHA 5; Health Wounded/);
+    assert.match(sheetText(hurt, { standard: true }), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 9 CHA 5; Health Hurt/);
     assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(class II, Hurt\)/);
     assert.match(sheetText(sheetOf(party()), { standard: true }), /Health Unhurt/);
 });
@@ -426,7 +426,7 @@ test('the cue tells the narrator which bars code moved and where they stand in w
     assert.match(result.text, /\nHealth now: .*Wessel (Badly wounded|Wounded|Hurt|Scratched).*\./);
     assert.doesNotMatch(result.text, /block/i);
     assert.equal(stageWord(STAGES.health, 4, 6), 'Hurt');
-    assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(blocks => stageWord(STAGES.health, blocks, 6)), ['Down', 'Badly wounded', 'Badly wounded', 'Wounded', 'Hurt', 'Scratched', 'Unhurt']);
+    assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(blocks => stageWord(STAGES.health, blocks, 6)), ['Down', 'Badly wounded', 'Wounded', 'Hurt', 'Hurt', 'Scratched', 'Unhurt']);
     assert.deepEqual([0, 1, 4].map(blocks => stageWord(STAGES.health, blocks, 4)), ['Down', 'Badly wounded', 'Unhurt']);
 });
 

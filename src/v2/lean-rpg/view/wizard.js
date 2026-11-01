@@ -33,7 +33,8 @@ import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
 import { joinDraft } from '../join.js';
-import { growthLine } from '../growth.js';
+import { growthOf } from '../blocks.js';
+import { growthText } from './party-data.js';
 import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, draftCreation, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newSoul, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
     START_RANKS, startStats, statBounds, statsLine, withImport, withoutImport, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
@@ -310,7 +311,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
             // ---- Stats ----
             const axes = now => STATS.map(stat => ({ label: stat.toUpperCase(), value: now.stats[stat], max: 20, before: now.from ? now.from.stats[stat] : draftCreation(now).start }));
             // The Standard formula's one line of what the next points buy; Classic's bars do not grow with stats.
-            const growth = now => (draftCreation(now).standard ? growthLine(now.stats, RPG_STRINGS.growth, draftCreation(now).statMax) : '');
+            const growth = now => (draftCreation(now).standard ? growthText(growthOf(now.stats, { statMax: draftCreation(now).statMax })) : '');
             let growthNode = null;
             function refreshStats() {
                 const now = snap(), left = pointsLeft(now);
@@ -563,7 +564,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 if (!failure) {
                     unadded = where.extras.skipped.map(item => ({ role: item.role, why: whyNot([item]) }));
                     const used = [...where.used, `pack.chat/${definitions.character.slug}`, `pack.chat/${definitions.skills.slug}`];
-                    for (const definition of extraDefinitions(where.extras.add, { used })) {
+                    for (const definition of extraDefinitions(where.extras.add, { used, formula: draftCreation(now).standard ? 'standard' : 'classic' })) {
                         const made = await call('dm.define', { definition });
                         if (!made.ok) unadded.push({ role: definition.role, why: refusalText(made, W.generic) });
                     }

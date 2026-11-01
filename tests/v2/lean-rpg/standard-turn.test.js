@@ -162,3 +162,23 @@ test('a change to the sheet before a Standard roll plans it again with the same 
     await reloads(host);
     host.close();
 });
+
+test('every rolled reply of an ongoing fight carries the fight\'s order, even one that rolls only a check, so the Fight tab is never blank mid-fight', { skip }, async () => {
+    const long = blocks({ foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 6, 8]]) }, wessel: { role: 'character', fields: character('Wessel', { health: 8, str: 10, vit: 20, agi: 10, dex: 6, soul: 2 }) } });
+    const fight = ['pace: careful', 'act Wessel | skill: Iron Breath | type: physical | target: Sluice Rats', 'foe Sluice Rats | target: Wessel'].join('\n');
+    const check = 'check Wessel | type: check | fit: agi | difficulty: easy';
+    const { host } = await setup({ blocks: long, answers: [fight, check, 'none', check, fight], settings: { [FORMULA_SETTING]: 'standard' } });
+    await host.send('I hit the rat.', 'One.');
+    const order = resultOf(host, 2).order;
+    await host.send('I leap over the barrel.', 'Two.');
+    assert.deepEqual(resultOf(host, 4).order.map(entry => [entry.id, entry.total]), order.map(entry => [entry.id, entry.total]), 'a check keeps the order');
+    assert.ok(resultOf(host, 4).order.every(entry => entry.fresh === false));
+    await host.send('I look around.', 'Three.');
+    assert.equal(rollReceipt(host, 6), undefined, 'a reply with no rolls has no record: the Fight tab reads the latest rolled one');
+    await host.send('I duck.', 'Four.');
+    assert.deepEqual(resultOf(host, 8).order.map(entry => entry.id), order.map(entry => entry.id), 'the nearest rolled reply is looked for past one with none');
+    await host.send('I hit again.', 'Five.');
+    assert.deepEqual(resultOf(host, 10).order.map(entry => [entry.id, entry.total]), order.map(entry => [entry.id, entry.total]));
+    assert.equal(host.sdk.query(ROLLS_QUERY, { index: 10 }).result.order.length, order.length);
+    host.close();
+});

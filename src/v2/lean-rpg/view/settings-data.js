@@ -7,8 +7,8 @@ import { CLASS_NAMES, RANK_NAMES } from '../names.js';
 import { DIFFICULTIES, PRESETS, STANDARD_PRESETS, STANDARD_SETTING, formulaOf, isStandard, normalizeRules, normalizeStandard, oddsSubject, presetOf, rulesFromSettings, subjectOdds, CUSTOM_SETTING, DIFFICULTY_SETTING, difficultyOf } from '../rules.js';
 import { fold, readSheet } from '../read.js';
 import { precallPrompt } from '../precall.js';
-import { COMBAT_PROMPT } from '../templates.js';
-import { COMBAT_PROMPT_STANDARD, RPG_STRINGS, fill } from '../strings.js';
+import { COMBAT_PROMPT, COMBAT_PROMPT_STANDARD, templatesFor } from '../templates.js';
+import { RPG_STRINGS, fill } from '../strings.js';
 import { rpgBlocks } from './party-data.js';
 import { SOUL_LABEL, soulShortOf } from '../soul.js';
 
@@ -44,14 +44,11 @@ export function withPrompt(definition, prompt) {
     return next;
 }
 
-/** A fresh Combat rules definition (the template's), for the "Add the Combat rules block" button. */
+/** A fresh Combat rules definition for the formula (the Standard templates' text explains the roll types), for the "Add the Combat rules block" button. */
 export const combatTemplate = (templates, formula = 'classic') => {
-    const entry = templates.find(item => item.definition.role === 'rules');
-    if (!entry) return null;
-    const definition = structuredClone(entry.definition);
-    // (The stock template's text is Classic's; a Standard chat is given the Standard text unless the template already has its own.)
-    if (formula === 'standard' && definition.prompt === COMBAT_PROMPT) definition.prompt = COMBAT_PROMPT_STANDARD;
-    return definition;
+    // (`templates` is the Classic list a caller already holds; a Standard chat is made from the Standard list.)
+    const entry = (formula === 'classic' ? templates : templatesFor(formula)).find(item => item.definition.role === 'rules');
+    return entry ? structuredClone(entry.definition) : null;
 };
 
 /**

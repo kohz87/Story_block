@@ -6,9 +6,11 @@ import assert from 'node:assert/strict';
 import { STATS } from '../../../../src/v2/lean-rpg/index.js';
 import { DIFFICULTY_SETTING, FORMULA_SETTING, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_SETTING, CUSTOM_SETTING, formulaOf, rulesFromSettings } from '../../../../src/v2/lean-rpg/rules.js';
 import { LEAN_RPG_TEMPLATES } from '../../../../src/v2/lean-rpg/templates.js';
-import { COMBAT_PROMPT_STANDARD, RPG_STRINGS } from '../../../../src/v2/lean-rpg/strings.js';
+import { COMBAT_PROMPT_STANDARD, STANDARD_TEMPLATES, templatesFor } from '../../../../src/v2/lean-rpg/templates.js';
+import { RPG_STRINGS } from '../../../../src/v2/lean-rpg/strings.js';
 import { PRECALL_HEAD, PRECALL_HEAD_STANDARD } from '../../../../src/v2/lean-rpg/precall.js';
-import { growthLine, growthOf, nextLuckAt } from '../../../../src/v2/lean-rpg/growth.js';
+import { growthOf } from '../../../../src/v2/lean-rpg/blocks.js';
+import { growthText } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { joinDefinitions, joinDraft } from '../../../../src/v2/lean-rpg/join.js';
 import { companionStats, blocksFor } from '../../../../src/v2/lean-rpg/formula.js';
 import { COMBAT_DEFAULT, COMBAT_DEFAULT_STANDARD, COMBAT_MAX, combatBlock, combatDefault, combatTemplate, customOf, oddsView } from '../../../../src/v2/lean-rpg/view/settings-data.js';
@@ -17,7 +19,6 @@ import { begin, makeBlocks, page, party, settle } from './page.js';
 import { characterDefinition, fakeState, roleOf, skillsDefinition } from './helpers.js';
 
 const MOD = 'story-block';
-const G = RPG_STRINGS.growth;
 const combat = () => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Combat rules').definition);
 
 async function open(t, { formula = 'standard' } = {}) {
@@ -106,11 +107,12 @@ test('the Combat text is the Standard one for a Standard chat (reset, and the bl
     await settle(); await settle();
     assert.equal(combatBlock(host.head(), {})?.prompt, COMBAT_DEFAULT_STANDARD);
     assert.ok([...COMBAT_DEFAULT_STANDARD].length <= COMBAT_MAX, 'fits the 1200 characters a block may hold');
-    assert.match(COMBAT_DEFAULT_STANDARD, /Physical is blades and force, magic is spells, defence a dodge or block \(a spell is warded\), social talk and bluff, checks the rest/);
-    assert.match(COMBAT_DEFAULT_STANDARD, /never set Health for a rolled hit or heal/);
+    assert.match(COMBAT_DEFAULT_STANDARD, /attacks, spells, defence, talk and checks each pair a main stat with half of a second one/);
+    assert.match(COMBAT_DEFAULT_STANDARD, /code moves Health for rolled hits and heals: never set those/);
     assert.equal(combatDefault('classic'), COMBAT_DEFAULT);
     assert.equal(combatDefault('standard'), COMBAT_DEFAULT_STANDARD);
     assert.equal(combatTemplate(LEAN_RPG_TEMPLATES, 'standard').prompt, COMBAT_PROMPT_STANDARD);
+    assert.equal(combatTemplate(LEAN_RPG_TEMPLATES, 'standard').stateVersion, 2, 'the Standard template');
     assert.notEqual(combatTemplate(LEAN_RPG_TEMPLATES, 'classic').prompt, COMBAT_PROMPT_STANDARD);
     assert.equal(combatTemplate(LEAN_RPG_TEMPLATES).prompt, combatTemplate(LEAN_RPG_TEMPLATES, 'classic').prompt, 'Classic unless asked');
 });
@@ -140,15 +142,15 @@ test('the settings give Standard\'s numbers for the formula in force and Classic
 
 // ---- the bar line, creation and companions ----------------------------------------------------------------------------------
 
-test('growth: Health, Stamina and Mana gain a block every 5 points of VIT, AGI and INT, luck steps at 8, 13, 16 and 19', () => {
+test('growth (blocks.js, the one line the Party card, the wizard and Spend points share): a block every 5 points of VIT, AGI and INT, luck steps at 8, 13, 16 and 19', () => {
+    const text = (stats, max) => growthText(growthOf(stats, { statMax: max }));
     const stats = { str: 5, vit: 10, agi: 14, dex: 5, int: 5, luk: 12, cha: 5 };
-    assert.deepEqual(growthOf(stats), { health: { blocks: 6, next: 15 }, stamina: { blocks: 5, next: 15 }, mana: { blocks: 4, next: 10 }, luck: { value: 0, next: 13 } });
-    assert.equal(growthLine(stats, G), 'Health 6 blocks (next at VIT 15) · Stamina 5 (next at AGI 15) · Mana 4 (next at INT 10) · Luck 0 (next at LUK 13)');
+    assert.equal(text(stats), 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 14, next at 15) · Mana 4 (INT 5, next at 10) · Luck 0 (next at LUK 13)');
     const start = Object.fromEntries(STATS.map(stat => [stat, 5]));
-    assert.equal(growthLine(start, G), 'Health 5 blocks (next at VIT 10) · Stamina 4 (next at AGI 10) · Mana 4 (next at INT 10) · Luck −1 (next at LUK 8)');
-    assert.equal(growthLine({ ...start, vit: 20, luk: 19 }, G), 'Health 8 blocks (at the top) · Stamina 4 (next at AGI 10) · Mana 4 (next at INT 10) · Luck +3 (at the top)');
-    assert.deepEqual([5, 7, 8, 12, 13, 15, 16, 18, 19, 20].map(luk => nextLuckAt(luk)), [8, 8, 13, 13, 16, 16, 19, 19, null, null]);
-    assert.equal(nextLuckAt(5, 6), null, 'the stat maximum caps it');
+    assert.equal(text(start), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
+    assert.equal(text({ ...start, vit: 20, luk: 19 }), 'Health 8 blocks (VIT 20) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck +3');
+    assert.deepEqual([5, 7, 8, 12, 13, 15, 16, 18, 19, 20].map(luk => growthOf({ ...start, luk }).luck.next), [8, 8, 13, 13, 16, 16, 19, 19, null, null]);
+    assert.equal(growthOf({ ...start, vit: 15 }, { statMax: 15 }).health.next, null, 'the stat maximum caps it');
 });
 
 test('creation under Standard: stats start at 5, 10 points, 3 to 10; Classic\'s draft is exactly as it was', () => {
@@ -215,10 +217,10 @@ test('Stats under Standard: steppers from 5, 10 points to spend, 3 to 10, and th
     assert.match(root().querySelector('.rpg-wiz-sum').textContent, /STR 5 · VIT 5 · AGI 5 · DEX 5 · INT 5 · LUK 5 · CHA 5/);
     assert.match(root().textContent, /Every stat starts at 5\. Spend 10 points; a stat can go down to 3 to free a point and up to 10 now\. Each Soul Class rise gives 4 more, and XP rises on its own\./);
     const line = () => root().querySelector('[data-wiz="growth"]').textContent;
-    assert.equal(line(), 'Health 5 blocks (next at VIT 10) · Stamina 4 (next at AGI 10) · Mana 4 (next at INT 10) · Luck −1 (next at LUK 8)');
+    assert.equal(line(), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
     for (let n = 0; n < 5; n += 1) step('vit', 'inc').click();
     assert.equal(step('vit', 'inc').disabled, true, 'VIT stops at 10');
-    assert.equal(line(), 'Health 6 blocks (next at VIT 15) · Stamina 4 (next at AGI 10) · Mana 4 (next at INT 10) · Luck −1 (next at LUK 8)');
+    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
     assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 5');
     for (let n = 0; n < 3; n += 1) step('luk', 'inc').click();
     assert.match(line(), /Luck 0 \(next at LUK 13\)$/);
@@ -251,7 +253,10 @@ test('Create under Standard writes the stats and full bars as the new blocks\' d
     await settle(); await settle();
     const fields = ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/wessel' }).chat;
     assert.deepEqual([fields.str, fields.vit, fields.agi, fields.points], [10, 10, 5, 0]);
-    assert.equal(fields.health, Math.min(6, 5), 'Health: 4 + VIT/5 = 6 blocks, within the 5 stages the stock field holds');
+    // A Standard chat is made from the Standard templates: Health is 4 + VIT/5 = 6 blocks, full, and the hidden size fields start there too.
+    assert.deepEqual([fields.health, fields['health-blocks'], fields.stamina, fields['stamina-blocks'], fields.mana, fields['mana-blocks']], [6, 6, 4, 4, 4, 4]);
+    const definition = ctx.host.head().domains.dataModules.pins[ctx.host.head().domains.dataModules.active['pack.chat/wessel'].hash].definition;
+    assert.equal(definition.state.health.blocks, 'health', 'the Standard Character block');
 });
 
 // ---- Spend points and the Skills view ----------------------------------------------------------------------------------------
@@ -272,10 +277,10 @@ test('Spend points under Standard adds the line of what the next points buy, and
     const state = fakeState([hero()]);
     const handle = renderDistribute(host, { character: readParty(state, { own: 'Wessel', roleOf })[0], doc, rules: () => STANDARD_FORMULA });
     const root = host.querySelector('.rpg-sheet'), line = () => root.querySelector('[data-rpg="growth"]').textContent;
-    assert.equal(line(), 'Health 5 blocks (next at VIT 10) · Stamina 5 (next at AGI 15) · Mana 4 (next at INT 10) · Luck −1 (next at LUK 8)');
+    assert.equal(line(), 'Health 5 blocks (VIT 9, next at 10) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
     stepIn(root, 'vit', 'inc').click();
     stepIn(root, 'luk', 'inc').click();
-    assert.equal(line(), 'Health 6 blocks (next at VIT 15) · Stamina 5 (next at AGI 15) · Mana 4 (next at INT 10) · Luck 0 (next at LUK 13)');
+    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Luck 0 (next at LUK 13)');
     handle.reset();
     assert.match(line(), /^Health 5 blocks/);
     handle.destroy();

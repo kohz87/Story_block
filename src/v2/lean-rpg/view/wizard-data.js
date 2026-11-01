@@ -16,9 +16,9 @@ import { activeDefinition } from '../../data-modules/adapters.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
 import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
-import { blocksFor, companionStats } from '../formula.js';
 import { isStandard } from '../rules.js';
-import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../templates.js';
+import { LEAN_RPG_TEMPLATES, SKILL_SETS, templatesFor } from '../templates.js';
+import { barFields } from '../blocks.js';
 import { soulReading } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { FILE_LIMITS } from '../charfile.js';
@@ -261,7 +261,8 @@ export function extrasPlan(state, { roleOf, free = Infinity } = {}) {
     return { add, skipped };
 }
 
-const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
+// (A Standard chat's blocks are made from the Standard templates, a Classic chat's from the originals: templates.js templatesFor.)
+const template = (role, formula = 'classic') => structuredClone(templatesFor(formula).find(entry => entry.definition.role === role).definition);
 
 /** What a character the wizard makes calls its Soul Class (soul.js): the Character template's own label and names. */
 export const newSoul = () => soulReading(template('character').state.soul);
@@ -270,10 +271,10 @@ export const newSoul = () => soulReading(template('character').state.soul);
 export const extraName = role => LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role)?.name ?? role;
 
 /** The stock definitions for some of the extras (`roles`), their slugs free among `used` (the ids of the story's blocks and of the ones made with them). */
-export function extraDefinitions(roles, { used = [] } = {}) {
+export function extraDefinitions(roles, { used = [], formula = 'classic' } = {}) {
     const taken = [...used];
     return roles.map(role => {
-        const definition = template(role);
+        const definition = template(role, formula);
         definition.slug = uniqueBlockSlug(definition.name, taken);
         taken.push(definition.slug);
         return definition;
@@ -291,7 +292,8 @@ export const blockNames = name => ({ character: name, skills: `${name}'s skills`
  */
 export function buildDefinitions(draft, { used = [], points = null } = {}) {
     const names = blockNames(draft.name);
-    const character = template('character');
+    const formula = draftCreation(draft).standard ? 'standard' : 'classic';
+    const character = template('character', formula);
     character.slug = uniqueBlockSlug(names.character, used);
     character.name = names.character;
     const state = character.state;
@@ -299,13 +301,11 @@ export function buildDefinitions(draft, { used = [], points = null } = {}) {
     state.about.default = draft.about;
     for (const stat of STATS) state[stat].default = draft.stats[stat];
     state.points.default = Number.isSafeInteger(points) ? Math.max(0, points) : Math.max(0, pointsLeft(draft));
-    // The Standard formula's bars are blocks that grow with VIT, AGI and INT: a new character starts with them full (as far as the block's fields reach).
-    if (draftCreation(draft).standard) {
-        const blocks = blocksFor(draft.stats);
-        for (const key of ['health', 'stamina', 'mana']) if (state[key]) state[key].default = Math.min(blocks[key], Number.isSafeInteger(state[key].max) ? state[key].max : blocks[key]);
-    }
+    // The Standard formula's bars are rows of blocks that grow with VIT, AGI and INT: a new character starts with them full, and the hidden fields
+    // that remember each bar's size start there too (blocks.js barFields), so the block's size rules find nothing to change.
+    if (formula === 'standard') for (const [key, value] of Object.entries(barFields(draft.stats))) if (state[key]) state[key].default = Math.min(value, Number.isSafeInteger(state[key].max) ? state[key].max : value);
     if (draft.soul > 1) state.soul.default = draft.soul;
-    const skills = template('skills');
+    const skills = template('skills', formula);
     skills.slug = uniqueBlockSlug(`${draft.name} skills`, [...used, character.slug]);
     skills.name = names.skills;
     skills.state.who.default = draft.name;
