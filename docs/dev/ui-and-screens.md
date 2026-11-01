@@ -388,9 +388,9 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
 - **The card under a reply: "This reply"** (`view/mounts/card.js`, `reply-cards.js`, `screens/changes-card.js`, `mounts.css` `.ss-card`).
   There is one card under a reply, not one per module: every card screen the reader has on is a section of it. Closed, the header is
   "This reply" and one line, each section's part joined with " · " (Changes first, then the registry's order; `deps.first`); the full
-  line is the summary's `title`. A card screen tells its own part with an optional `summary(state, { query, changes, index, before })`
-  function on its screen (like `active`; `query(name, args)` reads at that reply's state; `validateScreen` checks it is a function);
-  a card with none adds nothing (Story Block's changes card is worded by the host's `summary` hook). Open, each section is its body
+  line is the summary's `title`. A card screen tells its own part with an optional `summary` on its screen: a template of text
+  (at most 500 characters, `validateScreen`), read in the card's scope at that reply's state like its body ('{{ q.status.summary }}';
+  the scope has `summary: true`); a card with none adds nothing (Story Block's changes card is worded by the host's `summary` hook). Open, each section is its body
   under a small heading: the screen's own `title`. Story Block holds no other module's words or ids for this. The reader's own edits
   are in the opened Changes section, not in the line. The bodies are drawn the first time the card is opened, all together. A screen's
   switch (`cards[id]`) takes its section away; with one on the card is still "This reply"; "Cards under replies" off takes the card away.

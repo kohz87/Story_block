@@ -376,7 +376,8 @@ const STATUS_MODULE = {
     screens: [{
         id: 'status-test/card', title: 'Where things stand', icon: 'fa-compass', mounts: ['card'], defaultOn: true,
         template: '<p class="stat">{{ state.scene.place.name }}</p>',
-        summary: (state, { query }) => `${query('clock.text')}, ${state.domains.scene.place.name}`,
+        data: { clock: { query: 'clock.text' } },
+        summary: '{{ q.clock }}, {{ state.scene.place.name }}',
     }],
 };
 

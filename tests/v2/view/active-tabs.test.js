@@ -39,10 +39,11 @@ test('validateScreen: active must be a function and activeNote text', () => {
     assert.match(validateScreen({ ...base, activeNote: 3 }).join(' / '), /activeNote must be text/);
 });
 
-test('validateScreen: a card\'s own summary must be a function', () => {
+test('validateScreen: a card\'s own summary is a template of text, not too long', () => {
     const base = { id: 'm/status', title: 'Where things stand', mounts: ['card'], template: '<p>x</p>' };
-    assert.deepEqual(validateScreen({ ...base, summary: () => '1:30 pm' }), []);
-    assert.match(validateScreen({ ...base, summary: '1:30 pm' }).join(' / '), /summary must be a function/);
+    assert.deepEqual(validateScreen({ ...base, summary: '{{ q.status.summary }}' }), []);
+    assert.match(validateScreen({ ...base, summary: () => '1:30 pm' }).join(' / '), /summary must be a template of text/);
+    assert.match(validateScreen({ ...base, summary: 'x'.repeat(501) }).join(' / '), /at most 500/);
 });
 
 function world(battle) {

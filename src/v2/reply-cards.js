@@ -193,23 +193,6 @@ export function sectionHeading(entry) {
     return oneLine(entry?.screen?.title ?? '', 60) || String(entry?.id ?? '');
 }
 
-/**
- * A section's part of the closed line. The card's own `summary(state, { query, changes, index, before })` (an optional function on its
- * screen, like `active`; `query(name, args)` reads at that reply's state) tells it; a card with none leaves to the host's `hostSummary`
- * (Story Block's own changes card) and, failing that, adds nothing. Never throws.
- */
-export function sectionSummary(entry, { index = null, state = null, changes = [], before = null, query = null, hostSummary = null } = {}) {
-    const own = entry?.screen?.summary;
-    try {
-        if (typeof own === 'function') {
-            return String(own(state, { query: (name, args) => (typeof query === 'function' ? query(name, args, state) : null), changes, index, before }) ?? '');
-        }
-        return String(hostSummary?.(entry.screen, { index, state, changes, before }) ?? '');
-    } catch {
-        return '';
-    }
-}
-
 /** The closed line: the sections' summaries (empty ones left out) joined with " · ". */
 export function mergeSummaries(parts) {
     return (Array.isArray(parts) ? parts : []).map(part => String(part ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(SUMMARY_JOIN);

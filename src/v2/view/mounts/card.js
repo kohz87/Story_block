@@ -27,8 +27,8 @@
 //   messageElement  (index) → SillyTavern's `.mes[mesid=index]` element (default: a document query)
 //   swipeAt         (index) → the message's swipe_id (default 0)
 //   summary         (screen, { index, state, changes, before }) → the host's part of the header's line for a card that has no summary of its own
-//                   (optional; Story Block's changes card). A card screen's own `summary(state, { query, changes, index, before })`
-//                   function wins; a card with neither adds nothing to the line.
+//                   (optional; Story Block's changes card). A card screen's own `summary` (a template read in the card's scope, like
+//                   its body: '{{ q.status.summary }}') wins; a card with neither adds nothing to the line.
 //   first           ids of the card screens that lead the sections, in order (optional; Story Block's changes card)
 //   opsAt           (index) → the carrier's own ops (optional; cards get them as `replyOps`)
 //   IntersectionObserver  the class to use (default globalThis.IntersectionObserver; null turns it off)
@@ -42,7 +42,7 @@
 //     cacheSize(), destroy() }
 
 import { STRINGS } from '../../strings.js';
-import { THIS_REPLY_ID, mergeSummaries, orderSections, sectionHeading, sectionSummary } from '../../reply-cards.js';
+import { THIS_REPLY_ID, mergeSummaries, orderSections, sectionHeading } from '../../reply-cards.js';
 import { button, dispose, documentOf, drawScreen, icon, make, screensFor } from './common.js';
 
 const THIS_REPLY_ICON = 'fa-list-check';
@@ -157,17 +157,40 @@ export function createCardMount(deps) {
         }
     }
 
+    // A card screen's own part of the closed line: its `summary` template, read in the card's scope like its body (the same data, at that
+    // reply's state), as plain text. null when the screen has none; '' when it cannot be read (it adds nothing, and stops no other).
+    function ownSummary(entry, { index, state, changes, before }) {
+        const template = entry.screen?.summary;
+        if (typeof template !== 'string' || !template.trim()) return null;
+        const span = make(doc, 'span', '');
+        try {
+            const drawn = drawScreen(span, entry.id, 'card', {
+                deps, state, changes, index, extra: { before, replyOps: opsAt(index) ?? [], summary: true },
+                screen: { id: entry.id, title: entry.screen.title, mounts: entry.screen.mounts, template },
+            });
+            return drawn.ok ? String(span.textContent ?? '').replace(/\s+/g, ' ').trim() : '';
+        } catch {
+            return '';
+        } finally {
+            dispose(span);
+        }
+    }
+
     // The one card: the sections (every card screen on, `entries`) in order, the header's line from each one's own summary.
     function buildCard(entries, index) {
         const state = deps.stateAt(index);
         const changes = changesAt(index) ?? [];
         // The state before the reply is read only for a host or a card that words a summary.
-        const before = typeof deps.summary === 'function' || entries.some(entry => typeof entry.screen?.summary === 'function') ? beforeOf(index) : null;
+        const before = typeof deps.summary === 'function' || entries.some(entry => typeof entry.screen?.summary === 'string') ? beforeOf(index) : null;
         const node = make(doc, 'div', 'ss-card');
         node.setAttribute('data-ss-card', THIS_REPLY_ID);
         const head = button(doc, 'ss-card-head');
         head.setAttribute('aria-expanded', 'false');
-        const parts = entries.map(entry => sectionSummary(entry, { index, state, changes, before, query: deps.query, hostSummary: deps.summary }));
+        const parts = entries.map(entry => {
+            const own = ownSummary(entry, { index, state, changes, before });
+            if (own !== null) return own;
+            try { return deps.summary?.(entry.screen, { index, state, changes, before }) ?? ''; } catch { return ''; }
+        });
         const line = mergeSummaries(parts) || changeSummary(changes);
         const summary = make(doc, 'span', 'ss-card-summary', line);
         summary.setAttribute('data-slot', 'summary');

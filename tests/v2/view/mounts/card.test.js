@@ -223,20 +223,31 @@ test('mount(el, id, { index }) draws one card body for that carrier', () => {
 
 // ---- One card under a reply: every module's card is a section ("This reply") ----
 
-// Each module card tells its own part of the closed line (a `summary` function on its screen) and is headed by its own title; the host
-// words only the changes card (`deps.summary`). Nothing here knows a module's words.
+// Each module card tells its own part of the closed line (a `summary` template on its screen, read in the card's scope like its body) and
+// is headed by its own title; the host words only the changes card (`deps.summary`). Nothing here knows a module's words.
+// A renderer that reads `{{ a.b }}` holes from the scope for a summary draw (`scope.summary`; it is not counted among the body draws) and can be made to fail.
+const templated = base => (el, scr, scope) => {
+    if (!scope.summary) return base(el, scr, scope);
+    if (scr.template.includes('BOOM')) throw new Error('boom');
+    el.textContent = scr.template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => path.split('.').reduce((value, key) => value?.[key], scope) ?? '');
+    return undefined;
+};
 const THREE = () => [
-    screen('m/sheet', ['card'], { title: 'Sheet', data: { hp: { query: 'party.hp' } }, summary: (state, { query }) => `HP ${query('party.hp')}` }),
+    screen('m/sheet', ['card'], { title: 'Sheet', data: { hp: { query: 'party.hp' } }, summary: 'HP {{ q.hp }}' }),
     screen('story-block/changes-card', ['card'], { title: 'Changed this reply' }),
-    screen('m/status', ['card'], { title: 'Where things stand', summary: () => '1:30 pm, Bluewatch Village' }),
+    screen('m/status', ['card'], { title: 'Where things stand', summary: '1:30 pm, Bluewatch Village' }),
     screen('a/meters', ['card'], { title: 'NPCs' }),
 ];
 const hostSummary = scr => (scr.id === 'story-block/changes-card' ? '+1 Oilskin Coat · Hooded courier left' : null);
-const threeWorld = (cards = {}, extra = {}) => world({
-    defs: THREE(),
-    cards: { 'story-block/changes-card': true, 'm/status': true, ...cards },
-    extra: { first: ['story-block/changes-card'], summary: hostSummary, ...extra },
-});
+const threeWorld = (cards = {}, extra = {}) => {
+    const body = fakeRenderer();
+    const made = world({
+        defs: THREE(),
+        cards: { 'story-block/changes-card': true, 'm/status': true, ...cards },
+        extra: { first: ['story-block/changes-card'], summary: hostSummary, render: templated(body), ...extra },
+    });
+    return { ...made, render: body };
+};
 
 test('one card under a reply holds every module card: the closed line joins each summary with " · ", Changes first', () => {
     const { chat, cards } = threeWorld();
@@ -339,17 +350,15 @@ test('the card stays open across a swipe, and both sections are drawn on the sta
     assert.deepEqual(render.calls.slice(-2).map(call => call.scope.state.meta.rev), [9, 9], 'both sections drawn on the new swipe');
 });
 
-test('a card\'s own summary is asked with that reply\'s state and queries; a card with none, or one that throws, adds nothing', () => {
-    const asked = [];
+test('a card\'s own summary is read in that reply\'s scope; a card with none, or one that cannot be read, adds nothing', () => {
     const defs = [
-        screen('m/own', ['card'], { title: 'Own', data: { hp: { query: 'party.hp' } }, summary: (state, ctx) => { asked.push([state.meta.rev, ctx.index, ctx.query('party.hp')]); return `rev ${state.meta.rev}`; } }),
+        screen('m/own', ['card'], { title: 'Own', data: { hp: { query: 'party.hp' } }, summary: 'rev {{ state.meta.rev }}, hp {{ q.hp }}, at {{ index }}' }),
         screen('m/none', ['card'], { title: 'None' }),
-        screen('m/throws', ['card'], { title: 'Throws', summary: () => { throw new Error('no'); } }),
+        screen('m/throws', ['card'], { title: 'Throws', summary: 'BOOM' }),
     ];
-    const { chat, cards } = world({ defs, cards: { 'm/own': true, 'm/none': true, 'm/throws': true } });
+    const { chat, cards } = world({ defs, cards: { 'm/own': true, 'm/none': true, 'm/throws': true }, extra: { render: templated(fakeRenderer()) } });
     cards.attachAll();
     const card = cardsUnder(chat.messages[2])[0];
-    assert.equal(card.querySelector('[data-slot="summary"]').textContent, 'rev 3');
-    assert.deepEqual(asked.find(item => item[1] === 2), [3, 2, 30], 'that reply\'s own state, not the head\'s');
+    assert.equal(card.querySelector('[data-slot="summary"]').textContent, 'rev 3, hp 30, at 2', 'that reply\'s own state, not the head\'s');
     assert.deepEqual(sectionsOf(card), ['m/none', 'm/own', 'm/throws']);
 });
