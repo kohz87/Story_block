@@ -38,7 +38,7 @@ test('the cast is the twelve, in order, and the whole list passes the cast check
     }
 });
 
-test('every text sits inside the cast limits, and a secret opens by one rule (a meter or an event)', () => {
+test('every text sits inside the cast limits, and a secret has a rule (a meter, an event or both)', () => {
     for (const person of cast()) {
         const at = field => `${person.id}.${field}`;
         for (const field of ['about', 'look', 'voice', 'personality', 'history']) assert.ok(chars(person[field]) <= CAST_LIMITS[field], at(field));
@@ -48,7 +48,8 @@ test('every text sits inside the cast limits, and a secret opens by one rule (a 
         assert.ok(person.secrets.length >= 5 && person.secrets.length <= CAST_LIMITS.secrets, at('secrets'));
         for (const secret of person.secrets) {
             assert.ok(chars(secret.text) <= CAST_LIMITS.secretText && chars(secret.title) <= CAST_LIMITS.secretTitle, `${at('secrets')}: ${secret.title}`);
-            assert.equal(Object.hasOwn(secret, 'when'), !Object.hasOwn(secret, 'meter'), `${secret.title}: one rule`);
+            assert.ok(Object.hasOwn(secret, 'when') || Object.hasOwn(secret, 'meter'), `${secret.title}: a rule`);
+            assert.equal(Object.hasOwn(secret, 'meter'), Object.hasOwn(secret, 'at'), `${secret.title}: meter with at`);
             if (secret.when) assert.ok(chars(secret.when) <= CAST_LIMITS.secretWhen, `${secret.title}: when`);
         }
         for (const stage of person.stages) assert.ok(chars(stage.name) <= METER_LIMITS.name && (!stage.milestone || chars(stage.milestone) <= METER_LIMITS.milestone), `${person.id}: ${stage.id}`);
@@ -70,6 +71,13 @@ test('meters and stages: the eleven romanceable use the companion preset, Barney
     assert.equal(cast()[0].meters.tension, 10, 'Temiwa starts with some tension');
     const torka = cast().find(person => person.id === 'torka');
     assert.ok(torka.meters.trust <= 10 && torka.meters.tension >= 20, 'a rival: low trust, some tension');
+});
+
+test('the thirteen secrets that open by a meter or by an event, whichever comes first, carry both rules', () => {
+    const both = cast().flatMap(person => person.secrets.filter(secret => secret.meter && secret.when).map(secret => `${person.id}:${secret.at}`));
+    assert.deepEqual(both, ['temiwa:50', 'temiwa:90', 'rika:50', 'rika:90', 'harrak:50', 'harrak:90', 'torka:90', 'lothar:90', 'gorm:90', 'nerissa:90', 'hush:90', 'asphodel:90', 'barney:90']);
+    for (const person of cast()) assert.ok(person.secrets.length <= CAST_LIMITS.secrets, person.id);
+    assert.deepEqual(cast().map(person => person.secrets.length), [7, 8, 7, 8, 6, 6, 8, 6, 6, 6, 5, 5]);
 });
 
 test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, Soul Classes as the sheets set them', () => {

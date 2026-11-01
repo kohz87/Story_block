@@ -54,7 +54,7 @@ test('the pack is Ersveil 2.4.0, the open world: the map, the calendar, the weat
     assert.equal(value.version, '2.4.0');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.15', 'content.cast needs 2.15');
+    assert.equal(value.requires.storyBlock, '^2.15.1', 'content.cast needs 2.15, and a secret that opens by a meter or an event needs 2.15.1');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
