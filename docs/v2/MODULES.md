@@ -668,6 +668,10 @@ const result = await sdk.callModel({
   ABORTED). `model.calls` → `[{ prompt, maxTokens, profile, system }]`; `model.pending()`, `model.aborted`,
   `model.push(...answers)`. The host's real rules run around it.
 
+### The `redactSent` hook
+
+A module whose text holds something the reader must not see (hidden notes the narrator is told to keep) may give `hooks.redactSent(text) → string`. Settings → Tabs & Packs → Prompt → "Show what's sent" calls it for each of the module's texts (its static part, its tail part and what it sends on its own) before drawing them and before building Copy, and shows the string it answers instead (NPC State Delta answers "Mira: 1 hidden note" for each locked note). Only that view and its copy use it: what is sent to the model is never changed, and the sizes still count the real text. A hook that throws or answers anything but a string shows the fixed line "(hidden)" for that text, never the raw one. A module with no such hook is shown as sent. The hook must be pure and fast: it runs on every drawing of the view.
+
 ### Gathering module hooks
 
 A command may call `ctx.gather(name, args)` to ask other modules' hooks synchronously. The host supplies frozen state and arguments; absent answers, promises and errors are left out. The result identifies each responding module.
