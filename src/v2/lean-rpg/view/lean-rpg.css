@@ -252,3 +252,34 @@
 @media (max-width: 600px) { .rpg-hold-actions { justify-content: stretch; } .rpg-hold-actions .ss-button { flex: 1 1 100%; } }
 .rpg-left-pill { font-style: italic; }
 .rpg-wiz-persona[hidden] { display: none; }
+
+/* ---- Export / Import a character ---- */
+/* The RPG's dialogs sit over the Game view (its Party cards are right behind them): opaque, whatever the panel style. Under Glass the glass tint is laid
+   over an opaque floor of the same colour (--ss-sheet-floor); the other styles are the surface laid over itself. No blur: nothing is behind to blur. */
+.ss-dialog:has(.ss-w-rpg-wizard, .ss-w-rpg-export, .ss-w-rpg-hold) {
+    background-color: var(--ss-sheet-floor, var(--ss-surface));
+    background-image: linear-gradient(var(--ss-sheet-bg, var(--ss-surface)), var(--ss-sheet-bg, var(--ss-surface)));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+.rpg-export-open, .rpg-exp-save { display: inline-flex; align-items: center; gap: 6px; }
+.ss-w-rpg-export { display: grid; gap: 12px; min-width: 0; }
+.rpg-exp-body { display: grid; gap: 12px; min-width: 0; }
+.rpg-exp-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ss-muted); }
+.rpg-exp-opt { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 4px 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ss-text) 18%, transparent); background: var(--ss-tile); }
+.rpg-exp-opt input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--ss-accent); }
+.rpg-exp-opt b { font-size: 14px; }
+.rpg-exp-lines { grid-column: 2; display: grid; gap: 2px; font-size: 12.5px; line-height: 1.45; color: var(--ss-muted); overflow-wrap: anywhere; }
+.rpg-exp-lines:empty { display: none; }
+.rpg-exp-help { opacity: 0.85; }
+.rpg-exp-actions { justify-content: flex-end; }
+.rpg-exp-actions .rpg-wiz-status { margin-right: auto; }
+.rpg-exp-file { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; padding: 2px 6px; border-radius: 6px; background: color-mix(in srgb, var(--ss-text) 12%, transparent); }
+.rpg-import { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--ss-accent) 60%, transparent); font-size: 13px; }
+.rpg-import-text { flex: 1 1 200px; color: var(--ss-muted); }
+.rpg-import-done { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+    background: color-mix(in srgb, var(--ss-good) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ss-good) 45%, transparent); }
+.rpg-import-done .rpg-import-text { flex: 1 1 260px; color: inherit; }
+.rpg-import-error { margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; background: color-mix(in srgb, var(--ss-bad) 18%, transparent); }
+.rpg-wiz-also-import { color: inherit; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; background: color-mix(in srgb, var(--ss-accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ss-accent) 45%, transparent); }
+@media (max-width: 600px) { .rpg-exp-file { display: none; } .rpg-exp-actions .ss-button { flex: 1 1 auto; } }

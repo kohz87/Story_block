@@ -3,9 +3,11 @@
 // definitions Create makes. The draft lives in the dialog (`api.draft`), so this reads it as plain data and never trusts it:
 // `readDraft` clamps whatever it finds. Field names are the ones the Character and Skills templates use (templates.js).
 //
-//   draft = { name, kind: 'you' | 'companion', about, stats: { str…cha }, skills: [{ name, about, stat, uses, start: 0 | 1 }], set, soul? }
+//   draft = { name, kind: 'you' | 'companion', about, stats: { str…cha }, skills: [{ name, about, stat, uses, start: 0 | 1, rank? }], set, soul?, from? }
 //   (start is the rank a skill begins at: 0 Novice, 1 Adept; `set` is the id of the skill set last put in, '' for none; `soul` is the
-//   Soul Class a companion who joins the story arrives with, 2 to 9: left out it is I, which is every character the reader makes)
+//   Soul Class a companion who joins the story arrives with, or an imported character has, 2 to 9: left out it is I. `from` and a skill's
+//   `rank` are there only after an import (a saved character file, ../charfile.js): `from` = { stats, points } is what the file had, which
+//   the stats are spent from, and `rank` (0 to 3) is the rank the file gave a skill, which is not typed and not counted as the Adept one.)
 
 import { DM_LIMITS } from '../../data-modules/schema.js';
 import { activeDefinition } from '../../data-modules/adapters.js';
@@ -15,6 +17,7 @@ import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS } from '../templates.js';
 import { soulReading } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
+import { FILE_LIMITS } from '../charfile.js';
 
 const W = RPG_STRINGS.wizard;
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -26,38 +29,62 @@ export const KINDS = Object.freeze(['you', 'companion']);
 /** The ranks a skill may start at: Novice, and Adept for at most one skill. */
 export const START_RANKS = Object.freeze([0, 1]);
 
-const startStats = () => Object.fromEntries(STATS.map(stat => [stat, CREATION.start]));
 const blankSkill = () => ({ name: '', about: '', stat: STATS[0], uses: USES[0], start: 0 });
 
 /** The draft a wizard opens with: the persona's name and You, every stat at its start. When the story already has a You it starts as a companion with no name (the persona's is taken). */
 export function newDraft({ persona = '', hasYou = false } = {}) {
-    return { name: hasYou ? '' : oneLine(persona, CREATION.name), kind: hasYou ? 'companion' : 'you', about: '', stats: startStats(), skills: [], set: '' };
+    return { name: hasYou ? '' : oneLine(persona, CREATION.name), kind: hasYou ? 'companion' : 'you', about: '', stats: startStats(null), skills: [], set: '' };
+}
+
+/** What an import brought: the file's stats and unspent points, or null (anything else is not an import). */
+function readFrom(raw) {
+    if (!isRecord(raw) || !isRecord(raw.stats) || !Number.isSafeInteger(raw.points)) return null;
+    const stats = {};
+    for (const stat of STATS) {
+        if (!Number.isSafeInteger(raw.stats[stat])) return null;
+        stats[stat] = clamp(raw.stats[stat], ...FILE_LIMITS.stat);
+    }
+    return { stats, points: clamp(raw.points, 0, FILE_LIMITS.points) };
+}
+
+/** How low and how high a stat may be set: 8 to 15, and never off the value an imported character came with. */
+export function statBounds(draft, stat) {
+    const base = draft?.from?.stats?.[stat];
+    return Number.isSafeInteger(base) ? [Math.min(CREATION.min, base), Math.max(CREATION.max, base)] : [CREATION.min, CREATION.max];
 }
 
 /** A draft as the dialog holds it, made whole: every field in range, at most one Adept, at most five skills. */
 export function readDraft(raw) {
     const given = isRecord(raw) ? raw : {};
+    const from = readFrom(given.from);
     const stats = Object.fromEntries(STATS.map(stat => {
-        const value = Number.isSafeInteger(given.stats?.[stat]) ? given.stats[stat] : CREATION.start;
-        return [stat, clamp(value, CREATION.min, CREATION.max)];
+        const value = Number.isSafeInteger(given.stats?.[stat]) ? given.stats[stat] : (from?.stats[stat] ?? CREATION.start);
+        return [stat, clamp(value, ...statBounds({ from }, stat))];
     }));
     let adept = 0;
     const skills = (Array.isArray(given.skills) ? given.skills : []).slice(0, CREATION.skills).map(entry => {
         const skill = isRecord(entry) ? entry : {};
-        const wantsAdept = skill.start === 1 && adept < CREATION.adept;
+        // A rank the file gave: kept as it is, and it is not the one Adept a new skill may start at.
+        const ranked = from && Number.isSafeInteger(skill.rank);
+        const wantsAdept = !ranked && skill.start === 1 && adept < CREATION.adept;
         if (wantsAdept) adept += 1;
         return {
             name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout),
             stat: STATS.includes(skill.stat) ? skill.stat : STATS[0], uses: USES.includes(skill.uses) ? skill.uses : USES[0], start: wantsAdept ? 1 : 0,
+            ...(ranked ? { rank: clamp(skill.rank, 0, FILE_LIMITS.rank) } : {}),
         };
     });
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
         about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
-        ...(Number.isSafeInteger(given.soul) && given.soul > 1 ? { soul: clamp(given.soul, 1, 9) } : {}) };
+        ...(Number.isSafeInteger(given.soul) && given.soul > 1 ? { soul: clamp(given.soul, 1, 9) } : {}), ...(from ? { from } : {}) };
 }
 
-/** Points left: the budget minus what the stats cost (a stat above its start costs a point a step; below it gives one back). */
-export const pointsLeft = draft => CREATION.budget - STATS.reduce((sum, stat) => sum + draft.stats[stat] - CREATION.start, 0);
+/** Points left: the budget (an imported character's own points) minus what the stats cost (a stat above where it starts costs a point a step; below it gives one back). */
+export const pointsLeft = draft => (draft.from ? draft.from.points : CREATION.budget)
+    - STATS.reduce((sum, stat) => sum + draft.stats[stat] - (draft.from ? draft.from.stats[stat] : CREATION.start), 0);
+
+/** The stats every Reset goes back to: the file's after an import, else all at the start. */
+export const startStats = draft => Object.fromEntries(STATS.map(stat => [stat, draft?.from ? draft.from.stats[stat] : CREATION.start]));
 
 /** "STR 14 · VIT 12 · …" for the summary row. */
 export const statsLine = draft => STATS.map(stat => `${stat.toUpperCase()} ${draft.stats[stat]}`).join(' · ');
@@ -90,6 +117,29 @@ export function withSkillPatch(draft, index, patch) {
 
 /** The skill at `index` taken out. */
 export const withoutSkill = (draft, index) => ({ ...draft, skills: draft.skills.filter((_, at) => at !== index) });
+
+/**
+ * A saved character put into the draft (a good file, ../charfile.js parseCharacterFile): its stats, unspent points (the pool the stats are spent
+ * from), Soul Class and skills with their ranks. The name, You or a companion, who they are and the skill set choice are left alone (a set is
+ * cleared: the skills now come from the file). → { draft, before }, `before` being what `withoutImport` puts back.
+ */
+export function withImport(draft, file) {
+    const before = structuredClone({ stats: draft.stats, skills: draft.skills, set: draft.set, ...(draft.soul > 1 ? { soul: draft.soul } : {}), ...(draft.from ? { from: draft.from } : {}) });
+    const { soul: _soul, from: _from, ...rest } = draft;
+    const next = {
+        ...rest, stats: { ...file.stats }, set: '', from: { stats: { ...file.stats }, points: file.points },
+        skills: file.skills.slice(0, CREATION.skills).map(skill => ({ name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout), stat: skill.stat, uses: skill.uses, start: 0, rank: skill.rank })),
+        ...(file.soul > 1 ? { soul: file.soul } : {}),
+    };
+    return { draft: next, before };
+}
+
+/** The draft as it was before `withImport` (`before` is what that handed back): the stats, skills, Soul Class and skill set; nothing typed since is touched. */
+export function withoutImport(draft, before) {
+    const { soul: _soul, from: _from, ...rest } = draft;
+    const back = structuredClone(before ?? {});
+    return { ...rest, stats: back.stats ?? startStats(null), skills: back.skills ?? [], set: back.set ?? '', ...(back.soul > 1 ? { soul: back.soul } : {}), ...(back.from ? { from: back.from } : {}) };
+}
 
 /**
  * The skill sets on offer: the built-in ones, then each pack's (`packSets` = the `packs.content` records of kind rpg, each with
@@ -231,10 +281,13 @@ export function buildDefinitions(draft, { used = [], points = null } = {}) {
         skills.state[`about${n}`].default = skill.about;
         skills.state[`stat${n}`].default = skill.stat;
         skills.state[`uses${n}`].default = skill.uses;
-        skills.state[`rank${n}`].default = skill.start;
+        skills.state[`rank${n}`].default = Number.isSafeInteger(skill.rank) ? skill.rank : skill.start;
     });
     return { character, skills };
 }
 
 /** The rank a start value means ("Adept"). */
 export const startName = start => RANK_NAMES[start] ?? RANK_NAMES[0];
+
+/** The rank a draft's skill begins at: the file's rank after an import, else what was picked. */
+export const rankOf = skill => (Number.isSafeInteger(skill?.rank) ? skill.rank : skill?.start ?? 0);

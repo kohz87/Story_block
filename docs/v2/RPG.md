@@ -22,7 +22,8 @@ one block for the whole chat and carries the combat text.
 With the feature on, the **Party** tab shows one card for each Character block: the name, the Soul Class and XP,
 the three stage bars, the seven stats in a row and the skills with their ranks. When a character has unspent
 points, the card offers **Spend points**, which opens the stat view with steppers under the point budget. **Stats**
-opens the same view for the stats alone, and **Skills** opens the character's [Skills view](#the-skills-view). **+ New
+opens the same view for the stats alone, and **Skills** opens the character's [Skills view](#the-skills-view). **Export**
+saves the character to a file (see [Export / Import a character](#export--import-a-character)). **+ New
 character** in the header opens the wizard; with no character yet the tab says so and offers **Create your character**.
 
 A companion who left the party (see [Companions who join](#companions-who-join)) keeps their card, greyed, with a **Left** tag.
@@ -67,8 +68,69 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
    (**Settings → RPG → Add the Combat rules block**, or **Settings → Blocks**). A chat that was already started is left as
    it is until you make a character in it.
 
+**Start from a saved character.** The Who step begins with an **Import file…** row; see
+[Export / Import a character](#export--import-a-character) for what a file brings and what **Create** then adds.
+
 The Stats step is one card: the steppers in an even grid (the stat above, its stepper below) with the radar beside it, or
 two columns of steppers and the radar below on a phone. The points left show once, in the summary row at the top.
+
+## Export / Import a character
+
+A character can travel between chats as a file. It carries only what a new character can start from: Soul Class, unspent
+points, the seven stats, the skills (and, if you leave them on, the things the character carries and the money).
+It never carries the name, whether they are You or a companion, who they are, XP, Health, Mana or Stamina, skill practice, or
+anything about the story. Both buttons exist only while the RPG is on.
+
+**Export.** **Export** on a character's card, next to **Spend points** and **Skills**, opens **Export <name>**:
+
+- **Character** (always): the Soul Class, the unspent points, the seven stats and up to five skills (name, what it does, stat,
+  Stamina or Mana, rank).
+- **Inventory** (a checkbox, on): the things that character carries, as the Inventory tab lists them: names, counts and notes,
+  with the kind and rarity each has. A You carries what is in the party's bag; any character also carries what the party
+  actor of the same name holds, when a party module lists one. Nothing carried: the box is off.
+- **Money** (a checkbox, on; only on your own You card): the purse as its value in the money's smallest unit, so another game's
+  coins show the same value in their own words ("50" is 5 silver where silver is worth 10 and 50 crowns where there are no coins).
+
+**Save** writes `<name>.character.json` (the name in lower case, letters and digits). The file is plain JSON:
+
+```json
+{ "storySuiteCharacter": 1, "soul": 2, "points": 3,
+  "stats": { "str": 14, "vit": 12, "agi": 11, "dex": 10, "int": 8, "luk": 9, "cha": 10 },
+  "skills": [{ "name": "Iron Breath", "about": "Steadies the lungs.", "stat": "vit", "uses": "stamina", "rank": 2 }],
+  "items": [{ "name": "Oilskin Coat", "qty": 1, "note": "waxed", "kind": "equipment", "rarity": "uncommon" }],
+  "money": 50 }
+```
+
+`items` and `money` are there only when left on. A file is checked when it is read, with the RPG's own limits (Soul Class 1 to 9,
+points 0 to 60, stats 1 to 20, at most five skills with a rank from 0 to 3, names and text cut to the fields' lengths, at most 60
+things with a count of 1 to 999, money a whole number up to 1,000,000,000, the whole file under 64 KB). Keys it does not know are ignored. A
+file that does not pass is refused with one plain sentence ("This is not a saved character file.", "The file has no valid STR (1 to
+20).") and nothing is filled.
+
+**Import.** In **+ New character**, the Who step starts with **Start from a saved character … Import file…**. After a good file the
+step shows "Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills", with **Undo import**, and:
+
+- The **stats**, the **unspent points** (the pool the stats are spent from), the **Soul Class** and the **skills** are filled. The Stats
+  and Skills steps show them and keep the usual rules: a stat can go down to 8 to free a point and up to 15 (a saved stat outside that stays
+  where it was), a skill can be renamed or changed, a skill can be added or removed. A skill's **rank** comes from the file and cannot
+  be changed here; practice starts at 0.
+- The **name**, **You or A companion** and **who they are** are not touched. XP is 0 and Health, Mana and Stamina start full.
+- **Undo import** puts back what was there before the file (what was typed since stays). Closing the window without Create leaves nothing behind.
+- The Review adds "Also adds: 3 things carried by Ren · 5 silver to the purse. One swipe of this reply takes it all back." for what the
+  file had (the money in this chat's coins).
+
+**Create** makes the Character and Skills blocks as before (with the file's Soul Class, points, stats and ranks as their defaults) and
+then, as more changes of the same reply:
+
+- one `inventory.add` for each thing the file carried, to the new character's owner (a You: the party's bag; a companion: the party
+  actor of that name when a party module lists one, else the party's bag). A thing that is new to this chat is made with the kind and
+  rarity the file kept; one the chat already has is the chat's own and is not changed;
+- the purse raised by the file's money.
+
+All of it rides on the latest reply like the blocks do, so one swipe takes it all back, and a reload or rebuild gives the same story. The
+usual limits apply: the carry limit, the eight-block limit, the reply's block actions. Anything that cannot be added is named in the window,
+for example "Ren is in the party. Not added: Torch ×2 (The party cannot carry that much.); the money (…)." and the character is still made. If the
+character itself cannot be made, none of the file's things or money are added.
 
 ## A new chat
 
