@@ -393,3 +393,45 @@ test('the overlay: a feature switch redraws everything, the Versions fold includ
     assert.equal(root.querySelectorAll('details.story-suite-fold').at(-1).dataset.fold, VERSIONS_FOLD, 'last, where #105 put it');
     host.close();
 });
+
+// ---- The status strip's switch: there only while some screen asks for the strip ----
+
+const hudTile = doc => doc.querySelector('#story_suite_v2_overlay')?.querySelectorAll('.ss-feature').find(node => node.dataset.feature === CORE_FEATURE.hud) ?? null;
+const hudRow = doc => doc.querySelector('.story-suite-hud-toggle');
+
+test('Settings → Features: the status strip\'s switch is hidden while no screen declares a hud mount, and its stored choice is kept', async () => {
+    const { doc, host, ui } = await page({ modules: [plain()], settings: { features: { [CORE_FEATURE.hud]: false } } });
+    assert.equal(ui.screens.list('hud').length, 0);
+    assert.ok(host.features.list().some(feature => feature.id === CORE_FEATURE.hud), 'the store still knows the feature');
+    assert.equal(host.features.stored(CORE_FEATURE.hud), false, 'its stored choice is untouched');
+    doc.querySelector('.story-suite-bar-settings').click();
+    assert.ok(doc.querySelector('#story_suite_v2_overlay').querySelectorAll('.ss-feature').length > 0, 'the page lists other features');
+    assert.equal(hudTile(doc), null, 'no switch');
+    assert.equal(hudRow(doc).hidden, true, 'nor the one in the extensions drawer');
+    assert.equal(ui.hudOn(), false, 'and what was chosen still applies');
+    host.close();
+});
+
+test('Settings → Features: the switch is there while a module\'s screen declares a hud mount, and a pack that adds one brings it back', async () => {
+    const withHud = await page();
+    assert.ok(withHud.ui.screens.list('hud').length > 0);
+    withHud.doc.querySelector('.story-suite-bar-settings').click();
+    assert.ok(hudTile(withHud.doc), 'a module\'s hud screen');
+    assert.notEqual(hudRow(withHud.doc).hidden, true);
+    withHud.host.close();
+
+    const { doc, host, ui } = await page({ modules: [plain()] });
+    doc.querySelector('.story-suite-bar-settings').click();
+    assert.equal(hudTile(doc), null);
+    ui.screens.setPack('strip-pack', [{ id: 'strip-pack/hp', title: 'HP', mounts: ['hud'], template: '<b>hp</b>' }]);
+    ui.refresh();
+    ui.openSettings();
+    assert.ok(hudTile(doc), 'the pack\'s hud screen shows the switch');
+    assert.notEqual(hudRow(doc).hidden, true);
+    ui.screens.removePack('strip-pack');
+    ui.refresh();
+    ui.openSettings();
+    assert.equal(hudTile(doc), null, 'and takes it away again');
+    assert.equal(hudRow(doc).hidden, true);
+    host.close();
+});

@@ -223,17 +223,19 @@ test('mount(el, id, { index }) draws one card body for that carrier', () => {
 
 // ---- One card under a reply: every module's card is a section ("This reply") ----
 
+// Each module card tells its own part of the closed line (a `summary` function on its screen) and is headed by its own title; the host
+// words only the changes card (`deps.summary`). Nothing here knows a module's words.
 const THREE = () => [
-    screen('m/sheet', ['card'], { title: 'Sheet', data: { hp: { query: 'party.hp' } } }),
+    screen('m/sheet', ['card'], { title: 'Sheet', data: { hp: { query: 'party.hp' } }, summary: (state, { query }) => `HP ${query('party.hp')}` }),
     screen('story-block/changes-card', ['card'], { title: 'Changed this reply' }),
-    screen('story-director/status-card', ['card'], { title: 'Status' }),
-    screen('npc/meters', ['card'], { title: 'NPCs' }),
+    screen('m/status', ['card'], { title: 'Where things stand', summary: () => '1:30 pm, Bluewatch Village' }),
+    screen('a/meters', ['card'], { title: 'NPCs' }),
 ];
-const summaries = { 'story-block/changes-card': '+1 Oilskin Coat · Hooded courier left', 'story-director/status-card': '1:30 pm, Bluewatch Village', 'm/sheet': 'HP 30' };
+const hostSummary = scr => (scr.id === 'story-block/changes-card' ? '+1 Oilskin Coat · Hooded courier left' : null);
 const threeWorld = (cards = {}, extra = {}) => world({
     defs: THREE(),
-    cards: { 'story-block/changes-card': true, 'story-director/status-card': true, ...cards },
-    extra: { first: ['story-block/changes-card'], summary: scr => summaries[scr.id] ?? null, ...extra },
+    cards: { 'story-block/changes-card': true, 'm/status': true, ...cards },
+    extra: { first: ['story-block/changes-card'], summary: hostSummary, ...extra },
 });
 
 test('one card under a reply holds every module card: the closed line joins each summary with " · ", Changes first', () => {
@@ -248,15 +250,14 @@ test('one card under a reply holds every module card: the closed line joins each
     assert.equal(list[0].querySelector('[data-slot="summary"]').getAttribute('title'), line, 'the full text is the title');
 });
 
-test('the sections follow the card order with Changes first, each after the module card\'s own heading (Status reads "Where things stand")', () => {
+test('the sections follow the card order with Changes first, each after the module card\'s own title as its heading', () => {
     // The registry lists the screens by id, so the NPC card would lead without `first`.
-    const { chat, cards } = threeWorld({ 'npc/meters': true }, { summary: () => null });
+    const { chat, cards } = threeWorld({ 'a/meters': true });
     cards.attachAll();
     const card = cardsUnder(chat.messages[2])[0];
-    assert.deepEqual(sectionsOf(card), ['story-block/changes-card', 'npc/meters', 'story-director/status-card']);
+    assert.deepEqual(sectionsOf(card), ['story-block/changes-card', 'a/meters', 'm/status']);
     const headings = card.querySelectorAll('.ss-card-sec-title').map(node => node.textContent);
     assert.deepEqual(headings, ['Changed this reply', 'NPCs', 'Where things stand']);
-    assert.equal(card.querySelector('[data-slot="summary"]').textContent, 'No changes', 'no part has words: the default line');
 });
 
 test('opening the one card fills every section, and only then (lazy bodies)', () => {
@@ -265,10 +266,10 @@ test('opening the one card fills every section, and only then (lazy bodies)', ()
     assert.equal(render.calls.length, 0, 'closed: nothing drawn');
     const card = cardsUnder(chat.messages[2])[0];
     card.querySelector('.ss-card-head').click();
-    assert.deepEqual(render.calls.map(call => call.screen.id), ['story-block/changes-card', 'story-director/status-card']);
+    assert.deepEqual(render.calls.map(call => call.screen.id), ['story-block/changes-card', 'm/status']);
     assert.ok(render.calls.every(call => call.scope.state === chat.states[2] && call.scope.index === 2 && call.scope.mount === 'card'));
     const texts = card.querySelectorAll('.ss-card-sec-body').map(node => node.querySelector('.drawn').textContent);
-    assert.deepEqual(texts, ['story-block/changes-card rev 3', 'story-director/status-card rev 3']);
+    assert.deepEqual(texts, ['story-block/changes-card rev 3', 'm/status rev 3']);
     card.querySelector('.ss-card-head').click();
     card.querySelector('.ss-card-head').click();
     assert.equal(render.calls.length, 2, 'opening again draws nothing more');
@@ -277,16 +278,16 @@ test('opening the one card fills every section, and only then (lazy bodies)', ()
 test('a module that adds a card adds a section, not a second card; with one card on it is still "This reply"', () => {
     const { chat, screens, cards } = threeWorld();
     cards.attachAll();
-    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[2])[0]), ['story-block/changes-card', 'story-director/status-card']);
+    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[2])[0]), ['story-block/changes-card', 'm/status']);
     screens.setCards('m/sheet', true);
     cards.refreshAll();
     const list = cardsUnder(chat.messages[2]);
     assert.equal(list.length, 1);
-    assert.deepEqual(sectionsOf(list[0]), ['story-block/changes-card', 'm/sheet', 'story-director/status-card']);
+    assert.deepEqual(sectionsOf(list[0]), ['story-block/changes-card', 'm/sheet', 'm/status']);
     assert.equal(list[0].querySelector('[data-slot="summary"]').textContent, '+1 Oilskin Coat · Hooded courier left · HP 30 · 1:30 pm, Bluewatch Village');
 
     screens.setCards('m/sheet', false);
-    screens.setCards('story-director/status-card', false);
+    screens.setCards('m/status', false);
     cards.refreshAll();
     const only = cardsUnder(chat.messages[2]);
     assert.equal(only.length, 1);
@@ -298,25 +299,25 @@ test('a module that adds a card adds a section, not a second card; with one card
 test('each module card\'s own switch: an off card is not a section and not part of the line; all off means no card', () => {
     const { chat, screens, cards } = threeWorld();
     cards.attachAll();
-    screens.setCards('story-director/status-card', false);
+    screens.setCards('m/status', false);
     cards.refreshAll();
     const card = cardsUnder(chat.messages[2])[0];
     assert.deepEqual(sectionsOf(card), ['story-block/changes-card']);
     assert.equal(card.querySelector('[data-slot="summary"]').textContent, '+1 Oilskin Coat · Hooded courier left');
-    screens.setCards('story-director/status-card', true);
+    screens.setCards('m/status', true);
     screens.setCards('story-block/changes-card', false);
     cards.refreshAll();
     const status = cardsUnder(chat.messages[2])[0];
-    assert.deepEqual(sectionsOf(status), ['story-director/status-card']);
+    assert.deepEqual(sectionsOf(status), ['m/status']);
     assert.equal(status.querySelector('[data-slot="summary"]').textContent, '1:30 pm, Bluewatch Village');
-    screens.setCards('story-director/status-card', false);
+    screens.setCards('m/status', false);
     cards.refreshAll();
     assert.equal(chat.messages[2].querySelector('.ss-cards'), null);
 });
 
 test('the host\'s "Cards under replies" switch (deps.enabled) takes the whole card away and brings it back', () => {
     let on = true;
-    const { chat, cards } = threeWorld({}, { enabled: (mount, id) => on && id !== 'm/sheet' && id !== 'npc/meters' });
+    const { chat, cards } = threeWorld({}, { enabled: (mount, id) => on && id !== 'm/sheet' && id !== 'a/meters' });
     cards.attachAll();
     assert.equal(cardsUnder(chat.messages[2]).length, 1);
     on = false;
@@ -324,7 +325,7 @@ test('the host\'s "Cards under replies" switch (deps.enabled) takes the whole ca
     assert.equal(chat.messages[2].querySelector('.ss-cards'), null);
     on = true;
     cards.refreshAll({ force: true });
-    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[2])[0]), ['story-block/changes-card', 'story-director/status-card']);
+    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[2])[0]), ['story-block/changes-card', 'm/status']);
 });
 
 test('the card stays open across a swipe, and both sections are drawn on the state of the new swipe', () => {
@@ -336,4 +337,19 @@ test('the card stays open across a swipe, and both sections are drawn on the sta
     const card = cardsUnder(chat.messages[2])[0];
     assert.equal(card.querySelector('.ss-card-head').getAttribute('aria-expanded'), 'true');
     assert.deepEqual(render.calls.slice(-2).map(call => call.scope.state.meta.rev), [9, 9], 'both sections drawn on the new swipe');
+});
+
+test('a card\'s own summary is asked with that reply\'s state and queries; a card with none, or one that throws, adds nothing', () => {
+    const asked = [];
+    const defs = [
+        screen('m/own', ['card'], { title: 'Own', data: { hp: { query: 'party.hp' } }, summary: (state, ctx) => { asked.push([state.meta.rev, ctx.index, ctx.query('party.hp')]); return `rev ${state.meta.rev}`; } }),
+        screen('m/none', ['card'], { title: 'None' }),
+        screen('m/throws', ['card'], { title: 'Throws', summary: () => { throw new Error('no'); } }),
+    ];
+    const { chat, cards } = world({ defs, cards: { 'm/own': true, 'm/none': true, 'm/throws': true } });
+    cards.attachAll();
+    const card = cardsUnder(chat.messages[2])[0];
+    assert.equal(card.querySelector('[data-slot="summary"]').textContent, 'rev 3');
+    assert.deepEqual(asked.find(item => item[1] === 2), [3, 2, 30], 'that reply\'s own state, not the head\'s');
+    assert.deepEqual(sectionsOf(card), ['m/none', 'm/own', 'm/throws']);
 });

@@ -3,7 +3,7 @@
 // object or has no `for`, and the viewer's Later state is kept per key and never throws.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARD_ACTIONS_MAX, CARD_ROWS_MAX, STATUS_CARD_SCREEN_ID, laterStore, mergeSummaries, normalizeCard, orderSections, scanReplyCards, sectionHeading, statusSummary } from '../../src/v2/reply-cards.js';
+import { CARD_ACTIONS_MAX, CARD_ROWS_MAX, laterStore, mergeSummaries, normalizeCard, orderSections, scanReplyCards, sectionHeading, sectionSummary } from '../../src/v2/reply-cards.js';
 import { createRegistry, definitionProblems } from '../../src/v2/registry.js';
 
 test('normalizeCard: a card with a title; tones, icons and the lists cleaned; no title, no card', () => {
@@ -162,16 +162,19 @@ test('orderSections puts the named cards first and keeps the rest in the order t
     assert.deepEqual(orderSections(null), []);
 });
 
-test('sectionHeading: the card\'s own title, Story Director\'s status reads "Where things stand", a card with no title shows its id', () => {
+test('sectionHeading is the card\'s own title, or its id when it has none', () => {
     assert.equal(sectionHeading({ id: 'story-block/changes-card', screen: { title: 'Changed this reply' } }), 'Changed this reply');
-    assert.equal(sectionHeading({ id: STATUS_CARD_SCREEN_ID, screen: { title: 'Status' } }), 'Where things stand');
+    assert.equal(sectionHeading({ id: 'm/status', screen: { title: 'Where things stand' } }), 'Where things stand');
     assert.equal(sectionHeading({ id: 'npc/meters', screen: {} }), 'npc/meters');
 });
 
-test('statusSummary: the time of day on the story clock, then the place; either alone; neither is nothing', () => {
-    assert.equal(statusSummary({ minutes: 611 * 360 * 1440 + 13 * 60 + 30, place: 'Bluewatch Village' }), '1:30 pm, Bluewatch Village');
-    assert.equal(statusSummary({ minutes: 0, place: '' }), '12:00 am');
-    assert.equal(statusSummary({ minutes: null, place: ' Bluewatch  Village ' }), 'Bluewatch Village');
-    assert.equal(statusSummary({ minutes: -5, place: 7 }), '');
-    assert.equal(statusSummary(), '');
+test('sectionSummary: the card\'s own summary wins, else the host\'s, else nothing; one that throws is nothing', () => {
+    const own = { id: 'm/own', screen: { summary: (state, { query, changes, index }) => `${state.n} ${query('echo', 7)} ${changes.length} ${index}` } };
+    const query = (name, args, state) => `${name}:${args}:${state.n}`;
+    assert.equal(sectionSummary(own, { state: { n: 4 }, changes: ['/a'], index: 2, query, hostSummary: () => 'host' }), '4 echo:7:4 1 2');
+    const plain = { id: 'm/plain', screen: {} };
+    assert.equal(sectionSummary(plain, { hostSummary: screen => (screen === plain.screen ? 'host' : '') }), 'host');
+    assert.equal(sectionSummary(plain, {}), '');
+    assert.equal(sectionSummary({ id: 'x', screen: { summary: () => { throw new Error('no'); } } }, { hostSummary: () => 'host' }), '');
+    assert.equal(sectionSummary({ id: 'x', screen: { summary: () => null } }, {}), '');
 });

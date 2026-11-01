@@ -100,6 +100,8 @@ export function validateScreen(def, { id = null } = {}) {
     if (def.defaultOn !== undefined && typeof def.defaultOn !== 'boolean') errors.push(`${name}: defaultOn must be true or false.`);
     // A tab or screen that is shown only while it is active: active(state, ctx) → { on, badge? }, and the note Settings shows for it.
     if (def.active !== undefined && typeof def.active !== 'function') errors.push(`${name}: active must be a function (state, ctx) → { on, badge? }.`);
+    // A card screen's own part of the closed line under a reply: summary(state, { query, changes, index, before }) → text.
+    if (def.summary !== undefined && typeof def.summary !== 'function') errors.push(`${name}: summary must be a function (state, ctx) → text.`);
     if (def.activeNote !== undefined && typeof def.activeNote !== 'string') errors.push(`${name}: activeNote must be text.`);
     if (def.icon !== undefined && typeof def.icon !== 'string') errors.push(`${name}: the icon must be text.`);
     if (def.width !== undefined && def.width !== 'wide') errors.push(`${name}: width must be "wide" (a dialog's wider window) or left out.`);

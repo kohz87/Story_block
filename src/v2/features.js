@@ -210,3 +210,15 @@ export function createFeatureStore({ root, registry, save = () => {}, legacy = C
         list: () => registry.features().map(feature => ({ ...feature, on: registry.featureOn(feature.id) })),
     };
 }
+
+/**
+ * The feature store as the Settings window sees it: `list()` leaves out the features `hidden(feature)` says to hide. Nothing is
+ * changed: a hidden feature keeps its stored choice and its effect, and `on`, `set` and `stored` are the store's own.
+ */
+export function withHiddenFeatures(store, hidden) {
+    if (!store || typeof store.list !== 'function' || typeof hidden !== 'function') return store ?? null;
+    return Object.freeze({
+        ...store,
+        list: () => store.list().filter(feature => { try { return !hidden(feature); } catch { return false; } }),
+    });
+}

@@ -54,9 +54,9 @@ import { createReplyExtras } from './extras-ui.js';
 import { displayLines } from './extras.js';
 import { STRINGS, fill } from './strings.js';
 import { readRecord } from './persist.js';
-import { STATUS_CARD_SCREEN_ID, laterStore, replyEdits, replyRules, scanReplyCards, statusSummary } from './reply-cards.js';
+import { laterStore, replyEdits, replyRules, scanReplyCards } from './reply-cards.js';
 import { drawReplyCard } from './view/reply-cards-ui.js';
-import { CORE_FEATURE } from './features.js';
+import { CORE_FEATURE, withHiddenFeatures } from './features.js';
 import { createBlockTemplates } from './data-modules/block-templates.js';
 import { createBlockWidgets } from './screens/blocks.js';
 import { ROLES_WITHOUT_TAB } from './lean-rpg/names.js';
@@ -501,18 +501,13 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         query: queryAt,
         changesAt: index => store.changesAt(index),
         opsAt: index => store.opsAt(index),
-        // The card under a reply is one card; its closed line is each section's part, Changes first.
+        // The card under a reply is one card; its closed line is each card's own summary, Changes first (this hook is the changes card's).
         first: [CHANGES_CARD_SCREEN_ID],
         summary(screen, { index, state, before, changes }) {
-            if (screen?.id === STATUS_CARD_SCREEN_ID) {
-                let time = null;
-                try { time = queryAt('director.time', {}, state); } catch { time = null; }
-                return statusSummary({ minutes: time?.minutes ?? null, place: state?.domains?.scene?.place?.name ?? '' });
-            }
             if (screen?.id !== CHANGES_CARD_SCREEN_ID) return null;
             let currency = null;
             try { currency = sdk.query('inventory.currency'); } catch { currency = null; }
-            return changesSummary({ state, before, changes, currency, refused: notes.refusedAt(index).length, assisted: assistedAt(index).length, lines: cardLines(index, state, changes, before), edits: editsAt(index).length });
+            return changesSummary({ state, before, changes, currency, refused: notes.refusedAt(index).length, assisted: assistedAt(index).length, lines: cardLines(index, state, changes, before) });
         },
         settings: screenId => {
             const owner = String(screenId ?? '').split('/')[0];
@@ -695,7 +690,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     function openSettings(options = null) {
         const fold = typeof options?.fold === 'string' ? options.fold : null;
         overlay = openSettingsWindow({
-            registry, settings, doc, sdk, features: runtime.features ?? null, fold, diagnostics,
+            // The status strip's switch is there only while some screen asks for the strip (a pack's, a module's `hud` mount); its stored
+            // choice stays, and the strip works as before.
+            registry, settings, doc, sdk, features: withHiddenFeatures(runtime.features ?? null, feature => feature.id === CORE_FEATURE.hud && !hudAsked()), fold, diagnostics,
             promptParts, tabs: tabsControl, theme, blockTemplates, blocks: blockWidgets,
             chatOpen: () => Boolean(liveCtx()?.getCurrentChatId?.() ?? liveCtx()?.chatId),
             ...(rpg ? { extraSections: rpg.settingsSections() } : {}),
@@ -756,6 +753,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     // ---- the Extensions drawer and the wand menu -------------------------------------------
     const drawerStatus = el(doc, 'p', 'story-suite-muted');
     let hudCheck = null;
+    let hudRowNode = null;
+    // The strip's switch is shown only while some screen asks for the strip (a `hud` mount); the stored choice stays either way.
+    const hudAsked = () => screens.list('hud').length > 0;
     function drawer() {
         const host = doc.querySelector('#extensions_settings2') ?? doc.querySelector('#extensions_settings');
         if (!host || doc.querySelector(`#${IDS.drawer}`)) return;
@@ -774,6 +774,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         // The status strip's switch (on by default, MODULES §F54).
         const hudRow = el(doc, 'label', 'checkbox_label story-suite-hud-toggle');
         hudRow.title = S.drawer.hudTitle;
+        hudRowNode = hudRow;
+        hudRow.hidden = !hudAsked();
         hudCheck = el(doc, 'input');
         hudCheck.type = 'checkbox';
         hudCheck.setAttribute('type', 'checkbox');
@@ -826,6 +828,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         if (hudOn(ctx.extensionSettings)) mounts.hud.show();
         else mounts.hud.hide();
         if (hudCheck) hudCheck.checked = hudOn(ctx.extensionSettings);
+        if (hudRowNode) hudRowNode.hidden = !hudAsked();
         mounts.screen.update();
         notes.refreshAll();
         extras.refreshAll();

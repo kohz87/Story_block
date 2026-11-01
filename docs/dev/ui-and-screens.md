@@ -386,13 +386,15 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
 - **The notes under a reply** (`reply-notes.js`, `host.css`). One glass row: the note's icon in a 28px tile, the line in the muted
   colour, Re-read as a pill, the error line in the accent. A note is not folded and was not folded before; it stays one row.
 - **The card under a reply: "This reply"** (`view/mounts/card.js`, `reply-cards.js`, `screens/changes-card.js`, `mounts.css` `.ss-card`).
-  There is one card under a reply, not one per module: every card screen the reader has on (Changes, Story Director's status, any other)
-  is a section of it. Closed, the header is "This reply" and one line, each section's own summary joined with " · " (Changes first, then
-  the registry's order; `deps.first`); the full line is the summary's `title`. Open, each section is its body under a small heading
-  (the screen's own title; `STRINGS.thisReply.headings` overrides it by screen id: Story Director's status reads "Where things stand").
-  The bodies are drawn the first time the card is opened, all together. A screen's switch (`cards[id]`) takes its section away; with one
-  on the card is still "This reply"; "Cards under replies" off takes the card away. Status's part of the line is the time of day and the
-  place (`statusSummary`). The card is a glass card (the frame is a
+  There is one card under a reply, not one per module: every card screen the reader has on is a section of it. Closed, the header is
+  "This reply" and one line, each section's part joined with " · " (Changes first, then the registry's order; `deps.first`); the full
+  line is the summary's `title`. A card screen tells its own part with an optional `summary(state, { query, changes, index, before })`
+  function on its screen (like `active`; `query(name, args)` reads at that reply's state; `validateScreen` checks it is a function);
+  a card with none adds nothing (Story Block's changes card is worded by the host's `summary` hook). Open, each section is its body
+  under a small heading: the screen's own `title`. Story Block holds no other module's words or ids for this. The reader's own edits
+  are in the opened Changes section, not in the line. The bodies are drawn the first time the card is opened, all together. A screen's
+  switch (`cards[id]`) takes its section away; with one on the card is still "This reply"; "Cards under replies" off takes the card away.
+  The card is a glass card (the frame is a
   theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted, one line that ends in an ellipsis), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
   folded by default, as before (the card mount's fold, unchanged).
   SillyTavern's swipe row (the arrows and the 1/1 counter) is drawn at the bottom right of the last message only; the last message's

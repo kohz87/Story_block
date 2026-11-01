@@ -297,12 +297,6 @@ export const STRINGS = deepFreeze({
     // The one card under a reply (view/mounts/card.js): every module's card is a section of it.
     thisReply: {
         title: 'This reply',
-        // Heading overrides by card screen id (a module's own card title is the heading unless it is listed here).
-        headings: {
-            'story-director/status-card': 'Where things stand',
-        },
-        // Status's part of the closed line: "1:30 pm, Bluewatch Village".
-        statusJoin: ', ',
     },
     replyCards: {
         later: 'Later',
@@ -327,8 +321,6 @@ export const STRINGS = deepFreeze({
         many: '{first} and {n} more',
         lootOne: '1 thing to pick up',
         lootMany: '{n} things to pick up',
-        editsOne: '1 edit of yours',
-        editsMany: '{n} edits of yours',
         assistedOne: '1 line from the safety net (assist)',
         assistedMany: '{n} lines from the safety net (assist)',
         refusedOne: '1 line not applied',

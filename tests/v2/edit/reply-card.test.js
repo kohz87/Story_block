@@ -26,5 +26,6 @@ test('the changed card shows full edit lines and a hint only on the latest reply
     assert.deepEqual(latest.el.querySelectorAll('.edit').map(text), edits.map(edit => edit.text));
     assert.match(text(latest.el.querySelector('.edit-hint')), /swipe or delete/);
     assert.equal(draw(false).el.querySelector('.edit-hint'), null);
-    assert.match(changesSummary({ edits: edits.length }), /2 edits of yours/);
+    // The closed line leaves the edits out (they are in the opened section): an edit is not a change to tell.
+    assert.doesNotMatch(changesSummary({ edits: edits.length }), /edit/);
 });

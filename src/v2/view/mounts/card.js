@@ -4,11 +4,11 @@
 // `changed(path)` can show "only what changed".
 //
 // * Under a reply there is ONE card, "This reply", that holds every card screen the reader has on (Story Block's
-//   "Changed this reply", Story Director's status, any other module's). Cards are off until the reader turns them on,
+//   "Changed this reply", any other module's). Cards are off until the reader turns them on,
 //   per screen (`screens.setCards`); an off screen is simply not a section, and with one on the card is still "This reply".
 //   The card starts collapsed: a header with the title and one line, each section's summary joined with " · " (the screens
 //   in `deps.first` lead, the rest keep their order; the full line is the summary's title). Open, each section is its body
-//   under a small heading (the screen's own title, or the host's override: reply-cards.js `sectionHeading`). The bodies are
+//   under a small heading (the screen's own title). The bodies are
 //   drawn the first time the card is opened, all together.
 // * Only messages on screen are drawn when IntersectionObserver exists; without it every carrier is.
 // * Long chats (docs/v2/PERFORMANCE.md): SillyTavern keeps every message drawn in a session on the page, so
@@ -26,7 +26,9 @@
 //   hasCard         (index) → whether that carrier gets cards (default: every carrier does)
 //   messageElement  (index) → SillyTavern's `.mes[mesid=index]` element (default: a document query)
 //   swipeAt         (index) → the message's swipe_id (default 0)
-//   summary         (screen, { index, state, changes, before }) → that section's part of the header's line (optional; none is left out)
+//   summary         (screen, { index, state, changes, before }) → the host's part of the header's line for a card that has no summary of its own
+//                   (optional; Story Block's changes card). A card screen's own `summary(state, { query, changes, index, before })`
+//                   function wins; a card with neither adds nothing to the line.
 //   first           ids of the card screens that lead the sections, in order (optional; Story Block's changes card)
 //   opsAt           (index) → the carrier's own ops (optional; cards get them as `replyOps`)
 //   IntersectionObserver  the class to use (default globalThis.IntersectionObserver; null turns it off)
@@ -40,7 +42,7 @@
 //     cacheSize(), destroy() }
 
 import { STRINGS } from '../../strings.js';
-import { THIS_REPLY_ID, mergeSummaries, orderSections, sectionHeading } from '../../reply-cards.js';
+import { THIS_REPLY_ID, mergeSummaries, orderSections, sectionHeading, sectionSummary } from '../../reply-cards.js';
 import { button, dispose, documentOf, drawScreen, icon, make, screensFor } from './common.js';
 
 const THIS_REPLY_ICON = 'fa-list-check';
@@ -159,15 +161,13 @@ export function createCardMount(deps) {
     function buildCard(entries, index) {
         const state = deps.stateAt(index);
         const changes = changesAt(index) ?? [];
-        // The state before the reply is read only for a host that words the summaries.
-        const before = typeof deps.summary === 'function' ? beforeOf(index) : null;
+        // The state before the reply is read only for a host or a card that words a summary.
+        const before = typeof deps.summary === 'function' || entries.some(entry => typeof entry.screen?.summary === 'function') ? beforeOf(index) : null;
         const node = make(doc, 'div', 'ss-card');
         node.setAttribute('data-ss-card', THIS_REPLY_ID);
         const head = button(doc, 'ss-card-head');
         head.setAttribute('aria-expanded', 'false');
-        const parts = entries.map(entry => {
-            try { return deps.summary?.(entry.screen, { index, state, changes, before }) ?? ''; } catch { return ''; }
-        });
+        const parts = entries.map(entry => sectionSummary(entry, { index, state, changes, before, query: deps.query, hostSummary: deps.summary }));
         const line = mergeSummaries(parts) || changeSummary(changes);
         const summary = make(doc, 'span', 'ss-card-summary', line);
         summary.setAttribute('data-slot', 'summary');

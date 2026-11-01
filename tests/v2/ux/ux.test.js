@@ -368,15 +368,19 @@ test('the changes card\'s folded header counts the lines the safety net applied,
 });
 
 // ---------------------------------------------------------------------------------------------------
-// One card under a reply: Story Director's status card is a section of "This reply" (closed line "1:30 pm, Bluewatch Village")
+// One card under a reply: another module's card is a section of "This reply", headed by its own title, with its own part of the line
 
 const STATUS_MODULE = {
     id: 'status-test', name: 'Status test', version: '0.0.1',
-    queries: { 'director.time': () => ({ minutes: 5 * 1440 + 13 * 60 + 30, text: 'Day 6, 01:30 pm' }) },
-    screens: [{ id: 'story-director/status-card', title: 'Status', icon: 'fa-compass', mounts: ['card'], defaultOn: true, template: '<p class="stat">{{ state.scene.place.name }}</p>' }],
+    queries: { 'clock.text': () => '1:30 pm' },
+    screens: [{
+        id: 'status-test/card', title: 'Where things stand', icon: 'fa-compass', mounts: ['card'], defaultOn: true,
+        template: '<p class="stat">{{ state.scene.place.name }}</p>',
+        summary: (state, { query }) => `${query('clock.text')}, ${state.domains.scene.place.name}`,
+    }],
 };
 
-test('"This reply" holds the changes and the status as sections: one line closed, a heading each open', async () => {
+test('"This reply" holds the changes and another module\'s card as sections: one line closed, its own title as the heading open', async () => {
     const { doc, host, ui, draw } = await page({ modules: [STATUS_MODULE] });
     await host.send('hi', 'You reach the village.\n<Changes>\n+ item Rope | qty: 1\n~ place Bluewatch Village\n</Changes>');
     draw();
@@ -388,14 +392,15 @@ test('"This reply" holds the changes and the status as sections: one line closed
     assert.equal(card.querySelector('.ss-card-title').textContent, 'This reply');
     const line = card.querySelector('.ss-card-summary').textContent;
     assert.match(line, /^\+1 Rope · .*Bluewatch Village.* · 1:30 pm, Bluewatch Village$/, line);
+    assert.doesNotMatch(line, /edit/, 'no edits part in the closed line');
     assert.equal(card.querySelector('.ss-card-summary').getAttribute('title'), line);
     ui.mounts.card.toggle(2, true);
-    assert.deepEqual(card.querySelectorAll('.ss-card-sec').map(node => node.getAttribute('data-ss-section')), ['story-block/changes-card', 'story-director/status-card']);
+    assert.deepEqual(card.querySelectorAll('.ss-card-sec').map(node => node.getAttribute('data-ss-section')), ['story-block/changes-card', 'status-test/card']);
     assert.deepEqual(card.querySelectorAll('.ss-card-sec-title').map(node => node.textContent), ['Changed this reply', 'Where things stand']);
-    assert.equal(card.querySelector('.stat').textContent, 'Bluewatch Village', 'the status body keeps its own layout');
+    assert.equal(card.querySelector('.stat').textContent, 'Bluewatch Village', 'the card keeps its own layout');
 });
 
-test('"This reply": the status card\'s own switch takes its section and its words away; "Cards under replies" off takes the card away', async () => {
+test('"This reply": a card\'s own switch takes its section and its words away; "Cards under replies" off takes the card away', async () => {
     const { doc, host, ui, draw } = await page({ modules: [STATUS_MODULE] });
     await host.send('hi', 'You reach the village.\n<Changes>\n~ place Bluewatch Village\n</Changes>');
     draw();
@@ -403,12 +408,12 @@ test('"This reply": the status card\'s own switch takes its section and its word
         ui.mounts.card.refresh(2, { force: true });
         return doc.querySelector(`.mes[mesid="2"] [data-ss-card="${THIS_REPLY_ID}"]`);
     };
-    ui.screens.setCards('story-director/status-card', false);
+    ui.screens.setCards('status-test/card', false);
     const only = cardAt();
     assert.ok(only, 'still "This reply" with one card on');
     assert.equal(only.querySelectorAll('.ss-card-sec').length, 1);
     assert.doesNotMatch(only.querySelector('.ss-card-summary').textContent, /1:30 pm/);
-    ui.screens.setCards('story-director/status-card', true);
+    ui.screens.setCards('status-test/card', true);
     assert.match(cardAt().querySelector('.ss-card-summary').textContent, /1:30 pm/);
     host.features.set(CORE_FEATURE.cards, false);
     assert.equal(cardAt(), null, 'Cards under replies off hides it all');

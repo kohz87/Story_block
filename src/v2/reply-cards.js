@@ -18,7 +18,6 @@
 
 import { oneLine } from '../text.js';
 import { STRINGS, fill } from './strings.js';
-import { clockText } from './view/clock.js';
 
 export const CARD_TONES = Object.freeze(['accent', 'bad', 'good', 'info']);
 export const CARD_ROWS_MAX = 4;
@@ -174,13 +173,11 @@ export function replyRules(record, problems = [], index = null) {
 }
 
 // ---- The one card under a reply ("This reply") ----------------------------------------------------------------------------
-// Every module's card screen (mount `card`: "Changed this reply", Story Director's status, NPC State Delta's meters…) is a
+// Every module's card screen (mount `card`: "Changed this reply" and every other module's) is a
 // section of one card. Closed, the card is one line: each section's own summary, joined with " · ". Pure; no DOM.
 
 /** The key the one card carries (`data-ss-card`, and its open state per reply). */
 export const THIS_REPLY_ID = 'this-reply';
-/** Story Director's status card: its part of the line is the time of day and the place (the host asks the queries, `statusSummary` words them). */
-export const STATUS_CARD_SCREEN_ID = 'story-director/status-card';
 /** Between one section's summary and the next on the closed line. */
 export const SUMMARY_JOIN = ' · ';
 
@@ -191,22 +188,29 @@ export function orderSections(entries, first = []) {
     return [...lead, ...list.filter(entry => !lead.includes(entry))];
 }
 
-/** A section's small heading: the host's override for that card, else the card's own title, else its id. */
+/** A section's small heading: the card's own title (its id when it has none). */
 export function sectionHeading(entry) {
-    const id = String(entry?.id ?? '');
-    const own = STRINGS.thisReply.headings[id];
-    if (typeof own === 'string' && own) return own;
-    return oneLine(entry?.screen?.title ?? '', 60) || id;
+    return oneLine(entry?.screen?.title ?? '', 60) || String(entry?.id ?? '');
+}
+
+/**
+ * A section's part of the closed line. The card's own `summary(state, { query, changes, index, before })` (an optional function on its
+ * screen, like `active`; `query(name, args)` reads at that reply's state) tells it; a card with none leaves to the host's `hostSummary`
+ * (Story Block's own changes card) and, failing that, adds nothing. Never throws.
+ */
+export function sectionSummary(entry, { index = null, state = null, changes = [], before = null, query = null, hostSummary = null } = {}) {
+    const own = entry?.screen?.summary;
+    try {
+        if (typeof own === 'function') {
+            return String(own(state, { query: (name, args) => (typeof query === 'function' ? query(name, args, state) : null), changes, index, before }) ?? '');
+        }
+        return String(hostSummary?.(entry.screen, { index, state, changes, before }) ?? '');
+    } catch {
+        return '';
+    }
 }
 
 /** The closed line: the sections' summaries (empty ones left out) joined with " · ". */
 export function mergeSummaries(parts) {
     return (Array.isArray(parts) ? parts : []).map(part => String(part ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(SUMMARY_JOIN);
-}
-
-/** Status's part of the line: "1:30 pm, Bluewatch Village" (the time of day on the story clock, then the place), '' with neither. */
-export function statusSummary({ minutes = null, place = '' } = {}) {
-    const clock = Number.isSafeInteger(minutes) && minutes >= 0 ? clockText(minutes % 1440) : '';
-    const where = typeof place === 'string' ? place.replace(/\s+/g, ' ').trim() : '';
-    return [clock, where].filter(Boolean).join(STRINGS.thisReply.statusJoin);
 }
