@@ -12,7 +12,7 @@ Rules packs for RPG Battle cannot be imported. Keep existing RPG Battle chats on
 
 ## The cast
 
-`content.cast` lists the people of a world, written by hand. Each is a prepared person who starts somewhere with a goal and a routine and lives off-screen; Story Director brings them into the story by place and routine, or because their goal pulls them to the party, and NPC State Delta makes their dossier from the entry at the first meeting. Until then the reader sees nothing of them. Nameless extras stay the story's to invent. The Ersveil example has two entries, Fenna and Sera.
+`content.cast` lists the people of a world, written by hand. Each is a prepared person who starts somewhere with a goal and a routine and lives off-screen; Story Director brings them into the story by place and routine, or because their goal pulls them to the party, and NPC State Delta makes their dossier from the entry at the first meeting. Until then the reader sees nothing of them. Nameless extras stay the story's to invent. The Ersveil example has twelve (docs/v2/ERSVEIL.md, "The twelve"); the JSON below is a made-up one.
 
 ```json
 { "id": "fenna", "name": "Fenna", "aliases": ["the ferrywoman"],
