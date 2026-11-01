@@ -10,11 +10,12 @@
 //   An id it names that is not there (a module removed) is passed over, and kept for when it comes back.
 // * Home is always first and always shown: it cannot be moved or hidden.
 // * Hidden ids leave the tab strip and the game view's navigation; Settings still lists them to show again.
-// * Hidden by default (screens.js DEFAULT_HIDDEN): Scene while Story Director's World is registered. The
+// * Hidden by default (screens.js DEFAULT_HIDDEN): Scene while the screen that shows the same and more is registered. The
 //   reader's choice wins: `shown` lists the ones the reader showed again, `hidden` the ones they hid. An
 //   order saved before `shown` existed that names Scene counts as showing it (the reader had it in view).
-// * The bar: the game view's navigation and the Story panel's tab strip hold the screens in DEFAULT_BAR (Home, Inventory,
-//   Quests, World, Map, and Party and Fight, which come with the RPG); every other screen is under More. The reader's choice wins: `inBar`
+// * The bar: the game view's navigation and the Story panel's tab strip hold the screens that say `bar: true` on their own
+//   registration (Home, Inventory, and whatever other modules declare), and Party and Fight, which come with the RPG; every other
+//   screen is under More. The reader's choice wins: `inBar`
 //   lists the ones they put in the bar, `underMore` the ones they put under More. Home is always in the bar. Where the bar has
 //   no room (a phone's five slots) the ones past the room go under More as well.
 //
@@ -62,26 +63,27 @@ export const isDefaultChoice = choice => {
 
 /**
  * Is `id` in the bar (the game view's navigation, the Story panel's tab strip), as against under More? Home always is; the
- * reader's choice wins; else the screens in DEFAULT_BAR are and every other is not.
+ * reader's choice wins; else the screens that declare `bar: true` are (`declared`: the caller reads it from the registration, see
+ * screens.js inDefaultBar), and every other is not.
  */
-export function isInBar(choice, id) {
+export function isInBar(choice, id, declared = false) {
     const key = String(id);
     if (key === HOME_ID) return true;
     const clean = readTabChoice(choice);
     if (clean.inBar?.includes(key)) return true;
     if (clean.underMore?.includes(key)) return false;
-    return inDefaultBar(key);
+    return inDefaultBar(key, declared);
 }
 
 /**
  * The choice with `id` placed in the bar (`inBar` true) or under More. Home stays in the bar (the choice comes back unchanged). A place
- * that is the default for that id is not kept (the choice forgets it), so the default can change later.
+ * that is the default for that id (`declared`: its own `bar: true`) is not kept (the choice forgets it), so the default can change later.
  */
-export function setNavInBar(choice, id, inBar) {
+export function setNavInBar(choice, id, inBar, declared = false) {
     const clean = readTabChoice(choice);
     if (typeof id !== 'string' || !id || id === HOME_ID) return clean;
     const rest = { inBar: (clean.inBar ?? []).filter(item => item !== id), underMore: (clean.underMore ?? []).filter(item => item !== id) };
-    if (inDefaultBar(id) !== Boolean(inBar)) rest[inBar ? 'inBar' : 'underMore'].push(id);
+    if (inDefaultBar(id, declared) !== Boolean(inBar)) rest[inBar ? 'inBar' : 'underMore'].push(id);
     return readTabChoice({ ...clean, ...rest });
 }
 

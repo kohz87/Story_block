@@ -46,6 +46,7 @@ import { TEMPLATES, applyScreenCss, createScreenRenderer } from './view/render-s
 import { formatStoryTime, storyCalendar } from './view/clock.js';
 import { gameHeroProps, readHeroContext } from './view/game-header.js';
 import { HOME_ID, createScreens } from './view/screens.js';
+import { slotsForWidth } from './view/screen-bar.js';
 import { createTabOrderStore, isDefaultChoice, isHiddenNav, isInBar, moveNav, navKey, orderNav, setNavHidden, setNavInBar, visibleNav } from './view/tab-order.js';
 import { CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, changesSummary, replyCardLines } from './screens/index.js';
 import { mergeRpgLines } from './screens/changes-card.js';
@@ -245,6 +246,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     const extraTabs = [];
     // Whether a screen is there now (a screen hidden by default while another is: Scene while World is).
     const navPresent = id => Boolean(screens.resolve(id));
+    // Whether a screen or a module's tab says `bar: true` on its own registration (in the bar until the reader moves it).
+    const barDeclared = id => screens.declaredBar(id) || registry.tabs().some(tab => navKey(tab) === id && tab.bar === true);
 
     // ---- screens from the modules and the packs ----------------------------------------------
     // The screen ids each pack gave at the last sync, by pack: a pack that is disabled, removed or no longer has a screen takes
@@ -537,7 +540,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         // The game view's navigation leaves out the screens the reader hid (they still open by name).
         inNav: screenId => !isHiddenNav(tabOrder.choice(), screenId, navPresent),
         // Which screens sit in the bar, as against under More (the reader's choice, else the default bar).
-        inBar: screenId => isInBar(tabOrder.choice(), screenId),
+        inBar: screenId => isInBar(tabOrder.choice(), screenId, barDeclared(screenId)),
         addTab(tab) {
             extraTabs.push(tab);
             return () => {
@@ -591,7 +594,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             title: named(row.title),
             fixed: row.id === HOME_ID,
             hidden: isHiddenNav(choice, row.id, navPresent),
-            inBar: isInBar(choice, row.id),
+            inBar: isInBar(choice, row.id, barDeclared(row.id)),
         }));
     }
     // After a change: the tab strip and the game view's navigation follow at once.
@@ -611,7 +614,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             refreshNav();
         },
         setInBar(id, inBar) {
-            tabOrder.set(setNavInBar(tabOrder.choice(), id, inBar));
+            tabOrder.set(setNavInBar(tabOrder.choice(), id, inBar, barDeclared(id)));
             refreshNav();
         },
         reset() {
@@ -636,10 +639,13 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     panel.append(panelHead, panelBody);
     doc.body.appendChild(panel);
 
+    // The strip's slots before More: four on a phone's bottom sheet; on the side sheet (from 760px, the game view's line) as many as its width holds.
+    const panelSlots = () => slotsForWidth(Number(panel.clientWidth), { wide: doc.defaultView?.matchMedia?.('(min-width: 760px)')?.matches === true });
     function openPanel() {
         panel.hidden = false;
         doc.body.classList.add('story-suite-sheet-open');
-        if (!tabHost) tabHost = createTabHost(panelBody, { registry: tabSource, view: () => sdk.view(), api: sdk, doc, barHost: panel, inBar: tab => isInBar(tabOrder.choice(), navKey(tab)) });
+        if (!tabHost) tabHost = createTabHost(panelBody, { registry: tabSource, view: () => sdk.view(), api: sdk, doc, barHost: panel, slots: panelSlots,
+            inBar: tab => isInBar(tabOrder.choice(), navKey(tab), barDeclared(navKey(tab))) });
         else tabHost.refresh();
     }
     function closePanel() {

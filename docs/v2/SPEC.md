@@ -775,7 +775,9 @@ sdk.registerModule({
     `sdk.modules()` lists each module's feature ids; `sdk.on('feature', ({ id, on, prompt }) => …)` fires
     on each change.
   * The choice is the reader's, not the chat's: `extension_settings.storySuite.features[<id>] = true |
-    false`, kept for a module that is not installed now. A feature without a choice takes its `default`.
+    false`, kept for a module that is not installed now. A feature without a choice takes its `default`. A switch (or a preset) that sets a
+    feature to its own `default` clears the stored choice instead of writing it, so a later change of the default still reaches the reader
+    (except where an older Story Block setting still speaks for that feature).
     Packs do not suggest feature defaults.
   * The settings overlay shows a "Features" subsection at the top of each module's fold (a switch, the
     label, the description) and one "Features" overview of every module's; a feature that changes the
@@ -1196,8 +1198,8 @@ SillyTavern only) and Font; the building blocks (`.ss-glass`, `.ss-label`, `.ss-
 
 The `tab` and `screen` mounts share one navigation order: Home first, then the suite's own screens in their
 default order (Party, Inventory, Quests, World, Map, Fight, Crafting, Trade, Scene, Chronicle, Director, and
-NPC State Delta's Dossiers, id `npc-state-delta/cast`, last; MODULES §F119), other screens by their `order` (a number, lower first). Scene starts hidden while Story Director's World is registered (World → Now shows
-the same; MODULES §F119). The reader's own order and hidden tabs (Settings → Tabs & Packs → Tabs,
+NPC State Delta's Dossiers, id `npc-state-delta/cast`, last; MODULES §F119), other screens by their `order` (a number, lower first). Scene starts hidden while the screen that shows the same and more is registered (MODULES §F119).
+A screen or a tab may say `bar: true` (true or false; an older host ignores it): in the bar by default, until the reader moves it under More. The reader's own order and hidden tabs (Settings → Tabs & Packs → Tabs,
 `extension_settings.storySuite.tabs = { order, hidden, shown }`; `shown`: default-hidden ones shown again) apply to both; a
 module tab goes by `<module>/<tab id>` there. Form controls inside any mount take SillyTavern's theme colours
 (`controls.css`); a screen's own CSS for its fields still wins.

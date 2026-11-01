@@ -30,7 +30,7 @@ import { FIELD_TYPES, normalizeField } from './registry.js';
 import { SETTING_LIST_ROWS } from './sdk.js';
 import { PROMPT_HINT, featureOf } from './features.js';
 import { compatReport, renderCompat } from './compat.js';
-import { createScreenBar, pinAlerts } from './view/screen-bar.js';
+import { PINNED, createScreenBar, pinAlerts } from './view/screen-bar.js';
 import { iconFor } from './view/icons/index.js';
 import { DEFAULT_TAIL_BUDGET, contextNotice, estimateTokens } from './prompt.js';
 import { STRINGS, fill } from './strings.js';
@@ -132,7 +132,7 @@ export const SETTINGS_TEXT = Object.freeze({
 export const TABS_TEXT = Object.freeze({
     title: 'Tabs',
     hint: 'order, show or hide',
-    help: 'The order of the Story panel\'s tabs and the game view\'s screens, one list for both. Up and Down move one; a hidden one stays here to show again. Each one sits in the bar or under More (the main screens start in the bar). Home is always first, shown and in the bar. Scene starts hidden while Story Director\'s World is installed (its Now shows the same).',
+    help: 'The order of the Story panel\'s tabs and the game view\'s screens, one list for both. Up and Down move one; a hidden one stays here to show again. Each one sits in the bar or under More (the main screens start in the bar). Home is always first, shown and in the bar. Scene starts hidden while another screen that shows the same is installed.',
     none: 'No module has a tab or a screen yet.',
     listLabel: 'Tabs and screens, in order',
     up: 'Up',
@@ -1054,10 +1054,13 @@ export function diagnosticsKeys(registry) {
  * tabs and More, as the game view's bar (More holds the rest). The tabs are `registry.tabs()`, in its order (Story Block's
  * panel gives the module tabs and the tab screens in the reader's order, without the hidden ones). A tab that is gone falls
  * back to the first. The pane scrolls inside `root`; the bar stays where it is.
- * `options`: { registry, view: () => view, api (the sdk), doc?, active?, barHost?, inBar? (tab → in the bar, not under More) }. Tabs read the head state's view only,
+ * `options`: { registry, view: () => view, api (the sdk), doc?, active?, barHost?, inBar? (tab → in the bar, not under More), slots? (→ how many
+ * slots the strip has before More, four by default; the panel gives more on a wide window) }. A screen the reader put in the bar takes a slot
+ * in the reader's order; when more are in the bar than there are slots, the ones past the last slot are under More as well (the game view's
+ * phone bar does the same). Tabs read the head state's view only,
  * never message text. Returns { refresh(), select(id), active(), bar }.
  */
-export function createTabHost(root, { registry, view, api = null, doc = globalThis.document, active = null, barHost = null, inBar = null }) {
+export function createTabHost(root, { registry, view, api = null, doc = globalThis.document, active = null, barHost = null, inBar = null, slots = null }) {
     let current = active;
     let release = null;       // what the last drawing of the pane left behind (a dispose function or { destroy }), taken down on the next draw
     const pane = el(doc, 'div', 'story-suite-pane');
@@ -1074,12 +1077,24 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         },
     });
 
+    // The strip: the tabs that are in the bar take the slots in the reader's order, the rest are under More.
+    function drawBar(tabs) {
+        let room = PINNED;
+        try { room = typeof slots === 'function' ? Number(slots()) || PINNED : PINNED; } catch { room = PINNED; }
+        room = Math.max(1, Math.floor(room));
+        // An active tab's alert (a red dot) takes the last pinned slot while it has something to show (screen-bar.js pinAlerts).
+        bar.update({ items: pinAlerts(tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon), alert: tab.alert === true,
+            alertText: tab.alertText ?? '', moreOnly: typeof inBar === 'function' && !inBar(tab) })), room), current: current ?? '', pinned: room });
+    }
+    // The panel's width changes with the window: the strip is laid out again (the open tab is left as it is).
+    const win = doc.defaultView ?? null;
+    const onResize = () => { if (typeof slots === 'function') drawBar(registry.tabs()); };
+    win?.addEventListener?.('resize', onResize);
+
     function draw() {
         const tabs = registry.tabs();
         if (!tabs.some(tab => tab.id === current)) current = tabs[0]?.id ?? null;
-        // An active tab's alert (a red dot) takes the last pinned slot while it has something to show (screen-bar.js pinAlerts).
-        bar.update({ items: pinAlerts(tabs.map(tab => ({ id: tab.id, label: tab.title, icon: iconFor(tab.id, tab.icon), alert: tab.alert === true,
-            alertText: tab.alertText ?? '', moreOnly: typeof inBar === 'function' && !inBar(tab) }))), current: current ?? '' });
+        drawBar(tabs);
         // The pane's widgets go before the pane is drawn again (a redraw of the same tab too): their listeners and observers.
         dispose(pane);
         if (typeof release === 'function') { try { release(); } catch { /* a tab's cleanup failing must not block the redraw */ } }
@@ -1111,6 +1126,7 @@ export function createTabHost(root, { registry, view, api = null, doc = globalTh
         bar,
         /** Takes the open tab's widgets down (its pane disposed, and what its render returned). */
         destroy() {
+            win?.removeEventListener?.('resize', onResize);
             dispose(pane);
             if (typeof release === 'function') { try { release(); } catch { /* a tab's cleanup failing must not block teardown */ } }
             release = null;

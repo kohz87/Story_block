@@ -315,6 +315,7 @@ export function definitionProblems(def) {
             if (typeof tab.id !== 'string' || !TAB_ID.test(tab.id)) problems.push(`tab ${index + 1} has no usable id`);
             if (typeof tab.title !== 'string' || !tab.title.trim()) problems.push(`tab "${tab.id ?? index + 1}" has no title`);
             if (tab.icon !== undefined && typeof tab.icon !== 'string') problems.push(`tab "${tab.id}" icon is not text`);
+            if (tab.bar !== undefined && typeof tab.bar !== 'boolean') problems.push(`tab "${tab.id}" bar is not true or false`);
             fn(tab.render, `tab "${tab.id ?? index + 1}" render`);
         });
     }

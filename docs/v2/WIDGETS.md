@@ -583,6 +583,13 @@ card shows before the first reply. The card is one object:
 Drawing: under the message, after the changes card, in the same strip. `normalizeCard` and `scanReplyCards` are in
 `src/v2/reply-cards.js`; the view is `src/v2/view/reply-cards-ui.js` (`drawReplyCard`).
 
+### In the bar by default
+
+A screen (in its `screens` entry) or a tab (in `tabs`) may declare `bar: true` (a boolean; anything else is refused like the other screen
+keys, and a host that does not know the key ignores it): it is in the bar of the game view and the Story panel until the reader moves it
+under More (Settings → Tabs & Packs → Tabs). Story Block's own Home and Inventory carry it; a Party or a Fight is in the bar by the last
+part of its id, as before; every other screen is under More unless it says so. Story Block names no other module's ids for this.
+
 ### Tabs shown while active
 
 A screen (in its `screens` entry) or a tab (in `tabs`) may declare `active(state, ctx) → { on, badge? }`:

@@ -28,7 +28,7 @@
 //   swipeAt         (index) → the message's swipe_id (default 0)
 //   summary         (screen, { index, state, changes, before }) → the host's part of the header's line for a card that has no summary of its own
 //                   (optional; Story Block's changes card). A card screen's own `summary` (a template read in the card's scope, like
-//                   its body: '{{ q.status.summary }}') wins; a card with neither adds nothing to the line.
+//                   its body) wins; a card with neither adds nothing to the line.
 //   first           ids of the card screens that lead the sections, in order (optional; Story Block's changes card)
 //   opsAt           (index) → the carrier's own ops (optional; cards get them as `replyOps`)
 //   IntersectionObserver  the class to use (default globalThis.IntersectionObserver; null turns it off)

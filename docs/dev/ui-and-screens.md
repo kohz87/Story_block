@@ -26,7 +26,7 @@ F93 save points, F95/F96 story-driven, F100 Features); REVIEW.md risky part §4.
 - Navigation order (tabs and game view): Home first, then `SUITE_NAV` in `DEFAULT_ORDER` (party, inventory,
   quests, world, map, fight, crafting, trade, scene, chronicle, director, then NSD's Dossiers, id
   `npc-state-delta/cast`, last), others by `order` (`REST_ORDER` 150 without one). `DEFAULT_HIDDEN`: Scene is
-  hidden by default while Story Director's World is registered (F119). The reader's order and hidden tabs
+  hidden by default while the screen that shows the same and more is registered (F119). The reader's order and hidden tabs
   (`extension_settings.storySuite.tabs`, `view/tab-order.js`) win over both.
 - Every optional screen carries its Feature; off, it is not drawn.
 
@@ -417,9 +417,11 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   at the foot with five slots (the first four screens that are in the bar, in the reader's order, then More); More opens a glass
   sheet over the bar (a scrim, the hint, a four-column grid of the rest). From 760px the game view draws the screens that are in
   the bar in one row (`row: true`) and More after them, while any screen is under it (its sheet opens centred over the window's foot).
-  The Story panel's tabs use the same bar at its foot, at every width. **What is in the bar** (`view/tab-order.js` `isInBar`,
-  `screens.js` `DEFAULT_BAR`): Home, Inventory, Quests, World and Map; with the RPG on Party, and Fight while a fight is on (it is a
-  tab only then); every other screen (Chronicle, Director, Dossiers, Scene, a block's tab, a pack's) is under More. The reader's
+  The Story panel's tabs use the same bar at its foot: the pill's four slots, and on the side sheet (from 760px) as many as its width holds at about 60px a slot (five at 398px and up, six at most; `screen-bar.js` `slotsForWidth`, `host-ui.js` `createTabHost({ slots })`, laid out again on a window resize). **What is in the bar** (`view/tab-order.js` `isInBar`,
+  `screens.js` `inDefaultBar`): the screens and tabs that say `bar: true` on their own registration (Story Block's Home and Inventory;
+  another module declares its own, `screens.declaredBar(id)` and the registered tabs are read in `ui-host.js` `barDeclared`); with the RPG on Party,
+  and Fight while a fight is on (it is a tab only then); every other screen is under More. When more are in the bar than there are slots,
+  the reader's order decides who gets them and the rest go under More. The reader's
   choice per screen (Settings → Tabs & Packs → Tabs, "In the bar" / "Under More") is kept in `extension_settings.storySuite.tabs` as
   `inBar` / `underMore` beside `order`, `hidden` and `shown`; Home is always in the bar. An item that is not in the bar has
   `moreOnly: true` for the bar; the game view reads `deps.inBar(screenId)` and the Story panel `createTabHost({ inBar })`. The current item is the accent icon and label with a dot;

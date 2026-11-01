@@ -1,12 +1,12 @@
 // `story-block/home` (SPEC §13.1, §13.4): the landing page of the full-screen game view. A summary of
-// the purse and what is worn, and Story Director's quests. The place, the time, the weather and the people here are the game view's
+// the purse and what is worn, and the open quests. The place, the time, the weather and the people here are the game view's
 // header (view/game-header.js), so the Where card is drawn only where there is no header above Home (`settings._heroShown`, which
 // the game view sets while its header is up: no chat yet, or a host with no header).
 // A query whose module is absent answers null; its panel stays hidden. Story Block alone shows
 // the place and the purse. The time is written on the story's calendar (view/clock.js).
 //
-// The quests come from Story Director's `quest.board`: its open quests, then its offers, each with the
-// status line the Director words itself (`status.text`: "Ready to turn in", "Not yet: 2/3 wolves",
+// The quests come from the `quest.board` query (a module that keeps quests answers it): its open quests, then its offers, each with the
+// status line that module words itself (`status.text`: "Ready to turn in", "Not yet: 2/3 wolves",
 // "Offered — say you take it", from `quest.details` where it has one), so Home never works out a
 // quest's state on its own. The first open quest's progress bar is drawn when the board says it has a
 // target (`meter`).
@@ -181,6 +181,7 @@ export const homeScreen = Object.freeze({
     id: HOME_SCREEN_ID,
     title: S.title,
     icon: 'fa-house',
+    bar: true,
     mounts: Object.freeze(['screen']),
     data: Object.freeze({
         place: Object.freeze({ query: 'scene.place' }),
@@ -190,7 +191,7 @@ export const homeScreen = Object.freeze({
         items: Object.freeze({ query: 'inventory.items' }),
         wallet: Object.freeze({ query: 'inventory.wallet', args: Object.freeze({ owner: 'party' }) }),
         currency: Object.freeze({ query: 'inventory.currency' }),
-        board: Object.freeze({ query: 'quest.board' }),                               // Story Director
+        board: Object.freeze({ query: 'quest.board' }),                               // a module that keeps quests
         mounts: Object.freeze({ query: 'mounts.list' }),
         pace: Object.freeze({ query: 'mounts.pace' }),
     }),

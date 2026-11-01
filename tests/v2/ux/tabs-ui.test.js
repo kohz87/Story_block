@@ -20,8 +20,9 @@ const MODULES = Object.freeze({
     }),
     'story-director': () => ({
         id: 'story-director', name: 'Story Director',
-        screens: [screen('story-director/director', 'Director'), screen('story-director/world', 'World'), screen('story-director/map', 'Map'),
-            screen('story-director/quests', 'Quests'), screen('story-director/chronicle', 'Chronicle')],
+        // Quests, World and Map say `bar: true` themselves (the bar default is the screen's own flag).
+        screens: [screen('story-director/director', 'Director'), screen('story-director/world', 'World', undefined, { bar: true }), screen('story-director/map', 'Map', undefined, { bar: true }),
+            screen('story-director/quests', 'Quests', undefined, { bar: true }), screen('story-director/chronicle', 'Chronicle')],
     }),
     'npc-state-delta': () => ({
         id: 'npc-state-delta', name: 'NPC State Delta',
