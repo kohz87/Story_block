@@ -142,3 +142,10 @@ test('2.1.0 renames keep the old place names as aliases, so a chat already there
     assert.doesNotMatch(lore, /\bdelv/i, 'the lore has no separate delvers');
     assert.match(lore, /only mega-dungeon ever sealed by human hand/);
 });
+
+test('the sample cast starts at places the pack names', () => {
+    const value = pack();
+    const places = new Set(value.content.places.map(place => place.name));
+    assert.deepEqual(value.content.cast.map(person => person.start.place), ['Bluewatch Village', 'Hollin\'s Reach']);
+    for (const person of value.content.cast) assert.ok(places.has(person.start.place), `${person.id} starts at "${person.start.place}"`);
+});
