@@ -458,3 +458,65 @@ test('a fuzz of fights: no bar leaves 0 to its size, a Down actor never acts, an
         for (const round of result.rounds.slice(0, -1)) assert.equal(round.decisive, false, `seed ${seed}: only the last round may be decisive`);
     }
 });
+
+// ---- a pack may set the formula and its numbers -----------------------------------------------------------------------------
+
+import { validatePack } from '../../../src/v2/packs/validate.js';
+import { packRulesOf } from '../../../src/v2/lean-rpg/rules.js';
+import { createHost } from '../../../testkit/index.js';
+
+const packOf = rpg => ({ id: 'sealed', version: '1.0.0', name: 'Sealed', author: 'Test', description: 'A pack that plays on the Classic formula.', requires: { storyBlock: '^2' }, content: { rpg } });
+
+test('a pack\'s content.rpg may name the formula and its numbers; they are kept as one more record and read as the story\'s default', () => {
+    const ok = validatePack(packOf({ formula: 'classic', numbers: { foeBase: 7, costMargin: 3 }, skillSets: [{ name: 'Set', skills: [{ name: 'Spear', about: 'Holds a line.', stat: 'str' }] }] }));
+    assert.equal(ok.ok, true, JSON.stringify(ok.errors));
+    const records = ok.pack.content.rpg;
+    assert.equal(records.length, 2, 'the skill set, then the formula record');
+    assert.deepEqual(records.at(-1), { id: 'sealed/formula', slug: 'formula', pack: 'sealed', formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
+    assert.deepEqual(packRulesOf(records), { formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
+    assert.equal(packRulesOf(records.slice(0, 1)), null);
+    assert.equal(packRulesOf(undefined), null);
+    // Bad words are named and the pack is refused; a pack with only skill sets is exactly what it was.
+    const bad = validatePack(packOf({ formula: 'modern', numbers: { foeBase: 'high', luck: 3 } }));
+    assert.equal(bad.ok, false);
+    assert.deepEqual(bad.errors.map(error => error.path).sort(), ['content.rpg.formula', 'content.rpg.numbers.foeBase', 'content.rpg.numbers.luck']);
+    assert.equal(validatePack(packOf({ skillSets: [] })).pack.content.rpg.length, 0);
+    // The reader's choice wins; a pack fills in what they have not chosen.
+    const pack = packRulesOf(records);
+    assert.equal(formulaOf({}, pack), 'classic');
+    assert.equal(formulaOf({ rpgFormula: 'standard' }, pack), 'standard');
+    assert.equal(formulaOf({ rpgFormula: 'classic' }, null), 'classic');
+    assert.deepEqual(rulesFromSettings({}, pack), normalizeRules({ ...PRESETS.standard, foeBase: 7, costMargin: 3 }));
+    assert.deepEqual(rulesFromSettings({ rpgDifficulty: 'harsh' }, pack), PRESETS.harsh, 'a difficulty the reader picked is theirs');
+    const standardPack = packRulesOf([{ slug: 'formula', formula: 'standard', numbers: { foeBase: 6, startStat: 6 } }]);
+    assert.deepEqual(rulesFromSettings({}, standardPack), { ...STANDARD_FORMULA, foeBase: 6, startStat: 6 });
+    assert.deepEqual(rulesFromSettings({}, null), STANDARD_FORMULA);
+});
+
+test('a roll in a story whose pack asks for Classic is rolled on Classic with the pack\'s numbers, unless the reader chose Standard', { skip }, async () => {
+    const roll = async settings => {
+        const callModel = async () => 'act Wessel | skill: Iron Breath | stat: STR | target: Sluice Rats';
+        const host = await createHost({ callModel, settings: { modules: { 'story-block': settings } } });
+        host.features.set('story-block.rpg', true);
+        assert.equal((await host.packs.packs.install(packOf({ formula: 'classic', numbers: { foeBase: 8 } }))).ok, true);
+        await host.send('Begin.', 'Opening.');
+        const { LEAN_RPG_TEMPLATES } = await import('../../../src/v2/lean-rpg/templates.js');
+        for (const entry of LEAN_RPG_TEMPLATES.filter(item => ['character', 'skills', 'foes'].includes(item.definition.role))) {
+            const definition = structuredClone(entry.definition);
+            if (definition.role === 'character') { definition.slug = 'wessel'; definition.name = 'Wessel'; definition.state.who.default = 'Wessel'; }
+            if (definition.role === 'skills') { definition.slug = 'wessel-skills'; definition.state.who.default = 'Wessel'; definition.state.skill1.default = 'Iron Breath'; definition.state.stat1.default = 'str'; }
+            if (definition.role === 'foes') { definition.state.foe1.default = 'Sluice Rats'; definition.state.count1.default = 2; }
+            assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
+        }
+        await host.send('I hit the rat.', 'They scatter.');
+        const result = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve')?.data.v2.result;
+        host.close();
+        return result;
+    };
+    const asked = await roll({});
+    assert.deepEqual(asked.rules, normalizeRules({ ...PRESETS.standard, foeBase: 8 }), 'Classic with the pack\'s base');
+    assert.equal('order' in asked, false);
+    const chosen = await roll({ rpgFormula: 'standard' });
+    assert.equal(chosen.rules.formula, 'standard');
+    assert.equal(chosen.rules.foeBase, STANDARD_FORMULA.foeBase, 'the pack\'s numbers belong to its own formula');
+});

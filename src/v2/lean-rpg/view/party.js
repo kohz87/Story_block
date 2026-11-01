@@ -126,7 +126,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 const looking = shared.skills ? party.find(character => sameCharacter(character, shared.skills) && character.skillsBlock) : null;
                 if (shared.skills && !looking) shared.skills = null;
                 main.hidden = Boolean(open || looking);
-                if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended });
+                if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended, ...(rules ? { rules } : {}) });
                 else if (looking) sheet = renderSkills(host, { character: looking, session: shared.skills, api, doc, onBack: closeSkills, onSaved: tell, ...(rules ? { rules } : {}) });
                 const head = h(doc, 'div', 'rpg-head');
                 head.appendChild(h(doc, 'h3', '', P.title));

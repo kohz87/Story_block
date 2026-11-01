@@ -68,8 +68,26 @@ export const FORMULA_SETTING = 'rpgFormula';
 /** The Custom numbers of the Standard formula (an object of STANDARD_RULE_KEYS). */
 export const STANDARD_SETTING = 'rpgStandard';
 
-/** The formula the settings say: Classic only when the reader chose it, else Standard. */
-export const formulaOf = values => (values?.[FORMULA_SETTING] === 'classic' ? 'classic' : DEFAULT_FORMULA);
+/**
+ * The formula the settings say: what the reader chose, else the one the story's pack asks for (`pack`, packRulesOf), else Standard. Classic
+ * is only ever a choice: a chat the reader never touched is on Standard.
+ */
+export const formulaOf = (values, pack = null) => {
+    const chosen = values?.[FORMULA_SETTING];
+    if (chosen === 'classic' || chosen === 'standard') return chosen;
+    return pack?.formula === 'classic' ? 'classic' : DEFAULT_FORMULA;
+};
+
+/**
+ * What a pack asks for, from its `content.rpg` records (packs/validate.js keeps `formula` and `numbers` as one record with the slug `formula`):
+ * `{ formula?, numbers? }`, or null. The reader's own choices win over it: it is the default of a story whose reader has not chosen.
+ */
+export function packRulesOf(records) {
+    const found = (Array.isArray(records) ? records : []).find(record => record && typeof record === 'object' && record.slug === 'formula' && (record.formula || record.numbers));
+    if (!found) return null;
+    return { ...(found.formula === 'standard' || found.formula === 'classic' ? { formula: found.formula } : {}),
+        ...(found.numbers && typeof found.numbers === 'object' && !Array.isArray(found.numbers) ? { numbers: { ...found.numbers } } : {}) };
+}
 
 /** Standard's numbers in the order they are stored and shown (the first is the formula itself). */
 export const STANDARD_RULE_KEYS = Object.freeze(['formula', 'foeBase', 'foeClassWeight', 'classWeight', 'costMargin', 'decisiveMargin', 'roundCap',
@@ -139,11 +157,15 @@ export function normalizeStandard(value) {
 /** The difficulty the settings say: a known word, else Standard. */
 export const difficultyOf = values => (DIFFICULTIES.includes(values?.[DIFFICULTY_SETTING]) ? values[DIFFICULTY_SETTING] : 'standard');
 
-/** The numbers the settings give now: the preset, or the Custom numbers (held to their ranges). */
-export function rulesFromSettings(values) {
-    const difficulty = difficultyOf(values);
-    if (formulaOf(values) === 'standard') return difficulty === 'custom' ? normalizeStandard({ ...values?.[STANDARD_SETTING], formula: 'standard' }) : { ...STANDARD_PRESETS[difficulty] };
-    return difficulty === 'custom' ? normalizeRules(values?.[CUSTOM_SETTING]) : { ...PRESETS[difficulty] };
+/** The numbers the settings give now: the preset, or the Custom numbers (held to their ranges); `pack` (packRulesOf) fills in what the reader has not chosen. */
+export function rulesFromSettings(values, pack = null) {
+    const difficulty = difficultyOf(values), standard = formulaOf(values, pack) === 'standard';
+    if (difficulty === 'custom') return standard ? normalizeStandard({ ...values?.[STANDARD_SETTING], formula: 'standard' }) : normalizeRules(values?.[CUSTOM_SETTING]);
+    const preset = standard ? { ...STANDARD_PRESETS[difficulty] } : { ...PRESETS[difficulty] };
+    // A pack's numbers are the defaults of a reader who never picked a difficulty, and only for the formula the pack named (its numbers are on that
+    // formula's scale); a picked difficulty is the reader's.
+    const asked = pack?.numbers && (!pack.formula || (pack.formula === 'standard') === standard) && !DIFFICULTIES.includes(values?.[DIFFICULTY_SETTING]) ? pack.numbers : null;
+    return asked ? (standard ? normalizeStandard({ ...preset, ...asked, formula: 'standard' }) : normalizeRules({ ...preset, ...asked })) : preset;
 }
 
 /** The extra instructions for the roll planner: text, tidied, at most NOTE_MAX characters. */
@@ -196,8 +218,10 @@ export function oddsSubject(sheet, own, { rankNames, soulNames, fold, standard =
     if (!who) return null;
     const best = who.skills.reduce((top, skill) => (!top || skill.rank > top.rank ? skill : top), null);
     const strongest = Object.entries(who.stats).filter(([, value]) => Number.isInteger(value)).reduce((top, entry) => (!top || entry[1] > top[1] ? entry : top), null);
-    const stat = best?.stat && Number.isInteger(who.stats[best.stat]) ? best.stat : strongest?.[0] ?? null;
-    if (!stat) return null;
+    // (Standard: a skill with no stat of its own, or no skill, rolls the type's own: INT for a mana skill, else STR.)
+    const fallback = standard ? (best?.uses === 'mana' ? 'int' : 'str') : strongest?.[0] ?? null;
+    const stat = best?.stat && Number.isInteger(who.stats[best.stat]) ? best.stat : fallback;
+    if (!stat || !Number.isInteger(who.stats[stat])) return null;
     const rank = best?.rank ?? 0;
     return {
         who: who.who, stat, statValue: who.stats[stat], soul: who.soul, rank, skill: best?.name ?? null, foeClass: who.soul,

@@ -50,8 +50,11 @@ reply that was rolled. **See it in the story** closes the game view and scrolls 
    active persona's description is read, never another persona or any other setting. It is only a start: a companion's
    box starts empty, switching to **A companion** empties it again while it is still the persona's text, and anything
    you type is yours.
-2. **Stats.** The same steppers and radar as Spend points. Every stat starts at 10 and you have 6 points to spend. A
-   stat can go down to 8 to free a point and up to 15. Points you leave unspent stay on the character for Spend points.
+2. **Stats.** The same steppers and radar as Spend points. On the **Standard** formula (the default) every stat starts at 5 and you have
+   10 points to spend; a stat can go down to 3 to free a point and up to 10, and a line under the steppers says what the next points
+   buy: `Health 5 blocks (next at VIT 10) · Stamina 4 (next at AGI 10) · Mana 4 (next at INT 10) · Luck −1 (next at LUK 8)`. On **Classic**
+   every stat starts at 10 with 6 points to spend, from 8 to 15. Points you leave unspent stay on the character for Spend points. Spend
+   points shows the same line and keeps it up to date as you move the steppers.
 3. **Skills.** Start from a template (Guild fighter, River scout, Hedge mage, Field medic, Silver tongue, and the sets a
    pack adds) or write your own. Up to five skills, each with a name, what it does (up to 120 characters, which the
    narrator reads), the **Stat** it rolls with, what it **Uses** (stamina or mana) and what it **Starts at**: Novice, or
@@ -170,7 +173,9 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
 
 - **What is made.** A Character block (a companion) and an empty Skills block for that name, as one action of the reply: every
   stat 10 with the named best stat 14, no unspent points, Health, Mana and Stamina full, and the Soul Class as written but never
-  above the highest Soul Class among those in the party. The skills fill in when the story has them learn something, as for
+  above the highest Soul Class among those in the party. On the Standard formula every stat is 5 and the best stat 9, and each Soul
+  Class above I adds the points per Soul Class (4), one at a time to the best stat and DEX in turn up to 20, then to VIT, AGI, INT, CHA,
+  LUK and STR, so no point is left over. The skills fill in when the story has them learn something, as for
   anyone.
 - **Ask.** The line makes nothing. The reply gets a card, "Mara joins the party", with **Add to party** (makes them as above),
   **Edit first** (opens the New character window filled in: name, about, Soul Class, the best stat raised to 14; you spend the
@@ -219,7 +224,8 @@ one short line per action, for example `Wessel uses Short blade on Sluice Rat A 
 A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **Grazed** (amber) when it costs you, **Blocked**
 (green) when you stop it, with the foe's total first. The Status bars are coloured by stage, like the Party tab's.
 
-**The roll rule.** A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
+**The roll rule (Classic).** The rest of this section describes the **Classic** formula; the Standard one, the default, is described in
+[The stat formulas](#the-stat-formulas). A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
 the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
 plus 3) is what the situation earns, such as an ambush. That is the **Standard** difficulty; the numbers 5, 2 and
 "half" can be changed in [Settings → RPG](#settings--rpg). "Half the stat" can also be "a third of the stat", or
@@ -259,10 +265,14 @@ Settings page, only changes the rolls made after it.
 
 ## Settings → RPG
 
-The page has five cards, and shows only while the RPG is on.
+The page has six cards, and shows only while the RPG is on.
 
+- **Stat formula.** **Standard** or **Classic** (see [The stat formulas](#the-stat-formulas)), with the roll table of the one in force
+  and four numbers: where stats start, the points at creation, the points each Soul Class gives and the foe's base (`4 + 3×class` on
+  Standard). A chat that never chose is on Standard. Rolls already made keep the formula and numbers they were made with.
 - **Rolls.** **Automatic** or **Off**, as above.
-- **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. The presets change the foe's base and how far short
+- **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. On the Standard formula the presets move only the foe's base (2, 4 and
+  6) and **Custom** shows its thirteen numbers; the paragraph below is Classic's. The presets change the foe's base and how far short
   a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
   above), Harsh 7 and 1. All three keep a Soul Class worth 2, half the stat, a decisive margin of 8 and at most 5 exchanges
   a reply. **Custom** shows the six numbers: **Foe's base** (0 to 15), **Soul Class adds** (×1, ×2 or ×3, for both sides),
@@ -274,7 +284,8 @@ The page has five cards, and shows only while the RPG is on.
 - **What the narrator is told about combat.** The text of this chat's Combat rules block (up to 1200 characters, counted
   as you type). It is saved when you leave the box (or close the settings window with text still in it), as an edit of that
   block on the latest reply: swipe or delete that reply to take it back. A chat keeps a limited number of block versions;
-  when it has kept as many as it can, the box says so in plain words. **Reset to the default** puts the template's text back. Each chat has its own text; a new chat
+  when it has kept as many as it can, the box says so in plain words. **Reset to the default** puts the template's text back (a Standard chat's
+  default also explains the roll types and that code moves the Health bars for rolled hits). Each chat has its own text; a new chat
   starts from the default. A chat with no Combat rules block says so and offers **Add the Combat rules block**.
 - **Roll planner.** Your own instructions (up to 400 characters) for the short call that plans the dice, added after its
   fixed part. **Show the planner's full prompt** shows exactly what that call is sent for this chat, read-only: the format
@@ -283,6 +294,59 @@ The page has five cards, and shows only while the RPG is on.
 - **Companions who join.** **Ask**, **Automatically** or **Off**, as in [Companions who join](#companions-who-join).
 
 With the RPG off none of this is read or sent.
+
+## The stat formulas
+
+A chat plays on one of two formulas, chosen in [Settings → RPG](#settings--rpg). **Standard** is the default for a chat that never chose.
+**Classic** is the formula described under [Rolls](#rolls), exactly as it was. Every roll records its formula and numbers (see "Past rolls
+never change" above), so switching only changes the rolls made after it.
+
+### Standard
+
+A roll is one of five types. Class is 2 × Soul Class; rank is 0 (Novice) to 3 (Master); the edge is what the situation earns (−3 to +3)
+after luck. `(A + B/2)/2` is rounded down once, at the end.
+
+| Roll | d20 plus |
+|---|---|
+| Physical | class + (STR, or the skill's stat, + DEX/2)/2 + rank + edge |
+| Magic | class + (INT, or the skill's stat, + DEX/2)/2 + rank + edge |
+| Defence | class + (the higher of AGI and VIT + the lower/2)/2 + rank + edge; against a spell the higher of INT and VIT; a tie dodges |
+| Social | class + (CHA + INT/2)/2 + rank + edge |
+| Check | class + (the fitting stat + DEX/2)/2 + rank + edge: STR to climb or force, AGI to sneak, DEX for locks, INT for lore, VIT to endure |
+
+A skill's own stat takes the main slot and nothing is added on top. A skill that uses Stamina is physical and one that uses Mana is magic,
+unless the planner marks the action defence, social or a check. A skill whose resource is Empty is rolled without it: no skill, rank 0 and
+the type's own stat.
+
+- **Luck.** LUK 13 gives +1, 16 gives +2, 19 gives +3, and 7 or less gives −1. A bad edge shrinks toward 0 by good luck (never past 0) and a
+  good edge grows by it; bad luck does the opposite. An even situation is left alone.
+- **Foes.** A foe adds `foeBase + 3 × its class` to its d20 (the base is 2, 4 or 6 for Gentle, Standard and Harsh). A foe group has Health
+  `4 + class/2` blocks and acts once a round whatever its count.
+- **Hits.** A hit takes 1 block of Health from its target, a decisive hit 2. A party member's action hits on a success or a success at a cost;
+  a foe's attack hits when the defender fails. Decisive is the winner's natural 20, the loser's natural 1, or a lead of 8. Code writes the
+  new Health to the sheet and tells the narrator which bars it moved, in words ("Health now: Wessel Hurt; Sluice Rats Down"), never to set
+  them for a rolled hit or heal. Bars are clamped to their size (`blocksFor`: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5).
+- **Area.** An area skill rolls once against each standing foe group's own roll; each group's bar moves on its own.
+- **Support.** A heal or a buff rolls against a difficulty (easy 10, normal 15, hard 20, very hard 25): a success gives 1 block, a decisive
+  one 2, never past the bar. Someone who is Down can be mended.
+- **Social and exploration in a fight** are rolled against the foe's roll and hurt nobody; outside a fight they are checks against the
+  narrator's difficulty.
+- **Turn order.** At the start of a fight each character rolls d20 + class + AGI/2 and each foe group d20 + 2 × class; highest first, ties to
+  the higher AGI, then to the party. The order is kept for the whole fight: each reply's roll carries it on (a swipe of a later reply keeps
+  it; a swipe of the reply that began the fight rolls it again; a Re-read keeps it), and someone who arrives later rolls on entry. A foe or
+  a character who is beaten or Down before their turn does not act that round, and the fight ends in the roll when a side is gone.
+- **Quick start.** A character who is 10 or more ahead of a foe in the order acts once against it before the first round, at the start of the
+  fight only.
+- **Creation.** Stats start at 5, with 10 points to spend, from 3 to 10; each Soul Class gives 4 more points; a stat never goes above 20.
+  Companions the story brings in are made on the same scale (see [Companions who join](#companions-who-join)).
+
+The numbers behind the presets were chosen with `node scripts/sim-standard.mjs` (no network): at Standard a focused build (the skill's stat
+and DEX at the creation maximum, then 3 and 1 points a class) succeeds about 61 times in a hundred against a foe of its own Soul Class at
+Soul Class I and 72 to 79 from III to IX, near Classic's own 52 to 81; a spread build succeeds about 43 to 52 times. A hero against one
+foe of the same class ends the fight in about 4 to 6 exchanges.
+
+A pack may name the formula and its numbers (`content.rpg.formula`, `content.rpg.numbers`); they are the default for a story whose reader
+has not chosen a formula or a difficulty, and the reader's own choices win.
 
 ## Soul Class and skill ranks
 

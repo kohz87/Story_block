@@ -16,6 +16,7 @@ import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
 import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold } from '../lean-rpg/read.js';
+import { rulesFromSettings } from '../lean-rpg/rules.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { RPG_STRINGS } from '../lean-rpg/strings.js';
 
@@ -486,7 +487,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function makeParty(ctx, request, soul, call, { added = false } = {}) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
-        const made = joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul });
+        const made = joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules: rulesFromSettings(settings()) });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = partyOf(prefix).length === 0, plan = first ? extrasPlan(prefix) : { add: [], skipped: [] };
         const extras = extraDefinitions(plan.add, { used: [...Object.keys(domain?.active ?? {}), made.character.slug, made.skills.slug] });

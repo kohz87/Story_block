@@ -6,7 +6,30 @@ import { fill } from '../strings.js';
 
 export { fill };
 
+/**
+ * The Combat rules text for a chat on the Standard formula (the Classic text is templates.js COMBAT_PROMPT, unchanged): the same guidance, plus
+ * what the roll types are and that code moves the Health bars for rolled hits and heals. A block's "What it is for" holds at most 1200 characters.
+ */
+export const COMBAT_PROMPT_STANDARD = [
+    '[COMBAT SYSTEM]',
+    'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Soul Class all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison.',
+    'Rolls: code rolls the dice and lists them under [Rolls]; tell them in that order and never invent one. Physical is blades and force, magic is spells, defence a dodge or block (a spell is warded), social talk and bluff, checks the rest. A hit takes a block of Health, a decisive hit two, a heal gives one or two back. Code has already moved those bars: never set Health for a rolled hit or heal.',
+    'Turn order is rolled once at the start of a fight and kept. Someone beaten before their turn does not act; a quick start is an opening action before round one.',
+    'Exchanges: tell a fight exchange by exchange, each with cause, cost and consequence. Injury, fatigue and fear carry into the next scene.',
+    'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned.',
+    'XP guide: a small fight 5 to 15, a hard fight 20 to 40, a boss 50 or more. Practice a skill 5 to 20 for each use.',
+].join('\n');
+
 export const RPG_STRINGS = Object.freeze({
+    // The Standard formula's bar line (growth.js): what the next point of VIT, AGI, INT and LUK buys.
+    growth: Object.freeze({
+        health: 'Health {n} blocks {next}',
+        stamina: 'Stamina {n} {next}',
+        mana: 'Mana {n} {next}',
+        luck: 'Luck {n} {next}',
+        next: '(next at {stat} {n})',
+        top: '(at the top)',
+    }),
     party: Object.freeze({
         title: 'Party',
         count: '{n} characters',
@@ -43,6 +66,7 @@ export const RPG_STRINGS = Object.freeze({
         usesStat: '{stat} · {uses}',
         rolls: 'Rolls with it: d20 +{total}',
         rollsParts: '= {stat} {value} → +{half} · {rank} +{n} · {label} {soul} +{bonus}',
+        rollsPartsStandard: '= ({stat} {value} + {second} {secondValue}/2)/2 → +{half} · {rank} +{n} · {label} {soul} +{bonus}',
         rollsNoStat: 'Rolls with the stat the story picks: {rank} +{n} · {label} {soul} +{bonus}',
         empty: 'Empty slot · filled when the story has {name} learn a new skill',
         back: 'Back to the party',
@@ -86,6 +110,8 @@ export const RPG_STRINGS = Object.freeze({
         whoNote: 'Starts at {label} {first} with 0 XP. Health, Mana and Stamina start full. Next: spend your stat points, then pick skills.',
         statsNote: 'Every stat starts at {start}. Spend {budget} points; a stat can go down to {min} to free a point and up to {max} now. {label} and XP rise on their own.',
         statsReset: 'Reset',
+        statsNoteStandard: 'Every stat starts at {start}. Spend {budget} points; a stat can go down to {min} to free a point and up to {max} now. Each {label} rise gives {perSoul} more, and XP rises on its own.',
+        statsNoteImportStandard: 'These are the saved character\'s stats. Spend the {n} points from the file as you like; a stat can go down to {min} to free a point and up to {max} (a saved stat above that stays). Each {label} rise gives {perSoul} more.',
         radar: '{name}\'s stats',
         skillsIntro: 'Start from a template, change anything, or write your own. Up to {max} skills, each with what it does, the stat it rolls with and what it uses. One may start at Adept, the rest are Novice.',
         templates: 'Start from a template',
@@ -369,6 +395,30 @@ export const RPG_STRINGS = Object.freeze({
         rollsHelp: 'Automatic: before each reply a short AI call plans the actions and code rolls the dice. Off: no dice; the story decides.',
         automatic: 'Automatic',
         off: 'Off',
+        formula: 'Stat formula',
+        formulaStandard: 'Standard',
+        formulaClassic: 'Classic',
+        formulaStandardHelp: 'A main stat plus half a second one, stats start at 5 and grow, and the bars grow with VIT, AGI and INT.',
+        formulaClassicHelp: 'One stat on its own, stats start at 10, and the bars are fixed.',
+        formulaNote: 'A chat can use either. Rolls already made keep the formula and numbers they were made with, and a Re-read keeps them too.',
+        formulaRolls: 'Rolls',
+        formulaRollsHeads: Object.freeze({ type: 'Roll', what: 'What it adds to the d20' }),
+        formulaRows: Object.freeze([
+            Object.freeze({ type: 'Physical', what: 'class + (STR or the skill\'s stat + DEX/2)/2 + rank + edge' }),
+            Object.freeze({ type: 'Magic', what: 'class + (INT or the skill\'s stat + DEX/2)/2 + rank + edge' }),
+            Object.freeze({ type: 'Defence', what: 'class + (the higher of AGI and VIT + the lower/2)/2 + rank + edge; against magic INT and VIT' }),
+            Object.freeze({ type: 'Social', what: 'class + (CHA + INT/2)/2 + rank + edge' }),
+            Object.freeze({ type: 'Checks', what: 'class + (the fitting stat + DEX/2)/2 + rank + edge' }),
+            Object.freeze({ type: 'Turn order', what: 'd20 + class + AGI/2, once at the start of a fight (foes d20 + 2 × class)' }),
+        ]),
+        formulaClassicRows: Object.freeze([
+            Object.freeze({ type: 'Every roll', what: 'class + the stat\'s share + rank + edge, against the foe\'s d20 + base + class' }),
+        ]),
+        formulaNums: Object.freeze({ start: 'Stats start at', points: 'Points at creation', perSoul: 'Points per {label}', foe: 'Foe\'s base' }),
+        formulaFoe: '{base} + {weight}×class',
+        formulaFoeClassic: '{base} + {weight}×class',
+        formulaFootStandard: 'Class is {weight} × {label}. Luck steps at LUK 8 (back to 0), 13, 16 and 19 and shrinks bad edges and raises the +3 cap. Bars: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5 blocks.',
+        formulaFootClassic: 'Class is {weight} × {label}. Health, Mana and Stamina are fixed stages.',
         difficulty: 'Difficulty',
         gentle: 'Gentle',
         standard: 'Standard',
@@ -376,6 +426,23 @@ export const RPG_STRINGS = Object.freeze({
         custom: 'Custom',
         foeBase: 'Foe\'s base',
         foeBaseHelp: 'Gentle 3 · Standard 5 · Harsh 7',
+        foeBaseHelpStandard: 'Gentle 2 · Standard 4 · Harsh 6',
+        foeClassWeight: 'Foe adds per class',
+        foeClassWeightHelp: '1 to 5',
+        quickStartMargin: 'Quick start at a lead of',
+        quickStartMarginHelp: 'turn-order points',
+        startStat: 'Stats start at',
+        startStatHelp: '1 to 10',
+        createPoints: 'Points to spend at creation',
+        createPointsHelp: '0 to 30',
+        createMin: 'Lowest stat at creation',
+        createMinHelp: '1 to 10',
+        createMax: 'Highest stat at creation',
+        createMaxHelp: '3 to 20',
+        pointsPerSoul: 'Points per {label} rise',
+        pointsPerSoulHelp: '0 to 10',
+        statMax: 'Highest a stat can be',
+        statMaxHelp: '10 to 20',
         classWeight: '{label} adds',
         classWeightHelp: 'per class, both sides',
         statDivisor: 'Stat adds',
@@ -391,6 +458,8 @@ export const RPG_STRINGS = Object.freeze({
         roundCapHelp: '1 to 8',
         oddsFor: '{who} ({stat} {value}, {label} {soul}, {rank}) against a {short} {soul} foe',
         oddsForUntrained: '{who} ({stat} {value}, {label} {soul}, no skill) against a {short} {soul} foe',
+        oddsForStandard: '{who} ({stat} {value} with DEX {dex}, {label} {soul}, {rank}) against a {short} {soul} foe',
+        oddsForStandardUntrained: '{who} ({stat} {value} with DEX {dex}, {label} {soul}, no skill) against a {short} {soul} foe',
         oddsNone: 'Make a character to see the odds for your own.',
         success: 'Success {n}%',
         cost: 'At a cost {n}%',

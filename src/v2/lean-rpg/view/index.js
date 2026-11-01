@@ -66,7 +66,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         const source = readRecord(ctx?.chat?.[store?.headIndex?.()])?.source;
         return source?.logical && source?.swipeKey ? `${source.logical}/${source.swipeKey}` : '';
     };
-    const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey });
+    const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey, rules });
     const exporter = createExporter({ headState, readerName, roleOf, openDialog });
     const start = createStart({ doc, headState, readerName, featureOn, roleOf, openDialog, wizard, meta, save, redraw: () => refresh() });
     widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null, exportCharacter: openDialog ? exporter.open : null, rules });

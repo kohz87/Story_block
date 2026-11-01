@@ -11,7 +11,7 @@
 import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, withTimeout } from '../assist/common.js';
 import { stripBlock } from '../capture.js';
 import { CLASS_NAMES, LEAN_RPG_FEATURE, RANK_NAMES, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
-import { isStandard, plannerNoteOf, rulesFromSettings } from './rules.js';
+import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
 import { blocksFor, foeHealthBlocks } from './formula.js';
 import { NO_ROLLS_LINE } from './cue.js';
 import { parsePlanAnswer } from './plan.js';
@@ -192,7 +192,10 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         const where = String(chatId() ?? '');
         // The numbers the dice are rolled with are fixed here, from the settings of this moment, and travel in the payload: the roll
         // (and every Re-read of it) uses these, whatever the settings say later (rules.js).
-        const rules = rulesFromSettings(readSettings(view, moduleId));
+        // (A pack may say which formula its story plays on and its numbers; the reader's own settings win over it.)
+        let pack = null;
+        try { pack = packRulesOf(view.query?.('packs.content', { kind: 'rpg' })); } catch { pack = null; }
+        const rules = rulesFromSettings(readSettings(view, moduleId), pack);
         // A retried interceptor (the same generation, never captured) keeps its plan; any new generation plans anew.
         const held = info?.again === true ? hold.peek(where, key) : null;
         let planned;

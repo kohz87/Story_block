@@ -217,6 +217,15 @@
 .rpg-set-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .rpg-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--ss-text) 20%, transparent); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; min-height: 32px; }
 .rpg-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--ss-accent) 25%, transparent); border-color: var(--ss-accent); font-weight: 700; }
+.rpg-formula-scroll { overflow-x: auto; }
+.rpg-formula-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.rpg-formula-table th { text-align: left; font-weight: 700; white-space: nowrap; padding: 5px 12px 5px 0; vertical-align: top; }
+.rpg-formula-table td { padding: 5px 0; color: var(--ss-muted); }
+.rpg-formula-table tr + tr > * { border-top: 1px solid color-mix(in srgb, var(--ss-text) 10%, transparent); }
+.rpg-formula-nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rpg-formula-num { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ss-text) 6%, transparent); font-size: 12px; color: var(--ss-muted); min-width: 0; }
+.rpg-formula-num b { font-size: 16px; color: var(--ss-text); }
+.rpg-wiz-growth, .rpg-sheet-growth { margin: 6px 0 0; font-size: 12.5px; color: var(--ss-muted); }
 .rpg-set-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
 .rpg-set-num { display: grid; gap: 4px; font-size: 13px; align-content: start; min-width: 0; }
 .rpg-set-num small { color: var(--ss-muted); font-size: 11.5px; }
@@ -238,6 +247,7 @@
 .rpg-set-fold > summary { cursor: pointer; font-size: 13px; }
 .rpg-set-pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, Menlo, monospace; padding: 10px; border-radius: 8px; background: color-mix(in srgb, black 25%, transparent); max-height: 220px; overflow: auto; margin: 8px 0; }
 @media (max-width: 600px) { .rpg-set-nums { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .rpg-formula-nums { grid-template-columns: 1fr 1fr; } }
 
 /* ---- A new chat with no character (mockup sections 7 and 7b): Home's card, and the dialog that holds the first Send ---- */
 .ss-w-rpg-start-host { display: contents; }
