@@ -34,9 +34,18 @@ Edits made here ride on the latest reply, like any other pencil edit: swipe or d
 
 The Fight tab takes the place of the Foes block's own tab, and shows only while a foe slot is filled. The header reads
 **Fight · <place>** (the scene's place, when there is one) with two pills: **Exchange N**, from the latest rolls, and
-**N foes · M down**. Under it are a card for each foe (name, Class, a five-cell health bar, greyed when Down; tap the bar,
+**N foes · M down**. With the Standard formula, a **Turn order** row sits under the header: who acts in which order this fight
+(rolled once, at the start; a swipe rolls it again, Re-read keeps it), each with the total rolled, and a line for any
+character who gets an opening action against a foe (a quick start). Under it are a card for each foe (name, Class, a five-cell health bar, greyed when Down; tap the bar,
 or its pencil, to set the foe's health from Down to Unhurt, the same way as on the Party card), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
 reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
+
+With the Standard formula a foe group's health bar has `4 + class/2` blocks (Class II 5, Class IV 6, Class VIII 8) and reads
+"Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
+quick start and its opening action, "<who> does not act: beaten before its turn" for a group or character beaten before its turn
+(or down, or with nothing left to act on), the result word (Decisive, Decisive hit), "(area)" on an area attack, and the roll's
+breakdown on tap, built from the recorded parts ("Physical: d20 17 + (AGI 10 + DEX 6/2)/2 = 6 + Expert 2 + Class II 4 = 29 · vs
+Weir-drake d20 9 + 3 + Class IV 12 = 24 · Weir-drake loses 1 block (5 of 6)").
 
 ## Making a character
 
@@ -211,6 +220,31 @@ Health, Mana and Stamina are words, not numbers, and each word is drawn as a bar
 Stamina and Mana come back to Fresh when the character rests: the **Rest** button on the Character block sets both
 to Fresh. Health only goes back up when the story heals it.
 
+### Standard formula: bars of blocks
+
+With the Standard formula a bar is a row of **blocks**. The stored value counts the blocks left (Health 0 to 8, Stamina 0 to
+7, Mana 0 to 7); how many blocks the bar has comes from the stats when it is read: **Health 4 + VIT/5, Stamina 3 + AGI/5, Mana
+3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + class/2` blocks (`foeHealthBlocks`). The Party card,
+the Fight tab and the game view's header draw one cell for each block and read "Hurt · 4 of 6"; under the skills the card says how
+many blocks each bar has and the stat that earns the next one ("Health 6 blocks (VIT 10, next at 15) · … · Luck 0 (next at LUK
+13)").
+
+The stage words are the same, spread over the bar: 0 blocks is the first word (Down, Empty), a full bar the last (Unhurt, Fresh),
+every count in between the nearest of the words between (`blocks.js spreadWord`). The narrator reads and writes words, never block
+counts: the prompt says "health Hurt", never "4 of 6", and a `~ dm character — … | kind: set-health | to: Hurt` line is turned into
+blocks for the bar's size by the Character block's kind (the word at position i of n is `i/(n−1)` of the bar, rounded to the nearest
+block).
+
+A block that comes from spending points arrives **full**: the blocks already there are left as they were, and a Down character stays
+Down. A lower stat shrinks the bar and holds the current value at the new size; it never knocks anyone Down (a bar is never smaller
+than 4, 3 and 3 blocks). The Character block does this itself with one rule per bar and three hidden fields (`health-blocks`,
+`stamina-blocks`, `mana-blocks`: the size each bar had when last settled), so it holds for every way a stat changes and replays the
+same live, after a reload and after a rebuild.
+
+A field says it is such a bar with `blocks` on its definition (`"blocks": "health" | "stamina" | "mana"` on a Character block's
+bars, `"foe"` on a Foes block's `hurtN`); a field without it is a Classic stage bar and is read exactly as before. A kind's number
+label may carry its own `names`, which is how the story's words reach a value its effect works out.
+
 ## Rolls
 
 With rolls on, the narrator's next reply is planned first. The planning step reads what you wrote, picks the actions
@@ -323,9 +357,9 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (3 more with each Soul Class rise), Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (3 more with each Soul Class rise), Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a Soul Class rise gives 4 points; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
 | **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
-| **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health. |
+| **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health (Standard: 0 to 8 blocks, `4 + class/2` when the group arrives). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
 A new chat gets a Combat rules block and a Foes block when you make its first character (see [A new chat](#a-new-chat)),
