@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    pair, statPart, luckOf, edgeWithLuck, blocksFor, foeHealthBlocks, foeBonus, initiativeBonus, foeInitiativeBonus,
+    pair, statPart, luckWindow, edgeWithLuck, blocksFor, foeHealthBlocks, foeBonus, initiativeBonus, foeInitiativeBonus,
     quickStart, turnOrder, companionStats, STANDARD_NUMBERS,
 } from '../../../src/v2/lean-rpg/formula.js';
 
@@ -29,22 +29,29 @@ test('defence leads with the higher of AGI and VIT (a tie dodges); against magic
     assert.deepEqual(statPart('defence', { ...wessel, int: 16 }, { againstMagic: true }), { value: 10, main: 'int', second: 'vit', style: 'ward' });
 });
 
-test('luck steps at 13, 16, 19 and −1 at 7 or below; it shrinks bad edges, grows good ones, never past ±6', () => {
-    assert.deepEqual([3, 7, 8, 12, 13, 16, 19, 20].map(luckOf), [-1, -1, 0, 0, 1, 2, 3, 3]);
-    assert.equal(edgeWithLuck(-3, 1), -2);
-    assert.equal(edgeWithLuck(-1, 3), 0);
-    assert.equal(edgeWithLuck(3, 1), 4);
-    assert.equal(edgeWithLuck(3, 3), 6);
-    assert.equal(edgeWithLuck(1, -1), 0);
-    assert.equal(edgeWithLuck(-3, -1), -4);
-    assert.equal(edgeWithLuck(0, 3), 0);
+test('luck is a window on the edge by LUK; the situation\'s edge is held inside it and a best case reaches its top', () => {
+    const windows = [[3, -3, 3], [4, -3, 3], [5, -2, 3], [6, -2, 3], [7, -1, 3], [8, -1, 3], [9, -1, 3], [10, -1, 3], [11, 0, 3], [12, 0, 3], [13, 1, 4], [14, 1, 4],
+        [15, 2, 4], [16, 2, 4], [17, 2, 5], [18, 2, 5], [19, 3, 5], [20, 3, 5]];
+    for (const [luk, min, max] of windows) assert.deepEqual(luckWindow(luk), { min, max }, `LUK ${luk}`);
+    assert.deepEqual([luckWindow(1), luckWindow(0), luckWindow(99)], [{ min: -3, max: 3 }, { min: -3, max: 3 }, { min: 3, max: 5 }], 'below 3 is 3; the stat maximum is 20');
+    // A fresh character (LUK 5): −2..+3. Never below the low end; +3 reaches the high end; between stays as the situation made it.
+    assert.deepEqual([-3, -2, 0, 2, 3].map(edge => edgeWithLuck(edge, 5)), [-2, -2, 0, 2, 3]);
+    assert.deepEqual([-3, 0, 1, 2, 3].map(edge => edgeWithLuck(edge, 13)), [1, 1, 1, 2, 4], 'LUK 13: +1..+4');
+    assert.deepEqual([-3, 0, 2, 3].map(edge => edgeWithLuck(edge, 19)), [3, 3, 3, 5], 'LUK 19: +3..+5');
+    assert.deepEqual([-3, -1, 0, 3].map(edge => edgeWithLuck(edge, 9)), [-1, -1, 0, 3], 'LUK 9: −1..+3');
+    assert.deepEqual([-3, 0, 3].map(edge => edgeWithLuck(edge, 11)), [0, 0, 3], 'LUK 11: 0..+3');
+    assert.deepEqual([-9, 9].map(edge => edgeWithLuck(edge, 5)), [-2, 3], 'the situation is held to −3..+3 first');
+    for (let luk = 3; luk <= 20; luk += 1) for (let edge = -3; edge <= 3; edge += 1) {
+        const { min, max } = luckWindow(luk), got = edgeWithLuck(edge, luk);
+        assert.ok(got >= min && got <= max, `LUK ${luk} edge ${edge}`);
+    }
 });
 
-test('bars: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5; foes 4 + class/2', () => {
+test('bars: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5; foes 4 + class/3', () => {
     assert.deepEqual(blocksFor(wessel), { health: 6, stamina: 5, mana: 4 });
     assert.deepEqual(blocksFor({ vit: 3, agi: 3, int: 3 }), { health: 4, stamina: 3, mana: 3 });
     assert.deepEqual(blocksFor({ vit: 20, agi: 20, int: 20 }), { health: 8, stamina: 7, mana: 7 });
-    assert.deepEqual([1, 2, 4, 8, 9].map(foeHealthBlocks), [4, 5, 6, 8, 8]);
+    assert.deepEqual([1, 2, 3, 5, 6, 8, 9].map(foeHealthBlocks), [4, 4, 5, 5, 6, 6, 7]);
 });
 
 test('foes add 3 + 3 × class; turn order adds class + AGI/2 (foes 2 × class); a 10-point lead earns a quick start', () => {

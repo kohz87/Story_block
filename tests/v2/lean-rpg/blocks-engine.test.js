@@ -171,13 +171,13 @@ test('Rest fills stamina and mana to the size their stats give', async t => {
     assert.deepEqual([sheet(host, 'character').stamina, sheet(host, 'character').mana], [6, 5], 'AGI 15 gives 6 stamina blocks, INT 10 gives 5 mana blocks');
 });
 
-test('a Foes group\'s Health is blocks left out of 4 + class/2: it arrives full, the story hurts it by words, and Down means 0', async t => {
+test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full, the story hurts it by words, and Down means 0', async t => {
     const host = await story(t, 'Foes');
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | class: 4', '+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2 | class: 1'));
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [foeHealthBlocks(4), foeHealthBlocks(1)]);
-    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [6, 4]);
+    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [5, 4]);
     await host.send('Hit.', reply(say('foes', 'hurt-1', ' | to: Scratched'), say('foes', 'hurt-2', ' | to: Wounded')));
-    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [5, 2]);
+    assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [4, 2]);
     await host.send('Finish.', reply(say('foes', 'hurt-1', ' | to: Down')));
     assert.equal(sheet(host, 'foes').hurt1, 0);
     await host.send('Gone.', reply('- dm foes — why | kind: clear-1 | why: down'));
@@ -211,7 +211,7 @@ test('the sheet reader gives the blocks left and each bar\'s size for a Standard
     assert.deepEqual(wessel.size, { health: 6, stamina: 6, mana: 5 });
     assert.deepEqual(wessel.size, blocksFor({ vit: 10, agi: 15, int: 10 }));
     assert.ok(wessel.hidden.includes('health-blocks'), 'the sizes the rules keep are hidden fields');
-    assert.deepEqual([read.foes[0].hurt, read.foes[0].size], [6, 6]);
+    assert.deepEqual([read.foes[0].hurt, read.foes[0].size], [5, 5]);
     assert.equal(read.foes[1].size, 4);
     // Classic: no `size` anywhere
     const classic = await createHost(); t.after(() => classic.close());

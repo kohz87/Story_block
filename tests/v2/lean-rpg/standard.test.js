@@ -19,8 +19,8 @@ const skip = available.ok ? false : available.reason;
 
 // ---- helpers ----------------------------------------------------------------------------------------------------------
 
-// Wessel: STR 10, AGI 10, DEX 6, VIT 10 (6 Health blocks), Soul Class II; Ren: INT 16, DEX 10; a foe group of rats, class II (5 blocks).
-function party({ foes = [['Sluice Rats', 6, 2, 5]], wessel = {}, ren = {}, skills = {} } = {}) {
+// Wessel: STR 10, AGI 10, DEX 6, VIT 10 (6 Health blocks), Soul Class II; Ren: INT 16, DEX 10; a foe group of rats, class II (4 blocks).
+function party({ foes = [['Sluice Rats', 6, 2, 4]], wessel = {}, ren = {}, skills = {} } = {}) {
     return {
         wessel: { role: 'character', fields: character('Wessel', { health: 6, str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 9, cha: 5, soul: 2, ...wessel }) },
         'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', skills.wessel ?? [['Iron Breath', 2, 'str'], ['Spark', 0, 'int', 'mana']]) },
@@ -42,6 +42,8 @@ const roll = (plan, { blocks = party(), rules = std(), source = dice(), carried 
     return { sheet, prepared, result: rollPrepared(plan, prepared, source, rules, { carried }) };
 };
 const hit = { who: 'Wessel', skill: 'Iron Breath', target: 'Sluice Rats' };
+// The bars a hit or a heal moved (a skill's cost also moves Stamina or Mana: see the cost tests).
+const bodies = hurts => hurts.filter(item => item.field === 'health' || /^hurt/.test(item.field));
 
 // ---- the recorded rules -----------------------------------------------------------------------------------------------
 
@@ -201,10 +203,10 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     assert.ok(precallPrompt({ ...input, standard: true }).startsWith(PRECALL_HEAD_STANDARD));
     assert.ok(precallPrompt(input).startsWith(PRECALL_HEAD));
     assert.equal(precallPrompt({ ...input, standard: false }), precallPrompt(input));
-    // The sheet in blocks (the words are spread over the bar like the Party tab's): Health 6 of 6 is Unhurt, 3 of 6 Hurt, and the rats' 5 blocks read the same way.
+    // The sheet in blocks (the words are spread over the bar like the Party tab's): Health 6 of 6 is Unhurt, 3 of 6 Hurt, and the rats' 3 of 4 blocks read the same way.
     const hurt = sheetOf(party({ wessel: { health: 3 }, foes: [['Sluice Rats', 6, 2, 3]] }));
     assert.match(sheetText(hurt, { standard: true }), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 9 CHA 5; Health Hurt/);
-    assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(class II, Hurt\)/);
+    assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(class II, Scratched\)/);
     assert.match(sheetText(sheetOf(party()), { standard: true }), /Health Unhurt/);
 });
 
@@ -213,12 +215,12 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
 test('a physical roll: (skill stat + DEX/2)/2 + Soul Class + rank against d20 + foeBase + 3 × class, and a hit takes 1 block', () => {
     const { result, sheet } = roll(planOf({ pace: 'careful', acts: [hit] }), { source: dice({ act0: [14, 9] }) });
     const [line] = result.rounds[0].lines;
-    assert.deepEqual(line.pc, { who: 'Wessel', type: 'physical', stat: 'str', second: 'dex', mainValue: 10, secondValue: 6, statBonus: 6, classValue: 2, classBonus: 4, rank: 2, luck: 0, situation: 0, edge: 0, die: 14, total: 26 });
+    assert.deepEqual(line.pc, { who: 'Wessel', type: 'physical', stat: 'str', second: 'dex', mainValue: 10, secondValue: 6, statBonus: 6, classValue: 2, classBonus: 4, rank: 2, window: { min: -1, max: 3 }, situation: 0, edge: 0, die: 14, total: 26 });
     assert.deepEqual(line.foe, { slot: 1, name: 'Sluice Rats', base: 4, classValue: 2, classBonus: 6, die: 9, total: 19 });
     assert.equal(line.outcome, 'success');
     assert.equal(line.decisive, false);
-    assert.deepEqual(line.damage, { id: 'f:1', kind: 'foe', name: 'Sluice Rats', blocks: 1, from: 5, to: 4, size: 5 });
-    assert.deepEqual(result.hurts, [{ id: 'f:1', kind: 'foe', name: 'Sluice Rats', module: 'pack.chat/foes', field: 'hurt1', from: 5, to: 4, size: 5 }]);
+    assert.deepEqual(line.damage, { id: 'f:1', kind: 'foe', name: 'Sluice Rats', blocks: 1, from: 4, to: 3, size: 4 });
+    assert.deepEqual(bodies(result.hurts), [{ id: 'f:1', kind: 'foe', name: 'Sluice Rats', module: 'pack.chat/foes', field: 'hurt1', from: 4, to: 3, size: 4 }]);
     assert.match(result.text, /Round 1: Wessel → Sluice Rats \(Iron Breath\): SUCCESS \(26 vs 19\), a hit/);
     assert.equal(sheet.characters.find(item => item.who === 'Wessel').health, 6, 'the roll reads the sheet and never writes it');
 });
@@ -230,7 +232,7 @@ test('a decisive hit takes 2 blocks: the winner\'s natural 20, the loser\'s natu
     assert.equal(one([18, 10]).rounds[0].lines[0].damage.blocks, 2, 'a lead of 10: 30 against 20');
     assert.equal(one([14, 10]).rounds[0].lines[0].damage.blocks, 1, '26 against 20');
     const last = one([20, 10], [['Sluice Rats', 6, 2, 1]]);
-    assert.deepEqual(last.hurts.map(({ from, to }) => [from, to]), [[1, 0]]);
+    assert.deepEqual(bodies(last.hurts).map(({ from, to }) => [from, to]), [[1, 0]]);
     assert.equal(last.rounds[0].lines[0].damage.blocks, 1, 'only the block that was left');
     assert.equal(last.stop, 'decisive');
 });
@@ -292,16 +294,18 @@ test('defence: the higher of AGI and VIT leads (a tie dodges), a spell is warded
     assert.deepEqual([ward.pc.style, ward.pc.stat, ward.pc.second, ward.pc.statBonus], ['ward', 'int', 'vit', 9]);
     const stopped = roll(foe('Wessel'), { source: dice({ foe0: [15, 5] }) }).result.rounds[0].lines.find(item => item.kind === 'foe');
     assert.equal(stopped.damage, undefined, 'a defence that holds takes nothing');
-    assert.deepEqual(roll(foe('Wessel'), { source: dice({ foe0: [15, 5] }) }).result.hurts.filter(item => item.kind === 'char'), []);
+    assert.deepEqual(roll(foe('Wessel'), { source: dice({ foe0: [15, 5] }) }).result.hurts.filter(item => item.kind === 'char' && item.field === 'health'), []);
 });
 
-test('luck: LUK steps the edge the situation earns (+2 with luck 2 is +4), bad luck shrinks a good edge and deepens a bad one', () => {
+test('luck is a window on the edge: the situation\'s edge is held inside LUK\'s window and a best case reaches its top', () => {
     const edge = (luk, asked) => roll(planOf({ pace: 'careful', acts: [{ ...hit, edge: asked }] }), { blocks: party({ wessel: { luk } }), source: dice({ act0: [10, 10] }) }).result.rounds[0].lines[0].pc;
-    assert.deepEqual([edge(16, 2).luck, edge(16, 2).situation, edge(16, 2).edge, edge(16, 2).total], [2, 2, 4, 10 + 12 + 4]);
-    assert.deepEqual([edge(5, -2).luck, edge(5, -2).edge], [-1, -3]);
-    assert.equal(edge(16, 0).edge, 0, 'an even situation is left alone');
-    assert.equal(edge(5, 0).edge, 0);
-    assert.equal(edge(9, 3).edge, 3);
+    // LUK 13: +1..+4. A best case (+3) is +4, a bad situation is lifted to +1, and the total carries the edge after the window.
+    assert.deepEqual([edge(13, 3).window, edge(13, 3).situation, edge(13, 3).edge, edge(13, 3).total], [{ min: 1, max: 4 }, 3, 4, 10 + 12 + 4]);
+    assert.deepEqual([edge(13, -2).edge, edge(13, 0).edge, edge(13, 2).edge], [1, 1, 2]);
+    // LUK 5 (a fresh character): −2..+3.
+    assert.deepEqual([-3, -2, 0, 3].map(asked => edge(5, asked).edge), [-2, -2, 0, 3]);
+    assert.deepEqual([edge(3, -3).edge, edge(4, -3).edge, edge(7, -3).edge, edge(9, -3).edge, edge(11, -3).edge, edge(19, -3).edge, edge(19, 3).edge, edge(17, 3).edge], [-3, -3, -1, -1, 0, 3, 5, 5]);
+    assert.equal(edge(9, 3).window.max, 3);
 });
 
 test('out of the resource: no skill, rank 0 and the type\'s own stat, and the cue says so; a skill the character lacks is rolled untrained', () => {
@@ -319,7 +323,7 @@ test('out of the resource: no skill, rank 0 and the type\'s own stat, and the cu
 });
 
 test('area: one attack roll against each foe\'s own roll; the bars of each move on their own', () => {
-    const foes = [['Rats', 2, 1, 4], ['Drake', 1, 2, 5]];
+    const foes = [['Rats', 2, 1, 4], ['Drake', 1, 2, 4]];
     const { result } = roll(planOf({ pace: 'careful', acts: [{ who: 'Ren', skill: 'Spark', area: true, target: 'Rats' }] }), { blocks: party({ foes }), source: dice({ act0: [12, 3, 17] }) });
     const lines = result.rounds[0].lines;
     assert.equal(lines.length, 2);
@@ -327,7 +331,7 @@ test('area: one attack roll against each foe\'s own roll; the bars of each move 
     assert.deepEqual(lines.map(line => line.pc.die), [12, 12], 'one roll');
     assert.deepEqual(lines.map(line => line.foe.die), [3, 17], 'against their own');
     assert.deepEqual(lines.map(line => line.outcome), ['success', 'success']);
-    assert.deepEqual(lines.map(line => [line.foe.name, line.damage?.to]), [['Rats', 2], ['Drake', 4]]);
+    assert.deepEqual(lines.map(line => [line.foe.name, line.damage?.to]), [['Rats', 2], ['Drake', 3]]);
     // (Ren's 12 + 15 = 27 beats the Rats' 10 by 17, a decisive hit of 2 blocks, and just reaches the Drake's 17 + 10 = 27 for 1)
     assert.match(result.text, /Ren → Drake \(Spark\) \(area\)/);
 });
@@ -343,7 +347,7 @@ test('support: a roll against a difficulty heals 1 block (2 decisive), never pas
     assert.deepEqual(heal({ health: 5 }, 20).rounds[0].lines[0].damage, { id: 'c:wessel', kind: 'char', name: 'Wessel', blocks: -1, from: 5, to: 6, size: 6 }, 'clamped to the bar');
     assert.equal(heal({ health: 6 }, 20).rounds[0].lines[0].damage, undefined, 'a full bar heals nothing');
     assert.equal(heal({ health: 3 }, 1).rounds[0].lines[0].damage, undefined, 'a fail heals nothing');
-    assert.deepEqual(heal({ health: 0 }, 5).hurts.map(({ from, to }) => [from, to]), [[0, 1]], 'someone who is Down can be mended');
+    assert.deepEqual(bodies(heal({ health: 0 }, 5).hurts).map(({ from, to }) => [from, to]), [[0, 1]], 'someone who is Down can be mended');
     assert.equal(heal({ health: 3 }, 5, 'hard').rounds[0].lines[0].outcome, 'cost', '19 against 20 is at a cost, and it still heals');
     assert.equal(heal({ health: 3 }, 5, 'hard').rounds[0].lines[0].damage.to, 4);
 });
@@ -390,10 +394,10 @@ test('quick start: a character 10 ahead of a foe in the order acts once against 
     assert.deepEqual(result.quickStart, [{ who: 'Wessel', against: 'Sluice Rats' }]);
     assert.equal(result.opening.length, 1);
     const [opening] = result.opening;
-    assert.deepEqual([opening.opening, opening.pc.die, opening.foe.die, opening.outcome, opening.damage.to], [true, 15, 10, 'success', 4]);
+    assert.deepEqual([opening.opening, opening.pc.die, opening.foe.die, opening.outcome, opening.damage.to], [true, 15, 10, 'success', 3]);
     assert.match(result.text, /Wessel is quick enough to act first against Sluice Rats \(an opening action\)\.\nOpening: Wessel → Sluice Rats \(Iron Breath\): SUCCESS \(27 vs 20\), a hit/);
     // The opening hit and the round's hit both count: 5 → 4 → 3 (round 1: default dice 10 against 10).
-    assert.deepEqual(result.hurts.find(item => item.id === 'f:1'), { id: 'f:1', kind: 'foe', name: 'Sluice Rats', module: 'pack.chat/foes', field: 'hurt1', from: 5, to: 3, size: 5 });
+    assert.deepEqual(result.hurts.find(item => item.id === 'f:1'), { id: 'f:1', kind: 'foe', name: 'Sluice Rats', module: 'pack.chat/foes', field: 'hurt1', from: 4, to: 2, size: 4 });
     // A 9-point lead is not enough (29 against 20).
     assert.deepEqual(roll(plan, { source: dice({ init1: [11], init17: [7] }) }).result.quickStart, []);
 });
@@ -422,8 +426,8 @@ test('a foe group acts once a round whatever its count, and its Health is the gr
 
 test('the cue tells the narrator which bars code moved and where they stand in words; it never gives a block count', () => {
     const { result } = roll(planOf({ pace: 'careful', ...two }), { source: dice({ act0: [14, 9], foe0: [3, 18] }) });
-    assert.match(result.text, /has already moved the Health bars they hit or heal .*never set those yourself/);
-    assert.match(result.text, /\nHealth now: .*Wessel (Badly wounded|Wounded|Hurt|Scratched).*\./);
+    assert.match(result.text, /has already moved the bars they hit, heal or spend .*never set those yourself/);
+    assert.match(result.text, /\nBars now: .*Wessel (Badly wounded|Wounded|Hurt|Scratched).*\./);
     assert.doesNotMatch(result.text, /block/i);
     assert.equal(stageWord(STAGES.health, 4, 6), 'Hurt');
     assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(blocks => stageWord(STAGES.health, blocks, 6)), ['Down', 'Badly wounded', 'Wounded', 'Hurt', 'Hurt', 'Scratched', 'Unhurt']);
@@ -433,25 +437,28 @@ test('the cue tells the narrator which bars code moved and where they stand in w
 test('a fuzz of fights: no bar leaves 0 to its size, a Down actor never acts, and the hurts are exactly what the told lines did', () => {
     const rules = std({ roundCap: 8 });
     for (let seed = 1; seed <= 150; seed += 1) {
-        const hurtStart = [5, 2, 1][seed % 3], health = [6, 2, 1][seed % 3];
+        const hurtStart = [4, 2, 1][seed % 3], health = [6, 2, 1][seed % 3];
         const blocks = party({ wessel: { health }, foes: [['Sluice Rats', 6, 2, hurtStart], ['Weir-drake', 1, 4, 6]] });
         const plan = planOf({ pace: 'all', acts: [hit, { who: 'Ren', skill: 'Spark', area: seed % 2 === 0, target: 'Sluice Rats' }, { who: 'Ren', skill: 'Mend', support: true, difficulty: 'normal', target: 'Wessel' }],
             foes: [{ slot: 1, target: 'Wessel' }, { slot: 2, target: 'Ren', againstMagic: seed % 2 === 1 }] });
         const sheet = sheetOf(blocks), prepared = prepare(plan, sheet, rules);
         const result = rollPrepared(plan, prepared, positionalDice(seed * 7919), rules, {});
-        const bars = new Map([...prepared.roster.characters, ...prepared.roster.foes].map(bar => [bar.id, bar.value]));
+        const all = [...prepared.roster.characters, ...prepared.roster.foes, ...prepared.roster.resources];
+        const bars = new Map(all.map(bar => [bar.id, bar.value]));
         const acted = new Set();
-        for (const line of [...result.opening, ...result.rounds.flatMap(round => round.lines)]) {
+        for (const line of [...result.opening, ...result.checks, ...result.rounds.flatMap(round => round.lines)]) {
             const actor = line.kind === 'foe' ? `f:${line.foe.slot}` : `c:${line.pc.who.toLowerCase()}`;
             assert.ok(bars.get(actor) > 0, `seed ${seed}: ${actor} acted at 0`);
             acted.add(actor);
-            if (!line.damage) continue;
-            assert.equal(line.damage.from, bars.get(line.damage.id), `seed ${seed}: the line starts from the bar`);
-            assert.ok(line.damage.to >= 0 && line.damage.to <= line.damage.size);
-            bars.set(line.damage.id, line.damage.to);
+            for (const moved of [line.damage, line.cost]) {
+                if (!moved) continue;
+                assert.equal(moved.from, bars.get(moved.id), `seed ${seed}: the line starts from the bar`);
+                assert.ok(moved.to >= 0 && moved.to <= moved.size);
+                bars.set(moved.id, moved.to);
+            }
         }
         for (const hurt of result.hurts) assert.equal(hurt.to, bars.get(hurt.id), `seed ${seed}: hurt ends where the lines end`);
-        assert.equal(result.hurts.length, [...bars].filter(([id, value]) => value !== new Map([...prepared.roster.characters, ...prepared.roster.foes].map(bar => [bar.id, bar.value])).get(id)).length);
+        assert.equal(result.hurts.length, all.filter(bar => bar.value !== bars.get(bar.id)).length);
         const total = result.rounds.length;
         assert.ok(total <= rules.roundCap);
         assert.ok(['decisive', 'over', 'pace', 'cap', 'budget', 'none'].includes(result.stop));
@@ -473,7 +480,7 @@ test('a pack\'s content.rpg may name the formula and its numbers; they are kept 
     const records = ok.pack.content.rpg;
     assert.equal(records.length, 2, 'the skill set, then the formula record');
     assert.deepEqual(records.at(-1), { id: 'sealed/formula', slug: 'formula', pack: 'sealed', formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
-    assert.deepEqual(packRulesOf(records), { formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
+    assert.deepEqual(packRulesOf(records), { pack: 'sealed', formula: 'classic', numbers: { foeBase: 7, costMargin: 3 } });
     assert.equal(packRulesOf(records.slice(0, 1)), null);
     assert.equal(packRulesOf(undefined), null);
     // Bad words are named and the pack is refused; a pack with only skill sets is exactly what it was.
@@ -519,4 +526,78 @@ test('a roll in a story whose pack asks for Classic is rolled on Classic with th
     const chosen = await roll({ rpgFormula: 'standard' });
     assert.equal(chosen.rules.formula, 'standard');
     assert.equal(chosen.rules.foeBase, STANDARD_FORMULA.foeBase, 'the pack\'s numbers belong to its own formula');
+});
+
+// ---- a skill costs a block of its resource ----------------------------------------------------------------------------------
+
+test('a skill used spends one block of its resource (Stamina or Mana), recorded on the line and on the roll\'s hurts; an action with no skill spends nothing', () => {
+    // Wessel: AGI 10 → 5 Stamina blocks, 4 held; Ren: INT 16 → 6 Mana blocks (the stock fields held 4 stages at most: the sheet says 4).
+    const { result } = roll(planOf({ pace: 'careful', acts: [hit, { who: 'Ren', skill: 'Spark', target: 'Sluice Rats' }] }), { blocks: party({ ren: { mana: 3 } }), source: dice({ init1: [10], init0: [1] }) });
+    const [wessel, ren] = ['Wessel', 'Ren'].map(name => result.rounds[0].lines.find(line => line.pc.who === name));
+    assert.deepEqual(wessel.cost, { id: 'c:wessel:stamina', kind: 'char', name: 'Wessel', blocks: 1, from: 4, to: 3, size: 5 });
+    assert.deepEqual(ren.cost, { id: 'c:ren:mana', kind: 'char', name: 'Ren', blocks: 1, from: 3, to: 2, size: 6 });
+    assert.deepEqual(result.hurts.filter(item => /stamina|mana/.test(item.field)).map(({ id, field, from, to }) => [id, field, from, to]), [['c:wessel:stamina', 'stamina', 4, 3], ['c:ren:mana', 'mana', 3, 2]]);
+    assert.match(result.text, /Bars now: .*Wessel Stamina (Winded|Tired|Fresh).*Ren Mana /);
+    assert.doesNotMatch(result.text, /block/i);
+    const bare = roll(planOf({ pace: 'careful', acts: [{ who: 'Wessel', type: 'physical', target: 'Sluice Rats' }] })).result;
+    assert.equal(bare.rounds[0].lines[0].cost, undefined);
+    assert.deepEqual(bare.hurts.filter(item => /stamina|mana/.test(item.field)), []);
+});
+
+test('an area attack, a heal and a defence with a skill each cost one block; a refused or idle action costs nothing', () => {
+    const foes = [['Rats', 2, 1, 4], ['Drake', 1, 2, 4]];
+    const area = roll(planOf({ pace: 'careful', acts: [{ who: 'Ren', skill: 'Spark', area: true, target: 'Rats' }] }), { blocks: party({ foes, ren: { mana: 4 } }) }).result;
+    assert.equal(area.rounds[0].lines.length, 2);
+    assert.deepEqual(area.rounds[0].lines.map(line => line.cost?.to), [3, undefined], 'one cost for the action, on its first line');
+    const mend = roll(planOf({ pace: 'careful', acts: [{ who: 'Ren', skill: 'Mend', support: true, difficulty: 'normal', target: 'Wessel' }] }), { blocks: party({ wessel: { health: 3 }, ren: { mana: 4 } }) }).result;
+    assert.equal(mend.rounds[0].lines[0].cost.id, 'c:ren:mana');
+    const defence = roll(planOf({ pace: 'careful', foes: [{ slot: 1, target: 'Wessel', skill: 'Iron Breath' }], acts: [] }), { blocks: party({ wessel: { stamina: 3 } }) }).result;
+    assert.equal(defence.rounds[0].lines[0].skill, 'Iron Breath');
+    assert.deepEqual([defence.rounds[0].lines[0].cost.from, defence.rounds[0].lines[0].cost.to], [3, 2]);
+    // Down before its turn: no action, no cost.
+    const down = roll(planOf({ pace: 'careful', acts: [hit], foes: [{ slot: 1, target: 'Wessel' }] }), { blocks: party({ wessel: { health: 1 } }), source: dice({ init1: [1], init17: [20], foe0: [1, 15] }) }).result;
+    assert.deepEqual(down.hurts.filter(item => item.field === 'stamina'), []);
+    // A check with a skill counts too.
+    const check = roll(planOf({ checks: [{ who: 'Ren', skill: 'Spark', type: 'check', fit: 'int', difficulty: 'easy' }] }), { blocks: party({ ren: { mana: 2 } }) }).result;
+    assert.deepEqual([check.checks[0].cost.from, check.checks[0].cost.to], [2, 1]);
+});
+
+test('the resource runs out in the fight: the last block is spent, then the action is rolled without the skill and the line says so; nothing goes below 0', () => {
+    const blocks = party({ wessel: { stamina: 1 } });
+    const { result, prepared } = roll(planOf({ pace: 'all', acts: [hit] }), { blocks, source: dice({ init1: [10], init17: [10] }) });
+    assert.deepEqual(prepared.refused, [], 'it was not empty at the start');
+    const lines = result.rounds.flatMap(round => round.lines);
+    assert.ok(lines.length >= 2, 'a calm fight of several rounds');
+    assert.deepEqual([lines[0].skill, lines[0].cost.to, lines[0].without], ['Iron Breath', 0, undefined]);
+    assert.deepEqual([lines[1].skill, lines[1].pc.rank, lines[1].pc.stat, lines[1].without, lines[1].cost], [null, 0, 'str', 'Iron Breath', undefined]);
+    assert.equal(lines[1].pc.total - lines[1].pc.die, 6 + 4, 'the pair and Soul Class only: no rank');
+    assert.match(result.text, /Round 2: Wessel → Sluice Rats \(Iron Breath unavailable: resource spent\)/);
+    assert.equal(result.hurts.find(item => item.field === 'stamina').to, 0);
+    // Already empty at the start: refused as before, rolled without it, and nothing to spend.
+    const empty = roll(planOf({ pace: 'careful', acts: [hit] }), { blocks: party({ wessel: { stamina: 0 } }) });
+    assert.equal(empty.prepared.refused.length, 1);
+    assert.equal(empty.result.rounds[0].lines[0].cost, undefined);
+});
+
+test('the cost goes through the turn: it is written to the sheet, and a Re-read, a swipe, a rebuild and a reload agree', { skip }, async () => {
+    const { host } = await setup({ blocks: party({ wessel: { stamina: 4 } }), answers: ['pace: careful\nact Wessel | skill: Iron Breath | type: physical | target: Sluice Rats'], settings: { rpgFormula: 'standard' } });
+    const fieldsOf = () => host.head().domains.dataModules.instances['pack.chat/wessel'].chat.fields;
+    const result = () => host.ctx.chat[2].extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve').data.v2.result;
+    // (an opening action and each round's action each spend one: the sheet holds 4 less what the told lines spent)
+    const spentBy = () => [...result().opening, ...result().rounds.flatMap(round => round.lines)].filter(line => line.cost).length;
+    await host.send('I strike.', 'The rats scatter.');
+    assert.ok(spentBy() >= 1);
+    assert.equal(fieldsOf().stamina, 4 - spentBy());
+    assert.equal(result().hurts.find(item => item.field === 'stamina').to, fieldsOf().stamina);
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live);
+    await host.st.loadChat(JSON.parse(JSON.stringify(host.ctx.chat)));
+    assert.equal(JSON.stringify(host.head()), live);
+    assert.equal((await host.turn.reread(2)).ok, true);
+    assert.equal(JSON.stringify(host.head()), live, 'a Re-read keeps it');
+    for (let n = 0; n < 3; n += 1) { await host.swipe(`Again ${n}.`); assert.equal(fieldsOf().stamina, 4 - spentBy(), 'a swipe starts from the sheet before the reply, and spends only what its own roll spent'); }
+    await host.st.deleteMessage(2);
+    assert.equal(fieldsOf().stamina, 4, 'a delete gives the blocks back');
+    host.close();
 });

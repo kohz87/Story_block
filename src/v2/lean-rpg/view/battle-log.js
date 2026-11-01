@@ -85,7 +85,7 @@ function pcStandard(raw, skill, soul) {
     const terms = [`${Number.isFinite(pc.die) ? `d20 ${pc.die} + ` : ''}(${stat} ${pc.mainValue} + ${second} ${pc.secondValue}/2)/2 = ${pc.statBonus}`];
     if (skill) terms.push(`+ ${RANK_NAMES[pc.rank] ?? `Rank ${pc.rank}`} ${pc.rank}`);
     if (pc.classBonus) terms.push(`+ ${classText(pc.classValue, soul)} ${pc.classBonus}`);
-    if (Number.isFinite(pc.edge) && pc.edge !== 0) terms.push(`${signed(pc.edge).replace(' ', ' edge ')}${Number.isFinite(pc.luck) && pc.luck !== 0 ? ` (luck ${pc.luck > 0 ? '+' : '−'}${Math.abs(pc.luck)})` : ''}`);
+    if (Number.isFinite(pc.edge) && pc.edge !== 0) terms.push(`${signed(pc.edge).replace(' ', ' edge ')}${pc.window && pc.edge !== pc.situation ? ` (luck window ${pc.window.min}..${pc.window.max})` : ''}`);
     return `${head}: ${terms.join(' ')} = ${pc.total}`;
 }
 

@@ -16,7 +16,7 @@ import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
 import { JOIN_SETTING, ROLLS_SETTING } from '../names.js';
 import { joinMode } from '../join.js';
-import { CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, STANDARD_RANGES, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, normalizeStandard, plannerNoteOf, rulesFromSettings } from '../rules.js';
+import { packInForce, CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, STANDARD_RANGES, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, normalizeStandard, plannerNoteOf, rulesFromSettings } from '../rules.js';
 import { CREATION } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { COMBAT_MAX, combatBlock, combatDefault, combatTemplate, customOf, oddsView, plannerPrompt, soulLabelFor, withPrompt } from './settings-data.js';
@@ -87,7 +87,7 @@ const CARD_WORDS = Object.freeze({
  * host's commands: the Combat rules text is saved with `dm.redefine`, and added with `dm.define`).
  * → { el, filter(text) → count, refresh(), refreshSize(), destroy() }, as a settings page body expects.
  */
-export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null } = {}) {
+export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument ?? globalThis.document, featureOn = () => true, onChange = () => {}, headState = () => null, readerName = () => '', roleOf, command = null, pack = () => null } = {}) {
     const root = h(doc, 'div', 'rpg-set');
     parent.appendChild(root);
     const values = () => settings(SETTINGS_MODULE) ?? {};
@@ -133,12 +133,20 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         return { add: node => { wrap.appendChild(node); wrap.appendChild(h(doc, 'small', '', help)); return node; } };
     };
 
+    // "From the pack: Ersveil" when the story's pack decides the formula or the numbers (the reader has chosen nothing there).
+    const packNote = (...which) => {
+        const given = pack(), live = packInForce(values(), given);
+        return given && which.some(key => live[key]) ? h(doc, 'p', 'rpg-set-help rpg-from-pack', fill(S.fromPack, { name: given.name || given.pack || '' })) : null;
+    };
+
     // ---- The stat formula: which one, how its rolls are made, and its four main numbers
     function drawFormula() {
-        const now = formulaOf(values());
-        const rules = rulesFromSettings(values()), soulLabel = soulLabelFor(headState(), readerName());
+        const now = formulaOf(values(), pack());
+        const rules = rulesFromSettings(values(), pack()), soulLabel = soulLabelFor(headState(), readerName());
         const box = card('formula', S.formula);
         chips(box, S.formula, [['standard', S.formulaStandard], ['classic', S.formulaClassic]], now, value => put(FORMULA_SETTING, value));
+        const fromPack = packNote('formula', 'numbers');
+        if (fromPack) box.appendChild(fromPack);
         box.appendChild(h(doc, 'p', 'rpg-set-help', now === 'standard' ? S.formulaStandardHelp : S.formulaClassicHelp));
         const table = h(doc, 'table', 'rpg-formula-table');
         table.setAttribute('data-formula', now);
@@ -186,16 +194,18 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('difficulty', S.difficulty);
         const now = difficultyOf(values());
         // Each formula keeps its own Custom numbers (Classic's six, Standard's thirteen).
-        const standard = formulaOf(values()) === 'standard';
+        const standard = formulaOf(values(), pack()) === 'standard';
         const customKey = standard ? STANDARD_SETTING : CUSTOM_SETTING, fields = standard ? STANDARD_FIELDS : NUMBER_FIELDS, ranges = standard ? STANDARD_RANGES : RULE_RANGES;
         chips(box, S.difficulty, DIFFICULTIES.map(name => [name, S[name]]), now, value => {
             // A first switch to Custom starts from the numbers in force, so nothing jumps.
-            if (value === 'custom' && !values()[customKey]) settings.set(SETTINGS_MODULE, customKey, customOf(values()));
+            if (value === 'custom' && !values()[customKey]) settings.set(SETTINGS_MODULE, customKey, customOf(values(), pack()));
             put(DIFFICULTY_SETTING, value);
         });
+        const numbersFromPack = packNote('numbers');
+        if (numbersFromPack) box.appendChild(numbersFromPack);
         if (now === 'custom') {
             const grid = h(doc, 'div', 'rpg-set-nums');
-            const custom = customOf(values());
+            const custom = customOf(values(), pack());
             const soulLabel = soulLabelFor(headState(), readerName());
             for (const entry of fields) {
                 const label = fill(entry.label, { label: soulLabel });
@@ -223,7 +233,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                 input.setAttribute('aria-label', label);
                 input.className = 'rpg-set-input';
                 input.addEventListener('change', () => {
-                    const have = customOf(values()), typed = Number(String(input.value).trim());
+                    const have = customOf(values(), pack()), typed = Number(String(input.value).trim());
                     // A number outside its range is held to it; something that is not a number is put back.
                     // (A choice is one of its options, kept as it is.)
                     const next = entry.options ? (entry.options.some(([value]) => value === typed) ? typed : have[entry.key])
@@ -257,7 +267,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
     function drawOdds() {
         const parts = oddsParts;
         if (!parts) return;
-        const view = oddsView(headState(), readerName(), rulesFromSettings(values()));
+        const view = oddsView(headState(), readerName(), rulesFromSettings(values(), pack()));
         parts.odds.hidden = !view;
         parts.compare.hidden = !view;
         if (!view) return;
@@ -283,7 +293,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
                 add.setAttribute('type', 'button');
                 add.setAttribute('data-act', 'combat-add');
                 add.addEventListener('click', async () => {
-                    const definition = combatTemplate(LEAN_RPG_TEMPLATES, formulaOf(values()));
+                    const definition = combatTemplate(LEAN_RPG_TEMPLATES, formulaOf(values(), pack()));
                     const result = definition ? await command('dm.define', { definition }) : null;
                     combatNote = result?.ok ? S.combatAdded : refusalText(result, S.combatFailed, { pinsFull: S.combatPinsFull });
                     if (alive) redraw('[data-act="combat-add"]');
@@ -339,7 +349,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
             area.addEventListener('input', tally);
             area.addEventListener('change', save);
             area.addEventListener('focusout', save);
-            reset.addEventListener('click', () => { area.value = combatDefault(formulaOf(values())); tally(); save(); });
+            reset.addEventListener('click', () => { area.value = combatDefault(formulaOf(values(), pack())); tally(); save(); });
             row.append(reset, count);
             box.append(area, row, status);
             tally();
@@ -377,7 +387,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         if (!previewParts) return;
         const note = plannerNoteOf(values());
         previewParts.count.textContent = fill(S.plannerCount, { n: [...previewParts.area.value].slice(0, NOTE_MAX).length, max: NOTE_MAX });
-        previewParts.pre.textContent = plannerPrompt(headState(), note, { standard: formulaOf(values()) === 'standard' });
+        previewParts.pre.textContent = plannerPrompt(headState(), note, { standard: formulaOf(values(), pack()) === 'standard' });
     }
 
     // ---- drawing

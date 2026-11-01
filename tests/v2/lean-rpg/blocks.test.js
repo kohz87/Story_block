@@ -71,7 +71,7 @@ test('a character\'s bar size is blocksFor(stats) and a foe group\'s is foeHealt
     assert.deepEqual(['health', 'stamina', 'mana'].map(key => sizeOf(state[key], wessel, key)), [6, 5, 4]);
     const foes = standard('Foes').state;
     assert.equal(sizeOf(foes.hurt2, { class2: 4 }, 'hurt2'), foeHealthBlocks(4));
-    assert.equal(sizeOf(foes.hurt2, { class2: 4 }, 'hurt2'), 6);
+    assert.equal(sizeOf(foes.hurt2, { class2: 4 }, 'hurt2'), 5);
     assert.equal(sizeOf(foes.hurt1, {}, 'hurt1'), 4, 'no class yet: class 1');
     assert.equal(sizeOf({ type: 'int', min: 0, max: 5, default: 5 }, wessel, 'health'), null);
 });
@@ -91,15 +91,15 @@ test('a reading holds the value to 0..size, and a block that is not a block bar 
 test('the next block and next luck: the stat that earns it, none past the stat maximum or LUK 19', () => {
     assert.deepEqual(growthOf(wessel), {
         health: { blocks: 6, stat: 'vit', value: 10, next: 15 }, stamina: { blocks: 5, stat: 'agi', value: 10, next: 15 },
-        mana: { blocks: 4, stat: 'int', value: 5, next: 10 }, luck: { value: -1, stat: 'luk', current: 3, next: 8 },
+        mana: { blocks: 4, stat: 'int', value: 5, next: 10 }, luck: { min: -3, max: 3, stat: 'luk', current: 3, next: 5 },
     });
-    const top = growthOf({ ...wessel, vit: 20, luk: 19, int: 14 });
+    const top = growthOf({ ...wessel, vit: 20, luk: 17, int: 14 });
     assert.equal(top.health.blocks, 8);
     assert.equal(top.health.next, null, 'VIT 20 is the maximum: no next block');
-    assert.deepEqual([top.luck.value, top.luck.next], [3, null]);
+    assert.deepEqual([top.luck.min, top.luck.max, top.luck.next], [2, 5, 19]);
     assert.equal(top.mana.next, 15);
-    assert.equal(growthOf({ ...wessel, luk: 13 }).luck.next, 16);
-    assert.deepEqual([7, 8, 12].map(luk => growthOf({ ...wessel, luk }).luck.next), [8, 13, 13], 'below LUK 8 the next change is back to 0');
+    assert.equal(growthOf({ ...wessel, luk: 13 }).luck.next, 15);
+    assert.deepEqual([4, 5, 6, 8, 12, 18, 19, 20].map(luk => growthOf({ ...wessel, luk }).luck.next), [5, 7, 7, 11, 13, 19, null, null], 'the edge window steps at LUK 5, 7, 11, 13, 15, 17 and 19');
 });
 
 test('a new character\'s bars are full for its stats, with the sizes the rules compare against', () => {

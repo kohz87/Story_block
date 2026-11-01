@@ -891,7 +891,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
                 // What the chat remembers about the first send (lean-rpg/start.js): in its own metadata, written with the chat.
                 meta: () => { try { return (liveCtx() ?? ctx)?.chatMetadata ?? null; } catch { return null; } },
                 save: () => { try { const c = liveCtx() ?? ctx; (c.saveMetadata ?? c.saveMetadataDebounced)?.call(c); } catch { /* the choice lasts this page only */ } },
-                openDialog: (id, opts) => api.dialog.open(id, opts), closeView: () => mounts.screen.close(), refresh: () => refresh(), command: (type, payload, options) => sdk.command(type, payload, options), values: () => settings('story-block') });
+                openDialog: (id, opts) => api.dialog.open(id, opts), closeView: () => mounts.screen.close(), refresh: () => refresh(), command: (type, payload, options) => sdk.command(type, payload, options), values: () => settings('story-block'),
+                query: (name, args) => { try { return sdk.query(name, args); } catch { return null; } } });
             mounts.card?.refreshAll?.({ force: true });
             // Home draws its "Your character" card from `rpg`, which is only set now: the open screen is drawn again.
             mounts.screen?.update?.();

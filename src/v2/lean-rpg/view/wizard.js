@@ -74,7 +74,7 @@ const safe = (fn, fallback) => { try { return fn() ?? fallback; } catch { return
  * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes. `prefill` is { name, about, soul, best }: a companion
  * the story brought in (join.js joinDraft); `onEnd(created)` is told once when the dialog closes, `created` true when Create made the character.
  */
-export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null } = {}) {
+export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null, packNote = () => '' } = {}) {
     let session = null;
     const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf, safe(replyKey, ''));
     // The persona's description as Who they are starts: one line, the first 240 characters (whole characters), '' when there is none.
@@ -347,6 +347,8 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const creation = draftCreation(now), standard = creation.standard === true;
                 const words = { ...creation, label: soulWords.label };
                 actions.appendChild(h(doc, 'p', 'rpg-sheet-note', now.from ? fill(standard ? W.statsNoteImportStandard : W.statsNoteImport, { ...words, n: now.from.points }) : fill(standard ? W.statsNoteStandard : W.statsNote, words)));
+                const fromPack = standard ? safe(packNote, '') : '';
+                if (fromPack) actions.appendChild(h(doc, 'p', 'rpg-sheet-note rpg-wiz-pack', fill(RPG_STRINGS.settings.fromPack, { name: fromPack })));
                 card.appendChild(actions);
                 // Standard: Health, Stamina and Mana grow with VIT, AGI and INT, and luck with LUK; the line follows the steppers.
                 growthNode = standard ? h(doc, 'p', 'rpg-wiz-growth', growth(now)) : null;

@@ -63,26 +63,25 @@ export function statPart(type, stats, { skillStat = null, fittingStat = null, ag
     return { value: pair(statOf(stats, main), statOf(stats, base.second)), main, second: base.second, style: null };
 }
 
-/** Luck from LUK: +1 at 13, +2 at 16, +3 at 19; −1 at 7 or below; 0 otherwise. */
-export function luckOf(luk) {
-    const value = num(luk);
-    if (value >= 19) return 3;
-    if (value >= 16) return 2;
-    if (value >= 13) return 1;
-    if (value <= 7) return -1;
-    return 0;
+/**
+ * Luck is a window on the edge, by LUK (stats start at 5): LUK 3–4 −3..+3, 5–6 −2..+3, 7–8 −1..+3, 9–10 −1..+3, 11–12 0..+3, 13–14 +1..+4,
+ * 15–16 +2..+4, 17–18 +2..+5, 19–20 +3..+5 (below 3 is the same as 3). → { min, max }
+ */
+export function luckWindow(luk) {
+    const step = Math.max(0, Math.min(8, Math.floor((Math.max(3, num(luk)) - 3) / 2)));
+    return { min: [-3, -2, -1, -1, 0, 1, 2, 2, 3][step], max: [3, 3, 3, 3, 3, 4, 4, 5, 5][step] };
 }
 
+/** The LUK values at which the window changes (the next one is what the Party line and the steppers name). */
+export const LUCK_STEPS = Object.freeze([5, 7, 11, 13, 15, 17, 19]);
+
 /**
- * The situation's edge (−3 to +3) after luck: a bad edge shrinks toward 0 by good luck (never past 0) and a good edge
- * grows by it (to 3 + luck at most); bad luck does the opposite (a good edge never below 0, a bad one to −3 + luck at least).
- * An even situation (0) is left alone. The result stays within −6 and +6.
+ * The situation's edge (−3 to +3) held inside LUK's window: never below its low end, and a best-case situation (+3) reaches its high end.
+ * Anything between stays as the situation made it (raised to the low end when that is higher). The result is within the window.
  */
-export function edgeWithLuck(edge, luck) {
-    const e = Math.max(-3, Math.min(3, num(edge))), l = Math.max(-3, Math.min(3, num(luck)));
-    if (e === 0 || l === 0) return e;
-    if (e > 0) return Math.max(0, Math.min(3 + Math.max(l, 0), e + l));
-    return Math.min(0, Math.max(-3 + Math.min(l, 0), e + l));
+export function edgeWithLuck(edge, luk) {
+    const { min, max } = luckWindow(luk), e = Math.max(-3, Math.min(3, num(edge)));
+    return e >= 3 ? max : Math.max(min, e);
 }
 
 /** How many blocks each bar has: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5 (rounded down). */
@@ -94,8 +93,8 @@ export function blocksFor(stats) {
     };
 }
 
-/** A foe's Health blocks: 4 + class/2 (Class II 5, IV 6, VIII 8). */
-export const foeHealthBlocks = foeClass => 4 + Math.floor(Math.max(1, num(foeClass)) / 2);
+/** A foe's Health blocks: 4 + class/3 (Classes I–II 4, III–V 5, VI–VIII 6, IX 7). */
+export const foeHealthBlocks = foeClass => 4 + Math.floor(Math.max(1, num(foeClass)) / 3);
 
 /** What a foe adds to its roll: foeBase + foeClassWeight × class. */
 export const foeBonus = (foeClass, numbers = STANDARD_NUMBERS) => num(numbers.foeBase) + num(numbers.foeClassWeight) * Math.max(1, num(foeClass));

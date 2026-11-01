@@ -85,7 +85,7 @@ export const formulaOf = (values, pack = null) => {
 export function packRulesOf(records) {
     const found = (Array.isArray(records) ? records : []).find(record => record && typeof record === 'object' && record.slug === 'formula' && (record.formula || record.numbers));
     if (!found) return null;
-    return { ...(found.formula === 'standard' || found.formula === 'classic' ? { formula: found.formula } : {}),
+    return { ...(typeof found.pack === 'string' ? { pack: found.pack } : {}), ...(found.formula === 'standard' || found.formula === 'classic' ? { formula: found.formula } : {}),
         ...(found.numbers && typeof found.numbers === 'object' && !Array.isArray(found.numbers) ? { numbers: { ...found.numbers } } : {}) };
 }
 
@@ -166,6 +166,18 @@ export function rulesFromSettings(values, pack = null) {
     // formula's scale); a picked difficulty is the reader's.
     const asked = pack?.numbers && (!pack.formula || (pack.formula === 'standard') === standard) && !DIFFICULTIES.includes(values?.[DIFFICULTY_SETTING]) ? pack.numbers : null;
     return asked ? (standard ? normalizeStandard({ ...preset, ...asked, formula: 'standard' }) : normalizeRules({ ...preset, ...asked })) : preset;
+}
+
+/**
+ * What of a pack's ask is in force now: `{ formula, numbers }` booleans. The formula is the pack's when the reader has not chosen one; the numbers are
+ * the pack's when the reader has not picked a difficulty and they are on the scale of the formula in force (the rules of rulesFromSettings).
+ */
+export function packInForce(values, pack) {
+    if (!pack) return { formula: false, numbers: false };
+    const chosen = values?.[FORMULA_SETTING] === 'classic' || values?.[FORMULA_SETTING] === 'standard';
+    const standard = formulaOf(values, pack) === 'standard';
+    return { formula: Boolean(pack.formula) && !chosen,
+        numbers: Boolean(pack.numbers) && (!pack.formula || (pack.formula === 'standard') === standard) && !DIFFICULTIES.includes(values?.[DIFFICULTY_SETTING]) && difficultyOf(values) !== 'custom' };
 }
 
 /** The extra instructions for the roll planner: text, tidied, at most NOTE_MAX characters. */

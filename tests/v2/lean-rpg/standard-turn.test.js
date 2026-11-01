@@ -13,7 +13,7 @@ const skip = available.ok ? false : available.reason;
 const blocks = (over = {}) => ({
     wessel: { role: 'character', fields: character('Wessel', { health: 6, str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 9, soul: 2 }) },
     'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Iron Breath', 2, 'str']]) },
-    foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 2, 5]]) },
+    foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 2, 4]]) },
     ...over,
 });
 const ANSWER = ['pace: all', 'act Wessel | skill: Iron Breath | type: physical | target: Sluice Rats', 'foe Sluice Rats | target: Wessel'].join('\n');
@@ -40,12 +40,12 @@ test('a Standard roll: the payload carries the formula and numbers, the narrator
     assert.equal(receipt.replan.payload.rules.formula, 'standard');
     assert.equal(receipt.replan.payload.plan.formula, 'standard');
     assert.ok(tailOf(request).includes(receipt.summary), 'the cue told is the cue stored');
-    assert.match(receipt.summary, /already moved the Health bars/);
+    assert.match(receipt.summary, /already moved the bars they hit, heal or spend/);
     // The sheet holds exactly what the told lines did.
     const lines = [...result.opening, ...result.rounds.flatMap(round => round.lines)];
     const took = (id) => lines.filter(line => line.damage?.id === id);
     const last = id => took(id).at(-1)?.damage.to;
-    assert.equal(fieldsOf(host, 'foes').hurt1, last('f:1') ?? 5);
+    assert.equal(fieldsOf(host, 'foes').hurt1, last('f:1') ?? 4);
     assert.equal(fieldsOf(host, 'wessel').health, last('c:wessel') ?? 6);
     for (const hurt of result.hurts) assert.equal(fieldsOf(host, hurt.module.split('/')[1])[hurt.field], hurt.to);
     assert.equal(result.order.length, 2);
@@ -73,14 +73,14 @@ test('a Re-read keeps the dice, the order and the bars; a swipe rolls anew and p
         // Whatever the new dice did, the bars are the sheet's own start plus only this roll's hits.
         const result = resultOf(host, 2);
         const expected = (id, start) => result.hurts.find(hurt => hurt.id === id)?.to ?? start;
-        assert.equal(fieldsOf(host, 'foes').hurt1, expected('f:1', 5));
+        assert.equal(fieldsOf(host, 'foes').hurt1, expected('f:1', 4));
         assert.equal(fieldsOf(host, 'wessel').health, expected('c:wessel', 6));
     }
     assert.equal(seeds.size, 5);
     same(host);
     await reloads(host);
     await host.st.deleteMessage(2);
-    assert.equal(fieldsOf(host, 'foes').hurt1, 5, 'the foe is back to full');
+    assert.equal(fieldsOf(host, 'foes').hurt1, 4, 'the foe is back to full');
     assert.equal(fieldsOf(host, 'wessel').health, 6);
     host.close();
 });
@@ -138,7 +138,7 @@ test('REPLAY RULE: a Standard roll keeps its formula and numbers when the settin
     assert.deepEqual(result.rules, PRESETS.standard);
     assert.equal('formula' in result.rules, false);
     for (const key of ['order', 'quickStart', 'opening', 'idle', 'hurts']) assert.equal(key in result, false, key);
-    assert.equal(fieldsOf(second, 'foes').hurt1, 5, 'Classic leaves the bars to the narrator');
+    assert.equal(fieldsOf(second, 'foes').hurt1, 4, 'Classic leaves the bars to the narrator');
     assert.doesNotMatch(callModel.calls[0].prompt, /type: physical\|magic/);
     assert.equal(rollReceipt(second, 2).replan.payload.order, undefined);
     host.close();
@@ -156,7 +156,7 @@ test('a change to the sheet before a Standard roll plans it again with the same 
     const planned = rollReceipt(host, at);
     assert.equal(planned.seed, seed, 'the same dice');
     const result = planned.data.v2.result;
-    for (const hurt of result.hurts) assert.ok(hurt.from === (hurt.kind === 'foe' ? 5 : 6), 'it starts from the sheet as it is now');
+    for (const hurt of result.hurts.filter(item => item.field === 'health' || /^hurt/.test(item.field))) assert.ok(hurt.from === (hurt.kind === 'foe' ? 4 : 6), 'it starts from the sheet as it is now');
     assert.deepEqual(host.store.problems(), []);
     same(host);
     await reloads(host);

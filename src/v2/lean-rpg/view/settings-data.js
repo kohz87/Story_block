@@ -55,9 +55,9 @@ export const combatTemplate = (templates, formula = 'classic') => {
  * The Custom numbers as stored (each held to its range), else the numbers of the difficulty now (so a switch to Custom starts where the reader is).
  * Each formula keeps its own: Classic's six in `rpgCustom`, Standard's in `rpgStandard`.
  */
-export const customOf = values => (formulaOf(values) === 'standard'
-    ? normalizeStandard(values?.[STANDARD_SETTING] ?? (difficultyOf(values) === 'custom' ? null : rulesFromSettings(values)))
-    : normalizeRules(values?.[CUSTOM_SETTING] ?? (difficultyOf(values) === 'custom' ? null : rulesFromSettings({ ...values, rpgFormula: 'classic' }))));
+export const customOf = (values, pack = null) => (formulaOf(values, pack) === 'standard'
+    ? normalizeStandard(values?.[STANDARD_SETTING] ?? (difficultyOf(values) === 'custom' ? null : rulesFromSettings(values, pack)))
+    : normalizeRules(values?.[CUSTOM_SETTING] ?? (difficultyOf(values) === 'custom' ? null : rulesFromSettings({ ...values, rpgFormula: 'classic' }, pack))));
 
 /**
  * The odds shown: `{ label, now: { success, cost, fail }, compare: [{ name, success, cost, fail }] }` for the reader's own

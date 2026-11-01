@@ -3,7 +3,7 @@
 // What is different from Classic (resolve.js):
 // - a roll is typed: physical, magic, defence, social or check (plan.js). The stat part is formula.js statPart: a skill's stat takes the
 //   main slot, half of the type's second stat is added, the sum is halved once. Class = classWeight × Soul Class, then the skill's rank,
-//   then the situation's edge after luck (edgeWithLuck).
+//   then the situation's edge held inside LUK's window (formula.js luckWindow, edgeWithLuck).
 // - a foe adds foeBonus(class, rules) = foeBase + foeClassWeight × class.
 // - a fight has a turn order (rolled once, kept across replies, carried in the payload), an opening action for a character who leads a
 //   foe by the quick-start margin, and bars: a hit takes 1 block (2 when decisive) from the target's Health, a heal gives 1 (2). A foe
@@ -12,13 +12,13 @@
 // - the blocks the told rolls take or give are recorded on the roll (`hurts`) and written to the bars by resolve.js.
 //
 // The record (extends resolve.js's): result.formula 'standard'; each Line has `type`, and pc = { who, die, type, stat (the main stat),
-// second, mainValue, secondValue, statBonus (the pair), style ('dodge'|'block'|'ward'|null), classValue, classBonus, rank, luck,
+// second, mainValue, secondValue, statBonus (the pair), style ('dodge'|'block'|'ward'|null), classValue, classBonus, rank, window { min, max } (what LUK allows the edge),
 // situation (the edge asked for), edge (after luck), total }, foe = { slot, name, die, base, classValue, classBonus, total }; contested lines
 // have `decisive` and, where a bar moved, `damage` = { id, kind: 'char'|'foe', name, blocks (+ hurt, − healed), from, to, size };
 // `area`, `support` (target = the one healed) and `opening` mark those lines. The result adds `order` = [{ id, name, total, die, bonus,
 // agi, party, fresh }] (the turn order for the fight), `quickStart` = [{ who, against }], `opening` = [Line], `idle` = [{ n, id, who,
 // kind, why }] and `hurts` = [{ id, kind, name, module, field, from, to, size }].
-import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, luckOf, quickStart, statPart, turnOrder } from './formula.js';
+import { blocksFor, edgeWithLuck, foeBonus, foeHealthBlocks, foeInitiativeBonus, initiativeBonus, luckWindow, quickStart, statPart, turnOrder } from './formula.js';
 import { FOE_SLOTS, FORMULA, LIMITS, PACE, STAGES } from './names.js';
 import { matchCharacter, matchFoe, matchSkill } from './read.js';
 import { fitCue, hurtsOf } from './cue.js';
@@ -52,7 +52,13 @@ function rosterOf(sheet, maxOf) {
         const value = Number.isInteger(foe.hurt) ? Math.max(0, Math.min(size, foe.hurt)) : size;
         return { at: foe.slot, id: foeId(foe.slot), kind: 'foe', foe, name: foe.name, module: foe.module, field, value, size, slot: foe.slot };
     });
-    return { characters, foes };
+    // Stamina and Mana: a skill spends a block of its resource each use (the bars are named `c:<key>:stamina` and `c:<key>:mana`).
+    const resources = characters.flatMap(({ character, name, module }) => ['stamina', 'mana'].map(field => {
+        const size = Math.max(1, Math.min(blocksFor(character.stats)[field], maxOf(module, field)));
+        const value = Number.isInteger(character[field]) ? Math.max(0, Math.min(size, character[field])) : size;
+        return { id: `${charId(character)}:${field}`, kind: 'char', name, module, field, value, size };
+    }));
+    return { characters, foes, resources };
 }
 
 // ---- preparing --------------------------------------------------------------------------------------------------------
@@ -87,11 +93,11 @@ function typeOf(planned, skill) {
 function sideStd(character, type, skill, { fit = null, edge = 0, againstMagic = false } = {}, rules) {
     const part = statPart(type, character.stats, { skillStat: skill.stat, fittingStat: fit, againstMagic });
     const situation = Math.max(-FORMULA.edgeMax, Math.min(FORMULA.edgeMax, edge ?? 0));
-    const luck = luckOf(character.stats.luk);
+    const window = luckWindow(character.stats.luk);
     return {
         who: character.who, type, stat: part.main, second: part.second, mainValue: character.stats[part.main] ?? null, secondValue: character.stats[part.second] ?? null,
         statBonus: part.value, ...(part.style ? { style: part.style } : {}), classValue: character.soul, classBonus: rules.classWeight * character.soul,
-        rank: skill.rank, luck, situation, edge: edgeWithLuck(situation, luck),
+        rank: skill.rank, window, situation, edge: edgeWithLuck(situation, character.stats.luk),
         ...(skill.statHidden || (character.hidden ?? []).includes(part.main) ? { statHidden: true } : {}),
     };
 }
@@ -121,6 +127,10 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
         const side = sideStd(character, type, skill, extra, rules);
         return { side, check: statsOf(character, side) };
     };
+    // What the action rolls if its skill's resource runs out before its turn: no skill, rank 0, the type's own stat.
+    const NONE = { skill: null, rank: 0, stat: null, uses: null };
+    const withSkill = (skill, character, type, extra, typeBare = type) => (skill.skill
+        ? { uses: skill.uses, plain: { type: typeBare, skill: null, uses: null, pc: sideStd(character, typeBare, NONE, extra, rules) } } : {});
     for (const [at, act] of (plan.acts ?? []).entries()) {
         const actor = ready(act.who);
         const label = `${act.who} → ${act.target}`;
@@ -134,7 +144,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
         const { side, check } = skillSide(actor.character, skill, type, { fit: act.fit ?? act.stat, edge: act.edge });
         if (check.refusal) { refuse(act.who, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(act.who, skill.refused, skill.refusedPlain);
-        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: skill.skill, ...(act.why ? { why: act.why } : {}), pc: side };
+        const entry = { at, kind: 'act', actor: charId(actor.character), type, skill: skill.skill, ...withSkill(skill, actor.character, type, { fit: act.fit ?? act.stat, edge: act.edge }, typeOf(act, NONE)), ...(act.why ? { why: act.why } : {}), pc: side };
         if (support) {
             out.acts.push({ ...entry, support: true, difficulty: act.difficulty, dc: LIMITS.dc[act.difficulty], target: { id: charId(mate), name: mate.who } });
         } else {
@@ -152,7 +162,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
         const { side, check } = skillSide(defender.character, skill, 'defence', { againstMagic: entry.againstMagic === true });
         if (check.refusal) { refuse(entry.target, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(entry.target, skill.refused, skill.refusedPlain);
-        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, pc: side, foe: { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.foeClassWeight * foe.class } });
+        out.foes.push({ at, kind: 'foe', actor: charId(defender.character), type: 'defence', skill: skill.skill, ...withSkill(skill, defender.character, 'defence', { againstMagic: entry.againstMagic === true }), pc: side, foe: { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.foeClassWeight * foe.class } });
     }
     for (const [at, entry] of (plan.checks ?? []).entries()) {
         const actor = ready(entry.who);
@@ -163,7 +173,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
         const { side, check } = skillSide(actor.character, skill, type, { fit: entry.fit ?? entry.stat });
         if (check.refusal) { refuse(entry.who, `${label}: not rolled (${check.refusal}).`, `${label}: not rolled (${check.plain ?? check.refusal}).`); continue; }
         if (skill.refused) refuse(entry.who, skill.refused, skill.refusedPlain);
-        out.checks.push({ at, kind: 'check', actor: charId(actor.character), type, skill: skill.skill, difficulty: entry.difficulty, dc: LIMITS.dc[entry.difficulty], pc: side });
+        out.checks.push({ at, kind: 'check', actor: charId(actor.character), type, skill: skill.skill, ...withSkill(skill, actor.character, type, { fit: entry.fit ?? entry.stat }), difficulty: entry.difficulty, dc: LIMITS.dc[entry.difficulty], pc: side });
     }
     const bare = list => list.map(({ at: _, ...entry }) => ({ ...entry, pc: (({ statHidden: _hidden, ...pc }) => pc)(entry.pc) }));
     const standing = bar => ({ id: bar.id, name: bar.name, value: bar.value, size: bar.size });
@@ -173,7 +183,7 @@ export function prepareStandard(plan, sheet, rules, { maxOf = () => Infinity } =
     out.witness = {
         formula: 'standard', acts: bare(out.acts), foes: bare(out.foes), checks: bare(out.checks), refused: out.refused,
         roster: { characters: roster.characters.map(bar => ({ ...standing(bar), agi: bar.character.stats.agi, soul: bar.character.soul, alive: bar.character.alive })),
-            foes: roster.foes.map(bar => ({ ...standing(bar), class: bar.foe.class })) },
+            foes: roster.foes.map(bar => ({ ...standing(bar), class: bar.foe.class })), resources: roster.resources.map(standing) },
     };
     return out;
 }
@@ -216,19 +226,34 @@ function move(bar, blocks) {
  */
 export function rollStandard(plan, prepared, source, rules, { carried = null } = {}) {
     const own = new Map();
+    // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
-        if (!own.has(entry)) own.set(entry, source(entry.kind, entry.at ?? 0));
-        return own.get(entry);
+        const key = entry.base ?? entry;
+        if (!own.has(key)) own.set(key, source(key.kind, key.at ?? 0));
+        return own.get(key);
     };
-    const checks = prepared.checks.map(entry => {
-        const roll = diceOf(entry), die = roll();
-        const total = die + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
-        return { kind: 'check', type: entry.type, skill: entry.skill, pc: { ...entry.pc, die, total }, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeStd(die, total, entry.dc, rules) };
-    });
-    const { characters, foes } = prepared.roster;
+    const { characters, foes, resources } = prepared.roster;
     const fight = [...prepared.acts, ...prepared.foes];
-    const bars = new Map([...characters, ...foes].map(bar => [bar.id, { ...bar }]));
+    const bars = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, { ...bar }]));
     const standing = id => (bars.get(id)?.value ?? 0) > 0;
+    // A skill costs a block of its resource (Stamina or Mana) each time it is used; with the resource empty an action is rolled without the skill.
+    const usable = entry => {
+        const bar = entry.skill && entry.plain ? bars.get(`${entry.actor}:${entry.uses}`) : null;
+        return bar && bar.value === 0 ? { ...entry, ...entry.plain, without: entry.skill, base: entry.base ?? entry } : entry;
+    };
+    // The action done (`done.lines`): its skill, if it used one, spends a block, and a roll made without its skill says which.
+    const spent = (use, lines) => {
+        if (!lines.length) return lines;
+        const cost = use.skill && use.uses ? damageOf(bars.get(`${use.actor}:${use.uses}`), 1) : undefined;
+        return [{ ...lines[0], ...(use.without ? { without: use.without } : {}), ...(cost ? { cost } : {}) }, ...lines.slice(1)];
+    };
+    const damageOf = (bar, blocks) => (blocks === 0 ? undefined : move(bar, blocks) ?? undefined);
+    const checks = prepared.checks.map(base => {
+        const entry = usable(base), roll = diceOf(entry), die = roll();
+        const total = die + entry.pc.statBonus + entry.pc.classBonus + entry.pc.rank + entry.pc.edge;
+        const [line] = spent(entry, [{ kind: 'check', type: entry.type, skill: entry.skill, pc: { ...entry.pc, die, total }, difficulty: entry.difficulty, dc: entry.dc, outcome: outcomeStd(die, total, entry.dc, rules) }]);
+        return line;
+    });
     const most = fight.length ? Math.min(PACE[plan.pace], rules.roundCap) : 0;
 
     // The turn order: kept when the fight goes on (a foe of the carried order is still there), else rolled here. A late arrival rolls on entry.
@@ -245,11 +270,9 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
         return { id: bar.id, name: bar.name, total: die + bonus, die, bonus, agi, party, fresh: true };
     });
     const order = turnOrder(entries).map(id => entries.find(entry => entry.id === id));
-    const damageOf = (bar, blocks) => (blocks === 0 ? undefined : move(bar, blocks) ?? undefined);
-
     const owner = entry => (entry.kind === 'foe' ? foeId(entry.foe.slot) : entry.actor);
 
-    const doAct = entry => {
+    const actOf = entry => {
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
         // (an area attack: the foe die already drawn is the first foe's, one more is drawn for each other foe group)
         const areaDice = entry.area ? foes.map((_, at) => (at === 0 ? foeDie : roll())) : [];
@@ -279,7 +302,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
         if (!standing(target.id)) return { idle: 'no-target' };
         return { lines: [hit(target, { pcDie, foeDie })] };
     };
-    const doFoe = entry => {
+    const foeOf = entry => {
         const roll = diceOf(entry), pcDie = roll(), foeDie = roll();
         const foeBar = bars.get(foeId(entry.foe.slot)), me = bars.get(entry.actor);
         if (!standing(foeBar.id)) return { idle: 'beaten' };
@@ -289,22 +312,30 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
         return { lines: [{ kind: 'foe', type: 'defence', skill: entry.skill, pc: rolled.pc, foe: rolled.foe, outcome: rolled.outcome, decisive: rolled.decisive, ...(damage ? { damage } : {}) }] };
     };
 
+    const withUse = (base, run) => {
+        const use = usable(base), done = run(use);
+        return done.lines ? { lines: spent(use, done.lines) } : done;
+    };
+    const doAct = base => withUse(base, actOf);
+    const doFoe = base => withUse(base, foeOf);
+
     // The opening action: a character who leads a foe by the margin acts once against it before the first round.
     const opening = [], quick = [];
     if (fight.length && !goesOn) {
-        for (const entry of prepared.acts) {
-            if (entry.support || entry.area) continue;
+        for (const base of prepared.acts) {
+            if (base.support || base.area) continue;
+            const entry = usable(base);
             const mine = entries.find(item => item.id === owner(entry)), theirs = entries.find(item => item.id === foeId(entry.foe.slot));
             if (!mine || !theirs || !quickStart(mine.total, theirs.total, rules.quickStartMargin)) continue;
             if (quick.some(item => item.who === entry.pc.who)) continue;
-            const roll = source('open', entry.at ?? 0), pcDie = roll(), foeDie = roll();
+            const roll = source('open', base.at ?? 0), pcDie = roll(), foeDie = roll();
             const me = bars.get(owner(entry)), target = bars.get(foeId(entry.foe.slot));
             quick.push({ who: entry.pc.who, against: entry.foe.name });
             if (!standing(me.id) || !standing(target.id)) continue;
             const rolled = contested(entry, pcDie, foeDie, rules);
             const damage = rolled.pcWins && ['physical', 'magic'].includes(entry.type) ? damageOf(target, rolled.decisive ? 2 : 1) : undefined;
-            opening.push({ kind: 'act', type: entry.type, skill: entry.skill, opening: true, ...(entry.why ? { why: entry.why } : {}), pc: rolled.pc, foe: { ...rolled.foe, name: target.name, slot: target.slot },
-                outcome: rolled.outcome, decisive: rolled.decisive, ...(damage ? { damage } : {}) });
+            opening.push(...spent(entry, [{ kind: 'act', type: entry.type, skill: entry.skill, opening: true, ...(entry.why ? { why: entry.why } : {}), pc: rolled.pc, foe: { ...rolled.foe, name: target.name, slot: target.slot },
+                outcome: rolled.outcome, decisive: rolled.decisive, ...(damage ? { damage } : {}) }]));
         }
     }
 
@@ -336,12 +367,12 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
 
     // The cue, fitted to its budget; the rounds told decide the bars.
     const refused = prepared.refused.map(entry => entry.text);
-    const start = new Map([...characters, ...foes].map(bar => [bar.id, bar]));
+    const start = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, bar]));
     const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start } };
     const cue = fitCue(cueParts);
     const rounds = all.slice(0, cue.count).map(({ over: _, ...round }) => round);
     const told = all.slice(0, cue.count);
-    const hurts = hurtsOf(start, [...opening, ...told.flatMap(round => round.lines)]);
+    const hurts = hurtsOf(start, [...opening, ...checks, ...told.flatMap(round => round.lines)]);
     const decisive = told.length > 0 && told.at(-1).decisive;
     const over = told.length > 0 && told.at(-1).over;
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : decisive ? 'decisive' : over ? 'over' : told.length === most ? 'pace' : 'cap';

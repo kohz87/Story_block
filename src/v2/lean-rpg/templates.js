@@ -149,7 +149,7 @@ const SIZE = {
     stamina: ['add', 3, ['floorDiv', get('agi'), 5]],
     mana: ['add', 3, ['floorDiv', get('int'), 5]],
 };
-const FOE_SIZE = n => ['add', 4, ['floorDiv', get(`class${n}`), 2]];
+const FOE_SIZE = n => ['add', 4, ['floorDiv', get(`class${n}`), 3]];
 // Blocks for a stage word, in a bar of `size` blocks: round(word index × size / (words − 1)), half up; the first word is 0 and the last the full bar.
 const blocksOf = (word, size, count) => ['floorDiv', ['add', ['mul', word, size], Math.floor((count - 1) / 2)], count - 1];
 const stageLabel = words => ({ type: 'int', min: 0, max: words.length - 1, names: names(words) });
@@ -215,7 +215,7 @@ const standardFoes = {
         [`set-slot-${n}`, { op: '+', labels: { name: { type: 'text', max: 40 }, count: range(1, 99), class: range(1, 9) },
             when: ['eq', get(`count${n}`), 0], refusal: 'That slot is taken; clear it first.',
             effects: [{ op: 'set', path: [`foe${n}`], value: ['arg', 'name'] }, { op: 'set', path: [`count${n}`], value: ['arg', 'count'] },
-                { op: 'set', path: [`class${n}`], value: ['arg', 'class'] }, { op: 'set', path: [`hurt${n}`], value: ['add', 4, ['floorDiv', ['arg', 'class'], 2]] }] }],
+                { op: 'set', path: [`class${n}`], value: ['arg', 'class'] }, { op: 'set', path: [`hurt${n}`], value: ['add', 4, ['floorDiv', ['arg', 'class'], 3]] }] }],
         [`hurt-${n}`, { op: '~', labels: { to: stageLabel(STAGES.health) }, when: ['gt', get(`count${n}`), 0], refusal: 'That slot is empty.',
             effects: [{ op: 'set', path: [`hurt${n}`], value: blocksOf(['arg', 'to'], FOE_SIZE(n), STAGES.health.length) }] }],
         [`clear-${n}`, { op: '-', labels: { why: { type: 'enum', values: ['down', 'fled', 'yielded', 'captured', 'gone'] } },
@@ -230,10 +230,10 @@ const standardFoes = {
 export const COMBAT_PROMPT_STANDARD = [
     '[COMBAT SYSTEM]',
     'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Soul Class all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
-    'Exchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short. Never skip the moment that decides it.',
+    'Exchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short; never skip the moment that decides it.',
     'Weight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.',
     'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned; survival must be justified.',
-    'Rolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Soul Class has more. Tell the rolled result; code moves Health for rolled hits and heals: never set those.',
+    'Rolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Soul Class has more. Tell the rolled result; code moves the bars for hits, heals, skill costs: never set those.',
     'XP guide: a small fight 5 to 15, a hard fight 20 to 40, a boss 50 or more. Practice a skill 5 to 20 for each use.',
 ].join('\n');
 

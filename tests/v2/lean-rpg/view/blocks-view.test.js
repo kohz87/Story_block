@@ -48,9 +48,9 @@ test('the Party card draws one cell per block and says "Hurt · 4 of 6"', () => 
 
 test('the line under the skills: how many blocks each bar has, the stat that earns the next one and the next luck', () => {
     const card = party().querySelector('.rpg-card[data-character="Wessel"]');
-    assert.equal(card.querySelector('.rpg-growth').textContent, 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
-    assert.equal(growthText({ health: { blocks: 8, value: 20, next: null }, stamina: { blocks: 7, value: 20, next: null }, mana: { blocks: 7, value: 20, next: null }, luck: { value: 3, next: null } }),
-        'Health 8 blocks (VIT 20) · Stamina 7 (AGI 20) · Mana 7 (INT 20) · Luck +3');
+    assert.equal(card.querySelector('.rpg-growth').textContent, 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Edge −3..+3 (next at LUK 5)');
+    assert.equal(growthText({ health: { blocks: 8, value: 20, next: null }, stamina: { blocks: 7, value: 20, next: null }, mana: { blocks: 7, value: 20, next: null }, luck: { min: 3, max: 5, next: null } }),
+        'Health 8 blocks (VIT 20) · Stamina 7 (AGI 20) · Mana 7 (INT 20) · Edge +3..+5');
     const classic = draw(createPartyWidget, { headState: () => fakeState([{ definition: { ...structuredClone(STANDARD_TEMPLATES[0].definition), state: { ...structuredClone(STANDARD_TEMPLATES[0].definition.state), health: { type: 'int', min: 0, max: 5, default: 5 } } }, fields: { who: 'Old' } }]), readerName: () => 'Old', roleOf });
     assert.equal(classic.querySelector('.rpg-growth'), null, 'a block whose Health is not marked as blocks has no such line');
     assert.equal(readParty(fakeState([wessel]), { own: 'Wessel', roleOf })[0].growth.health.next, 15);
@@ -72,25 +72,25 @@ test('the header\'s hero bars have the same sizes and the word', () => {
         { kind: 'hp', label: 'Health', value: 4, max: 6, text: 'Hurt' }, { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh' }, { kind: 'sp', label: 'Stamina', value: 2, max: 5, text: 'Tired' }]);
 });
 
-test('foe groups have Health by class: Class IV 6 blocks, Class II 5, the words spread over them', () => {
-    assert.deepEqual(readFoes(state(), { roleOf }).map(foe => [foe.name, foe.hurt, foe.max, foe.word]), [['Weir-drake', 5, 6, 'Scratched'], ['Sluice Rat', 1, 5, 'Badly wounded']]);
+test('foe groups have Health by class: Class IV 5 blocks, Class II 4, the words spread over them', () => {
+    assert.deepEqual(readFoes(state(), { roleOf }).map(foe => [foe.name, foe.hurt, foe.max, foe.word]), [['Weir-drake', 5, 5, 'Unhurt'], ['Sluice Rat', 1, 4, 'Badly wounded']]);
     const el = draw(createFightWidget, { headState: state, readerName: () => 'Wessel', roleOf, battleLog: { latest: () => null } });
     const bar = name => el.querySelector(`.rpg-foe[data-foe="${name}"] .ss-w-meter`);
-    assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.querySelectorAll('.ss-w-meter-cell').length), [6, 5]);
-    assert.match(el.querySelector('.rpg-foe[data-foe="Weir-drake"]').textContent, /Scratched · 5 of 6/);
-    assert.match(el.querySelector('.rpg-foe[data-foe="Sluice Rat"]').textContent, /Badly wounded · 1 of 5/);
-    assert.match(el.querySelector('.rpg-fight-note').textContent, /^Foe Health grows with class: 4 \+ class\/2 blocks/);
-    assert.deepEqual(readFight(state(), { roleOf }).map(foe => foe.stages.length), [7, 6]);
+    assert.deepEqual([bar('Weir-drake'), bar('Sluice Rat')].map(node => node.querySelectorAll('.ss-w-meter-cell').length), [5, 4]);
+    assert.match(el.querySelector('.rpg-foe[data-foe="Weir-drake"]').textContent, /Unhurt · 5 of 5/);
+    assert.match(el.querySelector('.rpg-foe[data-foe="Sluice Rat"]').textContent, /Badly wounded · 1 of 4/);
+    assert.match(el.querySelector('.rpg-fight-note').textContent, /^Foe Health grows with class: 4 \+ class\/3 blocks/);
+    assert.deepEqual(readFight(state(), { roleOf }).map(foe => foe.stages.length), [6, 5]);
     assert.equal(el.querySelector('.rpg-order'), null, 'no recorded order, no row');
 });
 
 // A Standard record as lean-rpg/standard.js writes it (the parts the log reads).
-const pc = (who, stat, extra = {}) => ({ who, die: 17, type: 'physical', stat, second: 'dex', mainValue: 10, secondValue: 6, statBonus: 6, style: null, classValue: 2, classBonus: 4, rank: 2, luck: 0, situation: 0, edge: 0, total: 29, ...extra });
+const pc = (who, stat, extra = {}) => ({ who, die: 17, type: 'physical', stat, second: 'dex', mainValue: 10, secondValue: 6, statBonus: 6, style: null, classValue: 2, classBonus: 4, rank: 2, window: { min: -2, max: 3 }, situation: 0, edge: 0, total: 29, ...extra });
 const foeSide = (name, extra = {}) => ({ slot: 1, name, die: 9, base: 3, classValue: 4, classBonus: 12, total: 24, ...extra });
 const record = (extra = {}) => ({ v: 1, formula: 'standard', checks: [], refused: [], rounds: [
     { n: 1, lines: [
         { kind: 'act', type: 'physical', outcome: 'success', skill: 'Iaijutsu', decisive: true, pc: pc('Wessel', 'agi'), foe: foeSide('Weir-drake'), damage: { id: 'f:1', kind: 'foe', name: 'Weir-drake', blocks: 2, from: 6, to: 4, size: 6 } },
-        { kind: 'foe', type: 'defence', outcome: 'success', skill: 'Shadow step', pc: pc('Wessel', 'agi', { type: 'defence', second: 'vit', secondValue: 10, statBonus: 7, rank: 0, luck: 1, situation: 1, edge: 2, die: 10, total: 23, style: 'dodge' }), foe: foeSide('Weir-drake', { die: 4, total: 19 }) },
+        { kind: 'foe', type: 'defence', outcome: 'success', skill: 'Shadow step', pc: pc('Wessel', 'agi', { type: 'defence', second: 'vit', secondValue: 10, statBonus: 7, rank: 0, window: { min: 2, max: 4 }, situation: 1, edge: 2, die: 10, total: 23, style: 'dodge' }), foe: foeSide('Weir-drake', { die: 4, total: 19 }) },
         { kind: 'act', type: 'physical', outcome: 'success', skill: 'Sweep', area: true, pc: pc('Ren', 'str', { total: 27 }), foe: foeSide('Sluice Rat', { classValue: 2, classBonus: 6, total: 18 }), damage: { id: 'f:2', kind: 'foe', name: 'Sluice Rat', blocks: 1, from: 5, to: 4, size: 5 } },
         { kind: 'check', type: 'magic', support: true, target: 'Wessel', outcome: 'success', skill: 'Mend', difficulty: 'normal', dc: 15, pc: pc('Mara', 'int', { type: 'magic', total: 21 }), damage: { id: 'c:wessel', kind: 'char', name: 'Wessel', blocks: -1, from: 4, to: 5, size: 6 } }],
       idle: [{ n: 1, id: 'f:2', who: 'Sluice Rat', kind: 'foe', why: 'beaten' }, { n: 1, id: 'c:ren', who: 'Ren', kind: 'char', why: 'down' }] }],
@@ -107,7 +107,7 @@ test('the battle log reads the recorded turn order with its totals, the quick st
     assert.equal(read.opening.length, 1);
     const [hit, dodge, sweep, mend] = read.rounds[0].lines;
     assert.equal(hit.breakdown, 'Physical: d20 17 + (AGI 10 + DEX 6/2)/2 = 6 + Expert 2 + Class II 4 = 29 · vs Weir-drake d20 9 + 3 + Class IV 12 = 24 · Weir-drake loses 2 blocks (4 of 6) · Decisive');
-    assert.equal(dodge.breakdown, 'Defence, dodge: d20 10 + (AGI 10 + VIT 10/2)/2 = 7 + Novice 0 + Class II 4 + edge 2 (luck +1) = 23 · vs Weir-drake d20 4 + 3 + Class IV 12 = 19');
+    assert.equal(dodge.breakdown, 'Defence, dodge: d20 10 + (AGI 10 + VIT 10/2)/2 = 7 + Novice 0 + Class II 4 + edge 2 (luck window 2..4) = 23 · vs Weir-drake d20 4 + 3 + Class IV 12 = 19');
     assert.deepEqual([mend.who, mend.target, mend.support, mend.vs], ['Mara', 'Wessel', true, 15]);
     assert.match(mend.breakdown, /vs DC 15 · Wessel heals 1 block \(5 of 6\)$/);
     assert.equal(sweep.area, true);

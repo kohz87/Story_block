@@ -9,7 +9,7 @@
 // numbers, and writes a word: the Standard templates turn the word into blocks for the bar's size with the same rounding (`wordToBlocks`).
 // Pure: no DOM, no state, no randomness.
 
-import { STAT_KEYS, blocksFor, foeHealthBlocks, luckOf } from './formula.js';
+import { STAT_KEYS, blocksFor, foeHealthBlocks, LUCK_STEPS, luckWindow } from './formula.js';
 import { STAGES } from './names.js';
 
 const whole = value => (Number.isSafeInteger(value) ? value : 0);
@@ -85,15 +85,14 @@ const nextAbove = (value, step) => (Math.floor(whole(value) / step) + 1) * step;
 
 /**
  * The line under a character's skills: how many blocks each bar has and the stat that earns the next one, and luck with the next
- * step. `{ health: { blocks, stat, value, next }, stamina, mana, luck: { value, stat, current, next } }` (`next` is the stat value that
- * brings one more block, or null when there is none to come: Luck's steps are LUK 8, 13, 16 and 19, and a bar stops growing at the stat maximum).
+ * step. `{ health: { blocks, stat, value, next }, stamina, mana, luck: { min, max, stat, current, next } }` (`next` is the stat value that
+ * brings one more block, or null when there is none to come: the edge window steps at LUK 5, 7, 11, 13, 15, 17 and 19, and a bar stops growing at the stat maximum).
  */
 export function growthOf(stats, { statMax = 20 } = {}) {
     const size = blocksFor(stats);
     const bar = (blocks, stat) => { const next = nextAbove(stats?.[stat], 5); return { blocks, stat, value: whole(stats?.[stat]), next: next <= statMax ? next : null }; };
-    // (Luck is -1 up to LUK 7: the first step is back to 0 at LUK 8, then +1 at 13, +2 at 16 and +3 at 19.)
-    const luk = whole(stats?.luk), step = [8, 13, 16, 19].find(at => at > luk) ?? null;
-    return { health: bar(size.health, 'vit'), stamina: bar(size.stamina, 'agi'), mana: bar(size.mana, 'int'), luck: { value: luckOf(luk), stat: 'luk', current: luk, next: step } };
+    const luk = whole(stats?.luk), step = LUCK_STEPS.find(at => at > luk) ?? null;
+    return { health: bar(size.health, 'vit'), stamina: bar(size.stamina, 'agi'), mana: bar(size.mana, 'int'), luck: { ...luckWindow(luk), stat: 'luk', current: luk, next: step } };
 }
 
 /** The stage word of `value` blocks left in a bar of `size` blocks, for a bar kind ('health' | 'stamina' | 'mana' | 'foe'): what the planner's sheet and the views say. */

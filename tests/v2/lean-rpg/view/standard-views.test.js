@@ -49,7 +49,7 @@ test('the Stat formula card is first: Standard or Classic, the roll table of the
     assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num').map(node => [node.querySelector('b').textContent, node.querySelector('span').textContent]), [
         ['5', 'Stats start at'], ['10', 'Points at creation'], ['4', 'Points per Soul Class'], ['4 + 3×class', 'Foe\'s base'],
     ]);
-    assert.match(card('formula').textContent, /Class is 2 × Soul Class\. Luck steps at LUK 8/);
+    assert.match(card('formula').textContent, /Class is 2 × Soul Class\. LUK is a window on the edge/);
     card('formula').querySelector('.rpg-chip[data-value="classic"]').click();
     await settle();
     assert.equal(stored().rpgFormula, 'classic');
@@ -108,7 +108,7 @@ test('the Combat text is the Standard one for a Standard chat (reset, and the bl
     assert.equal(combatBlock(host.head(), {})?.prompt, COMBAT_DEFAULT_STANDARD);
     assert.ok([...COMBAT_DEFAULT_STANDARD].length <= COMBAT_MAX, 'fits the 1200 characters a block may hold');
     assert.match(COMBAT_DEFAULT_STANDARD, /attacks, spells, defence, talk and checks each pair a main stat with half of a second one/);
-    assert.match(COMBAT_DEFAULT_STANDARD, /code moves Health for rolled hits and heals: never set those/);
+    assert.match(COMBAT_DEFAULT_STANDARD, /code moves the bars for hits, heals, skill costs: never set those/);
     assert.equal(combatDefault('classic'), COMBAT_DEFAULT);
     assert.equal(combatDefault('standard'), COMBAT_DEFAULT_STANDARD);
     assert.equal(combatTemplate(LEAN_RPG_TEMPLATES, 'standard').prompt, COMBAT_PROMPT_STANDARD);
@@ -142,14 +142,14 @@ test('the settings give Standard\'s numbers for the formula in force and Classic
 
 // ---- the bar line, creation and companions ----------------------------------------------------------------------------------
 
-test('growth (blocks.js, the one line the Party card, the wizard and Spend points share): a block every 5 points of VIT, AGI and INT, luck steps at 8, 13, 16 and 19', () => {
+test('growth (blocks.js, the one line the Party card, the wizard and Spend points share): a block every 5 points of VIT, AGI and INT, the edge window steps every two points of LUK', () => {
     const text = (stats, max) => growthText(growthOf(stats, { statMax: max }));
     const stats = { str: 5, vit: 10, agi: 14, dex: 5, int: 5, luk: 12, cha: 5 };
-    assert.equal(text(stats), 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 14, next at 15) · Mana 4 (INT 5, next at 10) · Luck 0 (next at LUK 13)');
+    assert.equal(text(stats), 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 14, next at 15) · Mana 4 (INT 5, next at 10) · Edge 0..+3 (next at LUK 13)');
     const start = Object.fromEntries(STATS.map(stat => [stat, 5]));
-    assert.equal(text(start), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
-    assert.equal(text({ ...start, vit: 20, luk: 19 }), 'Health 8 blocks (VIT 20) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck +3');
-    assert.deepEqual([5, 7, 8, 12, 13, 15, 16, 18, 19, 20].map(luk => growthOf({ ...start, luk }).luck.next), [8, 8, 13, 13, 16, 16, 19, 19, null, null]);
+    assert.equal(text(start), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
+    assert.equal(text({ ...start, vit: 20, luk: 19 }), 'Health 8 blocks (VIT 20) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge +3..+5');
+    assert.deepEqual([3, 4, 5, 8, 9, 12, 13, 16, 17, 20].map(luk => growthOf({ ...start, luk }).luck.next), [5, 5, 7, 11, 11, 13, 15, 17, 19, null]);
     assert.equal(growthOf({ ...start, vit: 15 }, { statMax: 15 }).health.next, null, 'the stat maximum caps it');
 });
 
@@ -217,17 +217,17 @@ test('Stats under Standard: steppers from 5, 10 points to spend, 3 to 10, and th
     assert.match(root().querySelector('.rpg-wiz-sum').textContent, /STR 5 · VIT 5 · AGI 5 · DEX 5 · INT 5 · LUK 5 · CHA 5/);
     assert.match(root().textContent, /Every stat starts at 5\. Spend 10 points; a stat can go down to 3 to free a point and up to 10 now\. Each Soul Class rise gives 4 more, and XP rises on its own\./);
     const line = () => root().querySelector('[data-wiz="growth"]').textContent;
-    assert.equal(line(), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
+    assert.equal(line(), 'Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
     for (let n = 0; n < 5; n += 1) step('vit', 'inc').click();
     assert.equal(step('vit', 'inc').disabled, true, 'VIT stops at 10');
-    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
+    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)');
     assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 5');
-    for (let n = 0; n < 3; n += 1) step('luk', 'inc').click();
-    assert.match(line(), /Luck 0 \(next at LUK 13\)$/);
-    assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 2');
+    for (let n = 0; n < 4; n += 1) step('luk', 'inc').click();
+    assert.match(line(), /Edge −1\.\.\+3 \(next at LUK 11\)$/, 'LUK 9 is still −1..+3');
+    assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 1');
     step('str', 'dec').click(); step('str', 'dec').click(); step('str', 'dec').click();
     assert.equal(step('str', 'dec').disabled, true, 'nothing goes below 3');
-    assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 4', 'STR 3 frees two');
+    assert.equal(root().querySelector('.rpg-wiz-push').textContent, 'Points left: 3', 'STR 3 frees two');
     dialog.close();
 });
 
@@ -267,7 +267,7 @@ import { renderSkills, rollOf } from '../../../../src/v2/lean-rpg/view/skills.js
 import { readParty } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { FORMULA } from '../../../../src/v2/lean-rpg/names.js';
 
-const hero = (fields = {}) => ({ definition: characterDefinition('wessel', 'Wessel'), fields: { who: 'Wessel', str: 10, vit: 9, agi: 10, dex: 6, int: 5, luk: 7, cha: 5, points: 4, soul: 2, xp: 40, health: 3, mana: 4, stamina: 1, ...fields } });
+const hero = (fields = {}) => ({ definition: characterDefinition('wessel', 'Wessel'), fields: { who: 'Wessel', str: 10, vit: 9, agi: 10, dex: 6, int: 5, luk: 8, cha: 5, points: 4, soul: 2, xp: 40, health: 3, mana: 4, stamina: 1, ...fields } });
 const heroSkills = () => ({ definition: { ...skillsDefinition('wessel-skills', 'Wessel'), role: 'skills' }, fields: { who: 'Wessel', skill1: 'Iaijutsu', stat1: 'agi', uses1: 'stamina', rank1: 2, skill2: 'Spark', stat2: 'int', uses2: 'mana', rank2: 0 } });
 const stepIn = (root, stat, dir) => root.querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-${dir}`);
 
@@ -277,10 +277,10 @@ test('Spend points under Standard adds the line of what the next points buy, and
     const state = fakeState([hero()]);
     const handle = renderDistribute(host, { character: readParty(state, { own: 'Wessel', roleOf })[0], doc, rules: () => STANDARD_FORMULA });
     const root = host.querySelector('.rpg-sheet'), line = () => root.querySelector('[data-rpg="growth"]').textContent;
-    assert.equal(line(), 'Health 5 blocks (VIT 9, next at 10) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)');
+    assert.equal(line(), 'Health 5 blocks (VIT 9, next at 10) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Edge −1..+3 (next at LUK 11)');
     stepIn(root, 'vit', 'inc').click();
     stepIn(root, 'luk', 'inc').click();
-    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Luck 0 (next at LUK 13)');
+    assert.equal(line(), 'Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) · Edge −1..+3 (next at LUK 11)');
     handle.reset();
     assert.match(line(), /^Health 5 blocks/);
     handle.destroy();
@@ -306,4 +306,74 @@ test('the roll a skill shows under Standard is the pair: the skill\'s stat with 
     assert.equal(lines[0], 'Rolls with it: d20 +12 = (AGI 10 + DEX 6/2)/2 → +6 · Expert +2 · Soul Class II +4');
     assert.equal(lines[1], 'Rolls with it: d20 +8 = (INT 5 + DEX 6/2)/2 → +4 · Novice +0 · Soul Class II +4');
     view.destroy?.();
+});
+
+// ---- a pack's formula and numbers as the default ----------------------------------------------------------------------------
+
+const PACK = rpg => ({ id: 'ersveil-rules', version: '1.0.0', name: 'Ersveil', author: 'Test', description: 'A pack that sets the stat formula.', requires: { storyBlock: '^2' }, content: { rpg } });
+
+async function openWithPack(t, rpg, settings = {}) {
+    const ctx = await page(t, { feature: true, persona: 'Wessel', formula: 'standard' });
+    assert.equal((await ctx.host.packs.packs.install(PACK(rpg))).ok, true);
+    for (const [key, value] of Object.entries(settings)) ctx.host.settings.set(MOD, key, value);
+    await begin(ctx.host);
+    await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 10, vit: 10, agi: 10, dex: 6, int: 5, soul: 2 }, skills: { skill1: 'Iaijutsu', stat1: 'agi', rank1: 2 } });
+    const win = ctx.ui.openSettings();
+    win.select('rpg');
+    await settle();
+    const root = ctx.doc.querySelector('[data-ss-section="rpg"]');
+    return { ...ctx, root, card: name => root.querySelector(`[data-card="${name}"]`) };
+}
+
+test('Settings → RPG shows a pack\'s numbers as the default, named, until the reader chooses; the odds and the numbers follow', async t => {
+    // (page() pins the chat's formula to 'standard'; the pack's numbers still apply to a reader who picked no difficulty.)
+    const { card } = await openWithPack(t, { formula: 'standard', numbers: { foeBase: 6, startStat: 6, createPoints: 8 } });
+    assert.equal(card('formula').querySelector('.rpg-from-pack').textContent, 'From the pack: Ersveil');
+    assert.equal(card('difficulty').querySelector('.rpg-from-pack').textContent, 'From the pack: Ersveil');
+    assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num b').map(node => node.textContent), ['6', '8', '4', '6 + 3×class']);
+    // The reader picks a difficulty: the preset is theirs and the pack's note goes.
+    card('difficulty').querySelector('.rpg-chip[data-value="harsh"]').click();
+    await settle();
+    assert.equal(card('difficulty').querySelector('.rpg-from-pack'), null);
+    assert.equal(card('formula').querySelector('.rpg-from-pack'), null);
+    assert.deepEqual(card('formula').querySelectorAll('.rpg-formula-num b').map(node => node.textContent), ['5', '10', '4', '6 + 3×class'], 'Harsh: the preset\'s own foe base');
+});
+
+test('a pack that asks for Classic is the default formula, named; the reader\'s own choice wins', async t => {
+    const ctx = await page(t, { feature: true, persona: 'Wessel', formula: undefined });
+    // (no `rpgFormula` setting at all: the pack decides)
+    ctx.host.settings.set(MOD, FORMULA_SETTING, undefined);
+    assert.equal((await ctx.host.packs.packs.install(PACK({ formula: 'classic', numbers: { foeBase: 8 } }))).ok, true);
+    await begin(ctx.host);
+    const win = ctx.ui.openSettings();
+    win.select('rpg');
+    await settle();
+    const root = ctx.doc.querySelector('[data-ss-section="rpg"]'), card = name => root.querySelector(`[data-card="${name}"]`);
+    assert.equal(card('formula').querySelector('[aria-pressed="true"]').textContent, 'Classic');
+    assert.equal(card('formula').querySelector('.rpg-from-pack').textContent, 'From the pack: Ersveil');
+    assert.equal(card('formula').querySelectorAll('.rpg-formula-num b')[3].textContent, '8 + 2×class');
+    card('formula').querySelector('.rpg-chip[data-value="standard"]').click();
+    await settle();
+    assert.equal(card('formula').querySelector('[aria-pressed="true"]').textContent, 'Standard');
+    assert.equal(card('formula').querySelector('.rpg-from-pack'), null, 'chosen: the pack no longer decides');
+    assert.equal(card('formula').querySelectorAll('.rpg-formula-num b')[3].textContent, '4 + 3×class', 'the pack\'s Classic numbers are not Standard\'s');
+});
+
+test('the wizard\'s Stats step starts from a pack\'s numbers and says whose they are', async t => {
+    const ctx = await page(t, { feature: true, persona: 'Wessel', formula: 'standard' });
+    assert.equal((await ctx.host.packs.packs.install(PACK({ numbers: { startStat: 6, createPoints: 8, createMin: 4, createMax: 9 } }))).ok, true);
+    await begin(ctx.host);
+    ctx.ui.mounts.screen.open('story-block/party');
+    await settle();
+    party(ctx.doc).querySelector('.rpg-create').click();
+    await settle();
+    const dialog = ctx.ui.mounts.dialog.current();
+    dialog.goTo(1);
+    await settle();
+    const root = dialog.root.querySelector('.ss-w-rpg-wizard');
+    assert.match(root.querySelector('.rpg-wiz-sum').textContent, /STR 6 · VIT 6 · AGI 6 · DEX 6 · INT 6 · LUK 6 · CHA 6/);
+    assert.equal(root.querySelector('.rpg-wiz-push').textContent, 'Points left: 8');
+    assert.match(root.textContent, /a stat can go down to 4 to free a point and up to 9 now/);
+    assert.equal(root.querySelector('.rpg-wiz-pack').textContent, 'From the pack: Ersveil');
+    dialog.close();
 });

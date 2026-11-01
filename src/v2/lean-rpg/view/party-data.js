@@ -52,14 +52,14 @@ export function blockBar(key, schema, fields, fieldKey = key) {
 
 /**
  * The line under a Standard character's skills (mockup step 1): "Health 6 blocks (VIT 10, next at 15) · Stamina 5 (AGI 10, next at 15) · Mana 4 (INT 5, next at 10) ·
- * Luck 0 (next at LUK 13)". `growth` is `growthOf` (blocks.js); a stat at its maximum has no next block, and Luck steps at LUK 8 (out of −1), 13, 16 and 19.
+ * Edge 0..+3 (next at LUK 11)". `growth` is `growthOf` (blocks.js); a stat at its maximum has no next block, and the edge window steps at LUK 5, 7, 11, 13, 15, 17 and 19.
  */
 export function growthText(growth) {
     const B = RPG_STRINGS.blocks;
     const bar = (word, group) => fill(group.next === null ? B[`${word}Top`] : B[word], { n: group.blocks, stat: group.value, next: group.next ?? '' });
-    const luck = growth.luck.value > 0 ? `+${growth.luck.value}` : growth.luck.value < 0 ? `−${Math.abs(growth.luck.value)}` : '0';
+    const sign = n => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
     return [bar('growthHealth', growth.health), bar('growthStamina', growth.stamina), bar('growthMana', growth.mana),
-        fill(growth.luck.next === null ? B.luckTop : B.luck, { value: luck, next: growth.luck.next ?? '' })].join(' · ');
+        fill(growth.luck.next === null ? B.luckTop : B.luck, { min: sign(growth.luck.min), max: sign(growth.luck.max), next: growth.luck.next ?? '' })].join(' · ');
 }
 
 /** The choices of a bar's edit (the pencil): every count from empty to full, "Hurt · 4 of 6" for a block bar, the stage word for a stage bar. */

@@ -40,7 +40,7 @@ character who gets an opening action against a foe (a quick start). Under it are
 or its pencil, to set the foe's health from Down to Unhurt, the same way as on the Party card), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
 reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
 
-With the Standard formula a foe group's health bar has `4 + class/2` blocks (Class II 5, Class IV 6, Class VIII 8) and reads
+With the Standard formula a foe group's health bar has `4 + class/3` blocks (Classes I and II 4, III to V 5, VI to VIII 6, IX 7) and reads
 "Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
 quick start and its opening action, "<who> does not act: beaten before its turn" for a group or character beaten before its turn
 (or down, or with nothing left to act on), the result word (Decisive, Decisive hit), "(area)" on an area attack, and the roll's
@@ -61,7 +61,7 @@ Weir-drake d20 9 + 3 + Class IV 12 = 24 · Weir-drake loses 1 block (5 of 6)").
    you type is yours.
 2. **Stats.** The same steppers and radar as Spend points. On the **Standard** formula (the default) every stat starts at 5 and you have
    10 points to spend; a stat can go down to 3 to free a point and up to 10, and a line under the steppers says what the next points
-   buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Luck −1 (next at LUK 8)`. On **Classic**
+   buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)`. On **Classic**
    every stat starts at 10 with 6 points to spend, from 8 to 15. Points you leave unspent stay on the character for Spend points. Spend
    points shows the same line and keeps it up to date as you move the steppers.
 3. **Skills.** Start from a template (Guild fighter, River scout, Hedge mage, Field medic, Silver tongue, and the sets a
@@ -229,10 +229,10 @@ to Fresh. Health only goes back up when the story heals it.
 
 With the Standard formula a bar is a row of **blocks**. The stored value counts the blocks left (Health 0 to 8, Stamina 0 to
 7, Mana 0 to 7); how many blocks the bar has comes from the stats when it is read: **Health 4 + VIT/5, Stamina 3 + AGI/5, Mana
-3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + class/2` blocks (`foeHealthBlocks`). The Party card,
+3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + class/3` blocks (`foeHealthBlocks`). The Party card,
 the Fight tab and the game view's header draw one cell for each block and read "Hurt · 4 of 6"; under the skills the card says how
-many blocks each bar has and the stat that earns the next one ("Health 6 blocks (VIT 10, next at 15) · … · Luck 0 (next at LUK
-13)").
+many blocks each bar has and the stat that earns the next one ("Health 6 blocks (VIT 10, next at 15) · … · Edge −2..+3 (next at LUK
+7)").
 
 The stage words are the same, spread over the bar: 0 blocks is the first word (Down, Empty), a full bar the last (Unhurt, Fresh),
 every count in between the nearest of the words between (`blocks.js spreadWord`). The narrator reads and writes words, never block
@@ -352,14 +352,18 @@ A skill's own stat takes the main slot and nothing is added on top. A skill that
 unless the planner marks the action defence, social or a check. A skill whose resource is Empty is rolled without it: no skill, rank 0 and
 the type's own stat.
 
-- **Luck.** LUK 13 gives +1, 16 gives +2, 19 gives +3, and 7 or less gives −1. A bad edge shrinks toward 0 by good luck (never past 0) and a
-  good edge grows by it; bad luck does the opposite. An even situation is left alone.
+- **Luck is a window on the edge.** The situation gives an edge from −3 to +3; LUK holds it inside a window and never lets it fall below the
+  low end, and a best case (+3) reaches the high end: LUK 3–4 −3..+3, 5–6 −2..+3, 7–8 −1..+3, 9–10 −1..+3, 11–12 0..+3, 13–14 +1..+4,
+  15–16 +2..+4, 17–18 +2..+5, 19–20 +3..+5. A fresh character (LUK 5) has −2..+3.
 - **Foes.** A foe adds `foeBase + 3 × its class` to its d20 (the base is 2, 4 or 6 for Gentle, Standard and Harsh). A foe group has Health
-  `4 + class/2` blocks and acts once a round whatever its count.
+  `4 + class/3` blocks and acts once a round whatever its count.
 - **Hits.** A hit takes 1 block of Health from its target, a decisive hit 2. A party member's action hits on a success or a success at a cost;
   a foe's attack hits when the defender fails. Decisive is the winner's natural 20, the loser's natural 1, or a lead of 8. Code writes the
-  new Health to the sheet and tells the narrator which bars it moved, in words ("Health now: Wessel Hurt; Sluice Rats Down"), never to set
-  them for a rolled hit or heal. Bars are clamped to their size (`blocksFor`: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5).
+  new Health to the sheet and tells the narrator which bars it moved, in words ("Bars now: Wessel Hurt; Sluice Rats Down"), never to set
+  them for a rolled hit, heal or skill cost. Bars are clamped to their size (`blocksFor`: Health 4 + VIT/5, Stamina 3 + AGI/5, Mana 3 + INT/5).
+- **Skills cost a block.** Each time an action uses a skill (an attack, a heal, a defence with a skill, a check), code takes one block from that
+  skill's resource: Stamina for a Stamina skill, Mana for a Mana skill, never below 0. With the resource empty, the action is rolled without the
+  skill (no skill, rank 0, the type's own stat) and the log says so. A swipe, a Re-read and a rebuild agree with it like they do with hits.
 - **Area.** An area skill rolls once against each standing foe group's own roll; each group's bar moves on its own.
 - **Support.** A heal or a buff rolls against a difficulty (easy 10, normal 15, hard 20, very hard 25): a success gives 1 block, a decisive
   one 2, never past the bar. Someone who is Down can be mended.
@@ -377,10 +381,12 @@ the type's own stat.
 The numbers behind the presets were chosen with `node scripts/sim-standard.mjs` (no network): at Standard a focused build (the skill's stat
 and DEX at the creation maximum, then 3 and 1 points a class) succeeds about 61 times in a hundred against a foe of its own Soul Class at
 Soul Class I and 72 to 79 from III to IX, near Classic's own 52 to 81; a spread build succeeds about 43 to 52 times. A hero against one
-foe of the same class ends the fight in about 4 to 6 exchanges.
+foe of the same class ends the fight in about 4 to 6 exchanges (skill costs included); at Standard a focused build wins 62 to 81 of a hundred
+such duels and a spread build 75 down to 25 from Soul Class I to IX.
 
 A pack may name the formula and its numbers (`content.rpg.formula`, `content.rpg.numbers`); they are the default for a story whose reader
-has not chosen a formula or a difficulty, and the reader's own choices win.
+has not chosen a formula or a difficulty, and the reader's own choices win. Settings → RPG and the wizard's Stats step say "From the pack:
+Ersveil" while the pack decides. Foe Health is `4 + class/3` blocks (the simulation chose it over `4 + class/2`, which left a focused build at Soul Class VII winning fewer than half its duels).
 
 ## Soul Class and skill ranks
 
@@ -423,7 +429,7 @@ with the pencils on the block.
 |---|---|
 | **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (3 more with each Soul Class rise), Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a Soul Class rise gives 4 points; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
 | **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
-| **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health (Standard: 0 to 8 blocks, `4 + class/2` when the group arrives). |
+| **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health (Standard: 0 to 8 blocks, `4 + class/3` when the group arrives). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
 A new chat gets a Combat rules block and a Foes block when you make its first character (see [A new chat](#a-new-chat)),

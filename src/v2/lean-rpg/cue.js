@@ -61,9 +61,11 @@ function standardLine(line, { names, shown, word, who }) {
     const hit = line.damage
         ? (line.kind === 'foe' ? `, hits ${who}${line.decisive ? ' hard' : ''}` : `, a ${line.decisive ? 'decisive ' : ''}hit`)
         : (line.decisive ? ', decisive' : '');
-    if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}${line.skill ? ` (${cut(line.skill, names)})` : ''}: ${word} for ${who} ${numbers(line)}${hit}`;
+    // (a skill whose Stamina or Mana ran out in the fight is rolled without it)
+    const bare = line.without ? ` (${cut(line.without, names)} unavailable: resource spent)` : '';
+    if (line.kind === 'foe') return `${shown(line.foe.name)} attacks ${who}${line.skill ? ` (${cut(line.skill, names)})` : ''}${bare}: ${word} for ${who} ${numbers(line)}${hit}`;
     const kind = line.area ? ' (area)' : '';
-    return `${who} → ${shown(line.foe.name)}${line.skill ? ` (${cut(line.skill, names)})` : ''}${kind}: ${word} ${numbers(line)}${hit}`;
+    return `${who} → ${shown(line.foe.name)}${line.skill ? ` (${cut(line.skill, names)})` : ''}${bare}${kind}: ${word} ${numbers(line)}${hit}`;
 }
 
 const IDLE_WHY = Object.freeze({ down: 'Down', beaten: 'beaten', 'no-target': 'no target left' });
@@ -72,16 +74,21 @@ const IDLE_WHY = Object.freeze({ down: 'Down', beaten: 'beaten', 'no-target': 'n
 export function hurtsOf(start, lines) {
     const moved = new Map();
     for (const line of lines) {
-        const damage = line.damage;
-        if (!damage) continue;
-        const before = start.get(damage.id), seen = moved.get(damage.id);
-        moved.set(damage.id, { id: damage.id, kind: damage.kind, name: damage.name, module: before.module, field: before.field, from: seen?.from ?? damage.from, to: damage.to, size: damage.size });
+        // (a hit or a heal moves Health; a skill's cost moves Stamina or Mana)
+        for (const damage of [line.damage, line.cost]) {
+            if (!damage) continue;
+            const before = start.get(damage.id), seen = moved.get(damage.id);
+            moved.set(damage.id, { id: damage.id, kind: damage.kind, name: damage.name, module: before.module, field: before.field, from: seen?.from ?? damage.from, to: damage.to, size: damage.size });
+        }
     }
     return [...moved.values()].filter(item => item.from !== item.to);
 }
 
 // "Wessel Hurt; Sluice Rats Wounded": where the bars the told lines moved stand now, as words.
-const barsLine = (start, lines) => hurtsOf(start, lines).map(item => `${item.name} ${stageWord(STAGES.health, item.to, item.size)}`).join('; ');
+const barsLine = (start, lines) => hurtsOf(start, lines).map(item => {
+    const own = item.field === 'stamina' || item.field === 'mana';
+    return `${item.name} ${own ? `${item.field === 'mana' ? 'Mana' : 'Stamina'} ` : ''}${stageWord(own ? STAGES[item.field] : STAGES.health, item.to, item.size)}`;
+}).join('; ');
 
 const STOP_POINTS = 'Stop earlier at the first stop point (a foe falls, flees or yields; anyone on your side is Down or Badly wounded; new foes arrive).';
 
@@ -99,7 +106,7 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
     const fight = rounds.length > 0;
     const std = parts.standard ?? null;
     const head = fight
-        ? `[Rolls] Code rolled these${std ? ' and has already moved the Health bars they hit or heal (the last line says where those stand): never set those yourself' : ''}. Tell them in this order and as given, and never invent a roll; write ${BATTLE_MARKER} on its own line where the fight is told.`
+        ? `[Rolls] Code rolled these${std ? ' and has already moved the bars they hit, heal or spend (Health, and the Stamina or Mana a skill uses; the last line says where those stand): never set those yourself' : ''}. Tell them in this order and as given, and never invent a roll; write ${BATTLE_MARKER} on its own line where the fight is told.`
         : '[Rolls] Code rolled these. Tell them as given, and never invent a roll.';
     // Shape 3 cuts every name, and each stays different from the others, so the narrator can tell who earned which result.
     const options = { compact: shape >= 1, names: shape >= 3 ? NAME_CUT : 0, plain };
@@ -126,7 +133,7 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
     else for (const text of notes) lines.push(shape >= 1 ? shortRefusal(text) : text);
     if (std && fight) {
         const standing = barsLine(std.start, [...std.opening, ...rounds.flatMap(round => round.lines)]);
-        if (standing) lines.push(`Health now: ${standing}.`);
+        if (standing) lines.push(`Bars now: ${standing}.`);
     }
     if (fight) lines.push(`Round ${rounds.at(-1).n} is ${decisive ? (rounds.at(-1).decisive || !std ? 'decisive' : 'the end of the fight') : 'the last rolled'}: stop there at the latest. ${STOP_POINTS}`);
     return lines.join('\n');
