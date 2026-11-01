@@ -18,6 +18,7 @@
 
 import { oneLine } from '../text.js';
 import { STRINGS, fill } from './strings.js';
+import { clockText } from './view/clock.js';
 
 export const CARD_TONES = Object.freeze(['accent', 'bad', 'good', 'info']);
 export const CARD_ROWS_MAX = 4;
@@ -170,4 +171,42 @@ export function replyRules(record, problems = [], index = null) {
     return (Array.isArray(record?.receipts) ? record.receipts : []).filter(receipt => !skipped.has(receipt.id))
         .flatMap(receipt => (Array.isArray(receipt?.data?.v2?.result?.rules) ? receipt.data.v2.result.rules : [])
             .map(rule => oneLine(rule, 80)).filter(Boolean).map(rule => ({ text: fill(STRINGS.card.rule, { name: rule }), summary: fill(STRINGS.card.rule, { name: rule }), kind: 'line', tone: 'accent', icon: 'fa-bolt', flag: '', note: '', check: null })));
+}
+
+// ---- The one card under a reply ("This reply") ----------------------------------------------------------------------------
+// Every module's card screen (mount `card`: "Changed this reply", Story Director's status, NPC State Delta's meters…) is a
+// section of one card. Closed, the card is one line: each section's own summary, joined with " · ". Pure; no DOM.
+
+/** The key the one card carries (`data-ss-card`, and its open state per reply). */
+export const THIS_REPLY_ID = 'this-reply';
+/** Story Director's status card: its part of the line is the time of day and the place (the host asks the queries, `statusSummary` words them). */
+export const STATUS_CARD_SCREEN_ID = 'story-director/status-card';
+/** Between one section's summary and the next on the closed line. */
+export const SUMMARY_JOIN = ' · ';
+
+/** The sections in order: the ids in `first` lead (in that order), the rest keep the order they came in. */
+export function orderSections(entries, first = []) {
+    const list = Array.isArray(entries) ? entries : [];
+    const lead = (Array.isArray(first) ? first : []).flatMap(id => list.filter(entry => entry?.id === id));
+    return [...lead, ...list.filter(entry => !lead.includes(entry))];
+}
+
+/** A section's small heading: the host's override for that card, else the card's own title, else its id. */
+export function sectionHeading(entry) {
+    const id = String(entry?.id ?? '');
+    const own = STRINGS.thisReply.headings[id];
+    if (typeof own === 'string' && own) return own;
+    return oneLine(entry?.screen?.title ?? '', 60) || id;
+}
+
+/** The closed line: the sections' summaries (empty ones left out) joined with " · ". */
+export function mergeSummaries(parts) {
+    return (Array.isArray(parts) ? parts : []).map(part => String(part ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(SUMMARY_JOIN);
+}
+
+/** Status's part of the line: "1:30 pm, Bluewatch Village" (the time of day on the story clock, then the place), '' with neither. */
+export function statusSummary({ minutes = null, place = '' } = {}) {
+    const clock = Number.isSafeInteger(minutes) && minutes >= 0 ? clockText(minutes % 1440) : '';
+    const where = typeof place === 'string' ? place.replace(/\s+/g, ' ').trim() : '';
+    return [clock, where].filter(Boolean).join(STRINGS.thisReply.statusJoin);
 }

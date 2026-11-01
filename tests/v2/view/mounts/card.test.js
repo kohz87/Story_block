@@ -1,5 +1,6 @@
-// Inline cards (SPEC §13.4): under each carrier, drawn from that reply's state, collapsed by default,
-// per-screen opt-in, visible messages only, cached per (index, swipe, rev), redrawn on swipe/edit/delete.
+// Inline cards (SPEC §13.4): ONE card under each carrier ("This reply", a section per card screen the reader has on), drawn from
+// that reply's state, collapsed by default, per-screen opt-in, visible messages only, cached per (index, swipe, rev), redrawn on
+// swipe/edit/delete.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { changeSummary, createCardMount } from '../../../../src/v2/view/mounts/card.js';
@@ -32,6 +33,7 @@ function world({ revs = [1, 2, 3, 4], users = [], observer = null, cards = { 'm/
 }
 
 const cardsUnder = message => message.querySelectorAll('.ss-card');
+const sectionsOf = card => card.querySelectorAll('.ss-card-sec').map(section => section.getAttribute('data-ss-section'));
 
 test('a collapsed card under each carrier, only for screens the reader turned on', () => {
     const { chat, render, cards } = world({ users: [1] });
@@ -39,12 +41,13 @@ test('a collapsed card under each carrier, only for screens the reader turned on
     assert.equal(cardsUnder(chat.messages[1]).length, 0, 'user messages carry nothing');
     for (const index of [0, 2, 3]) {
         const list = cardsUnder(chat.messages[index]);
-        assert.deepEqual(list.map(card => card.getAttribute('data-ss-card')), ['m/sheet']);
+        assert.deepEqual(list.map(card => card.getAttribute('data-ss-card')), ['this-reply']);
+        assert.deepEqual(sectionsOf(list[0]), ['m/sheet']);
         assert.equal(list[0].parentNode.parentNode, chat.messages[index].querySelector('.mes_block'));
         const head = list[0].querySelector('.ss-card-head');
         assert.equal(head.getAttribute('aria-expanded'), 'false');
         assert.equal(list[0].querySelector('.ss-card-body').hidden, true);
-        assert.equal(list[0].querySelector('.ss-card-title').textContent, 'Sheet');
+        assert.equal(list[0].querySelector('.ss-card-title').textContent, 'This reply');
     }
     assert.equal(render.calls.length, 0, 'a collapsed card draws no body');
 });
@@ -79,14 +82,14 @@ test('opening a card draws it with that reply\'s state and changed paths, not th
     // Closing keeps the body; opening again does not draw again.
     card.querySelector('.ss-card-head').click();
     assert.equal(card.querySelector('.ss-card-body').hidden, true);
-    cards.toggle(1, 'm/sheet', true);
+    cards.toggle(1, true);
     assert.equal(render.calls.length, 1);
 });
 
 test('a swipe redraws the card with the new swipe\'s state; swiping back reuses the cache', () => {
     const { chat, render, cards } = world();
     cards.attachAll();
-    cards.toggle(3, 'm/sheet', true);
+    cards.toggle(3, true);
     const first = cardsUnder(chat.messages[3])[0];
     assert.equal(render.last().scope.state.meta.rev, 4);
 
@@ -109,7 +112,7 @@ test('cards are cached per (index, swipe, rev): the same key never draws twice',
     const swipes = [0, 0, 0];
     const { chat, render, cards } = world({ revs: [1, 2, 3], extra: { swipeAt: index => swipes[index] } });
     cards.attachAll();
-    cards.toggle(2, 'm/sheet', true);
+    cards.toggle(2, true);
     const a = cardsUnder(chat.messages[2])[0];
     swipes[2] = 1;
     chat.states[2] = Object.freeze({ ...chat.states[2], meta: { rev: 8, claims: {} } });
@@ -127,7 +130,7 @@ test('cards are cached per (index, swipe, rev): the same key never draws twice',
 test('an edit forces a fresh draw; a delete or chat change forgets every index', () => {
     const { chat, render, cards } = world();
     cards.attachAll();
-    cards.toggle(2, 'm/sheet', true);
+    cards.toggle(2, true);
     const before = cardsUnder(chat.messages[2])[0];
     cards.onEdit(2);
     const after = cardsUnder(chat.messages[2])[0];
@@ -170,7 +173,8 @@ test('turning a card screen off removes its cards; no screens means no container
     cards.attachAll();
     screens.setCards('m/off', true);
     cards.refreshAll();
-    assert.deepEqual(cardsUnder(chat.messages[0]).map(card => card.getAttribute('data-ss-card')), ['m/off', 'm/sheet']);
+    assert.equal(cardsUnder(chat.messages[0]).length, 1, 'still one card');
+    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[0])[0]), ['m/off', 'm/sheet']);
     screens.setCards('m/off', false);
     screens.setCards('m/sheet', false);
     cards.refreshAll();
@@ -188,7 +192,7 @@ test('SillyTavern events drive the cards when an eventSource is given', () => {
     handlers.rendered.forEach(fn => fn(3));
     assert.equal(cardsUnder(chat.messages[3]).length, 1);
     assert.equal(cardsUnder(chat.messages[2]).length, 0);
-    cards.toggle(3, 'm/sheet', true);
+    cards.toggle(3, true);
     chat.swipe(3, 11);
     handlers.swiped.forEach(fn => fn(3));
     assert.equal(render.last().scope.state.meta.rev, 11);
@@ -215,4 +219,121 @@ test('mount(el, id, { index }) draws one card body for that carrier', () => {
     assert.equal(handle.result.ok, true);
     assert.equal(render.last().scope.state, chat.states[0]);
     assert.throws(() => createCardMount({ render() {} }), /carriers/);
+});
+
+// ---- One card under a reply: every module's card is a section ("This reply") ----
+
+const THREE = () => [
+    screen('m/sheet', ['card'], { title: 'Sheet', data: { hp: { query: 'party.hp' } } }),
+    screen('story-block/changes-card', ['card'], { title: 'Changed this reply' }),
+    screen('story-director/status-card', ['card'], { title: 'Status' }),
+    screen('npc/meters', ['card'], { title: 'NPCs' }),
+];
+const summaries = { 'story-block/changes-card': '+1 Oilskin Coat · Hooded courier left', 'story-director/status-card': '1:30 pm, Bluewatch Village', 'm/sheet': 'HP 30' };
+const threeWorld = (cards = {}, extra = {}) => world({
+    defs: THREE(),
+    cards: { 'story-block/changes-card': true, 'story-director/status-card': true, ...cards },
+    extra: { first: ['story-block/changes-card'], summary: scr => summaries[scr.id] ?? null, ...extra },
+});
+
+test('one card under a reply holds every module card: the closed line joins each summary with " · ", Changes first', () => {
+    const { chat, cards } = threeWorld();
+    cards.attachAll();
+    const list = cardsUnder(chat.messages[2]);
+    assert.equal(list.length, 1, 'one card, not one per module');
+    assert.equal(list[0].getAttribute('data-ss-card'), 'this-reply');
+    assert.equal(list[0].querySelector('.ss-card-title').textContent, 'This reply');
+    const line = '+1 Oilskin Coat · Hooded courier left · 1:30 pm, Bluewatch Village';
+    assert.equal(list[0].querySelector('[data-slot="summary"]').textContent, line);
+    assert.equal(list[0].querySelector('[data-slot="summary"]').getAttribute('title'), line, 'the full text is the title');
+});
+
+test('the sections follow the card order with Changes first, each after the module card\'s own heading (Status reads "Where things stand")', () => {
+    // The registry lists the screens by id, so the NPC card would lead without `first`.
+    const { chat, cards } = threeWorld({ 'npc/meters': true }, { summary: () => null });
+    cards.attachAll();
+    const card = cardsUnder(chat.messages[2])[0];
+    assert.deepEqual(sectionsOf(card), ['story-block/changes-card', 'npc/meters', 'story-director/status-card']);
+    const headings = card.querySelectorAll('.ss-card-sec-title').map(node => node.textContent);
+    assert.deepEqual(headings, ['Changed this reply', 'NPCs', 'Where things stand']);
+    assert.equal(card.querySelector('[data-slot="summary"]').textContent, 'No changes', 'no part has words: the default line');
+});
+
+test('opening the one card fills every section, and only then (lazy bodies)', () => {
+    const { chat, render, cards } = threeWorld();
+    cards.attachAll();
+    assert.equal(render.calls.length, 0, 'closed: nothing drawn');
+    const card = cardsUnder(chat.messages[2])[0];
+    card.querySelector('.ss-card-head').click();
+    assert.deepEqual(render.calls.map(call => call.screen.id), ['story-block/changes-card', 'story-director/status-card']);
+    assert.ok(render.calls.every(call => call.scope.state === chat.states[2] && call.scope.index === 2 && call.scope.mount === 'card'));
+    const texts = card.querySelectorAll('.ss-card-sec-body').map(node => node.querySelector('.drawn').textContent);
+    assert.deepEqual(texts, ['story-block/changes-card rev 3', 'story-director/status-card rev 3']);
+    card.querySelector('.ss-card-head').click();
+    card.querySelector('.ss-card-head').click();
+    assert.equal(render.calls.length, 2, 'opening again draws nothing more');
+});
+
+test('a module that adds a card adds a section, not a second card; with one card on it is still "This reply"', () => {
+    const { chat, screens, cards } = threeWorld();
+    cards.attachAll();
+    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[2])[0]), ['story-block/changes-card', 'story-director/status-card']);
+    screens.setCards('m/sheet', true);
+    cards.refreshAll();
+    const list = cardsUnder(chat.messages[2]);
+    assert.equal(list.length, 1);
+    assert.deepEqual(sectionsOf(list[0]), ['story-block/changes-card', 'm/sheet', 'story-director/status-card']);
+    assert.equal(list[0].querySelector('[data-slot="summary"]').textContent, '+1 Oilskin Coat · Hooded courier left · HP 30 · 1:30 pm, Bluewatch Village');
+
+    screens.setCards('m/sheet', false);
+    screens.setCards('story-director/status-card', false);
+    cards.refreshAll();
+    const only = cardsUnder(chat.messages[2]);
+    assert.equal(only.length, 1);
+    assert.equal(only[0].querySelector('.ss-card-title').textContent, 'This reply');
+    assert.deepEqual(sectionsOf(only[0]), ['story-block/changes-card']);
+    assert.equal(only[0].querySelector('[data-slot="summary"]').textContent, '+1 Oilskin Coat · Hooded courier left');
+});
+
+test('each module card\'s own switch: an off card is not a section and not part of the line; all off means no card', () => {
+    const { chat, screens, cards } = threeWorld();
+    cards.attachAll();
+    screens.setCards('story-director/status-card', false);
+    cards.refreshAll();
+    const card = cardsUnder(chat.messages[2])[0];
+    assert.deepEqual(sectionsOf(card), ['story-block/changes-card']);
+    assert.equal(card.querySelector('[data-slot="summary"]').textContent, '+1 Oilskin Coat · Hooded courier left');
+    screens.setCards('story-director/status-card', true);
+    screens.setCards('story-block/changes-card', false);
+    cards.refreshAll();
+    const status = cardsUnder(chat.messages[2])[0];
+    assert.deepEqual(sectionsOf(status), ['story-director/status-card']);
+    assert.equal(status.querySelector('[data-slot="summary"]').textContent, '1:30 pm, Bluewatch Village');
+    screens.setCards('story-director/status-card', false);
+    cards.refreshAll();
+    assert.equal(chat.messages[2].querySelector('.ss-cards'), null);
+});
+
+test('the host\'s "Cards under replies" switch (deps.enabled) takes the whole card away and brings it back', () => {
+    let on = true;
+    const { chat, cards } = threeWorld({}, { enabled: (mount, id) => on && id !== 'm/sheet' && id !== 'npc/meters' });
+    cards.attachAll();
+    assert.equal(cardsUnder(chat.messages[2]).length, 1);
+    on = false;
+    cards.refreshAll({ force: true });
+    assert.equal(chat.messages[2].querySelector('.ss-cards'), null);
+    on = true;
+    cards.refreshAll({ force: true });
+    assert.deepEqual(sectionsOf(cardsUnder(chat.messages[2])[0]), ['story-block/changes-card', 'story-director/status-card']);
+});
+
+test('the card stays open across a swipe, and both sections are drawn on the state of the new swipe', () => {
+    const { chat, render, cards } = threeWorld();
+    cards.attachAll();
+    cards.toggle(2, true);
+    chat.swipe(2, 9);
+    cards.onSwipe(2);
+    const card = cardsUnder(chat.messages[2])[0];
+    assert.equal(card.querySelector('.ss-card-head').getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(render.calls.slice(-2).map(call => call.scope.state.meta.rev), [9, 9], 'both sections drawn on the new swipe');
 });

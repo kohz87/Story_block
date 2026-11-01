@@ -294,6 +294,16 @@ export const STRINGS = deepFreeze({
         fail: 'fail',
         storyDice: 'story said {story} / dice said {dice}',
     },
+    // The one card under a reply (view/mounts/card.js): every module's card is a section of it.
+    thisReply: {
+        title: 'This reply',
+        // Heading overrides by card screen id (a module's own card title is the heading unless it is listed here).
+        headings: {
+            'story-director/status-card': 'Where things stand',
+        },
+        // Status's part of the closed line: "1:30 pm, Bluewatch Village".
+        statusJoin: ', ',
+    },
     replyCards: {
         later: 'Later',
         open: 'Open',

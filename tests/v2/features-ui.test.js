@@ -10,7 +10,7 @@ import { FEATURES_FOLD, FEATURE_TEXT, PACKS_FOLD, VERSIONS_FOLD, featureInputId,
 import { openSettingsWindow as openSettingsOverlay } from '../../src/v2/view/settings/window.js';
 import { CORE_FEATURE, PROMPT_HINT } from '../../src/v2/features.js';
 import { hudOn, mountUi } from '../../src/v2/ui-host.js';
-import { CHANGES_CARD_SCREEN_ID } from '../../src/v2/screens/index.js';
+import { THIS_REPLY_ID } from '../../src/v2/reply-cards.js';
 
 const texts = (root, selector) => root.querySelectorAll(selector).map(node => node.textContent);
 
@@ -283,7 +283,7 @@ test('the page: with the cards feature off no card is drawn under a reply; on ag
     await host.send('hi', 'You find a rope.\n<Changes>\n+ item Rope | qty: 1\n</Changes>');
     draw();
     ui.mounts.card.refresh(2, { force: true });
-    const card = () => doc.querySelector(`.mes[mesid="2"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+    const card = () => doc.querySelector(`.mes[mesid="2"] [data-ss-card="${THIS_REPLY_ID}"]`);
     assert.ok(card(), 'on by default');
     host.features.set(CORE_FEATURE.cards, false);
     assert.equal(card(), null);

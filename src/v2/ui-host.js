@@ -54,7 +54,7 @@ import { createReplyExtras } from './extras-ui.js';
 import { displayLines } from './extras.js';
 import { STRINGS, fill } from './strings.js';
 import { readRecord } from './persist.js';
-import { laterStore, replyEdits, replyRules, scanReplyCards } from './reply-cards.js';
+import { STATUS_CARD_SCREEN_ID, laterStore, replyEdits, replyRules, scanReplyCards, statusSummary } from './reply-cards.js';
 import { drawReplyCard } from './view/reply-cards-ui.js';
 import { CORE_FEATURE } from './features.js';
 import { createBlockTemplates } from './data-modules/block-templates.js';
@@ -501,7 +501,14 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         query: queryAt,
         changesAt: index => store.changesAt(index),
         opsAt: index => store.opsAt(index),
+        // The card under a reply is one card; its closed line is each section's part, Changes first.
+        first: [CHANGES_CARD_SCREEN_ID],
         summary(screen, { index, state, before, changes }) {
+            if (screen?.id === STATUS_CARD_SCREEN_ID) {
+                let time = null;
+                try { time = queryAt('director.time', {}, state); } catch { time = null; }
+                return statusSummary({ minutes: time?.minutes ?? null, place: state?.domains?.scene?.place?.name ?? '' });
+            }
             if (screen?.id !== CHANGES_CARD_SCREEN_ID) return null;
             let currency = null;
             try { currency = sdk.query('inventory.currency'); } catch { currency = null; }

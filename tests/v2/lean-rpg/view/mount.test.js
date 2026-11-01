@@ -8,7 +8,7 @@ import { makeMessage } from '../../../ui-fake-dom.js';
 import { setupDom } from '../../view/mounts/helpers.js';
 import { mountUi } from '../../../../src/v2/ui-host.js';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
-import { CHANGES_CARD_SCREEN_ID } from '../../../../src/v2/screens/index.js';
+import { THIS_REPLY_ID } from '../../../../src/v2/reply-cards.js';
 import { RESOLVE } from '../../../../src/v2/lean-rpg/index.js';
 import { characterDefinition, defineAll, fieldsOf, foesDefinition, roleOf, setField, skillsDefinition } from './helpers.js';
 
@@ -224,12 +224,12 @@ test('"Changed this reply" tells the rolls and the rises', async t => {
         data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [{ kind: 'act', who: 'Wessel', target: 'Sluice Rat A', skill: null, stat: 'str', outcomes: ['success'] }], refused: 0 }, rounds: [] } } } });
     draw();
     ui.mounts.card.refresh(head, { force: true });
-    const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+    const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"]`);
     assert.ok(card);
     assert.match(card.querySelector('[data-slot="summary"]').textContent, /3 exchanges rolled/);
     assert.match(card.querySelector('[data-slot="summary"]').textContent, /Soul Class III/);
-    ui.mounts.card.toggle(head, CHANGES_CARD_SCREEN_ID, true);
-    const body = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"] .ss-card-body`).textContent;
+    ui.mounts.card.toggle(head, true);
+    const body = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"] .ss-card-body`).textContent;
     assert.match(body, /Rolled for you: 3 exchanges/);
     assert.match(body, /Wessel: Soul Class II → III/);
     assert.match(body, /Iron Breath: Adept → Expert/);
@@ -244,7 +244,7 @@ test('with the feature off the card is as it always was', async t => {
     host.ctx.chat[head].extra.storySuite.receipts.push({ id: 'rc_rpg0001', type: RESOLVE, module: 'story-block', cause: 'system', summary: '', narrate: false, rev: 99, data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [], refused: 0 }, rounds: [] } } } });
     draw();
     ui.mounts.card.refresh(head, { force: true });
-    assert.doesNotMatch(doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`).textContent, /Rolled for you|exchanges/);
+    assert.doesNotMatch(doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"]`).textContent, /Rolled for you|exchanges/);
 });
 
 test('an open sheet and its draft survive the page drawing itself again (a bar edited on the sheet, a new reply)', async t => {
