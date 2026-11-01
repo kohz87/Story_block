@@ -724,13 +724,19 @@ sdk.registerModule({
   `min`/`max`, past 100 lines) is named under it and nothing is stored until every line reads. With one
   `text` field, extra colons belong to it (`Day: of Ash: 30`).
 * **Features** (MODULES §F100): the optional mechanics a reader switches on and off.
-  * `features: [{ id, label, describe?, default?, prompt?, needs? }]`. `id` is `<module-id>.<name>` (lowercase
+  * `features: [{ id, label, describe?, default?, prompt?, needs?, presets? }]`. `id` is `<module-id>.<name>` (lowercase
     letters, digits, `_`, `-` after the dot); `label` is text of at most 60 characters, `describe` at most
     240; `default` is `true` (when left out) or `false`; `prompt: true` says the feature changes the
     static part through the module's own code. A feature that owns a capture kind or static text is
     marked so without it. A wrong entry, an id named twice, or a `feature` that names no feature of the
     same module refuses the module with a plain sentence; an unknown field on an entry is warned and
     ignored.
+  * `presets: { lean?: boolean, full?: boolean }` or `false` ("How much to track", Settings → Features): the
+    switch this feature takes when the reader picks Lean or Full. Standard is the feature's `default`, and a key it
+    leaves out is its `default` too, so a module with no `presets` keeps its defaults in all three. `presets: false`
+    keeps the feature out of presets (a pick never changes it). The tile that is selected is derived from the
+    switches (the preset every in-preset feature matches, else Custom) and never stored; an unavailable feature is
+    neither set nor compared. `sdk.features()` gives `presets` for a feature that declares it.
   * `needs: { kinds?, commands?, queries?, why? }` names what another module must register for the
     feature to work at all (Story Block's pre-roll needs the `check` kind). While any of it is not
     registered (by any module, whatever that module's features say), the feature is **unavailable**: off
