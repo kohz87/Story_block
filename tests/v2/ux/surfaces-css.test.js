@@ -186,3 +186,13 @@ test('the HUD strip keeps 8px of air above SillyTavern\'s message box (#send_for
     const rule = /\.ss-hud \{([^}]*)\}/.exec(mounts)?.[1] ?? '';
     assert.match(rule, /margin: 0 0 8px;/, 'a bottom margin of 8px on the strip');
 });
+
+test('"This reply": the closed line is one line that ends in an ellipsis; an open card has a small heading per section', () => {
+    const summary = block(mounts, '.ss-card-summary');
+    for (const part of ['white-space: nowrap;', 'text-overflow: ellipsis;', 'overflow: hidden;']) assert.ok(summary.includes(part), part);
+    assert.doesNotMatch(summary, /line-clamp/, 'no two-line clamp any more');
+    const heading = block(mounts, '.ss-card-sec-title');
+    assert.match(heading, /text-transform: uppercase;/);
+    assert.match(heading, /font-size: 0\.72em;/);
+    assert.match(block(mounts, '.ss-card-sec + .ss-card-sec'), /border-top: 1px solid var\(--ss-border\);/);
+});

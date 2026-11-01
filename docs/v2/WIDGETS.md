@@ -419,7 +419,8 @@ under a reply (36 px portrait, the name and pill, three small bars, small badges
 | `portraitQuery`, `portraitArgs` | string, object | `''`, `null` | a query asked through `api.query` first (Delta's `npc.portrait` with `{ name }`); its answer (a URL or `{ url }`) is checked like any URL; a name that does not look like a query is never asked |
 | `line` | string | `''` | the pill's whole text; else built from `className`, `level` ("Lv 12" when it is a number) and `title` (the epithet) |
 | `bars` | list | `[]` | `[{ kind, label, value, max, text }]`, at most 6; `kind` `hp`, `mp`, `sp` go in a row (a column on a wide card), `exp` is the experience bar under them, labelled with the Terms' own word |
-| `place`, `time`, `weather` | string | `''` | the corner, each with its icon; empty ones are left out |
+| `place`, `time`, `weather` | string | `''` | the corner, each with its icon; empty ones are left out. The words wrap (never cut) |
+| `where` | object | `null` | the game view's header: `{ present: [names], places: [names or { name }], weatherOn, place, weatherText }`. The corner then also has a `Here: names` item after the weather, and the place, the weather and Here each have a pencil that runs `scene.place`, `scene.weather` and `scene.present` through `api.command` (an empty one still shows, with a dash, so there is a pencil to set it); `weatherOn: false` leaves the weather and its pencil out. Without it the corner is read-only |
 | `statuses` | list | `[]` | `[{ id, label, icon, left, unit, tone }]`, at most 12: `ss.status` badges |
 | `compact` | boolean | `false` | |
 
@@ -581,6 +582,13 @@ card shows before the first reply. The card is one object:
 
 Drawing: under the message, after the changes card, in the same strip. `normalizeCard` and `scanReplyCards` are in
 `src/v2/reply-cards.js`; the view is `src/v2/view/reply-cards-ui.js` (`drawReplyCard`).
+
+### In the bar by default
+
+A screen (in its `screens` entry) or a tab (in `tabs`) may declare `bar: true` (a boolean; anything else is refused like the other screen
+keys, and a host that does not know the key ignores it): it is in the bar of the game view and the Story panel until the reader moves it
+under More (Settings → Tabs & Packs → Tabs). Story Block's own Home and Inventory carry it; a Party or a Fight is in the bar by the last
+part of its id, as before; every other screen is under More unless it says so. Story Block names no other module's ids for this.
 
 ### Tabs shown while active
 

@@ -29,7 +29,7 @@ import { validateDataModules, dataModulesPackHash } from '../data-modules/check.
 import { STRINGS } from '../strings.js';
 import { compile } from '../events/condition.js';
 
-export const HOST_VERSION = '2.11.3';
+export const HOST_VERSION = '2.12.0';
 
 /** A slug for a display name: "Iron Sword (old)" → "iron-sword-old". */
 export function slugify(name) {

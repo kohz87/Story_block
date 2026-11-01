@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.12.0
+
+A cleanup of the screens on today's design: the same look, with less repeated and fewer places to look.
+
+- **One scene header.** In the Game view the header above every screen is the one place that shows the time, the place,
+  the weather and who is here ("Here: Fenna"). Place, weather and the people present have their pencils there (the same
+  editors Home's Where card had). On a phone the line wraps instead of cutting words off. Home no longer has the Where
+  card while the header is shown; the remaining cards size to what they hold (three to a row on a wide window) and Save
+  points is one slim row at the end.
+- **The Game view is solid** in every panel style, so the chat no longer shows through it. The Story panel is unchanged.
+- **Five tabs in the bar.** Home, Inventory, Quests, World and Map are in the bar (with the RPG: Party, and Fight while a
+  fight is on); every other screen is under **More**, on a wide window too. **Settings → Tabs & Packs** has a choice per
+  screen, **In the bar** or **Under More**; earlier order and hide choices keep working. A module says which of its
+  screens start in the bar (`bar: true` on the screen or tab); the Story panel's strip follows the same choice and fits
+  as many as its width holds.
+- **One card under each reply, "This reply".** The cards every module adds under a reply are one card: closed, one line
+  with each part's summary (what changed, then for example "1:30 pm, Bluewatch Village"); open, each part under its own
+  heading. Each part's title and summary come from the module that owns it. "N edits of yours" is no longer in the closed
+  line (the edits are listed when it is open). Each part's own switch and **Cards under replies** still work.
+- **How much to track.** Settings → Features opens with three choices, **Lean**, **Standard** and **Full**, each with
+  what it tracks and how many tokens of rules the narrator reads each reply for it. Picking one sets the switches; any
+  switch changed by hand shows **Custom**. Nothing in the story is ever deleted. A module says what each of its features
+  is in each preset (`presets: { lean, full }`, or `presets: false` to stay out). Story Block: Lean turns off Weather,
+  Your look, Pick what you take, Mounts, Choices, Inner chatter and Roll checks; Full turns on Choices, Inner chatter and
+  Roll checks. A switch set back to its default no longer stores a choice, so a later change of a default still reaches you.
+- **Status strip:** its switch only shows when something installed can fill it (a pack screen that asks for it).
+- Fixed: with the RPG on, the header shows the reader's own Health, Mana and Stamina bars and XP (they were never drawn).
+- Fixed: with the RPG off, the RPG's own blocks (character, skills, foes) no longer appear as extra tabs; two screens with
+  the same name are told apart in Tabs & Packs ("Notes (2)"). Settings → Blocks says the RPG's blocks are used by the
+  RPG when it is on.
+
 ## 2.11.3
 
 - The pack checker now reads each event's `when` condition with the same parser the story uses while it plays. A condition it cannot read (for example a name with an apostrophe inside single quotes, `has('Smith's key')`) is reported as "Event "gate": the condition can't be read: …" with the reason, instead of passing and only failing at play time. The same check runs when a pack is installed or imported. A pack that is already installed is not held to it: if one of its events has an unreadable condition, only that event stays invalid (as before) and the rest of the pack keeps working. The bundled Ersveil packs and the starter pack still pass.

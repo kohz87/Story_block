@@ -79,10 +79,12 @@ test('the phone game view has an opaque floor under the tint, so blur off hides 
     assert.match(theme, /\['--ss-gameview-phone-layers'/);
 });
 
-test('the phone header shows the scene as one ellipsised line under the name (the corner), not hidden', () => {
+test('the phone header shows the scene under the name (the corner), not hidden, and its words wrap onto more lines instead of being cut', () => {
     assert.doesNotMatch(glass, /\.ss-hero-compact \.ss-hero-corner,/, 'the corner is no longer hidden on the compact hero');
-    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*display: flex;[^}]*overflow: hidden;/);
-    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner-text \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*display: flex;[^}]*flex-wrap: wrap;/);
+    assert.doesNotMatch(glass, /\.ss-hero-compact \.ss-hero-corner \{[^}]*overflow: hidden;/, 'nothing is clipped');
+    assert.match(glass, /\.ss-hero-compact \.ss-hero-corner-text \{[^}]*overflow-wrap: anywhere;/);
+    assert.doesNotMatch(glass, /\.ss-hero-(compact )?\.?ss-hero-corner-text \{[^}]*text-overflow: ellipsis;/, 'no "Bluewatch Vi…"');
     assert.match(glass, /"portrait text" "vitals vitals"/, "the header: the portrait and one text block (name, class line, place, statuses)");
 });
 

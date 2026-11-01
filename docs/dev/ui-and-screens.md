@@ -26,7 +26,7 @@ F93 save points, F95/F96 story-driven, F100 Features); REVIEW.md risky part §4.
 - Navigation order (tabs and game view): Home first, then `SUITE_NAV` in `DEFAULT_ORDER` (party, inventory,
   quests, world, map, fight, crafting, trade, scene, chronicle, director, then NSD's Dossiers, id
   `npc-state-delta/cast`, last), others by `order` (`REST_ORDER` 150 without one). `DEFAULT_HIDDEN`: Scene is
-  hidden by default while Story Director's World is registered (F119). The reader's order and hidden tabs
+  hidden by default while the screen that shows the same and more is registered (F119). The reader's order and hidden tabs
   (`extension_settings.storySuite.tabs`, `view/tab-order.js`) win over both.
 - Every optional screen carries its Feature; off, it is not drawn.
 
@@ -184,6 +184,14 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   range with `aria-valuetext`; the list's Remove names the item ("Remove Frostmoon"), the focus goes to the next
   Remove or to Add after a removal and to the new row's first field after an Add; the search box is `role="search"` with a
   hidden label, Escape clears it, and the count of rows shown is a polite live region.
+- **How much to track** (`presets.js`, drawn at the top of the features form): a `role=radiogroup` of three `role=radio` tiles (Lean, Standard,
+  Full: what each tracks, and "≈ N tokens of rules each reply" from `staticTextWith(registry, switches)`, built through
+  `registry.withFeatures` so nothing is switched or stored; estimated at once, then counted by SillyTavern's tokenizer when it answers;
+  left out when it cannot be built), a "Custom" tag (`role=status`) when no tile matches, the note under them, and a "Fine-tune" label
+  over the module groups. The selected tile is derived from the switches on every paint (`selectedPreset`), never stored. A pick runs
+  `applyPreset(store, name)`: the ordinary `set` for each in-preset, available feature not already as the preset says, and the usual
+  `PROMPT_HINT` once when a changed feature alters the fixed prompt. Arrow keys move the focus (one Tab stop); Space, Enter or a click picks.
+  The search hides the group. Features declare their part with `presets` (SPEC §Features).
 - **The features form** (`features.js`, step 3b): `renderFeaturesForm(parent, { features, doc, onChange })`, Features (MODULES §F100) as
   switch tiles through the feature store (`list()`, `set(id, on)`; the settings store is not involved): one group per module by name
   (a labelled `section`, an `h4` and "N of M on" beside it, `data-fold="story-suite-features::<module id>"`, the heading
@@ -385,9 +393,17 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   own warning (`#npc_state_delta_custom_fields_stats_warning` carries `story-suite-notice`); the look follows the class.
 - **The notes under a reply** (`reply-notes.js`, `host.css`). One glass row: the note's icon in a 28px tile, the line in the muted
   colour, Re-read as a pill, the error line in the accent. A note is not folded and was not folded before; it stays one row.
-- **The changes card** (`screens/changes-card.js`, `mounts.css` `.ss-card`). The card under a reply is a glass card (the frame is a
-  theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted; in a narrow chat column it
-  takes the next line, two at most; on a phone, under 760px, the header stays one line and the summary ends in an ellipsis), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
+- **The card under a reply: "This reply"** (`view/mounts/card.js`, `reply-cards.js`, `screens/changes-card.js`, `mounts.css` `.ss-card`).
+  There is one card under a reply, not one per module: every card screen the reader has on is a section of it. Closed, the header is
+  "This reply" and one line, each section's part joined with " · " (Changes first, then the registry's order; `deps.first`); the full
+  line is the summary's `title`. A card screen tells its own part with an optional `summary` on its screen: a template of text
+  (at most 500 characters, `validateScreen`), read in the card's scope at that reply's state like its body ('{{ q.status.summary }}';
+  the scope has `summary: true`); a card with none adds nothing (Story Block's changes card is worded by the host's `summary` hook). Open, each section is its body
+  under a small heading: the screen's own `title`. Story Block holds no other module's words or ids for this. The reader's own edits
+  are in the opened Changes section, not in the line. The bodies are drawn the first time the card is opened, all together. A screen's
+  switch (`cards[id]`) takes its section away; with one on the card is still "This reply"; "Cards under replies" off takes the card away.
+  The card is a glass card (the frame is a
+  theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted, one line that ends in an ellipsis), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
   folded by default, as before (the card mount's fold, unchanged).
   SillyTavern's swipe row (the arrows and the 1/1 counter) is drawn at the bottom right of the last message only; the last message's
   cards keep clear of it with a bottom margin (`.last_mes .ss-cards`), which was already overlapping before step 4a.
@@ -398,9 +414,17 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   is not drawn under replies in this checkout (inner chatter reads on World and on the Scene screen), so nothing changed for it.
 - **The game view's navigation and the Story panel's tabs: the screen bar** (`view/screen-bar.js`, `mounts.css` `.ss-gameview-nav`,
   `host.css` `.story-suite-sheet-bar`, `glass.css` `.ss-screenbar*`). One component: a phone (under 760px) gets a floating glass pill
-  at the foot with five slots (the first four screens in the reader's order, then More); More opens a glass sheet over the bar (a
-  scrim, the hint, a four-column grid of the rest). From 760px the game view draws every screen in one row (`row: true`, no More).
-  The Story panel's tabs use the same bar at its foot, at every width. The current item is the accent icon and label with a dot;
+  at the foot with five slots (the first four screens that are in the bar, in the reader's order, then More); More opens a glass
+  sheet over the bar (a scrim, the hint, a four-column grid of the rest). From 760px the game view draws the screens that are in
+  the bar in one row (`row: true`) and More after them, while any screen is under it (its sheet opens centred over the window's foot).
+  The Story panel's tabs use the same bar at its foot: the pill's four slots, and on the side sheet (from 760px) as many as its width holds at about 60px a slot (five at 398px and up, six at most; `screen-bar.js` `slotsForWidth`, `host-ui.js` `createTabHost({ slots })`, laid out again on a window resize). **What is in the bar** (`view/tab-order.js` `isInBar`,
+  `screens.js` `inDefaultBar`): the screens and tabs that say `bar: true` on their own registration (Story Block's Home and Inventory;
+  another module declares its own, `screens.declaredBar(id)` and the registered tabs are read in `ui-host.js` `barDeclared`); with the RPG on Party,
+  and Fight while a fight is on (it is a tab only then); every other screen is under More. When more are in the bar than there are slots,
+  the reader's order decides who gets them and the rest go under More. The reader's
+  choice per screen (Settings → Tabs & Packs → Tabs, "In the bar" / "Under More") is kept in `extension_settings.storySuite.tabs` as
+  `inBar` / `underMore` beside `order`, `hidden` and `shown`; Home is always in the bar. An item that is not in the bar has
+  `moreOnly: true` for the bar; the game view reads `deps.inBar(screenId)` and the Story panel `createTabHost({ inBar })`. The current item is the accent icon and label with a dot;
   icons are `iconFor` from `view/icons` (the solid weight for the current one). Keys: each slot is a button in Tab order; Tab stays
   in the open sheet, Escape closes it first (the game view's own Escape waits while More is open), and the focus goes back to More.
   The panel's names (`story-suite-tab`, `data-tab-id`) and the game view's `data-ss-target` are kept on each slot and tile.
@@ -467,9 +491,13 @@ their states, the plates, the class-level exceptions and their specificity), `te
 
 - **The header** (`view/game-header.js`, `mounts/screen.js`): above every screen of the game view, the `ss.hero` block
   (`.ss-gameview-hero`, shown only when the head state gives one; no chat, no header). `gameHeroProps({ state, query, context,
-  formatTime })` is the one place that reads the lead and the scene: `party.pc` (HP, MP, SP with a maximum, `level`, `role`,
+  formatTime, weatherOn, rpgLead })` is the one place that reads the lead and the scene: `party.pc` (HP, MP, SP with a maximum, `level`, `role`,
   `conditions`), `party.terms` (the level's word), `scene.place`, `scene.weather`, `director.time` (formatted by the host's
-  `fmt.time`). The lead's name falls back to the persona's. The portrait is `portraitOf`: the persona avatar
+  `fmt.time`). With the RPG on and no party module answering, `rpgLead` (`lean-rpg/view/hero-data.js`, the reader's own Character
+  block) gives the header its Health, Mana and Stamina stage bars and the XP bar. The header's corner is **the scene's one place**
+  (the `ss.hero` `where` prop): time, place, weather and "Here: people", the place, weather and Here each with the pencil Home's
+  Where card had (`scene.place`, `scene.weather`, `scene.present`); the words wrap, they are never cut. The game view tells its screen
+  that the header is up (`settings._heroShown`), and Home leaves its Where card out then (it keeps it where no header is above Home). The lead's name falls back to the persona's. The portrait is `portraitOf`: the persona avatar
   (`/thumbnail?type=persona&file=…`), else the card's (`/thumbnail?type=avatar&file=…`), else `npc.portrait` asked with
   `{ name }` (a string, or an answer `{ url }` / `{ src }`), else the initial. The hero keeps the pictures in order (`portraits`,
   then `portrait`): an image that fails to load is skipped and the next one tried, and the initial shows past the last. A failed
@@ -482,8 +510,8 @@ their states, the plates, the class-level exceptions and their specificity), `te
 - **The screens** (`screens/style.js`, `home.js`, `inventory.js`, `scene.js`, `savepoints.js`, `ready-hint.js`, `show-more.js`):
   the base CSS reads the glass tokens (`--sb-surface` = `--ss-glass-strong`, `--sb-raised` = `--ss-tile`, `--sb-border` =
   `--ss-border`), a panel is a glass card, every heading is `ss-section-label`, and actions are `ss-button` (`ss-button-primary`,
-  `ss-button-danger`) so they take the look's states. Home has no hero card (the header draws the lead) and no Packs card (the
-  import is Settings → Tabs & Packs). Home keeps the Where, Purse and pack, Quests and Save points cards (and Party and Fight when
+  `ss-button-danger`) so they take the look's states. Home has no hero card (the header draws the lead), no Where card under the header and no Packs card (the
+  import is Settings → Tabs & Packs). Home keeps the Purse and pack, Quests and Mounts cards, then the Save points row (and Party and Fight when
   their modules are there).
 - **The Inventory's rows** (`inventory.js` CSS): the tile, then a grid of the name line, the note and the item detail on the left
   (`min-width: 0`, `overflow-wrap: anywhere`: a long name breaks, the chips wrap, nothing runs under the actions; a module's
@@ -491,8 +519,9 @@ their states, the plates, the class-level exceptions and their specificity), `te
   and the actions on the right (`fit-content(50%)`, a group that wraps on the right when the row is narrow), on every width; the
   text and the actions are centred on each other (the actions span the text's rows and a `1fr` row above and below), and an open
   fold (Equip on…, Use on…, Drop) is the last row, under both.
-- **Home's cards** (`home.js` CSS): the grid stretches, so every card in a row has the row's height and its content is
-  top-aligned. A long list is capped: `.sb-cap[data-capped="true"]` is at most 15em (about two normal cards) with no scrollbar,
+- **Home's cards** (`home.js` CSS): the cards size to their content (`align-items: start`), three to a row from 760px and one column
+  on a phone; the Save points are one slim full-width row at the end (a wrapping flex row: the label, the button, the words or the list
+  under them). A long list is capped: `.sb-cap[data-capped="true"]` is at most 15em (about two normal cards) with no scrollbar,
   and a "Show all" / "Show less" button (`capToggle` in `screens/show-more.js`, the widget `story-block.show-more` for a template's
   card, and the same helper on Save points' list) opens it. The button is there only while the list is taller than the cap, and
   shows `aria-expanded`. The open state is kept per card (a page-level map keyed by card, e.g. `story-block/home:quests`), so a

@@ -189,19 +189,26 @@ test('search finds the page by a block\'s name or where it shows, and leaves the
     assert.equal(rowOf(screen(), 'Ledger').hidden, false);
 });
 
-test('an RPG block shows its RPG place and cannot be moved while the RPG is on; with it off the choice is the same as any block\'s', async t => {
+test('an RPG block shows its RPG place and cannot be moved, with the RPG on or off (it gets no tab of its own either way)', async t => {
     const { host, ui } = await page(t);
     await define(host, { name: 'Wessel', role: 'character', fields: [{ name: 'Health', type: 'number', min: 0, max: 5, default: 5 }],
         show: { tab: true, card: false, tabName: 'Wessel', icon: 'ph-heart' } });
     let { screen } = open(ui);
     assert.equal(rowOf(screen(), 'Wessel').querySelector('.ss-blockrow-role').textContent, 'RPG · Character');
-    assert.equal(select(screen(), 'Wessel').disabled, false, 'the RPG is off: it is an ordinary block with a tab');
-    assert.equal(screen().querySelector('.ss-blocks-count').textContent, '1 block in this story · 1 tab');
+    assert.equal(select(screen(), 'Wessel').disabled, true, 'the RPG is off: the block is only data, it has no tab to choose');
+    // With the RPG off there is no Party tab to name: the block says the RPG uses it when it is on.
+    const meta = name => rowOf(screen(), name).querySelector('.ss-blockrow-meta').textContent;
+    assert.equal(meta('Wessel'), P.rpgIdle.character);
+    assert.equal(meta('Wessel'), 'Used by the RPG when it is on');
+    assert.ok(!/Party tab/.test(meta('Wessel') + select(screen(), 'Wessel').children.map(node => node.textContent).join()), 'no Party tab while there is none');
+    assert.equal(select(screen(), 'Wessel').children.map(node => node.textContent).join(), P.rpgIdleOption.character);
+    assert.equal(screen().querySelector('.ss-blocks-count').textContent, '1 block in this story · none shown');
     host.features.set(LEAN_RPG_FEATURE, true);
     await settle(); await settle();
     screen = () => ui.openSettings().root.querySelector('[data-ss-section="blocks"]');
     assert.equal(select(screen(), 'Wessel').disabled, true);
     assert.equal(select(screen(), 'Wessel').children.map(node => node.textContent).join(), 'Party tab (RPG)');
+    assert.equal(rowOf(screen(), 'Wessel').querySelector('.ss-blockrow-meta').textContent, 'Shown by the RPG in the Party tab', 'with the RPG on the Party tab is there');
     assert.equal(screen().querySelector('.ss-blocks-count').textContent, '1 block in this story · none shown');
 });
 

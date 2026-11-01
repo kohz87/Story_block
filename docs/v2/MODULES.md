@@ -451,7 +451,7 @@ These settle questions agents raised; the host changes they need are made at int
     with their thought). Settings → Tabs still lists Scene, hidden, to show again; the reader's choice wins:
     `storySuite.tabs.shown` keeps one they showed, `hidden` one they hid, and an order saved before `shown`
     existed that names Scene counts as showing it. Without Story Director, Scene shows as before, now with each
-    person's thought (`scene.chatter`, F115). Home's scene panel is unchanged.
+    person's thought (`scene.chatter`, F115). Home's scene panel is drawn only where no game view header is above Home (the header has the place, time, weather and people).
 
 ### User decision from the beta-candidate live test (2026-10-22, F120)
 
@@ -468,7 +468,7 @@ These settle questions agents raised; the host changes they need are made at int
     }`, or `null` when no reply wrote one and while the feature is off; Story Director's Status card reads it.
     `weather` is one of the scene's `scratch` fields (SPEC §2.2), so a later reply's weather replays whole after
     the reply that first wrote one is deleted; swipes, Re-read and a reload give what a rebuild gives, like the
-    other scene fields. Shown on Scene (with the place) and Home's scene panel. The tail's Place line ends with
+    other scene fields. Shown on Scene (with the place) and in the game view's header (Home's scene panel where no header is above Home). The tail's Place line ends with
     it while the feature is on, cut to 26 code points (`Place: Vell Harbour (settlement); cold drizzle, low
     fog`, at most 28 characters more: about 8 tokens), and only when there is a place.
 

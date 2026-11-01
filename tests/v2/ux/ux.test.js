@@ -10,7 +10,7 @@ import { makeMessage } from '../../ui-fake-dom.js';
 import { setupDom } from '../view/mounts/helpers.js';
 import { hudOn, isGameViewKey, mountUi } from '../../../src/v2/ui-host.js';
 import { problemReason, refusedFrom } from '../../../src/v2/reply-notes.js';
-import { CHANGES_CARD_SCREEN_ID } from '../../../src/v2/screens/index.js';
+import { THIS_REPLY_ID } from '../../../src/v2/reply-cards.js';
 import { STRINGS } from '../../../src/v2/strings.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 
@@ -178,17 +178,17 @@ test('the changes card lists the lines the code refused, faintly, and its summar
     draw();
     assert.deepEqual(ui.notes.refusedAt(2), [{ line: '- item Lantern | qty: 1', reason: 'There is no Lantern in the inventory.' }]);
     ui.mounts.card.refresh(2, { force: true });
-    const card = doc.querySelector(`.mes[mesid="2"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+    const card = doc.querySelector(`.mes[mesid="2"] [data-ss-card="${THIS_REPLY_ID}"]`);
     assert.ok(card, 'the card is under the reply');
     assert.equal(card.querySelector('.ss-card-summary').textContent, '+1 Rope · 1 line not applied');
-    ui.mounts.card.toggle(2, CHANGES_CARD_SCREEN_ID, true);
+    ui.mounts.card.toggle(2, true);
     const refused = card.querySelector('.refused');
     assert.ok(refused, 'the refused list is drawn');
     const text = refused.textContent.replace(/\s+/g, ' ').trim();
     assert.equal(text, 'not applied: - item Lantern | qty: 1 — There is no Lantern in the inventory.');
     // The greeting's card has none.
     ui.mounts.card.refresh(0, { force: true });
-    ui.mounts.card.toggle(0, CHANGES_CARD_SCREEN_ID, true);
+    ui.mounts.card.toggle(0, true);
     assert.equal(doc.querySelector('.mes[mesid="0"] .refused'), null);
 });
 
@@ -327,10 +327,10 @@ test('the changes card shows a module\'s lines for that reply (summary and body)
     draw();
     const cardAt = index => {
         ui.mounts.card.refresh(index, { force: true });
-        return doc.querySelector(`.mes[mesid="${index}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+        return doc.querySelector(`.mes[mesid="${index}"] [data-ss-card="${THIS_REPLY_ID}"]`);
     };
     assert.equal(cardAt(2).querySelector('.ss-card-summary').textContent, 'climb 14');
-    ui.mounts.card.toggle(2, CHANGES_CARD_SCREEN_ID, true);
+    ui.mounts.card.toggle(2, true);
     assert.equal(cardAt(2).querySelector('.extra .main').textContent, 'climb: d20 14');
     assert.equal(cardAt(2).querySelector('.none'), null);
     // The later reply rolled nothing: its card says so, with no module line.
@@ -355,14 +355,69 @@ test('the changes card\'s folded header counts the lines the safety net applied,
     draw();
     const cardAt = index => {
         ui.mounts.card.refresh(index, { force: true });
-        return doc.querySelector(`.mes[mesid="${index}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+        return doc.querySelector(`.mes[mesid="${index}"] [data-ss-card="${THIS_REPLY_ID}"]`);
     };
     const summary = cardAt(4).querySelector('.ss-card-summary').textContent;
     assert.match(summary, /Fenna arrived/, 'the arrival, as any change');
     assert.match(summary, /2 lines from the safety net \(assist\)$/, summary);
-    ui.mounts.card.toggle(4, CHANGES_CARD_SCREEN_ID, true);
+    ui.mounts.card.toggle(4, true);
     const listed = [...cardAt(4).querySelectorAll('.assisted .line')].map(line => line.textContent.replace(/\s+/g, ' ').trim());
     assert.deepEqual(listed, ['~ weather fog (assist)', '+ present Fenna (assist)']);
     // The reply before it (the safety net was off) has no mark in its header.
     assert.doesNotMatch(cardAt(2).querySelector('.ss-card-summary').textContent, /safety net/);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// One card under a reply: another module's card is a section of "This reply", headed by its own title, with its own part of the line
+
+const STATUS_MODULE = {
+    id: 'status-test', name: 'Status test', version: '0.0.1',
+    queries: { 'clock.text': () => '1:30 pm' },
+    screens: [{
+        id: 'status-test/card', title: 'Where things stand', icon: 'fa-compass', mounts: ['card'], defaultOn: true,
+        template: '<p class="stat">{{ state.scene.place.name }}</p>',
+        data: { clock: { query: 'clock.text' } },
+        summary: '{{ q.clock }}, {{ state.scene.place.name }}',
+    }],
+};
+
+test('"This reply" holds the changes and another module\'s card as sections: one line closed, its own title as the heading open', async () => {
+    const { doc, host, ui, draw } = await page({ modules: [STATUS_MODULE] });
+    await host.send('hi', 'You reach the village.\n<Changes>\n+ item Rope | qty: 1\n~ place Bluewatch Village\n</Changes>');
+    draw();
+    ui.mounts.card.refresh(2, { force: true });
+    const cards = doc.querySelectorAll('.mes[mesid="2"] [data-ss-card]');
+    assert.equal(cards.length, 1, 'one card under the reply');
+    const card = cards[0];
+    assert.equal(card.getAttribute('data-ss-card'), THIS_REPLY_ID);
+    assert.equal(card.querySelector('.ss-card-title').textContent, 'This reply');
+    const line = card.querySelector('.ss-card-summary').textContent;
+    assert.match(line, /^\+1 Rope · .*Bluewatch Village.* · 1:30 pm, Bluewatch Village$/, line);
+    assert.doesNotMatch(line, /edit/, 'no edits part in the closed line');
+    assert.equal(card.querySelector('.ss-card-summary').getAttribute('title'), line);
+    ui.mounts.card.toggle(2, true);
+    assert.deepEqual(card.querySelectorAll('.ss-card-sec').map(node => node.getAttribute('data-ss-section')), ['story-block/changes-card', 'status-test/card']);
+    assert.deepEqual(card.querySelectorAll('.ss-card-sec-title').map(node => node.textContent), ['Changed this reply', 'Where things stand']);
+    assert.equal(card.querySelector('.stat').textContent, 'Bluewatch Village', 'the card keeps its own layout');
+});
+
+test('"This reply": a card\'s own switch takes its section and its words away; "Cards under replies" off takes the card away', async () => {
+    const { doc, host, ui, draw } = await page({ modules: [STATUS_MODULE] });
+    await host.send('hi', 'You reach the village.\n<Changes>\n~ place Bluewatch Village\n</Changes>');
+    draw();
+    const cardAt = () => {
+        ui.mounts.card.refresh(2, { force: true });
+        return doc.querySelector(`.mes[mesid="2"] [data-ss-card="${THIS_REPLY_ID}"]`);
+    };
+    ui.screens.setCards('status-test/card', false);
+    const only = cardAt();
+    assert.ok(only, 'still "This reply" with one card on');
+    assert.equal(only.querySelectorAll('.ss-card-sec').length, 1);
+    assert.doesNotMatch(only.querySelector('.ss-card-summary').textContent, /1:30 pm/);
+    ui.screens.setCards('status-test/card', true);
+    assert.match(cardAt().querySelector('.ss-card-summary').textContent, /1:30 pm/);
+    host.features.set(CORE_FEATURE.cards, false);
+    assert.equal(cardAt(), null, 'Cards under replies off hides it all');
+    host.features.set(CORE_FEATURE.cards, true);
+    assert.ok(cardAt());
 });

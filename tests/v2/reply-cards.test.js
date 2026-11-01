@@ -3,7 +3,7 @@
 // object or has no `for`, and the viewer's Later state is kept per key and never throws.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARD_ACTIONS_MAX, CARD_ROWS_MAX, laterStore, normalizeCard, scanReplyCards } from '../../src/v2/reply-cards.js';
+import { CARD_ACTIONS_MAX, CARD_ROWS_MAX, laterStore, mergeSummaries, normalizeCard, orderSections, scanReplyCards, sectionHeading } from '../../src/v2/reply-cards.js';
 import { createRegistry, definitionProblems } from '../../src/v2/registry.js';
 
 test('normalizeCard: a card with a title; tones, icons and the lists cleaned; no title, no card', () => {
@@ -141,4 +141,29 @@ test('normalizeCard: an action\'s payload is plain JSON (a copy); one that canno
     assert.deepEqual(card.actions[1].payload, { n: { deep: true } });
     assert.notEqual(card.actions[1].payload, source, 'a copy: the module\'s object is not shared');
     assert.deepEqual(card.actions[2].payload, {}, 'a list is no payload');
+});
+
+// ---- The one card under a reply: the closed line, the section order and the headings ----
+
+test('mergeSummaries joins each section\'s part with " · " and leaves the empty ones out', () => {
+    assert.equal(mergeSummaries(['+1 Oilskin Coat, −1 Weir Hook', '+1 silver 2 copper', 'Hooded courier left', '1:30 pm, Bluewatch Village']),
+        '+1 Oilskin Coat, −1 Weir Hook · +1 silver 2 copper · Hooded courier left · 1:30 pm, Bluewatch Village');
+    assert.equal(mergeSummaries(['No changes', '', null, undefined, '  ', '1:30 pm']), 'No changes · 1:30 pm');
+    assert.equal(mergeSummaries(['a\n  b']), 'a b');
+    assert.equal(mergeSummaries([]), '');
+    assert.equal(mergeSummaries(null), '');
+});
+
+test('orderSections puts the named cards first and keeps the rest in the order they came', () => {
+    const entries = ['npc/meters', 'story-block/changes-card', 'story-director/status-card'].map(id => ({ id }));
+    assert.deepEqual(orderSections(entries, ['story-block/changes-card']).map(entry => entry.id), ['story-block/changes-card', 'npc/meters', 'story-director/status-card']);
+    assert.deepEqual(orderSections(entries).map(entry => entry.id), entries.map(entry => entry.id));
+    assert.deepEqual(orderSections(entries, ['not/there']).map(entry => entry.id), entries.map(entry => entry.id));
+    assert.deepEqual(orderSections(null), []);
+});
+
+test('sectionHeading is the card\'s own title, or its id when it has none', () => {
+    assert.equal(sectionHeading({ id: 'story-block/changes-card', screen: { title: 'Changed this reply' } }), 'Changed this reply');
+    assert.equal(sectionHeading({ id: 'm/status', screen: { title: 'Where things stand' } }), 'Where things stand');
+    assert.equal(sectionHeading({ id: 'npc/meters', screen: {} }), 'npc/meters');
 });

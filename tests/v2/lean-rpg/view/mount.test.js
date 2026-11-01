@@ -8,7 +8,7 @@ import { makeMessage } from '../../../ui-fake-dom.js';
 import { setupDom } from '../../view/mounts/helpers.js';
 import { mountUi } from '../../../../src/v2/ui-host.js';
 import { CORE_FEATURE } from '../../../../src/v2/features.js';
-import { CHANGES_CARD_SCREEN_ID } from '../../../../src/v2/screens/index.js';
+import { THIS_REPLY_ID } from '../../../../src/v2/reply-cards.js';
 import { RESOLVE } from '../../../../src/v2/lean-rpg/index.js';
 import { characterDefinition, defineAll, fieldsOf, foesDefinition, roleOf, setField, skillsDefinition } from './helpers.js';
 
@@ -224,12 +224,12 @@ test('"Changed this reply" tells the rolls and the rises', async t => {
         data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [{ kind: 'act', who: 'Wessel', target: 'Sluice Rat A', skill: null, stat: 'str', outcomes: ['success'] }], refused: 0 }, rounds: [] } } } });
     draw();
     ui.mounts.card.refresh(head, { force: true });
-    const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`);
+    const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"]`);
     assert.ok(card);
     assert.match(card.querySelector('[data-slot="summary"]').textContent, /3 exchanges rolled/);
     assert.match(card.querySelector('[data-slot="summary"]').textContent, /Soul Class III/);
-    ui.mounts.card.toggle(head, CHANGES_CARD_SCREEN_ID, true);
-    const body = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"] .ss-card-body`).textContent;
+    ui.mounts.card.toggle(head, true);
+    const body = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"] .ss-card-body`).textContent;
     assert.match(body, /Rolled for you: 3 exchanges/);
     assert.match(body, /Wessel: Soul Class II → III/);
     assert.match(body, /Iron Breath: Adept → Expert/);
@@ -244,7 +244,7 @@ test('with the feature off the card is as it always was', async t => {
     host.ctx.chat[head].extra.storySuite.receipts.push({ id: 'rc_rpg0001', type: RESOLVE, module: 'story-block', cause: 'system', summary: '', narrate: false, rev: 99, data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [], refused: 0 }, rounds: [] } } } });
     draw();
     ui.mounts.card.refresh(head, { force: true });
-    assert.doesNotMatch(doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${CHANGES_CARD_SCREEN_ID}"]`).textContent, /Rolled for you|exchanges/);
+    assert.doesNotMatch(doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"]`).textContent, /Rolled for you|exchanges/);
 });
 
 test('an open sheet and its draft survive the page drawing itself again (a bar edited on the sheet, a new reply)', async t => {
@@ -315,33 +315,41 @@ test('feature on: a three-character party shows the Party tab; character, skills
     assert.equal(win.root.querySelector('[data-ss-section="blocks"] .ss-blocks-count').textContent, '7 blocks in this story · none shown', 'the RPG\'s blocks are not counted as tabs or cards');
 });
 
-test('feature off: every block with a tab keeps it, whatever its role', async t => {
-    const { doc, host, ui } = await page(t);
-    await host.send('Begin.', 'Opening.');
-    await defineAll(host, party3());
-    await host.send('Go.', 'The quay.');
-    await settle();
-    const ids = tabsOf(doc, ui);
-    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: its tab`);
-    assert.ok(!ids.includes(PARTY));
-});
-
-test('the tabs follow the switch: on takes the role blocks\' tabs away, off gives them back', async t => {
+test('feature off: a block with an RPG role gets no tab (it is only data until the RPG is on); a block with no role keeps its tab', async t => {
     const { doc, host, ui } = await page(t);
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [...party3(), { ...skillsDefinition('notes', 'Notes'), show: { ...TAB, tabName: 'Notes' } }]);
     await host.send('Go.', 'The quay.');
-    assert.ok(tabsOf(doc, ui).includes(BLOCK_TAB('wessel')));
+    await settle();
+    const ids = tabsOf(doc, ui);
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) {
+        assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: no tab of its own`);
+        assert.equal(ui.screens.resolve(BLOCK_TAB(slug)), null, `${slug}: no screen either`);
+    }
+    assert.ok(ids.includes(BLOCK_TAB('notes')), 'a block with no role keeps its tab');
+    assert.ok(!ids.includes(PARTY));
+});
+
+test('the tabs follow the switch: the Party tab comes with the RPG, and the role blocks never have tabs of their own', async t => {
+    const { doc, host, ui } = await page(t);
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, [...party3(), { ...skillsDefinition('notes', 'Notes'), show: { ...TAB, tabName: 'Notes' } }]);
+    await host.send('Go.', 'The quay.');
+    let ids = tabsOf(doc, ui);
+    assert.ok(!ids.includes(BLOCK_TAB('wessel')) && !ids.includes(PARTY));
     host.features.set(CORE_FEATURE.leanRpg, true);
     await settle();
-    let ids = tabsOf(doc, ui);
+    ids = tabsOf(doc, ui);
+    assert.ok(ids.includes(PARTY), 'the RPG on: the Party tab draws the characters');
     assert.ok(!ids.includes(BLOCK_TAB('wessel')) && !ids.includes(BLOCK_TAB('combat-rules')));
     assert.ok(ids.includes(BLOCK_TAB('notes')), 'a block with no role keeps its tab');
     assert.ok(!ids.includes(BLOCK_TAB('foes')), 'Foes: the Fight tab draws it');
     host.features.set(CORE_FEATURE.leanRpg, false);
     await settle();
     ids = tabsOf(doc, ui);
-    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules', 'notes']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: back`);
+    assert.ok(!ids.includes(PARTY), 'the RPG off: no Party tab');
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: still no tab`);
+    assert.ok(ids.includes(BLOCK_TAB('notes')));
 });
 
 const FIGHT = 'story-block/fight';
@@ -380,7 +388,7 @@ test('the Fight tab replaces the Foes tab, shows only while a foe slot is filled
     assert.equal(ui.screens.resolve(FIGHT), null);
 });
 
-test('feature off: no Fight tab, the Foes block keeps its own', async t => {
+test('feature off: no Fight tab, and the Foes block has no tab of its own either', async t => {
     const { doc, host, ui } = await page(t);
     await host.send('Begin.', 'Opening.');
     await defineAll(host, party3());
@@ -390,5 +398,5 @@ test('feature off: no Fight tab, the Foes block keeps its own', async t => {
     const ids = tabsOf(doc, ui);
     assert.ok(!ids.includes(FIGHT));
     assert.equal(ui.screens.resolve(FIGHT), null);
-    assert.ok(ids.includes(BLOCK_TAB('foes')));
+    assert.ok(!ids.includes(BLOCK_TAB('foes')));
 });
