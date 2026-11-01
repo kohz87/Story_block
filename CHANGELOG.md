@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.15.1
+
+- A pack's cast secret can open **at a meter value or on a story event, whichever comes first**: it may carry both
+  `meter`/`at` and `when`. A secret still needs at least one of them.
+
 ## 2.15.0
 
 - **A living cast in packs.** A pack can list hand-written people (`cast`): who they are, how they look and speak, where
