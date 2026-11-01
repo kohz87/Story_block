@@ -14,7 +14,8 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
   may raise a cap only where PACKS.md says so.
 - Content reaches modules only through queries of Story Block's core module: `packs.list`,
   `packs.content({ kind, pack? })`, `packs.markets`, `packs.crafts`, `packs.calendar`, `packs.economy`,
-  `packs.item({ name })` (and hook `item.resolve`), `packs.start` (and hook `start()`).
+  `packs.item({ name })` (and hook `item.resolve`), `packs.start` (and hook `start()`), `packs.portrait({ pack, file })` (a cast
+  portrait's URL or null).
 - Lorebook packs: entries tagged as a pack (`PACK_TAG`) and `market:` lines are read from the lorebook
   (`packs/lorebook.js`); a lorebook line only tags a place, it never adds goods.
 - Currency, coins, calendar and ranks come from the first enabled pack that has them, under the reader's own
@@ -29,6 +30,7 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
 - `src/v2/packs/safety.js` (`unsafeText`, `checkPlain`, `byteLength`), `limits.js`, `version.js`.
 - `src/v2/packs/content.js`: `itemDef`, `contentOf`, `calendarOf`, `economyOf`, `craftsOf`, `resolveItemIn`,
   `mergeStart`, `applyStart`.
+- `src/v2/packs/cast.js` (`content.cast`), `portraits.js` (portrait files on ST user files + index in settings), `zip.js` and `bundle.js` (a pack as one zip).
 - `src/v2/packs/installed.js` (where packs are kept), `panel.js` (the Packs fold), `st-adapter.js`, `lorebook.js`.
 - `examples/packs/ersveil/pack.json` (Ersveil 2.2.0, the open world, with its lorebook `ersveil-lore.json`),
   `examples/packs/riverside-starter/pack.json`.
@@ -36,7 +38,7 @@ starter pack), SPEC §9 and §13, MODULES §E and §F.
 ## Tests that guard it
 
 - `tests/v2/packs/` (`validate`, `harden`, `content`, `economy`, `crafting`, `calendar` via `holidays-world`,
-  `ranks`, `terms`, `world-terms`, `lorebook`, `installed`, `panel`, `version`, `ersveil*`, `meter-presets`).
+  `ranks`, `terms`, `world-terms`, `lorebook`, `installed`, `panel`, `version`, `ersveil*`, `meter-presets`, `cast`, `portraits`, `zip`).
 - `tests/v2/qa/packs-security.test.js`, `tests/v2/layout/docs-examples.test.js` (PACKS/LAYOUTS examples parse).
 - `packs/terms.test.js` and `packs/holidays-world.test.js` use sibling checkouts and skip without them.
 

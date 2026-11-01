@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.15.0
+
+- **A living cast in packs.** A pack can list hand-written people (`cast`): who they are, how they look and speak, where
+  their story starts (place, goal, routine), what draws them to the party, their starting relationship and stages,
+  their own fields and up to eight secrets (each opening at a meter value or on a story event). Story Director keeps
+  them living off-screen until the party meets them; NPC State Delta makes their dossier at the first meeting. Without
+  those modules a cast is simply carried in the pack.
+- **Portraits with a pack.** Settings → Tabs & Packs → import takes the pack and its portrait images together, or one
+  .zip from Story Studio (pack.json and a portraits folder). Pictures are checked (WebP, PNG or JPEG, up to 64 KB each)
+  and stored in SillyTavern's user files; removing the pack removes them. Note: SillyTavern's Data Maid lists these
+  files as unused — deleting them there removes the pack's pictures. Unsafe or oversized zips are refused in one plain
+  sentence, and a missing picture is reported as a count, never by name.
+- **Smaller choice buttons on a phone.** Segmented choices are drawn about 30 px tall with a full 44 px tap area.
+- **"What's sent each reply"** shows a module's hidden lines the way the module asks (NPC State Delta shows "1 hidden
+  note"); what is actually sent is unchanged.
+- The Ersveil sample pack (2.3.0) has a small sample cast and needs this version.
+
 ## 2.14.0
 
 - **The Standard formula is the new default for the RPG.** A roll is d20 + class + a pair of stats + rank + the

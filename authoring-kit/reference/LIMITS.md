@@ -15,6 +15,19 @@
 | Slug length | 64 |
 | Reported problems | 20 |
 
+## The cast and its portraits
+
+| What | Limit |
+|---|---|
+| People in one pack | 64 |
+| About, look, voice, personality, history | 300, 600, 300, 600, 1200 characters |
+| Name, place, goal and routine, drawn-to phrase | 80, 80, 200, 80 characters |
+| Aliases, drawn-to phrases, fields, secrets per person | 8, 6, 6, 8 |
+| Secret title, text, event | 60, 300, 120 characters |
+| One portrait | WebP, PNG or JPEG, 64 KB at most |
+| Portrait files in one pack | 32 |
+| A pack zip: the zip, unpacked in all, entries | 5 MB, 4 MB, 40 |
+
 ## Data modules (interpreter 1)
 
 | What | Limit |

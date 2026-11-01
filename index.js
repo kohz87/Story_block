@@ -16,7 +16,7 @@ import { createRuntime, VERSION } from './src/v2/runtime.js';
 import { INTERCEPTOR_NAME } from './src/v2/turn.js';
 import { mountUi } from './src/v2/ui-host.js';
 import { noteSaveError } from './src/v2/diagnostics.js';
-import { packs as livePacks, part as livePacksPart, refreshLore, resolveItem, startState } from './src/v2/packs/index.js';
+import { packs as livePacks, part as livePacksPart, portraits as livePortraits, refreshLore, resolveItem, startState } from './src/v2/packs/index.js';
 
 const LOG = '[Story Block v2]';
 
@@ -55,6 +55,8 @@ function boot() {
     const readLore = () => refreshLore().catch(error => console.warn(`${LOG} the lorebook's market lines could not be read`, error));
     if (types.CHAT_CHANGED) ctx.eventSource?.on?.(types.CHAT_CHANGED, () => { ui?.clearBlocked(); ui?.refresh(); readLore(); });
     readLore();
+    // Cast portraits are files on the server: the ones that went missing (a cleaned user-files folder) answer nothing until imported again.
+    livePortraits.verify().catch(error => console.warn(`${LOG} the pack portraits could not be checked`, error));
     markReady();
     console.info(`${LOG} ${VERSION} ready`);
 }
