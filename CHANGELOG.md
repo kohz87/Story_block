@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.14.0
+
+- **The Standard formula is the new default for the RPG.** A roll is d20 + class + a pair of stats + rank + the
+  situation's edge: the main stat plus half of a second one, halved. Physical rolls pair STR with DEX, magic INT with
+  DEX, social CHA with INT, checks the fitting stat with DEX. Defence leads with the higher of AGI (dodge) and VIT
+  (block); against magic, INT (ward) or VIT. A skill puts its own stat in the main slot and costs one Stamina or Mana
+  block; with the bar empty the action rolls without the skill. Class is twice the Soul Class.
+- **Luck widens the edge.** LUK sets the window the situation's edge is held in, from −3..+3 at LUK 3–4 to +3..+5 at
+  LUK 19–20.
+- **Bars grow with stats.** Health is 4 + VIT/5 blocks, Stamina 3 + AGI/5, Mana 3 + INT/5. A new block arrives full
+  (not while Down); a stat drop shrinks the bar. Foes have 4 + class/3 Health blocks; a hit takes one block, a
+  decisive hit two.
+- **Turn order.** Rolled once per fight (d20 + class + AGI/2; foes d20 + 2 × class); ties go to the higher AGI, then
+  to the party. A lead of 10 or more gives one opening action against that foe. Foes beaten before their turn do not
+  act; a group acts once; late arrivals roll as they come in.
+- **New characters start at 5 in every stat** with 10 points to spend (3 to 10 each); each Soul Class adds 4 points,
+  up to 20. Companions the story adds get Standard stats too.
+- **Classic is still there.** Settings → RPG → Stat formula: Classic plays exactly as before. A pack may name its formula
+  and numbers. Nothing in old chats is changed.
+- The battle log says who heals or helps instead of "attacks"; the narrator hears the bars after the reply's rolls.
+
 ## 2.13.0
 
 - **Export a character.** With the RPG on, each card in the Party tab has **Export**. It saves a small file with the
