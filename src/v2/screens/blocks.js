@@ -231,16 +231,16 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
         }
 
         function rowNode(list, row) {
-            const definition = row.pinnedDefinition, managed = ROLES_WITHOUT_TAB.includes(definition.role);
+            const definition = row.pinnedDefinition, managed = ROLES_WITHOUT_TAB.includes(definition.role), rpgOn = leanRpgOn();
             const item = h(doc, 'li', 'ss-blockrow ss-glass'); item.setAttribute('data-block-row', row.module);
             const main = h(doc, 'div', 'ss-blockrow-main'); item.appendChild(main);
             const title = h(doc, 'div', 'ss-blockrow-title'); main.appendChild(title);
             title.appendChild(h(doc, 'b', 'ss-blockrow-name', definition.name));
             if (definition.role) title.appendChild(h(doc, 'span', 'ss-pill ss-blockrow-role', `${P.rpg} · ${P.roles[definition.role] ?? definition.role}`));
-            main.appendChild(h(doc, 'small', 'ss-blockrow-meta', metaOf(definition, managed)));
+            main.appendChild(h(doc, 'small', 'ss-blockrow-meta', metaOf(definition, managed, rpgOn)));
             const show = h(doc, 'label', 'ss-blockrow-show'); item.appendChild(show);
             show.appendChild(h(doc, 'span', 'ss-blockrow-show-label', P.showAs));
-            const options = managed ? [{ value: 'rpg', label: P.rpgOption[definition.role] }]
+            const options = managed ? [{ value: 'rpg', label: (rpgOn ? P.rpgOption : P.rpgIdleOption)[definition.role] }]
                 : ['tab', 'card', 'both', 'hidden'].map(value => ({ value, label: P.show[value] }));
             const select = selectField({ doc, field: { type: 'choice', options }, value: managed ? 'rpg' : showValue(definition.show),
                 ariaLabel: fill(P.showAsFor, { name: definition.name }), disabled: managed, onChange: value => setShow(row, value) });
@@ -387,8 +387,8 @@ export function createBlockWidgets({ templates, directorOn = () => true, leanRpg
     }
 
     // The words under a block's name: how many fields, buttons and rules it has, and where it shows.
-    function metaOf(definition, managed) {
-        if (managed) return P.rpgShown[definition.role];
+    function metaOf(definition, managed, rpgOn = true) {
+        if (managed) return (rpgOn ? P.rpgShown : P.rpgIdle)[definition.role];
         const buttons = Object.values(definition.kinds ?? {}).filter(kind => kind.ui).length, rules = definition.rules?.length ?? 0, timers = definition.timers?.length ?? 0;
         const show = definition.show, shown = [];
         if (show?.tab) shown.push(fill(P.whereTab, { name: show.tabName, icon: String(S.icons[show.icon] ?? '').toLowerCase() || show.icon }));
