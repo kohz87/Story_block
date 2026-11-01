@@ -21,6 +21,7 @@ say('## The cast and its portraits', table(['What', 'Limit'], [
     ['Name, place, goal and routine, drawn-to phrase', `${CAST_LIMITS.name}, ${CAST_LIMITS.place}, ${CAST_LIMITS.goal}, ${CAST_LIMITS.phrase} characters`],
     ['Aliases, drawn-to phrases, fields, secrets per person', `${CAST_LIMITS.aliases}, ${CAST_LIMITS.drawnTo}, ${CAST_LIMITS.fields}, ${CAST_LIMITS.secrets}`],
     ['Secret title, text, event', `${CAST_LIMITS.secretTitle}, ${CAST_LIMITS.secretText}, ${CAST_LIMITS.secretWhen} characters`],
+    ['Secret rule', 'a meter and value, a story event, or both (opens at whichever comes first); at least one'],
     ['One portrait', `WebP, PNG or JPEG, ${PORTRAIT_LIMITS.bytes / 1024} KB at most`],
     ['Portrait files in one pack', PORTRAIT_LIMITS.perPack],
     ['A pack zip: the zip, unpacked in all, entries', `${ZIP_LIMITS.archive / 1048576} MB, ${ZIP_LIMITS.unpacked / 1048576} MB, ${ZIP_LIMITS.entries}`],
