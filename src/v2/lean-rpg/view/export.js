@@ -9,8 +9,8 @@
 
 import { h, shell } from '../../view/widgets/dom.js';
 import { saveTextFile } from '../../view/download.js';
-import { DEFAULT_CURRENCY, formatAmount } from '../../domains/money.js';
-import { FILE_LIMITS, buildCharacterFile, fileNameOf, fileText, itemLine, itemsForFile, skillLine, thingsWord } from '../charfile.js';
+import { DEFAULT_CURRENCY } from '../../domains/money.js';
+import { FILE_LIMITS, buildCharacterFile, fileNameOf, fileText, itemLine, itemsForFile, moneyText, skillLine, thingsWord } from '../charfile.js';
 import { CREATION, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
@@ -157,7 +157,7 @@ export function createExporter({ headState = () => null, readerName = () => '', 
 
                 // Money: only on the reader's own card.
                 if (character.own) {
-                    const money = option('money', carried.money > 0 ? fill(X.money, { amount: formatAmount(carried.money, carried.currency) }) : X.moneyNone,
+                    const money = option('money', carried.money > 0 ? fill(X.money, { amount: moneyText(carried.money, carried.currency) }) : X.moneyNone,
                         [], { checked: wantMoney, disabled: carried.money === 0, help: carried.money > 0 ? X.moneyHelp : '' });
                     money.addEventListener('change', () => { run.money = Boolean(money.checked); draw(); });
                 }

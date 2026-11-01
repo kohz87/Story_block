@@ -112,12 +112,12 @@ step shows "Imported from wessel.character.json: stats, 3 unspent points, Soul C
 
 - The **stats**, the **unspent points** (the pool the stats are spent from), the **Soul Class** and the **skills** are filled. The Stats
   and Skills steps show them and keep the usual rules: a stat can go down to 8 to free a point and up to 15 (a saved stat outside that stays
-  where it was), a skill can be renamed or changed, a skill can be added or removed. A skill the file gave with no stat shows an empty **Stat**, and the Review's "Fix this first" asks for it ("Iron Breath needs a stat."), like a missing "what it does" line. A skill's **rank** comes from the file and cannot
+  where it was), a skill can be renamed or changed, a skill can be added or removed. Picking a skill template while imported skills are there asks "Replace the imported skills? Their ranks will be lost." with **Replace** / **Keep**. A skill the file gave with no stat shows an empty **Stat**, and the Review's "Fix this first" asks for it ("Iron Breath needs a stat."), like a missing "what it does" line. A skill's **rank** comes from the file and cannot
   be changed here; practice starts at 0.
 - The **name**, **You or A companion** and **who they are** are not touched. XP is 0 and Health, Mana and Stamina start full.
 - **Undo import** puts back what was there before the file (what was typed since stays). Closing the window without Create leaves nothing behind.
 - The Review adds "Also adds: 3 things to the party's bag · 5 silver to the purse. One swipe of this reply takes it all back." for what the
-  file had (the money in this chat's coins). It says "3 things carried by Ren" only when a party actor of that name will hold them.
+  file had (the money in this chat's coins, with thousands separators, e.g. "10,000,000 gold"). It says "3 things carried by Ren" only when a party actor of that name will hold them.
 
 **Create** makes the Character and Skills blocks as before (with the file's Soul Class, points, stats and ranks as their defaults) and
 then, as more changes of the same reply:

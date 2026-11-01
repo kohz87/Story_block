@@ -280,6 +280,8 @@
 .rpg-import-done { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5;
     background: color-mix(in srgb, var(--ss-good) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ss-good) 45%, transparent); }
 .rpg-import-done .rpg-import-text { flex: 1 1 260px; color: inherit; }
+.rpg-wiz-replace { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--ss-warn) 16%, transparent); border: 1px solid color-mix(in srgb, var(--ss-warn) 45%, transparent); }
+.rpg-wiz-replace-text { flex: 1 1 220px; }
 .rpg-import-error { margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; background: color-mix(in srgb, var(--ss-bad) 18%, transparent); }
 .rpg-wiz-also-import { color: inherit; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; background: color-mix(in srgb, var(--ss-accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ss-accent) 45%, transparent); }
 @media (max-width: 600px) { .rpg-exp-file { display: none; } .rpg-exp-actions .ss-button { flex: 1 1 auto; } }

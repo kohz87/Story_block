@@ -310,7 +310,7 @@ test('a good file fills the stats, the unspent points, the Soul Class and the sk
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => node.getAttribute('aria-pressed')), ['false', 'true'], 'still a companion');
     assert.equal(who.querySelector('.rpg-import'), null, 'the row gives way to the note');
     const done = who.querySelector('[data-wiz="import-done"]');
-    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to this chat. Give the character a name and who they are below.Undo import');
+    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to the purse. Give the character a name and who they are below.Undo import');
     assert.equal(done.getAttribute('role'), 'status');
     assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-sub').textContent, 'Companion · Soul Class II');
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 3');
@@ -493,7 +493,7 @@ test('the money is told in this chat\'s coins, and the file keeps only its value
     const wizard = await wizardWith(other);
     await companion(wizard);
     await importInto(wizard, saved.text);
-    assert.match(wizardOf(wizard).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 50 crowns to this chat/, 'another game\'s words for the same value');
+    assert.match(wizardOf(wizard).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 50 crowns to the purse/, 'another game\'s words for the same value');
     wizard.close();
 
     const silver = await newcomer(t);
@@ -501,7 +501,7 @@ test('the money is told in this chat\'s coins, and the file keeps only its value
     const w2 = await wizardWith(silver);
     await companion(w2);
     await importInto(w2, saved.text);
-    assert.match(wizardOf(w2).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 5 silver to this chat/);
+    assert.match(wizardOf(w2).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 5 silver to the purse/);
     w2.close();
 });
 
@@ -767,7 +767,7 @@ test('the things "to the party\'s bag" for a You and for a companion with no par
     await begin(you.host);
     let dialog = await wizardWith(you, { empty: true });
     await importInto(dialog, SAVED);
-    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /also adds 3 things to the party's bag and 50 gold to this chat\./);
+    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /also adds 3 things to the party's bag and 50 gold to the purse\./);
     let review = await goTo(dialog, 'review');
     assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things to the party\'s bag · 50 gold to the purse. One swipe of this reply takes it all back.');
     assert.ok(!review.textContent.includes('carried by'));
@@ -791,7 +791,7 @@ test('the things "to the party\'s bag" for a You and for a companion with no par
     dialog = await wizardWith(actors);
     await companion(dialog, 'Ren');
     await importInto(dialog, SAVED);
-    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /also adds 3 things carried by Ren and 50 gold to this chat\./);
+    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /also adds 3 things carried by Ren and 50 gold to the purse\./);
     review = await goTo(dialog, 'review');
     assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things carried by Ren · 50 gold to the purse. One swipe of this reply takes it all back.');
     // Another name: no actor, so the bag.
@@ -799,4 +799,73 @@ test('the things "to the party\'s bag" for a You and for a companion with no par
     type(wizardOf(dialog).querySelector('[data-wiz="name"]'), 'Brae');
     assert.match((await goTo(dialog, 'review')).querySelector('[data-review="import-also"]').textContent, /^Also adds: 3 things to the party's bag · /);
     dialog.close();
+});
+
+// ---- templates do not silently replace imported skills ------------------------------------------------------------------------------------
+
+test('after an import a skill template asks first: Keep leaves the imported skills, Replace puts the template in; with no imported skills it just goes in', async t => {
+    const ctx = await newcomer(t);
+    const dialog = await wizardWith(ctx);
+    await companion(dialog);
+    await importInto(dialog, SAVED);
+    const rows = () => wizardOf(dialog).querySelectorAll('.rpg-wiz-row[data-skill]').map(row => row.querySelector('[data-field="name"]').value);
+    const cards = () => wizardOf(dialog).querySelectorAll('.rpg-wiz-card');
+    await goTo(dialog, 'skills');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="replace"]'), null, 'nothing asked until a template is picked');
+    cards()[0].click();
+    const ask = wizardOf(dialog).querySelector('[data-wiz="replace"]');
+    assert.equal(ask.querySelector('.rpg-wiz-replace-text').textContent, 'Replace the imported skills? Their ranks will be lost.');
+    assert.deepEqual(ask.querySelectorAll('button').map(node => node.textContent), ['Replace', 'Keep']);
+    assert.deepEqual(rows(), ['Iron Breath', 'Short blade'], 'nothing changed yet');
+    click(ask, 'Keep');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="replace"]'), null);
+    assert.deepEqual(rows(), ['Iron Breath', 'Short blade'], 'Keep leaves them');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sum').textContent, /Iron Breath \(Expert\)/, 'ranks and all');
+    assert.deepEqual(cards().map(card => card.getAttribute('aria-pressed')), ['false', 'false', 'false', 'false', 'false']);
+    cards()[2].click();
+    click(wizardOf(dialog).querySelector('[data-wiz="replace"]'), 'Replace');
+    assert.deepEqual(rows(), ['Spark', 'Ward', 'Lore'], 'Replace puts the template in');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="replace"]'), null);
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-row[data-skill] [data-field="start"]').disabled, undefined, 'new skills are the usual ones again');
+    // With no imported skills left a template goes in without a question.
+    cards()[0].click();
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="replace"]'), null);
+    assert.deepEqual(rows(), ['Short blade', 'Iron Breath', 'Shield work']);
+    dialog.close();
+
+    // A question left open is dropped once the imported skills are gone (Undo import).
+    const again = await wizardWith(ctx);
+    await companion(again, 'Brae');
+    await importInto(again, SAVED);
+    await goTo(again, 'skills');
+    wizardOf(again).querySelectorAll('.rpg-wiz-card')[0].click();
+    await goTo(again, 'who');
+    click(wizardOf(again), 'Undo import');
+    await goTo(again, 'skills');
+    assert.equal(wizardOf(again).querySelector('[data-wiz="replace"]'), null);
+    again.close();
+});
+
+test('the money in the note and the Review is "to the purse", in the wallet\'s own words with thousands separators', async t => {
+    const ctx = await newcomer(t);
+    const dialog = await wizardWith(ctx);
+    await companion(dialog);
+    await importInto(dialog, JSON.stringify({ ...JSON.parse(SAVED), money: 10_000_000 }));
+    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 10,000,000 gold to the purse\. Give/);
+    assert.ok(!wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent.includes('this chat'));
+    const review = await goTo(dialog, 'review');
+    assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things to the party\'s bag · 10,000,000 gold to the purse. One swipe of this reply takes it all back.');
+    dialog.close();
+    // Mixed coins: each long number gets its separators, short ones are left alone.
+    const coins = await newcomer(t);
+    coins.host.settings.set('story-block', 'coins', [{ name: 'copper', value: 1 }, { name: 'silver', value: 10 }, { name: 'gold', value: 100 }]);
+    const w = await wizardWith(coins);
+    await companion(w);
+    await importInto(w, JSON.stringify({ ...JSON.parse(SAVED), money: 123_456_705 }));
+    assert.match(wizardOf(w).querySelector('[data-wiz="import-done"]').textContent, /and 1,234,567 gold 5 copper to the purse\./);
+    w.close();
+    // The Export dialog words it the same way.
+    const first = await story(t, { purse: 12_345_678 });
+    const exp = await exportDialog(first);
+    assert.match(exportOf(exp).querySelector('[data-option="money"]').textContent, /Money · 12,345,678 gold/);
 });

@@ -26,8 +26,8 @@ import { h, shell } from '../../view/widgets/dom.js';
 import { radar } from '../../view/widgets/radar.js';
 import { stepper } from '../../view/widgets/stepper.js';
 import { refusalText } from '../../strings.js';
-import { DEFAULT_CURRENCY, formatAmount } from '../../domains/money.js';
-import { FILE_LIMITS, parseCharacterFile, skillLine, thingsWord } from '../charfile.js';
+import { DEFAULT_CURRENCY } from '../../domains/money.js';
+import { FILE_LIMITS, moneyText, parseCharacterFile, skillLine, thingsWord } from '../charfile.js';
 import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
@@ -82,7 +82,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
         const draft = prefill ? joinDraft(prefill) : { ...newDraft({ persona: now.persona, hasYou: now.hasYou }) };
         // Only a You starts with the persona's description, and only into an empty box: a companion starts empty.
         if (!prefill && draft.kind === 'you' && about) draft.about = about;
-        return { draft, handle: null, busy: false, message: '', created: false, finished: '', about: prefill ? '' : about, onEnd: null, imported: null, importError: '' };
+        return { draft, handle: null, busy: false, message: '', created: false, finished: '', about: prefill ? '' : about, onEnd: null, imported: null, importError: '', pendingSet: null };
     };
     const current = () => { session ??= fresh(); return session; };
 
@@ -227,7 +227,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     const points = file.points === 0 ? W.importNoPoints : fill(file.points === 1 ? W.importPointsOne : W.importPoints, { n: file.points });
                     const skills = file.skills.length === 0 ? W.importNoSkills : fill(file.skills.length === 1 ? W.importSkillsOne : W.importSkills, { n: file.skills.length });
                     const adds = importedAdds();
-                    const list = [adds.things ? thingsPhrase(adds.things, snap()) : '', adds.money ? fill(W.importMoney, { amount: formatAmount(adds.money, currency()) }) : ''].filter(Boolean).join(' and ');
+                    const list = [adds.things ? thingsPhrase(adds.things, snap()) : '', adds.money ? fill(W.importMoney, { amount: moneyText(adds.money, currency()) }) : ''].filter(Boolean).join(' and ');
                     box.appendChild(h(doc, 'span', 'rpg-import-text', [fill(W.importDone, { file: fileName, points, label: soulWords.label, soul: soulWords.word(file.soul), skills }),
                         list ? fill(W.importAdds, { list }) : '', W.importName].filter(Boolean).join(' ')));
                     button(box, W.importUndo, 'ss-button rpg-import-undo', undoImport);
@@ -347,13 +347,28 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     packSets: safe(() => api?.query?.('packs.content', { kind: 'rpg' }), []),
                     packNames: Object.fromEntries(safe(() => api?.query?.('packs.list'), []).map(pack => [pack.id, pack.name])),
                 });
+                const pending = current().pendingSet;
+                if (pending && !draft().skills.some(skill => Number.isSafeInteger(skill.rank))) current().pendingSet = null;
+                if (current().pendingSet) {
+                    const ask = h(doc, 'div', 'rpg-wiz-replace');
+                    ask.setAttribute('role', 'alert');
+                    ask.setAttribute('data-wiz', 'replace');
+                    ask.appendChild(h(doc, 'span', 'rpg-wiz-replace-text', W.replaceAsk));
+                    button(ask, W.replaceYes, 'ss-button ss-button-primary rpg-wiz-replace-yes', () => { const set = current().pendingSet; current().pendingSet = null; put(withSet(draft(), set)); drawSummary(); redraw(); });
+                    button(ask, W.replaceKeep, 'ss-button rpg-wiz-replace-keep', () => { current().pendingSet = null; redraw(); });
+                    body.appendChild(ask);
+                }
                 body.appendChild(h(doc, 'p', 'rpg-wiz-p', fill(W.skillsIntro, { max: SKILL_SLOTS })));
                 body.appendChild(h(doc, 'h3', 'rpg-wiz-h', W.templates));
                 const grid = h(doc, 'div', 'rpg-wiz-grid');
                 body.appendChild(grid);
                 for (const set of sets) {
                     const used = draft().set === set.id;
-                    const card = button(grid, '', 'rpg-wiz-card', () => { put(withSet(draft(), set)); drawSummary(); redraw(); });
+                    const card = button(grid, '', 'rpg-wiz-card', () => {
+                        // A template would replace skills that came from a file with their ranks: ask first.
+                        if (draft().skills.some(skill => Number.isSafeInteger(skill.rank))) { current().pendingSet = set; redraw(); return; }
+                        put(withSet(draft(), set)); drawSummary(); redraw();
+                    });
                     card.setAttribute('aria-pressed', String(used));
                     card.setAttribute('data-set', set.id);
                     const top = h(doc, 'span', 'rpg-wiz-card-top');
@@ -443,7 +458,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 }
                 const adds = importedAdds();
                 if (adds.things || adds.money) {
-                    const parts = [adds.things ? thingsPhrase(adds.things, now) : '', adds.money ? fill(W.reviewMoney, { amount: formatAmount(adds.money, currency()) }) : ''];
+                    const parts = [adds.things ? thingsPhrase(adds.things, now) : '', adds.money ? fill(W.reviewMoney, { amount: moneyText(adds.money, currency()) }) : ''];
                     const more = h(doc, 'p', 'rpg-wiz-note rpg-wiz-also-import', fill(W.reviewAlsoImport, { list: parts.filter(Boolean).join(' · ') }));
                     more.setAttribute('data-review', 'import-also');
                     list.appendChild(more);
