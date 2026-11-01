@@ -12,12 +12,12 @@ export const settle = async () => { for (let n = 0; n < 8; n += 1) await new Pro
 export const PARTY = 'story-block/party';
 export const party = doc => doc.querySelector(`.ss-gameview [data-ss-screen="${PARTY}"]`);
 
-/** { doc, host, ui, loads, draw }; `feature` turns the RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands. */
-export async function page(t, { feature = true, persona = null, wrap = null } = {}) {
+/** { doc, host, ui, loads, draw }; `feature` turns the RPG on first, `persona` is the reader's name, `wrap` stands between the page and the host's commands, `modules` are modules the host runs (a stand-in for a party module, say). */
+export async function page(t, { feature = true, persona = null, wrap = null, modules = [] } = {}) {
     const doc = setupDom();
     const form = doc.createElement('div'); form.id = 'send_form'; doc.body.appendChild(form);
     doc.defaultView = { confirm: () => true, localStorage: null };
-    const host = await createHost();
+    const host = await createHost({ modules });
     if (persona !== null) host.ctx.name1 = persona;
     if (feature) host.features.set(CORE_FEATURE.leanRpg, true);
     const loads = [];

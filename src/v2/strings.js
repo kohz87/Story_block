@@ -119,6 +119,7 @@ export const STRINGS = deepFreeze({
     editMessages: {
         onlyReader: 'Only the reader can make this edit.', itemName: 'Give the item a name.',
         itemNameLength: 'An item needs a name of 1 to 60 characters.',
+        itemKind: 'The kind of an item is one of {kinds}.', itemRarity: 'The rarity of an item is one of {rarities}.',
         itemAdded: 'You added {item}.', itemCount: '{name} to {qty}', itemNote: "{name}'s note",
         itemGroupRenamed: '{name} to {qty}; one renamed {renamed}',
         itemSet: 'You set {detail}.', itemUnstackable: '{name} does not stack; each piece is kept separately.',

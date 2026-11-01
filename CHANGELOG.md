@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.13.0
+
+- **Export a character.** With the RPG on, each card in the Party tab has **Export**. It saves a small file with the
+  character's Soul Class, unspent points, the seven stats and up to five skills (with what they do, their stat, Stamina
+  or Mana and their rank), and, ticked by default, the things they carry and (on your own card) the money in the purse.
+  The name, who they are, XP, Health, Mana, Stamina and skill practice are not saved.
+- **Import it in another chat.** **+ New character** starts with **Import file…**: a good file fills the stats, unspent
+  points, Soul Class and skills (ranks come from the file and stay as they are); you give the character its name, choose
+  You or a companion and write who they are; XP starts at 0. A note says what was imported, with **Undo import**. Review
+  lists what **Create** also adds ("4 things to the party's bag · 5 silver to the purse"), and Create puts it all on the
+  latest reply, so one swipe takes it back. A file that is not a character, or breaks a limit, is refused in one plain
+  sentence. A skill with no stat of its own is imported without one and Review asks you to pick it. Picking a skill
+  template after an import asks before replacing the imported skills.
+- The RPG's windows (New character, Export, the first-send window) are solid over the Game view: the party no longer
+  shows through them.
+- `inventory.add` takes an optional kind and rarity for an item new to the chat.
+
 ## 2.12.0
 
 A cleanup of the screens on today's design: the same look, with less repeated and fewer places to look.
