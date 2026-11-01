@@ -259,7 +259,9 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
     // The turn order: kept when the fight goes on (a foe of the carried order is still there), else rolled here. A late arrival rolls on entry.
     const here = [...characters.filter(bar => standing(bar.id)), ...foes.filter(bar => standing(bar.id))];
     const old = new Map((Array.isArray(carried) ? carried : []).map(entry => [entry.id, entry]));
-    const same = bar => (old.get(bar.id)?.name === bar.name ? old.get(bar.id) : null);
+    // The same group goes on only if it is no healthier than the fight left it (`left`, the blocks it had when that reply ended): a group that
+    // arrives full after that fight was beaten, or fled, or yielded, is a new one, and rolls a new order.
+    const same = bar => (old.get(bar.id)?.name === bar.name && !(Number.isSafeInteger(old.get(bar.id)?.left) && bar.value > old.get(bar.id).left) ? old.get(bar.id) : null);
     const goesOn = foes.some(bar => same(bar));
     const entries = here.map(bar => {
         const kept = goesOn ? same(bar) : null;
@@ -373,6 +375,8 @@ export function rollStandard(plan, prepared, source, rules, { carried = null } =
     const rounds = all.slice(0, cue.count).map(({ over: _, ...round }) => round);
     const told = all.slice(0, cue.count);
     const hurts = hurtsOf(start, [...opening, ...checks, ...told.flatMap(round => round.lines)]);
+    // Where each foe group stands when this reply ends, kept with the order for the fight's next reply.
+    for (const entry of order) if (!entry.party) entry.left = hurts.find(item => item.id === entry.id)?.to ?? start.get(entry.id).value;
     const decisive = told.length > 0 && told.at(-1).decisive;
     const over = told.length > 0 && told.at(-1).over;
     const stop = !told.length ? 'none' : cue.count < all.length ? 'budget' : decisive ? 'decisive' : over ? 'over' : told.length === most ? 'pace' : 'cap';

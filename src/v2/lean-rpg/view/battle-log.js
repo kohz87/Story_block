@@ -119,7 +119,7 @@ function lineOf(raw, soulOf = () => null) {
     const breakdown = told || (standard ? breakdownStandard(raw, skill, soul, foeSide, against) : why ? `${detail} · ${why}` : detail);
     const base = { outcome, total: raw.pc.total, vs: against, skill, breakdown, arrows: [], ...(raw.decisive === true ? { decisive: true } : {}), ...(raw.area === true ? { area: true } : {}) };
     // A support action (a heal or a buff, a `check` line that names the one helped) reads like an act on that character.
-    if (raw.kind === 'check' && raw.support === true && words(raw.target, 40)) return { ...base, who: words(raw.pc.who, 40), target: words(raw.target, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, support: true };
+    if (raw.kind === 'check' && raw.support === true && words(raw.target, 40)) return { ...base, who: words(raw.pc.who, 40), target: words(raw.target, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, support: true, heals: isRecord(raw.damage) && raw.damage.blocks < 0 };
     if (raw.kind === 'foe') return { ...base, total: foeSide?.total ?? null, vs: raw.pc.total, who: words(foeSide?.name, 40), target: words(raw.pc.who, 40), skill: '', defence: skill, stat: words(raw.pc.stat, 12).toUpperCase(), foe: true };
     if (raw.kind === 'check') return { ...base, who: words(raw.pc.who, 40), target: '', stat: words(raw.pc.stat, 12).toUpperCase(), foe: false, what: skill || words(raw.pc.stat, 12).toUpperCase() };
     return { ...base, who: words(raw.pc.who, 40), target: words(foeSide?.name, 40), stat: words(raw.pc.stat, 12).toUpperCase(), foe: false };
@@ -235,9 +235,15 @@ function lineNode(doc, line, { check = false } = {}) {
     const outcome = line.outcome ? (line.decisive ? DECISIVE_WORDS[line.foe ? `foe-${line.outcome}` : line.outcome] ?? (line.foe ? FOE_WORDS[line.outcome] : B[line.outcome]) : line.foe ? FOE_WORDS[line.outcome] : B[line.outcome]) : '';
     if (check) text.append(fill(B.check, { who: line.who, what: line.what, total: line.total ?? '?', against: line.vs ?? '?', outcome }));
     else {
-        text.append(`${line.who} ${line.skill ? B.uses : B.attacks} `);
-        if (line.skill) text.appendChild(el(doc, 'span', 'rpg-skill', line.skill));
-        if (line.target) text.append(`${line.skill ? ` ${B.on} ` : ''}${line.target}${line.area ? ` (${B.area})` : ''}`);
+        // A heal or a help names the one helped ("Ren heals Wessel (Mend)"), never "attacks".
+        if (line.support) {
+            text.append(`${line.who} ${line.heals ? B.verbHeals : B.verbHelps} ${line.target}`);
+            if (line.skill) { text.append(' ('); text.appendChild(el(doc, 'span', 'rpg-skill', line.skill)); text.append(')'); }
+        } else {
+            text.append(`${line.who} ${line.skill ? B.uses : B.attacks} `);
+            if (line.skill) text.appendChild(el(doc, 'span', 'rpg-skill', line.skill));
+            if (line.target) text.append(`${line.skill ? ` ${B.on} ` : ''}${line.target}${line.area ? ` (${B.area})` : ''}`);
+        }
         // The skill a defender used ("Sluice Rat A attacks Astra (Iaijutsu) — Blocked"); a roll made before there were any has none.
         if (line.defence) {
             text.append(' (');

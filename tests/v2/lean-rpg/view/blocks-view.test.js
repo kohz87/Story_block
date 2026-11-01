@@ -120,7 +120,13 @@ test('the battle log reads the recorded turn order with its totals, the quick st
     assert.match(texts[0], /^Wessel uses Iaijutsu on Weir-drake — Decisive \(29 vs 24\)/);
     assert.match(texts[1], /^Weir-drake attacks Wessel \(Shadow step\) — Blocked \(19 vs 23\)/);
     assert.match(texts[2], /^Ren uses Sweep on Sluice Rat \(area\) — Success/);
-    assert.match(texts[3], /^Mara uses Mend on Wessel — Success \(21 vs 15\)/);
+    assert.match(texts[3], /^Mara heals Wessel \(Mend\) — Success \(21 vs 15\)/, 'a heal says heals, never attacks');
+    // A help with no skill, or one that healed nothing, says helps.
+    const plain = record();
+    const helper = plain.rounds[0].lines[3];
+    delete helper.skill; delete helper.damage;
+    const helped = buildPanel(setupDom(), panelModel({ resolve: readResolve(plain), state: state(), before: null, roleOf }));
+    assert.match(helped.querySelectorAll('.rpg-bl-round:not(.rpg-bl-opening) .rpg-act-text').map(node => node.textContent)[3], /^Mara helps Wessel — Success/);
     assert.match(panel.querySelector('.rpg-why').textContent, /^Physical: d20 17 \+ \(AGI 10 \+ DEX 6\/2\)\/2 = 6/);
 });
 

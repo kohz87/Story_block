@@ -437,7 +437,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const add = h(doc, 'div', 'rpg-wiz-add');
                 const addButton = button(add, W.add, 'ss-button rpg-wiz-add-button', () => { put(withSkill(draft())); drawSummary(); redraw(); });
                 addButton.disabled = left <= 0;
-                add.appendChild(h(doc, 'p', 'rpg-wiz-note', `${left <= 0 ? W.slotsFull : left === 1 ? W.slotLeft : fill(W.slotsLeft, { n: left })} ${W.skillsNote}`));
+                add.appendChild(h(doc, 'p', 'rpg-wiz-note', `${left <= 0 ? W.slotsFull : left === 1 ? W.slotLeft : fill(W.slotsLeft, { n: left })} ${draftCreation(now).standard ? W.skillsNoteStandard : W.skillsNote}`));
                 body.appendChild(add);
             }
 

@@ -267,7 +267,8 @@ export function orderOf(value) {
     if (!Array.isArray(value) || !value.length || value.length > 24) return null;
     const ok = value.every(entry => isObject(entry) && ORDER_ID.test(entry.id) && typeof entry.name === 'string' && entry.name.length <= 80
         && Number.isSafeInteger(entry.total) && Number.isSafeInteger(entry.agi) && typeof entry.party === 'boolean'
-        && (entry.die === undefined || entry.die === null || Number.isSafeInteger(entry.die)) && (entry.bonus === undefined || entry.bonus === null || Number.isSafeInteger(entry.bonus)));
+        && (entry.die === undefined || entry.die === null || Number.isSafeInteger(entry.die)) && (entry.bonus === undefined || entry.bonus === null || Number.isSafeInteger(entry.bonus))
+        && (entry.left === undefined || (Number.isSafeInteger(entry.left) && entry.left >= 0)));
     return ok && new Set(value.map(entry => entry.id)).size === value.length ? value : null;
 }
 

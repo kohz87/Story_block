@@ -377,3 +377,24 @@ test('the wizard\'s Stats step starts from a pack\'s numbers and says whose they
     assert.equal(root.querySelector('.rpg-wiz-pack').textContent, 'From the pack: Ersveil');
     dialog.close();
 });
+
+test('the wizard\'s Skills note says the skill\'s stat takes the main slot under Standard, and keeps Classic\'s wording under Classic', async t => {
+    const noteOf = async formula => {
+        const ctx = await page(t, { persona: 'Wessel', formula });
+        await begin(ctx.host);
+        ctx.ui.mounts.screen.open('story-block/party');
+        await settle();
+        party(ctx.doc).querySelector('.rpg-create').click();
+        await settle();
+        const dialog = ctx.ui.mounts.dialog.current();
+        dialog.goTo(2);
+        await settle();
+        const text = dialog.root.querySelector('.rpg-wiz-add .rpg-wiz-note').textContent;
+        dialog.close();
+        return text;
+    };
+    const standard = await noteOf('standard'), classic = await noteOf('classic');
+    assert.match(standard, /Stat is the skill's own stat: it takes the main slot of the roll, with half of DEX added;/);
+    assert.doesNotMatch(standard, /half of it/);
+    assert.match(classic, /Stat is what the roll adds \(half of it\);/);
+});

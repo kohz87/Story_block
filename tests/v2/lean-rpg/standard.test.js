@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { blocksFor, foeHealthBlocks } from '../../../src/v2/lean-rpg/formula.js';
 import { hostAvailable } from '../../../testkit/index.js';
 import { LIMITS, PACE, RESOLVE, STAGES, leanRpgGuard, normalizeRules, parsePlanAnswer, positionalDice, prepare, readSheet, rollPrepared, stageWord, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 import { FORMULA_SETTING, STANDARD_FORMULA, STANDARD_PRESETS, STANDARD_RULE_KEYS, formulaOf, oddsFor, presetOf, rulesFromSettings, sameRules, PRESETS, subjectOdds, oddsSubject, STANDARD_SETTING, DIFFICULTY_SETTING } from '../../../src/v2/lean-rpg/rules.js';
@@ -204,10 +205,12 @@ test('the Standard planner prompt asks for a type, not a stat; it is no longer t
     assert.ok(precallPrompt(input).startsWith(PRECALL_HEAD));
     assert.equal(precallPrompt({ ...input, standard: false }), precallPrompt(input));
     // The sheet in blocks (the words are spread over the bar like the Party tab's): Health 6 of 6 is Unhurt, 3 of 6 Hurt, and the rats' 3 of 4 blocks read the same way.
-    const hurt = sheetOf(party({ wessel: { health: 3 }, foes: [['Sluice Rats', 6, 2, 3]] }));
+    // (what readSheet gives for blocks of the Standard formula: the size of each bar next to the blocks left)
+    const sized = sheet => ({ ...sheet, characters: sheet.characters.map(item => ({ ...item, size: blocksFor(item.stats) })), foes: sheet.foes.map(item => ({ ...item, size: foeHealthBlocks(item.class) })) });
+    const hurt = sized(sheetOf(party({ wessel: { health: 3 }, foes: [['Sluice Rats', 6, 2, 3]] })));
     assert.match(sheetText(hurt, { standard: true }), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 9 CHA 5; Health Hurt/);
     assert.match(sheetText(hurt, { standard: true }), /1\. Sluice Rats x6 \(class II, Scratched\)/);
-    assert.match(sheetText(sheetOf(party()), { standard: true }), /Health Unhurt/);
+    assert.match(sheetText(sized(sheetOf(party())), { standard: true }), /Health Unhurt/);
 });
 
 // ---- the typed roll ---------------------------------------------------------------------------------------------------

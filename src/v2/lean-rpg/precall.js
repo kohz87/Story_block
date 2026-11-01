@@ -12,7 +12,6 @@ import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, wit
 import { stripBlock } from '../capture.js';
 import { CLASS_NAMES, LEAN_RPG_FEATURE, RANK_NAMES, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
 import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
-import { blocksFor, foeHealthBlocks } from './formula.js';
 import { NO_ROLLS_LINE } from './cue.js';
 import { parsePlanAnswer } from './plan.js';
 import { DICE_VERSION, claimKey, prepare } from './resolve.js';
@@ -77,7 +76,9 @@ const word = (list, at) => (Number.isInteger(at) && at >= 0 && at < list.length 
 // A value the pack hides (`hidden` on an entry, review 160) still counts for the dice but is left out of these lines.
 export function sheetText(sheet, { standard = false } = {}) {
     // The Standard formula's bars are blocks: the narrator-facing word is the block count spread over the bar's size (names.js stageWord).
-    const barWord = (key, words, entry, size) => (standard ? stageWord(words, entry[key], size) : word(words, entry[key]));
+    // (A bar is read as the block itself holds it: a block of the Standard formula says its size and the value is blocks left; a Classic block's
+    // value is the stage itself, whichever formula the chat plays, so the word is never worked out from a size the block does not have.)
+    const barWord = (key, words, entry) => (entry.size ? stageWord(words, entry[key], entry.size[key]) : word(words, entry[key]));
     const party = sheet.characters.map(entry => {
         const shown = key => !(entry.hidden ?? []).includes(key);
         const stats = STATS.filter(shown).map(stat => `${stat.toUpperCase()} ${entry.stats[stat] ?? '?'}`).join(' ');
@@ -88,15 +89,14 @@ export function sheetText(sheet, { standard = false } = {}) {
         };
         const skills = entry.skills.length ? entry.skills.map(skillText).join(', ') : 'none';
         const down = entry.alive === false || (entry.health === 0 && shown('health')) ? ' DOWN' : '';
-        const sizes = blocksFor(entry.stats);
         const head = [shown('soul') ? `${soulShortOf(entry.soulLabel ?? SOUL_LABEL, 'class')} ${entry.soul >= 1 && entry.soul <= CLASS_NAMES.length && entry.soulWord ? entry.soulWord : word(CLASS_NAMES, entry.soul - 1)}` : ''].filter(Boolean).join('');
         const bars = [['health', 'Health', STAGES.health], ['mana', 'Mana', STAGES.mana], ['stamina', 'Stamina', STAGES.stamina]]
-            .filter(([key]) => shown(key)).map(([key, label, words]) => `${label} ${barWord(key, words, entry, sizes[key])}`).join(', ');
+            .filter(([key]) => shown(key)).map(([key, label, words]) => `${label} ${barWord(key, words, entry)}`).join(', ');
         return `${entry.who}${head || down ? ` (${head}${down})` : ''}: ${[stats, bars].filter(Boolean).join('; ')}; skills: ${skills}`;
     });
     const foes = sheet.foes.filter(foe => foe.filled).map(foe => {
         const shown = part => !(foe.hidden ?? []).includes(part);
-        const about = [shown('class') ? `class ${word(CLASS_NAMES, foe.class - 1)}` : '', shown('hurt') ? (standard ? stageWord(STAGES.health, foe.hurt, foeHealthBlocks(foe.class)) : word(STAGES.health, foe.hurt)) : ''].filter(Boolean).join(', ');
+        const about = [shown('class') ? `class ${word(CLASS_NAMES, foe.class - 1)}` : '', shown('hurt') ? (foe.size ? stageWord(STAGES.health, foe.hurt, foe.size) : word(STAGES.health, foe.hurt)) : ''].filter(Boolean).join(', ');
         return `${foe.slot}. ${foe.name}${foe.count > 1 && shown('count') ? ` x${foe.count}` : ''}${about ? ` (${about})` : ''}`;
     });
     return `Party:\n${party.join('\n')}\nFoes: ${foes.length ? `\n${foes.join('\n')}` : 'none'}`;
@@ -123,7 +123,7 @@ export function carriedOrder(view, index) {
         let found = null;
         try { found = view.query?.(ROLLS_QUERY, { index: at }) ?? null; } catch { found = null; }
         const order = found?.result?.order;
-        if (Array.isArray(order) && order.length) return order.map(({ id, name, total, die, bonus, agi, party }) => ({ id, name, total, ...(Number.isSafeInteger(die) ? { die } : {}), ...(Number.isSafeInteger(bonus) ? { bonus } : {}), agi, party }));
+        if (Array.isArray(order) && order.length) return order.map(({ id, name, total, die, bonus, agi, party, left }) => ({ id, name, total, ...(Number.isSafeInteger(die) ? { die } : {}), ...(Number.isSafeInteger(bonus) ? { bonus } : {}), agi, party, ...(Number.isSafeInteger(left) && left >= 0 ? { left } : {}) }));
         if (found) return null;
     }
     return null;

@@ -17,7 +17,7 @@ import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blo
 import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold } from '../lean-rpg/read.js';
-import { isStandard, rulesFromSettings } from '../lean-rpg/rules.js';
+import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { RPG_STRINGS } from '../lean-rpg/strings.js';
 
@@ -494,7 +494,10 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function makeParty(ctx, request, soul, call, { added = false } = {}) {
         if (restore()?.state === 'pending') refuse('RESTORE_PENDING', '', E.restorePending);
         const prefix = stateOf(ctx), domain = prefix.domains.dataModules;
-        const rules = rulesFromSettings(settings());
+        // (the formula and numbers in force: the reader's settings, else what the story's pack asks for, as the roll planner reads them)
+        let pack = null;
+        try { pack = packRulesOf((packs?.packs?.() ?? []).flatMap(entry => entry?.content?.rpg ?? [])); } catch { pack = null; }
+        const rules = rulesFromSettings(settings(), pack);
         const made = joinDefinitions(request, { used: Object.keys(domain?.active ?? {}), soul, rules });
         // The story's first character also brings the Combat rules and Foes blocks it lacks, as far as they fit (nothing is refused for them).
         const first = partyOf(prefix).length === 0, plan = first ? extrasPlan(prefix) : { add: [], skipped: [] };

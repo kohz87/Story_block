@@ -371,7 +371,7 @@ the type's own stat.
   narrator's difficulty.
 - **Turn order.** At the start of a fight each character rolls d20 + class + AGI/2 and each foe group d20 + 2 × class; highest first, ties to
   the higher AGI, then to the party. The order is kept for the whole fight: each reply's roll carries it on (a swipe of a later reply keeps
-  it; a swipe of the reply that began the fight rolls it again; a Re-read keeps it), and someone who arrives later rolls on entry. A foe or
+  it; a swipe of the reply that began the fight rolls it again; a Re-read keeps it), and someone who arrives later rolls on entry. A group of the same name that arrives after the fight ended (beaten, or healthier than the fight left it) is a new fight: a new order and a quick start. A foe or
   a character who is beaten or Down before their turn does not act that round, and the fight ends in the roll when a side is gone.
 - **Quick start.** A character who is 10 or more ahead of a foe in the order acts once against it before the first round, at the start of the
   fight only.
