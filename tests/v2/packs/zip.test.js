@@ -127,3 +127,17 @@ test('the Packs panel: pack.json picked with images; images the pack does not na
     assert.equal(texts(root, '.ss-packs-errors li').length, 2);
     assert.equal(files.files.size, 1);
 });
+
+test('the Packs panel: portraits not picked are counted, never named (their file names are the unmet people\'s names)', async () => {
+    const { root, pick } = mount();
+    const people = ['cassian-orrel', 'mira-vane', 'tobias-kell'].map(id => person(id, `${id}.webp`));
+    await pick([fileOf('pack.json', text(packText(...people))), fileOf('mira-vane.webp', webp(300))]);
+    const message = texts(root, '.ss-packs-message')[0];
+    assert.equal(message, 'Installed mini. 1 portrait saved; 2 portraits not picked; the people show without a picture until you add them.');
+    const everything = `${message} ${texts(root, '.ss-packs-errors li').join(' ')}`;
+    for (const hidden of ['cassian', 'orrel', 'tobias', 'kell', 'Cassian', 'Tobias']) assert.ok(!everything.includes(hidden), hidden);
+    const one = mount();
+    await one.pick([fileOf('pack.json', text(packText(person('lone-wolf', 'lone-wolf.png'))))]);
+    assert.equal(texts(one.root, '.ss-packs-message')[0], 'Installed mini. 1 portrait not picked; that person shows without a picture until you add it.');
+    assert.ok(!texts(one.root, '.ss-packs-message')[0].includes('lone'));
+});
