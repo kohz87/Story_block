@@ -28,6 +28,8 @@ export const MOUNTS = Object.freeze(['tab', 'screen', 'card', 'hud', 'dialog']);
 export const SOURCES = Object.freeze(['reader', 'card', 'pack', 'module']);
 export const CSS_LIMIT = 64 * 1024;
 
+/** The longest summary template a card screen may give. */
+export const SUMMARY_MAX = 500;
 const SCREEN_ID = /^[A-Za-z0-9][\w.-]*(?:\/[A-Za-z0-9][\w.-]*)*$/;
 const ALIAS = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REF = /^\$([A-Za-z_][A-Za-z0-9_]*)((?:\.[\w-]+)*)$/;
@@ -111,6 +113,8 @@ export function validateScreen(def, { id = null } = {}) {
     if (def.defaultOn !== undefined && typeof def.defaultOn !== 'boolean') errors.push(`${name}: defaultOn must be true or false.`);
     // A tab or screen that is shown only while it is active: active(state, ctx) → { on, badge? }, and the note Settings shows for it.
     if (def.active !== undefined && typeof def.active !== 'function') errors.push(`${name}: active must be a function (state, ctx) → { on, badge? }.`);
+    // A card screen's own part of the closed line under a reply: a template read in the card's scope, like its body ('{{ q.status.summary }}').
+    if (def.summary !== undefined && (typeof def.summary !== 'string' || def.summary.length > SUMMARY_MAX)) errors.push(`${name}: summary must be a template of text, at most ${SUMMARY_MAX} characters.`);
     if (def.activeNote !== undefined && typeof def.activeNote !== 'string') errors.push(`${name}: activeNote must be text.`);
     if (def.icon !== undefined && typeof def.icon !== 'string') errors.push(`${name}: the icon must be text.`);
     if (def.width !== undefined && def.width !== 'wide') errors.push(`${name}: width must be "wide" (a dialog's wider window) or left out.`);

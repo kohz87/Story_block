@@ -294,6 +294,10 @@ export const STRINGS = deepFreeze({
         fail: 'fail',
         storyDice: 'story said {story} / dice said {dice}',
     },
+    // The one card under a reply (view/mounts/card.js): every module's card is a section of it.
+    thisReply: {
+        title: 'This reply',
+    },
     replyCards: {
         later: 'Later',
         open: 'Open',
@@ -317,8 +321,6 @@ export const STRINGS = deepFreeze({
         many: '{first} and {n} more',
         lootOne: '1 thing to pick up',
         lootMany: '{n} things to pick up',
-        editsOne: '1 edit of yours',
-        editsMany: '{n} edits of yours',
         assistedOne: '1 line from the safety net (assist)',
         assistedMany: '{n} lines from the safety net (assist)',
         refusedOne: '1 line not applied',
