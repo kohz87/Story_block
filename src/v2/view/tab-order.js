@@ -13,10 +13,14 @@
 // * Hidden by default (screens.js DEFAULT_HIDDEN): Scene while Story Director's World is registered. The
 //   reader's choice wins: `shown` lists the ones the reader showed again, `hidden` the ones they hid. An
 //   order saved before `shown` existed that names Scene counts as showing it (the reader had it in view).
+// * The bar: the game view's navigation and the Story panel's tab strip hold the screens in DEFAULT_BAR (Home, Inventory,
+//   Quests, World, Map, and Party and Fight, which come with the RPG); every other screen is under More. The reader's choice wins: `inBar`
+//   lists the ones they put in the bar, `underMore` the ones they put under More. Home is always in the bar. Where the bar has
+//   no room (a phone's five slots) the ones past the room go under More as well.
 //
 // Pure, apart from createTabOrderStore (which reads and writes the reader's settings through `ctx`).
 
-import { DEFAULT_HIDDEN, HOME_ID, byNavOrder } from './screens.js';
+import { DEFAULT_HIDDEN, HOME_ID, byNavOrder, inDefaultBar } from './screens.js';
 
 export const TAB_SETTINGS_KEY = 'tabs';
 // Bounds on what is kept (the settings file is the reader's, but it is read on every redraw).
@@ -34,7 +38,10 @@ const cleanIds = list => {
     return out;
 };
 
-/** A saved choice made safe: { order, hidden, shown }, strings only, no repeats, no Home, bounded. */
+/**
+ * A saved choice made safe: { order, hidden, shown }, strings only, no repeats, no Home, bounded; with `inBar` and `underMore` (the ids the
+ * reader put in the bar or under More) only when there are some.
+ */
 export function readTabChoice(raw) {
     const value = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
     const order = cleanIds(value.order);
@@ -42,14 +49,41 @@ export function readTabChoice(raw) {
     // Before `shown`: a default-hidden id the saved order names was in the reader's view, so it stays.
     const shown = Array.isArray(value.shown) ? cleanIds(value.shown)
         : order.filter(id => Object.hasOwn(DEFAULT_HIDDEN, id) && !hidden.includes(id));
-    return { order, hidden, shown };
+    const inBar = cleanIds(value.inBar);
+    const underMore = cleanIds(value.underMore).filter(id => !inBar.includes(id));
+    return { order, hidden, shown, ...(inBar.length ? { inBar } : {}), ...(underMore.length ? { underMore } : {}) };
 }
 
-/** True when the reader has changed nothing (the default order, nothing hidden or shown). */
+/** True when the reader has changed nothing (the default order, nothing hidden or shown, nothing moved into or out of the bar). */
 export const isDefaultChoice = choice => {
     const clean = readTabChoice(choice);
-    return !clean.order.length && !clean.hidden.length && !clean.shown.length;
+    return !clean.order.length && !clean.hidden.length && !clean.shown.length && !clean.inBar && !clean.underMore;
 };
+
+/**
+ * Is `id` in the bar (the game view's navigation, the Story panel's tab strip), as against under More? Home always is; the
+ * reader's choice wins; else the screens in DEFAULT_BAR are and every other is not.
+ */
+export function isInBar(choice, id) {
+    const key = String(id);
+    if (key === HOME_ID) return true;
+    const clean = readTabChoice(choice);
+    if (clean.inBar?.includes(key)) return true;
+    if (clean.underMore?.includes(key)) return false;
+    return inDefaultBar(key);
+}
+
+/**
+ * The choice with `id` placed in the bar (`inBar` true) or under More. Home stays in the bar (the choice comes back unchanged). A place
+ * that is the default for that id is not kept (the choice forgets it), so the default can change later.
+ */
+export function setNavInBar(choice, id, inBar) {
+    const clean = readTabChoice(choice);
+    if (typeof id !== 'string' || !id || id === HOME_ID) return clean;
+    const rest = { inBar: (clean.inBar ?? []).filter(item => item !== id), underMore: (clean.underMore ?? []).filter(item => item !== id) };
+    if (inDefaultBar(id) !== Boolean(inBar)) rest[inBar ? 'inBar' : 'underMore'].push(id);
+    return readTabChoice({ ...clean, ...rest });
+}
 
 /**
  * The id one entry of the Story panel's tab list goes by: a tab screen's own id, a module tab's
@@ -117,7 +151,7 @@ export function moveNav(choice, current, id, delta) {
     [ids[at], ids[to]] = [ids[to], ids[at]];
     const queue = [...ids];
     const order = clean.order.map(item => (ids.includes(item) ? queue.shift() : item));
-    return { order: [...order, ...queue].slice(0, TAB_LIST_MAX), hidden: clean.hidden, shown: clean.shown };
+    return { ...clean, order: [...order, ...queue].slice(0, TAB_LIST_MAX) };
 }
 
 /**
@@ -129,8 +163,8 @@ export function setNavHidden(choice, id, hidden) {
     if (typeof id !== 'string' || !id || id === HOME_ID) return clean;
     const rest = clean.hidden.filter(item => item !== id);
     const shown = clean.shown.filter(item => item !== id);
-    if (hidden) return { order: clean.order, hidden: cleanIds([...rest, id]), shown };
-    return { order: clean.order, hidden: rest, shown: Object.hasOwn(DEFAULT_HIDDEN, id) ? cleanIds([...shown, id]) : shown };
+    if (hidden) return { ...clean, hidden: cleanIds([...rest, id]), shown };
+    return { ...clean, hidden: rest, shown: Object.hasOwn(DEFAULT_HIDDEN, id) ? cleanIds([...shown, id]) : shown };
 }
 
 /**

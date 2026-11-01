@@ -1,6 +1,6 @@
 // The "Show all" / "Show less" toggle of a long card (UI stage 5b, screens/show-more.js): the list is capped and has no
 // scrollbar, the button is there only while the list is taller than the cap, it says whether it is open (aria-expanded), and
-// Home's cards take one height per row with the quests list capped. Home has no Packs card any more.
+// Home's cards are each as tall as their own content (three to a row from 760px, one on a phone) with the quests list capped. Home has no Packs card any more.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDom } from '../../ui-fake-dom.js';
@@ -62,10 +62,12 @@ test('the widget with no card or no list draws nothing', () => {
     handle.destroy();
 });
 
-test('Home: one height per row (stretch), the capped list does not scroll, and no Packs card', () => {
+test('Home: a card is as tall as its content (start), three to a row on a wide screen, the capped list does not scroll, and no Packs card', () => {
     const css = homeScreen.css;
-    assert.match(css, /\.home \{[^}]*align-items: stretch;/);
-    assert.doesNotMatch(css, /\.home \{[^}]*align-items: start;/);
+    assert.match(css, /\.home \{[^}]*align-items: start;/);
+    assert.doesNotMatch(css, /\.home \{[^}]*align-items: stretch;/);
+    assert.match(css, /\.home \{[^}]*grid-template-columns: minmax\(0, 1fr\);/, 'a phone: one column');
+    assert.match(css, /@media \(min-width: 760px\) \{ \.home \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \} \}/, 'a wide screen: rows of three');
     assert.match(css, /\.sb-cap\[data-capped="true"\] \{[^}]*max-height: 15em;[^}]*overflow: hidden;/);
     assert.doesNotMatch(css, /\.sb-cap[^}]*overflow(-y)?: auto/);
     assert.match(homeScreen.template, /class="sb-cap" data-capped="true"/);

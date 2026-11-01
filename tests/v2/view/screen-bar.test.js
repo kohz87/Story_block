@@ -104,9 +104,10 @@ test('every slot has an accessible name (its label text), More and the sheet are
     assert.equal(root.querySelector('.ss-screenbar-scrim').hidden, true);
 });
 
-test('the hint in the sheet names the number of pinned screens', () => {
+test('the hint in the sheet says where the bar is chosen', () => {
     const { root } = setup();
-    assert.equal(text(root.querySelector('.ss-screenbar-sheet-hint')), 'Pin your 4 in Settings → Tabs');
+    assert.equal(text(root.querySelector('.ss-screenbar-sheet-hint')), STRINGS.bar.moreHint);
+    assert.equal(text(root.querySelector('.ss-screenbar-sheet-hint')), 'Choose your bar in Settings → Tabs');
 });
 
 test('a tap on a slot chooses that screen; a current slot is still chosen', () => {
