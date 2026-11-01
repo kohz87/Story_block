@@ -201,7 +201,7 @@ test('A: the odds use the chosen option', () => {
 
 test('A: Settings → RPG offers it in Custom, keeps it as 0 and moves the odds bar; the presets stay at half', () => {
     const doc = setupDom();
-    const stored = {};
+    const stored = { rpgFormula: 'classic' };
     const settings = Object.assign(id => ({ ...stored }), { set: (_id, key, value) => { stored[key] = value; } });
     const state = fakeState([{ definition: viewCharacter(), fields: { who: 'Wessel', str: 14, soul: 2 } }]);
     const parent = doc.createElement('div');
@@ -273,7 +273,7 @@ test('C: the odds line and the "adds" label follow the player\'s Character block
     const doc = setupDom();
     const parent = doc.createElement('div');
     doc.body.appendChild(parent);
-    const settings = Object.assign(() => ({ rpgDifficulty: 'custom', rpgCustom: { ...STANDARD } }), { set: () => {} });
+    const settings = Object.assign(() => ({ rpgFormula: 'classic', rpgDifficulty: 'custom', rpgCustom: { ...STANDARD } }), { set: () => {} });
     renderRpgSettings(parent, { settings, doc, headState: () => renamed, readerName: () => 'Wessel', roleOf });
     assert.deepEqual(parent.querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level adds']);
 });

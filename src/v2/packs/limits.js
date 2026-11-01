@@ -119,7 +119,13 @@ export const METER_LIMITS = Object.freeze({ presets: 4, meters: 6, min: -1000, m
 // Skill sets for the RPG's New character wizard, `content.rpg.skillSets` (normalized to a list of sets):
 // `[{ name, slug?, about?, skills: [{ name, about, stat, uses? }] }]`. The limits follow the Skills block's fields; `stats` and `uses`
 // are the words the block's `statN` and `usesN` take (src/v2/lean-rpg/names.js STATS and USES, kept apart so packs need nothing of it).
-export const LEAN_RPG_FIELDS = Object.freeze(['skillSets']);
+export const LEAN_RPG_FIELDS = Object.freeze(['skillSets', 'formula', 'numbers']);
+// A pack may also say which stat formula its story plays on and the numbers of it (`content.rpg.formula`: 'standard' | 'classic'; `content.rpg.numbers`:
+// whole numbers by name, the names of src/v2/lean-rpg/rules.js STANDARD_RULE_KEYS and RULE_KEYS, kept apart so packs need nothing of it). They are
+// kept as one more record of the list, `{ id, slug: 'formula', pack, formula?, numbers? }`, which the skill-set readers pass over.
+export const RPG_FORMULAS = Object.freeze(['standard', 'classic']);
+export const RPG_NUMBER_KEYS = Object.freeze(['foeBase', 'foeClassWeight', 'classWeight', 'statDivisor', 'costMargin', 'decisiveMargin', 'roundCap', 'quickStartMargin',
+    'startStat', 'createPoints', 'createMin', 'createMax', 'pointsPerSoul', 'statMax']);
 export const SKILL_SET_FIELDS = Object.freeze(['name', 'slug', 'about', 'skills']);
 export const SKILL_SET_SKILL_FIELDS = Object.freeze(['name', 'about', 'stat', 'uses']);
 export const LEAN_RPG_LIMITS = Object.freeze({ sets: 12, skills: 5, name: 40, about: 160, skillName: 40, skillAbout: 120,

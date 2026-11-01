@@ -12,7 +12,7 @@ import { meter } from '../../view/widgets/meter.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { drawStageBars } from './bars.js';
 import { newSession, renderDistribute } from './distribute.js';
-import { readParty } from './party-data.js';
+import { growthText, readParty } from './party-data.js';
 import { newSkillsSession, renderSkills } from './skills.js';
 
 const P = RPG_STRINGS.party;
@@ -103,6 +103,8 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 }
                 node.appendChild(stats);
                 if (character.skillsBlock) node.appendChild(h(doc, 'div', 'rpg-skills', character.skills.length ? character.skills.map(skill => `${skill.name} (${skill.rankName})`).join(' · ') : P.noSkills));
+                // The Standard formula's bars grow with VIT, AGI and INT: how many blocks each has and the stat that earns the next one, and Luck's next step.
+                if (character.growth) node.appendChild(h(doc, 'p', 'rpg-growth', growthText(character.growth)));
                 const actions = h(doc, 'div', 'rpg-card-actions');
                 const spend = character.points > 0;
                 button(actions, spend ? P.spend : P.stats, `ss-button${spend ? ' ss-button-primary' : ''} rpg-open`, () => openSheet(character));
@@ -126,7 +128,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 const looking = shared.skills ? party.find(character => sameCharacter(character, shared.skills) && character.skillsBlock) : null;
                 if (shared.skills && !looking) shared.skills = null;
                 main.hidden = Boolean(open || looking);
-                if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended });
+                if (open) sheet = renderDistribute(host, { character: open, session: shared.open, api, doc, onClose: closeSheet, onDone: ended, ...(rules ? { rules } : {}) });
                 else if (looking) sheet = renderSkills(host, { character: looking, session: shared.skills, api, doc, onBack: closeSkills, onSaved: tell, ...(rules ? { rules } : {}) });
                 const head = h(doc, 'div', 'rpg-head');
                 head.appendChild(h(doc, 'h3', '', P.title));

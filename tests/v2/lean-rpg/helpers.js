@@ -98,7 +98,8 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };
-    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: settings } } });
+    // (The stat formula is Classic here unless a test asks otherwise: these tests pin Classic's numbers.)
+    host = await createHost({ core: false, modules: [module], settings: { modules: { [OWNER]: { rpgFormula: 'classic', ...settings } } } });
     host.features.set(LEAN_RPG_FEATURE, feature);
     return { host, callModel, problems, part };
 }

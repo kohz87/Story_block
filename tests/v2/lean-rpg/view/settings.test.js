@@ -34,11 +34,11 @@ async function open(t, { blocks = true, rules = false, wrap = null } = {}) {
 const oddsText = card => card.querySelector('.rpg-odds-legend').textContent;
 const typeInto = (node, value, event = 'change') => { node.value = value; node.dispatch(event); };
 
-test('the page is its own rail entry after Features, with five cards in order and the words of the mockup', async t => {
+test('the page is its own rail entry after Features, with six cards in order and the words of the mockup', async t => {
     const { doc, root, card } = await open(t);
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator and the roll planner are told.');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: before each reply a short AI call plans the actions and code rolls the dice\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);
@@ -256,7 +256,7 @@ test('searching finds the page by what it says; the page is hidden when nothing 
     assert.equal(body.filter('companions'), 1);
     assert.equal(body.filter('nothing like it'), 0);
     assert.equal(body.el.querySelectorAll('.rpg-set-card').filter(node => !node.hidden).length, 0);
-    assert.equal(body.filter(''), 5);
+    assert.equal(body.filter(''), 6);
     body.destroy();
     host.features.set(CORE_FEATURE.leanRpg, false);
     await settle();
@@ -313,10 +313,11 @@ test('settings-data: the Combat block is the first block with the role rules; wi
 });
 
 test('settings-data: customOf keeps the stored numbers, else the numbers in force', () => {
-    assert.deepEqual(customOf({}), STANDARD);
-    assert.deepEqual(customOf({ [DIFFICULTY_SETTING]: 'harsh' }), PRESETS.harsh);
-    assert.deepEqual(customOf({ [DIFFICULTY_SETTING]: 'harsh', [CUSTOM_SETTING]: { foeBase: 12 } }), { ...STANDARD, foeBase: 12 });
-    assert.deepEqual(customOf({ [DIFFICULTY_SETTING]: 'custom' }), STANDARD);
+    const classic = { rpgFormula: 'classic' };
+    assert.deepEqual(customOf(classic), STANDARD);
+    assert.deepEqual(customOf({ ...classic, [DIFFICULTY_SETTING]: 'harsh' }), PRESETS.harsh);
+    assert.deepEqual(customOf({ ...classic, [DIFFICULTY_SETTING]: 'harsh', [CUSTOM_SETTING]: { foeBase: 12 } }), { ...STANDARD, foeBase: 12 });
+    assert.deepEqual(customOf({ ...classic, [DIFFICULTY_SETTING]: 'custom' }), STANDARD);
 });
 
 test('settings-data: the odds view for a state with and without a character', () => {

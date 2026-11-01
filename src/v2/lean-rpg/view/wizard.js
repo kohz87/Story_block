@@ -33,7 +33,9 @@ import { fold } from '../read.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { readParty } from './party-data.js';
 import { joinDraft } from '../join.js';
-import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newSoul, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
+import { growthOf } from '../blocks.js';
+import { growthText } from './party-data.js';
+import { WIZARD_STEPS, actionsFree, blockNames, buildDefinitions, draftCreation, extraDefinitions, extraName, extrasPlan, hasRoom, mayStartAdept, newDraft, newSoul, pointsLeft, problemsOf, rankOf, readDraft, setLine, skillSetsOf,
     START_RANKS, startStats, statBounds, statsLine, withImport, withoutImport, withSet, withSkill, withSkillPatch, withoutSkill } from './wizard-data.js';
 
 const W = RPG_STRINGS.wizard;
@@ -72,14 +74,16 @@ const safe = (fn, fallback) => { try { return fn() ?? fallback; } catch { return
  * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes. `prefill` is { name, about, soul, best }: a companion
  * the story brought in (join.js joinDraft); `onEnd(created)` is told once when the dialog closes, `created` true when Create made the character.
  */
-export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '' } = {}) {
+export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null, packNote = () => '' } = {}) {
     let session = null;
     const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf, safe(replyKey, ''));
     // The persona's description as Who they are starts: one line, the first 240 characters (whole characters), '' when there is none.
     const personaAbout = () => [...String(safe(readerAbout, '') ?? '').replace(/\s+/g, ' ').trim()].slice(0, CREATION.about).join('');
     const fresh = (prefill = null) => {
         const now = world(), about = personaAbout();
-        const draft = prefill ? joinDraft(prefill) : { ...newDraft({ persona: now.persona, hasYou: now.hasYou }) };
+        // (`rules`: the numbers in force now; a Standard chat starts every stat low and has more to spend, joins use formula.js companionStats.)
+        const numbers = safe(rules, null);
+        const draft = prefill ? joinDraft(prefill, numbers) : { ...newDraft({ persona: now.persona, hasYou: now.hasYou, rules: numbers }) };
         // Only a You starts with the persona's description, and only into an empty box: a companion starts empty.
         if (!prefill && draft.kind === 'you' && about) draft.about = about;
         return { draft, handle: null, busy: false, message: '', created: false, finished: '', about: prefill ? '' : about, onEnd: null, imported: null, importError: '', pendingSet: null };
@@ -305,11 +309,15 @@ export function createWizard({ headState = () => null, readerName = () => '', re
             }
 
             // ---- Stats ----
-            const axes = now => STATS.map(stat => ({ label: stat.toUpperCase(), value: now.stats[stat], max: 20, before: now.from ? now.from.stats[stat] : CREATION.start }));
+            const axes = now => STATS.map(stat => ({ label: stat.toUpperCase(), value: now.stats[stat], max: 20, before: now.from ? now.from.stats[stat] : draftCreation(now).start }));
+            // The Standard formula's one line of what the next points buy; Classic's bars do not grow with stats.
+            const growth = now => (draftCreation(now).standard ? growthText(growthOf(now.stats, { statMax: draftCreation(now).statMax })) : '');
+            let growthNode = null;
             function refreshStats() {
                 const now = snap(), left = pointsLeft(now);
                 STATS.forEach((stat, at) => steppers[at]?.update({ name: stat, value: now.stats[stat], min: statBounds(now, stat)[0], max: statBounds(now, stat)[1], budget: left, label: stat.toUpperCase(), budgetLabel: RPG_STRINGS.sheet.budgetLabel, showBudget: false }));
                 radarHandle?.update({ axes: axes(now), max: 20, label: fill(W.radar, { name: now.name || W.title }), tone: 'accent' });
+                if (growthNode) growthNode.textContent = growth(now);
                 drawSummary();
             }
             function drawStats() {
@@ -336,8 +344,15 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 card.appendChild(sheet);
                 const actions = h(doc, 'div', 'rpg-actions rpg-wiz-stats-actions');
                 button(actions, W.statsReset, 'ss-button rpg-wiz-reset', () => { put({ ...draft(), stats: startStats(snap()) }); redraw(); });
-                actions.appendChild(h(doc, 'p', 'rpg-sheet-note', now.from ? fill(W.statsNoteImport, { ...CREATION, n: now.from.points, label: soulWords.label }) : fill(W.statsNote, { ...CREATION, label: soulWords.label })));
+                const creation = draftCreation(now), standard = creation.standard === true;
+                const words = { ...creation, label: soulWords.label };
+                actions.appendChild(h(doc, 'p', 'rpg-sheet-note', now.from ? fill(standard ? W.statsNoteImportStandard : W.statsNoteImport, { ...words, n: now.from.points }) : fill(standard ? W.statsNoteStandard : W.statsNote, words)));
+                const fromPack = standard ? safe(packNote, '') : '';
+                if (fromPack) actions.appendChild(h(doc, 'p', 'rpg-sheet-note rpg-wiz-pack', fill(RPG_STRINGS.settings.fromPack, { name: fromPack })));
                 card.appendChild(actions);
+                // Standard: Health, Stamina and Mana grow with VIT, AGI and INT, and luck with LUK; the line follows the steppers.
+                growthNode = standard ? h(doc, 'p', 'rpg-wiz-growth', growth(now)) : null;
+                if (growthNode) { growthNode.setAttribute('data-wiz', 'growth'); card.appendChild(growthNode); }
                 body.appendChild(card);
             }
 
@@ -422,7 +437,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const add = h(doc, 'div', 'rpg-wiz-add');
                 const addButton = button(add, W.add, 'ss-button rpg-wiz-add-button', () => { put(withSkill(draft())); drawSummary(); redraw(); });
                 addButton.disabled = left <= 0;
-                add.appendChild(h(doc, 'p', 'rpg-wiz-note', `${left <= 0 ? W.slotsFull : left === 1 ? W.slotLeft : fill(W.slotsLeft, { n: left })} ${W.skillsNote}`));
+                add.appendChild(h(doc, 'p', 'rpg-wiz-note', `${left <= 0 ? W.slotsFull : left === 1 ? W.slotLeft : fill(W.slotsLeft, { n: left })} ${draftCreation(now).standard ? W.skillsNoteStandard : W.skillsNote}`));
                 body.appendChild(add);
             }
 
@@ -551,7 +566,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 if (!failure) {
                     unadded = where.extras.skipped.map(item => ({ role: item.role, why: whyNot([item]) }));
                     const used = [...where.used, `pack.chat/${definitions.character.slug}`, `pack.chat/${definitions.skills.slug}`];
-                    for (const definition of extraDefinitions(where.extras.add, { used })) {
+                    for (const definition of extraDefinitions(where.extras.add, { used, formula: draftCreation(now).standard ? 'standard' : 'classic' })) {
                         const made = await call('dm.define', { definition });
                         if (!made.ok) unadded.push({ role: definition.role, why: refusalText(made, W.generic) });
                     }

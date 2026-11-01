@@ -12,7 +12,7 @@ import { createBattleLog } from './battle-log.js';
 import { FIGHT_WIDGET, createFightScreen, createFightWidget } from './fight.js';
 import { rpgReplyLines } from './changes-lines.js';
 import { PARTY_WIDGET, createPartyScreen, createPartyWidget } from './party.js';
-import { rulesFromSettings } from '../rules.js';
+import { packInForce, packRulesOf, rulesFromSettings } from '../rules.js';
 import { rpgSection } from './settings.js';
 import { heroLead } from './hero-data.js';
 import { HOLD_WIDGET, createStart } from './start.js';
@@ -57,16 +57,27 @@ function addStyle(doc) {
  * commands (the settings page saves the Combat rules text through `dm.redefine`); `closeView()` closes the game view
  * ("See it in the story" on the Fight tab); `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}) }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null }) {
     const link = addStyle(doc);
     // The numbers a roll would be made with now (Settings → RPG): the roll line on a skill and a class-up note state them.
-    const rules = () => rulesFromSettings(values());
+    // What the story's pack asks for (its formula and numbers), with the pack's name: the default of a reader who has chosen nothing.
+    const pack = () => {
+        try {
+            const found = packRulesOf(query?.('packs.content', { kind: 'rpg' }));
+            if (!found) return null;
+            const listed = (query?.('packs.list') ?? []).find(entry => entry?.id === found.pack);
+            return { ...found, name: String(listed?.name ?? found.pack ?? '') };
+        } catch { return null; }
+    };
+    const rules = () => rulesFromSettings(values(), pack());
+    // "From the pack: Ersveil" under the wizard's Stats, when the pack decides the numbers.
+    const packNote = () => { const given = pack(); return given && packInForce(values(), given).numbers ? given.name || given.pack || '' : ''; };
     // The head reply's key in the blocks' per-reply action count (data-modules/part.js pairKey): the wizard asks it for room before Create.
     const replyKey = () => {
         const source = readRecord(ctx?.chat?.[store?.headIndex?.()])?.source;
         return source?.logical && source?.swipeKey ? `${source.logical}/${source.swipeKey}` : '';
     };
-    const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey });
+    const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey, rules, packNote });
     const exporter = createExporter({ headState, readerName, roleOf, openDialog });
     const start = createStart({ doc, headState, readerName, featureOn, roleOf, openDialog, wizard, meta, save, redraw: () => refresh() });
     widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null, exportCharacter: openDialog ? exporter.open : null, rules });
@@ -85,7 +96,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         exporter,
         start,
         cardLines: info => { try { return rpgReplyLines({ ...info, roleOf, rules: rules() }); } catch { return []; } },
-        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command })],
+        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack })],
         heroLead: state => { try { return heroLead(state, { own: readerName(), roleOf }); } catch { return null; } },
         destroy() {
             battleLog.destroy();

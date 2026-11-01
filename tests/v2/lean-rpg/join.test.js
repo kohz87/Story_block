@@ -19,7 +19,7 @@ const reply = (...lines) => `The tide turns.\n<Changes>\n${lines.join('\n')}\n</
 
 // A host with the RPG on and Wessel (Soul Class III) already in the party, made from the real templates.
 async function world({ mode = 'auto', feature = true, wessel = true } = {}) {
-    const host = await createHost({ settings: { modules: { 'story-block': { rpgJoin: mode } } } });
+    const host = await createHost({ settings: { modules: { 'story-block': { rpgJoin: mode, rpgFormula: 'classic' } } } });
     if (feature) host.features.set(CORE_FEATURE.leanRpg, true);
     await host.send('Begin.', 'Opening.');
     if (wessel) await make(host, 'Wessel', 3);

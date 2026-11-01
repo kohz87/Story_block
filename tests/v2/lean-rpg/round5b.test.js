@@ -16,7 +16,7 @@ const template = name => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.
 async function game(t, { answers = ['act Wessel | stat: STR | target: Rat'], who = ['Wessel'], foes = [['Rat', 1]], hide = [] } = {}) {
     const asked = [];
     const callModel = async prompt => { asked.push(prompt); return answers.length > 1 ? answers.shift() : answers[0]; };
-    const host = await createHost({ callModel });
+    const host = await createHost({ callModel, settings: { modules: { 'story-block': { rpgFormula: 'classic' } } } });
     t.after(() => host.close());
     host.features.set('story-block.rpg', true);
     await host.send('Begin.', 'Opening.');
