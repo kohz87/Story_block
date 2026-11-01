@@ -23,6 +23,19 @@ export const STAGES = Object.freeze({
     stamina: Object.freeze(['Empty', 'Spent', 'Tired', 'Winded', 'Fresh']),
 });
 
+/**
+ * The stage word of a bar that holds `value` blocks of `size` (the Standard formula, formula.js blocksFor): 0 is the first word (Down, Empty),
+ * a full bar the last, and the words between are spread over the blocks in between. `words` is one of STAGES. A Classic bar is the
+ * stage index itself, so it never comes here.
+ */
+export function stageWord(words, value, size) {
+    const top = words.length - 1;
+    const blocks = Number.isFinite(value) ? Math.trunc(value) : 0;
+    if (!(size > 0) || blocks <= 0) return words[0];
+    if (blocks >= size) return words[top];
+    return words[Math.max(1, Math.min(top - 1, 1 + Math.floor(((blocks - 1) * (top - 1)) / Math.max(1, size - 1))))];
+}
+
 /** The formula (SPEC_RPG §0): PC d20 + stat/2 + 2×class + skill rank vs foe d20 + 5 + 2×class. */
 export const FORMULA = Object.freeze({ die: 20, statDivisor: 2, classWeight: 2, foeBase: 5, edgeMax: 3, costMargin: 2 });
 
