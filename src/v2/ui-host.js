@@ -46,7 +46,7 @@ import { TEMPLATES, applyScreenCss, createScreenRenderer } from './view/render-s
 import { formatStoryTime, storyCalendar } from './view/clock.js';
 import { gameHeroProps, readHeroContext } from './view/game-header.js';
 import { HOME_ID, createScreens } from './view/screens.js';
-import { createTabOrderStore, isDefaultChoice, isHiddenNav, moveNav, navKey, orderNav, setNavHidden, visibleNav } from './view/tab-order.js';
+import { createTabOrderStore, isDefaultChoice, isHiddenNav, isInBar, moveNav, navKey, orderNav, setNavHidden, setNavInBar, visibleNav } from './view/tab-order.js';
 import { CHANGES_CARD_SCREEN_ID, HOME_SCREEN_ID, changesSummary, replyCardLines } from './screens/index.js';
 import { mergeRpgLines } from './screens/changes-card.js';
 import { createReplyNotes } from './reply-notes.js';
@@ -251,9 +251,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     // those screens and their stylesheets away, and a replaced pack's new stylesheets replace the old ones.
     const packScreenIds = new Map();
     const rpgOn = () => registry.featureOn?.(CORE_FEATURE.leanRpg) === true;
-    // The pinned blocks' screens. While RPG is on, its character, skills and rules blocks get no tab (the Party tab draws them;
-    // they stay in Settings → Blocks); with the feature off every block with a tab keeps it.
-    const blockPresentation = () => sdk.query('dataModules.presentation', { kind: 'screens', ...(rpgOn() ? { noTab: ROLES_WITHOUT_TAB } : {}) });
+    // The pinned blocks' screens. A block with an RPG role (character, skills, foes, rules) never gets a tab of its own: with the feature on
+    // the Party and Fight tabs draw them, with it off they are only data (they stay in Settings → Blocks, and come back to use when it is on).
+    const blockPresentation = () => sdk.query('dataModules.presentation', { kind: 'screens', noTab: ROLES_WITHOUT_TAB });
     function syncScreens() {
         const byModule = new Map();
         // Every module with screens, even one whose screens are all off just now (its list is then empty).
@@ -522,6 +522,9 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
             query: (name, args) => queryAt(name, args, state),
             context: readHeroContext(),
             formatTime: minutes => formatStoryTime(minutes, storyCalendar((name, args) => (registry.query(name) ? sdk.query(name, args) : null))),
+            weatherOn: coreOn(CORE_FEATURE.weather),
+            // The RPG keeps its character in a block, not behind `party.pc`: its stage bars are the header's (lean-rpg/view/hero-data.js).
+            rpgLead: rpg?.heroLead?.(state) ?? null,
         }),
         on: (name, fn) => events.on(name, fn),
         carriers,
@@ -531,6 +534,8 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         eventTypes: ctx.eventTypes ?? ctx.event_types,
         // The game view's navigation leaves out the screens the reader hid (they still open by name).
         inNav: screenId => !isHiddenNav(tabOrder.choice(), screenId, navPresent),
+        // Which screens sit in the bar, as against under More (the reader's choice, else the default bar).
+        inBar: screenId => isInBar(tabOrder.choice(), screenId),
         addTab(tab) {
             extraTabs.push(tab);
             return () => {
@@ -571,10 +576,20 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         for (const mount of ['screen', 'tab']) for (const entry of screens.list(mount)) add(entry.id, entry.screen, mount);
         for (const tab of registry.tabs()) add(navKey(tab), tab, 'tab');
         const choice = tabOrder.choice();
+        // Two tabs with the same name (two blocks, a pack's tab and a module's) are told apart: the later ones are numbered, "Notes (2)".
+        const seen = new Map();
+        const named = title => {
+            const plain = title.replace(/\s+/g, ' ').trim();
+            const count = (seen.get(plain.toLowerCase()) ?? 0) + 1;
+            seen.set(plain.toLowerCase(), count);
+            return count > 1 ? `${plain} (${count})` : title;
+        };
         return orderNav([...rows.values()], choice).map(row => ({
             ...row,
+            title: named(row.title),
             fixed: row.id === HOME_ID,
             hidden: isHiddenNav(choice, row.id, navPresent),
+            inBar: isInBar(choice, row.id),
         }));
     }
     // After a change: the tab strip and the game view's navigation follow at once.
@@ -591,6 +606,10 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
         },
         setHidden(id, hidden) {
             tabOrder.set(setNavHidden(tabOrder.choice(), id, hidden));
+            refreshNav();
+        },
+        setInBar(id, inBar) {
+            tabOrder.set(setNavInBar(tabOrder.choice(), id, inBar));
             refreshNav();
         },
         reset() {
@@ -618,7 +637,7 @@ export function mountUi({ runtime, ctx, doc = globalThis.document, version = '',
     function openPanel() {
         panel.hidden = false;
         doc.body.classList.add('story-suite-sheet-open');
-        if (!tabHost) tabHost = createTabHost(panelBody, { registry: tabSource, view: () => sdk.view(), api: sdk, doc, barHost: panel });
+        if (!tabHost) tabHost = createTabHost(panelBody, { registry: tabSource, view: () => sdk.view(), api: sdk, doc, barHost: panel, inBar: tab => isInBar(tabOrder.choice(), navKey(tab)) });
         else tabHost.refresh();
     }
     function closePanel() {

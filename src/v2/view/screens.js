@@ -53,6 +53,17 @@ export const DEFAULT_ORDER = Object.freeze({
 // Story Director's World is there, whose Now → Here has all of it. The reader shows it again in Settings →
 // Tabs & Packs → Tabs; their saved choice wins (view/tab-order.js). Home's scene panel is not a screen here.
 export const DEFAULT_HIDDEN = Object.freeze({ 'story-block/scene': 'story-director/world' });
+// The screens in the bar by default (the game view's navigation and the Story panel's tabs): Home, Inventory, Quests, World and
+// Map; with the RPG on, Party joins them, and Fight while a fight is on (it is a tab only then). Every other screen is under More
+// until the reader moves it into the bar (Settings → Tabs & Packs → Tabs, view/tab-order.js). The suite's own are named by id;
+// a Party or a Fight from another module is one by the last part of its id, as DEFAULT_ORDER places them.
+export const DEFAULT_BAR = Object.freeze([
+    HOME_ID, 'story-block/inventory', 'story-director/quests', 'story-director/world', 'story-director/map', 'story-block/party', 'story-block/fight',
+]);
+const BAR_NAMES = Object.freeze(['party', 'fight']);
+
+/** Is `id` in the bar by default (before the reader's choice, tab-order.js isInBar)? */
+export const inDefaultBar = id => DEFAULT_BAR.includes(String(id ?? '')) || BAR_NAMES.includes(String(id ?? '').split('/').pop().toLowerCase());
 // A screen with no `order` and no default place: after the suite's own, before the Director.
 export const REST_ORDER = 150;
 // The suite's own screens and tabs: always in DEFAULT_ORDER, whatever `order` an older module still gives

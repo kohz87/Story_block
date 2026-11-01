@@ -157,9 +157,9 @@ test('Shown: a hidden tab leaves the strip and the game view, stays in Settings,
 
 test('Reset to default: the default order, everything shown, nothing stored', async t => {
     t.mock.method(console, 'warn', () => {});
-    const { doc, st, ui } = await setup(ALL_MODULES, { storySuite: { tabs: { order: ['story-director/director', 'rpg-battle/trade'], hidden: ['story-block/scene'] } } });
+    const { doc, st, ui } = await setup(ALL_MODULES, { storySuite: { tabs: { order: ['story-director/director', 'rpg-battle/trade'], hidden: ['story-block/scene'], inBar: ['story-director/director', 'rpg-battle/trade'] } } });
     ui.openPanel();
-    assert.deepEqual(stripIds(doc).slice(0, 2), ['Director', 'Trade'], 'a saved order is read at start');
+    assert.deepEqual(stripIds(doc).slice(0, 2), ['Director', 'Trade'], 'a saved order is read at start (these two are in the bar, so they are its first slots)');
     assert.ok(!stripIds(doc).includes('Scene'));
     ui.openSettings({ fold: TABS_FOLD });
     const reset = doc.querySelector('.ss-tabrows-reset');
@@ -219,7 +219,7 @@ test('Scene is hidden by default with Story Director\'s World; shown without it;
     assert.ok(stripIds(alone.doc).includes('Scene'));
     alone.ui.destroy();
     // A saved order that shows Scene (from before, when it was in view): it stays; a saved hidden still hides it.
-    const old = await setup(ALL_MODULES, { storySuite: { tabs: { order: ['story-block/scene', 'rpg-battle/party'], hidden: [] } } });
+    const old = await setup(ALL_MODULES, { storySuite: { tabs: { order: ['story-block/scene', 'rpg-battle/party'], hidden: [], inBar: ['story-block/scene'] } } });
     old.ui.openPanel();
     assert.equal(stripIds(old.doc)[0], 'Scene');
     old.ui.destroy();

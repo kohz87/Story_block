@@ -170,7 +170,7 @@ export const STRINGS = deepFreeze({
         alertWord: 'alert',
         alertSlot: '{title}, {alert}',
         moreAlert: '{more}, {title}: {alert}',
-        moreHint: 'Pin your {count} in Settings → Tabs',
+        moreHint: 'Choose your bar in Settings → Tabs',
         moreEmpty: 'Every screen is in the bar.',
     },
     panel: {

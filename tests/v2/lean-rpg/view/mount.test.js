@@ -315,33 +315,41 @@ test('feature on: a three-character party shows the Party tab; character, skills
     assert.equal(win.root.querySelector('[data-ss-section="blocks"] .ss-blocks-count').textContent, '7 blocks in this story · none shown', 'the RPG\'s blocks are not counted as tabs or cards');
 });
 
-test('feature off: every block with a tab keeps it, whatever its role', async t => {
-    const { doc, host, ui } = await page(t);
-    await host.send('Begin.', 'Opening.');
-    await defineAll(host, party3());
-    await host.send('Go.', 'The quay.');
-    await settle();
-    const ids = tabsOf(doc, ui);
-    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: its tab`);
-    assert.ok(!ids.includes(PARTY));
-});
-
-test('the tabs follow the switch: on takes the role blocks\' tabs away, off gives them back', async t => {
+test('feature off: a block with an RPG role gets no tab (it is only data until the RPG is on); a block with no role keeps its tab', async t => {
     const { doc, host, ui } = await page(t);
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [...party3(), { ...skillsDefinition('notes', 'Notes'), show: { ...TAB, tabName: 'Notes' } }]);
     await host.send('Go.', 'The quay.');
-    assert.ok(tabsOf(doc, ui).includes(BLOCK_TAB('wessel')));
+    await settle();
+    const ids = tabsOf(doc, ui);
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) {
+        assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: no tab of its own`);
+        assert.equal(ui.screens.resolve(BLOCK_TAB(slug)), null, `${slug}: no screen either`);
+    }
+    assert.ok(ids.includes(BLOCK_TAB('notes')), 'a block with no role keeps its tab');
+    assert.ok(!ids.includes(PARTY));
+});
+
+test('the tabs follow the switch: the Party tab comes with the RPG, and the role blocks never have tabs of their own', async t => {
+    const { doc, host, ui } = await page(t);
+    await host.send('Begin.', 'Opening.');
+    await defineAll(host, [...party3(), { ...skillsDefinition('notes', 'Notes'), show: { ...TAB, tabName: 'Notes' } }]);
+    await host.send('Go.', 'The quay.');
+    let ids = tabsOf(doc, ui);
+    assert.ok(!ids.includes(BLOCK_TAB('wessel')) && !ids.includes(PARTY));
     host.features.set(CORE_FEATURE.leanRpg, true);
     await settle();
-    let ids = tabsOf(doc, ui);
+    ids = tabsOf(doc, ui);
+    assert.ok(ids.includes(PARTY), 'the RPG on: the Party tab draws the characters');
     assert.ok(!ids.includes(BLOCK_TAB('wessel')) && !ids.includes(BLOCK_TAB('combat-rules')));
     assert.ok(ids.includes(BLOCK_TAB('notes')), 'a block with no role keeps its tab');
     assert.ok(!ids.includes(BLOCK_TAB('foes')), 'Foes: the Fight tab draws it');
     host.features.set(CORE_FEATURE.leanRpg, false);
     await settle();
     ids = tabsOf(doc, ui);
-    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules', 'notes']) assert.ok(ids.includes(BLOCK_TAB(slug)), `${slug}: back`);
+    assert.ok(!ids.includes(PARTY), 'the RPG off: no Party tab');
+    for (const slug of ['wessel', 'ren', 'mira', 'wessel-skills', 'ren-skills', 'foes', 'combat-rules']) assert.ok(!ids.includes(BLOCK_TAB(slug)), `${slug}: still no tab`);
+    assert.ok(ids.includes(BLOCK_TAB('notes')));
 });
 
 const FIGHT = 'story-block/fight';
@@ -380,7 +388,7 @@ test('the Fight tab replaces the Foes tab, shows only while a foe slot is filled
     assert.equal(ui.screens.resolve(FIGHT), null);
 });
 
-test('feature off: no Fight tab, the Foes block keeps its own', async t => {
+test('feature off: no Fight tab, and the Foes block has no tab of its own either', async t => {
     const { doc, host, ui } = await page(t);
     await host.send('Begin.', 'Opening.');
     await defineAll(host, party3());
@@ -390,5 +398,5 @@ test('feature off: no Fight tab, the Foes block keeps its own', async t => {
     const ids = tabsOf(doc, ui);
     assert.ok(!ids.includes(FIGHT));
     assert.equal(ui.screens.resolve(FIGHT), null);
-    assert.ok(ids.includes(BLOCK_TAB('foes')));
+    assert.ok(!ids.includes(BLOCK_TAB('foes')));
 });

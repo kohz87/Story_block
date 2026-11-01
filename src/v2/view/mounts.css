@@ -264,10 +264,19 @@
         border: 1px solid var(--ss-border);
         border-radius: 24px;
         box-shadow: var(--ss-shadow);
-        background-color: var(--ss-sheet-bg, var(--ss-surface));
-        background-image: var(--ss-sheet-layers, none);
+        /* Opaque in every panel style: the chat behind must not read through the window. Under Glass the glass tint is laid over an
+           opaque floor of the same colour (--ss-sheet-floor); the other styles are their surface at full alpha. */
+        background-color: var(--ss-sheet-floor, var(--ss-surface));
+        background-image: linear-gradient(var(--ss-sheet-bg, transparent), var(--ss-sheet-bg, transparent));
         -webkit-backdrop-filter: var(--ss-sheet-blur, none);
         backdrop-filter: var(--ss-sheet-blur, none);
+    }
+}
+@supports (color: rgb(from red r g b)) {
+    @media (min-width: 760px) {
+        .ss-gameview-main {
+            background-color: var(--ss-sheet-floor, rgb(from var(--ss-surface) r g b / 1));
+        }
     }
 }
 @media (min-width: 1024px) {
@@ -278,6 +287,25 @@
 }
 @media (min-width: 760px) {
     body.ss-gameview-open { overflow: hidden; }
+}
+
+/* The wide bar: the screens that are in the bar are a centred row of even slots, then More; its sheet opens over the window's foot, as
+   a centred panel (on a phone it floats above the pill). */
+@media (min-width: 760px) {
+    .ss-gameview-nav.ss-screenbar-row {
+        justify-content: center;
+        gap: 6px;
+    }
+    .ss-gameview-nav.ss-screenbar-row .ss-screenbar-item {
+        flex: 0 1 112px;
+    }
+    .ss-gameview-main > .ss-screenbar-sheet {
+        left: 50%;
+        right: auto;
+        bottom: 24px;
+        width: min(640px, calc(100% - 48px));
+        transform: translateX(-50%);
+    }
 }
 
 /* ---- Inline cards under replies ---- */

@@ -419,7 +419,8 @@ under a reply (36 px portrait, the name and pill, three small bars, small badges
 | `portraitQuery`, `portraitArgs` | string, object | `''`, `null` | a query asked through `api.query` first (Delta's `npc.portrait` with `{ name }`); its answer (a URL or `{ url }`) is checked like any URL; a name that does not look like a query is never asked |
 | `line` | string | `''` | the pill's whole text; else built from `className`, `level` ("Lv 12" when it is a number) and `title` (the epithet) |
 | `bars` | list | `[]` | `[{ kind, label, value, max, text }]`, at most 6; `kind` `hp`, `mp`, `sp` go in a row (a column on a wide card), `exp` is the experience bar under them, labelled with the Terms' own word |
-| `place`, `time`, `weather` | string | `''` | the corner, each with its icon; empty ones are left out |
+| `place`, `time`, `weather` | string | `''` | the corner, each with its icon; empty ones are left out. The words wrap (never cut) |
+| `where` | object | `null` | the game view's header: `{ present: [names], places: [names or { name }], weatherOn, place, weatherText }`. The corner then also has a `Here: names` item after the weather, and the place, the weather and Here each have a pencil that runs `scene.place`, `scene.weather` and `scene.present` through `api.command` (an empty one still shows, with a dash, so there is a pencil to set it); `weatherOn: false` leaves the weather and its pencil out. Without it the corner is read-only |
 | `statuses` | list | `[]` | `[{ id, label, icon, left, unit, tone }]`, at most 12: `ss.status` badges |
 | `compact` | boolean | `false` | |
 
