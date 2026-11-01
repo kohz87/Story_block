@@ -84,7 +84,7 @@ anything about the story. Both buttons exist only while the RPG is on.
 **Export.** **Export** on a character's card, next to **Spend points** and **Skills**, opens **Export <name>**:
 
 - **Character** (always): the Soul Class, the unspent points, the seven stats and up to five skills (name, what it does, stat,
-  Stamina or Mana, rank).
+  Stamina or Mana, rank). A skill whose block has no stat of its own (an old Skills block) is saved without one: a stat is never guessed.
 - **Inventory** (a checkbox, on): the things that character carries, as the Inventory tab lists them: names, counts and notes,
   with the kind and rarity each has. A You carries what is in the party's bag; any character also carries what the party
   actor of the same name holds, when a party module lists one. Nothing carried: the box is off.
@@ -103,7 +103,7 @@ anything about the story. Both buttons exist only while the RPG is on.
 
 `items` and `money` are there only when left on. A file is checked when it is read, with the RPG's own limits (Soul Class 1 to 9,
 points 0 to 60, stats 1 to 20, at most five skills with a rank from 0 to 3, names and text cut to the fields' lengths, at most 60
-things with a count of 1 to 999, money a whole number up to 1,000,000,000, the whole file under 64 KB). Keys it does not know are ignored. A
+things with a count of 1 to 999, money a whole number up to 1,000,000,000, the whole file under 64 KB). A skill's `stat` may be missing or null; any other value that is not a stat refuses the file. Keys it does not know are ignored. A
 file that does not pass is refused with one plain sentence ("This is not a saved character file.", "The file has no valid STR (1 to
 20).") and nothing is filled.
 
@@ -112,12 +112,12 @@ step shows "Imported from wessel.character.json: stats, 3 unspent points, Soul C
 
 - The **stats**, the **unspent points** (the pool the stats are spent from), the **Soul Class** and the **skills** are filled. The Stats
   and Skills steps show them and keep the usual rules: a stat can go down to 8 to free a point and up to 15 (a saved stat outside that stays
-  where it was), a skill can be renamed or changed, a skill can be added or removed. A skill's **rank** comes from the file and cannot
+  where it was), a skill can be renamed or changed, a skill can be added or removed. A skill the file gave with no stat shows an empty **Stat**, and the Review's "Fix this first" asks for it ("Iron Breath needs a stat."), like a missing "what it does" line. A skill's **rank** comes from the file and cannot
   be changed here; practice starts at 0.
 - The **name**, **You or A companion** and **who they are** are not touched. XP is 0 and Health, Mana and Stamina start full.
 - **Undo import** puts back what was there before the file (what was typed since stays). Closing the window without Create leaves nothing behind.
-- The Review adds "Also adds: 3 things carried by Ren · 5 silver to the purse. One swipe of this reply takes it all back." for what the
-  file had (the money in this chat's coins).
+- The Review adds "Also adds: 3 things to the party's bag · 5 silver to the purse. One swipe of this reply takes it all back." for what the
+  file had (the money in this chat's coins). It says "3 things carried by Ren" only when a party actor of that name will hold them.
 
 **Create** makes the Character and Skills blocks as before (with the file's Soul Class, points, stats and ranks as their defaults) and
 then, as more changes of the same reply:

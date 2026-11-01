@@ -10,6 +10,7 @@ import { EXPORT_SCREEN_ID, EXPORT_WIDGET } from '../../../../src/v2/lean-rpg/vie
 import { WIZARD_SCREEN_ID } from '../../../../src/v2/lean-rpg/view/wizard.js';
 import { reload } from '../../data-modules/helpers.js';
 import { begin, fieldsOf, makeBlocks, page, party, settle } from './page.js';
+import { characterDefinition, skillsDefinition } from './helpers.js';
 
 const goTo = async (dialog, step) => { dialog.goTo(['who', 'stats', 'skills', 'review'].indexOf(step)); await settle(); return dialog.root.querySelector('.ss-w-rpg-wizard'); };
 const wizardOf = dialog => dialog.root.querySelector('.ss-w-rpg-wizard');
@@ -309,7 +310,7 @@ test('a good file fills the stats, the unspent points, the Soul Class and the sk
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => node.getAttribute('aria-pressed')), ['false', 'true'], 'still a companion');
     assert.equal(who.querySelector('.rpg-import'), null, 'the row gives way to the note');
     const done = who.querySelector('[data-wiz="import-done"]');
-    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills. When you press Create it also adds 3 things and 50 gold to this chat. Give the character a name and who they are below.Undo import');
+    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to this chat. Give the character a name and who they are below.Undo import');
     assert.equal(done.getAttribute('role'), 'status');
     assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-sub').textContent, 'Companion · Soul Class II');
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 3');
@@ -457,14 +458,14 @@ test('a file with no things or money says nothing about them; one with them says
     dialog = await wizardWith(ctx);
     await companion(dialog);
     await importInto(dialog, without('money'));
-    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /When you press Create it also adds 3 things to this chat\./);
+    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /When you press Create it also adds 3 things to the party's bag\./);
     dialog.close();
 
     dialog = await wizardWith(ctx);
     await companion(dialog);
     await importInto(dialog, SAVED);
     review = await goTo(dialog, 'review');
-    assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things carried by Ren · 50 gold to the purse. One swipe of this reply takes it all back.');
+    assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things to the party\'s bag · 50 gold to the purse. One swipe of this reply takes it all back.');
     assert.match(review.querySelector('[data-review="also"]').textContent, /^Also adds: Combat rules, Foes\.$|^Also adds: /, 'the blocks line is the one it always was');
     dialog.close();
     // A purse of 0 and no things in the file: nothing to add, nothing said.
@@ -492,7 +493,7 @@ test('the money is told in this chat\'s coins, and the file keeps only its value
     const wizard = await wizardWith(other);
     await companion(wizard);
     await importInto(wizard, saved.text);
-    assert.match(wizardOf(wizard).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things and 50 crowns to this chat/, 'another game\'s words for the same value');
+    assert.match(wizardOf(wizard).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 50 crowns to this chat/, 'another game\'s words for the same value');
     wizard.close();
 
     const silver = await newcomer(t);
@@ -500,7 +501,7 @@ test('the money is told in this chat\'s coins, and the file keeps only its value
     const w2 = await wizardWith(silver);
     await companion(w2);
     await importInto(w2, saved.text);
-    assert.match(wizardOf(w2).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things and 5 silver to this chat/);
+    assert.match(wizardOf(w2).querySelector('[data-wiz="import-done"]').textContent, /adds 3 things to the party's bag and 5 silver to this chat/);
     w2.close();
 });
 
@@ -698,4 +699,104 @@ test('the RPG\'s dialogs are opaque: the party cards behind the New character wi
     assert.match(readFileSync(new URL('../../../../src/v2/view/mounts.css', import.meta.url), 'utf8'), /background-color: var\(--ss-sheet-floor, var\(--ss-surface\)\);/);
     // The widgets named are the ones the dialogs really draw.
     assert.equal(EXPORT_WIDGET.replace('.', '-'), 'rpg-export');
+});
+
+// ---- a skill with no stat of its own is never given one ---------------------------------------------------------------------------------
+
+// A Skills block as old chats have it: names, ranks and practice, and no stat, resource or "what it does" fields.
+async function oldSkillsBlock(host, who = 'Wessel') {
+    const defs = [characterDefinition('wessel', who), skillsDefinition('wessel-skills', who)].map(definition => ({ ...definition, role: definition.slug.endsWith('skills') ? 'skills' : 'character' }));
+    defs[0].state.soul = { ...defs[0].state.soul };
+    for (const definition of defs) {
+        const { state, ...rest } = definition;
+        const plain = Object.fromEntries(Object.entries(state).map(([key, { names, ...field }]) => [key, field]));
+        const made = await host.sdk.command('dm.define', { definition: { ...rest, state: plain } });
+        assert.equal(made.ok, true, `${definition.slug}: ${made.message}`);
+    }
+    for (const [field, value] of [['skill1', 'Iron Breath'], ['rank1', 2]]) assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/wessel-skills', field, value })).ok, true);
+}
+
+test('a skill whose block has no stat is exported without one: the key is left out, never guessed', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    await oldSkillsBlock(ctx.host);
+    await settle();
+    const saved = await saveFrom(ctx);
+    const data = JSON.parse(saved.text);
+    assert.equal(data.skills.length, 1);
+    assert.deepEqual(Object.keys(data.skills[0]), ['name', 'about', 'uses', 'rank'], 'no stat key');
+    assert.equal(data.skills[0].name, 'Iron Breath');
+    assert.equal(parseCharacterFile(saved.text).ok, true, 'and it reads back');
+});
+
+test('the Review asks for the stat of an imported skill that has none, like the missing "what it does" line, and Create waits', async t => {
+    const ctx = await newcomer(t);
+    const saved = JSON.parse(SAVED);
+    delete saved.skills[0].stat;
+    saved.skills[1].stat = null;
+    saved.skills[0].about = '';
+    const dialog = await wizardWith(ctx);
+    await companion(dialog);
+    await importInto(dialog, JSON.stringify(saved));
+    const skills = await goTo(dialog, 'skills');
+    const rows = skills.querySelectorAll('.rpg-wiz-row[data-skill]');
+    assert.deepEqual(rows.map(row => row.querySelector('[data-field="stat"]').value), ['', ''], 'an empty Stat, not STR');
+    assert.deepEqual(rows[0].querySelector('[data-field="stat"]').querySelectorAll('option').map(node => node.textContent), ['—', 'STR', 'VIT', 'AGI', 'DEX', 'INT', 'LUK', 'CHA']);
+    let review = await goTo(dialog, 'review');
+    assert.deepEqual(review.querySelectorAll('.rpg-wiz-problems li').map(node => node.textContent),
+        ['Fix this first:', 'Iron Breath needs a line about what it does.', 'Iron Breath needs a stat.', 'Short blade needs a stat.']);
+    assert.equal(review.querySelector('.rpg-wiz-create').disabled, true);
+    // Picking the stats (and writing the line) lets Create go; what was picked is what is made.
+    await goTo(dialog, 'skills');
+    const row = n => wizardOf(dialog).querySelectorAll('.rpg-wiz-row[data-skill]')[n];
+    type(row(0).querySelector('[data-field="about"]'), 'Steadies the lungs.');
+    for (const [n, stat] of [[0, 'vit'], [1, 'agi']]) { row(n).querySelector('[data-field="stat"]').value = stat; row(n).querySelector('[data-field="stat"]').dispatch('change'); }
+    review = await goTo(dialog, 'review');
+    assert.ok(wizardOf(dialog).querySelector('.rpg-wiz-problems').hidden);
+    review.querySelector('.rpg-wiz-create').click();
+    await settle();
+    const made = fieldsOf(ctx.host, 'pack.chat/ren-skills');
+    assert.deepEqual([made.stat1, made.stat2, made.rank1], ['vit', 'agi', 2]);
+});
+
+// ---- where the things will go is said plainly -------------------------------------------------------------------------------------------
+
+test('the things "to the party\'s bag" for a You and for a companion with no party actor; "carried by <name>" only when an actor of that name holds them', async t => {
+    // A You: the bag.
+    const you = await page(t, { persona: 'Wessel' });
+    await begin(you.host);
+    let dialog = await wizardWith(you, { empty: true });
+    await importInto(dialog, SAVED);
+    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /also adds 3 things to the party's bag and 50 gold to this chat\./);
+    let review = await goTo(dialog, 'review');
+    assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things to the party\'s bag · 50 gold to the purse. One swipe of this reply takes it all back.');
+    assert.ok(!review.textContent.includes('carried by'));
+    dialog.close();
+
+    // A companion and no party actor: still the bag.
+    const none = await newcomer(t);
+    dialog = await wizardWith(none);
+    await companion(dialog, 'Ren');
+    await importInto(dialog, SAVED);
+    review = await goTo(dialog, 'review');
+    assert.match(review.querySelector('[data-review="import-also"]').textContent, /^Also adds: 3 things to the party's bag · /);
+    assert.ok(!(await goTo(dialog, 'who')).textContent.includes('carried by'));
+    dialog.close();
+
+    // A companion with a party actor of that name: carried by them (the name is read as it is typed).
+    const actors = await page(t, { persona: 'Wessel', modules: [PARTY_STUB([REN])] });
+    await begin(actors.host);
+    await makeBlocks(actors.host, { who: 'Wessel' });
+    await settle();
+    dialog = await wizardWith(actors);
+    await companion(dialog, 'Ren');
+    await importInto(dialog, SAVED);
+    assert.match(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, /also adds 3 things carried by Ren and 50 gold to this chat\./);
+    review = await goTo(dialog, 'review');
+    assert.equal(review.querySelector('[data-review="import-also"]').textContent, 'Also adds: 3 things carried by Ren · 50 gold to the purse. One swipe of this reply takes it all back.');
+    // Another name: no actor, so the bag.
+    await goTo(dialog, 'who');
+    type(wizardOf(dialog).querySelector('[data-wiz="name"]'), 'Brae');
+    assert.match((await goTo(dialog, 'review')).querySelector('[data-review="import-also"]').textContent, /^Also adds: 3 things to the party's bag · /);
+    dialog.close();
 });

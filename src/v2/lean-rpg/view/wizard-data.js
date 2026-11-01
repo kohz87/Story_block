@@ -70,7 +70,8 @@ export function readDraft(raw) {
         if (wantsAdept) adept += 1;
         return {
             name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout),
-            stat: STATS.includes(skill.stat) ? skill.stat : STATS[0], uses: USES.includes(skill.uses) ? skill.uses : USES[0], start: wantsAdept ? 1 : 0,
+            // An imported skill may have no stat (''): the reader picks one, and Create waits for it.
+            stat: STATS.includes(skill.stat) ? skill.stat : (ranked ? '' : STATS[0]), uses: USES.includes(skill.uses) ? skill.uses : USES[0], start: wantsAdept ? 1 : 0,
             ...(ranked ? { rank: clamp(skill.rank, 0, FILE_LIMITS.rank) } : {}),
         };
     });
@@ -128,7 +129,7 @@ export function withImport(draft, file) {
     const { soul: _soul, from: _from, ...rest } = draft;
     const next = {
         ...rest, stats: { ...file.stats }, set: '', from: { stats: { ...file.stats }, points: file.points },
-        skills: file.skills.slice(0, CREATION.skills).map(skill => ({ name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout), stat: skill.stat, uses: skill.uses, start: 0, rank: skill.rank })),
+        skills: file.skills.slice(0, CREATION.skills).map(skill => ({ name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout), stat: skill.stat ?? '', uses: skill.uses, start: 0, rank: skill.rank })),
         ...(file.soul > 1 ? { soul: file.soul } : {}),
     };
     return { draft: next, before };
@@ -183,6 +184,7 @@ export function problemsOf(draft, { persona = '', names = [], room = true, hasYo
         if (seen.has(fold(skill.name))) out.push(fill(W.sameSkill, { name: skill.name }));
         seen.add(fold(skill.name));
         if (!skill.about) out.push(fill(W.needAbout, { name: skill.name }));
+        if (!skill.stat) out.push(fill(W.needStat, { name: skill.name }));
     }
     if (!room) out.push(fill(W.noRoom, { max: DM_LIMITS.definitions }));
     else if (free < CREATE_ACTIONS) out.push(fill(W.noActions, { used: DM_LIMITS.replyRoots - free, max: DM_LIMITS.replyRoots, need: CREATE_ACTIONS }));

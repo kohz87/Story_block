@@ -1,9 +1,9 @@
 // A saved character (Export / Import a character): the file the Party tab's Export writes and the New character wizard's Import reads.
 // Pure: no DOM. It holds only what the user chose to carry between chats: Soul Class, unspent points, the seven stats, up to five skills
-// (name, what it does, stat, Stamina or Mana, rank), and, if left on, the things the character carries and the purse.
+// (name, what it does, stat (left out for a skill whose block has none: a stat is never guessed), Stamina or Mana, rank), and, if left on, the things the character carries and the purse.
 //
 //   { "storySuiteCharacter": 1, "soul": 2, "points": 3, "stats": { "str": 14, … "cha": 10 },
-//     "skills": [{ "name", "about", "stat", "uses", "rank" }], "items"?: [{ "name", "qty", "note"?, "kind"?, "rarity"? }], "money"?: <base units> }
+//     "skills": [{ "name", "about", "stat"?, "uses", "rank" }], "items"?: [{ "name", "qty", "note"?, "kind"?, "rarity"? }], "money"?: <base units> }
 //
 // `parseCharacterFile` checks a file with the RPG's own limits (the Character and Skills fields, the inventory's name and note lengths)
 // and hands back a clean copy: unknown keys are dropped, text is one line, nothing is kept that was not asked for. A bad file is
@@ -32,14 +32,14 @@ const line = (value, max) => [...(typeof value === 'string' ? value.replace(/\p{
 const bad = message => ({ ok: false, message });
 
 /**
- * A saved character file, as the plain object that is written. `character`: { soul, points, stats, skills: [{ name, about, stat, uses, rank }] };
+ * A saved character file, as the plain object that is written. `character`: { soul, points, stats, skills: [{ name, about, stat?, uses, rank }] };
  * `items` (omit to leave the inventory out): [{ name, qty, note?, kind?, rarity? }]; `money` (omit to leave the purse out): whole base units.
  */
 export function buildCharacterFile({ soul, points, stats, skills = [], items = null, money = null }) {
     const file = {
         [CHAR_FILE]: CHAR_VERSION, soul, points,
         stats: Object.fromEntries(STATS.map(stat => [stat, stats[stat]])),
-        skills: skills.slice(0, SKILL_SLOTS).map(skill => ({ name: skill.name, about: skill.about, stat: skill.stat, uses: skill.uses, rank: skill.rank })),
+        skills: skills.slice(0, SKILL_SLOTS).map(skill => ({ name: skill.name, about: skill.about, ...(STATS.includes(skill.stat) ? { stat: skill.stat } : {}), uses: skill.uses, rank: skill.rank })),
     };
     if (Array.isArray(items)) {
         file.items = items.map(item => ({ name: item.name, qty: item.qty, ...(item.note ? { note: item.note } : {}),
@@ -61,8 +61,10 @@ export function fileNameOf(name) {
 function readSkill(entry) {
     if (!isRecord(entry)) return null;
     const name = line(entry.name, CREATION.skillName);
-    if (!name || !STATS.includes(entry.stat) || !USES.includes(entry.uses) || !whole(entry.rank, 0, FILE_LIMITS.rank)) return null;
-    return { name, about: line(entry.about, CREATION.skillAbout), stat: entry.stat, uses: entry.uses, rank: entry.rank };
+    // A skill with no stat (an old Skills block had none) is read without one: both a missing key and null mean "none"; any other value is not valid.
+    const hasStat = entry.stat !== undefined && entry.stat !== null;
+    if (!name || (hasStat && !STATS.includes(entry.stat)) || !USES.includes(entry.uses) || !whole(entry.rank, 0, FILE_LIMITS.rank)) return null;
+    return { name, about: line(entry.about, CREATION.skillAbout), ...(hasStat ? { stat: entry.stat } : {}), uses: entry.uses, rank: entry.rank };
 }
 
 function readItem(entry) {

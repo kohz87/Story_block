@@ -48,7 +48,7 @@ export function characterOfCard(character) {
     }));
     const skills = character.skills.slice(0, 5).map(skill => ({
         name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout),
-        stat: STATS.includes(skill.stat) ? skill.stat : STATS[0], uses: USES.includes(skill.uses) ? skill.uses : USES[0],
+        ...(STATS.includes(skill.stat) ? { stat: skill.stat } : {}), uses: USES.includes(skill.uses) ? skill.uses : USES[0],
         rank: clamp(Number.isSafeInteger(skill.rank) ? skill.rank : 0, 0, FILE_LIMITS.rank),
     }));
     return { soul: clamp(character.soul, ...FILE_LIMITS.soul), points: clamp(character.points, 0, FILE_LIMITS.points), stats, skills };
@@ -200,4 +200,3 @@ export function createExporter({ headState = () => null, readerName = () => '', 
 
     return { screen: createExportScreen(), widget, open, session: () => session, destroy() { try { session?.handle?.close?.(); } catch { /* already closed */ } session = null; } };
 }
-

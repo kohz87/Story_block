@@ -188,6 +188,8 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const file = current().imported?.file;
                 return { things: file?.items?.length ?? 0, money: file?.money > 0 ? file.money : 0 };
             };
+            // "3 things to the party's bag", or "3 things carried by Ren" only when a party actor of that name will hold them.
+            const thingsPhrase = (n, draftNow) => (ownerFor(draftNow) === 'party' ? fill(W.reviewThingsBag, { things: thingsWord(n) }) : fill(W.reviewThings, { things: thingsWord(n), name: draftNow.name }));
             async function importFile(file) {
                 const run = current();
                 if (!file) return;
@@ -225,7 +227,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     const points = file.points === 0 ? W.importNoPoints : fill(file.points === 1 ? W.importPointsOne : W.importPoints, { n: file.points });
                     const skills = file.skills.length === 0 ? W.importNoSkills : fill(file.skills.length === 1 ? W.importSkillsOne : W.importSkills, { n: file.skills.length });
                     const adds = importedAdds();
-                    const list = [adds.things ? thingsWord(adds.things) : '', adds.money ? formatAmount(adds.money, currency()) : ''].filter(Boolean).join(' and ');
+                    const list = [adds.things ? thingsPhrase(adds.things, snap()) : '', adds.money ? fill(W.importMoney, { amount: formatAmount(adds.money, currency()) }) : ''].filter(Boolean).join(' and ');
                     box.appendChild(h(doc, 'span', 'rpg-import-text', [fill(W.importDone, { file: fileName, points, label: soulWords.label, soul: soulWords.word(file.soul), skills }),
                         list ? fill(W.importAdds, { list }) : '', W.importName].filter(Boolean).join(' ')));
                     button(box, W.importUndo, 'ss-button rpg-import-undo', undoImport);
@@ -379,7 +381,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     const about = input(skill.about, CREATION.skillAbout, fill(W.skillAbout, { name: label }));
                     about.className = 'rpg-wiz-input rpg-wiz-d';
                     about.setAttribute('data-field', 'about');
-                    const stat = select(STATS.map(key => ({ value: key, label: key.toUpperCase() })), skill.stat, fill(W.skillStat, { name: label }));
+                    const stat = select([...(skill.stat ? [] : [{ value: '', label: '—' }]), ...STATS.map(key => ({ value: key, label: key.toUpperCase() }))], skill.stat ?? '', fill(W.skillStat, { name: label }));
                     stat.setAttribute('data-field', 'stat');
                     const uses = select(USES.map(key => ({ value: key, label: W[key] })), skill.uses, fill(W.skillUses, { name: label }));
                     uses.setAttribute('data-field', 'uses');
@@ -425,7 +427,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 list.appendChild(about);
                 list.appendChild(h(doc, 'p', 'rpg-wiz-p', `${W.statsHead}: ${statsLine(now)}`));
                 const skills = h(doc, 'ul', 'rpg-wiz-review-skills');
-                for (const skill of now.skills) skills.appendChild(h(doc, 'li', '', `${skill.name || '—'} · ${skill.stat.toUpperCase()} · ${W[skill.uses]} · ${W.startsAt} ${RANK_NAMES[rankOf(skill)]}`));
+                for (const skill of now.skills) skills.appendChild(h(doc, 'li', '', `${skill.name || '—'} · ${skill.stat ? skill.stat.toUpperCase() : '—'} · ${W[skill.uses]} · ${W.startsAt} ${RANK_NAMES[rankOf(skill)]}`));
                 if (!now.skills.length) skills.appendChild(h(doc, 'li', '', W.noSkills));
                 list.appendChild(skills);
                 list.appendChild(h(doc, 'p', 'rpg-wiz-note', current().imported ? fill(W.reviewStartImported, { label: soulWords.label, name: soulWords.word(now.soul ?? 1) })
@@ -441,7 +443,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 }
                 const adds = importedAdds();
                 if (adds.things || adds.money) {
-                    const parts = [adds.things ? fill(W.reviewThings, { things: thingsWord(adds.things), name: now.name || '…' }) : '', adds.money ? fill(W.reviewMoney, { amount: formatAmount(adds.money, currency()) }) : ''];
+                    const parts = [adds.things ? thingsPhrase(adds.things, now) : '', adds.money ? fill(W.reviewMoney, { amount: formatAmount(adds.money, currency()) }) : ''];
                     const more = h(doc, 'p', 'rpg-wiz-note rpg-wiz-also-import', fill(W.reviewAlsoImport, { list: parts.filter(Boolean).join(' · ') }));
                     more.setAttribute('data-review', 'import-also');
                     list.appendChild(more);

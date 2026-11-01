@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CHAR_FILE, FILE_LIMITS, buildCharacterFile, fileNameOf, fileText, itemLine, itemsForFile, parseCharacterFile, skillLine, thingsWord } from '../../../src/v2/lean-rpg/charfile.js';
 import { CREATION, STATS } from '../../../src/v2/lean-rpg/index.js';
-import { buildDefinitions, newDraft, pointsLeft, readDraft, startStats, statBounds, withImport, withoutImport, withSkillPatch, adeptCount } from '../../../src/v2/lean-rpg/view/wizard-data.js';
+import { buildDefinitions, newDraft, pointsLeft, problemsOf, readDraft, startStats, statBounds, withImport, withoutImport, withSkillPatch, adeptCount } from '../../../src/v2/lean-rpg/view/wizard-data.js';
 
 const STAT_VALUES = { str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10 };
 const SKILLS = [
@@ -230,4 +230,32 @@ test('Create writes the file\'s ranks into the Skills block, its points and Soul
     // Unspent points are what is left of the pool after the reader's changes.
     const spent = readDraft({ ...draft, stats: { ...draft.stats, str: 15, vit: 13 } });
     assert.equal(buildDefinitions(spent, { used: [] }).character.state.points.default, 1, 'STR +1 and VIT +1 out of 3');
+});
+
+test('a skill with no stat: written without the key, read from a missing key or null, refused for any other value, and never given one', () => {
+    const noStat = { name: 'Iron Breath', about: 'Steadies the lungs.', uses: 'stamina', rank: 2 };
+    const file = buildCharacterFile(sample({ skills: [noStat, { ...SKILLS[1], stat: null }, { ...SKILLS[1], stat: 'oops' }] }));
+    assert.deepEqual(Object.keys(file.skills[0]), ['name', 'about', 'uses', 'rank']);
+    assert.deepEqual(Object.keys(file.skills[1]), ['name', 'about', 'uses', 'rank'], 'null is left out too');
+    assert.deepEqual(Object.keys(file.skills[2]), ['name', 'about', 'uses', 'rank'], 'so is a value that is no stat');
+    const read = parseCharacterFile(JSON.stringify({ ...base(), skills: [noStat, { ...noStat, name: 'Other', stat: null }] }));
+    assert.equal(read.ok, true);
+    assert.deepEqual(read.file.skills.map(skill => Object.hasOwn(skill, 'stat')), [false, false], 'no stat is kept as no stat, not STR');
+    refused({ ...base(), skills: [{ ...noStat, stat: 'hp' }] }, /Skill 1 in the file is not valid/);
+    refused({ ...base(), skills: [{ ...noStat, stat: '' }] }, /Skill 1/);
+    assert.equal(good(sample({ skills: [noStat] })).skills[0].name, 'Iron Breath', 'round trip');
+});
+
+test('an imported skill with no stat has an empty Stat in the draft, and Create is held up until one is picked', () => {
+    const { draft } = withImport(typed(), good(sample({ skills: [{ name: 'Iron Breath', about: 'Steadies the lungs.', uses: 'stamina', rank: 2 }, SKILLS[1]] })));
+    assert.deepEqual(draft.skills.map(skill => skill.stat), ['', 'int']);
+    const whole = readDraft(draft);
+    assert.deepEqual(whole.skills.map(skill => [skill.stat, skill.rank]), [['', 2], ['int', 0]], 'reading the draft does not give it STR');
+    const world = { persona: 'Wessel', names: ['Wessel'], room: true, hasYou: true };
+    assert.deepEqual(problemsOf(whole, world), ['Iron Breath needs a stat.']);
+    const picked = readDraft(withSkillPatch(whole, 0, { stat: 'vit' }));
+    assert.deepEqual(problemsOf(picked, world), []);
+    assert.equal(buildDefinitions(picked, { used: [] }).skills.state.stat1.default, 'vit');
+    // Without an import a typed skill still starts at STR, as it always did.
+    assert.equal(readDraft({ ...newDraft(), skills: [{ name: 'Spark', about: 'a', stat: 'oops', uses: 'mana' }] }).skills[0].stat, 'str');
 });
