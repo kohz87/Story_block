@@ -270,7 +270,7 @@ test('the page: the status strip is Story Block\'s feature; the drawer switch an
     ui.setHud(true);
     assert.ok(doc.querySelector('.ss-hud'));
     assert.equal(host.sdk.feature(CORE_FEATURE.hud), true);
-    assert.equal(host.ctx.extensionSettings.storySuite.features[CORE_FEATURE.hud], true);
+    assert.equal(host.ctx.extensionSettings.storySuite.features[CORE_FEATURE.hud], undefined, 'on is the default: the stored choice is cleared, not written');
     assert.equal(host.ctx.extensionSettings.storySuite.hud, true, 'the old switch kept in step');
     // The feature's choice wins over the old switch; without one the old switch counts.
     assert.equal(hudOn({ storySuite: { hud: false, features: { [CORE_FEATURE.hud]: true } } }), true);

@@ -113,6 +113,57 @@ test('picking sets every in-preset feature through the setter; presets:false and
     assert.equal(applyPreset(null, 'lean'), null);
 });
 
+test('setting a feature to its own default clears the stored choice (a preset or a switch flip), so a later change of the default reaches the reader', () => {
+    const { features, root, told } = store();
+    const stored = () => ({ ...root.storySuite.features });
+    // Lean writes the two it turns off; Standard puts them back to their default, so nothing is left stored.
+    features.applyPreset('lean');
+    assert.deepEqual(stored(), { 'tr.both': false, 'tr.lean-only': false });
+    features.applyPreset('standard');
+    assert.deepEqual(stored(), {}, 'back to the defaults: no choice kept');
+    assert.deepEqual(states(features), { 'tr.both': true, 'tr.lean-only': true, 'tr.full-only': false, 'tr.mine': true, 'tr.plain': false });
+    // Full then Standard: the one Full turned on, off again, is cleared too (and the told changes are the same as before).
+    features.applyPreset('full');
+    assert.deepEqual(stored(), { 'tr.full-only': true }, 'only the switch that differs from its default is written');
+    features.applyPreset('standard');
+    assert.deepEqual(stored(), {});
+    // A plain switch flip is the same: off and back on leaves nothing; a flip away from the default is kept.
+    features.set('tr.plain', true);
+    assert.deepEqual(stored(), { 'tr.plain': true });
+    told.length = 0;
+    assert.equal(features.set('tr.plain', false), false);
+    assert.deepEqual(stored(), {});
+    assert.deepEqual(told.map(change => [change.id, change.on]), [['tr.plain', false]], 'still told once');
+    assert.equal(features.set('tr.plain', false), false, 'the same again: still the default, still nothing kept');
+    assert.deepEqual(stored(), {});
+    assert.equal(features.stored('tr.plain'), undefined);
+    // A later change of a module's default reaches this reader, who has no stored choice for it.
+    const changed = tracker();
+    changed.features[1] = { ...changed.features[1], default: false };
+    let later = null;
+    const registry = createRegistry({ featureValue: id => later?.stored(id) });
+    registry.register(changed);
+    later = createFeatureStore({ root: () => root, registry });
+    assert.equal(later.on('tr.lean-only'), false, 'the new default');
+    assert.equal(features.on('tr.lean-only'), true, 'the first registry still declares the old default');
+});
+
+test('a feature an older setting still speaks for keeps the explicit value (clearing it would bring the old switch back)', () => {
+    let features = null;
+    const registry = createRegistry({ featureValue: id => features?.stored(id) });
+    registry.register(tracker());
+    const root = { storySuite: { old: false, features: {} } };
+    features = createFeatureStore({ root: () => root, registry, legacy: { 'tr.both': suite => (suite?.old === false ? false : undefined) } });
+    assert.equal(features.on('tr.both'), false, 'the older switch says off');
+    features.set('tr.both', true);
+    assert.equal(root.storySuite.features['tr.both'], true, 'kept: the default would otherwise lose to the older switch');
+    assert.equal(features.on('tr.both'), true);
+    // A feature with no older setting is cleared as usual.
+    features.set('tr.plain', true);
+    features.set('tr.plain', false);
+    assert.equal(Object.hasOwn(root.storySuite.features, 'tr.plain'), false);
+});
+
 test('a switch that does not change the fixed prompt is not reported as a prompt change', () => {
     const quiet = { id: 'qt', name: 'Quiet', version: '0.0.1', features: [{ id: 'qt.tab', label: 'Tab', default: true, presets: { lean: false } }] };
     const { features } = store({}, [quiet]);
@@ -179,6 +230,25 @@ test('Story Block\'s own presets through the real store: Lean, Full, Standard an
     // The switches the preset left alone keep what the reader chose, and the story is the same.
     for (const id of Object.keys(storedBefore)) assert.equal(host.ctx.extensionSettings.storySuite.features[id], storedBefore[id], id);
     assert.equal(JSON.stringify(host.store.head()), stateBefore);
+    host.close();
+});
+
+test('Story Block\'s own presets: Lean then Standard (and Full then Standard) leave no stored choice of the features they speak for', async () => {
+    const host = await createHost({ settings: { features: { [CORE_FEATURE.extractor]: true } } });
+    const stored = () => ({ ...host.ctx.extensionSettings.storySuite.features });
+    const before = stored();
+    host.features.applyPreset('lean');
+    assert.ok(Object.keys(stored()).length > Object.keys(before).length, 'Lean writes what it turns off');
+    host.features.applyPreset('standard');
+    assert.deepEqual(stored(), before, 'Standard clears them again: the choices the preset does not speak for are as they were');
+    host.features.applyPreset('full');
+    host.features.applyPreset('standard');
+    assert.deepEqual(stored(), before);
+    host.features.applyPreset('lean');
+    host.features.applyPreset('full');
+    host.features.applyPreset('standard');
+    assert.deepEqual(stored(), before);
+    assert.equal(selectedPreset(host.features.list()), 'standard');
     host.close();
 });
 

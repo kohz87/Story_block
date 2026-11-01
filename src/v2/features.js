@@ -275,11 +275,18 @@ export function createFeatureStore({ root, registry, save = () => {}, legacy = C
     const api = {
         stored,
         on: id => registry.featureOn(id),
-        /** Stores the reader's choice; undefined (nothing stored) for an id no module declares. */
+        /**
+         * Stores the reader's choice; undefined (nothing stored) for an id no module declares. A choice that is the feature's own
+         * default is not kept (the stored choice is cleared), so a later change of the default still reaches the reader; the exception
+         * is a feature an older setting still speaks for (`legacy`), which keeps the explicit value.
+         */
         set(id, on) {
-            if (!registry.feature(id)) return undefined;
+            const decl = registry.feature(id);
+            if (!decl) return undefined;
             const before = registry.featureOn(id);
-            choices()[id] = Boolean(on);
+            const old = typeof legacy?.[id] === 'function' ? legacy[id](suite()) : undefined;
+            if (Boolean(on) === (decl.default !== false) && typeof old !== 'boolean') delete choices()[id];
+            else choices()[id] = Boolean(on);
             save();
             // Told only when it is on or off now as it was not before: a feature of a module held back stays off.
             if (before !== Boolean(on) && before !== registry.featureOn(id)) tell(id);
