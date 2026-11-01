@@ -131,11 +131,18 @@ test('NPC State Delta\'s built-in presets and their meters need no definition in
     refused(one({ secrets: [{ title: 'T', text: 'Body', meter: 'devotion', at: 10 }] }), 'UNKNOWN_REF', 'content.cast[0].secrets[0].meter');
 });
 
-test('a secret opens by a meter and a value, or by a story event, never both and never neither', () => {
+test('a secret opens by a meter and a value, by a story event, or by both (whichever first); never neither', () => {
     const secret = extra => one({ secrets: [{ title: 'T', text: 'Body', ...extra }] });
     ok(secret({ meter: 'affection', at: -20 }));
     ok(secret({ when: 'she is asked about the weir' }));
-    refused(secret({ meter: 'trust', at: 10, when: 'x' }), 'BAD_RECORD', 'content.cast[0].secrets[0]');
+    // both rules: kept together, in full
+    const both = ok(secret({ meter: 'trust', at: 90, when: 'she is asked about the weir' }));
+    assert.deepEqual(contentOf([both], 'cast')[0].secrets, [{ title: 'T', text: 'Body', meter: 'trust', at: 90, when: 'she is asked about the weir' }]);
+    refused(secret({ meter: 'trust', at: 10, when: 'w'.repeat(CAST_LIMITS.secretWhen + 1) }), 'BAD_RECORD', 'content.cast[0].secrets[0].when');
+    refused(secret({ meter: 'trust', at: 10, when: '' }), 'BAD_RECORD', 'content.cast[0].secrets[0].when');
+    refused(secret({ meter: 'trust', when: 'x' }), 'BAD_RECORD', 'content.cast[0].secrets[0].at');
+    refused(secret({ meter: 'devotion', at: 5, when: 'x' }), 'UNKNOWN_REF', 'content.cast[0].secrets[0].meter');
+    refused(secret({ meter: 'trust', at: 10, when: 'a <b> tag' }), 'BAD_RECORD', 'content.cast[0].secrets[0].when');
     refused(secret({}), 'BAD_RECORD', 'content.cast[0].secrets[0]');
     refused(secret({ meter: 'trust' }), 'BAD_RECORD', 'content.cast[0].secrets[0].at');
     refused(secret({ meter: 'devotion', at: 5 }), 'UNKNOWN_REF', 'content.cast[0].secrets[0].meter');

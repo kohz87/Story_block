@@ -24,6 +24,7 @@
 | Name, place, goal and routine, drawn-to phrase | 80, 80, 200, 80 characters |
 | Aliases, drawn-to phrases, fields, secrets per person | 8, 6, 6, 8 |
 | Secret title, text, event | 60, 300, 120 characters |
+| Secret rule | a meter and value, a story event, or both (opens at whichever comes first); at least one |
 | One portrait | WebP, PNG or JPEG, 64 KB at most |
 | Portrait files in one pack | 32 |
 | A pack zip: the zip, unpacked in all, entries | 5 MB, 4 MB, 40 |
