@@ -184,6 +184,14 @@ renderModuleForm(parent, def, { settings, doc });   // def = one settingsDefs() 
   range with `aria-valuetext`; the list's Remove names the item ("Remove Frostmoon"), the focus goes to the next
   Remove or to Add after a removal and to the new row's first field after an Add; the search box is `role="search"` with a
   hidden label, Escape clears it, and the count of rows shown is a polite live region.
+- **How much to track** (`presets.js`, drawn at the top of the features form): a `role=radiogroup` of three `role=radio` tiles (Lean, Standard,
+  Full: what each tracks, and "≈ N tokens of rules each reply" from `staticTextWith(registry, switches)`, built through
+  `registry.withFeatures` so nothing is switched or stored; estimated at once, then counted by SillyTavern's tokenizer when it answers;
+  left out when it cannot be built), a "Custom" tag (`role=status`) when no tile matches, the note under them, and a "Fine-tune" label
+  over the module groups. The selected tile is derived from the switches on every paint (`selectedPreset`), never stored. A pick runs
+  `applyPreset(store, name)`: the ordinary `set` for each in-preset, available feature not already as the preset says, and the usual
+  `PROMPT_HINT` once when a changed feature alters the fixed prompt. Arrow keys move the focus (one Tab stop); Space, Enter or a click picks.
+  The search hides the group. Features declare their part with `presets` (SPEC §Features).
 - **The features form** (`features.js`, step 3b): `renderFeaturesForm(parent, { features, doc, onChange })`, Features (MODULES §F100) as
   switch tiles through the feature store (`list()`, `set(id, on)`; the settings store is not involved): one group per module by name
   (a labelled `section`, an `h4` and "N of M on" beside it, `data-fold="story-suite-features::<module id>"`, the heading
