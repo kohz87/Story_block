@@ -1,6 +1,6 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.3.0, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.4.0, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
@@ -28,14 +28,14 @@ SillyTavern profile.
 
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil/pack.json`.
    The message says "Installed Ersveil (open world)." and the list shows "136 events, 320 places, 350 routes,
-   1 skill set, 2 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
+   1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
-Importing 2.3.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
-2.3.0 adds two sample cast entries, Fenna the ferrywoman and Sera the river scout (`content.cast`, see PACKS.md "The cast"); a Story Block that knows the cast kind (after 2.14) reads them, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
+Importing 2.4.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
+2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import the pack as the `.zip` (`pack.json` and `portraits/`) or pick `pack.json` and the twelve `.webp` files together, or the portraits stay unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
 
@@ -94,6 +94,28 @@ Once a module is enabled the narrator is told its `dm …` lines; a refused line
   lorebook spoils it. **Settings → Diagnostics → Events** lists every event, and does spoil it.
 * **RPG.** With the RPG on (Settings → RPG), the New character window offers the pack's **Sealwarden recruit** skill
   set: Gate spear, Ward-reading, Lamp-keeping, Breach drill and Gate challenge.
+
+### The twelve
+
+`content.cast` holds twelve people, each met by place or because what they want pulls them to the party. What each one hides
+opens as Trust or Affection grows or when the story reaches it; none of it is told before.
+
+| Person | Where they begin | One line |
+|---|---|---|
+| Sister Temiwa | Bluewatch Village | A fox-eared saintess candidate cast out to the frontier, a sarcastic healer who keeps the dead at rest. |
+| Ysmeth | Shackles City / Chainmarket | A dwelf rune-collar artificer held by the Grey Ledger, cold, exact and planning every exit. |
+| Nysseth | Shackles City / Knifeglass Alley | A soft-spoken elf who runs a Broken Chain cell from a knife-grinder's stall and teaches by asking what you missed. |
+| Rika | Auvoth / Pale Market | A white-haired barge-girl mage with huge, unrefined power who cannot read and will not say so. |
+| Harrak | Varnhold Watch | The orc captain of the Long Watch, old and tired, who sings while he fights. |
+| Torka | Bluewatch Village | A loud, hot-blooded young orc berserker hunting the Wildzone for a deed-name. |
+| Sir Lothar | Highmark Capital | A gentle, poetic Iron Guard knight sworn to Princess Wendhild. |
+| Gorm Kettlebright | Highmark Capital | Ardelia's jolly, hugging envoy, who plays the fool because fools hear everything. |
+| Nerissa | Abysswatch | A teasing Atlantean pilot of the privateer Gannet, called a deserter by her own people. |
+| Hush | Vargate | A spirit of silver rain who lights the night lamps and guides the lost. |
+| Asphodel | Corrowen | A calm, watchful stranger who sells secrets in the harbor taverns. |
+| Barney Thimblewick | Thousand Sails | A halfling barge gambler and con man, the cast's grandfather figure (not a romance). |
+
+The eleven who can be romanced use NPC State Delta's companion meters (Trust, Affection, Desire, Tension); Barney uses the mentor's, with no Desire.
 
 ## 7. Updating the pack
 
