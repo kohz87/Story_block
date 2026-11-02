@@ -407,7 +407,7 @@ that redraws with another `selected` / `current` wins over the choice the widget
 ### `ss.hero`
 
 The hero card: portrait, name, level/class pill, bars, a place/time/weather corner, status badges. Read-only (no
-command). On a phone the portrait, the name and the corner share a row with the bars and badges under it; in a
+command), except for the game view's header (`where`), whose one **Edit** button opens one editor. On a phone the portrait, the name and the corner share a row with the bars and badges under it; in a
 box 600 px or wider (a container query, so a side panel gets the narrow one) the portrait grows, the corner moves above
 the name and the bars go to a column on the right (the concept's character card). `compact` is the one-row strip for
 under a reply (36 px portrait, the name and pill, three small bars, small badges; no corner, no experience bar).
@@ -420,9 +420,13 @@ under a reply (36 px portrait, the name and pill, three small bars, small badges
 | `line` | string | `''` | the pill's whole text; else built from `className`, `level` ("Lv 12" when it is a number) and `title` (the epithet) |
 | `bars` | list | `[]` | `[{ kind, label, value, max, text }]`, at most 6; `kind` `hp`, `mp`, `sp` go in a row (a column on a wide card), `exp` is the experience bar under them, labelled with the Terms' own word |
 | `place`, `time`, `weather` | string | `''` | the corner, each with its icon; empty ones are left out. The words wrap (never cut) |
-| `where` | object | `null` | the game view's header: `{ present: [names], places: [names or { name }], weatherOn, place, weatherText }`. The corner then also has a `Here: names` item after the weather, and the place, the weather and Here each have a pencil that runs `scene.place`, `scene.weather` and `scene.present` through `api.command` (an empty one still shows, with a dash, so there is a pencil to set it); `weatherOn: false` leaves the weather and its pencil out. Without it the corner is read-only |
+| `where` | object | `null` | the game view's header: `{ present: [names], places: [names or { name }], weatherOn, place, weatherText }`. The corner then also has a `Here: names` item after the weather (plain lines, no pencils; an empty one still shows, with a dash), and the card has ONE "Edit" button (a pencil icon and the word; top-right from 600 px, beside the name on a phone) that opens one editor in the card, hiding the lines it edits. Without it the corner is read-only and has no button |
+| `you` | object | `null` | `{ rank?, rankLabel?, wearing, condition, command }`: the Rank (under the pack's own word, only when `rankLabel` is given), Wearing and Condition rows under the place line, plain text; the editor's "Character" group |
+| `clock` | object | `null` | `{ parts: { year, month, day, minutes } \| null, era, months: [{ name, days }] }`: the editor's Year (with the era word), Month, Day and Time fields (Story Director's clock; `parts: null` while it is unset). Without it the editor has no date or time fields |
 | `statuses` | list | `[]` | `[{ id, label, icon, left, unit, tone }]`, at most 12: `ss.status` badges |
 | `compact` | boolean | `false` | |
+
+The editor (`view/hero-edit.js`, an `ss.editable` of kind `fields` with two groups): "Story" (Year, Month, Day, Time when `clock` is given; Place, with the pack's places suggested; Weather while its feature is on; Here, the people as a comma-separated text field) and "Character" (Rank when the game gives one, Wearing, Condition: only with `you`), the help line "Changes apply from this reply on.", Save and Cancel. Save sends nothing when nothing changed. Otherwise it sends, for the fields that changed only, in this order through `api.command`: `director.clock` (`{ year, month, day, minutes }`, the whole date and time as one command; Story Director checks it against its calendar), `scene.place` (the people stay with the move), `scene.weather`, `scene.present` (`{ set }`), `scene.you` (the changed parts in one). The first refusal stops the rest: its sentence shows under the fields and the editor stays open (a step that went through is not sent again by the next Save). A field that cannot be read (a date part that is not a whole number) saves nothing and is named. Escape and Cancel close without saving; the focus goes back to the Edit button.
 
 The pictures are tried in order: the query's answer (`portraitQuery`, a string or `{ url }` / `{ src }`), then `portraits`, then
 `portrait`. A picture that is refused (not a safe URL) is left out, and one that fails to load (an `error` on the image) is skipped

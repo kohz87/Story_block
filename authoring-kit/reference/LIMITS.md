@@ -25,9 +25,10 @@
 | Aliases, drawn-to phrases, fields, secrets per person | 8, 6, 6, 8 |
 | Secret title, text, event | 60, 300, 120 characters |
 | Secret rule | a meter and value, a story event, or both (opens at whichever comes first); at least one |
-| One portrait | WebP, PNG or JPEG, 64 KB at most |
+| One portrait, picked | WebP, PNG or JPEG, 10 MB at most |
+| One portrait, kept | 150 KB at most: a larger picture is made smaller on import (WebP, 1200 px on its long side at most); a picture already that small is kept as it is |
 | Portrait files in one pack | 32 |
-| A pack zip: the zip, unpacked in all, entries | 5 MB, 4 MB, 40 |
+| A pack zip: the zip, unpacked in all, one file in it, entries | 322 MB, 322 MB, 10 MB, 40 |
 
 ## Data modules (interpreter 1)
 

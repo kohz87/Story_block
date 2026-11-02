@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.16.0
+
+- **Sharper portraits, any common picture.** A pack's portraits may be PNG, JPEG or WebP up to 10 MB each (in a .zip
+  or picked with the pack). Story Block shrinks a large picture in the browser to a WebP of at most 1200 px on its long
+  side and 150 KB (was 64 KB / 600 px); a picture already within that is stored byte for byte. A picture that cannot be
+  read or made small enough is refused in one sentence naming the file. Zip limits rise to match.
+- **One Edit button in the Game view header.** The pencils beside place, weather, who is here, rank, wearing and
+  condition are gone; one small "Edit" opens a single editor with Story (date and time when Story Director 2.9.0 runs,
+  place, weather, here) and Character (rank, wearing, condition). Only what you change is saved, on this reply; a date
+  the calendar does not have saves nothing and says why.
+- **The "This reply" card stays in view.** When a reply's card is drawn or grows while you are reading at the bottom,
+  the chat scrolls to show it; if you had scrolled up, nothing moves.
+- `CAST_BUILT_IN_PRESETS` (companion, rival, mentor) is exported for tools such as Story Studio.
+- The Ersveil sample pack (2.4.1) has sharper portraits of its twelve cast and needs this version.
+
 ## 2.15.1
 
 - A pack's cast secret can open **at a meter value or on a story event, whichever comes first**: it may carry both

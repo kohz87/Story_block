@@ -13,19 +13,33 @@ test('Home and Scene offer weather editing only while the feature is on, even wh
     const ui = mountUi({ runtime: host, ctx: host.ctx, doc });
     t.after(() => { ui.destroy(); host.close(); });
     await host.send('Look.', 'A quiet road.');
+    // Scene's own pencil, and the Game view header's one editor (Home): its Weather field. (The header's per-item pencils are gone: one Edit button.)
     const pencil = () => doc.querySelector('.ss-gameview [aria-label="Edit weather"]');
-    for (const id of ['story-block/home', 'story-block/scene']) {
-        assert.equal(ui.mounts.screen.open(id), true);
-        assert.ok(pencil(), `${id}: the unset weather can be edited`);
-        host.features.set(CORE_FEATURE.weather, false);
-        assert.equal(pencil(), null, `${id}: the pencil is hidden while the feature is off`);
-        host.features.set(CORE_FEATURE.weather, true);
-        assert.ok(pencil(), `${id}: the pencil returns when the feature is on`);
-    }
+    const field = () => doc.querySelector('.ss-gameview .ss-hero-editor input[aria-label="Weather"]');
+    const editorWeather = () => {
+        doc.querySelector('.ss-gameview .ss-hero-edit').click();
+        const there = Boolean(field());
+        doc.querySelector('.ss-gameview .ss-hero-editor .ss-w-editable-cancel').click();
+        return there;
+    };
+    assert.equal(ui.mounts.screen.open('story-block/home'), true);
+    assert.equal(pencil(), null, 'Home\'s header has no per-item pencil');
+    assert.equal(editorWeather(), true, 'story-block/home: the unset weather can be edited');
+    host.features.set(CORE_FEATURE.weather, false);
+    assert.equal(editorWeather(), false, 'story-block/home: no Weather field while the feature is off');
+    host.features.set(CORE_FEATURE.weather, true);
+    assert.equal(editorWeather(), true, 'story-block/home: the field returns when the feature is on');
+    assert.equal(ui.mounts.screen.open('story-block/scene'), true);
+    assert.ok(pencil(), 'story-block/scene: the unset weather can be edited');
+    host.features.set(CORE_FEATURE.weather, false);
+    assert.equal(pencil(), null, 'story-block/scene: the pencil is hidden while the feature is off');
+    host.features.set(CORE_FEATURE.weather, true);
+    assert.ok(pencil(), 'story-block/scene: the pencil returns when the feature is on');
+    assert.equal(ui.mounts.screen.open('story-block/home'), true);
     assert.equal((await host.sdk.command('scene.weather', { text: 'rain' })).ok, true);
     host.features.set(CORE_FEATURE.weather, false);
-    assert.equal(pencil(), null);
+    assert.equal(editorWeather(), false);
     host.features.set(CORE_FEATURE.weather, true);
-    assert.ok(pencil());
+    assert.equal(editorWeather(), true);
     assert.equal(host.sdk.query('scene.weather').text, 'rain');
 });

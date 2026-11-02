@@ -405,6 +405,12 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   The card is a glass card (the frame is a
   theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted, one line that ends in an ellipsis), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
   folded by default, as before (the card mount's fold, unchanged).
+  **Kept in view:** SillyTavern scrolls the chat to a new reply and the card is drawn just after, so it would sit under the fold. When a
+  draw or pass (a reply landing, an edit, a rebuild, a chat opened), a module's reply card arriving, or the reader opening the card changes
+  the card box of the newest message, and the reader was at the bottom of the chat before the change (within half of what the chat shows,
+  at most 400 px: other extensions add to a reply after SillyTavern scrolls), the chat is taken to its bottom again
+  (`view/scroll.js` `keepAtBottom`: `scrollTop` of `#chat` only). A reader who had scrolled up is never moved, and a card under an
+  older message never moves the chat. Story Director's own follow (`src/v2/cast/follow.js`) is no longer needed once this is in.
   SillyTavern's swipe row (the arrows and the 1/1 counter) is drawn at the bottom right of the last message only; the last message's
   cards keep clear of it with a bottom margin (`.last_mes .ss-cards`), which was already overlapping before step 4a.
 - **The Choices strip** (`extras-ui.js`, `host.css`). The strip is a `details` element, **folded by default** (the beta test's
@@ -495,8 +501,12 @@ their states, the plates, the class-level exceptions and their specificity), `te
   `conditions`), `party.terms` (the level's word), `scene.place`, `scene.weather`, `director.time` (formatted by the host's
   `fmt.time`). With the RPG on and no party module answering, `rpgLead` (`lean-rpg/view/hero-data.js`, the reader's own Character
   block) gives the header its Health, Mana and Stamina stage bars and the XP bar. The header's corner is **the scene's one place**
-  (the `ss.hero` `where` prop): time, place, weather and "Here: people", the place, weather and Here each with the pencil Home's
-  Where card had (`scene.place`, `scene.weather`, `scene.present`); the words wrap, they are never cut. The game view tells its screen
+  (the `ss.hero` `where` prop): time, place, weather and "Here: people", as plain lines (no pencils); the header has ONE "Edit" button
+  (top-right from 600px, beside the name on a phone) opening one editor in the card: `view/hero-edit.js` holds its fields (Story: Year, Month, Day,
+  Time from the `clock` prop, which `gameHeroProps` builds from `director.time`'s `parts` and `director.calendar`; Place, Weather, Here; Character:
+  Rank, Wearing, Condition) and its `plan` (the commands of the changed fields: `director.clock` first, then `scene.place`, `scene.weather`,
+  `scene.present`, `scene.you`; a refusal stops the rest), run by `ss.editable` kind `fields` (`type: 'choice' | 'time'`, `group`, `row`, `plan`,
+  `bare`/`open`/`onClose`); the words wrap, they are never cut. The game view tells its screen
   that the header is up (`settings._heroShown`), and Home leaves its Where card out then (it keeps it where no header is above Home). The lead's name falls back to the persona's. The portrait is `portraitOf`: the persona avatar
   (`/thumbnail?type=persona&file=…`), else the card's (`/thumbnail?type=avatar&file=…`), else `npc.portrait` asked with
   `{ name }` (a string, or an answer `{ url }` / `{ src }`), else the initial. The hero keeps the pictures in order (`portraits`,

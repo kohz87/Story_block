@@ -22,9 +22,10 @@ say('## The cast and its portraits', table(['What', 'Limit'], [
     ['Aliases, drawn-to phrases, fields, secrets per person', `${CAST_LIMITS.aliases}, ${CAST_LIMITS.drawnTo}, ${CAST_LIMITS.fields}, ${CAST_LIMITS.secrets}`],
     ['Secret title, text, event', `${CAST_LIMITS.secretTitle}, ${CAST_LIMITS.secretText}, ${CAST_LIMITS.secretWhen} characters`],
     ['Secret rule', 'a meter and value, a story event, or both (opens at whichever comes first); at least one'],
-    ['One portrait', `WebP, PNG or JPEG, ${PORTRAIT_LIMITS.bytes / 1024} KB at most`],
+    ['One portrait, picked', `WebP, PNG or JPEG, ${PORTRAIT_LIMITS.source / 1048576} MB at most`],
+    ['One portrait, kept', `${PORTRAIT_LIMITS.bytes / 1024} KB at most: a larger picture is made smaller on import (WebP, ${PORTRAIT_LIMITS.side} px on its long side at most); a picture already that small is kept as it is`],
     ['Portrait files in one pack', PORTRAIT_LIMITS.perPack],
-    ['A pack zip: the zip, unpacked in all, entries', `${ZIP_LIMITS.archive / 1048576} MB, ${ZIP_LIMITS.unpacked / 1048576} MB, ${ZIP_LIMITS.entries}`],
+    ['A pack zip: the zip, unpacked in all, one file in it, entries', `${ZIP_LIMITS.archive / 1048576} MB, ${ZIP_LIMITS.unpacked / 1048576} MB, ${ZIP_LIMITS.entry / 1048576} MB, ${ZIP_LIMITS.entries}`],
 ]));
 
 say('## Data modules (interpreter 1)', table(['What', 'Limit'], [
