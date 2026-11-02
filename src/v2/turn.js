@@ -217,7 +217,7 @@ export function restoreMissing(chat, staticText, tailText) {
  * call on the chat's connection (model-call.js createOwnCalls().owns): never taken for the reply's }.
  * `settings` is createSettings() (settings() → host settings, settings(id) → a module's).
  * Returns { interceptor, install, uninstall, onPromptReady, onTextPromptReady, onMessageReceived,
- * onChatChanged, onChatRenamed, onTimelineChanged, onGenerationEnded, preview, report, problems, clearProblems, blocked, blockers, unblock,
+ * onChatChanged, seed, onChatRenamed, onTimelineChanged, onGenerationEnded, preview, report, problems, clearProblems, blocked, blockers, unblock,
  * session, replyBusy, whenIdle }.
  */
 export function createTurn({ ctx, live = () => ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState(), ownPrompt = () => false, timeline = null }) {
@@ -1396,6 +1396,21 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     /**
+     * A reader's action in a chat that has a message but no state yet (sdk.command): the state starts on its first carrier now, as
+     * onChatChanged would. SillyTavern shows a new chat's greeting before it tells of the chat (CHAT_CHANGED comes after its save, and
+     * after every listener ahead of Story Block's), and a message added with no event Story Block reads (/sendas into an empty chat)
+     * starts nothing. No open chat, or no carrier: nothing to start. → true when the chat has a state.
+     */
+    function seed() {
+        if (store.head()) return true;
+        let open = true;
+        try { open = typeof ctx?.getCurrentChatId !== 'function' || !!ctx.getCurrentChatId(); } catch { open = true; }
+        if (!open || !hasCarrier()) return false;
+        rebuild();
+        return !!store.head();
+    }
+
+    /**
      * CHAT_RENAMED: { oldFileName, newFileName } (file names with ".jsonl"). SillyTavern 1.19 renames the
      * file, reads the open chat back (CHAT_CHANGED), then tells this; a change not saved yet goes into the
      * renamed file (store.renamed, B-b2-timeline-r2-2). The server may clean the new name up (characters
@@ -1506,6 +1521,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         onTextPromptReady,
         onMessageReceived,
         onChatChanged,
+        seed,
         onChatRenamed,
         onTimelineChanged,
         onGenerationEnded,

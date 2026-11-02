@@ -552,7 +552,8 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const definitions = buildDefinitions(now, { used: where.used });
                 let failure = '';
                 const first = await call('dm.define', { definition: definitions.character });
-                if (!first.ok) failure = fill(W.failedFirst, { why: refusalText(first, W.generic) });
+                // Still no state after the host tried to start one (sdk.command): the chat has no message to hold it, said in one plain sentence.
+                if (!first.ok) failure = safe(headState, null) ? fill(W.failedFirst, { why: refusalText(first, W.generic) }) : W.noChat;
                 else {
                     const second = await call('dm.define', { definition: definitions.skills });
                     if (!second.ok) {
