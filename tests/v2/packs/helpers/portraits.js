@@ -34,3 +34,36 @@ export function fakeFiles({ failPut = null } = {}) {
         url: name => `/user/files/${name}`,
     };
 }
+
+/** A PNG-looking file of `size` bytes whose header says it is `width` × `height` pixels. */
+export const pngOf = (width, height, size = 200, seed = 0) => {
+    const bytes = png(Math.max(size, 33), seed);
+    new DataView(bytes.buffer).setUint32(16, width);
+    new DataView(bytes.buffer).setUint32(20, height);
+    return bytes;
+};
+
+/**
+ * A fake decoder and encoder with the shape of portrait-fit.js browserImageIo (there is no canvas in Node): `bytes → io`.
+ * `width`/`height`: what every picture decodes to. `bytesAt(side, quality)`: how many bytes the encoder gives (default: the picture
+ * is 300 KB at full quality and smaller with each step, so it fits at the fourth step (quality 0.4)). `fail`: an Error `size()` throws.
+ * `calls` records what was asked: `opened` (pictures), `encoded` ([side, quality]), `closed`.
+ */
+export function fakeImageIo({ width = 2400, height = 1800, bytesAt = (side, quality) => Math.round(300 * 1024 * quality * quality * (side / 600)), fail = null, failEncode = null } = {}) {
+    const calls = { opened: 0, encoded: [], closed: 0 };
+    const make = bytes => {
+        calls.opened += 1;
+        return {
+            async size() { if (fail) throw fail; return { width, height }; },
+            async encode(side, quality) {
+                calls.encoded.push([side, quality]);
+                if (failEncode) throw failEncode;
+                const out = webp(Math.max(bytesAt(side, quality), 12), bytes.length % 251);
+                return { bytes: out, type: 'webp', width: Math.round(width * Math.min(1, side / Math.max(width, height))), height: Math.round(height * Math.min(1, side / Math.max(width, height))) };
+            },
+            close() { calls.closed += 1; },
+        };
+    };
+    make.calls = calls;
+    return make;
+}

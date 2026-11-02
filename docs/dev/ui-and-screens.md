@@ -405,6 +405,12 @@ its data attributes, its keys and its commands; what changed is how it is drawn 
   The card is a glass card (the frame is a
   theme root, `.ss-card`): the header is the title (bolder) and the one-line summary on the right (muted, one line that ends in an ellipsis), the body is padded, the rows have their icons in 34px tiles (`--ss-tile`) with hairline separators. It is
   folded by default, as before (the card mount's fold, unchanged).
+  **Kept in view:** SillyTavern scrolls the chat to a new reply and the card is drawn just after, so it would sit under the fold. When a
+  draw or pass (a reply landing, an edit, a rebuild, a chat opened), a module's reply card arriving, or the reader opening the card changes
+  the card box of the newest message, and the reader was at the bottom of the chat before the change (within half of what the chat shows,
+  at most 400 px: other extensions add to a reply after SillyTavern scrolls), the chat is taken to its bottom again
+  (`view/scroll.js` `keepAtBottom`: `scrollTop` of `#chat` only). A reader who had scrolled up is never moved, and a card under an
+  older message never moves the chat. Story Director's own follow (`src/v2/cast/follow.js`) is no longer needed once this is in.
   SillyTavern's swipe row (the arrows and the 1/1 counter) is drawn at the bottom right of the last message only; the last message's
   cards keep clear of it with a bottom margin (`.last_mes .ss-cards`), which was already overlapping before step 4a.
 - **The Choices strip** (`extras-ui.js`, `host.css`). The strip is a `details` element, **folded by default** (the beta test's

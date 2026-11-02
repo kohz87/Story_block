@@ -1,7 +1,7 @@
 // view/scroll.js (phone hotfix): scrolling and focus inside the settings window move nothing around the page scroller.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { followViewport, focusNode, holdPage, revealIn, scrollerOf, showAndFocus, zoomOf } from '../../../src/v2/view/scroll.js';
+import { BOTTOM_SLACK, atBottom, bottomSlack, followViewport, focusNode, gapBelow, holdPage, keepAtBottom, revealIn, scrollToBottom, scrollerOf, showAndFocus, zoomOf } from '../../../src/v2/view/scroll.js';
 
 // A scroller with a box and a scrollTop that clamps like a browser's; ancestors that must never move.
 function scene({ nodeTop = 500, nodeHeight = 40, scrollTop = 0, sticky = 0 } = {}) {
@@ -144,4 +144,50 @@ test('followViewport leaves a wide screen and a browser with no visual viewport 
     assert.deepEqual(layer.style, { top: '', height: '' });
     assert.equal(typeof followViewport({ defaultView: {} }, layer), 'function');
     assert.equal(typeof followViewport(null, null), 'function');
+});
+
+// A list that grows at its end: scrollTop clamps like a browser's.
+function list({ height = 400, content = 1000, top = null } = {}) {
+    const box = { clientHeight: height, scrollHeight: content, scrollTop: 0 };
+    let at = top ?? content - height;
+    Object.defineProperty(box, 'scrollTop', { get: () => at, set: value => { at = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, value)); } });
+    return box;
+}
+
+test('gapBelow, atBottom and scrollToBottom: the space under what is shown, within half a screen, and a jump to the end', () => {
+    const box = list({ top: 600 });
+    assert.equal(gapBelow(box), 0);
+    assert.equal(atBottom(box), true);
+    assert.equal(bottomSlack(box), 200, 'half of the 400 shown');
+    assert.equal(bottomSlack({ clientHeight: 2000 }), BOTTOM_SLACK, 'never more than 400');
+    box.scrollTop = 600 - 200;
+    assert.equal(atBottom(box), true, 'content added after the last scroll still counts');
+    box.scrollTop = 600 - 201;
+    assert.equal(atBottom(box), false, 'more than half a screen up is scrolled up');
+    assert.equal(atBottom(box, 300), true, 'the slack can be given');
+    assert.equal(scrollToBottom(box), true);
+    assert.equal(box.scrollTop, 600);
+    assert.equal(scrollToBottom(box), false, 'already there: nothing moved');
+    // no layout (the fake DOM, a hidden chat): never "at the bottom", nothing moves, nothing throws
+    for (const none of [null, {}, { scrollHeight: 0, scrollTop: 0, clientHeight: 0 }]) {
+        assert.equal(gapBelow(none), null);
+        assert.equal(atBottom(none), false);
+        assert.equal(scrollToBottom(none), false);
+        assert.equal(keepAtBottom(none).settle(), false);
+    }
+});
+
+test('keepAtBottom: a list that was at the bottom is taken there again after it grew; one that was scrolled up never moves', () => {
+    const atEnd = list({ top: 600 });
+    const watch = keepAtBottom(atEnd);
+    assert.equal(watch.wasAtBottom, true);
+    atEnd.scrollHeight += 300;
+    assert.equal(watch.settle(), true);
+    assert.equal(atEnd.scrollTop, 900);
+    const up = list({ top: 100 });   // 500 from the bottom
+    const away = keepAtBottom(up);
+    assert.equal(away.wasAtBottom, false);
+    up.scrollHeight += 300;
+    assert.equal(away.settle(), false);
+    assert.equal(up.scrollTop, 100);
 });

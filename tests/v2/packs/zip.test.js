@@ -9,7 +9,7 @@ import { installFakeDom, texts } from '../../ui-fake-dom.js';
 import { renderPacksPanel } from '../../../src/v2/packs/panel.js';
 import { createPacksPart } from '../../../src/v2/packs/index.js';
 import { fakeSettings } from './helpers/fake-settings.js';
-import { fakeFiles, png, webp } from './helpers/portraits.js';
+import { fakeFiles, fakeImageIo, png, pngOf, webp } from './helpers/portraits.js';
 import { pack } from './helpers/fixtures.js';
 import { zip } from './helpers/zip.js';
 
@@ -50,14 +50,37 @@ test('a path that climbs out of the folder is refused (zip slip), as are absolut
     assert.throws(() => readZip(slip('a/../b.png')), ZipProblem);
 });
 
+const MB = 1024 * 1024;
+// A zip whose directory declares `count` portraits of `size` bytes each (the data itself is tiny: only the directory is read here).
+const declared = (count, size, extra = {}) => zip([
+    { name: 'pack.json', bytes: text(packText(...Array.from({ length: count }, (_, n) => person(`p${n}`, `p${n}.png`)))) },
+    ...Array.from({ length: count }, (_, n) => ({ name: `portraits/p${n}.png`, bytes: png(100, n), size, method: 'store', packed: size, ...extra })),
+]);
+
 test('too much unpacked: by the sizes the zip declares, and by what really comes out of a zip that lies', async () => {
-    const big = new Uint8Array(ZIP_LIMITS.unpacked + 1);
-    await refusedWith(zip([{ name: 'pack.json', bytes: text(packText(person('a', 'a.png'))) }, { name: 'portraits/a.png', bytes: big }]), /more than 4 MB/);
+    // 32 portraits at 10 MB (the most a pack may name) fit; one more does not, nor does a file over 10 MB
+    const full = await readPackZip(declared(32, 10 * MB));
+    assert.equal(full.ok, true);
+    assert.deepEqual(full.files.map(file => file.size), Array(32).fill(10 * MB));
+    await refusedWith(declared(33, 10 * MB), /unpacks to more than 322 MB/);
+    await refusedWith(declared(1, 10 * MB + 1), /"portraits\/p0.png" in the zip is larger than 10 MB/);
     // a small file whose directory claims a size smaller than the truth: the unpacking stops at the claim
     const lie = zip([{ name: 'pack.json', bytes: text(packText(person('a', 'a.png'))) }, { name: 'portraits/a.png', bytes: new Uint8Array(100_000), size: 1000 }]);
     const result = await readPackZip(lie);
     assert.equal(result.ok, true);
     await assert.rejects(result.files[0].read(), /larger than the zip says/);
+});
+
+test('a deflated file that claims to unpack to over 100 times its packed size is refused unread; small files and ordinary ratios are not', async () => {
+    const squeezed = (size, packed) => zip([{ name: 'pack.json', bytes: text(packText(person('a', 'a.png'))) }, { name: 'portraits/a.png', bytes: png(100), size, packed }]);
+    await refusedWith(squeezed(5 * MB, 20 * 1024), /"portraits\/a.png" in the zip claims to unpack to far more than it is packed from \(over 100 times\)/);
+    assert.equal((await readPackZip(squeezed(5 * MB, 60 * 1024))).ok, true, 'about 85 times is allowed');
+    assert.equal((await readPackZip(squeezed(200 * 1024, 100))).ok, true, 'a small file is never held to the ratio');
+});
+
+test('a pack.json over 512 KB inside a zip refuses the zip before it is unpacked', async () => {
+    const big = zip([{ name: 'pack.json', bytes: text('x'), size: 512 * 1024 + 1, method: 'store', packed: 512 * 1024 + 1 }]);
+    await refusedWith(big, /The pack.json in the zip is larger than 512 KB/);
 });
 
 test('a file that is not pack.json or a portrait the pack names refuses the whole zip', async () => {
@@ -83,7 +106,7 @@ test('encrypted, zip64, split and unknown-method zips, damage, and things that a
     const truncated = good().slice(0, 100);
     await refusedWith(truncated, /not a zip/);
     const archive = new Uint8Array(ZIP_LIMITS.archive + 1);
-    await refusedWith(archive, /larger than 5 MB/);
+    await refusedWith(archive, /larger than 322 MB/);
 });
 
 // ---- through the Packs panel and an install ----
@@ -91,9 +114,9 @@ test('encrypted, zip64, split and unknown-method zips, damage, and things that a
 const doc = installFakeDom();
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 const fileOf = (name, bytes, type = '') => ({ name, type, size: bytes.length, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), text: async () => new TextDecoder().decode(bytes) });
-function mount() {
+function mount(portraitIo = null) {
     const files = fakeFiles();
-    const made = createPacksPart({ settings: fakeSettings(), portraitFiles: files });
+    const made = createPacksPart({ settings: fakeSettings(), portraitFiles: files, portraitIo });
     const root = doc.createElement('div');
     renderPacksPanel(root, { packs: made.packs, readLorebook: async () => ({ character: '', entries: [], problem: '' }), doc });
     const pick = async list => { const input = root.querySelector('.ss-packs-file'); input.files = list; input.dispatch('change'); for (let n = 0; n < 200 && !texts(root, '.ss-packs-message')[0]; n += 1) await tick(); };
@@ -140,4 +163,24 @@ test('the Packs panel: portraits not picked are counted, never named (their file
     await one.pick([fileOf('pack.json', text(packText(person('lone-wolf', 'lone-wolf.png'))))]);
     assert.equal(texts(one.root, '.ss-packs-message')[0], 'Installed mini. 1 portrait not picked; that person shows without a picture until you add it.');
     assert.ok(!texts(one.root, '.ss-packs-message')[0].includes('lone'));
+});
+
+test('the Packs panel: large portraits in a zip, and picked beside pack.json, are made smaller and saved; one that cannot be is named', async () => {
+    const big = pngOf(3000, 2000, 4 * MB, 3);
+    const bundle = zip([
+        { name: 'pack.json', bytes: text(packText(person('fenna', 'fenna.png'), person('sera', 'sera.webp'))) },
+        { name: 'portraits/fenna.png', bytes: big, method: 'store' },
+        { name: 'portraits/sera.webp', bytes: webp(500, 2), method: 'store' },
+    ]);
+    const zipped = mount(fakeImageIo());
+    await zipped.pick([fileOf('cast.zip', bundle, 'application/zip')]);
+    assert.deepEqual(texts(zipped.root, '.ss-packs-message'), ['Installed mini. 2 portraits saved.']);
+    const sizes = [...zipped.files.files.values()].map(bytes => bytes.length);
+    assert.equal(sizes.length, 2);
+    assert.ok(sizes.every(size => size <= 64 * 1024));
+    const files = mount(fakeImageIo({ bytesAt: () => 100 * 1024 }));
+    await files.pick([fileOf('pack.json', text(packText(person('fenna', 'fenna.png')))), fileOf('fenna.png', big)]);
+    assert.deepEqual(texts(files.root, '.ss-packs-message'), ['Installed mini. 1 portrait not picked; that person shows without a picture until you add it. 1 image not used.']);
+    assert.deepEqual(texts(files.root, '.ss-packs-errors li'), ['fenna.png cannot be made small enough: a portrait may be at most 64 KB.']);
+    assert.equal(files.files.files.size, 0);
 });
