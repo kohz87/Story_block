@@ -19,7 +19,7 @@ is not the oldest remaining reply removes its commands. Deleting the oldest rema
 their state forward, including these edits. Re-read keeps a command when its prerequisites still hold. The Changes
 card shows the receipt summaries while their display data is retained. Non-stacking items remain one
 piece per stack; the count editor adds or removes separate pieces for the same owner, without removing
-equipped pieces. The weather editor is available while the weather feature is on, and the Wearing and Condition pencils while Your look is on.
+equipped pieces. The weather field of the header's editor is available while the weather feature is on, and its Character group (Wearing, Condition, Rank) while Your look is on.
 
 Data-module fields may be set with `dm.set` unless their schema has `edit: false`. Setup lists editable
 fields for the pinned chat or each attached character. Some directly bound layout fields get an editor;
@@ -853,7 +853,7 @@ part clears it, a part that is left out stays, the same words again change nothi
 refused (`INVALID`). Each part is written on its own (`scene.you.rank`, `scene.you.wearing`, `scene.you.condition`), and `you` is a `scratch`
 field (§2.2): after the reply that first wrote a part is deleted, a later reply's part still replays and the deleted
 reply's other part is gone with it. Command `scene.you({ rank?, wearing?, condition? })` (same feature; the reader or a module,
-never the story): a part given replaces it, `''` clears it, the Home header's pencils run it as an edit on the latest reply.
+never the story): a part given replaces it, `''` clears it, the game view header's editor (its one Edit button) runs it as an edit on the latest reply.
 Query `scene.you` → `{ wearing, condition }`, with `rank` and `rankLabel` when a pack gives a Rank (`packs.youRank`) (`''` for a part nobody set; `null` while the feature is off); Story Director's
 Status card reads it on each reply's state. One line in the tail, after Place and Present, while the feature is on and
 something is set: `{{user}}: wears …; condition …` (a Rank word first with a pack that gives one; only the parts that are set). Query `scene.chatter` → the newest reply's Inner

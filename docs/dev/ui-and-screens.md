@@ -501,8 +501,12 @@ their states, the plates, the class-level exceptions and their specificity), `te
   `conditions`), `party.terms` (the level's word), `scene.place`, `scene.weather`, `director.time` (formatted by the host's
   `fmt.time`). With the RPG on and no party module answering, `rpgLead` (`lean-rpg/view/hero-data.js`, the reader's own Character
   block) gives the header its Health, Mana and Stamina stage bars and the XP bar. The header's corner is **the scene's one place**
-  (the `ss.hero` `where` prop): time, place, weather and "Here: people", the place, weather and Here each with the pencil Home's
-  Where card had (`scene.place`, `scene.weather`, `scene.present`); the words wrap, they are never cut. The game view tells its screen
+  (the `ss.hero` `where` prop): time, place, weather and "Here: people", as plain lines (no pencils); the header has ONE "Edit" button
+  (top-right from 600px, beside the name on a phone) opening one editor in the card: `view/hero-edit.js` holds its fields (Story: Year, Month, Day,
+  Time from the `clock` prop, which `gameHeroProps` builds from `director.time`'s `parts` and `director.calendar`; Place, Weather, Here; Character:
+  Rank, Wearing, Condition) and its `plan` (the commands of the changed fields: `director.clock` first, then `scene.place`, `scene.weather`,
+  `scene.present`, `scene.you`; a refusal stops the rest), run by `ss.editable` kind `fields` (`type: 'choice' | 'time'`, `group`, `row`, `plan`,
+  `bare`/`open`/`onClose`); the words wrap, they are never cut. The game view tells its screen
   that the header is up (`settings._heroShown`), and Home leaves its Where card out then (it keeps it where no header is above Home). The lead's name falls back to the persona's. The portrait is `portraitOf`: the persona avatar
   (`/thumbnail?type=persona&file=…`), else the card's (`/thumbnail?type=avatar&file=…`), else `npc.portrait` asked with
   `{ name }` (a string, or an answer `{ url }` / `{ src }`), else the initial. The hero keeps the pictures in order (`portraits`,

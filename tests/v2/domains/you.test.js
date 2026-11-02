@@ -294,7 +294,7 @@ test('an older chat with no look in its state reads empty, validates, and takes 
 // ---------------------------------------------------------------------------------------------------
 // Home: the header's rows
 
-test('the game view\'s header: props from the query (none while the feature is off or with no query), Wearing and Condition rows with a pencil each', async t => {
+test('the game view\'s header: props from the query (none while the feature is off or with no query), Wearing and Condition rows as plain lines, edited in the header\'s one editor', async t => {
     // The props: null query answer → no `you` at all.
     const props = answer => gameHeroProps({ state: { meta: { rev: 1 } }, query: name => (name === 'scene.you' ? answer : null) });
     assert.equal('you' in props(null), false);
@@ -315,32 +315,37 @@ test('the game view\'s header: props from the query (none while the feature is o
     assert.equal(ui.mounts.screen.open('story-block/home'), true);
     const row = () => doc.querySelector('.ss-gameview-hero .ss-hero-you');
     const part = name => row()?.querySelector(`.ss-hero-you-part[data-part="${name}"]`);
-    // Nothing set yet: both rows are there with a dash and a pencil, so they can be set.
+    // Nothing set yet: the rows are there with a dash (the header's Edit button sets them).
     assert.ok(row(), 'the rows are drawn while both are empty');
     assert.deepEqual(['rank', 'wearing', 'condition'].map(name => part(name).querySelector('.ss-hero-you-label').textContent), ['Guild rank', 'Wearing', 'Condition']);
     assert.deepEqual(['rank', 'wearing', 'condition'].map(name => part(name).querySelector('.ss-hero-you-text').textContent), ['—', '—', '—']);
     assert.deepEqual(row().querySelectorAll('.ss-hero-you-part').map(item => item.getAttribute('data-part')), ['rank', 'wearing', 'condition'], 'Rank first');
-    assert.equal(part('rank').querySelector('button.ss-w-editable-pencil').getAttribute('aria-label'), 'Edit guild rank');
-    assert.equal(part('wearing').querySelector('button.ss-w-editable-pencil').getAttribute('aria-label'), 'Edit what you wear');
-    assert.equal(part('condition').querySelector('button.ss-w-editable-pencil').getAttribute('aria-label'), 'Edit your condition');
+    assert.equal(row().querySelectorAll('button').length, 0, 'the rows are plain lines: no pencil (UI cleanup, Nov 2)');
+    // The editor's Character group: Guild rank (the pack's word), Wearing, Condition.
+    const editor = () => doc.querySelector('.ss-gameview-hero .ss-hero-editor');
+    const field = label => editor().querySelectorAll('label').find(each => each.querySelector('span').textContent === label)?.querySelector('input');
+    doc.querySelector('.ss-gameview-hero .ss-hero-edit').click();
+    assert.deepEqual(editor().querySelectorAll('legend').map(node => node.textContent), ['Story', 'Character']);
+    assert.deepEqual(['Guild rank', 'Wearing', 'Condition'].map(label => field(label)?.value), ['', '', '']);
+    editor().querySelector('.ss-w-editable-cancel').click();
     // The story sets them: the rows show the words.
     await host.send('We walk.', block('Rain.', ['~ you rank: F-rank | wearing: oilskin coat, boots | condition: tired, cold']));
     assert.equal(part('rank').querySelector('.ss-hero-you-text').textContent, 'F-rank');
     assert.equal(part('wearing').querySelector('.ss-hero-you-text').textContent, 'oilskin coat, boots');
     assert.equal(part('condition').querySelector('.ss-hero-you-text').textContent, 'tired, cold');
-    // The pencil: one `scene.you` edit for that part, and the row follows.
-    part('condition').querySelector('button.ss-w-editable-pencil').click();
-    const input = part('condition').querySelector('input');
-    input.value = 'rested';
-    part('condition').querySelector('.ss-w-editable-save').click();
+    // The editor: one `scene.you` edit for the part that changed, and the row follows.
+    doc.querySelector('.ss-gameview-hero .ss-hero-edit').click();
+    assert.deepEqual(['Guild rank', 'Wearing', 'Condition'].map(label => field(label).value), ['F-rank', 'oilskin coat, boots', 'tired, cold']);
+    field('Condition').value = 'rested';
+    editor().querySelector('.ss-w-editable-save').click();
     await settle();
     assert.deepEqual(look(host), { rank: 'F-rank', wearing: 'oilskin coat, boots', condition: 'rested' });
     assert.equal(host.store.receipts().at(-1)?.receipt?.type ?? host.store.receipts().at(-1)?.type, 'scene.you');
     assert.equal(part('condition').querySelector('.ss-hero-you-text').textContent, 'rested');
     // An empty save clears the part.
-    part('wearing').querySelector('button.ss-w-editable-pencil').click();
-    part('wearing').querySelector('input').value = '';
-    part('wearing').querySelector('.ss-w-editable-save').click();
+    doc.querySelector('.ss-gameview-hero .ss-hero-edit').click();
+    field('Wearing').value = '';
+    editor().querySelector('.ss-w-editable-save').click();
     await settle();
     assert.deepEqual(look(host), { rank: 'F-rank', wearing: '', condition: 'rested' });
     assert.equal(part('wearing').querySelector('.ss-hero-you-text').textContent, '—');
