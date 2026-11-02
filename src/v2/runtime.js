@@ -429,6 +429,14 @@ export function createRuntime({
                     [ASSIST_SETTING.extractor]: registry.featureOn(CORE_FEATURE.extractor),
                 }),
                 grammar: () => registry.contexts().flatMap(context => context.kinds.map(kind => kind.grammar)),
+                // The scene's place, the map's places (the atlas's when Story Director is on, else the packs') and the story's date and
+                // time, for the safety net (assist/where.js). A query that is not there or throws is none of it.
+                where: () => {
+                    const ask = (name, args) => { try { return sdk?.query(name, args); } catch { return null; } };
+                    const clock = ask('director.time', {});
+                    return { here: ask('scene.place', {}), places: [...(ask('atlas.places', {}) ?? []), ...(ask('packs.content', { kind: 'places' }) ?? [])],
+                        time: typeof clock?.text === 'string' ? clock.text : '' };
+                },
                 chat: () => ctx.chat,
                 chatId: () => ctx.getCurrentChatId?.() ?? ctx.chatId ?? '',
                 hasKind: kind => {

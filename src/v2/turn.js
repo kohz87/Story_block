@@ -1307,9 +1307,9 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
     }
 
     /** Change lines found after the reply (afterReply): captured on it and kept in its hidden block. */
-    async function captureLate({ index, swipe } = {}, text = '', { assist = false } = {}) {
+    async function captureLate({ index, swipe } = {}, text = '', { assist = false, refused = [] } = {}) {
         const message = ctx?.chat?.[index];
-        if (assist) return captureAssist({ index, swipe }, text, message);
+        if (assist) return captureAssist({ index, swipe }, text, message, refused);
         if (!isCarrier(message) || store.headIndex() !== index || (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) !== swipe || session) {
             return { receipts: [], problems: ['The reply changed before its late change lines arrived; they were not used.'] };
         }
@@ -1342,9 +1342,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
      * <Changes-assist-next>, through the stricter wall, for the next reply to apply after its own lines;
      * nothing changes now. Anything else (swiped, deleted, the next reply already in): not used.
      */
-    async function captureAssist({ index, swipe }, text, message) {
+    async function captureAssist({ index, swipe }, text, message, refused = []) {
         const same = isCarrier(message) && store.headIndex() === index && (Number.isInteger(message.swipe_id) ? message.swipe_id : 0) === swipe;
         if (!same) return { receipts: [], problems: ['The reply changed before the safety net\'s lines arrived; they were not used.'], dropped: true };
+        // Lines the safety net wrote that code refused (an unknown name for a place the map has, a time with no clock time): a
+        // Problems line each, so the reader sees what was left out and why; they are not applied and not kept on the reply.
+        const refusals = (Array.isArray(refused) ? refused : []).filter(item => typeof item?.line === 'string' && item.line)
+            .map(item => problem({ index, line: item.line, code: 'REFUSED', message: `"${item.line}" was not used: ${String(item.why ?? '').slice(0, 240)}.` }));
         const heads = changeHeads();
         const mes = String(message.mes ?? '');
         const block = extractBlock(mes, 'Changes', null, { heads });
@@ -1357,13 +1361,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             if (Array.isArray(message.swipes) && Number.isInteger(message.swipe_id)) message.swipes[message.swipe_id] = mes2;
         };
         if (session || replyBusy) {
-            if (!kept.length) return { receipts: [], problems: [], deferred: true };
+            if (!kept.length) return { receipts: [], problems: refusals, deferred: true };
             // Saved with the next reply (its own save writes the chat).
             store1(withAssist(mes, kept.map(line => line.raw), { next: true }));
             redraw(index, message);
-            return { receipts: [], problems: [], deferred: true, lines: kept.map(line => line.raw) };
+            return { receipts: [], problems: refusals, deferred: true, lines: kept.map(line => line.raw) };
         }
-        if (!kept.length) return { index, type: 'late', receipts: [], steps: [], problems: [], told: [] };
+        if (!kept.length) return { index, type: 'late', receipts: [], steps: [], problems: refusals, told: [] };
         const used = block === null ? 0 : readBlock(index, block).lines.length;
         const result = await captureLines(index, [], mes, 'late', { assist: kept, used });
         store1(markOff(withAssist(mes, kept.map(line => line.raw)), result.off, mes.trimEnd().length));
@@ -1371,7 +1375,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             if (store.saveIdle?.() !== true) await trySave('after the safety net\'s lines');
         } else await saveText();
         redraw(index, message);
-        const turn = { index, type: 'late', receipts: result.receipts, steps: result.steps, problems: result.problems, told: [] };
+        const turn = { index, type: 'late', receipts: result.receipts, steps: result.steps, problems: [...refusals, ...result.problems], told: [] };
         events?.emit('turn', turn);
         return turn;
     }
