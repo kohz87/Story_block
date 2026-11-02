@@ -1,4 +1,4 @@
-# AI-README: Story Block 2.16.1
+# AI-README: Story Block 2.16.2
 
 For AI assistants that read this repository. Plain facts, no marketing. For people, read [README.md](README.md). For rules
 every change must keep, read [CLAUDE.md](CLAUDE.md). Depth lives in `docs/`; this file points there instead of copying.
@@ -14,7 +14,7 @@ queries, screens and settings. Code sets every number; the story only proposes.
 
 | Repo | Module id | Version | Owns |
 |---|---|---|---|
-| kohz87/Story_block (this) | `story-block` | 2.16.1 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
+| kohz87/Story_block (this) | `story-block` | 2.16.2 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
 | kohz87/Story_director | `story-director` | 2.9.1 | Story clock and calendar, quests, threads, map, trips, World, Chronicle, arc planning, standalone checks, the living cast (meets people by place and routine). Needs Story Block (>= 2.12.0). |
 | kohz87/npc_state_delta | `npc-state-delta` | 1.7.1 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
 | kohz87/Story_studio | (not an extension) | 0.6.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
@@ -333,7 +333,7 @@ A pack is one JSON object. Fields Story Block reads (`packs/limits.js` is the so
   in the browser to WebP, 1200 px long side). Kept as SillyTavern user files `user/files/storysuite-portrait-<pack>-<hash>.<ext>`.
   Query `packs.portrait({ pack, file })` gives a safe URL or null.
 - Limits: one pack 512 KB; 32 installed packs, 2 MB together; nesting 16; 200 keys; 1000 list entries; strings 4000; 20 problems reported.
-  A pack `.zip` holds `pack.json` and `portraits/` only (322 MB, 40 entries, no encryption, zip64 or `..` paths).
+  A pack `.zip` holds `pack.json` and `portraits/` only (322 MB, 40 entries, no encryption, zip64 or `..` paths). The Ersveil example ships as `examples/packs/ersveil.zip`: import it for the pack and its 12 portraits in one step; `pack.json` alone imports no pictures.
 - Data modules: 8 definitions a pack, 16 pins a chat. See `docs/v2/DATA_MODULES.md`.
 - Checker: `node authoring-kit/check.mjs <pack.json>` uses the same validation as the extension. Format and limits: `authoring-kit/reference/`.
 
@@ -402,7 +402,7 @@ Other sdk: `sdk.reread(index)`, `sdk.rewind`, `sdk.callModel(request)`, `sdk.tim
 | `src/`, `index.v1.js`, `docs/v1/` | Story Block 1, not loaded; kept for reference (`v1` branch) |
 | `testkit/` | Fake SillyTavern and a whole host (`createHost`); vendored by the modules |
 | `tests/`, `tests/v2/` | Tests (about 2,100): `qa/`, `break/`, `domains/`, `packs/`, `view/`, `screens/`, `ux/` |
-| `examples/packs/` | `ersveil` (sample world, lorebook, 12 portraits), `riverside-starter`, `ersveil-factions`, `ersveil-survival` |
+| `examples/packs/` | `ersveil` (sample world, lorebook, 12 portraits) and `ersveil.zip` (pack.json + portraits, the one-step import; `node scripts/build-example-zip.mjs` rebuilds it, a test fails if it drifts), `riverside-starter`, `ersveil-factions`, `ersveil-survival` |
 | `examples/fishing/` | A reference activity module |
 | `authoring-kit/` | Prompts, references and the pack checker for drafting packs |
 | `scripts/` | `check.mjs`, `sync-testkit.mjs`, benchmarks, fuzzers |
