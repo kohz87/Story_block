@@ -4,7 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CORE_BUDGET, CORE_KINDS, CORE_MODULE_ID, CORE_STATIC, createCoreModule, createCorePart } from '../../../src/v2/domains/index.js';
 import { currencyOf, moneyLine } from '../../../src/v2/domains/money.js';
+import { youNote } from '../../../src/v2/domains/scene.js';
 import { createHarness, initialState, line } from './helpers/fake-ctx.js';
+import { WALLET_NOTE } from '../../../src/v2/domains/inventory.js';
 import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
 const view = state => ({ state, query: () => null, settings: {}, chat: { length: 1, lastUser: '' } });
@@ -162,7 +164,8 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
 test('tail: place, present, equipped, wallet and carried items with notes trimmed', () => {
     const module = core({}, CROWNS);
     const state = stocked(module);
-    state.domains.scene = { place: { name: 'Bluewatch Village', kind: 'settlement', region: 'Lakeshire' }, present: ['Fenna', 'Old Tam'] };
+    // The look is set (wearing and condition), so no "Your look is not set yet" line is in this tail (you-first.test.js).
+    state.domains.scene = { place: { name: 'Bluewatch Village', kind: 'settlement', region: 'Lakeshire' }, present: ['Fenna', 'Old Tam'], you: { rank: '', wearing: 'a grey cloak', condition: 'rested' } };
     const inv = state.domains.inventory;
     inv.wallets = { party: { coin: 38 }, ac_ren00001: { coin: 5 }, ac_zed00001: { coin: 0 } };
     inv.stacks.it_sword001.equipped = 'hand';
@@ -175,9 +178,10 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
         lines: [
             'Place: Bluewatch Village (settlement, Lakeshire)',
             'Present: Fenna, Old Tam',
+            '{{user}}: wears a grey cloak; condition rested',
             'Equipped: Iron Sword [hand]',
             'Equipped (Ren): Dagger [hand]',
-            'Wallet: 38 crowns; Ren 5 crowns',
+            `Wallet: 38 crowns; Ren 5 crowns (${WALLET_NOTE})`,
             'Carried: Minor Healing Draught ×2, Minor Healing Draught (cloudy), Lantern, Rope ×3 (tarred hemp, sixty feet, knotted every…)',
         ],
         optional: [],
@@ -186,12 +190,17 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
 
 test('tail: an empty start says so', () => {
     const module = core();
-    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: ['Wallet: 0 gold', 'Carried: nothing'], optional: [] });
+    // A new chat has no look yet, so the tail also asks the narrator to set it (the note comes before the inventory lines).
+    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: [youNote(undefined), `Wallet: 0 gold (${WALLET_NOTE})`, 'Carried: nothing'], optional: [] });
+    const set = initialState([module]);
+    set.domains.scene.you = { rank: '', wearing: 'a coat', condition: 'tired' };
+    assert.deepEqual(module.context.tail(view(set)), { lines: ['{{user}}: wears a coat; condition tired', `Wallet: 0 gold (${WALLET_NOTE})`, 'Carried: nothing'], optional: [] });
 });
 
 test('tail: a long inventory overflows into optional, then into a count, within the budget', () => {
     const module = core();
     const state = initialState([module]);
+    state.domains.scene.you = { rank: '', wearing: 'a coat', condition: 'tired' };
     const inv = state.domains.inventory;
     for (let i = 0; i < 120; i += 1) {
         const id = `story/trinket-${String(i).padStart(3, '0')}`;
@@ -204,7 +213,7 @@ test('tail: a long inventory overflows into optional, then into a count, within 
     assert.ok(size(tail.lines) <= CORE_BUDGET * 2, `required part ${size(tail.lines)} chars`);
     assert.ok(size(tail.optional) <= CORE_BUDGET * 2 + 40, `optional part ${size(tail.optional)} chars`);
     assert.ok(tail.lines.every(item => item.length <= 200) && tail.optional.every(item => item.length <= 200));
-    assert.match(tail.lines[1], /^Carried: Trinket 000, Trinket 001 ×2 \(a little chipped/);
+    assert.match(tail.lines[2], /^Carried: Trinket 000, Trinket 001 ×2 \(a little chipped/);
     assert.match(tail.optional[0], /^Also carried: /);
     assert.match(tail.optional.at(-1), /^…and \d+ more items\.$/);
     // Every trinket is either listed once or counted.

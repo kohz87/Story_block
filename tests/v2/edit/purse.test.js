@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { currencyOf, parseMixedAmount } from '../../../src/v2/domains/money.js';
+import { TOLD } from '../../../src/v2/domains/inventory.js';
 import { createHost } from '../../../testkit/index.js';
 import { core, stocked } from '../domains/fixtures.js';
 import { createHarness } from '../domains/helpers/fake-ctx.js';
@@ -21,7 +22,7 @@ test('wallet.set is reader only, allows zero, and reports the from and to', () =
     for (const amount of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '5']) assert.equal(h.run('wallet.set', { amount }).code, 'INVALID');
     const result = h.run('wallet.set', { amount: 0 });
     assert.equal(result.ok, true, result.message);
-    assert.deepEqual(result.result.data, { edit: true, from: 125, to: 0 });
+    assert.deepEqual(result.result.data, { edit: true, from: 125, to: 0, told: TOLD.editPurse });
 });
 
 test('a purse edit is a counted difference and survives rebuild, reload and unchanged Re-read', async t => {
@@ -30,7 +31,7 @@ test('a purse edit is a counted difference and survives rebuild, reload and unch
     await host.send('Find money.', 'Found.\n\n<Changes>\n+ coin 10\n</Changes>');
     const result = await host.sdk.command('wallet.set', { amount: 15 });
     assert.equal(result.ok, true, result.message);
-    assert.deepEqual(result.receipt.data, { edit: true, from: 10, to: 15 });
+    assert.deepEqual(result.receipt.data, { edit: true, from: 10, to: 15, told: TOLD.editPurse });
     const live = structuredClone(host.head());
     host.store.rebuild();
     assert.deepEqual(host.head(), live);
