@@ -39,7 +39,7 @@ import { createTimeline, withRuleOverlay } from './timeline/index.js';
 import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 
-export const VERSION = '2.16.2';
+export const VERSION = '2.16.3';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
@@ -499,7 +499,7 @@ export function createRuntime({
     };
     const made = createSdk({ store, bus, registry, settings, events, chat: () => ctx.chat, onRegister: def => onRegister?.(def), rewind,
         substitute: text => substituteNames(text, ctx), dialog: (screenId, opts) => dialogOpener?.(screenId, opts) ?? null,
-        dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline });
+        dialogCurrent: () => dialogCurrent?.() ?? null, reread: index => turn?.reread(index), callModel: modelCalls.callModel, timeline, seed: () => turn?.seed() });
     sdk = made.sdk;
     const initial = () => initialWithStart(registry);
     turn = createTurn({ ctx, live, store, bus, timeline, registry, settings, events, onBlocked, initial, ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });

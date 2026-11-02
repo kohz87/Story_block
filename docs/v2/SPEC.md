@@ -132,6 +132,10 @@ branch from the swipe picker; see persist.js.) Readers accept either shape: repl
   keeps its own changes; a record already there is never replaced. The deleted carriers are replayed whole for it, from
   the first one's checkpoint (past any later checkpoint among them), so a reply-bound block of theirs (REPLAY.md), such as
   a loot offer, is not carried, and neither is what needed it (a take of that loot).
+  The checkpoint is written when Story Block hears of the chat (CHAT_CHANGED, a deleted message or a swipe, a reply), or
+  by a reader's action that comes first (sdk.command / preview, turn.seed): SillyTavern shows a new chat's greeting before
+  it tells of the chat, and a message added with no event (/sendas) tells nothing. A chat with no carrier, or no chat
+  open, has no state, and an action there is refused.
 * A carrier gets a checkpoint when 100 carriers have passed since the last one, or the ops since then
   exceed 128 KB of JSON and twice the last checkpoint's own size, at least 10 carriers after it (one domain
   that rewrites a big list on every reply cannot bring a checkpoint every few replies). The checkpoint is
