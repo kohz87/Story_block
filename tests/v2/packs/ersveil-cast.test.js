@@ -1,4 +1,4 @@
-// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.4.0): they pass the cast check whole, stay inside every limit,
+// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.4.1): they pass the cast check whole, stay inside every limit,
 // start at places the pack names, carry their portraits (WebP, small), keep their secrets out of the lines the reader sees, and
 // come in as one zip that the importer reads.
 import test from 'node:test';

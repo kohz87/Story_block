@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.4.0, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.4.1, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
@@ -48,13 +48,13 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.4.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.4.1, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.4.0');
+    assert.equal(value.version, '2.4.1');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.15.1', 'content.cast needs 2.15, and a secret that opens by a meter or an event needs 2.15.1');
+    assert.equal(value.requires.storyBlock, '^2.16.0', 'content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, and portraits up to 150 KB 2.16.0');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
