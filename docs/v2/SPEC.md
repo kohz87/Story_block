@@ -509,7 +509,14 @@ One hidden block at the end of the reply:
   it applies; a block before it is kept. Hiding a block leaves reasoning that sat inside it in the story,
   as written. A copy of the hidden comment's marker in the model's own text is defanged when the reply is
   read (`STORY_SUITE_V2_`), so only the comment Story Block writes is the hidden one and Re-read of an
-  unchanged reply reads what was applied. In a block the reply left open, a last line with no line break
+  unchanged reply reads what was applied. Story Block v1's envelope (`<!-- STORY_BLOCKS_V1 … -->`, also
+  `STORY_BLOCKS_V1_CUT` and `INVENTORY_BLOCK_V05`) is never sent to the model (history, the greeting, a Continue, text
+  completion) nor shown; a reply with no block of its own has the envelope's change lines read as its block, each once,
+  with one Problem (`LEGACY_FORMAT`, "The narrator wrote its changes in an old format; they were read anyway.") and the
+  word `legacy` on its hidden comment, so a Re-read tells it again; a reply with a block has the envelope taken out
+  unread. A Re-read of an older reply reads its envelope the same way. A story line that repeats a line of the reply's
+  block is never told as not used. An old v1 copy enabled beside v2 (its public object or its settings drawer on the
+  page) is told once (`V1_COPY`). In a block the reply left open, a last line with no line break
   after it is never applied, whether the reader stopped the reply or the length limit cut it ("+ item Ro"
   of "+ item Rope"; a block the model forgot to close loses its last line the same way): it is a Problem
   (`CUT_OFF`), and it is kept in the hidden comment, so a Continue that goes on with the block reads the
@@ -562,7 +569,7 @@ One hidden block at the end of the reply:
   block was hidden) never makes a Re-read read differently. A Re-read lists what it leaves the same way.
   Re-read of a reply saved before this takes such a line too and hides it. Kinds of a feature that is off
   have no head. Reasoning is never read.
-* **The hidden comment.** `<!-- STORY_SUITE_V2[ open][ off:word,…]` then each block's body in
+* **The hidden comment.** `<!-- STORY_SUITE_V2[ open][ legacy][ off:word,…]` then each block's body in
   `<Changes>…</Changes>`, then, when there are any, the lines left in the story (`<Changes-story>`), an open
   block's unfinished last line (`<Changes-cut>`) and the lines that echoed another (`<Changes-echo>`, never
   read: a story line that echoed a block line, or a Continue's block line that echoed a story line an

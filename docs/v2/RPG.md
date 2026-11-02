@@ -255,6 +255,8 @@ label may carry its own `names`, which is how the story's words reach a value it
 With rolls on, the narrator's next reply is planned first. The planning step reads what you wrote, picks the actions
 and checks for the reply, and the dice are rolled for them. The result is drawn as a battle log in the reply, with
 one short line per action, for example `Wessel uses Short blade on Sluice Rat A — Success (26 vs 16)`. Tap a line to see the numbers.
+It stands where the narrator wrote `[battle]` (else under the reply), and is drawn again when another extension redraws the
+reply's text. A `[battle]` line with no rolls behind it (or with the RPG off) is hidden, never shown as text.
 A foe's attack reads from the foe's side: **Hit** (red) when it gets through, **Grazed** (amber) when it costs you, **Blocked**
 (green) when you stop it, with the foe's total first. The Status bars are coloured by stage, like the Party tab's.
 
