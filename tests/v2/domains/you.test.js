@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost } from '../../../testkit/index.js';
 import { validatePack } from '../../../src/v2/packs/validate.js';
-import { YOU_CHARS, YOU_FEATURE, captureYou, initialScene, sceneTail, validateScene, youParts, youText } from '../../../src/v2/domains/scene.js';
+import { YOU_CHARS, YOU_FEATURE, captureYou, initialScene, sceneTail, validateScene, youNote, youParts, youText } from '../../../src/v2/domains/scene.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { mountUi } from '../../../src/v2/ui-host.js';
 import { gameHeroProps } from '../../../src/v2/view/game-header.js';
@@ -182,7 +182,7 @@ test('the feature: on by default with its grammar line in a byte-identical stati
 test('the tail: one line for the narrator, rank first, only the parts that are set, only while the feature is on', async t => {
     const host = await fresh(t);
     await host.send('We walk.', 'We walk on.');
-    assert.doesNotMatch(tailText(host), /wears|condition|rank/, 'nothing set: no line');
+    assert.doesNotMatch(tailText(host), /^You:|wears/m, 'nothing set: no look line (the tail asks for one instead, you-first.test.js)');
     await host.send('On.', block('Rain.', ['~ you rank: F-rank | wearing: oilskin coat | condition: tired']));
     await host.send('On.', 'On.');
     assert.match(tailText(host), /^You: Guild rank F-rank; wears oilskin coat; condition tired$/m, '{{user}} becomes the persona\'s name');
@@ -197,11 +197,11 @@ test('the tail: one line for the narrator, rank first, only the parts that are s
     assert.doesNotMatch(tailText(host), /wears/);
     // As pure data: with `you` on, after the Place and Present lines; empty parts left out; off by default of the function.
     const state = { domains: { scene: { ...initialScene(), place: { name: 'Vell Harbour', kind: '', region: '' }, present: ['Ren'], you: { rank: '', wearing: 'a coat', condition: '' } } } };
-    assert.deepEqual(sceneTail(state, { you: true }), ['Place: Vell Harbour', 'Present: Ren', '{{user}}: wears a coat']);
-    assert.deepEqual(sceneTail({ domains: { scene: { ...state.domains.scene, you: { rank: 'F', wearing: 'a coat', condition: '' } } } }, { you: true }), ['Place: Vell Harbour', 'Present: Ren', '{{user}}: wears a coat'], 'a rank with no pack that gives one is not told');
+    assert.deepEqual(sceneTail(state, { you: true }), ['Place: Vell Harbour', 'Present: Ren', '{{user}}: wears a coat', youNote({ wearing: 'a coat' })]);
+    assert.deepEqual(sceneTail({ domains: { scene: { ...state.domains.scene, you: { rank: 'F', wearing: 'a coat', condition: '' } } } }, { you: true }), ['Place: Vell Harbour', 'Present: Ren', '{{user}}: wears a coat', youNote({ wearing: 'a coat' })], 'a rank with no pack that gives one is not told');
     assert.deepEqual(sceneTail(state), ['Place: Vell Harbour', 'Present: Ren']);
-    assert.deepEqual(sceneTail({ domains: { scene: { ...initialScene(), you: NONE } } }, { you: true }), []);
-    assert.deepEqual(sceneTail({ domains: { scene: { ...initialScene(), you: { condition: 'hurt', rank: 'F' } } } }, { you: true, rankLabel: 'Guild rank' }), ['{{user}}: Guild rank F; condition hurt']);
+    assert.deepEqual(sceneTail({ domains: { scene: { ...initialScene(), you: NONE } } }, { you: true }), [youNote(NONE)]);
+    assert.deepEqual(sceneTail({ domains: { scene: { ...initialScene(), you: { condition: 'hurt', rank: 'F' } } } }, { you: true, rankLabel: 'Guild rank' }), ['{{user}}: Guild rank F; condition hurt', youNote({ condition: 'hurt' })]);
 });
 
 // ---------------------------------------------------------------------------------------------------
