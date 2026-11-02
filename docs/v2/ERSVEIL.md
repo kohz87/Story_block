@@ -26,7 +26,8 @@ SillyTavern profile.
 
 ## 2. Import the pack
 
-1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil/pack.json`.
+1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil.zip`. This is the one-step way:
+   it holds `pack.json` and the twelve portraits ("12 portraits saved"). Picking `pack.json` alone imports no pictures.
    The message says "Installed Ersveil (open world)." and the list shows "136 events, 320 places, 350 routes,
    1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
@@ -35,7 +36,7 @@ SillyTavern profile.
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
 Importing 2.4.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
-2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import the pack as the `.zip` (`pack.json` and `portraits/`) or pick `pack.json` and the twelve `.webp` files together, or the portraits stay unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
+2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import `examples/packs/ersveil.zip` (`pack.json` and `portraits/`; rebuild it with `node scripts/build-example-zip.mjs`) or pick `pack.json` and the twelve `.webp` files together; `pack.json` alone leaves the portraits unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
 

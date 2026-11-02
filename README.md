@@ -17,7 +17,7 @@ For AI assistants that read this repository, see [AI-README.md](AI-README.md).
 
 Story Block is built and tested on SillyTavern 1.19. [Story Studio](https://github.com/kohz87/Story_studio) is not an extension: it is one page you open in a browser to write packs.
 
-To try a world, import the Ersveil example pack. Open **Settings → Tabs & Packs → Import pack file** and pick [`examples/packs/ersveil/pack.json`](examples/packs/ersveil/pack.json) together with the pictures in [`examples/packs/ersveil/portraits/`](examples/packs/ersveil/portraits). Then start a new chat. Ersveil needs Story Director. [Ersveil](docs/v2/ERSVEIL.md) explains the world.
+To try a world, import the Ersveil example pack. Open **Settings → Tabs & Packs → Import pack file** and pick [`examples/packs/ersveil.zip`](examples/packs/ersveil.zip): one step, and it brings the twelve portraits. Picking `pack.json` alone imports no pictures. Then start a new chat. Ersveil needs Story Director. [Ersveil](docs/v2/ERSVEIL.md) explains the world.
 
 ## What you see and do
 
