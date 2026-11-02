@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.16.1
+
+- **A chat can no longer stay stuck after the page closed mid-save.** With NPC State Delta, closing or reloading the
+  page at the instant it was saving a change could leave the chat refusing every reply ("A native change is
+  finishing…") with no way out. A chat already stuck that way now heals when it opens: the unfinished change is let
+  go, one line says so, and the story goes on. (NPC State Delta 1.7.1 stops it happening.)
+
 ## 2.16.0
 
 - **Sharper portraits, any common picture.** A pack's portraits may be PNG, JPEG or WebP up to 10 MB each (in a .zip
