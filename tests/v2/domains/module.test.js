@@ -6,6 +6,7 @@ import { CORE_BUDGET, CORE_KINDS, CORE_MODULE_ID, CORE_STATIC, createCoreModule,
 import { currencyOf, moneyLine } from '../../../src/v2/domains/money.js';
 import { youNote } from '../../../src/v2/domains/scene.js';
 import { createHarness, initialState, line } from './helpers/fake-ctx.js';
+import { WALLET_NOTE } from '../../../src/v2/domains/inventory.js';
 import { CROWNS, core, def, stack, stocked } from './fixtures.js';
 
 const view = state => ({ state, query: () => null, settings: {}, chat: { length: 1, lastUser: '' } });
@@ -180,7 +181,7 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
             '{{user}}: wears a grey cloak; condition rested',
             'Equipped: Iron Sword [hand]',
             'Equipped (Ren): Dagger [hand]',
-            'Wallet: 38 crowns; Ren 5 crowns',
+            `Wallet: 38 crowns; Ren 5 crowns (${WALLET_NOTE})`,
             'Carried: Minor Healing Draught ×2, Minor Healing Draught (cloudy), Lantern, Rope ×3 (tarred hemp, sixty feet, knotted every…)',
         ],
         optional: [],
@@ -190,10 +191,10 @@ test('tail: place, present, equipped, wallet and carried items with notes trimme
 test('tail: an empty start says so', () => {
     const module = core();
     // A new chat has no look yet, so the tail also asks the narrator to set it (the note comes before the inventory lines).
-    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: [youNote(undefined), 'Wallet: 0 gold', 'Carried: nothing'], optional: [] });
+    assert.deepEqual(module.context.tail(view(initialState([module]))), { lines: [youNote(undefined), `Wallet: 0 gold (${WALLET_NOTE})`, 'Carried: nothing'], optional: [] });
     const set = initialState([module]);
     set.domains.scene.you = { rank: '', wearing: 'a coat', condition: 'tired' };
-    assert.deepEqual(module.context.tail(view(set)), { lines: ['{{user}}: wears a coat; condition tired', 'Wallet: 0 gold', 'Carried: nothing'], optional: [] });
+    assert.deepEqual(module.context.tail(view(set)), { lines: ['{{user}}: wears a coat; condition tired', `Wallet: 0 gold (${WALLET_NOTE})`, 'Carried: nothing'], optional: [] });
 });
 
 test('tail: a long inventory overflows into optional, then into a count, within the budget', () => {

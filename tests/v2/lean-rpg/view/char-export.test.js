@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CHAR_FILE, parseCharacterFile } from '../../../../src/v2/lean-rpg/charfile.js';
+import { TOLD } from '../../../../src/v2/domains/inventory.js';
 import { STATS } from '../../../../src/v2/lean-rpg/index.js';
 import { EXPORT_SCREEN_ID, EXPORT_WIDGET } from '../../../../src/v2/lean-rpg/view/export.js';
 import { WIZARD_SCREEN_ID } from '../../../../src/v2/lean-rpg/view/wizard.js';
@@ -552,6 +553,18 @@ test('Create makes the Character and Skills blocks from the file, adds the thing
     assert.deepEqual(names(ctx.host), [], 'one swipe: the blocks go with the reply');
     assert.deepEqual(carried(ctx.host), [], 'and the things');
     assert.equal(purseOf(ctx.host), 0, 'and the money (the 20 before came from the same reply)');
+});
+
+test('the things and the money an import adds are told under [Happened] as the starting kit and purse, not as found or paid in the story', async t => {
+    const ctx = await newcomer(t);
+    await createRen(ctx);
+    const receipts = ctx.host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []);
+    const things = receipts.filter(receipt => receipt.type === 'inventory.add'), purse = receipts.filter(receipt => receipt.type === 'wallet.set');
+    assert.equal(things.length, 3);
+    assert.equal(purse.length, 1);
+    assert.ok(things.every(receipt => receipt.data.told === TOLD.startKit), 'every thing: the starting kit');
+    assert.equal(purse[0].data.told, TOLD.startPurse);
+    assert.match(purse[0].summary, /^You set the purse to /, 'the card\'s own words are the same');
 });
 
 test('the things and the money are the same reply\'s changes as the blocks: a swipe of a later reply leaves them', async t => {

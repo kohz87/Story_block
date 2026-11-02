@@ -537,6 +537,16 @@ These settle questions agents raised; the host changes they need are made at int
     was captured, or for a reply swiped or deleted meanwhile, is not used. (We used the existing assist path,
     story lines through the turn's capture, rather than an `afterCapture` system step, so the lines keep the
     story caps and claims and a turn-in step of F121 sees them.)
+    *Where and when (stage 40, SB 2.16.4):* the prompt also tells it the scene's place, the map's place names near
+    it (nearest first by the map's coordinates, else the same region; the atlas's names when Story Director is on, else
+    the packs'; at most `MAX_NEAR` = 20) and the story's date and time (`director.time`), and says to use a known name
+    for a known place and a clock time for a time (`~ time <date>, 9:30 am` sets it, `! time +2h` moves it on;
+    "midday" and "mid-morning" are not times). Code then refuses a `place` line whose name is not one the map answers
+    to (its name, either side of "A / B", an alias, or the scene's own place) but is made only of words one of the
+    map's places has ("Bluewatch Guild Branch" for "Bluewatch Village / Guild Office"), and a `time` line that sets
+    the time with no clock time (a stretch such as `+2h` needs none). A refused line is not applied; each gets a Problems
+    line on the reply ("… was not used: … the map calls this place "…"") and so a row in its note's refused lines
+    (src/v2/assist/where.js, extractor.js, turn.js `captureAssist`). A new place with a word of its own is not refused.
 124. **One queue per connection for Story Suite's own model calls** (Delta's scan, the arc planner and Assist
     collided on single-slot local servers). `createCallQueue` (model-call.js): calls on the same named
     profile run one at a time in the order they came, each with its own time limit and signal (a call that
