@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.16.4
+
+- **Old-format change blocks are read, never copied.** A hidden `<!-- STORY_BLOCKS_V1 … -->` block (written by an old
+  Story Block v1 copy) is no longer sent to the model or shown. A reply whose only change list is in that old format is
+  read anyway, with one Problems line: "The narrator wrote its changes in an old format; they were read anyway."
+  **Re-read** fixes replies already in the chat. Lines repeated from the reply's own block are no longer warned about.
+- **A warning when an old Story Block v1 copy is still enabled.** It breaks the suite; the line goes once it is off.
+- **The battle log shows on first render.** A `[battle]` reply now draws its panel at once, even when NPC State Delta
+  redraws the reply; a `[battle]` line with no rolls is hidden instead of shown raw.
+- **Your look is asked for.** While Wearing and Condition are empty, the scene note asks the narrator to set them for
+  you from your persona and what you carry; it stops once they are set.
+- **Coins are written more reliably.** The Wallet line says it is the purse before this reply and asks for a coin line
+  for any money paid or received; the coin rule says "even a few coins"; the starting purse and kit from a new
+  character are marked as set before the story began, so the model does not skip pay to avoid double counting.
+- **The safety net stays in the story's world.** It is told the story's date and time, the current place and the
+  known places, and its lines that invent a look-alike place or give a time with no clock time are refused, each with
+  a Problems line. A block line missing its `kind:` gets it when only one kind fits.
+- **Fixes for fast chat switching:** a change still waiting to save in a third chat is no longer lost when an earlier
+  chat reopens; a lorebook read started in the previous chat no longer gives the new chat its markets; a Re-read
+  finishing after a chat switch no longer marks the new chat's reply.
+
 ## 2.16.3
 
 - **Making a character in a brand-new chat works again.** If Story Block had not yet set up a new chat (it does that
