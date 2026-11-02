@@ -271,8 +271,9 @@ function renderHero(el, input, api) {
             }
             root.classList.add('ss-hero-has-edit');
             if (!editButton) {
-                editButton = h(doc, 'button', 'ss-chip ss-tap-pill ss-hero-edit');
+                editButton = h(doc, 'button', 'ss-hero-edit');
                 editButton.setAttribute('type', 'button');
+                editButton.setAttribute('data-ss-hit', '');
                 editButton.setAttribute('aria-label', STRINGS.scene.editAll);
                 editButton.setAttribute('title', STRINGS.scene.editAll);
                 editButton.setAttribute('aria-expanded', editing ? 'true' : 'false');

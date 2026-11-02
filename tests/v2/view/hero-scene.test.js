@@ -425,7 +425,31 @@ test('the header\'s one Edit button is a pill in the corner (a phone: beside the
     assert.doesNotMatch(rule('.ss-hero-compact .ss-hero-corner-text'), /ellipsis|nowrap/, 'no "Bluewatch Vi…"');
     assert.doesNotMatch(css, /ss-hero-corner-pencil|ss-hero-you-pencil/, 'no pencil rules left for the header');
     assert.match(rule('.ss-hero-head'), /display: flex;/);
-    assert.match(rule('.ss-hero-edit'), /margin: 0 0 0 auto;/, 'beside the name, at the end of its row');
+    assert.match(rule('.ss-hero-head .ss-hero-edit'), /margin: 0 0 0 auto;/, 'at the far right of the name row (heavier than the chip\'s own margin: 0)');
+    // small and quiet: the drawn height is the line (14px) + the padding (4px x 2) + the edge (1px x 2) = 24px, in the meta lines' 12px text
+    const pill = rule('.ss-hero-head .ss-hero-edit');
+    const px = name => Number(new RegExp(`${name}: (\\d+)px`).exec(pill)?.[1]);
+    assert.equal(px('font-size'), 12);
+    assert.equal(px('line-height'), 14);
+    assert.match(pill, /padding: 4px 8px;/);
+    assert.match(pill, /border: 1px solid color-mix\(in srgb, var\(--ss-muted\) 35%, transparent\);/, 'a faint edge at rest');
+    assert.match(pill, /min-height: 0;/);
+    const drawn = px('line-height') + 2 * 4 + 2 * 1;
+    assert.ok(drawn >= 22 && drawn <= 24, `drawn ${drawn}px tall`);
+    assert.equal(drawn, 24);
+    assert.match(rule('.ss-hero-edit-icon'), /width: 12px;\s*height: 12px;/);
+    // the invisible tap area: 44px tall, as wide as the button (never wider: it cannot reach the name or the close button), opted out of the 44px minimum
+    const tap = rule('.ss-hero-head .ss-hero-edit::after');
+    assert.match(tap, /height: calc\(44px \/ var\(--ss-zoomed, 1\)\);/);
+    assert.match(tap, /left: 0;\s*right: 0;/);
+    assert.match(tap, /top: 50%;/);
+    assert.match(pill, /position: relative;/);
+    assert.match(rule('.ss-hero-head .ss-hero-edit:hover,\n:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit:focus-visible,\n:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit[aria-expanded="true"]'), /border-color: var\(--ss-accent\);/, 'the accent on hover, focus and while open');
+    assert.match(rule('.ss-hero-head .ss-hero-edit:focus-visible'), /outline: 2px solid var\(--ss-accent\);/, 'a visible focus ring');
+    assert.equal(draw(LEAD).edit().getAttribute('data-ss-hit'), '', 'opted out of the 44px minimum: it draws its own tap area');
+    assert.match(rule('.ss-hero-has-edit .ss-hero-head'), /width: 100%;/, 'the name row is the whole width, so the button is at its far right');
+    assert.match(rule('.ss-hero-has-edit .ss-hero-head .ss-hero-name'), /overflow: hidden;\s*text-overflow: ellipsis;\s*white-space: nowrap;/, 'a long name is cut before the button, never wrapped under it');
+    assert.match(rule('.ss-hero-has-edit .ss-hero-head .ss-hero-name'), /min-width: 0;/);
     assert.match(css, /@container \(min-width: 600px\) \{[^@]*\.ss-hero-edit \{\s*position: absolute;\s*top: 10px;\s*right: 12px;/, 'the card\'s top-right corner from 600px');
     assert.match(rule('.ss-hero.ss-hero-editing .ss-hero-corner,\n:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero.ss-hero-editing .ss-hero-you'), /display: none;/, 'over the compact header\'s own corner rules');
     assert.match(css, /@media \(max-width: 600px\) \{\s*:where\([^)]*\) \.ss-hero-editor \.ss-w-editable-groups \{\s*grid-template-columns: minmax\(0, 1fr\);/, 'the groups stack on a phone');

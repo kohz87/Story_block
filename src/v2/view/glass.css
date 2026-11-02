@@ -552,27 +552,69 @@
     align-items: center;
     gap: 10px;
     min-width: 0;
-    width: 100%;
     max-width: 100%;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-edit {
+/* with the Edit button the name row is the whole width (the class line goes under it) and the button sits at its far right; a long
+   name is cut with an ellipsis before the button, never wrapped under it */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-has-edit .ss-hero-head {
+    width: 100%;
+    flex: 1 1 100%;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-has-edit .ss-hero-head .ss-hero-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* The Edit button is small and quiet: about 24px tall in the meta lines' 12px text, a 12px pencil and the word, tight padding, a faint edge at
+   rest and the accent on hover, focus and while the editor is open. It opts out of the 44px minimum (`data-ss-hit`) and draws its own invisible
+   44px-tall tap area (::after, as `ss-tap-pill` does), as wide as the button, so it never reaches the name beside it or the close button above. */
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit {
+    position: relative;
     display: inline-flex;
     flex: none;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
+    box-sizing: border-box;
+    min-width: 0;
     min-height: 0;
     margin: 0 0 0 auto;
-    padding: 3px 11px;
+    padding: 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--ss-muted) 35%, transparent);
+    border-radius: var(--ss-radius-pill);
+    background: transparent;
+    color: var(--ss-muted);
+    font-family: var(--ss-font);
     font-size: 12px;
-    line-height: 1.4;
+    font-weight: 600;
+    line-height: 14px;
+    cursor: pointer;
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-edit-icon {
-    width: 12px;
-    height: 12px;
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: calc(44px / var(--ss-zoomed, 1));
+    transform: translateY(-50%);
 }
-:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-edit[aria-expanded="true"] {
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit:hover,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit:focus-visible,
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit[aria-expanded="true"] {
     border-color: var(--ss-accent);
     background: var(--ss-accent-soft);
+    color: var(--ss-text);
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit:focus-visible {
+    outline: 2px solid var(--ss-accent);
+    outline-offset: 2px;
+}
+:where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-edit-icon {
+    flex: none;
+    width: 12px;
+    height: 12px;
 }
 /* the editor takes the place of the lines it edits (the time, place, weather and Here; Rank, Wearing and Condition) while it is open */
 :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero.ss-hero-editing .ss-hero-corner,
@@ -626,7 +668,7 @@
     max-width: 100%;
 }
 @container (min-width: 600px) {
-    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-edit {
+    :where(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card, .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) .ss-hero-head .ss-hero-edit {
         position: absolute;
         top: 10px;
         right: 12px;
