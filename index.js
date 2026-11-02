@@ -16,6 +16,7 @@ import { createRuntime, VERSION } from './src/v2/runtime.js';
 import { INTERCEPTOR_NAME } from './src/v2/turn.js';
 import { mountUi } from './src/v2/ui-host.js';
 import { noteSaveError } from './src/v2/diagnostics.js';
+import { createV1Watch } from './src/v2/v1-copy.js';
 import { packs as livePacks, part as livePacksPart, portraits as livePortraits, refreshLore, resolveItem, startState } from './src/v2/packs/index.js';
 
 const LOG = '[Story Block v2]';
@@ -38,7 +39,11 @@ function boot() {
         onRegister: () => ui?.syncScreens(),
     });
     const { sdk, turn, markReady } = runtime;
+    // (An old v1 copy loaded before this one left its own object here: src/v2/v1-copy.js.)
+    const before = globalThis.StoryBlock ?? null;
     globalThis.StoryBlock = Object.freeze({ apiVersion: 2, version: VERSION, ready: sdk.ready, sdk });
+    const v1 = createV1Watch({ before, report: entry => turn.report(entry), problems: () => turn.problems() });
+    const lookForV1 = () => { try { v1.check(); } catch { /* never in the way of the story */ } };
 
     turn.install({ globalName: INTERCEPTOR_NAME });
     turn.onChatChanged().catch(error => console.warn(`${LOG} the first chat could not be read`, error));
@@ -50,13 +55,14 @@ function boot() {
     // A pack installed or switched on changes the screens and the start of new chats.
     livePacks.subscribe?.(() => ui?.syncScreens());
     const types = ctx.eventTypes ?? ctx.event_types ?? {};
-    if (types.APP_READY) ctx.eventSource?.on?.(types.APP_READY, () => ui?.refresh());
+    if (types.APP_READY) ctx.eventSource?.on?.(types.APP_READY, () => { ui?.refresh(); lookForV1(); });
     // The open character's lorebook `market:` lines (PACKS.md "Markets"), read for each chat.
     const readLore = () => refreshLore().catch(error => console.warn(`${LOG} the lorebook's market lines could not be read`, error));
-    if (types.CHAT_CHANGED) ctx.eventSource?.on?.(types.CHAT_CHANGED, () => { ui?.clearBlocked(); ui?.refresh(); readLore(); });
+    if (types.CHAT_CHANGED) ctx.eventSource?.on?.(types.CHAT_CHANGED, () => { ui?.clearBlocked(); ui?.refresh(); readLore(); lookForV1(); });
     readLore();
     // Cast portraits are files on the server: the ones that went missing (a cleaned user-files folder) answer nothing until imported again.
     livePortraits.verify().catch(error => console.warn(`${LOG} the pack portraits could not be checked`, error));
+    lookForV1();
     markReady();
     console.info(`${LOG} ${VERSION} ready`);
 }
