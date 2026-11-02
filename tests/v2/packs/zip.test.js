@@ -177,10 +177,10 @@ test('the Packs panel: large portraits in a zip, and picked beside pack.json, ar
     assert.deepEqual(texts(zipped.root, '.ss-packs-message'), ['Installed mini. 2 portraits saved.']);
     const sizes = [...zipped.files.files.values()].map(bytes => bytes.length);
     assert.equal(sizes.length, 2);
-    assert.ok(sizes.every(size => size <= 64 * 1024));
-    const files = mount(fakeImageIo({ bytesAt: () => 100 * 1024 }));
+    assert.ok(sizes.every(size => size <= 150 * 1024));
+    const files = mount(fakeImageIo({ bytesAt: () => 200 * 1024 }));
     await files.pick([fileOf('pack.json', text(packText(person('fenna', 'fenna.png')))), fileOf('fenna.png', big)]);
     assert.deepEqual(texts(files.root, '.ss-packs-message'), ['Installed mini. 1 portrait not picked; that person shows without a picture until you add it. 1 image not used.']);
-    assert.deepEqual(texts(files.root, '.ss-packs-errors li'), ['fenna.png cannot be made small enough: a portrait may be at most 64 KB.']);
+    assert.deepEqual(texts(files.root, '.ss-packs-errors li'), ['fenna.png cannot be made small enough: a portrait may be at most 150 KB.']);
     assert.equal(files.files.files.size, 0);
 });

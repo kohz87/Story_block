@@ -115,20 +115,20 @@ test('what a secret says is not in the lines that are told from the start (about
     }
 });
 
-test('the portraits: one WebP per person, a long side of at most 600 pixels, at most 62 KB (the import takes 64)', () => {
+test('the portraits: one WebP per person, a long side of 1200 pixels at most, at most 150 KB (the import takes 150)', () => {
     const named = new Set(cast().map(person => person.portrait));
     assert.equal(named.size, 12);
     for (const name of named) {
         const bytes = portraitBytes(name);
         assert.equal(sniffImage(bytes), 'webp', name);
-        assert.ok(bytes.length <= 62 * 1024 && bytes.length <= PORTRAIT_LIMITS.bytes, `${name}: ${bytes.length} bytes`);
+        assert.ok(bytes.length <= PORTRAIT_LIMITS.bytes, `${name}: ${bytes.length} bytes`);
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const kind = String.fromCharCode(...bytes.slice(12, 16));
         let width; let height;
         if (kind === 'VP8 ') { width = view.getUint16(26, true) & 0x3fff; height = view.getUint16(28, true) & 0x3fff; }
         else if (kind === 'VP8X') { width = 1 + (bytes[24] | bytes[25] << 8 | bytes[26] << 16); height = 1 + (bytes[27] | bytes[28] << 8 | bytes[29] << 16); }
         else assert.fail(`${name}: unexpected WebP chunk ${kind}`);
-        assert.ok(Math.max(width, height) <= 600 && Math.max(width, height) >= 400, `${name}: ${width}x${height}`);
+        assert.ok(Math.max(width, height) <= PORTRAIT_LIMITS.side && Math.max(width, height) >= 1000, `${name}: ${width}x${height}`);
     }
 });
 

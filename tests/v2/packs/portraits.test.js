@@ -63,8 +63,8 @@ test('refusals: too big, wrong type, a file the pack does not name, a name picke
     assert.equal(result.ok, true);
     assert.deepEqual(result.portraits.stored, ['c.jpg']);
     const said = Object.fromEntries(result.portraits.refused.map(item => [item.file, item.message]));
-    assert.match(said['a.webp'], /is 64 KB|is 65 KB/);
-    assert.match(said['a.webp'], /at most 64 KB/);
+    assert.match(said['a.webp'], /is 150 KB|is 151 KB/);
+    assert.match(said['a.webp'], /at most 150 KB/);
     assert.match(said['b.png'], /not a WebP, PNG or JPEG image/);
     assert.match(said['stray.png'], /not named by any person in this pack/);
     assert.match(said['c.jpg'], /picked twice/);

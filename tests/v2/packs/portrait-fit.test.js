@@ -1,5 +1,5 @@
-// Portraits over 64 KB are made smaller on import (portrait-fit.js, portraits.js): a PNG, JPEG or WebP of up to 10 MB is decoded, drawn
-// with its long side at most 600 px, saved as WebP with the quality stepped down until it is 64 KB or less. A picture already that small is
+// Portraits over 150 KB are made smaller on import (portrait-fit.js, portraits.js): a PNG, JPEG or WebP of up to 10 MB is decoded, drawn
+// with its long side at most 1200 px, saved as WebP with the quality stepped down until it is 150 KB or less. A picture already that small is
 // kept byte for byte. Node has no canvas, so the decoder and encoder are a fake with the browser one's shape; the browser's own is
 // tried in a real browser by hand (see the stage 36 report).
 import test from 'node:test';
@@ -23,7 +23,7 @@ const setup = (io = fakeImageIo(), options) => {
 };
 const BIG = 3 * 1024 * 1024;
 
-test('a large PNG and a large JPEG are stored as WebP of 64 KB or less, the long side asked at 600 px, quality stepped down', async () => {
+test('a large PNG and a large JPEG are stored as WebP of 150 KB or less, the long side asked at 1200 px, quality stepped down', async () => {
     const { files, packs, url, storedBytes, io } = setup();
     const result = await packs.install(cast('1.0.0', person('a', 'a.png'), person('b', 'b.jpg')), { files: [picked('a.png', pngOf(2400, 1800, BIG)), picked('b.jpg', jpg(2 * 1024 * 1024))] });
     assert.equal(result.ok, true);
@@ -35,13 +35,13 @@ test('a large PNG and a large JPEG are stored as WebP of 64 KB or less, the long
         assert.ok(bytes.length <= PORTRAIT_LIMITS.bytes, `${file}: ${bytes.length} bytes`);
     }
     assert.equal(files.files.size, 2);
-    // the long side is capped at 600 and the quality goes down by the same steps as Story Studio's
-    assert.deepEqual(io.calls.encoded.slice(0, 4), [[600, 0.85], [600, 0.7], [600, 0.55], [600, 0.4]]);
+    // the long side is capped at 1200 and the quality goes down by the same steps as Story Studio's
+    assert.deepEqual(io.calls.encoded.slice(0, 4), [[1200, 0.85], [1200, 0.7], [1200, 0.55], [1200, 0.4]]);
     assert.equal(io.calls.opened, 2);
     assert.equal(io.calls.closed, 2, 'each decoded picture is freed');
 });
 
-test('a picture of 64 KB or less is stored exactly as it came: byte for byte, never decoded, whatever its type or pixels', async () => {
+test('a picture of 150 KB or less is stored exactly as it came: byte for byte, never decoded, whatever its type or pixels', async () => {
     const { packs, url, storedBytes, io } = setup();
     const small = { 'a.webp': webp(PORTRAIT_LIMITS.bytes, 1), 'b.png': png(5000, 2), 'c.jpg': jpg(PORTRAIT_LIMITS.bytes - 1, 3), 'd.png': pngOf(4000, 4000, 900, 4) };
     const result = await packs.install(cast('1.0.0', ...Object.keys(small).map(file => person(file.split('.')[0], file))), { files: Object.entries(small).map(([name, bytes]) => picked(name, bytes)) });
@@ -75,14 +75,14 @@ test('a size limit of 10 MB is checked from the declared size before the file is
     assert.equal(read, false);
     assert.deepEqual(result.portraits.stored, []);
     assert.equal(result.portraits.refused.length, 2);
-    for (const item of result.portraits.refused) assert.match(item.message, new RegExp(`^${item.file} is 10(\\.0)? MB; a portrait may be picked at up to 10 MB \\(it is made smaller to fit 64 KB\\)\\.$`));
+    for (const item of result.portraits.refused) assert.match(item.message, new RegExp(`^${item.file} is 10(\\.0)? MB; a portrait may be picked at up to 10 MB \\(it is made smaller to fit 150 KB\\)\\.$`));
     assert.equal(files.files.size, 0);
 });
 
-test('refused, naming the file: not a picture the browser can read, still over 64 KB at the lowest step, too many pixels, the encoder failing', async () => {
+test('refused, naming the file: not a picture the browser can read, still over 150 KB at the lowest step, too many pixels, the encoder failing', async () => {
     const cases = [
         ['unreadable.png', fakeImageIo({ fail: new FitProblem('could not be read as a picture') }), /^unreadable\.png could not be read as a picture\.$/],
-        ['stubborn.png', fakeImageIo({ bytesAt: () => 200 * 1024 }), /^stubborn\.png cannot be made small enough: a portrait may be at most 64 KB\.$/],
+        ['stubborn.png', fakeImageIo({ bytesAt: () => 200 * 1024 }), /^stubborn\.png cannot be made small enough: a portrait may be at most 150 KB\.$/],
         ['broken.png', fakeImageIo({ failEncode: new Error('canvas lost') }), /^broken\.png could not be made smaller \(canvas lost\)\.$/],
     ];
     for (const [file, io, pattern] of cases) {
@@ -114,10 +114,10 @@ test('a refused big picture does not stop the others or the pack; a wrong type i
     assert.ok(url('mini', 'a.png') && url('mini', 'b.webp'));
 });
 
-test('where there is no decoder, a picture over 64 KB is refused as before, with the 64 KB message', async () => {
+test('where there is no decoder, a picture over 150 KB is refused as before, with the 150 KB message', async () => {
     const { files, packs } = setup(null);
     const result = await packs.install(cast('1.0.0', person('a', 'a.png')), { files: [picked('a.png', png(PORTRAIT_LIMITS.bytes + 1))] });
-    assert.match(result.portraits.refused[0].message, /^a\.png is 64 KB; a portrait may be at most 64 KB \(compress it and pick it again\)\.$/);
+    assert.match(result.portraits.refused[0].message, /^a\.png is 150 KB; a portrait may be at most 150 KB \(compress it and pick it again\)\.$/);
     assert.equal(files.files.size, 0);
 });
 
@@ -126,12 +126,12 @@ test('fitPortrait: quality steps first, then fewer pixels, then it gives up with
     const out = await fitPortrait(io(png()), {});
     assert.equal(out.type, 'webp');
     const asked = io.calls.encoded;
-    assert.deepEqual(asked.slice(0, 5), [[600, 0.85], [600, 0.7], [600, 0.55], [600, 0.4], [600, 0.3]]);
+    assert.deepEqual(asked.slice(0, 5), [[1200, 0.85], [1200, 0.7], [1200, 0.55], [1200, 0.4], [1200, 0.3]]);
     assert.deepEqual(asked.at(-1), [asked.at(-1)[0], 0.55]);
     assert.ok(asked.at(-1)[0] <= 400);
     // a small picture is asked at its own size, not enlarged
-    const small = fakeImageIo({ width: 200, height: 100, bytesAt: () => 70 * 1024 });
-    await assert.rejects(fitPortrait(small(png())), error => error instanceof FitProblem && /cannot be made small enough: a portrait may be at most 64 KB$/.test(error.message));
+    const small = fakeImageIo({ width: 200, height: 100, bytesAt: () => 170 * 1024 });
+    await assert.rejects(fitPortrait(small(png())), error => error instanceof FitProblem && /cannot be made small enough: a portrait may be at most 150 KB$/.test(error.message));
     assert.equal(small.calls.encoded[0][0], 200);
     assert.ok(small.calls.encoded.at(-1)[0] >= 96);
 });
@@ -209,8 +209,9 @@ test('browserImageIo saves JPEG where the browser cannot save WebP, and says so 
     await assert.rejects(none.size(), error => error instanceof FitProblem && /this browser cannot read pictures/.test(error.message));
 });
 
-test('the stored limit stays 64 KB and a full pack of 10 MB portraits fits the zip limits', () => {
-    assert.equal(PORTRAIT_LIMITS.bytes, 64 * 1024);
+test('the stored limit is 150 KB at 1200 px and a full pack of 10 MB portraits fits the zip limits', () => {
+    assert.equal(PORTRAIT_LIMITS.bytes, 150 * 1024);
+    assert.equal(PORTRAIT_LIMITS.side, 1200);
     assert.equal(PORTRAIT_LIMITS.source, 10 * 1024 * 1024);
     assert.ok(PORTRAIT_LIMITS.perPack * PORTRAIT_LIMITS.source + 512 * 1024 <= ZIP_LIMITS.archive);
     assert.ok(PORTRAIT_LIMITS.perPack * PORTRAIT_LIMITS.source + 512 * 1024 <= ZIP_LIMITS.unpacked);

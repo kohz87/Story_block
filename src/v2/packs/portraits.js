@@ -6,17 +6,17 @@
 // it to every device; a browser-only store (IndexedDB) would leave the phone without them. Only a small index stays in settings
 // (`storySuite.portraits[pack][file] = { stored, bytes }`): which stored file is which name of which pack.
 //
-// Limits (limits.js PORTRAIT_LIMITS): webp, png or jpeg, at most 64 KB each once stored, at most 32 per pack. A file is taken only
+// Limits (limits.js PORTRAIT_LIMITS): webp, png or jpeg, at most 150 KB each once stored, at most 32 per pack. A file is taken only
 // when a cast entry names it and really is one of the three types (read from its first bytes, not its name); the others are refused
-// one by one with a reason, and the pack is imported all the same. A picture of up to 10 MB may be picked: one over 64 KB is made
-// smaller in the browser first (portrait-fit.js: long side at most 600 px, WebP, quality stepped down until it fits) and a file that
-// cannot be read, or will not fit at the lowest step, is refused. A picture already at most 64 KB is stored as it is, byte for byte
+// one by one with a reason, and the pack is imported all the same. A picture of up to 10 MB may be picked: one over 150 KB is made
+// smaller in the browser first (portrait-fit.js: long side at most 1200 px, WebP, quality stepped down until it fits) and a file that
+// cannot be read, or will not fit at the lowest step, is refused. A picture already at most 150 KB is stored as it is, byte for byte
 // (WebP, PNG or JPEG), never re-encoded.
 //
 // `files` (injected; st-adapter.js stPortraitFiles): `{ put(name, bytes), remove(name), exists(names) → { name: bool }, url(name) }`.
 // Without it nothing can be stored and every picked image is refused with that reason.
 // `imageIo` (injected; portrait-fit.js browserImageIo, a fake one in the Node tests): `bytes → { size(), encode(side, quality), close?() }`.
-// Without it a picture over 64 KB is refused as before (there is no decoder to make it smaller).
+// Without it a picture over 150 KB is refused as before (there is no decoder to make it smaller).
 
 import { PORTRAIT_LIMITS } from './limits.js';
 import { FitProblem, MAX_PIXELS, fitPortrait, imageSize } from './portrait-fit.js';

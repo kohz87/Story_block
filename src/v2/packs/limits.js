@@ -151,7 +151,7 @@ export const CAST_BUILT_IN_PRESETS = Object.freeze(['companion', 'rival', 'mento
 // Portraits: image files beside pack.json, named by an entry's `portrait`, imported with the pack (portraits.js). What is stored is at
 // most `bytes` each (NPC State Delta keeps a copy per chat); what may be picked is a WebP, PNG or JPEG of up to `source` bytes, which
 // the browser makes smaller until it fits (portrait-fit.js: long side at most `side` px, WebP, quality stepped down).
-export const PORTRAIT_LIMITS = Object.freeze({ bytes: 64 * 1024, source: 10 * 1024 * 1024, side: 600, perPack: 32, name: 64 });
+export const PORTRAIT_LIMITS = Object.freeze({ bytes: 150 * 1024, source: 10 * 1024 * 1024, side: 1200, perPack: 32, name: 64 });
 // A pack zip (Story Studio's export: pack.json and a portraits/ folder, zip.js and bundle.js): the archive itself, everything in it
 // unpacked, one file in it, and the entries (folders count) it may hold. The archive and the unpacked total fit a full pack of
 // portraits at their largest (every portrait at `source`) and a little more. `ratio` is the most a deflated file may grow when
