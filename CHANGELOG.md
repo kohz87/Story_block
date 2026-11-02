@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.16.3
+
+- **Making a character in a brand-new chat works again.** If Story Block had not yet set up a new chat (it does that
+  after SillyTavern and the other extensions have handled the new chat, which can take a while), the New character
+  wizard said "Could not make the character: There is no state to change yet." Now any action of yours in a chat that
+  has a message starts the chat's state first, the same way opening the chat does. In a chat with no message at all
+  the wizard says "Start the chat first: the character's first message holds the story's state."
+
 ## 2.16.2
 
 - **Content release: no code change.** The Ersveil example now comes as one file, `examples/packs/ersveil.zip`, with
