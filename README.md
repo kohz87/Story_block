@@ -69,6 +69,73 @@ Open them with the **Suite** button above the message box or from the wand menu 
 - **Blocks.** Small trackers you make for one story. Choose where each shows: its own tab, a card on Home, both, or hidden.
 - **Diagnostics.** A report you can copy when something goes wrong.
 
+## Make it your own
+
+From the easiest way to the most involved.
+
+**1. Settings.** **Settings → Look** sets the panel style, glass strength, font and text size. **Settings → Tabs & Packs** chooses which screens sit in the bar and which are under **More**, and in what order.
+
+**2. Your own colours and sizes, with CSS.** Open SillyTavern's **User Settings** and put CSS in the **Custom CSS** box. Story Suite draws its look from CSS variables (`--ss-*`), and your rule wins. Set them on Story Suite's own roots, as below. A rule on `:root` or `body` does nothing, because Story Suite sets each variable again on every root it draws. This example makes the accent red:
+
+```css
+:is(.story-suite-overlay, .story-suite-sheet, .ss-gameview, .ss-dialog, .ss-cards, .ss-card,
+    .ss-hud, [data-ss-screen], .story-suite-bar, .story-suite-extras, .story-suite-reply-note) {
+  --ss-accent: #e5484d;
+  --ss-accent-soft: rgba(229, 72, 77, 0.24);
+  --ss-accent-text: #ff8a8f;
+}
+```
+
+<img src="docs/images/customize-css.png" alt="The Game view Home screen with the red accent from the CSS above: the hero's picture ring and the current Home tab are red instead of purple." width="100%">
+
+*The same rule in SillyTavern's Custom CSS box: the accent is red everywhere.*
+
+The widgets (meters, steppers, badges, the map) have their own variables, `--ss-w-*`. Set these on `.ss-w`. This one rounds their corners and thickens meters:
+
+```css
+.ss-w { --ss-w-radius: 14px; --ss-w-meter-height: 1em; }
+```
+
+Other variables you can set the same way: `--ss-radius-s`, `-m`, `-l`, `-xl` and `-xxl` (corner rounding), `--ss-text`, `--ss-muted`, `--ss-font`. The list is in [AI-README.md](AI-README.md#customizing-the-ui) and [the widget guide](docs/v2/WIDGETS.md). Pick colours that read on your SillyTavern theme: the accent text is lighter on a dark theme. **Not supported:** styling Story Suite's inner class names (for example the bar's items). They can change in any update. The variables and the roots above are the part we keep.
+
+**3. Your own screens.** A pack can add screens. A screen can be a JSON layout (a few node types: box, row, col, grid, text, meter, badge, image, list, button, tabs, when) with no HTML, or an HTML template with its own CSS and theme. The easy way is **Story Studio's Screen builder**: forms and a preview, checked with Story Block's own checker. By hand, this small pack adds one tab, **At a glance**, with a gold accent. Save it as `my-screens.json`, run `node authoring-kit/check.mjs my-screens.json`, then import it in **Settings → Tabs & Packs → Import pack file**. The tab starts under **More**; move it into the bar in Tabs & Packs if you like.
+
+```json
+{
+  "id": "my-screens",
+  "version": "1.0.0",
+  "name": "My screens",
+  "requires": { "storyBlock": "^2.16.0" },
+  "screens": [
+    {
+      "id": "my-screens/glance",
+      "title": "At a glance",
+      "icon": "fa-compass",
+      "mounts": ["tab", "screen"],
+      "layout": {
+        "theme": { "tokens": { "accent": "#c8a24a" } },
+        "root": {
+          "type": "box",
+          "title": "Where you are",
+          "children": [
+            { "type": "text", "label": "Place", "bind": { "query": "scene.place", "path": "name" } },
+            { "type": "text", "label": "Coins", "bind": { "query": "inventory.wallet", "path": "coin" } }
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+<img src="docs/images/customize-layout-tab.png" alt="The Game view with a new tab called At a glance in the bar. It shows a box titled Where you are with the place Auvoth / Pale Market and the coins, 11." width="100%">
+
+*A pack's layout tab in the Game view.*
+
+The checker checks the pack and each screen's fields. A layout is checked in full when it is drawn: if it has a mistake, the screen says what it is instead of drawing. Story Studio's Screen builder checks it before you apply it. More: [layouts](docs/v2/LAYOUTS.md) (node types, theme tokens, limits), [templates](docs/v2/TEMPLATES.md) and [widgets](docs/v2/WIDGETS.md).
+
+**4. Modules.** Developers can add whole parts, with their own commands, screens and settings: see [docs/v2/MODULES.md](docs/v2/MODULES.md).
+
 ## How the four fit together
 
 The Story Suite has four parts.

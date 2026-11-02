@@ -156,6 +156,97 @@ Features (ids; default on/off; Lean and Full say what the preset sets, "-" means
 
 A feature that owns a grammar line changes the static prompt once when switched, so the provider's prompt cache starts over once.
 
+## Customizing the UI
+
+Three layers, easiest first. Statements marked "verified" were tested in a real SillyTavern 1.19 with Story Block 2.16.1 (Custom CSS typed
+into User Settings, a pack imported through Settings → Tabs & Packs); the rest is read from the code named beside it.
+
+**1. Reader settings** (`view/settings/`): Look (`panelStyle`, `glassStrength`, `font`, `textSize`; see Settings) and Tabs & Packs → Tabs
+(`view/tab-order.js`: per screen In the bar / Under More, Shown, order, Reset). Pack screens start Under More.
+
+**2. Reader CSS** in SillyTavern's User Settings → Custom CSS (`#customCSS`, written to `<style id="custom-style">` in `<head>`).
+
+- How the look is applied (`view/theme.js`): one `<style data-ss-theme>` holds every token as `:where(ROOTS) { --ss-x: v }`. Specificity is 0,
+  so any normal rule beats it whatever the order. `ROOTS` = `THEME_ROOTS`: `.story-suite-overlay` (settings window), `.story-suite-sheet`
+  (Story panel), `.ss-gameview`, `.ss-dialog`, `.ss-cards`, `.ss-card`, `.ss-hud`, `[data-ss-screen]` (every template or layout screen),
+  `.story-suite-bar`, `.story-suite-extras`, `.story-suite-reply-note`. The tokens are declared on each root itself, so a value inherited from
+  an ancestor never beats them. Forced schemes `.ss-scheme-light` / `.ss-scheme-dark` inside a root repeat the block (also specificity 0).
+- Verified: `:root { --ss-accent: #e5484d }` changes nothing. `.ss-gameview { ... }` changes `.ss-gameview` and the hero but not the nested
+  `[data-ss-screen]` or the bar above the message box. `:is(<all ROOTS>) { ... }` changes every root, and survives a reload (SillyTavern saves it).
+  The same rule overrides `--ss-radius-*` (verified `--ss-radius-l` and `-xl`: card corners follow).
+- Derived tokens are fixed per scheme, not computed from `--ss-accent`: set `--ss-accent-soft` and `--ss-accent-text` with it
+  (the current tab's label uses `--ss-accent-text`). `--ss-tab-edge` follows `--ss-accent`.
+- Panel style `sillytavern` takes colours from SillyTavern's `--SmartTheme*` variables instead of the palette; the names are the same.
+- Not supported: selectors on internal class names (`.ss-screenbar-item`, `.ss-w-hero`, `.panel`, ...) and on `.ss-w-*` internals.
+  They are refactored in releases. The `--ss-*` and `--ss-w-*` variables, `THEME_ROOTS` and the building-block classes below are the surface.
+
+Look tokens (`view/theme.js` `PALETTES`, `SHARED`; dark / light where they differ):
+
+| Token | Default | Used for |
+|---|---|---|
+| `--ss-accent` | `#7b6cf0` (`ACCENT`) | highlights, current tab ring, hero ring, meters |
+| `--ss-accent-soft` | `rgba(123,108,240,.24)` / `.16` | soft accent fills |
+| `--ss-accent-text` | `#a99dff` / `#5a48d6` | accent as text |
+| `--ss-glass`, `--ss-glass-strong` | the palette base at the Glass strength (alpha 0.50 / 0.66 at 50%) | panel and sheet fills |
+| `--ss-tile`, `--ss-border`, `--ss-rule`, `--ss-shadow` | `rgba(255,255,255,.09)`, `.16`, `.22`, `0 10px 30px rgba(0,0,0,.35)` / light palette | tiles, edges, hairlines, elevation |
+| `--ss-text`, `--ss-muted`, `--ss-help` | `#f1f2f8`, `#b6bacb`, `#d0d4e2` / `#23253a`, `#5b5e74`, `#23253a` | text |
+| `--ss-good`, `--ss-bad`, `--ss-warn`, `--ss-info`, `--ss-bad-text`, `--ss-warn-text` | `#72dea4`, `#ff6b6b`, `#e8b04b`, `#4fa3ff`, `#ff8a8a`, `#f5c35b` / light set | tones |
+| `--ss-hp`, `--ss-mp`, `--ss-sp`, `--ss-exp` | `#e5484d`, `#4fa3ff`, `#e8b04b`, `var(--ss-accent)` | bars |
+| `--ss-uncommon`, `--ss-rare`, `--ss-epic`, `--ss-legendary`, `--ss-tick` | `#2fbf71`, `#4fa3ff`, `#b07cff`, `#e8b04b`, `#2fbf71` | rarities, ticks |
+| `--ss-radius-s`, `-m`, `-l`, `-xl`, `-xxl`, `-button`, `-pill` | 10, 14, 18, 22, 26, 12, 999 px | corner rounding |
+| `--ss-space-1` ... `-5` | 4, 8, 12, 16, 24 px | spacing |
+| `--ss-font` | `'Nunito', system-ui, ...` (or `var(--mainFontFamily, inherit)` with Font = theme) | font |
+| `--ss-blur`, `--ss-motion` | `blur(16px) saturate(1.2)` (Solid: `none`), `0.2s` (`0s` with reduced motion) | glass blur, transitions |
+| `--ss-zoom` | `0.8` (`size.css`, on `:root`); Text size 110 / 120 write `0.88` / `0.96` on `html:root` | the size Story Suite is drawn at |
+
+Building-block classes any template may use (`view/glass.css`): `.ss-glass`, `.ss-glass-strong`, `.ss-label`, `.ss-pill`, `.ss-bar`, `.ss-tile`, `.ss-status`.
+
+**Widget tokens** (`view/widgets/styles.js`, documented in `docs/v2/WIDGETS.md` "Styling"). One `<style data-ss-widgets>` holds the base sheet,
+every rule inside `:where()`. Every widget root has the class `ss-w` plus `ss-w-<name>`.
+
+- Declared on `:where(.ss-w)` (set them on `.ss-w`; verified: `.ss-gameview { --ss-w-radius: 14px }` does nothing, `.ss-w { --ss-w-radius: 14px }`
+  rounds the badge and the stepper): `--ss-w-fg` (`var(--ss-text)`), `--ss-w-muted` (`var(--ss-muted)`), `--ss-w-bg` (`var(--ss-glass-strong)`),
+  `--ss-w-raised` (`var(--ss-tile)`), `--ss-w-border` (`var(--ss-border)`), `--ss-w-accent` (`var(--ss-accent)`), `--ss-w-good` `#4caf6e`,
+  `--ss-w-warn` `#d9a33a`, `--ss-w-bad` `#d0504a`, `--ss-w-info` `#4a90d0`, `--ss-w-tone`, `--ss-w-radius` `6px`, `--ss-w-gap` `0.4em`.
+- Read with a fallback, not declared, so they inherit and may be set on any ancestor (verified for the first): `--ss-w-meter-height` `0.6em`,
+  `--ss-w-radar-size` `22em`, `--ss-w-map-aspect` `4 / 3`, `--ss-w-map-bg`, `--ss-w-map-route`, `--ss-w-portrait-size` `4em`.
+- Set by the widgets, read-only: `--ss-w-ratio`, `--ss-w-ceiling`, `--ss-w-warn-lo`, `--ss-w-warn-hi`, `--ss-w-at`, `--ss-w-segments`, `--ss-w-count`,
+  `--ss-w-x`, `--ss-w-y`, `--ss-w-zoom`.
+- Widgets: `ss.meter`, `ss.radar`, `ss.map`, `ss.skill-tree`, `ss.portrait`, `ss.badge`, `ss.timeline`, `ss.stepper`, `ss.tile`, `ss.bar`, `ss.status`,
+  `ss.pill`, `ss.hero`, `ss.tiers`, `ss.listcard`, `ss.tabs`, `ss.navbar`, `ss.dialog` (`view/widgets/index.js`; modules add their own, `module.name`).
+
+**3. Pack screens.** A pack's `screens` list (`packs/validate.js` `checkScreens`) and `layouts` list; both install with the pack and leave with it.
+
+- `layouts: [ { id, title, icon, theme?, root } ]` (LAYOUTS.md) is wrapped by `ui-host.js` `syncScreens` as `{ id, title, icon, mounts: ['tab'], layout }`:
+  Story panel only. Verified: such a tab is not in the Game view. For the Game view, use `screens` with `mounts: ['tab','screen']`
+  (verified in the Game view; it starts under More). Both are listed by `packs.content({ kind: 'layouts' | 'screens' })`.
+- Screen fields (`SCREEN_FIELDS`): `id`, `title`, `icon`, `mounts`, `template` or `layout` (one is required), `css`, `theme`, `data`, `steps`.
+  `mounts` from `tab`, `screen`, `card`, `hud`, `dialog`. `id` is `SCREEN_ID`: lowercase words, optionally `module/screen`; an id that names a module's
+  screen restyles it (precedence: reader, card, pack, module; SPEC §13.7).
+- Layout node types (`layout/schema.js` `NODE_TYPES`): `box` (`title`, `children`), `row`, `col`, `grid` (`cols` 1 to 12), `text` (`value`/`bind`, `label`,
+  `variant`: body, title, label, muted), `meter` (`value`, `max`, `label`, `tone`), `badge`, `image` (`src` https or base64 raster, `alt`, `size`), `list` (`bind`, `item`,
+  `empty`, `limit`), `button` (`label`, `command`, `payload`, `icon`, `tone`), `tabs` (`pages` 1 to 12), `when` (`cond`, `children`). A lowercase dotted name
+  is an installed module's widget (`props`, `bind`). Values: literal, binding `{ query, args?, path? }`, or row reference (`$item`, `$item.field`, `$index`).
+  Tones: neutral, accent, good, warn, bad, common, uncommon, rare, epic, legendary.
+- Layout theme tokens (`TOKENS`, each becomes `--ss-l-<name>` on the layout's root): `accent`, `bg`, `surface`, `fg`, `muted`, `border`, `radius`, `gap`,
+  `pad`, `font`, `good`, `warn`, `bad`, `meter`, `meter-bg`. Defaults follow SillyTavern (`accent` `--SmartThemeQuoteColor`; gap and pad 8px; radius 6px). A value is a colour,
+  a length or a font name, at most 64 characters; `url(`, `var(`, `; { } < > / \ :` are refused.
+- Layout limits (`layout/schema.js` `LIMITS`): depth 16, 600 nodes, 256 KB JSON, 100 children a container, 200 list rows, 3000 nodes drawn, text 2000
+  characters, condition 500, https URL 2048, data image 200 KB.
+- Template screens (`view/template/`, TEMPLATES.md): sanitised HTML subset, `{{ path }}`, `data-bind*`, `data-each`, `data-if`, `data-command`, `<ss-widget name data-props>`.
+  Template nesting at most 64 deep (`html.js` `MAX_DEPTH`); template and css each at most 64K characters (`LIMITS.code`; `CSS_LIMIT`). A screen's `css` is scoped by
+  prefixing `[data-ss-screen="<id>"]` (a bare `:root`, `html` or `body` means the root); selectors that reach outside it, `@import`, `position: fixed`, `url()` other than
+  `https:` and raster `data:` are refused or dropped; at-rules nest at most 8 deep. Ids are rewritten `ss-t-<screen>-<id>`; classes SillyTavern acts on are refused.
+- Screen `theme`: `{ "--name": value }` on the screen root (name `^--[a-z][a-z0-9-]{0,47}$`, value at most 200 characters, no `url(`, braces, semicolons or backslashes).
+  The pack-level `theme` field is validated and returned by `packs.content({ kind: 'theme' })` as `{ pack, tokens }`; Story Block 2.16.1 itself does not draw it.
+- Checks: `node authoring-kit/check.mjs <pack.json>` (`validatePack`) checks the pack and each screen's fields, template shape and css, but not the inside of a layout;
+  `validateLayout(layout, { meta: false })` (`src/v2/layout/index.js`) does, and so does the renderer, which shows the reasons in place of the screen. Story Studio's
+  Screen builder (Screens, Layouts) edits all `SCREEN_FIELDS` with a preview and validates with the vendored checker.
+- Smallest verified layout screen: one `box` with two `text` nodes bound to `scene.place` (`path: "name"`) and `inventory.wallet` (`path: "coin"`); see README "Make it your own".
+
+**4. Modules** (code): `registerModule({ screens, widgets, tabs, settings, features, ... })`, SPEC §13, `docs/v2/MODULES.md`, `docs/dev/ui-and-screens.md`.
+A module's default screens are plain data like a pack's; a pack or the reader overrides them by id.
+
 ## Data the model sees
 
 Two extension prompts, set only by Story Block (`prompt.js`, `turn.js`). Quiet and impersonate generations get nothing and capture nothing.
