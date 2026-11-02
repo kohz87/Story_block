@@ -238,6 +238,9 @@ Two routes settle the outstanding change, both verified:
    head and activate.
 2. **After a restart:** opening the chat raises the barrier at once and `recover` finishes the native change from the journal; a restore that
    was only prepared is aborted (prepare it again).
+   A native **mutation** whose participant answers `activate` with `NOT_FOUND` (it has no record of the preparation any more, so it
+   never switched to it) is let go instead: the entry is `aborted`, the barrier comes down, the reader is told in one line (a toast and a
+   Problems line, `NATIVE_ABORTED`), and the participant publishes what it holds as a new change. A native **event** is never let go so.
 
 A journal that holds two unfinished changes anyway (damaged) is not reachable through the API; recovery refuses it as described above.
 
