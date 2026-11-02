@@ -81,7 +81,8 @@ export function whereLines(around) {
 }
 
 // A clock time written with digits: 9:30, 09:30 am, 9 pm, 21:05.
-const CLOCK = /(?<![\p{L}\d:.])(?:(?:[01]?\d|2[0-3]):[0-5]\d|(?:1[0-2]|0?[1-9])\s?[ap]\.?m\.?)(?![\p{L}\d])/iu;
+// (9.30 am too, and the two words that name one exact time: noon and midnight.)
+const CLOCK = /(?<![\p{L}\d:.])(?:(?:[01]?\d|2[0-3])[:.][0-5]\d|(?:1[0-2]|0?[1-9])\s?[ap]\.?m\.?|noon|midnight)(?![\p{L}\d])/iu;
 // A stretch of time moving the clock on: +2h, 30 minutes, an hour, half an hour.
 const STRETCH = /^\+?\s*(?:\d+(?:\.\d+)?|an?|half(?:\s+an?)?|one)\s*(?:minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w)\b/i;
 
@@ -112,7 +113,13 @@ export function whereWhy(line, { places = [], here = '' } = {}) {
             // (the one that shares the most of the name's words, even the plain ones, and then the shortest name)
             const theirs = place => new Set([place.name, ...place.aliases].flatMap(tokens));
             const shares = place => { const set = theirs(place); return tokens(name).filter(word => set.has(word)).length; };
+            // Not when it shares only one word with it and says more ("Silver Lake" beside "Silver Mine" is another place; "Bluewatch"
+            // alone is still "Bluewatch Village"), nor when it holds the
+            // place's whole name or a side of it and says more ("Silver Mine Road", "Kestrel Pass Outpost": a spot at or by it).
+            const phrase = text => ` ${tokens(text).join(' ')} `;
+            const holds = place => [...sides(place), ...whole(place)].some(side => tokens(side).length && phrase(name).includes(phrase(side)));
             const found = places.filter(place => { const set = new Set([place.name, ...place.aliases].flatMap(words)); return mine.every(word => set.has(word)); })
+                .filter(place => { const set = theirs(place); return (shares(place) >= 2 || tokens(name).every(word => set.has(word))) && !holds(place); })
                 .sort((a, b) => (shares(b) - shares(a)) || (a.name.length - b.name.length))[0];
             if (found) return `"${clip(name, 60)}" is not a place name on the map; the map calls this place "${clip(found.name, NAME_CHARS)}"`;
         }

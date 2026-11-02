@@ -56,8 +56,8 @@ test('where now: the place, the nearest known names first (by the map\'s coordin
 });
 
 test('a time line needs a clock time ("midday" and "mid-morning" are not times); a stretch moves the clock on and needs none', () => {
-    for (const text of ['9:30 am', 'Goldwane 12, 9:30 am', '21:05', '9 pm', 'Goldwane 12, 09:30']) assert.equal(hasClockTime(text), true, text);
-    for (const text of ['midday', 'mid-morning', 'Goldwane 12, mid-morning', 'noon', 'evening', 'Goldwane 12', '12']) assert.equal(hasClockTime(text), false, text);
+    for (const text of ['9:30 am', 'Goldwane 12, 9:30 am', '21:05', '9 pm', 'Goldwane 12, 09:30', 'noon', 'Goldwane 12, 9.30 am']) assert.equal(hasClockTime(text), true, text);
+    for (const text of ['midday', 'mid-morning', 'Goldwane 12, mid-morning', 'evening', 'Goldwane 12', '12']) assert.equal(hasClockTime(text), false, text);
     for (const raw of ['~ time Goldwane 12, 9:30 am', '! time +2h', '! time 30 minutes', '! time an hour', '~ time 9 pm', '~ time 21:05']) assert.equal(whereWhy(one(raw)), '', raw);
     for (const raw of ['~ time midday', '~ time Goldwane 12, mid-morning', '! time later that day', '~ time evening', '~ time Goldwane 12']) {
         assert.match(whereWhy(one(raw)), /has no clock time; write a time like/, raw);
