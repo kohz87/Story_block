@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.16.2
+
+- **Content release: no code change.** The Ersveil example now comes as one file, `examples/packs/ersveil.zip`, with
+  the pack and its twelve portraits: **Settings → Tabs & Packs → Import pack file** and pick the zip. Picking
+  `pack.json` alone imports the pack without pictures.
+
 ## 2.16.1
 
 - **A chat can no longer stay stuck after the page closed mid-save.** With NPC State Delta, closing or reloading the
