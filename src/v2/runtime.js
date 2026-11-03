@@ -40,7 +40,7 @@ import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
 
-export const VERSION = '2.17.0';
+export const VERSION = '2.18.0';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to

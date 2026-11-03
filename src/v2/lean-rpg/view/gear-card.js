@@ -3,7 +3,7 @@
 // colour and its stat bonus ("+2 DEX"); a thin line along its bottom is the condition (yellow Worn, orange Torn, red Broken; none when Good).
 // No carry and no list of carried things here: those are the Inventory tab's. Every node is built with createElement and textContent.
 
-import { h } from '../../view/widgets/dom.js';
+import { h, iconNode } from '../../view/widgets/dom.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 
 const G = RPG_STRINGS.gear;
@@ -44,10 +44,16 @@ export function renderGearCard(parent, { character, view, onBack = () => {}, doc
             body.appendChild(h(doc, 'span', 'rpg-slot-place', G.slots[place]));
             body.appendChild(h(doc, 'span', 'rpg-slot-name', piece.name));
             if (piece.bonus) body.appendChild(h(doc, 'span', 'rpg-slot-bonus', piece.bonus));
-            tile.setAttribute('title', `${piece.name}: ${G.words[piece.word] ?? piece.word}${piece.broken ? ` — ${G.noBonus}` : ''}`);
+            const who = typeof piece.bound?.who === 'string' && piece.bound.who ? piece.bound.who : '';
+            tile.setAttribute('title', `${piece.name}: ${G.words[piece.word] ?? piece.word}${piece.broken ? ` — ${G.noBonus}` : ''}${who ? ` · ${fill(G.boundTile, { name: who })}` : ''}`);
             tile.appendChild(icon);
             tile.appendChild(body);
             tile.appendChild(h(doc, 'span', 'rpg-slot-cond'));
+            // A cast member's signature piece: the lock in the tile's top-right corner.
+            if (who) {
+                const lock = iconNode(doc, 'ph-lock-simple:fill', 'rpg-slot-lock');
+                if (lock) { lock.setAttribute('aria-label', fill(G.boundTile, { name: who })); lock.removeAttribute('aria-hidden'); lock.setAttribute('role', 'img'); tile.classList.add('bound'); tile.appendChild(lock); }
+            }
         } else {
             body.appendChild(h(doc, 'span', 'rpg-slot-place', `${G.slots[place]} — ${G.empty}`));
             tile.appendChild(icon);

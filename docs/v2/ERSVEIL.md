@@ -1,6 +1,6 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.5.0, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.6.0, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
@@ -10,7 +10,7 @@ The pack holds the world's structure: the map (320 places, 350 routes), the cale
 jobs, classes or rules**: the narrator makes those up in the story from the lore, and Story Block keeps
 what the story hands out (the bag, the purse, the place). The lorebook holds what only the narrator uses.
 
-The pack works with Story Block 2.17.0 or newer (2.5.0 requires it: the rank bands and levels) and Story Director (2.3.0 or newer: the world events record lasting changes in its chronicle). NPC State Delta is optional.
+The pack works with Story Block 2.18.0 or newer (2.6.0 requires it: the signature gear; 2.5.0 needed 2.17.0 for the rank bands and levels) and Story Director (2.3.0 or newer: the world events record lasting changes in its chronicle). NPC State Delta is optional.
 
 ## 1. Extensions
 
@@ -35,9 +35,10 @@ SillyTavern profile.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
+2.6.0 adds sixteen signature items (each cast member's own gear, given and bound to them when they join the party while Gear in fights is on) and needs Story Block 2.18.0.
 2.5.0 adds the guild rank bands and the guild letter as the party's rank (§6, Ranks), turns the cast's Soul Class field into Level (each of the twelve set by role, 8 to 56), and needs Story Block 2.17.0.
 
-Importing 2.5.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
+Importing 2.6.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
 2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import `examples/packs/ersveil.zip` (`pack.json` and `portraits/`; rebuild it with `node scripts/build-example-zip.mjs`) or pick `pack.json` and the twelve `.webp` files together; `pack.json` alone leaves the portraits unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.

@@ -250,13 +250,19 @@ function render(el, input, api) {
                     rows.push(pair);
                     slotSelect = choice(G.editSlot, Object.entries(G.slots), String(p.gear.slot ?? ''));
                     bySelect = choice(G.editBy, (Array.isArray(p.gear.owners) ? p.gear.owners : []).map(entry => [String(entry?.value ?? ''), String(entry?.label ?? '')]), String(p.gear.by ?? ''));
+                    // A cast member's signature piece (`gear.bound`: their name): everything but the note is read-only, with one line saying why.
+                    if (typeof p.gear.bound === 'string' && p.gear.bound) {
+                        for (const control of [field, itemCount, slotSelect, bySelect]) { control.disabled = true; control.setAttribute('title', fill(G.boundTitle, { name: p.gear.bound })); }
+                        const hint = h(doc, 'p', 'ss-w-editable-item-hint', fill(G.boundHint, { name: p.gear.bound }));
+                        rows.push(hint);
+                    }
                 }
                 fieldSlot.replaceChildren(...rows);
                 chips.hidden = true;
                 add.hidden = true;
                 form.classList.add('ss-w-editable-item-form');
                 draw();
-                focusNode(field);
+                focusNode(field.disabled ? itemNote : field);
                 return;
             }
             fieldSlot.classList.remove('ss-w-editable-item-fields', 'ss-w-editable-record-fields');
@@ -408,7 +414,7 @@ function render(el, input, api) {
 
         // The steps an item's Slot and Equipped by choices need: taken off, or handed to the wearer and put on. [] when nothing changed.
         function wearSteps() {
-            if (!slotSelect || !bySelect) return [];
+            if (!slotSelect || !bySelect || slotSelect.disabled) return []; // (a bound piece: the choices are locked)
             const stack = p.payload?.stack;
             const by = bySelect.value, slot = slotSelect.value;
             const placed = String(p.gear.place ?? ''), wearer = String(p.gear.by ?? '');
@@ -447,7 +453,8 @@ function render(el, input, api) {
                 const raw = String(itemCount.value).trim(), qty = Number(raw);
                 if (!/^\d+$/.test(raw) || !Number.isSafeInteger(qty) || qty < 1) { error.textContent = STRINGS.inventory.countError; return; }
                 payload = { ...p.payload };
-                const name = cut(field.value, 60), note = cut(itemNote.value, 300);
+                // The name is sent only when the reader changed it (a long name shown in full and left alone is no rename), held to the inventory's 120.
+                const name = field.value === p.value ? p.value : cut(field.value, 120), note = cut(itemNote.value, 300);
                 if (name !== p.value) payload.name = name;
                 if (qty !== p.itemCount) payload.qty = qty;
                 if (note !== p.itemNote) payload.note = note;

@@ -324,6 +324,7 @@
 .rpg-slot-place { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ss-muted); }
 .rpg-slot-name { font-size: 13px; font-weight: 600; color: var(--rarity); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rpg-slot-bonus { font-size: 11px; color: var(--rarity); font-variant-numeric: tabular-nums; }
+.rpg-slot-lock { position: absolute; top: 5px; right: 6px; width: 13px; height: 13px; opacity: 0.95; }
 .rpg-slot-cond { position: absolute; inset: auto 0 0 0; height: 3px; background: transparent; }
 .rpg-slot.w-worn .rpg-slot-cond { background: var(--ss-warn); }
 .rpg-slot.w-torn .rpg-slot-cond { background: color-mix(in srgb, var(--ss-warn) 55%, var(--ss-bad)); }

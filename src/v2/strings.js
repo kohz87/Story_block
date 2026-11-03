@@ -398,6 +398,9 @@ export const STRINGS = deepFreeze({
             words: { good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' }, noBonus: 'no bonus', brokenNoBonus: '\u2014 no bonus',
             condTitle: 'Condition: Good, Worn, Torn or Broken. A broken piece gives no bonus.',
             editSlot: 'Slot', editBy: 'Equipped by', none: 'None',
+            // A cast member's signature piece (bound): the chip, its title and the line under a locked Edit.
+            bound: 'Bound', boundBy: 'Bound \u00b7 {name}', boundTitle: 'Bound to {name}: it cannot be unequipped, given away, sold or dropped',
+            boundHint: 'Bound to {name}: it stays in this slot and leaves with {name}. Only the note can change.',
             slots: {
                 head: 'Head', body: 'Body', cloak: 'Cloak', feet: 'Feet', weapon: 'Weapon', 'off-hand': 'Off-hand', 'accessory-1': 'Accessory 1', 'accessory-2': 'Accessory 2',
             },

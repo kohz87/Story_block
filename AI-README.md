@@ -1,4 +1,4 @@
-# AI-README: Story Block 2.17.0
+# AI-README: Story Block 2.18.0
 
 For AI assistants that read this repository. Plain facts, no marketing. For people, read [README.md](README.md). For rules
 every change must keep, read [CLAUDE.md](CLAUDE.md). Depth lives in `docs/`; this file points there instead of copying.
@@ -14,10 +14,10 @@ queries, screens and settings. Code sets every number; the story only proposes.
 
 | Repo | Module id | Version | Owns |
 |---|---|---|---|
-| kohz87/Story_block (this) | `story-block` | 2.17.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
+| kohz87/Story_block (this) | `story-block` | 2.18.0 | The host: store, replay, command bus, `<Changes>` capture, prompt assembly, module registry, settings window, Game view, packs and portraits, save points. Core domains `scene` and `inventory`; optional RPG; blocks (data modules). |
 | kohz87/Story_director | `story-director` | 2.9.3 | Story clock and calendar, quests, threads, map, trips, World, Chronicle, arc planning, standalone checks, the living cast (meets people by place and routine). Needs Story Block (>= 2.12.0). |
-| kohz87/npc_state_delta | `npc-state-delta` | 1.7.1 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
-| kohz87/Story_studio | (not an extension) | 0.6.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
+| kohz87/npc_state_delta | `npc-state-delta` | 1.7.4 | NPC dossiers, meters, stages, secrets, Cast and Dossiers screens, cast portraits. Needs Story Block; with Story Director it also follows the cast and Key people. |
+| kohz87/Story_studio | (not an extension) | 0.7.0 | An offline single HTML page that writes and checks packs with Story Block's own checker. No install. |
 
 Data flows one way: Studio writes a pack file; Story Block validates and stores it; Story Director reads what Story Block holds and NPC State Delta reads both,
 through Story Block's queries (`packs.content`, `packs.calendar`, `packs.portrait`, ...). Story Block never calls a module
@@ -35,7 +35,7 @@ not checked out beside it (see `CLAUDE.md`, "Known traps").
 - A pack may ask for a Story Block range and capabilities (`requires.storyBlock`, `requires.capabilities`). `data-modules-v1`
   is the host's own. `story-director`, `chronicle-lasting`, `scene` and `inventory` come from registered modules. A pack that
   asks for more than is installed is refused with a plain reason.
-- The Ersveil sample pack 2.5.0 (`examples/packs/ersveil/`) needs Story Block ^2.17.0 and Story Director 2.3.0 or later.
+- The Ersveil sample pack 2.6.0 (`examples/packs/ersveil/`) needs Story Block ^2.18.0 and Story Director 2.3.0 or later.
 
 ## Concepts
 
@@ -428,5 +428,5 @@ prompt byte-identical, every optional mechanic a Feature, no markup from text, n
 
 ## Version
 
-Story Block 2.17.0 (`manifest.json`, `package.json`). Suite: Story Director 2.9.3, NPC State Delta 1.7.3, Story Studio 0.6.0.
-Sample pack: Ersveil 2.4.1. History: `CHANGELOG.md`.
+Story Block 2.18.0 (`manifest.json`, `package.json`). Suite: Story Director 2.9.3, NPC State Delta 1.7.4, Story Studio 0.7.0.
+Sample pack: Ersveil 2.6.0. History: `CHANGELOG.md`.

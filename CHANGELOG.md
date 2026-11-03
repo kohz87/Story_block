@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.18.0
+
+- **Gear in fights** (Settings → RPG, off by default; counts only while the RPG is on). One switch for stat bonuses, wear
+  and carry load. With it off, everything works exactly as in 2.17.0.
+- **Rarity and stat bonuses.** Common, uncommon, rare, epic and legendary give 0 to 4 stat points, on at most two stats
+  per piece. Worn gear adds them to the rolls; an effective stat never passes 30.
+- **Eight slots:** head, body, cloak, feet, weapon, off-hand and two accessories. A bag is no slot: it adds carry.
+- **Carry** = 10 + 2 × STR + bags + mounts and carts travelling with you. From 80 % the load is **Heavy** (yellow);
+  at 100 % and over the party is **Encumbered**: AGI and DEX −2 in rolls (red).
+- **Wear.** A decisive hit taken wears the body armour (else the off-hand) one step, a decisive miss wears your own
+  weapon: Good → Worn → Torn → Broken. Broken gear gives no bonus. The narrator can `repair: mend|restore`, and
+  `wear: ruin` breaks a piece at once. Condition is in the prompt and sets the item's value (100/75/50/20 %).
+- **Battle log** names the gear a roll used ("Cane Sword +2 DEX") and adds a line when something wears.
+- **Legendary** items only after a completed quest or a win against foes 10+ levels above the party; until then the
+  narrator's legendary item is held to epic.
+- **Screens:** the Inventory tab shows the Carry card first, then Equipment, Consumables, Goods and Quest items, in
+  even three-line rows (name, rarity and slot; who wears it; bonus, condition and note). The Party card has an
+  Inventory button that opens a card of the eight slots. Items are equipped from their Edit.
+- **Signature gear for pack NPCs.** A cast entry can list `gear`; when that person joins the party, their pieces arrive
+  worn and **bound** to them: they can't be unequipped, given, sold or dropped (only their note can change), they
+  leave with them and come back once when they rejoin. Wear and repair still apply. The narrator's entry for that NPC
+  ends with a "Gear:" line until they join (NPC State Delta 1.7.4). Without a party roster nothing is handed out yet
+  (the roster comes in 2.18.1).
+- **Item kinds from the narrator** (with gear on): potion, draught, elixir, food and drink go under Consumables;
+  material and ingredient under Materials.
+- **Ersveil 2.6.0** (example pack): sixteen signature items and each cast member's own gear; it requires Story Block 2.18.0.
+
 ## 2.17.0
 
 - **Levels replace Soul Class.** A character has a level from 1 to 99 instead of Soul Class I to IX. At 100 XP the level goes
