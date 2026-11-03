@@ -60,14 +60,14 @@ test('Edit first opens the New character window filled in: name, about, class, t
     const who = wizardOf(dialog);
     assert.equal(who.querySelector('[data-wiz="name"]').value, 'Mara');
     assert.equal(who.querySelector('[data-wiz="about"]').value, 'a hedge-witch from Kvildal');
-    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^Companion · Soul Class IV$/);
+    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^Companion · Lv 4$/);
     assert.match(who.querySelector('.rpg-wiz-sum').textContent, /INT 14/);
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 2');
-    assert.match(who.textContent, /Starts at Soul Class IV with 0 XP/);
+    assert.match(who.textContent, /Starts at Lv 4 with 0 XP/);
     assert.equal(who.querySelector('[data-wiz="persona-note"]').hidden, true);
     dialog.goTo(3);
     await settle();
-    assert.match(wizardOf(dialog).textContent, /Starts at Soul Class IV, 0 XP, full Health, Mana and Stamina\./);
+    assert.match(wizardOf(dialog).textContent, /Starts at Lv 4, 0 XP, full Health, Mana and Stamina\./);
     wizardOf(dialog).querySelector('.rpg-wiz-create').click();
     await settle();
     const mara = ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/mara' }).chat;

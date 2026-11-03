@@ -238,24 +238,24 @@ const world = (renamed, { soul = 3, before = false } = {}) => fakeState([
 ]);
 const roleOf = definition => definition.role ?? null;
 
-test('C: the default keeps "Soul Class III" everywhere; a renamed field shows "Level 3" on the Party card, the roll line, the class-up note and the planner', () => {
+test('C (Levels): the Party card, the roll line and the rise note say "Lv 3" whatever the field is called; the planner keeps the field\'s own words', () => {
     for (const [renamed, label, word] of [[false, 'Soul Class', 'III'], [true, 'Level', '3']]) {
         const state = world(renamed);
         const [first] = readParty(state, { own: 'Wessel', roleOf });
-        assert.deepEqual([first.soulLabel, first.soulName], [label, word]);
+        assert.deepEqual([first.level, first.levelText], [3, 'Lv 3']);
         // the Party card
         const doc = setupDom(), el = doc.createElement('div');
         doc.body.appendChild(el);
         createPartyWidget({ headState: () => state, readerName: () => 'Wessel', roleOf }).render(el, {}, {});
-        assert.ok(el.querySelectorAll('.ss-pill').some(node => node.textContent === `${label} ${word}`), `the card says "${label} ${word}"`);
+        assert.ok(el.querySelectorAll('.ss-pill').some(node => node.textContent === 'Lv 3'), 'the card says "Lv 3"');
         // the Skills view roll line
         const view = doc.createElement('div');
         doc.body.appendChild(view);
         renderSkills(view, { character: first, api: {}, onBack: () => {} });
-        assert.match(view.querySelector('.rpg-skill-roll').textContent, new RegExp(`· ${label} ${word} \\+6$`));
+        assert.match(view.querySelector('.rpg-skill-roll').textContent, /· Lv 3 ÷ 5 \+0$/);
         // the class-up note
         const lines = rpgReplyLines({ state, before: world(renamed, { soul: 2, before: true }), record: { receipts: [] }, roleOf });
-        const wording = renamed ? ['Wessel: Level 2 → 3', 'Level 3 (+3 points)'] : ['Wessel: Soul Class II → III', 'Soul Class III (+3 points)'];
+        const wording = ['Wessel reached Lv 3 (+3 points to spend)', 'Wessel Lv 3 (+3 points)'];
         assert.deepEqual([lines[0].text, lines[0].summary], wording);
         // the planner's sheet text
         const prompt = precallPrompt({ sheet: readSheet(state), message: 'hi' });

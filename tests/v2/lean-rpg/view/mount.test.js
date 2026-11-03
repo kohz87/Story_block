@@ -227,11 +227,11 @@ test('"Changed this reply" tells the rolls and the rises', async t => {
     const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"]`);
     assert.ok(card);
     assert.match(card.querySelector('[data-slot="summary"]').textContent, /3 exchanges rolled/);
-    assert.match(card.querySelector('[data-slot="summary"]').textContent, /Soul Class III/);
+    assert.match(card.querySelector('[data-slot="summary"]').textContent, /Wessel Lv 3/);
     ui.mounts.card.toggle(head, true);
     const body = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"] .ss-card-body`).textContent;
     assert.match(body, /Rolled for you: 3 exchanges/);
-    assert.match(body, /Wessel: Soul Class II → III/);
+    assert.match(body, /Wessel reached Lv 3/);
     assert.match(body, /Iron Breath: Adept → Expert/);
     assert.match(body, /You set/, 'the reader\'s own edits are still told');
 });

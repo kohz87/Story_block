@@ -15,6 +15,7 @@ import { h } from '../../view/widgets/dom.js';
 import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
 import { JOIN_SETTING, PRACTICE, PRACTICE_SETTING, ROLLS_SETTING, practiceOf } from '../names.js';
+import { LEVEL_VIEW } from '../levels.js';
 import { joinMode } from '../join.js';
 import { packInForce, CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, STANDARD_RANGES, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, normalizeStandard, plannerNoteOf, rulesFromSettings } from '../rules.js';
 import { CREATION } from '../names.js';
@@ -25,11 +26,18 @@ import { oneLine } from '../../../text.js';
 
 const S = RPG_STRINGS.settings;
 export const ROLLS_DEFAULT = 'automatic';
-// (Classic's Character template gives 3 points with a Soul Class rise: templates.js.)
-const CLASSIC_POINTS_PER_SOUL = 3;
 /** The setting's key (the rolls piece's ROLLS_SETTING). */
 export const ROLLS_KEY = ROLLS_SETTING;
 export const SETTINGS_MODULE = 'story-block';
+// SHIM (LV-UI): the Levels settings' names and ranges (LV-C owns them in names.js / the part's defaults; the lead merges and points these there).
+export const LEVEL_CAP_SETTING = 'rpgLevelCap';
+export const XP_RATE_SETTING = 'rpgXpRate';
+export const LEVEL_CAP = Object.freeze({ min: 1, max: LEVEL_VIEW.max, default: LEVEL_VIEW.defaultCap });
+export const XP_RATE = Object.freeze({ min: 50, max: 300, step: 25, default: 100 });
+/** The level cap the settings say: a whole number 1 to 99, else 99. */
+export const levelCapOf = value => (Number.isInteger(value) && value >= LEVEL_CAP.min && value <= LEVEL_CAP.max ? value : LEVEL_CAP.default);
+/** The XP rate the settings say, in per cent: 50 to 300 in steps of 25, else 100. */
+export const xpRateOf = value => (Number.isInteger(value) && value >= XP_RATE.min && value <= XP_RATE.max && value % XP_RATE.step === 0 ? value : XP_RATE.default);
 /** The rail entry and page id of the section. */
 export const SECTION_ID = 'rpg';
 
@@ -73,7 +81,8 @@ const STANDARD_FIELDS = Object.freeze([
 const words = (...parts) => parts.join(' ').toLowerCase();
 const CARD_WORDS = Object.freeze({
     formula: words(S.formula, S.formulaStandard, S.formulaClassic, S.formulaStandardHelp, S.formulaClassicHelp, S.formulaNote, S.formulaRows.map(row => `${row.type} ${row.what}`).join(' '), Object.values(S.formulaNums).join(' '), S.formulaFootStandard),
-    rolls: words(S.rolls, S.rollsHelp, S.practice, S.practiceHelp, S.automatic, S.off),
+    levels: words(S.levels, S.levelCap, S.levelCapHelp, S.practice, S.practiceHelp, S.xpRate, S.xpRateHelp),
+    rolls: words(S.rolls, S.rollsHelp, S.automatic, S.off),
     difficulty: words(S.difficulty, S.gentle, S.standard, S.harsh, S.custom, [...NUMBER_FIELDS, ...STANDARD_FIELDS].map(field => `${fill(field.label, { label: SOUL_LABEL })} ${field.help}`).join(' '), S.replayNote),
     combat: words(S.combat, S.combatHelp, S.combatLabel, S.combatReset),
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
@@ -142,7 +151,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
     // ---- The stat formula: which one, how its rolls are made, and its four main numbers
     function drawFormula() {
         const now = formulaOf(values(), pack());
-        const rules = rulesFromSettings(values(), pack()), soulLabel = soulLabelFor(headState(), readerName());
+        const rules = rulesFromSettings(values(), pack());
         const box = card('formula', S.formula);
         chips(box, S.formula, [['standard', S.formulaStandard], ['classic', S.formulaClassic]], now, value => put(FORMULA_SETTING, value));
         const fromPack = packNote('formula', 'numbers');
@@ -162,8 +171,8 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         box.appendChild(scroll);
         const standard = isStandard(rules);
         const tiles = standard
-            ? [[rules.startStat, S.formulaNums.start], [rules.createPoints, S.formulaNums.points], [rules.pointsPerSoul, fill(S.formulaNums.perSoul, { label: soulLabel })], [fill(S.formulaFoe, { base: rules.foeBase, weight: rules.foeClassWeight }), S.formulaNums.foe]]
-            : [[CREATION.start, S.formulaNums.start], [CREATION.budget, S.formulaNums.points], [CLASSIC_POINTS_PER_SOUL, fill(S.formulaNums.perSoul, { label: soulLabel })], [fill(S.formulaFoeClassic, { base: rules.foeBase, weight: rules.classWeight }), S.formulaNums.foe]];
+            ? [[rules.startStat, S.formulaNums.start], [rules.createPoints, S.formulaNums.points], [fill(S.formulaPoints, { n: LEVEL_VIEW.pointEvery }), S.formulaNums.perSoul], [fill(S.formulaFoe, { base: rules.foeBase }), S.formulaNums.foe]]
+            : [[CREATION.start, S.formulaNums.start], [CREATION.budget, S.formulaNums.points], [fill(S.formulaPoints, { n: LEVEL_VIEW.pointEvery }), S.formulaNums.perSoul], [fill(S.formulaFoeClassic, { base: rules.foeBase }), S.formulaNums.foe]];
         const nums = h(doc, 'div', 'rpg-formula-nums');
         for (const [value, label] of tiles) {
             const tile = h(doc, 'div', 'rpg-formula-num');
@@ -171,7 +180,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
             nums.appendChild(tile);
         }
         box.appendChild(nums);
-        box.appendChild(h(doc, 'p', 'rpg-set-help', fill(standard ? S.formulaFootStandard : S.formulaFootClassic, { weight: rules.classWeight, label: soulLabel })));
+        box.appendChild(h(doc, 'p', 'rpg-set-help', standard ? S.formulaFootStandard : S.formulaFootClassic));
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.formulaNote));
     }
 
@@ -180,27 +189,41 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('rolls', S.rolls);
         chips(box, S.rolls, [['automatic', S.automatic], ['off', S.off]], rollsOf(settings), value => put(ROLLS_KEY, value));
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.rollsHelp));
-        // Practice per skill use: a roll records the value it was made with, so a change here moves only the replies after it.
-        const practiceGrid = h(doc, 'div', 'rpg-set-nums');
-        const practiceSlot = field(practiceGrid, S.practice, S.practiceHelp);
-        const practiceInput = doc.createElement('input');
-        practiceInput.setAttribute('type', 'number');
-        practiceInput.setAttribute('min', String(PRACTICE.minPerUse));
-        practiceInput.setAttribute('max', String(PRACTICE.maxPerUse));
-        practiceInput.setAttribute('step', '1');
-        practiceInput.setAttribute('inputmode', 'numeric');
-        practiceInput.setAttribute('data-setting', PRACTICE_SETTING);
-        practiceInput.setAttribute('aria-label', S.practice);
-        practiceInput.className = 'rpg-set-input';
-        practiceInput.value = String(practiceOf(values()[PRACTICE_SETTING]) ?? PRACTICE.perUse);
-        practiceInput.addEventListener('change', () => {
-            const typed = Number(String(practiceInput.value).trim());
-            const next = Number.isFinite(typed) && String(practiceInput.value).trim() !== '' ? Math.min(PRACTICE.maxPerUse, Math.max(PRACTICE.minPerUse, Math.round(typed))) : (practiceOf(values()[PRACTICE_SETTING]) ?? PRACTICE.perUse);
-            practiceInput.value = String(next);
-            put(PRACTICE_SETTING, next);
+    }
+
+    // ---- Levels and practice: the level cap, the practice a skill use gives, the XP rate
+    function numberRow(grid, { label, help, setting, min, max, step, current, clean }) {
+        const slot = field(grid, label, help);
+        const input = doc.createElement('input');
+        input.setAttribute('type', 'number');
+        input.setAttribute('min', String(min));
+        input.setAttribute('max', String(max));
+        input.setAttribute('step', String(step));
+        input.setAttribute('inputmode', 'numeric');
+        input.setAttribute('data-setting', setting);
+        input.setAttribute('aria-label', label);
+        input.className = 'rpg-set-input';
+        input.value = String(current());
+        input.addEventListener('change', () => {
+            const typed = Number(String(input.value).trim());
+            // A number outside its range is held to it (and to its step); something that is not a number is put back.
+            const next = Number.isFinite(typed) && String(input.value).trim() !== '' ? clean(typed) : current();
+            input.value = String(next);
+            put(setting, next);
         });
-        practiceSlot.add(practiceInput);
-        box.appendChild(practiceGrid);
+        slot.add(input);
+    }
+    function drawLevels() {
+        const box = card('levels', S.levels);
+        const grid = h(doc, 'div', 'rpg-set-nums');
+        // The level cap and the XP rate are read when a reply is made, and the XP rate is recorded with it, so a change here moves only the replies after it.
+        numberRow(grid, { label: S.levelCap, help: S.levelCapHelp, setting: LEVEL_CAP_SETTING, min: LEVEL_CAP.min, max: LEVEL_CAP.max, step: 1, current: () => levelCapOf(values()[LEVEL_CAP_SETTING]),
+            clean: typed => Math.min(LEVEL_CAP.max, Math.max(LEVEL_CAP.min, Math.round(typed))) });
+        numberRow(grid, { label: S.practice, help: S.practiceHelp, setting: PRACTICE_SETTING, min: PRACTICE.minPerUse, max: PRACTICE.maxPerUse, step: 1, current: () => practiceOf(values()[PRACTICE_SETTING]) ?? PRACTICE.perUse,
+            clean: typed => Math.min(PRACTICE.maxPerUse, Math.max(PRACTICE.minPerUse, Math.round(typed))) });
+        numberRow(grid, { label: S.xpRate, help: S.xpRateHelp, setting: XP_RATE_SETTING, min: XP_RATE.min, max: XP_RATE.max, step: XP_RATE.step, current: () => xpRateOf(values()[XP_RATE_SETTING]),
+            clean: typed => Math.min(XP_RATE.max, Math.max(XP_RATE.min, Math.round(typed / XP_RATE.step) * XP_RATE.step)) });
+        box.appendChild(grid);
     }
 
     // ---- Companions who join
@@ -416,6 +439,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         for (const node of Object.values(cards)) node.remove();
         for (const key of Object.keys(cards)) delete cards[key];
         drawFormula();
+        drawLevels();
         drawRolls();
         drawDifficulty();
         drawCombat();

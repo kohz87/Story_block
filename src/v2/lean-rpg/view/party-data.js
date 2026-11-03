@@ -10,7 +10,7 @@ import { STATS, STAGES } from '../index.js';
 import { STANDARD_NUMBERS } from '../formula.js';
 import { barOf, characterBars, growthOf, sizeOf, spreadWord, statsOfFields, wordsOf } from '../blocks.js';
 import { activeDefinition, actorsOf, instanceOf } from '../../data-modules/adapters.js';
-import { soulLabelOf } from '../soul.js';
+import { LEVEL_VIEW, levelLabel } from '../levels.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 
 export const SKILL_SLOTS = 5;
@@ -29,7 +29,47 @@ export function nameOf(schema, value, fallback = '') {
     return typeof named === 'string' && named ? named : fallback;
 }
 
-/** "II" for Soul Class 2. */
+/** A level from a stored value: a whole number 1 to 99 (`fallback` when it is not one). */
+export const levelOf = (value, fallback = 1) => (Number.isSafeInteger(value) ? Math.min(LEVEL_VIEW.max, Math.max(1, value)) : fallback);
+
+/**
+ * What the story's pack says about levels, from its `rpg` content records: `{ ranks: [{ name, from, to }], playerRank: { module, field, label } | null }`
+ * (empty ranks and no playerRank for a pack that says nothing). The validation is the pack's (packs/validate.js); this only picks the fields up.
+ */
+export function packLevels(records) {
+    const list = Array.isArray(records) ? records : [];
+    const ranks = list.find(record => Array.isArray(record?.ranks))?.ranks ?? [];
+    const spec = list.find(record => isRecord(record?.playerRank))?.playerRank;
+    const playerRank = isRecord(spec) && typeof spec.module === 'string' && typeof spec.field === 'string' ? { module: spec.module, field: spec.field, label: typeof spec.label === 'string' ? spec.label : '' } : null;
+    return { ranks: ranks.filter(rank => isRecord(rank) && typeof rank.name === 'string' && Number.isSafeInteger(rank.from) && Number.isSafeInteger(rank.to)), playerRank };
+}
+
+/** The current value of the field the pack names as the party's rank ("F" in the Guild block), or '' when the block is not pinned or the field is empty. */
+export function playerRankValue(state, spec, subject) {
+    if (!spec) return '';
+    try {
+        // The pack names the block by its slug ("guild-membership"); the story keeps it under its full id.
+        const ids = Object.keys(state?.domains?.dataModules?.active ?? {});
+        const id = ids.find(item => item === spec.module) ?? ids.find(item => activeDefinition(state, item)?.slug === spec.module);
+        const definition = id ? activeDefinition(state, id) : null;
+        if (!definition) return '';
+        const fields = instanceOf(state, id, definition.scope === 'chat' ? 'chat' : subject)?.fields;
+        const value = fields?.[spec.field];
+        if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim().slice(0, 24);
+        return Number.isSafeInteger(value) ? nameOf(definition.state?.[spec.field], value, String(value)) : '';
+    } catch { return ''; }
+}
+
+/** "Lv 14 · Guild F" for a party member (the pack's player rank), "Rank F · Lv 7" for a foe or a member of a story with no player-rank source, else "Lv 14". */
+export function levelText(level, { ranks = [], playerRank = null, state = null, subject = null, foe = false } = {}) {
+    if (foe || !playerRank) return levelLabel(level, ranks);
+    return levelLabel(level, ranks, { playerRank: { label: playerRank.label, value: playerRankValue(state, playerRank, subject) } });
+}
+
+/** "24 / 100 to Lv 15", or "100 / 100 · level cap" at the cap (the XP holds at 100 there). */
+export const xpLine = character => (character.level >= character.cap ? fill(RPG_STRINGS.party.xpCap, { xp: character.xp }) : fill(RPG_STRINGS.party.xpText, { xp: character.xp, next: character.level + 1 }));
+
+/** "II" for Soul Class 2 (a chat made before Levels still reads its stored class). */
 export const soulName = (schema, value) => nameOf(schema, value, ROMAN[value] ?? String(value));
 
 /** "Expert" for rank 2. */
@@ -121,8 +161,8 @@ export function skillsOf(block) {
     return out;
 }
 
-/** The foes a Foes block holds: `[{ slot, name, count, class, hurt, word, max?, text?, blocks? }]` (a Standard group has its size `max`, the `text` "Hurt · 4 of 6"), empty slots left out (a slot is filled with a name and a count above 0, as the roll planner reads it). */
-export function foesOf(block) {
+/** The foes a Foes block holds: `[{ slot, name, count, level, levelText ("Rank F · Lv 7"), hurt, word, max?, text?, blocks? }]` (a Standard group has its size `max`, the `text` "Hurt · 4 of 6"), empty slots left out (a slot is filled with a name and a count above 0, as the roll planner reads it). */
+export function foesOf(block, { ranks = [] } = {}) {
     const out = [];
     for (let slot = 1; slot <= FOE_SLOTS; slot += 1) {
         const name = textOf(block.fields[`foe${slot}`]);
@@ -130,7 +170,9 @@ export function foesOf(block) {
         if (!name || count <= 0) continue;
         const schema = block.definition.state?.[`hurt${slot}`], blocks = blockBar('health', schema, block.fields, `hurt${slot}`);
         const hurt = blocks ? blocks.value : whole(block.fields[`hurt${slot}`], stageMax('health', schema));
-        out.push({ slot, name, count, class: whole(block.fields[`class${slot}`], 1), hurt,
+        // `level{n}` (Levels); a chat made before them keeps its `class{n}` as the level.
+        const level = levelOf(block.fields[`level${slot}`] ?? block.fields[`class${slot}`]);
+        out.push({ slot, name, count, level, levelText: levelText(level, { ranks, foe: true }), hurt,
             word: blocks ? blocks.word : stageWord('health', schema ?? block.definition.state?.health, hurt), ...(blocks ? { max: blocks.max, text: blocks.text, blocks: true } : {}) });
     }
     return out;
@@ -138,12 +180,12 @@ export function foesOf(block) {
 
 /**
  * The party: one record per Character block (per attached character for a character-scope block), the reader's own
- * character first (`own` is their name), then block order. Each: `{ module, subject, name, own, alive, left (a companion who left the party), points, soul,
- * soulName, soulLabel (what the Character block calls the field, "Soul Class" by default), xp, bars: { health, mana, stamina: { value, max, word, tone, text?, blocks? } } (a
+ * character first (`own` is their name), then block order. Each: `{ module, subject, name, own, alive, left (a companion who left the party), points, level, cap, levelText ("Lv 14 · Guild F"),
+ * soul / soulName / soulLabel (the level standing in for the old Soul Class), xp, bars: { health, mana, stamina: { value, max, word, tone, text?, blocks? } } (a
  * Standard block's bars: `max` is its size from the stats, `text` "Hurt · 4 of 6"), growth (the Standard "next block / next luck" numbers, blocks.js `growthOf`, or null), stats: [{ key, label, value, min, max }],
  * skills, skillsBlock, definition, fields }`.
  */
-export function readParty(state, { own = '', roleOf } = {}) {
+export function readParty(state, { own = '', roleOf, ranks = [], playerRank = null } = {}) {
     const blocks = rpgBlocks(state, { roleOf });
     const actors = actorsOf(state);
     const skillBlocks = blocks.filter(block => block.role === 'skills');
@@ -161,11 +203,15 @@ export function readParty(state, { own = '', roleOf } = {}) {
             const label = typeof schema.label === 'string' && schema.label && [...schema.label].length <= 4 ? schema.label : key.toUpperCase();
             return { key, label, value: whole(fields[key], schema.min ?? 1), min: whole(schema.min, 1), max: whole(schema.max, 20) };
         });
-        const soul = whole(fields.soul, 1);
+        // `level`, `xp` and `cap` (Levels); a chat made before them reads its Soul Class as the level.
+        const level = levelOf(fields.level ?? fields.soul), cap = levelOf(fields.cap, LEVEL_VIEW.defaultCap);
+        const soul = level;
         const mine = skillBlocks.find(item => textOf(item.fields.who) && fold(item.fields.who) === fold(name))
             ?? (skillBlocks.length === 1 && !textOf(skillBlocks[0].fields.who) ? skillBlocks[0] : null);
         return { module: block.module, subject: block.subject, name, own: false, alive: fields.alive !== false, left: fields.left === true, points: Math.max(0, whole(fields.points)),
-            soul, soulName: soulName(definition.state?.soul, soul), soulLabel: soulLabelOf(definition.state?.soul), xp: Math.min(100, Math.max(0, whole(fields.xp))), bars, stats,
+            level, cap, levelText: levelText(level, { ranks, playerRank, state, subject: block.subject }),
+            // The old Soul Class names, kept so the sheets that still read them (Spend points, Skills, Export) work: the level stands in.
+            soul, soulName: String(level), soulLabel: 'Level', xp: Math.min(LEVEL_VIEW.xpPerLevel, Math.max(0, whole(fields.xp))), bars, stats,
             skills: mine ? skillsOf(mine) : [], skillsBlock: mine ? { module: mine.module, definition: mine.definition } : null, definition, fields, order: block.order,
             growth: characterBars(definition, fields) ? growthOf(statsOfFields(fields), { statMax: whole(definition.state?.vit?.max, STANDARD_NUMBERS.statMax) }) : null };
     });
@@ -174,9 +220,9 @@ export function readParty(state, { own = '', roleOf } = {}) {
     return mineAt > 0 ? [characters[mineAt], ...characters.filter((_, at) => at !== mineAt)] : characters;
 }
 
-/** The foes in the state, across Foes blocks: `[{ name, count, class, hurt, word, slot }]`. */
-export function readFoes(state, { roleOf } = {}) {
-    return rpgBlocks(state, { roleOf }).filter(block => block.role === 'foes').flatMap(foesOf);
+/** The foes in the state, across Foes blocks: `[{ name, count, level, levelText, hurt, word, slot }]`. */
+export function readFoes(state, { roleOf, ranks = [] } = {}) {
+    return rpgBlocks(state, { roleOf }).filter(block => block.role === 'foes').flatMap(block => foesOf(block, { ranks }));
 }
 
 /** Whether the state has a Character block (the Party tab shows only then). */

@@ -180,7 +180,7 @@ test('Who: the persona\'s name, You or A companion, who they are with its count;
     assert.match(who.textContent, /From your persona\. You can change it here\./);
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => [node.textContent, node.getAttribute('aria-pressed')]), [['You', 'true'], ['A companion', 'false']]);
     assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-name').textContent, 'Wessel');
-    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Soul Class I$/);
+    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Lv 1$/);
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 6');
     const about = who.querySelector('[data-wiz="about"]');
     assert.equal(about.getAttribute('maxlength'), '240');
@@ -194,7 +194,7 @@ test('Who: the persona\'s name, You or A companion, who they are with its count;
     assert.equal(again.querySelector('[data-wiz="name"]').value, 'Wess');
     assert.equal(again.querySelector('[data-wiz="about"]').value, 'A drill-yard washout from Bluewatch.');
     click(again, 'A companion');
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, 'Companion · Soul Class I');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, 'Companion · Lv 1');
     assert.equal(wizardOf(dialog).querySelector('[data-wiz="name"]').value, 'Wess');
     click(wizardOf(dialog), 'You');
     assert.equal(wizardOf(dialog).querySelector('[data-wiz="name"]').value, 'Wessel', 'You takes the persona\'s name');
@@ -360,7 +360,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     assert.match(card.textContent, /Short blade \(Adept\) · Iron Breath \(Novice\) · Shield work \(Novice\)/);
     assert.ok(!card.textContent.includes('points to spend'), 'every point was spent');
     card.querySelector('.rpg-skills-open').click();
-    assert.match(party(doc).querySelector('.rpg-skill[data-slot="1"] .rpg-skill-roll').textContent, /Rolls with it: d20 \+8 = AGI 10 → \+5 · Adept \+1 · Soul Class I \+2/);
+    assert.match(party(doc).querySelector('.rpg-skill[data-slot="1"] .rpg-skill-roll').textContent, /Rolls with it: d20 \+6 = AGI 10 → \+5 · Adept \+1 · Lv 1 ÷ 5 \+0/);
     await reload(host);
 });
 
@@ -777,4 +777,35 @@ test('2.9.1: the Stats card\'s stylesheet: padding in the card, an even grid bes
     assert.match(phone, /\.rpg-wiz-steppers \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
     assert.match(phone, /\.rpg-wiz-stats-card \.rpg-radar \{ justify-self: center; \}/);
     assert.match(css, /\.rpg-steppers \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 10px 14px; \}/, 'the Party tab\'s grid is as it was');
+});
+
+test('Levels: the Who step has "Starting level" (1 unless changed, 1 to 99); the header says "Lv N", a draft keeps it, and Create writes it as the block\'s level default', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    const dialog = await openFrom(ctx, { empty: true });
+    const who = wizardOf(dialog);
+    const level = who.querySelector('[data-wiz="level"]');
+    assert.equal(level.value, '1', 'the default');
+    assert.deepEqual([level.getAttribute('type'), level.getAttribute('min'), level.getAttribute('max')], ['number', '1', '99']);
+    assert.match(who.textContent, /Starting level/);
+    assert.match(who.textContent, /1 to 99\. The story can set a level cap \(default 99\)\./);
+    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Lv 1$/);
+    assert.match(who.textContent, /Starts at Lv 1 with 0 XP\./);
+    type(level, '7');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, /^You · Lv 7$/, 'the header follows');
+    assert.match(wizardOf(dialog).textContent, /Starts at Lv 7 with 0 XP\./);
+    const again = await goTo(await (async () => { await goTo(dialog, 'stats'); return dialog; })(), 'who');
+    assert.equal(again.querySelector('[data-wiz="level"]').value, '7', 'Back keeps it');
+    const review = await goTo(dialog, 'review');
+    assert.match(review.textContent, /Starts at Lv 7, 0 XP, full Health, Mana and Stamina\./);
+    dialog.close();
+});
+
+test('Levels: the starting level of a draft is held 1 to 99, 1 is not stored, and the Character block gets it as its level default', () => {
+    assert.equal(readDraft({ soul: 120 }).soul, 99);
+    assert.equal(readDraft({ soul: 1 }).soul, undefined);
+    assert.equal(newDraft({ persona: 'Wessel' }).soul, undefined, 'a new character starts at Level 1');
+    const state = buildDefinitions({ ...newDraft({ persona: 'Wessel' }), soul: 5 }, { used: [] }).character.state;
+    assert.equal((state.level ?? state.soul).default, 5);
+    assert.equal((buildDefinitions(newDraft({ persona: 'Wessel' }), { used: [] }).character.state.level ?? { default: 1 }).default, 1);
 });
