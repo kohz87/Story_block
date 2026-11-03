@@ -129,6 +129,7 @@ export const STRINGS = deepFreeze({
         itemPiecesChanged: 'The separate pieces for this edit have changed.', itemDecisionChanged: 'The item or stack chosen for this edit has changed.',
         itemGroupLimit: 'Keep at most {max} pieces of this item.',
         itemGroupEquipped: 'Unequip pieces before removing them.',
+        bound: 'Bound to {name}: {item} stays with them.',
         itemCannotMerge: '{name} cannot be combined with this stack.', itemQuantityLarge: 'That quantity is too large.',
         purseAmount: 'The amount must be a whole number of at least 0.', purseSet: 'You set the purse to {amount}.',
         moneyEmpty: 'Enter an amount of money.', moneyWhole: 'Enter whole amounts of the coins used here.',

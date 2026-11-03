@@ -127,28 +127,19 @@ test('an alias finds the person; without a party actor nothing is given (pinned 
     assert.deepEqual(worn, {});
 });
 
-test('leaving and coming back does not duplicate what they still own', { skip }, async t => {
+// (pinned change, 3 Nov, bound gear: leaving used to keep their things in the bag; now the bound pieces leave with them and come back once,
+// gear-bind.test.js; and a bound piece cannot be sold or dropped meanwhile, so "the piece they no longer own" cannot happen)
+test('leaving takes the bound pieces with them; coming back brings them once, worn where they were, nothing doubled', { skip }, async t => {
     const host = await world(t);
     await host.send('Mara walks in.', reply('+ party Mara'));
     await host.send('She goes.', reply('- party Mara'));
-    assert.equal(rows(host).length, 3, 'leaving keeps their things');
+    assert.equal(rows(host).length, 0, 'their bound pieces left with them');
+    assert.equal(receipt(host).summary, 'Mara left the party. Their bound gear leaves with them: Cane Sword, Oak Buckler, Tin Ring.');
     await host.send('She is back.', reply('+ party Mara'));
     assert.equal(rows(host).length, 3, 'nothing doubled');
-    assert.equal(receipt(host).summary, 'Mara is back in the party.');
-    assert.equal('gear' in receipt(host).data, false);
-});
-
-test('coming back brings only the piece they no longer own', { skip }, async t => {
-    const host = await world(t);
-    await host.send('Mara walks in.', reply('+ party Mara'));
-    await host.send('She goes.', reply('- party Mara'));
-    const sword = rows(host).find(row => row.name === 'Cane Sword');
-    assert.equal((await host.sdk.command('inventory.drop', { stack: sword.stack })).ok, true, 'she sold it');
-    assert.equal(rows(host).length, 2);
-    await host.send('She is back.', reply('+ party Mara'));
-    assert.deepEqual(rows(host).map(row => row.name).sort(), ['Cane Sword', 'Oak Buckler', 'Tin Ring']);
-    assert.equal(rows(host).find(row => row.name === 'Cane Sword').equipped, 'weapon');
-    assert.equal(receipt(host).summary, 'Mara is back in the party. Gear: Cane Sword.');
+    assert.deepEqual(Object.fromEntries(rows(host).map(row => [row.name, row.equipped])), { 'Cane Sword': 'weapon', 'Oak Buckler': 'off-hand', 'Tin Ring': 'accessory-1' });
+    assert.equal(receipt(host).summary, 'Mara is back in the party. Gear: Cane Sword, Oak Buckler, Tin Ring.');
+    assert.deepEqual(receipt(host).data.gear, { owner: 'ac_mara0001', items: GEAR });
 });
 
 test('replay equals live: a rebuild, a reload, a Re-read, a swipe and a delete', { skip }, async t => {

@@ -290,6 +290,7 @@ export const RPG_STRINGS = Object.freeze({
         joined: '{name} joined the party.',
         returned: '{name} is back in the party.',
         left: '{name} left the party.',
+        gearLeaves: 'Their bound gear leaves with them: {items}.',
         nothing: '{name} is not in the party.',
         taken: '{name} is already in the party.',
         full: 'the party is full ({max} characters, counting those who left)',

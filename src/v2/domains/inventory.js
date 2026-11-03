@@ -184,6 +184,22 @@ export const CARRY_MAX = 1000;
 export const packCarry = (id, value) => (typeof id === 'string' && id.startsWith('pack.') && isCount(value, 1) && value <= CARRY_MAX ? value : null);
 
 /** §2.5 validator for the inventory slice: [] when fine, else plain sentences. */
+// `kept[<member>]`: the bound pieces of a member who left the party, set aside until they come back (`inventory.stow` / `inventory.restore`):
+// [{ def, qty, equipped, note, cond?, key?, story? }].
+function keptErrors(kept) {
+    if (!isPlainObject(kept)) return ['The kept gear is not a record.'];
+    const errors = [];
+    for (const [owner, list] of Object.entries(kept)) {
+        if (!OWNER_RE.test(owner) || owner === 'party') errors.push(`Kept gear belongs to "${owner}", who is not a party member's ID.`);
+        if (!Array.isArray(list)) { errors.push(`The gear kept for ${owner} is not a list.`); continue; }
+        for (const entry of list) {
+            if (!isPlainObject(entry) || typeof entry.def !== 'string' || !isCount(entry.qty, 1) || !(entry.equipped === null || nonBlank(entry.equipped)) || typeof entry.note !== 'string'
+                || (entry.cond !== undefined && !(Number.isSafeInteger(entry.cond) && entry.cond >= 0 && entry.cond <= COND_MAX))) errors.push(`A piece kept for ${owner} is damaged.`);
+        }
+    }
+    return errors;
+}
+
 export function validateInventory(slice) {
     if (!isPlainObject(slice)) return ['The inventory is not a record.'];
     const parts = ['defs', 'stacks', 'wallets', 'aliases'].filter(part => !isPlainObject(slice[part]));
@@ -221,6 +237,7 @@ export function validateInventory(slice) {
         }
         if (stack.key !== undefined && stack.key !== true) errors.push(`${label} is marked as a key item with something other than true.`);
         if (stack.story !== undefined && stack.story !== true) errors.push(`${label} is marked as the story's with something other than true.`);
+        if (stack.bound !== undefined && !(typeof stack.bound === 'string' && stack.bound !== 'party' && OWNER_RE.test(stack.bound))) errors.push(`${label} is bound to something that is not a party member's ID.`);
     }
     for (const [owner, wallet] of Object.entries(wallets)) {
         if (!OWNER_RE.test(owner)) errors.push(`A wallet belongs to "${owner}", who is neither the party nor an actor ID.`);
@@ -239,6 +256,7 @@ export function validateInventory(slice) {
     }
     if (slice.loot !== undefined) errors.push(...lootErrors(slice.loot));
     if (slice.condLog !== undefined) errors.push(...condLogErrors(slice.condLog));
+    if (slice.kept !== undefined) errors.push(...keptErrors(slice.kept));
     return errors;
 }
 
@@ -259,6 +277,38 @@ function stackIn(ctx, inv, id) {
     const stack = typeof id === 'string' ? inv.stacks[id] : null;
     if (!stack) ctx.fail('NOT_FOUND', 'That item is no longer in the inventory.');
     return stack;
+}
+
+// ---------- bound signature gear (`story-block.gear`, GEAR.md "Signature gear") ----------
+//
+// A cast member's signature pieces, granted on join, carry `bound: <actor id>`: they stay with that member. With the switch on, no command moves,
+// unequips, sells, drops, uses up, edits, splits or merges such a stack ("Bound to Mara: Cane Sword stays with them."); wear and repair are the
+// condition's and go on as ever. Switched off, the mark is only kept: every command acts as in 2.17.0.
+
+/** The member a stack is bound to, or null (not bound, or the gear switch is off). */
+const boundId = (ctx, stack) => (typeof stack?.bound === 'string' && stack.bound && gearOn(ctx) ? stack.bound : null);
+
+// (the name by the party module's roster, else the party domain, else the ID)
+function boundName(ctx, id) {
+    try {
+        const actors = ctx.query('party.actors');
+        const found = (Array.isArray(actors) ? actors : []).find(entry => entry?.id === id && typeof entry.name === 'string' && entry.name.trim());
+        if (found) return found.name.trim();
+    } catch { /* no roster: the party domain's name */ }
+    return ownerNameIn(ctx, id);
+}
+
+/** Refuses (REFUSED, "Bound to Mara: Cane Sword stays with them.") when `stack` is bound; nothing otherwise. */
+function refuseBound(ctx, inv, stack) {
+    const id = boundId(ctx, stack);
+    if (id) ctx.fail('REFUSED', fill(E.bound, { name: boundName(ctx, id), item: inv.defs[stack.def]?.name ?? 'That piece' }));
+}
+
+/** `stacks` without the bound ones; refuses when it held some and every one of them is bound. */
+function unbound(ctx, inv, stacks) {
+    const free = stacks.filter(stack => !boundId(ctx, stack));
+    if (stacks.length && !free.length) refuseBound(ctx, inv, stacks[0]);
+    return free;
 }
 
 function count(ctx, value, fallback, what = 'quantity') {
@@ -343,7 +393,7 @@ function addStack(ctx, inv, def, qty, owner, note, key = false, story = false) {
 // A loose stack to add to: the same def, owner and note, not worn, in the same condition (`cond`).
 function looseMatch(inv, def, owner, note, except = null, cond = COND_MAX) {
     return Object.values(inv.stacks).sort(byId)
-        .find(stack => stack.id !== except && stack.def === def && stack.owner === owner && stack.equipped === null && stack.note === note && condOf(stack, inv) === cond && stack.key !== true) ?? null;
+        .find(stack => stack.id !== except && stack.def === def && stack.owner === owner && stack.equipped === null && stack.note === note && condOf(stack, inv) === cond && stack.key !== true && stack.bound === undefined) ?? null;
 }
 
 /**
@@ -755,6 +805,8 @@ function itemEquip(ctx, payload) {
     let inv = ctx.draft('inventory');
     let stack = stackIn(ctx, inv, payload.stack);
     const def = inv.defs[stack.def];
+    // (a bound piece is not handed to anyone else, and, once worn, not moved to another slot: inventory.equip says so for the slot)
+    if (payload.owner !== undefined && payload.owner !== stack.owner) refuseBound(ctx, inv, stack);
     // `transfer: true` (the item Edit): hand it to `owner` first. It is one command, so a refusal below leaves it where it was (all or nothing).
     let handed = false;
     if (payload.owner !== undefined && payload.owner !== stack.owner && payload.transfer === true) {
@@ -777,6 +829,60 @@ function itemEquip(ctx, payload) {
     }
     const out = ctx.call('inventory.equip', { stack: stack.id, slot: where });
     return { ...out, data: { ...(out.data ?? {}), owner: stack.owner, place: where, ...(handed ? { handed: true } : {}) } };
+}
+
+// `inventory.stow { owner }` (`story-block.gear`, a module's call: the party module's leave): the pieces bound to `owner` leave the inventory with
+// them. They are set aside in `kept[owner]` (def, quantity, the slot they were worn in, note, condition as it stands: the events folded into one
+// number, so what wear they took stays), and their condition events go with them. Nothing is lost: `inventory.restore` brings them back.
+function stow(ctx, payload) {
+    if (!ctx.caller) ctx.fail('REFUSED', 'Gear leaves with a member when the party module says they left, not from a button or a change line.');
+    const owner = ownerArg(ctx, payload.owner, undefined);
+    if (owner === 'party') ctx.fail('INVALID', 'Only a party member\'s gear is bound to them.');
+    const inv = ctx.draft('inventory');
+    const pieces = Object.values(inv.stacks).filter(stack => stack.owner === owner && stack.bound === owner)
+        .sort((a, b) => (inv.defs[a.def]?.name ?? a.def).localeCompare(inv.defs[b.def]?.name ?? b.def, 'en') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    if (!pieces.length) return { summary: `${boundName(ctx, owner)} has no bound gear.`, data: { owner, items: [], stacks: [] }, narrate: false };
+    if (!isPlainObject(inv.kept)) inv.kept = {};
+    const list = Array.isArray(inv.kept[owner]) ? inv.kept[owner] : [];
+    const names = [];
+    for (const stack of pieces) {
+        const cond = condOf(stack, inv);
+        list.push({ def: stack.def, qty: stack.qty, equipped: stack.equipped, note: stack.note, ...(cond < COND_MAX ? { cond } : {}),
+            ...(stack.key === true ? { key: true } : {}), ...(stack.story === true ? { story: true } : {}) });
+        names.push(inv.defs[stack.def]?.name ?? stack.def);
+        if (isPlainObject(inv.condLog)) delete inv.condLog[stack.id];
+        delete inv.stacks[stack.id];
+    }
+    inv.kept[owner] = list;
+    return { summary: `${boundName(ctx, owner)}'s gear leaves with them: ${names.join(', ')}.`, data: { owner, items: names, stacks: pieces.map(stack => stack.id) }, narrate: false };
+}
+
+// `inventory.restore { owner }` (`story-block.gear`, a module's call: the party module's return): what `inventory.stow` set aside comes back, once
+// (the record is emptied), bound again, in the condition it left in, worn in the slot it was worn in when that slot is free (else carried).
+function restore(ctx, payload) {
+    if (!ctx.caller) ctx.fail('REFUSED', 'Gear comes back with a member when the party module says they returned, not from a button or a change line.');
+    const owner = ownerArg(ctx, payload.owner, undefined);
+    if (owner === 'party') ctx.fail('INVALID', 'Only a party member\'s gear is bound to them.');
+    const inv = ctx.draft('inventory');
+    const list = isPlainObject(inv.kept) && Array.isArray(inv.kept[owner]) ? inv.kept[owner] : [];
+    const items = [];
+    for (const entry of list) {
+        const def = inv.defs[entry.def];
+        if (!def) continue;
+        const free = entry.equipped !== null && !Object.values(inv.stacks).some(other => other.owner === owner && other.equipped === entry.equipped);
+        const id = addStack(ctx, inv, def.id, entry.qty, owner, entry.note, entry.key === true, entry.story === true);
+        const stack = inv.stacks[id];
+        stack.bound = owner;
+        if (free) stack.equipped = entry.equipped;
+        if (Number.isSafeInteger(entry.cond)) stack.cond = entry.cond;
+        items.push({ def: def.id, name: def.name, stack: id, equipped: stack.equipped });
+    }
+    if (isPlainObject(inv.kept)) {
+        delete inv.kept[owner];
+        if (!Object.keys(inv.kept).length) delete inv.kept;
+    }
+    return { summary: items.length ? `${boundName(ctx, owner)}'s gear comes back: ${items.map(item => item.name).join(', ')}.` : `${boundName(ctx, owner)} has no gear to bring back.`,
+        data: { owner, items: items.map(item => item.name), pieces: items }, narrate: false };
 }
 
 // `inventory.repair { stack, amount }`: the condition goes up by `amount` (1…100), never above 100;
@@ -1263,7 +1369,13 @@ export function createInventoryCommands(env) {
             } else if (payload.name !== undefined) {
                 ({ def, created } = defineByName(ctx, inv, String(payload.name), env, { note, owner }));
             } else ctx.fail('INVALID', 'Say which item to give.');
-            const stacks = grantInto(ctx, inv, def, qty, owner, note);
+            // `bound: true` (a cast member's signature gear, GEAR.md): kept as stacks of their own, marked as theirs.
+            if (payload.bound !== undefined && typeof payload.bound !== 'boolean') ctx.fail('INVALID', 'bound must be true or false.');
+            if (payload.bound === true && owner === 'party') ctx.fail('INVALID', 'Only a party member\'s gear can be bound to them.');
+            const stacks = payload.bound === true
+                ? (def.stack ? [addStack(ctx, inv, def.id, qty, owner, note)] : grantInto(ctx, inv, def, qty, owner, note))
+                : grantInto(ctx, inv, def, qty, owner, note);
+            if (payload.bound === true) for (const id of stacks) inv.stacks[id].bound = owner;
             return {
                 summary: `${capitalize(ownerNameIn(ctx, owner))} gains ${itemText(def.name, qty)}.`,
                 data: { def: def.id, qty, owner, stacks, created },
@@ -1304,6 +1416,7 @@ export function createInventoryCommands(env) {
             byReader(ctx);
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
+            refuseBound(ctx, inv, stack);
             const original = inv.defs[stack.def];
             const oldName = original.name;
             const decision = typeof payload.name === 'string' ? { witness: renameDecision(inv, stack, payload) } : null;
@@ -1316,7 +1429,7 @@ export function createInventoryCommands(env) {
                 const pieces = Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner);
                 guardReaderEdit(ctx, 'inventory.edit', editStack(stack), editPieces(inv, stack), decision);
                 // If this edit also changes the selected piece, keep that piece when reducing the group.
-                const loose = pieces.filter(item => item.equipped === null && (!editPiece || item.id !== stack.id)).reverse();
+                const loose = pieces.filter(item => item.equipped === null && !boundId(ctx, item) && (!editPiece || item.id !== stack.id)).reverse();
                 const remove = pieces.length - qty;
                 if (remove > loose.length) ctx.fail('REFUSED', E.itemGroupEquipped);
                 if (remove > 0) for (const item of loose.slice(0, remove)) delete inv.stacks[item.id];
@@ -1389,12 +1502,13 @@ export function createInventoryCommands(env) {
             let stacks;
             if (payload.stack !== undefined) {
                 const stack = stackIn(ctx, inv, payload.stack);
+                refuseBound(ctx, inv, stack);
                 def = inv.defs[stack.def];
                 stacks = [stack];
             } else if (payload.def !== undefined) {
                 def = typeof payload.def === 'string' ? inv.defs[payload.def] : null;
                 if (!def) ctx.fail('NOT_FOUND', 'There is no such item.');
-                stacks = stacksOf(inv, def.id, payload.owner === undefined ? null : ownerArg(ctx, payload.owner));
+                stacks = unbound(ctx, inv, stacksOf(inv, def.id, payload.owner === undefined ? null : ownerArg(ctx, payload.owner)));
             } else ctx.fail('INVALID', 'Say which item to use up.');
             const have = stacks.reduce((sum, stack) => sum + stack.qty, 0);
             if (have < qty) ctx.fail('NOT_ENOUGH', shortOf(def.name, have));
@@ -1409,6 +1523,7 @@ export function createInventoryCommands(env) {
         'inventory.transfer'(ctx, payload = {}) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
+            refuseBound(ctx, inv, stack);
             const def = inv.defs[stack.def];
             if (payload.to === undefined || payload.to === null) ctx.fail('INVALID', 'Say who should get it.');
             const to = receiverArg(ctx, payload.to);
@@ -1447,6 +1562,7 @@ export function createInventoryCommands(env) {
         'inventory.drop'(ctx, payload = {}) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
+            refuseBound(ctx, inv, stack);
             const def = inv.defs[stack.def];
             const qty = count(ctx, payload.qty, stack.qty);
             if (qty > stack.qty) ctx.fail('NOT_ENOUGH', shortOf(def.name, stack.qty));
@@ -1469,7 +1585,10 @@ export function createInventoryCommands(env) {
             if (!nonBlank(slot)) ctx.fail('REFUSED', `${def.name} has no slot to be worn in.`);
             const where = slot.trim();
             if (stack.equipped === where) ctx.fail('REFUSED', `${def.name} is already equipped.`);
+            // (a bound piece worn in another slot stays there, and a bound piece in this slot is not put away)
+            if (stack.equipped !== null) refuseBound(ctx, inv, stack);
             const occupant = Object.values(inv.stacks).find(other => other.id !== stack.id && other.owner === stack.owner && other.equipped === where);
+            if (occupant) refuseBound(ctx, inv, occupant);
             if (occupant) occupant.equipped = null;
             stack.equipped = where;
             const away = occupant ? `, putting away ${inv.defs[occupant.def].name}` : '';
@@ -1483,6 +1602,7 @@ export function createInventoryCommands(env) {
         'inventory.unequip'(ctx, payload = {}) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
+            refuseBound(ctx, inv, stack);
             const def = inv.defs[stack.def];
             if (stack.equipped === null) ctx.fail('REFUSED', `${def.name} is not equipped.`);
             const slot = stack.equipped;
@@ -1497,6 +1617,7 @@ export function createInventoryCommands(env) {
         'inventory.split'(ctx, payload = {}) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
+            refuseBound(ctx, inv, stack);
             const def = inv.defs[stack.def];
             if (stack.qty < 2) ctx.fail('REFUSED', `There is only one ${def.name}; it cannot be split.`);
             const qty = payload.qty;
@@ -1517,6 +1638,8 @@ export function createInventoryCommands(env) {
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
             const into = stackIn(ctx, inv, payload.into);
+            refuseBound(ctx, inv, stack);
+            refuseBound(ctx, inv, into);
             const def = inv.defs[stack.def];
             if (stack.id === into.id) ctx.fail('INVALID', 'A stack cannot be put together with itself.');
             if (stack.def !== into.def) ctx.fail('REFUSED', `${def.name} and ${inv.defs[into.def].name} are different items.`);
@@ -1583,6 +1706,9 @@ export function createInventoryCommands(env) {
         // (no feature on the command: a roll that carries a gear record wears by it with the switch off; gearWear itself refuses everyone else)
         'gear.wear': (ctx, payload = {}) => gearWear(ctx, payload),
         'item.equip': Object.assign((ctx, payload = {}) => itemEquip(ctx, payload), { feature: FEATURE.gear }),
+        // { owner }: a member's bound pieces leave with them / come back with them (the party module's leave and join; GEAR.md "Signature gear").
+        'inventory.stow': Object.assign((ctx, payload = {}) => stow(ctx, payload), { feature: FEATURE.gear }),
+        'inventory.restore': Object.assign((ctx, payload = {}) => restore(ctx, payload), { feature: FEATURE.gear }),
         // { sid, pick: [index…] }: the reader takes what they picked of a reply's loot.
         'inventory.lootTake': Object.assign((ctx, payload = {}) => lootTake(ctx, payload, env), { feature: FEATURE.loot }),
     };
@@ -1814,6 +1940,7 @@ function statWords(line) {
 
 // With gear on, a gained item's `equipped: <slot>` puts it on: the slot is the word's (weapon, body, off-hand, head, cloak, feet, accessory),
 // one item per slot per owner, so what was in it is put away. Equipment only; a word that is no slot, or one the item does not fit, is passed over.
+// (the story's gains go to the party's bag, where nothing is bound: a bound piece is a member's, so it is never the one put away here)
 function equipFromLine(inv, def, stackIds, word) {
     if (word === null || def.kind !== 'equipment' || !stackIds?.length) return null;
     const named = slotWordOf(word);
@@ -1869,7 +1996,7 @@ export function captureItem(ctx, line, env) {
             const used = useInStory(ctx, line, def, qty);
             if (used) return used;
         }
-        const held = stacksOf(inv, def.id);
+        const held = unbound(ctx, inv, stacksOf(inv, def.id));
         const have = held.reduce((sum, stack) => sum + stack.qty, 0);
         if (!have) ctx.fail('NOT_FOUND', `There is no ${def.name} in the inventory.`);
         if (have < qty) ctx.fail('NOT_ENOUGH', shortOf(def.name, have));
@@ -1912,6 +2039,7 @@ export function captureItem(ctx, line, env) {
             if (!held.length) ctx.fail('NOT_FOUND', `There is no ${def.name} in the inventory.`);
             if (held.length > 1) ctx.fail('INVALID', `There are several lots of ${def.name}; the line cannot say which one changed.`);
             const stack = held[0];
+            if (qty !== null) refuseBound(ctx, inv, stack);
             if (note !== null) {
                 stack.note = trimText(note, MAX_NOTE);
                 changes.push(`${def.name}: ${stack.note || 'note cleared'}`);
@@ -2003,7 +2131,7 @@ export function carryBonuses(tools) {
     return out;
 }
 
-export function listItems(inventory, owner = null, carry = null, gear = false) {
+export function listItems(inventory, owner = null, carry = null, gear = false, nameOf = null) {
     const defs = inventory?.defs ?? {};
     return Object.values(inventory?.stacks ?? {})
         .filter(stack => defs[stack.def] && (owner === null || stack.owner === owner))
@@ -2017,6 +2145,8 @@ export function listItems(inventory, owner = null, carry = null, gear = false) {
                 ...(condOf(stack, inventory) < COND_MAX ? { cond: condOf(stack, inventory) } : {}),
                 ...(stack.key === true ? { key: true } : {}),
                 ...(stack.story === true ? { story: true } : {}),
+                // (a cast member's signature piece, with gear on: whose it is, for the screens' chip)
+                ...(gear && typeof stack.bound === 'string' && stack.bound ? { bound: { who: nameOf?.(stack.bound) ?? stack.bound } } : {}),
                 ...(carryOfStack(stack, def, carry) ? { carry: carryOfStack(stack, def, carry) } : {}),
             };
         })
@@ -2159,6 +2289,16 @@ function gearWearers(state, tools, env) {
     return { names, owners: [{ value: 'party', label: own }, ...members.filter(member => member.id !== pcId).map(member => ({ value: member.id, label: member.name }))] };
 }
 
+// (how a bound piece names its member: the party's roster, else the ID; only asked with gear on)
+function boundNames(state, tools, env) {
+    if (!gearIsOn(env)) return null;
+    let names = null;
+    return id => {
+        if (!names) { try { names = gearWearers(state, tools, env).names; } catch { names = new Map(); } }
+        return names.get(id);
+    };
+}
+
 /**
  * The inventory queries; `env.settings()` gives the currency for `inventory.currency` and the reader's
  * money scale, `env.economy()` the enabled pack's ({ scale } or null) for `inventory.economy`.
@@ -2180,7 +2320,7 @@ export const createInventoryQueries = env => ({
     // transaction has them (drafts included), makes nothing and does not depend on a pack being installed:
     // a pack's item registered by the rules module stays here after the pack is removed.
     'inventory.definitions': (state, args) => definitionsOf(state?.domains?.inventory, args),
-    'inventory.items': (state, args = {}, tools) => listItems(state?.domains?.inventory, args?.owner ?? null, carryBonuses(tools), gearIsOn(env)),
+    'inventory.items': (state, args = {}, tools) => listItems(state?.domains?.inventory, args?.owner ?? null, carryBonuses(tools), gearIsOn(env), boundNames(state, tools, env)),
     'inventory.counts': state => {
         const inventory = state?.domains?.inventory, stacks = Object.values(inventory?.stacks ?? {}), totals = new Map();
         for (const stack of stacks) {
@@ -2205,13 +2345,13 @@ export const createInventoryQueries = env => ({
     },
     'inventory.wallet': (state, args = {}) => ({ ...(state?.domains?.inventory?.wallets?.[args?.owner ?? 'party'] ?? {}) }),
     // { status: 'found' | 'ambiguous' | 'none', defs: [def copies], stacks: [items of the found def] }
-    'inventory.find': (state, args = {}) => {
+    'inventory.find': (state, args = {}, tools) => {
         const inventory = state?.domains?.inventory;
         const found = resolveDef(inventory, args?.name ?? '');
         return {
             status: found.status,
             defs: found.ids.map(id => clone(inventory.defs[id])),
-            stacks: found.status === 'found' ? listItems(inventory, null, null, gearIsOn(env)).filter(item => item.def === found.id) : [],
+            stacks: found.status === 'found' ? listItems(inventory, null, null, gearIsOn(env), boundNames(state, tools, env)).filter(item => item.def === found.id) : [],
         };
     },
     'inventory.equipment': (state, args, tools) => equipmentView(state, tools),

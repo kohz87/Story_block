@@ -432,6 +432,8 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
             // The slot the Edit form offers: where it is worn, else the place its own slot names ('' for none: a bag).
             slotKey: worn ? stack.equipped : (def.kind === 'equipment' && slotWordOf(def.slot) ? placeOf(slotWordOf(def.slot)) : ''),
             fill: FILL[condWord(cond)],
+            // A cast member's signature piece: whose it is, for the chip ("Bound to Mara").
+            ...(typeof stack.bound === 'string' && stack.bound ? { bound: { who: names(stack.bound) || stack.bound } } : {}),
         };
     }
     const slots = Object.fromEntries(PLACES.map(place => [place, null]));
@@ -439,7 +441,8 @@ export function gearView(state, args, { condOf, carryOf, penalty, mounts, names,
         if (stack.owner !== owner || typeof stack.equipped !== 'string' || !Object.hasOwn(slots, stack.equipped) || slots[stack.equipped]) continue;
         const def = defs[stack.def];
         const cond = condOf(stack, inventory);
-        slots[stack.equipped] = { stack: stack.id, name: def.name, rarity: def.rarity, bonus: bonusText(statsFor(def)), cond, word: condWord(cond), broken: cond <= 0 };
+        slots[stack.equipped] = { stack: stack.id, name: def.name, rarity: def.rarity, bonus: bonusText(statsFor(def)), cond, word: condWord(cond), broken: cond <= 0,
+            ...(typeof stack.bound === 'string' && stack.bound ? { bound: { who: names(stack.bound) || stack.bound } } : {}) };
     }
     const picture = carryPicture(state, { carryOf, mounts });
     const shared = picture.shared;
