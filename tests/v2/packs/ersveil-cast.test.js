@@ -88,7 +88,7 @@ test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, lev
     assert.match(by('torka').look, /^Orc, 20:/);
     assert.equal(by('torka').fields.People, 'Orc, 20');
     assert.deepEqual(Object.fromEntries(cast().map(person => [person.id, person.fields.Level])),
-        { temiwa: '5', ysmeth: '25', nysseth: '35', rika: '15', harrak: '45', torka: '15', lothar: '25', gorm: '15', nerissa: '15', hush: '25', asphodel: '25', barney: '15' });
+        { temiwa: '8', ysmeth: '36', nysseth: '44', rika: '12', harrak: '56', torka: '18', lothar: '32', gorm: '22', nerissa: '24', hush: '48', asphodel: '30', barney: '14' });
 });
 
 // Words that are only in a person's secrets: none may be in what the reader or the narrator is told before they unlock.

@@ -167,3 +167,12 @@ test('the pack ranks levels 1-99 in nine contiguous bands (F 1-9 to SSS 80-99) a
     assert.doesNotMatch(packText + lore, /Soul Class/);
     assert.match(lore, /Level \(1-99\): raw supernatural capacity/);
 });
+
+test('the lorebook\'s typical-level table agrees with the rank bands (E-D 10-29, C 30-39, B-A 40-59, S 60-69)', () => {
+    const core = Object.values(JSON.parse(readFileSync(lorePath, 'utf8')).entries)
+        .find(entry => entry.comment === '[CORE] Classification').content;
+    assert.match(core, /working adventurers \(E-D\) 10-29/);
+    assert.match(core, /Guild veterans \(C\), journeyman mages 30-39/);
+    assert.match(core, /elite adventurers \(B-A\), masters of a tradition 40-59/);
+    assert.match(core, /S-rank legends 60-69; level 70 and above/);
+});
