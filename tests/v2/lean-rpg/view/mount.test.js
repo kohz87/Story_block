@@ -97,7 +97,7 @@ test('the tab draws a card per character and the sheet saves through the real ho
     const { doc, host, ui } = await page(t, { feature: true });
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [characterDefinition('wessel', 'Wessel'), characterDefinition('ren', 'Ren'), skillsDefinition('wessel-skills', 'Wessel', { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' })]);
-    for (const [field, value] of Object.entries({ points: 2, str: 14, soul: 2, health: 3 })) await setField(host, 'wessel', field, value);
+    for (const [field, value] of Object.entries({ points: 2, str: 14, level: 2, health: 3 })) await setField(host, 'wessel', field, value);
     await setField(host, 'wessel-skills', 'skill1', 'Iron Breath');
     await host.send('Go.', 'The quay.');
     assert.equal(ui.mounts.screen.open(PARTY), true);
@@ -213,12 +213,12 @@ test('"Changed this reply" tells the rolls and the rises', async t => {
     const { doc, host, ui, draw } = await page(t, { feature: true });
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [characterDefinition('wessel', 'Wessel'), skillsDefinition('wessel-skills', 'Wessel', { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' })]);
-    await setField(host, 'wessel', 'soul', 2);
+    await setField(host, 'wessel', 'level', 2);
     await setField(host, 'wessel-skills', 'skill1', 'Iron Breath');
     await setField(host, 'wessel-skills', 'rank1', 1);
     await host.send('Fight.', 'The rats come.');
     const head = host.store.headIndex();
-    await setField(host, 'wessel', 'soul', 3);
+    await setField(host, 'wessel', 'level', 3);
     await setField(host, 'wessel-skills', 'rank1', 2);
     host.ctx.chat[head].extra.storySuite.receipts.push({ id: 'rc_rpg0001', type: RESOLVE, module: 'story-block', cause: 'system', summary: '', narrate: false, rev: 99,
         data: { v2: { result: { v: 1, summary: { exchanges: 3, acts: [{ kind: 'act', who: 'Wessel', target: 'Sluice Rat A', skill: null, stat: 'str', outcomes: ['success'] }], refused: 0 }, rounds: [] } } } });
@@ -227,11 +227,11 @@ test('"Changed this reply" tells the rolls and the rises', async t => {
     const card = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"]`);
     assert.ok(card);
     assert.match(card.querySelector('[data-slot="summary"]').textContent, /3 exchanges rolled/);
-    assert.match(card.querySelector('[data-slot="summary"]').textContent, /Soul Class III/);
+    assert.match(card.querySelector('[data-slot="summary"]').textContent, /Wessel Lv 3/);
     ui.mounts.card.toggle(head, true);
     const body = doc.querySelector(`.mes[mesid="${head}"] [data-ss-card="${THIS_REPLY_ID}"] .ss-card-body`).textContent;
     assert.match(body, /Rolled for you: 3 exchanges/);
-    assert.match(body, /Wessel: Soul Class II → III/);
+    assert.match(body, /Wessel reached Lv 3/);
     assert.match(body, /Iron Breath: Adept → Expert/);
     assert.match(body, /You set/, 'the reader\'s own edits are still told');
 });

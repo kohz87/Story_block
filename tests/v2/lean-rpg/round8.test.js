@@ -7,7 +7,8 @@ import {
     STANDARD, STAT_ABOVE, normalizeRules, parsePlanAnswer, prepare, readSheet, rollPrepared, statShare, validatePlan,
 } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD, precallPrompt } from '../../../src/v2/lean-rpg/precall.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+// (The Character block here is one made before levels, 2.17.0: it has the Soul Class field a pack may rename.)
+import { LEAN_RPG_TEMPLATES } from './fixtures/templates-2.16.js';
 import { oddsFor, subjectOdds } from '../../../src/v2/lean-rpg/rules.js';
 import { readJoin, soulNaming, joinCard } from '../../../src/v2/lean-rpg/join.js';
 import { soulReading } from '../../../src/v2/lean-rpg/soul.js';
@@ -18,7 +19,7 @@ import { rpgReplyLines } from '../../../src/v2/lean-rpg/view/changes-lines.js';
 import { buildPanel, panelModel, readResolve } from '../../../src/v2/lean-rpg/view/battle-log.js';
 import { oddsView, soulLabelFor } from '../../../src/v2/lean-rpg/view/settings-data.js';
 import { renderRpgSettings } from '../../../src/v2/lean-rpg/view/settings.js';
-import { PARTY, PLAN_ANSWER, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
+import { cueOf, PARTY, PLAN_ANSWER, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock } from './helpers.js';
 import { fakeState, roleOf as viewRoleOf } from './view/helpers.js';
 
 const available = await hostAvailable();
@@ -139,7 +140,7 @@ test('B: through the turn, the plan\'s defending skill is rolled, stored and tol
     const lines = receipt.data.v2.result.rounds.flatMap(round => round.lines).filter(line => line.kind === 'foe');
     assert.ok(lines.length >= 1);
     assert.ok(lines.every(line => line.skill === 'Iron Breath' && line.pc.stat === 'str' && line.pc.rank === 1));
-    assert.match(receipt.summary, /Sluice Rats attacks Wessel \(Iron Breath\): /);
+    assert.match(cueOf(receipt), /Sluice Rats attacks Wessel \(Iron Breath\): /);
     assert.deepEqual(receipt.data.v2.result.summary.acts.find(act => act.kind === 'foe').skill, 'Iron Breath');
     host.close();
 });
@@ -151,7 +152,7 @@ test('B: a payload made before (no skill on its foe lines) rolls and tells as it
     const lines = receipt.data.v2.result.rounds.flatMap(round => round.lines).filter(line => line.kind === 'foe');
     assert.ok(lines.length >= 1);
     assert.ok(lines.every(line => line.skill === null && line.pc.stat === 'agi' && line.pc.rank === 0));
-    assert.ok(!/attacks Wessel \(/.test(receipt.summary));
+    assert.ok(!/attacks Wessel \(/.test(cueOf(receipt)));
     const before = JSON.stringify(host.head());
     host.store.rebuild();
     assert.equal(JSON.stringify(host.head()), before, 'a rebuild gives the same story');
@@ -238,24 +239,24 @@ const world = (renamed, { soul = 3, before = false } = {}) => fakeState([
 ]);
 const roleOf = definition => definition.role ?? null;
 
-test('C: the default keeps "Soul Class III" everywhere; a renamed field shows "Level 3" on the Party card, the roll line, the class-up note and the planner', () => {
+test('C (Levels): a block made before levels (its Soul Class III stands for level 25): the Party card, the roll line and the rise note read it whatever the field is called; the planner keeps the field\'s own words', () => {
     for (const [renamed, label, word] of [[false, 'Soul Class', 'III'], [true, 'Level', '3']]) {
         const state = world(renamed);
         const [first] = readParty(state, { own: 'Wessel', roleOf });
-        assert.deepEqual([first.soulLabel, first.soulName], [label, word]);
+        assert.deepEqual([first.level, first.levelText], [25, 'Lv 25']);
         // the Party card
         const doc = setupDom(), el = doc.createElement('div');
         doc.body.appendChild(el);
         createPartyWidget({ headState: () => state, readerName: () => 'Wessel', roleOf }).render(el, {}, {});
-        assert.ok(el.querySelectorAll('.ss-pill').some(node => node.textContent === `${label} ${word}`), `the card says "${label} ${word}"`);
+        assert.ok(el.querySelectorAll('.ss-pill').some(node => node.textContent === 'Lv 25'), 'the card says "Lv 25"');
         // the Skills view roll line
         const view = doc.createElement('div');
         doc.body.appendChild(view);
         renderSkills(view, { character: first, api: {}, onBack: () => {} });
-        assert.match(view.querySelector('.rpg-skill-roll').textContent, new RegExp(`· ${label} ${word} \\+6$`));
-        // the class-up note
+        assert.match(view.querySelector('.rpg-skill-roll').textContent, /· .* \+\d+$/);
+        // the class-up note (an earlier block)
         const lines = rpgReplyLines({ state, before: world(renamed, { soul: 2, before: true }), record: { receipts: [] }, roleOf });
-        const wording = renamed ? ['Wessel: Level 2 → 3', 'Level 3 (+3 points)'] : ['Wessel: Soul Class II → III', 'Soul Class III (+3 points)'];
+        const wording = [`Wessel: ${label} ${renamed ? '2' : 'II'} → ${word}`, `${label} ${word} (+3 points)`];   // (a block made before levels keeps its class rise wording)
         assert.deepEqual([lines[0].text, lines[0].summary], wording);
         // the planner's sheet text
         const prompt = precallPrompt({ sheet: readSheet(state), message: 'hi' });
@@ -275,7 +276,7 @@ test('C: the odds line and the "adds" label follow the player\'s Character block
     doc.body.appendChild(parent);
     const settings = Object.assign(() => ({ rpgFormula: 'classic', rpgDifficulty: 'custom', rpgCustom: { ...STANDARD } }), { set: () => {} });
     renderRpgSettings(parent, { settings, doc, headState: () => renamed, readerName: () => 'Wessel', roleOf });
-    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level adds']);
+    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level divisor'], 'the row that was "Soul Class adds" is the Level divisor');
 });
 
 test('C: the battle log says "Class II" by default and the field\'s own word when it is renamed', () => {
@@ -298,8 +299,8 @@ test('C: a companion\'s class is read with the story\'s own names, and the refus
     assert.equal(soulNaming(world(true)).label, 'Level');
     assert.equal(soulNaming(fakeState([])).label, 'Soul Class');
     const card = joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], world(true));
-    assert.equal(card.rows[0].text, 'Level 3');
-    assert.equal(joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], fakeState([])).rows[0].text, 'Soul Class III');
+    assert.equal(card.rows[0].text, 'Level 25', 'F12: the card says the level the class stands for');
+    assert.equal(joinCard([{ name: 'Mara', about: '', soul: 3, best: '' }], fakeState([])).rows[0].text, 'Level 25');
 });
 
 test('C: the planner text is byte-identical with the default names', () => {

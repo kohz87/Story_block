@@ -44,7 +44,7 @@ test('every block stays inside the field, kind and text limits', () => {
 
 test('the Character block has the keys the RPG reads, with their ranges and stage names', () => {
     const { state, kinds } = template('Character');
-    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'soul', 'xp', 'down', 'alive', 'left']);
+    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'rise', 'cap', 'down', 'alive', 'left']);
     assert.equal(state.who.type, 'text');
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
@@ -57,9 +57,11 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     }
     for (const stat of STATS) assert.deepEqual([state[stat].min, state[stat].max], [1, 20], stat);
     assert.deepEqual([state.points.min, state.points.max], [0, 60]);
-    assert.deepEqual([state.soul.min, state.soul.max], [1, 9]);
-    assert.deepEqual(Object.values(state.soul.names), ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']);
-    assert.deepEqual([state.xp.min, state.xp.max], [0, 100]);
+    assert.deepEqual([state.level.min, state.level.max, state.level.default, state.level.label], [1, 99, 1, 'Level']);
+    assert.equal(state.level.names, undefined, 'a level is a number, no longer named I to IX');
+    assert.equal(state.soul, undefined, 'no Soul Class field in a new template');
+    assert.deepEqual([state.cap.min, state.cap.max, state.cap.default, state.cap.label, state.cap.prompt], [1, 99, 99, 'Level cap', false]);
+    assert.deepEqual([state.xp.min, state.xp.max], [0, 9999], "XP past 100 is kept for the rise");
     assert.equal(state.down.type, 'bool');
     assert.equal(state.down.prompt, false, 'Down is hidden from the narrator');
     assert.equal(state.alive.type, 'bool');
@@ -94,24 +96,30 @@ test('the Skills block has five slots of name, description, stat, resource, rank
     }
 });
 
-test('the Foes block has four slots of name, count, class and health stage', () => {
+test('the Foes block has four slots of name, count, level (1 to 99) and health stage', () => {
     const { state, kinds } = template('Foes');
     for (let n = 1; n <= 4; n++) {
         assert.equal(state[`foe${n}`].type, 'text');
         assert.deepEqual([state[`count${n}`].min, state[`count${n}`].max], [0, 99]);
-        assert.deepEqual([state[`class${n}`].min, state[`class${n}`].max], [1, 9]);
-        assert.deepEqual(Object.values(state[`class${n}`].names), ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX']);
+        assert.deepEqual([state[`level${n}`].min, state[`level${n}`].max, state[`level${n}`].default], [1, 99, 1]);
+        assert.equal(state[`class${n}`], undefined, 'no Soul Class on a foe');
         assert.deepEqual([state[`hurt${n}`].min, state[`hurt${n}`].max], [0, 5]);
         assert.deepEqual(Object.values(state[`hurt${n}`].names), STAGES.health);
         for (const kind of [`set-slot-${n}`, `hurt-${n}`, `clear-${n}`]) assert.ok(kinds[kind], kind);
     }
 });
 
-test('a rise is a plain rule: XP at 100 raises the Soul Class, resets XP and gives 3 points, practice at 100 raises the rank', () => {
+test('a rise is a plain rule: XP at 100 raises the Level (below the cap), resets XP and gives a point every third level, practice at 100 raises the rank', () => {
     const character = template('Character');
-    const classUp = character.rules.find(rule => rule.id === 'class-up');
-    assert.deepEqual(classUp.when, ['and', ['ge', ['get', ['xp']], 100], ['lt', ['get', ['soul']], 9]]);
-    assert.deepEqual(classUp.then, [{ op: 'add', path: ['soul'], value: 1, bounds: 'clamp' }, { op: 'set', path: ['xp'], value: 0 }, { op: 'add', path: ['points'], value: 3, bounds: 'clamp' }], 'each rise also gives 3 points to spend (2.9.1)');
+    const levelUp = character.rules.find(rule => rule.id === 'level-up');
+    assert.equal(character.rules.some(rule => rule.id === 'class-up'), false);
+    assert.deepEqual(levelUp.when, ['and', ['ge', ['get', ['xp']], 100], ['lt', ['get', ['level']], ['get', ['cap']]]]);
+    const rise = ['min', ['floorDiv', ['get', ['xp']], 100], ['sub', ['get', ['cap']], ['get', ['level']]]];
+    assert.deepEqual(levelUp.then, [{ op: 'set', path: ['rise'], value: rise },
+        { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' },
+        { op: 'add', path: ['level'], value: ['get', ['rise']], bounds: 'clamp' }, { op: 'add', path: ['xp'], value: ['mul', ['get', ['rise']], -100], bounds: 'clamp' }, { op: 'set', path: ['rise'], value: 0 }],
+        '2.17.0: the rise is worked out once (min of the XP\'s hundreds and the room under the cap), carries the XP over 100 and gives a point for every multiple of 3 crossed');
+    assert.deepEqual(character.rules.find(rule => rule.id === 'xp-cap').then, [{ op: 'set', path: ['xp'], value: 100 }], 'at the cap the XP past 100 is not kept');
     for (const rule of template('Skills').rules) {
         const n = rule.id.at(-1);
         assert.deepEqual(rule.when, ['and', ['ge', ['get', [`practice${n}`]], 100], ['lt', ['get', [`rank${n}`]], 3]]);
@@ -190,11 +198,11 @@ test('the party fixture gives every block all of its template fields, inside the
     }
 });
 
-test('the party fixture reads as mockup v3: Wessel is Soul II with 3 points, Hurt, Fresh and Spent', () => {
+test('the party fixture reads as mockup v3: Wessel is Level 15 with 3 points, Hurt, Fresh and Spent', () => {
     const wessel = party.blocks.find(block => block.slug === 'wessel');
     const word = (block, field) => block.fields[field] === undefined ? undefined
         : template(block.template).state[field].names[String(block.fields[field])];
-    assert.equal(word(wessel, 'soul'), 'II');
+    assert.equal(wessel.fields.level, 15);
     assert.equal(wessel.fields.points, 3);
     assert.equal(word(wessel, 'health'), 'Hurt');
     assert.equal(word(wessel, 'mana'), 'Fresh');

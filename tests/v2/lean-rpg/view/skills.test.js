@@ -13,7 +13,7 @@ import { fakeState } from './helpers.js';
 import { begin, fieldsOf, makeBlocks, page, party, settle } from './page.js';
 
 const template = role => structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.definition.role === role).definition);
-const character = (fields = {}) => ({ definition: template('character'), fields: { who: 'Wessel', str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, soul: 2, ...fields } });
+const character = (fields = {}) => ({ definition: template('character'), fields: { who: 'Wessel', str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, level: 2, ...fields } });
 const SKILLS = {
     who: 'Wessel',
     skill1: 'Iron Breath', about1: 'The drill-yard breathing that keeps you on your feet when you are spent.', stat1: 'vit', uses1: 'stamina', rank1: 2, practice1: 40,
@@ -46,34 +46,37 @@ test('mastery: four cells, rank + 1 lit and the next filling with practice; Mast
     assert.deepEqual([...RANK_TONES], ['neutral', 'info', 'accent', 'good']);
 });
 
-test('the roll: d20 + half the stat + rank + 2 × Soul Class, worked out from the live sheet', () => {
+test('the roll: d20 + half the stat + rank + level ÷ 5 (rounded down), worked out from the live sheet', () => {
     const [iron, blade, rope, swim] = wessel().skills;
-    assert.deepEqual(rollOf(iron, wessel()), { total: 12, stat: 'VIT', value: 12, half: 6, rank: 2, bonus: 4 });
-    assert.equal(rollOf(blade, wessel()).total, 9, 'AGI 11 → +5, Novice +0, class II +4');
-    assert.equal(rollOf(rope, wessel()).total, 10);
-    // Under other numbers (Settings → RPG): a third of the stat, a Soul Class worth three.
-    assert.deepEqual(rollOf(iron, wessel(), { statDivisor: 3, classWeight: 3 }), { total: 4 + 2 + 6, stat: 'VIT', value: 12, half: 4, rank: 2, bonus: 6 });
-    assert.equal(rollOf(swim, wessel()).total, 13);
+    // Wessel is Level 2 (stored as a Soul Class, read as the level): level ÷ 5 is 0.
+    assert.deepEqual(rollOf(iron, wessel()), { total: 8, stat: 'VIT', value: 12, half: 6, rank: 2, bonus: 0 });
+    assert.equal(rollOf(blade, wessel()).total, 5, 'AGI 11 → +5, Novice +0, level ÷ 5 = 0');
+    assert.equal(rollOf(rope, wessel()).total, 6);
+    // Level 14 (the Level field): 14 ÷ 5 = 2; under other numbers a third of the stat and a divisor of 3 (14 ÷ 3 = 4).
+    const high = readParty(fakeState([character({ level: 14 }), { definition: template('skills'), fields: SKILLS }]), { own: 'Wessel' })[0];
+    assert.deepEqual(rollOf(high.skills[0], high), { total: 6 + 2 + 2, stat: 'VIT', value: 12, half: 6, rank: 2, bonus: 2 });
+    assert.deepEqual(rollOf(high.skills[0], high, { statDivisor: 3, levelDivisor: 3 }), { total: 4 + 2 + 4, stat: 'VIT', value: 12, half: 4, rank: 2, bonus: 4 });
+    assert.equal(rollOf(swim, wessel()).total, 9);
     const none = rollOf({ ...iron, stat: null }, wessel());
-    assert.deepEqual([none.stat, none.total], [null, 6], 'a skill with no stat of its own: rank and class only');
+    assert.deepEqual([none.stat, none.total], [null, 2], 'a skill with no stat of its own: rank and level only');
 });
 
 test('the view: a card per skill with the rank pill, STAT · Uses, what it does, the mastery bar and the roll line', () => {
     const { el } = draw();
     assert.equal(el.querySelector('.rpg-sheet-name').textContent, 'Wessel\'s skills');
-    assert.deepEqual(el.querySelectorAll('.rpg-pills .ss-pill').map(node => node.textContent), ['Soul Class II', '4 of 5 slots']);
+    assert.deepEqual(el.querySelectorAll('.rpg-pills .ss-pill').map(node => node.textContent), ['Lv 2', '4 of 5 slots']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-skill-name').textContent), ['Iron Breath', 'Short blade', 'Rope work', 'River swimming']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-rank').textContent), ['Expert', 'Novice', 'Adept', 'Master']);
     assert.deepEqual(rows(el).map(row => ['neutral', 'info', 'accent', 'good'].find(tone => row.querySelector('.rpg-rank').classList.contains(`rpg-tone-${tone}`)) ?? 'neutral'), ['accent', 'neutral', 'info', 'good']);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-skill-uses').textContent), ['VIT · Stamina', 'AGI · Stamina', 'DEX · Stamina', 'VIT · Stamina']);
     assert.equal(rows(el)[0].querySelector('.rpg-skill-about').textContent, SKILLS.about1);
     assert.deepEqual(rows(el).map(row => row.querySelector('.rpg-skill-roll').textContent), [
-        'Rolls with it: d20 +12 = VIT 12 → +6 · Expert +2 · Soul Class II +4',
-        'Rolls with it: d20 +9 = AGI 11 → +5 · Novice +0 · Soul Class II +4',
-        'Rolls with it: d20 +10 = DEX 10 → +5 · Adept +1 · Soul Class II +4',
-        'Rolls with it: d20 +13 = VIT 12 → +6 · Master +3 · Soul Class II +4',
+        'Rolls with it: d20 +8 = VIT 12 → +6 · Expert +2 · Lv 2 ÷ 5 +0',
+        'Rolls with it: d20 +5 = AGI 11 → +5 · Novice +0 · Lv 2 ÷ 5 +0',
+        'Rolls with it: d20 +6 = DEX 10 → +5 · Adept +1 · Lv 2 ÷ 5 +0',
+        'Rolls with it: d20 +9 = VIT 12 → +6 · Master +3 · Lv 2 ÷ 5 +0',
     ]);
-    assert.equal(rows(el)[0].querySelector('.rpg-skill-roll b').textContent, 'Rolls with it: d20 +12');
+    assert.equal(rows(el)[0].querySelector('.rpg-skill-roll b').textContent, 'Rolls with it: d20 +8');
 });
 
 test('the mastery bar is the real ss.meter: four cells, the value, the words and the tone', () => {
@@ -110,7 +113,7 @@ test('a skill from a block with no stat of its own says what it can: the stat is
     const { el } = draw({}, { who: 'Wessel', skill1: 'Hide', rank1: 1, stat1: '', uses1: '' });
     const row = rows(el)[0];
     assert.ok(!row.querySelector('.rpg-skill-uses'));
-    assert.equal(row.querySelector('.rpg-skill-roll').textContent, 'Rolls with the stat the story picks: Adept +1 · Soul Class II +4');
+    assert.equal(row.querySelector('.rpg-skill-roll').textContent, 'Rolls with the stat the story picks: Adept +1 · Lv 2 ÷ 5 +0');
 });
 
 test('Back to the party calls back; the note says rank and practice only move through play', () => {

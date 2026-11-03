@@ -98,7 +98,8 @@ test('Create\'s two definitions come from the templates with the wizard\'s value
     assert.deepEqual(blockNames('Wessel'), { character: 'Wessel', skills: 'Wessel\'s skills' });
     const state = character.state;
     assert.deepEqual([state.who.default, state.about.default, state.str.default, state.vit.default, state.agi.default, state.dex.default, state.int.default], ['Wessel', 'A drill-yard washout.', 14, 12, 11, 10, 8]);
-    assert.deepEqual([state.points.default, state.soul.default, state.xp.default, state.health.default, state.mana.default, state.stamina.default, state.alive.default], [1, 1, 0, 5, 4, 4, true], 'full bars, Soul I, 0 XP and the unspent point');
+    assert.deepEqual([state.points.default, state.level.default, state.xp.default, state.health.default, state.mana.default, state.stamina.default, state.alive.default], [1, 1, 0, 5, 4, 4, true], 'full bars, Level 1, 0 XP and the unspent point');
+    assert.deepEqual([state.cap.default, state.soul], [99, undefined], 'the cap is 99 unless the story says another; no Soul Class');
     const sk = skills.state;
     assert.deepEqual([sk.who.default, sk.skill1.default, sk.about1.default, sk.stat1.default, sk.uses1.default, sk.rank1.default, sk.practice1.default], ['Wessel', 'Short blade', FIGHTER.skills[0].about, 'agi', 'stamina', 1, 0], 'the Adept one starts at rank 1');
     assert.deepEqual([sk.rank2.default, sk.rank3.default, sk.skill4.default, sk.rank4.default], [0, 0, '', 0]);
@@ -180,7 +181,7 @@ test('Who: the persona\'s name, You or A companion, who they are with its count;
     assert.match(who.textContent, /From your persona\. You can change it here\./);
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => [node.textContent, node.getAttribute('aria-pressed')]), [['You', 'true'], ['A companion', 'false']]);
     assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-name').textContent, 'Wessel');
-    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Soul Class I$/);
+    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Lv 1$/);
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 6');
     const about = who.querySelector('[data-wiz="about"]');
     assert.equal(about.getAttribute('maxlength'), '240');
@@ -194,7 +195,7 @@ test('Who: the persona\'s name, You or A companion, who they are with its count;
     assert.equal(again.querySelector('[data-wiz="name"]').value, 'Wess');
     assert.equal(again.querySelector('[data-wiz="about"]').value, 'A drill-yard washout from Bluewatch.');
     click(again, 'A companion');
-    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, 'Companion · Soul Class I');
+    assert.equal(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, 'Companion · Lv 1');
     assert.equal(wizardOf(dialog).querySelector('[data-wiz="name"]').value, 'Wess');
     click(wizardOf(dialog), 'You');
     assert.equal(wizardOf(dialog).querySelector('[data-wiz="name"]').value, 'Wessel', 'You takes the persona\'s name');
@@ -342,7 +343,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     const made = host.ctx.chat.flatMap(message => message.extra?.storySuite?.receipts ?? []).filter(receipt => receipt.type.startsWith('dm.'));
     assert.deepEqual(made.map(receipt => receipt.type), ['dm.define', 'dm.define', 'dm.define', 'dm.define'], 'four defines and nothing else: no dm.set');
     const character = fieldsOf(host, 'pack.chat/wessel'), skills = fieldsOf(host, 'pack.chat/wessel-skills');
-    assert.deepEqual([character.who, character.about, character.str, character.vit, character.points, character.soul, character.xp, character.health, character.mana, character.stamina, character.alive],
+    assert.deepEqual([character.who, character.about, character.str, character.vit, character.points, character.level, character.xp, character.health, character.mana, character.stamina, character.alive],
         ['Wessel', 'A drill-yard washout from Bluewatch.', 14, 12, 0, 1, 0, 5, 4, 4, true]);
     assert.deepEqual([skills.who, skills.skill1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill4, skills.rank4],
         ['Wessel', 'Short blade', 'agi', 'stamina', 1, 0, 'Iron Breath', 0, '', 0]);
@@ -360,7 +361,7 @@ test('Create makes the two blocks with one dm.define each, the wizard\'s values 
     assert.match(card.textContent, /Short blade \(Adept\) · Iron Breath \(Novice\) · Shield work \(Novice\)/);
     assert.ok(!card.textContent.includes('points to spend'), 'every point was spent');
     card.querySelector('.rpg-skills-open').click();
-    assert.match(party(doc).querySelector('.rpg-skill[data-slot="1"] .rpg-skill-roll').textContent, /Rolls with it: d20 \+8 = AGI 10 → \+5 · Adept \+1 · Soul Class I \+2/);
+    assert.match(party(doc).querySelector('.rpg-skill[data-slot="1"] .rpg-skill-roll').textContent, /Rolls with it: d20 \+6 = AGI 10 → \+5 · Adept \+1 · Lv 1 ÷ 5 \+0/);
     await reload(host);
 });
 
@@ -777,4 +778,49 @@ test('2.9.1: the Stats card\'s stylesheet: padding in the card, an even grid bes
     assert.match(phone, /\.rpg-wiz-steppers \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
     assert.match(phone, /\.rpg-wiz-stats-card \.rpg-radar \{ justify-self: center; \}/);
     assert.match(css, /\.rpg-steppers \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 10px 14px; \}/, 'the Party tab\'s grid is as it was');
+});
+
+test('Levels: the Who step has "Starting level" (1 unless changed, 1 to 99); the header says "Lv N", a draft keeps it, and Create writes it as the block\'s level default', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await begin(ctx.host);
+    const dialog = await openFrom(ctx, { empty: true });
+    const who = wizardOf(dialog);
+    const level = who.querySelector('[data-wiz="level"]');
+    assert.equal(level.value, '1', 'the default');
+    assert.deepEqual([level.getAttribute('type'), level.getAttribute('min'), level.getAttribute('max')], ['number', '1', '99']);
+    assert.match(who.textContent, /Starting level/);
+    assert.match(who.textContent, /1 to 99\. The story can set a level cap \(default 99\)\./);
+    assert.match(who.querySelector('.rpg-wiz-sub').textContent, /^You · Lv 1$/);
+    assert.match(who.textContent, /Starts at Lv 1 with 0 XP\./);
+    type(level, '7');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, /^You · Lv 7$/, 'the header follows');
+    assert.match(wizardOf(dialog).textContent, /Starts at Lv 7 with 0 XP\./);
+    const again = await goTo(await (async () => { await goTo(dialog, 'stats'); return dialog; })(), 'who');
+    assert.equal(again.querySelector('[data-wiz="level"]').value, '7', 'Back keeps it');
+    const review = await goTo(dialog, 'review');
+    assert.match(review.textContent, /Starts at Lv 7, 0 XP, full Health, Mana and Stamina\./);
+    dialog.close();
+});
+
+test('Levels: the starting level of a draft is held 1 to 99, 1 is not stored, and the Character block gets it as its level default', () => {
+    assert.equal(readDraft({ level: 120 }).level, 99);
+    assert.equal(readDraft({ level: 1 }).level, undefined);
+    assert.equal(readDraft({ soul: 3 }).level, 25, 'a companion\'s or an old file\'s Soul Class stands for the level 10n - 5');
+    assert.equal(newDraft({ persona: 'Wessel' }).level, undefined, 'a new character starts at Level 1');
+    const state = buildDefinitions({ ...newDraft({ persona: 'Wessel' }), level: 5 }, { used: [] }).character.state;
+    assert.equal((state.level ?? state.soul).default, 5);
+    assert.equal((buildDefinitions(newDraft({ persona: 'Wessel' }), { used: [] }).character.state.level ?? { default: 1 }).default, 1);
+});
+
+test('F13: the Starting level is held to the story\'s level cap (the setting here), in the box and in the block it makes', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await ctx.host.settings.set('story-block', 'rpgLevelCap', 40);
+    await begin(ctx.host);
+    const dialog = await openFrom(ctx, { empty: true });
+    const level = wizardOf(dialog).querySelector('[data-wiz="level"]');
+    assert.equal(level.getAttribute('max'), '40');
+    type(level, '70');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, /^You · Lv 40$/, 'the header holds it to the cap');
+    wizardOf(dialog).querySelector('[data-wiz="level"]').dispatch('change');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="level"]').value, '40', 'and so does the box once it settles');
 });

@@ -30,11 +30,11 @@ const base = () => JSON.parse(write(sample({ items: ITEMS, money: 50 })));
 
 test('the file: the marker first, the character, and the things and money only when they are given', () => {
     const plain = buildCharacterFile(sample());
-    assert.deepEqual(Object.keys(plain), [CHAR_FILE, 'soul', 'points', 'stats', 'skills']);
+    assert.deepEqual(Object.keys(plain), [CHAR_FILE, 'level', 'soul', 'points', 'stats', 'skills']);
     assert.equal(plain[CHAR_FILE], 1);
     assert.deepEqual(Object.keys(plain.stats), [...STATS]);
     const full = buildCharacterFile(sample({ items: ITEMS, money: 50 }));
-    assert.deepEqual(Object.keys(full), [CHAR_FILE, 'soul', 'points', 'stats', 'skills', 'items', 'money']);
+    assert.deepEqual(Object.keys(full), [CHAR_FILE, 'level', 'soul', 'points', 'stats', 'skills', 'items', 'money']);
     assert.deepEqual(full.items[1], { name: 'Oilskin Coat', qty: 1, note: 'waxed, a little too big', kind: 'equipment', rarity: 'uncommon' });
     assert.deepEqual(full.items[0], { name: 'Bedroll', qty: 1 }, 'no empty note, kind or rarity written');
     assert.equal(buildCharacterFile(sample({ items: [], money: 0 })).money, 0, 'a purse of 0 is still a purse when it is asked for');
@@ -44,16 +44,16 @@ test('the file: the marker first, the character, and the things and money only w
 test('the file keeps no name, no "who they are", no XP, no health, no practice and nothing about the story', () => {
     const text = write(sample({ items: ITEMS, money: 50 }));
     const data = JSON.parse(text);
-    assert.deepEqual(Object.keys(data), [CHAR_FILE, 'soul', 'points', 'stats', 'skills', 'items', 'money']);
+    assert.deepEqual(Object.keys(data), [CHAR_FILE, 'level', 'soul', 'points', 'stats', 'skills', 'items', 'money']);
     for (const key of ['name', 'who', 'about', 'xp', 'health', 'mana', 'stamina', 'practice', 'kind', 'left', 'alive', 'story']) assert.equal(Object.hasOwn(data, key), false, key);
     for (const skill of data.skills) assert.deepEqual(Object.keys(skill), ['name', 'about', 'stat', 'uses', 'rank'], 'no practice');
 });
 
 test('the round trip: what is written is what is read, with the things and money exactly as left on', () => {
     const file = good(sample({ items: ITEMS, money: 50 }));
-    assert.deepEqual(file, { soul: 2, points: 3, stats: STAT_VALUES, skills: SKILLS, items: ITEMS, money: 50 });
+    assert.deepEqual(file, { level: 15, soul: 2, points: 3, stats: STAT_VALUES, skills: SKILLS, items: ITEMS, money: 50 });
     const bare = good(sample());
-    assert.deepEqual(Object.keys(bare), ['soul', 'points', 'stats', 'skills'], 'a file without them reads without them');
+    assert.deepEqual(Object.keys(bare), ['level', 'soul', 'points', 'stats', 'skills'], 'a file without them reads without them');
     assert.deepEqual(good(sample({ skills: [] })).skills, []);
     // Reading it again from its own text changes nothing.
     assert.equal(write(file), write(good(file)));
@@ -86,7 +86,7 @@ test('unknown keys are ignored, not kept: a file cannot carry more than the char
     data.items[0].value = 99999;
     const read = parseCharacterFile(JSON.stringify(data));
     assert.equal(read.ok, true);
-    assert.deepEqual(Object.keys(read.file), ['soul', 'points', 'stats', 'skills', 'items', 'money']);
+    assert.deepEqual(Object.keys(read.file), ['level', 'soul', 'points', 'stats', 'skills', 'items', 'money']);
     assert.deepEqual(Object.keys(read.file.stats), [...STATS]);
     assert.deepEqual(Object.keys(read.file.skills[0]), ['name', 'about', 'stat', 'uses', 'rank']);
     assert.deepEqual(Object.keys(read.file.items[0]), ['name', 'qty']);
@@ -181,12 +181,12 @@ test('an import fills the stats, the unspent points, the Soul Class and the skil
     const { draft } = withImport(before, good(sample()));
     assert.deepEqual([draft.name, draft.kind, draft.about], ['Ren', 'companion', 'A ferry hand from Low Quay.'], 'name, You or companion and who they are stay');
     assert.deepEqual(draft.stats, STAT_VALUES);
-    assert.equal(draft.soul, 2);
+    assert.equal(draft.level, 15, 'Soul Class II stands for level 15');
     assert.deepEqual(draft.from, { stats: STAT_VALUES, points: 3 });
     assert.deepEqual(draft.skills.map(skill => [skill.name, skill.stat, skill.uses, skill.rank]), [['Iron Breath', 'vit', 'stamina', 2], ['Spark', 'int', 'mana', 0]]);
     assert.equal(pointsLeft(draft), 3, 'the file\'s unspent points are what is left to spend');
-    assert.deepEqual(Object.keys(draft).sort(), ['about', 'from', 'kind', 'name', 'set', 'skills', 'soul', 'stats'], 'no XP, health or anything else appears');
-    assert.equal(withImport({ ...before, soul: 4 }, good(sample({ soul: 1 }))).draft.soul, undefined, 'Soul Class I is the start: no soul on the draft');
+    assert.deepEqual(Object.keys(draft).sort(), ['about', 'from', 'kind', 'level', 'name', 'set', 'skills', 'stats'], 'no XP, health or anything else appears');
+    assert.equal(withImport({ ...before, level: 35 }, good(sample({ soul: 1 }))).draft.level, 5, 'Soul Class I stands for level 5');
     assert.deepEqual(before, typed(), 'the draft that was given is not changed');
 });
 
@@ -224,7 +224,7 @@ test('Create writes the file\'s ranks into the Skills block, its points and Soul
     const { draft } = withImport({ ...typed(), name: 'Ren' }, good(sample()));
     const { character, skills } = buildDefinitions(readDraft(draft), { used: [] });
     const c = character.state, s = skills.state;
-    assert.deepEqual([c.who.default, c.about.default, c.soul.default, c.points.default, c.xp.default, c.health.default, c.str.default, c.int.default], ['Ren', 'A ferry hand from Low Quay.', 2, 3, 0, 5, 14, 8]);
+    assert.deepEqual([c.who.default, c.about.default, c.level.default, c.points.default, c.xp.default, c.health.default, c.str.default, c.int.default], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 5, 14, 8], 'the file\'s Soul Class II is the level it stands for (15)');
     assert.deepEqual([s.skill1.default, s.rank1.default, s.stat1.default, s.skill2.default, s.rank2.default, s.uses2.default, s.practice1.default, s.skill3.default, s.rank3.default], ['Iron Breath', 2, 'vit', 'Spark', 0, 'mana', 0, '', 0]);
     assert.equal(s.rank1.edit, false, 'rank is still a field only play moves');
     // Unspent points are what is left of the pool after the reader's changes.
@@ -258,4 +258,17 @@ test('an imported skill with no stat has an empty Stat in the draft, and Create 
     assert.equal(buildDefinitions(picked, { used: [] }).skills.state.stat1.default, 'vit');
     // Without an import a typed skill still starts at STR, as it always did.
     assert.equal(readDraft({ ...newDraft(), skills: [{ name: 'Spark', about: 'a', stat: 'oops', uses: 'mana' }] }).skills[0].stat, 'str');
+});
+
+test('a level above 9 survives the file: Lv 40 is written as level 40 (and the class its level stands for) and read back as 40; an older file with only a Soul Class reads as 10n - 5', () => {
+    const file = good({ ...sample(), level: 40, soul: undefined });
+    assert.deepEqual([file.level, file.soul], [40, 5]);
+    assert.equal(JSON.parse(write({ ...sample(), level: 40, soul: undefined })).level, 40);
+    const older = base();
+    delete older.level; older.soul = 3;
+    const read = parseCharacterFile(JSON.stringify(older));
+    assert.deepEqual([read.ok, read.file.level, read.file.soul], [true, 25, 3]);
+    refused({ ...base(), level: 100 }, /level/);
+    const forty = withImport({ ...typed() }, good({ ...sample(), level: 40, soul: undefined }));
+    assert.equal(forty.draft.level, 40, 'import: the wizard starts the character at the file\'s level');
 });

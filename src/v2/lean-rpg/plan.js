@@ -109,12 +109,12 @@ export function validatePlan(plan) {
     return errors.length ? { ok: false, errors } : { ok: true, errors: [] };
 }
 
-/** The foes an answer lists as new (`foe <name> | new | count: n | class: X`), as written: [{ name, count?, class? }]. */
+/** The foes an answer lists as new (`foe <name> | new | count: n | level: N | rank: R`; an old `class: X` is still read), as written: [{ name, count?, level?, rank?, class? }]. */
 export function openLinesOf(answer) {
     const out = [];
     for (const raw of String(answer ?? '').split(/\r?\n/)) {
         const line = lineOf(raw);
-        if (line?.head === 'foe' && line.labels.new) out.push({ name: line.name, count: line.labels.count, class: line.labels.class });
+        if (line?.head === 'foe' && line.labels.new) out.push({ name: line.name, count: line.labels.count, ...(line.labels.level !== undefined ? { level: line.labels.level } : {}), ...(line.labels.rank !== undefined ? { rank: line.labels.rank } : {}), ...(line.labels.class !== undefined ? { class: line.labels.class } : {}) });
     }
     return out;
 }

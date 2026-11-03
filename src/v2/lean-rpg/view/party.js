@@ -1,5 +1,5 @@
 // The Party tab: one card per Character block (you first, then block order), side by side on a wide screen and
-// stacked on a phone. Each card has the name and role line, Soul Class, the XP bar, the three stage bars, the seven
+// stacked on a phone. Each card has the name and role line, the level pill ("Lv 14 · Guild F"), the XP bar ("24 / 100 to Lv 15"), the three stage bars, the seven
 // stats in a row and the skills from that character's Skills block. A character with points to spend shows
 // "N points to spend" and a Spend points button; any other shows Stats. Both open the Spend points sheet (distribute.js)
 // over the cards; Skills opens the character's Skills view (skills.js) the same way. A fallen character (`alive` false) is greyed
@@ -12,7 +12,7 @@ import { meter } from '../../view/widgets/meter.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { drawStageBars } from './bars.js';
 import { newSession, renderDistribute } from './distribute.js';
-import { growthText, readParty } from './party-data.js';
+import { growthText, readParty, xpLine } from './party-data.js';
 import { newSkillsSession, renderSkills } from './skills.js';
 
 const P = RPG_STRINGS.party;
@@ -38,7 +38,7 @@ const sameCharacter = (a, b) => a.module === b.module && a.subject === b.subject
  * its draft, is kept here, outside the widget (as Settings → Blocks keeps its editor): `shared.open` is the Spend points sheet's
  * session and `shared.skills` the Skills view's; at most one of them is open.
  */
-export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null, exportCharacter = null, rules = undefined } = {}) {
+export function createPartyWidget({ headState = () => null, readerName = () => '', roleOf, openWizard = null, exportCharacter = null, rules = undefined, levels = () => ({}) } = {}) {
     const shared = { open: null, skills: null };
     const live = new Set();
     const tell = () => { for (const redraw of [...live]) redraw(); };
@@ -51,7 +51,7 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
             const main = h(doc, 'div', 'rpg-main'), host = h(doc, 'div', 'rpg-sheet-host');
             root.append(main, host);
 
-            const read = () => readParty(headState(), { own: readerName(), roleOf });
+            const read = () => readParty(headState(), { own: readerName(), roleOf, ...levels() });
             const clear = () => {
                 for (const handle of handles) handle.destroy?.();
                 handles = [];
@@ -86,13 +86,13 @@ export function createPartyWidget({ headState = () => null, readerName = () => '
                 const pills = h(doc, 'div', 'rpg-pills');
                 if (character.left) pills.appendChild(h(doc, 'span', 'ss-pill rpg-fallen-pill rpg-left-pill', P.left));
                 else if (!character.alive) pills.appendChild(h(doc, 'span', 'ss-pill rpg-fallen-pill', P.fallen));
-                pills.appendChild(h(doc, 'span', 'ss-pill', fill(P.soul, { label: character.soulLabel, name: character.soulName })));
+                pills.appendChild(h(doc, 'span', 'ss-pill rpg-level-pill', character.levelText));
                 if (character.points > 0) pills.appendChild(h(doc, 'span', 'ss-pill rpg-points', fill(character.points === 1 ? P.pointsOne : P.points, { n: character.points })));
                 top.append(who, pills);
                 node.appendChild(top);
                 const xp = h(doc, 'div', 'rpg-xp');
                 node.appendChild(xp);
-                handles.push(meter.render(xp, { label: P.xp, value: character.xp, max: 100, tone: 'accent', text: fill(P.xpText, { xp: character.xp }), icon: 'fa-star' }, {}));
+                handles.push(meter.render(xp, { label: P.xp, value: character.xp, max: 100, tone: 'accent', text: xpLine(character), icon: 'fa-star' }, {}));
                 drawStageBars(doc, node, character, { api, handles });
                 const stats = h(doc, 'div', 'rpg-stats');
                 for (const stat of character.stats) {

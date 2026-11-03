@@ -31,10 +31,10 @@ async function world(t, { perUse, answers = [PLAN] } = {}) {
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('Begin.', 'Opening.');
     for (const name of ['Character', 'Skills', 'Foes']) success(await host.sdk.command('dm.define', { definition: definitionOf(name) }));
-    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', soul: 2 } }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 20 } }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/skills', fields: { who: 'Astra' } }));
     await host.send('Learn.', reply(LEARN(1, 'Iron Breath'), LEARN(2, 'Dodge'), LEARN(3, 'Spark').replace('stamina', 'mana'),
-        '+ dm foes — why | kind: set-slot-1 | name: Rats | count: 2 | class: 1'));
+        '+ dm foes — why | kind: set-slot-1 | name: Rats | count: 2 | level: 5'));
     return { host, model };
 }
 const practice = host => { const f = sheetFields(host, 'skills'); return [f.practice1, f.practice2, f.practice3]; };

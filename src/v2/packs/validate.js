@@ -16,7 +16,7 @@
 // it stays the one invalid event the events part makes of it (as before 2.11.3) and the rest of the pack keeps working. Install, import
 // and the authoring-kit checker leave it true.
 //
-import { YOU_FIELDS, YOU_RANK_FIELDS, YOU_RANK_LABEL_MAX, LEAN_RPG_FIELDS, LEAN_RPG_LIMITS, RPG_FORMULAS, RPG_NUMBER_KEYS, SKILL_SET_FIELDS, SKILL_SET_SKILL_FIELDS, RECORD_LIMITS, CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
+import { YOU_FIELDS, YOU_RANK_FIELDS, YOU_RANK_LABEL_MAX, LEAN_RPG_FIELDS, LEAN_RPG_LIMITS, RPG_RANK_FIELDS, RPG_RANK_LIMITS, RPG_PLAYER_RANK_FIELDS, RPG_PLAYER_RANK_LIMITS, RPG_FORMULAS, RPG_NUMBER_KEYS, SKILL_SET_FIELDS, SKILL_SET_SKILL_FIELDS, RECORD_LIMITS, CALENDAR_FIELDS, CALENDAR_HOLIDAY_FIELDS, CALENDAR_LIMITS, CALENDAR_START_FIELDS, CHOICE_FIELDS, CONTENT_KINDS, COMMAND, CRAFT_FIELDS, ECONOMY_FIELDS, ECONOMY_LIMITS, CRAFTS_LIMITS, DEFAULT_CRAFTS, METER_FIELDS, METER_LIMITS, METER_PRESET_FIELDS, METER_RESERVED, METER_STAGE_FIELDS, RECIPE_LIMITS, STAT_SUM, DEF_ID, EVENT_FIELDS, EVENT_LIMITS, ITEM_FIELDS, ITEM_KINDS, LIMITS, MOUNTS, PACK_FIELDS, PACK_ID, PLACE_FIELDS, PRESET_FIELDS, RARITIES, ROUTE_FIELDS, SCREEN_FIELDS, SCREEN_ID, SEMVER, SKILL_FIELDS, SKILL_TARGETS, SKILL_TYPES, SLUG, START_FIELDS, STAT_NAME, RANK_FIELDS, RANK_ID, RANKS_LIMITS, TERM_SEPARATORS, ITEM_CARRY, MARKET_FIELDS, MARKET_LIMITS, MARKET_WORD, TERMS_FIELDS, TERMS_LIMITS, TERMS_NUMERALS, TERMS_TIER_FIELDS, WEATHER_FIELDS, WEATHER_LIMITS, WEATHER_SEASON_FIELDS, WEATHER_TABLE_FIELDS } from './limits.js';
 import { byteLength, checkPlain } from './safety.js';
 import { parseRange, satisfies } from './version.js';
 import { foldKey, oneLine } from '../../text.js';
@@ -30,7 +30,7 @@ import { STRINGS } from '../strings.js';
 import { compile } from '../events/condition.js';
 import { checkCast } from './cast.js';
 
-export const HOST_VERSION = '2.16.10';
+export const HOST_VERSION = '2.17.0';
 
 /** A slug for a display name: "Iron Sword (old)" → "iron-sword-old". */
 export function slugify(name) {
@@ -453,7 +453,8 @@ function checkRpg(value, packId, add) {
     const sets = records(value.skillSets, 'rpg.skillSets', { add, packId, check: (record, path, label) => checkSkillSet(record, path, label, add) });
     // The stat formula and its numbers (optional): one more record of the list, after the skill sets.
     const formula = value.formula, numbers = value.numbers;
-    if (formula === undefined && numbers === undefined) return sets;
+    const levels = checkLevelRanks(value, packId, add);
+    if (formula === undefined && numbers === undefined) return levels ? [...sets, levels] : sets;
     let ok = true;
     if (formula !== undefined && !RPG_FORMULAS.includes(formula)) { ok = false; add('BAD_CONTENT', 'content.rpg.formula', `content.rpg.formula must be one of ${RPG_FORMULAS.join(', ')}.`); }
     const given = {};
@@ -464,7 +465,58 @@ function checkRpg(value, packId, add) {
             }
         }
     }
-    return ok ? [...sets, { id: `${packId}/formula`, slug: 'formula', pack: packId, ...(formula !== undefined ? { formula } : {}), ...(Object.keys(given).length ? { numbers: given } : {}) }] : sets;
+    return [...sets, ...(ok ? [{ id: `${packId}/formula`, slug: 'formula', pack: packId, ...(formula !== undefined ? { formula } : {}), ...(Object.keys(given).length ? { numbers: given } : {}) }] : []), ...(levels ? [levels] : [])];
+}
+
+// The level ranks (`content.rpg.ranks`: names for bands of levels, `[{ name, from, to }]`) and the level cap (`content.rpg.levelCap`, 1..99). The bands run
+// on from level 1 with no gap or overlap (each `from` is the one after the last `to`), up to 99 at most; a name is plain text of 1 to 12 characters and
+// is not repeated; up to 20 bands. → one record `{ id, slug: 'ranks', pack, ranks?, levelCap? }`, or null when nothing valid is given (the problems are said).
+function checkLevelRanks(value, packId, add) {
+    const L = RPG_RANK_LIMITS;
+    const { ranks, levelCap, playerRank } = value;
+    if (ranks === undefined && levelCap === undefined && playerRank === undefined) return null;
+    let ok = true;
+    const bad = (path, message) => { ok = false; add('BAD_CONTENT', `content.rpg.${path}`, message); };
+    const out = [];
+    if (ranks !== undefined) {
+        if (!Array.isArray(ranks) || !ranks.length) bad('ranks', 'content.rpg.ranks must be a list of bands: [{ "name": "F", "from": 1, "to": 9 }, …].');
+        else if (ranks.length > L.entries) bad('ranks', `content.rpg.ranks holds at most ${L.entries} bands.`);
+        else ranks.forEach((rank, index) => {
+            const at = `ranks[${index}]`;
+            if (!isObject(rank)) return bad(at, `content.rpg.${at} must be an object: { "name": "F", "from": 1, "to": 9 }.`);
+            for (const key of Object.keys(rank)) if (!RPG_RANK_FIELDS.includes(key)) { ok = false; add('UNKNOWN_FIELD', `content.rpg.${at}.${key}`, `"${key}" is not a rank field (expected ${RPG_RANK_FIELDS.join(', ')}).`); }
+            const name = typeof rank.name === 'string' ? oneLine(rank.name) : '';
+            if (!name || name.length > L.name || /[<>{}]/.test(name)) bad(`${at}.name`, `content.rpg.${at}.name must be plain text of 1 to ${L.name} characters (no < > { }).`);
+            else if (out.some(other => foldKey(other.name) === foldKey(name))) { ok = false; add('DUPLICATE', `content.rpg.${at}.name`, `content.rpg.${at}.name repeats "${name}"; a rank is named once.`); }
+            const { from, to } = rank;
+            if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < 1 || to > L.maxLevel || to < from) return bad(at, `content.rpg.${at} needs whole levels 1 to ${L.maxLevel} with "from" not above "to".`);
+            const next = out.length ? out[out.length - 1].to + 1 : 1;
+            if (from !== next) return bad(`${at}.from`, `content.rpg.${at}.from must be ${next}: ranks run on from level 1 in order, with no gap and no overlap.`);
+            if (name && name.length <= L.name) out.push({ name, from, to });
+        });
+    }
+    let cap;
+    if (levelCap !== undefined) {
+        if (!Number.isSafeInteger(levelCap) || levelCap < 1 || levelCap > L.maxLevel) bad('levelCap', `content.rpg.levelCap must be a whole number from 1 to ${L.maxLevel}.`);
+        else cap = levelCap;
+    }
+    let player;
+    if (playerRank !== undefined) {
+        const P = RPG_PLAYER_RANK_LIMITS;
+        if (!isObject(playerRank)) bad('playerRank', 'content.rpg.playerRank must be an object: { "module": "guild-membership", "field": "letter", "label": "Guild" }.');
+        else {
+            for (const key of Object.keys(playerRank)) if (!RPG_PLAYER_RANK_FIELDS.includes(key)) { ok = false; add('UNKNOWN_FIELD', `content.rpg.playerRank.${key}`, `"${key}" is not a playerRank field (expected ${RPG_PLAYER_RANK_FIELDS.join(', ')}).`); }
+            const given = {};
+            for (const [key, max] of [['module', P.ref], ['field', P.ref], ['label', P.label]]) {
+                const text = typeof playerRank[key] === 'string' ? oneLine(playerRank[key]) : '';
+                if (!text || text.length > max || /[<>{}]/.test(text)) bad(`playerRank.${key}`, `content.rpg.playerRank.${key} must be plain text of 1 to ${max} characters (no < > { }).`);
+                else given[key] = text;
+            }
+            if (ok) player = given;
+        }
+    }
+    if (!ok) return null;
+    return { id: `${packId}/ranks`, slug: 'ranks', pack: packId, ...(out.length ? { ranks: out } : {}), ...(cap !== undefined ? { levelCap: cap } : {}), ...(player ? { playerRank: player } : {}) };
 }
 
 function checkSkillSet(record, path, label, add) {

@@ -34,11 +34,11 @@ async function open(t, { blocks = true, rules = false, wrap = null } = {}) {
 const oddsText = card => card.querySelector('.rpg-odds-legend').textContent;
 const typeInto = (node, value, event = 'change') => { node.value = value; node.dispatch(event); };
 
-test('the page is its own rail entry after Features, with six cards in order and the words of the mockup', async t => {
+test('the page is its own rail entry after Features, with seven cards in order and the words of the mockup', async t => {
     const { doc, root, card } = await open(t);
     assert.deepEqual(rail(doc).slice(0, 3), ['Look', 'Features', 'RPG']);
     assert.equal(root.querySelector('.ss-settings-page-sub').textContent, 'How the dice work, and what the narrator and the roll planner are told.');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Rolls', 'Difficulty', 'What the narrator is told about combat', 'Roll planner', 'Companions who join']);
     assert.deepEqual(card('rolls').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Automatic', 'Off']);
     assert.match(card('rolls').textContent, /Automatic: before each reply a short AI call plans the actions and code rolls the dice\. Off: no dice; the story decides\./);
     assert.deepEqual(card('difficulty').querySelectorAll('.rpg-chip').map(node => node.textContent), ['Gentle', 'Standard', 'Harsh', 'Custom']);
@@ -99,11 +99,12 @@ test('Custom: six fields with their ranges, started from the numbers in force; t
     // (The Rolls card also holds the Practice per skill use number; the Custom numbers are the Difficulty card's.)
     const grid = card('difficulty').querySelector('.rpg-set-nums');
     assert.deepEqual(grid.querySelectorAll('.rpg-set-num > span').map(node => node.textContent),
-        ['Foe\'s base', 'Soul Class adds', 'Stat adds', '"At a cost" when short by', 'Decisive at a margin of', 'Most exchanges per reply']);
-    assert.deepEqual(grid.querySelectorAll('small').map(node => node.textContent), ['Gentle 3 · Standard 5 · Harsh 7', 'per class, both sides', 'rounded down', '0 turns it off', 'or a natural 1 or 20', '1 to 8']);
+        ['Foe\'s base', 'Level divisor', 'Stat adds', '"At a cost" when short by', 'Decisive at a margin of', 'Most exchanges per reply']);
+    assert.deepEqual(grid.querySelectorAll('small').map(node => node.textContent), ['Gentle 3 · Standard 5 · Harsh 7', 'a roll adds level ÷ this (3 to 8, 5 unset), both sides', 'rounded down', '0 turns it off', 'or a natural 1 or 20', '1 to 8']);
     const input = key => root.querySelector(`[data-rule="${key}"]`);
     assert.deepEqual(['foeBase', 'costMargin', 'decisiveMargin', 'roundCap'].map(key => [input(key).getAttribute('min'), input(key).getAttribute('max')]), [['0', '15'], ['0', '5'], ['4', '15'], ['1', '8']]);
-    assert.deepEqual(input('classWeight').querySelectorAll('option').map(node => node.textContent), ['×1', '×2', '×3']);
+    assert.deepEqual(input('levelDivisor').querySelectorAll('option').map(node => node.textContent), ['÷3', '÷4', '÷5', '÷6', '÷7', '÷8']);
+    assert.equal(input('levelDivisor').value, '5', 'the divisor starts at 5');
     assert.deepEqual(input('statDivisor').querySelectorAll('option').map(node => node.textContent), ['half the stat', 'a third of the stat', 'full above 10']);
     assert.equal(oddsText(root), 'Success 52%At a cost 5%Fail 43%', 'Harsh\'s numbers, so Harsh\'s odds');
     typeInto(input('foeBase'), '3');
@@ -122,13 +123,13 @@ test('Custom: six fields with their ranges, started from the numbers in force; t
     assert.equal(input('costMargin').value, '3');
     input('statDivisor').value = '3';
     input('statDivisor').dispatch('change');
-    input('classWeight').value = '3';
-    input('classWeight').dispatch('change');
-    assert.deepEqual([stored()[CUSTOM_SETTING].statDivisor, stored()[CUSTOM_SETTING].classWeight], [3, 3]);
+    input('levelDivisor').value = '3';
+    input('levelDivisor').dispatch('change');
+    assert.deepEqual([stored()[CUSTOM_SETTING].statDivisor, stored()[CUSTOM_SETTING].levelDivisor], [3, 3], 'the divisor is written to rpgCustom.levelDivisor');
     // Wessel: a third of 12 is 4, a Soul Class of I is 3, Adept 1: +8 against 15 + 3 = 18 at the foe's base of 15.
     assert.equal(root.querySelector('.rpg-odds-title').textContent.includes('Wessel'), true);
     // The numbers that roll are these, held to range, whatever was typed.
-    assert.deepEqual(Object.keys(stored()[CUSTOM_SETTING]), ['foeBase', 'classWeight', 'statDivisor', 'costMargin', 'decisiveMargin', 'roundCap']);
+    assert.deepEqual(Object.keys(stored()[CUSTOM_SETTING]), ['foeBase', 'classWeight', 'statDivisor', 'costMargin', 'decisiveMargin', 'roundCap', 'levelDivisor']);
 });
 
 test('the odds are for the persona\'s own character, else the first Character block; no character, no odds', async t => {
@@ -257,7 +258,9 @@ test('searching finds the page by what it says; the page is hidden when nothing 
     assert.equal(body.filter('companions'), 1);
     assert.equal(body.filter('nothing like it'), 0);
     assert.equal(body.el.querySelectorAll('.rpg-set-card').filter(node => !node.hidden).length, 0);
-    assert.equal(body.filter(''), 6);
+    assert.equal(body.filter(''), 7);
+    assert.equal(body.filter('xp rate'), 1, 'Levels and practice');
+    assert.equal(body.filter('level cap'), 1);
     body.destroy();
     host.features.set(CORE_FEATURE.leanRpg, false);
     await settle();
@@ -325,7 +328,7 @@ test('settings-data: the odds view for a state with and without a character', ()
     const wessel = { definition: { ...characterDefinition('wessel', 'Wessel'), role: 'character' }, fields: { who: 'Wessel', str: 12, soul: 1 } };
     const skills = { definition: { ...skillsDefinition('wessel-skills', 'Wessel'), role: 'skills' }, fields: { who: 'Wessel', skill1: 'Iron Breath', rank1: 1 } };
     const view = oddsView(fakeState([wessel, skills]), 'Wessel', STANDARD);
-    assert.equal(view.label, 'Wessel (STR 12, Soul Class I, Adept) against a Class I foe');
+    assert.equal(view.label, 'Wessel (STR 12, Level 1, Adept) against a Level 1 foe');
     assert.deepEqual(view.now, { success: 61, cost: 8, fail: 31 });
     assert.deepEqual(view.compare.map(item => item.name), ['gentle', 'harsh']);
     assert.deepEqual(oddsView(fakeState([wessel, skills]), 'Wessel', { ...STANDARD, foeBase: 9 }).compare.map(item => item.name), ['gentle', 'standard', 'harsh'], 'Custom: all three');
@@ -421,13 +424,14 @@ test('B8: Reset clicked while the first Combat save is still running is saved af
     assert.equal(host.ctx.chat[head].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 3);
 });
 
-test('Rolls holds Practice per skill use: a whole number from 1 to 5 (3 unset), typed numbers held to range, saved as a setting for later rolls', async t => {
+test('Levels and practice holds Practice per skill use: a whole number from 1 to 5 (3 unset), typed numbers held to range, saved as a setting for later rolls', async t => {
     const { card, stored } = await open(t);
-    const input = card('rolls').querySelector('[data-setting="rpgPracticePerUse"]');
+    assert.equal(card('rolls').querySelector('[data-setting="rpgPracticePerUse"]'), null, 'moved out of the Rolls card');
+    const input = card('levels').querySelector('[data-setting="rpgPracticePerUse"]');
     assert.equal(input.value, '3');
     assert.equal(input.getAttribute('min'), '1');
     assert.equal(input.getAttribute('max'), '5');
-    assert.match(card('rolls').textContent, /Practice per skill use/);
+    assert.match(card('levels').textContent, /Practice per skill use/);
     for (const [typed, kept] of [['1', 1], ['5', 5], ['9', 5], ['0', 1], ['4.4', 4]]) {
         typeInto(input, typed);
         assert.equal(stored().rpgPracticePerUse, kept, typed);
@@ -435,4 +439,49 @@ test('Rolls holds Practice per skill use: a whole number from 1 to 5 (3 unset), 
     }
     typeInto(input, 'abc');
     assert.equal(stored().rpgPracticePerUse, 4, 'not a number: put back');
+});
+
+test('Levels and practice: Level cap 1 to 99 (99 unset), Practice, and XP rate 50 to 300 % in steps of 25 (100 unset), each held to its range and saved', async t => {
+    const { card, stored } = await open(t);
+    const box = card('levels');
+    assert.deepEqual(box.querySelectorAll('.rpg-set-num > span').map(node => node.textContent), ['Level cap', 'Practice per skill use', 'XP rate']);
+    const cap = box.querySelector('[data-setting="rpgLevelCap"]'), rate = box.querySelector('[data-setting="rpgXpRate"]');
+    assert.deepEqual([cap.value, cap.getAttribute('min'), cap.getAttribute('max')], ['99', '1', '99']);
+    assert.deepEqual([rate.value, rate.getAttribute('min'), rate.getAttribute('max'), rate.getAttribute('step')], ['100', '50', '300', '25']);
+    assert.match(box.textContent, /1 to 99, default 99\. A story or a pack can set its own cap\. 100 XP per level\./);
+    assert.match(box.textContent, /1 to 5, default 3\./);
+    assert.match(box.textContent, /50 to 300 %, in steps of 25, default 100\./);
+    for (const [typed, kept] of [['40', 40], ['1', 1], ['150', 99], ['0', 1], ['12.4', 12]]) {
+        typeInto(cap, typed);
+        assert.equal(stored().rpgLevelCap, kept, `cap ${typed}`);
+        assert.equal(cap.value, String(kept));
+    }
+    typeInto(cap, 'abc');
+    assert.equal(stored().rpgLevelCap, 12, 'not a number: put back');
+    for (const [typed, kept] of [['150', 150], ['10', 50], ['999', 300], ['130', 125], ['137', 125], ['138', 150]]) {
+        typeInto(rate, typed);
+        assert.equal(stored().rpgXpRate, kept, `rate ${typed}`);
+        assert.equal(rate.value, String(kept));
+    }
+    typeInto(rate, '');
+    assert.equal(stored().rpgXpRate, 150, 'empty: put back');
+});
+
+test('the roll table and the tiles say level: level ÷ 5 in every row, "1 per 3 levels", "4 + level ÷ 5"', async t => {
+    const { card, root } = await open(t);
+    root.querySelector('[data-card="formula"] .rpg-chip[data-value="standard"]').click();
+    const rows = root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-table tr').map(row => row.textContent);
+    assert.ok(rows.length >= 6 && rows.every(row => /level ÷ 5/.test(row)), rows.join(' | '));
+    assert.match(rows.find(row => row.startsWith('Turn order')), /d20 \+ level ÷ 5 \+ AGI\/2.*foes the same with their own level/);
+    assert.deepEqual(root.querySelector('[data-card="formula"]').querySelectorAll('.rpg-formula-num').slice(2).map(node => node.textContent), ['1 per 3 levelsStat points', '4 + level ÷ 5Foe\'s base']);
+    assert.doesNotMatch(root.querySelector('[data-card="formula"]').textContent, /Soul/i);
+});
+
+test('F15: the Level cap is one row in Settings: the RPG page draws it, the Modules page does not draw the module schema\'s copy', async t => {
+    const { doc, win, root } = await open(t);
+    const rows = node => node.querySelectorAll('*').filter(item => item.children.length === 0 && item.textContent.trim() === 'Level cap');
+    assert.equal(rows(root).length, 1, 'the RPG page: one Level cap row');
+    win.select('modules');
+    await settle();
+    assert.equal(rows(doc).filter(node => !root.contains(node)).length, 0, 'the Modules page has none');
 });

@@ -7,8 +7,8 @@ import { hasCharacters, readParty, stageTone, stageWord } from '../../../../src/
 import { activeNow } from '../../../../src/v2/view/mounts/common.js';
 import { characterDefinition, fakeState, foesDefinition, roleOf, skillsDefinition } from './helpers.js';
 
-const wessel = { definition: characterDefinition('wessel', 'Wessel'), fields: { health: 3, mana: 4, stamina: 1, str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, points: 3, soul: 2, xp: 40 } };
-const ren = { definition: characterDefinition('ren', 'Ren'), fields: { health: 5, mana: 2, stamina: 3, str: 7, vit: 9, agi: 10, dex: 11, int: 15, luk: 10, cha: 12, soul: 1, xp: 85 } };
+const wessel = { definition: characterDefinition('wessel', 'Wessel'), fields: { health: 3, mana: 4, stamina: 1, str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, points: 3, level: 2, xp: 40 } };
+const ren = { definition: characterDefinition('ren', 'Ren'), fields: { health: 5, mana: 2, stamina: 3, str: 7, vit: 9, agi: 10, dex: 11, int: 15, luk: 10, cha: 12, level: 1, xp: 85 } };
 const skills = { definition: skillsDefinition('wessel-skills', 'Wessel', { tab: true, card: false, tabName: 'Skills', icon: 'ph-star' }), fields: { skill1: 'Iron Breath', rank1: 2, skill2: 'Short blade', rank2: 0 } };
 const party = () => fakeState([ren, wessel, skills]);
 
@@ -26,7 +26,8 @@ test('the reader\'s own character comes first, then block order; each card reads
     const read = readParty(party(), { own: 'Wessel', roleOf });
     assert.deepEqual(read.map(character => [character.name, character.own]), [['Wessel', true], ['Ren', false]]);
     const [first] = read;
-    assert.equal(first.soulName, 'II');
+    assert.equal(first.level, 2, 'a chat made before Levels reads its Soul Class as the level');
+    assert.equal(first.levelText, 'Lv 2');
     assert.deepEqual(first.skills.map(skill => `${skill.name} (${skill.rankName})`), ['Iron Breath (Expert)', 'Short blade (Novice)']);
     assert.deepEqual(read[1].skills, [], 'a character with no Skills block has no skills');
     assert.deepEqual(readParty(party(), { own: 'Nobody', roleOf }).map(character => character.name), ['Ren', 'Wessel'], 'no match: block order');
@@ -52,7 +53,7 @@ test('the Party screen is a tab and a screen that is on whenever the feature is,
     assert.equal(hasCharacters(party(), { roleOf }), true);
 });
 
-test('a card per character: name, role line, Soul Class, XP, three bars, seven stats, skills, two buttons', () => {
+test('a card per character: name, role line, level pill, XP, three bars, seven stats, skills, two buttons', () => {
     const { el } = draw(party());
     const cards = el.querySelectorAll('.rpg-card');
     assert.deepEqual(cards.map(node => node.getAttribute('data-character')), ['Wessel', 'Ren']);
@@ -60,9 +61,9 @@ test('a card per character: name, role line, Soul Class, XP, three bars, seven s
     assert.equal(mine.querySelector('.rpg-name').textContent, 'Wessel');
     assert.equal(mine.querySelector('.rpg-sub').textContent, 'you');
     assert.equal(card(el, 'Ren').querySelector('.rpg-sub').textContent, 'companion');
-    assert.match(mine.textContent, /Soul Class II/);
+    assert.equal(mine.querySelector('.rpg-top .ss-pill.rpg-level-pill').textContent, 'Lv 2');
     assert.match(mine.textContent, /3 points to spend/);
-    assert.match(mine.querySelector('.rpg-xp').textContent, /40 \/ 100/);
+    assert.match(mine.querySelector('.rpg-xp').textContent, /40 \/ 100 to Lv 3/);
     assert.deepEqual(mine.querySelectorAll('.rpg-bar').map(node => node.getAttribute('data-bar')), ['health', 'mana', 'stamina']);
     assert.match(mine.querySelector('.rpg-bar[data-bar="health"]').textContent, /Hurt/);
     assert.match(mine.querySelector('.rpg-bar[data-bar="stamina"]').textContent, /Spent/);

@@ -34,7 +34,7 @@ import { MAX_CHANGE_LINES, ensureModules, makeView } from './sdk.js';
 import { cutAt } from '../text.js';
 import { CORE_FEATURE } from './features.js';
 import { RESOLVE as RPG_RESOLVE } from './lean-rpg/names.js';
-import { NO_ROLLS_LINE } from './lean-rpg/cue.js';
+import { NO_ROLLS_LINE, receiptCue, receiptWithCue } from './lean-rpg/cue.js';
 
 export const STATIC_KEY = 'story_suite_static';
 export const TAIL_KEY = 'story_suite_tail_1';
@@ -64,6 +64,8 @@ export const REPLY_BUSY_MAX_MS = 5 * 60_000;
 // How long a send waits for the Assist safety net still reading the last reply (MODULES §F123): briefly.
 // Lines that come later are kept on that reply and applied on the next one, right after its own lines.
 export const ASSIST_WAIT_MS = 1500;
+// How long the RPG's code (rpg-lazy.js) may take to load before a reply or a chat goes on without it: a stalled import never holds a generation or a chat open.
+export const RPG_LOAD_WAIT_MS = 4000;
 const TIMED_OUT = Symbol('timed out');
 
 // `value`, or TIMED_OUT when it is a promise that has not settled within `ms`.
@@ -224,7 +226,7 @@ export function restoreMissing(chat, staticText, tailText) {
  * onChatChanged, seed, onChatRenamed, onTimelineChanged, onGenerationEnded, preview, report, problems, clearProblems, blocked, blockers, unblock,
  * session, replyBusy, whenIdle }.
  */
-export function createTurn({ ctx, live = () => ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState(), ownPrompt = () => false, timeline = null }) {
+export function createTurn({ ctx, live = () => ctx, store, bus, registry, settings, events = null, onBlocked = null, notify = defaultNotify, initial = () => registry.initialState(), ownPrompt = () => false, timeline = null, prepare = null }) {
     const types = () => ctx?.extension_prompt_types ?? ctx?.extensionPromptTypes ?? {};
     const roles = () => ctx?.extension_prompt_roles ?? ctx?.extensionPromptRoles ?? {};
     const position = place => (place === 'static' ? types().IN_PROMPT ?? IN_PROMPT : types().IN_CHAT ?? IN_CHAT);
@@ -437,7 +439,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
                 // The RPG's rolls move bars (hits, heals, skill costs): the tail's block lines are read from the state they leave, so they say what the cue says.
                 if (preludeType === RPG_RESOLVE && result.state) previewState = result.state;
                 prechecks.push({ type: preludeType, payload, seed: result.receipt.seed });
-                const told = `[Happened]\n${result.receipt.summary}`;
+                const told = `[Happened]\n${receiptCue(result.receipt)}`;
                 cues[moduleId] = [...(cues[moduleId] ?? []), preludeType === RPG_RESOLVE ? { text: told, keep: true } : told];
             } else problem({ module: moduleId, code: result?.code ?? 'FAILED', message: `The cue "${preludeType}" was not prepared: ${result?.message ?? 'unknown error'}` });
         }
@@ -593,6 +595,8 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             return;
         }
         if (!ctx?.chat) return;
+        // The feature switched on a moment ago: its code is waited for (no pass over the chat; onChatChanged did that).
+        if (typeof prepare === 'function') { try { const waiting = prepare({ scan: false }); if (waiting) await within(waiting, RPG_LOAD_WAIT_MS); } catch { /* the loader reports its own failure */ } }
         // The safety net still reading the last reply: waited for briefly, so its lines are in this prompt.
         if (assistPending) await within(assistPending, ASSIST_WAIT_MS);
         markBusy();
@@ -844,7 +848,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // A Re-read has stored nothing yet: the proof its lines and earlier steps planned is what the hooks and steps see.
         const planned = () => (live || !plan ? [] : [...plan.blocks.flatMap(piece => piece.block?.evidence ?? []), ...steps.flatMap(step => step.block?.evidence ?? [])]);
         // The reply's own receipts as far as this run knows them (`info.receipts`, read only when a hook asks): the store's for a live reply, a Re-read's planned ones.
-        const replyReceipts = () => (live ? (store.receipts?.() ?? []).filter(entry => entry.index === index).map(entry => entry.receipt) : [...(plan?.blocks ?? []).map(piece => piece.receipt), ...steps.map(step => step.receipt)].filter(Boolean));
+        const replyReceipts = () => (live ? (store.receipts?.() ?? []).filter(entry => entry.index === index).map(entry => entry.receipt) : [...(plan?.blocks ?? []).map(piece => piece.receipt), ...steps.map(step => step.receipt)].filter(Boolean)).map(receiptWithCue);
         const hooks = [
             ...(prechecks.length ? [{ moduleId: HOST_MODULE, precheck: true, fn: () => ({ commands: prechecks }) }] : []),
             ...(onlyPrechecks ? [] : registry.hookEntries('afterCapture').filter(entry => !alwaysOnly || entry.fn.always === true)),
@@ -1421,9 +1425,13 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
 
     /** CHAT_CHANGED: a new chat (or the same one reloaded). */
     async function onChatChanged() {
+        // The old chat's session and prompts go at once, before anything is awaited: a generation started while the RPG's code loads is the new chat's.
         session = null;
         markIdle();
         clearPrompts();
+        // The RPG's code, when this chat needs it (the feature is on, or it holds the RPG's records), before anything is replayed (rpg-lazy.js); a stalled
+        // import is waited for only RPG_LOAD_WAIT_MS (the guard mark then says the code is missing, so a later load makes the chat look again).
+        if (typeof prepare === 'function') { try { await within(prepare(), RPG_LOAD_WAIT_MS); } catch { /* the loader reports its own failure */ } }
         rebuild({ publish: false });
         timeline?.settle();
         // A1-2: read-backs of a write that timed out before a reload of the page go on.

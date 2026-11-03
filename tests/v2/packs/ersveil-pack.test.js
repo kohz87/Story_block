@@ -1,4 +1,4 @@
-// The example pack (examples/packs/ersveil, Ersveil 2.4.1, the open world) and its lorebook (ersveil-lore.json): the pack
+// The example pack (examples/packs/ersveil, Ersveil 2.5.0, the open world) and its lorebook (ersveil-lore.json): the pack
 // passes the authoring-kit checker and Story Block's own validator without RPG Battle and carries the shape
 // docs/v2/ERSVEIL.md describes; the lorebook has 227 entries with unique uids.
 import test from 'node:test';
@@ -34,10 +34,10 @@ test('examples/packs/ersveil/pack.json passes the authoring-kit checker, in code
     assert.match(printed, /^OK examples\/packs\/ersveil\/pack\.json\n/);
 });
 
-test('Story Block\'s own validator accepts the pack without RPG Battle (scene, inventory, data modules, Story Director\'s lasting changes), and refuses it on a host older than 2.5', () => {
+test('Story Block\'s own validator accepts the pack without RPG Battle (scene, inventory, data modules, Story Director\'s lasting changes), and refuses it on a host older than 2.17', () => {
     const good = validatePack(pack(), { capabilities: OPEN });
     assert.equal(good.ok, true, JSON.stringify(good.errors));
-    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.4.0' });
+    const old = validatePack(pack(), { capabilities: OPEN, hostVersion: '2.16.10' });
     assert.equal(old.ok, false);
     assert.ok(old.errors.some(error => error.code === 'HOST_VERSION'));
     // Without the data-modules capability it is refused for that alone.
@@ -48,13 +48,13 @@ test('Story Block\'s own validator accepts the pack without RPG Battle (scene, i
     assert.equal(noDirector.ok, false);
 });
 
-test('the pack is Ersveil 2.4.1, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
+test('the pack is Ersveil 2.5.0, the open world: the map, the calendar, the weather, events and data modules, and none of RPG Battle\'s rules', () => {
     const value = pack();
     assert.equal(value.id, 'ersveil');
-    assert.equal(value.version, '2.4.1');
+    assert.equal(value.version, '2.5.0');
     assert.equal(value.name, 'Ersveil (open world)');
     assert.match(value.description, /Story Block and Story Director:/);
-    assert.equal(value.requires.storyBlock, '^2.16.0', 'content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, and portraits up to 150 KB 2.16.0');
+    assert.equal(value.requires.storyBlock, '^2.17.0', 'content.cast needs 2.15, a secret that opens by a meter or an event 2.15.1, portraits up to 150 KB 2.16.0, and rpg.ranks and rpg.levelCap 2.17.0');
     assert.deepEqual(value.requires.capabilities, OPEN);
     const counts = Object.fromEntries(Object.entries(value.content).map(([kind, list]) => [kind, list.length]));
     // (`you` is the Rank the pack gives Your look: one object, not a list, so it has no length.)
@@ -109,7 +109,7 @@ test('the lorebook is written for the open world: no RPG Battle wording, classes
     for (const word of [/RPG Battle/, /Party sheet/, /character screen/, /markets, prices/]) assert.doesNotMatch(all, word);
     const byTitle = title => entries.find(entry => entry.comment === title)?.content ?? '';
     assert.match(byTitle('[CORE] Authority and Generation'), /Open world: the pack lists no items, shops, prices, foes or jobs/);
-    assert.match(byTitle('[CORE] Classification'), /Soul Class \(I-IX\)/);
+    assert.match(byTitle('[CORE] Classification'), /Level \(1-99\)/);
     assert.match(byTitle('Adventurer Guild'), /F Registered, E Journeyman, D Proven, C Veteran, B Elite, A Paragon, S Legend/);
     const callings = byTitle('Callings: the Twelve Lines');
     assert.equal(callings.split('\n').filter(line => line.startsWith('- ')).length, 12, 'the twelve class lines, as lore');
@@ -150,4 +150,29 @@ test('the twelve cast members start at places the pack names', () => {
     const places = new Set(value.content.places.map(place => place.name));
     assert.deepEqual(value.content.cast.map(person => person.start.place), ['Bluewatch Village', 'Shackles City / Chainmarket', 'Shackles City / Knifeglass Alley', 'Auvoth / Pale Market', 'Varnhold Watch', 'Bluewatch Village', 'Highmark Capital', 'Highmark Capital', 'Abysswatch', 'Vargate', 'Corrowen', 'Thousand Sails']);
     for (const person of value.content.cast) assert.ok(places.has(person.start.place), `${person.id} starts at "${person.start.place}"`);
+});
+
+test('the pack ranks levels 1-99 in nine contiguous bands (F 1-9 to SSS 80-99) and caps the level at 99; no Soul Class is left in the pack or the lorebook', () => {
+    const value = pack();
+    const ranks = value.content.rpg.ranks;
+    assert.deepEqual(ranks.map(rank => [rank.name, rank.from, rank.to]), [
+        ['F', 1, 9], ['E', 10, 19], ['D', 20, 29], ['C', 30, 39], ['B', 40, 49], ['A', 50, 59], ['S', 60, 69], ['SS', 70, 79], ['SSS', 80, 99],
+    ]);
+    for (let i = 1; i < ranks.length; i++) assert.equal(ranks[i].from, ranks[i - 1].to + 1, `band ${ranks[i].name} follows ${ranks[i - 1].name} with no gap or overlap`);
+    assert.ok(ranks.every(rank => rank.name.length <= 12 && rank.from <= rank.to));
+    assert.equal(value.content.rpg.levelCap, 99);
+    assert.deepEqual(value.content.rpg.playerRank, { module: 'guild-membership', field: 'letter', label: 'Guild' });
+    assert.ok(value.content.cast.every(person => 'Level' in person.fields && !('Soul Class' in person.fields)), 'every cast sheet says Level, not Soul Class');
+    const lore = Object.values(JSON.parse(readFileSync(lorePath, 'utf8')).entries).map(entry => entry.content).join('\n');
+    assert.doesNotMatch(packText + lore, /Soul Class/);
+    assert.match(lore, /Level \(1-99\): raw supernatural capacity/);
+});
+
+test('the lorebook\'s typical-level table agrees with the rank bands (E-D 10-29, C 30-39, B-A 40-59, S 60-69)', () => {
+    const core = Object.values(JSON.parse(readFileSync(lorePath, 'utf8')).entries)
+        .find(entry => entry.comment === '[CORE] Classification').content;
+    assert.match(core, /working adventurers \(E-D\) 10-29/);
+    assert.match(core, /Guild veterans \(C\), journeyman mages 30-39/);
+    assert.match(core, /elite adventurers \(B-A\), masters of a tradition 40-59/);
+    assert.match(core, /S-rank legends 60-69; level 70 and above/);
 });

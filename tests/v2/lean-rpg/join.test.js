@@ -5,6 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, hostAvailable } from '../../../testkit/index.js';
+import { levelOfClass } from '../../../src/v2/lean-rpg/formula.js';
 import { CORE_FEATURE } from '../../../src/v2/features.js';
 import { PARTY_MAX, JOINS, JOIN_SETTING, LEAN_RPG_FEATURE } from '../../../src/v2/lean-rpg/names.js';
 import { JOIN_ADD, JOIN_NO, checkJoin, joinCard, joinDefinitions, joinDraft, joinGrammar, joinMode, joinOffers, partyCap, partyOf, readJoin, soulOf } from '../../../src/v2/lean-rpg/join.js';
@@ -27,7 +28,7 @@ async function world({ mode = 'auto', feature = true, wessel = true } = {}) {
 }
 async function make(host, who, soul = 1) {
     const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
-    defs.character.slug = who.toLowerCase(); defs.character.name = who; defs.character.state.who.default = who; defs.character.state.soul.default = soul;
+    defs.character.slug = who.toLowerCase(); defs.character.name = who; defs.character.state.who.default = who; defs.character.state.level.default = levelOfClass(soul);
     defs.skills.slug = `${who.toLowerCase()}-skills`; defs.skills.name = `${who}'s skills`; defs.skills.state.who.default = who;
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
 }
@@ -76,11 +77,11 @@ test('the setting: Ask by default, then Automatically or Off; anything else is A
 
 test('what a joining companion is made of: stats 10, the best one 14, no points, Soul Class as given (capped by the party), an empty Skills block', () => {
     const draft = joinDraft({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' });
-    assert.deepEqual([draft.kind, draft.name, draft.about, draft.soul, draft.stats.int, draft.stats.str], ['companion', 'Mara', 'a hedge-witch', 4, 14, 10]);
+    assert.deepEqual([draft.kind, draft.name, draft.about, draft.level, draft.stats.int, draft.stats.str], ['companion', 'Mara', 'a hedge-witch', 35, 14, 10]);
     assert.equal(joinDraft({ name: 'Mara', best: 'wits' }).stats.int, 10, 'a best that is no stat raises nothing');
     const made = joinDefinitions({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' }, { used: ['pack.chat/wessel'], soul: 3 });
     const state = made.character.state;
-    assert.deepEqual([made.character.slug, made.character.role, state.int.default, state.vit.default, state.points.default, state.soul.default, state.health.default, state.mana.default, state.stamina.default, state.left.default], ['mara', 'character', 14, 10, 0, 3, 5, 4, 4, false]);
+    assert.deepEqual([made.character.slug, made.character.role, state.int.default, state.vit.default, state.points.default, state.level.default, state.health.default, state.mana.default, state.stamina.default, state.left.default], ['mara', 'character', 14, 10, 0, 25, 5, 4, 4, false]);
     assert.equal(made.skills.role, 'skills');
     assert.equal(made.skills.state.who.default, 'Mara');
     for (let n = 1; n <= 5; n += 1) assert.equal(made.skills.state[`skill${n}`].default, '', `skill ${n} is empty`);
@@ -115,7 +116,7 @@ test('Automatically: a + party line makes the Character and an empty Skills bloc
     assert.deepEqual(blocks(host), ['pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills']);
     const mara = fields(host, 'mara');
     assert.deepEqual([mara.who, mara.about, mara.str, mara.vit, mara.agi, mara.dex, mara.int, mara.luk, mara.cha], ['Mara', 'a hedge-witch from Kvildal', 10, 10, 10, 10, 14, 10, 10]);
-    assert.deepEqual([mara.soul, mara.points, mara.xp, mara.health, mara.mana, mara.stamina, mara.alive, mara.left], [3, 0, 0, 5, 4, 4, true, false], 'class IV asked, the party\'s highest is III; bars full');
+    assert.deepEqual([mara.level, mara.points, mara.xp, mara.health, mara.mana, mara.stamina, mara.alive, mara.left], [25, 0, 0, 5, 4, 4, true, false], 'class IV asked, the party\'s highest is III; bars full');
     const skills = fields(host, 'mara-skills');
     assert.deepEqual([skills.who, skills.skill1, skills.rank1, skills.practice1, skills.skill5], ['Mara', '', 0, 0, '']);
     const receipt = lastReceipts(host).find(entry => entry.type === 'capture.party');
@@ -128,11 +129,11 @@ test('Automatically: a + party line makes the Character and an empty Skills bloc
     await rebuilt(host, 'after a join');
 });
 
-test('a joining class never goes above the party\'s highest, and class I is the default', { skip }, async t => {
+test('a joining class never goes above the party\'s highest, and class I is the default (it stands for level 5, as an old class-I block reads)', { skip }, async t => {
     const host = await world();
     t.after(() => host.close());
     await host.send('Two arrive.', reply('+ party Pip', '+ party Dov | class: IX | best: str', '+ party Ilse | class: II | best: dex'));
-    assert.deepEqual(['pip', 'dov', 'ilse'].map(slug => fields(host, slug)?.soul), [1, 3, 2]);
+    assert.deepEqual(['pip', 'dov', 'ilse'].map(slug => fields(host, slug)?.level), [5, 25, 15]);
     assert.equal(fields(host, 'dov').str, 14);
     assert.equal(fields(host, 'pip').int, 10, 'no best named: nothing raised');
     await rebuilt(host, 'three joins');
@@ -241,7 +242,7 @@ test('Ask: Add to party makes the companion as Automatically does; the card goes
     const added = await host.sdk.command(JOIN_ADD, host.sdk.query('rpg.joins', {})[0]);
     assert.equal(added.ok, true, added.message);
     assert.deepEqual(blocks(host), ['pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills']);
-    assert.deepEqual([fields(host, 'mara').soul, fields(host, 'mara').int, fields(host, 'mara').points], [3, 14, 0]);
+    assert.deepEqual([fields(host, 'mara').level, fields(host, 'mara').int, fields(host, 'mara').points], [25, 14, 0]);
     assert.deepEqual(host.sdk.query('rpg.joins', {}), [], 'answered: the card goes');
     assert.deepEqual(partyLines(host.ctx.chat.at(-1).extra.storySuite).map(line => line.text), ['Mara joined the party']);
     const again = await host.sdk.command(JOIN_ADD, { name: 'Mara', about: '', soul: 1, best: '' });
@@ -300,7 +301,7 @@ test('- party Name marks the companion as Left (kept, never deleted), out of the
     // A later + party of the same name brings them back, whatever Ask says: they are the same person.
     await host.send('Mara returns.', reply('+ party Mara | class: IX'));
     assert.equal(fields(host, 'mara').left, false);
-    assert.equal(fields(host, 'mara').soul, 2, 'the sheet is the one they left with');
+    assert.equal(fields(host, 'mara').level, 15, 'the sheet is the one they left with');
     assert.deepEqual(blocks(host).length, 4, 'nothing new made');
     assert.equal(lastReceipts(host).find(entry => entry.type === 'capture.party').summary, 'Mara is back in the party.');
     assert.deepEqual(host.sdk.query('rpg.joins', {}), [], 'and no card');
@@ -451,8 +452,9 @@ test('2.9.1: the first character a story gets through Add to party also brings t
     await rebuilt(host, 'after the swipe');
 });
 
-test('2.9.1: a companion made by a party line or Add to party has the same class-up rule as any new character: 3 points with each rise', () => {
+test('2.17.0: a companion made by a party line or Add to party has the same level-up rule as any new character: a point for every multiple of 3 the rise crosses (was: 3 points with each Soul Class rise)', () => {
     const { character } = joinDefinitions({ name: 'Mara', about: '', soul: 1, best: '' });
-    const rule = character.rules.find(item => item.id === 'class-up');
-    assert.deepEqual(rule.then.find(effect => effect.path[0] === 'points'), { op: 'add', path: ['points'], value: 3, bounds: 'clamp' });
+    const rule = character.rules.find(item => item.id === 'level-up');
+    assert.equal(character.rules.some(item => item.id === 'class-up'), false);
+    assert.deepEqual(rule.then.find(effect => effect.path[0] === 'points'), { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
 });
