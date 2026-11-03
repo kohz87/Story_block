@@ -15,6 +15,7 @@
 import { FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, RESOLVE, ROLLS, ROLLS_SETTING } from './lean-rpg/names.js';
 import { TIMEOUT_MS } from './assist/common.js';
 import { RANK_QUERY, SETTINGS_SCHEMA, XP_RATE, XP_RATE_SETTING, rankQuery } from './lean-rpg/levels.js';
+import { rosterQueries } from './lean-rpg/roster.js';
 
 let library = null;
 
@@ -118,6 +119,8 @@ export function createLazyRpgPart(deps = {}) {
             [ROLLS_QUERY]: Object.assign((...args) => part()?.queries[ROLLS_QUERY](...args) ?? null, { feature: LEAN_RPG_FEATURE }),
             // (the ranks are a pure read of the packs: answered at once, the library or not)
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
+            // (the roster is a pure read of the Character blocks: answered at once too, roster.js)
+            ...rosterQueries({ persona: deps?.persona }),
         },
         hooks: {
             beforeGenerate: Object.assign((view, info) => part()?.hooks.beforeGenerate(view, info), { timeoutMs: (Number.isFinite(timeoutMs) ? timeoutMs : TIMEOUT_MS) + HOOK_MARGIN_MS }),

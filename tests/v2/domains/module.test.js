@@ -21,7 +21,7 @@ test('the definition has the §6 shape (core, packs, events and assist parts mer
         'inventory.merge', 'inventory.repair', 'inventory.restore', 'inventory.split', 'inventory.stow', 'inventory.transfer', 'inventory.unequip', 'inventory.wear', 'item.equip', 'mounts.edit', 'rpg.fight', 'rpg.joinNo', 'rpg.practice', 'rpg.resolve', 'savepoint.make', 'savepoint.restore', 'scene.place', 'scene.present', 'scene.weather', 'scene.you', 'wallet.pay', 'wallet.receive', 'wallet.set',
     ]);
     assert.deepEqual(Object.keys(module.queries).sort(), ['assist.status', 'chatter.head', 'dataModules.actors', 'dataModules.offers', 'dataModules.presentation', 'dataModules.public', 'dataModules.replayInputs', 'dataModules.setup', 'dataModules.view', 'events.status', 'gear.carry', 'gear.view', 'inventory.condition', 'inventory.counts', 'inventory.currency', 'inventory.definitions', 'inventory.economy', 'inventory.encumbrance', 'inventory.equipment', 'inventory.find', 'inventory.gear', 'inventory.items', 'inventory.legendEarned', 'inventory.loot', 'inventory.statBonus', 'inventory.storyBudget', 'inventory.wallet', 'mounts.list', 'mounts.pace', 'packs.calendar', 'packs.castGear',
-        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.portrait', 'packs.start', 'packs.weather', 'packs.youRank', 'rpg.joins', 'rpg.rank', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'scene.you', 'story.evidence']);
+        'packs.content', 'packs.crafts', 'packs.economy', 'packs.item', 'packs.itemDefs', 'packs.list', 'packs.markets', 'packs.portrait', 'packs.start', 'packs.weather', 'packs.youRank', 'party.actors', 'party.pc', 'rpg.joins', 'rpg.rank', 'rpg.rolls', 'savepoint.contract', 'savepoint.list', 'scene.chatter', 'scene.moved', 'scene.place', 'scene.present', 'scene.weather', 'scene.you', 'story.evidence']);
     assert.deepEqual(Object.keys(module.hooks).sort(), ['afterCapture', 'afterReceive', 'afterReply', 'beforeGenerate', 'item.resolve', 'replayGuard', 'start']);
     assert.equal(typeof module.settings.render, 'function', 'the Packs and Events panels');
     assert.deepEqual(Object.keys(module.capture.kinds), ['item', 'coin', 'place', 'present', 'weather', 'you', 'mount', 'loot', 'choice', 'chatter', 'dm', 'party']);
@@ -157,7 +157,7 @@ test('createCorePart gives the same pieces in the MODULES.md part shape', () => 
         assert.equal(typeof kind.apply, 'function');
     }
     assert.deepEqual(Object.keys(part.commands), Object.keys(module.commands).filter(name => !/^(events|assist|savepoint|dm|rpg)\./.test(name)));
-    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist|chatter|dataModules|rpg)\./.test(name) && name !== 'scene.moved' && name !== 'scene.chatter' && name !== 'story.evidence' && !/^savepoint\./.test(name)));
+    assert.deepEqual(Object.keys(part.queries), Object.keys(module.queries).filter(name => !/^(events|packs|assist|chatter|dataModules|rpg|party)\./.test(name) && name !== 'scene.moved' && name !== 'scene.chatter' && name !== 'story.evidence' && !/^savepoint\./.test(name)));
     assert.equal(part.context.budget, CORE_BUDGET);
 });
 
