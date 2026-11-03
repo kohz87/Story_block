@@ -137,11 +137,11 @@ export const LEAN_RPG_LIMITS = Object.freeze({ sets: 12, skills: 5, name: 40, ab
 // `{ id, name, aliases?, about, look, voice?, personality?, history?, portrait?, start: { place, goal, routine? }, drawnTo?,
 // meters?: { preset?, <meter>: n }, stages?, fields?, secrets?, canDieUnmet? }`. All text is plain: no < > { } (and no | in
 // the short lines a change line may carry), line breaks become spaces. `stages` take the shape of a meter preset's stages.
-export const CAST_FIELDS = Object.freeze(['id', 'name', 'aliases', 'about', 'look', 'voice', 'personality', 'history', 'portrait', 'start', 'drawnTo', 'meters', 'stages', 'fields', 'secrets', 'canDieUnmet']);
+export const CAST_FIELDS = Object.freeze(['id', 'name', 'aliases', 'about', 'look', 'voice', 'personality', 'history', 'portrait', 'start', 'drawnTo', 'meters', 'stages', 'fields', 'secrets', 'canDieUnmet', 'gear']);
 export const CAST_START_FIELDS = Object.freeze(['place', 'goal', 'routine']);
 export const CAST_SECRET_FIELDS = Object.freeze(['title', 'text', 'meter', 'at', 'when']);
 export const CAST_LIMITS = Object.freeze({ entries: 64, name: 80, aliases: 8, about: 300, look: 600, voice: 300, personality: 600, history: 1200,
-    place: 80, goal: 200, routine: 200, drawnTo: 6, phrase: 80, fields: 6, fieldName: 40, fieldValue: 60, secrets: 8, secretTitle: 60, secretText: 300, secretWhen: 120, meters: 10 });
+    place: 80, goal: 200, routine: 200, drawnTo: 6, phrase: 80, fields: 6, fieldName: 40, fieldValue: 60, secrets: 8, secretTitle: 60, secretText: 300, secretWhen: 120, meters: 10, gear: 6 });
 // The meters NPC State Delta has before any preset (a secret or a stage may name them without the entry listing them): its four
 // own and the ones its built-in presets (companion, rival, mentor) add.
 export const CAST_BUILT_IN_METERS = Object.freeze(['trust', 'affection', 'desire', 'tension', 'loyalty', 'respect', 'rivalry', 'approval']);

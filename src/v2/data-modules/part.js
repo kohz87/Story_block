@@ -20,6 +20,9 @@ import { fold } from '../lean-rpg/read.js';
 import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { RPG_STRINGS } from '../lean-rpg/strings.js';
+import { castGearOf, gearLine } from '../packs/cast-gear.js';
+import { gearOn } from '../domains/inventory.js';
+import { placeOf } from '../domains/gear.js';
 
 const E = STRINGS.editMessages;
 const B = STRINGS.blocks;
@@ -529,6 +532,44 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module: head.definition.id, skills: rest[0].definition.id },
             summary: `${fill(J.joined, { name: request.name })}${left}` });
         answer.data.join = { op: 'added', name: request.name };
+        return giveGear(ctx, answer, request.name);
+    }
+    // A cast member's signature gear (cast.js `gear`, GEAR.md): with `story-block.gear` on, the joining person's pack items are added to the
+    // inventory owned by them (the party's actor of that name, else the party's bag) and put on, through the inventory's own commands, so
+    // the items are part of the join's one receipt. What they already own is not added again; a slot that is taken is left as it is.
+    // Gear off, or no gear: nothing here runs and the answer is untouched.
+    function giveGear(ctx, answer, name) {
+        if (!gearOn(ctx)) return answer;
+        let found = null;
+        try { found = castGearOf(packs?.packs?.() ?? [], name); } catch { found = null; }
+        if (!found?.items.length) return answer;
+        let owner = 'party';
+        try {
+            const actors = ctx.query('party.actors');
+            const actor = (Array.isArray(actors) ? actors : []).find(entry => typeof entry?.id === 'string' && fold(entry.name) === fold(name));
+            if (actor) owner = actor.id;
+        } catch { owner = 'party'; }
+        const stacks = Object.values(ctx.read('inventory')?.stacks ?? {}).filter(stack => stack.owner === owner);
+        const taken = new Set(stacks.map(stack => stack.equipped).filter(Boolean));
+        const held = new Set(stacks.map(stack => stack.def));
+        const added = [];
+        for (const item of found.items) {
+            if (held.has(item.id)) continue;
+            const places = item.slot === 'accessory' ? ['accessory-1', 'accessory-2'] : [placeOf(item.slot)];
+            try {
+                const given = ctx.call('inventory.grant', { name: item.name, qty: 1, owner });
+                const stack = given?.data?.stacks?.[0];
+                const place = places.find(key => !taken.has(key));
+                if (given?.data?.def === item.id && stack && place) {
+                    const worn = ctx.call('item.equip', { stack, owner, slot: place });
+                    taken.add(worn?.data?.place ?? place);
+                }
+                added.push(item.name);
+            } catch { /* this piece could not be carried: the join goes on without it */ }
+        }
+        if (!added.length) return answer;
+        answer.summary = `${answer.summary} ${gearLine(found.items.filter(item => added.includes(item.name)))}.`;
+        answer.data.gear = { owner, items: added };
         return answer;
     }
     function party(ctx, line, call = {}) {
@@ -561,7 +602,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const answer = setField(ctx, { module: person.module, field: 'left', value: left }, call, { story: true });
         answer.summary = fill(left ? J.left : J.returned, { name: person.name });
         answer.data.join = { op: left ? 'left' : 'back', name: person.name };
-        return answer;
+        return left ? answer : giveGear(ctx, answer, person.name);
     }
     // "Add to party" on the Ask card: the reader's own go-ahead, so it is made like the automatic one, for the head reply.
     function addParty(ctx, payload, call = {}) {

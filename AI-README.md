@@ -328,7 +328,7 @@ A pack is one JSON object. Fields Story Block reads (`packs/limits.js` is the so
 - Events carry `id`, `when` (a condition, checked by the same parser the story uses), `cue`, `once`, `after`, `then`.
 - `content.cast`: required `id`, `name`, `about`, `look`, `start.place`, `start.goal`; optional `aliases` (8), `voice`, `personality`, `history`,
   `portrait`, `start.routine`, `drawnTo` (6), `meters` (a preset id and starting values), `stages` (8), `fields` (6), `secrets` (8; each opens at a
-  meter value, on a story event, or whichever comes first), `canDieUnmet`. Up to 64 people. Field detail: `docs/v2/PACKS.md` "The cast".
+  meter value, on a story event, or whichever comes first), `canDieUnmet`, `gear` (up to 6 of the pack's equipment items). Up to 64 people. Field detail: `docs/v2/PACKS.md` "The cast".
 - Portraits: WebP, PNG or JPEG, 10 MB at most each, named by the cast, 32 files a pack. Stored at 150 KB or less (a bigger picture is shrunk
   in the browser to WebP, 1200 px long side). Kept as SillyTavern user files `user/files/storysuite-portrait-<pack>-<hash>.<ext>`.
   Query `packs.portrait({ pack, file })` gives a safe URL or null.
