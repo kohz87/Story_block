@@ -166,8 +166,12 @@ test('Combat: the chat\'s Combat rules text is edited here and saved as an edit 
     const receipts = host.ctx.chat[head].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine');
     assert.equal(receipts.length, 1, 'one recorded edit on the latest reply');
     assert.equal(receipts[0].summary, 'You changed Combat rules.');
-    // The narrator reads it in the next reply's prompt.
-    const { request } = await host.send('I draw.', 'Steel rings.');
+    // The narrator reads it in the prompt of a reply with a fight (lean prompt, 3 Nov: a quiet reply leaves the combat text out; lean-rpg/read.js isQuiet).
+    const { request: quiet } = await host.send('I draw.', 'Steel rings.');
+    assert.ok(!quiet.chat.some(message => message.content?.includes('Fights are short and cruel.')), 'a quiet reply does not carry it');
+    assert.equal((await host.sdk.command('dm.define', { definition: structuredClone(LEAN_RPG_TEMPLATES.find(entry => entry.name === 'Foes').definition) })).ok, true);
+    await host.send('A hound leaps.', `The hound leaps.\n<Changes>\n+ dm foes — it attacks | kind: set-slot-1 | name: Silt Hound | count: 1 | level: 5\n</Changes>`);
+    const { request } = await host.send('I strike.', 'Steel rings.');
     assert.ok(request.chat.some(message => message.content?.includes('Fights are short and cruel.')), 'in the prompt');
     assert.ok(!request.chat.some(message => message.content?.includes('No Plot Armor')), 'and the old text is gone');
     await reload(host);

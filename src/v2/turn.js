@@ -487,7 +487,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const current = state ? makeView({ store, registry, settings, chat: ctx?.chat, active: viewReader, state }) : view();
         const own = sentByModules(current);
         const ownTokens = own.reduce((sum, part) => sum + part.tokens, 0);
-        const result = assemble({ registry, view: current, untold, settings: hostSettings(), cues, substitute: text => substituteNames(text, ctx), context: contextNow(), ownTokens });
+        const result = assemble({ registry, view: current, untold, settings: hostSettings(), cues, substitute: text => substituteNames(text, ctx), context: contextNow(), ownTokens, rolled: state !== null });
         for (const message of result.problems) problem({ code: 'FAILED', message });
         return { ...result, own, untold };
     }

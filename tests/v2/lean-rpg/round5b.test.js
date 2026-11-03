@@ -195,7 +195,7 @@ test('review 164 c: a check whose hidden skill stat is missing from the sheet is
     skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.kinds = {};
     skills.state.skill1.default = 'Silent Trick'; skills.state.stat1.default = 'dex'; skills.state.stat1.prompt = false;
     success(await host.sdk.command('dm.define', { definition: skills }));
-    const sent = await host.send('I attempt both.', 'A reply.');
+    const sent = await host.send('I sneak and attempt both.', 'A reply.');
     const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
     assert.match(cueOf(roll), /Silent Trick: not rolled \(Wessel lacks the skill's stat\)/);
     assert.ok(!/DEX/.test(JSON.stringify(sent.request)), 'DEX is not named anywhere the narrator reads');

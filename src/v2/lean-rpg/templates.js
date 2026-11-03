@@ -115,6 +115,8 @@ const skills = {
 // skillRoute), so what reaches this condition is a free slot.
 const standardSkills = {
     ...skills,
+    // (Shorter text than Classic's, whose definition and hash stay as they were; a chat that already pinned the Standard Skills block keeps the text it was made with.)
+    prompt: 'Up to five skills for one character: what it does, its stat, what it uses (stamina or mana), a rank (Novice, Adept, Expert, Master) and practice 0 to 100. The narrator names a skill with a learn line and adds practice; 100 practice raises the rank.',
     kinds: Object.fromEntries(Object.entries(skills.kinds).map(([name, kind]) => [name, /^learn-/u.test(name)
         ? { ...kind, when: ['eq', get(`skill${name.slice(6)}`), ''], refusal: 'That slot holds a skill; use a free slot.' } : kind])),
 };
@@ -186,7 +188,7 @@ const sizeRule = (id, key, sizeKey, size) => ({ id, when: ['ne', get(sizeKey), s
 
 const standardCharacter = {
     slug: 'character', name: 'Character', role: 'character', schema: 1, stateVersion: 2, scope: 'chat',
-    prompt: 'One character: who they are, health, stamina and mana (words, shown as bars of blocks that grow with VIT, AGI and INT), seven stats from 1 to 20, unspent points, Level 1 to 99 and XP to 100. The narrator sets health, mana, stamina and XP by words; the story cannot kill a character outright: they die only when they were already Down before a reply and are still Down at its end. The reader sets stats and points. XP at 100 raises the Level by one, up to the Level cap, and every third Level gives a point to spend on stats.',
+    prompt: 'One character: who they are, health, stamina and mana (words, shown as bars), seven stats 1 to 20, points, Level 1 to 99 and XP to 100. The narrator sets health, mana, stamina and XP by words. The story cannot kill them outright: they die only when Down before a reply and still Down at its end. The reader sets stats and points; XP at 100 raises the Level, and every third Level gives a point.',
     show: character.show,
     state: {
         who: text('Name'),
@@ -224,7 +226,7 @@ const standardCharacter = {
 
 const standardFoes = {
     slug: 'foes', name: 'Foes', role: 'foes', schema: 1, stateVersion: 2, scope: 'chat',
-    prompt: 'Up to four foe groups in the current fight. A group is one slot: its name, how many it has (count 0 means the slot is empty), its level from 1 to 99 and its health (words: a group of a higher level has more blocks of health). The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or has yielded.',
+    prompt: 'Up to four foe groups in the fight, one slot each: name, count (0 = empty slot), its level from 1 to 99 and health (words). The narrator sets a slot when a group arrives, hurts it as the fight goes and clears it when the group is down, gone, fled, captured or yielded.',
     show: foes.show,
     state: Object.fromEntries(SLOTS.flatMap(n => [
         [`foe${n}`, text(`Foe ${n}`)],
@@ -251,11 +253,11 @@ const standardFoes = {
 export const COMBAT_PROMPT_STANDARD = [
     '[COMBAT SYSTEM]',
     'No Plot Armor: combat follows physical reality and the lore. Size, skill, numbers, reach, armor, terrain, preparation and Level all matter. Against a stronger foe, {{user}} loses unless a believable edge exists: ambush, terrain, numbers, poison, preparation.',
-    'Exchanges: a fight is told exchange by exchange, each with clear cause, cost and consequence, in the order things happen. Most fights are short; never skip the moment that decides it.',
+    'Exchanges: tell a fight exchange by exchange, each with clear cause, cost and consequence, in order. Most fights are short; never skip the moment that decides it.',
     'Weight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.',
     'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned; survival must be justified.',
-    'Rolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Level has more. Tell the rolled result; code moves the bars for hits, heals, skill costs: never set those.',
-    'XP guide: code gives XP for a won fight; write none for it. Other deeds 5 to 40. Code practises rolled skills.',
+    'Rolls: tell the rolled result as given; code moves the bars for hits, heals, skill costs: never set those.',
+    'XP guide: code gives XP for a won fight and practises rolled skills; write none for them. Other deeds 5 to 40.',
 ].join('\n');
 
 const standardCombat = { ...combat, stateVersion: 2, prompt: COMBAT_PROMPT_STANDARD };

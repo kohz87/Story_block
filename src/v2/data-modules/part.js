@@ -129,12 +129,22 @@ export function pinnedPresentation(state, kind = 'screens', noTab = []) {
     });
 }
 
-/** The static lines for the pinned modules (empty without a pin); they change only when a pin does. */
-export function grammarFor(state) {
+/**
+ * The static lines for the pinned modules (empty without a pin); they change only when a pin does, and (the RPG on) with a quiet reply
+ * (`quiet`, the RPG's QUIET_GRAMMAR table, lean-rpg/quiet.js: no combat text and only the opening Foes line). A long list of values (the health words) is told once.
+ */
+export function grammarFor(state, quiet = null) {
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
+    const seen = new Map();
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
-        return definition ? moduleGrammar(definition, referenceOf(active, id)) : '';
+        const only = quiet && definition?.role ? quiet[definition.role] : null;
+        if (definition && only?.skip) {
+            // (A skipped block may keep one line of its text: the XP guide stays on a quiet reply, whatever words the pinned block holds it in.)
+            const kept = only.keep ? new RegExp(only.keep.source, 'u').exec(String(definition.prompt ?? ''))?.[0] : '';
+            return kept ? oneLine(kept) : '';
+        }
+        return definition ? moduleGrammar(definition, referenceOf(active, id), { seen, ...(only ?? {}) }) : '';
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }
@@ -1048,7 +1058,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
         cards: blockCardSlots,
         context: {
-            static: () => grammarFor(state()),
+            static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null),
             tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
             extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id)), 0),

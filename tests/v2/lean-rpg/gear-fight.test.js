@@ -365,18 +365,29 @@ test('ruin: with gear on one ruin breaks the piece; scuff and tear are as they w
     }
 });
 
+// The host draws each roll's seed from the crypto source (rng.js seed), so this test's fights were won or lost by chance (about one run in twenty-five lost
+// the one it needs). Here the source is a fixed stream: the same seeds every run, so the same dice. Everything else about the host is the real one.
+function fixedSeeds(t, start = 1) {
+    const real = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    let n = start;
+    const fake = { getRandomValues(array) { for (let at = 0; at < array.length; at += 1) { n = (Math.imul(n ^ (n >>> 15), 0x2c1b3c6d) + 0x9e3779b9) >>> 0; array[at] = n; } return array; } };
+    Object.defineProperty(globalThis, 'crypto', { value: fake, configurable: true, writable: true });
+    t.after(() => { if (real) Object.defineProperty(globalThis, 'crypto', real); else delete globalThis.crypto; });
+}
+
 test('the legendary mark: the narrator\'s legendary line is held to epic, unless the same reply\'s roll won a fight against a group 10 levels above the party', { skip }, async t => {
+    fixedSeeds(t);
     const host = await world(t, { standard: true, fields: { level: 1, str: 20, dex: 20, vit: 20, agi: 20 }, foeLevel: 3 });
     const rarity = n => host.sdk.query('inventory.definitions').find(def => def.name === `Blade ${n}`).rarity;
     const group = level => `+ dm foes — why | kind: set-slot-1 | name: Mud Crawlers | count: 1 | level: ${level}`;
     const fresh = '~ dm foes — why | kind: hurt-1 | to: 4';
     // (each reply fights the group the reply before set; level 10 is 9 above the party's level 1, level 11 is 10 above)
-    await host.send('Set.', reply(group(10)));
-    await host.send('Nine above.', reply(group(11), fresh, '+ item Blade 1 | kind: weapon | rarity: legendary'));
+    await host.send('Set, I strike.', reply(group(10)));
+    await host.send('Nine above, I strike.', reply(group(11), fresh, '+ item Blade 1 | kind: weapon | rarity: legendary'));
     assert.deepEqual([resultOf(host).stop, resultOf(host).legend, rarity(1)], ['won', undefined, 'epic'], 'a won fight 9 levels above: not enough');
-    await host.send('Ten above.', reply(group(11), fresh, '+ item Blade 2 | kind: weapon | rarity: legendary'));
+    await host.send('Ten above, I strike.', reply(group(11), fresh, '+ item Blade 2 | kind: weapon | rarity: legendary'));
     assert.deepEqual([resultOf(host).stop, resultOf(host).legend, rarity(2)], ['won', 1, 'legendary'], 'won 10 levels above: the line stands');
-    await host.send('Quiet.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
+    await host.send('Quiet, I strike.', reply('+ item Blade 3 | kind: weapon | rarity: legendary'));
     assert.equal(rarity(3), 'legendary', 'this reply still fought the group the one before set');
     await host.send('Quiet.', reply('+ item Blade 4 | kind: weapon | rarity: legendary'));
     // (pinned change, G4: once earned it lasts, so a later reply with no fight keeps the legendary line; it used to be held again)

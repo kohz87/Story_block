@@ -40,7 +40,7 @@ import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
 
-export const VERSION = '2.18.1';
+export const VERSION = '2.19.0';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
@@ -430,7 +430,7 @@ export function createRuntime({
                     [ASSIST_SETTING.classifier]: registry.featureOn(CORE_FEATURE.preroll),
                     [ASSIST_SETTING.extractor]: registry.featureOn(CORE_FEATURE.extractor),
                 }),
-                grammar: () => registry.contexts().flatMap(context => context.kinds.map(kind => kind.grammar)),
+                grammar: () => registry.contexts().flatMap(context => context.kinds.map(kind => kind.grammar)).filter(Boolean),
                 // The scene's place, the map's places (the atlas's when Story Director is on, else the packs') and the story's date and
                 // time, for the safety net (assist/where.js). A query that is not there or throws is none of it.
                 where: () => {

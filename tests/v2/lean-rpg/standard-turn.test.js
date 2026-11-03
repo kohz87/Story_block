@@ -148,7 +148,7 @@ test('REPLAY RULE: a Standard roll keeps its formula and numbers when the settin
 test('a change to the sheet before a Standard roll plans it again with the same dice and the bars it now gives', { skip }, async () => {
     const { host } = await setup({ blocks: blocks(), answers: [ANSWER], settings: { [FORMULA_SETTING]: 'standard' } });
     await host.send('First.', 'One.');
-    await host.send('Second.', 'Two.');
+    await host.send('Second, I hit again.', 'Two.');
     const seed = rollReceipt(host, 4).seed;
     // The first reply goes: the sheet before the second roll is the start again, so its roll is planned again on that.
     await host.st.deleteMessage(2);

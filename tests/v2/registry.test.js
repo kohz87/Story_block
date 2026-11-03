@@ -146,6 +146,8 @@ test('definitions that are not modules are refused with what is wrong', () => {
     assert.match(problems({ id: 'x', commands: { 'item.use': 'no' } }), /command "item.use" is not a function/);
     assert.match(problems({ id: 'x', capture: { kinds: {}, apply: () => ({}) } }), /names no kind/);
     assert.match(problems({ id: 'x', capture: { kinds: { item: { grammar: '' } }, apply: () => ({}) } }), /has no grammar line/);
+    assert.match(problems({ id: 'x', capture: { kinds: { event: { grammar: '', heads: ['+ event', '~ coin'] } }, apply: () => ({}) } }), /capture kind "event" has a head "~ coin" that does not name the kind itself/);
+    assert.doesNotMatch(problems({ id: 'x', capture: { kinds: { event: { grammar: '', heads: ['+ event', '! happening'], aliases: ['happening'] } }, apply: () => ({}) } }), /does not name the kind/);
     assert.match(problems({ id: 'x', capture: { kinds: { item: { grammar: 'a\nb' } }, apply: () => ({}) } }), /more than one line/);
     assert.match(problems({ id: 'x', capture: { kinds: { Item: { grammar: '+ item X' } }, apply: () => ({}) } }), /capture kind "Item" must be lowercase/);
     assert.match(problems({ id: 'x', capture: { kinds: { item: { grammar: '+ item X' } } } }), /capture.apply is not a function/);
