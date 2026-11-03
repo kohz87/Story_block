@@ -461,6 +461,17 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             delete draft.instances[module];
             const answer = finish(ctx, prefix, draft, recorded, { pin: true, result: { module }, summary: fill(B.removed, { name: previous.name }) });
             answer.data.edit = true;
+            // A Character who is gone leaves nothing filed under their actor (a block made later under the same name would inherit it): their pieces go to the
+            // party's bag, plain, and what was set aside for them with them (inventory.release). Nothing runs when they held nothing.
+            if (previous.role === 'character') {
+                const owner = actorIdOf(module);
+                let inventory = null;
+                try { inventory = ctx.read('inventory'); } catch { inventory = null; }
+                if (Object.values(inventory?.stacks ?? {}).some(stack => stack.owner === owner) || (inventory?.kept && Array.isArray(inventory.kept[owner]))) {
+                    const out = ctx.call('inventory.release', { owner });
+                    if (out?.data?.items?.length) { answer.summary = `${answer.summary} ${out.summary}`; answer.data.gear = { owner, released: out.data.items }; }
+                }
+            }
             return answer;
         }
         const catalog = Object.keys(domain?.active ?? {}).map(id => activeDefinition(prefix, id)).filter(Boolean);

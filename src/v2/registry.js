@@ -866,7 +866,18 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
             if (!owner) return null;
             const fn = defs.get(owner).queries[name];
             if (fn.enabled === false) return null;
-            return off(fn) || held(owner) ? offQuery : fn;
+            const asked = off(fn) || held(owner) ? offQuery : fn;
+            // A fallback stands behind the owner: asked when the owner is held back (switched off, dormant) or its feature is off, and when the owner answers nothing
+            // (null or an empty list: an older party module in a chat that is not its own), so it cannot hide the fallback's answer.
+            const behind = fallbacks.get(name);
+            if (!behind || behind === owner) return asked;
+            const back = defs.get(behind).queries[name];
+            if (back.enabled === false || off(back) || held(behind)) return asked;
+            if (asked === offQuery) return back;
+            return Object.assign((state, args, tools) => {
+                const answer = asked(state, args, tools);
+                return answer === null || answer === undefined || (Array.isArray(answer) && answer.length === 0) ? back(state, args, tools) : answer;
+            }, {});
         },
         initialState,
         /**

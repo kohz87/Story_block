@@ -90,12 +90,13 @@ test('the ids are stable over a rename, a rebuild and a reload; the name follows
     assert.deepEqual(host.sdk.query('party.pc'), { id: first[0] }, 'Astra is the persona');
 });
 
-test('the reader is the Character named like the persona (a first name that means only them counts), else the first block', () => {
+test('the reader is the Character named like the persona (a first name that means only them counts), or the only one; with several and none named so, nobody', () => {
     const state = names => ({ domains: { dataModules: sheetDomain(Object.fromEntries(names.map((name, at) => [`b${at}`, { role: 'character', fields: character(name) }]))) } });
     assert.equal(rosterOf(state(['Ash', 'Ren Holt']), 'ren holt').pc, actorIdOf('pack.chat/b1'));
     assert.equal(rosterOf(state(['Ash', 'Ren Holt']), 'Ren').pc, actorIdOf('pack.chat/b1'), 'a first name that means one Character');
-    assert.equal(rosterOf(state(['Ash', 'Ren Holt', 'Ren Ashby']), 'Ren').pc, actorIdOf('pack.chat/b0'), 'two Rens: not guessed, the first block');
-    assert.equal(rosterOf(state(['Ash', 'Ren Holt']), '').pc, actorIdOf('pack.chat/b0'));
+    assert.equal(rosterOf(state(['Ash', 'Ren Holt', 'Ren Ashby']), 'Ren').pc, null, 'two Rens: not guessed');
+    assert.equal(rosterOf(state(['Ash', 'Ren Holt']), '').pc, null, 'several and none named so: nobody');
+    assert.equal(rosterOf(state(['Ash', 'Ren Holt']), 'Nobody').actors.some(actor => actor.pc), false);
     assert.equal(rosterOf({ domains: {} }, 'Ren').pc, null);
     assert.deepEqual(rosterOf(state(['Ash']), 'x').actors, [{ id: actorIdOf('pack.chat/b0'), name: 'Ash', pc: true }]);
 });
@@ -139,6 +140,25 @@ test('a module that answers party.actors wins, whichever registers first; a seco
     assert.equal(typeof alone.query('party.actors'), 'function', 'alone, the fallback answers');
     assert.equal(alone.queryOwner('party.actors'), null, 'and owns nothing');
     assert.throws(() => alone.register({ id: 'twin', version: '1.0.0', features: [{ id: 'twin.rpg', label: 'RPG' }], queries: Object.fromEntries(Object.entries(rosterQueries()).map(([name, fn]) => [name, Object.assign(() => null, { fallback: true, feature: 'twin.rpg' })])) }), /already belongs to "story-block"/);
+});
+
+test('the fallback stands behind an owner that is held back, or answers null or an empty list (an old RPG Battle in a chat that is not its own)', () => {
+    const own = () => ({ id: 'story-block', version: '1.0.0', features: [{ id: 'story-block.rpg', label: 'RPG' }], queries: rosterQueries() });
+    const mine = { domains: { dataModules: sheetDomain({ ash: { role: 'character', fields: character('Ash') } }) } };
+    const old = answer => ({ id: 'rpg-battle', version: '1.0.0', queries: { 'party.actors': () => answer } });
+    for (const order of ['own first', 'old first']) {
+        for (const answer of [[], null]) {
+            const registry = createRegistry({ warn: () => {} });
+            const defs = order === 'own first' ? [own(), old(answer)] : [old(answer), own()];
+            for (const def of defs) registry.register(def);
+            assert.deepEqual(registry.query('party.actors')(mine, {}, {}).map(actor => actor.name), ['Ash'], `${order}: the owner answers ${JSON.stringify(answer)}`);
+        }
+        const registry = createRegistry({ warn: () => {} });
+        for (const def of order === 'own first' ? [own(), old([{ id: 'ac_old00001', name: 'Old' }])] : [old([{ id: 'ac_old00001', name: 'Old' }]), own()]) registry.register(def);
+        assert.deepEqual(registry.query('party.actors')(mine, {}, {}).map(actor => actor.name), ['Old'], `${order}: an answer stands`);
+        assert.equal(registry.setEnabled('rpg-battle', false), true);
+        assert.deepEqual(registry.query('party.actors')(mine, {}, {}).map(actor => actor.name), ['Ash'], `${order}: switched off, the fallback answers`);
+    }
 });
 
 test('through the host: an old module\'s roster is the one asked, and its actors get the join\'s gear', { skip }, async t => {
@@ -323,4 +343,86 @@ test('RPG on, gear off: the 2.18.0 chat renders and replays exactly as 233b131 d
     await host.send('Mara is back.', reply('+ party Mara'));
     assert.doesNotMatch(JSON.stringify(host.head().domains.inventory), /bound|kept/);
     assert.equal(host.sdk.query('inventory.items').length, expect.items.length, 'no gear handed out');
+});
+
+// ---- a Character who is removed leaves nothing filed under their actor ---------------------------------------------------------------------------
+
+test('dm.remove of a Character: their pieces (worn, bound, set aside) go to the party bag, plain; a block made again under the same name inherits nothing; it replays', { skip }, async t => {
+    const host = await world(t, { user: 'Wessel' });
+    await define(host, definitionOf('Character', 'wessel', 'Wessel'));
+    await define(host, definitionOf('Character', 'ren', 'Ren'));
+    await host.send('Mara walks in.', reply('+ party Mara'));
+    await host.send('A cap.', reply('+ item Iron Cap | kind: head | rarity: common'));
+    const ren = actorIdOf('pack.chat/ren'), mara = actorIdOf('pack.chat/mara');
+    success(await host.sdk.command('item.equip', { stack: row(host, 'Iron Cap').stack, owner: ren, slot: 'head', transfer: true }));
+    await host.send('The blade is nicked.', reply('~ item Cane Sword | wear: tear'));
+    const cond = row(host, 'Cane Sword').cond;
+    await host.send('Mara goes.', reply('- party Mara'));
+    assert.ok(host.head().domains.inventory.kept[mara], 'her bound pieces are set aside');
+    // Ren is removed: the cap goes to the bag, off; Mara is removed: what was set aside is given to the bag, plain
+    success(await host.sdk.command('dm.remove', { module: 'pack.chat/ren' }));
+    success(await host.sdk.command('dm.remove', { module: 'pack.chat/mara' }));
+    const mine = () => rows(host).map(item => `${item.name}:${item.owner}:${item.equipped ?? '-'}:${item.bound ? 'bound' : 'plain'}`).sort();
+    assert.deepEqual(mine(), ['Cane Sword:party:-:plain', 'Iron Cap:party:-:plain', 'Oak Buckler:party:-:plain']);
+    assert.equal(row(host, 'Cane Sword').cond, cond, 'the wear is kept');
+    assert.equal(host.head().domains.inventory.kept, undefined, 'nothing set aside is left');
+    assert.doesNotMatch(JSON.stringify(host.head().domains.inventory.stacks), /ac_/);
+    // a block made again under the same name has nothing
+    await define(host, definitionOf('Character', 'ren', 'Ren'));
+    assert.equal(host.sdk.query('gear.view', { owner: ren }).slots.head, null);
+    assert.deepEqual(rows(host).filter(item => item.owner === ren), []);
+    const live = JSON.stringify(host.head());
+    host.store.rebuild();
+    assert.equal(JSON.stringify(host.head()), live, 'rebuild');
+    await host.st.loadChat(plain(host.ctx.chat));
+    assert.equal(JSON.stringify(host.head()), live, 'reload');
+    assert.deepEqual(host.store.problems(), []);
+});
+
+test('dm.remove of a Character who held nothing changes nothing else (no release step)', { skip }, async t => {
+    const host = await world(t, { user: 'Wessel', withPack: false });
+    await define(host, definitionOf('Character', 'wessel', 'Wessel'));
+    await define(host, definitionOf('Character', 'ren', 'Ren'));
+    success(await host.sdk.command('dm.remove', { module: 'pack.chat/ren' }));
+    assert.deepEqual(host.sdk.query('party.actors').map(actor => actor.name), ['Wessel']);
+});
+
+// ---- the reader when the persona names no one --------------------------------------------------------------------------------------------------
+
+test('a persona that matches no Character, with several: party.pc is null, and the screens keep the persona\'s name for the bag', { skip }, async t => {
+    const host = await world(t, { user: 'Player' });
+    await define(host, definitionOf('Character', 'wessel', 'Wessel'));
+    await host.send('Mara walks in.', reply('+ party Mara'));
+    await host.send('A cap.', reply('+ item Iron Cap | kind: head | rarity: common'));
+    const cap = row(host, 'Iron Cap');
+    success(await host.sdk.command('item.equip', { stack: cap.stack, owner: 'party', slot: 'head' }));
+    assert.equal(host.sdk.query('party.pc'), null);
+    assert.equal(host.sdk.query('party.actors').some(actor => actor.pc), false);
+    const view = host.sdk.query('gear.view', {});
+    assert.equal(view.owners[0].label, 'Player', 'the label is the persona\'s');
+    assert.equal(view.rows[cap.stack].by, 'Player');
+});
+
+// ---- a roll that carries a gear record is worked out by what was, not by today's switch -------------------------------------------------------
+
+test('a Re-read after Gear in fights is switched off keeps the companion\'s gear (party.actors / party.pc are asked recorded, as inventory.gear is)', { skip }, async t => {
+    const host = await world(t, { user: 'Astra', withPack: false, model: PLAN });
+    await define(host, definitionOf('Character'));
+    await define(host, definitionOf('Foes'));
+    await define(host, definitionOf('Character', 'ren', 'Ren'));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 5 } }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/ren', fields: { who: 'Ren', level: 5 } }));
+    await host.send('Set.', dmReply(SET));
+    await host.send('A blade.', reply('+ item Cane Sword | kind: weapon | rarity: rare | DEX: +2'));
+    const ren = actorIdOf('pack.chat/ren');
+    success(await host.sdk.command('item.equip', { stack: row(host, 'Cane Sword').stack, owner: ren, slot: 'weapon', transfer: true }));
+    await host.send('Ren strikes.', 'The fight.');
+    const at = host.ctx.chat.length - 1;
+    const resultOf = () => host.ctx.chat[at].extra.storySuite.receipts.find(entry => entry.type === 'rpg.resolve').data.v2.result;
+    assert.deepEqual(resultOf().gear.who.ren.own, [ren]);
+    const before = resultOf().gear;
+    host.features.set('story-block.gear', false);
+    assert.equal(host.sdk.query('party.actors'), null, 'asked now: nothing');
+    assert.equal(success(await host.turn.reread(at)) !== null, true);
+    assert.deepEqual(resultOf().gear, before, 'the roll is worked out as it was made');
 });

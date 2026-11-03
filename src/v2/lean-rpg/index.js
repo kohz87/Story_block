@@ -59,12 +59,12 @@ export const ROLLS_QUERY = 'rpg.rolls';
  *   metadata() → the chat's metadata object, for the held plan   (default: held in memory)
  *   problem(entry)                                              (the turn's Problems list; default: none)
  *   moduleId = 'story-block' (whose settings it reads), timeoutMs, timer
- *   gearOn() → whether Gear in fights is on (the roster is answered only then)
+ *   rosterOn() → whether the RPG and Gear in fights are both on (the roster is answered only then, or when asked for `recorded`)
  *   persona() → the reader's name, for `party.pc` (default: none, the first block)
  * → { commands, queries, hooks, settings: { defaults }, guard }; `guard` is the replay guard for `rpg.resolve` blocks
  * (domains/index.js routes the guards of that predicate to it).
  */
-export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chatId = stChatId, metadata = () => null, problem = null, moduleId = 'story-block', timeoutMs, timer, persona = () => '', gearOn } = {}) {
+export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chatId = stChatId, metadata = () => null, problem = null, moduleId = 'story-block', timeoutMs, timer, persona = () => '', rosterOn } = {}) {
     const precall = createPrecall({ callModel, chat, chatId, hold: createPlanHold({ metadata }), problem, moduleId, timeoutMs, timer, skip: skipOf(metadata) });
     return {
         // A prelude: previewed before the reply and stored on it before its story lines (turn.js). Not tied to the
@@ -91,7 +91,7 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
             [ROLLS_QUERY]: Object.assign((_state, args, tools) => rollsOf(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index), { feature: LEAN_RPG_FEATURE }),
             // The party's members and the reader's own Character, from the Character blocks (roster.js; fallbacks: a module that answers them itself is asked instead).
-            ...rosterQueries({ persona, gearOn }) },
+            ...rosterQueries({ persona, on: rosterOn }) },
         // The planner's model call has its own limit (timeoutMs, Assist's 20 s by default); the hook is given a little longer, so
         // its own skip path (quiet ROLLS_SKIPPED, the no-rolls cue) runs on a slow answer and the turn's generic limit never cuts in.
         hooks: {

@@ -138,15 +138,25 @@ Members of the party own and wear their own gear, so something has to say who th
 
 * `party.actors` → `[{ id, name, pc? }]`: one actor per Character block that is in the party (a companion who left is not on it), in block order; `pc: true` on the
   reader's own.
-* `party.pc` → `{ id }`: the reader's own Character: the one named like the persona (the same name, or a first name that means only them), else the first block (what the
-  rolls have always done). Only the id: the header keeps the persona's name.
+* `party.pc` → `{ id }`: the reader's own Character: the one named like the persona (the same name, or a first name that means only them), or the only Character; with several and
+  none named so, null (nothing guesses who the reader is; the rolls fall back to the first block themselves, and the screens call the bag by the persona's name). Only the id: the
+  header keeps the persona's name.
 
 **The id is the block's, never the name's.** It is `ac_` and 8 base-36 characters worked out from the Character block's module id (`actorIdOf`, e.g. `pack.chat/mara`),
 so a rename, a rebuild, a reload, a swipe or a Re-read give the same one. A pack's cast member that joins is a block like any other: `+ party Mara` makes `pack.chat/mara`,
 and its actor is the owner of their signature gear, found by that id (`gearOwnerOf`, data-modules/part.js), on join, on leave (`inventory.stow`) and on return.
 
+**Rolls that carry a gear record** ask `party.actors` and `party.pc` with `recorded: true` (as they ask `inventory.gear`), which answers whatever the switches say now, so a Re-read after
+Gear in fights was switched off works the roll's gear out as it was made. **Gear off hides all of it by design:** with the switch off nothing answers, so no member, picker or
+Give to a member appears, and a piece a member wears stays filed under them (the gear screens are off) until the switch is on again.
+
+**A Character who is removed** (`dm.remove`) leaves nothing filed under their actor, or a block made later under the same name would inherit it: in the remove receipt
+`inventory.release` takes their pieces off, moves them to the party bag, clears their bound mark, and gives what was set aside for them (`kept`) to the bag the same way
+(plain items, condition kept; nothing runs when they held nothing).
+
 **An older roster wins.** Both queries are registered as *fallbacks* (registry.js: `fallback: true` on the function): they take no ownership of the name, so a module that
-answers `party.actors` itself (an old RPG Battle chat) is the one asked, whichever registered first, and the RPG's own is not asked. For such a module the join finds the actor
+answers `party.actors` itself (an old RPG Battle chat) is the one asked, whichever registered first; the RPG's own answers only when that module is held back, its feature is off,
+or it answers null or an empty list. For such a module the join finds the actor
 by the block's id when it lists one, else by the member's name (as 2.18.0 did).
 
 **Existing chats.** Nothing is moved: stacks owned by `party` stay the party bag, which is the reader's own Character's (`party.pc`, shown as "the main character first" in Equipped

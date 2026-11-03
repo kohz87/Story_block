@@ -90,6 +90,9 @@ comes back if the host goes away. NSD's own storage, capture and prompt keys are
   entry tagged `[storysuite:pack]`, installed list in `extension_settings.storySuite.packs`; pack item defs
   resolve before story defs (`pack.<id>/<slug>`); a pack's `start` merges into the initial state; queries
   `packs.list`, `packs.content({ kind })`.
+* **party roster** (2.18.1, `lean-rpg/roster.js`): with the RPG and Gear in fights on, Story Block answers `party.actors` (`[{ id, name, pc? }]`, one per Character
+  block) and `party.pc` as **`{ id }` only** (no `level`, `name` or pools: `query('party.pc').level` is undefined unless a party module answers it). Both are registry fallbacks (`fallback: true` on
+  the query): a module that owns the name is asked first, and the fallback answers when that module is held back, its feature is off, or it answers null or an empty list.
 * **events** (agent SB-events): condition language (numbers, strings, `== != < <= > >= && || !`, calls to
   queries: `query('party.pc').level >= 30`, `quest('Granary Rats').status == 'resolved'`), event defs
   `{ id, when, cue, once, then: [{ command, payload }] }` from packs, evaluated in `beforeGenerate`; a met
