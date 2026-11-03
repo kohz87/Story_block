@@ -14,7 +14,7 @@
 import { h } from '../../view/widgets/dom.js';
 import { refusalText } from '../../strings.js';
 import { LEAN_RPG_TEMPLATES } from '../templates.js';
-import { JOIN_SETTING, ROLLS_SETTING } from '../names.js';
+import { JOIN_SETTING, PRACTICE, PRACTICE_SETTING, ROLLS_SETTING, practiceOf } from '../names.js';
 import { joinMode } from '../join.js';
 import { packInForce, CUSTOM_SETTING, DIFFICULTIES, DIFFICULTY_SETTING, FORMULA_SETTING, NOTE_MAX, NOTE_SETTING, PRESETS, RULE_RANGES, STANDARD_RANGES, STANDARD_SETTING, STAT_ABOVE, difficultyOf, formulaOf, isStandard, normalizeRules, normalizeStandard, plannerNoteOf, rulesFromSettings } from '../rules.js';
 import { CREATION } from '../names.js';
@@ -73,7 +73,7 @@ const STANDARD_FIELDS = Object.freeze([
 const words = (...parts) => parts.join(' ').toLowerCase();
 const CARD_WORDS = Object.freeze({
     formula: words(S.formula, S.formulaStandard, S.formulaClassic, S.formulaStandardHelp, S.formulaClassicHelp, S.formulaNote, S.formulaRows.map(row => `${row.type} ${row.what}`).join(' '), Object.values(S.formulaNums).join(' '), S.formulaFootStandard),
-    rolls: words(S.rolls, S.rollsHelp, S.automatic, S.off),
+    rolls: words(S.rolls, S.rollsHelp, S.practice, S.practiceHelp, S.automatic, S.off),
     difficulty: words(S.difficulty, S.gentle, S.standard, S.harsh, S.custom, [...NUMBER_FIELDS, ...STANDARD_FIELDS].map(field => `${fill(field.label, { label: SOUL_LABEL })} ${field.help}`).join(' '), S.replayNote),
     combat: words(S.combat, S.combatHelp, S.combatLabel, S.combatReset),
     planner: words(S.planner, S.plannerHelp, S.plannerShow, S.plannerFixed),
@@ -180,6 +180,27 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         const box = card('rolls', S.rolls);
         chips(box, S.rolls, [['automatic', S.automatic], ['off', S.off]], rollsOf(settings), value => put(ROLLS_KEY, value));
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.rollsHelp));
+        // Practice per skill use: a roll records the value it was made with, so a change here moves only the replies after it.
+        const practiceGrid = h(doc, 'div', 'rpg-set-nums');
+        const practiceSlot = field(practiceGrid, S.practice, S.practiceHelp);
+        const practiceInput = doc.createElement('input');
+        practiceInput.setAttribute('type', 'number');
+        practiceInput.setAttribute('min', String(PRACTICE.minPerUse));
+        practiceInput.setAttribute('max', String(PRACTICE.maxPerUse));
+        practiceInput.setAttribute('step', '1');
+        practiceInput.setAttribute('inputmode', 'numeric');
+        practiceInput.setAttribute('data-setting', PRACTICE_SETTING);
+        practiceInput.setAttribute('aria-label', S.practice);
+        practiceInput.className = 'rpg-set-input';
+        practiceInput.value = String(practiceOf(values()[PRACTICE_SETTING]) ?? PRACTICE.perUse);
+        practiceInput.addEventListener('change', () => {
+            const typed = Number(String(practiceInput.value).trim());
+            const next = Number.isFinite(typed) && String(practiceInput.value).trim() !== '' ? Math.min(PRACTICE.maxPerUse, Math.max(PRACTICE.minPerUse, Math.round(typed))) : (practiceOf(values()[PRACTICE_SETTING]) ?? PRACTICE.perUse);
+            practiceInput.value = String(next);
+            put(PRACTICE_SETTING, next);
+        });
+        practiceSlot.add(practiceInput);
+        box.appendChild(practiceGrid);
     }
 
     // ---- Companions who join

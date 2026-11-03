@@ -112,7 +112,7 @@ test('B: the planner may write skill: on a foe line; the plan keeps it only when
 
 test('B: the planner is told the foe line takes a skill, and when', () => {
     assert.match(PRECALL_HEAD, /\nfoe <foe> \| target: <who> \| defend: <stat> \| skill: <skill>\?\n/);
-    assert.match(PRECALL_HEAD, /A foe line may name a skill of the defender, only when one plausibly fits defending \(a parry, a dodge, a shield, a counter-draw\); otherwise write no skill\./);
+    assert.match(PRECALL_HEAD, /When a defender has a skill that fits defending \(a dodge, a step, a parry, a shield, an evasion, a ward\), name it on the foe line\./);
 });
 
 test('B: the battle log names the defending skill; a foe line recorded before it reads as it did', () => {
@@ -275,7 +275,7 @@ test('C: the odds line and the "adds" label follow the player\'s Character block
     doc.body.appendChild(parent);
     const settings = Object.assign(() => ({ rpgFormula: 'classic', rpgDifficulty: 'custom', rpgCustom: { ...STANDARD } }), { set: () => {} });
     renderRpgSettings(parent, { settings, doc, headState: () => renamed, readerName: () => 'Wessel', roleOf });
-    assert.deepEqual(parent.querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level adds']);
+    assert.deepEqual(parent.querySelector('[data-card="difficulty"]').querySelectorAll('.rpg-set-num > span').map(node => node.textContent).slice(0, 2), ['Foe\'s base', 'Level adds']);
 });
 
 test('C: the battle log says "Class II" by default and the field\'s own word when it is renamed', () => {

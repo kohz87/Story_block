@@ -96,7 +96,8 @@ test('Custom: six fields with their ranges, started from the numbers in force; t
     root.querySelector('[data-card="difficulty"] .rpg-chip[data-value="custom"]').click();
     assert.equal(stored()[DIFFICULTY_SETTING], 'custom');
     assert.deepEqual(stored()[CUSTOM_SETTING], PRESETS.harsh, 'a first switch to Custom starts where the reader was');
-    const grid = root.querySelector('.rpg-set-nums');
+    // (The Rolls card also holds the Practice per skill use number; the Custom numbers are the Difficulty card's.)
+    const grid = card('difficulty').querySelector('.rpg-set-nums');
     assert.deepEqual(grid.querySelectorAll('.rpg-set-num > span').map(node => node.textContent),
         ['Foe\'s base', 'Soul Class adds', 'Stat adds', '"At a cost" when short by', 'Decisive at a margin of', 'Most exchanges per reply']);
     assert.deepEqual(grid.querySelectorAll('small').map(node => node.textContent), ['Gentle 3 · Standard 5 · Harsh 7', 'per class, both sides', 'rounded down', '0 turns it off', 'or a natural 1 or 20', '1 to 8']);
@@ -418,4 +419,20 @@ test('B8: Reset clicked while the first Combat save is still running is saved af
     await settle();
     assert.equal(promptOf(host), 'Second edit');
     assert.equal(host.ctx.chat[head].extra.storySuite.receipts.filter(receipt => receipt.type === 'dm.redefine').length, 3);
+});
+
+test('Rolls holds Practice per skill use: a whole number from 1 to 5 (3 unset), typed numbers held to range, saved as a setting for later rolls', async t => {
+    const { card, stored } = await open(t);
+    const input = card('rolls').querySelector('[data-setting="rpgPracticePerUse"]');
+    assert.equal(input.value, '3');
+    assert.equal(input.getAttribute('min'), '1');
+    assert.equal(input.getAttribute('max'), '5');
+    assert.match(card('rolls').textContent, /Practice per skill use/);
+    for (const [typed, kept] of [['1', 1], ['5', 5], ['9', 5], ['0', 1], ['4.4', 4]]) {
+        typeInto(input, typed);
+        assert.equal(stored().rpgPracticePerUse, kept, typed);
+        assert.equal(input.value, String(kept));
+    }
+    typeInto(input, 'abc');
+    assert.equal(stored().rpgPracticePerUse, 4, 'not a number: put back');
 });

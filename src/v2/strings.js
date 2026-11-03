@@ -254,6 +254,8 @@ export const STRINGS = deepFreeze({
         choices: 'Choices',
         choiceTitle: 'Put this in your message box (it is not sent)',
         inPrompt: 'Send the last reply\'s thoughts back to the story',
+        chatterMax: 'Most chatter lines per reply',
+        chatterMaxHelp: 'From 1 to 10. The story is asked for one thought from each person in the scene who has something on their mind, up to this many. 3 to 5 reads best.',
         inPromptHelp: 'Off: inner chatter never reaches a later prompt, so it cannot steer the story. On: the thoughts of the reply you answered go with your next message as one short note, dropped first when the notes are full.',
     },
 

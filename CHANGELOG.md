@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.16.10
+
+- **A new skill never replaces another.** A narrator line that taught a skill into a slot already holding a different
+  skill overwrote it (Shadow Cut replaced Iaijutsu, and the rank stayed behind). Now the same name updates that skill
+  wherever it sits, a new name goes to the first free slot, and a practice line that names a skill goes to that skill.
+  This works in existing chats too.
+- **Skills count in defense, and rolled skills practise themselves.** The planner names the defender's fitting skill
+  (a dodge, step, parry, shield) when a foe attacks. Every skill used in a roll, attack or defense, gains practice by
+  itself: **Practice per skill use** in Settings → RPG (1–5, default 3), at most 20 a reply. The narrator's practice line
+  for those skills in that reply is not used; practice for other deeds is still the narrator's.
+- **Inner chatter for everyone present.** The narrator is asked for one thought for each NPC in the scene with something
+  on their mind, up to **Most chatter lines per reply** (1–10, default 3; 3 to 5 reads best).
+
 ## 2.16.9
 
 - **A fight runs until something happens.** A reply's dice used to stop at the first decisive result, even a decisive

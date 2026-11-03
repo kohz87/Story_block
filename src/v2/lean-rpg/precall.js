@@ -10,7 +10,7 @@
 // connection profile and time limit; the answer is a plan, never a number.
 import { SETTING, TIMEOUT_MS, clip, estimateTokens, hashText, normalizeType, withTimeout } from '../assist/common.js';
 import { stripBlock } from '../capture.js';
-import { CLASS_NAMES, LEAN_RPG_FEATURE, RANK_NAMES, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
+import { CLASS_NAMES, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING, RANK_NAMES, practiceOf, RESOLVE, ROLLS_SETTING, STAGES, STATS, stageWord } from './names.js';
 import { isStandard, packRulesOf, plannerNoteOf, rulesFromSettings } from './rules.js';
 import { NO_ROLLS_LINE, OPEN_FIGHT_LINE } from './cue.js';
 import { openLinesOf, parsePlanAnswer } from './plan.js';
@@ -45,7 +45,7 @@ export const PRECALL_HEAD = [
     '- In a fight, give every party member who is not Down an act (companions act on their own) and every foe a target or hold.',
     '- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual.',
     '- Use only the names listed. A skill brings its own stat and what it uses, so write no stat for a skill the character has; for a skill they lack, or with no skill, write the stat.',
-    '- A foe line may name a skill of the defender, only when one plausibly fits defending (a parry, a dodge, a shield, a counter-draw); otherwise write no skill. It brings its own stat.',
+    '- When a defender has a skill that fits defending (a dodge, a step, a parry, a shield, an evasion, a ward), name it on the foe line. It brings its own stat.',
     '- pace: careful when the reader moves slowly or carefully, all when they fight it out, else normal.',
     '- An edge is a small bonus or penalty the situation earns (an ambush +2, a trap -2).',
     '- Outside a fight a risky attempt (sneaking, persuading, climbing, lying) is a check with a difficulty.',
@@ -69,7 +69,7 @@ export const PRECALL_HEAD_STANDARD = [
     '- Use only the names listed. A skill brings its own stat and what it uses: write no stat.',
     '- type: physical (blades, force), magic (spells, a skill that uses Mana), social (talk, bluff), check (the rest). area: hits every foe. support: heals or helps an ally. magic on a foe line: a spell.',
     '- fit: the stat a check leans on (STR climb, AGI sneak, DEX locks, INT lore, VIT endure).',
-    '- A foe line may name a defender\'s skill only when it plausibly fits defending (a parry, a dodge, a shield); otherwise no skill.',
+    '- Name a defender\'s fitting skill on the foe line (a dodge, a step, a parry, a shield, an evasion, a ward).',
     '- pace: careful when the reader moves slowly or carefully, all when they fight it out, else normal.',
     '- An edge is a small bonus or penalty the situation earns (an ambush +2, a trap -2).',
     '- Outside a fight a risky attempt (sneaking, persuading, climbing, lying) is a check with a difficulty.',
@@ -232,7 +232,7 @@ export function createPrecall({ callModel, chat, chatId, hold, problem = null, m
         // A Standard fight keeps its turn order across replies: the nearest earlier reply's order goes on in the payload (resolve.js), so a swipe of
         // this reply rolls this reply's dice again and keeps the order the fight began with.
         const order = isStandard(rules) && planned.plan ? carriedOrder(view, index) : null;
-        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, ...(order ? { order } : {}) } }] } : noFight(sheet);
+        return planned.plan ? { commands: [{ type: RESOLVE, payload: { key, plan: planned.plan, rules, dice: DICE_VERSION, flow: FLOW_VERSION, practice: practiceOf(readSettings(view, moduleId)[PRACTICE_SETTING]) ?? PRACTICE.perUse, ...(order ? { order } : {}) } }] } : noFight(sheet);
     }
 
     // The reply is captured: its plan has been used, so the hold is let go (best effort; a new generation clears it anyway). Whether

@@ -411,6 +411,8 @@ export const RPG_STRINGS = Object.freeze({
         title: 'RPG',
         sub: 'How the dice work, and what the narrator and the roll planner are told.',
         rolls: 'Rolls',
+        practice: 'Practice per skill use',
+        practiceHelp: 'From 1 to 5. Each time a roll uses a skill it gains this much practice (added up for the reply, at most 20 per skill). 3 unless you change it.',
         rollsHelp: 'Automatic: before each reply a short AI call plans the actions and code rolls the dice. Off: no dice; the story decides.',
         automatic: 'Automatic',
         off: 'Off',
