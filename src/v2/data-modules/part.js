@@ -128,12 +128,17 @@ export function pinnedPresentation(state, kind = 'screens', noTab = []) {
     });
 }
 
-/** The static lines for the pinned modules (empty without a pin); they change only when a pin does. */
-export function grammarFor(state) {
+/**
+ * The static lines for the pinned modules (empty without a pin); they change only when a pin does, and (the RPG on) with a quiet reply
+ * (`quiet`, the RPG's QUIET_GRAMMAR table, lean-rpg/quiet.js: no combat text and only the opening Foes line). A long list of values (the health words) is told once.
+ */
+export function grammarFor(state, quiet = null) {
     const active = Object.keys(state?.domains?.dataModules?.active ?? {});
+    const seen = new Map();
     const lines = active.map(id => {
         const definition = activeDefinition(state, id);
-        return definition ? moduleGrammar(definition, referenceOf(active, id)) : '';
+        const only = quiet && definition?.role ? quiet[definition.role] : null;
+        return definition && !only?.skip ? moduleGrammar(definition, referenceOf(active, id), { seen, ...(only ?? {}) }) : '';
     }).filter(Boolean);
     return lines.length ? `Data modules in this story (write these lines exactly; a refused line changes nothing):\n${lines.join('\n')}` : '';
 }
@@ -1003,7 +1008,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             'dm.join': Object.assign(wrap(addParty), { feature: LEAN_RPG_FEATURE }) },
         // `+ party Name | about: … | class: I | best: int` and `- party Name`: under the RPG feature, out of the grammar while Companions who join is Off, and
         // until the story has a Character block (a party line means something only once there is a party).
-        kinds: { dm: kind, party: { grammar: () => rpgLib()?.joinGrammar() ?? '', feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(party) } },
+        kinds: { dm: kind, party: { grammar: hint => (rpgLib()?.isQuiet(hint, state(), settings()) ? '' : rpgLib()?.joinGrammar() ?? ''), feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(party) } },
         queries: { 'dataModules.offers': offers, 'dataModules.view': moduleView, 'dataModules.public': publicView,
             'dataModules.replayInputs': replayInputs, 'dataModules.actors': actorsOf,
             'dataModules.setup': prefix => {
@@ -1033,7 +1038,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         hooks: { afterCapture: afterCapture, beforeGenerate: (view, info) => info?.commit === false ? undefined : due(view) },
         cards: blockCardSlots,
         context: {
-            static: () => grammarFor(state()),
+            static: hint => grammarFor(state(), rpgLib()?.isQuiet(hint, state(), settings()) ? rpgLib().QUIET_GRAMMAR : null),
             tail: view => ({ lines: tailLines(view.state, typeof view.feature === 'function' ? view.feature(LEAN_RPG_FEATURE) === true : true), optional: [] }),
             // Tail room for the lines above: 100 tokens for each pinned module (300 for one with a role), on top of the core's own; none without a pin.
             extra: () => Object.keys(state()?.domains?.dataModules?.active ?? {}).slice(0, L.pins).reduce((sum, id) => sum + tailRoom(activeDefinition(state(), id)), 0),

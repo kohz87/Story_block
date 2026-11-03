@@ -107,7 +107,8 @@ test('the Combat text is the Standard one for a Standard chat (reset, and the bl
     await settle(); await settle();
     assert.equal(combatBlock(host.head(), {})?.prompt, COMBAT_DEFAULT_STANDARD);
     assert.ok([...COMBAT_DEFAULT_STANDARD].length <= COMBAT_MAX, 'fits the 1200 characters a block may hold');
-    assert.match(COMBAT_DEFAULT_STANDARD, /attacks, spells, defence, talk and checks each pair a main stat with half of a second one/);
+    // (the sentence on the roll types was dropped when the Standard text was shortened: the narrator is told the rolled result, never the mechanics)
+    assert.match(COMBAT_DEFAULT_STANDARD, /Rolls: tell the rolled result as given/);
     assert.match(COMBAT_DEFAULT_STANDARD, /code moves the bars for hits, heals, skill costs: never set those/);
     assert.equal(combatDefault('classic'), COMBAT_DEFAULT);
     assert.equal(combatDefault('standard'), COMBAT_DEFAULT_STANDARD);

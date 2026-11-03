@@ -86,16 +86,17 @@ export function tailOrder(contexts) {
 
 /**
  * The static text alone (header + kind grammar + module statics), built from the registry only.
- * `problems` collects what failed (a throwing static() is left out, logged there).
+ * `problems` collects what failed (a throwing static() is left out, logged there). `hint` (optional): { view, rolled }, what the reply being
+ * prepared tells the parts that write less on a quiet reply (the RPG's combat text, data-modules/part.js); without it every part is in full.
  */
-export function staticParts(registry, problems = []) {
-    const contexts = registry.contexts();
+export function staticParts(registry, problems = [], hint = undefined) {
+    const contexts = registry.contexts(hint);
     const kinds = contexts.flatMap(context => context.kinds.map(kind => kind.grammar));
     const header = kinds.length ? `${HEADER}\n${CHANGES_HEADER}\n${kinds.join('\n')}` : HEADER;
     const parts = [{ module: 'story-suite', label: 'Story Suite: instructions', place: 'static', text: header }];
     for (const context of contexts) {
         if (typeof context.static !== 'function') continue;
-        const text = attempt(() => context.static(), '', problems, `${context.name}: instructions`);
+        const text = attempt(() => context.static(hint), '', problems, `${context.name}: instructions`);
         const clean = typeof text === 'string' ? text.trim() : '';
         if (clean) parts.push({ module: context.moduleId, label: `${context.name}: instructions`, place: 'static', text: clean });
     }
@@ -197,13 +198,14 @@ export function contextNotice(fit) {
  * - `substitute` (optional): text → text, run on every text before it is counted (turn.js fills in
  *   `{{user}}` and `{{char}}` with it).
  * - `ownTokens` (optional): what modules send on their own this reply (contextFit), 0 by default.
+ * - `rolled` (optional): the reply has automatic rolls (the RPG's planner returned some), told to the static parts as `hint.rolled`.
  * Returns { staticText, tailText, parts: [{ module, label, place, text, tokens, dropped? }],
  * problems, fit (contextFit, or null) }. `parts` is what the What's-sent preview lists, in prompt order.
  */
-export function assemble({ registry, view, untold = [], settings = {}, cues = {}, substitute = null, context = null, ownTokens = 0 }) {
+export function assemble({ registry, view, untold = [], settings = {}, cues = {}, substitute = null, context = null, ownTokens = 0, rolled = false }) {
     const problems = [];
     const fill = typeof substitute === 'function' ? text => String(substitute(text) ?? '') : text => text;
-    const statics = staticParts(registry, problems).map(part => ({ ...part, text: fill(part.text) }));
+    const statics = staticParts(registry, problems, { view, rolled: rolled === true }).map(part => ({ ...part, text: fill(part.text) }));
     const staticText = statics.map(part => part.text).join('\n\n');
     const fitted = contextFit(context, estimateTokens(staticText), settings, ownTokens);
     const total = fitted ? fitted.budget

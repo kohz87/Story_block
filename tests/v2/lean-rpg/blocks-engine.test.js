@@ -82,7 +82,8 @@ test('the narrator\'s grammar for the bars is still the stage words, never block
     const grammar = fullModuleGrammar(standard('Character'), 'character');
     assert.match(grammar, /kind: set-health \| to: Down\|Badly wounded\|Wounded\|Hurt\|Scratched\|Unhurt \(0\.\.5\)/);
     assert.match(grammar, /kind: set-stamina \| to: Empty\|Spent\|Tired\|Winded\|Fresh \(0\.\.4\)/);
-    assert.match(fullModuleGrammar(standard('Foes'), 'foes'), /kind: hurt-1 \| to: Down\|Badly wounded\|Wounded\|Hurt\|Scratched\|Unhurt/);
+    // (a numbered family is one template line, "hurt-N", with N = 1..4 said once)
+    assert.match(fullModuleGrammar(standard('Foes'), 'foes'), /kind: hurt-N \| to: Down\|Badly wounded\|Wounded\|Hurt\|Scratched\|Unhurt/);
     await host.send('Hit.', reply(say('character', 'set-health', ' | to: Splendid')));
     assert.deepEqual(bars(host), [5, 4, 4], 'a word that is not a stage is refused, nothing applied');
 });

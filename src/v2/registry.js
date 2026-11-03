@@ -400,11 +400,14 @@ function neededVersion(range, version) {
  * `requires.storyBlock`; null skips that check (a registry built outside the host).
  * `warn(message)`: where definition warnings and failed initial() calls go (default console.warn).
  */
-/** A capture kind's grammar line: its text, or what its function answers now (one line of text; '' when it answers anything else). */
-function grammarOf(spec) {
+/**
+ * A capture kind's grammar line: its text, or what its function answers now (one line of text; '' when it answers anything else).
+ * `hint` (optional) is what the prompt being built tells the function (prompt.js assemble: { view, rolled }); without it the line is the full one.
+ */
+function grammarOf(spec, hint) {
     let line = spec?.grammar;
     if (typeof line === 'function') {
-        try { line = line(); } catch { line = ''; }
+        try { line = line(hint); } catch { line = ''; }
     }
     line = typeof line === 'string' ? line.trim() : '';
     return /\n/.test(line) ? '' : line;
@@ -664,7 +667,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         const statics = parts.map(part => part.static).filter(item => typeof item === 'function');
         const tails = parts.map(part => part.tail).filter(item => typeof item === 'function');
         const joined = statics.length <= 1 ? statics[0] ?? null
-            : () => statics.map(item => item()).filter(text => typeof text === 'string' && text.trim()).map(text => text.trim()).join('\n');
+            : hint => statics.map(item => item(hint)).filter(text => typeof text === 'string' && text.trim()).map(text => text.trim()).join('\n');
         const tail = tails.length <= 1 ? tails[0] ?? null : view => {
             const lines = [];
             const optional = [];
@@ -961,15 +964,18 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
                 .map(item => ({ id: item.id, title: item.title.trim(), hint: typeof item.hint === 'string' ? item.hint : '', render: item.render, place: placeOf(item.place) })),
             place: placeOf(def.settings.place),
         })),
-        /** [{ moduleId, name, domains, kinds: [{ kind, grammar }], static, tail, budget }] in module-id order. */
+        /**
+         * [{ moduleId, name, domains, kinds: [{ kind, grammar }], static, tail, budget }] in module-id order. `hint` (optional): what the prompt being built
+         * tells the grammar functions and `static(hint)` (prompt.js assemble); without it they answer in full.
+         */
         // Kinds and context (parts) under a feature that is off are left out (MODULES §F100).
-        contexts: () => sorted().filter(def => !held(def.id)).map(def => {
+        contexts: hint => sorted().filter(def => !held(def.id)).map(def => {
             const context = contextOf(def);
             return {
                 moduleId: def.id,
                 name: def.name ?? def.id,
                 domains: Object.keys(def.domains ?? {}),
-                kinds: Object.keys(def.capture?.kinds ?? {}).sort().filter(kind => def.capture.kinds[kind].enabled !== false && !off(def.capture.kinds[kind])).map(kind => ({ kind, grammar: grammarOf(def.capture.kinds[kind]) })).filter(entry => entry.grammar),
+                kinds: Object.keys(def.capture?.kinds ?? {}).sort().filter(kind => def.capture.kinds[kind].enabled !== false && !off(def.capture.kinds[kind])).map(kind => ({ kind, grammar: grammarOf(def.capture.kinds[kind], hint) })).filter(entry => entry.grammar),
                 static: context.static,
                 tail: context.tail,
                 budget: def.context?.budget ?? null,

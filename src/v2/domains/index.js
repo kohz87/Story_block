@@ -426,7 +426,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
             },
         },
         context: {
-            static: () => merged.statics.map(fn => fn()).filter(text => typeof text === 'string' && text.trim()).join('\n'),
+            static: hint => merged.statics.map(fn => fn(hint)).filter(text => typeof text === 'string' && text.trim()).join('\n'),
             tail(view) {
                 const lines = [];
                 const optional = [];
