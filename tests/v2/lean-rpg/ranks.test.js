@@ -171,6 +171,10 @@ test('playerRankValue reads the named block\'s field through the data-modules vi
     assert.equal(playerRankValue(state, { ...PLAYER, module: 'nope' }, query), null, 'not pinned');
     assert.equal(playerRankValue({}, PLAYER, query), null);
     assert.equal(playerRankValue(state, null, query), null);
+    // F9: no Guild pill until the member has registered (the block's `registered` is a flag that starts false)
+    const joined = flag => ({ domains: { dataModules: sheetDomain({ 'guild-membership': { role: undefined, fields: { registered: flag, letter: 'F' } } }) } });
+    assert.equal(playerRankValue(joined(false), PLAYER), null, 'not registered: the default letter is no rank');
+    assert.equal(playerRankValue(joined(true), PLAYER), 'F', 'registered: the letter');
     assert.equal(playerRankValue(state, PLAYER, () => { throw new Error('x'); }), null);
     assert.equal(levelLabel(14, ERSVEIL, { playerRank: PLAYER, value: playerRankValue(state, PLAYER, query) }), 'Lv 14 · Guild F');
     assert.equal(levelLabel(14, ERSVEIL, { playerRank: PLAYER, value: playerRankValue({}, PLAYER, query) }), 'Lv 14');

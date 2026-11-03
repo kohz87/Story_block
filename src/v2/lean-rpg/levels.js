@@ -57,7 +57,7 @@ export function levelLabel(level, ranks, { playerRank = null, value } = {}) {
 
 /**
  * The current value of the pack's player-rank field: the chat block whose slug is `playerRank.module`, read through the data-modules view
- * (`query('dataModules.view', { module })`, a chat block's `{ chat: fields }`; without `query` the state's own instance), else null.
+ * (`query('dataModules.view', { module })`, a chat block's `{ chat: fields }`; without `query` the state's own instance), else null; null too while the block has `registered: false`.
  */
 export function playerRankValue(state, playerRank, query) {
     try {
@@ -66,6 +66,8 @@ export function playerRankValue(state, playerRank, query) {
         const id = Object.keys(state?.domains?.dataModules?.active ?? {}).find(key => key === wanted || key.split('/')[1] === wanted);
         if (!id) return null;
         const view = typeof query === 'function' ? query('dataModules.view', { module: id }) : { chat: state.domains.dataModules.instances?.[id]?.chat?.fields };
+        // A rank block that says it has not been joined yet (a boolean `registered` that is false: Ersveil's Guild before anyone registers) names no rank: its letter is a default, not a standing.
+        if (view?.chat?.registered === false) return null;
         const value = view?.chat?.[playerRank.field];
         return typeof value === 'string' || typeof value === 'number' ? value : null;
     } catch { return null; }
