@@ -12,7 +12,9 @@ test('edits and fired rules follow receipt order and skip inactive blocks', () =
     ] };
     const problems = [{ index: 4, receipts: ['b'] }];
     assert.deepEqual(replyEdits(record, problems, 4), [{ text: 'You set Torch to 3.' }]);
-    assert.equal(replyRules(record, problems, 4)[0].text, 'Rule: threshold');
+    // Changed on purpose (Stage 44): a rule line now names the field it changed (tests/v2/data-modules/rule-lines.test.js); a record with no
+    // states to compare tells no rule.
+    assert.deepEqual(replyRules(record, problems, 4), []);
     assert.equal(replyEdits(record, problems, 3).length, 2);
 });
 
