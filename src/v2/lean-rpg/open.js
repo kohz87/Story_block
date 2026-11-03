@@ -9,7 +9,7 @@
 // Pure except openFoes, which writes the domain it is given (the transaction's draft, or a copy to look ahead).
 import { createEvaluation } from '../data-modules/interpreter.js';
 import { CLASS_NAMES, FOE_SLOTS } from './names.js';
-import { FOE_LEVEL, bandOfRank, classOfLevel, levelOf, levelOfClass } from './foes.js';
+import { FOE_LEVEL, bandOfRank, classOfLevel, levelCap, levelOf, levelOfClass, partyLevels } from './foes.js';
 import { fold, readSheet } from './read.js';
 
 export const OPEN_MAX_COUNT = 12;
@@ -55,6 +55,8 @@ const RANK_MAX = 12;
  */
 export function vetOpen(requested, sheet, texts, { rankAt = null } = {}) {
     const open = [], refused = [];
+    // A new foe is at most one band (10 levels) above the party's highest level: a level or rank above that is held down to it.
+    const cap = levelCap(partyLevels(sheet));
     const known = new Set((sheet?.foes ?? []).filter(foe => foe.filled).map(foe => fold(foe.name)));
     for (const entry of requested ?? []) {
         const name = oneLine(entry?.name).slice(0, OPEN_MAX_NAME).trim();
@@ -66,9 +68,9 @@ export function vetOpen(requested, sheet, texts, { rankAt = null } = {}) {
         const count = Number.parseInt(oneLine(entry.count), 10);
         const counted = Number.isInteger(count) ? Math.max(1, Math.min(OPEN_MAX_COUNT, count)) : 1;
         const level = levelWritten(entry.level) ?? (oneLine(entry.rank) ? null : classWritten(entry.class));
-        if (level !== null) { open.push({ name, count: counted, level }); continue; }
+        if (level !== null) { open.push({ name, count: counted, level: Math.min(level, cap) }); continue; }
         const rank = oneLine(entry.rank).slice(0, RANK_MAX), band = rank ? bandOfRank(rank, rankAt) : null;
-        open.push(band ? { name, count: counted, rank, from: band.from, to: band.to } : { name, count: counted });
+        open.push(band ? (band.from > cap ? { name, count: counted, level: cap } : { name, count: counted, rank, from: band.from, to: Math.min(band.to, cap) }) : { name, count: counted });
     }
     return { open: open.slice(0, FOE_SLOTS), refused };
 }

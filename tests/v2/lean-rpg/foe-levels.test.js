@@ -7,7 +7,7 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, PRECALL_HEAD, readSheet, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
 import { openFoes, openErrors, vetOpen } from '../../../src/v2/lean-rpg/open.js';
-import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, divisorOf, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
+import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, divisorOf, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, levelCap, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
 import { sizeOf } from '../../../src/v2/lean-rpg/blocks.js';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { success, reply } from '../data-modules/helpers.js';
@@ -27,7 +27,7 @@ const empty = () => {
     return blocks;
 };
 const fieldsOf = host => host.head().domains.dataModules.instances['pack.chat/foes'].chat.fields;
-const RANKS = [[1, 9, 'F'], [10, 19, 'E'], [20, 29, 'D']];
+const RANKS = [[1, 9, 'F'], [10, 19, 'E'], [20, 29, 'D'], [80, 99, 'SSS']];
 const rankAt = level => { const hit = RANKS.find(([from, to]) => level >= from && level <= to); return hit ? { name: hit[2] } : null; };
 const sheetOf = blocks => readSheet({ domains: { dataModules: (() => {
     const domain = { pins: {}, active: {}, instances: {}, perReply: {} };
@@ -111,7 +111,7 @@ test('bandOfRank finds a rank\'s band through the rank query; no query, a throwi
     assert.equal(foeLabel(14), 'Lv 14');
 });
 
-test('vetOpen: level as written, a rank\'s band, an old class as its level, or nothing left to be drawn; counts held; no cap by the party', () => {
+test('vetOpen: level as written, a rank\'s band, an old class as its level, or nothing left to be drawn; counts held; held to the party\'s highest + 10', () => {
     const sheet = sheetOf(PARTY());
     const text = ['goblins and rats and wolves and ogres and drakes and imps'];
     const vetted = vetOpen([
@@ -119,9 +119,16 @@ test('vetOpen: level as written, a rank\'s band, an old class as its level, or n
         { name: 'Drakes', count: '1', rank: 'Q' }, { name: 'Imps', count: '0', class: 'III' }, { name: 'Dragons', count: '1', level: '3' },
     ], sheet, text, { rankAt });
     assert.deepEqual(vetted.open.slice(0, 4), [
-        { name: 'Goblins', count: 5, level: 14 }, { name: 'Wolves', count: 2, level: 99 }, { name: 'Ogres', count: 1, rank: 'E', from: 10, to: 19 }, { name: 'Drakes', count: 1 },
+        { name: 'Goblins', count: 5, level: 14 }, { name: 'Wolves', count: 2, level: 25 }, { name: 'Ogres', count: 1, rank: 'E', from: 10, to: 19 }, { name: 'Drakes', count: 1 },
     ], 'an unknown rank is passed over: its level is drawn');
     assert.equal(vetted.open.length, 4, 'four slots at most');
+    // The cap on a NEW foe: the party's highest level + 10 (one band), at least 1.
+    const party14 = { characters: [{ level: 14 }, { level: 9 }], foes: [] };
+    assert.deepEqual(vetOpen([{ name: 'Wolves', level: '99' }], party14, text).open, [{ name: 'Wolves', count: 1, level: 24 }], 'level 99 against a party of 14: 24');
+    assert.deepEqual(vetOpen([{ name: 'Wolves', rank: 'SSS' }], party14, text, { rankAt }).open, [{ name: 'Wolves', count: 1, level: 24 }], 'a rank wholly above the cap: the cap');
+    assert.deepEqual(vetOpen([{ name: 'Wolves', rank: 'D' }], party14, text, { rankAt }).open, [{ name: 'Wolves', count: 1, rank: 'D', from: 20, to: 24 }], 'a band that crosses the cap is cut at it');
+    assert.deepEqual(vetOpen([{ name: 'Wolves', level: '99' }], { characters: [], foes: [] }, text).open, [{ name: 'Wolves', count: 1, level: 11 }], 'no party: level 1 + 10');
+    assert.equal(levelCap([95]), 99, 'at most 99');
     assert.deepEqual(vetOpen([{ name: 'Imps', count: '0', class: 'III' }], sheet, text).open, [{ name: 'Imps', count: 1, level: 25 }], 'class III is level 25');
     assert.deepEqual(vetOpen([{ name: 'Ogres', count: '1', rank: 'E' }], sheet, text).open, [{ name: 'Ogres', count: 1 }], 'no rank query: no band');
     assert.deepEqual(vetted.refused.map(entry => entry.name), ['Dragons'], 'a name neither text holds is refused');
@@ -185,22 +192,22 @@ test('the sheet gives a group its level; a block of the earlier rules gets the l
 });
 
 test('a level the plan gives is kept: the slot holds it, the roll adds floor(level / 5), the record carries the mark and the level', { skip }, async () => {
-    const { host, problems } = await setup({ blocks: empty(), answers: [opens('level: 40')] });
+    const { host, problems } = await setup({ blocks: empty(), answers: [opens('level: 20')] });
     await host.send(MESSAGE, 'The silt churns.');
     assert.deepEqual(problems, []);
-    assert.deepEqual([fieldsOf(host).foe1, fieldsOf(host).count1, fieldsOf(host).level1], ['Mud-Scale Crawlers', 3, 40]);
+    assert.deepEqual([fieldsOf(host).foe1, fieldsOf(host).count1, fieldsOf(host).level1], ['Mud-Scale Crawlers', 3, 20]);
     const result = rollReceipt(host, 2).data.v2.result;
     assert.equal(result.lv, LV_VERSION);
-    assert.deepEqual(result.opened, [{ slot: 1, module: 'pack.chat/foes', name: 'Mud-Scale Crawlers', count: 3, level: 40 }]);
+    assert.deepEqual(result.opened, [{ slot: 1, module: 'pack.chat/foes', name: 'Mud-Scale Crawlers', count: 3, level: 20 }]);
     const foe = result.rounds[0].lines.find(line => line.foe).foe;
-    assert.deepEqual([foe.classValue, foe.classBonus, foe.total - foe.die], [40, 8, 5 + 8]);
+    assert.deepEqual([foe.classValue, foe.classBonus, foe.total - foe.die], [20, 4, 5 + 4]);
     host.close();
 });
 
 test('a level over 99 or under 1 in the planner\'s line is held; an old "class: III" is level 25', { skip }, async () => {
     const high = await setup({ blocks: empty(), answers: [opens('level: 400')] });
     await high.host.send(MESSAGE, 'The silt churns.');
-    assert.equal(fieldsOf(high.host).level1, 99);
+    assert.equal(fieldsOf(high.host).level1, 25, 'held to the party\'s highest (15) + 10');
     high.host.close();
     const low = await setup({ blocks: empty(), answers: [opens('level: 0')] });
     await low.host.send(MESSAGE, 'The silt churns.');
@@ -326,7 +333,7 @@ test('openFoes puts a level on the block, whichever rules its definition has', (
 
 // ---- real blocks ------------------------------------------------------------------------------------------------------------------
 
-async function world(t, { answers, templates, settings = {}, party = true } = {}) {
+async function world(t, { answers, templates, settings = {}, party = true, soul = 9 } = {}) {
     const model = async () => (answers.length > 1 ? answers.shift() : answers[0] ?? 'none');
     const host = await createHost({ callModel: model, settings: { modules: { 'story-block': settings } } });
     t.after(() => host.close());
@@ -339,6 +346,7 @@ async function world(t, { answers, templates, settings = {}, party = true } = {}
         skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.state.skill1.default = 'Iron Breath'; skills.state.stat1.default = 'str';
         success(await host.sdk.command('dm.define', { definition: character }));
         success(await host.sdk.command('dm.define', { definition: skills }));
+        success(await host.sdk.command('dm.set', { module: 'pack.chat/wessel', fields: { soul } }));   // (Soul Class 9 is level 85: a new foe may be up to 95)
     }
     success(await host.sdk.command('dm.define', { definition: structuredClone(templates.find(entry => entry.name === 'Foes').definition) }));
     return host;
@@ -376,7 +384,7 @@ test('the narrator\'s set-slot line with a rank: the level is drawn inside the r
     const hound = sheetNow(host).foes[0];
     assert.ok(hound.level >= Math.max(1, around - 2) && hound.level <= around + 2, `no rank query: near the party, got ${hound.level}`);
     await host.send('Another.', reply('+ dm foes — why | kind: set-slot-2 | name: Giant | count: 1 | level: 150'));
-    assert.equal(sheetNow(host).foes[1].filled, false, 'a level over 99 is not a level of the block: refused');
+    assert.deepEqual([sheetNow(host).foes[1].filled, sheetNow(host).foes[1].level], [true, 95], 'a level over 99 is held to 99, then to the cap: the party\'s highest 85 + 10');
 });
 
 test('the narrator\'s line for a group already there updates its level, Classic and Standard', { skip }, async t => {
@@ -403,4 +411,12 @@ test('a Standard fight on real blocks: the foe adds floor(level / 5) and the gro
     const lead = result.order.find(entry => !entry.party);
     assert.deepEqual([lead.bonus, lead.total - lead.die], [12, 12]);
     assert.ok(tailOf((await host.send('Again.', 'Steel rings.')).request).includes('Lv 62'), 'the tail says the level');
+});
+
+test('the narrator\'s set-slot line holds a new foe\'s level to the party\'s highest + 10 (Soul Class II is level 15: 25)', { skip }, async t => {
+    const host = await world(t, { answers: ['none'], templates: STANDARD_TEMPLATES, soul: 2 });
+    await host.send('A dragon.', reply('+ dm foes — why | kind: set-slot-1 | name: Dragon | count: 1 | level: 99'));
+    assert.equal(sheetNow(host).foes[0].level, 25);
+    await host.send('An imp.', reply('+ dm foes — why | kind: set-slot-2 | name: Imp | count: 1 | level: 7'));
+    assert.equal(sheetNow(host).foes[1].level, 7, 'under the cap: as written');
 });

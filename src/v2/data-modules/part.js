@@ -17,7 +17,7 @@ import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blo
 import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, soulNaming } from '../lean-rpg/join.js';
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold, readSheet } from '../lean-rpg/read.js';
-import { averageLevel, bandOfRank, foeRandom, partyLevels, pickLevel } from '../lean-rpg/foes.js';
+import { averageLevel, bandOfRank, foeRandom, levelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
 import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { RPG_STRINGS } from '../lean-rpg/strings.js';
@@ -654,10 +654,12 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     function foeLevelLabels(labels, kind, prefix, ctx) {
         if (!kind.labels?.level || !/^set-slot-\d$/u.test(labels.kind)) return labels;
         const { rank, ...rest } = labels;
-        if (dmOwn(rest, 'level')) return rest;
+        // A level or rank above one band (10 levels) over the party's highest level is held down to it.
+        const levels = partyLevels(readSheet({ domains: { dataModules: prefix.domains?.dataModules } })), cap = levelCap(levels);
+        if (dmOwn(rest, 'level')) { const given = levelOf(rest.level); return given === null ? rest : { ...rest, level: String(Math.min(given, cap)) }; }
         const band = typeof rank === 'string' && rank.trim() ? bandOfRank(rank, level => ctx.query('rpg.rank', { level })) : null;
-        const around = averageLevel(partyLevels(readSheet({ domains: { dataModules: prefix.domains?.dataModules } })));
-        return { ...rest, level: String(pickLevel(band ?? {}, around, foeRandom(Math.floor(ctx.rng() * 4294967296) >>> 0, 0))) };
+        const ask = band ? { from: Math.min(band.from, cap), to: Math.min(band.to, cap) } : {};
+        return { ...rest, level: String(Math.min(cap, pickLevel(ask, averageLevel(levels), foeRandom(Math.floor(ctx.rng() * 4294967296) >>> 0, 0)))) };
     }
     function act(ctx, payload, line = null, call = {}) {
         if (ctx.caller !== null) refuse('REFUSED', '', 'A data action cannot be called by another module.');

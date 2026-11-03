@@ -102,7 +102,7 @@ test('the checks: whole words, plurals, small words, count 1-12, the level as wr
         { name: 'Goblins', count: '40', level: '120' }, { name: 'Wolves', count: '0', class: '' }, { name: 'Ogres', count: 'many', class: 'II' },
         { name: 'Sluice Rats', count: '3', class: 'I' }, { name: 'Dragons', count: '1', class: 'I' },
     ], sheet, text);
-    assert.deepEqual(vetted.open, [{ name: 'Goblins', count: 12, level: 99 }, { name: 'Wolves', count: 1 }, { name: 'Ogres', count: 1, level: 15 }], 'level held to 99, none left to be drawn, class II is level 15; Sluice Rats is on the sheet already');
+    assert.deepEqual(vetted.open, [{ name: 'Goblins', count: 12, level: 25 }, { name: 'Wolves', count: 1 }, { name: 'Ogres', count: 1, level: 15 }], 'level held to the party\'s highest (15) + 10, none left to be drawn, class II is level 15; Sluice Rats is on the sheet already');
     assert.deepEqual(vetted.refused.map(entry => entry.name), ['Dragons']);
     assert.deepEqual(openLinesOf('pace: normal\nfoe Goblins | new | count: 3 | class: II\nfoe Rats | target: Wessel'), [{ name: 'Goblins', count: '3', class: 'II' }]);
     assert.deepEqual(openLinesOf('foe Goblins | new | count: 3 | level: 14 | rank: E'), [{ name: 'Goblins', count: '3', level: '14', rank: 'E' }]);
@@ -115,7 +115,7 @@ test('count and level are held when the plan is rolled', { skip }, async () => {
     const { host } = await setup({ blocks: empty(), answers: [answer] });
     await host.send(MESSAGE, 'The silt churns.');
     const fields = fieldsOf(host);
-    assert.deepEqual([fields.count1, fields.level1], [12, 99], 'at most 12, and level 99');
+    assert.deepEqual([fields.count1, fields.level1], [12, 25], 'at most 12, and level 25: the party\'s highest is 15, plus 10');
     host.close();
 });
 
