@@ -888,6 +888,36 @@ function restore(ctx, payload) {
         data: { owner, items: items.map(item => item.name), pieces: items }, narrate: false };
 }
 
+// `inventory.release { owner }` (a module's call: the party module's removal of a Character block): the member is gone, so nothing may stay filed under their actor (a block made
+// later under the same name would inherit it). Their pieces go to the party's bag, taken off and no longer bound (plain items now, their condition kept), and what was set
+// aside for them (`kept`) is given back to the bag the same way. Nothing is lost. No feature on it: it runs whatever the gear switch says.
+function release(ctx, payload) {
+    if (ctx.caller !== RPG_MODULE) ctx.fail('REFUSED', 'A member\'s things go to the party\'s bag when their block is removed, not from a button, an event or another module.');
+    const owner = ownerArg(ctx, payload.owner, undefined);
+    if (owner === 'party') ctx.fail('INVALID', 'Only a party member\'s things can be released.');
+    const inv = ctx.draft('inventory');
+    const names = [];
+    for (const stack of Object.values(inv.stacks).filter(item => item.owner === owner).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+        stack.owner = 'party';
+        stack.equipped = null;
+        delete stack.bound;
+        names.push(inv.defs[stack.def]?.name ?? stack.def);
+    }
+    const list = isPlainObject(inv.kept) && Array.isArray(inv.kept[owner]) ? inv.kept[owner] : [];
+    for (const entry of list) {
+        const def = inv.defs[entry.def];
+        if (!def) continue;
+        const id = addStack(ctx, inv, def.id, entry.qty, 'party', entry.note, entry.key === true, entry.story === true);
+        if (Number.isSafeInteger(entry.cond)) inv.stacks[id].cond = entry.cond;
+        names.push(def.name);
+    }
+    if (isPlainObject(inv.kept)) {
+        delete inv.kept[owner];
+        if (!Object.keys(inv.kept).length) delete inv.kept;
+    }
+    return { summary: names.length ? `${boundName(ctx, owner)}'s things go to the party's bag: ${names.join(', ')}.` : `${boundName(ctx, owner)} has nothing to release.`, data: { owner, items: names }, narrate: false };
+}
+
 // `inventory.repair { stack, amount }`: the condition goes up by `amount` (1…100), never above 100;
 // as new (100), the field is dropped again.
 function repair(ctx, payload) {
@@ -1718,6 +1748,8 @@ export function createInventoryCommands(env) {
         'inventory.stow': Object.assign((ctx, payload = {}) => stow(ctx, payload), { feature: FEATURE.gear }),
         // (no feature on restore: what was set aside always comes back, whatever the switch says when they return)
         'inventory.restore': (ctx, payload = {}) => restore(ctx, payload),
+        // { owner }: a removed member's things go to the party's bag, plain (no feature: whatever the switch says).
+        'inventory.release': (ctx, payload = {}) => release(ctx, payload),
         // { sid, pick: [index…] }: the reader takes what they picked of a reply's loot.
         'inventory.lootTake': Object.assign((ctx, payload = {}) => lootTake(ctx, payload, env), { feature: FEATURE.loot }),
     };
