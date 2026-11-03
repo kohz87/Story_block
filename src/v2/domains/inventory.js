@@ -12,6 +12,7 @@ import {
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { WALLET_KEY, coinValue, countedMoney, formatAmount, formatWallet, isCurrencyName, parseAmount, resolveCurrency } from './money.js';
 import { DEF_ID, isId } from '../check.js';
+import { GEAR, condMark, createGearQueries, gearDefine, itemCarryOf, packBonus, placeOf, slotWordOf, stepDown, stepUp, valueByCond } from './gear.js';
 import { STRINGS, fill } from '../strings.js';
 
 const E = STRINGS.editMessages;
@@ -31,7 +32,7 @@ export function initialInventory() {
 
 // The optional mechanics this domain owns (MODULES §F100), declared by the core module. A host without
 // the Features API ignores the list and every check below takes them as on.
-export const FEATURE = Object.freeze({ loot: 'story-block.loot', encumbrance: 'story-block.encumbrance' });
+export const FEATURE = Object.freeze({ loot: 'story-block.loot', encumbrance: 'story-block.encumbrance', gear: 'story-block.gear' });
 export const INVENTORY_FEATURES = Object.freeze([
     Object.freeze({
         id: FEATURE.loot, label: 'Pick what you take', default: true, presets: Object.freeze({ lean: false }),
@@ -41,7 +42,23 @@ export const INVENTORY_FEATURES = Object.freeze([
         id: FEATURE.encumbrance, label: 'Encumbered', default: true, presets: false,
         describe: 'What the story gives past the carry limit is kept, and the party is encumbered (a check penalty) until something is put down. Your own buys and takes are still refused.',
     }),
+    Object.freeze({
+        id: FEATURE.gear, label: 'Gear in fights', default: false, presets: false,
+        describe: 'Worn gear adds a few points to the stats by rarity and wears down; what a member can carry follows their strength (and the party is encumbered past it).',
+    }),
 ]);
+
+// The gear switch lives in Settings → RPG and counts only while the RPG is on.
+const RPG_FEATURE = 'story-block.rpg';
+
+/** Whether the gear feature is on for this handler (or view): off unless the host says so (off by default, and only while the RPG is on). */
+export function gearOn(ctx) {
+    try {
+        return typeof ctx?.feature === 'function' && ctx.feature(FEATURE.gear) === true && ctx.feature(RPG_FEATURE) === true;
+    } catch {
+        return false;
+    }
+}
 
 /** Whether a feature is on for this handler (or view): on when the host has no Features API. */
 export function featureOn(ctx, id) {
@@ -153,13 +170,14 @@ function defErrors(key, def) {
     if (!Array.isArray(def.tags) || def.tags.some(tag => typeof tag !== 'string')) errors.push(`${label} has tags that are not a list of words.`);
     if (typeof def.note !== 'string') errors.push(`${label} has a note that is not text.`);
     if (def.carry !== undefined && !(isCount(def.carry, 1) && def.carry <= CARRY_MAX)) errors.push(`${label} adds a carry capacity of ${def.carry}; it is a whole number from 1 to ${CARRY_MAX}.`);
+    if (def.bonus !== undefined && !(isCount(def.bonus, 0) && def.bonus <= GEAR.bonusMax)) errors.push(`${label} has a gear bonus of ${def.bonus}; it is a whole number from 0 to ${GEAR.bonusMax}.`);
     return errors;
 }
 
 // The carry capacity a def may add (PACKS.md "Carry capacity"): only a pack's item has one, so the story's
 // words never make or raise it (WAVE rule 1); a carry module (`items.carry`) reads it.
 export const CARRY_MAX = 1000;
-const packCarry = (id, value) => (typeof id === 'string' && id.startsWith('pack.') && isCount(value, 1) && value <= CARRY_MAX ? value : null);
+export const packCarry = (id, value) => (typeof id === 'string' && id.startsWith('pack.') && isCount(value, 1) && value <= CARRY_MAX ? value : null);
 
 /** §2.5 validator for the inventory slice: [] when fine, else plain sentences. */
 export function validateInventory(slice) {
@@ -366,6 +384,25 @@ const freeId = (inv, base) => {
     return id;
 };
 
+// Legendary from the story's own words: only when the same reply also completes a quest or wins a fight against a group at least 10
+// levels above the party. Whoever knows that (the quests, the fights) answers `story.legendaryEarned` for the reply; nothing answering is no.
+function legendaryEarned(ctx) {
+    try { return ctx.query('story.legendaryEarned', {}) === true; } catch { return false; }
+}
+
+// The most a pack's place allows the story's items to be (`loot: { maxRarity }` on the place the party is at, by name or alias), or null.
+function placeCeiling(ctx) {
+    try {
+        const here = ctx.read('scene')?.place?.name;
+        if (typeof here !== 'string' || !here.trim()) return null;
+        const places = ctx.query('packs.content', { kind: 'places' });
+        const key = aliasKey(here);
+        const place = (Array.isArray(places) ? places : []).find(entry => [entry?.name, ...(Array.isArray(entry?.aliases) ? entry.aliases : [])].some(other => typeof other === 'string' && aliasKey(other) === key));
+        const top = place?.loot?.maxRarity;
+        return RARITIES.includes(top) ? top : null;
+    } catch { return null; }
+}
+
 // A new def through the `item.define(def, { note, owner })` hooks (each may mutate the def or
 // return fields to merge), then stored with its name as an alias. `keep` = fields the caller set
 // that the hooks may not change; the ID is never theirs to change, and equipment never stacks.
@@ -382,6 +419,13 @@ function hookScale(env) {
 
 function buildDef(def, env, about, keep = {}) {
     const id = def.id;
+    // Gear (`story-block.gear`): the slot and rarity the line's words and the name give, before the modules' hooks.
+    if (about.gear === true) {
+        gearDefine(def, about.words ?? {}, {
+            allowLegendary: about.legendary === true, ceiling: about.ceiling ?? null,
+            onHeld: (wanted, given) => env.problem?.({ module: 'story-block', code: 'HELD', message: `${def.name} was written ${wanted}; the story's items reach ${given} here${about.legendary === true ? '' : ' (legendary needs a quest completed or a hard fight won in the same reply)'}.` }),
+        });
+    }
     const hooks = env.hookEntries?.('item.define') ?? env.hooks('item.define').map(fn => ({ moduleId: null, fn }));
     for (const { moduleId, fn } of hooks) {
         const before = clone(def);
@@ -399,6 +443,12 @@ function buildDef(def, env, about, keep = {}) {
     const carry = packCarry(id, def.carry);
     if (carry === null) delete def.carry;
     else def.carry = carry;
+    // A gear bonus only a pack's def keeps, as for carry: the story never sets one.
+    const bonus = packBonus(id, def.bonus);
+    if (bonus === null) delete def.bonus;
+    else def.bonus = bonus;
+    // With gear on, a cart, barrow, wagon or sledge the story names adds the capacity of its kind (gear.js KIND_CARRY) while it is owned.
+    if (about.gear === true && itemCarryOf(def.name)) def.carry = itemCarryOf(def.name);
     if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
     return def;
 }
@@ -412,7 +462,7 @@ function addDef(inv, def, env, about, keep = {}) {
 
 // Store a new definition, with generic item hooks when appropriate.
 function registerNew(ctx, inv, def, env, about, { keep = {}, hooks = true } = {}) {
-    return hooks ? addDef(inv, def, env, about, keep) : storeDef(inv, def);
+    return hooks ? addDef(inv, def, env, gearOn(ctx) ? { ...about, gear: true, legendary: legendaryEarned(ctx), ceiling: placeCeiling(ctx) } : about, keep) : storeDef(inv, def);
 }
 
 // A def stored as it is (its hooks, if any, have run).
@@ -452,6 +502,8 @@ function packDef(ctx, inv, name, env, route = true) {
             for (const field of Object.keys(def)) if (field !== 'id' && found[field] !== undefined && found[field] !== null) def[field] = clone(found[field]);
             const carry = packCarry(def.id, found.carry);
             if (carry !== null) def.carry = carry;
+            const bonus = packBonus(def.id, found.bonus);
+            if (bonus !== null) def.bonus = bonus;
             if (def.kind === 'equipment') def.stack = false;   // MODULES.md F6
             registerNew(ctx, inv, def, env, {}, { route, hooks: false, template: def.id });
         }
@@ -482,6 +534,7 @@ function defineGiven(ctx, inv, given, env, about) {
     for (const field of ['rarity', 'value']) if (given[field] !== undefined) keep[field] = given[field];
     // A pack item's carry capacity comes with it (a pack shop's stock bought through a module).
     if (packCarry(id, given.carry) !== null) keep.carry = given.carry;
+    if (packBonus(id, given.bonus) !== null) keep.bonus = given.bonus;
     return { def: registerNew(ctx, inv, def, env, about, { keep, written: name }), created: true };
 }
 
@@ -634,6 +687,63 @@ function wear(ctx, payload) {
     };
 }
 
+// `gear.wear { owner, slot, steps }` (`story-block.gear`): the system's or another module's call (a fight's rules), never a button or a
+// story line. `slot`: weapon, body (armour), off-hand (shield), or defence (the body armour, else the off-hand: what a decisive hit
+// taken wears). The piece worn there goes down `steps` (1…3, default 1) condition words (good → worn → torn → broken) through the same
+// condition events as `inventory.wear`; at 0 it is broken and gives no bonus (gearAnswer). Part 2: a decisive hit TAKEN wears the
+// defender's `defence`, a decisive miss of the attacker wears their `weapon`.
+const WEAR_SLOTS = Object.freeze({ weapon: 'weapon', body: 'body', armour: 'body', 'off-hand': 'off-hand', shield: 'off-hand', defence: 'defence' });
+function gearWear(ctx, payload) {
+    if (!gearOn(ctx)) ctx.fail('REFUSED', 'Gear is not switched on.');
+    if (!(ctx.cause === 'system' || ctx.caller)) ctx.fail('REFUSED', 'Gear wears from the rules of a fight, not from a button or a change line.');
+    const owner = typeof payload.owner === 'string' && payload.owner ? payload.owner : 'party';
+    if (!OWNER_RE.test(owner)) ctx.fail('INVALID', 'The owner is the party or a member.');
+    const asked = typeof payload.slot === 'string' ? payload.slot.trim().toLowerCase() : '';
+    if (!Object.hasOwn(WEAR_SLOTS, asked)) ctx.fail('INVALID', 'The slot is weapon, body, off-hand or defence.');
+    const steps = payload.steps === undefined ? 1 : payload.steps;
+    if (!Number.isSafeInteger(steps) || steps < 1 || steps > 3) ctx.fail('INVALID', 'The steps are a whole number from 1 to 3.');
+    const inv = ctx.draft('inventory');
+    const wornIn = place => Object.values(inv.stacks)
+        .filter(other => other.owner === owner && other.equipped === place)
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0];
+    const slot = WEAR_SLOTS[asked] === 'defence' ? (wornIn('body') ? 'body' : 'off-hand') : WEAR_SLOTS[asked];
+    const stack = wornIn(slot);
+    if (!stack) ctx.fail('NOT_FOUND', `${capitalize(ownerNameIn(ctx, owner))} wears nothing in the ${slot} slot.`);
+    const def = inv.defs[stack.def];
+    const before = condOf(stack, inv);
+    const target = stepDown(before, steps);
+    const amount = before - target;
+    const now = amount > 0 ? condWrite(ctx, inv, stack, -amount) : before;
+    return {
+        summary: before === 0 ? `${def.name} is already broken.` : now === 0 ? `${def.name} breaks.` : `${def.name} wears (${before} → ${now}).`,
+        data: { owner, slot, stack: stack.id, def: def.id, steps, amount, before, now, broken: now === 0 },
+        narrate: false,
+    };
+}
+
+// `item.equip { stack, owner?, slot }` (`story-block.gear`): one item per slot per owner. The reader's Edit and the gear UI use it; the item
+// must be equipment that fits the slot (its own slot, or an accessory in either accessory place), and belong to `owner`.
+function itemEquip(ctx, payload) {
+    if (!gearOn(ctx)) ctx.fail('REFUSED', 'Gear is not switched on.');
+    const inv = ctx.draft('inventory');
+    const stack = stackIn(ctx, inv, payload.stack);
+    const def = inv.defs[stack.def];
+    if (payload.owner !== undefined && payload.owner !== stack.owner) ctx.fail('REFUSED', `${def.name} is not ${ownerNameIn(ctx, payload.owner)}'s.`);
+    const named = slotWordOf(payload.slot ?? def.slot);
+    if (!named) ctx.fail('INVALID', `The slot is one of ${GEAR.places.join(', ')}.`);
+    const own = slotWordOf(def.slot);
+    if (def.kind === 'equipment' && own && baseSlot(named) !== baseSlot(own) && !(own === 'accessory' && baseSlot(named) === 'accessory')) ctx.fail('REFUSED', `${def.name} does not fit the ${named} slot.`);
+    const place = placeOf(named);
+    // Accessories: either place, the first free one when none was named.
+    let where = place;
+    if (named === 'accessory') {
+        const taken = key => Object.values(inv.stacks).some(other => other.owner === stack.owner && other.id !== stack.id && other.equipped === key);
+        where = ['accessory-1', 'accessory-2'].find(key => !taken(key)) ?? 'accessory-1';
+    }
+    const out = ctx.call('inventory.equip', { stack: stack.id, slot: where });
+    return { ...out, data: { ...(out.data ?? {}), owner: stack.owner, place: where } };
+}
+
 // `inventory.repair { stack, amount }`: the condition goes up by `amount` (1…100), never above 100;
 // as new (100), the field is dropped again.
 function repair(ctx, payload) {
@@ -690,6 +800,30 @@ function storyWear(ctx, inv, def, written, why) {
     if (!ctx.claim(`wear:${reply}:${stack.id}`)) ctx.fail('CLAIMED', `${def.name} already took its wear in this reply.`);
     const now = condWrite(ctx, inv, stack, -STORY_WEAR[word]);
     return now === 0 ? `${def.name} is broken` : `${def.name} is ${{ scuff: 'scuffed', tear: 'damaged', ruin: 'badly damaged' }[word]} (${now}/100)`;
+}
+
+// The story's word for a repair (`~ item Cane Sword — the smith reground it | repair: mend|restore`), with the gear feature on: mend (mended,
+// patched, fixed) is one condition word up, restore (restored, reforged, as new) is back to Good. It goes through the same condition
+// events as `inventory.repair`, once per piece per reply; the coin for it stays the narrator's own `- coin` line.
+const REPAIR_WORDS = Object.freeze({
+    mend: 'mend', mended: 'mend', patch: 'mend', patched: 'mend', fix: 'mend', fixed: 'mend', repair: 'mend', repaired: 'mend', mending: 'mend',
+    restore: 'restore', restored: 'restore', reforge: 'restore', reforged: 'restore', new: 'restore', renewed: 'restore',
+});
+function storyRepair(ctx, inv, def, written) {
+    const said = String(written ?? '').normalize('NFKC').toLowerCase().split(/[^a-z]+/).filter(Boolean);
+    const word = said.map(item => REPAIR_WORDS[item]).find(Boolean);
+    if (!word) ctx.fail('INVALID', 'Say how the piece was mended: repair: mend or repair: restore.');
+    // The piece worn, else the most worn lot.
+    const held = stacksOf(inv, def.id);
+    const stack = held.find(other => other.equipped !== null) ?? [...held].sort((a, b) => condOf(a, inv) - condOf(b, inv))[0];
+    if (!stack) ctx.fail('NOT_FOUND', `There is no ${def.name} in the inventory.`);
+    const reply = ctx.carrier?.sid ?? ctx.receiptId ?? '';
+    if (!ctx.claim(`repair:${reply}:${stack.id}`)) ctx.fail('CLAIMED', `${def.name} was already mended in this reply.`);
+    const before = condOf(stack, inv);
+    const target = stepUp(before, word === 'restore');
+    if (target <= before) return `${def.name} is already as good as new`;
+    const now = condWrite(ctx, inv, stack, target - before);
+    return `${def.name} is ${word === 'restore' ? 'restored' : 'mended'} (${before} → ${now}/100)`;
 }
 
 // ---------- loot to pick from (`story-block.loot`) ----------
@@ -1195,6 +1329,7 @@ export function createInventoryCommands(env) {
                         const id = freeId(inv, `story/${slugify(name)}`);
                         const copy = { ...clone(original), id, name };
                         delete copy.carry;
+                        delete copy.bonus;
                         storeDef(inv, copy);
                         stack.def = id;
                     } else {
@@ -1408,6 +1543,9 @@ export function createInventoryCommands(env) {
         // { stack, amount }: gear condition down / up, for another module's rules only (ctx.caller).
         'inventory.wear': (ctx, payload = {}) => wear(ctx, payload),
         'inventory.repair': (ctx, payload = {}) => repair(ctx, payload),
+        // { owner, slot, step }: the piece `owner` wears in `slot` (weapon | armour | shield) takes scuff | tear | ruin wear (part 2's fights).
+        'gear.wear': Object.assign((ctx, payload = {}) => gearWear(ctx, payload), { feature: FEATURE.gear }),
+        'item.equip': Object.assign((ctx, payload = {}) => itemEquip(ctx, payload), { feature: FEATURE.gear }),
         // { sid, pick: [index…] }: the reader takes what they picked of a reply's loot.
         'inventory.lootTake': Object.assign((ctx, payload = {}) => lootTake(ctx, payload, env), { feature: FEATURE.loot }),
     };
@@ -1545,16 +1683,22 @@ function storyItems(def, qty, more = false, verb = 'given') {
     };
 }
 
+// What answers `items.carry`: a carry module's own answer, else (while `story-block.gear` is on) Story Block's rules, asked as
+// `gear.carry` (a query of the name `items.carry` would clash with a carry module's). Null when nothing answers: no limit.
+function carryAnswer(ask, args, own = true) {
+    for (const name of own ? ['items.carry', 'gear.carry'] : ['items.carry']) {
+        let said = null;
+        try { said = ask(name, args); } catch { said = null; }
+        if (isPlainObject(said)) return said;
+    }
+    return null;
+}
+
 // The carry limit, when a module keeps one (`items.carry`, MODULES §F39): whether `owner` can take on
 // `add` ([{ defId, qty }]; `move` for a hand-over between the party's own) → { ok, message }, or null
 // when no module answers (no limit).
 function carryFits(ctx, add, owner, move = false) {
-    let fits = null;
-    try {
-        fits = ctx.query('items.carry', { owner, add, ...(move ? { move: true } : {}) });
-    } catch {
-        return null;
-    }
+    const fits = carryAnswer((name, args) => ctx.query(name, args), { owner, add, ...(move ? { move: true } : {}) }, gearOn(ctx));
     if (!isPlainObject(fits)) return null;
     const message = typeof fits.message === 'string' && fits.message ? fits.message : 'There is no room to carry that.';
     return { ok: fits.ok !== false, message };
@@ -1620,6 +1764,38 @@ function useInStory(ctx, line, def, qty) {
     };
 }
 
+// The stats a line names (`| DEX: +2 | STR: 1`): { DEX: 2, STR: 1 } for the whole numbers above 0; gearDefine holds them to the rarity's budget.
+function statWords(line) {
+    const out = {};
+    for (const stat of GEAR.stats) {
+        const written = labelOf(line, stat.toLowerCase());
+        const n = written === null ? NaN : Number(/^\s*\+?(\d{1,3})\s*$/.exec(written)?.[1]);
+        if (Number.isSafeInteger(n) && n > 0) out[stat] = n;
+    }
+    return out;
+}
+
+// With gear on, a gained item's `equipped: <slot>` puts it on: the slot is the word's (weapon, body, off-hand, head, cloak, feet, accessory),
+// one item per slot per owner, so what was in it is put away. Equipment only; a word that is no slot, or one the item does not fit, is passed over.
+function equipFromLine(inv, def, stackIds, word) {
+    if (word === null || def.kind !== 'equipment' || !stackIds?.length) return null;
+    const named = slotWordOf(word);
+    const own = slotWordOf(def.slot);
+    if (!named || (own && baseSlot(named) !== baseSlot(own))) return null;
+    const id = [...stackIds].reverse().find(sid => inv.stacks[sid] && inv.stacks[sid].equipped === null);
+    if (!id) return null;
+    const stack = inv.stacks[id];
+    let where = placeOf(named);
+    if (named === 'accessory') {
+        const taken = key => Object.values(inv.stacks).some(other => other.owner === stack.owner && other.id !== stack.id && other.equipped === key);
+        where = ['accessory-1', 'accessory-2'].find(key => !taken(key)) ?? 'accessory-1';
+    }
+    const occupant = Object.values(inv.stacks).find(other => other.id !== stack.id && other.owner === stack.owner && other.equipped === where);
+    if (occupant) occupant.equipped = null;
+    stack.equipped = where;
+    return `${def.name} is equipped (${where}).`;
+}
+
 /** `+ item Name | qty | note`, `- item Name | qty`, `~ item Name | note | qty | name` (a rename). */
 export function captureItem(ctx, line, env) {
     const inv = ctx.draft('inventory');
@@ -1634,14 +1810,15 @@ export function captureItem(ctx, line, env) {
         const qty = lineQty(ctx, line, 1);
         if (qty < 1) ctx.fail('INVALID', 'A gained item needs a quantity of at least 1.');
         const note = trimText(labelOf(line, 'note') ?? text, MAX_NOTE);
-        const { def, created } = defineByName(ctx, inv, name, env, { note, owner: 'party' });
+        const { def, created } = defineByName(ctx, inv, name, env, { note, owner: 'party', words: { kind: labelOf(line, 'kind'), slot: labelOf(line, 'slot') ?? labelOf(line, 'equipped', 'equip', 'worn'), rarity: labelOf(line, 'rarity', 'quality'), stats: statWords(line) } });
         const held = storyItems(def, qty);
         // Asked before the stacks change: `add` is weight on top of what is carried now.
         const heavy = storyCarry(ctx, def, held.qty, 'party');
         // Given by a story line: the story's own whatever its def (B-a2-2), for what it sells for.
         const stacks = grantInto(ctx, inv, def, held.qty, 'party', note, false, true);
+        const worn = gearOn(ctx) ? equipFromLine(inv, def, stacks, labelOf(line, 'equipped', 'equip', 'worn')) : null;
         return {
-            summary: `The party gains ${itemText(def.name, held.qty)}.${heavy ? ENCUMBERED_NOTE : ''}`,
+            summary: `The party gains ${itemText(def.name, held.qty)}.${worn ? ` ${worn}` : ''}${heavy ? ENCUMBERED_NOTE : ''}`,
             data: { def: def.id, qty: held.qty, owner: 'party', stacks, created, from: labelOf(line, 'from') ?? '', ...(heavy ? { encumbered: true } : {}) },
             narrate: false,
             ...(held.problem ? { problem: held.problem } : {}),
@@ -1671,6 +1848,9 @@ export function captureItem(ctx, line, env) {
         const changes = [];
         const worn = labelOf(line, 'wear');
         if (worn !== null) changes.push(storyWear(ctx, inv, def, worn, trimText(text, MAX_NOTE)).replace(/\.$/, ''));
+        // With gear on, the story's repair word mends a piece (one condition word up) or restores it (back to Good).
+        const mended = gearOn(ctx) ? labelOf(line, 'repair', 'repaired', 'mend') : null;
+        if (mended !== null) changes.push(storyRepair(ctx, inv, def, mended).replace(/\.$/, ''));
         const rename = labelOf(line, 'name', 'rename');
         if (rename !== null && cleanName(rename) && cleanName(rename) !== def.name) {
             const next = cleanName(rename);
@@ -1686,7 +1866,7 @@ export function captureItem(ctx, line, env) {
             changes.push(`${old} is now called ${next}`);
         }
         // With a wear label the text says how it happened, not a new note.
-        const note = labelOf(line, 'note') ?? (worn === null ? text || null : null);
+        const note = labelOf(line, 'note') ?? (worn === null && mended === null ? text || null : null);
         const qty = labelOf(line, 'qty', 'quantity', 'count') === null ? null : lineQty(ctx, line, null);
         let problem = null;
         let heavy = false;
@@ -1779,23 +1959,24 @@ const kindRank = kind => (KIND_ORDER.includes(kind) ? KIND_ORDER.indexOf(kind) :
 /** Stacks joined with their defs, the party's first, then by kind, name and ID. */
 /** The carry capacity each stack adds, by stack id, as the carry module reports it (`items.carry` → `bonuses`), or null. */
 export function carryBonuses(tools) {
-    let view = null;
-    try { view = typeof tools?.query === 'function' ? tools.query('items.carry', {}) : null; } catch { view = null; }
+    const view = typeof tools?.query === 'function' ? carryAnswer(asker(tools), {}) : null;
     if (!isPlainObject(view) || !Array.isArray(view.bonuses)) return null;
     const out = {};
     for (const entry of view.bonuses) if (typeof entry?.stack === 'string' && isCount(entry.carry, 1)) out[entry.stack] = Math.min(CARRY_MAX, entry.carry);
     return out;
 }
 
-export function listItems(inventory, owner = null, carry = null) {
+export function listItems(inventory, owner = null, carry = null, gear = false) {
     const defs = inventory?.defs ?? {};
     return Object.values(inventory?.stacks ?? {})
         .filter(stack => defs[stack.def] && (owner === null || stack.owner === owner))
         .map(stack => {
             const def = defs[stack.def];
             return {
-                stack: stack.id, def: def.id, name: def.name, kind: def.kind, rarity: def.rarity, value: def.value,
-                slot: def.slot, qty: stack.qty, owner: stack.owner, equipped: stack.equipped, note: stack.note, from: stack.from,
+                stack: stack.id, def: def.id, name: def.name, kind: def.kind, rarity: def.rarity,
+                // With gear on a price is the value by condition (gear.js valueByCond); `baseValue` is the def's own.
+                value: gear ? valueByCond(def.value, condOf(stack, inventory)) : def.value, ...(gear ? { baseValue: def.value } : {}),
+                slot: def.slot, qty: stack.qty, owner: stack.owner, equipped: stack.equipped, ...(gear && stack.equipped !== null ? { equippedBy: stack.owner } : {}), note: stack.note, from: stack.from,
                 ...(condOf(stack, inventory) < COND_MAX ? { cond: condOf(stack, inventory) } : {}),
                 ...(stack.key === true ? { key: true } : {}),
                 ...(stack.story === true ? { story: true } : {}),
@@ -1886,8 +2067,7 @@ export const ENCUMBERED_STATS = Object.freeze(['AGI', 'DEX']);
  */
 export function encumbrance(state, tools) {
     const none = { on: false, encumbered: false, party: false, who: [], load: 0, capacity: 0, penalty: 0, stats: [...ENCUMBERED_STATS] };
-    let view = null;
-    try { view = asker(tools)('items.carry', {}); } catch { view = null; }
+    const view = carryAnswer(asker(tools), {});
     if (!isPlainObject(view) || view.on === false) return none;
     const num = value => (Number.isFinite(value) ? value : 0);
     const who = (Array.isArray(view.people) ? view.people : [])
@@ -1922,6 +2102,8 @@ export function definitionsOf(inventory, args) {
     return list.sort().filter(id => isPlainObject(defs[id])).map(id => clone(defs[id]));
 }
 
+const gearIsOn = env => { try { return env.gearOn?.() === true; } catch { return false; } };
+
 /**
  * The inventory queries; `env.settings()` gives the currency for `inventory.currency` and the reader's
  * money scale, `env.economy()` the enabled pack's ({ scale } or null) for `inventory.economy`.
@@ -1943,7 +2125,7 @@ export const createInventoryQueries = env => ({
     // transaction has them (drafts included), makes nothing and does not depend on a pack being installed:
     // a pack's item registered by the rules module stays here after the pack is removed.
     'inventory.definitions': (state, args) => definitionsOf(state?.domains?.inventory, args),
-    'inventory.items': (state, args = {}, tools) => listItems(state?.domains?.inventory, args?.owner ?? null, carryBonuses(tools)),
+    'inventory.items': (state, args = {}, tools) => listItems(state?.domains?.inventory, args?.owner ?? null, carryBonuses(tools), gearIsOn(env)),
     'inventory.counts': state => {
         const inventory = state?.domains?.inventory, stacks = Object.values(inventory?.stacks ?? {}), totals = new Map();
         for (const stack of stacks) {
@@ -1974,7 +2156,7 @@ export const createInventoryQueries = env => ({
         return {
             status: found.status,
             defs: found.ids.map(id => clone(inventory.defs[id])),
-            stacks: found.status === 'found' ? listItems(inventory).filter(item => item.def === found.id) : [],
+            stacks: found.status === 'found' ? listItems(inventory, null, null, gearIsOn(env)).filter(item => item.def === found.id) : [],
         };
     },
     'inventory.equipment': (state, args, tools) => equipmentView(state, tools),
@@ -1994,13 +2176,22 @@ export const createInventoryQueries = env => ({
         return stack ? { stack: stack.id, cond: condOf(stack, inventory), events: condEvents(inventory, stack.id) } : null;
     },
     'inventory.encumbrance': Object.assign((state, args, tools) => encumbrance(state, tools), { feature: FEATURE.encumbrance }),
+    // `story-block.gear`: { owner } → { on, owner, weapon, armour, shield: { name, bonus, cond, broken } | null, carry: { load, capacity,
+    // encumbered, penalty } } (part 2's rolls read it), and `gear.carry`, `items.carry`'s answer when no carry module gives one.
+    ...createGearQueries({
+        on: () => gearIsOn(env),
+        condOf, carryOf: def => (isCount(def?.carry, 1) && def.carry <= CARRY_MAX ? def.carry : null), penalty: ENCUMBERED_PENALTY, feature: FEATURE.gear,
+    }),
 });
 
 // ---------- prompt view (§5) ----------
 
-function itemPhrase(item) {
+// With gear on, an item below Good shows its condition word after the name: "Cane Sword (worn)".
+const condText = (item, gear) => { const word = gear && item.cond !== undefined ? condMark(item.cond) : ''; return word ? ` (${word})` : ''; };
+
+function itemPhrase(item, gear = false) {
     const note = item.note ? ` (${trimText(item.note, 40)})` : '';
-    return `${itemText(item.name, item.qty)}${note}`;
+    return `${itemText(item.name, item.qty)}${condText(item, gear)}${note}`;
 }
 
 function owners(items) {
@@ -2043,14 +2234,14 @@ export const WALLET_NOTE = 'before this reply: write a coin line for any money p
  * they fit in `chars` characters, the rest in `optional` (dropped first by the host) up to
  * `optionalChars`, then a count of what is left out.
  */
-export function inventoryTail(state, { currency, chars, optionalChars }) {
+export function inventoryTail(state, { currency, chars, optionalChars, gear = false }) {
     const inventory = state?.domains?.inventory;
     const items = listItems(inventory);
     const lines = [];
     const optional = [];
     for (const owner of owners(items.filter(item => item.equipped !== null))) {
         const worn = items.filter(item => item.owner === owner && item.equipped !== null)
-            .map(item => `${itemText(item.name, item.qty)} [${item.equipped}]`);
+            .map(item => `${itemText(item.name, item.qty)}${condText(item, gear)} [${item.equipped}]`);
         lines.push(`Equipped${owner === 'party' ? '' : ` (${ownerName(state, owner)})`}: ${worn.join(', ')}`);
     }
     const wallets = inventory?.wallets ?? {};
@@ -2069,7 +2260,7 @@ export function inventoryTail(state, { currency, chars, optionalChars }) {
     let left = 0;
     for (const owner of owners(carried)) {
         const label = owner === 'party' ? 'Carried' : `Carried (${ownerName(state, owner)})`;
-        const phrases = carried.filter(item => item.owner === owner).map(itemPhrase);
+        const phrases = carried.filter(item => item.owner === owner).map(item => itemPhrase(item, gear));
         const main = pack(label, phrases, Math.max(0, room));
         lines.push(...main.lines);
         room -= main.used;

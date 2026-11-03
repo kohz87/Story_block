@@ -242,7 +242,7 @@ export const STRINGS = deepFreeze({
         readerOnly: 'Only the reader changes a mount by hand.',
         which: 'Which mount?',
         edit: 'mount',
-        editName: 'Name', editKind: 'Kind', editCount: 'How many', editPace: 'Pace (km/day)', editCondition: 'Condition', editWhere: 'Where',
+        editName: 'Name', editKind: 'Kind', editCount: 'How many', editPace: 'Pace (km/day)', editCondition: 'Condition', editWhere: 'Where', editCarry: 'Carry (empty: the kind\'s usual)',
         perDay: 'km/day',
         // The two notes under the Home card, round the number they show (the template binds it).
         noteBefore: 'The party travels at the slowest: ', noteAfter: ' km/day riding.',

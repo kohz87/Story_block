@@ -399,7 +399,7 @@ test('Home shows the Mounts card only while the party has a mount: a row each, t
     assert.equal(text(card().el.querySelector('.mount-note')), 'Not enough mounts for everyone: the party walks (20 km/day).', 'one mount, two riders');
 });
 
-test('the pencil on a Home row opens the six fields, saves only what changed on the latest reply, and shows the row again', { skip: renderSkip }, async t => {
+test('the pencil on a Home row opens the seven fields, saves only what changed on the latest reply, and shows the row again', { skip: renderSkip }, async t => {
     const doc = setupDom(), form = doc.createElement('div');
     form.id = 'send_form';
     doc.body.appendChild(form);
@@ -414,8 +414,8 @@ test('the pencil on a Home row opens the six fields, saves only what changed on 
     assert.equal(pencil.getAttribute('aria-label'), 'Edit mount');
     pencil.click();
     const inputs = rows()[1].querySelectorAll('.ss-w-editable-form input');
-    assert.deepEqual(inputs.map(input => input.getAttribute('aria-label')), ['Name', 'Kind', 'How many', 'Pace (km/day)', 'Condition', 'Where']);
-    assert.deepEqual(inputs.map(input => input.value), ['Burr', 'mule', '1', '25', '', '']);
+    assert.deepEqual(inputs.map(input => input.getAttribute('aria-label')), ['Name', 'Kind', 'How many', 'Pace (km/day)', 'Condition', 'Where', 'Carry (empty: the kind\'s usual)']);
+    assert.deepEqual(inputs.map(input => input.value), ['Burr', 'mule', '1', '25', '', '', '']);
     inputs[4].value = 'lame';
     inputs[5].value = 'stabled at the Stray Oar';
     inputs[3].value = '999';
