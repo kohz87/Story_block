@@ -244,6 +244,25 @@ test('a fight won by the dice pays every party member who has not Left, once; th
     host.close();
 });
 
+test('B4: a fight won on blocks made before levels (Soul Class, class{n} foes) is paid by the levels they stand for, and its witness and receipt have no level, so a rebuild, a Re-read and a reload agree', { skip }, async () => {
+    const old = party({ foes: [['Sluice Rats', 6, 1, 1]], ren: {} });     // class I foes (level 5), Soul Class II members (level 15)
+    old.ren.fields.health = 0;
+    const { host } = await setup({ blocks: old, answers: [ONE_SIDED], settings: { [FORMULA_SETTING]: 'standard' }, levelless: true });
+    await host.send('I hit the lead rat.', 'The rats are beaten.');
+    assert.equal(resultOf(host, 2).stop, 'won');
+    const [step] = fightReceipts(host, 2);
+    assert.ok(step, 'the fight was paid');
+    const span = host.ctx.chat[2].extra.storySuite.spans.find(entry => entry.guard?.predicate?.kind === FIGHT);
+    assert.equal(JSON.stringify(span.guard).includes('"level"'), false, 'no level in the guard of a fight on earlier blocks');
+    assert.equal(Object.hasOwn(span.recorded, 'lv'), false);
+    same(host);
+    await reloads(host);
+    const head = JSON.stringify(host.head());
+    assert.equal((await host.turn.reread(2)).ok, true);
+    assert.equal(JSON.stringify(host.head()), head, 'a Re-read gives the same story');
+    host.close();
+});
+
 test('each member\'s XP: count × max(1, ceil(foe level / 10)) × 2, times 100 % + 10 % a level of gap held to 0..200 %, summed and rounded down, held to 1..60, nothing at 0', () => {
     const group = (count, level) => ({ count, level });
     assert.deepEqual([FIGHT_XP.perBand, FIGHT_XP.perLevels, FIGHT_XP.gapPercent, FIGHT_XP.maxPercent, FIGHT_XP.min, FIGHT_XP.max], [2, 10, 10, 200, 1, 60]);
