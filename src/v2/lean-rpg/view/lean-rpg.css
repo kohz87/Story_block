@@ -168,15 +168,15 @@
     font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 13px; line-height: 1.5; text-align: left; overflow: hidden; }
 .rpg-battle-card { margin: 8px 0; }
 .rpg-battle button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
-.rpg-bl-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; border-bottom: 1px solid var(--ss-border); }
-.rpg-bl-folded .rpg-bl-head { border-bottom: 0; }
+.rpg-battle .rpg-bl-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; border-bottom: 1px solid var(--ss-border); }
+.rpg-battle.rpg-bl-folded .rpg-bl-head { border-bottom: 0; }
 .rpg-bl-title { flex: 1 1 auto; }
 .rpg-bl-chevron { margin-left: auto; color: var(--ss-muted); }
 .rpg-bl-body { padding: 8px 12px 12px; display: grid; gap: 6px; }
 .rpg-bl-order { margin: 0; color: var(--ss-muted); }
 .rpg-bl-round { display: grid; gap: 2px; }
 .rpg-bl-round-title { margin: 6px 0 2px; font-weight: 700; }
-.rpg-act-line { display: flex; gap: 6px; align-items: baseline; width: 100%; min-height: 28px; padding-left: 4px; }
+.rpg-battle .rpg-act-line { display: flex; gap: 6px; align-items: baseline; width: 100%; min-height: 28px; padding-left: 4px; }
 .rpg-act-mark { flex: none; width: 1em; color: var(--ss-muted); }
 .rpg-act-text { min-width: 0; overflow-wrap: anywhere; }
 .rpg-skill { color: var(--ss-accent-text, var(--ss-accent)); }

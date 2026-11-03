@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.16.8
+
+- **The battle log's header lines up again.** Its icon and title sat flush against the panel's edge with no line under
+  them, and the action lines lost their small indent: a style meant for the panel's buttons overrode their own. Both
+  are back.
+
 ## 2.16.7
 
 - **A fight can start and be rolled in the same reply.** The dice were planned only against foes already in the Foes
