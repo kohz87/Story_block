@@ -1,6 +1,6 @@
 # Playing v2 in Ersveil
 
-This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.5.0, the open world**
+This page sets up a v2 chat in the Ersveil world with the **Ersveil example pack 2.6.0, the open world**
 ([`examples/packs/ersveil/pack.json`](../../examples/packs/ersveil/pack.json)) and its lorebook
 ([`examples/packs/ersveil/ersveil-lore.json`](../../examples/packs/ersveil/ersveil-lore.json)). A new
 story begins in Bluewatch Village, at the Adventurer Guild office, with four silver.
@@ -10,7 +10,7 @@ The pack holds the world's structure: the map (320 places, 350 routes), the cale
 jobs, classes or rules**: the narrator makes those up in the story from the lore, and Story Block keeps
 what the story hands out (the bag, the purse, the place). The lorebook holds what only the narrator uses.
 
-The pack works with Story Block 2.17.0 or newer (2.5.0 requires it: the rank bands and levels) and Story Director (2.3.0 or newer: the world events record lasting changes in its chronicle). NPC State Delta is optional.
+The pack works with Story Block 2.18.0 or newer (2.6.0 requires it: the signature gear; 2.5.0 needed 2.17.0 for the rank bands and levels) and Story Director (2.3.0 or newer: the world events record lasting changes in its chronicle). NPC State Delta is optional.
 
 ## 1. Extensions
 
@@ -28,16 +28,17 @@ SillyTavern profile.
 
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil.zip`. This is the one-step way:
    it holds `pack.json` and the twelve portraits ("12 portraits saved"). Picking `pack.json` alone imports no pictures.
-   The message says "Installed Ersveil (open world)." and the list shows "136 events, 320 places, 350 routes,
+   The message says "Installed Ersveil (open world)." and the list shows "16 items, 136 events, 320 places, 350 routes,
    1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
 2. Switch off any other pack with a start state or a currency (for example `riverside-starter`).
 3. Start a **new chat**. A chat takes the pack it begins with and keeps that copy.
 
+2.6.0 adds sixteen signature items (each cast member's own gear, given and bound to them when they join the party while Gear in fights is on) and needs Story Block 2.18.0.
 2.5.0 adds the guild rank bands and the guild letter as the party's rank (§6, Ranks), turns the cast's Soul Class field into Level (each of the twelve set by role, 8 to 56), and needs Story Block 2.17.0.
 
-Importing 2.5.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
+Importing 2.6.0 replaces an installed pack with the same id. Start a new chat to use its starting state.
 2.4.0 replaces the two sample cast entries with twelve people (§6, "The twelve"), each with a portrait; import `examples/packs/ersveil.zip` (`pack.json` and `portraits/`; rebuild it with `node scripts/build-example-zip.mjs`) or pick `pack.json` and the twelve `.webp` files together; `pack.json` alone leaves the portraits unset. 2.3.0 added the cast kind (`content.cast`, see PACKS.md "The cast"); a Story Block that knows it (after 2.14) reads the people, and Story Director's cast brings them into a story. 2.2.1 (needs Story Block 2.10) adds the Guild rank line; 2.2.0 added the world's hidden history (§6), the Court favour module (§5), the Sealwarden recruit skill set for the RPG,
 and 56 notable people to the lorebook. Re-import the lorebook too.
 2.1.0 changes only lore and names: Auvoth is the Guild's city, its Depths sealed by Veyr the Unbound in CY 384; the Guild Grand Hall ward is Sealcrown (was Delver's Crown) and Rimeglass Delve is the Rimeglass Galleries. The old names stay as aliases, so a chat already at one of those places still finds it, and the data modules are unchanged. Re-import the lorebook too.
@@ -122,6 +123,31 @@ opens as Trust or Affection grows or when the story reaches it; none of it is to
 Starting levels (rank band): Temiwa 8 (F), Rika 12 and Barney 14 (E), Torka 18 (E), Gorm 22 and Nerissa 24 (D), Asphodel 30, Lothar 32 and Ysmeth 36 (C), Nysseth 44 and Hush 48 (B), Harrak 56 (A).
 
 The eleven who can be romanced use NPC State Delta's companion meters (Trust, Affection, Desire, Tension); Barney uses the mentor's, with no Desire.
+
+### Signature gear
+
+`content.items` holds sixteen pieces of equipment the cast are known for, each worn from the owner's look text. Their numbers follow
+Story Block's gear rules (`story-block.gear`, GEAR.md): the stats use the whole budget of the rarity (uncommon 1, rare 2, epic 3,
+legendary 4; common none) and a piece raises two stats at most.
+
+| Item | Owner | Slot | Rarity | Stats |
+|---|---|---|---|---|
+| Long Watch Great Axe | Harrak | weapon | legendary | STR +2, VIT +2 |
+| White-Fur Watch Cloak | Harrak | cloak | rare | VIT +2 |
+| Carved Beacon-Horn | Harrak | accessory | uncommon | CHA +1 |
+| Rain-Veil Hood | Hush | cloak | epic | AGI +2, LUK +1 |
+| Cell-Runner's Knives | Nysseth | weapon | epic | DEX +2, AGI +1 |
+| Rune-Collar Hammer | Ysmeth | weapon | rare | STR +1, INT +1 |
+| Iron Guard Plate | Sir Lothar | body | rare | VIT +2 |
+| Iron Guard Longsword | Sir Lothar | weapon | rare | STR +1, DEX +1 |
+| Gold-Thread Hooded Cloak | Asphodel | cloak | rare | CHA +1, AGI +1 |
+| Rune-Marked Dwarven War-Hammer | Gorm Kettlebright | weapon | rare | STR +1, VIT +1 |
+| Atlantean Breathing Sheath | Nerissa | accessory | rare | VIT +1, AGI +1 |
+| Huge Spiked Iron Maul | Torka | weapon | uncommon | STR +1 |
+| Fang Charm | Torka | accessory | common | none |
+| Startrace Travelling Coat | Rika | body | uncommon | INT +1 |
+| Three Walnut Shells | Barney Thimblewick | accessory | uncommon | LUK +1 |
+| Flame-Cross Pendant | Sister Temiwa | accessory | uncommon | CHA +1 |
 
 ## 7. Updating the pack
 

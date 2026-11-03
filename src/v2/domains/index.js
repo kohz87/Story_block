@@ -10,7 +10,7 @@
 
 import {
     FEATURE, INVENTORY_FEATURES, createInventoryCommands, createInventoryQueries, captureCoin, captureItem, captureLoot, encumbranceTail,
-    featureOn, initialInventory, inventoryTail, validateInventory, LOOT_KINDS, lootTakeGuard, INVENTORY_EDIT_GUARD, inventoryEditGuard,
+    featureOn, gearOn, initialInventory, inventoryTail, validateInventory, LOOT_KINDS, lootTakeGuard, INVENTORY_EDIT_GUARD, inventoryEditGuard,
 } from './inventory.js';
 import { WEATHER_CHARS, YOU_CHARS, capturePlace, capturePresent, captureWeather, captureYou, initialScene, sceneCommands, sceneQueries, sceneTail, validateScene } from './scene.js';
 import { MOUNTS_FEATURE, captureMount, createMountsQueries, mountsCommands, mountsTail } from './mounts.js';
@@ -68,6 +68,9 @@ export const CORE_STATIC = 'Code keeps the inventory, the wallet, the place and 
 export function youGrammar(label = '') {
     return `~ you ${label ? `rank: ${label} | ` : ''}wearing: what {{user}} has on | condition: how {{user}} is (only when one changes; each at most ${YOU_CHARS} characters)`;
 }
+
+/** Added to the `+ item` grammar line while `story-block.gear` is on (and only then): the gear words, short, static. */
+export const GEAR_ITEM_GRAMMAR = '; gear: kind: weapon|armour|shield|head|cloak|feet|accessory|bag | rarity: common|uncommon|rare|epic|legendary | DEX: +1 (at most 2 stats, held to rarity) | equipped: slot; ~ item Name | wear: scuff|tear|ruin | repair: mend|restore';
 
 export const CORE_KINDS = Object.freeze({
     item: Object.freeze({ grammar: '+ item Name | qty: 1 | note: short detail (- item Name | qty: 1 when used up or lost; ~ item Name | note: … when it changes)' }),
@@ -158,7 +161,7 @@ export const CORE_SETTINGS = Object.freeze({
  * tabs }), for a host that merges parts. `hooks(name) → fn[]` in module-id order (the registry's
  * `hooks`); `settings()` → this module's settings. Without them no hooks run and the currency is gold.
  */
-export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, youRank = () => null, query = null, rpgOn = () => false } = {}) {
+export function createCorePart({ hooks = () => [], settings = () => ({}), hookEntries = null, problem = null, economy = () => null, youRank = () => null, query = null, rpgOn = () => false, gearOn = () => false, persona = () => '' } = {}) {
     const hookList = name => {
         const fns = hooks(name);
         return Array.isArray(fns) ? fns.filter(fn => typeof fn === 'function') : [];
@@ -173,6 +176,10 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         hooks: hookList,
         hookEntries: entries,
         settings: () => settings() ?? {},
+        // Whether `story-block.gear` is on (off without a host that says so): the gear queries answer null while it is off.
+        gearOn: () => { try { return gearOn() === true; } catch { return false; } },
+        // The reader's persona name: what the gear screens call the party's own wearer when no party module names one.
+        persona: () => { try { return String(persona() ?? ''); } catch { return ''; } },
         // The enabled pack's money scale ({ scale } or null) for inventory.economy.
         economy,
         // The Rank an enabled pack gives {{user}}'s look, `{ label }`, or null (no Rank in this story).
@@ -194,7 +201,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
         // The party's riders for `mounts.pace`: the RPG's characters who have not left, else the one reader.
         queries: { ...createInventoryQueries(env), ...sceneQueries, ...createMountsQueries({ riders: state => (rpgOn() ? Math.max(1, (rpgLib()?.partyOf(state) ?? []).filter(person => !person.left).length) : 1) }) },
         kinds: {
-            item: kind(CORE_KINDS.item.grammar, (ctx, line) => captureItem(ctx, line, env)),
+            item: kind(() => CORE_KINDS.item.grammar + (env.gearOn() ? GEAR_ITEM_GRAMMAR : ''), (ctx, line) => captureItem(ctx, line, env)),
             coin: kind(CORE_KINDS.coin.grammar, (ctx, line) => captureCoin(ctx, line, env)),
             place: kind(CORE_KINDS.place.grammar, (ctx, line) => capturePlace(ctx, line)),
             present: kind(CORE_KINDS.present.grammar, (ctx, line) => capturePresent(ctx, line)),
@@ -217,7 +224,7 @@ export function createCorePart({ hooks = () => [], settings = () => ({}), hookEn
                 try { found = featureOn(view, FEATURE.encumbrance) ? view.query('inventory.encumbrance') : null; } catch { found = null; }
                 const heavy = encumbranceTail(found);
                 const used = [...scene, ...heavy].reduce((sum, line) => sum + line.length + 1, 0);
-                const inventory = inventoryTail(view?.state, { currency: currency(), chars: chars / 2 - used, optionalChars: chars / 2 });
+                const inventory = inventoryTail(view?.state, { currency: currency(), chars: chars / 2 - used, optionalChars: chars / 2, gear: gearOn(view) });
                 return { lines: [...scene, ...inventory.lines, ...heavy], optional: inventory.optional };
             },
             budget: CORE_BUDGET,
@@ -363,7 +370,7 @@ export function headMoved(tools, headIndex) {
  * `assist`: the assist part (pre-roll classifier, after-reply extractor; both off by default).
  */
 export function createCoreModule({ hooks = () => [], settings = () => ({}), version = '2.0.0-alpha.1', packs = livePacks, command, query, assist = null, hookEntries = null, problem = null, extras = null, timeline = () => null, dataModules = {}, leanRpg = {} } = {}) {
-    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, economy: () => (typeof packs.economy === 'function' ? packs.economy() : null), youRank: () => youRankOf(typeof packs.packs?.packs === 'function' ? packs.packs.packs() : []) });
+    const core = createCorePart({ hooks, settings, hookEntries, problem, query, rpgOn: () => { try { return extras?.rpgOn?.() === true; } catch { return false; } }, gearOn: () => { try { return extras?.gearOn?.() === true; } catch { return false; } }, persona: () => extras?.persona?.() ?? '', economy: () => (typeof packs.economy === 'function' ? packs.economy() : null), youRank: () => youRankOf(typeof packs.packs?.packs === 'function' ? packs.packs.packs() : []) });
     // The reader's cap on Inner chatter lines a reply (1 to 10; 3 unless set).
     const chatterCapNow = () => { try { return chatterCap(settings()?.chatterMax); } catch { return chatterCap(); } };
     const events = createEventsPart({
@@ -411,7 +418,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
         },
         capture: {
             // `you`'s grammar line is the part's function: it names a Rank only while an enabled pack gives one (youGrammar).
-            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
+            kinds: { ...CORE_KINDS, chatter: { ...CORE_KINDS.chatter, grammar: () => chatterGrammar(chatterCapNow()), display: Object.freeze({ noun: CORE_KINDS.chatter.display.noun, read: CORE_KINDS.chatter.display.read, get perReply() { return chatterCapNow(); } }) }, item: { ...CORE_KINDS.item, grammar: merged.kinds.item.grammar }, you: { ...CORE_KINDS.you, grammar: merged.kinds.you.grammar }, dm: merged.kinds.dm, party: merged.kinds.party },
             apply(ctx, line) {
                 const kind = merged.kinds[line?.kind];
                 if (!kind) return ctx.fail('INVALID', `Story Block does not handle "${line?.kind}" lines.`);

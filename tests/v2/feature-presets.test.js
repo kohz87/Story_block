@@ -197,7 +197,7 @@ test('Story Block\'s own presets: lean turns the extras off, full turns Choices,
     const OUT = [null, null, null];
     assert.deepEqual(table, {
         [CORE_FEATURE.hud]: OUT, [CORE_FEATURE.cards]: OUT, [CORE_FEATURE.extractor]: OUT, [CORE_FEATURE.inspector]: OUT, [CORE_FEATURE.savepoints]: OUT, [CORE_FEATURE.leanRpg]: OUT,
-        'story-block.encumbrance': OUT,
+        'story-block.encumbrance': OUT, 'story-block.gear': OUT,
         [CORE_FEATURE.weather]: [false, true, true], [CORE_FEATURE.you]: [false, true, true], [CORE_FEATURE.mounts]: [false, true, true], 'story-block.loot': [false, true, true],
         [CORE_FEATURE.choices]: [false, false, true], [CORE_FEATURE.chatter]: [false, false, true], [CORE_FEATURE.preroll]: [false, false, true],
     });

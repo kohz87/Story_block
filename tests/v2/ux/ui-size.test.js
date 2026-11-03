@@ -174,8 +174,15 @@ test('the Inventory: the actions sit on the right of the row beside the name, ce
     // The tile stays put when a fold opens.
     assert.match(rule(css, '.item:has(> .body > .fold)'), /align-items: start;/);
     // The template keeps its order: name line, note, detail, actions, folds.
-    const order = ['class="line"', 'class="note', 'class="actions"', 'class="fold '].map(part => inventoryScreen.template.indexOf(part));
+    // (the gear-off sections: the template as it was; the gear-on rows have their own three lines, tested after it)
+    const off = inventoryScreen.template.slice(inventoryScreen.template.indexOf('q.gx == null &&'));
+    const order = ['class="line"', 'class="note', 'class="actions"', 'class="fold '].map(part => off.indexOf(part));
     assert.deepEqual([...order].sort((a, b) => a - b), order);
+    // Gear on (GR-UI2): name line, who has it, the detail line (bonus, condition, note), actions, folds.
+    const on = inventoryScreen.template.slice(inventoryScreen.template.indexOf('q.gx != null &&'), inventoryScreen.template.indexOf('q.gx == null &&'));
+    const gearOrder = ['class="line g-l1"', 'class="g-l2"', 'class="detail gear-line g-l3"', 'class="actions"', 'class="fold '].map(part => on.indexOf(part));
+    assert.ok(gearOrder.every(at => at >= 0));
+    assert.deepEqual([...gearOrder].sort((a, b) => a - b), gearOrder);
 });
 
 test('compact pills (ss-tap-pill): on a phone about 30px on the screen with a 44px-tall invisible tap area, the room for it made, never a neighbour overlapped', () => {

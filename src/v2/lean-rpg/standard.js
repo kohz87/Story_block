@@ -45,7 +45,7 @@ export function outcomeStd(die, total, against, rules) {
 // `maxOf(module, field)`: the most the block's own field holds (a Classic block under the Standard formula holds at most 5).
 function rosterOf(sheet, maxOf) {
     const characters = sheet.characters.map((character, at) => {
-        const size = Math.max(1, Math.min(blocksFor(character.stats).health, maxOf(character.module, 'health')));
+        const size = Math.max(1, Math.min(blocksFor(character.base ?? character.stats).health, maxOf(character.module, 'health')));
         const value = Number.isInteger(character.health) ? Math.max(0, Math.min(size, character.health)) : size;
         return { at, id: charId(character), kind: 'char', character, name: character.who, module: character.module, field: 'health', value, size };
     });
@@ -56,7 +56,7 @@ function rosterOf(sheet, maxOf) {
     });
     // Stamina and Mana: a skill spends a block of its resource each use (the bars are named `c:<key>:stamina` and `c:<key>:mana`).
     const resources = characters.flatMap(({ character, name, module }) => ['stamina', 'mana'].map(field => {
-        const size = Math.max(1, Math.min(blocksFor(character.stats)[field], maxOf(module, field)));
+        const size = Math.max(1, Math.min(blocksFor(character.base ?? character.stats)[field], maxOf(module, field)));
         const value = Number.isInteger(character[field]) ? Math.max(0, Math.min(size, character[field])) : size;
         return { id: `${charId(character)}:${field}`, kind: 'char', name, module, field, value, size };
     }));
@@ -231,7 +231,7 @@ function move(bar, blocks) {
  * start can happen). → { checks, rounds, opening, order, quickStart, idle, hurts, stop, text, summary }; the rounds are already cut to the stop
  * and the cue budget, and the hurts hold only what the told rolls did to the bars.
  */
-export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1 } = {}) {
+export function rollStandard(plan, prepared, source, rules, { carried = null, flow = 1, wearOf = null } = {}) {
     const own = new Map();
     // (An action's dice belong to its place in the plan: the entry as prepared, even when it is rolled without its skill.)
     const diceOf = entry => {
@@ -383,7 +383,7 @@ export function rollStandard(plan, prepared, source, rules, { carried = null, fl
     const refused = prepared.refused.map(entry => entry.text);
     const start = new Map([...characters, ...foes, ...resources].map(bar => [bar.id, bar]));
     const cueParts = { checks, rounds: all, refused, plainRefused: prepared.plainRefused, decisive: all.length > 0 && (all.at(-1).decisive || all.at(-1).over), standard: { order, opening, quick, start },
-        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}) };
+        ...(flow === 2 ? { flow, end: all.at(-1)?.end ?? null } : {}), ...(wearOf ? { wearOf } : {}) };
     const cue = fitCue(cueParts);
     const rounds = all.slice(0, cue.count).map(({ over: _, end: _end, ...round }) => round);
     const told = all.slice(0, cue.count);

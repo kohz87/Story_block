@@ -19,6 +19,8 @@ import { HOLD_WIDGET, createStart } from './start.js';
 import { WIZARD_WIDGET, createWizard } from './wizard.js';
 import { EXPORT_WIDGET, createExporter } from './export.js';
 import { packLevelsOf } from '../levels.js';
+import { planGear } from '../gear.js';
+import { readSheet } from '../read.js';
 import { readRecord } from '../../persist.js';
 
 export { PARTY_SCREEN_ID, PARTY_WIDGET } from './party.js';
@@ -58,7 +60,7 @@ function addStyle(doc) {
  * commands (the settings page saves the Combat rules text through `dm.redefine`); `closeView()` closes the game view
  * ("See it in the story" on the Fight tab); `refresh()` redraws the tabs.
  */
-export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null }) {
+export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets, headState, readerName = () => '', readerAbout = () => '', meta = () => null, save = () => {}, roleOf, featureOn = () => true, gear = null, openDialog = null, closeView = () => {}, refresh = () => {}, command = null, values = () => ({}), query = null }) {
     const link = addStyle(doc);
     // The numbers a roll would be made with now (Settings → RPG): the roll line on a skill and a class-up note state them.
     // What the story's pack asks for (its formula and numbers), with the pack's name: the default of a reader who has chosen nothing.
@@ -84,7 +86,9 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
     const wizard = createWizard({ headState, readerName, readerAbout, roleOf, openDialog, replyKey, rules, packNote, levels, levelCap });
     const exporter = createExporter({ headState, readerName, roleOf, openDialog });
     const start = createStart({ doc, headState, readerName, featureOn, roleOf, openDialog, wizard, meta, save, redraw: () => refresh() });
-    widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null, exportCharacter: openDialog ? exporter.open : null, rules, levels });
+    widgets[PARTY_WIDGET] = createPartyWidget({ headState, readerName, roleOf, openWizard: openDialog ? wizard.open : null, exportCharacter: openDialog ? exporter.open : null, rules, levels,
+        // The slot card behind a card's Inventory button: the switch and the `gear.view` answer (null while off).
+        gear: gear ? { on: () => gear.on(), view: args => { try { return query?.('gear.view', args) ?? null; } catch { return null; } } } : null });
     widgets[WIZARD_WIDGET] = wizard.widget;
     widgets[EXPORT_WIDGET] = exporter.widget;
     widgets[HOLD_WIDGET] = start.holdWidget;
@@ -100,7 +104,7 @@ export function mountLeanRpg({ doc, ctx, store, events = null, screens, widgets,
         exporter,
         start,
         cardLines: info => { try { return rpgReplyLines({ ...info, roleOf, rules: rules() }); } catch { return []; } },
-        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack })],
+        settingsSections: () => [rpgSection({ featureOn, headState, readerName, roleOf, command, pack, gear, gearOf: () => { try { return planGear(readSheet(headState()), (name, args) => query?.(name, args), readerName()); } catch { return null; } } })],
         heroLead: state => { try { return heroLead(state, { own: readerName(), roleOf, ...levels() }); } catch { return null; } },
         destroy() {
             battleLog.destroy();

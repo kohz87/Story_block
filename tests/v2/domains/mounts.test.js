@@ -400,7 +400,7 @@ test('Home shows the Mounts card only while the party has a mount: a row each, t
     assert.equal(text(card().el.querySelector('.mount-note')), 'Not enough mounts for everyone: the party walks (20 km/day).', 'one mount, two riders');
 });
 
-test('the pencil on a Home row opens the six fields, saves only what changed on the latest reply, and shows the row again', { skip: renderSkip }, async t => {
+test('the pencil on a Home row opens the six fields (gear off), saves only what changed on the latest reply, and shows the row again', { skip: renderSkip }, async t => {
     const doc = setupDom(), form = doc.createElement('div');
     form.id = 'send_form';
     doc.body.appendChild(form);
@@ -436,4 +436,21 @@ test('the pencil on a Home row opens the six fields, saves only what changed on 
     // Off: the card goes with the feature.
     host.features.set(MOUNTS_FEATURE, false);
     assert.equal(rows().length, 0);
+});
+
+test('the pencil has the seventh field, Carry, only with gear on (G5)', { skip: renderSkip }, async t => {
+    const doc = setupDom(), form = doc.createElement('div');
+    form.id = 'send_form';
+    doc.body.appendChild(form);
+    const host = await fresh(t);
+    host.features.set(CORE_FEATURE.leanRpg, true);
+    host.features.set('story-block.gear', true);
+    const ui = mountUi({ runtime: host, ctx: host.ctx, doc });
+    t.after(() => ui.destroy());
+    await host.send('Saddle up.', block('The yard.', [MARE, '+ mount Burr | kind: mule']));
+    assert.equal(ui.mounts.screen.open('story-block/home'), true);
+    const rows = () => doc.querySelectorAll('.ss-gameview .mounts .mount');
+    rows()[1].querySelector('.ss-w-editable-pencil').click();
+    const inputs = rows()[1].querySelectorAll('.ss-w-editable-form input');
+    assert.deepEqual(inputs.map(input => input.getAttribute('aria-label')), ['Name', 'Kind', 'How many', 'Pace (km/day)', 'Condition', 'Where', 'Carry (empty: the kind\'s usual)']);
 });
