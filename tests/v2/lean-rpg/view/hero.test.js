@@ -19,7 +19,7 @@ test('the lead is the reader\'s own character: three stage bars with the stage w
         { kind: 'hp', label: 'Health', value: 3, max: 5, text: 'Hurt' },
         { kind: 'mp', label: 'Mana', value: 4, max: 4, text: 'Fresh' },
         { kind: 'sp', label: 'Stamina', value: 1, max: 4, text: 'Spent' },
-        { kind: 'exp', label: 'XP', value: 40, max: 100, text: '40 / 100' },
+        { kind: 'exp', label: 'XP', value: 40, max: 100, text: '40 / 100 to Lv 3' },
     ]);
 });
 
@@ -51,7 +51,7 @@ test('feature on: the open game view\'s header shows the bars, and they follow t
     const vitals = () => doc.querySelector('.ss-gameview-hero .ss-hero-vitals');
     assert.equal(vitals().hidden, false, 'the vitals are drawn');
     const bars = () => doc.querySelectorAll('.ss-gameview-hero .ss-bar').map(bar => [bar.querySelector('.ss-bar-label').textContent, bar.querySelector('.ss-bar-value').textContent]);
-    assert.deepEqual(bars(), [['Health', 'Hurt'], ['Mana', 'Fresh'], ['Stamina', 'Spent'], ['XP', '40 / 100']]);
+    assert.deepEqual(bars(), [['Health', 'Hurt'], ['Mana', 'Fresh'], ['Stamina', 'Spent'], ['XP', '40 / 100 to Lv 2']]);
     assert.equal(doc.querySelector('.ss-gameview-hero .ss-hero-pools').hidden, false);
     const result = await host.sdk.command('dm.set', { module: made.character, field: 'health', value: 1 });
     assert.equal(result.ok, true, result.message);

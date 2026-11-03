@@ -143,7 +143,7 @@ export function createExporter({ headState = () => null, readerName = () => '', 
                 const points = card.points === 0 ? X.noPoints : fill(card.points === 1 ? P.pointsOne : P.points, { n: card.points });
                 const soulName = character.soulName;
                 option('character', X.character, [
-                    fill(X.soulLine, { label: character.soulLabel, soul: soulName, points }),
+                    fill(X.soulLine, { soul: character.level, points }),
                     statsLine({ stats: card.stats }),
                     card.skills.length ? fill(X.skillsLine, { list: card.skills.map(skillLine).join(' · ') }) : X.noSkills,
                 ], { checked: true, disabled: true });

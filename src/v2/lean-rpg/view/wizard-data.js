@@ -7,7 +7,7 @@
 //   `creation` (Standard only): { start, budget, min, max, statMax, standard: true }, the numbers creation runs on (stats start at `start`, `budget`
 //   points to spend, a stat from `min` to `max`); a draft without it runs on names.js CREATION (Classic).
 //   (start is the rank a skill begins at: 0 Novice, 1 Adept; `set` is the id of the skill set last put in, '' for none; `soul` is the
-//   Soul Class a companion who joins the story arrives with, or an imported character has, 2 to 9: left out it is I. `from` and a skill's
+//   level (the starting level of a new character, a companion who joins or an imported one, 2 to 99; left out it is 1). `from` and a skill's
 //   `rank` are there only after an import (a saved character file, ../charfile.js): `from` = { stats, points } is what the file had, which
 //   the stats are spent from, and `rank` (0 to 3) is the rank the file gave a skill, which is not typed and not counted as the Adept one.)
 
@@ -15,7 +15,7 @@ import { DM_LIMITS } from '../../data-modules/schema.js';
 import { activeDefinition } from '../../data-modules/adapters.js';
 import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
-import { CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
+import { LEVEL, CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { isStandard } from '../rules.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS, templatesFor } from '../templates.js';
 import { barFields } from '../blocks.js';
@@ -104,7 +104,7 @@ export function readDraft(raw) {
     });
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
         about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
-        ...(Number.isSafeInteger(given.soul) && given.soul > 1 ? { soul: clamp(given.soul, 1, 9) } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };
+        ...(Number.isSafeInteger(given.soul) && given.soul > 1 ? { soul: clamp(given.soul, 1, LEVEL.max) } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };
 }
 
 /** Points left: the budget (an imported character's own points) minus what the stats cost (a stat above where it starts costs a point a step; below it gives one back). */
@@ -264,7 +264,8 @@ export function extrasPlan(state, { roleOf, free = Infinity } = {}) {
 // (A Standard chat's blocks are made from the Standard templates, a Classic chat's from the originals: templates.js templatesFor.)
 const template = (role, formula = 'classic') => structuredClone(templatesFor(formula).find(entry => entry.definition.role === role).definition);
 
-/** What a character the wizard makes calls its Soul Class (soul.js): the Character template's own label and names. */
+
+/** What a character the wizard makes calls its Soul Class (soul.js): the Character template's own label and names. Kept for join.js, which still reads it; the wizard itself says "Lv". */
 export const newSoul = () => soulReading(template('character').state.soul);
 
 /** The block each extra role is made from, by its name: "Combat rules" and "Foes" (the stock templates, as Settings → Blocks offers them). */
@@ -304,7 +305,8 @@ export function buildDefinitions(draft, { used = [], points = null } = {}) {
     // The Standard formula's bars are rows of blocks that grow with VIT, AGI and INT: a new character starts with them full, and the hidden fields
     // that remember each bar's size start there too (blocks.js barFields), so the block's size rules find nothing to change.
     if (formula === 'standard') for (const [key, value] of Object.entries(barFields(draft.stats))) if (state[key]) state[key].default = Math.min(value, Number.isSafeInteger(state[key].max) ? state[key].max : value);
-    if (draft.soul > 1) state.soul.default = draft.soul;
+    // The draft's `soul` is the starting level (1 to 99; the name is kept for the join card and the saved files that still say it): into the block's `level` field, else the old `soul`.
+    if (draft.soul > 1) (state.level ?? state.soul).default = draft.soul;
     const skills = template('skills', formula);
     skills.slug = uniqueBlockSlug(`${draft.name} skills`, [...used, character.slug]);
     skills.name = names.skills;

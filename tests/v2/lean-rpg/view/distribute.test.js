@@ -35,7 +35,7 @@ test('the sheet: bars on top, a stepper per stat, the points-left pill and the r
     assert.deepEqual(root.querySelectorAll('.rpg-stat-step').map(node => node.getAttribute('data-stat')), ['str', 'vit', 'agi', 'dex', 'int', 'luk', 'cha']);
     assert.equal(step(root, 'str').value(), '14');
     assert.equal(pill(root), '3 points left');
-    assert.match(root.textContent, /Soul Class II/);
+    assert.equal(root.querySelector('.ss-pill.rpg-level-pill').textContent, 'Lv 2');
     assert.match(root.textContent, /XP 40 \/ 100/);
     assert.ok(root.querySelector('.ss-w-radar'), 'the radar is there');
     assert.match(root.textContent, /Wessel's stats/);

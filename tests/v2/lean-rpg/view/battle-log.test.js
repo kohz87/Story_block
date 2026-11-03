@@ -70,7 +70,7 @@ test('the model: arrows on the last action aimed at the name, status for who fou
     assert.deepEqual(lines.map(line => line.arrows), [['Wessel Scratched'], ['Sluice Rat A Wounded'], ['Sluice Rat B Hurt', 'Ren Tired']]);
     assert.deepEqual(model.status.map(who => who.name), ['Wessel', 'Ren']);
     assert.deepEqual(model.status[0].rows.map(row => [row.key, row.word]), [['health', 'Scratched'], ['mana', 'Steady'], ['stamina', 'Tired']]);
-    assert.deepEqual(model.foes.map(foe => foe.text), ['Sluice Rat A: Wounded', 'Sluice Rat B: Hurt', 'Sluice Rats ×4: Unhurt']);
+    assert.deepEqual(model.foes.map(foe => foe.text), ['Sluice Rat A · Lv 5: Wounded', 'Sluice Rat B · Lv 5: Hurt', 'Sluice Rats ×4 · Lv 5: Unhurt']);
 });
 
 test('the header says which exchanges', () => {
@@ -102,7 +102,7 @@ test('the panel: short lines, the coloured result word, (26 vs 16), the arrow, a
     assert.deepEqual(wessel.querySelectorAll('.rpg-bl-stat').map(cell => cell.querySelector('.rpg-bl-word').textContent), ['Scratched', 'Steady', 'Tired']);
     assert.equal(wessel.querySelector('.rpg-bl-health .rpg-bl-track').style.getPropertyValue('--rpg-fill'), '0.8');
     assert.equal(wessel.querySelector('.rpg-bl-mana .rpg-bl-track').style.getPropertyValue('--rpg-fill'), '0.75');
-    assert.equal(node.querySelector('.rpg-bl-foes').textContent, 'FoesSluice Rat A: Wounded · Sluice Rat B: Hurt · Sluice Rats ×4: Unhurt');
+    assert.equal(node.querySelector('.rpg-bl-foes').textContent, 'FoesSluice Rat A · Lv 5: Wounded · Sluice Rat B · Lv 5: Hurt · Sluice Rats ×4 · Lv 5: Unhurt');
 });
 
 // A foe's attack read from the attacker's side: the recorded outcome is the party's, so a party fail is a Hit, a cost a Graze, a success a Block.

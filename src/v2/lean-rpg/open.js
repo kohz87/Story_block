@@ -9,7 +9,7 @@
 // Pure except openFoes, which writes the domain it is given (the transaction's draft, or a copy to look ahead).
 import { createEvaluation } from '../data-modules/interpreter.js';
 import { CLASS_NAMES, FOE_SLOTS } from './names.js';
-import { FOE_LEVEL, bandOfRank, classOfLevel, levelCap, levelOf, levelOfClass, partyLevels } from './foes.js';
+import { FOE_LEVEL, bandOfRank, classOfLevel, foeLevelCap, levelOf, levelOfClass, partyLevels } from './foes.js';
 import { fold, readSheet } from './read.js';
 
 export const OPEN_MAX_COUNT = 12;
@@ -56,7 +56,7 @@ const RANK_MAX = 12;
 export function vetOpen(requested, sheet, texts, { rankAt = null } = {}) {
     const open = [], refused = [];
     // A new foe is at most one band (10 levels) above the party's highest level: a level or rank above that is held down to it.
-    const cap = levelCap(partyLevels(sheet));
+    const cap = foeLevelCap(partyLevels(sheet));
     const known = new Set((sheet?.foes ?? []).filter(foe => foe.filled).map(foe => fold(foe.name)));
     for (const entry of requested ?? []) {
         const name = oneLine(entry?.name).slice(0, OPEN_MAX_NAME).trim();

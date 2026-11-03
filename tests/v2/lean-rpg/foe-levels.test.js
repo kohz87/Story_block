@@ -7,7 +7,7 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, PRECALL_HEAD, readSheet, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
 import { openFoes, openErrors, vetOpen } from '../../../src/v2/lean-rpg/open.js';
-import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, divisorOf, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, levelCap, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
+import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, divisorOf, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, foeLevelCap, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
 import { sizeOf } from '../../../src/v2/lean-rpg/blocks.js';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { success, reply } from '../data-modules/helpers.js';
@@ -128,7 +128,7 @@ test('vetOpen: level as written, a rank\'s band, an old class as its level, or n
     assert.deepEqual(vetOpen([{ name: 'Wolves', rank: 'SSS' }], party14, text, { rankAt }).open, [{ name: 'Wolves', count: 1, level: 24 }], 'a rank wholly above the cap: the cap');
     assert.deepEqual(vetOpen([{ name: 'Wolves', rank: 'D' }], party14, text, { rankAt }).open, [{ name: 'Wolves', count: 1, rank: 'D', from: 20, to: 24 }], 'a band that crosses the cap is cut at it');
     assert.deepEqual(vetOpen([{ name: 'Wolves', level: '99' }], { characters: [], foes: [] }, text).open, [{ name: 'Wolves', count: 1, level: 11 }], 'no party: level 1 + 10');
-    assert.equal(levelCap([95]), 99, 'at most 99');
+    assert.equal(foeLevelCap([95]), 99, 'at most 99');
     assert.deepEqual(vetOpen([{ name: 'Imps', count: '0', class: 'III' }], sheet, text).open, [{ name: 'Imps', count: 1, level: 25 }], 'class III is level 25');
     assert.deepEqual(vetOpen([{ name: 'Ogres', count: '1', rank: 'E' }], sheet, text).open, [{ name: 'Ogres', count: 1 }], 'no rank query: no band');
     assert.deepEqual(vetted.refused.map(entry => entry.name), ['Dragons'], 'a name neither text holds is refused');

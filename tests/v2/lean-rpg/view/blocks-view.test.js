@@ -112,7 +112,7 @@ test('the battle log reads the recorded turn order with its totals, the quick st
     assert.match(mend.breakdown, /vs DC 15 · Wessel heals 1 block \(5 of 6\)$/);
     assert.equal(sweep.area, true);
     const panel = buildPanel(setupDom(), panelModel({ resolve: read, state: state(), before: null, roleOf }));
-    assert.equal(panel.querySelector('.rpg-bl-order').textContent, 'Turn order: Wessel 21 > Weir-drake 18 > Sluice Rat 17');
+    assert.equal(panel.querySelector('.rpg-bl-order').textContent, 'Turn order: Wessel (Lv 2) 21 > Weir-drake (Lv 4) 18 > Sluice Rat (Lv 2) 17');
     assert.equal(panel.querySelector('.rpg-bl-quick').textContent, 'Quick start: Wessel acts first against Sluice Rat.');
     assert.equal(panel.querySelector('.rpg-bl-opening .rpg-bl-round-title').textContent, 'Opening action');
     assert.deepEqual(panel.querySelectorAll('.rpg-bl-skip').map(node => node.textContent), ['Sluice Rat does not act: beaten before its turn.', 'Ren does not act: down.']);
@@ -154,9 +154,9 @@ test('the Fight tab shows the turn order row from the latest rolls and the quick
     const el = draw(createFightWidget, { headState: state, readerName: () => 'Wessel', roleOf, battleLog: { latest } });
     const row = el.querySelector('.rpg-order');
     assert.equal(row.querySelector('.rpg-order-head').textContent, 'Turn order');
-    assert.deepEqual(row.querySelectorAll('.rpg-order-pill').map(node => node.textContent), ['1 Wessel21', '2 Weir-drake18', '3 Sluice Rat17']);
+    assert.deepEqual(row.querySelectorAll('.rpg-order-pill').map(node => node.textContent), ['1 Wessel (Lv 2)21', '2 Weir-drake (Lv 4)18', '3 Sluice Rat (Lv 2)17']);
     assert.ok(row.querySelector('.rpg-order-pill').classList.contains('rpg-order-party'));
-    assert.match(row.querySelector('.rpg-order-note').textContent, /Rolled at the start of this fight/);
+    assert.match(row.querySelector('.rpg-order-note').textContent, /Rolled at the start of this fight \(d20 \+ level ÷ 5 \+ AGI\/2; foes the same with their own level\)/);
     assert.equal(el.querySelector('.rpg-quick-start').textContent, 'Wessel gets an opening action against Sluice Rat: 10 or more ahead in the turn order.');
     const only = readResolve({ v: 1, checks: [], refused: [], rounds: [{ n: 1, lines: [], idle: [{ who: 'Sluice Rat', why: 'beaten' }] }] });
     assert.deepEqual(only.rounds.map(round => [round.n, round.skipped]), [[1, [{ who: 'Sluice Rat', why: 'beaten' }]]]);

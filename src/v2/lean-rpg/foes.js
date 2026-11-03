@@ -5,18 +5,16 @@
 //   Re-read (the same seed) keeps it;
 // - `bandOfRank`: a rank's band, found through the `rpg.rank` query (`{ level }` → `{ name } | null`) by asking for each level.
 import { rng as seeded } from '../rng.js';
+import { LV_VERSION } from './names.js';
+import { classOfLevel, levelBonus, levelOfClass as mapClass } from './formula.js';
+// (one copy each: the version mark is names.js's, the roll term and the class <-> level mapping, 10n - 5, are formula.js's)
+export { LV_VERSION, classOfLevel, levelBonus };
+
+/** The level a Soul Class (1-9) stands for (formula.js levelOfClass: class n -> 10n - 5), or null where no class is given. */
+export const levelOfClass = soulClass => (Number.isInteger(soulClass) && soulClass >= 1 && soulClass <= 9 ? mapClass(soulClass) : null);
 
 /** The levels a foe may have, how far from the party's average an unplanned one lands, the roll term's default divisor, and the Health block rule. */
 export const FOE_LEVEL = Object.freeze({ min: 1, max: 99, spread: 2, divisor: 5, healthBase: 4, healthStep: 30, band: 10 });
-
-/** The version mark of a roll that uses levels (`lv` in the payload of `rpg.resolve`); a roll without it replays exactly as before. */
-export const LV_VERSION = 1;
-
-/** The level a Soul Class (1–9) of the earlier rules stands for: class n → 10n − 5 (I 5 … IX 85). */
-export const levelOfClass = soulClass => (Number.isInteger(soulClass) && soulClass >= 1 && soulClass <= 9 ? 10 * soulClass - 5 : null);
-
-/** The Soul Class (1–9) of the earlier rules that a level stands for, the inverse of levelOfClass: the nearest, 1 to 9 (level 5 → I, 35 → IV, 99 → IX). */
-export const classOfLevel = level => Math.max(1, Math.min(9, Math.round(((Number(level) || 1) + 5) / 10)));
 
 const whole = value => (typeof value === 'number' && Number.isInteger(value) ? value : typeof value === 'string' && /^\s*-?\d+\s*$/u.test(value) ? Number(value) : null);
 
@@ -26,8 +24,6 @@ export const levelOf = value => {
     return n === null ? null : Math.max(FOE_LEVEL.min, Math.min(FOE_LEVEL.max, n));
 };
 
-/** What a level adds to a roll: floor(level / divisor); the divisor is 5 unless the rules say another (a whole number 1 or more). */
-export const levelBonus = (level, divisor = FOE_LEVEL.divisor) => Math.floor(Math.max(0, Number(level) || 0) / (Number.isInteger(divisor) && divisor >= 1 ? divisor : FOE_LEVEL.divisor));
 
 /** The divisor the rules in force carry (`levelDivisor`), else the default. */
 export const divisorOf = rules => (Number.isInteger(rules?.levelDivisor) && rules.levelDivisor >= 1 ? rules.levelDivisor : FOE_LEVEL.divisor);
@@ -36,7 +32,7 @@ export const divisorOf = rules => (Number.isInteger(rules?.levelDivisor) && rule
 export const foeBlocksByLevel = level => FOE_LEVEL.healthBase + Math.floor(Math.max(FOE_LEVEL.min, Number(level) || 0) / FOE_LEVEL.healthStep);
 
 /** The most a NEW foe's level may be: the party's highest level + 10 (one band), at most 99 (1 for the party with no one is level 1, so 11). */
-export const levelCap = levels => Math.min(FOE_LEVEL.max, Math.max(FOE_LEVEL.min, ...(levels ?? []).filter(value => Number.isInteger(value) && value >= 1)) + FOE_LEVEL.band);
+export const foeLevelCap = levels => Math.min(FOE_LEVEL.max, Math.max(FOE_LEVEL.min, ...(levels ?? []).filter(value => Number.isInteger(value) && value >= 1)) + FOE_LEVEL.band);
 
 /** The party's average level, rounded to the nearest whole level (1 with no one): `levels` is a list of numbers, anything else in it is passed over. */
 export function averageLevel(levels) {

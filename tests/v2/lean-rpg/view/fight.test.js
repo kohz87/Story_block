@@ -69,8 +69,8 @@ test('a card per filled foe slot: name (× count), Class pill, five-cell health 
     assert.deepEqual(el.querySelectorAll('.rpg-foe').map(node => node.getAttribute('data-foe')), ['Sluice Rat A', 'Sluice Rat B', 'Sluice Rat C', 'Rat Swarm']);
     assert.equal(foeCard(el, 'Rat Swarm').querySelector('.rpg-name').textContent, 'Rat Swarm ×3');
     assert.equal(foeCard(el, 'Sluice Rat A').querySelector('.rpg-name').textContent, 'Sluice Rat A');
-    assert.equal(foeCard(el, 'Sluice Rat A').querySelector('.ss-pill').textContent, 'Class I');
-    assert.equal(foeCard(el, 'Sluice Rat B').querySelector('.ss-pill').textContent, 'Class II');
+    assert.equal(foeCard(el, 'Sluice Rat A').querySelector('.ss-pill').textContent, 'Lv 5');
+    assert.equal(foeCard(el, 'Sluice Rat B').querySelector('.ss-pill').textContent, 'Lv 2');
     const bar = name => foeCard(el, name).querySelector('.ss-w-meter');
     assert.equal(bar('Sluice Rat A').getAttribute('aria-valuemax'), '5');
     assert.equal(bar('Sluice Rat A').querySelectorAll('.ss-w-meter-cell').length, 5, 'five cells');

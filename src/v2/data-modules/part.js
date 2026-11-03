@@ -16,7 +16,7 @@ import { LEAN_RPG_FEATURE } from '../lean-rpg/names.js';
 import { barOf, sizeOf as barSizeOf, spreadWord, wordsOf } from '../lean-rpg/blocks.js';
 import { fold, readSheet } from '../lean-rpg/read.js';
 // (foes.js and levels.js are small and need nothing of the RPG's library: they stay static, like read.js)
-import { averageLevel, bandOfRank, foeRandom, levelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
+import { averageLevel, bandOfRank, foeRandom, foeLevelCap, levelOf, partyLevels, pickLevel } from '../lean-rpg/foes.js';
 import { XP_RATE, scaleXp, xpRateFrom } from '../lean-rpg/levels.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 // The companions who join, the rules they are made with and their words are the RPG's library, loaded only when it is needed (rpg-lazy.js).
@@ -657,7 +657,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (!kind.labels?.level || !/^set-slot-\d$/u.test(labels.kind)) return labels;
         const { rank, ...rest } = labels;
         // A level or rank above one band (10 levels) over the party's highest level is held down to it.
-        const levels = partyLevels(readSheet({ domains: { dataModules: prefix.domains?.dataModules } })), cap = levelCap(levels);
+        const levels = partyLevels(readSheet({ domains: { dataModules: prefix.domains?.dataModules } })), cap = foeLevelCap(levels);
         if (dmOwn(rest, 'level')) { const given = levelOf(rest.level); return given === null ? rest : { ...rest, level: String(Math.min(given, cap)) }; }
         const band = typeof rank === 'string' && rank.trim() ? bandOfRank(rank, level => ctx.query('rpg.rank', { level })) : null;
         const ask = band ? { from: Math.min(band.from, cap), to: Math.min(band.to, cap) } : {};
