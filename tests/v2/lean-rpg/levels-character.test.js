@@ -35,12 +35,12 @@ test('the templates have Level, XP and Level cap and no Soul Class; every other 
         const { state, rules } = entry.definition;
         assert.equal(state.soul, undefined);
         assert.deepEqual([state.level.label, state.level.min, state.level.max, state.level.default], ['Level', 1, 99, 1]);
-        assert.deepEqual([state.xp.label, state.xp.min, state.xp.max, state.xp.default], ['XP', 0, 100, 0]);
+        assert.deepEqual([state.xp.label, state.xp.min, state.xp.max, state.xp.default], ['XP', 0, LEVEL.xpMax, 0], 'XP above 100 is kept for the rise');
         assert.deepEqual([state.cap.label, state.cap.min, state.cap.max, state.cap.default], ['Level cap', 1, 99, 99]);
         assert.ok(rules.some(rule => rule.id === 'level-up'));
         assert.ok(!rules.some(rule => rule.id === 'class-up'));
     }
-    assert.deepEqual(LEVEL, { min: 1, max: 99, xpPerLevel: 100, pointEvery: 3, divisor: 5, minDivisor: 3, maxDivisor: 8 });
+    assert.deepEqual(LEVEL, { min: 1, max: 99, xpPerLevel: 100, xpMax: 9999, pointEvery: 3, divisor: 5, minDivisor: 3, maxDivisor: 8 });
     assert.equal(levelBonus(40), Math.floor(40 / LEVEL.divisor), 'formula.js has the same default divisor as names.js');
 });
 
@@ -49,10 +49,24 @@ test('level-up: 100 XP raises the level by one and starts XP again; a swipe take
     await xp(host, 60);
     assert.deepEqual(seen(host), [1, 60, 0]);
     await xp(host, 50);
-    assert.deepEqual(seen(host), [2, 0, 0], 'level 2, XP back to 0 (it is held at 100, so nothing is left over), no point yet');
+    assert.deepEqual(seen(host), [2, 10, 0], 'level 2, the 10 XP over 100 carried, no point yet');
     await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
     assert.deepEqual(seen(host), [1, 70, 0]);
     rebuilt(host);
+});
+
+test('level-up: XP past 100 is carried, and as many levels rise as the XP covers, one point for each multiple of 3 crossed', async t => {
+    const host = await story(t, def => { def.state.xp.default = 95; });
+    await xp(host, 40);
+    assert.deepEqual(seen(host), [2, 35, 0], '95 + 40: one level and 35 left, not 0');
+    const many = await story(t, def => { def.state.xp.default = 450; def.state.level.default = 2; });
+    await xp(many, 0);
+    assert.deepEqual(seen(many), [6, 50, 2], '450 XP at level 2: four levels in one step (3, 4, 5, 6), 50 left, a point for 3 and for 6');
+    rebuilt(many);
+    const high = await story(t, def => { def.state.level.default = 98; def.state.cap.default = 99; def.state.xp.default = 250; });
+    await xp(high, 0);
+    assert.deepEqual(seen(high), [99, 100, 1], 'one level to the cap (99 is a multiple of 3: a point), the XP past the cap is not kept');
+    rebuilt(high);
 });
 
 test('level-up: a point to spend with every third level (3, 6, 9 ...) and none between', async t => {
@@ -152,7 +166,7 @@ test('the odds in Settings use the level too', () => {
 });
 
 test('a block made before levels (Soul Class, no level) reads at the level its class stands for; its old roll terms are unchanged', () => {
-    const old = sheetOf({ soul: 3 }).characters.find(entry => entry.who === 'Wessel');
+    const old = sheetOf({ soul: 3, level: undefined }).characters.find(entry => entry.who === 'Wessel');
     assert.equal(old.level, levelOfClass(3));
     assert.equal(old.level, 25);
     assert.equal(old.soul, 3);

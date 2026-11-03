@@ -311,7 +311,8 @@ export function buildDefinitions(draft, { used = [], points = null, cap = null }
     // The starting level (the draft's `level`, 1 to 99; a companion or a file that came with a Soul Class has the level it stands for): into the block's `level` field,
     // held to the story's cap (levelCapFor, 99 unset), with the cap as the block's `cap`; a block of the earlier rules gets the class the level stands for.
     const top = Number.isSafeInteger(cap) ? Math.max(1, Math.min(99, cap)) : 99;
-    const start = Math.min(top, draft.level > 1 ? draft.level : 1);
+    const wanted = draft.level > 1 ? draft.level : draft.soul > 1 ? levelOfClass(draft.soul) : 1;   // (a draft read by readDraft has `level`; a raw one may still say the class)
+    const start = Math.min(top, wanted);
     if (state.level) { state.level.default = start; state.cap.default = top; }
     else if (start > 1) state.soul.default = classOfLevel(start);
     const skills = template('skills', formula);

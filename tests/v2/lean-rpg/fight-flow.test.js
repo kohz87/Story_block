@@ -340,12 +340,12 @@ test('the narrator\'s XP line in the reply that won the fight is not used, in ei
     }
 });
 
-test('XP reaching 100 raises the level by the block\'s own rule and carries the rest (back to 0 XP, 1 point)', { skip }, async t => {
+test('XP reaching 100 raises the level by the block\'s own rule and carries the rest (95 + 10: level 3, 5 XP, 1 point)', { skip }, async t => {
     const { host } = await world(t, { xp: 95 });
     await host.send('A swarm.', reply(SLOT));
     await host.send('I finish them.', reply(DOWN));
     const astra = fields(host, 'Astra');
-    assert.deepEqual([astra.level, astra.xp, astra.points], [3, 0, 1]);
+    assert.deepEqual([astra.level, astra.xp, astra.points], [3, 5, 1]);
     same(host);
     // A swipe takes the XP and the rise with it.
     await host.swipe(reply('~ dm foes — why | kind: hurt-1 | to: 3'));
