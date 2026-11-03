@@ -120,7 +120,7 @@ test('the odds bar follows the formula in force: Standard puts the pair, the Sou
 
 test('Classic output is byte-identical to the build before the Standard formula: prompt, sheet text, cue, rounds, witness, parse, rules', () => {
     // (Fingerprints taken from the build that holds formula.js only, c072d16, for this fixed party, plan and seed. Only `rules` and `presets` moved, on purpose, in stage 49:
-    // the presets' most exchanges per reply went from 5 to 8; the roll itself (cue, rounds, witness, prompt) is unchanged byte for byte.)
+    // the presets' most exchanges per reply went from 5 to 8; the roll itself (cue, rounds, witness, prompt) is unchanged byte for byte. `prompt` and `head` moved on purpose in stage 50: the planner is told to name a defender's fitting skill.)
     const sha = text => createHash('sha256').update(text).digest('hex').slice(0, 16);
     const sheet = sheetOf(PARTY());
     const prompt = precallPrompt({ sheet, message: 'I strike the rat.', excerpt: 'The rat hisses.', note: 'Be fair.' });
@@ -133,7 +133,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
         prompt: sha(prompt), head: sha(PRECALL_HEAD), sheet: sha(sheetText(sheet)), cue: sha(rolled.text), rounds: sha(JSON.stringify(rolled.rounds)), witness: sha(JSON.stringify(prepared.witness)),
         parsed: sha(JSON.stringify(parsePlanAnswer(answer, sheet))), rules: sha(JSON.stringify(rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' }))), presets: sha(JSON.stringify(PRESETS)),
     }, {
-        prompt: '9c2f43c8312a725c', head: '2ff341dbdc89949c', sheet: '0d382a6e9c87a18d', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
+        prompt: 'd944a0cace85c57d', head: '6ca0ad3a5d132864', sheet: '0d382a6e9c87a18d', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
         parsed: 'b0eedb0e4d7e0c16', rules: '458d12337585e339', presets: '1a96e56e9499540c',
     });
 });

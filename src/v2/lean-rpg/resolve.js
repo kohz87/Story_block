@@ -62,8 +62,9 @@
 // stat (or the defending skill's), `skill` the defending skill (null: none; a roll made before there were any has none) and `pc` the
 // defender (outcome 'fail' means the defender failed). `summary.exchanges` = rounds.length is the
 // number B shows as "Rolled for you: N exchanges". The told count is not recorded: the narrator is not asked to count.
-import { FIGHT, FORMULA, LIMITS, PACE, RESOLVE, STAGES } from './names.js';
+import { FIGHT, FORMULA, LIMITS, PACE, PRACTICE_STEP, RESOLVE, STAGES, practiceOf } from './names.js';
 import { fightGuard } from './fight.js';
+import { practiceGuard } from './practice.js';
 import { EARLIER_RULES, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
 import { prepareStandard, rollStandard, summaryStd } from './standard.js';
 import { fitCue } from './cue.js';
@@ -413,10 +414,12 @@ export function resolve(ctx, payload = {}) {
     // the plan; one made before has no version and draws its dice in one sequence, as it did.
     const source = payload.dice === DICE_VERSION || std ? positionalDice(Math.floor(ctx.rng() * 4294967296) >>> 0) : () => ctx.roll(`d${FORMULA.die}`).total;
     const dice = rollPrepared(plan, prepared, source, rules, { earlier: payload.dice !== DICE_VERSION && !std, carried: order, flow });
-    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}) };
-    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}) });
+    // From stage 50 a payload may carry the practice per skill use (practice.js); a roll made before has none and gives none.
+    const practice = practiceOf(payload.practice) ?? undefined;
+    const predicate = { kind: RESOLVE, key, plan: ctx.hash(plan), rules: ctx.hash(rules), ...(order ? { order: ctx.hash(order) } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}) };
+    ctx.replayGuard(guardOf(ctx, predicate, prepared.witness), { key, plan, rules, ...(order ? { order } : {}), ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}) });
     const result = {
-        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
+        v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
@@ -431,6 +434,7 @@ export function resolve(ctx, payload = {}) {
 export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
     const bad = reason => ({ ok: false, reason });
     if (guard?.predicate?.kind === FIGHT) return fightGuard({ state, hash }, { guard, source, recorded });
+    if (guard?.predicate?.kind === PRACTICE_STEP) return practiceGuard({ state, hash }, { guard, source, recorded });
     try {
         const predicate = guard?.predicate;
         if (guard?.version !== 2 || guard.rulesHash !== null || !isObject(predicate) || predicate.kind !== RESOLVE) return bad('Malformed roll guard.');
@@ -443,6 +447,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         // The flow it stopped by is hashed with it; a roll of the earlier flow has none.
         const flow = recorded.flow === undefined && predicate.flow === undefined ? 1 : recorded.flow === FLOW_VERSION && predicate.flow === FLOW_VERSION ? FLOW_VERSION : null;
         if (flow === null) return bad('The roll\'s flow was damaged.');
+        // Practice by code is hashed with the roll that asked for it; a roll made before has none.
+        if (recorded.practice !== predicate.practice || (recorded.practice !== undefined && practiceOf(recorded.practice) === null)) return bad('The roll\'s practice mark was damaged.');
         // The turn order a Standard roll was given (carried from the fight's earlier reply) is hashed with it; Classic has none.
         if (predicate.order !== undefined || recorded.order !== undefined) {
             if (orderOf(recorded.order) === null || hash(recorded.order) !== predicate.order) return bad('The roll\'s turn order was damaged.');

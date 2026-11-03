@@ -29,7 +29,7 @@ import { youRankOf } from '../packs/content.js';
 import { createPacksPart, packs as liveInstalled, part as livePart, resolveItem as liveResolve, startState as liveStart } from '../packs/index.js';
 import { createTimelinePart } from '../timeline/part.js';
 import { createDataModulesPart, dataModuleGuard } from '../data-modules/part.js';
-import { FIGHT as RPG_FIGHT, RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
+import { FIGHT as RPG_FIGHT, PRACTICE_STEP as RPG_PRACTICE, RESOLVE as RPG_RESOLVE, createLeanRpgPart, partyOf } from '../lean-rpg/index.js';
 import { hookTimeout } from '../turn.js';
 
 // The Rank's label for the tail: asked through the view's query (null while no pack gives one).
@@ -378,7 +378,7 @@ export function createCoreModule({ hooks = () => [], settings = () => ({}), vers
     merged.hooks.replayGuard = Object.assign((view, info) => {
         const kind = String(info?.guard?.predicate?.kind ?? '');
         if (kind.startsWith('dm.')) return dataModuleGuard(view, info);
-        if (kind === RPG_RESOLVE || kind === RPG_FIGHT) return rpg.guard(view, info);
+        if (kind === RPG_RESOLVE || kind === RPG_FIGHT || kind === RPG_PRACTICE) return rpg.guard(view, info);
         if (kind === INVENTORY_EDIT_GUARD) return inventoryEditGuard(view, info);
         return LOOT_KINDS.includes(kind) ? lootTakeGuard(view, info) : timelineGuard(view, info);
     }, { hostOwned: true });

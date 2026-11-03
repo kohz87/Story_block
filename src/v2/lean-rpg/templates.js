@@ -243,7 +243,7 @@ export const COMBAT_PROMPT_STANDARD = [
     'Weight & Risk: every strike, miss, wound and hesitation carries impact. Injury, fatigue, fear and pain carry into the next exchange and the next scene.',
     'Believable Outcomes: fights end when logic demands it: death, surrender, retreat, capture or collapse. Victory must be earned; survival must be justified.',
     'Rolls: attacks, spells, defence, talk and checks each pair a main stat with half of a second one. Health, stamina and mana are rows of blocks: a hit takes one, a Decisive hit two, and a foe of a higher Soul Class has more. Tell the rolled result; code moves the bars for hits, heals, skill costs: never set those.',
-    'XP guide: code gives XP for a won fight; write none for it. Other deeds 5 to 40. Practice a skill 5 to 20 per use.',
+    'XP guide: code gives XP for a won fight; write none for it. Other deeds 5 to 40. Code practises rolled skills.',
 ].join('\n');
 
 const standardCombat = { ...combat, stateVersion: 2, prompt: COMBAT_PROMPT_STANDARD };

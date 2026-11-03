@@ -373,15 +373,19 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             predicate, inputHash: hashJson({ source, witness, predicate, decision }), ...(bound ? { replyBound: true } : {}) }, recorded);
         return recorded;
     }
-    function finish(ctx, prefix, draft, data, { pin = false, visits = 0, summary, notes = [], replan = false, result = null, xpFrom = null } = {}) {
+    function finish(ctx, prefix, draft, data, { pin = false, visits = 0, summary, notes = [], replan = false, result = null, xpFrom = null, practiceFrom = null } = {}) {
         const key = pairKey(ctx.source), standing = ctx.standing?.domains?.dataModules?.perReply?.[key];
         const actions = { ...(draft.perReply[key]?.actions ?? {}) };
         // `xpFrom` (the RPG's fight XP, lean-rpg/fight.js): what a character's xp, soul and points were before the first story line of this reply that wrote
         // XP, by block. The first line's is kept; later actions of the reply carry it on.
         const rises = { ...(xpFrom ?? {}), ...(draft.perReply[key]?.xpFrom ?? {}) };
+        // `practiceFrom`: the practice and rank of a skill slot before the first story line of this reply that practised it, by block and slot (the RPG's practice by
+        // code puts them back, lean-rpg/practice.js). The first line's is kept.
+        const slots = {};
+        for (const module of new Set([...Object.keys(practiceFrom ?? {}), ...Object.keys(draft.perReply[key]?.practiceFrom ?? {})])) slots[module] = { ...(practiceFrom?.[module] ?? {}), ...(draft.perReply[key]?.practiceFrom?.[module] ?? {}) };
         for (const [id, action] of Object.entries(standing?.actions ?? {})) if (action.click) actions[id] ??= action;
         actions[ctx.cursor().block] = { visits, click: ctx.cause === 'ui' && !pin };
-        const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions, ...(Object.keys(rises).length ? { xpFrom: rises } : {}) };
+        const next = { roots: Object.keys(actions).length, visits: Object.values(actions).reduce((n, action) => n + action.visits, 0), actions, ...(Object.keys(rises).length ? { xpFrom: rises } : {}), ...(Object.keys(slots).length ? { practiceFrom: slots } : {}) };
         if (next.roots > L.replyRoots || next.visits > L.replyVisits) refuse('DM_BUDGET', '', 'Data module reply budget exhausted.');
         // The story's lines leave room for the steps that settle the reply (what each block with reply-end functions can really cost): without it a full
         // reply would take its last action and the settling that decides a death would be refused.
@@ -688,7 +692,11 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         // given by code, can put back what the narrator added in that reply.
         const xpFrom = ctx.cause === 'story' && definition.role === 'character' && kind.effects.some(effect => Array.isArray(effect?.path) && effect.path[0] === 'xp')
             ? { [module]: Object.fromEntries(['xp', 'soul', 'points'].filter(key => Number.isSafeInteger(fieldsBefore[key])).map(key => [key, fieldsBefore[key]])) } : null;
-        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
+        // A story line that practises a skill (`practice-N`, after skillRoute): what the slot held before it is kept for the reply, so that the practice the
+        // reply's rolls give by code can put back what the narrator added for the same skill.
+        const practiceFrom = ctx.cause === 'story' && route && route.kind.startsWith('practice-')
+            ? { [module]: { [route.slot]: Object.fromEntries(['practice', 'rank'].filter(key => Number.isSafeInteger(fieldsBefore[`${key}${route.slot}`])).map(key => [key, fieldsBefore[`${key}${route.slot}`]])) } } : null;
+        const answer = finish(ctx, prefix, draft, recorded, { visits: result.visits, notes: result.notes, result: outcome, xpFrom, practiceFrom, summary: `${definition.name}: ${route ? `${route.kind} (${route.update ? route.name : instance.fields[`skill${route.slot}`]})` : kind.title ?? labels.kind}${changes.length ? ` (${changes.join(', ')})` : ''}.` });
         if (ctx.cause === 'ui') answer.data.edit = true;
         return answer;
     }
