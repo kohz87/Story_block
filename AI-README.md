@@ -35,7 +35,7 @@ not checked out beside it (see `CLAUDE.md`, "Known traps").
 - A pack may ask for a Story Block range and capabilities (`requires.storyBlock`, `requires.capabilities`). `data-modules-v1`
   is the host's own. `story-director`, `chronicle-lasting`, `scene` and `inventory` come from registered modules. A pack that
   asks for more than is installed is refused with a plain reason.
-- The Ersveil sample pack 2.6.0 (`examples/packs/ersveil/`) needs Story Block ^2.18.0 and Story Director 2.3.0 or later.
+- The Ersveil sample pack 2.6.1 (`examples/packs/ersveil/`) needs Story Block ^2.18.0 and Story Director 2.3.0 or later.
 
 ## Concepts
 
@@ -429,4 +429,4 @@ prompt byte-identical, every optional mechanic a Feature, no markup from text, n
 ## Version
 
 Story Block 2.18.0 (`manifest.json`, `package.json`). Suite: Story Director 2.9.3, NPC State Delta 1.7.4, Story Studio 0.7.0.
-Sample pack: Ersveil 2.6.0. History: `CHANGELOG.md`.
+Sample pack: Ersveil 2.6.1. History: `CHANGELOG.md`.

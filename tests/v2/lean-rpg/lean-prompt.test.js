@@ -149,7 +149,7 @@ test('every foe kind of every slot is read on a quiet reply, the same as with th
 
 test('rolls from the planner tell the full text for that reply, even with no foes', { skip }, async t => {
     const { host, model } = await world(t, { answers: ['check Wessel | type: check | fit: STR | difficulty: normal'] });
-    const { request } = await host.send('I try the stuck door.', 'It gives.');
+    const { request } = await host.send('I pick the lock on the stuck door.', 'It gives.');
     assert.equal(model.calls.length, 1);
     const text = staticOf(request);
     assert.match(text, /\[COMBAT SYSTEM\]/u);
@@ -163,7 +163,7 @@ test('rolls from the planner tell the full text for that reply, even with no foe
 test('the same reply rebuilt tells the same prompt: a swipe that keeps its plan, a quiet one, an open fight', { skip }, async t => {
     const plan = 'check Wessel | type: check | fit: STR | difficulty: normal';
     const { host } = await world(t, { answers: [plan, plan, 'none', 'none'] });
-    const { request: rolled } = await host.send('I try the door.', 'It gives.');
+    const { request: rolled } = await host.send('I pick the lock on the door.', 'It gives.');
     const { request: swiped } = await host.swipe('It sticks.');
     assert.equal(staticOf(swiped), staticOf(rolled), 'rolls: swipe');
     const { request: quiet } = await host.send('I look around.', 'Nothing.');
