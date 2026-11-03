@@ -655,9 +655,14 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     // A Foes block of the Levels rules (its set-slot kind has a `level` label): a line that gives a level keeps it; one that gives a rank gets a level drawn inside that
     // rank's band (the `rpg.rank` query names the ranks); one that gives neither gets a level within ±2 of the party's average. The draw is from the reply's seed, so a
     // swipe draws anew and a Re-read keeps it. `rank` is not a label of the kind: it is taken out of the line here.
-    function foeLevelLabels(labels, kind, prefix, ctx) {
+    function foeLevelLabels(labels, kind, prefix, ctx, module) {
         if (!kind.labels?.level || !/^set-slot-\d$/u.test(labels.kind)) return labels;
         const { rank, ...rest } = labels;
+        // A group already on the block, named again with no level and no rank, keeps the level it has: it is not drawn anew (a swipe would otherwise move a fight's foes).
+        const have = prefix.domains?.dataModules?.instances?.[module]?.chat?.fields;
+        const known = !dmOwn(rest, 'level') && !(typeof rank === 'string' && rank.trim()) && typeof rest.name === 'string' && have
+            ? [1, 2, 3, 4].find(n => typeof have[`foe${n}`] === 'string' && have[`count${n}`] > 0 && fold(have[`foe${n}`]) === fold(rest.name) && Number.isSafeInteger(have[`level${n}`])) : undefined;
+        if (known !== undefined) return { ...rest, level: String(have[`level${known}`]) };
         // A level or rank above one band (10 levels) over the party's highest level is held down to it.
         const levels = partyLevels(readSheet({ domains: { dataModules: prefix.domains?.dataModules } })), cap = foeLevelCap(levels);
         if (dmOwn(rest, 'level')) { const given = levelOf(rest.level); return given === null ? rest : { ...rest, level: String(Math.min(given, cap)) }; }
@@ -674,7 +679,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const given = line ? withKind(definition, line) : { ...payload.labels, kind: payload.kind, ...(payload.who !== undefined ? { who: payload.who } : {}) };
         const kind = dmOwn(definition.kinds, given.kind) && definition.kinds[given.kind];
         // A foe group the narrator sets may give `level: N` or `rank: <name>`, or neither: then its level is drawn from the reply's seed (see foeLevelLabels).
-        const labels = kind && line && definition.role === 'foes' ? foeLevelLabels(given, kind, prefix, ctx) : given;
+        const labels = kind && line && definition.role === 'foes' ? foeLevelLabels(given, kind, prefix, ctx, module) : given;
         if (!kind) refuse('DM_LABEL', 'kind', `kind must be ${orList(Object.keys(definition.kinds))}`);
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);

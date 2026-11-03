@@ -398,6 +398,18 @@ test('the narrator\'s line for a group already there updates its level, Classic 
     }
 });
 
+test('F1: a group named again with no level and no rank keeps the level it has; with a level or a rank it takes that', { skip }, async t => {
+    const host = await world(t, { answers: ['none'], templates: STANDARD_TEMPLATES });
+    await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 20'));
+    await host.send('Two now.', reply('+ dm foes — why | kind: set-slot-2 | name: weir-drake | count: 2'));
+    const [drake] = sheetNow(host).foes;
+    assert.deepEqual([drake.count, drake.level], [2, 20], 'the count moved, the level did not');
+    await host.send('Grown.', reply('+ dm foes — why | kind: set-slot-2 | name: Weir-drake | count: 2 | level: 25'));
+    assert.equal(sheetNow(host).foes[0].level, 25);
+    host.store.rebuild();
+    assert.equal(sheetNow(host).foes[0].level, 25, 'live = rebuild');
+});
+
 test('a Standard fight on real blocks: the foe adds floor(level / 5) and the group has 4 + floor(level / 30) blocks', { skip }, async t => {
     const answer = ['pace: all', 'act Wessel | skill: Iron Breath | type: physical | target: Warlord', 'foe Warlord | target: Wessel'].join('\n');
     const host = await world(t, { answers: [answer], templates: STANDARD_TEMPLATES });
