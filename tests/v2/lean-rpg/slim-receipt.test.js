@@ -57,7 +57,7 @@ function run({ blocks, plan, rules, dice, flow, seed }) {
     const source = dice || standard ? positionalDice(Math.floor(again() * 4294967296) >>> 0) : () => roll(again, 'd20').total;
     const sheet = readSheet({ domains: { dataModules: domain } });
     const made = rollPrepared(plan, prepare(plan, sheet, rules, { maxOf: fieldMax(domain), flow: flowAsked }), source, rules, { earlier: !dice && !standard, flow: flowAsked });
-    return { out, text: made.text, result: out.data.v2.result };
+    return { out, text: made.text, result: out.data.v2.result, shape: out.data.v2.shape };
 }
 
 const CASES = [
@@ -75,11 +75,12 @@ for (const [name, setupOf] of CASES) {
     test(`the cue is rebuilt byte for byte from the record, and the receipt keeps no text: ${name}`, () => {
         let shapes = new Set();
         for (let seed = 1; seed <= 60; seed += 1) {
-            const { out, text, result } = run({ ...setupOf, seed });
+            const { out, text, result, shape } = run({ ...setupOf, seed });
+            assert.equal('shape' in result, false, `seed ${seed}: the shape is kept beside the record, not in it`);
             assert.equal(out.summary, '', `seed ${seed}: the receipt keeps no cue text`);
-            assert.equal(cueOfResult(result), text, `seed ${seed}: the cue is what the roll made`);
-            assert.equal(receiptCue({ type: RESOLVE, summary: out.summary, data: { v2: { result } } }), text);
-            shapes.add(result.shape ?? 0);
+            assert.equal(cueOfResult(result, shape), text, `seed ${seed}: the cue is what the roll made`);
+            assert.equal(receiptCue({ type: RESOLVE, summary: out.summary, data: { v2: { result, shape } } }), text);
+            shapes.add(shape ?? 0);
         }
         if (/long names/.test(name)) assert.ok([...shapes].some(shape => shape > 0), 'a shortened cue is among them');
     });
@@ -114,7 +115,7 @@ test('a fight through the real turn: the stored receipt has no text, the cue in 
         const { request } = await host.send('I hit the lead rat.', 'The rats scatter.');
         const receipt = rollReceipt(host, 2);
         assert.equal(receipt.summary, '', `${formula}: no cue text stored`);
-        const cue = cueOfResult(receipt.data.v2.result);
+        const cue = cueOfResult(receipt.data.v2.result, receipt.data.v2.shape);
         assert.ok(cue.startsWith('[Rolls]'));
         assert.ok(tailOf(request).includes(cue), `${formula}: the cue told is the cue rebuilt, whole`);
         const record = host.ctx.chat[2].extra.storySuite;
@@ -122,7 +123,7 @@ test('a fight through the real turn: the stored receipt has no text, the cue in 
 
         const reread = await host.turn.reread(2);
         assert.equal(reread.ok, true);
-        assert.equal(cueOfResult(rollReceipt(host, 2).data.v2.result), cue, 'a Re-read keeps the dice and the cue');
+        assert.equal(receiptCue(rollReceipt(host, 2)), cue, 'a Re-read keeps the dice and the cue');
         const live = JSON.stringify(host.head());
         host.store.rebuild();
         assert.equal(JSON.stringify(host.head()), live);

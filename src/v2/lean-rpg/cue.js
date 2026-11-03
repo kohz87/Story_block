@@ -178,10 +178,10 @@ export function fitCue(parts, budget = LIMITS.cueTokens, { earlier = false } = {
 
 /**
  * The cue text of a recorded roll (`data.v2.result` of an `rpg.resolve` receipt), built again from what the record holds: the lines, the refusals,
- * the standard parts, the shape it was fitted to (`shape`, absent = 0) and how it stopped. `rpg.resolve` stores no copy of it (stage 51), and keeps the text
+ * the standard parts, the shape it was fitted to (`shape`, kept beside the record in `data.v2.shape`, absent = 0) and how it stopped. `rpg.resolve` stores no copy of it (stage 51), and keeps the text
  * only if this would not give the same bytes. → text, or '' for a record that is not a roll.
  */
-export function cueOfResult(result) {
+export function cueOfResult(result, shape = 0) {
     if (!result || typeof result !== 'object' || !Array.isArray(result.rounds) || !Array.isArray(result.checks)) return '';
     try {
         const rounds = result.rounds, flow2 = result.flow === 2;
@@ -196,12 +196,12 @@ export function cueOfResult(result) {
         return cueText({
             checks: result.checks, rounds, refused: (result.refused ?? []).map(entry => entry.text), decisive,
             ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}),
-        }, Number.isInteger(result.shape) ? result.shape : 0);
+        }, Number.isInteger(shape) ? shape : 0);
     } catch { return ''; }
 }
 
 /** The cue a receipt tells: its own `summary`, else (an `rpg.resolve` receipt of stage 51 on) the one its record gives back. */
 export function receiptCue(receipt) {
     if (typeof receipt?.summary === 'string' && receipt.summary) return receipt.summary;
-    return receipt?.type === RESOLVE ? cueOfResult(receipt.data?.v2?.result) : (receipt?.summary ?? '');
+    return receipt?.type === RESOLVE ? cueOfResult(receipt.data?.v2?.result, receipt.data?.v2?.shape) : (receipt?.summary ?? '');
 }

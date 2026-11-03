@@ -438,14 +438,14 @@ export function resolve(ctx, payload = {}) {
     const result = {
         v: RESULT_VERSION, key, pace: plan.pace, rules, ...(flow === FLOW_VERSION ? { flow } : {}), ...(practice ? { practice } : {}), ...(lv ? { lv } : {}), stop: dice.stop, checks: dice.checks, rounds: dice.rounds,
         refused: prepared.refused, summary: dice.summary, ...(opening ? { opened } : {}),
-        ...(dice.shape ? { shape: dice.shape } : {}),
         ...(std ? { order: dice.order, quickStart: dice.quickStart, opening: dice.opening, idle: dice.idle, hurts: dice.hurts } : {}),
     };
     if (std) writeBars(ctx, dice.hurts);
     // From stage 51 the receipt keeps no copy of the cue text: it is rebuilt from the record (cue.js cueOfResult) wherever it is told or shown. The text is
     // kept as it always was only if the record would not give back exactly the same bytes (so what is told never changes).
-    const text = cueOfResult(result) === dice.text ? '' : dice.text;
-    return { summary: text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result } } };
+    const text = cueOfResult(result, dice.shape) === dice.text ? '' : dice.text;
+    // (the shape the cue was fitted to is kept beside the record, not in it: a roll made before it is replanned without its record changing)
+    return { summary: text, narrate: true, replan: true, data: { v2: { key: claimKey(key), result, ...(dice.shape ? { shape: dice.shape } : {}) } } };
 }
 
 /**
