@@ -41,7 +41,7 @@ import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
 import { createPublicApi } from './public-api.js';
 
-export const VERSION = '2.19.0';
+export const VERSION = '2.20.0';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
