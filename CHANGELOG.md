@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.16.6
+
+- **Block rules say what they changed.** The reply card listed a block's rules by their internal names ("Rule:
+  dues-f-e · Rule: probation"), even rules that changed nothing. A rule that changed nothing is now left out, and one
+  that changed something says what, in the block's own words: "Guild standing: probation". The rule's name stays in
+  the Inspector.
+- **For modules: an afterCapture hook can run on every reply.** A hook marked `always` also runs on a reply with no
+  change lines (Story Director 2.9.3 uses it to withdraw a meeting the reply never showed). Other hooks are unchanged.
+
 ## 2.16.5
 
 - **Mixed coins in one line are added up.** A coin line such as `+ coin 3 silver 6 copper` (also with "," or "and"
