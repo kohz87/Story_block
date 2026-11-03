@@ -32,7 +32,7 @@ const bars = host => { const c = sheet(host, 'character'); return [c.health, c.s
 // Classic: the checked definitions the block engine pins, hashed. These were computed on the build's base (2.13.0) before any change.
 const CLASSIC_HASHES = {
     // (2.17.0: the Character block moved on purpose, Level / XP / Level cap and the level-up rule in place of the Soul Class; the other three are the same bytes.)
-    Character: '84077a91ea07b3f634d892e5369f2582231dd2f72c3162ef784067343946cc10',
+    Character: 'f606ded47bcf986ce150fd7bfa29807ed7e16629452b43b063af691d9c554e23', // (and the XP carry: the xp field to 9999, the hidden `rise`, the xp-cap rule)
     Skills: '87692b232c660a4b13a45f81571c6d5e69002037f920c77c786b9fe6c6eba5c5',
     // (Foes changed on purpose in the Levels release: level1…level4, 1 to 99, replace class1…class4; the other three are as they were.)
     Foes: 'd9e0260b748561a22ebbc9424aeb5c1efe18ed6ba643fb7c398790671b67103e',
@@ -72,8 +72,8 @@ test('the Standard Character: Health 0..8, Stamina 0..7, Mana 0..7 marked as bar
     assert.deepEqual([state.health.default, state.stamina.default, state.mana.default], [5, 4, 4], 'full for stats of 5');
     for (const stat of ['str', 'vit', 'agi', 'dex', 'int', 'luk', 'cha']) assert.deepEqual([state[stat].min, state[stat].max, state[stat].default], [1, 20, 5], stat);
     for (const key of ['health-blocks', 'stamina-blocks', 'mana-blocks']) assert.deepEqual([state[key].prompt, state[key].edit], [false, false], `${key} is the rules' own`);
-    assert.deepEqual(rules.map(rule => rule.id), ['health-bar', 'stamina-bar', 'mana-bar', 'level-up']);
-    assert.deepEqual(rules.at(-1).then[0], { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], 1], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
+    assert.deepEqual(rules.map(rule => rule.id), ['health-bar', 'stamina-bar', 'mana-bar', 'level-up', 'xp-cap']);
+    assert.deepEqual(rules.find(rule => rule.id === 'level-up').then[1], { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
     assert.deepEqual(standard('Foes').state.hurt1, { type: 'int', min: 0, max: 8, default: 4, label: 'Health 1', blocks: 'foe' });
 });
 

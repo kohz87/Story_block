@@ -77,7 +77,7 @@ test('the setting: Ask by default, then Automatically or Off; anything else is A
 
 test('what a joining companion is made of: stats 10, the best one 14, no points, Soul Class as given (capped by the party), an empty Skills block', () => {
     const draft = joinDraft({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' });
-    assert.deepEqual([draft.kind, draft.name, draft.about, draft.soul, draft.stats.int, draft.stats.str], ['companion', 'Mara', 'a hedge-witch', 4, 14, 10]);
+    assert.deepEqual([draft.kind, draft.name, draft.about, draft.level, draft.stats.int, draft.stats.str], ['companion', 'Mara', 'a hedge-witch', 35, 14, 10]);
     assert.equal(joinDraft({ name: 'Mara', best: 'wits' }).stats.int, 10, 'a best that is no stat raises nothing');
     const made = joinDefinitions({ name: 'Mara', about: 'a hedge-witch', soul: 4, best: 'int' }, { used: ['pack.chat/wessel'], soul: 3 });
     const state = made.character.state;
@@ -452,9 +452,9 @@ test('2.9.1: the first character a story gets through Add to party also brings t
     await rebuilt(host, 'after the swipe');
 });
 
-test('2.17.0: a companion made by a party line or Add to party has the same level-up rule as any new character: a point with every third level (was: 3 points with each Soul Class rise)', () => {
+test('2.17.0: a companion made by a party line or Add to party has the same level-up rule as any new character: a point for every multiple of 3 the rise crosses (was: 3 points with each Soul Class rise)', () => {
     const { character } = joinDefinitions({ name: 'Mara', about: '', soul: 1, best: '' });
     const rule = character.rules.find(item => item.id === 'level-up');
     assert.equal(character.rules.some(item => item.id === 'class-up'), false);
-    assert.deepEqual(rule.then.find(effect => effect.path[0] === 'points'), { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], 1], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
+    assert.deepEqual(rule.then.find(effect => effect.path[0] === 'points'), { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
 });

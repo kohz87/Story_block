@@ -102,8 +102,8 @@ export const levelBonus = (level, divisor = 5) => Math.floor(Math.max(1, Math.mi
 /** The level a Soul Class stands for where only the class is known (a character block made before levels): class n → level 10n − 5 (I → 5 … IX → 85). */
 export const levelOfClass = soul => 10 * Math.max(1, Math.min(9, num(soul))) - 5;
 
-/** The Soul Class (1..9) a level stands for where only a class is asked (the `+ party` line's class): the inverse of levelOfClass, rounded (levels 5–14 are class I, 15–24 II …, 1–4 are class I too). */
-export const classOfLevel = level => Math.max(1, Math.min(9, Math.floor((Math.max(1, num(level)) + 5) / 10)));
+/** The Soul Class (1..9) a level stands for where only a class is asked (the `+ party` line's class): the inverse of levelOfClass (10n - 5), floor(level / 10) + 1 (levels 1-9 are class I, 10-19 II ... 80+ IX). */
+export const classOfLevel = level => Math.max(1, Math.min(9, Math.floor(Math.max(1, num(level)) / 10) + 1));
 
 /** A foe's Health blocks: 4 + class/3 (Classes I–II 4, III–V 5, VI–VIII 6, IX 7). */
 export const foeHealthBlocks = foeClass => 4 + Math.floor(Math.max(1, num(foeClass)) / 3);

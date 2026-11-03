@@ -32,7 +32,7 @@ test('Character: 100 XP raises the Level by one and starts XP again; a swipe tak
     const host = await story(t, 'Character');
     await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 60')));
     await host.send('Fight on.', reply(line('character', 'add-xp', ' | amount: 50')));
-    assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').xp], [2, 0]);
+    assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').xp], [2, 10], 'the 10 XP over 100 are kept');
     await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
     assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').xp], [1, 70]);
     rebuilt(host);
@@ -44,15 +44,15 @@ test('Character: a point to spend comes with every third Level (3, 6, ...); a sw
     await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 60')));
     assert.deepEqual(now(), [1, 60, 0]);
     await host.send('Fight on.', reply(line('character', 'add-xp', ' | amount: 50')));
-    assert.deepEqual(now(), [2, 0, 0], 'level +1, XP 0, no point at level 2');
+    assert.deepEqual(now(), [2, 10, 0], 'level +1, the 10 XP over carried, no point at level 2');
     rebuilt(host);
     await host.send('More.', reply(line('character', 'add-xp', ' | amount: 100')));
-    assert.deepEqual(now(), [3, 0, 1], 'level 3: a point');
+    assert.deepEqual(now(), [3, 10, 1], 'level 3: a point');
     await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
-    assert.deepEqual(now(), [2, 10, 0], 'the swipe takes the point back with the rise');
+    assert.deepEqual(now(), [2, 20, 0], 'the swipe takes the point back with the rise (10 carried + 10)');
     rebuilt(host);
     await host.send('And more.', reply(line('character', 'add-xp', ' | amount: 100')));
-    assert.deepEqual(now(), [3, 0, 1], 'XP is held at 100 by its field, so 10 + 100 carries nothing');
+    assert.deepEqual(now(), [3, 20, 1], 'the 20 carried plus 100 is one level and 20 over');
     rebuilt(host);
 });
 

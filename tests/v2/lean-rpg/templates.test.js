@@ -44,7 +44,7 @@ test('every block stays inside the field, kind and text limits', () => {
 
 test('the Character block has the keys the RPG reads, with their ranges and stage names', () => {
     const { state, kinds } = template('Character');
-    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'cap', 'down', 'alive', 'left']);
+    assert.deepEqual(Object.keys(state), ['who', 'about', 'health', 'mana', 'stamina', ...STATS, 'points', 'level', 'xp', 'rise', 'cap', 'down', 'alive', 'left']);
     assert.equal(state.who.type, 'text');
     assert.deepEqual([state.about.type, state.about.max, state.about.label], ['text', 240, 'Who they are']);
     assert.notEqual(state.about.prompt, false, 'who they are is read by the AI in the tail');
@@ -61,7 +61,7 @@ test('the Character block has the keys the RPG reads, with their ranges and stag
     assert.equal(state.level.names, undefined, 'a level is a number, no longer named I to IX');
     assert.equal(state.soul, undefined, 'no Soul Class field in a new template');
     assert.deepEqual([state.cap.min, state.cap.max, state.cap.default, state.cap.label, state.cap.prompt], [1, 99, 99, 'Level cap', false]);
-    assert.deepEqual([state.xp.min, state.xp.max], [0, 100]);
+    assert.deepEqual([state.xp.min, state.xp.max], [0, 9999], "XP past 100 is kept for the rise");
     assert.equal(state.down.type, 'bool');
     assert.equal(state.down.prompt, false, 'Down is hidden from the narrator');
     assert.equal(state.alive.type, 'bool');
@@ -114,8 +114,12 @@ test('a rise is a plain rule: XP at 100 raises the Level (below the cap), resets
     const levelUp = character.rules.find(rule => rule.id === 'level-up');
     assert.equal(character.rules.some(rule => rule.id === 'class-up'), false);
     assert.deepEqual(levelUp.when, ['and', ['ge', ['get', ['xp']], 100], ['lt', ['get', ['level']], ['get', ['cap']]]]);
-    assert.deepEqual(levelUp.then, [{ op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], 1], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' },
-        { op: 'add', path: ['level'], value: 1, bounds: 'clamp' }, { op: 'add', path: ['xp'], value: -100, bounds: 'clamp' }], 'a point to spend when the new level is a multiple of 3 (2.17.0; was 3 points with each Soul Class rise)');
+    const rise = ['min', ['floorDiv', ['get', ['xp']], 100], ['sub', ['get', ['cap']], ['get', ['level']]]];
+    assert.deepEqual(levelUp.then, [{ op: 'set', path: ['rise'], value: rise },
+        { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], ['get', ['rise']]], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' },
+        { op: 'add', path: ['level'], value: ['get', ['rise']], bounds: 'clamp' }, { op: 'add', path: ['xp'], value: ['mul', ['get', ['rise']], -100], bounds: 'clamp' }, { op: 'set', path: ['rise'], value: 0 }],
+        '2.17.0: the rise is worked out once (min of the XP\'s hundreds and the room under the cap), carries the XP over 100 and gives a point for every multiple of 3 crossed');
+    assert.deepEqual(character.rules.find(rule => rule.id === 'xp-cap').then, [{ op: 'set', path: ['xp'], value: 100 }], 'at the cap the XP past 100 is not kept');
     for (const rule of template('Skills').rules) {
         const n = rule.id.at(-1);
         assert.deepEqual(rule.when, ['and', ['ge', ['get', [`practice${n}`]], 100], ['lt', ['get', [`rank${n}`]], 3]]);
