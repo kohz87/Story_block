@@ -136,7 +136,7 @@ The checker checks the pack and each screen's fields. A layout is checked in ful
 
 **4. Modules.** Developers can add whole parts, with their own commands, screens and settings: see [docs/v2/MODULES.md](docs/v2/MODULES.md).
 
-**Scripts and cards.** A small read-only API (`StoryBlock.api`: `get('scene.place')`, events such as `story:changed`) and a `{{sb::scene.place}}` macro for SillyTavern prompts and status bars: see [docs/v2/PUBLIC-API.md](docs/v2/PUBLIC-API.md).
+**Scripts and cards.** A small read-only API (`StoryBlock.api`: `get('scene.place')`, events such as `story:changed`) and a `{{sb::scene.place}}` macro for SillyTavern prompts and status bars: see [docs/v2/PUBLIC-API.md](docs/v2/PUBLIC-API.md), or start with [Build your first card](docs/v2/BUILD-A-CARD.md).
 
 ## How the four fit together
 
@@ -171,4 +171,4 @@ Install Story Block first, then Story Director, then NPC State Delta if you want
 
 ## More
 
-[Player guide](docs/v2/GUIDE.md) · [RPG guide](docs/v2/RPG.md) · [Pack guide](docs/v2/PACKS.md) · [Authoring kit](authoring-kit/README.md) · [Changelog](CHANGELOG.md) · [Licence](LICENSE) (AGPL-3.0). Icons include [Phosphor Icons](ICONS-CREDITS.md). Report bugs in [Issues](https://github.com/kohz87/Story_block/issues).
+[Player guide](docs/v2/GUIDE.md) · [RPG guide](docs/v2/RPG.md) · [Pack guide](docs/v2/PACKS.md) · [Build a card](docs/v2/BUILD-A-CARD.md) · [Authoring kit](authoring-kit/README.md) · [Changelog](CHANGELOG.md) · [Licence](LICENSE) (AGPL-3.0). Icons include [Phosphor Icons](ICONS-CREDITS.md). Report bugs in [Issues](https://github.com/kohz87/Story_block/issues).

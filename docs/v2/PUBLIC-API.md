@@ -98,8 +98,8 @@ It works with SillyTavern 1.19's macro engine (the default). With the old macro 
 
 Story Block's own text in the prompt is not touched by macros: every `{{` in a name the story introduced is written with a zero-width space before SillyTavern sees it, so `{{sb::money}}` inside a place name stays text.
 
-A status bar as a regex script: find `\[STATUS\]`, replace with `{{sb::scene.place|somewhere}} · {{sb::money.text|0}} · HP {{sb::party.me.health|?}}`.
+A ready-made example is in [examples/cards/status-bar](../../examples/cards/status-bar/README.md). A status bar as a regex script: find `\[STATUS\]`, replace with `{{sb::scene.place|somewhere}} · {{sb::money.text|0}} · HP {{sb::party.me.health|?}}`.
 
 ## Not in version 1
 
-Writes (an allow-list of commands may come in a version 2) and `npc.<name>.<meter>`. Blocks defined on a character card's worldbook and a tutorial card are separate follow-ups.
+Writes (an allow-list of commands may come in a version 2) and `npc.<name>.<meter>`. Blocks defined on a character card's worldbook are a separate follow-up. For a first walk-through, see [BUILD-A-CARD.md](BUILD-A-CARD.md).
