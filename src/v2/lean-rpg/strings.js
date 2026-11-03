@@ -270,6 +270,7 @@ export const RPG_STRINGS = Object.freeze({
         title: '{name} joins the party',
         text: '{about}',
         rowSoul: '{label} {name}',
+        rowLevel: 'Level {level}',
         rowBest: 'Best at {stat}',
         add: 'Add to party',
         edit: 'Edit first',

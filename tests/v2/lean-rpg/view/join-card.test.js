@@ -32,6 +32,8 @@ test('Ask: the card sits under the newest reply with the words of the mockup and
     assert.ok(card, 'the card');
     assert.match(card.textContent, /Mara joins the party/);
     assert.match(card.textContent, /a hedge-witch from Kvildal/);
+    assert.match(card.textContent, /Level 35/, 'F12: the card says the level the class stands for (class IV: 35), not a Soul Class');
+    assert.doesNotMatch(card.textContent, /Soul Class/);
     assert.deepEqual(card.querySelectorAll('button').map(node => node.textContent.trim()).filter(Boolean), ['Add to party', 'Edit first', 'No']);
     assert.deepEqual(names(ctx.host), ['pack.chat/wessel', 'pack.chat/wessel-skills'], 'nothing made by the line');
 });

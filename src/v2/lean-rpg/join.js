@@ -168,9 +168,9 @@ export function joinOffers(entries, index, party = []) {
 export function joinCard(offers, state = null) {
     const offer = offers[0];
     if (!offer) return null;
-    const naming = soulNaming(state);
     const payload = { name: offer.name, about: offer.about, soul: offer.soul, best: offer.best };
-    const rows = [{ icon: 'fa-star', text: fill(J.rowSoul, { label: naming.label, name: CLASS_NAMES[offer.soul - 1] ? naming.word(offer.soul) : naming.word(1) }) }];
+    // (the class a line writes stands for a level, 10n - 5: the card says the level the companion will start at)
+    const rows = [{ icon: 'fa-star', text: fill(J.rowLevel, { level: levelOfClass(CLASS_NAMES[offer.soul - 1] ? offer.soul : 1) }) }];
     if (offer.best) rows.push({ icon: 'fa-arrow-up', text: fill(J.rowBest, { stat: offer.best.toUpperCase() }) });
     return {
         tone: 'accent', icon: 'fa-user-plus', title: fill(J.title, { name: offer.name }), text: offer.about, rows,
