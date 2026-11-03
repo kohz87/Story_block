@@ -35,7 +35,7 @@ const LOG = '[Story Block API]';
 // The most text the `summary` of `story:reply` holds.
 const SUMMARY_MAX = 500;
 // The head event's reasons that are announced as `story:rebuilt`.
-const REBUILT = new Set(['swipe', 'delete', 'reread', 'repair']);
+const REBUILT = new Set(['swipe', 'delete', 'reread', 'repair', 'rewind', 'module']);
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = value => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '');
@@ -76,9 +76,10 @@ export function plainText(value) {
 
 // A section is a Map of folded path → { path, value, leaf }: `leaf` entries are the values the diff compares; the others are groups (a list or an
 // object that holds leaves). `alias` entries (party.me.*) point at a member's own path and are not diffed.
+// An object value (a map field) is a group: its per-key leaves are what the diff compares, so a change is reported once.
 function put(map, path, value, leaf = true, alias = false) {
     if (value === undefined) return;
-    map.set(fold(path), { path, value, leaf, alias });
+    map.set(fold(path), { path, value, leaf: leaf && !isObject(value), alias });
 }
 
 // "06:40 am" in a calendar's own text, else the minute of the day as 24-hour time.
@@ -177,29 +178,33 @@ function partySection(state, persona) {
     });
     put(map, 'party', members.map(member => member.out), false);
     for (const { out, lead } of members) {
+        // A member called "me" is not reachable by name (party.me is the reader's alias); it is still in the `party` list.
+        const named = fold(out.name) !== 'me';
         const base = `party.${out.name}`;
-        put(map, base, out, false);
+        if (named) put(map, base, out, false);
         if (lead) put(map, 'party.me', out, false, true);
         for (const [field, value] of Object.entries(out)) {
-            if (field === 'name') { put(map, `${base}.name`, value); if (lead) put(map, 'party.me.name', value, true, true); continue; }
+            if (field === 'name') { if (named) put(map, `${base}.name`, value); if (lead) put(map, 'party.me.name', value, true, true); continue; }
             if (field === 'stats') {
-                put(map, `${base}.stats`, value, false);
+                if (named) put(map, `${base}.stats`, value, false);
                 if (lead) put(map, 'party.me.stats', value, false, true);
                 for (const [stat, number] of Object.entries(value)) {
-                    put(map, `${base}.stats.${stat}`, number);
+                    if (named) put(map, `${base}.stats.${stat}`, number);
                     if (lead) put(map, `party.me.stats.${stat}`, number, true, true);
                 }
                 continue;
             }
-            put(map, `${base}.${field}`, value);
+            if (named) put(map, `${base}.${field}`, value);
             if (lead) put(map, `party.me.${field}`, value, true, true);
         }
     }
     return map;
 }
 
-// A block shown nowhere (both its tab and its card off) is hidden; the RPG's role blocks are shown by the RPG's own screens.
-const blockHidden = definition => isObject(definition?.show) && definition.show.tab === false && definition.show.card === false && !definition.role;
+// A block is hidden the way the Blocks screen says "Hidden": no tab and no card (no `show` at all is the same), and no screens or layouts of its own.
+// The RPG's role blocks are shown by the RPG's own screens.
+const blockHidden = definition => !definition.role && !definition.show?.tab && !definition.show?.card
+    && !(Array.isArray(definition.screens) && definition.screens.length) && !(Array.isArray(definition.layouts) && definition.layouts.length);
 
 function blocksSection(state, rpgOn) {
     const map = new Map();
@@ -221,10 +226,14 @@ function blocksSection(state, rpgOn) {
         ids.push(id);
         if (definition.scope === 'character') {
             const people = {};
-            for (const subject of domain.active[id].subjects ?? []) {
-                const fields = instanceOf(state, id, subject)?.fields;
-                if (!isObject(fields)) continue;
-                const who = text(actors[subject]?.name) || subject;
+            // Subjects with the same display name are read by their ids.
+            const subjects = (domain.active[id].subjects ?? []).filter(subject => isObject(instanceOf(state, id, subject)?.fields));
+            const shownName = subject => text(actors[subject]?.name) || subject;
+            const count = new Map();
+            for (const subject of subjects) count.set(fold(shownName(subject)), (count.get(fold(shownName(subject))) ?? 0) + 1);
+            for (const subject of subjects) {
+                const fields = instanceOf(state, id, subject).fields;
+                const who = count.get(fold(shownName(subject))) > 1 ? subject : shownName(subject);
                 people[who] = visible(definition, fields);
                 put(map, `blocks.${id}.${who}`, people[who], false);
                 leaves(`blocks.${id}.${who}`, people[who]);
@@ -250,13 +259,25 @@ export function createReaders({ ask, rpgOn = () => false, persona = () => '' }) 
     const safeAsk = state => (name, args) => { try { return ask(state, name, args) ?? null; } catch { return null; } };
     const flag = () => { try { return rpgOn() === true; } catch { return false; } };
     const who = () => { try { return String(persona() ?? ''); } catch { return ''; } };
+    // The sections that read only the state (and the RPG switch and the persona) are kept per head-state object: a state is frozen and a new head is a
+    // new object, so repeated gets on one head reuse them. The scene and money ask queries that depend on settings, so they are read each time.
+    const kept = new WeakMap();
+    function cached(state, root, signature, build) {
+        let sections = kept.get(state);
+        if (!sections) kept.set(state, sections = new Map());
+        const hit = sections.get(root);
+        if (hit && hit.signature === signature) return hit.map;
+        const map = build();
+        sections.set(root, { signature, map });
+        return map;
+    }
     function section(state, root) {
         if (!isObject(state) || !isObject(state.domains)) return new Map();
         if (root === 'scene') return sceneSection(safeAsk(state));
         if (root === 'money') return moneySection(safeAsk(state), state);
-        if (root === 'items') return itemsSection(safeAsk(state), state);
-        if (root === 'party') return flag() ? partySection(state, who()) : new Map();
-        if (root === 'blocks') return blocksSection(state, flag());
+        if (root === 'items') return cached(state, root, '', () => itemsSection(safeAsk(state), state));
+        if (root === 'party') { const on = flag(), name = who(); return on ? cached(state, root, name, () => partySection(state, name)) : new Map(); }
+        if (root === 'blocks') { const on = flag(); return cached(state, root, String(on), () => blocksSection(state, on)); }
         return new Map();
     }
     const ROOTS = ['scene', 'money', 'items', 'party', 'blocks'];
@@ -379,17 +400,17 @@ export function createPublicApi({ version, hostReady = Promise.resolve(), state,
         version: API_VERSION,
         host: String(version),
         ready: null,
-        get: path => frozenCopy(readers.get(headState(), path)),
-        paths: () => deepFreeze(readers.paths(headState())),
-        on(event, fn) {
+        get: Object.freeze(path => frozenCopy(readers.get(headState(), path))),
+        paths: Object.freeze(() => deepFreeze(readers.paths(headState()))),
+        on: Object.freeze(function on(event, fn) {
             if (!listeners.has(event)) throw new Error(`Story Block API: there is no "${event}" event (known: ${API_EVENTS.join(', ')}).`);
             if (typeof fn !== 'function') throw new Error('Story Block API: on() needs a function.');
             const set = listeners.get(event);
             set.add(fn);
             return () => { set.delete(fn); };
-        },
+        }),
     };
-    api.ready = Promise.resolve(hostReady).then(() => (headState() ? undefined : firstReadDone)).then(() => frozenApi);
+    api.ready = Object.freeze(Promise.resolve(hostReady).then(() => (headState() ? undefined : firstReadDone)).then(() => frozenApi));
     const frozenApi = Object.freeze(api);
     return frozenApi;
 }

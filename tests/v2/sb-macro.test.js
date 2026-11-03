@@ -34,6 +34,7 @@ const block = (fields, state = {}) => ({
     domains: { dataModules: { initial: () => {
         const domain = sheetDomain({ tracker: { fields }, ren: { role: 'character', fields: character('Ren', { level: 3 }) } });
         domain.pins.h0.definition.state = state;
+        domain.pins.h0.definition.show = { tab: true, card: false };
         delete domain.pins.h0.definition.role;
         return domain;
     } } },
@@ -151,6 +152,34 @@ test('{{sb::path|fallback}}: the fallback for a path that is missing, empty, hid
     assert.ok(!ctx.run('blocks.pack.chat/tracker.secret|hidden').includes('7'));
 });
 
+test('{{sb::path::fallback}} is the safe form of the fallback, and | still works', { skip }, async t => {
+    const host = await world(t);
+    await host.send('Go.', 'Opening.');
+    const ctx = fakeEngine();
+    registerSbMacro({ ctx, api: host.api });
+    assert.equal(ctx.run('scene.place::nowhere'), 'nowhere');
+    assert.equal(ctx.run('scene.place::a::b'), 'a::b');
+    assert.equal(ctx.run('scene.place|nowhere'), 'nowhere');
+    assert.equal(ctx.run('scene.place::a|b'), 'a|b');
+    assert.equal(ctx.run('money::none'), '0');
+    assert.equal(macroText(host.api, 'scene.place::'), '');
+});
+
+test('a macro engine that returns null (it refused) is told once and the old way is used', { skip }, async t => {
+    const host = await world(t);
+    const logged = [];
+    const legacy = new Map();
+    const ctx = { ...fakeEngine(), registerMacro: (key, fn) => legacy.set(key, fn), unregisterMacro: key => legacy.delete(key) };
+    ctx.macros.register = () => null;
+    const handle = registerSbMacro({ ctx, api: host.api, log: (...args) => logged.push(args) });
+    assert.equal(handle.engine, 'legacy');
+    assert.equal(legacy.size, LEGACY_PATHS.length);
+    assert.equal(logged.length, 1);
+    const none = { ...fakeEngine() };
+    none.macros.register = () => null;
+    assert.equal(registerSbMacro({ ctx: none, api: host.api, log: () => {} }), null, 'no old API either: nothing is registered');
+});
+
 test('output: cut at 300 characters, line breaks turned into spaces, {{ in a value written with a zero-width space', { skip }, async t => {
     const state = { text: { type: 'text', max: 600, default: '' } };
     const long = 'word '.repeat(100).trim();
@@ -159,6 +188,10 @@ test('output: cut at 300 characters, line breaks turned into spaces, {{ in a val
     const out = macroText(host.api, 'blocks.pack.chat/tracker.text');
     assert.equal(MACRO_MAX, 300);
     assert.equal(out.length, 300);
+    const braces = await world(t, { modules: [block({ text: '{{'.repeat(200) }, state)] });
+    await braces.send('Go.', 'Opening.');
+    assert.ok(macroText(braces.api, 'blocks.pack.chat/tracker.text').length <= MACRO_MAX, 'defusing adds characters, the cut comes after');
+    assert.ok(!macroText(braces.api, 'blocks.pack.chat/tracker.text').includes('{{'));
     assert.ok(out.startsWith('word word word'));
     assert.ok(!/[\r\n]/.test(out));
     const short = await world(t, { modules: [block({ text: 'one\ntwo\r\n\r\nthree {{user}} and <USER>' }, state)] });

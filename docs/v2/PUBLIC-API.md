@@ -23,7 +23,7 @@ Within API version 1 the names, arguments and payload shapes on this page do not
 |---|---|
 | `version` | `1` |
 | `host` | The Story Block version, as text (like `"2.19.0"`). |
-| `ready` | A promise that resolves, to the api, once the host is up and the first chat has been read. A chat opened later is told by `story:chat`. |
+| `ready` | A frozen promise that resolves, to the api, once the host is up and the first chat has been read. A chat opened later is told by `story:chat`. |
 | `get(path)` | The value at a path, a frozen plain copy, or `undefined`. A path is not case-sensitive. A list or object you get back cannot be changed. |
 | `paths()` | The paths that have a value in this chat right now (a frozen list), for authors and pickers. |
 | `on(event, fn)` | Listens to an event; returns `off()`. An unknown event or a `fn` that is not a function throws. |
@@ -54,7 +54,7 @@ Within API version 1 the names, arguments and payload shapes on this page do not
 A value that is hidden reads as `undefined`, and its path is not in `paths()`, in a change list or in a macro:
 
 - A data-module field the pack marks `prompt: false` (hidden from the story): in `blocks.*`, and in `party.*` (a member's hidden level, xp, bar or stat is left out; a hidden Who is the block's name).
-- A block shown nowhere (`show: { tab: false, card: false }`) that is not an RPG role block.
+- A block the Blocks screen lists as **Hidden**: no tab and no card (a block with no `show` at all is the same) and no screens or layouts of its own, and not an RPG role block. Such a block has no `blocks.*` path, no change in an event and no macro value.
 - The RPG's role blocks and the party while the RPG is off (off means fully off).
 
 Items, money and the scene have no hidden marks. A value you get is a copy: changing it changes nothing in the story.
@@ -67,7 +67,7 @@ Items, money and the scene have no hidden marks. A value you get is a copy: chan
 |---|---|---|
 | `story:changed` | `{ index, changes: [{ path, from, to }] }` | After a live reply's changes are applied (and after lines added to it afterwards, such as the safety net's): the difference of the public paths before and after, sorted by path. `from` and `to` are `null` for "none". Not sent when nothing public changed. |
 | `story:reply` | `{ index, summary }` | After a reply is fully captured. `summary` is one line of text built from the public changes (empty when there are none; at most 500 characters). |
-| `story:rebuilt` | `{ reason }` | After the state was rebuilt and not a new reply: `"swipe"`, `"delete"`, `"reread"`, `"repair"`, or `"reload"` (the open chat was read again). Read the paths again. |
+| `story:rebuilt` | `{ reason }` | After the state was rebuilt and not a new reply: `"swipe"`, `"delete"`, `"reread"`, `"repair"`, `"rewind"` (a take-back), `"module"` (a module became ready or dormant) or `"reload"` (the open chat was read again). Read the paths again. |
 | `story:chat` | `{ chatId }` | When the chat changes and its state is ready. |
 
 `index` is the message's position in the chat. A swipe sends `story:rebuilt` and then, when the new swipe is generated, the usual `story:changed` and `story:reply`. A message edit sends nothing.
@@ -90,7 +90,8 @@ In SillyTavern prompts, character cards, regex scripts and status bars:
 | `{{sb::party.me.health}}` | `Hurt` |
 | `{{sb::items.Healing Draught.qty}}` | `2` |
 | `{{sb::scene.present}}` | `Ren, Mara` (a list is a comma list) |
-| `{{sb::party.me.health\|unknown}}` | The fallback (`unknown`) when the path is empty or hidden. |
+| `{{sb::party.me.health::unknown}}` | The fallback (`unknown`) when the path is empty or hidden. This `::` form is the safe one. |
+| `{{sb::party.me.health\|unknown}}` | The same with `\|`; it works, but SillyTavern's engine reads `\|` in a few places of its own, so prefer `::`. |
 
 The same paths and the same hidden-value rule as `api.get`. An object has no text (use a leaf path, or give a fallback). Output is cut at 300 characters, line breaks become spaces, and `{{` in a value is written with a zero-width space so it is not run again. No expressions, no functions, read-only.
 
@@ -98,7 +99,7 @@ It works with SillyTavern 1.19's macro engine (the default). With the old macro 
 
 Story Block's own text in the prompt is not touched by macros: every `{{` in a name the story introduced is written with a zero-width space before SillyTavern sees it, so `{{sb::money}}` inside a place name stays text.
 
-A status bar as a regex script: find `\[STATUS\]`, replace with `{{sb::scene.place|somewhere}} · {{sb::money.text|0}} · HP {{sb::party.me.health|?}}`.
+A status bar as a regex script: find `\[STATUS\]`, replace with `{{sb::scene.place::somewhere}} · {{sb::money.text::0}} · HP {{sb::party.me.health::?}}`.
 
 ## Not in version 1
 

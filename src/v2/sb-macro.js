@@ -25,14 +25,16 @@ export const LEGACY_PATHS = Object.freeze(['scene.place', 'scene.time', 'scene.d
  * the fallback, or nothing without one.
  */
 export function macroText(api, raw) {
+    // `path|fallback` and `path::fallback` (the safe form: SillyTavern's engine reads `|` in a few places of its own); the first of the two splits.
     const text = String(raw ?? '');
-    const bar = text.indexOf('|');
-    const path = (bar < 0 ? text : text.slice(0, bar)).trim();
-    const fallback = bar < 0 ? '' : text.slice(bar + 1).trim();
+    const found = [text.indexOf('|'), text.indexOf('::')].filter(at => at >= 0).sort((a, b) => a - b)[0];
+    const path = (found === undefined ? text : text.slice(0, found)).trim();
+    const fallback = found === undefined ? '' : text.slice(found + (text.startsWith('::', found) ? 2 : 1)).trim();
     let value = null;
     try { value = plainText(api.get(path)); } catch { value = null; }
     if (value === null) return fallback;
-    return defuseMacros(cutAt(value, MACRO_MAX));
+    // Cut after defusing, so the result is at most MACRO_MAX characters.
+    return cutAt(defuseMacros(value), MACRO_MAX);
 }
 
 /**
@@ -45,7 +47,7 @@ export function registerSbMacro({ ctx, api, log = console.warn }) {
         if (modern) {
             // A copy of Story Block that was loaded before this one is replaced (the newer code is the one that runs).
             if (ctx.macros.registry.hasMacro?.(MACRO_NAME)) ctx.macros.registry.unregisterMacro(MACRO_NAME);
-            ctx.macros.register(MACRO_NAME, {
+            const made = ctx.macros.register(MACRO_NAME, {
                 category: 'extension',
                 unnamedArgs: [{ name: 'path', description: 'A Story Block path, like scene.place or party.me.health; add |fallback for when it is empty or hidden.' }],
                 list: true,
@@ -55,7 +57,9 @@ export function registerSbMacro({ ctx, api, log = console.warn }) {
                 exampleUsage: ['{{sb::scene.place}}', '{{sb::party.me.health|unknown}}'],
                 handler: ({ args }) => macroText(api, (Array.isArray(args) ? args : []).join('::')),
             });
-            return { engine: 'new', off: () => { try { ctx.macros.registry.unregisterMacro(MACRO_NAME); } catch { /* already gone */ } } };
+            if (made) return { engine: 'new', off: () => { try { ctx.macros.registry.unregisterMacro(MACRO_NAME); } catch { /* already gone */ } } };
+            // The engine refused it (it logs its own reason and returns null): the old way, told once.
+            try { log('[Story Block v2] the macro engine did not take {{sb::…}}; trying the old macro API'); } catch { /* nothing to tell it to */ }
         }
         if (typeof ctx?.registerMacro === 'function') {
             for (const path of LEGACY_PATHS) ctx.registerMacro(`${MACRO_NAME}::${path}`, () => macroText(api, path));

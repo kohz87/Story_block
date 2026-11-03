@@ -136,7 +136,7 @@ export const normalizeType = type => String(type ?? 'normal').trim().toLowerCase
  */
 export function defuseMacros(text) {
     return String(text ?? '')
-        .replace(/\{\{/g, '{​{')
+        .replace(/\{(?=\{)/g, '{​')
         .replace(/<(USER|BOT|CHAR|CHARIFNOTGROUP|GROUP)>/gi, '<​$1>');
 }
 
@@ -1535,7 +1535,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // A module turned ready or dormant: guarded blocks of its are asked again (store.lifecycleChanged).
         offModules?.();
         offModules = events?.on?.('modules', () => {
-            if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex() });
+            if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex(), reason: 'module' });
         }) ?? null;
         const source = ctx?.eventSource;
         const names = ctx?.eventTypes ?? ctx?.event_types ?? {};
