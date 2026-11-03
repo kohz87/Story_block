@@ -18,6 +18,7 @@ import { checkJoin, joinDefinitions, joinGrammar, joinMode, partyOf, readJoin, s
 import { RPG_EXTRAS, extraDefinitions, extraName, extrasPlan } from '../lean-rpg/view/wizard-data.js';
 import { fold } from '../lean-rpg/read.js';
 import { isStandard, packRulesOf, rulesFromSettings } from '../lean-rpg/rules.js';
+import { XP_RATE, scaleXp, xpRateFrom } from '../lean-rpg/levels.js';
 import { CLASS_NAMES } from '../lean-rpg/names.js';
 import { RPG_STRINGS } from '../lean-rpg/strings.js';
 
@@ -659,6 +660,15 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         if (line ? line.op !== kind.op : ctx.cause !== 'ui' || !kind.ui) refuse('REFUSED', '', line ? `${labels.kind} is written with ${kind.op}, not ${line.op}` : `${labels.kind} is a story line; a screen may only use kinds that allow it`);
         if (line && dmKindWritesHidden(definition, kind)) refuse('REFUSED', '', B.hiddenLine);
         const args = parseLabels(definition, kind, labels, { text: Boolean(line) });
+        // The XP rate (lean-rpg/levels.js): the narrator's XP line for a character is multiplied by the rate in force (the RPG on), which the line's record keeps
+        // (`xpRate`, only when it is not 100) so a later change of the setting never moves it; a line recorded without it is 100.
+        let xpRate = XP_RATE.default;
+        if (ctx.cause === 'story' && definition.role === 'character' && ctx.feature?.(LEAN_RPG_FEATURE) === true) {
+            try { xpRate = xpRateFrom(settings()); } catch { xpRate = XP_RATE.default; }
+            if (xpRate !== XP_RATE.default) for (const effect of kind.effects ?? []) {
+                if (effect?.op === 'add' && Array.isArray(effect.path) && effect.path[0] === 'xp' && Array.isArray(effect.value) && effect.value[0] === 'arg' && Number.isSafeInteger(args[effect.value[1]])) args[effect.value[1]] = scaleXp(args[effect.value[1]], xpRate);
+            }
+        }
         const subject = definition.scope === 'chat' ? 'chat' : resolveActor(prefix, labels.who, subjectsOf(prefix, module));
         const active = prefix.domains.dataModules.active[module], draft = draftOf(ctx);
         const instance = atPath(draft, instancePath(module, subject)), inputs = inputsOf(prefix, definition);
@@ -685,7 +695,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         const changes = namedChanges(definition, fieldsBefore, instance.fields);
         const recorded = guard(ctx, prefix, { kind: 'dm.act', module, hash: active.hash, generation: active.generation, subject,
             reads: result.reads.map(read => read.path), imports: prefixImports(definition),
-            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds } });
+            actor: subject !== 'chat', decision: { args, inputs, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), conds: result.conds, ...(xpRate !== XP_RATE.default ? { xpRate } : {}) } });
         // The concrete outcome kept beside the inputs (and past the receipts' display data): which line, for whom, what was frozen, what was limited.
         const outcome = { kind: labels.kind, ...(route ? { skill: { slot: route.slot, name: route.update ? route.name : instance.fields[`skill${route.slot}`] } } : {}), subject, decisions: result.decisions.map(({ source: _source, cursor: _cursor, ...rest }) => rest), notes: result.notes, ...(result.fired.length ? { rules: result.fired } : {}) };
         // A story line that writes a character's XP: what the character had before it is kept for the reply (see finish), so that a won fight, whose XP is
