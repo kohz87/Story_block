@@ -189,7 +189,7 @@ test('a new roll carries the flow: Re-read, swipe, middle delete, rebuild and re
     const kept = JSON.stringify(first.data.v2.result);
     assert.equal((await host.turn.reread(2)).ok, true);
     assert.equal(JSON.stringify(resultOf(host, 2)), kept);
-    await host.send('Again.', 'The rats come on.');
+    await host.send('Again, I hit.', 'The rats come on.');
     await host.swipe('A different telling.');
     assert.equal(resultOf(host, 4).flow, FLOW_VERSION);
     await host.st.deleteMessage(2);
