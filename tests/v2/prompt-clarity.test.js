@@ -9,19 +9,21 @@ import { TOLD, WALLET_NOTE } from '../../src/v2/domains/inventory.js';
 import { STATIC_KEY, TAIL_KEY } from '../../src/v2/turn.js';
 import { createHost } from '../../testkit/index.js';
 
-const WALLET = `before this reply: write a coin line for any money paid or received in it`;
+const WALLET = `before this reply`;
 const tailOf = host => host.st.promptLog.filter(entry => entry.key === TAIL_KEY && entry.value).at(-1).value;
 const staticOf = host => host.st.promptLog.filter(entry => entry.key === STATIC_KEY && entry.value).at(-1).value;
 
-test('the Wallet line says it is the amount before this reply, and asks for a coin line for money paid or received in it', async t => {
+// (Prompt diet, stage 59: the coin rule is said once, in the coin kind's grammar line below; the Wallet line only says it is the purse before this reply.)
+test('the Wallet line says it is the amount before this reply, and does not repeat the ask for a coin line', async t => {
     assert.equal(WALLET_NOTE, WALLET);
     const host = await createHost();
     t.after(() => host.close());
     await host.send('I look for work.', 'The clerk nods.\n<Changes>\n+ coin 70 | from: the clerk\n</Changes>');
     await host.send('I pay for a room.', 'Marrit pays the innkeeper.');
     const tail = tailOf(host);
-    assert.match(tail, /^Wallet: 70 gold \(before this reply: write a coin line for any money paid or received in it\)$/m);
-    assert.equal((tail.match(/Wallet:/g) ?? []).length, 1);
+    assert.match(tail, /^Wallet \(before this reply\): 70 gold$/m);
+    assert.equal((tail.match(/Wallet/g) ?? []).length, 1);
+    assert.doesNotMatch(tail, /write a coin line/);
 });
 
 test('the coin kind\'s grammar line says to write the coin line whenever {{user}} is paid or pays, in one short clause; the static part is the same every reply', async t => {
@@ -52,7 +54,7 @@ test('a starting purse and kit (from a saved character) are told under [Happened
     await host.send('I pay Marrit.', 'Marrit pays 36 copper.');
     const tail = tailOf(host);
     assert.match(tail, /\[Happened\]\nYou set the purse to 70 gold\. \(Starting purse, set before the story began: not money paid or received in the story\.\)\nYou added Bedroll\. \(Starting kit, set before the story began: not found, bought or used in the story\.\)/);
-    assert.match(tail, /Wallet: 70 gold \(before this reply/);
+    assert.match(tail, /Wallet \(before this reply\): 70 gold/);
 });
 
 test('the reader\'s own corrections of the purse and the bag are told as the state as it stands too; the card\'s words do not change', async t => {

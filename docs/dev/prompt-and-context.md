@@ -27,8 +27,10 @@ static part); REVIEW.md risky part §5.
 - Quiet and impersonate generations get both slots emptied. A Continue or a dry run commits no cues.
 - Untold receipts are told once; a swipe of the reply that told them tells them again (its `narrated` starts empty).
 - The model never sees JSON: modules render compact text views.
-- The `Wallet:` tail line says it is the purse **before this reply** and that any money paid or received in the reply
-  needs a coin line (`WALLET_NOTE`, inventory.js), so a payment is not read as already counted. A receipt with a text
+- The `Wallet (before this reply):` tail line says it is the purse before this reply (`WALLET_NOTE`, inventory.js), so a
+  payment is not read as already counted; the ask for a coin line is said once, in the coin kind's grammar line.
+  The Carried line leaves out where a thing was found (`promptNote`, inventory.js); the stored note keeps it. The look
+  is asked for once per chat, on the reply to the reader's first message (`view.chat.readers`, scene.js `askLook`). A receipt with a text
   in `data.told` (`TOLD`, inventory.js: a saved character's starting purse and kit, the reader's own corrections of
   the purse and the bag) is told under `[Happened]` as `summary (told)`; the reader's card shows the summary alone.
   The coin kind's grammar line asks for a coin line whenever {{user}} is paid or pays (`CORE_KINDS.coin`).

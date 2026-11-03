@@ -42,19 +42,16 @@ export const STATIC_MARKER = '[Story Suite: how this story is kept]';
 
 const HEADER = [
     STATIC_MARKER,
-    'Code keeps this story\'s facts and numbers; you narrate.',
-    `When a note starts with ${HAPPENED}, those things have just happened: tell them as they happen in the scene and keep their numbers. Do not write them again as changes.`,
+    `Code keeps this story's facts and numbers; you narrate. A note starting ${HAPPENED} has just happened: tell it in the scene, keep its numbers, do not write it again as a change.`,
 ].join('\n');
 
 const CHANGES_HEADER = [
-    'At the very end of your reply, after the story, list what changed in one block, one change per line:',
+    'At the very end of your reply, after the story, list what changed in one block (outside any thinking, once; it counts toward no length limit):',
     '<Changes>',
     'op kind Name — what happened | label: value',
     '</Changes>',
-    'op: + new or gained, - gone or lost, ~ changed, ! happened, ? asks code to decide (a check, a roll).',
-    'Use only the kinds below. Leave out what did not change, and the whole block when nothing did.',
-    'This is the only block you write: no state, inventory or party blocks; code keeps those and shows them to you.',
-    'Write it outside any thinking, once. It does not count toward any reply length limit.',
+    'op: + new or gained, - gone or lost, ~ changed, ! happened, ? asks code to decide (a check, a roll). One change per line, only the kinds below; leave out what did not change, and the whole block when nothing did.',
+    'This is the only block you write: no state, inventory or party blocks.',
     'Kinds:',
 ].join('\n');
 
