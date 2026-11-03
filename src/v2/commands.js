@@ -234,9 +234,9 @@ export function createCommandBus({ store, registry, settings = () => ({}), onCom
     // version of an owner (its guard code may answer otherwise), makes it fail and the prefix replays with the guards asked.
     // (the host's own hook, `hostOwned`, answers from the story alone, whoever is ready: it is no owner whose readiness changes an answer)
     // (The RPG's code is loaded on demand, rpg-lazy.js: while it is missing the stand-in's guard answers for none of its blocks, so a checkpoint made then must not be trusted
-    // once the code is there, nor the other way round: the mark says which.)
+    // once the code is there, nor the other way round: the mark says `rpg:missing` while it is; loaded, the mark is what it always was, so the checkpoints of a chat stay trusted.)
     const guardMark = () => `${(registry.modules?.() ?? [])
-        .filter(def => typeof def?.hooks?.replayGuard === 'function' && def.hooks.replayGuard.hostOwned !== true && registry.held?.(def.id) !== true).map(def => `${def.id}@${def.version ?? ''}`).join(',')};rpg:${rpgLib() ? 'loaded' : 'missing'}`;
+        .filter(def => typeof def?.hooks?.replayGuard === 'function' && def.hooks.replayGuard.hostOwned !== true && registry.held?.(def.id) !== true).map(def => `${def.id}@${def.version ?? ''}`).join(',')}${rpgLib() ? '' : ';rpg:missing'}`;
     if (typeof store.attachGuard === 'function') store.attachGuard(replayGuardCheck, guardMark);
 
     // The Source this transaction's block will carry: its reply's canonical pair and ordinal (store.sourceAt).
