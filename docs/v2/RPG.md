@@ -1,8 +1,8 @@
 # RPG
 
 The RPG is an optional part of Story Block for light combat and character growth. It keeps a party sheet
-for you and each companion, rolls the dice for fights and checks, and raises Soul Class and skill ranks as the
-story goes on. It is off by default, and with it off Story Block works exactly as before.
+for you and each companion, rolls the dice for fights and checks, and raises each character's level and skill ranks as the
+story goes on. It is off by default, and with it off Story Block works exactly as before and loads none of its code (a chat that holds RPG records loads it, so they replay as recorded).
 
 ## Turning it on
 
@@ -19,7 +19,7 @@ one block for the whole chat and carries the combat text.
 
 ## The Party tab
 
-With the feature on, the **Party** tab shows one card for each Character block: the name, the Soul Class and XP,
+With the feature on, the **Party** tab shows one card for each Character block: the name, the level (with the pack's rank or guild letter, see [Levels, XP and skill ranks](#levels-xp-and-skill-ranks)) and XP,
 the three stage bars, the seven stats in a row and the skills with their ranks. When a character has unspent
 points, the card offers **Spend points**, which opens the stat view with steppers under the point budget. **Stats**
 opens the same view for the stats alone, and **Skills** opens the character's [Skills view](#the-skills-view). **Export**
@@ -36,16 +36,16 @@ The Fight tab takes the place of the Foes block's own tab, and shows only while 
 **Fight · <place>** (the scene's place, when there is one) with two pills: **Exchange N**, from the latest rolls, and
 **N foes · M down**. With the Standard formula, a **Turn order** row sits under the header: who acts in which order this fight
 (rolled once, at the start; a swipe rolls it again, Re-read keeps it), each with the total rolled, and a line for any
-character who gets an opening action against a foe (a quick start). Under it are a card for each foe (name, Class, a five-cell health bar, greyed when Down; tap the bar,
+character who gets an opening action against a foe (a quick start). Under it are a card for each foe (name, level, a five-cell health bar, greyed when Down; tap the bar,
 or its pencil, to set the foe's health from Down to Unhurt, the same way as on the Party card), a card for each character with the three stage bars, and **Last exchange**: the battle log of the latest
 reply that was rolled. **See it in the story** closes the game view and scrolls the chat to that reply.
 
-With the Standard formula a foe group's health bar has `4 + class/3` blocks (Classes I and II 4, III to V 5, VI to VIII 6, IX 7) and reads
+With the Standard formula a foe group's health bar has `4 + floor(level/30)` blocks (levels 1 to 29 give 4, 30 to 59 give 5, 60 to 89 give 6, 90 to 99 give 7) and reads
 "Scratched · 5 of 6"; the battle log shows the recorded turn order with its totals (`Turn order: Wessel 21 > Weir-drake 18`), the
 quick start and its opening action, "<who> does not act: beaten before its turn" for a group or character beaten before its turn
 (or down, or with nothing left to act on), the result word (Decisive, Decisive hit), "(area)" on an area attack, and the roll's
-breakdown on tap, built from the recorded parts ("Physical: d20 17 + (AGI 10 + DEX 6/2)/2 = 6 + Expert 2 + Class II 4 = 29 · vs
-Weir-drake d20 9 + 3 + Class IV 12 = 24 · Weir-drake loses 1 block (5 of 6)").
+breakdown on tap, built from the recorded parts ("Physical: d20 17 + (AGI 10 + DEX 6/2)/2 = 6 + Expert 2 + Lv 14 ÷ 5 = 2 = 27 · vs
+Weir-drake d20 9 + 3 + Lv 7 ÷ 5 = 1 = 13 · Weir-drake loses 1 block (5 of 6)").
 
 ## Making a character
 
@@ -58,7 +58,7 @@ Weir-drake d20 9 + 3 + Class IV 12 = 24 · Weir-drake loses 1 block (5 of 6)").
    "From your persona's description (the first 240 characters). Change it freely: this is what the AI reads." Only the
    active persona's description is read, never another persona or any other setting. It is only a start: a companion's
    box starts empty, switching to **A companion** empties it again while it is still the persona's text, and anything
-   you type is yours.
+   you type is yours. The **Starting level** (1 to 99, held to the story's level cap) is set here too.
 2. **Stats.** The same steppers and radar as Spend points. On the **Standard** formula (the default) every stat starts at 5 and you have
    10 points to spend; a stat can go down to 3 to free a point and up to 10, and a line under the steppers says what the next points
    buy: `Health 5 blocks (VIT 5, next at 10) · Stamina 4 (AGI 5, next at 10) · Mana 4 (INT 5, next at 10) · Edge −2..+3 (next at LUK 7)`. On **Classic**
@@ -88,14 +88,14 @@ two columns of steppers and the radar below on a phone. The points left show onc
 
 ## Export / Import a character
 
-A character can travel between chats as a file. It carries only what a new character can start from: Soul Class, unspent
+A character can travel between chats as a file. It carries only what a new character can start from: the level, unspent
 points, the seven stats, the skills (and, if you leave them on, the things the character carries and the money).
 It never carries the name, whether they are You or a companion, who they are, XP, Health, Mana or Stamina, skill practice, or
 anything about the story. Both buttons exist only while the RPG is on.
 
 **Export.** **Export** on a character's card, next to **Spend points** and **Skills**, opens **Export <name>**:
 
-- **Character** (always): the Soul Class, the unspent points, the seven stats and up to five skills (name, what it does, stat,
+- **Character** (always): the level, the unspent points, the seven stats and up to five skills (name, what it does, stat,
   Stamina or Mana, rank). A skill whose block has no stat of its own (an old Skills block) is saved without one: a stat is never guessed.
 - **Inventory** (a checkbox, on): the things that character carries, as the Inventory tab lists them: names, counts and notes,
   with the kind and rarity each has. A You carries what is in the party's bag; any character also carries what the party
@@ -106,23 +106,23 @@ anything about the story. Both buttons exist only while the RPG is on.
 **Save** writes `<name>.character.json` (the name in lower case, letters and digits). The file is plain JSON:
 
 ```json
-{ "storySuiteCharacter": 1, "soul": 2, "points": 3,
+{ "storySuiteCharacter": 1, "level": 14, "points": 3,
   "stats": { "str": 14, "vit": 12, "agi": 11, "dex": 10, "int": 8, "luk": 9, "cha": 10 },
   "skills": [{ "name": "Iron Breath", "about": "Steadies the lungs.", "stat": "vit", "uses": "stamina", "rank": 2 }],
   "items": [{ "name": "Oilskin Coat", "qty": 1, "note": "waxed", "kind": "equipment", "rarity": "uncommon" }],
   "money": 50 }
 ```
 
-`items` and `money` are there only when left on. A file is checked when it is read, with the RPG's own limits (Soul Class 1 to 9,
+`items` and `money` are there only when left on. `level` is 1 to 99. A file saved before Levels has only `soul` (Soul Class 1 to 9), which stands for the level 10n − 5; a file saved now also carries `soul` for older builds to read. A file is checked when it is read, with the RPG's own limits (level 1 to 99, or a Soul Class 1 to 9 in a file without a level,
 points 0 to 60, stats 1 to 20, at most five skills with a rank from 0 to 3, names and text cut to the fields' lengths, at most 60
 things with a count of 1 to 999, money a whole number up to 1,000,000,000, the whole file under 64 KB). A skill's `stat` may be missing or null; any other value that is not a stat refuses the file. Keys it does not know are ignored. A
 file that does not pass is refused with one plain sentence ("This is not a saved character file.", "The file has no valid STR (1 to
 20).") and nothing is filled.
 
 **Import.** In **+ New character**, the Who step starts with **Start from a saved character … Import file…**. After a good file the
-step shows "Imported from wessel.character.json: stats, 3 unspent points, Soul Class II and 2 skills", with **Undo import**, and:
+step shows "Imported from wessel.character.json: stats, 3 unspent points, Lv 14 and 2 skills", with **Undo import**, and:
 
-- The **stats**, the **unspent points** (the pool the stats are spent from), the **Soul Class** and the **skills** are filled. The Stats
+- The **stats**, the **unspent points** (the pool the stats are spent from), the **level** and the **skills** are filled. The Stats
   and Skills steps show them and keep the usual rules: a stat can go down to 8 to free a point and up to 15 (a saved stat outside that stays
   where it was), a skill can be renamed or changed, a skill can be added or removed. Picking a skill template while imported skills are there asks "Replace the imported skills? Their ranks will be lost." with **Replace** / **Keep**. A skill the file gave with no stat shows an empty **Stat**, and the Review's "Fix this first" asks for it ("Iron Breath needs a stat."), like a missing "what it does" line. A skill's **rank** comes from the file and cannot
   be changed here; practice starts at 0.
@@ -131,7 +131,7 @@ step shows "Imported from wessel.character.json: stats, 3 unspent points, Soul C
 - The Review adds "Also adds: 3 things to the party's bag · 5 silver to the purse. One swipe of this reply takes it all back." for what the
   file had (the money in this chat's coins, with thousands separators, e.g. "10,000,000 gold"). It says "3 things carried by Ren" only when a party actor of that name will hold them.
 
-**Create** makes the Character and Skills blocks as before (with the file's Soul Class, points, stats and ranks as their defaults) and
+**Create** makes the Character and Skills blocks as before (with the file's level, points, stats and ranks as their defaults) and
 then, as more changes of the same reply:
 
 - one `inventory.add` for each thing the file carried, to the new character's owner (a You: the party's bag; a companion: the party
@@ -176,7 +176,7 @@ When the story says someone joins the party for good, the narrator writes one li
 - party Mara
 ```
 
-`about` is up to 240 characters, `class` is a Soul Class from I to IX and `best` is one of str, vit, agi, dex, int, luk, cha;
+`about` is up to 240 characters, `class` is a Soul Class word from I to IX (still read: a companion starts at the level that class stands for, II at 15 up to IX at 85, I at 1) and `best` is one of str, vit, agi, dex, int, luk, cha;
 the last two are optional. The line is in the narrator's instructions only while the RPG is on, the story has a Character block
 and the setting is not Off; with the RPG off, nothing is told and nothing changes.
 
@@ -187,7 +187,7 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
   LUK and STR, so no point is left over. The skills fill in when the story has them learn something, as for
   anyone.
 - **Ask.** The line makes nothing. The reply gets a card, "Mara joins the party", with **Add to party** (makes them as above),
-  **Edit first** (opens the New character window filled in: name, about, Soul Class, the best stat raised to 14; you spend the
+  **Edit first** (opens the New character window filled in: name, about, class, the best stat raised to 14; you spend the
   rest) and **No** (dismisses it). The card is read from the reply's own record, so a swipe or a delete takes it away and nothing
   is kept in the game for it.
 - **Automatically.** They are made at once and listed in "Changed this reply" ("Mara joined the party"). Like every other line of
@@ -207,7 +207,7 @@ and the setting is not Off; with the RPG off, nothing is told and nothing change
 
 **Skills** on a character's card opens that character's skills in place of the cards (**Back to the party** returns). Each skill
 shows its name, its rank, the stat and resource it uses, what it does, a mastery bar and the roll it makes now:
-`Rolls with it: d20 +12 = VIT 12 → +6 · Expert +2 · Soul Class II +4`. The bar has four cells, one more lit for each rank, with
+`Rolls with it: d20 +12 = VIT 12 → +6 · Expert +2 · Lv 14 ÷ 5 +2`. The bar has four cells, one more lit for each rank, with
 the next one filling as practice grows; its colour follows the rank (Novice grey, Adept blue, Expert purple, Master green).
 Empty slots show a dashed line and are filled when the story has the character learn a skill.
 
@@ -229,7 +229,7 @@ to Fresh. Health only goes back up when the story heals it.
 
 With the Standard formula a bar is a row of **blocks**. The stored value counts the blocks left (Health 0 to 8, Stamina 0 to
 7, Mana 0 to 7); how many blocks the bar has comes from the stats when it is read: **Health 4 + VIT/5, Stamina 3 + AGI/5, Mana
-3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + class/3` blocks (`foeHealthBlocks`). The Party card,
+3 + INT/5**, rounded down (`formula.js blocksFor`). A foe group's Health is `4 + floor(level/30)` blocks (`foeBlocksByLevel`; the older `foeHealthBlocks` is `4 + class/3`). The Party card,
 the Fight tab and the game view's header draw one cell for each block and read "Hurt · 4 of 6"; under the skills the card says how
 many blocks each bar has and the stat that earns the next one ("Health 6 blocks (VIT 10, next at 15) · … · Edge −2..+3 (next at LUK
 7)").
@@ -273,9 +273,9 @@ exactly so; the log's stop word for it is `decisive`, `over`, `pace`, `cap` or `
 `budget` or `pace`.
 
 **The roll rule (Classic).** The rest of this section describes the **Classic** formula; the Standard one, the default, is described in
-[The stat formulas](#the-stat-formulas). A character's roll is `d20 + half the stat (rounded down) + skill rank + 2 × Soul Class + edge`, against
-the foe's `d20 + 5 + 2 × the foe's class`. The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
-plus 3) is what the situation earns, such as an ambush. That is the **Standard** difficulty; the numbers 5, 2 and
+[The stat formulas](#the-stat-formulas). A character's roll is `d20 + half the stat (rounded down) + skill rank + floor(level ÷ 5) + edge`, against
+the foe's `d20 + 5 + floor(the foe's level ÷ 5)`. The level term is `levelBonus`: floor(level ÷ 5), or ÷ 3 to ÷ 8 when the Custom numbers say so; a roll made before Levels keeps its Soul Class term (2 × class). The rank is 0 for Novice up to 3 for Master, and the edge (from minus 3 to
+plus 3) is what the situation earns, such as an ambush. That is the **Standard** difficulty; the foe's base, the level divisor and
 "half" can be changed in [Settings → RPG](#settings--rpg). "Half the stat" can also be "a third of the stat", or
 **full above 10**: the stat minus 5 (a stat of 10 adds 5, 14 adds 9, 20 adds 15, 8 adds 3). Whichever is chosen is the stat's
 bonus everywhere: checks, attacks and defence.
@@ -303,14 +303,14 @@ bonus everywhere: checks, attacks and defence.
 - **Foes.** A foe slot counts as filled with a name and a count above 0, in the Fight tab and for the planning step alike, and
   every Foes block in the story is read.
 - **A fight that starts in this reply.** The planning step may list foes that are not on the Foes block yet, when your message
-  starts a fight against them (`foe <name> | new | count | class`). Story Block checks each one before anything is rolled: a
+  starts a fight against them (`foe <name> | new | count: 3 | level: 14`, or `rank: F` for a level inside that rank's band). Story Block checks each one before anything is rolled: a
   distinctive word of its name (not "the" or "a", a plural -s ignored) must appear as a whole word in your message or in the
-  reply before it, so a foe nobody named is never added; the count is held to 1-12 and the Soul Class to at most your party's
-  highest + 1 (none given: I). An accepted foe fills a free slot through the Foes block's own set-slot kind, as part of the
+  reply before it, so a foe nobody named is never added; the count is held to 1-12 and the level to 1 to 99 and at most your party's
+  highest level + 10 (none given: a level within 2 of the party's average). An accepted foe fills a free slot through the Foes block's own set-slot kind, as part of the
   reply's roll, and the dice are rolled against it as for any fight (an ambush edge included). A swipe plans it again, Re-read
   keeps it, deleting the reply takes the foes back with it, and a rebuild or a reload gives the same. A refused foe adds
   nothing, and a plan that names only refused foes is treated like a plan that could not be read. If the narrator also writes
-  `set-slot` for a group of the same name in the same Foes block, that slot is updated (count and class), not doubled. When no
+  `set-slot` for a group of the same name in the same Foes block, that slot is updated (count and level), not doubled. When no
   foe is filled in and nothing is rolled for a reply, the narrator is told that if a fight starts now it should set the Foes line
   and stop at the first clash, and the dice decide from the next reply.
 
@@ -324,22 +324,23 @@ Settings page, only changes the rolls made after it.
 
 ## Settings → RPG
 
-The page has six cards, and shows only while the RPG is on.
+The page shows only while the RPG is on.
 
 - **Stat formula.** **Standard** or **Classic** (see [The stat formulas](#the-stat-formulas)), with the roll table of the one in force
-  and four numbers: where stats start, the points at creation, the points each Soul Class gives and the foe's base (`4 + 3×class` on
+  and four numbers: where stats start, the points at creation, the stat points each level-up gives (1 every 3 levels) and the foe's base (`+ floor(level ÷ 5)`; Health `4 + floor(level ÷ 30)` blocks on
   Standard). A chat that never chose is on Standard. Rolls already made keep the formula and numbers they were made with.
 - **Rolls.** **Automatic** or **Off**, as above.
 - **Difficulty.** **Gentle**, **Standard**, **Harsh** or **Custom**. On the Standard formula the presets move only the foe's base (2, 4 and
   6) and **Custom** shows its thirteen numbers; the paragraph below is Classic's. The presets change the foe's base and how far short
   a roll may fall and still be "success at a cost": Gentle is a base of 3 and a window of 3, Standard 5 and 2 (the rule
-  above), Harsh 7 and 1. All three keep a Soul Class worth 2, half the stat, a decisive margin of 8 and at most 8 exchanges
-  a reply (5 before stage 49; a Custom number you typed stays as you typed it, and a roll already made keeps its own). **Custom** shows the six numbers: **Foe's base** (0 to 15), **Soul Class adds** (×1, ×2 or ×3, for both sides),
+  above), Harsh 7 and 1. All three keep the level term at floor(level ÷ 5), half the stat, a decisive margin of 8 and at most 8 exchanges
+  a reply (5 before stage 49; a Custom number you typed stays as you typed it, and a roll already made keeps its own). **Custom** shows its numbers: **Foe's base** (0 to 15), **Level divisor** (3 to 8, 5 unset: a level adds floor(level ÷ divisor) on both sides),
   **Stat adds** (half the stat, a third of the stat, or full above 10), **"At a cost" when short by** (0 to 5; 0 turns it off), **Decisive at a margin
   of** (4 to 15, or a natural 1 or 20) and **Most exchanges per reply** (1 to 8). A number outside its range is held to
   it. Under the numbers a bar shows the exact chances of success, success at a cost and fail for your own character (the
-  persona's name, else the first Character block) with their best skill, against a foe of their Soul Class, and it
+  persona's name, else the first Character block) with their best skill, against a foe of the same level, and it
   changes as you type. A line under it gives the other presets for the same fight.
+- **Levels and practice.** **Level cap** (1 to 99, default 99; the pack's cap wins when it names one), **Practice per skill use** (1 to 5, default 3) and **XP rate** (50 to 300 %, in steps of 25, default 100), as in [Levels, XP and skill ranks](#levels-xp-and-skill-ranks).
 - **What the narrator is told about combat.** The text of this chat's Combat rules block (up to 1200 characters, counted
   as you type). It is saved when you leave the box (or close the settings window with text still in it), as an edit of that
   block on the latest reply: swipe or delete that reply to take it back. A chat keeps a limited number of block versions;
@@ -362,16 +363,16 @@ never change" above), so switching only changes the rolls made after it.
 
 ### Standard
 
-A roll is one of five types. Class is 2 × Soul Class; rank is 0 (Novice) to 3 (Master); the edge is what the situation earns (−3 to +3)
+A roll is one of five types. The level term is floor(level ÷ 5) (before Levels it was 2 × Soul Class); rank is 0 (Novice) to 3 (Master); the edge is what the situation earns (−3 to +3)
 after luck. `(A + B/2)/2` is rounded down once, at the end.
 
 | Roll | d20 plus |
 |---|---|
-| Physical | class + (STR, or the skill's stat, + DEX/2)/2 + rank + edge |
-| Magic | class + (INT, or the skill's stat, + DEX/2)/2 + rank + edge |
-| Defence | class + (the higher of AGI and VIT + the lower/2)/2 + rank + edge; against a spell the higher of INT and VIT; a tie dodges |
-| Social | class + (CHA + INT/2)/2 + rank + edge |
-| Check | class + (the fitting stat + DEX/2)/2 + rank + edge: STR to climb or force, AGI to sneak, DEX for locks, INT for lore, VIT to endure |
+| Physical | level term + (STR, or the skill's stat, + DEX/2)/2 + rank + edge |
+| Magic | level term + (INT, or the skill's stat, + DEX/2)/2 + rank + edge |
+| Defence | level term + (the higher of AGI and VIT + the lower/2)/2 + rank + edge; against a spell the higher of INT and VIT; a tie dodges |
+| Social | level term + (CHA + INT/2)/2 + rank + edge |
+| Check | level term + (the fitting stat + DEX/2)/2 + rank + edge: STR to climb or force, AGI to sneak, DEX for locks, INT for lore, VIT to endure |
 
 A skill's own stat takes the main slot and nothing is added on top. A skill that uses Stamina is physical and one that uses Mana is magic,
 unless the planner marks the action defence, social or a check. A skill whose resource is Empty is rolled without it: no skill, rank 0 and
@@ -380,8 +381,8 @@ the type's own stat.
 - **Luck is a window on the edge.** The situation gives an edge from −3 to +3; LUK holds it inside a window and never lets it fall below the
   low end, and a best case (+3) reaches the high end: LUK 3–4 −3..+3, 5–6 −2..+3, 7–8 −1..+3, 9–10 −1..+3, 11–12 0..+3, 13–14 +1..+4,
   15–16 +2..+4, 17–18 +2..+5, 19–20 +3..+5. A fresh character (LUK 5) has −2..+3.
-- **Foes.** A foe adds `foeBase + 3 × its class` to its d20 (the base is 2, 4 or 6 for Gentle, Standard and Harsh). A foe group has Health
-  `4 + class/3` blocks and acts once a round whatever its count.
+- **Foes.** A foe adds `foeBase + floor(its level ÷ 5)` to its d20 (the base is 2, 4 or 6 for Gentle, Standard and Harsh). A foe group has Health
+  `4 + floor(level/30)` blocks and acts once a round whatever its count.
 - **Hits.** A hit takes 1 block of Health from its target, a decisive hit 2. A party member's action hits on a success or a success at a cost;
   a foe's attack hits when the defender fails. Decisive is the winner's natural 20, the loser's natural 1, or a lead of 8. Code writes the
   new Health to the sheet and tells the narrator which bars it moved, in words ("Bars now: Wessel Hurt; Sluice Rats Down"), never to set
@@ -394,16 +395,16 @@ the type's own stat.
   one 2, never past the bar. Someone who is Down can be mended.
 - **Social and exploration in a fight** are rolled against the foe's roll and hurt nobody; outside a fight they are checks against the
   narrator's difficulty.
-- **Turn order.** At the start of a fight each character rolls d20 + class + AGI/2 and each foe group d20 + 2 × class; highest first, ties to
+- **Turn order.** At the start of a fight each character rolls d20 + floor(level ÷ 5) + AGI/2 and each foe group d20 + floor(level ÷ 5); highest first, ties to
   the higher AGI, then to the party. The order is kept for the whole fight: each reply's roll carries it on (a swipe of a later reply keeps
   it; a swipe of the reply that began the fight rolls it again; a Re-read keeps it), and someone who arrives later rolls on entry. A group of the same name that arrives after the fight ended (beaten, or healthier than the fight left it) is a new fight: a new order and a quick start. A foe or
   a character who is beaten or Down before their turn does not act that round, and the fight ends in the roll when a side is gone.
 - **Quick start.** A character who is 10 or more ahead of a foe in the order acts once against it before the first round, at the start of the
   fight only.
-- **Creation.** Stats start at 5, with 10 points to spend, from 3 to 10; each Soul Class gives 4 more points; a stat never goes above 20.
+- **Creation.** Stats start at 5, with 10 points to spend, from 3 to 10; a companion's Soul Class above I gives 4 more points; a stat never goes above 20.
   Companions the story brings in are made on the same scale (see [Companions who join](#companions-who-join)).
 
-The numbers behind the presets were chosen with `node scripts/sim-standard.mjs` (no network): at Standard a focused build (the skill's stat
+The numbers behind the presets were chosen with `node scripts/sim-standard.mjs` (no network; measured on the Soul Class term, before Levels): at Standard a focused build (the skill's stat
 and DEX at the creation maximum, then 3 and 1 points a class) succeeds about 61 times in a hundred against a foe of its own Soul Class at
 Soul Class I and 72 to 79 from III to IX, near Classic's own 52 to 81; a spread build succeeds about 43 to 52 times. A hero against one
 foe of the same class ends the fight in about 4 to 6 exchanges (skill costs included); at Standard a focused build wins 62 to 81 of a hundred
@@ -411,44 +412,42 @@ such duels and a spread build 75 down to 25 from Soul Class I to IX.
 
 A pack may name the formula and its numbers (`content.rpg.formula`, `content.rpg.numbers`); they are the default for a story whose reader
 has not chosen a formula or a difficulty, and the reader's own choices win. Settings → RPG and the wizard's Stats step say "From the pack:
-Ersveil" while the pack decides. Foe Health is `4 + class/3` blocks (the simulation chose it over `4 + class/2`, which left a focused build at Soul Class VII winning fewer than half its duels).
+Ersveil" while the pack decides. Foe Health was `4 + class/3` blocks (the simulation chose it over `4 + class/2`, which left a focused build at Soul Class VII winning fewer than half its duels). With Levels it is `4 + floor(level/30)` blocks.
 
-## Soul Class and skill ranks
+## Levels, XP and skill ranks
 
-**Renaming it.** The Character block's Soul Class field can be renamed (Settings → Blocks → Edit, or a pack's template): a different
-label such as "Level" and different names such as 1 to 9. Everywhere the RPG shows it, it uses the field's own label and names from
-that character's Character block, and falls back to "Soul Class" and I to IX: the Party card, the Skills roll line, "Changed this reply",
-the New character window, the companion card and its refusals, Settings → RPG (the odds line and "Soul Class adds" use your own
-character's block), the battle log and the roll planner's party list (`Wessel (Level 3)`). A new character made by the window or by a
-`+ party` line copies the template, so it keeps "Soul Class" unless a pack's template renamed it. With the default names nothing is
-different from before, in the screens or in what the narrator and the planner are sent.
+**Levels.** A character's level runs 1 to 99 (the Character block's `level`). At 100 XP the character goes up one level and the extra XP
+carries over. The rise needs no confirm step and is said in "Changed this reply" ("Wessel reached Lv 15 (+1 point to spend)"). Every third
+level (3, 6, 9 and so on) gives **1 stat point** to spend, and the Party card offers **Spend points**; the points never go above 60.
+A character's level stops at its **cap**: the pack's `rpg.levelCap` when it names one, else the setting **Level cap** (1 to 99, default 99).
+A character keeps the cap it was made with. At the cap, XP holds at 100 and nothing more is given. A block carries its own copy of its
+rules, so a character made before a rule existed keeps the rule it has; give such a character points with the pencil on **Points** in its
+Character block.
 
-These rise on their own, with no confirm step.
+**Old chats and old blocks.** A Character block made before Levels has a Soul Class (I to IX) instead of a level. It reads as the level
+10n − 5 (I is 5, IX is 85) for every rule: the roll term, the foe bars and the fight XP. A roll made before Levels has no `lv` mark and
+replays exactly as it was recorded, with its Soul Class term. A new roll is stored in a slimmer form: it keeps the result, not the narrator's
+cue text, which is rebuilt from the record when it is needed, so the replay reads the same.
 
-- **Soul Class** runs I to IX. At 100 XP the Soul Class goes up by one, XP starts again at 0 and the character gets **3 points to spend**
-  on stats (the points never go above 60). "Changed this reply" says so ("+3 points to spend"), and the Party card offers **Spend points**.
-  At IX, XP stops at 100 and nothing more is given. The 3 points are part of the Character template's rise rule, so they apply to
-  characters made from 2.9.1 on, including companions who join. A block carries its own copy of its rules, so a character made earlier
-  keeps the rule it has and gets no points with a rise; give an older character points with the pencil on **Points** in its Character block.
-- **Skill ranks** run Novice, Adept, Expert, Master. At 100 practice a skill's rank goes up by one and practice starts
-  again at 0. A Master keeps practice at 100.
+**Ranks.** A pack may name rank bands in `rpg.ranks`: a list of `{ name, from, to }`, ascending, covering 1 to 99 (or a prefix), at most 20
+names of up to 12 characters. A foe, or a character in a pack with no player-rank source, reads "Rank F · Lv 7", the band its level falls in
+("Lv 7" alone when no band holds it). A pack's `rpg.playerRank` names a data-module field as the party's rank. Ersveil names the guild letter,
+so a party member reads "Lv 14 · Guild F", and "Lv 14" alone while the guild field is empty (not registered).
+
+**Practice.** Each use of a skill in a roll gives practice: 1 to 5 per use, set by **Practice per skill use** (default 3). Practice adds up per
+skill in a reply and is held to 20 for a skill in one reply. At 100 practice a skill's rank goes up by one and practice starts again at 0.
+
+**XP rate.** **XP rate** (Settings → RPG → Levels and practice) is 50 to 300 %, in steps of 25, default 100. Every XP gain to a character, the
+fight's XP and the narrator's XP lines alike, is multiplied by it and rounded down, and is at least 1 when the gain was 1 or more. Each reply
+records the rate it was made with, so a later change never moves a past reply.
+
+**Skill ranks** run Novice, Adept, Expert, Master, and a Master keeps practice at 100.
 
 **XP for a won fight is given by code.** When a reply takes the fight from "a foe group is still standing" to "every filled foe group is Down"
-(by the dice, or by the narrator's own Foes lines), every party member who has not Left (a Down member too; a dead one is not paid) gets XP of their
-own, once for that fight, worked out group by group from their Soul Class against the group's: count × class × 2 for a group of their own class; for
-a group of a lower class half of it (1 lower), a quarter (2 lower), 12 % (3 lower) or nothing (4 or more lower), so a veteran cannot farm weak foes; for a
-higher class 150 % (1 higher), 200 % (2 higher), 250 % (3 higher). The groups are added and rounded down; a total above 0 is held between 1 and 60, a
-total of 0 gives no XP and no line. Members of different Soul Class get different amounts (Soul Class II against six Class I crawlers: 12 × 50 % = 6). The
-fight's groups are the ones that were standing when the reply began and are still on the Foes block, so a beaten group that stays on the block pays
-nothing again, and a later reply that fills a slot again and wins is a new fight. "Changed this reply" says so ("Astra +12 XP (fight won)"), a Soul
-Class rise follows the block's own rule, and a swipe, a Re-read, a delete in the middle, a rebuild and a reload all give the same XP. In that reply the
-narrator's own XP line for a party member is not used (one line in the Problems list says "XP for the fight is given by code; the narrator's XP line was
-not used."); XP lines in any other reply (a quest, a discovery) are the narrator's as before. A group the narrator clears from the block is gone, not
-Down (it fled, yielded or was taken), so the cue tells the narrator to leave a beaten group on the block, Down, in the reply it falls. The Combat rules
-text of a new chat says so too; a chat's stored text is not rewritten.
+(by the dice, or by the narrator's own Foes lines), every party member who has not Left (a Down member too; a dead one is not paid) gets XP of their own, once for that fight. For each foe group a member gets `count × max(1, ceil(foe level ÷ 10)) × 2`, times 100 % plus 10 % for each level the foe is above the member (minus 10 % for each level below), held between 0 % and 200 %. The groups are added and rounded down; a total above 0 is held between 1 and 60, and a total of 0 gives no XP and no line. Level 5 against six level 5 foes gives 12 to each member; a level 25 member against them gives 0. The fight's groups are the ones that were standing when the reply began and are still on the Foes block, so a beaten group that stays on the block pays nothing again, and a later reply that fills a slot again and wins is a new fight. "Changed this reply" says so ("Astra +12 XP (fight won)"), a level-up follows the block's own rule, and a swipe, a Re-read, a delete in the middle, a rebuild and a reload all give the same XP. In that reply the narrator's own XP line for a party member is not used (one line in the Problems list says "XP for the fight is given by code; the narrator's XP line was not used."); XP lines in any other reply (a quest, a discovery) are the narrator's as before. A group the narrator clears from the block is gone, not Down (it fled, yielded or was taken), so the cue tells the narrator to leave a beaten group on the block, Down, in the reply it falls. The Combat rules text of a new chat says so too; a chat's stored text is not rewritten.
 
-The narrator gives XP for other deeds, and practice, with lines in the story. The Combat rules block says: XP for a won fight is given by code, other
-deeds 5 to 40, and 5 to 20 practice for each use of a skill.
+The narrator gives XP for other deeds with lines in the story (the XP rate applies to those too). The Combat rules text says: XP for a won fight is given by code, other
+deeds 5 to 40.
 
 ## Down and death
 
@@ -466,9 +465,9 @@ with the pencils on the block.
 
 | Template | What it holds |
 |---|---|
-| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (3 more with each Soul Class rise), Soul Class, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a Soul Class rise gives 4 points; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
+| **Character** | Name, who they are, Health, Mana, Stamina, the seven stats (1 to 20), points (1 more every third level), level, cap, XP, Alive, Left. The narrator sets Health, Mana, Stamina, XP and Alive; Left is set by a `- party` line; the reader sets stats and points. Rest refills Stamina and Mana. The Standard formula's Character (`STANDARD_TEMPLATES`, `templatesFor`) keeps the blocks left in Health 0 to 8, Stamina 0 to 7 and Mana 0 to 7, stats start at 5 and a level-up gives points as above; see [Standard formula: bars of blocks](#standard-formula-bars-of-blocks). |
 | **Skills** | Up to five skills, each with a name, what it does, the stat it rolls with, what it uses (stamina or mana), a rank and practice. The narrator names a skill with a learn line (name, what it does, stat, uses) and adds practice. Rank and practice cannot be typed in. |
-| **Foes** | Up to four foe groups, one slot each: the name, how many are left (0 means the slot is empty), the Soul Class and the group's health (Standard: 0 to 8 blocks, `4 + class/3` when the group arrives). |
+| **Foes** | Up to four foe groups, one slot each (`level1` to `level4` for the level, which replaces `class1` to `class4`): the name, how many are left (0 means the slot is empty), the level and the group's health (Standard: 0 to 8 blocks, `4 + floor(level/30)` when the group arrives). |
 | **Combat rules** | The combat text, which the narrator reads on every reply, and the XP guidance. It has no fields. |
 
 A new chat gets a Combat rules block and a Foes block when you make its first character (see [A new chat](#a-new-chat)),
@@ -494,9 +493,9 @@ A block with a `role` is held to these rules, and is told like any other block w
 - A field drawn as a bar (`health`, `mana`, `stamina`, a foe's `hurt1` to `hurt4`) has at most 10 stages, counted up from 0; a
   longer one is refused when the block is made.
 - `prompt: false` is honoured for every field the RPG tells the narrator about: a skill's name, what it does, a foe's name or
-  Soul Class, and `who`. The same holds for the roll planning step and the rolls: a hidden foe name is "Foe 2" (its slot) there,
-  a hidden skill name is not offered, and a hidden `who` is the block's own name. A hidden number (health, a stat, Soul Class, a
-  rank, a foe's count, class or health, a skill's stat or resource) still counts for the dice; it is only left out of what the
+  level, and `who`. The same holds for the roll planning step and the rolls: a hidden foe name is "Foe 2" (its slot) there,
+  a hidden skill name is not offered, and a hidden `who` is the block's own name. A hidden number (health, a stat, level, a
+  rank, a foe's count, level or health, a skill's stat or resource) still counts for the dice; it is only left out of what the
   planner and the narrator are told: a check on a hidden stat reads "Wessel — Silent Trick, normal" (or "Wessel — check") with no
   stat named, a skill whose hidden resource is Empty is "cannot use Silent Trick: rolled without it", and a hidden skill stat
   missing from the sheet is "lacks the skill's stat". Whether something is hidden never changes the dice or how many rounds

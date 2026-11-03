@@ -64,7 +64,7 @@ The story decides how much money and how many items a reply gives; there is no p
 
 ## RPG
 
-The optional RPG adds a party sheet, automatic dice for fights and checks, and Soul Class and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
+The optional RPG adds a party sheet, automatic dice for fights and checks, and levels and skill ranks that rise as the story goes on. Switch it on under **Settings → Features**, then make Character, Skills, Foes and Combat rules blocks from the **RPG** templates. The [RPG guide](RPG.md) covers the Party tab, the stage bars, rolls, death and undo, and how to change the templates.
 
 ## Removing Story Block from a chat
 
