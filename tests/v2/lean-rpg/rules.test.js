@@ -44,11 +44,13 @@ test('Custom numbers are whole numbers inside their ranges, else Standard\'s; al
 test('the settings give the numbers: a preset by its word, Custom by its stored numbers, anything else Standard', () => {
     assert.equal(difficultyOf({}), 'standard');
     assert.equal(difficultyOf({ [DIFFICULTY_SETTING]: 'maybe' }), 'standard');
-    for (const name of ['gentle', 'standard', 'harsh']) assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: name }), PRESETS[name]);
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic' }), STANDARD);
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'custom', [CUSTOM_SETTING]: { foeBase: 11, costMargin: 4, roundCap: 99 } }), { ...STANDARD, foeBase: 11, costMargin: 4 });
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'custom' }), STANDARD, 'Custom with nothing stored');
-    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'gentle', [CUSTOM_SETTING]: { foeBase: 11 } }), PRESETS.gentle, 'the custom numbers are not read for a preset');
+    // (From 2.17.0 every set the settings give also carries the level divisor, 5 unless the Custom numbers say 3 to 8: `levelled`.)
+    const levelled = rules => ({ ...rules, levelDivisor: 5 });
+    for (const name of ['gentle', 'standard', 'harsh']) assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: name }), levelled(PRESETS[name]));
+    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic' }), levelled(STANDARD));
+    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'custom', [CUSTOM_SETTING]: { foeBase: 11, costMargin: 4, roundCap: 99 } }), levelled({ ...STANDARD, foeBase: 11, costMargin: 4 }));
+    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'custom' }), levelled(STANDARD), 'Custom with nothing stored');
+    assert.deepEqual(rulesFromSettings({ rpgFormula: 'classic', [DIFFICULTY_SETTING]: 'gentle', [CUSTOM_SETTING]: { foeBase: 11 } }), levelled(PRESETS.gentle), 'the custom numbers are not read for a preset');
     assert.notEqual(rulesFromSettings({ rpgFormula: 'classic' }), STANDARD, 'a copy');
     assert.equal(presetOf(PRESETS.harsh), 'harsh');
     assert.equal(presetOf({ ...STANDARD, roundCap: 4 }), 'custom');
@@ -81,7 +83,7 @@ test('who the odds are for: the persona-named character, else the first; their b
     const sheet = sheetOf(party);
     const names = { rankNames: RANK_NAMES, soulNames: CLASS_NAMES, fold };
     const mine = oddsSubject(sheet, 'Wessel', names);
-    assert.deepEqual(mine, { who: 'Wessel', stat: 'str', statValue: 12, soul: 1, rank: 1, skill: 'Iron Breath', foeClass: 1, rankName: 'Adept', soulName: 'I' });
+    assert.deepEqual(mine, { who: 'Wessel', stat: 'str', statValue: 12, soul: 1, level: 5, rank: 1, skill: 'Iron Breath', foeClass: 1, foeLevel: 5, rankName: 'Adept', soulName: 'I' });
     assert.deepEqual(subjectOdds(PRESETS.standard, mine), { bonus: 9, success: 61, cost: 8, fail: 31 });
     assert.equal(subjectOdds({ ...STANDARD, statDivisor: 3, classWeight: 3 }, mine).bonus, 4 + 3 + 1, 'a third of the stat, ×3 for the class, plus the rank');
     assert.equal(oddsSubject(sheet, 'Ren', names).who, 'Ren');

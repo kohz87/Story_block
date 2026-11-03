@@ -4,7 +4,7 @@
 // fields' `names`). They come in the shape `replyCardLines` gives (ui-host.js adds them to the card's `moduleLines`).
 // Pure: no DOM.
 
-import { FIGHT, RESOLVE } from '../index.js';
+import { FIGHT, FORMULA, RESOLVE } from '../index.js';
 import { STANDARD, normalizeRules } from '../rules.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 import { rpgBlocks, readParty, skillsOf } from './party-data.js';
@@ -114,13 +114,27 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
     const then = new Map(readParty(before, { roleOf }).map(character => [`${character.module}|${character.subject}`, character]));
     for (const character of readParty(state, { roleOf })) {
         const old = then.get(`${character.module}|${character.subject}`);
-        if (!old || !(character.level > old.level)) continue;
-        // A point to spend comes with every third level (the Character template's level-up rule): said when the points went up.
+        if (!old) continue;
+        const levelled = character.levelled === true && old.levelled === true;
+        if (levelled) {
+            if (!(character.level > old.level)) continue;
+            // A point to spend comes with every third level (the Character template's level-up rule): said when the points went up.
+            const gained = character.points - old.points;
+            const plural = gained > 1 ? 'Many' : '';
+            out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(gained > 0 ? C[`levelUpPoints${plural}`] : C.levelUp, { who: character.name, to: character.level, n: gained }),
+                summary: fill(gained > 0 ? C[`levelSummaryPoints${plural}`] : C.levelSummary, { who: character.name, to: character.level, n: gained }),
+                note: character.xp === 0 ? fill(C.levelNote, { xp: character.xp }) : '' }));
+            continue;
+        }
+        // A block of the earlier rules: its Soul Class rose; what that adds to every roll is classWeight x the rise.
+        if (!(character.soul > old.soul)) continue;
+        const bonus = (rules?.classWeight ?? FORMULA.classWeight) * (character.soul - old.soul);
+        // A character made from 2.9.1 on gets 3 points to spend with each rise (the template's class-up rule): said when the points went up.
         const gained = character.points - old.points;
-        const plural = gained > 1 ? 'Many' : '';
-        out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(gained > 0 ? C[`levelUpPoints${plural}`] : C.levelUp, { who: character.name, to: character.level, n: gained }),
-            summary: fill(gained > 0 ? C[`levelSummaryPoints${plural}`] : C.levelSummary, { who: character.name, to: character.level, n: gained }),
-            note: fill(C.levelNote, { xp: character.xp }) }));
+        const base = character.xp === 0 ? fill(bonus > 0 ? C.classNote : C.levelNote, { xp: character.xp, bonus }) : (bonus > 0 ? fill(C.classNoteShort, { bonus }) : '');
+        out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(C.classUp, { who: character.name, label: character.soulLabel, from: old.soulName, to: character.soulName }),
+            summary: fill(gained > 0 ? C.classSummaryPoints : C.classSummary, { label: character.soulLabel, to: character.soulName, n: gained }),
+            note: gained > 0 ? [base, fill(C.classPoints, { n: gained })].filter(Boolean).join(' · ') : base }));
     }
     const skillsThen = new Map(rpgBlocks(before, { roleOf }).filter(block => block.role === 'skills').map(block => [`${block.module}|${block.subject}`, block]));
     const skillBlocks = rpgBlocks(state, { roleOf }).filter(block => block.role === 'skills');

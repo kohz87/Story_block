@@ -7,7 +7,8 @@ import { createHost, hostAvailable } from '../../../testkit/index.js';
 import { LEAN_RPG_FEATURE, PRECALL_HEAD, readSheet, validatePlan } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD_STANDARD, sheetText } from '../../../src/v2/lean-rpg/precall.js';
 import { openFoes, openErrors, vetOpen } from '../../../src/v2/lean-rpg/open.js';
-import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, divisorOf, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, foeLevelCap, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
+import { divisorOf } from '../../../src/v2/lean-rpg/rules.js';
+import { FOE_LEVEL, LV_VERSION, averageLevel, bandOfRank, classOfLevel, foeBlocksByLevel, foeLabel, foeRandom, levelBonus, foeLevelCap, levelOf, levelOfClass, partyLevels, pickLevel, settleOpen } from '../../../src/v2/lean-rpg/foes.js';
 import { sizeOf } from '../../../src/v2/lean-rpg/blocks.js';
 import { LEAN_RPG_TEMPLATES, STANDARD_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
 import { success, reply } from '../data-modules/helpers.js';
@@ -45,9 +46,9 @@ test('the roll term is floor(level / divisor), 5 unless the rules say another; S
     assert.deepEqual([14, 15, 99].map(level => levelBonus(level, 3)), [4, 5, 33]);
     assert.deepEqual([14, 99].map(level => levelBonus(level, 8)), [1, 12]);
     assert.equal(levelBonus(14, 0), 2, 'a divisor that is not 1 or more is the default');
-    assert.equal(divisorOf({ levelDivisor: 4 }), 4);
-    assert.equal(divisorOf({ levelDivisor: 12.5 }), FOE_LEVEL.divisor);
-    assert.equal(divisorOf({}), 5);
+    assert.equal(divisorOf(4), 4);
+    assert.equal(divisorOf(12.5), null);
+    assert.equal(divisorOf(undefined), null);
     assert.deepEqual([1, 29, 30, 59, 60, 89, 90, 99].map(foeBlocksByLevel), [4, 4, 5, 5, 6, 6, 7, 7]);
     assert.equal(LV_VERSION, 1);
 });
@@ -346,7 +347,7 @@ async function world(t, { answers, templates, settings = {}, party = true, soul 
         skills.slug = 'wessel-skills'; skills.state.who.default = 'Wessel'; skills.state.skill1.default = 'Iron Breath'; skills.state.stat1.default = 'str';
         success(await host.sdk.command('dm.define', { definition: character }));
         success(await host.sdk.command('dm.define', { definition: skills }));
-        success(await host.sdk.command('dm.set', { module: 'pack.chat/wessel', fields: { soul } }));   // (Soul Class 9 is level 85: a new foe may be up to 95)
+        success(await host.sdk.command('dm.set', { module: 'pack.chat/wessel', fields: { level: soul === 9 ? 85 : soul === 2 ? 15 : soul } }));   // (Soul Class 9 is level 85: a new foe may be up to 95)
     }
     success(await host.sdk.command('dm.define', { definition: structuredClone(templates.find(entry => entry.name === 'Foes').definition) }));
     return host;

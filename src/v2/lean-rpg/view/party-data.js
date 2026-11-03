@@ -12,6 +12,7 @@ import { barOf, characterBars, growthOf, sizeOf, spreadWord, statsOfFields, word
 import { activeDefinition, actorsOf, instanceOf } from '../../data-modules/adapters.js';
 import { LEVEL } from '../names.js';
 import { levelLabel, playerRankValue } from '../levels.js';
+import { soulLabelOf } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
 
 export const SKILL_SLOTS = 5;
@@ -176,15 +177,15 @@ export function readParty(state, { own = '', roleOf, ranks = [], playerRank = nu
             const label = typeof schema.label === 'string' && schema.label && [...schema.label].length <= 4 ? schema.label : key.toUpperCase();
             return { key, label, value: whole(fields[key], schema.min ?? 1), min: whole(schema.min, 1), max: whole(schema.max, 20) };
         });
-        // `level`, `xp` and `cap` (Levels); a chat made before them reads its Soul Class as the level.
-        const level = levelOf(fields.level ?? fields.soul), cap = levelOf(fields.cap, LEVEL.max);
-        const soul = level;
+        // `level`, `xp` and `cap` (Levels). A block made before them has the Soul Class: its level is the one the class stood for (formula.js levelOfClass).
+        const soul = whole(fields.soul, 1);
+        const levelled = Boolean(definition.state?.level) && typeof definition.state.level === 'object';
+        const level = levelled ? levelOf(fields.level) : levelOfClass(soul), cap = levelOf(fields.cap, LEVEL.max);
         const mine = skillBlocks.find(item => textOf(item.fields.who) && fold(item.fields.who) === fold(name))
             ?? (skillBlocks.length === 1 && !textOf(skillBlocks[0].fields.who) ? skillBlocks[0] : null);
         return { module: block.module, subject: block.subject, name, own: false, alive: fields.alive !== false, left: fields.left === true, points: Math.max(0, whole(fields.points)),
-            level, cap, levelText: levelText(level, { ranks, playerRank, state, subject: block.subject }),
-            // The old Soul Class names, kept so the sheets that still read them (Spend points, Skills, Export) work: the level stands in.
-            soul, soulName: String(level), soulLabel: 'Level', xp: Math.min(LEVEL.xpPerLevel, Math.max(0, whole(fields.xp))), bars, stats,
+            soul, level, cap, ...(levelled ? { levelled: true } : {}), levelText: levelText(level, { ranks, playerRank, state, subject: block.subject }),
+            soulName: levelled ? String(level) : soulName(definition.state?.soul, soul), soulLabel: soulLabelOf(levelled ? definition.state.level : definition.state?.soul), xp: Math.min(LEVEL.xpPerLevel, Math.max(0, whole(fields.xp))), bars, stats,
             skills: mine ? skillsOf(mine) : [], skillsBlock: mine ? { module: mine.module, definition: mine.definition } : null, definition, fields, order: block.order,
             growth: characterBars(definition, fields) ? growthOf(statsOfFields(fields), { statMax: whole(definition.state?.vit?.max, STANDARD_NUMBERS.statMax) }) : null };
     });

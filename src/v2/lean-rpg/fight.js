@@ -25,6 +25,7 @@
 import { createEvaluation } from '../data-modules/interpreter.js';
 import { FIGHT, FIGHT_XP, FOE_SLOTS, LEAN_RPG_FEATURE } from './names.js';
 import { XP_RATE, clampLevel, scaleXp, xpRateFrom, xpRateOf } from './levels.js';
+import { levelOfClass } from './formula.js';
 import { fold, readSheet } from './read.js';
 
 /** The replies whose story is paid for (the same as the reply-end steps of the blocks: not a Continue's, nor the extractor's late lines). */
@@ -37,9 +38,9 @@ const RISES = Object.freeze(['xp', 'soul', 'level', 'points']);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const whole = value => Number.isSafeInteger(value);
 /** The level a foe group stands at: its `level`, else (an older Foes block) its class 1..9 as the level. */
-export const foeLevel = foe => clampLevel(whole(foe?.level) ? foe.level : foe?.class);
+export const foeLevel = foe => clampLevel(whole(foe?.level) ? foe.level : whole(foe?.class) ? levelOfClass(foe.class) : 1);
 /** The level a party member stands at: their `level`, else (an older Character block) its Soul Class 1..9 as the level. */
-export const memberLevel = character => clampLevel(whole(character?.level) ? character.level : character?.soul);
+export const memberLevel = character => clampLevel(whole(character?.level) ? character.level : whole(character?.soul) ? levelOfClass(character.soul) : 1);
 const slotsOf = value => (Array.isArray(value) ? [...new Set(value.filter(slot => whole(slot) && slot >= 1 && slot <= 99))].sort((a, b) => a - b) : []);
 
 /** The foe slots that are filled and not Down (their Health above 0). */
@@ -65,6 +66,8 @@ export function memberXp(groups, level) {
     return xp > 0 ? Math.max(FIGHT_XP.min, Math.min(FIGHT_XP.max, xp)) : 0;
 }
 
+// The numbers a character's rise moves, and the reply's scratch keeps (`level` is the Level field of a block made from 2.17.0 on, `soul` the Soul Class of an earlier one).
+
 // The party members the fight pays: not Left (readSheet leaves those out), not dead.
 const paidOf = sheet => sheet.characters.filter(character => character.alive !== false);
 
@@ -86,7 +89,7 @@ export function fightWitness(sheet, domain, source, decision) {
     // (`level` joins an entry only when the sheet has one of its own (a Foes block of the Levels rules), so the witness of an older Foes block, and the guard hash of its receipt, are what they were)
     const foes = sheet.foes.filter(foe => foe.filled).map(({ slot, name, count, class: soul, hurt, level, levelled }) => ({ slot, name, count, class: soul, hurt, ...(levelled && whole(level) ? { level } : {}) }));
     return { foes, was: slotsOf(decision?.was), from: fromOf(domain, source),
-        members: paidOf(sheet).map(character => ({ module: character.module, who: character.who, xp: character.xp, soul: character.soul, points: character.points, ...(whole(character.level) ? { level: character.level } : {}) })) };
+        members: paidOf(sheet).map(character => ({ module: character.module, who: character.who, xp: character.xp, soul: character.soul, ...(character.levelled ? { level: character.level } : {}), points: character.points })) };
 }
 
 /**

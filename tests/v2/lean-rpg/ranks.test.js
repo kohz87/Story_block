@@ -122,10 +122,10 @@ test('a fight record made before the level (groups with a class, a guard on the 
 });
 
 test('a sheet entry without a level counts its class as the level; one with a level uses it', () => {
-    assert.equal(foeLevel({ class: 3 }), 3);
+    assert.equal(foeLevel({ class: 3 }), 25, 'class n stands for the level 10n - 5');
     assert.equal(foeLevel({ class: 3, level: 40 }), 40);
     assert.equal(foeLevel({}), 1);
-    assert.equal(memberLevel({ soul: 2 }), 2);
+    assert.equal(memberLevel({ soul: 2 }), 15);
     assert.equal(memberLevel({ soul: 2, level: 17 }), 17);
     assert.equal(memberLevel({ level: 500 }), 99);
     assert.equal(memberLevel({}), 1);

@@ -31,11 +31,12 @@ const bars = host => { const c = sheet(host, 'character'); return [c.health, c.s
 
 // Classic: the checked definitions the block engine pins, hashed. These were computed on the build's base (2.13.0) before any change.
 const CLASSIC_HASHES = {
-    Character: '60b845ebb1c2f41bb631bd84894c467b222c43804ae8de87ac4da76cc511b112',
+    // (2.17.0: the Character block moved on purpose, Level / XP / Level cap and the level-up rule in place of the Soul Class; the other three are the same bytes.)
+    Character: '84077a91ea07b3f634d892e5369f2582231dd2f72c3162ef784067343946cc10',
     Skills: '87692b232c660a4b13a45f81571c6d5e69002037f920c77c786b9fe6c6eba5c5',
     // (Foes changed on purpose in the Levels release: level1…level4, 1 to 99, replace class1…class4; the other three are as they were.)
     Foes: 'd9e0260b748561a22ebbc9424aeb5c1efe18ed6ba643fb7c398790671b67103e',
-    'Combat rules': 'c421180a6fb5a732391e1386911e2f6a8f4fff9ce17161a634c21f001b83ee29',
+    'Combat rules': 'ca4d225eb36b9951e3b360ceb7702fb8370fc6abab2ff4fc1d11ddf759ff4267', // (2.17.0: the text says Level where it said Soul Class)
 };
 
 test('Classic stays exactly as it was: the four templates and the hash of each checked definition are unchanged, and a Classic chat gets them', () => {
@@ -65,14 +66,14 @@ test('the Standard templates are the same four blocks, version 2, each passing t
     for (const heading of ['No Plot Armor:', 'Exchanges:', 'Weight & Risk:', 'Believable Outcomes:', 'Rolls:']) assert.ok(COMBAT_PROMPT_STANDARD.includes(heading), heading);
 });
 
-test('the Standard Character: Health 0..8, Stamina 0..7, Mana 0..7 marked as bars with no fixed names, stats from 5, 4 points a Soul Class, hidden bar sizes', () => {
+test('the Standard Character: Health 0..8, Stamina 0..7, Mana 0..7 marked as bars with no fixed names, stats from 5, a point with every third Level, hidden bar sizes', () => {
     const { state, rules } = standard('Character');
     assert.deepEqual([state.health, state.stamina, state.mana].map(field => [field.min, field.max, field.blocks, field.names]), [[0, 8, 'health', undefined], [0, 7, 'stamina', undefined], [0, 7, 'mana', undefined]]);
     assert.deepEqual([state.health.default, state.stamina.default, state.mana.default], [5, 4, 4], 'full for stats of 5');
     for (const stat of ['str', 'vit', 'agi', 'dex', 'int', 'luk', 'cha']) assert.deepEqual([state[stat].min, state[stat].max, state[stat].default], [1, 20, 5], stat);
     for (const key of ['health-blocks', 'stamina-blocks', 'mana-blocks']) assert.deepEqual([state[key].prompt, state[key].edit], [false, false], `${key} is the rules' own`);
-    assert.deepEqual(rules.map(rule => rule.id), ['health-bar', 'stamina-bar', 'mana-bar', 'class-up']);
-    assert.deepEqual(rules.at(-1).then.at(-1), { op: 'add', path: ['points'], value: 4, bounds: 'clamp' });
+    assert.deepEqual(rules.map(rule => rule.id), ['health-bar', 'stamina-bar', 'mana-bar', 'level-up']);
+    assert.deepEqual(rules.at(-1).then[0], { op: 'add', path: ['points'], value: ['sub', ['floorDiv', ['add', ['get', ['level']], 1], 3], ['floorDiv', ['get', ['level']], 3]], bounds: 'clamp' });
     assert.deepEqual(standard('Foes').state.hurt1, { type: 'int', min: 0, max: 8, default: 4, label: 'Health 1', blocks: 'foe' });
 });
 
@@ -148,8 +149,9 @@ test('a lower stat shrinks the bar and holds the current value at the new size; 
 
 test('spending points (several fields in one edit) grows the bar in the same step, and live = reload = rebuild after swipes and a reload', async t => {
     const host = await story(t, 'Character');
+    await set(host, 'character', { level: 2 });
     await host.send('Fight.', reply(say('character', 'add-xp', ' | amount: 100'), say('character', 'set-health', ' | to: Hurt')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [2, 4], 'a Soul Class rise gives 4 points');
+    assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').points], [3, 1], 'the rise to level 3 gives a point (2.17.0; was 4 points with each Soul Class rise)');
     await set(host, 'character', { vit: 10, str: 6, points: 0 });
     assert.deepEqual([sheet(host, 'character').health, sheet(host, 'character').points], [4, 0]);
     rebuilt(host);
@@ -174,7 +176,7 @@ test('Rest fills stamina and mana to the size their stats give', async t => {
 
 test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full, the story hurts it by words, and Down means 0', async t => {
     const host = await story(t, 'Character', 'Foes');
-    await set(host, 'character', { who: 'Wessel', soul: 4 });   // (level 35: a new foe may be 10 levels above the party's highest)
+    await set(host, 'character', { who: 'Wessel', level: 35 });   // (level 35: a new foe may be 10 levels above the party's highest)
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35', '+ dm foes — why | kind: set-slot-2 | name: Sluice Rat | count: 2 | level: 5'));
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [foeHealthBlocks(4), foeHealthBlocks(1)]);
     assert.deepEqual([sheet(host, 'foes').hurt1, sheet(host, 'foes').hurt2], [5, 4]);
@@ -190,13 +192,13 @@ test('a Foes group\'s Health is blocks left out of 4 + class/3: it arrives full,
 test('the tail says the bars in words spread over the size (never block counts), leaves a full bar out, and the foes the same', async t => {
     const host = await story(t, 'Character', 'Foes');
     await set(host, 'character', { who: 'Wessel', vit: 10, agi: 10, int: 5 });
-    assert.match(summaryOf(host.head(), 'pack.chat/character'), /^Wessel — STR 5 VIT 10 AGI 10 DEX 5 INT 5 LUK 5 CHA 5; soul I\.$/, 'full bars are left out');
+    assert.match(summaryOf(host.head(), 'pack.chat/character'), /^Wessel — STR 5 VIT 10 AGI 10 DEX 5 INT 5 LUK 5 CHA 5; level 1\.$/, 'full bars are left out');
     await set(host, 'character', { health: 4, stamina: 2, mana: 4 });
     const line = summaryOf(host.head(), 'pack.chat/character');
     assert.match(line, /^Wessel — health Hurt; stamina Tired; STR 5 /, '4 of 6 is Hurt, 2 of 5 is Tired');
     assert.doesNotMatch(line, /\b(of 6|blocks|health 4|stamina 2)\b/);
     assert.doesNotMatch(line, /health-blocks|stamina-blocks|mana-blocks/, 'the sizes are the rules\' own');
-    await set(host, 'character', { soul: 4 });   // (a new foe may be 10 levels above the party's highest)
+    await set(host, 'character', { level: 35 });   // (a new foe may be 10 levels above the party's highest)
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35'));
     assert.equal(summaryOf(host.head(), 'pack.chat/foes'), 'Foes: Weir-drake (Lv 35).');
     await host.send('Hit.', reply(say('foes', 'hurt-1', ' | to: Scratched')));
@@ -206,7 +208,7 @@ test('the tail says the bars in words spread over the size (never block counts),
 test('the sheet reader gives the blocks left and each bar\'s size for a Standard block, and a Classic block\'s record is exactly what it was', async t => {
     const host = await story(t, 'Character', 'Skills', 'Foes');
     await set(host, 'character', { who: 'Wessel', vit: 10, agi: 15, int: 10 });
-    await set(host, 'character', { health: 4, soul: 4 });
+    await set(host, 'character', { health: 4, level: 35 });
     await host.send('A drake.', reply('+ dm foes — why | kind: set-slot-1 | name: Weir-drake | count: 1 | level: 35'));
     const read = readSheet(host.head());
     const wessel = read.characters[0];

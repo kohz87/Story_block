@@ -193,7 +193,7 @@ test('a companion the story adds on the Standard scale: every stat 5, the best 9
     const made = joinDefinitions(request, { used: [], soul: 3, rules: STANDARD_FORMULA });
     assert.deepEqual(STATS.map(stat => made.character.state[stat].default), STATS.map(stat => draft.stats[stat]));
     assert.equal(made.character.state.points.default, 0);
-    assert.equal(made.character.state.soul.default, 3);
+    assert.equal(made.character.state.level.default, 25, 'class III stands for level 25 (2.17.0)');
     const classic = joinDefinitions(request, { used: [], soul: 3 });
     assert.deepEqual(STATS.map(stat => classic.character.state[stat].default), [10, 10, 10, 10, 14, 10, 10]);
     assert.deepEqual(joinDraft(request).stats, joinDraft(request, { foeBase: 5 }).stats, 'rules with no formula are Classic');

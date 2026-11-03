@@ -26,7 +26,7 @@ const slots = (prefix, list, size) => Object.fromEntries(Array.from({ length: si
 
 /** Field values of a Character block (stage indexes: 5 = Unhurt, 4 = Fresh). */
 export const character = (who, over = {}) => ({
-    who, health: 5, mana: 4, stamina: 4, str: 14, vit: 12, agi: 12, dex: 10, int: 8, luk: 9, cha: 10, points: 0, soul: 2, xp: 0, down: false, alive: true, ...over,
+    who, health: 5, mana: 4, stamina: 4, str: 14, vit: 12, agi: 12, dex: 10, int: 8, luk: 9, cha: 10, points: 0, soul: 2, level: 2, xp: 0, down: false, alive: true, ...over,
 });
 /** Field values of a Skills block: skills = [[name, rank, stat, uses, about], …] (stat 'str' and uses 'stamina' unless given). */
 export const skillBlock = (who, skills = []) => ({
@@ -58,7 +58,7 @@ export function sheetDomain(blocks) {
 export const PARTY = () => ({
     wessel: { role: 'character', fields: character('Wessel') },
     'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Iron Breath', 1, 'str'], ['Spark', 0, 'int', 'mana']]) },
-    ren: { role: 'character', fields: character('Ren', { str: 8, int: 16, soul: 2 }) },
+    ren: { role: 'character', fields: character('Ren', { str: 8, int: 16, soul: 2, level: 2 }) },
     'ren-skills': { role: 'skills', fields: skillBlock('Ren', [['Spark', 0, 'int', 'mana']]) },
     foes: { role: 'foes', fields: foeBlock([['Sluice Rats', 6, 1, 5]]) },
 });
@@ -75,7 +75,7 @@ export const PLAN_ANSWER = [
  * part's command, hooks and replay guard, and `test.set` (sets one field of a block) for changing the sheet.
  * `options`: { blocks, answers, feature (default on), settings, timer, hold, earlier (rolls asked for with no dice version) }
  */
-export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, queries = {} } = {}) {
+export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature = true, settings = {}, timer, timeoutMs, earlier = false, flowless = false, levelless = false, lvless = levelless, queries = {} } = {}) {
     const callModel = fakeModel(...answers);
     const problems = [];
     let host = null;
@@ -98,9 +98,11 @@ export async function setup({ blocks = PARTY(), answers = [PLAN_ANSWER], feature
         // `earlier`: the rolls are asked for as they were before the dice version, a payload with no `dice` (a chat made on an older build).
         // `levelless`: the rolls are asked for as they were before the Levels rules (a payload with no `lv`: a chat made on an older build); `flowless` and `earlier` drop it too.
         // `flowless`: the rolls are asked for as they were before stage 49's flow (a payload with no `flow`: a chat made on an older build); `earlier` strips the dice version too.
-        hooks: { ...part.hooks, ...(earlier || flowless || levelless ? { beforeGenerate: Object.assign(async (view, info) => {
+        hooks: { ...part.hooks, ...(earlier || flowless || levelless || lvless ? { beforeGenerate: Object.assign(async (view, info) => {
             const out = await part.hooks.beforeGenerate(view, info);
-            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow, lv: _lv, ...payload }, ...command }) => ({ ...command, payload: earlier ? payload : levelless ? { ...payload, dice, flow } : { ...payload, dice } })) } : out;
+            // (every variant is a roll planned before the Levels rules: no `lv` in the payload and no `levelDivisor` in its numbers)
+            return out?.commands ? { ...out, commands: out.commands.map(({ payload: { dice, flow, lv: _lv, rules: { levelDivisor: _d, ...rules }, ...payload }, ...command }) => ({ ...command,
+                payload: earlier ? { ...payload, rules } : levelless || lvless ? { ...payload, rules, dice, flow } : { ...payload, rules, dice } })) } : out;
         }, { timeoutMs: part.hooks.beforeGenerate.timeoutMs }) } : {}), replayGuard: part.guard },
         settings: { defaults: { ...part.settings.defaults } },
     };

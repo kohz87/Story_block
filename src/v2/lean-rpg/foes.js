@@ -25,9 +25,6 @@ export const levelOf = value => {
 };
 
 
-/** The divisor the rules in force carry (`levelDivisor`), else the default. */
-export const divisorOf = rules => (Number.isInteger(rules?.levelDivisor) && rules.levelDivisor >= 1 ? rules.levelDivisor : FOE_LEVEL.divisor);
-
 /** A Standard foe's Health blocks: 4 + floor(level / 30) (levels 1–29 give 4, 30–59 give 5, 60–89 give 6, 90–99 give 7). */
 export const foeBlocksByLevel = level => FOE_LEVEL.healthBase + Math.floor(Math.max(FOE_LEVEL.min, Number(level) || 0) / FOE_LEVEL.healthStep);
 

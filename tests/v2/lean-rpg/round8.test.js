@@ -7,7 +7,8 @@ import {
     STANDARD, STAT_ABOVE, normalizeRules, parsePlanAnswer, prepare, readSheet, rollPrepared, statShare, validatePlan,
 } from '../../../src/v2/lean-rpg/index.js';
 import { PRECALL_HEAD, precallPrompt } from '../../../src/v2/lean-rpg/precall.js';
-import { LEAN_RPG_TEMPLATES } from '../../../src/v2/lean-rpg/templates.js';
+// (The Character block here is one made before levels, 2.17.0: it has the Soul Class field a pack may rename.)
+import { LEAN_RPG_TEMPLATES } from './fixtures/templates-2.16.js';
 import { oddsFor, subjectOdds } from '../../../src/v2/lean-rpg/rules.js';
 import { readJoin, soulNaming, joinCard } from '../../../src/v2/lean-rpg/join.js';
 import { soulReading } from '../../../src/v2/lean-rpg/soul.js';

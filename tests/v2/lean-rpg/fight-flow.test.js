@@ -20,9 +20,9 @@ const skip = available.ok ? false : available.reason;
 
 // Wessel (STR 10, 6 blocks), a foe group of rats: scripted dice by kind and place in the plan.
 const party = ({ foes = [['Sluice Rats', 6, 2, 4]], wessel = {}, ren = null } = {}) => ({
-    wessel: { role: 'character', fields: character('Wessel', { health: 6, str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 9, cha: 5, soul: 2, ...wessel }) },
+    wessel: { role: 'character', fields: character('Wessel', { health: 6, str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 9, cha: 5, soul: 2, level: 2, ...wessel }) },
     'wessel-skills': { role: 'skills', fields: skillBlock('Wessel', [['Iron Breath', 2, 'str']]) },
-    ...(ren ? { ren: { role: 'character', fields: character('Ren', { health: 5, str: 5, vit: 5, agi: 8, dex: 10, int: 16, luk: 9, cha: 5, soul: 2, ...ren }) } } : {}),
+    ...(ren ? { ren: { role: 'character', fields: character('Ren', { health: 5, str: 5, vit: 5, agi: 8, dex: 10, int: 16, luk: 9, cha: 5, soul: 2, level: 2, ...ren }) } } : {}),
     foes: { role: 'foes', fields: foeBlock(foes) },
 });
 const sheetOf = blocks => readSheet({ domains: { dataModules: sheetDomain(blocks) } });
@@ -129,7 +129,7 @@ test('budget: the cue that no longer fits is cut to fewer rounds, never fewer th
 
 test('the USER\'s case: four crawlers, Hurt, against Astra: no stop on "Decisive block"; the fight runs to won', () => {
     const blocks = {
-        astra: { role: 'character', fields: character('Astra', { health: 6, str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 9, cha: 5, soul: 2 }) },
+        astra: { role: 'character', fields: character('Astra', { health: 6, str: 10, vit: 10, agi: 10, dex: 6, int: 5, luk: 9, cha: 5, soul: 2, level: 2 }) },
         'astra-skills': { role: 'skills', fields: skillBlock('Astra', [['Iron Breath', 2, 'str']]) },
         foes: { role: 'foes', fields: foeBlock([['Crawlers', 4, 1, 3]]) },
     };
@@ -290,7 +290,7 @@ async function world(t, { answers = ['none'], party = ['Astra'], xp = 0, rate } 
         const definition = definitionOf('Character');
         if (who !== party[0]) { definition.slug = who.toLowerCase(); definition.name = who; }
         success(await host.sdk.command('dm.define', { definition }));
-        success(await host.sdk.command('dm.set', { module: `pack.chat/${definition.slug}`, fields: { who, soul: 2, xp } }));
+        success(await host.sdk.command('dm.set', { module: `pack.chat/${definition.slug}`, fields: { who, level: 2, xp } }));
     }
     success(await host.sdk.command('dm.define', { definition: definitionOf('Foes') }));
     return { host, model };
@@ -329,7 +329,7 @@ test('the narrator\'s XP line in the reply that won the fight is not used, in ei
         await host.send('A swarm.', reply(SLOT));
         await host.send('I finish them.', reply(...lines));
         assert.equal(fields(host, 'Astra').xp, 10, `${lines[0]} first: the code's 10, not 60`);
-        assert.equal(fields(host, 'Astra').soul, 2);
+        assert.equal(fields(host, 'Astra').level, 2);
         assert.deepEqual(host.turn.problems().filter(problem => problem.message === FIGHT_XP_HELD).map(problem => problem.code), ['LIMITED'], 'one Problems line');
         // In another reply the narrator's XP line is the narrator's.
         await host.send('A kindness.', reply(XP(30)));
@@ -340,17 +340,17 @@ test('the narrator\'s XP line in the reply that won the fight is not used, in ei
     }
 });
 
-test('XP reaching 100 raises the Soul Class by the block\'s own rule (back to 0 XP, 3 points)', { skip }, async t => {
+test('XP reaching 100 raises the level by the block\'s own rule and carries the rest (back to 0 XP, 1 point)', { skip }, async t => {
     const { host } = await world(t, { xp: 95 });
     await host.send('A swarm.', reply(SLOT));
     await host.send('I finish them.', reply(DOWN));
     const astra = fields(host, 'Astra');
-    assert.deepEqual([astra.soul, astra.xp, astra.points], [3, 0, 3]);
+    assert.deepEqual([astra.level, astra.xp, astra.points], [3, 0, 1]);
     same(host);
     // A swipe takes the XP and the rise with it.
     await host.swipe(reply('~ dm foes — why | kind: hurt-1 | to: 3'));
     const swiped = fields(host, 'Astra');
-    assert.deepEqual([swiped.soul, swiped.xp, swiped.points], [2, 95, 0]);
+    assert.deepEqual([swiped.level, swiped.xp, swiped.points], [2, 95, 0]);
     same(host);
 });
 
@@ -409,7 +409,7 @@ test('deleting an earlier reply that gave XP plans the fight\'s step again on th
 
 test('a member whose XP comes to 0 gets none and no receipt line; another member, nearer the foe level, is paid from the same fight', { skip }, async t => {
     const { host } = await world(t, { party: ['Astra', 'Ren'] });
-    success(await host.sdk.command('dm.set', { module: 'pack.chat/ren', fields: { soul: 9 } }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/ren', fields: { level: 85 } }));
     await host.send('A swarm.', reply(SLOT.replace('count: 6', 'count: 1')));
     await host.send('I finish them.', reply(DOWN));
     assert.deepEqual([fields(host, 'Astra').xp, fields(host, 'Ren').xp], [1, 0], 'one level 1 crawler (base 2): level 2 gets 90 % = 1, level 9 gets 20 % = 0.4: nothing');
@@ -461,7 +461,7 @@ test('Standard dice: a fight opened by the pre-call and won by the dice in the s
     host.features.set(LEAN_RPG_FEATURE, true);
     await host.send('Begin.', 'Opening.');
     for (const entry of STANDARD_TEMPLATES.slice(0, 3)) success(await host.sdk.command('dm.define', { definition: structuredClone(entry.definition) }));
-    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', soul: 2, str: 20, dex: 20 } }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Astra', level: 2, str: 20, dex: 20 } }));
     await host.send(AMBUSH, 'The crawlers are beaten.');
     const result = rollReceipt(host, 4).data.v2.result;
     assert.equal(result.stop, 'won');

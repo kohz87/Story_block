@@ -13,6 +13,7 @@ import {
 import { initialScene, validateScene } from '../../../src/v2/domains/scene.js';
 import { mountUi } from '../../../src/v2/ui-host.js';
 import { homeScreen } from '../../../src/v2/screens/index.js';
+import { levelOfClass } from '../../../src/v2/lean-rpg/formula.js';
 import { checkInvariants } from '../qa/helpers/oracle.js';
 import { recordingWidgets, renderSkip, show, text } from '../screens/helpers.js';
 import { setupDom } from '../view/mounts/helpers.js';
@@ -232,7 +233,7 @@ test('mounts.list gives copies; mounts.pace is the slowest row and walks when th
 
 async function character(host, who, soul = 1) {
     const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
-    defs.character.slug = who.toLowerCase(); defs.character.name = who; defs.character.state.who.default = who; defs.character.state.soul.default = soul;
+    defs.character.slug = who.toLowerCase(); defs.character.name = who; defs.character.state.who.default = who; defs.character.state.level.default = levelOfClass(soul);
     defs.skills.slug = `${who.toLowerCase()}-skills`; defs.skills.name = `${who}'s skills`; defs.skills.state.who.default = who;
     for (const definition of [defs.character, defs.skills]) assert.equal((await host.sdk.command('dm.define', { definition })).ok, true);
 }

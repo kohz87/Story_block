@@ -25,50 +25,50 @@ async function story(t, ...names) {
 test('every template is made by dm.define, as the chooser makes it', async t => {
     const host = await story(t, 'Character', 'Skills', 'Foes', 'Combat rules');
     for (const slug of ['character', 'skills', 'foes', 'combat-rules']) assert.ok(sheet(host, slug), slug);
-    assert.equal(sheet(host, 'character').soul, 1);
+    assert.equal(sheet(host, 'character').level, 1);
 });
 
-test('Character: 100 XP raises the Soul Class by one and starts XP again; a swipe takes it back', async t => {
+test('Character: 100 XP raises the Level by one and starts XP again; a swipe takes it back', async t => {
     const host = await story(t, 'Character');
     await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 60')));
     await host.send('Fight on.', reply(line('character', 'add-xp', ' | amount: 50')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').xp], [2, 0]);
+    assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').xp], [2, 0]);
     await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').xp], [1, 70]);
+    assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').xp], [1, 70]);
     rebuilt(host);
 });
 
-test('Character: each Soul Class rise gives 3 points to spend, clamped at the points field\'s 60; at Soul Class IX there is no rise and no points; a swipe takes them back', async t => {
+test('Character: a point to spend comes with every third Level (3, 6, ...); a swipe takes the rise and its point back', async t => {
     const host = await story(t, 'Character');
+    const now = () => [sheet(host, 'character').level, sheet(host, 'character').xp, sheet(host, 'character').points];
     await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 60')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').xp, sheet(host, 'character').points], [1, 60, 0]);
+    assert.deepEqual(now(), [1, 60, 0]);
     await host.send('Fight on.', reply(line('character', 'add-xp', ' | amount: 50')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').xp, sheet(host, 'character').points], [2, 0, 3], 'class +1, XP 0, points +3');
+    assert.deepEqual(now(), [2, 0, 0], 'level +1, XP 0, no point at level 2');
     rebuilt(host);
-    await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [1, 0], 'the swipe takes the points back with the rise');
-    rebuilt(host);
-    // A second rise adds three more.
     await host.send('More.', reply(line('character', 'add-xp', ' | amount: 100')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [2, 3]);
+    assert.deepEqual(now(), [3, 0, 1], 'level 3: a point');
+    await host.swipe(reply(line('character', 'add-xp', ' | amount: 10')));
+    assert.deepEqual(now(), [2, 10, 0], 'the swipe takes the point back with the rise');
+    rebuilt(host);
     await host.send('And more.', reply(line('character', 'add-xp', ' | amount: 100')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [3, 6]);
+    assert.deepEqual(now(), [3, 0, 1], 'XP is held at 100 by its field, so 10 + 100 carries nothing');
     rebuilt(host);
 });
 
-test('Character: the points stay within their 60 (clamp), and Soul Class IX gets nothing more from XP', async t => {
+test('Character: the points stay within their 60 (clamp), and a character at the cap gets nothing more from XP', async t => {
     const nearly = definition('Character');
-    nearly.state.points.default = 59;
+    nearly.state.points.default = 60; nearly.state.level.default = 2;
     const top = definition('Character');
     top.slug = 'top'; top.name = 'Top';
-    top.state.soul.default = 9; top.state.points.default = 5;
+    top.state.level.default = 9; top.state.cap.default = 9; top.state.points.default = 5;
     const host = await createHost(); t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
     success(await host.sdk.command('dm.define', { definition: nearly }));
     success(await host.sdk.command('dm.define', { definition: top }));
     await host.send('Fight.', reply(line('character', 'add-xp', ' | amount: 100'), line('top', 'add-xp', ' | amount: 100')));
-    assert.deepEqual([sheet(host, 'character').soul, sheet(host, 'character').points], [2, 60], '59 + 3 stays at 60');
-    assert.deepEqual([sheet(host, 'top').soul, sheet(host, 'top').xp, sheet(host, 'top').points], [9, 100, 5], 'at IX: no class-up, XP stays, no points');
+    assert.deepEqual([sheet(host, 'character').level, sheet(host, 'character').points], [3, 60], '60 + 1 stays at 60');
+    assert.deepEqual([sheet(host, 'top').level, sheet(host, 'top').xp, sheet(host, 'top').points], [9, 100, 5], 'at the cap: no level-up, XP stays, no points');
     rebuilt(host);
 });
 
@@ -144,7 +144,7 @@ test('the story reads all of a full sheet in the tail: five skills with what eac
     const state = host.head();
     const sheetLine = summaryOf(state, 'pack.chat/character'), skillsLine = summaryOf(state, 'pack.chat/skills');
     assert.match(sheetLine, /^Wessel — about "A drill-yard washout[^"]*Keeps a ledger\."/);
-    assert.match(sheetLine, /STR 10 VIT 10 AGI 10 DEX 10 INT 10 LUK 10 CHA 10; soul I\.$/, 'the whole sheet: every stat and the Soul Class; a full bar, no points, no XP, alive are the defaults and left out');
+    assert.match(sheetLine, /STR 10 VIT 10 AGI 10 DEX 10 INT 10 LUK 10 CHA 10; level 1\.$/, 'the whole sheet: every stat and the Level; a full bar, no points, no XP, alive are the defaults and left out');
     const lines = skillsLine.split('\n');
     assert.equal(lines[0], 'Wessel skills:');
     assert.deepEqual(lines.slice(1), full.map(skill => `- ${skill.name} (Novice, ${skill.stat}, ${skill.uses}): ${skill.about}`), 'one line per skill, the rank by its name, what it does in full');
@@ -165,10 +165,10 @@ test('the story reads all of a full sheet in the tail: five skills with what eac
 
 test('the tail leaves out empty slots and defaults, and says only what is there: a hurt character, two skills, the foes in the fight', async t => {
     const host = await story(t, 'Character', 'Skills', 'Foes', 'Combat rules');
-    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Wessel', health: 3, stamina: 1, points: 2, soul: 2, xp: 40, str: 14 } }));
+    success(await host.sdk.command('dm.set', { module: 'pack.chat/character', fields: { who: 'Wessel', health: 3, stamina: 1, points: 2, level: 2, xp: 40, str: 14 } }));
     success(await host.sdk.command('dm.set', { module: 'pack.chat/skills', fields: { who: 'Wessel', skill2: 'Iron Breath', about2: 'Drill-yard breathing.', stat2: 'vit', uses2: 'stamina' } }));
     let state = host.head();
-    assert.equal(summaryOf(state, 'pack.chat/character'), 'Wessel — health Hurt; stamina Spent; STR 14 VIT 10 AGI 10 DEX 10 INT 10 LUK 10 CHA 10; points 2; soul II; xp 40.');
+    assert.equal(summaryOf(state, 'pack.chat/character'), 'Wessel — health Hurt; stamina Spent; STR 14 VIT 10 AGI 10 DEX 10 INT 10 LUK 10 CHA 10; points 2; level 2; xp 40.');
     assert.equal(summaryOf(state, 'pack.chat/skills'), 'Wessel skills:\n- Iron Breath (Novice, vit, stamina): Drill-yard breathing.', 'the empty slots are not there');
     assert.equal(summaryOf(state, 'pack.chat/foes'), '', 'no foe, no line');
     assert.equal(summaryOf(state, 'pack.chat/combat-rules'), '', 'a block with no fields has nothing to tell');
@@ -198,7 +198,7 @@ test('a party of three with five skills each, a full Foes block and the Combat r
         Object.assign(sheet, { slug: `character-${at}`, name: who });
         Object.assign(skills, { slug: `skills-${at}`, name: `${who} skills` });
         for (const made of [sheet, skills]) success(await host.sdk.command('dm.define', { definition: made }));
-        await set(`character-${at}`, { who, about, health: 3, mana: 2, stamina: 2, points: 2, soul: 2, xp: 40, str: 14 });
+        await set(`character-${at}`, { who, about, health: 3, mana: 2, stamina: 2, points: 2, level: 2, xp: 40, str: 14 });
         const pool = [...SKILL_SETS[at].skills, ...SKILL_SETS[at + 1].skills.slice(0, 2)];
         await set(`skills-${at}`, { who, ...Object.fromEntries(pool.flatMap((skill, slot) => [[`skill${slot + 1}`, skill.name], [`about${slot + 1}`, skill.about], [`stat${slot + 1}`, skill.stat], [`uses${slot + 1}`, skill.uses]])) });
     }

@@ -41,7 +41,7 @@ test('Add to party makes the Character and Skills blocks and the card goes', { s
     cardOf(ctx).querySelectorAll('button').find(node => node.textContent.trim() === 'Add to party').click();
     await settle();
     assert.deepEqual(names(ctx.host), ['pack.chat/mara', 'pack.chat/mara-skills', 'pack.chat/wessel', 'pack.chat/wessel-skills']);
-    assert.equal(ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/mara' }).chat.soul, 3, 'class IV, capped by the party\'s III');
+    assert.equal(ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/mara' }).chat.level, 25, 'class IV, capped by the party\'s III: the level class III stands for');
     ctx.ui.mounts.card.refresh(ctx.host.ctx.chat.length - 1, { force: true });
     await settle();
     assert.equal(cardOf(ctx), null);
@@ -71,7 +71,7 @@ test('Edit first opens the New character window filled in: name, about, class, t
     wizardOf(dialog).querySelector('.rpg-wiz-create').click();
     await settle();
     const mara = ctx.host.sdk.query('dataModules.view', { module: 'pack.chat/mara' }).chat;
-    assert.deepEqual([mara.who, mara.soul, mara.int, mara.points], ['Mara', 4, 14, 2], 'the wizard\'s own rules: the reader\'s two points are still theirs to spend, the class as written');
+    assert.deepEqual([mara.who, mara.level, mara.int, mara.points], ['Mara', 35, 14, 2], 'the wizard\'s own rules: the reader\'s two points are still theirs to spend, the class as written');
     ctx.ui.mounts.card.refresh(ctx.host.ctx.chat.length - 1, { force: true });
     await settle();
     assert.equal(cardOf(ctx), null, 'in the party: nothing to offer');

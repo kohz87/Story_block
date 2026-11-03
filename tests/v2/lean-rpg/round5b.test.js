@@ -72,20 +72,20 @@ test('B1: a hidden skill name, stat and who are not offered by the sheet; the de
 
 // --- review 160: hidden numbers still count for the rules ---------------------------------------------------------------
 
-test('review 160 a: a hidden health of 0 is still Down and a hidden Soul Class still counts; neither is written for the planner', { skip }, async t => {
+test('review 160 a: a hidden health of 0 is still Down and a hidden Level still counts; neither is written for the planner', { skip }, async t => {
     const { readSheet } = await import('../../../src/v2/lean-rpg/index.js');
     const { sheetText } = await import('../../../src/v2/lean-rpg/precall.js');
     const { host, asked } = await game(t, { who: [] });
     const hero = template('Character');
     hero.slug = 'wessel'; hero.name = 'Wessel'; hero.state.who.default = 'Wessel'; hero.kinds = {};
     hero.state.health.default = 0; hero.state.health.prompt = false;
-    hero.state.soul.default = 5; hero.state.soul.prompt = false;
+    hero.state.level.default = 25; hero.state.level.prompt = false;
     success(await host.sdk.command('dm.define', { definition: hero }));
     const sheet = readSheet(host.head());
     const wessel = sheet.characters.find(entry => entry.who === 'Wessel');
-    assert.deepEqual([wessel.health, wessel.soul], [0, 5], 'the rules read the real values');
+    assert.deepEqual([wessel.health, wessel.level], [0, 25], 'the rules read the real values');
     const text = sheetText(sheet);
-    assert.ok(!/Health|class V|DOWN/.test(text.split('\n').find(line => line.startsWith('Wessel'))), text);
+    assert.ok(!/Health|Lv 25|DOWN/.test(text.split('\n').find(line => line.startsWith('Wessel'))), text);
     await host.send('I strike.', 'The rat bites.');
     const roll = host.ctx.chat.at(-1).extra.storySuite.receipts.find(receipt => receipt.type === 'rpg.resolve');
     const acted = (roll?.data?.v2?.result?.rounds ?? []).flatMap(round => round.lines).some(line => line.kind === 'act' && line.pc?.who === 'Wessel');

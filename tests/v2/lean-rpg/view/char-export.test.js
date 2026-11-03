@@ -585,7 +585,7 @@ test('a You takes the things to the bag, a companion with a party actor to that 
     wizardOf(dialog).querySelector('.rpg-wiz-create').click();
     await settle();
     assert.deepEqual([...new Set(ctx.host.sdk.query('inventory.items', {}).map(item => item.owner))], ['party'], 'a You: the party\'s bag');
-    assert.equal(fieldsOf(ctx.host, 'pack.chat/wessel').soul, 2);
+    assert.equal(fieldsOf(ctx.host, 'pack.chat/wessel').level, 15, 'the file\'s Soul Class II: the level it stands for');
     dialog = await wizardWith(ctx);
     await companion(dialog, 'Ren');
     await importInto(dialog, without('money'));

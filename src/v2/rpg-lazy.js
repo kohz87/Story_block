@@ -12,9 +12,9 @@
 // This file holds: the loaded library's holder (`rpgLib`), the part's stand-in (`createLazyRpgPart`: the same commands,
 // cards, queries, hooks, settings and guard as lean-rpg/index.js createLeanRpgPart, handed to the real part once the
 // library is there), the loader (`createRpgLoader`) and the check of a chat (`holdsRpg`). No DOM, no SillyTavern.
-import { FIGHT, LEAN_RPG_FEATURE, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, RESOLVE, ROLLS, ROLLS_SETTING } from './lean-rpg/names.js';
+import { FIGHT, LEAN_RPG_FEATURE, LEVEL, LEVEL_CAP_SETTING, PRACTICE, PRACTICE_SETTING, PRACTICE_STEP, RESOLVE, ROLLS, ROLLS_SETTING } from './lean-rpg/names.js';
 import { TIMEOUT_MS } from './assist/common.js';
-import { RANK_QUERY, XP_RATE, XP_RATE_SETTING, rankQuery } from './lean-rpg/levels.js';
+import { RANK_QUERY, SETTINGS_SCHEMA, XP_RATE, XP_RATE_SETTING, rankQuery } from './lean-rpg/levels.js';
 
 let library = null;
 
@@ -124,7 +124,7 @@ export function createLazyRpgPart(deps = {}) {
             afterCapture: (view, info) => part()?.hooks.afterCapture(view, info),
             afterReceive: view => { part()?.hooks.afterReceive(view); },
         },
-        settings: { defaults: { [ROLLS_SETTING]: ROLLS[0], [PRACTICE_SETTING]: PRACTICE.perUse, [XP_RATE_SETTING]: XP_RATE.default } },
+        settings: { defaults: { [ROLLS_SETTING]: ROLLS[0], [PRACTICE_SETTING]: PRACTICE.perUse, [XP_RATE_SETTING]: XP_RATE.default, [LEVEL_CAP_SETTING]: LEVEL.max }, schema: SETTINGS_SCHEMA },
         guard: (view, info) => { const made = part(); return made ? made.guard(view, info) : { ok: false, reason: 'The RPG is not loaded.' }; },
     };
 }

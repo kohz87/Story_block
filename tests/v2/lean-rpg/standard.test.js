@@ -58,27 +58,27 @@ test('the setting picks the formula: Standard unless the reader chose Classic', 
 
 test('Standard carries its formula and numbers in the rules; Gentle, Standard and Harsh move only the foe\'s base; Classic has no formula key', () => {
     const rules = difficulty => rulesFromSettings({ [DIFFICULTY_SETTING]: difficulty });
-    assert.deepEqual(Object.keys(rules('standard')), [...STANDARD_RULE_KEYS]);
+    assert.deepEqual(Object.keys(rules('standard')), [...STANDARD_RULE_KEYS, 'levelDivisor'], 'and, from 2.17.0, the level divisor last');
     assert.equal(rules('standard').formula, 'standard');
     assert.deepEqual(['gentle', 'standard', 'harsh'].map(name => rules(name).foeBase), [2, 4, 6]);
     for (const key of STANDARD_RULE_KEYS.filter(key => key !== 'foeBase')) assert.equal(rules('gentle')[key], rules('harsh')[key], key);
-    assert.deepEqual(rules('standard'), { ...STANDARD_FORMULA });
+    assert.deepEqual(rules('standard'), { ...STANDARD_FORMULA, levelDivisor: 5 });
     // formula.js's own numbers are the starting point: only the preset's foeBase differs from them.
-    assert.deepEqual({ ...rules('standard'), foeBase: 3 }, { formula: 'standard', foeBase: 3, foeClassWeight: 3, classWeight: 2, costMargin: 2, decisiveMargin: 8, roundCap: 8,
-        startStat: 5, createPoints: 10, createMin: 3, createMax: 10, pointsPerSoul: 4, statMax: 20, quickStartMargin: 10 });
+    assert.deepEqual({ ...rules('standard'), foeBase: 3, levelDivisor: undefined }, { formula: 'standard', foeBase: 3, foeClassWeight: 3, classWeight: 2, costMargin: 2, decisiveMargin: 8, roundCap: 8,
+        startStat: 5, createPoints: 10, createMin: 3, createMax: 10, pointsPerSoul: 4, statMax: 20, quickStartMargin: 10, levelDivisor: undefined });
     const classic = rulesFromSettings({ [FORMULA_SETTING]: 'classic', [DIFFICULTY_SETTING]: 'harsh' });
-    assert.deepEqual(classic, PRESETS.harsh);
+    assert.deepEqual(classic, { ...PRESETS.harsh, levelDivisor: 5 });
     assert.equal('formula' in classic, false);
 });
 
 test('Custom Standard numbers are each held to their range, and the creation numbers must agree', () => {
     const custom = given => rulesFromSettings({ [DIFFICULTY_SETTING]: 'custom', [STANDARD_SETTING]: given });
-    assert.deepEqual(custom({ foeBase: 9, quickStartMargin: 6, pointsPerSoul: 3 }), { ...STANDARD_FORMULA, foeBase: 9, quickStartMargin: 6, pointsPerSoul: 3 });
+    assert.deepEqual(custom({ foeBase: 9, quickStartMargin: 6, pointsPerSoul: 3 }), { ...STANDARD_FORMULA, foeBase: 9, quickStartMargin: 6, pointsPerSoul: 3, levelDivisor: 5 });
     assert.equal(custom({ foeBase: 99 }).foeBase, STANDARD_FORMULA.foeBase, 'out of range: the preset\'s');
     assert.equal(custom({ foeClassWeight: 0 }).foeClassWeight, STANDARD_FORMULA.foeClassWeight);
     assert.equal(custom({ foeBase: 'x' }).foeBase, STANDARD_FORMULA.foeBase);
     assert.equal(custom({ createMin: 9, startStat: 5 }).createMin, 3, 'a lowest stat above the start is not kept');
-    assert.deepEqual(custom(undefined), { ...STANDARD_FORMULA });
+    assert.deepEqual(custom(undefined), { ...STANDARD_FORMULA, levelDivisor: 5 });
     assert.equal(custom({ formula: 'classic' }).formula, 'standard');
 });
 
@@ -119,6 +119,7 @@ test('the odds bar follows the formula in force: Standard puts the pair, the Sou
 // ---- Classic stays byte for byte --------------------------------------------------------------------------------------
 
 test('Classic output is byte-identical to the build before the Standard formula: prompt, sheet text, cue, rounds, witness, parse, rules', () => {
+    // (2.17.0: `rules` moved again, on purpose: the settings' numbers now carry the level divisor; the cue, rounds, witness and prompt are the same bytes.)
     // (Fingerprints taken from the build that holds formula.js only, c072d16, for this fixed party, plan and seed. Only `rules` and `presets` moved, on purpose, in stage 49:
     // the presets' most exchanges per reply went from 5 to 8; the roll itself (cue, rounds, witness, prompt) is unchanged byte for byte. `prompt` and `head` moved on purpose in stage 50: the planner is told to name a defender's fitting skill.)
     const sha = text => createHash('sha256').update(text).digest('hex').slice(0, 16);
@@ -135,7 +136,7 @@ test('Classic output is byte-identical to the build before the Standard formula:
     }, {
         // (Changed on purpose in the Levels release: the head's new-foe line and the foes' "Lv N" in the sheet text, so prompt, head and sheet; the dice, cue, rounds and witness of a roll without `lv` are as they were.)
         prompt: '89a5a959f1b3f79a', head: '734be2d7f3eb82a9', sheet: 'b1838934cb4ce054', cue: '581fec519ba585d9', rounds: '4790ebdd2f084e80', witness: '9cc7432def3e988b',
-        parsed: 'b0eedb0e4d7e0c16', rules: '458d12337585e339', presets: '1a96e56e9499540c',
+        parsed: 'b0eedb0e4d7e0c16', rules: '5d0d31490dae927e', presets: '1a96e56e9499540c',
     });
 });
 
@@ -498,11 +499,11 @@ test('a pack\'s content.rpg may name the formula and its numbers; they are kept 
     assert.equal(formulaOf({}, pack), 'classic');
     assert.equal(formulaOf({ rpgFormula: 'standard' }, pack), 'standard');
     assert.equal(formulaOf({ rpgFormula: 'classic' }, null), 'classic');
-    assert.deepEqual(rulesFromSettings({}, pack), normalizeRules({ ...PRESETS.standard, foeBase: 7, costMargin: 3 }));
-    assert.deepEqual(rulesFromSettings({ rpgDifficulty: 'harsh' }, pack), PRESETS.harsh, 'a difficulty the reader picked is theirs');
+    assert.deepEqual(rulesFromSettings({}, pack), normalizeRules({ ...PRESETS.standard, foeBase: 7, costMargin: 3, levelDivisor: 5 }));
+    assert.deepEqual(rulesFromSettings({ rpgDifficulty: 'harsh' }, pack), { ...PRESETS.harsh, levelDivisor: 5 }, 'a difficulty the reader picked is theirs');
     const standardPack = packRulesOf([{ slug: 'formula', formula: 'standard', numbers: { foeBase: 6, startStat: 6 } }]);
-    assert.deepEqual(rulesFromSettings({}, standardPack), { ...STANDARD_FORMULA, foeBase: 6, startStat: 6 });
-    assert.deepEqual(rulesFromSettings({}, null), STANDARD_FORMULA);
+    assert.deepEqual(rulesFromSettings({}, standardPack), { ...STANDARD_FORMULA, foeBase: 6, startStat: 6, levelDivisor: 5 });
+    assert.deepEqual(rulesFromSettings({}, null), { ...STANDARD_FORMULA, levelDivisor: 5 });
 });
 
 test('a roll in a story whose pack asks for Classic is rolled on Classic with the pack\'s numbers, unless the reader chose Standard', { skip }, async () => {
@@ -526,7 +527,7 @@ test('a roll in a story whose pack asks for Classic is rolled on Classic with th
         return result;
     };
     const asked = await roll({});
-    assert.deepEqual(asked.rules, normalizeRules({ ...PRESETS.standard, foeBase: 8 }), 'Classic with the pack\'s base');
+    assert.deepEqual(asked.rules, normalizeRules({ ...PRESETS.standard, foeBase: 8, levelDivisor: 5 }), 'Classic with the pack\'s base');
     assert.equal('order' in asked, false);
     const chosen = await roll({ rpgFormula: 'standard' });
     assert.equal(chosen.rules.formula, 'standard');

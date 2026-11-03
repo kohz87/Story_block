@@ -1,6 +1,6 @@
 // The prompt tail's lines for the RPG's blocks (a block whose definition has a `role`), written compact: a party of three with
 // five skills each would otherwise send about 880 tokens every reply. Rules, in plain words:
-//   * a value at its field's default is left out (a full Health bar, no points, no XP, alive), except a stat, a Soul Class and a name;
+//   * a value at its field's default is left out (a full Health bar, no points, no XP, alive), except a stat, a Level (or Soul Class) and a name;
 //   * values go by their names where the field has them ("Hurt", "II", "Adept"), never the stored number;
 //   * a Skills block is one line per skill, empty slots left out ("Short blade (Novice, agi, stamina): what it does");
 //   * a Foes block lists only the groups in the fight, one clause each; with none, and for a Rules block with no fields, there is no line;
@@ -35,7 +35,7 @@ function sheetBody(definition, fields, { hidden, text }) {
             stats.push(`${label} ${value}`);
         } else if (schema.type === 'text') {
             if (word(value)) parts.push(`${key} "${word(value)}"`);
-        } else if (value !== schema.default || key === 'soul') parts.push(text(key, value));
+        } else if (value !== schema.default || key === 'soul' || key === 'level') parts.push(text(key, value));
     }
     return parts.map(part => (Array.isArray(part) ? part.join(' ') : part)).join('; ');
 }

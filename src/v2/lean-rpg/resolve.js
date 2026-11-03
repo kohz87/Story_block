@@ -62,16 +62,17 @@
 // stat (or the defending skill's), `skill` the defending skill (null: none; a roll made before there were any has none) and `pc` the
 // defender (outcome 'fail' means the defender failed). `summary.exchanges` = rounds.length is the
 // number B shows as "Rolled for you: N exchanges". The told count is not recorded: the narrator is not asked to count.
-import { FIGHT, FORMULA, LIMITS, PACE, PRACTICE_STEP, RESOLVE, STAGES, practiceOf } from './names.js';
+import { FIGHT, FORMULA, LEVEL, LIMITS, LV_VERSION, PACE, PRACTICE_STEP, RESOLVE, STAGES, practiceOf } from './names.js';
 import { fightGuard } from './fight.js';
 import { practiceGuard } from './practice.js';
-import { EARLIER_RULES, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
+import { classTerm, EARLIER_RULES, hasLevels, isStandard, normalizeRules, STANDARD, statShare } from './rules.js';
 import { prepareStandard, rollStandard, summaryStd } from './standard.js';
 import { cueOfResult, fitCue } from './cue.js';
 import { matchCharacter, matchFoe, matchSkill, readSheet, strongestStat } from './read.js';
 import { validatePlan } from './plan.js';
 import { openFoes } from './open.js';
-import { LV_VERSION, divisorOf, levelBonus, partyLevels, averageLevel, settleOpen } from './foes.js';
+import { levelBonus } from './formula.js';
+import { partyLevels, averageLevel, settleOpen } from './foes.js';
 import { rng as seededRandom } from '../rng.js';
 
 export const RESULT_VERSION = 1;
@@ -79,8 +80,6 @@ export const RESULT_VERSION = 1;
 export const DICE_VERSION = 2;
 /** The version of the rule a reply's exchanges stop by (`flow` in the payload of `rpg.resolve`): 2 = until won, lost, heavy, the cap or the budget (see the top). */
 export const FLOW_VERSION = 2;
-/** The version of the rules that use levels (`lv` in the payload of `rpg.resolve`, foes.js LV_VERSION): a foe adds floor(level / divisor); a roll without it replays exactly as before. */
-export { LV_VERSION };
 const KEY = /^\d{1,7}-[0-9a-z]{1,7}$/;
 export const claimKey = key => `rpg:resolve:${key}`;
 const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
@@ -101,7 +100,7 @@ function side(character, stat, rank, edge, rules, hidden = false) {
     const value = character.stats[stat];
     return {
         who: character.who, stat, statBonus: statShare(value, rules),
-        classValue: character.soul, classBonus: rules.classWeight * character.soul, rank, edge,
+        ...classTerm(rules, character), rank, edge,
         ...(hidden || (character.hidden ?? []).includes(stat) ? { statHidden: true } : {}),
     };
 }
@@ -200,7 +199,7 @@ export function prepare(plan, sheet, rules = STANDARD, options = {}) {
     }
     // (From a roll of the Levels rules, `options.lv`, a foe adds floor(level / divisor); else classWeight × class, as it did.)
     const foeSide = foe => (options.lv
-        ? { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.level, classBonus: levelBonus(foe.level, divisorOf(rules)) }
+        ? { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.level, classBonus: levelBonus(foe.level, rules.levelDivisor) }
         : { slot: foe.slot, name: foe.name, base: rules.foeBase, classValue: foe.class, classBonus: rules.classWeight * foe.class });
     for (const entry of [...out.acts, ...out.foes]) entry.foe = foeSide(entry.foe);
     // (Where an action stands in the plan is for its dice; the witness is the sheet numbers only, as it always was.)
@@ -387,6 +386,8 @@ const levelsValid = levels => Array.isArray(levels) && levels.length <= 4 && lev
 
 // The numbers a payload rolls with: the ones it carries, or, for a roll recorded before the numbers were kept, those it was made with (the cap of 5 included).
 const rulesOfPayload = value => (value === undefined ? EARLIER_RULES : normalizeRules(value));
+// A payload that says `lv: 1` rolls with levels (rules.levelDivisor, 5 if the numbers carry none); one that does not rolls with the Soul Class, as before.
+const levelledRules = (rules, lv) => (lv === LV_VERSION && !hasLevels(rules) ? { ...rules, levelDivisor: LEVEL.divisor } : rules);
 // The flow a payload asks for: FLOW_VERSION only when it says so and the dice are by position (a roll of the earlier dice scheme stops as it did).
 const flowOf = (asked, positional) => (asked === FLOW_VERSION && positional ? FLOW_VERSION : 1);
 
@@ -406,7 +407,8 @@ export function resolve(ctx, payload = {}) {
     const order = orderOf(payload.order);
     // The numbers this roll is made with are the ones the payload carries (chosen when it was planned, from the settings of that
     // moment); a Re-read, a rebuild and a reload run the same payload, so they roll with them again. The settings are never read here.
-    const rules = rulesOfPayload(payload.rules);
+    const rules = levelledRules(rulesOfPayload(payload.rules), payload.lv);
+    const lv = hasLevels(rules) ? LV_VERSION : undefined;
     // The flow of stage 49 is asked for by the payload (precall.js) and needs the dice by position; a roll made before has none and stops as it did.
     const std = isStandard(rules);
     const flow = flowOf(payload.flow, payload.dice === DICE_VERSION || std);
@@ -414,7 +416,6 @@ export function resolve(ctx, payload = {}) {
     // roll is made on the sheet that leaves. A plan with no `open` reads the block as it stands, as ever.
     // From the Levels rules (`lv` in the payload) each foe has a level: the one the plan gave, or one drawn inside a rank's band or near the party's average level,
     // from the reply's own seed (the first number it gives, which the dice by position then use as well), so a swipe draws anew and a Re-read keeps it.
-    const lv = payload.lv === LV_VERSION ? LV_VERSION : null;
     const positional = payload.dice === DICE_VERSION || std;
     const base = positional ? Math.floor(ctx.rng() * 4294967296) >>> 0 : null;
     const opening = Array.isArray(plan.open) && plan.open.length > 0;
@@ -462,6 +463,8 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
         // The numbers are the ones recorded with the roll, not today's settings; damaged numbers are not guessed at.
         // A roll recorded before the numbers were kept has none: it was made with Standard's.
         const rules = rulesOfPayload(recorded.rules);
+        // The level mark is hashed with the roll: the numbers carry a divisor exactly when the roll says `lv: 1`; a roll made before has neither.
+        if (recorded.lv !== predicate.lv || (recorded.lv !== undefined && recorded.lv !== LV_VERSION) || hasLevels(rules) !== (recorded.lv === LV_VERSION)) return bad('The roll\'s level mark was damaged.');
         const kept = recorded.rules !== undefined || predicate.rules !== undefined;
         if (kept && (hash(recorded.rules ?? null) !== hash(rules) || hash(rules) !== predicate.rules)) return bad('The roll\'s numbers were damaged.');
         // The flow it stopped by is hashed with it; a roll of the earlier flow has none.
@@ -474,7 +477,6 @@ export function leanRpgGuard({ state, hash }, { guard, source, recorded }) {
             if (orderOf(recorded.order) === null || hash(recorded.order) !== predicate.order) return bad('The roll\'s turn order was damaged.');
         }
         // The Levels rules are hashed with the roll that used them; the levels its opened foes were given (drawn from the reply's seed when it was rolled) are recorded and hashed too.
-        if (recorded.lv !== predicate.lv || (recorded.lv !== undefined && recorded.lv !== LV_VERSION)) return bad('The roll\'s level mark was damaged.');
         const lv = recorded.lv === LV_VERSION;
         const levels = lv && recorded.levels !== undefined ? recorded.levels : null;
         if (levels !== null && (!levelsValid(levels) || hash(levels) !== predicate.levels)) return bad('The roll\'s foe levels were damaged.');

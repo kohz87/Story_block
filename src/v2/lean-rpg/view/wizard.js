@@ -75,7 +75,7 @@ const safe = (fn, fallback) => { try { return fn() ?? fallback; } catch { return
  * `open()` opens the dialog on a fresh draft; the session is dropped when the dialog closes. `prefill` is { name, about, soul, best }: a companion
  * the story brought in (join.js joinDraft); `onEnd(created)` is told once when the dialog closes, `created` true when Create made the character.
  */
-export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null, packNote = () => '', levels = () => ({}) } = {}) {
+export function createWizard({ headState = () => null, readerName = () => '', readerAbout = () => '', roleOf, openDialog = null, replyKey = () => '', rules = () => null, packNote = () => '', levels = () => ({}), levelCap = () => null } = {}) {
     let session = null;
     const world = () => worldOf(headState(), String(readerName() ?? '').replace(/\s+/g, ' ').trim(), roleOf, safe(replyKey, ''));
     // The persona's description as Who they are starts: one line, the first 240 characters (whole characters), '' when there is none.
@@ -167,7 +167,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 who.appendChild(h(doc, 'span', 'rpg-wiz-ava', [...now.name][0]?.toUpperCase() ?? '?'));
                 const k = h(doc, 'div', 'rpg-wiz-k');
                 k.appendChild(h(doc, 'span', 'rpg-wiz-name', now.name || W.title));
-                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { level: now.soul ?? 1 })}`));
+                k.appendChild(h(doc, 'small', 'rpg-wiz-sub', `${kindWord(now.kind)} · ${fill(W.soulFrom, { level: now.level ?? 1 })}`));
                 who.appendChild(k);
                 summary.appendChild(who);
                 const part = (label, text) => {
@@ -233,7 +233,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                     const skills = file.skills.length === 0 ? W.importNoSkills : fill(file.skills.length === 1 ? W.importSkillsOne : W.importSkills, { n: file.skills.length });
                     const adds = importedAdds();
                     const list = [adds.things ? thingsPhrase(adds.things, snap()) : '', adds.money ? fill(W.importMoney, { amount: moneyText(adds.money, currency()) }) : ''].filter(Boolean).join(' and ');
-                    box.appendChild(h(doc, 'span', 'rpg-import-text', [fill(W.importDone, { file: fileName, points, level: file.soul ?? 1, skills }),
+                    box.appendChild(h(doc, 'span', 'rpg-import-text', [fill(W.importDone, { file: fileName, points, level: file.level ?? 1, skills }),
                         list ? fill(W.importAdds, { list }) : '', W.importName].filter(Boolean).join(' ')));
                     button(box, W.importUndo, 'ss-button rpg-import-undo', undoImport);
                     body.appendChild(box);
@@ -266,27 +266,28 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const name = field(form, W.name, input(draft().name, CREATION.name), h(doc, 'span', 'rpg-wiz-note', draft().kind === 'you' ? W.nameHint : W.nameHintOther));
                 name.setAttribute('data-wiz', 'name');
                 name.addEventListener('input', () => { put({ ...draft(), name: name.value }); drawSummary(); });
-                // The starting level (the draft's `soul`, 1 to 99): a new character's, a companion's or an imported one's. 1 is the default and is not stored.
+                // The starting level (the draft's `level`, 1 to the story's level cap, 99 unset): a new character's, a companion's or an imported one's. 1 is the default and is not stored.
                 const level = h(doc, 'input', 'rpg-wiz-input rpg-wiz-level');
                 level.setAttribute('type', 'number');
                 level.setAttribute('min', '1');
-                level.setAttribute('max', String(LEVEL.max));
+                const capNow = () => Math.max(1, Math.min(LEVEL.max, Number.isSafeInteger(safe(levelCap, null)) ? levelCap() : LEVEL.max));
+                level.setAttribute('max', String(capNow()));
                 level.setAttribute('step', '1');
                 level.setAttribute('inputmode', 'numeric');
                 level.setAttribute('data-wiz', 'level');
-                level.value = String(draft().soul ?? 1);
+                level.value = String(draft().level ?? 1);
                 const levelHelp = h(doc, 'span', 'rpg-wiz-note', '');
                 let startNote = null;
-                const startText = () => (current().imported ? fill(W.whoNoteImported, { level: snap().soul ?? 1 }) : fill(draft().soul > 1 ? W.whoNoteSoul : W.whoNote, { level: snap().soul ?? 1 }));
+                const startText = () => (current().imported ? fill(W.whoNoteImported, { level: snap().level ?? 1 }) : fill(draft().level > 1 ? W.whoNoteSoul : W.whoNote, { level: snap().level ?? 1 }));
                 const levelNote = n => { const rank = bandRank(n, safe(levels, {})?.ranks); levelHelp.textContent = fill(W.startingLevelHelp, { rank: rank ? fill(W.startingLevelRank, { name: rank.name, from: rank.from, to: rank.to }) : '' }); };
-                levelNote(draft().soul ?? 1);
+                levelNote(draft().level ?? 1);
                 const setLevel = (typed, settle) => {
                     const n = Number(String(typed).trim());
-                    const next = Number.isFinite(n) && String(typed).trim() !== '' ? Math.min(LEVEL.max, Math.max(1, Math.round(n))) : null;
-                    if (next === null) { if (settle) level.value = String(draft().soul ?? 1); return; }
+                    const next = Number.isFinite(n) && String(typed).trim() !== '' ? Math.min(capNow(), Math.max(1, Math.round(n))) : null;
+                    if (next === null) { if (settle) level.value = String(draft().level ?? 1); return; }
                     if (settle) level.value = String(next);
-                    const { soul: _was, ...rest } = draft();
-                    put(next > 1 ? { ...rest, soul: next } : rest);
+                    const { level: _was, ...rest } = draft();
+                    put(next > 1 ? { ...rest, level: next } : rest);
                     levelNote(next);
                     drawSummary();
                     if (startNote) startNote.textContent = startText();
@@ -489,8 +490,8 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 for (const skill of now.skills) skills.appendChild(h(doc, 'li', '', `${skill.name || '—'} · ${skill.stat ? skill.stat.toUpperCase() : '—'} · ${W[skill.uses]} · ${W.startsAt} ${RANK_NAMES[rankOf(skill)]}`));
                 if (!now.skills.length) skills.appendChild(h(doc, 'li', '', W.noSkills));
                 list.appendChild(skills);
-                list.appendChild(h(doc, 'p', 'rpg-wiz-note', current().imported ? fill(W.reviewStartImported, { level: now.soul ?? 1 })
-                    : fill(now.soul > 1 ? W.reviewStartSoul : W.reviewStart, { level: now.soul ?? 1 })));
+                list.appendChild(h(doc, 'p', 'rpg-wiz-note', current().imported ? fill(W.reviewStartImported, { level: now.level ?? 1 })
+                    : fill(now.level > 1 ? W.reviewStartSoul : W.reviewStart, { level: now.level ?? 1 })));
                 const left = Math.max(0, pointsLeft(now));
                 if (left > 0) list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(left === 1 ? W.reviewLeftOne : W.reviewLeft, { n: left })));
                 list.appendChild(h(doc, 'p', 'rpg-wiz-note', fill(W.reviewBlocks, { character: names.character, skills: names.skills })));
@@ -578,7 +579,7 @@ export function createWizard({ headState = () => null, readerName = () => '', re
                 const call = async (type, payload) => {
                     try { return (await api.command(type, payload)) ?? { ok: false }; } catch (error) { return { ok: false, message: String(error?.message ?? error) }; }
                 };
-                const definitions = buildDefinitions(now, { used: where.used });
+                const definitions = buildDefinitions(now, { used: where.used, cap: safe(levelCap, null) });
                 let failure = '';
                 const first = await call('dm.define', { definition: definitions.character });
                 // Still no state after the host tried to start one (sdk.command): the chat has no message to hold it, said in one plain sentence.

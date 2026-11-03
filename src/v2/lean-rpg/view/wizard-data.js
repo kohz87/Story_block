@@ -17,6 +17,7 @@ import { uniqueBlockSlug } from '../../data-modules/block-builder.js';
 import { fold } from '../read.js';
 import { LEVEL, CREATION, RANK_NAMES, SKILL_SLOTS, STATS, USES } from '../names.js';
 import { isStandard } from '../rules.js';
+import { classOfLevel, levelOfClass } from '../formula.js';
 import { LEAN_RPG_TEMPLATES, SKILL_SETS, templatesFor } from '../templates.js';
 import { barFields } from '../blocks.js';
 import { soulReading } from '../soul.js';
@@ -102,9 +103,11 @@ export function readDraft(raw) {
             ...(ranked ? { rank: clamp(skill.rank, 0, FILE_LIMITS.rank) } : {}),
         };
     });
+    // (`level` is the starting level; a draft from a companion's `+ party` line or an older file says `soul`, the class, which stands for the level 10n - 5.)
+    const startLevel = Number.isSafeInteger(given.level) && given.level > 1 ? clamp(given.level, 1, LEVEL.max) : Number.isSafeInteger(given.soul) && given.soul > 1 ? clamp(levelOfClass(clamp(given.soul, 1, 9)), 1, LEVEL.max) : 1;
     return { name: oneLine(given.name, CREATION.name), kind: given.kind === 'companion' ? 'companion' : 'you',
         about: oneLine(given.about, CREATION.about), stats, skills, set: typeof given.set === 'string' ? given.set : '',
-        ...(Number.isSafeInteger(given.soul) && given.soul > 1 ? { soul: clamp(given.soul, 1, LEVEL.max) } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };
+        ...(startLevel > 1 ? { level: startLevel } : {}), ...(from ? { from } : {}), ...(creation ? { creation } : {}) };
 }
 
 /** Points left: the budget (an imported character's own points) minus what the stats cost (a stat above where it starts costs a point a step; below it gives one back). */
@@ -152,21 +155,21 @@ export const withoutSkill = (draft, index) => ({ ...draft, skills: draft.skills.
  * cleared: the skills now come from the file). → { draft, before }, `before` being what `withoutImport` puts back.
  */
 export function withImport(draft, file) {
-    const before = structuredClone({ stats: draft.stats, skills: draft.skills, set: draft.set, ...(draft.soul > 1 ? { soul: draft.soul } : {}), ...(draft.from ? { from: draft.from } : {}) });
-    const { soul: _soul, from: _from, ...rest } = draft;
+    const before = structuredClone({ stats: draft.stats, skills: draft.skills, set: draft.set, ...(draft.level > 1 ? { level: draft.level } : {}), ...(draft.from ? { from: draft.from } : {}) });
+    const { level: _level, from: _from, ...rest } = draft;
     const next = {
         ...rest, stats: { ...file.stats }, set: '', from: { stats: { ...file.stats }, points: file.points },
         skills: file.skills.slice(0, CREATION.skills).map(skill => ({ name: oneLine(skill.name, CREATION.skillName), about: oneLine(skill.about, CREATION.skillAbout), stat: skill.stat ?? '', uses: skill.uses, start: 0, rank: skill.rank })),
-        ...(file.soul > 1 ? { soul: file.soul } : {}),
+        ...(file.level > 1 ? { level: file.level } : {}),
     };
     return { draft: next, before };
 }
 
 /** The draft as it was before `withImport` (`before` is what that handed back): the stats, skills, Soul Class and skill set; nothing typed since is touched. */
 export function withoutImport(draft, before) {
-    const { soul: _soul, from: _from, ...rest } = draft;
+    const { level: _level, from: _from, ...rest } = draft;
     const back = structuredClone(before ?? {});
-    return { ...rest, stats: back.stats ?? startStats(null), skills: back.skills ?? [], set: back.set ?? '', ...(back.soul > 1 ? { soul: back.soul } : {}), ...(back.from ? { from: back.from } : {}) };
+    return { ...rest, stats: back.stats ?? startStats(null), skills: back.skills ?? [], set: back.set ?? '', ...(back.level > 1 ? { level: back.level } : {}), ...(back.from ? { from: back.from } : {}) };
 }
 
 /**
@@ -289,9 +292,9 @@ export const blockNames = name => ({ character: name, skills: `${name}'s skills`
  * The two definitions Create makes, from the templates with the wizard's values written as the fields' defaults (so one `dm.define`
  * each makes the whole block, and the Skills block's `rankN` stays a field only play can move). `used` is the ids of the blocks
  * the chat has, so the slugs are free; `points` sets the Character's unspent points (a companion who joins starts with none, the
- * wizard's the budget left). → { character, skills } (definitions, the Character first)
+ * wizard's the budget left); `cap` is the story's level cap (rules.js levelCapFor, 99 unset). → { character, skills } (definitions, the Character first)
  */
-export function buildDefinitions(draft, { used = [], points = null } = {}) {
+export function buildDefinitions(draft, { used = [], points = null, cap = null } = {}) {
     const names = blockNames(draft.name);
     const formula = draftCreation(draft).standard ? 'standard' : 'classic';
     const character = template('character', formula);
@@ -305,8 +308,12 @@ export function buildDefinitions(draft, { used = [], points = null } = {}) {
     // The Standard formula's bars are rows of blocks that grow with VIT, AGI and INT: a new character starts with them full, and the hidden fields
     // that remember each bar's size start there too (blocks.js barFields), so the block's size rules find nothing to change.
     if (formula === 'standard') for (const [key, value] of Object.entries(barFields(draft.stats))) if (state[key]) state[key].default = Math.min(value, Number.isSafeInteger(state[key].max) ? state[key].max : value);
-    // The draft's `soul` is the starting level (1 to 99; the name is kept for the join card and the saved files that still say it): into the block's `level` field, else the old `soul`.
-    if (draft.soul > 1) (state.level ?? state.soul).default = draft.soul;
+    // The starting level (the draft's `level`, 1 to 99; a companion or a file that came with a Soul Class has the level it stands for): into the block's `level` field,
+    // held to the story's cap (levelCapFor, 99 unset), with the cap as the block's `cap`; a block of the earlier rules gets the class the level stands for.
+    const top = Number.isSafeInteger(cap) ? Math.max(1, Math.min(99, cap)) : 99;
+    const start = Math.min(top, draft.level > 1 ? draft.level : 1);
+    if (state.level) { state.level.default = start; state.cap.default = top; }
+    else if (start > 1) state.soul.default = classOfLevel(start);
     const skills = template('skills', formula);
     skills.slug = uniqueBlockSlug(`${draft.name} skills`, [...used, character.slug]);
     skills.name = names.skills;
