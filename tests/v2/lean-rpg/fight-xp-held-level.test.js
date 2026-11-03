@@ -39,7 +39,7 @@ for (const formula of ['classic', 'standard']) {
         const before = { ...f(host) };
         await host.send('I finish them.', reply(XP(80), DOWN));
         const a = f(host);
-        
+
         // code XP for level 2 vs 6 lvl-1 crawlers: 6*1*2*(100-10)% = 10.8 -> 10: 90+10 = 100 -> level 3, xp 0, +1 point
         assert.deepEqual([a.level, a.xp, a.points], [3, 0, 1]);
         await same(host);
@@ -52,7 +52,7 @@ test('narrator XP across two lines in one reply, multi-level with rate 300', asy
     const host = await world(t, { level: 1, xp: 0, rate: 300 });
     await host.send('Quest done.', reply(XP(100)));
     const a = f(host);
-    
+
     assert.deepEqual([a.level, a.xp, a.points], [4, 0, 1]);
     await same(host);
 });
@@ -61,7 +61,7 @@ test('cap: level 4 cap 5, narrator +100 x2 -> level 5, xp 100', async t => {
     const host = await world(t, { level: 4, xp: 50, cap: 5 });
     await host.send('Quest done.', reply(XP(100)));
     const a = f(host);
-    
+
     assert.deepEqual([a.level, a.xp], [5, 50]);
     await same(host);
 });

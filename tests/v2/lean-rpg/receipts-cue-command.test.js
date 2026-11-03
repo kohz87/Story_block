@@ -25,8 +25,8 @@ test('a query run from a command sees the roll cue as the receipt summary, as sd
     const viaSdk = host.sdk.query('probe.rolls', {});
     const res = await host.sdk.command('probe.cmd', {});
     const viaCmd = res?.receipt?.data?.seen;
-    
-    
+
+
     host.close();
     assert.ok(viaSdk[0]?.startsWith('[Rolls]'));
     assert.ok(viaCmd?.[0]?.startsWith('[Rolls]'), 'a command-run query sees no cue');
