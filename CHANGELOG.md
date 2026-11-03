@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.16.7
+
+- **A fight can start and be rolled in the same reply.** The dice were planned only against foes already in the Foes
+  block, so the reply in which you walked into a fight had no rolls and no battle log, and the narrator decided the
+  opening blows itself. Now the planning step may list the foes your message or the scene names as new ("6 Mud-Scale
+  Crawlers, Class I"); code checks that they were named, holds the count to 12 and the class to at most one above your
+  party's best Soul Class, puts them in the Foes block, and rolls the opening in the same reply (an ambush earns its
+  edge). If no foes could be set, the narrator is told to set them and stop at the first clash.
+- If the narrator writes a Foes slot for a group already there by the same name, that group is updated, not doubled.
+
 ## 2.16.6
 
 - **Block rules say what they changed.** The reply card listed a block's rules by their internal names ("Rule:
