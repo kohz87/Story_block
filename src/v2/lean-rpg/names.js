@@ -96,8 +96,8 @@ export const FIGHT_XP = Object.freeze({ perBand: 2, perLevels: 10, gapPercent: 1
 export const BATTLE_MARKER = '[battle]';
 
 /**
- * Levels (2.17.0, replaces the Soul Class I–IX): a character has a level 1..`max`, `xpPerLevel` XP raise it by one (up to the character's own `cap`, the
- * setting `rpgLevelCap` / the pack's `rpg.levelCap`, 99 unset), every `pointEvery`-th level gives a point to spend. A roll adds `levelBonus(level, divisor)`
+ * Levels (2.17.0, replaces the Soul Class I–IX): a character has a level 1..`max`, `xpPerLevel` XP raise it by one (up to the character's own `cap`: the
+ * pack's `rpg.levelCap` first, else the setting `rpgLevelCap`, else 99), every `pointEvery`-th level gives a point to spend. A roll adds `levelBonus(level, divisor)`
  * = floor(level / divisor) in place of the old weight × Soul Class (formula.js; `divisor` 5 by default, Custom `minDivisor`..`maxDivisor`). A roll made
  * with it carries `lv: 1` (LV_VERSION) and the divisor in its rules (`levelDivisor`); a roll without them replays with the Soul Class exactly as before.
  */

@@ -297,3 +297,15 @@ test('the battle log names the term "Level 40" for a block with a Level field, a
     assert.deepEqual([earlier.label, earlier.word(3)], ['Soul Class', 'III']);
     assert.deepEqual([characterReading(undefined).label, characterReading(undefined).word(2)], ['Soul Class', 'II']);
 });
+
+test('B13: the pack\'s level cap (its ranks record) is the cap of a new character; the setting is the fallback, then 99', async () => {
+    const { packLevelsOf } = await import('../../../src/v2/lean-rpg/levels.js');
+    const records = [{ slug: 'formula', formula: 'standard' }, { slug: 'ranks', ranks: [{ name: 'F', from: 1, to: 40 }], levelCap: 40 }];
+    const fromPack = packLevelsOf(records).levelCap;
+    assert.equal(fromPack, 40);
+    assert.equal(levelCapFor({ rpgLevelCap: 60 }, fromPack), 40, 'the pack comes first');
+    assert.equal(levelCapFor({ rpgLevelCap: 60 }, packLevelsOf([{ slug: 'ranks', ranks: [{ name: 'F', from: 1, to: 40 }] }]).levelCap), 60, 'a pack with no cap: the setting');
+    assert.equal(levelCapFor({}, undefined), 99);
+    const made = buildDefinitions({ ...newDraft({ persona: '', hasYou: false }), name: 'Astra', level: 70 }, { cap: levelCapFor({}, fromPack) });
+    assert.deepEqual([made.character.state.level.default, made.character.state.cap.default], [40, 40], 'a character made under the pack starts no higher than its cap');
+});
