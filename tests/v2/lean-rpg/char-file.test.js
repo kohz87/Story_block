@@ -269,4 +269,6 @@ test('a level above 9 survives the file: Lv 40 is written as level 40 (and the c
     const read = parseCharacterFile(JSON.stringify(older));
     assert.deepEqual([read.ok, read.file.level, read.file.soul], [true, 25, 3]);
     refused({ ...base(), level: 100 }, /level/);
+    const forty = withImport({ ...typed() }, good({ ...sample(), level: 40, soul: undefined }));
+    assert.equal(forty.draft.level, 40, 'import: the wizard starts the character at the file\'s level');
 });

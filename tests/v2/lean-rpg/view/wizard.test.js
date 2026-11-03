@@ -811,3 +811,16 @@ test('Levels: the starting level of a draft is held 1 to 99, 1 is not stored, an
     assert.equal((state.level ?? state.soul).default, 5);
     assert.equal((buildDefinitions(newDraft({ persona: 'Wessel' }), { used: [] }).character.state.level ?? { default: 1 }).default, 1);
 });
+
+test('F13: the Starting level is held to the story\'s level cap (the setting here), in the box and in the block it makes', async t => {
+    const ctx = await page(t, { persona: 'Wessel' });
+    await ctx.host.settings.set('story-block', 'rpgLevelCap', 40);
+    await begin(ctx.host);
+    const dialog = await openFrom(ctx, { empty: true });
+    const level = wizardOf(dialog).querySelector('[data-wiz="level"]');
+    assert.equal(level.getAttribute('max'), '40');
+    type(level, '70');
+    assert.match(wizardOf(dialog).querySelector('.rpg-wiz-sub').textContent, /^You · Lv 40$/, 'the header holds it to the cap');
+    wizardOf(dialog).querySelector('[data-wiz="level"]').dispatch('change');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="level"]').value, '40', 'and so does the box once it settles');
+});
