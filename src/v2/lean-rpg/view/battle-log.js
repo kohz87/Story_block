@@ -109,8 +109,10 @@ function breakdownStandard(raw, skill, soul, foeSide, against, lv) {
 
 // One Line as the panel draws it: who acts, on whom, the acting side's total against the other's, and the roll behind it. A party
 // act or check reads the party's total first; a foe's attack reads from the attacker's side, so the foe's total and roll come first.
-function lineOf(raw, soulOf = () => null, lv = false) {
+function lineOf(raw, soulOf = () => null, lv = false, divisor = null) {
     if (!isRecord(raw) || !isRecord(raw.pc) || !Number.isFinite(raw.pc.total)) return null;
+    // The divisor the roll was made with is the result's own (rules.levelDivisor): both sides of the line tell it, not today's default.
+    if (lv && divisor !== null) raw = { ...raw, pc: { ...raw.pc, divisor: raw.pc.divisor ?? divisor }, ...(isRecord(raw.foe) ? { foe: { ...raw.foe, divisor: raw.foe.divisor ?? divisor } } : {}) };
     const outcome = outcomeOf(raw.outcome);
     const foeSide = isRecord(raw.foe) && Number.isFinite(raw.foe.total) ? raw.foe : null;
     const skill = words(raw.skill, 40), why = words(raw.why, 120), told = words(raw.breakdown, 400);
@@ -139,18 +141,27 @@ function lineOf(raw, soulOf = () => null, lv = false) {
 export function readResolve(result, { soulOf = () => null } = {}) {
     if (!isRecord(result)) return null;
     const lv = result.lv === 1;
+    const divisor = Number.isInteger(result.rules?.levelDivisor) ? result.rules.levelDivisor : null;
     const rounds = list(result.rounds).map((round, at) => {
         // Who does not act this round: Standard's `idle` entries (with why), or plain names (read as beaten before their turn).
         const skipped = list(round?.idle ?? round?.skipped).map(item => ({ who: words(isRecord(item) ? item.who ?? item.name : item, 40), why: IDLE[item?.why] ? item.why : 'beaten' })).filter(item => item.who);
-        return { n: Number.isSafeInteger(round?.n) ? round.n : at + 1, lines: list(round?.lines).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who), ...(skipped.length ? { skipped } : {}) };
+        return { n: Number.isSafeInteger(round?.n) ? round.n : at + 1, lines: list(round?.lines).map(line => lineOf(line, soulOf, lv, divisor)).filter(line => line?.who), ...(skipped.length ? { skipped } : {}) };
     }).filter(round => round.lines.length || round.skipped?.length);
-    const opening = list(result.opening).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who);
-    const checks = list(result.checks).map(line => lineOf(line, soulOf, lv)).filter(line => line?.who);
+    const opening = list(result.opening).map(line => lineOf(line, soulOf, lv, divisor)).filter(line => line?.who);
+    const checks = list(result.checks).map(line => lineOf(line, soulOf, lv, divisor)).filter(line => line?.who);
     const refused = list(result.refused).filter(isRecord).map(item => ({ who: words(item.who, 40), why: words(item.text, 160) })).filter(item => item.why);
     if (!rounds.length && !checks.length) return null;
     // The order they act in: the names of the first round, each once.
     // The Standard formula records the order itself, with the totals rolled (result.order); else it is the names of the first round.
-    const entries = list(result.order).filter(isRecord).map(item => ({ name: words(item.name, 40), total: Number.isFinite(item.total) ? item.total : null, party: item.party === true })).filter(item => item.name);
+    // The level each one rolled with (the sides of the recorded lines), so the turn order says the level of the roll, not of the state after the reply.
+    const rolledAt = new Map();
+    if (lv) for (const raw of [...list(result.opening), ...list(result.rounds).flatMap(round => list(round?.lines)), ...list(result.checks)]) {
+        if (!isRecord(raw)) continue;
+        if (isRecord(raw.pc) && raw.pc.who) rolledAt.set(fold(words(raw.pc.who, 40)), raw.pc.level ?? raw.pc.classValue);
+        if (isRecord(raw.foe) && raw.foe.name) rolledAt.set(fold(words(raw.foe.name, 40)), raw.foe.level ?? raw.foe.classValue);
+    }
+    const entries = list(result.order).filter(isRecord).map(item => ({ name: words(item.name, 40), total: Number.isFinite(item.total) ? item.total : null, party: item.party === true,
+        ...(rolledAt.has(fold(words(item.name, 40))) && Number.isFinite(rolledAt.get(fold(words(item.name, 40)))) ? { level: rolledAt.get(fold(words(item.name, 40))) } : {}) })).filter(item => item.name);
     const order = entries.length ? entries.map(item => item.name) : [...new Set(rounds[0]?.lines.map(line => line.who) ?? [])];
     const quickStart = list(result.quickStart).filter(isRecord).map(item => ({ who: words(item.who, 40), against: words(item.against, 40) })).filter(item => item.who && item.against);
     return { rounds, checks, refused, order, ...(entries.length ? { orderEntries: entries } : {}), ...(quickStart.length ? { quickStart } : {}), ...(opening.length ? { opening } : {}), ended: '' };
@@ -206,9 +217,9 @@ export function panelModel({ resolve, state, before = null, roleOf, ranks = [] }
     const names = new Set([...(model.opening ?? []), ...model.rounds.flatMap(round => round.lines)].flatMap(line => [line.who, line.target]));
     const party = readParty(state, { roleOf });
     const foes = readFoes(state, { roleOf, ranks });
-    // The turn order says each one's level, "Astra (Lv 14)", read from the reply's state (so a swipe and a Re-read agree).
+    // The turn order says each one's level, "Astra (Lv 14)": the level the roll used where the record has it, else read from the reply's state (so a swipe and a Re-read agree).
     const levelByName = new Map([...party, ...foes].map(item => [fold(item.name), item.level]));
-    if (model.orderEntries) model.orderEntries = model.orderEntries.map(item => (levelByName.has(fold(item.name)) ? { ...item, level: levelByName.get(fold(item.name)) } : item));
+    if (model.orderEntries) model.orderEntries = model.orderEntries.map(item => (item.level === undefined && levelByName.has(fold(item.name)) ? { ...item, level: levelByName.get(fold(item.name)) } : item));
     const involved = party.filter(character => names.has(character.name));
     model.status = (involved.length ? involved : party).map(character => ({ name: character.name,
         rows: BARS.map(key => ({ key, ...character.bars[key], label: character.definition.state?.[key]?.label ?? RPG_STRINGS.bars[key] })) }));

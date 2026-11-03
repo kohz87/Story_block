@@ -130,3 +130,13 @@ test('the level pill is the app\'s small pill at 12px text and 20px tall, and th
     assert.match(css, /\.rpg-level-pill \{[^}]*font-size: 12px;[^}]*height: 20px;/);
     assert.match(css, /\.rpg-wiz-level \{[^}]*width: 76px;/);
 });
+
+test('F5 and F8: the battle log tells the divisor the roll was made with (rules.levelDivisor), and the turn order the level it rolled at, not the level after the reply', () => {
+    const state = world();      // Astra is Lv 14 here, the crawlers Lv 7
+    const model = panelModel({ resolve: readResolve(record({ lv: 1, rules: { levelDivisor: 3 } })), state, before: null, roleOf, ranks: RANKS });
+    assert.match(model.rounds[0].lines[0].breakdown, /Lv 14 ÷ 3 = 2 .* Lv 7 ÷ 3 = 1 = 22/);
+    // Astra rolled at level 13 and rose to 14 in the reply: the order says 13.
+    const lower = readResolve(record({ lv: 1, rounds: [{ n: 1, lines: [{ kind: 'act', outcome: 'success', skill: 'Iaijutsu', pc: pc('Astra', { classValue: 13, level: 13 }), foe: foeSide() }] }] }));
+    const panel = panelModel({ resolve: lower, state, before: null, roleOf, ranks: RANKS });
+    assert.equal(buildPanel(setupDom(), panel, { index: 3 }).querySelector('.rpg-bl-order').textContent, 'Turn order: Astra (Lv 13) 29 > Mud-Scale Crawlers (Lv 7) 14');
+});
