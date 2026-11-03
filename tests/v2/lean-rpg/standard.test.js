@@ -13,7 +13,7 @@ import { cueText } from '../../../src/v2/lean-rpg/cue.js';
 import { judge, outcomeStd } from '../../../src/v2/lean-rpg/standard.js';
 import { rollsOf } from '../../../src/v2/lean-rpg/resolve.js';
 import { hashJson } from '../../../src/v2/replay.js';
-import { PARTY, character, foeBlock, rollReceipt, setup, sheetDomain, skillBlock, tailOf } from './helpers.js';
+import { PARTY, character, foeBlock, levelFoeBlock, rollReceipt, setup, sheetDomain, skillBlock, tailOf } from './helpers.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -606,4 +606,16 @@ test('the cost goes through the turn: it is written to the sheet, and a Re-read,
     await host.st.deleteMessage(2);
     assert.equal(fieldsOf().stamina, 4, 'a delete gives the blocks back');
     host.close();
+});
+
+test('B1: a levelled foe group has 4 + floor(level / 30) blocks (levels 25 to 29 are 4, not the class\'s 5); a group of the earlier rules keeps its class\'s size', () => {
+    const sizeOfFoe = (foes, key) => {
+        const blocks = party({ foes });
+        if (key === 'level') blocks.foes.fields = levelFoeBlock(foes);
+        const rules = std();
+        const prepared = prepare(planOf({ acts: [{ who: 'Wessel', skill: null, type: 'physical', target: 'Ogre' }], foes: [] }), sheetOf(blocks), rules, { maxOf: () => 8, lv: key === 'level' });
+        return prepared.witness.roster.foes.map(bar => bar.size);
+    };
+    assert.deepEqual([25, 28, 29, 30, 59, 60].map(level => sizeOfFoe([['Ogre', 1, level, 8]], 'level')[0]), [4, 4, 4, 5, 5, 6]);
+    assert.equal(sizeOfFoe([['Ogre', 1, 3, 8]], 'class')[0], foeHealthBlocks(3), 'class III of the earlier rules: 5');
 });
