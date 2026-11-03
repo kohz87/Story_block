@@ -125,6 +125,9 @@ export function contextRoom(c, size = null) {
     return null;
 }
 
+// Why the state was rebuilt, as the head event tells it (the public API's `story:rebuilt`; 'edit' is not announced).
+const REBUILD_REASONS = new Set(['delete', 'swipe', 'edit']);
+
 export const normalizeType = type => String(type ?? 'normal').trim().toLowerCase() || 'normal';
 
 /**
@@ -133,7 +136,7 @@ export const normalizeType = type => String(type ?? 'normal').trim().toLowerCase
  */
 export function defuseMacros(text) {
     return String(text ?? '')
-        .replace(/\{\{/g, '{​{')
+        .replace(/\{(?=\{)/g, '{​')
         .replace(/<(USER|BOT|CHAR|CHARIFNOTGROUP|GROUP)>/gi, '<​$1>');
 }
 
@@ -338,17 +341,18 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         } catch (error) {
             return refusal('REFUSED', error?.message ?? String(error));
         }
-        rebuild();
+        rebuild({ reason: 'repair' });
         await trySave('after the repair');
         return { ok: true };
     }
     const startOver = options => repair('start-over', options);
 
     // `publish: false`: the caller finishes its own work first (reconciling after a delete) and tells the screens once.
-    function rebuild({ publish = true } = {}) {
+    // `reason` (repair, ...) rides on the head event for the public API's `story:rebuilt` (public-api.js).
+    function rebuild({ publish = true, reason = null } = {}) {
         store.rebuild();
         if (hasCarrier()) ensureInitial();
-        if (publish) events?.emit('head', { index: store.headIndex() });
+        if (publish) events?.emit('head', { index: store.headIndex(), ...(reason ? { reason } : {}) });
     }
 
     // A guarded system step with a `replan` planned again (store.replaceStory / store.reconcile's `rerun`): as its
@@ -1214,7 +1218,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         if (timeline?.needsRecovery()) await timeline.recover();
         await trySave('after the Re-read');
         for (const receipt of [...receipts, ...steps.map(step => step.receipt)]) events?.emit('committed', { receipt });
-        events?.emit('head', { index: store.headIndex() });
+        events?.emit('head', { index: store.headIndex(), reason: 'reread' });
         events?.emit('turn', { index, type: 'reread', receipts, steps: steps.map(step => step.receipt), problems, told: [] });
         return { ok: true, receipts, steps: steps.map(step => step.receipt), problems };
     }
@@ -1443,7 +1447,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
             if (store.dirty?.()) store.scheduleSave?.();
         }
         await ensureModules({ store, bus, registry, events });
-        events?.emit('head', { index: store.headIndex() });
+        events?.emit('head', { index: store.headIndex(), reason: 'chat' });
     }
 
     /**
@@ -1479,13 +1483,17 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         return store.renamed?.(from, to) ?? false;
     }
 
-    /** Deleted messages, swipes, a greeting picked: the state is rebuilt from what is stored. */
-    async function onTimelineChanged() {
+    /**
+     * Deleted messages, swipes, a greeting picked: the state is rebuilt from what is stored. `reason` ('delete', 'swipe',
+     * 'edit'; anything else is none) rides on the head event for the public API's `story:rebuilt`.
+     */
+    async function onTimelineChanged(reason) {
         rebuild({ publish: false });
         reconcileNow();
         timeline?.settle();
         if (timeline?.needsRecovery()) await timeline.recover();
-        events?.emit('head', { index: store.headIndex() });   // one head, after the steps that follow the change are planned again
+        // one head, after the steps that follow the change are planned again
+        events?.emit('head', { index: store.headIndex(), ...(REBUILD_REASONS.has(reason) ? { reason } : {}) });
     }
 
     /**
@@ -1501,7 +1509,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         const message = live[Number.isInteger(at) ? at : live.length - 1];
         const deleted = Number.isInteger(detail?.swipeId) ? detail.swipeId : null;
         if (swipeLoading(message, deleted)) return;
-        return onTimelineChanged();
+        return onTimelineChanged('delete');
     }
 
     /** GENERATION_STOPPED: the reader stopped the reply being written (its last line may be unfinished). */
@@ -1527,7 +1535,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         // A module turned ready or dormant: guarded blocks of its are asked again (store.lifecycleChanged).
         offModules?.();
         offModules = events?.on?.('modules', () => {
-            if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex() });
+            if (store.lifecycleChanged?.()) events?.emit('head', { index: store.headIndex(), reason: 'module' });
         }) ?? null;
         const source = ctx?.eventSource;
         const names = ctx?.eventTypes ?? ctx?.event_types ?? {};
@@ -1545,7 +1553,7 @@ export function createTurn({ ctx, live = () => ctx, store, bus, registry, settin
         on(names.CHAT_RENAMED, onChatRenamed);
         // MESSAGE_EDITED too: a record's swipe mark follows an edit (persist.js restamp), so a Continue
         // after it still finds the record.
-        for (const event of [names.MESSAGE_DELETED, names.MESSAGE_SWIPED, names.CHARACTER_FIRST_MESSAGE_SELECTED, names.MESSAGE_EDITED]) on(event, onTimelineChanged);
+        for (const [event, reason] of [[names.MESSAGE_DELETED, 'delete'], [names.MESSAGE_SWIPED, 'swipe'], [names.CHARACTER_FIRST_MESSAGE_SELECTED, 'swipe'], [names.MESSAGE_EDITED, 'edit']]) on(event, () => onTimelineChanged(reason));
         on(names.MESSAGE_SWIPE_DELETED, onSwipeDeleted);
         return api;
     }

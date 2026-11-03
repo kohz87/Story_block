@@ -4,7 +4,7 @@
 // page (src/v2/ui-host.js). v1's code stays in the repository (index.v1.js, src/*.js) and is not loaded.
 //
 // Order of things:
-// 1. `globalThis.StoryBlock = { apiVersion: 2, ready, sdk }` is set at once, so a module loaded before
+// 1. `globalThis.StoryBlock = { apiVersion: 2, ready, sdk, api }` is set at once (`api`: the public API, docs/v2/PUBLIC-API.md), so a module loaded before
 //    or after this file finds it; `ready` resolves to the sdk once the host is up (step 4).
 // 2. The runtime: registry with the core module (scene, inventory, packs, events, standard widgets),
 //    settings under extension_settings.storySuite, the store over the chat, the command bus, the turn.
@@ -17,6 +17,7 @@ import { INTERCEPTOR_NAME } from './src/v2/turn.js';
 import { mountUi } from './src/v2/ui-host.js';
 import { noteSaveError } from './src/v2/diagnostics.js';
 import { createV1Watch } from './src/v2/v1-copy.js';
+import { registerSbMacro } from './src/v2/sb-macro.js';
 import { packs as livePacks, part as livePacksPart, portraits as livePortraits, refreshLore, resolveItem, startState } from './src/v2/packs/index.js';
 
 const LOG = '[Story Block v2]';
@@ -38,10 +39,10 @@ function boot() {
         },
         onRegister: () => ui?.syncScreens(),
     });
-    const { sdk, turn, markReady } = runtime;
+    const { sdk, api, turn, markReady } = runtime;
     // (An old v1 copy loaded before this one left its own object here: src/v2/v1-copy.js.)
     const before = globalThis.StoryBlock ?? null;
-    globalThis.StoryBlock = Object.freeze({ apiVersion: 2, version: VERSION, ready: sdk.ready, sdk });
+    globalThis.StoryBlock = Object.freeze({ apiVersion: 2, version: VERSION, ready: sdk.ready, sdk, api });
     const v1 = createV1Watch({ before, report: entry => turn.report(entry), problems: () => turn.problems() });
     const lookForV1 = () => { try { v1.check(); } catch { /* never in the way of the story */ } };
 
@@ -63,6 +64,8 @@ function boot() {
     // Cast portraits are files on the server: the ones that went missing (a cleaned user-files folder) answer nothing until imported again.
     livePortraits.verify().catch(error => console.warn(`${LOG} the pack portraits could not be checked`, error));
     lookForV1();
+    // `{{sb::path}}` for SillyTavern's prompts, regex scripts and status bars (src/v2/sb-macro.js), registered once.
+    registerSbMacro({ ctx, api });
     markReady();
     console.info(`${LOG} ${VERSION} ready`);
 }

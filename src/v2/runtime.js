@@ -39,8 +39,9 @@ import { createTimeline, withRuleOverlay } from './timeline/index.js';
 import { createStore as realStore } from './store.js';
 import { createTurn, substituteNames } from './turn.js';
 import { createRpgLoader } from './rpg-lazy.js';
+import { createPublicApi } from './public-api.js';
 
-export const VERSION = '2.19.0';
+export const VERSION = '2.20.0';
 
 /**
  * Settings where Story Block's `currency` (and `currencyShort`, `currencyPlural`, `coins`) fall back to
@@ -519,10 +520,25 @@ export function createRuntime({
     });
     events.on('feature', () => { rpgLoader.ensure({ scan: false }); });
     turn = createTurn({ ctx, live, store, bus, timeline, registry, settings, events, onBlocked, initial, prepare: options => rpgLoader.ensure(options), ownPrompt: eventData => ownCalls.owns(eventData), ...(notify ? { notify } : {}) });
+    // The public API (public-api.js, docs/v2/PUBLIC-API.md): the head state read through the queries and readers that exist, events after the store has written.
+    const apiPersona = () => { try { return String((live() ?? ctx)?.name1 ?? ''); } catch { return String(ctx?.name1 ?? ''); } };
+    const api = createPublicApi({
+        version: VERSION,
+        hostReady: made.sdk.ready,
+        state: () => store.head(),
+        before: index => { try { return store.before?.(index) ?? null; } catch { return null; } },
+        ask: (state, name, args) => runQuery(registry, state, name, args, { receipts: () => store.receipts?.() ?? [] }),
+        rpgOn: () => registry.featureOn(CORE_FEATURE.leanRpg),
+        persona: apiPersona,
+        events,
+        chatId: () => (typeof ctx.getCurrentChatId === 'function' ? ctx.getCurrentChatId() : ctx.chatId) ?? '',
+        // A reply's state is written before its events go out (a reply's idle save is brought forward only while a listener waits for it).
+        saved: async () => { try { if (store.dirty?.() === true) await store.saveSoon?.(); } catch { /* a failed save is told and tried again by the store */ } },
+    });
     // The UI (ui-host.js) plugs its dialog mount in here, for sdk.dialog.open (and .current).
     const setDialog = (fn, current = null) => {
         dialogOpener = typeof fn === 'function' ? fn : null;
         dialogCurrent = typeof current === 'function' ? current : null;
     };
-    return { registry, settings, features, store, bus, events, sdk, turn, rpgLoader, markReady: made.markReady, initial, packs: packPart, setDialog, display, ownCalls, callQueue, timeline };
+    return { registry, settings, features, store, bus, events, sdk, api, turn, rpgLoader, markReady: made.markReady, initial, packs: packPart, setDialog, display, ownCalls, callQueue, timeline };
 }

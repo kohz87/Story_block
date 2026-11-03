@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.20.0
+
+Story Block as a platform, part 1: a small public API for scripts and cards.
+- **`StoryBlock.api` (version 1, read-only):** `get(path)` returns a frozen copy of a value in the current state —
+  `scene.place`, `scene.time`, `money.text`, `items.<name>.qty`, `party.me.health`, `blocks.<id>.<field>` and more;
+  `paths()` lists what this chat has; `on(event, fn)` for `story:changed`, `story:reply`, `story:rebuilt` (swipe,
+  delete, Re-read, reload, take-back) and `story:chat`. Hidden values (fields kept out of the prompt, hidden blocks) are
+  never returned. Names and shapes stay the same for all of API version 1. See docs/v2/PUBLIC-API.md.
+- **`{{sb::path}}` macro** for SillyTavern prompts, regex scripts and status bars, with a fallback:
+  `{{sb::party.me.health::unknown}}`. Values are capped at 300 characters and can never inject another macro.
+- **Tutorial:** docs/v2/BUILD-A-CARD.md, and an importable status-bar regex in examples/cards/status-bar/.
+
 ## 2.19.0
 
 The prompt diet: less text sent with every reply, the same story behaviour.
