@@ -331,4 +331,4 @@
 .rpg-gear .rpg-actions { align-items: flex-start; }
 /* Four buttons in one row (Stats, Skills, Inventory, Export): the card's buttons are a little tighter while Gear in fights is on. */
 .rpg-card-actions-gear { flex-wrap: nowrap; gap: 6px; }
-.rpg-card-actions-gear .ss-button { flex: 0 1 auto; min-width: 0; padding-inline: 12px; white-space: nowrap; }
+.rpg-card-actions-gear .ss-button { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 6px; white-space: nowrap; }

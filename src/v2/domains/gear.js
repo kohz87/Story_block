@@ -379,7 +379,7 @@ export function gearAnswer(state, args, { condOf, carryOf, penalty, mounts }) {
     const owner = typeof args?.owner === 'string' && args.owner ? args.owner : 'party';
     const picture = carryPicture(state, { carryOf, mounts });
     const mine = owner === 'party' ? picture.shared : picture.people.find(person => person.id === owner) ?? { load: 0, capacity: capacityFor(null) };
-    const over = mine.load > mine.capacity;
+    const over = atLimit(mine.load, mine.capacity);
     return {
         on: true, owner, slots: wornBy(state, owner, condOf), statBonus: statBonus(state, owner, condOf),
         carry: { load: mine.load, capacity: mine.capacity, encumbered: over, penalty: over ? penalty : 0, sources: picture.sources[owner] ?? [{ name: owner, carry: capacityFor(null) }] },
@@ -393,9 +393,12 @@ export const bonusText = stats => GEAR.stats.filter(stat => Number.isSafeInteger
 // How full a condition bar is drawn for each word (Good full, Broken empty).
 const FILL = Object.freeze({ good: 1, worn: 0.66, torn: 0.33, broken: 0 });
 
-/** The load bands of the Carry card: `over` when the load passes the capacity (the same test as the encumbered condition), `heavy` from 80 %. */
+/** Encumbered: carrying something and at or over the capacity (100 % and more, as approved; an empty load is never encumbered). */
+export const atLimit = (load, capacity) => load > 0 && load >= capacity;
+
+/** The load bands of the Carry card: `over` (red, "Encumbered") from 100 % (the same test as the encumbered condition), `heavy` (yellow) from 80 % to below 100 %. */
 export function loadLevel(load, capacity) {
-    if (load > capacity) return 'over';
+    if (atLimit(load, capacity)) return 'over';
     return capacity > 0 && load * 5 >= capacity * 4 ? 'heavy' : 'normal';
 }
 

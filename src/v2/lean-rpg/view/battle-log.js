@@ -31,7 +31,7 @@ import { readRecord } from '../../persist.js';
 import { fold } from '../read.js';
 import { characterReading, soulShortOf } from '../soul.js';
 import { RPG_STRINGS, fill } from '../strings.js';
-import { wearLine } from '../gear.js';
+import { wearLine } from '../cue.js';
 import { BARS, readFoes, readParty } from './party-data.js';
 
 const B = RPG_STRINGS.battle;

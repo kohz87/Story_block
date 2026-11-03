@@ -30,7 +30,7 @@ export function renderGearCard(parent, { character, view, onBack = () => {}, doc
     parent.appendChild(root);
     const head = h(doc, 'div', 'rpg-sheet-head');
     head.appendChild(h(doc, 'h3', 'rpg-sheet-name', fill(G.title, { name: character.name })));
-    head.appendChild(h(doc, 'span', 'ss-pill', fill(P.soul, { label: character.soulLabel, name: character.soulName })));
+    head.appendChild(h(doc, 'span', 'ss-pill rpg-level-pill', character.levelText));
     root.appendChild(head);
     const slots = h(doc, 'div', 'rpg-slots');
     for (const place of SLOT_ORDER) {

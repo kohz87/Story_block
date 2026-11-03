@@ -115,3 +115,24 @@ answers everything the screens draw: `carry` (`load`, `capacity`, `level` normal
 
 Everything is derived from the inventory slice and its condition events; a swipe, a delete, a Re-read, a rebuild and a reload
 give the same answers (tests/v2/gear-inventory.test.js).
+
+## In the rolls (part 2)
+
+While the switch is on, the planner asks the inventory what each member has on and carries (lean-rpg/gear.js `planGear`) and the answer goes in the
+`rpg.resolve` payload as `gear: { v: 1, who: { <member>: { own, add?, enc?, items? } } }`: `own` the owners the member's pieces are filed under (their
+party actor, and `party` for the first character, the lead), `add` the summed stat bonus (broken pieces give none), `enc` the encumbered penalty (-2),
+`items` the pieces that give something. The record is hashed with the roll (predicate and result), so a Re-read, a rebuild and a reload roll with it and
+equipping something later never moves a roll that was made; a roll with no `gear` is exactly as before, and off nothing asks the inventory.
+
+* Stats: effective = stat + bonus, held to 30, then AGI and DEX -2 while encumbered (never under 1). Both formulas, the turn order and the Settings odds read
+  these; the bars' sizes (blocks) follow the block's own stats, never the gear.
+* Encumbered is at 100 % and over (load at or over the capacity; an empty load never): the roll penalty, `inventory.encumbrance`, and the Carry card
+  (red "Encumbered" from 100 %, yellow "Heavy load" from 80 % to below 100 %).
+* Wear: a decisive hit taken wears the member's body armour (else off-hand) one step; a decisive miss of their own act wears the weapon one step
+  (`gear.wear`, called by the roll, so it is in the roll's receipt and undone with it). Told rounds only; a broken or absent piece wears nothing. The result
+  has `wear: [{ n, who, item, from, to }]`; the cue and the log say "Boiled Leather Jerkin is worn (Torn)".
+* `wear: ruin` from the story breaks the piece in one step (condition 0); scuff and tear are as before.
+* Log: a roll line names the gear that was in it ("Astra uses Iaijutsu (Cane Sword +2 DEX)"), from `pc.gear` of the line.
+* Legendary: a roll that won a fight against a group at least 10 levels above the party's highest carries `legend: 1`; the narrator's legendary item line in
+  that reply stands, else it is held to epic (`story.legendaryEarned` is still asked first, so a quests module can answer it). Quest completion has no
+  seam in Story Block itself.

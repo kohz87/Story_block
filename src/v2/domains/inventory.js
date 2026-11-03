@@ -12,7 +12,7 @@ import {
 import { aliasKey, cleanName, resolveDef, slugify, trimText } from './names.js';
 import { WALLET_KEY, coinValue, countedMoney, formatAmount, formatWallet, isCurrencyName, parseAmount, resolveCurrency } from './money.js';
 import { DEF_ID, isId } from '../check.js';
-import { GEAR, condMark, createGearQueries, gearDefine, itemCarryOf, packBonus, placeOf, slotWordOf, stepDown, stepUp, valueByCond } from './gear.js';
+import { GEAR, atLimit, condMark, createGearQueries, gearDefine, itemCarryOf, packBonus, placeOf, slotWordOf, stepDown, stepUp, valueByCond } from './gear.js';
 import { STRINGS, fill } from '../strings.js';
 
 const E = STRINGS.editMessages;
@@ -387,7 +387,9 @@ const freeId = (inv, base) => {
 // Legendary from the story's own words: only when the same reply also completes a quest or wins a fight against a group at least 10
 // levels above the party. Whoever knows that (the quests, the fights) answers `story.legendaryEarned` for the reply; nothing answering is no.
 function legendaryEarned(ctx) {
-    try { return ctx.query('story.legendaryEarned', {}) === true; } catch { return false; }
+    try { if (ctx.query('story.legendaryEarned', {}) === true) return true; } catch { /* nothing answers */ }
+    // The reply's own roll (the RPG, lean-rpg/gear.js earnedLegend): a won fight against a group 10+ levels above the party carries `legend: 1`.
+    try { return ctx.query('rpg.rolls', {})?.result?.legend === 1; } catch { return false; }
 }
 
 // The most a pack's place allows the story's items to be (`loot: { maxRarity }` on the place the party is at, by name or alias), or null.
@@ -2072,9 +2074,9 @@ export function encumbrance(state, tools) {
     if (!isPlainObject(view) || view.on === false) return none;
     const num = value => (Number.isFinite(value) ? value : 0);
     const who = (Array.isArray(view.people) ? view.people : [])
-        .filter(person => isPlainObject(person) && num(person.load) > num(person.capacity))
+        .filter(person => isPlainObject(person) && atLimit(num(person.load), num(person.capacity)))
         .map(person => ({ id: String(person.id ?? ''), name: trimText(person.name || person.id || 'someone', 40), load: num(person.load), capacity: num(person.capacity) }));
-    const party = num(view.load) > num(view.capacity);
+    const party = atLimit(num(view.load), num(view.capacity));
     const encumbered = party || who.length > 0;
     return {
         on: true, encumbered, party, who, load: num(view.load), capacity: num(view.capacity),

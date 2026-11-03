@@ -54,6 +54,17 @@ test('the card\'s buttons: Stats, Skills, Inventory, Export in one row while gea
     assert.deepEqual(names(draw().el.querySelectorAll('.rpg-card')[0]), ['Stats', 'Skills', 'Export'], 'no host: as before');
 });
 
+test('the slot card\'s pill says what the Party card\'s level pill says ("Lv 2"), not the Soul Class', () => {
+    const h = worn();
+    const { el } = draw({ gear: on(h) });
+    const party = card(el, 'Wessel').querySelector('.rpg-level-pill').textContent;
+    card(el, 'Wessel').querySelector('.rpg-gear-open').click();
+    const pill = el.querySelector('.rpg-gear .rpg-level-pill');
+    assert.ok(pill, 'the slot card has a pill');
+    assert.equal(pill.textContent, party);
+    assert.doesNotMatch(pill.textContent, /Soul|Class/);
+});
+
 test('Inventory opens the slot card: eight equal tiles, each with its place, and a condition line for what is not Good; nothing about carry; Back returns', () => {
     const h = worn();
     const { el } = draw({ gear: on(h) });
@@ -103,4 +114,13 @@ test('a companion\'s slot card shows what they wear; switching gear off while it
     el.querySelector('.rpg-gear-back').click();
     assert.equal(el.querySelector('.rpg-gear'), null);
     assert.deepEqual(names(card(el, 'Ren')), ['Stats', 'Export']);
+});
+
+test('the four buttons share the row equally (each a quarter, on phone and desktop): the stylesheet gives each the same flex share', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('../../../../src/v2/lean-rpg/view/lean-rpg.css', import.meta.url), 'utf8');
+    const rule = /\.rpg-card-actions-gear \.ss-button \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    assert.match(rule, /flex: 1 1 0;/);
+    assert.match(css, /\.rpg-card-actions-gear \{[^}]*flex-wrap: nowrap;/);
+    assert.doesNotMatch(rule, /flex: 0/);
 });

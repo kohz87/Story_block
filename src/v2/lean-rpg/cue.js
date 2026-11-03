@@ -1,9 +1,9 @@
 // The [Rolls] cue (SPEC_RPG_v1 §4.5.3 step 5): what the narrator is told under [Happened], and what a refused action
 // says. Short lines, one per roll; the numbers are always "the party member's total vs the foe's (or the difficulty)".
 // Model-facing text, kept to the cue budget (names.js LIMITS.cueTokens).
-import { wearLine } from './gear.js';
 import { BATTLE_MARKER, LIMITS, RESOLVE, STAGES, stageWord } from './names.js';
 
+export const wearLine = ({ item, to }) => `${item} ${to === 'broken' ? 'breaks' : 'is worn'} (${to[0].toUpperCase() + to.slice(1)})`;
 export const OUTCOME_WORD = Object.freeze({ success: 'SUCCESS', cost: 'SUCCESS AT A COST', fail: 'FAIL' });
 
 /** Tokens as the prompt budget counts them (§5): about four characters each. */
@@ -147,7 +147,6 @@ export function cueText(parts, shape = 0, { plain = false } = {}) {
     }
     if (fight && parts.flow === 2) lines.push(flowEnd(rounds.at(-1).n, parts.end ?? null));
     else if (fight) lines.push(`Round ${rounds.at(-1).n} is ${decisive ? (rounds.at(-1).decisive || !std ? 'decisive' : 'the end of the fight') : 'the last rolled'}: stop there at the latest. ${STOP_POINTS}`);
-    // Gear (gear.js): what the told rounds wore out, one line each (a record with none tells nothing more).
     for (const event of parts.wear ?? []) lines.push(`Round ${event.n}: ${wearLine(event)}.`);
     return lines.join('\n');
 }
@@ -198,7 +197,7 @@ export function cueOfResult(result) {
         const end = flow2 && ['won', 'lost', 'heavy'].includes(result.stop) ? result.stop : null;
         return cueText({
             checks: result.checks, rounds, refused: (result.refused ?? []).map(entry => entry.text), decisive,
-            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(Array.isArray(result.wear) && result.wear.length ? { wear: result.wear } : {}),
+            ...(std ? { standard: std } : {}), ...(flow2 ? { flow: 2, end } : {}), ...(result.wear ? { wear: result.wear } : {}),
         }, Number.isInteger(result.shape) ? result.shape : 0);
     } catch { return ''; }
 }

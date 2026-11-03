@@ -219,7 +219,8 @@ test('carry: 10 + 2 × STR, bags add their pack capacity; over it the party is e
     assert.equal(capacityFor(null), 30, 'a missing STR counts as the default 10');
     const host = await fresh(t);
     await host.send('Stones.', reply('Heavy.', ['+ item Stone | qty: 30']));
-    assert.deepEqual(host.sdk.query('inventory.encumbrance'), { on: true, encumbered: false, party: false, who: [], load: 30, capacity: 30, penalty: 0, stats: ['AGI', 'DEX'] });
+    // (From 100 % the party is encumbered: load at or over the capacity; one under it is not.)
+    assert.deepEqual(host.sdk.query('inventory.encumbrance'), { on: true, encumbered: true, party: true, who: [], load: 30, capacity: 30, penalty: -2, stats: ['AGI', 'DEX'] });
     await host.send('One more.', reply('Too much.', ['+ item Brick | qty: 2']));
     const last = host.sdk.receipts().at(-1).receipt;
     assert.match(last.summary, /^The party gains Brick ×2\. The party now carries more than it can and is encumbered/);
@@ -234,8 +235,8 @@ test('carry: 10 + 2 × STR, bags add their pack capacity; over it the party is e
     const refused = await host.sdk.command('inventory.lootTake', { sid, pick: [0] });
     assert.deepEqual([refused.ok, refused.code], [false, 'REFUSED']);
     assert.match(refused.message, /party cannot carry that: 32 of 30 carried/);
-    await host.send('Drop.', reply('Lighter.', ['- item Brick | qty: 2']));
-    assert.equal(host.sdk.query('inventory.encumbrance').encumbered, false);
+    await host.send('Drop.', reply('Lighter.', ['- item Stone | qty: 3']));
+    assert.equal(host.sdk.query('inventory.encumbrance').encumbered, false, '29 of 30 is under the limit (30 of 30 is encumbered)');
 });
 
 test('carry: a bag adds its carry while owned; a person has their own; coins weigh nothing; a carry module that answers items.carry is the one asked', () => {

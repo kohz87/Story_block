@@ -125,13 +125,6 @@ export function isDecisive(line, rules) {
     return [line.pc.die, line.foe.die].some(die => die === 1 || die === 20) || Math.abs(line.pc.total - line.foe.total) >= (rules?.decisiveMargin ?? Infinity);
 }
 
-const WORDS = Object.freeze({ good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' });
-/** "Boiled Leather Jerkin is worn (Torn)" / "Boiled Leather Jerkin breaks (Broken)": the wear line of the log and the cue. */
-export function wearLine(event) {
-    const word = WORDS[event?.to] ?? 'Worn';
-    return event?.to === 'broken' ? `${event.item} breaks (${word})` : `${event.item} is worn (${word})`;
-}
-
 /**
  * The wear the told rounds cost: a decisive hit taken wears the one hit's body armour (else off-hand), a decisive miss of an act their weapon, one step each
  * (`ctx.call('gear.wear')`; a piece already broken, or no piece, wears nothing). `opening` lines come before round 1. → [{ n, who, item, from, to }], recorded in the result.

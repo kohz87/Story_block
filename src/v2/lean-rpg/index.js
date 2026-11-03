@@ -86,9 +86,6 @@ export function createLeanRpgPart({ callModel = stCallModel, chat = stChat, chat
             [JOINS_QUERY]: Object.assign((state, args, tools) => joinOffers(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index, partyOf(state)), { feature: LEAN_RPG_FEATURE }),
             // The rank a level falls in, by the story's pack (levels.js): { level } → { name } | null.
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
-            // Whether this reply's roll won a fight against a group 10+ levels above the party (gear.js earnedLegend): the narrator's legendary item lines are held
-            // to epic until then (inventory.js, story-block.gear). A roll with no `legend` mark, and a reply with no roll, answer no.
-            'story.legendaryEarned': Object.assign((_state, _args, tools) => rollsOf(tools?.receipts?.() ?? [], tools?.reply?.index)?.result?.legend === 1, { feature: LEAN_RPG_FEATURE }),
             [ROLLS_QUERY]: Object.assign((_state, args, tools) => rollsOf(tools?.receipts?.() ?? [], Number.isInteger(args?.index) ? args.index : tools?.reply?.index), { feature: LEAN_RPG_FEATURE }) },
         // The planner's model call has its own limit (timeoutMs, Assist's 20 s by default); the hook is given a little longer, so
         // its own skip path (quiet ROLLS_SKIPPED, the no-rolls cue) runs on a slow answer and the turn's generic limit never cuts in.

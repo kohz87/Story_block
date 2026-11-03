@@ -36,7 +36,7 @@ test('Inventory, gear on: Carry first, then Equipment, Consumables, Goods, Quest
     assert.deepEqual([add.textContent, add.classList.contains('ss-tap-pill')], ['+ Add item', true]);
 });
 
-test('the Carry card\'s colour bands: normal under 80 %, yellow Heavy load from 80 %, red Encumbered only over the limit', async t => {
+test('the Carry card\'s colour bands: normal under 80 %, yellow Heavy load from 80 % to below 100 %, red Encumbered from 100 %', async t => {
     // Capacity 30 (10 + 2 × STR 10). The base state holds 8 items (Healing Salve counts 2).
     const at = async load => {
         const host = await gearHost(t, { wear: [], extra: [`+ item Brick | qty: ${load - 8}`] });
@@ -47,7 +47,7 @@ test('the Carry card\'s colour bands: normal under 80 %, yellow Heavy load from 
     assert.deepEqual(await at(23), { numbers: '23 / 30', classes: [], state: '' }, '77 %');
     assert.deepEqual(await at(24), { numbers: '24 / 30', classes: ['heavy'], state: 'Heavy load' }, '80 %');
     assert.deepEqual(await at(29), { numbers: '29 / 30', classes: ['heavy'], state: 'Heavy load' }, '97 %');
-    assert.deepEqual(await at(30), { numbers: '30 / 30', classes: ['heavy'], state: 'Heavy load' }, '100 %: full, the penalty starts past it');
+    assert.deepEqual(await at(30), { numbers: '30 / 30', classes: ['over'], state: 'Encumbered: AGI and DEX −2' }, '100 %: encumbered (at or over the limit)');
     assert.deepEqual(await at(31), { numbers: '31 / 30', classes: ['over'], state: 'Encumbered: AGI and DEX −2' }, 'over the limit');
 });
 
@@ -214,7 +214,7 @@ test('Settings, RPG: the Gear in fights card sits after the Stat formula, with O
     win.select('rpg');
     await settle();
     const root = ctx.doc.querySelector('[data-ss-section="rpg"]');
-    assert.deepEqual(root.querySelectorAll('.rpg-set-title').slice(0, 3).map(node => node.textContent), ['Stat formula', 'Gear in fights', 'Rolls']);
+    assert.deepEqual(root.querySelectorAll('.rpg-set-title').slice(0, 4).map(node => node.textContent), ['Stat formula', 'Levels and practice', 'Gear in fights', 'Rolls']);
     const card = root.querySelector('[data-card="gear"]');
     assert.deepEqual(card.querySelectorAll('.rpg-chip').map(node => node.textContent), ['On', 'Off']);
     assert.equal(card.querySelector('[aria-pressed="true"]').textContent, 'Off', 'off until the reader switches it on');
