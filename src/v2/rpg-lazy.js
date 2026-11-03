@@ -120,7 +120,7 @@ export function createLazyRpgPart(deps = {}) {
             // (the ranks are a pure read of the packs: answered at once, the library or not)
             [RANK_QUERY]: Object.assign(rankQuery, { feature: LEAN_RPG_FEATURE }),
             // (the roster is a pure read of the Character blocks: answered at once too, roster.js)
-            ...rosterQueries({ persona: deps?.persona }),
+            ...rosterQueries({ persona: deps?.persona, gearOn: deps?.gearOn }),
         },
         hooks: {
             beforeGenerate: Object.assign((view, info) => part()?.hooks.beforeGenerate(view, info), { timeoutMs: (Number.isFinite(timeoutMs) ? timeoutMs : TIMEOUT_MS) + HOOK_MARGIN_MS }),

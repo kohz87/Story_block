@@ -134,7 +134,7 @@ checked when the pack is read. With the switch on:
 ## The roster (2.18.1)
 
 Members of the party own and wear their own gear, so something has to say who the members are. The RPG answers two queries from its Character blocks
-(`src/v2/lean-rpg/roster.js`), while the RPG is on, whatever the gear switch says:
+(`src/v2/lean-rpg/roster.js`), only while the RPG is on **and** Gear in fights is on (with the gear switch off nothing answers: the inventory, its screens and commands are exactly as in 2.18.0, no members, pickers or Give to a member):
 
 * `party.actors` → `[{ id, name, pc? }]`: one actor per Character block that is in the party (a companion who left is not on it), in block order; `pc: true` on the
   reader's own.

@@ -110,10 +110,14 @@ test('a companion who left the party is no longer on the roster', { skip }, asyn
     assert.deepEqual(host.sdk.query('party.actors').map(actor => actor.id), [actorIdOf('pack.chat/wessel')]);
 });
 
-test('RPG off: nothing answers party.actors or party.pc (and the gear switch does not matter when it is on)', { skip }, async t => {
-    const host = await world(t, { user: 'Wessel', gear: false, withPack: false });
+test('nothing answers party.actors or party.pc with the RPG off, or with Gear in fights off', { skip }, async t => {
+    const host = await world(t, { user: 'Wessel', withPack: false });
     await define(host, definitionOf('Character', 'wessel', 'Wessel'));
-    assert.deepEqual(host.sdk.query('party.actors').map(actor => actor.name), ['Wessel'], 'gear off, RPG on: answered');
+    assert.deepEqual(host.sdk.query('party.actors').map(actor => actor.name), ['Wessel'], 'RPG on, gear on: answered');
+    host.features.set('story-block.gear', false);
+    assert.equal(host.sdk.query('party.actors'), null, 'gear off');
+    assert.equal(host.sdk.query('party.pc'), null);
+    host.features.set('story-block.gear', true);
     host.features.set('story-block.rpg', false);
     assert.equal(host.sdk.query('party.actors'), null);
     assert.equal(host.sdk.query('party.pc'), null);
@@ -204,7 +208,7 @@ test('the Edit form: "Equipped by" lists the members; a piece moves to a member 
     assert.equal(host.sdk.query('gear.view', {}).rows[spear.stack].by, 'Mara', '"Equipped · Mara"');
 });
 
-test('gear off: a join is as in 2.17.0 (no gear, no bound, no kept) though the roster is answered', { skip }, async t => {
+test('gear off: a join is as in 2.17.0 (no gear, no bound, no kept)', { skip }, async t => {
     const host = await world(t, { user: 'Wessel', gear: false });
     await define(host, definitionOf('Character', 'wessel', 'Wessel'));
     await host.send('Mara walks in.', reply('+ party Mara'));
@@ -296,4 +300,27 @@ test('a 2.18.0 chat (no roster: gear on the party bag, a join that gave nothing)
     const hers = rows(host).filter(item => item.bound);
     assert.deepEqual(hers.map(item => item.owner), [actorIdOf('pack.chat/mara'), actorIdOf('pack.chat/mara')]);
     assert.deepEqual(host.store.problems(), []);
+});
+
+test('RPG on, gear off: the 2.18.0 chat renders and replays exactly as 233b131 did (no roster, no members, no pickers); a join gives no gear', { skip }, async t => {
+    t.mock.method(console, 'warn', () => {});
+    const fixture = JSON.parse(readFileSync(new URL('./fixtures/roster-2180-chat.json', import.meta.url), 'utf8'));
+    const expect = JSON.parse(readFileSync(new URL('./fixtures/roster-2180-gear-off.json', import.meta.url), 'utf8'));
+    const raw = pack({ content: { items: ITEMS, cast: [{ ...MARA }] } });
+    const built = validatePack(raw);
+    const host = await createHost({ callModel: createFakeModel(Array(20).fill('x')),
+        settings: { features: { 'story-block.rpg': true }, modules: { 'story-block': { rpgFormula: 'classic', rpgJoin: 'auto' } },
+            packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] } });
+    t.after(() => host.close());
+    await host.st.loadChat(plain(fixture.chat));
+    const seen = () => ({ head: plain(host.head()), equipment: plain(host.sdk.query('inventory.equipment')), items: plain(host.sdk.query('inventory.items')), gearView: host.sdk.query('gear.view', {}) });
+    assert.deepEqual(host.store.problems(), []);
+    assert.deepEqual(seen(), { head: expect.head, equipment: expect.equipment, items: expect.items, gearView: expect.gearView });
+    assert.equal(host.sdk.query('party.actors'), null);
+    assert.deepEqual(host.sdk.query('inventory.equipment').members, [], 'no members, so no pickers and no Give to a member');
+    host.store.rebuild();
+    assert.deepEqual(seen().head, expect.head, 'a cold rebuild');
+    await host.send('Mara is back.', reply('+ party Mara'));
+    assert.doesNotMatch(JSON.stringify(host.head().domains.inventory), /bound|kept/);
+    assert.equal(host.sdk.query('inventory.items').length, expect.items.length, 'no gear handed out');
 });

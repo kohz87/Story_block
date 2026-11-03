@@ -7,7 +7,7 @@
 //
 // The id is `ac_` + 8 base-36 characters worked out from the BLOCK's module id (`pack.chat/<slug>`), never from the name: a rename, a rebuild, a
 // reload and a swipe all give the same one. Both queries are fallbacks (registry.js): a module that answers `party.actors` itself (an older RPG Battle chat) is the
-// one asked, and these are not. They answer while the RPG is on (`feature`), whatever the gear switch says, and read the state alone (plus the persona's name).
+// one asked, and these are not. They answer while the RPG is on (`feature`) and Gear in fights is on (`gearOn`), and read the state alone (plus the persona's name).
 // Pure: no DOM, no SillyTavern.
 import { LEAN_RPG_FEATURE } from './names.js';
 import { fold, readSheet, sameWho } from './read.js';
@@ -50,10 +50,12 @@ export function rosterOf(state, persona = '') {
 }
 
 /** The two queries (registered as fallbacks), for a persona reader `persona()`. */
-export function rosterQueries({ persona = () => '' } = {}) {
+export function rosterQueries({ persona = () => '', gearOn = () => true } = {}) {
     const who = () => { try { return persona(); } catch { return ''; } };
+    // (only while Gear in fights is on: with it off nothing here answers, and the inventory, its screens and its commands are as in 2.18.0)
+    const on = () => { try { return gearOn() === true; } catch { return false; } };
     return {
-        'party.actors': Object.assign((state) => { const { actors } = rosterOf(state, who()); return actors.length ? actors : null; }, { feature: LEAN_RPG_FEATURE, fallback: true }),
-        'party.pc': Object.assign((state) => { const { pc } = rosterOf(state, who()); return pc ? { id: pc } : null; }, { feature: LEAN_RPG_FEATURE, fallback: true }),
+        'party.actors': Object.assign((state) => { if (!on()) return null; const { actors } = rosterOf(state, who()); return actors.length ? actors : null; }, { feature: LEAN_RPG_FEATURE, fallback: true }),
+        'party.pc': Object.assign((state) => { if (!on()) return null; const { pc } = rosterOf(state, who()); return pc ? { id: pc } : null; }, { feature: LEAN_RPG_FEATURE, fallback: true }),
     };
 }

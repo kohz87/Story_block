@@ -2,7 +2,7 @@
 
 ## 2.18.1
 
-- **The party roster.** The RPG now tells the rest of Story Block who is in the party: every Character block is a party
+- **The party roster** (only while Gear in fights is on; with it off nothing changes). The RPG now tells the rest of Story Block who is in the party: every Character block is a party
   member with an inventory of their own. Before, nothing in Story Block answered that, so all worn gear counted for the
   reader, the Party card's Inventory showed only the reader's pieces, and a pack NPC's signature gear was never handed out.
 - **Members own and wear their own gear.** From the item's Edit, "Equipped by" lists the members; the Inventory tab names
