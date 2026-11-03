@@ -803,10 +803,11 @@ test('Levels: the Who step has "Starting level" (1 unless changed, 1 to 99); the
 });
 
 test('Levels: the starting level of a draft is held 1 to 99, 1 is not stored, and the Character block gets it as its level default', () => {
-    assert.equal(readDraft({ soul: 120 }).soul, 99);
-    assert.equal(readDraft({ soul: 1 }).soul, undefined);
-    assert.equal(newDraft({ persona: 'Wessel' }).soul, undefined, 'a new character starts at Level 1');
-    const state = buildDefinitions({ ...newDraft({ persona: 'Wessel' }), soul: 5 }, { used: [] }).character.state;
+    assert.equal(readDraft({ level: 120 }).level, 99);
+    assert.equal(readDraft({ level: 1 }).level, undefined);
+    assert.equal(readDraft({ soul: 3 }).level, 25, 'a companion\'s or an old file\'s Soul Class stands for the level 10n - 5');
+    assert.equal(newDraft({ persona: 'Wessel' }).level, undefined, 'a new character starts at Level 1');
+    const state = buildDefinitions({ ...newDraft({ persona: 'Wessel' }), level: 5 }, { used: [] }).character.state;
     assert.equal((state.level ?? state.soul).default, 5);
     assert.equal((buildDefinitions(newDraft({ persona: 'Wessel' }), { used: [] }).character.state.level ?? { default: 1 }).default, 1);
 });

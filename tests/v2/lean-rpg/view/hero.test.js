@@ -8,7 +8,7 @@ import { gameHeroProps } from '../../../../src/v2/view/game-header.js';
 import { characterDefinition, fakeState, roleOf, skillsDefinition } from './helpers.js';
 import { begin, fieldsOf, makeBlocks, page, settle } from './page.js';
 
-const wessel = { definition: characterDefinition('wessel', 'Wessel'), fields: { health: 3, mana: 4, stamina: 1, soul: 2, xp: 40 } };
+const wessel = { definition: characterDefinition('wessel', 'Wessel'), fields: { health: 3, mana: 4, stamina: 1, level: 2, xp: 40 } };
 const ren = { definition: characterDefinition('ren', 'Ren'), fields: { health: 5, mana: 2, stamina: 3, xp: 85 } };
 const state = () => fakeState([ren, wessel, { definition: skillsDefinition('wessel-skills', 'Wessel'), fields: {} }]);
 

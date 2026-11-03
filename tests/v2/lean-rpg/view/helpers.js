@@ -20,7 +20,7 @@ const base = (slug, name, state, show = { tab: false, card: true, tabName: name.
 export const characterDefinition = (slug, who) => base(slug, who, {
     who: text(40, who), health: int(0, 5, 5), mana: int(0, 4, 4), stamina: int(0, 4, 4),
     ...Object.fromEntries(STATS.map(key => [key, int(1, 20, 10, { label: key.toUpperCase() })])),
-    points: int(0, 99, 0), soul: int(1, 9, 1, SOUL), xp: int(0, 100, 0), alive: { type: 'bool', default: true },
+    points: int(0, 99, 0), level: int(1, 99, 1, { label: 'Level' }), xp: int(0, 100, 0), cap: int(1, 99, 99), alive: { type: 'bool', default: true },
 });
 
 /** A Skills block definition: five slots of name, rank (0 to 3, named) and practice. */

@@ -327,7 +327,7 @@ test('settings-data: the odds view for a state with and without a character', ()
     const wessel = { definition: { ...characterDefinition('wessel', 'Wessel'), role: 'character' }, fields: { who: 'Wessel', str: 12, soul: 1 } };
     const skills = { definition: { ...skillsDefinition('wessel-skills', 'Wessel'), role: 'skills' }, fields: { who: 'Wessel', skill1: 'Iron Breath', rank1: 1 } };
     const view = oddsView(fakeState([wessel, skills]), 'Wessel', STANDARD);
-    assert.equal(view.label, 'Wessel (STR 12, Soul Class I, Adept) against a Class I foe');
+    assert.equal(view.label, 'Wessel (STR 12, Level 1, Adept) against a Level 1 foe');
     assert.deepEqual(view.now, { success: 61, cost: 8, fail: 31 });
     assert.deepEqual(view.compare.map(item => item.name), ['gentle', 'harsh']);
     assert.deepEqual(oddsView(fakeState([wessel, skills]), 'Wessel', { ...STANDARD, foeBase: 9 }).compare.map(item => item.name), ['gentle', 'standard', 'harsh'], 'Custom: all three');

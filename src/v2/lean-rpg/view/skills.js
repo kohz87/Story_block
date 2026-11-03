@@ -9,7 +9,7 @@ import { meter } from '../../view/widgets/meter.js';
 import { refusalText } from '../../strings.js';
 import { LEVEL, FORMULA, RANK_NAMES, SKILL_SLOTS } from '../names.js';
 import { RPG_STRINGS, fill } from '../strings.js';
-import { classTerm, isStandard, statShare } from '../rules.js';
+import { isStandard, statShare } from '../rules.js';
 import { levelBonus, statPart } from '../formula.js';
 
 const K = RPG_STRINGS.skills;
@@ -34,7 +34,8 @@ export function masteryOf(skill) {
  */
 export function rollOf(skill, character, rules = FORMULA) {
     const entry = character.stats.find(stat => stat.key === skill.stat) ?? null;
-    const bonus = character.levelled ? levelBonus(character.level, rules.levelDivisor ?? LEVEL.divisor) : classTerm(rules, character).classBonus;
+    // (every roll planned now is a levelled one, a block made before levels at the level its class stands for: the line states that)
+    const bonus = levelBonus(character.level, rules.levelDivisor ?? LEVEL.divisor);
     if (isStandard(rules) && entry) {
         // The Standard formula: the skill's stat in the main slot with half of DEX (a Mana skill is magic, a Stamina skill physical), halved once.
         const stats = Object.fromEntries(character.stats.map(stat => [stat.key, stat.value]));

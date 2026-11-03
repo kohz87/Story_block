@@ -25,7 +25,7 @@ async function open(t, { formula = 'standard' } = {}) {
     const ctx = await page(t, { feature: true, persona: 'Wessel', formula });
     await begin(ctx.host);
     // Wessel as the mockup has him: AGI 10, DEX 6, Soul Class II, Expert Iaijutsu on AGI.
-    await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 10, vit: 10, agi: 10, dex: 6, int: 5, soul: 2 }, skills: { skill1: 'Iaijutsu', stat1: 'agi', rank1: 2 } });
+    await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 10, vit: 10, agi: 10, dex: 6, int: 5, level: 2 }, skills: { skill1: 'Iaijutsu', stat1: 'agi', rank1: 2 } });
     assert.equal((await ctx.host.sdk.command('dm.define', { definition: combat() })).ok, true);
     const win = ctx.ui.openSettings();
     win.select('rpg');
@@ -65,7 +65,7 @@ test('Standard\'s Difficulty: Gentle, Standard and Harsh move the foe\'s base (2
     const oddsText = () => card('difficulty').querySelector('.rpg-odds-legend').textContent;
     assert.equal(card('difficulty').querySelector('[aria-pressed="true"]').textContent, 'Standard');
     // Wessel: pair(AGI 10, DEX 6) = 6, Class II 4, Expert 2: +12 against a Class II foe, 4 + 3 × 2 = 10 at Standard.
-    assert.equal(card('difficulty').querySelector('.rpg-odds-title').textContent, 'Wessel (AGI 10 with DEX 6, Soul Class II, Expert) against a Class II foe');
+    assert.equal(card('difficulty').querySelector('.rpg-odds-title').textContent, 'Wessel (AGI 10 with DEX 6, Level 2, Expert) against a Level 2 foe');
     const standard = oddsText();
     assert.match(card('difficulty').querySelector('.rpg-odds-compare').textContent, /^For comparison, same fight: Gentle \d+ \/ \d+ \/ \d+ · Harsh \d+ \/ \d+ \/ \d+\.$/);
     card('difficulty').querySelector('.rpg-chip[data-value="harsh"]').click();
@@ -121,7 +121,7 @@ test('the planner\'s full prompt on the page is the formula\'s own', async t => 
     const standard = await open(t);
     const pre = card => card('planner').querySelector('.rpg-set-pre').textContent;
     assert.ok(pre(standard.card).startsWith(PRECALL_HEAD_STANDARD));
-    assert.match(pre(standard.card), /Wessel \(class II\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 10 CHA 10; Health /);
+    assert.match(pre(standard.card), /Wessel \(Lv 2\): STR 10 VIT 10 AGI 10 DEX 6 INT 5 LUK 10 CHA 10; Health /);
     const classic = await open(t, { formula: 'classic' });
     assert.ok(pre(classic.card).startsWith(PRECALL_HEAD));
 });
@@ -132,12 +132,12 @@ test('the settings give Standard\'s numbers for the formula in force and Classic
     assert.deepEqual(customOf(values), STANDARD_PRESETS.harsh);
     assert.deepEqual(customOf({ ...values, [STANDARD_SETTING]: { foeBase: 11 } }), { ...STANDARD_FORMULA, foeBase: 11 });
     assert.deepEqual(customOf({ ...values, [FORMULA_SETTING]: 'classic', [CUSTOM_SETTING]: { foeBase: 12 } }).foeBase, 12);
-    const wessel = { definition: { ...characterDefinition('wessel', 'Wessel'), role: 'character' }, fields: { who: 'Wessel', str: 12, dex: 10, soul: 1 } };
+    const wessel = { definition: { ...characterDefinition('wessel', 'Wessel'), role: 'character' }, fields: { who: 'Wessel', str: 12, dex: 10, level: 1 } };
     const skills = { definition: { ...skillsDefinition('wessel-skills', 'Wessel'), role: 'skills' }, fields: { who: 'Wessel', skill1: 'Iron Breath', rank1: 1 } };
     const view = oddsView(fakeState([wessel, skills]), 'Wessel', STANDARD_FORMULA);
-    assert.equal(view.label.startsWith('Wessel (STR 12 with DEX 10, Soul Class I, Adept)'), true);
+    assert.equal(view.label.startsWith('Wessel (STR 12 with DEX 10, Level 1, Adept)'), true);
     assert.deepEqual(view.compare.map(item => item.name), ['gentle', 'harsh']);
-    assert.equal(oddsView(fakeState([wessel]), 'Wessel', STANDARD_FORMULA).label, 'Wessel (STR 12 with DEX 10, Soul Class I, no skill) against a Class I foe');
+    assert.equal(oddsView(fakeState([wessel]), 'Wessel', STANDARD_FORMULA).label, 'Wessel (STR 12 with DEX 10, Level 1, no skill) against a Level 1 foe');
 });
 
 // ---- the bar line, creation and companions ----------------------------------------------------------------------------------
@@ -189,7 +189,7 @@ test('a companion the story adds on the Standard scale: every stat 5, the best 9
     assert.deepEqual(draft.stats, companionStats('int', 3, STANDARD_FORMULA));
     assert.equal(draft.stats.int > 9 && draft.stats.dex > 5, true);
     assert.equal(pointsLeft(draft), 0, 'what they cost is their budget');
-    assert.equal(draft.soul, 3);
+    assert.equal(draft.level, 25, 'Soul Class III stands for level 25');
     const made = joinDefinitions(request, { used: [], soul: 3, rules: STANDARD_FORMULA });
     assert.deepEqual(STATS.map(stat => made.character.state[stat].default), STATS.map(stat => draft.stats[stat]));
     assert.equal(made.character.state.points.default, 0);
@@ -267,7 +267,7 @@ import { renderSkills, rollOf } from '../../../../src/v2/lean-rpg/view/skills.js
 import { readParty } from '../../../../src/v2/lean-rpg/view/party-data.js';
 import { FORMULA } from '../../../../src/v2/lean-rpg/names.js';
 
-const hero = (fields = {}) => ({ definition: characterDefinition('wessel', 'Wessel'), fields: { who: 'Wessel', str: 10, vit: 9, agi: 10, dex: 6, int: 5, luk: 8, cha: 5, points: 4, soul: 2, xp: 40, health: 3, mana: 4, stamina: 1, ...fields } });
+const hero = (fields = {}) => ({ definition: characterDefinition('wessel', 'Wessel'), fields: { who: 'Wessel', str: 10, vit: 9, agi: 10, dex: 6, int: 5, luk: 8, cha: 5, points: 4, level: 2, xp: 40, health: 3, mana: 4, stamina: 1, ...fields } });
 const heroSkills = () => ({ definition: { ...skillsDefinition('wessel-skills', 'Wessel'), role: 'skills' }, fields: { who: 'Wessel', skill1: 'Iaijutsu', stat1: 'agi', uses1: 'stamina', rank1: 2, skill2: 'Spark', stat2: 'int', uses2: 'mana', rank2: 0 } });
 const stepIn = (root, stat, dir) => root.querySelector(`.rpg-stat-step[data-stat="${stat}"] .ss-w-stepper-${dir}`);
 
@@ -317,7 +317,7 @@ async function openWithPack(t, rpg, settings = {}) {
     assert.equal((await ctx.host.packs.packs.install(PACK(rpg))).ok, true);
     for (const [key, value] of Object.entries(settings)) ctx.host.settings.set(MOD, key, value);
     await begin(ctx.host);
-    await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 10, vit: 10, agi: 10, dex: 6, int: 5, soul: 2 }, skills: { skill1: 'Iaijutsu', stat1: 'agi', rank1: 2 } });
+    await makeBlocks(ctx.host, { who: 'Wessel', character: { str: 10, vit: 10, agi: 10, dex: 6, int: 5, level: 2 }, skills: { skill1: 'Iaijutsu', stat1: 'agi', rank1: 2 } });
     const win = ctx.ui.openSettings();
     win.select('rpg');
     await settle();

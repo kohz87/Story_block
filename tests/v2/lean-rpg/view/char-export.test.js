@@ -118,7 +118,7 @@ test('the dialog says what is saved: the character always, the things and the mo
     assert.match(root.textContent, /Saves a file you can import when you make a character in another chat\. The name and who they are stay in this chat\./);
     const option = key => root.querySelector(`[data-option="${key}"]`);
     assert.match(option('character').textContent, /Character/);
-    assert.match(option('character').textContent, /Lv 2 · 3 points to spend/);
+    assert.match(option('character').textContent, /Lv 15 · 3 points to spend/);
     assert.match(option('character').textContent, /STR 14 · VIT 12 · AGI 11 · DEX 10 · INT 8 · LUK 9 · CHA 10/);
     assert.match(option('character').textContent, /Skills: Iron Breath \(Expert\) · Short blade \(Novice\)/);
     const always = option('character').querySelector('input');
@@ -143,7 +143,7 @@ test('Save writes <name>.character.json with the character, the things and the m
     assert.equal(saved.type, 'application/json;charset=utf-8');
     assert.equal(ctx.ui.mounts.dialog.current(), null, 'saved: the dialog closes');
     const data = JSON.parse(saved.text);
-    assert.deepEqual(Object.keys(data), [CHAR_FILE, 'soul', 'points', 'stats', 'skills', 'items', 'money']);
+    assert.deepEqual(Object.keys(data), [CHAR_FILE, 'level', 'soul', 'points', 'stats', 'skills', 'items', 'money']);
     assert.deepEqual([data[CHAR_FILE], data.soul, data.points, data.money], [1, 2, 3, 50]);
     assert.deepEqual(data.stats, { str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10 });
     assert.deepEqual(data.skills, [
@@ -173,7 +173,7 @@ test('with the options off the file has neither the things nor the money, and an
     exportOf(dialog).querySelector('.rpg-exp-save').click();
     await settle();
     const data = JSON.parse(saves[0].blob.text);
-    assert.deepEqual(Object.keys(data), [CHAR_FILE, 'soul', 'points', 'stats', 'skills']);
+    assert.deepEqual(Object.keys(data), [CHAR_FILE, 'level', 'soul', 'points', 'stats', 'skills']);
 
     const bare = await story(t, { things: false, purse: 0 });
     const empty = await exportDialog(bare);
@@ -184,7 +184,7 @@ test('with the options off the file has neither the things nor the money, and an
     const more = captureSaves(bare);
     root.querySelector('.rpg-exp-save').click();
     await settle();
-    assert.deepEqual(Object.keys(JSON.parse(more[0].blob.text)), [CHAR_FILE, 'soul', 'points', 'stats', 'skills']);
+    assert.deepEqual(Object.keys(JSON.parse(more[0].blob.text)), [CHAR_FILE, 'level', 'soul', 'points', 'stats', 'skills']);
 });
 
 test('money only on your own card: a companion\'s dialog has the character and its things, never the purse', async t => {
@@ -311,13 +311,13 @@ test('a good file fills the stats, the unspent points, the level and the skills;
     assert.deepEqual(who.querySelectorAll('.rpg-wiz-seg button').map(node => node.getAttribute('aria-pressed')), ['false', 'true'], 'still a companion');
     assert.equal(who.querySelector('.rpg-import'), null, 'the row gives way to the note');
     const done = who.querySelector('[data-wiz="import-done"]');
-    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Lv 2 and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to the purse. Give the character a name and who they are below.Undo import');
+    assert.equal(done.textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Lv 15 and 2 skills. When you press Create it also adds 3 things to the party\'s bag and 50 gold to the purse. Give the character a name and who they are below.Undo import');
     assert.equal(done.getAttribute('role'), 'status');
-    assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-sub').textContent, 'Companion · Lv 2');
+    assert.equal(who.querySelector('.rpg-wiz-sum .rpg-wiz-sub').textContent, 'Companion · Lv 15');
     assert.equal(who.querySelector('.rpg-wiz-push').textContent, 'Points left: 3');
     assert.match(who.querySelector('.rpg-wiz-sum').textContent, /STR 14 · VIT 12 · AGI 11 · DEX 10 · INT 8 · LUK 9 · CHA 10/);
     assert.match(who.querySelector('.rpg-wiz-sum').textContent, /Iron Breath \(Expert\), Short blade \(Novice\)/);
-    assert.match(who.textContent, /Starts at Lv 2 \(imported\) with 0 XP\. Health, Mana and Stamina start full\./);
+    assert.match(who.textContent, /Starts at Lv 15 \(imported\) with 0 XP\. Health, Mana and Stamina start full\./);
 
     // The Stats step: the file's stats, the file's points to spend, the usual limits.
     const stats = await goTo(dialog, 'stats');
@@ -448,10 +448,10 @@ test('a file with no things or money says nothing about them; one with them says
     let dialog = await wizardWith(ctx);
     await companion(dialog);
     await importInto(dialog, without('items', 'money'));
-    assert.equal(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Lv 2 and 2 skills. Give the character a name and who they are below.Undo import');
+    assert.equal(wizardOf(dialog).querySelector('[data-wiz="import-done"]').textContent, 'Imported from wessel.character.json: stats, 3 unspent points, Lv 15 and 2 skills. Give the character a name and who they are below.Undo import');
     let review = await goTo(dialog, 'review');
     assert.equal(review.querySelector('[data-review="import-also"]'), null);
-    assert.match(review.textContent, /Starts at Lv 2 \(imported\), 0 XP, full Health, Mana and Stamina\./);
+    assert.match(review.textContent, /Starts at Lv 15 \(imported\), 0 XP, full Health, Mana and Stamina\./);
     assert.match(review.textContent, /Iron Breath · VIT · Stamina · starts at Expert/);
     assert.match(review.textContent, /3 unspent points go to Spend points on the Party tab\./);
     dialog.close();
@@ -530,7 +530,7 @@ test('Create makes the Character and Skills blocks from the file, adds the thing
     assert.deepEqual(names(ctx.host), [...blocksBefore, 'pack.chat/combat-rules', 'pack.chat/foes', 'pack.chat/ren', 'pack.chat/ren-skills'].sort());
 
     const ren = fieldsOf(ctx.host, 'pack.chat/ren'), skills = fieldsOf(ctx.host, 'pack.chat/ren-skills');
-    assert.deepEqual([ren.who, ren.about, ren.soul, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 2, 3, 0, 5, 4, 4, true],
+    assert.deepEqual([ren.who, ren.about, ren.level, ren.points, ren.xp, ren.health, ren.mana, ren.stamina, ren.alive], ['Ren', 'A ferry hand from Low Quay.', 15, 3, 0, 5, 4, 4, true],
         'the file\'s level and points; the reader\'s name and who they are; XP 0 and full bars');
     assert.deepEqual(STATS.map(stat => ren[stat]), [14, 12, 11, 10, 8, 9, 10]);
     assert.deepEqual([skills.who, skills.skill1, skills.about1, skills.stat1, skills.uses1, skills.rank1, skills.practice1, skills.skill2, skills.rank2, skills.skill3], ['Ren', 'Iron Breath', 'Steadies the lungs in a long fight.', 'vit', 'stamina', 2, 0, 'Short blade', 0, '']);
@@ -719,7 +719,6 @@ test('the RPG\'s dialogs are opaque: the party cards behind the New character wi
 // A Skills block as old chats have it: names, ranks and practice, and no stat, resource or "what it does" fields.
 async function oldSkillsBlock(host, who = 'Wessel') {
     const defs = [characterDefinition('wessel', who), skillsDefinition('wessel-skills', who)].map(definition => ({ ...definition, role: definition.slug.endsWith('skills') ? 'skills' : 'character' }));
-    defs[0].state.soul = { ...defs[0].state.soul };
     for (const definition of defs) {
         const { state, ...rest } = definition;
         const plain = Object.fromEntries(Object.entries(state).map(([key, { names, ...field }]) => [key, field]));

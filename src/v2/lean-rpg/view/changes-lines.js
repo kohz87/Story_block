@@ -123,7 +123,8 @@ export function rpgReplyLines({ state, before = null, record = null, problems = 
             const plural = gained > 1 ? 'Many' : '';
             out.push(line({ icon: 'fa-arrow-up', tone: 'good', text: fill(gained > 0 ? C[`levelUpPoints${plural}`] : C.levelUp, { who: character.name, to: character.level, n: gained }),
                 summary: fill(gained > 0 ? C[`levelSummaryPoints${plural}`] : C.levelSummary, { who: character.name, to: character.level, n: gained }),
-                note: character.xp === 0 ? fill(C.levelNote, { xp: character.xp }) : '' }));
+                // (told only when the XP rule made the rise: the XP fell with it; a level typed by hand leaves the XP as it was)
+                note: character.xp < old.xp ? fill(C.levelNote, { xp: character.xp }) : '' }));
             continue;
         }
         // A block of the earlier rules: its Soul Class rose; what that adds to every roll is classWeight x the rise.

@@ -11,7 +11,7 @@ import { characterDefinition, defineAll, fakeState, fieldsOf, roleOf, setField }
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const character = (state, own = 'Wessel') => readParty(state, { own, roleOf })[0];
-const hero = (fields = {}) => ({ definition: characterDefinition('wessel', 'Wessel'), fields: { str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, points: 3, soul: 2, xp: 40, health: 3, mana: 4, stamina: 1, ...fields } });
+const hero = (fields = {}) => ({ definition: characterDefinition('wessel', 'Wessel'), fields: { str: 14, vit: 12, agi: 11, dex: 10, int: 8, luk: 9, cha: 10, points: 3, level: 2, xp: 40, health: 3, mana: 4, stamina: 1, ...fields } });
 
 function sheet({ fields = {}, api = {}, onClose = () => {}, onDone = () => {} } = {}) {
     const doc = setupDom(), host = doc.createElement('div');
@@ -178,7 +178,7 @@ test('on the real host Save is ONE action on the latest reply: one "You set" lin
     t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [characterDefinition('wessel', 'Wessel')]);
-    for (const [field, value] of Object.entries({ str: 14, vit: 12, points: 3, soul: 2 })) await setField(host, 'wessel', field, value);
+    for (const [field, value] of Object.entries({ str: 14, vit: 12, points: 3, level: 2 })) await setField(host, 'wessel', field, value);
     await host.send('Look around.', 'A wet quay.');
     const head = host.store.headIndex();
     const doc = setupDom(), parent = doc.createElement('div');
@@ -208,7 +208,7 @@ test('on the real host Save still fits a reply that already holds thirty-one oth
     t.after(() => host.close());
     await host.send('Begin.', 'Opening.');
     await defineAll(host, [characterDefinition('wessel', 'Wessel')]);
-    for (const [field, value] of Object.entries({ str: 14, vit: 12, points: 3, soul: 2 })) await setField(host, 'wessel', field, value);
+    for (const [field, value] of Object.entries({ str: 14, vit: 12, points: 3, level: 2 })) await setField(host, 'wessel', field, value);
     await host.send('Look around.', 'A wet quay.');
     const room = DM_LIMITS.replyRoots - 1;
     for (let at = 0; at < room; at += 1) await setField(host, 'wessel', 'xp', at % 2 ? 10 : 20);
