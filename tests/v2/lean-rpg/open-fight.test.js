@@ -43,7 +43,7 @@ async function reloads(host) {
 test('the heads list the new-foe line and its rule, Classic and Standard', () => {
     for (const head of [PRECALL_HEAD, PRECALL_HEAD_STANDARD]) {
         assert.ok(head.split('\n').includes('foe <name> | new | count: <1-12> | level: <1-99>? | rank: <name>?'));
-        assert.ok(head.includes('- When the reader starts a fight against foes not listed, list them as new (only foes the reader\'s message or the scene names; never invent), then plan the fight as usual. Give a new foe a level, or a rank, only when the story says how strong it is; otherwise leave both out and code picks one near the party.'));
+        assert.ok(head.includes('- A foe the message or scene names but the list lacks: new (never invent); level or rank only if the story says.'));
     }
 });
 

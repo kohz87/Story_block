@@ -49,14 +49,13 @@ test('the prompt holds only the end of the last reply (without its change block)
 test('the grammar asks for a stat only for a skill the character lacks or no skill, and the sheet shows each skill\'s stat and resource', () => {
     const lines = PRECALL_HEAD.split('\n');
     const acts = lines.filter(line => line.startsWith('act <who>')), checks = lines.filter(line => line.startsWith('check <who>'));
-    assert.equal(acts.length, 2);
-    assert.equal(checks.length, 2);
-    assert.ok(acts[0].includes('skill: <skill>') && /stat: STR\|VIT\|AGI\|DEX\|INT\|LUK\|CHA\?/.test(acts[0]) && !/uses/i.test(acts[0]), `a skill act may carry a stat (B5): ${acts[0]}`);
-    assert.ok(acts[1].includes('stat: STR|VIT|AGI|DEX|INT|LUK|CHA') && !acts[1].includes('skill:'), acts[1]);
-    assert.ok(checks[0].includes('skill: <skill>') && checks[0].includes('stat: <stat>?') && !/uses/i.test(checks[0]), checks[0]);
-    assert.ok(checks[1].includes('stat: <stat>') && !checks[1].includes('skill:'), checks[1]);
+    // (Prompt diet: one act line and one check line, each with the skill and the stat optional, instead of two of each.)
+    assert.equal(acts.length, 1);
+    assert.equal(checks.length, 1);
+    assert.ok(acts[0].includes('skill: <skill>?') && /stat: STR\|VIT\|AGI\|DEX\|INT\|LUK\|CHA\?/.test(acts[0]) && !/uses/i.test(acts[0]), `a skill act may carry a stat (B5): ${acts[0]}`);
+    assert.ok(checks[0].includes('skill: <skill>?') && checks[0].includes('stat: <stat>?') && !/uses/i.test(checks[0]), checks[0]);
     assert.ok(!PRECALL_HEAD.includes('uses:'), 'the pre-call is not asked for what a skill uses');
-    assert.match(PRECALL_HEAD, /A skill brings its own stat and what it uses, so write no stat for a skill the character has; for a skill they lack, or with no skill, write the stat\./);
+    assert.match(PRECALL_HEAD, /A skill brings its stat: give a stat only for a skill the character lacks, or none\./);
     const text = precallPrompt({ sheet: readSheet({ domains: { dataModules: sheetDomain(PARTY()) } }), message: 'hi' });
     assert.match(text, /Ren \(class II\)[^\n]*skills: Spark \(Novice, INT, mana\)/);
 });
