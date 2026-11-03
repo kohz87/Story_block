@@ -15,7 +15,8 @@
 //
 // Wear (`wearGear`): a decisive hit taken wears the member's body armour (else their off-hand) one step; a decisive miss wears their weapon one step
 // (inventory `gear.wear`, the same condition events as everything else, so the roll's receipt carries them and a swipe, a delete or a Re-read takes them back).
-import { fold, sameWho } from './read.js';
+import { fold, readSheet, sameWho } from './read.js';
+import { actorIdOf } from './roster.js';
 import { STATS } from './names.js';
 import { gearAnswer } from '../domains/gear.js';
 import { condOf, defCarry, ENCUMBERED_PENALTY } from '../domains/inventory.js';
@@ -80,7 +81,10 @@ export function gearMatches(state, gear, hash) {
     try {
         const stats = { condOf, carryOf: defCarry, penalty: ENCUMBERED_PENALTY };
         const withMounts = [[], mountRows(state)];
-        return Object.values(gear?.who ?? {}).every(entry => withMounts.some(mounts => {
+        // (whose the pieces were: an owner that is a Character block's actor must be the actor of the block the entry is for; the owners of a roster of another make cannot be told here)
+        const mine = new Map(readSheet(state).characters.map(character => [actorIdOf(character.module), character.key]));
+        const owned = (key, entry) => (entry?.own ?? []).every(owner => !mine.has(owner) || mine.get(owner) === key);
+        return Object.entries(gear?.who ?? {}).every(([key, entry]) => owned(key, entry) && withMounts.some(mounts => {
             const answerOf = owner => gearAnswer(state, { owner }, { ...stats, mounts });
             const now = dressOf(entry.own, answerOf('party'), answerOf);
             return hash({ add: now.add ?? null, enc: now.enc ?? null, items: now.items ?? null }) === hash({ add: entry.add ?? null, enc: entry.enc ?? null, items: entry.items ?? null });
@@ -98,16 +102,18 @@ export function planGear(sheet, query, reader = '') {
     if (!isObject(party) || party.on !== true) return null;
     const actors = ask(query, 'party.actors', {});
     const members = Array.isArray(actors) ? actors.filter(actor => typeof actor?.id === 'string' && actor.id !== 'party') : [];
-    // The shared bag (`party`) is the reader's own Character's: the one the party module names (`party.pc`), else the one named like the reader; only when none
-    // matches the first block (a companion who sorts first is not the reader).
+    // The shared bag (`party`) is the reader's own Character's: the one the party module names (`party.pc`: its actor is the block's, or, for a module of another
+    // make, the one of that name), else the one named like the reader (`reader`: the name a roll made by 2.18.0 carries as `lead`); only when none matches the
+    // first block (a companion who sorts first is not the reader).
     const pc = ask(query, 'party.pc', {});
     const pcName = typeof pc?.id === 'string' ? members.find(actor => actor.id === pc.id)?.name : '';
     const matching = name => (name ? sheet.characters.findIndex(character => sameWho(character, name, [], sheet.characters)) : -1);
-    const lead = Math.max(0, [matching(pcName), matching(reader)].find(at => at >= 0) ?? 0);
+    const lead = Math.max(0, [typeof pc?.id === 'string' ? sheet.characters.findIndex(character => actorIdOf(character.module) === pc.id) : -1, matching(pcName), matching(reader)].find(at => at >= 0) ?? 0);
     const who = {};
     for (const [at, character] of sheet.characters.slice(0, MEMBERS_MAX).entries()) {
-        // (an exact name wins; a first name or an alias counts only when it means this Character alone: sameWho)
-        const named = members.find(actor => fold(actor.name) === character.key)
+        // (their actor is the one whose ID is the block's; for a roster of another make an exact name wins, then a first name or an alias that means this Character alone: sameWho)
+        const named = members.find(actor => actor.id === actorIdOf(character.module))
+            ?? members.find(actor => fold(actor.name) === character.key)
             ?? members.find(actor => sameWho(character, actor.name, actor.aliases, sheet.characters));
         const own = [...(named ? [named.id] : []), ...(at === lead ? ['party'] : [])];
         who[character.key] = { own: own.slice(0, OWN_MAX), ...dressOf(own, party, (owner) => (owner === 'party' ? party : ask(query, 'inventory.gear', { owner }))) };

@@ -8,6 +8,7 @@ import { createFakeModel } from '../../testkit/model.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
 import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { gearMatches, planGear, sameWho } from '../../src/v2/lean-rpg/gear.js';
+import { actorIdOf } from '../../src/v2/lean-rpg/roster.js';
 import { readSheet } from '../../src/v2/lean-rpg/index.js';
 import { hashJson } from '../../src/v2/replay.js';
 import { createHarness } from './domains/helpers/fake-ctx.js';
@@ -114,7 +115,8 @@ test('R1: no party module, a companion who sorts first: the reader named in the 
     assert.deepEqual(payloadAt(host, at).gear, { v: 1, lead: 'Wessel' });
     const who = resultAt(host, at).gear.who;
     assert.deepEqual(Object.keys(who).sort(), ['astra', 'wessel'], 'the companion sorts first');
-    assert.deepEqual([who.astra.own, who.wessel.own], [[], ['party']]);
+    // (pinned change, 2.18.1: the RPG's roster gives the companion an actor of her own: the block's)
+    assert.deepEqual([who.astra.own, who.wessel.own], [[actorIdOf('pack.chat/character')], [actorIdOf('pack.chat/wessel'), 'party']]);
     assert.deepEqual(who.wessel.add, { dex: 2 });
     assert.equal(who.astra.add, undefined);
     await agrees(host);
@@ -191,7 +193,7 @@ async function joinWorld(t, { list = [person({ gear: ['Cane Sword', 'Oak Buckler
     const built = validatePack(raw);
     assert.equal(built.ok, true, JSON.stringify(built.errors));
     const host = await createHost({
-        modules: actors ? [ACTORS] : [],
+        modules: actors === 'other' ? [{ id: 'zz-party', version: '0.0.0', queries: { 'party.actors': () => [{ id: 'ac_wessel01', name: 'Wessel' }] } }] : actors ? [ACTORS] : [],
         settings: { features: { 'story-block.gear': true, 'story-block.rpg': true }, modules: { 'story-block': { rpgJoin: 'auto', rpgFormula: 'classic' } },
             packs: [{ id: built.pack.id, version: built.pack.version, enabled, source: 'file', origin: 'test', pack: raw }] },
     });
@@ -282,8 +284,9 @@ test('R5: packs.castGear counts "already in the party" the way sameWho does: by 
 
 // ---- a join with no party roster, and the kind word of an item line --------------------------------------------------------------------------
 
-test('no party module: nothing is given to the party bag (its worn gear is the reader\'s), the join stands, and one Problems line says it stays with them', { skip }, async t => {
-    const host = await joinWorld(t, { actors: false });
+// (pinned change, 2.18.1: the RPG answers the roster itself, so "no party module" now means a roster of another make that does not list the joiner)
+test('a roster that does not list the joiner: nothing is given to the party bag (its worn gear is the reader\'s), the join stands, and one Problems line says it stays with them', { skip }, async t => {
+    const host = await joinWorld(t, { actors: 'other' });
     await host.send('Mara walks in.', reply('+ party Mara'));
     assert.deepEqual(rows(host), []);
     assert.equal(joined(host)?.summary, 'Mara joined the party.');

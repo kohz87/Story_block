@@ -426,6 +426,10 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     // definition changed afterwards (a label set to a number, a feature pushed later) changes nothing.
     const declared = new Map();
     const owners = { domain: new Map(), command: new Map(), query: new Map(), kind: new Map(), tab: new Map(), screen: new Map(), widget: new Map(), feature: new Map() };
+    // A query marked `fallback: true` answers only while no other module owns that name: it takes no ownership (a module that registers the name, before
+    // or after, owns it and is the one asked), and a second fallback of the same name is refused as any second owner is. name → module id.
+    const fallbacks = new Map();
+    const isFallback = (def, name) => def.queries?.[name]?.fallback === true;
     // Every capture kind and alias → its canonical kind.
     const canonical = new Map();
 
@@ -456,7 +460,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         const out = [];
         for (const name of Object.keys(def.domains ?? {})) out.push(['domain', name, `the domain "${name}"`]);
         for (const type of Object.keys(def.commands ?? {})) out.push(['command', type, `the command "${type}"`]);
-        for (const name of Object.keys(def.queries ?? {})) out.push(['query', name, `the query "${name}"`]);
+        for (const name of Object.keys(def.queries ?? {})) out.push([isFallback(def, name) ? 'fallback' : 'query', name, `the query "${name}"`]);
         for (const [kind, spec] of Object.entries(def.capture?.kinds ?? {})) {
             out.push(['kind', kind, `the capture kind "${kind}"`]);
             for (const alias of spec.aliases ?? []) out.push(['kind', alias, `the capture kind "${alias}" (an alias of "${kind}")`]);
@@ -485,11 +489,11 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
             const key = `${table}:${name}`;
             if (seen.has(key)) clashes.push(`${label} is named twice in it`);
             seen.add(key);
-            const owner = owners[table].get(name);
+            const owner = (table === 'fallback' ? fallbacks : owners[table]).get(name);
             if (owner) clashes.push(`${label} already belongs to "${owner}"`);
         }
         if (clashes.length) refuse(id, clashes, def);
-        for (const [table, name] of claims(def)) owners[table].set(name, id);
+        for (const [table, name] of claims(def)) (table === 'fallback' ? fallbacks : owners[table]).set(name, id);
         for (const [kind, spec] of Object.entries(def.capture?.kinds ?? {})) {
             canonical.set(kind, kind);
             for (const alias of spec.aliases ?? []) canonical.set(alias, kind);
@@ -550,7 +554,7 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
     const there = (table, name) => table.has(name) && !held(table.get(name));
     const availableFor = needs => needs.kinds.every(kind => canonical.has(kind.toLowerCase()) && !held(owners.kind.get(canonical.get(kind.toLowerCase()))))
         && needs.commands.every(type => there(owners.command, type))
-        && needs.queries.every(name => there(owners.query, name));
+        && needs.queries.every(name => there(owners.query, name) || there(fallbacks, name));
     // What a read would say with other switches (`withFeatures`): feature id → true | false, set only while that call runs.
     let asIf = null;
     // On: the reader's choice when there is one, else the feature's default; an id no module declares, or
@@ -868,11 +872,22 @@ export function createRegistry({ hostVersion = null, warn = message => console.w
         },
         /** The query function; one answering null while its feature is off. */
         query(name) {
-            const owner = owners.query.get(name);
+            const owner = owners.query.get(name) ?? fallbacks.get(name);
             if (!owner) return null;
             const fn = defs.get(owner).queries[name];
             if (fn.enabled === false) return null;
-            return off(fn) || held(owner) ? offQuery : fn;
+            const asked = off(fn) || held(owner) ? offQuery : fn;
+            // A fallback stands behind the owner: asked when the owner is held back (switched off, dormant) or its feature is off, and when the owner answers nothing
+            // (null or an empty list: an older party module in a chat that is not its own), so it cannot hide the fallback's answer.
+            const behind = fallbacks.get(name);
+            if (!behind || behind === owner) return asked;
+            const back = defs.get(behind).queries[name];
+            if (back.enabled === false || off(back) || held(behind)) return asked;
+            if (asked === offQuery) return back;
+            return Object.assign((state, args, tools) => {
+                const answer = asked(state, args, tools);
+                return answer === null || answer === undefined || (Array.isArray(answer) && answer.length === 0) ? back(state, args, tools) : answer;
+            }, {});
         },
         initialState,
         /**

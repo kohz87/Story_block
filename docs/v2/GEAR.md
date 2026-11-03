@@ -119,7 +119,7 @@ checked when the pack is read. With the switch on:
 * **Joining.** When that person joins the party (a `+ party` line or the Ask card's Add to party; the name or an alias matches the
   cast entry), each item is added to the inventory owned by them (the party's actor of that name; a party module must list one) and put on in its slot through `item.equip`, condition Good, as part of the join's own receipt: the summary ends
   "Gear: Cane Sword, Oak Buckler." and `data.gear` lists them. A swipe, a delete or a Re-read of the reply takes the join and the
-  gear away together; a rebuild gives the same. With no actor of their own (no party module answers `party.actors`) **nothing is given**: the shared bag's worn gear counts for the reader's own Character, so the joiner's pieces would become the reader's. The join stands, one Problems line says "Harrak's gear stays with Harrak (no party roster)", and the narrator's `Gear:` line still describes them. Otherwise a slot already taken stays as it is and the piece is carried (a Problems line says so).
+  gear away together; a rebuild gives the same. With the RPG on, their Character block is their actor (see "The roster (2.18.1)"). With no actor of their own (the RPG is off, or a roster of another make does not list them) **nothing is given**: the shared bag's worn gear counts for the reader's own Character, so the joiner's pieces would become the reader's. The join stands, one Problems line says "Harrak's gear stays with Harrak (no party roster)", and the narrator's `Gear:` line still describes them. Otherwise a slot already taken stays as it is and the piece is carried (a Problems line says so).
   Everything that could be refused is checked first, never tried: a piece is looked up and granted by its definition ID (a story item of the same name, or
   two of that name, cannot get in the way), so a join never fails for its gear.
 * **Bound.** The granted stacks carry `bound: <actor id>` (`inventory.grant { bound: true }`): they stay with that member. The rows of `inventory.items` and `gear.view` (rows and slots) carry `bound: { who: "Mara" }` for the screens' chip. No path moves or unequips one: `item.equip` to another owner or slot, `inventory.equip` into another slot or over it, `inventory.unequip`, `transfer`, `drop`, `consume`, `edit` (the Edit form's commands), `split`, `merge`, and the narrator's `- item` and `~ item … | qty:` are refused with "Bound to Mara: Cane Sword stays with them." (the story's line goes to the Problems list). Wear and repair go on (`gear.wear`, `inventory.wear/repair`, `~ item … | wear:` and `repair:`). Bound stacks never join another stack. With the switch off the mark is only kept and every command acts as in 2.17.0.
@@ -130,6 +130,43 @@ checked when the pack is read. With the switch on:
   short line in its static part. It answers null once they are in the party, with no gear, or while the switch is off, so the prompt
   is byte-identical then.
 * **Off.** Nothing runs: a join is exactly as it was, with identical receipts.
+
+## The roster (2.18.1)
+
+Members of the party own and wear their own gear, so something has to say who the members are. The RPG answers two queries from its Character blocks
+(`src/v2/lean-rpg/roster.js`), only while the RPG is on **and** Gear in fights is on (with the gear switch off nothing answers: the inventory, its screens and commands are exactly as in 2.18.0, no members, pickers or Give to a member):
+
+* `party.actors` → `[{ id, name, pc? }]`: one actor per Character block that is in the party (a companion who left is not on it), in block order; `pc: true` on the
+  reader's own.
+* `party.pc` → `{ id }`: the reader's own Character: the one named like the persona (the same name, or a first name that means only them), or the only Character; with several and
+  none named so, null (nothing guesses who the reader is; the rolls fall back to the first block themselves, and the screens call the bag by the persona's name). Only the id: the
+  header keeps the persona's name.
+
+**The id is the block's, never the name's.** It is `ac_` and 8 base-36 characters worked out from the Character block's module id (`actorIdOf`, e.g. `pack.chat/mara`),
+so a rename, a rebuild, a reload, a swipe or a Re-read give the same one. A pack's cast member that joins is a block like any other: `+ party Mara` makes `pack.chat/mara`,
+and its actor is the owner of their signature gear, found by that id (`gearOwnerOf`, data-modules/part.js), on join, on leave (`inventory.stow`) and on return.
+
+**Rolls that carry a gear record** ask `party.actors` and `party.pc` with `recorded: true` (as they ask `inventory.gear`), which answers whatever the switches say now, so a Re-read after
+Gear in fights was switched off works the roll's gear out as it was made. **Gear off hides all of it by design:** with the switch off nothing answers, so no member, picker or
+Give to a member appears, and a piece a member wears stays filed under them (the gear screens are off) until the switch is on again.
+
+**A Character who is removed** (`dm.remove`) leaves nothing filed under their actor, or a block made later under the same name would inherit it: in the remove receipt
+`inventory.release` takes their pieces off, moves them to the party bag, clears their bound mark, and gives what was set aside for them (`kept`) to the bag the same way
+(plain items, condition kept; nothing runs when they held nothing).
+
+**An older roster wins.** Both queries are registered as *fallbacks* (registry.js: `fallback: true` on the function): they take no ownership of the name, so a module that
+answers `party.actors` itself (an old RPG Battle chat) is the one asked, whichever registered first; the RPG's own answers only when that module is held back, its feature is off,
+or it answers null or an empty list. For such a module the join finds the actor
+by the block's id when it lists one, else by the member's name (as 2.18.0 did).
+
+**Existing chats.** Nothing is moved: stacks owned by `party` stay the party bag, which is the reader's own Character's (`party.pc`, shown as "the main character first" in Equipped
+by). A member's gear becomes theirs only when it is equipped to them from Edit (`item.equip` with `transfer: true`) or granted on join. A chat made by 2.18.0 replays byte for byte
+(the stored receipts are applied, not rerun; a join that gave nothing, "no party roster", stays as it was); the first new action runs on the new rules.
+
+**In the rolls.** `planGear` files each Character's pieces under their actor (the one whose id is the block's; an actor of another roster by exact name, then first name or
+alias) and, for the lead, the party bag too: `own: [<actor>, 'party']`. The lead is the one `party.pc` names; a roll made by 2.18.0 carries the reader's name as `lead`, which
+still finds them when nothing answers `party.pc`. The guard (`gearMatches`) also checks the owners: an owner that is another Character's actor than the entry's does not match,
+and the roll is rolled again on a Re-read; owners of a roster of another make cannot be told from the state and are not judged.
 
 ## Replay
 
