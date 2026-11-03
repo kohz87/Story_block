@@ -94,6 +94,23 @@ cart/barrow/hand-cart 60, wagon 150, boat 100, other 20 (`KIND_CARRY`). A story 
 wagon or sledge gets that carry on its def (sledge counts as a cart) and adds it while owned. `inventory.gear` carry also lists
 `sources: [{ name, carry }]` (each member's 10 + 2 × STR, bags, carts, mounts).
 
+## The screens
+
+While the feature is on (and only then; off, every screen below is as it was, byte for byte), `gear.view { owner?, who?, own? }` (null while off)
+answers everything the screens draw: `carry` (`load`, `capacity`, `level` normal | heavy | over, the breakdown line, mounts left elsewhere),
+`rows` (per stack: the stat bonus text, the condition word, where it is worn and by whom), `owners` (who can wear: the main character first) and
+`slots` (what `owner` has on, by place).
+
+* **Settings → RPG**: the "Gear in fights" card, On / Off, after the Stat formula card.
+* **Inventory tab**: a Carry card first (a row-style card: "58 / 74", the state word, a bar, the breakdown): normal under 80 %, yellow "Heavy load" from
+  80 %, red "Encumbered: AGI and DEX −2" only when the load is over the capacity (the same test as the encumbered condition, so exactly at the limit
+  is still Heavy). Then Equipment, Consumables, Goods, Quest items (Materials and Valuables follow). Rows show the rarity, the slot, "Equipped · Name", the
+  stat bonus and a condition bar with its word (Broken: "no bonus"). Equip / Unequip buttons give way to the item Edit.
+* **Item Edit** (equipment): Slot (the eight places, or none) and Equipped by (the main character, a member, or none). A change runs
+  `inventory.transfer` (to a member), `item.equip { stack, owner, slot }`, or `inventory.unequip` (none), in that order.
+* **Party card**: an Inventory button (Stats, Skills, Inventory, Export in one row) opens the slot card: the eight places in two columns, each a tile
+  with a 3px condition line along its bottom (yellow Worn, orange Torn, red Broken, none when Good). No carry there.
+
 ## Replay
 
 Everything is derived from the inventory slice and its condition events; a swipe, a delete, a Re-read, a rebuild and a reload

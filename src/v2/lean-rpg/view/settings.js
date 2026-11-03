@@ -215,7 +215,7 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
     function drawGear() {
         if (!gear) return;
         const box = card('gear', S.gear);
-        chips(box, S.gear, [['off', S.off], ['on', S.gearOn]], gear.on() ? 'on' : 'off', value => { gear.set(value === 'on'); onChange(); });
+        chips(box, S.gear, [['on', S.gearOn], ['off', S.off]], gear.on() ? 'on' : 'off', value => { gear.set(value === 'on'); onChange(); });
         box.appendChild(h(doc, 'p', 'rpg-set-help', S.gearHelp));
     }
 
@@ -425,12 +425,12 @@ export function renderRpgSettings(parent, { settings, doc = parent.ownerDocument
         for (const node of Object.values(cards)) node.remove();
         for (const key of Object.keys(cards)) delete cards[key];
         drawFormula();
+        drawGear();
         drawRolls();
         drawDifficulty();
         drawCombat();
         drawPlanner();
         drawJoin();
-        drawGear();
         live();
         place();
     }

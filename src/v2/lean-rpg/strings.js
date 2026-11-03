@@ -55,6 +55,18 @@ export const RPG_STRINGS = Object.freeze({
         newCharacter: '+ New character',
         createFirst: 'Create your character',
         editBar: 'Edit {label}',
+        // Gear in fights is on: the Inventory button opens the slot card (gear-card.js).
+        inventory: 'Inventory',
+    }),
+    // The slot card (Party -> Inventory, only while Gear in fights is on): the eight places and what is worn in each.
+    gear: Object.freeze({
+        title: '{name}\'s inventory',
+        back: 'Back to the party',
+        empty: 'empty',
+        slots: Object.freeze({ head: 'Head', body: 'Body', cloak: 'Cloak', feet: 'Feet', weapon: 'Weapon', 'off-hand': 'Off-hand', 'accessory-1': 'Accessory 1', 'accessory-2': 'Accessory 2' }),
+        words: Object.freeze({ good: 'Good', worn: 'Worn', torn: 'Torn', broken: 'Broken' }),
+        noBonus: 'no bonus',
+        note: 'Gear counts only while Gear in fights is on. Bonuses are stat points (+2 DEX); common gear has none. A broken item gives no bonus until repaired. Items you only carry are listed on the Inventory tab. The thin line under a slot shows condition: yellow Worn, orange Torn, red Broken; none when Good.',
     }),
     skills: Object.freeze({
         title: '{name}\'s skills',
@@ -415,7 +427,7 @@ export const RPG_STRINGS = Object.freeze({
         practiceHelp: 'From 1 to 5. Each time a roll uses a skill it gains this much practice (added up for the reply, at most 20 per skill). 3 unless you change it.',
         gear: 'Gear in fights',
         gearOn: 'On',
-        gearHelp: 'Worn gear adds a few points to your stats by rarity and wears down in fights; what a member can carry follows their strength; a worn item shows its condition to the narrator and sells for less. Off: none of this.',
+        gearHelp: 'On: worn gear adds stat points by rarity (common +0 up to legendary +4); gear wears down after a decisive hit taken, a bag raises what a character can carry, and a heavy load lowers AGI and DEX. Off: fights run as before; items, rarity and slots are kept.',
         rollsHelp: 'Automatic: before each reply a short AI call plans the actions and code rolls the dice. Off: no dice; the story decides.',
         automatic: 'Automatic',
         off: 'Off',
