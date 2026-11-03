@@ -373,6 +373,7 @@ Queries:
 Other sdk: `sdk.reread(index)`, `sdk.rewind`, `sdk.callModel(request)`, `sdk.timeline`, `sdk.dialog`, `sdk.features()`, `sdk.feature(id)`, `sdk.settings(id)`,
 `sdk.modules()`, `sdk.preflight`, `sdk.on('committed' | 'head' | 'turn' | 'feature' | 'modules', fn)`. Contracts: `docs/v2/SPEC.md` §3, §6;
 `docs/v2/MODULES.md`; `docs/v2/LIFECYCLE.md`.
+Public read-only API for card authors and scripts (not for modules): `StoryBlock.api` (`get(path)`, `paths()`, `on('story:changed' | 'story:reply' | 'story:rebuilt' | 'story:chat')`) and the `{{sb::path|fallback}}` macro, frozen within API version 1: `docs/v2/PUBLIC-API.md`.
 
 ## Storage
 

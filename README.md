@@ -136,6 +136,8 @@ The checker checks the pack and each screen's fields. A layout is checked in ful
 
 **4. Modules.** Developers can add whole parts, with their own commands, screens and settings: see [docs/v2/MODULES.md](docs/v2/MODULES.md).
 
+**Scripts and cards.** A small read-only API (`StoryBlock.api`: `get('scene.place')`, events such as `story:changed`) and a `{{sb::scene.place}}` macro for SillyTavern prompts and status bars: see [docs/v2/PUBLIC-API.md](docs/v2/PUBLIC-API.md).
+
 ## How the four fit together
 
 The Story Suite has four parts.
