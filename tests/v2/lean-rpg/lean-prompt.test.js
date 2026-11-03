@@ -92,13 +92,13 @@ test('the health words are told once: a later list that is the same is "same wor
     assert.match(text, /kind: hurt-N \| to: same words as character set-health/u);
 });
 
-test('a quiet reply leaves out the combat text, the Foes description, hurt and clear, and the party line; the opening Foes line stays', { skip }, async t => {
+test('a quiet reply leaves out the combat text, the Foes description, hurt and clear; the party line and the opening Foes line stays', { skip }, async t => {
     const { host } = await world(t);
     const { request } = await host.send('I walk on.', 'The road is quiet.');
     const text = staticOf(request);
     assert.doesNotMatch(text, /\[COMBAT SYSTEM\]/u);
     assert.doesNotMatch(text, /kind: hurt-N|kind: clear-N|foe groups in the fight/u);
-    assert.doesNotMatch(text, /^\+ party /mu);
+    assert.match(text, /^\+ party /mu, 'the party line stays on every reply: companions join in calm scenes');
     assert.match(text, /\+ dm foes — reason \| kind: set-slot-N \| name: text \| count: 1\.\.99 \| level: 1\.\.99/u);
     assert.match(text, /N = 1\.\.4 for set-slot-N\./u);
     // What the narrator needs on every reply stays.

@@ -1,11 +1,11 @@
-// The quiet reply (prompt diet, 3 Nov): the combat text, the Foes grammar and the party line are told to the narrator only when they can be used,
+// The quiet reply (prompt diet, 3 Nov): the combat text, and the Foes grammar are told to the narrator only when they can be used,
 // that is while a fight is open or when the planner returned rolls for this reply. On any other reply they are left out of the static part:
 //   * the Combat rules block (role `rules`): its text is not told;
 //   * the Foes block (role `foes`): its description and the hurt and clear kinds are not told; the set-slot kind is, in one line, because a fight the
 //     narrator opens on its own (the "No foes are set" note, cue.js OPEN_FIGHT_LINE) is written with it;
-//   * the `+ party` line (join.js joinGrammar).
+//   The `+ party` line is told on every reply (companions join in calm scenes).
 // This is text only. Every kind stays declared in its block and every line is read as before (data-modules/part.js reads the definition, never the
-// prompt), so a fight the narrator opens without a plan still parses, and so does a hurt, a clear or a party line written on a quiet reply.
+// prompt), so a fight the narrator opens without a plan still parses, and so does a hurt or a clear line written on a quiet reply.
 // An open fight is a filled foe group on the Foes block, standing or Down: a Down group stays there until the narrator clears it, and it needs the
 // clear kind to do that. The prompt is made from the state the reply starts from (or, with rolls, the state they leave) and the planner's answer,
 // so the same reply rebuilt (a swipe that keeps its plan, a retried interceptor) gives the same prompt.

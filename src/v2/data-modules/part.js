@@ -1008,7 +1008,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
             'dm.join': Object.assign(wrap(addParty), { feature: LEAN_RPG_FEATURE }) },
         // `+ party Name | about: … | class: I | best: int` and `- party Name`: under the RPG feature, out of the grammar while Companions who join is Off, and
         // until the story has a Character block (a party line means something only once there is a party).
-        kinds: { dm: kind, party: { grammar: hint => (rpgLib()?.isQuiet(hint, state(), settings()) ? '' : rpgLib()?.joinGrammar() ?? ''), feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(party) } },
+        kinds: { dm: kind, party: { grammar: () => rpgLib()?.joinGrammar() ?? '', feature: LEAN_RPG_FEATURE, get enabled() { const lib = rpgLib(); return lib !== null && lib.joinMode(settings()) !== 'off' && lib.partyOf(state()).length > 0; }, apply: wrap(party) } },
         queries: { 'dataModules.offers': offers, 'dataModules.view': moduleView, 'dataModules.public': publicView,
             'dataModules.replayInputs': replayInputs, 'dataModules.actors': actorsOf,
             'dataModules.setup': prefix => {
