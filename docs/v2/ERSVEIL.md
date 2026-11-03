@@ -28,7 +28,7 @@ SillyTavern profile.
 
 1. Story Suite settings → **Tabs & Packs** → **Packs** → **Import pack file** → `examples/packs/ersveil.zip`. This is the one-step way:
    it holds `pack.json` and the twelve portraits ("12 portraits saved"). Picking `pack.json` alone imports no pictures.
-   The message says "Installed Ersveil (open world)." and the list shows "136 events, 320 places, 350 routes,
+   The message says "Installed Ersveil (open world)." and the list shows "16 items, 136 events, 320 places, 350 routes,
    1 skill set, 12 cast members, start state, 4 coins, a calendar, 84 weather tables". The 4 data modules are not in that line; they
    stay off until you enable them (§5). Without Story Director 2.3.0 the pack is refused: it needs the
    `chronicle-lasting` capability.
@@ -122,6 +122,31 @@ opens as Trust or Affection grows or when the story reaches it; none of it is to
 Starting levels (rank band): Temiwa 8 (F), Rika 12 and Barney 14 (E), Torka 18 (E), Gorm 22 and Nerissa 24 (D), Asphodel 30, Lothar 32 and Ysmeth 36 (C), Nysseth 44 and Hush 48 (B), Harrak 56 (A).
 
 The eleven who can be romanced use NPC State Delta's companion meters (Trust, Affection, Desire, Tension); Barney uses the mentor's, with no Desire.
+
+### Signature gear
+
+`content.items` holds sixteen pieces of equipment the cast are known for, each worn from the owner's look text. Their numbers follow
+Story Block's gear rules (`story-block.gear`, GEAR.md): the stats use the whole budget of the rarity (uncommon 1, rare 2, epic 3,
+legendary 4; common none) and a piece raises two stats at most.
+
+| Item | Owner | Slot | Rarity | Stats |
+|---|---|---|---|---|
+| Long Watch Great Axe | Harrak | weapon | legendary | STR +2, VIT +2 |
+| White-Fur Watch Cloak | Harrak | cloak | rare | VIT +2 |
+| Carved Beacon-Horn | Harrak | accessory | uncommon | CHA +1 |
+| Rain-Veil Hood | Hush | cloak | epic | AGI +2, LUK +1 |
+| Cell-Runner's Knives | Nysseth | weapon | epic | DEX +2, AGI +1 |
+| Rune-Collar Hammer | Ysmeth | weapon | rare | STR +1, INT +1 |
+| Iron Guard Plate | Sir Lothar | body | rare | VIT +2 |
+| Iron Guard Longsword | Sir Lothar | weapon | rare | STR +1, DEX +1 |
+| Gold-Thread Hooded Cloak | Asphodel | cloak | rare | CHA +1, AGI +1 |
+| Rune-Marked Dwarf Axe | Gorm Kettlebright | weapon | rare | STR +1, VIT +1 |
+| Atlantean Breathing Sheath | Nerissa | accessory | rare | VIT +1, AGI +1 |
+| Huge Spiked Club | Torka | weapon | uncommon | STR +1 |
+| Fang Charm | Torka | accessory | common | none |
+| Startrace Travelling Coat | Rika | body | uncommon | INT +1 |
+| Three Walnut Shells | Barney Thimblewick | accessory | uncommon | LUK +1 |
+| Flame-Cross Pendant | Sister Temiwa | accessory | uncommon | CHA +1 |
 
 ## 7. Updating the pack
 
