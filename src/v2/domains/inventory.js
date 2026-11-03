@@ -194,7 +194,7 @@ function keptErrors(kept) {
         if (!Array.isArray(list)) { errors.push(`The gear kept for ${owner} is not a list.`); continue; }
         for (const entry of list) {
             if (!isPlainObject(entry) || typeof entry.def !== 'string' || !isCount(entry.qty, 1) || !(entry.equipped === null || nonBlank(entry.equipped)) || typeof entry.note !== 'string'
-                || (entry.cond !== undefined && !(Number.isSafeInteger(entry.cond) && entry.cond >= 0 && entry.cond <= COND_MAX))) errors.push(`A piece kept for ${owner} is damaged.`);
+                || (entry.by !== undefined && typeof entry.by !== 'string') || (entry.cond !== undefined && !(Number.isSafeInteger(entry.cond) && entry.cond >= 0 && entry.cond <= COND_MAX))) errors.push(`A piece kept for ${owner} is damaged.`);
         }
     }
     return errors;
@@ -835,9 +835,12 @@ function itemEquip(ctx, payload) {
 // them. They are set aside in `kept[owner]` (def, quantity, the slot they were worn in, note, condition as it stands: the events folded into one
 // number, so what wear they took stays), and their condition events go with them. Nothing is lost: `inventory.restore` brings them back.
 function stow(ctx, payload) {
-    if (!ctx.caller) ctx.fail('REFUSED', 'Gear leaves with a member when the party module says they left, not from a button or a change line.');
+    // (only Story Block's own leave: a pack event, another module, a button or a change line is refused)
+    if (ctx.caller !== RPG_MODULE) ctx.fail('REFUSED', 'Gear leaves with a member when they leave the party, not from a button, an event or another module.');
     const owner = ownerArg(ctx, payload.owner, undefined);
     if (owner === 'party') ctx.fail('INVALID', 'Only a party member\'s gear is bound to them.');
+    // `module`: the member's block, kept with the pieces so they find their way back if the member is renamed while away
+    const by = typeof payload.module === 'string' && payload.module && payload.module.length <= 120 ? payload.module : '';
     const inv = ctx.draft('inventory');
     const pieces = Object.values(inv.stacks).filter(stack => stack.owner === owner && stack.bound === owner)
         .sort((a, b) => (inv.defs[a.def]?.name ?? a.def).localeCompare(inv.defs[b.def]?.name ?? b.def, 'en') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -847,7 +850,7 @@ function stow(ctx, payload) {
     const names = [];
     for (const stack of pieces) {
         const cond = condOf(stack, inv);
-        list.push({ def: stack.def, qty: stack.qty, equipped: stack.equipped, note: stack.note, ...(cond < COND_MAX ? { cond } : {}),
+        list.push({ def: stack.def, qty: stack.qty, equipped: stack.equipped, note: stack.note, ...(by ? { by } : {}), ...(cond < COND_MAX ? { cond } : {}),
             ...(stack.key === true ? { key: true } : {}), ...(stack.story === true ? { story: true } : {}) });
         names.push(inv.defs[stack.def]?.name ?? stack.def);
         if (isPlainObject(inv.condLog)) delete inv.condLog[stack.id];
@@ -860,7 +863,7 @@ function stow(ctx, payload) {
 // `inventory.restore { owner }` (`story-block.gear`, a module's call: the party module's return): what `inventory.stow` set aside comes back, once
 // (the record is emptied), bound again, in the condition it left in, worn in the slot it was worn in when that slot is free (else carried).
 function restore(ctx, payload) {
-    if (!ctx.caller) ctx.fail('REFUSED', 'Gear comes back with a member when the party module says they returned, not from a button or a change line.');
+    if (ctx.caller !== RPG_MODULE) ctx.fail('REFUSED', 'Gear comes back with a member when they return to the party, not from a button, an event or another module.');
     const owner = ownerArg(ctx, payload.owner, undefined);
     if (owner === 'party') ctx.fail('INVALID', 'Only a party member\'s gear is bound to them.');
     const inv = ctx.draft('inventory');
@@ -1354,6 +1357,7 @@ export function createInventoryCommands(env) {
         // the story, the host, or another module's command through ctx.call.
         'inventory.grant'(ctx, payload = {}) {
             byModule(ctx, 'Items cannot be handed out from a button; they come from the story or from another module.');
+            if (payload.bound !== undefined && payload.bound !== false && ctx.caller !== RPG_MODULE) ctx.fail('REFUSED', 'Only Story Block\'s own join binds gear to a member.');
             const inv = ctx.draft('inventory');
             const qty = count(ctx, payload.qty, 1);
             const owner = receiverArg(ctx, payload.owner);
@@ -1416,8 +1420,12 @@ export function createInventoryCommands(env) {
             byReader(ctx);
             const inv = ctx.draft('inventory');
             const stack = stackIn(ctx, inv, payload.stack);
-            refuseBound(ctx, inv, stack);
             const original = inv.defs[stack.def];
+            // A bound piece keeps its name and count (the reader's own note on it is fine).
+            if (boundId(ctx, stack)) {
+                const group = payload.group === true && !original.stack ? Object.values(inv.stacks).filter(item => item.def === stack.def && item.owner === stack.owner).length : stack.qty;
+                if ((typeof payload.name === 'string' && cleanName(payload.name) !== original.name) || (payload.qty !== undefined && payload.qty !== group)) refuseBound(ctx, inv, stack);
+            }
             const oldName = original.name;
             const decision = typeof payload.name === 'string' ? { witness: renameDecision(inv, stack, payload) } : null;
             let groupQty;
@@ -1708,7 +1716,8 @@ export function createInventoryCommands(env) {
         'item.equip': Object.assign((ctx, payload = {}) => itemEquip(ctx, payload), { feature: FEATURE.gear }),
         // { owner }: a member's bound pieces leave with them / come back with them (the party module's leave and join; GEAR.md "Signature gear").
         'inventory.stow': Object.assign((ctx, payload = {}) => stow(ctx, payload), { feature: FEATURE.gear }),
-        'inventory.restore': Object.assign((ctx, payload = {}) => restore(ctx, payload), { feature: FEATURE.gear }),
+        // (no feature on restore: what was set aside always comes back, whatever the switch says when they return)
+        'inventory.restore': (ctx, payload = {}) => restore(ctx, payload),
         // { sid, pick: [index…] }: the reader takes what they picked of a reply's loot.
         'inventory.lootTake': Object.assign((ctx, payload = {}) => lootTake(ctx, payload, env), { feature: FEATURE.loot }),
     };
@@ -2017,6 +2026,8 @@ export function captureItem(ctx, line, env) {
         if (mended !== null) changes.push(storyRepair(ctx, inv, def, mended).replace(/\.$/, ''));
         const rename = labelOf(line, 'name', 'rename');
         if (rename !== null && cleanName(rename) && cleanName(rename) !== def.name) {
+            const lots = stacksOf(inv, def.id);
+            if (lots.length) refuseBound(ctx, inv, lots.find(lot => boundId(ctx, lot)) ?? lots[0]);
             const next = cleanName(rename);
             const key = aliasKey(next);
             const taken = (inv.aliases[key] && inv.aliases[key] !== def.id)

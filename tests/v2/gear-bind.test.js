@@ -7,6 +7,8 @@ import { createHost, hostAvailable } from '../../testkit/index.js';
 import { validatePack } from '../../src/v2/packs/validate.js';
 import { LEAN_RPG_TEMPLATES } from '../../src/v2/lean-rpg/templates.js';
 import { pack } from './packs/helpers/fixtures.js';
+import { createHarness } from './domains/helpers/fake-ctx.js';
+import { core, stocked } from './domains/fixtures.js';
 
 const available = await hostAvailable();
 const skip = available.ok ? false : available.reason;
@@ -32,6 +34,7 @@ async function world(t, { gear = true } = {}) {
             packs: [{ id: built.pack.id, version: built.pack.version, enabled: true, source: 'file', origin: 'test', pack: raw }] },
     });
     t.after(() => host.close());
+    host.packId = built.pack.id;
     await host.send('Begin.', 'Opening.');
     const defs = Object.fromEntries(LEAN_RPG_TEMPLATES.filter(entry => ['character', 'skills'].includes(entry.definition.role)).map(entry => [entry.definition.role, structuredClone(entry.definition)]));
     defs.character.slug = 'wessel'; defs.character.name = 'Wessel'; defs.character.state.who.default = 'Wessel';
@@ -72,8 +75,8 @@ test('every command that would move, unequip, drop, use up, edit, split or merge
     await refusedWith(host, 'inventory.drop', { stack: sword });
     await refusedWith(host, 'inventory.consume', { stack: sword });
     await refusedWith(host, 'inventory.consume', { def: 'pack.mini/cane-sword' });
-    await refusedWith(host, 'inventory.edit', { stack: sword, note: 'mine now' });
-    await refusedWith(host, 'inventory.edit', { stack: sword, group: true, qty: 1 });
+    await refusedWith(host, 'inventory.edit', { stack: sword, name: 'Mine Now' });
+    await refusedWith(host, 'inventory.edit', { stack: sword, group: true, qty: 2 });
     await refusedWith(host, 'inventory.split', { stack: sword, qty: 1 });
     await refusedWith(host, 'inventory.merge', { stack: sword, into: buckler });
     await refusedWith(host, 'item.equip', { stack: sword, owner: 'ac_wessel01', slot: 'weapon' });
@@ -174,4 +177,74 @@ test('gear off: no bound mark anywhere, no kept record, and the commands act as 
     assert.equal(rows(host).some(item => 'bound' in item), false);
     const out = await host.sdk.command('inventory.drop', { stack: row(host, 'Cane Sword').stack });
     assert.equal(out.ok, true);
+});
+
+// ---- review fixes: who may bind, stow and restore; nothing stuck in kept; the Edit form's note --------------------------------------------------
+
+test('B1: inventory.grant { bound }, inventory.stow and inventory.restore are Story Block\'s own: an event, another module and a top-level call are refused', () => {
+    const ON = { feature: () => true };
+    const make = () => createHarness([core()], { state: stocked(core()) });
+    for (const caller of ['event:curse', 'dm', 'zz-party', null]) {
+        for (const cause of ['system', 'story']) {
+            const h = make();
+            const grant = h.run('inventory.grant', { def: 'pack.fantasy/iron-sword', qty: 500, owner: 'party', bound: true }, { cause, caller, extra: ON });
+            assert.equal(grant.ok, false, `grant ${caller}/${cause}`);
+            assert.equal(grant.code, 'REFUSED');
+            for (const command of ['inventory.stow', 'inventory.restore']) {
+                const out = h.run(command, { owner: 'ac_mara0001' }, { cause, caller, extra: ON });
+                assert.equal(out.ok, false, `${command} ${caller}/${cause}`);
+                assert.equal(out.code, 'REFUSED');
+            }
+        }
+    }
+    // Story Block's own call is let through (the join and the leave)
+    assert.notEqual(make().run('inventory.stow', { owner: 'ac_mara0001' }, { cause: 'story', caller: 'story-block', extra: ON }).code, 'REFUSED');
+});
+
+test('B2: what a member left with comes back when the gear switch is off at their return', { skip }, async t => {
+    const host = await world(t);
+    await joined(host);
+    await host.send('She goes.', reply('- party Mara'));
+    host.features.set('story-block.gear', false);
+    await host.send('She is back.', reply('+ party Mara'));
+    assert.equal(rows(host).length, 3);
+    assert.equal(host.head().domains.inventory.kept, undefined, 'nothing stuck');
+    assert.equal(row(host, 'Cane Sword').equipped, 'weapon');
+    assert.match(host.ctx.chat.at(-1).extra.storySuite.receipts.find(entry => entry.type === 'capture.party').summary, /is back in the party\. Gear: /);
+});
+
+test('B2: ... when the pack is disabled at their return', { skip }, async t => {
+    const host = await world(t);
+    await joined(host);
+    await host.send('She goes.', reply('- party Mara'));
+    assert.equal(await host.packs.packs.setEnabled(host.packId, false), true);
+    await host.send('She is back.', reply('+ party Mara'));
+    assert.equal(rows(host).length, 3);
+    assert.equal(host.head().domains.inventory.kept, undefined);
+});
+
+test('B2: ... when the member was renamed while away', { skip }, async t => {
+    const host = await world(t);
+    await joined(host);
+    await host.send('She goes.', reply('- party Mara'));
+    assert.equal((await host.sdk.command('dm.set', { module: 'pack.chat/mara', fields: { who: 'Mara Vell' } })).ok, true);
+    await host.send('She is back.', reply('+ party Mara Vell'));
+    assert.equal(rows(host).length, 3);
+    assert.equal(host.head().domains.inventory.kept, undefined);
+    assert.deepEqual(row(host, 'Cane Sword').bound, { who: 'Mara' });
+});
+
+test('an Edit of a bound piece may change its note, never its name or count; the narrator\'s ~ item likewise (note: yes, name: no)', { skip }, async t => {
+    const host = await world(t);
+    await joined(host);
+    const sword = row(host, 'Cane Sword').stack;
+    assert.equal((await host.sdk.command('inventory.edit', { stack: sword, note: 'her father\'s' })).ok, true);
+    assert.equal(row(host, 'Cane Sword').note, 'her father\'s');
+    await refusedWith(host, 'inventory.edit', { stack: sword, name: 'Fine Sword' });
+    await refusedWith(host, 'inventory.edit', { stack: sword, qty: 2 });
+    await host.send('A note.', reply('~ item Cane Sword | note: sharpened'));
+    assert.equal(row(host, 'Cane Sword').note, 'sharpened');
+    await host.send('A rename.', reply('~ item Cane Sword | name: Fine Sword'));
+    assert.equal(row(host, 'Cane Sword')?.name, 'Cane Sword');
+    assert.match(JSON.stringify(host.turn.problems()), /Bound to Mara: Cane Sword stays with them\./);
 });

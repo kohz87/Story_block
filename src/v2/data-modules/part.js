@@ -554,13 +554,26 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
     // could be refused is checked first here, never tried: each piece is looked up by its definition ID (a story item of the same name never gets in
     // the way), what they already own is not added again, a slot that is taken is left as it is (the piece is carried, not worn), and a piece that
     // cannot be found goes to the Problems list. The pieces are BOUND to the member (`bound: true`: GEAR.md "Signature gear"). Coming back, what left with them
-    // (inventory.stow, in `leave`) is restored first, once. Gear off, or no gear: nothing here runs and the answer is untouched.
-    function giveGear(ctx, answer, name) {
+    // (inventory.stow, in `leave`) was restored before this (restoreKept), once, and counts as owned. Gear off, or no gear: nothing here runs and the answer is untouched.
+    // What a member left with (inventory.kept) comes back whenever they return, whatever the gear switch or the pack say now: found by their actor,
+    // else by the block it was set aside for (a member renamed while away). → { owner, pieces } or null.
+    function restoreKept(ctx, person) {
+        let kept = null;
+        try { kept = ctx.read('inventory')?.kept; } catch { kept = null; }
+        if (!kept || typeof kept !== 'object') return null;
+        const named = gearOwnerOf(ctx, person.name);
+        const owner = Array.isArray(kept[named]) ? named : Object.keys(kept).find(id => Array.isArray(kept[id]) && kept[id].some(entry => entry?.by === person.module));
+        if (!owner) return null;
+        const back = ctx.call('inventory.restore', { owner });
+        const pieces = Array.isArray(back?.data?.pieces) ? back.data.pieces : [];
+        return pieces.length ? { owner, pieces } : null;
+    }
+    function giveGear(ctx, answer, name, back = null) {
         if (!gearOn(ctx)) return answer;
         let found = null;
         try { found = castGearOf(packs?.packs?.() ?? [], name); } catch { found = null; }
         if (!found?.items.length) return answer;
-        const owner = gearOwnerOf(ctx, name);
+        const owner = back?.owner ?? gearOwnerOf(ctx, name);
         // No actor of their own (nothing answers `party.actors`): the shared bag's worn gear is the reader's Character's, so nothing is given at all; it stays with them.
         if (owner === 'party') {
             answer.problem = [answer.problem, `${found.name}'s gear stays with ${found.name} (no party roster).`].filter(Boolean).join(' ');
@@ -573,10 +586,7 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         // Their bound pieces that left with them come back first (once, in the condition they left in, worn where they were when the slot is free),
         // so they are what they "still own" below; the read above is the state before this action, so what came back is added by hand.
         const added = [], notes = [];
-        let back = null;
-        try { back = ctx.call('inventory.restore', { owner }); } catch { back = null; }
-        const pieces = Array.isArray(back?.data?.pieces) ? back.data.pieces : [];
-        for (const piece of pieces) {
+        for (const piece of back?.pieces ?? []) {
             held.add(piece.def);
             if (piece.equipped) taken.add(piece.equipped);
             added.push(piece.name);
@@ -639,14 +649,23 @@ export function createDataModulesPart({ packs, state: head = () => null, lifecyc
         answer.data.join = { op: left ? 'left' : 'back', name: person.name };
         // With gear on, the pieces bound to them leave with them, in this receipt (they come back once when they return: giveGear).
         if (owner !== 'party') {
-            const away = ctx.call('inventory.stow', { owner });
+            const away = ctx.call('inventory.stow', { owner, module: person.module });
             const items = Array.isArray(away?.data?.items) ? away.data.items : [];
             if (items.length) {
                 answer.summary = `${answer.summary} ${fill(J.gearLeaves, { items: items.join(', ') })}`;
                 answer.data.gear = { owner, away: items };
             }
         }
-        return left ? answer : giveGear(ctx, answer, person.name);
+        if (left) return answer;
+        const back = restoreKept(ctx, person);
+        const out = giveGear(ctx, answer, person.name, back);
+        // (giveGear stops early when gear is off or the cast no longer knows them: what came back is still said)
+        if (back && !out.data.gear) {
+            const names = back.pieces.map(piece => piece.name);
+            out.summary = `${out.summary} ${gearLine(names.map(name => ({ name })))}.`;
+            out.data.gear = { owner: back.owner, items: names };
+        }
+        return out;
     }
     // "Add to party" on the Ask card: the reader's own go-ahead, so it is made like the automatic one, for the head reply.
     function addParty(ctx, payload, call = {}) {
