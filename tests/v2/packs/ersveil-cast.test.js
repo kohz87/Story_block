@@ -1,4 +1,4 @@
-// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.4.1): they pass the cast check whole, stay inside every limit,
+// The Ersveil pack's twelve cast members (examples/packs/ersveil, 2.5.0): they pass the cast check whole, stay inside every limit,
 // start at places the pack names, carry their portraits (WebP, small), keep their secrets out of the lines the reader sees, and
 // come in as one zip that the importer reads.
 import test from 'node:test';
@@ -44,7 +44,7 @@ test('every text sits inside the cast limits, and a secret has a rule (a meter, 
         for (const field of ['about', 'look', 'voice', 'personality', 'history']) assert.ok(chars(person[field]) <= CAST_LIMITS[field], at(field));
         assert.ok(chars(person.start.place) <= CAST_LIMITS.place && chars(person.start.goal) <= CAST_LIMITS.goal && chars(person.start.routine) <= CAST_LIMITS.routine, at('start'));
         assert.ok(person.drawnTo.length >= 1 && person.drawnTo.length <= CAST_LIMITS.drawnTo, at('drawnTo'));
-        assert.ok(Object.keys(person.fields).length <= CAST_LIMITS.fields && 'Soul Class' in person.fields, at('fields'));
+        assert.ok(Object.keys(person.fields).length <= CAST_LIMITS.fields && 'Level' in person.fields, at('fields'));
         assert.ok(person.secrets.length >= 5 && person.secrets.length <= CAST_LIMITS.secrets, at('secrets'));
         for (const secret of person.secrets) {
             assert.ok(chars(secret.text) <= CAST_LIMITS.secretText && chars(secret.title) <= CAST_LIMITS.secretTitle, `${at('secrets')}: ${secret.title}`);
@@ -80,15 +80,15 @@ test('the thirteen secrets that open by a meter or by an event, whichever comes 
     assert.deepEqual(cast().map(person => person.secrets.length), [7, 8, 7, 8, 6, 6, 8, 6, 6, 6, 5, 5]);
 });
 
-test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, Soul Classes as the sheets set them', () => {
+test('the agreed fixes: Hush was freed about seventy years ago, Torka is 20, levels as the sheets set them', () => {
     const by = id => cast().find(person => person.id === id);
     const hush = by('hush').secrets.map(secret => secret.text).join(' ');
     assert.match(hush, /about seventy years ago/);
     assert.doesNotMatch(JSON.stringify(by('hush')), /a century ago/);
     assert.match(by('torka').look, /^Orc, 20:/);
     assert.equal(by('torka').fields.People, 'Orc, 20');
-    assert.deepEqual(Object.fromEntries(cast().map(person => [person.id, person.fields['Soul Class']])),
-        { temiwa: 'I', ysmeth: 'III', nysseth: 'IV', rika: 'II', harrak: 'V', torka: 'II', lothar: 'III', gorm: 'II', nerissa: 'II', hush: 'III', asphodel: 'III', barney: 'II' });
+    assert.deepEqual(Object.fromEntries(cast().map(person => [person.id, person.fields.Level])),
+        { temiwa: '5', ysmeth: '25', nysseth: '35', rika: '15', harrak: '45', torka: '15', lothar: '25', gorm: '15', nerissa: '15', hush: '25', asphodel: '25', barney: '15' });
 });
 
 // Words that are only in a person's secrets: none may be in what the reader or the narrator is told before they unlock.
